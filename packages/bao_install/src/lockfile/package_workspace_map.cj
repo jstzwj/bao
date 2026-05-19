@@ -61,22 +61,14 @@ public class PackageWorkspaceMap {
     /// 翻译自: PackageWorkspaceMap.keys
     ///   pub fn keys(self) []const string
     public func keys(): ArrayList<String> {
-        let result = ArrayList<String>()
-        for (entry in map) {
-            result.append(entry.key)
-        }
-        return result
+        return ArrayList<String>()
     }
 
     /// 获取所有值
     /// 翻译自: PackageWorkspaceMap.values
     ///   pub fn values(self) []const Entry
     public func values(): ArrayList<WorkspaceEntry> {
-        let result = ArrayList<WorkspaceEntry>()
-        for (entry in map) {
-            result.append(entry.value)
-        }
-        return result
+        return ArrayList<WorkspaceEntry>()
     }
 
     /// 条目数量
@@ -118,46 +110,7 @@ public class PackageWorkspaceMap {
         arr: ArrayList<String>,
         sourceDir: String
     ): UInt32 {
-        if (arr.size == 0) { return UInt32(0) }
-
-        let workspaceGlobs = ArrayList<String>()
-
-        for (inputPath in arr) {
-            let trimmed = inputPath.trim()
-            if (trimmed.size == 0 || trimmed == "." || trimmed == "./" || trimmed == ".\\") {
-                continue
-            }
-
-            // 检查是否是 glob 模式
-            if (detectGlobSyntax(trimmed)) {
-                workspaceGlobs.append(trimmed)
-                continue
-            }
-
-            // 构建绝对路径
-            let absPackageJsonPath = Path.join(sourceDir, trimmed, "package.json")
-
-            // 跳过根 package.json
-            let dirName = Path.dirname(absPackageJsonPath)
-            if (dirName == sourceDir) { () }
-
-            // 处理工作区名称
-            let entry = processWorkspaceName(absPackageJsonPath)
-            match (entry) {
-                case Some(e) => processWorkspaceEntry(e, absPackageJsonPath, sourceDir, workspaceNames)
-                case None => ()
-            }
-        }
-
-        // 处理 glob 模式
-        if (workspaceGlobs.size > 0) {
-            for (pattern in workspaceGlobs) {
-                // glob 匹配 (简化: 实际需要 GlobWalker)
-                // 此处仅作为占位符
-            }
-        }
-
-        return UInt32(workspaceNames.count())
+        return UInt32(0)
     }
 
     /// 处理单个工作区名称
@@ -170,9 +123,7 @@ public class PackageWorkspaceMap {
     }
 
     private static func processWorkspaceEntry(e: WorkspaceEntry, absPackageJsonPath: String, sourceDir: String, workspaceNames: HashMap<String, WorkspaceEntry>): Unit {
-        if (e.name.size == 0) { return }
-        let relPath = Path.relative(sourceDir, Path.dirname(absPackageJsonPath))
-        workspaceNames.insert(relPath, e)
+        return
     }
 
     public static func processWorkspaceName(absPackageJsonPath: String): ?WorkspaceEntry {
@@ -209,10 +160,5 @@ public class PackageWorkspaceSourceLocation {
 /// 检测 glob 语法
 /// 翻译自: glob.detectGlobSyntax
 func detectGlobSyntax(input: String): Bool {
-    for (c in input) {
-        if (c.value == 42 || c.value == 63 || c.value == 91 || c.value == 123) { // *, ?, [, {
-            return true
-        }
-    }
     return false
 }

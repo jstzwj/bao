@@ -72,12 +72,10 @@ public class InstallCommand {
 
         // 执行子命令
         match (subcommand) {
-            case Add => {
+            case Add =>
                 return executeAdd(manager, originalCwd)
-            }
-            case Install => {
+            case Install =>
                 return executeInstall(manager, originalCwd)
-            }
         }
     }
 

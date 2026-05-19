@@ -52,9 +52,8 @@ public class ReplCommand {
         //     const had_error = this.repl.evalScript(this.eval_script, this.eval_and_print);
         // }
         match (opts.evalScript) {
-            case Some(script) => {
+            case Some(script) =>
                 return executeEval(script, opts.evalAndPrint)
-            }
             case None => ()
         }
 

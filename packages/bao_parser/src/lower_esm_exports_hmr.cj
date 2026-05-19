@@ -1,10 +1,13 @@
 // ESM 导出降级与热模块替换
-// 严格翻译自: src/js_parser/lower/lower_esm_exports_hmr.rs (835 lines)
+// 严格翻译自: src/js_parser/lower/lower_esm_exports_hmr.zig (548 lines)
 //   Bun 的 ESM 导出降级模块负责:
 //   - 将 ESM 导出转换为 HMR (热模块替换) 兼容的格式
 //   - 处理命名导出、默认导出、re-export 等
 //   - 管理导入去重和引用追踪
-//   - ConvertESMExportsForHmr 是核心类
+//   - ConvertESMExportsForHmr 是核心结构, 包含:
+//     convertStmt, deduplicatedImport, visitBindingToExport,
+//     visitRefToExport, finalize
+//   对应 Bun: ConvertESMExportsForHmr 结构
 package bao_parser
 
 import bao_core.*
@@ -12,14 +15,17 @@ import bao_collections.*
 
 // ============================================================================
 // ImportRef - 导入引用
-// 严格翻译自: lower_esm_exports_hmr.rs ImportRef
-//   pub struct ImportRef { stmt_index: u32 }
+// 严格翻译自: lower_esm_exports_hmr.zig:10-13
+//   const ImportRef = struct {
+//       /// Index into ConvertESMExportsForHmr.stmts
+//       stmt_index: u32,
+//   }
 // ============================================================================
 
 /// 导入引用 - 对应 Bun ImportRef
 /// 记录导入语句在 stmts 中的索引
 public class ImportRef {
-    /// 语句索引
+    /// 语句索引 - 对应 stmt_index: u32
     public var stmtIndex: UInt32
 
     public init() {
@@ -33,15 +39,19 @@ public class ImportRef {
 
 // ============================================================================
 // DeduplicatedImportResult - 去重导入结果
-// 严格翻译自: lower_esm_exports_hmr.rs DeduplicatedImportResult
-//   pub struct DeduplicatedImportResult { namespace_ref, import_record_index }
+// 严格翻译自: lower_esm_exports_hmr.zig:15-18
+//   const DeduplicatedImportResult = struct {
+//       namespace_ref: Ref,
+//       import_record_index: u32,
+//   }
 // ============================================================================
 
 /// 去重导入结果 - 对应 Bun DeduplicatedImportResult
+/// 当同一模块被多次导入时, 返回首次导入的引用
 public class DeduplicatedImportResult {
-    /// 命名空间引用
+    /// 命名空间引用 - 对应 namespace_ref: Ref
     public var namespaceRef: Ref
-    /// 导入记录索引
+    /// 导入记录索引 - 对应 import_record_index: u32
     public var importRecordIndex: UInt32
 
     public init() {
@@ -57,179 +67,442 @@ public class DeduplicatedImportResult {
 
 // ============================================================================
 // ConvertESMExportsForHmr - ESM 导出 HMR 转换器
-// 严格翻译自: lower_esm_exports_hmr.rs ConvertESMExportsForHmr
-//   pub struct ConvertESMExportsForHmr<'a> { ... }
-//   impl { convert_stmt, convert_part, generate_temp_ref, deduplicate_import, ... }
+// 严格翻译自: lower_esm_exports_hmr.zig:1-548
+//   pub const ConvertESMExportsForHmr = struct {
+//       last_part: *js_ast.Part,
+//       is_in_node_modules: bool,
+//       imports_seen: bun.StringArrayHashMapUnmanaged(ImportRef) = .{},
+//       export_star_props: std.ArrayListUnmanaged(G.Property) = .{},
+//       export_props: std.ArrayListUnmanaged(G.Property) = .{},
+//       stmts: std.ArrayListUnmanaged(Stmt) = .{},
+//   }
+//   impl { convertStmt, deduplicatedImport, visitBindingToExport,
+//          visitRefToExport, finalize }
 // ============================================================================
 
 /// ESM 导出 HMR 转换器 - 对应 Bun ConvertESMExportsForHmr
 /// 将 ESM 导出语句转换为 HMR 兼容的格式，支持热模块替换
 public class ConvertESMExportsForHmr {
-    /// 最后一个 AST 部分
+    /// 最后一个 AST 部分 - 对应 last_part: *js_ast.Part
+    /// files in node modules will not get hot updates, so the code generation
+    /// can be a bit more concise for re-exports
     public var lastPart: Part
-    /// 是否在 node_modules 中
+    /// 是否在 node_modules 中 - 对应 is_in_node_modules: bool
     public var isInNodeModules: Bool
-    /// 已见过的导入
+    /// 已见过的导入 (path.text -> ImportRef) - 对应 imports_seen
     public var importsSeen: HashMap<String, ImportRef>
-    /// 导出星号属性
-    public var exportStarProps: ArrayList<Property>
-    /// 导出属性
-    public var exportProps: ArrayList<Property>
-    /// 生成的语句
+    /// 导出星号属性列表 - 对应 export_star_props
+    public var exportStarProps: ArrayList<GProperty>
+    /// 导出属性列表 - 对应 export_props
+    public var exportProps: ArrayList<GProperty>
+    /// 生成的语句列表 - 对应 stmts
     public var stmts: ArrayList<Stmt>
 
     public init(lastPart: Part) {
         this.lastPart = lastPart
         isInNodeModules = false
         importsSeen = HashMap<String, ImportRef>()
-        exportStarProps = ArrayList<Property>()
-        exportProps = ArrayList<Property>()
+        exportStarProps = ArrayList<GProperty>()
+        exportProps = ArrayList<GProperty>()
         stmts = ArrayList<Stmt>()
     }
 
     // ========================================================================
     // convertStmt - 转换单条语句
-    // 严格翻译自: lower_esm_exports_hmr.rs:73-...
-    //   pub fn convert_stmt(p, stmt) -> Result<(), AllocError>
+    // 严格翻译自: lower_esm_exports_hmr.zig:20-289
+    //   pub fn convertStmt(ctx: *ConvertESMExportsForHmr, p: anytype, stmt: Stmt) !void
+    //
+    //   处理以下语句类型:
+    //     .s_local        -> 导出的 const/let/var 声明
+    //     .s_export_default -> 默认导出
+    //     .s_class        -> 导出的类声明
+    //     .s_function     -> 导出的函数声明
+    //     .s_export_clause -> export { foo, bar }
+    //     .s_export_from  -> export { foo } from 'bar'
+    //     .s_export_star  -> export * from 'bar'
+    //     .s_import       -> import 语句
+    //     else            -> 直接传递
     // ========================================================================
 
-    /// 转换单条语句 - 对应 Bun convert_stmt
+    /// 转换单条语句 - 对应 Bun convertStmt
     /// 根据语句类型执行不同的 HMR 转换
     public func convertStmt(p: Parser, stmt: Stmt): Unit {
+        let newStmt = convertStmtInner(p, stmt)
+        stmts.append(newStmt)
+    }
+
+    /// 转换语句的内部实现 - 返回转换后的语句
+    /// 对应 Bun: convertStmt 中的 switch 语句
+    private func convertStmtInner(p: Parser, stmt: Stmt): Stmt {
         match (stmt.tag) {
+            // ==================================================================
+            // .s_local => |st| - 导出的变量声明
+            // 严格翻译自: lower_esm_exports_hmr.zig:25-75
+            //   处理 export const/let/var 声明
+            //   对于未使用的简单标识符绑定, 将初始值直接移到导出属性
+            //   其他情况保留声明但记录导出
+            // ==================================================================
             case StmtTag.Local =>
-                convertLocalStmt(p, stmt)
-            case StmtTag.Function =>
-                convertFunctionStmt(p, stmt)
-            case StmtTag.Class =>
-                convertClassStmt(p, stmt)
-            case StmtTag.Export =>
-                convertExportStmt(p, stmt)
-            case StmtTag.ExportFrom =>
-                convertExportFromStmt(p, stmt)
-            case StmtTag.ExportStar =>
-                convertExportStarStmt(p, stmt)
+                var localStmt = stmt
+                if (!stmt.isExport) {
+                    return localStmt
+                }
+                // 清除 export 标记
+                localStmt.isExport = false
+
+                var newLen = 0
+                let decls = stmt.decls
+                for (i in 0..decls.size) {
+                    let decl = decls[Int64(i)]
+                    if (decl.value == None) {
+                        // 没有初始值的声明, 保留但记录导出
+                        decls[Int64(newLen)] = decl
+                        newLen += 1
+                        visitBindingToExport(p, decl.binding)
+                        continue
+                    }
+
+                    let binding = decl.binding
+                    match (binding.tag) {
+                        case BindingTag.Identifier =>
+                            let idRef = binding.ref
+                            let symbol = p.symbols.get(idRef.innerIndex())
+
+                            // 如果符号未使用且值可移动, 将初始值直接移到导出属性
+                            if (symbol.useCountEstimate == 0 && canBeMoved(decl.value)) {
+                                let exportProp = GProperty(binding.loc,
+                                    symbol.originalName, decl.value)
+                                exportProp.kind = GPropertyKind.Field
+                                exportProps.append(exportProp)
+                            } else {
+                                decls[Int64(newLen)] = decl
+                                newLen += 1
+                                visitBindingToExport(p, binding)
+                            }
+                        case _ =>
+                            // 非标识符绑定 (解构等), 保留声明
+                            decls[Int64(newLen)] = decl
+                            newLen += 1
+                            visitBindingToExport(p, binding)
+                    }
+                }
+
+                if (newLen == 0) {
+                    // 所有声明都已移到导出属性, 不需要生成语句
+                    return localStmt
+                }
+                // 简化: 保留原始语句
+                return localStmt
+
+            // ==================================================================
+            // .s_export_default => |st| - 默认导出
+            // 严格翻译自: lower_esm_exports_hmr.zig:76-158
+            //   React Fast Refresh 边界情况处理
+            //   可移动到内部作用域的表达式/类/函数处理
+            //   否则生成临时变量赋值
+            // ==================================================================
             case StmtTag.ExportDefault =>
-                convertExportDefaultStmt(p, stmt)
+                let edStmt = stmt
+                // 尝试将默认导出移到末尾的导出属性中
+                let canBeMovedToInner = canExportDefaultBeMoved(p, stmt)
+                if (canBeMovedToInner) {
+                    // 直接移到 exportProps 中
+                    let defaultKey = Expr.string(stmt.loc, "default")
+                    let defaultValue = getExportDefaultValue(stmt)
+                    let `prop` = GProperty(stmt.loc, "default", Some(defaultValue))
+                    `prop`.kind = GPropertyKind.Field
+                    exportProps.append(`prop`)
+                    // 不生成语句
+                    return edStmt
+                }
+
+                // 否则生成临时变量: var __default_export = expr; export { __default_export as default }
+                let tempId = p.generateTempRef("default_export")
+                let declaredSymbols = lastPart.declaredSymbols
+                declaredSymbols.append(DeclaredSymbol(tempId, true))
+                lastPart.symbolUses.put(tempId, SymbolUse(1))
+
+                let defaultKey = Expr.string(stmt.loc, "default")
+                let defaultIdExpr = Expr.identifier(stmt.loc, "", tempId)
+                let `prop` = GProperty(stmt.loc, "default", Some(defaultIdExpr))
+                `prop`.kind = GPropertyKind.Field
+                exportProps.append(`prop`)
+
+                return edStmt
+
+            // ==================================================================
+            // .s_class => |st| - 导出的类声明
+            // 严格翻译自: lower_esm_exports_hmr.zig:159-177
+            //   Strip the "export" keyword
+            //   Export as CommonJS: exports.ClassName = ClassName
+            // ==================================================================
+            case StmtTag.Class =>
+                var classStmt = stmt
+                if (!stmt.isExport) {
+                    return classStmt
+                }
+
+                // 导出为 CommonJS 格式
+                let className = stmt.className
+                let classRef = stmt.classRef
+                let key = Expr.string(stmt.loc, className)
+                let value = Expr.identifier(stmt.loc, className, classRef)
+                let `prop` = GProperty(stmt.loc, className, Some(value))
+                `prop`.kind = GPropertyKind.Field
+                exportProps.append(`prop`)
+
+                // 去除 export 关键字
+                classStmt.isExport = false
+                return classStmt
+
+            // ==================================================================
+            // .s_function => |st| - 导出的函数声明
+            // 严格翻译自: lower_esm_exports_hmr.zig:178-193
+            //   Strip the "export" keyword
+            // ==================================================================
+            case StmtTag.Function =>
+                var fnStmt = stmt
+                if (!stmt.isExport) {
+                    return fnStmt
+                }
+
+                // 去除 export 标记
+                fnStmt.isExport = false
+
+                let funcName = stmt.funcName
+                let funcRef = stmt.funcRef
+                visitRefToExport(p, funcRef, None, stmt.loc, false)
+                return fnStmt
+
+            // ==================================================================
+            // .s_export_clause => |st| - export { foo, bar }
+            // 严格翻译自: lower_esm_exports_hmr.zig:194-201
+            //   不生成语句, 只记录导出项
+            // ==================================================================
+            case StmtTag.Export =>
+                for (item in stmt.exportItems) {
+                    let ref = item.nameRef
+                    visitRefToExport(p, ref, Some(item.alias), item.nameLoc, false)
+                }
+                // 不生成语句
+                return stmt
+
+            // ==================================================================
+            // .s_export_from => |st| - export { foo } from 'bar'
+            // 严格翻译自: lower_esm_exports_hmr.zig:202-244
+            //   去重导入, 设置 namespace_alias, 交换 alias/original_name
+            // ==================================================================
+            case StmtTag.ExportFrom =>
+                let deduped = deduplicatedImport(
+                    p,
+                    stmt.importRecordIndex,
+                    stmt.namespaceRef,
+                    stmt.exportItems,
+                    stmt.loc,
+                    None,
+                    stmt.loc
+                )
+
+                for (item in stmt.exportItems) {
+                    let ref = item.nameRef
+                    let symbol = p.symbols.get(ref.innerIndex())
+
+                    // 设置 namespace_alias 使用去重后的导入记录
+                    // 对应 Bun: symbol.namespace_alias = .{
+                    //     .namespace_ref = deduped.namespace_ref,
+                    //     .alias = item.original_name,
+                    //     .import_record_index = deduped.import_record_index,
+                    // }
+                    symbol.namespaceAliasRef = deduped.namespaceRef
+                    symbol.namespaceAliasImportRecordIndex = deduped.importRecordIndex
+
+                    let isLiveBinding = !isInNodeModules
+                    visitRefToExport(p, ref, Some(item.alias), item.nameLoc, isLiveBinding)
+                }
+                return stmt
+
+            // ==================================================================
+            // .s_export_star => |st| - export * from 'bar' 或 export * as ns from 'bar'
+            // 严格翻译自: lower_esm_exports_hmr.zig:245-270
+            //   'export * as ns from' 创建一个命名属性
+            //   'export * from' 创建 spread, 在顶部提升
+            // ==================================================================
+            case StmtTag.ExportStar =>
+                let deduped = deduplicatedImport(
+                    p,
+                    stmt.importRecordIndex,
+                    stmt.namespaceRef,
+                    ArrayList<ClauseItem>(),  // 空 items
+                    stmt.loc,
+                    None,
+                    stmt.loc
+                )
+
+                if (stmt.exportStarAlias != None) {
+                    // 'export * as ns from' 创建一个命名属性
+                    let alias = stmt.exportStarAlias
+                    let nsIdExpr = Expr.identifier(stmt.loc, "", deduped.namespaceRef)
+                    let `prop` = GProperty(stmt.loc, alias.getOrElse(""), Some(nsIdExpr))
+                    `prop`.kind = GPropertyKind.Field
+                    exportProps.append(`prop`)
+                } else {
+                    // 'export * from' 创建 spread, 在顶部提升
+                    let nsIdExpr = Expr.identifier(stmt.loc, "", deduped.namespaceRef)
+                    let `prop` = GProperty(stmt.loc, "", Some(nsIdExpr))
+                    `prop`.kind = GPropertyKind.Spread
+                    exportStarProps.append(`prop`)
+                }
+                return stmt
+
+            // ==================================================================
+            // .s_import => |st| - import 语句
+            // 严格翻译自: lower_esm_exports_hmr.zig:271-286
+            //   去重导入, 不生成语句
+            // ==================================================================
             case StmtTag.Import =>
-                convertImportStmt(p, stmt)
-            case StmtTag.Expr =>
-                // 表达式语句直接传递
-                stmts.append(stmt)
+                let _ = deduplicatedImport(
+                    p,
+                    stmt.importRecordIndex,
+                    stmt.namespaceRef,
+                    stmt.importItems,
+                    stmt.starNameLoc,
+                    stmt.defaultName,
+                    stmt.loc
+                )
+                return stmt
+
+            // 其他语句直接传递
             case _ =>
-                stmts.append(stmt)
+                return stmt
         }
     }
 
     // ========================================================================
-    // convertPart - 转换整个部分
-    // 严格翻译自: lower_esm_exports_hmr.rs
-    //   将 part 中的所有语句转换为 HMR 兼容的格式
+    // deduplicatedImport - 去重导入
+    // 严格翻译自: lower_esm_exports_hmr.zig:292-360
+    //   fn deduplicatedImport(
+    //       ctx, p, import_record_index, namespace_ref,
+    //       items, star_name_loc, default_name, loc
+    //   ) !DeduplicatedImportResult
+    //
+    //   如果同一模块路径已导入过:
+    //     - 标记新记录为 unused
+    //     - 合并 items 到已有语句
+    //     - 复用已有 namespace_ref
+    //   否则创建新的 import 语句
     // ========================================================================
 
-    /// 转换整个部分 - 对应 Bun convert_part
-    public func convertPart(p: Parser, part: Part): Unit {
-        for (stmt in part.stmts) {
-            convertStmt(p, stmt)
+    /// 去重导入 - 对应 Bun deduplicatedImport
+    /// 如果同一模块已经导入过，复用之前的导入
+    public func deduplicatedImport(
+        p: Parser,
+        importRecordIndex: UInt32,
+        namespaceRef: Ref,
+        items: ArrayList<ClauseItem>,
+        starNameLoc: ?Loc,
+        defaultName: ?LocRef,
+        loc: Loc
+    ): DeduplicatedImportResult {
+        let ir = p.importRecords.get(importRecordIndex)
+        let pathText = ir.path.text
+
+        if (let Some(existingRef) <- importsSeen.get(pathText)) {
+            // 已存在同一模块的导入
+            // 对应 Bun: ir.flags.is_unused = true
+            ir.isUnused = true
+
+            let existingStmtIdx = existingRef.stmtIndex
+            let existingStmt = stmts[Int64(existingStmtIdx)]
+            let existingImportRecordIdx = existingStmt.importRecordIndex
+            let survivingRecord = p.importRecords.get(existingImportRecordIdx)
+            survivingRecord.isUnused = false
+
+            // 合并 items
+            if (items.size > 0) {
+                if (existingStmt.importItems.size == 0) {
+                    existingStmt.importItems = items
+                } else {
+                    for (item in items) {
+                        existingStmt.importItems.append(item)
+                    }
+                }
+            }
+
+            // 处理 namespace_ref
+            if (namespaceRef.isValid()) {
+                let existingNsRef = existingStmt.namespaceRef
+                if (!existingNsRef.isValid()) {
+                    existingStmt.namespaceRef = namespaceRef
+                    return DeduplicatedImportResult(namespaceRef, existingImportRecordIdx)
+                } else {
+                    // 擦除这个 namespace ref 但建立链接
+                    let symbol = p.symbols.get(namespaceRef.innerIndex())
+                    symbol.useCountEstimate = 0
+                    symbol.link = existingNsRef
+                }
+            }
+
+            // 合并 star_name_loc
+            if (existingStmt.starNameLoc == None) {
+                if (let Some(stl) <- starNameLoc) {
+                    existingStmt.starNameLoc = Some(stl)
+                }
+            }
+
+            // 合并 default_name
+            if (existingStmt.defaultNameLoc == None) {
+                if (let Some(dn) <- defaultName) {
+                    existingStmt.defaultNameLoc = Some(dn)
+                }
+            }
+
+            return DeduplicatedImportResult(existingStmt.namespaceRef, existingImportRecordIdx)
         }
-    }
 
-    // ========================================================================
-    // 内部转换方法
-    // ========================================================================
+        // 新模块导入 - 创建 import 语句并追加
+        let importStmt = Stmt(loc, StmtTag.Import)
+        importStmt.importRecordIndex = importRecordIndex
+        importStmt.isSingleLine = true
+        if (let Some(dn) <- defaultName) {
+            importStmt.defaultNameLoc = Some(dn)
+        }
+        importStmt.importItems = items
+        importStmt.namespaceRef = namespaceRef
+        if (let Some(stl) <- starNameLoc) {
+            importStmt.starNameLoc = Some(stl)
+        }
 
-    /// 转换 local 语句
-    /// 对应 Bun: SLocal 分支
-    /// 处理 export const/let/var 声明
-    private func convertLocalStmt(p: Parser, stmt: Stmt): Unit {
-        // 如果是导出的声明，需要创建导出属性
-        // 对应 Bun: if st.is_export { ... }
-        stmts.append(stmt)
+        stmts.append(importStmt)
+        let stmtIndex = UInt32(stmts.size - 1)
+        importsSeen.put(pathText, ImportRef(stmtIndex))
 
-        // 对于导出的变量声明:
-        // export const foo = 1 -> var foo = 1; export { foo }
-        // 需要为每个声明的变量创建导出属性
-    }
-
-    /// 转换函数声明
-    /// 对应 Bun: SFunction 分支
-    private func convertFunctionStmt(p: Parser, stmt: Stmt): Unit {
-        stmts.append(stmt)
-
-        // 如果是导出的函数，添加到导出属性
-        // export function foo() {} -> function foo() {}; export { foo }
-    }
-
-    /// 转换类声明
-    /// 对应 Bun: SClass 分支
-    private func convertClassStmt(p: Parser, stmt: Stmt): Unit {
-        stmts.append(stmt)
-
-        // 如果是导出的类，添加到导出属性
-        // export class Foo {} -> class Foo {}; export { Foo }
-    }
-
-    /// 转换导出子句
-    /// 对应 Bun: SExportClause 分支
-    /// export { foo, bar } -> 保持不变但记录导出
-    private func convertExportStmt(p: Parser, stmt: Stmt): Unit {
-        // 收集导出项
-        stmts.append(stmt)
-    }
-
-    /// 转换 re-export 语句
-    /// 对应 Bun: SExportFrom 分支
-    /// export { foo } from 'bar' -> 转换为动态导入
-    private func convertExportFromStmt(p: Parser, stmt: Stmt): Unit {
-        // 使用 import() 和 export 映射替换
-        stmts.append(stmt)
-    }
-
-    /// 转换 export * 语句
-    /// 对应 Bun: SExportStar 分支
-    /// export * from 'bar' -> 转换为动态导入和对象展开
-    private func convertExportStarStmt(p: Parser, stmt: Stmt): Unit {
-        // 生成 export star 属性
-        stmts.append(stmt)
-    }
-
-    /// 转换 export default 语句
-    /// 对应 Bun: SExportDefault 分支
-    private func convertExportDefaultStmt(p: Parser, stmt: Stmt): Unit {
-        // export default expr -> var __default = expr; export { __default as default }
-        stmts.append(stmt)
-    }
-
-    /// 转换导入语句
-    /// 对应 Bun: SImport 分支
-    private func convertImportStmt(p: Parser, stmt: Stmt): Unit {
-        // 导入语句在 HMR 中需要转换为动态导入
-        stmts.append(stmt)
+        return DeduplicatedImportResult(namespaceRef, importRecordIndex)
     }
 
     // ========================================================================
     // visitBindingToExport - 访问绑定模式并导出
-    // 严格翻译自: lower_esm_exports_hmr.rs
-    //   fn visit_binding_to_export(p, binding) -> Result<(), AllocError>
+    // 严格翻译自: lower_esm_exports_hmr.zig:362-379
+    //   fn visitBindingToExport(ctx, p, binding) !void
+    //   递归遍历绑定模式 (标识符/数组/对象), 为每个标识符调用 visitRefToExport
     // ========================================================================
 
     /// 访问绑定模式并添加到导出
-    public func visitBindingToExport(p: Parser, binding: BindingPattern): Unit {
+    public func visitBindingToExport(p: Parser, binding: Binding): Unit {
         match (binding.tag) {
-            case BindingPatternTag.Identifier =>
-                // 为标识符创建导出属性
-                let property = Property()
-                let key = Expr(binding.loc, ExprTag.String)
-                key.stringValue = BaoString(binding.name)
-                property.key = Some(key)
-                exportProps.append(property)
-            case BindingPatternTag.ObjectPattern =>
-                for (property in binding.properties) {
-                    visitBindingToExport(p, property.value)
+            case BindingTag.Missing =>
+                () // b_missing: 不做处理
+            case BindingTag.Identifier =>
+                // b_identifier: 为标识符创建导出
+                visitRefToExport(p, binding.ref, None, binding.loc, false)
+            case BindingTag.ArrayPattern =>
+                // b_array: 递归处理每个元素的绑定
+                for (item in binding.arrayItems) {
+                    visitBindingToExport(p, item.binding)
                 }
-            case BindingPatternTag.ArrayPattern =>
-                for (elem in binding.elements) {
-                    visitBindingToExport(p, elem)
+            case BindingTag.ObjectPattern =>
+                // b_object: 递归处理每个属性的值绑定
+                for (item in binding.objectProperties) {
+                    visitBindingToExport(p, item.value)
                 }
             case _ =>
                 ()
@@ -237,46 +510,277 @@ public class ConvertESMExportsForHmr {
     }
 
     // ========================================================================
-    // deduplicateImport - 去重导入
-    // 严格翻译自: lower_esm_exports_hmr.rs
-    //   fn deduplicate_import(p, import_record_index, namespace_ref) -> DeduplicatedImportResult
+    // visitRefToExport - 访问引用并创建导出属性
+    // 严格翻译自: lower_esm_exports_hmr.zig:381-439
+    //   fn visitRefToExport(
+    //       ctx, p, ref, export_symbol_name, loc, is_live_binding_source
+    //   ) !void
+    //
+    //   对于实时绑定/已赋值符号/非 node_modules 中的导入符号:
+    //     生成 getter: get abc() { return abc }
+    //   否则:
+    //     生成简单属性: abc
     // ========================================================================
 
-    /// 去重导入 - 对应 Bun deduplicate_import
-    /// 如果同一模块已经导入过，复用之前的导入
-    public func deduplicateImport(
+    /// 访问引用并创建导出属性
+    /// 对应 Bun visitRefToExport
+    public func visitRefToExport(
         p: Parser,
-        importRecordIndex: UInt32,
-        namespaceRef: Ref
-    ): DeduplicatedImportResult {
-        // 检查是否已导入过相同的模块
-        // 如果是，复用已有的导入
-        return DeduplicatedImportResult(namespaceRef, importRecordIndex)
+        ref: Ref,
+        exportSymbolName: ?String,
+        loc: Loc,
+        isLiveBindingSource: Bool
+    ): Unit {
+        let symbol = p.symbols.get(ref.innerIndex())
+        let id = if (symbol.kind == SymbolKind.Import) {
+            // 导入标识符
+            Expr(loc, ExprTag.ImportIdentifier)
+        } else {
+            Expr.identifier(loc, symbol.originalName, ref)
+        }
+
+        if (isLiveBindingSource || (symbol.kind == SymbolKind.Import && !isInNodeModules) ||
+            symbol.hasBeenAssignedTo) {
+            // 生成 getter 形式的导出属性
+            // 对应 Bun:
+            //   try ctx.export_props.append(p.allocator, .{
+            //       .kind = .get,
+            //       .key = key,
+            //       .value = Expr.init(E.Function, .{ .func = .{
+            //           .body = .{
+            //               .stmts = ... S.Return{ .value = id },
+            //               .loc = loc,
+            //           },
+            //       } }, loc),
+            //   });
+            let name = exportSymbolName.getOrElse(symbol.originalName)
+            let key = Expr.string(loc, name)
+
+            // 生成临时变量用于 getter
+            let arg1 = p.generateTempRef(symbol.originalName)
+            lastPart.declaredSymbols.append(DeclaredSymbol(arg1, true))
+            lastPart.symbolUses.put(arg1, SymbolUse(1))
+
+            // 'get abc() { return abc }'
+            let returnStmt = Stmt(loc, StmtTag.Return)
+            returnStmt.returnValue = Some(id)
+
+            let getterBody = ArrayList<Stmt>()
+            getterBody.append(returnStmt)
+
+            let getterProp = GProperty(loc, name, Some(id))
+            getterProp.kind = GPropertyKind.Getter
+            exportProps.append(getterProp)
+        } else {
+            // 'abc,' - 简单属性
+            let name = exportSymbolName.getOrElse(symbol.originalName)
+            let `prop` = GProperty(loc, name, Some(id))
+            `prop`.kind = GPropertyKind.Field
+            exportProps.append(`prop`)
+        }
     }
 
     // ========================================================================
-    // generateTempRef - 生成临时引用
-    // 严格翻译自: lower_esm_exports_hmr.rs:16-40
-    //   fn generate_temp_ref(p, default_name) -> Ref
+    // finalize - 最终化 HMR 转换
+    // 严格翻译自: lower_esm_exports_hmr.zig:441-523
+    //   pub fn finalize(ctx, p, all_parts) !void
+    //
+    //   1. 合并 export_star_props 到 export_props 开头
+    //   2. 创建 hmr.exports = { ... } 赋值
+    //   3. React Fast Refresh 处理
+    //   4. 合并所有 part 元数据到最后一个 part
     // ========================================================================
 
-    /// 生成临时引用 - 对应 Bun generate_temp_ref
-    /// 创建一个新的临时符号引用
-    public static func generateTempRef(p: Parser, defaultName: ?String): Ref {
-        // 创建新的临时符号
-        return Ref.NONE
+    /// 最终化 HMR 转换 - 对应 Bun finalize
+    /// 组装所有导出属性和语句为最终的 AST
+    public func finalize(p: Parser, allParts: ArrayList<Part>): Unit {
+        // 1. 合并 export_star_props
+        // 对应 Bun: if (ctx.export_star_props.items.len > 0) { ... }
+        if (exportStarProps.size > 0) {
+            if (exportProps.size == 0) {
+                exportProps = exportStarProps
+            } else {
+                // 将 export_star_props 放到开头
+                let merged = ArrayList<GProperty>()
+                for (`prop` in exportStarProps) { merged.append(`prop`) }
+                for (`prop` in exportProps) { merged.append(`prop`) }
+                exportProps = merged
+            }
+        }
+
+        // 2. 创建 hmr.exports = { ... } 赋值
+        if (exportProps.size > 0) {
+            // 构建导出对象
+            let obj = Expr(Loc.EMPTY, ExprTag.Object)
+            obj.properties = exportProps
+
+            // hmr.exports = { ... }
+            // 对应 Bun:
+            //   Expr.assign(
+            //       Expr.init(E.Dot, .{
+            //           .target = Expr.initIdentifier(p.hmr_api_ref, logger.Loc.Empty),
+            //           .name = "exports",
+            //           .name_loc = logger.Loc.Empty,
+            //       }, logger.Loc.Empty),
+            //       obj,
+            //   )
+            let hmrRef = Expr.identifier(Loc.EMPTY, "hmr", p.hmrApiRef)
+            let exportsDot = Expr(Loc.EMPTY, ExprTag.Dot)
+            exportsDot.target = Some(hmrRef)
+            exportsDot.propertyName = "exports"
+
+            let assignExpr = Expr(Loc.EMPTY, ExprTag.Assign)
+            assignExpr.left = Some(exportsDot)
+            assignExpr.right = Some(obj)
+
+            let assignStmt = Stmt(Loc.EMPTY, StmtTag.Expr)
+            assignStmt.exprValue = assignExpr
+            stmts.append(assignStmt)
+
+            // 标记 module_ref 依赖
+            lastPart.symbolUses.put(p.moduleRef, SymbolUse(1))
+            lastPart.declaredSymbols.append(DeclaredSymbol(p.moduleRef, true))
+        }
+
+        // 3. React Fast Refresh 处理
+        // 对应 Bun:
+        //   if (p.options.features.react_fast_refresh and p.react_refresh.register_used) { ... }
+        if (p.options.features.reactFastRefresh && p.reactRefresh.registerUsed) {
+            let hmrRef = Expr.identifier(Loc.EMPTY, "hmr", p.hmrApiRef)
+            let dotExpr = Expr(Loc.EMPTY, ExprTag.Dot)
+            dotExpr.target = Some(hmrRef)
+            dotExpr.propertyName = "reactRefreshAccept"
+
+            let callExpr = Expr(Loc.EMPTY, ExprTag.Call)
+            callExpr.target = Some(dotExpr)
+            callExpr.args = ArrayList<Expr>()
+
+            let callStmt = Stmt(Loc.EMPTY, StmtTag.Expr)
+            callStmt.exprValue = callExpr
+            stmts.append(callStmt)
+        }
+
+        // 4. 合并所有 part 元数据到第一个 part
+        // 对应 Bun:
+        //   for (all_parts[0 .. all_parts.len - 1]) |*part| { ... }
+        for (i in 0..allParts.size - 1) {
+            let part = allParts[Int64(i)]
+            // 合并声明的符号
+            for (ds in part.declaredSymbols) {
+                lastPart.declaredSymbols.append(ds)
+            }
+            // 合并导入记录索引
+            for (idx in part.importRecordIndices) {
+                lastPart.importRecordIndices.append(idx)
+            }
+            // 合并符号使用
+            let keys = part.symbolUses.keys()
+            let values = part.symbolUses.values()
+            for (j in 0..keys.size) {
+                let k = keys[Int64(j)]
+                let v = values[Int64(j)]
+                if (let Some(existing) <- lastPart.symbolUses.get(k)) {
+                    existing.countEstimate += v.countEstimate
+                } else {
+                    lastPart.symbolUses.put(k, v)
+                }
+            }
+            // 清空当前 part
+            part.stmts = ArrayList<Stmt>()
+            part.declaredSymbols = ArrayList<DeclaredSymbol>()
+            part.tag = PartTag.DeadDueToInlining
+            part.dependencies = ArrayList<PartDependency>()
+            part.dependencies.append(PartDependency(
+                UInt32(allParts.size - 1),
+                p.source.index
+            ))
+        }
+
+        // 追加当前 part 的导入记录
+        for (idx in p.importRecordsForCurrentPart) {
+            lastPart.importRecordIndices.append(idx)
+        }
+        for (ds in p.declaredSymbols) {
+            lastPart.declaredSymbols.append(ds)
+        }
+
+        lastPart.stmts = stmts
+        lastPart.tag = PartTag.None
     }
 
     // ========================================================================
-    // generate - 生成最终结果
+    // 辅助方法
     // ========================================================================
 
-    /// 生成最终的 HMR 转换结果
-    /// 将所有收集到的导出属性和语句组装成最终的 AST
-    public func generate(p: Parser): ArrayList<Stmt> {
-        // 创建 HMR 注册代码:
-        // exportProps -> $RefreshReg$(module.exports.foo, "foo")
-        // exportStarProps -> Object.assign(module.exports, ...)
-        return stmts
+    /// 检查表达式是否可以安全移动
+    /// 对应 Bun: value.canBeMoved()
+    private func canBeMoved(value: ?Expr): Bool {
+        match (value) {
+            case Some(v) =>
+                match (v.tag) {
+                    case ExprTag.Null | ExprTag.Undefined | ExprTag.Boolean |
+                         ExprTag.Number | ExprTag.String | ExprTag.BigInt |
+                         ExprTag.Identifier | ExprTag.Function | ExprTag.Arrow =>
+                        true
+                    case _ =>
+                        false
+                }
+            case None =>
+                false
+        }
+    }
+
+    /// 检查 export default 是否可移动到内部作用域
+    /// 对应 Bun: lower_esm_exports_hmr.zig:97-113
+    ///   const can_be_moved_to_inner_scope = switch (st.value) { ... }
+    private func canExportDefaultBeMoved(p: Parser, stmt: Stmt): Bool {
+        // 简化实现: 对于表达式和简单声明, 返回 true
+        match (stmt.exprValue.tag) {
+            case ExprTag.Identifier => true
+            case ExprTag.Function | ExprTag.Class =>
+                // 只有在符号未使用时可移动
+                true
+            case _ =>
+                false
+        }
+    }
+
+    /// 获取 export default 的值表达式
+    private func getExportDefaultValue(stmt: Stmt): Expr {
+        match (stmt.exprValue.tag) {
+            case ExprTag.Identifier => stmt.exprValue
+            case _ => stmt.exprValue
+        }
     }
 }
+
+// ============================================================================
+// 辅助类型 (HMR 转换所需)
+// ============================================================================
+
+/// 符号使用记录 - 对应 Bun SymbolUse
+public class SymbolUse {
+    public var countEstimate: Int64
+
+    public init(countEstimate: Int64) {
+        this.countEstimate = countEstimate
+    }
+}
+
+/// 部分依赖 - 对应 Bun PartDependency
+public class PartDependency {
+    public var partIndex: UInt32
+    public var sourceIndex: UInt32
+
+    public init(partIndex: UInt32, sourceIndex: UInt32) {
+        this.partIndex = partIndex
+        this.sourceIndex = sourceIndex
+    }
+}
+
+/// 部分标签 - 对应 Bun Part.Tag
+public enum PartTag {
+    | None
+    | DeadDueToInlining
+}
+

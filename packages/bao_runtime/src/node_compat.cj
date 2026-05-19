@@ -727,7 +727,7 @@ public class NodePathStubs {
             for (arg in args) {
                 parts.append(Interpreter.jsToString(arg))
             }
-            return JsValue(BaoString(""))
+            return JsValue(BaoString(Path.join(parts.toOwnedSlice())))
         }))
 
         obj.set("resolve", JsValue.nativeFunction(JsNativeFunction("resolve") { args =>
@@ -735,7 +735,20 @@ public class NodePathStubs {
             for (arg in args) {
                 parts.append(Interpreter.jsToString(arg))
             }
-            return JsValue(BaoString(""))
+            // path.resolve: 如果任一参数是绝对路径，则从该参数开始；
+            // 否则将所有路径拼接到当前工作目录
+            // 简化: 使用 Path.join 处理相对路径拼接
+            var resolved = ArrayList<String>()
+            for (part in parts) {
+                if (Path.isAbsolute(part)) {
+                    resolved = ArrayList<String>()
+                }
+                resolved.append(part)
+            }
+            if (resolved.size == 0) {
+                return JsValue(BaoString(Path.resolve(Array<String>())))
+            }
+            return JsValue(BaoString(Path.resolve(resolved.toOwnedSlice())))
         }))
 
         obj.set("dirname", JsValue.nativeFunction(JsNativeFunction("dirname") { args =>
@@ -786,8 +799,11 @@ public class NodePathStubs {
         // path.sep, path.delimiter
         obj.set("sep", JsValue(BaoString("/")))
         obj.set("delimiter", JsValue(BaoString(":")))
-        obj.set("posix", JsValue.UNDEFINED)
-        obj.set("win32", JsValue.UNDEFINED)
+        // path.posix and path.win32 are self-referential on their respective platforms
+        // On POSIX, path.posix === path (same object)
+        obj.set("posix", JsValue(obj))
+        // path.win32 would use "\\" separator; stub to same object for compatibility
+        obj.set("win32", JsValue(obj))
 
         return JsValue(obj)
     }

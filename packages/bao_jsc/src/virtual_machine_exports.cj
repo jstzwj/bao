@@ -85,7 +85,7 @@ public class VirtualMachineExports {
     /// 检查字符串是否为 Bun 主文件
     /// 对应 Bun: Bun__isBunMain
     public static func isBunMain(globalObject: JsObject, str: BunString): Bool {
-        str.eqlUTF8(globalObject.bunVM().main)
+        str.eqlUTF8(globalObject.bunVM().`main`)
     }
 
     /// 确保进程 IPC 已初始化

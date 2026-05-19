@@ -84,79 +84,6 @@ public class ZigException {
         }
     }
 
-    // ========== Holder ==========
-    // 严格翻译自 ZigException.Holder
-    // ZigException 的持有器，管理内部帧和源代码行的存储
-    public class Holder {
-        // 帧数量常量
-        public static let FRAME_COUNT: Int64 = 32
-        // 源代码行数量常量
-        public static let SOURCE_LINES_COUNT: Int64 = 6
-
-        // 源代码行号
-        public var sourceLineNumbers: Array<Int64> = []
-        // 源代码行内容
-        public var sourceLines: Array<String> = []
-        // 堆栈帧
-        public var frames: Array<ZigStackFrame> = []
-        // 是否已加载
-        public var loaded: Bool = false
-        // 内部 ZigException
-        public var zigException: ?ZigException = None
-        // 是否需要在 deinit 时清除 parser arena
-        public var needToClearParserArenaOnDeinit: Bool = false
-
-        public init() {
-            sourceLineNumbers = Array<Int64>(SOURCE_LINES_COUNT, item: -1)
-            sourceLines = Array<String>(SOURCE_LINES_COUNT, item: "")
-            frames = Array<ZigStackFrame>()
-        }
-
-        // 严格翻译自 Holder.init
-        public static func init_(): Holder {
-            let holder = Holder()
-            for (i in 0..Int64(holder.frames.capacity)) {
-                holder.frames.append(ZigStackFrame.zero())
-            }
-            holder
-        }
-
-        // 严格翻译自 Holder.deinit
-        public func deinit(vm: BunVirtualMachine) {
-            if (loaded) {
-                if (let Some(zigExc) <- zigException) {
-                    zigExc.deinit()
-                }
-            }
-            if (needToClearParserArenaOnDeinit) {
-                vm.moduleLoader.resetArena(vm)
-            }
-        }
-
-        // 严格翻译自 Holder.zigException
-        public func zigException_(): ZigException {
-            if (!loaded) {
-                let exc = ZigException()
-                exc.`type`_ = JSErrorCode.fromInt(255)
-                exc.runtimeType = JSRuntimeType.`Nothing`
-                exc.name = ""
-                exc.message = ""
-                exc.exception = None
-                exc.stack = ZigStackTrace()
-                exc.stack.sourceLinesPtr = sourceLines
-                exc.stack.sourceLineNumbers = sourceLineNumbers
-                exc.stack.sourceLinesLen = SOURCE_LINES_COUNT
-                exc.stack.sourceLinesToCollect = SOURCE_LINES_COUNT
-                exc.stack.framesPtr = frames
-                exc.stack.framesLen = 0
-                exc.stack.framesCap = FRAME_COUNT
-                zigException = exc
-                loaded = true
-            }
-            zigException.getOrThrow()
-        }
-    }
-
     // 严格翻译自 ZigException.fromException
     // 从 JSC Exception 创建 ZigException
     public static func fromException(exception: JsException): ZigException {
@@ -166,6 +93,79 @@ public class ZigException {
         exc.message = exception.getMessage()
         exc.stack = exception.stackTrace
         exc
+    }
+}
+
+// ========== Holder ==========
+// 严格翻译自 ZigException.Holder
+// ZigException 的持有器，管理内部帧和源代码行的存储
+public class ZigExceptionHolderImpl {
+    // 帧数量常量
+    public static let FRAME_COUNT: Int64 = 32
+    // 源代码行数量常量
+    public static let SOURCE_LINES_COUNT: Int64 = 6
+
+    // 源代码行号
+    public var sourceLineNumbers: Array<Int64> = []
+    // 源代码行内容
+    public var sourceLines: Array<String> = []
+    // 堆栈帧
+    public var frames: Array<ZigStackFrame> = []
+    // 是否已加载
+    public var loaded: Bool = false
+    // 内部 ZigException
+    public var zigException: ?ZigException = None
+    // 是否需要在 deinit 时清除 parser arena
+    public var needToClearParserArenaOnDeinit: Bool = false
+
+    public init() {
+        sourceLineNumbers = Array<Int64>(SOURCE_LINES_COUNT, item: -1)
+        sourceLines = Array<String>(SOURCE_LINES_COUNT, item: "")
+        frames = Array<ZigStackFrame>()
+    }
+
+    // 严格翻译自 Holder.init
+    public static func init_(): ZigExceptionHolderImpl {
+        let holder = ZigExceptionHolderImpl()
+        for (i in 0..Int64(holder.frames.capacity)) {
+            holder.frames.append(ZigStackFrame.zero())
+        }
+        holder
+    }
+
+    // 严格翻译自 Holder.deinit
+    public func deinit(vm: BunVirtualMachine) {
+        if (loaded) {
+            if (let Some(zigExc) <- zigException) {
+                zigExc.deinit()
+            }
+        }
+        if (needToClearParserArenaOnDeinit) {
+            vm.moduleLoader.resetArena(vm)
+        }
+    }
+
+    // 严格翻译自 Holder.zigException
+    public func zigException_(): ZigException {
+        if (!loaded) {
+            let exc = ZigException()
+            exc.type_ = JSErrorCode.fromInt(255)
+            exc.runtimeType = JSRuntimeType.`Nothing`
+            exc.name = ""
+            exc.message = ""
+            exc.exception = None
+            exc.stack = ZigStackTrace()
+            exc.stack.sourceLinesPtr = sourceLines
+            exc.stack.sourceLineNumbers = sourceLineNumbers
+            exc.stack.sourceLinesLen = SOURCE_LINES_COUNT
+            exc.stack.sourceLinesToCollect = SOURCE_LINES_COUNT
+            exc.stack.framesPtr = frames
+            exc.stack.framesLen = 0
+            exc.stack.framesCap = FRAME_COUNT
+            zigException = Some(exc)
+            loaded = true
+        }
+        zigException.getOrThrow()
     }
 }
 

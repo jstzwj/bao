@@ -386,10 +386,10 @@ public enum Data {
 
 // ========== SerializeTag ==========
 // 严格翻译自 webcore_types.rs store::SerializeTag
-public enum SerializeTag <: UInt8 {
-    | File = 0
-    | Bytes = 1
-    | Empty = 2
+public enum SerializeTag {
+    | File
+    | Bytes
+    | Empty
 }
 
 public extension SerializeTag {

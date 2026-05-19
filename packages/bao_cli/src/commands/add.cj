@@ -60,34 +60,30 @@ public class PackageSpecifier {
             // scoped package with alias: @scope/name@npm:...
             let secondAt = remaining.indexOfFrom(1, "@")
             match (secondAt) {
-                case Some(idx) => {
+                case Some(idx) =>
                     let aliasPart = remaining.substring(0, idx)
                     remaining = remaining.substring(idx + 1)
                     spec.alias = Some(aliasPart)
-                }
                 case None => ()
             }
         } else if (atCount >= 1 && !remaining.startsWith("@")) {
             // non-scoped: name@npm:package@version or name@version
             let firstAt = remaining.indexOf("@")
             match (firstAt) {
-                case Some(idx) => {
+                case Some(idx) =>
                     let potentialName = remaining.substring(0, idx)
                     let rest = remaining.substring(idx + 1)
                     if (rest.startsWith("npm:") || rest.startsWith("github:") ||
                         rest.startsWith("git+") || rest.startsWith("file:") ||
                         rest.startsWith("link:") || rest.startsWith("http://") ||
                         rest.startsWith("https://")) {
-                        // alias@protocol:...
                         spec.alias = Some(potentialName)
                         remaining = rest
                     } else {
-                        // name@version (normal)
                         spec.name = potentialName
                         spec.version = Some(rest)
                         return Some(spec)
                     }
-                }
                 case None => ()
             }
         }
@@ -99,13 +95,11 @@ public class PackageSpecifier {
                 let npmPart = remaining.substring(4)
                 let npmAt = npmPart.indexOf("@")
                 match (npmAt) {
-                    case Some(idx) => {
+                    case Some(idx) =>
                         spec.name = npmPart.substring(0, idx)
                         spec.version = Some(npmPart.substring(idx + 1))
-                    }
-                    case None => {
+                    case None =>
                         spec.name = npmPart
-                    }
                 }
             } else if (remaining.startsWith("github:")) {
                 spec.name = remaining.substring(7)
@@ -115,13 +109,11 @@ public class PackageSpecifier {
                 // name@version
                 let atIdx = remaining.indexOf("@")
                 match (atIdx) {
-                    case Some(idx) => {
+                    case Some(idx) =>
                         spec.name = remaining.substring(0, idx)
                         spec.version = Some(remaining.substring(idx + 1))
-                    }
-                    case None => {
+                    case None =>
                         spec.name = remaining
-                    }
                 }
             }
         } else {
@@ -152,13 +144,11 @@ public class PackageSpecifier {
                 // non-scoped: name@version
                 let atIdx = remaining.indexOf("@")
                 match (atIdx) {
-                    case Some(idx) => {
+                    case Some(idx) =>
                         spec.name = remaining.substring(0, idx)
                         spec.version = Some(remaining.substring(idx + 1))
-                    }
-                    case None => {
+                    case None =>
                         spec.name = remaining
-                    }
                 }
             }
         }

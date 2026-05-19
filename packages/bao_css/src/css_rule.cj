@@ -85,6 +85,23 @@ public class CssRule {
     /// 位置信息
     public var position: ?CssTokenPosition
 
+    public init() {
+        this.kind = CssRuleKind.Unknown
+        this.styleRule = None
+        this.mediaRule = None
+        this.importRule = None
+        this.keyframesRule = None
+        this.fontFaceRule = None
+        this.supportsRule = None
+        this.layerStatementRule = None
+        this.layerBlockRule = None
+        this.containerRule = None
+        this.namespaceRule = None
+        this.propertyRule = None
+        this.unknownRule = None
+        this.position = None
+    }
+
     private init(kind: CssRuleKind) {
         this.kind = kind
         this.styleRule = None
@@ -426,6 +443,12 @@ public class CssAtImportRule {
     /// 位置信息
     public var position: ?CssTokenPosition
 
+    public init(url: String) {
+        this.url = url
+        this.conditions = ""
+        this.position = None
+    }
+
     public init(url: String, conditions: String) {
         this.url = url
         this.conditions = conditions
@@ -670,6 +693,15 @@ public class CssAtNamespaceRule {
     public var declaration: String
     /// 位置信息
     public var position: ?CssTokenPosition
+
+    public init(prefix: ?String, url: String) {
+        let prefixText = match (prefix) {
+            case Some(p) => "${p} "
+            case None => ""
+        }
+        this.declaration = "${prefixText}${url}"
+        this.position = None
+    }
 
     public init(declaration: String) {
         this.declaration = declaration

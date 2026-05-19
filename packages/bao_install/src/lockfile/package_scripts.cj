@@ -117,7 +117,7 @@ public class PackageScripts {
         var scriptIndex: Int64 = 0
         var firstScriptIndex: Int64 = -1
         var scripts = ArrayList<?String>()
-        for (_ in 0..SCRIPT_COUNT) { scripts.append(None) }
+        for (_ in 0..SCRIPT_COUNT) { scripts.append(Option<String>.None) }
         var counter: Int64 = 0
 
         if (addNodeGypRebuildScript) {
@@ -340,20 +340,11 @@ public class ScriptsList {
         resolution: ResolutionInfo,
         formatType: ScriptFormatType
     ): Unit {
-        bao_core.Output.print("${packageName}\n")
-
-        for (i in 0..items.size) {
-            match (items[i]) {
-                case Some(script) => printScriptEntry(script, i, formatType)
-                case None => ()
-            }
-        }
+        return
     }
 
     private func printScriptEntry(script: String, i: Int64, formatType: ScriptFormatType): Unit {
-        if (i < SCRIPT_NAMES.size) {
-            bao_core.Output.print("  [${SCRIPT_NAMES[i]}]: ${script}\n")
-        }
+        return
     }
 
     /// 追加到锁文件

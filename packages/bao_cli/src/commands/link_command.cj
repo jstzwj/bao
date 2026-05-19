@@ -85,16 +85,14 @@ public class LinkCommand {
         }
 
         match (opts.packageName) {
-            case Some(name) => {
+            case Some(name) =>
                 // bun link <package>: 链接全局包到当前项目
                 // 严格翻译自: manager.updatePackageJSONAndInstallWithManager(ctx, original_cwd)
                 return linkToProject(name, opts)
-            }
-            case None => {
+            case None =>
                 // bun link: 将当前包链接到全局
                 // 严格翻译自: positionals.len == 1 → 解析 package.json → 创建 symlink
                 return linkToGlobal(opts)
-            }
         }
     }
 
@@ -111,14 +109,14 @@ public class LinkCommand {
         // 步骤1: 解析 package.json
         let pkgContent = BaoFile.readAllText("package.json")
         match (pkgContent) {
-            case Some(content) => {
+            case Some(content) =>
                 let parser = JsonParser()
                 let json = parser.parse(content)
                 match (json) {
-                    case Some(root) => {
+                    case Some(root) =>
                         let name = JsonHelper.getString(root, "name")
                         match (name) {
-                            case Some(n) => {
+                            case Some(n) =>
                                 if (n.isEmpty()) {
                                     logger.error("package.json missing \"name\"")
                                     return 1
@@ -145,12 +143,11 @@ public class LinkCommand {
                                 if (n.startsWith("@")) {
                                     let slashIdx = n.indexOf("/")
                                     match (slashIdx) {
-                                        case Some(idx) => {
+                                        case Some(idx) =>
                                             let scopeDir = Path.join([globalNodeModules, n.substring(0, idx)])
                                             if (!BaoFile.exists(scopeDir)) {
                                                 BaoFile.mkdir(scopeDir, false)
                                             }
-                                        }
                                         case None => ()
                                     }
                                 }
@@ -180,23 +177,17 @@ public class LinkCommand {
                                 println("")
 
                                 return 0
-                            }
-                            case None => {
+                            case None =>
                                 logger.error("package.json missing \"name\"")
                                 return 1
-                            }
                         }
-                    }
-                    case None => {
+                    case None =>
                         logger.error("Failed to parse package.json")
                         return 1
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 logger.error("Failed to read package.json")
                 return 1
-            }
         }
     }
 
@@ -224,12 +215,11 @@ public class LinkCommand {
         if (packageName.startsWith("@")) {
             let slashIdx = packageName.indexOf("/")
             match (slashIdx) {
-                case Some(idx) => {
+                case Some(idx) =>
                     let scopeDir = Path.join([localNodeModules, packageName.substring(0, idx)])
                     if (!BaoFile.exists(scopeDir)) {
                         BaoFile.mkdir(scopeDir, false)
                     }
-                }
                 case None => ()
             }
         }

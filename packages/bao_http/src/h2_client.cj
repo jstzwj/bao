@@ -4,7 +4,6 @@ package bao_http
 
 import bao_core.*
 import bao_collections.*
-import bao_http.h2_client.*
 
 // ============================================================================
 // H2Client - HTTP/2 fetch() 客户端模块

@@ -235,10 +235,18 @@ public class DeferredImportNamespace {
 public class DeclaredSymbol {
     public var ref: Ref
     public var kind: DeclaredSymbolKind
+    public var isTopLevel: Bool
 
     public init(ref: Ref, kind: DeclaredSymbolKind) {
         this.ref = ref
         this.kind = kind
+        this.isTopLevel = false
+    }
+
+    public init(ref: Ref, isTopLevel: Bool) {
+        this.ref = ref
+        this.kind = DeclaredSymbolKind.Other
+        this.isTopLevel = isTopLevel
     }
 }
 

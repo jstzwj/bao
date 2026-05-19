@@ -88,20 +88,16 @@ public class InitCommand {
         // 根据模板生成额外文件
         match (template) {
             case ProjectTemplate.Minimal => ()
-            case ProjectTemplate.Library => {
+            case ProjectTemplate.Library =>
                 generateTsConfig(name)
                 generateLibFiles(name)
-            }
-            case ProjectTemplate.React => {
+            case ProjectTemplate.React =>
                 generateTsConfig(name)
                 generateReactFiles(name)
-            }
-            case ProjectTemplate.Default => {
+            case ProjectTemplate.Default =>
                 generateTsConfig(name)
-            }
-            case ProjectTemplate.Next => {
+            case ProjectTemplate.Next =>
                 generateTsConfig(name)
-            }
         }
 
         // 生成 README

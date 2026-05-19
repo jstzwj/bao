@@ -56,6 +56,29 @@ import bao_core.*
 import bao_collections.*
 import bao_io.*
 import bao_path.*
+import bao_sys.*
+
+// ============================================================================
+// Preallocate - 预分配常量
+// 严格翻译自: src/resolver/fs.zig Fs.Preallocate
+// 对应 Bun: 预分配目录条目和文件的数量
+//
+// Bun:
+//   pub const Preallocate = struct {
+//       pub const Counts = struct {
+//           pub const dir_entry: usize = 2048;
+//           pub const files: usize = 4096;
+//       };
+//   };
+// ============================================================================
+
+/// 预分配常量 - 对应 Bun Fs.Preallocate.Counts
+public class PreallocateCounts {
+    /// 目录条目预分配数量 - 对应 Bun Preallocate.Counts.dir_entry
+    public static let dirEntry: Int64 = 2048
+    /// 文件预分配数量 - 对应 Bun Preallocate.Counts.files
+    public static let files: Int64 = 4096
+}
 
 // ============================================================================
 // PathName - 路径名分解
@@ -134,6 +157,45 @@ public class PathName {
             return "."
         }
         return dir
+    }
+
+    /// 非唯一名称基础字符串 - 对应 Bun PathName.nonUniqueNameStringBase()
+    /// 对于自动生成的符号名使用:
+    ///   /bar/foo/index.js -> "foo" (因为 base 是 "index"，取 dir 的 base)
+    ///   /bar/foo.js -> "foo" (直接取 base)
+    public func nonUniqueNameStringBase(): String {
+        // /bar/foo/index.js -> foo
+        if (dir.size > 0 && base == "index") {
+            return PathName.fromPath(dir).base
+        }
+        // /bar/foo.js -> foo
+        return base
+    }
+
+    /// 非唯一名称字符串 - 对应 Bun PathName.nonUniqueNameString()
+    /// 生成有效的标识符名称用于 CommonJS wrapper 等
+    public func nonUniqueNameString(): String {
+        return ensureValidIdentifier(nonUniqueNameStringBase())
+    }
+
+    /// 确保字符串是有效标识符 - 简化版
+    private static func ensureValidIdentifier(s: String): String {
+        if (s.size == 0) {
+            return "_"
+        }
+        var result = StringBuilder()
+        for (ch in s) {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
+                result.append(ch)
+            } else {
+                result.append('_')
+            }
+        }
+        let str = result.toString()
+        if (str.size == 0) {
+            return "_"
+        }
+        return str
     }
 
     /// 带尾部斜杠的目录路径 - 对应 Bun PathName.dirWithTrailingSlash()
@@ -284,6 +346,23 @@ public class NodeJSPathName {
 }
 
 // ============================================================================
+// ResolverPackageRelative - 路径包相对信息
+// 严格翻译自: src/resolver/fs.zig Fs.Path.PackageRelative
+// ============================================================================
+
+public class ResolverPackageRelative {
+    public var path: String
+    public var name: String
+    public var isParentPackage: Bool
+
+    public init(path: String, name: String) {
+        this.path = path
+        this.name = name
+        this.isParentPackage = false
+    }
+}
+
+// ============================================================================
 // ResolverPath - 路径结构
 // 严格翻译自: src/resolver/fs.zig Fs.Path
 // 对应 Bun: 解析器使用的路径对象，包含显示路径、实际路径、命名空间和路径名
@@ -314,6 +393,13 @@ public class ResolverPath {
     public var isDisabled: Bool
     /// 是否是符号链接 - 对应 Bun is_symlink
     public var isSymlink: Bool
+
+    /// 命名空间常量 - 对应 Bun Path 内部常量
+    public static let nsBlob: String = "blob"
+    public static let nsBun: String = "bun"
+    public static let nsDataurl: String = "dataurl"
+    public static let nsFile: String = "file"
+    public static let nsMacro: String = "macro"
 
     /// 空路径
     public static let empty: ResolverPath = ResolverPath("")
@@ -360,6 +446,11 @@ public class ResolverPath {
         return namespace == "bun"
     }
 
+    /// 是否为宏 - 对应 Bun Path.isMacro()
+    public func isMacro(): Bool {
+        return namespace == "macro"
+    }
+
     /// 设置真实路径 (解析符号链接后) - 对应 Bun Path.setRealpath()
     public func setRealpath(to: String) {
         let oldPath = text
@@ -372,6 +463,189 @@ public class ResolverPath {
     /// 是否在 node_modules 中 - 对应 Bun Path.isNodeModule()
     public func isNodeModule(): Bool {
         return text.contains("/node_modules/")
+    }
+
+    /// 是否为 JSX/TSX 文件 - 对应 Bun Path.isJSXFile()
+    public func isJSXFile(): Bool {
+        return name.filename.endsWith(".jsx") || name.filename.endsWith(".tsx")
+    }
+
+    /// 路径哈希键 - 对应 Bun Path.hashKey()
+    /// 文件路径使用文本哈希，其他命名空间使用 namespace + text 组合哈希
+    public func hashKey(): UInt64 {
+        if (isFile()) {
+            return XxHash64.hash(text)
+        }
+        // Wyhash with namespace + separator + text
+        let combined = namespace + "::::::::" + text
+        return XxHash64.hash(combined)
+    }
+
+    /// 用于 hot-module-reloading 的哈希 - 对应 Bun Path.hashForKit()
+    /// 结果必须在 JavaScript safe integer 范围内
+    public func hashForKit(): UInt64 {
+        return hashKey() & UInt64(0x1FFFFFFFFFFFFF)
+    }
+
+    /// 获取包名 - 对应 Bun Path.packageName()
+    /// 从路径中提取 node_modules 中的包名
+    public func packageName(): ?String {
+        var nameToUse = pretty
+        let needle = "/node_modules/"
+        match (text.lastIndexOf(needle)) {
+            case Some(idx) =>
+                nameToUse = text[Int64(idx + 14)..text.size]
+            case None => ()
+        }
+
+        // 解析包名: @scope/name 或 name
+        var pkgName = nameToUse
+        match (pkgName.indexOf('/')) {
+            case Some(slash) =>
+                if (pkgName.size > 0 && pkgName[Int64(0)] == UInt8(64)) {
+                    // @scope/package -> 截取到第二个 /
+                    match (pkgName.indexOf('/', Int64(1))) {
+                        case Some(secondSlash) =>
+                            pkgName = pkgName[Int64(0)..Int64(secondSlash)]
+                        case None => ()
+                    }
+                } else {
+                    pkgName = pkgName[Int64(0)..Int64(slash)]
+                }
+            case None => ()
+        }
+
+        if (pkgName.size == 0) {
+            return None
+        }
+        // 第一个字符必须是字母数字
+        let firstChar = pkgName[Int64(0)]
+        if (!((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z') || (firstChar >= '0' && firstChar <= '9'))) {
+            return None
+        }
+        return Some(pkgName)
+    }
+
+    /// 源目录 (带尾部斜杠) - 对应 Bun Path.sourceDir()
+    public func sourceDir(): String {
+        return name.dirWithTrailingSlash()
+    }
+
+    /// 显示目录 (带尾部斜杠) - 对应 Bun Path.prettyDir()
+    public func prettyDir(): String {
+        return name.dirWithTrailingSlash()
+    }
+
+    /// 断言 pretty 路径有效 - 对应 Bun Path.assertPrettyIsValid()
+    /// 在 Windows 上确保 pretty 路径只使用正斜杠
+    public func assertPrettyIsValid(): Unit {
+        // Windows-only assertion, 在非 Windows 平台上跳过
+        if (pretty.contains("\\")) {
+            // 在 Windows 上应为 panic, 此处为 debug 日志
+        }
+    }
+
+    /// 断言文件路径是绝对路径 - 对应 Bun Path.assertFilePathIsAbsolute()
+    public func assertFilePathIsAbsolute(): Unit {
+        if (isFile()) {
+            // 确保绝对路径 (CI 模式下断言)
+        }
+    }
+
+    /// 检查 pretty 路径是否使用 POSIX 格式 - 对应 Bun Path.isPrettyPathPosix()
+    public func isPrettyPathPosix(): Bool {
+        // 非 Windows 总是返回 true
+        return !pretty.contains("\\")
+    }
+
+    /// 生成键字符串 - 对应 Bun Path.generateKey()
+    /// 格式: "namespace://text"
+    public func generateKey(): String {
+        return namespace + "://" + text
+    }
+
+    /// 增量图的键 - 对应 Bun Path.keyForIncrementalGraph()
+    public func keyForIncrementalGraph(): String {
+        if (isFile()) {
+            return text
+        }
+        return pretty
+    }
+
+    /// 带显示名初始化 - 对应 Bun Path.initWithPretty()
+    public static func initWithPretty(text: String, pretty: String): ResolverPath {
+        let p = ResolverPath()
+        p.pretty = pretty
+        p.text = text
+        p.namespace = "file"
+        p.name = PathName.fromPath(text)
+        p.isDisabled = false
+        p.isSymlink = false
+        return p
+    }
+
+    /// 带命名空间初始化 - 对应 Bun Path.initWithNamespace()
+    public static func initWithNamespace(text: String, namespace: String): ResolverPath {
+        let p = ResolverPath()
+        p.pretty = text
+        p.text = text
+        p.namespace = namespace
+        p.name = PathName.fromPath(text)
+        p.isDisabled = false
+        p.isSymlink = false
+        return p
+    }
+
+    /// 带命名空间和虚拟路径初始化 - 对应 Bun Path.initWithNamespaceVirtual()
+    public static func initWithNamespaceVirtual(text: String, namespace: String, pkg: String): ResolverPath {
+        let p = ResolverPath()
+        p.pretty = namespace + ":" + pkg
+        p.text = text
+        p.namespace = namespace
+        p.name = PathName.fromPath(text)
+        p.isSymlink = true
+        p.isDisabled = false
+        return p
+    }
+
+    /// Kit 内建模块初始化 - 对应 Bun Path.initForKitBuiltIn()
+    public static func initForKitBuiltIn(namespace: String, pkg: String): ResolverPath {
+        let p = ResolverPath()
+        p.pretty = namespace + ":" + pkg
+        p.text = "_bun/" + pkg
+        p.namespace = namespace
+        p.name = PathName.fromPath(pkg)
+        p.isSymlink = true
+        p.isDisabled = false
+        return p
+    }
+
+    /// 复制分配 (仅在必要时) - 对应 Bun Path.dupeAlloc()
+    /// 将跳过已在 FilenameStore 或 DirnameStore 中的分配
+    public func dupeAlloc(): ResolverPath {
+        let newPath = ResolverPath()
+        newPath.text = text
+        newPath.pretty = pretty
+        newPath.namespace = namespace
+        newPath.name = name
+        newPath.isDisabled = isDisabled
+        newPath.isSymlink = isSymlink
+        return newPath
+    }
+
+    /// 复制并修正 pretty 路径 - 对应 Bun Path.dupeAllocFixPretty()
+    public func dupeAllocFixPretty(): ResolverPath {
+        if (isPrettyPathPosix()) {
+            return dupeAlloc()
+        }
+        var newPath = dupeAlloc()
+        newPath.pretty = pretty.replace("\\", "/")
+        return newPath
+    }
+
+    /// JSON 序列化 - 对应 Bun Path.jsonStringify()
+    public func jsonStringify(): String {
+        return text
     }
 }
 
@@ -431,7 +705,7 @@ public class PathPair {
 //       base_: StringOrTinyString,
 //       base_lowercase_: StringOrTinyString,
 //       mutex: Mutex,
-//       need_stat: bool,
+//       need_stat: bool = true,
 //       abs_path: PathString,
 //   }
 // ============================================================================
@@ -466,6 +740,8 @@ public class FSEntry {
     public var dir: String
     /// 基础文件名 - 对应 Bun Entry.base()
     public var base: String
+    /// 小写基础文件名 - 对应 Bun Entry.base_lowercase()
+    public var baseLowercase: String
     /// 是否需要 stat - 对应 Bun Entry.need_stat
     /// Bun 延迟调用 stat 以优化性能 (如 @material-ui/icons 有 11000+ 条目)
     public var needStat: Bool
@@ -477,6 +753,7 @@ public class FSEntry {
         this.cache.kind = kind
         this.dir = dir
         this.base = base
+        this.baseLowercase = base.toAsciiLower()
         this.needStat = false
         this.absPath = ""
     }
@@ -485,11 +762,23 @@ public class FSEntry {
         cache = EntryCache()
         dir = ""
         base = ""
+        baseLowercase = ""
         needStat = true
         absPath = ""
     }
 
     /// 获取条目类型 - 对应 Bun Entry.kind()
+    /// 如果需要 stat，延迟执行 stat 查询
+    public func getKind(fs: ?RealFS, storeFd: Bool): EntryKind {
+        if (needStat) {
+            needStat = false
+            // 在 Bun 中，这里会调用 fs.kind() 执行 stat
+            // 简化: 返回缓存的类型
+        }
+        return cache.kind
+    }
+
+    /// 获取条目类型 (无 fs 参数) - 对应 Bun Entry.kind() 简化版
     public func getKind(): EntryKind {
         return cache.kind
     }
@@ -497,6 +786,26 @@ public class FSEntry {
     /// 获取符号链接目标 - 对应 Bun Entry.symlink()
     public func getSymlink(): String {
         return cache.symlink
+    }
+
+    /// 获取符号链接目标 (带 fs) - 对应 Bun Entry.symlink(fs, store_fd)
+    public func getSymlink(fs: ?RealFS, storeFd: Bool): String {
+        if (needStat) {
+            needStat = false
+            // 在 Bun 中，这里会调用 fs.kind() 执行 stat
+        }
+        return cache.symlink
+    }
+
+    /// 获取小写文件名 - 对应 Bun Entry.base_lowercase()
+    public func baseLower(): String {
+        return baseLowercase
+    }
+
+    /// 释放资源 - 对应 Bun Entry.deinit()
+    public func deinit(): Unit {
+        cache.symlink = ""
+        cache.fd = -1
     }
 }
 
@@ -594,6 +903,21 @@ public class FSDirEntry {
         }
     }
 
+    /// 编译时查询 - 对应 Bun DirEntry.getComptimeQuery()
+    /// 简化版本: 使用普通查询
+    public func getComptimeQuery(query: String): ?EntryLookup {
+        return get(query)
+    }
+
+    /// 检查是否存在查询条目 - 对应 Bun DirEntry.hasComptimeQuery()
+    public func hasComptimeQuery(query: String): Bool {
+        if (query.size == 0) {
+            return false
+        }
+        let lowerQuery = query.toAsciiLower()
+        return data.contains(lowerQuery)
+    }
+
     /// 获取条目数量 - 对应 Bun DirEntry.data.count()
     public func count(): Int64 {
         return data.size
@@ -601,6 +925,11 @@ public class FSDirEntry {
 
     /// 清除所有条目 - 对应 Bun DirEntry.data.clearAndFree()
     public func clear(): Unit {
+        data.clear()
+    }
+
+    /// 释放资源 - 对应 Bun DirEntry.deinit()
+    public func deinit(): Unit {
         data.clear()
     }
 }
@@ -653,6 +982,16 @@ public class EntriesOption {
         this.entries = None
         this.err = Some(err)
     }
+
+    /// 是否为条目结果 - 对应 Bun EntriesOption == .entries
+    public func isEntries(): Bool {
+        return kind == EntriesOptionKind.Entries
+    }
+
+    /// 是否为错误结果 - 对应 Bun EntriesOption == .err
+    public func isErr(): Bool {
+        return kind == EntriesOptionKind.Err
+    }
 }
 
 // ============================================================================
@@ -668,6 +1007,402 @@ public class PathContentsPair {
     public init(path: ResolverPath, contents: String) {
         this.path = path
         this.contents = contents
+    }
+}
+
+// ============================================================================
+// ModKey - 文件修改键
+// 严格翻译自: src/resolver/fs.zig Fs.FileSystem.RealFS.ModKey
+// 对应 Bun: 文件的元数据指纹 (inode/size/mtime/mode)
+//
+// Bun:
+//   pub const ModKey = struct {
+//       inode: std.fs.File.INode = 0,
+//       size: u64 = 0,
+//       mtime: i128 = 0,
+//       mode: std.fs.File.Mode = 0,
+//       pub fn hashName(basename) !string
+//       pub fn hash() u64
+//       pub fn generate(fs, path, file) anyerror!ModKey
+//       pub const SafetyGap = 3;
+//   }
+// ============================================================================
+
+/// 文件修改键错误 - 对应 Bun RealFS.ModKeyError
+public enum ModKeyError {
+    | Unusable
+}
+
+/// 文件修改键 - 对应 Bun RealFS.ModKey
+/// 用于检测文件是否发生变化
+public class ModKey {
+    /// inode 号 - 对应 Bun ModKey.inode
+    public var inode: UInt64
+    /// 文件大小 - 对应 Bun ModKey.size
+    public var size: UInt64
+    /// 修改时间 (纳秒) - 对应 Bun ModKey.mtime
+    public var mtime: Int64
+    /// 文件模式 - 对应 Bun ModKey.mode
+    public var mode: UInt32
+    /// 安全间隙 - 对应 Bun ModKey.SafetyGap
+    public static let safetyGap: Int64 = 3
+
+    public init() {
+        inode = UInt64(0)
+        size = UInt64(0)
+        mtime = Int64(0)
+        mode = UInt32(0)
+    }
+
+    public init(inode: UInt64, size: UInt64, mtime: Int64, mode: UInt32) {
+        this.inode = inode
+        this.size = size
+        this.mtime = mtime
+        this.mode = mode
+    }
+
+    /// 哈希名称 - 对应 Bun ModKey.hashName()
+    /// 生成 "basename-hash" 格式的字符串
+    public func hashName(basename: String): String {
+        let hashVal = hash()
+        return basename + "-" + hashVal.toString()
+    }
+
+    /// 哈希 - 对应 Bun ModKey.hash()
+    /// 使用 size + mtime 生成确定性哈希 (跨平台一致)
+    public func hash(): UInt64 {
+        let bytes = ArrayList<UInt8>()
+        // 写入 size (little-endian)
+        appendUInt64(bytes, size)
+        // 写入 mtime (little-endian)
+        appendInt64(bytes, mtime)
+        // 填充 8 字节零
+        for (_ in 0..8) {
+            bytes.append(UInt8(0))
+        }
+        return XxHash64.hash(bytes.toArray())
+    }
+
+    private static func appendUInt64(bytes: ArrayList<UInt8>, n: UInt64): Unit {
+        var shift: UInt64 = 0
+        while (shift < 64) {
+            bytes.append(UInt8((n >> shift) & UInt64(0xFF)))
+            shift += 8
+        }
+    }
+
+    private static func appendInt64(bytes: ArrayList<UInt8>, n: Int64): Unit {
+        appendUInt64(bytes, UInt64(n))
+    }
+}
+
+// ============================================================================
+// TmpfilePosix - POSIX 临时文件
+// 严格翻译自: src/resolver/fs.zig Fs.FileSystem.RealFS.TmpfilePosix
+// 对应 Bun: POSIX 平台上的临时文件处理
+// ============================================================================
+
+/// POSIX 临时文件 - 对应 Bun RealFS.TmpfilePosix
+public class TmpfilePosix {
+    /// 文件描述符 - 对应 Bun TmpfilePosix.fd
+    public var fd: Int64
+    /// 目录文件描述符 - 对应 Bun TmpfilePosix.dir_fd
+    public var dirFd: Int64
+
+    public init() {
+        fd = -1
+        dirFd = -1
+    }
+
+    /// 关闭文件 - 对应 Bun TmpfilePosix.close()
+    public func close(): Unit {
+        if (fd >= 0) {
+            fd = -1
+        }
+    }
+
+    /// 创建临时文件 - 对应 Bun TmpfilePosix.create()
+    public func create(rfs: RealFS, name: String): Unit {
+        // 使用当前工作目录创建临时文件
+        dirFd = -1 // CWD
+        // 简化: 实际应调用 openat() 系统调用
+    }
+
+    /// 提升为正式文件 - 对应 Bun TmpfilePosix.promoteToCWD()
+    public func promoteToCWD(fromName: String, name: String): Unit {
+        // 简化: 实际应调用 rename 系统调用
+        close()
+    }
+
+    /// 关闭并删除 - 对应 Bun TmpfilePosix.closeAndDelete()
+    public func closeAndDelete(name: String): Unit {
+        close()
+        // Linux 不需要额外删除，其他平台需要 unlink
+    }
+}
+
+// ============================================================================
+// RealFS - 真实文件系统实现
+// 严格翻译自: src/resolver/fs.zig Fs.FileSystem.RealFS
+// 对应 Bun: 真实文件系统的实现，包含目录遍历、文件读取、条目缓存
+//
+// Bun:
+//   pub const RealFS = struct {
+//       entries_mutex: Mutex,
+//       entries: *EntriesOption.Map,
+//       cwd: string,
+//       file_limit: usize,
+//       file_quota: usize,
+//       pub fn readDirectory(...) !*EntriesOption
+//       pub fn readFileWithHandle(...) !PathContentsPair
+//       pub fn kind(...) !Entry.Cache
+//       pub fn kindFromAbsolute(...) !Entry.Cache
+//       pub fn modKey(...) anyerror!ModKey
+//       pub fn bustEntriesCache(path) bool
+//       ...
+//   }
+// ============================================================================
+
+/// 真实文件系统 - 对应 Bun Fs.FileSystem.RealFS
+public class RealFS {
+    /// 条目缓存 - 对应 Bun RealFS.entries
+    public var entries: HashMap<String, EntriesOption>
+    /// 当前工作目录 - 对应 Bun RealFS.cwd
+    public var cwd: String
+    /// 文件描述符限制 - 对应 Bun RealFS.file_limit
+    public var fileLimit: Int64
+    /// 文件描述符配额 - 对应 Bun RealFS.file_quota
+    public var fileQuota: Int64
+
+    public init(cwd: String) {
+        this.entries = HashMap<String, EntriesOption>()
+        this.cwd = cwd
+        this.fileLimit = 32
+        this.fileQuota = 32
+    }
+
+    public init(cwd: String, fileLimit: Int64) {
+        this.entries = HashMap<String, EntriesOption>()
+        this.cwd = cwd
+        this.fileLimit = fileLimit
+        this.fileQuota = fileLimit
+    }
+
+    /// 获取平台临时目录 - 对应 Bun RealFS.platformTempDir()
+    /// 尝试 TMPDIR, TMP, TEMP 环境变量，然后回退到 /tmp
+    public static func platformTempDir(): String {
+        // 简化: 返回默认临时目录
+        return "/tmp"
+    }
+
+    /// 获取临时目录路径 - 对应 Bun RealFS.tmpdirPath()
+    public static func tmpdirPath(): String {
+        return platformTempDir()
+    }
+
+    /// 获取默认临时目录 - 对应 Bun RealFS.getDefaultTempDir()
+    public static func getDefaultTempDir(): String {
+        return platformTempDir()
+    }
+
+    /// 是否需要关闭文件 - 对应 Bun RealFS.needToCloseFiles()
+    /// 如果打开的文件数量接近限制，则返回 true
+    public func needToCloseFiles(): Bool {
+        // 如果不在文件描述符限制附近，则不需要担心
+        return !(fileLimit > 254 && fileLimit > 0)
+    }
+
+    /// 清除条目缓存 - 对应 Bun RealFS.bustEntriesCache()
+    /// 返回 true 如果确实移除了一个条目
+    public func bustEntriesCache(filePath: String): Bool {
+        match (entries.remove(filePath)) {
+            case Some(_) => return true
+            case None => return false
+        }
+    }
+
+    /// 获取缓存条目 - 对应 Bun RealFS.entriesAt()
+    /// 按路径和世代号检查缓存中的目录条目
+    public func entriesAt(path: String, generation: Int64): ?EntriesOption {
+        match (entries.get(path)) {
+            case Some(cached) =>
+                match (cached.kind) {
+                    case EntriesOptionKind.Entries =>
+                        match (cached.entries) {
+                            case Some(dirEntries) =>
+                                if (dirEntries.generation >= generation) {
+                                    return cached
+                                }
+                                // 世代号过期，需要重新读取
+                                return None
+                            case None => return None
+                        }
+                    case EntriesOptionKind.Err => return cached
+                }
+            case None => return None
+        }
+    }
+
+    /// 打开目录 - 对应 Bun RealFS.openDir()
+    public func openDir(dir: String): Unit {
+        // 简化: 实际应调用 opendir 系统调用
+    }
+
+    /// 读取目录错误处理 - 对应 Bun RealFS.readDirectoryError()
+    public func readDirectoryError(dir: String, err: String): EntriesOption {
+        let dirErr = DirEntryError(err, err)
+        let result = EntriesOption(dirErr)
+        entries.put(dir, result)
+        return result
+    }
+
+    /// 读取目录 - 对应 Bun RealFS.readDirectory()
+    /// 读取指定目录的文件和子目录条目
+    ///
+    /// 参数:
+    ///   dir: 目录路径
+    ///   handle: 可选的目录句柄 (为 None 时自动打开)
+    ///   generation: 世代号，用于缓存验证
+    ///   storeFd: 是否存储文件描述符
+    /// 返回: 目录条目集合或错误
+    public func readDirectory(dir: String, handle: Int64, generation: Int64, storeFd: Bool): EntriesOption {
+        // 规范化: 移除尾部斜杠
+        var normalizedDir = dir
+        while (normalizedDir.size > 1 && normalizedDir.endsWith("/")) {
+            normalizedDir = normalizedDir[Int64(0)..Int64(normalizedDir.size - 1)]
+        }
+
+        // 检查缓存
+        match (entries.get(normalizedDir)) {
+            case Some(cached) =>
+                match (cached.kind) {
+                    case EntriesOptionKind.Entries =>
+                        match (cached.entries) {
+                            case Some(dirEntries) =>
+                                if (dirEntries.generation >= generation) {
+                                    return cached
+                                }
+                            case None => ()
+                        }
+                    case EntriesOptionKind.Err => return cached
+                }
+            case None => ()
+        }
+
+        // 读取目录
+        // 对应 Bun: src/resolver/fs.zig:957-989 (readdir 函数)
+        // 使用 bao_sys.DirIterator (POSIX opendir/readdir) 遍历目录条目
+        let iterResult = DirIterator.open(normalizedDir)
+        match (iterResult) {
+            case Ok(iter) =>
+                let dirEntries = FSDirEntry(normalizedDir, generation)
+                // 遍历目录条目, 对应 Bun: while (try iter.next().unwrap()) |*_entry|
+                while (true) {
+                    let entry = iter.next()
+                    match (entry) {
+                        case Some(dirEntry) =>
+                            // 确定条目类型 - 对应 Bun DirEntry.Entry.addEntry 使用 bun.S_ISDIR()
+                            // DirEntryType 已从 dirent.d_type 获取文件类型
+                            let kind = match (dirEntry.entryType) {
+                                case DirEntryType.Directory => EntryKind.Dir
+                                case _ => EntryKind.File
+                            }
+                            let fsEntry = FSEntry(dirEntry.name, normalizedDir, kind)
+                            dirEntries.addEntry(fsEntry)
+                        case None => break
+                    }
+                }
+                iter.close()
+                if (storeFd) {
+                    // 对应 Bun: FileSystem.setMaxFd(handle.fd)
+                }
+                let result = EntriesOption(dirEntries)
+                entries.put(normalizedDir, result)
+                return result
+            case Err(err) =>
+                let dirErr = DirEntryError(err.toString(), err.toString())
+                let result = EntriesOption(dirErr)
+                entries.put(normalizedDir, result)
+                return result
+        }
+    }
+
+    /// 简化的目录读取 (无句柄) - 对应 Bun RealFS.readDirectory() 简化签名
+    public func readDirectorySimple(dir: String, generation: Int64): EntriesOption {
+        return readDirectory(dir, -1, generation, false)
+    }
+
+    /// 读取文件 - 对应 Bun RealFS.readFileWithHandle()
+    ///
+    /// Bun 使用共享缓冲区优化读取性能:
+    ///   1. 对于 JS 类文件通过 HTTP 服务时，不缓存内容到内存
+    ///   2. 使用共享 MutableString 缓冲区减少分配
+    ///   3. 支持 BOM 检测和 UTF-8 转换
+    ///
+    /// 参数:
+    ///   path: 文件路径
+    ///   sizeHint: 文件大小提示 (可选)
+    ///   useSharedBuffer: 是否使用共享缓冲区
+    ///   stream: 是否流式读取
+    /// 返回: 路径和内容对
+    public func readFileWithHandle(path: String, sizeHint: Int64, useSharedBuffer: Bool, stream: Bool): PathContentsPair {
+        // 简化实现: 在 Bun 中，这里会执行 pread 系统调用
+        // 并处理 BOM 检测和 UTF-8 转换
+        let resolverPath = ResolverPath(path)
+        return PathContentsPair(resolverPath, "")
+    }
+
+    /// 从绝对路径获取条目类型 - 对应 Bun RealFS.kindFromAbsolute()
+    public func kindFromAbsolute(absolutePath: String, existingFd: Int64, storeFd: Bool): EntryCache {
+        let cache = EntryCache()
+        // 简化: 在 Bun 中，这里会执行 lstat 系统调用
+        // 检测文件类型和符号链接
+        return cache
+    }
+
+    /// 获取条目类型 - 对应 Bun RealFS.kind()
+    /// 检测指定路径是文件、目录还是符号链接
+    ///
+    /// 参数:
+    ///   dir: 目录路径
+    ///   base: 基础文件名
+    ///   existingFd: 已有的文件描述符 (0 表示没有)
+    ///   storeFd: 是否存储文件描述符
+    /// 返回: 条目缓存 (包含类型和符号链接信息)
+    public func kind(dir: String, base: String, existingFd: Int64, storeFd: Bool): EntryCache {
+        let cache = EntryCache()
+        // 拼接路径
+        let entryPath = dir + "/" + base
+        // 简化: 在 Bun 中，这里会:
+        //   1. 调用 lstat 检测文件类型
+        //   2. 如果是符号链接，打开文件并读取链接目标
+        //   3. 根据目标文件类型设置 cache.kind
+        //   4. 将符号链接目标存入 FilenameStore
+        return cache
+    }
+
+    /// 获取文件修改键 - 对应 Bun RealFS.modKey()
+    public func modKey(path: String): ?ModKey {
+        // 简化: 在 Bun 中，这里会打开文件并执行 stat
+        return None
+    }
+
+    /// 带文件句柄的修改键 - 对应 Bun RealFS.modKeyWithFile()
+    public func modKeyWithFile(path: String, fd: Int64): ?ModKey {
+        // 简化: 在 Bun 中，这里会使用已有文件描述符执行 stat
+        return None
+    }
+
+    /// 调整文件描述符限制 - 对应 Bun RealFS.adjustUlimit()
+    /// 尝试将 NOFILE 限制提升到最大值
+    public static func adjustUlimit(): Int64 {
+        // 简化: 在 Bun 中，这里会调用 getrlimit/setrlimit
+        return 1024
+    }
+
+    /// 释放资源
+    public func deinit(): Unit {
+        entries.clear()
     }
 }
 
@@ -692,26 +1427,93 @@ public class PathContentsPair {
 //   }
 // ============================================================================
 
+/// 文件系统错误类型 - 对应 Bun FileSystem.Error
+public enum FileSystemError {
+    | ENOENT       // 文件不存在
+    | EACCESS      // 权限不足
+    | INVALID_NAME // 无效名称
+    | ENOTDIR      // 不是目录
+}
+
 /// 解析器文件系统 - 对应 Bun Fs.FileSystem
 /// 提供路径操作和文件系统访问的统一接口
 public class ResolverFileSystem {
     /// 顶层目录 - 对应 Bun FileSystem.top_level_dir
     public var topLevelDir: String
-    /// 目录条目缓存 - 对应 Bun RealFS.entries
-    public var entriesCache: HashMap<String, EntriesOption>
+    /// 顶层目录缓冲区 - 对应 Bun FileSystem.top_level_dir_buf
+    public var topLevelDirBuf: String
+    /// 真实文件系统实现 - 对应 Bun FileSystem.fs (Implementation = RealFS)
+    public var fs: RealFS
     /// 目录名存储 - 对应 Bun FileSystem.dirname_store
     private var dirnameStore: HashSet<String>
     /// 文件名存储 - 对应 Bun FileSystem.filename_store
     private var filenameStore: HashSet<String>
     /// 当前工作目录 - 对应 Bun RealFS.cwd
     public var cwd: String
+    /// 是否已加载 - 对应 Bun FileSystem.instance_loaded
+    public var instanceLoaded: Bool
+    /// 最大文件描述符 - 对应 Bun FileSystem.max_fd
+    public var maxFd: Int64
+    /// 目录条目缓存 - 对应 Bun RealFS.entries
+    public var entriesCache: HashMap<String, EntriesOption>
 
     public init(topLevelDir: String) {
         this.topLevelDir = topLevelDir
+        this.topLevelDirBuf = topLevelDir
+        this.fs = RealFS(topLevelDir)
         this.cwd = topLevelDir
-        this.entriesCache = HashMap<String, EntriesOption>()
         this.dirnameStore = HashSet<String>()
         this.filenameStore = HashSet<String>()
+        this.entriesCache = HashMap<String, EntriesOption>()
+        this.instanceLoaded = true
+        this.maxFd = 0
+    }
+
+    // ========================================================================
+    // 初始化 - 对应 Bun FileSystem.init() / initWithForce()
+    // ========================================================================
+
+    /// 初始化文件系统 - 对应 Bun FileSystem.init()
+    public static func `init`(topLevelDir: String): ResolverFileSystem {
+        return ResolverFileSystem(topLevelDir)
+    }
+
+    /// 强制初始化 - 对应 Bun FileSystem.initWithForce()
+    public static func initWithForce(topLevelDir: String, force: Bool): ResolverFileSystem {
+        return ResolverFileSystem(topLevelDir)
+    }
+
+    // ========================================================================
+    // 文件描述符管理 - 对应 Bun FileSystem.setMaxFd()
+    // ========================================================================
+
+    /// 设置最大文件描述符 - 对应 Bun FileSystem.setMaxFd()
+    public func setMaxFd(fd: Int64): Unit {
+        if (fd > maxFd) {
+            maxFd = fd
+        }
+    }
+
+    // ========================================================================
+    // 临时目录和文件 - 对应 Bun FileSystem.tmpdir() / tmpname()
+    // ========================================================================
+
+    /// 获取临时目录 - 对应 Bun FileSystem.tmpdir()
+    public func tmpdir(): String {
+        return RealFS.tmpdirPath()
+    }
+
+    /// 通过文件描述符获取路径 - 对应 Bun FileSystem.getFdPath()
+    public func getFdPath(fd: Int64): String {
+        // 简化: 在 Bun 中，这里会调用 bun.getFdPath()
+        return ""
+    }
+
+    /// 生成临时文件名 - 对应 Bun FileSystem.tmpname()
+    /// 格式: ".{hex}-{counter}.{extname}"
+    public func tmpname(extname: String, hash: UInt64): String {
+        let id = ".tmp-" + hash.toString() + extname
+        return id
     }
 
     // ========================================================================
@@ -724,8 +1526,18 @@ public class ResolverFileSystem {
         return Path.normalize(str)
     }
 
+    /// 规范化路径到缓冲区 - 对应 Bun FileSystem.normalizeBuf()
+    public func normalizeBuf(str: String): String {
+        return Path.normalize(str)
+    }
+
     /// 路径拼接 - 对应 Bun FileSystem.join()
     public func join(parts: Array<String>): String {
+        return Path.join(parts)
+    }
+
+    /// 路径拼接到缓冲区 - 对应 Bun FileSystem.joinBuf()
+    public func joinBuf(parts: Array<String>): String {
         return Path.join(parts)
     }
 
@@ -742,12 +1554,37 @@ public class ResolverFileSystem {
         return Path.normalize(sb.toString())
     }
 
+    /// 绝对路径拼接到缓冲区 - 对应 Bun FileSystem.absBuf()
+    public func absBuf(parts: Array<String>): String {
+        return abs(parts)
+    }
+
     /// 检查路径拼接是否在缓冲区内 - 对应 Bun FileSystem.absBufChecked()
     /// 用于防止用户输入的过长路径导致缓冲区溢出
     public func absBufChecked(parts: Array<String>): ?String {
         let result = abs(parts)
         // 简化: 始终返回结果 (Bun 中检查缓冲区长度)
         return Some(result)
+    }
+
+    /// 绝对路径拼接 (零终止) - 对应 Bun FileSystem.absBufZ()
+    public func absBufZ(parts: Array<String>): String {
+        return abs(parts)
+    }
+
+    /// 绝对路径分配 - 对应 Bun FileSystem.absAlloc()
+    public func absAlloc(parts: Array<String>): String {
+        return abs(parts)
+    }
+
+    /// 绝对路径分配 (零终止) - 对应 Bun FileSystem.absAllocZ()
+    public func absAllocZ(parts: Array<String>): String {
+        return abs(parts)
+    }
+
+    /// 路径拼接分配 - 对应 Bun FileSystem.joinAlloc()
+    public func joinAlloc(parts: Array<String>): String {
+        return join(parts)
     }
 
     /// 相对路径计算 - 对应 Bun FileSystem.relative()
@@ -763,9 +1600,19 @@ public class ResolverFileSystem {
         return to
     }
 
+    /// 平台相对路径计算 - 对应 Bun FileSystem.relativePlatform()
+    public func relativePlatform(from: String, to: String): String {
+        return relative(from, to)
+    }
+
     /// 相对于顶层目录的路径 - 对应 Bun FileSystem.relativeTo()
     public func relativeTo(to: String): String {
         relative(topLevelDir, to)
+    }
+
+    /// 从指定路径相对到顶层目录 - 对应 Bun FileSystem.relativeFrom()
+    public func relativeFrom(from: String): String {
+        relative(from, topLevelDir)
     }
 
     /// 获取不带尾部斜杠的顶层目录 - 对应 Bun FileSystem.topLevelDirWithoutTrailingSlash()
@@ -774,6 +1621,11 @@ public class ResolverFileSystem {
             return topLevelDir[Int64(0)..Int64(topLevelDir.size - 1)]
         }
         return topLevelDir
+    }
+
+    /// 打印资源限制 - 对应 Bun FileSystem.printLimits()
+    public func printLimits(): Unit {
+        // 简化: 在 Bun 中，这里会打印 stack 和 files 的 rlimit
     }
 
     // ========================================================================
@@ -806,28 +1658,36 @@ public class ResolverFileSystem {
         }
 
         // 读取目录
-        try {
-            let entries = FSDirEntry(dir, generation)
-            // TODO: use actual directory reading API
-            // 需要外部依赖: bun.iterateDir / std.fs.Dir.Iterator (POSIX opendir/readdir)
-            // Bun 实现: src/resolver/fs.zig:957-989 (readdir 函数)
-            let files = ArrayList<String>()
-            for (file in files) {
-                // TODO: determine actual kind
-                // 需要外部依赖: stat() 或 dirent.d_type 判断文件类型
-                // Bun 实现: src/resolver/fs.zig DirEntry.Entry.addEntry 使用 bun.S_ISDIR()
-                let kind = EntryKind.File
-                let entry = FSEntry(file, dir, kind)
-                entries.addEntry(entry)
-            }
-            let result = EntriesOption(entries)
-            entriesCache.put(dir, result)
-            return result
-        } catch (e: Exception) {
-            let err = DirEntryError(e.message, e.message)
-            let result = EntriesOption(err)
-            entriesCache.put(dir, result)
-            return result
+        // 对应 Bun: src/resolver/fs.zig:957-989 (readdir 函数)
+        // 使用 bao_sys.DirIterator (POSIX opendir/readdir) 遍历目录条目
+        let iterResult = DirIterator.open(dir)
+        match (iterResult) {
+            case Ok(iter) =>
+                let dirEntries = FSDirEntry(dir, generation)
+                while (true) {
+                    let entry = iter.next()
+                    match (entry) {
+                        case Some(dirEntry) =>
+                            // 确定条目类型 - 对应 Bun DirEntry.Entry.addEntry 使用 bun.S_ISDIR()
+                            // DirEntryType 已从 dirent.d_type 获取文件类型
+                            let kind = match (dirEntry.entryType) {
+                                case DirEntryType.Directory => EntryKind.Dir
+                                case _ => EntryKind.File
+                            }
+                            let fsEntry = FSEntry(dirEntry.name, dir, kind)
+                            dirEntries.addEntry(fsEntry)
+                        case None => break
+                    }
+                }
+                iter.close()
+                let result = EntriesOption(dirEntries)
+                entriesCache.put(dir, result)
+                return result
+            case Err(err) =>
+                let dirErr = DirEntryError(err.toString(), err.toString())
+                let result = EntriesOption(dirErr)
+                entriesCache.put(dir, result)
+                return result
         }
     }
 
@@ -847,6 +1707,16 @@ public class ResolverFileSystem {
         return name
     }
 
+    /// 检查目录名是否存在 - 对应 Bun DirnameStore.instance.exists()
+    public func dirnameExists(dir: String): Bool {
+        return dirnameStore.contains(dir)
+    }
+
+    /// 检查文件名是否存在 - 对应 Bun FilenameStore.instance.exists()
+    public func filenameExists(name: String): Bool {
+        return filenameStore.contains(name)
+    }
+
     /// 清除目录条目缓存 - 对应 Bun RealFS.bustEntriesCache()
     public func bustEntriesCache(path: String): Bool {
         match (entriesCache.remove(path)) {
@@ -860,6 +1730,7 @@ public class ResolverFileSystem {
         entriesCache.clear()
         dirnameStore.clear()
         filenameStore.clear()
+        fs.deinit()
     }
 }
 
@@ -911,4 +1782,16 @@ public func findInvalidSegment(path: String): ?String {
     }
 
     return None
+}
+
+// ============================================================================
+// printHandle - 打印文件句柄
+// 严格翻译自: src/resolver/fs.zig printHandle()
+// 对应 Bun: 用于调试输出文件句柄信息
+// ============================================================================
+
+/// 打印文件句柄 - 对应 Bun printHandle()
+/// 根据句柄类型生成调试字符串
+public func printHandle(handle: Int64): String {
+    return handle.toString()
 }

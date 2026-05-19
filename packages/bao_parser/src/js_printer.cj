@@ -1615,22 +1615,6 @@ public class SImport {
     }
 }
 
-/// LocRef - 位置+引用
-public class LocRef {
-    public var loc: Loc
-    public var ref: ?Ref
-
-    public init() {
-        loc = Loc.EMPTY
-        ref = None
-    }
-
-    public init(loc: Loc, ref: Ref) {
-        this.loc = loc
-        this.ref = ref
-    }
-}
-
 /// BProperty - 绑定属性
 /// 对应 Bun B.Property
 public class BProperty {

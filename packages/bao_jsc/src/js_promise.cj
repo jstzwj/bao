@@ -77,12 +77,12 @@ public class JsPromise {
     }
 
     // catch - Promise.prototype.catch
-    public func catch(onRejected: JsFunction): JsPromise {
+    public func `catch`(onRejected: JsFunction): JsPromise {
         then(None, Some(onRejected))
     }
 
     // finally - Promise.prototype.finally
-    public func finally(onFinally: JsFunction): JsPromise {
+    public func `finally`(onFinally: JsFunction): JsPromise {
         return this
     }
 

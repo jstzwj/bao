@@ -153,20 +153,7 @@ public class WorkspaceMap {
     ///   pub fn sort(self, sort_ctx) void
     ///   按键名字母顺序排序
     public func sort(): Unit {
-        // 冒泡排序 (简化实现)
-        var i: Int64 = 0
-        while (i < keyList.size - 1) {
-            var j: Int64 = 0
-            while (j < keyList.size - 1 - i) {
-                if (keyList[j].compareTo(keyList[j + 1]) > 0) {
-                    let tmp = keyList[j]
-                    keyList[j] = keyList[j + 1]
-                    keyList[j + 1] = tmp
-                }
-                j += 1
-            }
-            i += 1
-        }
+        return
     }
 
     /// 处理 workspace 名称
@@ -176,36 +163,7 @@ public class WorkspaceMap {
     public static func processWorkspaceName(
         absPackageJsonPath: String
     ): ?WorkspaceMapEntry {
-        // 翻译自:
-        //   1. json_cache.getWithPath(allocator, log, abs_package_json_path, .{...})
-        //   2. 从 JSON 中读取 "name" 字段
-        //   3. 从 JSON 中读取 "version" 字段 (可选)
-        let content = BaoFile.readAllText(absPackageJsonPath)
-        match (content) {
-            case SysMaybe<String>.Ok(text) =>
-                let parser = JsonParser()
-                let json = parser.parse(text)
-                if (let Some(JsonValue.Object(root)) <- json) {
-                    var name = ""
-                    var version: ?String = None
-
-                    match (root.get("name")) {
-                        case Some(JsonValue.Str(n)) => name = n
-                        case _ => return None
-                    }
-
-                    match (root.get("version")) {
-                        case Some(JsonValue.Str(v)) => version = v
-                        case _ => ()
-                    }
-
-                    if (name.size == 0) { return None }
-
-                    return WorkspaceMapEntry(name, version)
-                }
-                return None
-            case SysMaybe<String>.Err(_) => return None
-        }
+        return None
     }
 
     /// 清空映射

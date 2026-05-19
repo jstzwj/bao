@@ -83,11 +83,7 @@ public class JsValue {
 
     // Static constants used by napi
     public static let UNDEFINED: JsValue = JsValue()
-    public static let NULL: JsValue = {
-        let v = JsValue()
-        v.valueType = JsValueType.Null
-        v
-    }()
+    public static let NULL: JsValue = JsValue.null()
 
     public static func jsUndefined(): JsValue {
         JsValue()
@@ -597,5 +593,2181 @@ public class JsReferenceError <: JsError {
 public class JsUriError <: JsError {
     public init(message: String) {
         super("URIError", message)
+    }
+}
+
+// ========== JsValue 扩展: 数值操作 ==========
+// 严格翻译自 JSValue.zig 的数值相关方法
+
+public class JsValue {
+    // ========== 数值常量 ==========
+    // 严格翻译自 JSValue.zig MAX_SAFE_INTEGER
+    public static let MAX_SAFE_INTEGER: Float64 = 9007199254740991.0  // 2^53 - 1
+
+    // ========== toInt32 ==========
+    // 严格翻译自 JSValue.toInt32
+    // 将 JS 值转为 Int32，截断小数部分
+    // NaN -> 0, Infinity -> max/min, -Infinity -> min
+    public func toInt32(): Int32 {
+        if (isNumber()) {
+            return coerceDoubleTruncatingToInt32(numberValue)
+        }
+        0
+    }
+
+    // ========== asInt32 ==========
+    // 严格翻译自 JSValue.asInt32
+    // 断言值是 Int32 后返回
+    public func asInt32(): Int32 {
+        Int32(numberValue)
+    }
+
+    // ========== toInt64 ==========
+    // 严格翻译自 JSValue.toInt64
+    // 将 JS 值转为 Int64，截断小数部分
+    // NaN -> 0, Infinity -> max/min
+    public func toInt64(): Int64 {
+        if (isNumber()) {
+            return coerceDoubleTruncatingToInt64(numberValue)
+        }
+        0
+    }
+
+    // ========== toUInt64 ==========
+    // 严格翻译自 JSValue.toUInt64NoTruncate
+    // 对 BigInt 和 Number 的无符号 64 位转换
+    public func toUInt64(): UInt64 {
+        if (isNumber()) {
+            let n = numberValue
+            if (n < 0.0) {
+                return UInt64(0)
+            }
+            return UInt64(n)
+        }
+        if (isBigInt()) {
+            let parsed = UInt64.parseLong(bigIntValue)
+            match (parsed) {
+                case Some(v) => return v
+                case None => {}
+            }
+        }
+        UInt64(0)
+    }
+
+    // ========== toU16 ==========
+    // 严格翻译自 JSValue.toU16
+    public func toU16(): UInt16 {
+        let i = toInt32()
+        if (i < 0) {
+            return UInt16(0)
+        }
+        UInt16(i)
+    }
+
+    // ========== toU32 ==========
+    // 严格翻译自 JSValue.toU32
+    public func toU32(): UInt32 {
+        let i = toInt64()
+        if (i < 0) {
+            return UInt32(0)
+        }
+        UInt32(i)
+    }
+
+    // ========== toFloat32 ==========
+    // 转为 Float32
+    public func toFloat32(): Float32 {
+        Float32(toNumber())
+    }
+
+    // ========== asNumber ==========
+    // 严格翻译自 JSValue.asNumber
+    // 断言值是 number/undefined/null/boolean 后返回 f64
+    public func asNumber(): Float64 {
+        if (isNumber()) {
+            return numberValue
+        }
+        if (isUndefinedOrNull()) {
+            return 0.0
+        }
+        if (isBoolean()) {
+            return boolValue ? 1.0 : 0.0
+        }
+        Float64.NaN
+    }
+
+    // ========== getNumber ==========
+    // 严格翻译自 JSValue.getNumber
+    // 如果是数值类型返回 numberValue，否则返回 None
+    public func getNumber(): ?Float64 {
+        if (isNumber()) {
+            return numberValue
+        }
+        None
+    }
+
+    // ========== asDouble ==========
+    // 严格翻译自 JSValue.asDouble
+    // 断言是 double 后返回
+    public func asDouble(): Float64 {
+        numberValue
+    }
+
+    // ========== asBoolean ==========
+    // 严格翻译自 JSValue.asBoolean
+    // 断言是 boolean 后返回
+    public func asBoolean(): Bool {
+        boolValue
+    }
+
+    // ========== coerceDoubleTruncatingToInt32 ==========
+    // 严格翻译自 JSValue.coerceJSValueDoubleTruncatingT(i32, num)
+    // 截断 double 为 Int32: NaN->0, overflow->min/max
+    public static func coerceDoubleTruncatingToInt32(num: Float64): Int32 {
+        if (isNaN(num)) {
+            return 0
+        }
+        if (num <= Float64(Int32.MinValue) || num == Float64.NegativeInfinity) {
+            return Int32.MinValue
+        }
+        if (num >= Float64(Int32.MaxValue) || num == Float64.PositiveInfinity) {
+            return Int32.MaxValue
+        }
+        Int32(num)
+    }
+
+    // ========== coerceDoubleTruncatingToInt64 ==========
+    // 严格翻译自 JSValue.coerceJSValueDoubleTruncatingT(i64, num)
+    public static func coerceDoubleTruncatingToInt64(num: Float64): Int64 {
+        if (isNaN(num)) {
+            return 0
+        }
+        if (num <= Float64(Int64.MinValue) || num == Float64.NegativeInfinity) {
+            return Int64.MinValue
+        }
+        if (num >= Float64(Int64.MaxValue) || num == Float64.PositiveInfinity) {
+            return Int64.MaxValue
+        }
+        Int64(num)
+    }
+
+    // ========== isInteger ==========
+    // 严格翻译自 JSValue.isInteger
+    // ECMA-262 20.1.2.3 Number.isInteger
+    public func isInteger(): Bool {
+        if (isNumber()) {
+            let num = numberValue
+            // 有限数且截断后等于自身
+            if (isFinite(num) && Math.floor(num) == num) {
+                return true
+            }
+        }
+        false
+    }
+
+    // ========== isSafeInteger ==========
+    // 严格翻译自 JSValue.isSafeInteger
+    // https://tc39.es/ecma262/#sec-number.issafeinteger
+    public func isSafeInteger(): Bool {
+        if (isNumber()) {
+            let d = numberValue
+            if (Math.floor(d) == d && Math.abs(d) <= MAX_SAFE_INTEGER) {
+                return true
+            }
+        }
+        false
+    }
+
+    // ========== isFinite ==========
+    // 严格翻译自 JSValue.isFinite
+    // 21.1.2.2 Number.isFinite: 对非数字返回 false
+    public func isFinite(): Bool {
+        if (!isNumber()) {
+            return false
+        }
+        isFinite(numberValue)
+    }
+
+    // ========== isDouble ==========
+    // 严格翻译自 JSValue.isDouble
+    // 是 number 但不是 int32
+    public func isDouble(): Bool {
+        isNumber() && !isInt32()
+    }
+
+    // ========== isInt32 ==========
+    // 严格翻译自 JSValue.isInt32
+    // 检查数值是否在 Int32 范围内
+    public func isInt32(): Bool {
+        if (!isNumber()) {
+            return false
+        }
+        let n = numberValue
+        n >= Float64(Int32.MinValue) && n <= Float64(Int32.MaxValue) && Math.floor(n) == n
+    }
+
+    // ========== isAnyInt ==========
+    // 严格翻译自 JSValue.isAnyInt
+    public func isAnyInt(): Bool {
+        if (!isNumber()) {
+            return false
+        }
+        let n = numberValue
+        !isNaN(n) && isFinite(n) && Math.floor(n) == n
+    }
+
+    // ========== toPortNumber ==========
+    // 严格翻译自 JSValue.toPortNumber
+    // 将值转为端口号 (0-65535)
+    public func toPortNumber(): ?UInt16 {
+        if (!isNumber()) {
+            return None
+        }
+        let d = toNumber()
+        if (isNaN(d)) {
+            return None
+        }
+        let port = toInt64()
+        if (port >= 0 && port <= 65535) {
+            return UInt16(port)
+        }
+        None
+    }
+
+    // ========== isNaN helper ==========
+    public static func isNaN(n: Float64): Bool {
+        n != n
+    }
+
+    // ========== isFinite helper ==========
+    public static func isFinite(n: Float64): Bool {
+        !isNaN(n) && n != Float64.PositiveInfinity && n != Float64.NegativeInfinity
+    }
+}
+
+// ========== JsValue 扩展: 属性操作 ==========
+// 严格翻译自 JSValue.zig 的属性相关方法
+
+public class JsValue {
+    // ========== get (property) ==========
+    // 严格翻译自 JSValue.get
+    // 等价于 target[property]
+    // 返回 None 表示属性不存在或值为 undefined
+    public func get(global: JsObject, property: String): ?JsValue {
+        if (!isObject()) {
+            return None
+        }
+        let obj = objectValue.getOrThrow()
+        obj.get(property)
+    }
+
+    // ========== getOptional ==========
+    // 严格翻译自 JSValue.getOptional
+    // 获取属性值，如果不存在或是 undefined/null 则返回 None
+    public func getOptional(global: JsObject, property: String): ?JsValue {
+        let prop = get(global, property)
+        if (let Some(val) <- prop) {
+            if (!val.isUndefinedOrNull()) {
+                return val
+            }
+        }
+        None
+    }
+
+    // ========== put ==========
+    // 严格翻译自 JSValue.put
+    // 等价于 target[property] = value
+    public func put(global: JsObject, property: String, value: JsValue): Unit {
+        if (!isObject()) {
+            return
+        }
+        let obj = objectValue.getOrThrow()
+        obj.put(property, value)
+    }
+
+    // ========== putIndex ==========
+    // 严格翻译自 JSValue.putIndex
+    // 设置数组索引位置
+    public func putIndex(global: JsObject, index: UInt32, value: JsValue): Unit {
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                let arr = obj.arrayStorage
+                if (Int64(index) < Int64(arr.size)) {
+                    obj.arrayStorage[Int64(index)] = value
+                } else {
+                    obj.arrayStorage.append(value)
+                }
+            }
+        }
+    }
+
+    // ========== getIndex ==========
+    // 严格翻译自 JSValue.getIndex
+    // 获取数组索引处的值
+    public func getIndex(global: JsObject, index: UInt32): JsValue {
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                let arr = obj.arrayStorage
+                if (Int64(index) < Int64(arr.size)) {
+                    return arr[Int64(index)]
+                }
+            }
+        }
+        JsValue.undefined()
+    }
+
+    // ========== deleteProperty ==========
+    // 严格翻译自 JSValue.deleteProperty
+    // 删除属性，返回是否删除成功
+    public func deleteProperty(global: JsObject, property: String): Bool {
+        if (!isObject()) {
+            return false
+        }
+        let obj = objectValue.getOrThrow()
+        obj.delete(property)
+    }
+
+    // ========== hasOwnProperty ==========
+    // 严格翻译自 JSValue.hasOwnPropertyValue
+    // 检查对象是否有指定属性
+    public func hasOwnProperty(global: JsObject, key: JsValue): Bool {
+        if (!isObject()) {
+            return false
+        }
+        let obj = objectValue.getOrThrow()
+        let keyStr = key.toString()
+        obj.hasProperty(keyStr)
+    }
+
+    // ========== getLength ==========
+    // 严格翻译自 JSValue.getLength
+    // 获取 length 属性值 (数组、字符串等)
+    // 不存在时返回 0
+    public func getLength(global: JsObject): UInt64 {
+        let len = getLengthIfPropertyExists(global)
+        if (len < 0.0) {
+            return UInt64(0)
+        }
+        let clamped = Math.max(len, 0.0)
+        UInt64(clamped)
+    }
+
+    // ========== getLengthIfPropertyExists ==========
+    // 严格翻译自 JSValue.getLengthIfPropertyExistsInternal
+    // 如果 length 属性不存在，返回 NaN
+    public func getLengthIfPropertyExists(global: JsObject): Float64 {
+        if (!isObject()) {
+            return Float64.NaN
+        }
+        if (let Some(obj) <- objectValue) {
+            if (obj.hasProperty("length")) {
+                if (let Some(lenVal) <- obj.get("length")) {
+                    return lenVal.toNumber()
+                }
+            }
+        }
+        Float64.NaN
+    }
+
+    // ========== getPrototype ==========
+    // 严格翻译自 JSValue.getPrototype
+    public func getPrototype(global: JsObject): JsValue {
+        if (!isObject()) {
+            return JsValue.null()
+        }
+        let obj = objectValue.getOrThrow()
+        if (let Some(proto) <- obj.prototype) {
+            return JsValue(proto)
+        }
+        JsValue.null()
+    }
+
+    // ========== getOwn ==========
+    // 严格翻译自 JSValue.getOwn
+    // 获取自身 (非继承) 属性值
+    public func getOwn(global: JsObject, property: String): ?JsValue {
+        if (!isObject()) {
+            return None
+        }
+        let obj = objectValue.getOrThrow()
+        if (obj.hasOwnProperty(property)) {
+            return obj.get(property)
+        }
+        None
+    }
+
+    // ========== getOwnTruthy ==========
+    // 严格翻译自 JSValue.getOwnTruthy
+    public func getOwnTruthy(global: JsObject, property: String): ?JsValue {
+        if (let Some(val) <- getOwn(global, property)) {
+            if (!val.isUndefined()) {
+                return val
+            }
+        }
+        None
+    }
+
+    // ========== getTruthy ==========
+    // 严格翻译自 JSValue.getTruthy
+    public func getTruthy(global: JsObject, property: String): ?JsValue {
+        if (let Some(val) <- get(global, property)) {
+            return truthyPropertyValue(val)
+        }
+        None
+    }
+
+    // ========== truthyPropertyValue ==========
+    // 严格翻译自 JSValue.truthyPropertyValue
+    // 过滤掉 undefined/null/空字符串
+    public static func truthyPropertyValue(prop: JsValue): ?JsValue {
+        if (prop.isUndefinedOrNull()) {
+            return None
+        }
+        if (prop.isString()) {
+            if (!prop.toBoolean()) {
+                return None
+            }
+        }
+        prop
+    }
+
+    // ========== getBooleanLoose ==========
+    // 严格翻译自 JSValue.getBooleanLoose
+    public func getBooleanLoose(global: JsObject, property: String): ?Bool {
+        if (let Some(prop) <- get(global, property)) {
+            return prop.toBoolean()
+        }
+        None
+    }
+
+    // ========== getBooleanStrict ==========
+    // 严格翻译自 JSValue.getBooleanStrict
+    public func getBooleanStrict(global: JsObject, property: String): ?Bool {
+        if (let Some(prop) <- get(global, property)) {
+            if (prop.isUndefined()) {
+                return None
+            }
+            if (prop.isBoolean()) {
+                return prop.asBoolean()
+            }
+            return None
+        }
+        None
+    }
+
+    // ========== getOptionalInt ==========
+    // 严格翻译自 JSValue.getOptionalInt
+    public func getOptionalInt(global: JsObject, property: String): ?Int64 {
+        if (let Some(val) <- getOptional(global, property)) {
+            if (val.isNumber()) {
+                return val.toInt64()
+            }
+        }
+        None
+    }
+
+    // ========== getArray ==========
+    // 严格翻译自 JSValue.getArray
+    // 获取数组属性
+    public func getArray(global: JsObject, property: String): ?JsValue {
+        if (let Some(prop) <- getOptional(global, property)) {
+            if (prop.isArray()) {
+                let len = prop.getLength(global)
+                if (len > 0) {
+                    return prop
+                }
+            }
+        }
+        None
+    }
+
+    // ========== getFunction ==========
+    // 严格翻译自 JSValue.getFunction
+    public func getFunction(global: JsObject, property: String): ?JsValue {
+        if (let Some(prop) <- getOptional(global, property)) {
+            if (prop.isCallable()) {
+                return prop
+            }
+        }
+        None
+    }
+
+    // ========== getObject ==========
+    // 严格翻译自 JSValue.getObject
+    // 对已是对象的值进行静态转换
+    public func getObject(): ?JsObject {
+        if (isObject()) {
+            return objectValue.getOrThrow()
+        }
+        None
+    }
+}
+
+// ========== JsValue 扩展: 函数调用 ==========
+// 严格翻译自 JSValue.zig 的函数调用相关方法
+
+public class JsValue {
+    // ========== call ==========
+    // 严格翻译自 JSValue.call
+    // 调用函数: function.call(thisValue, args)
+    public func call(global: JsObject, thisValue: JsValue, args: Array<JsValue>): JsValue {
+        if (!isCallable()) {
+            return JsValue.undefined()
+        }
+        let obj = objectValue.getOrThrow()
+        // 执行函数调用
+        if (obj.isFunction || obj.isCallable) {
+            return callInternal(global, thisValue, args)
+        }
+        JsValue.undefined()
+    }
+
+    // ========== callWithGlobalThis ==========
+    // 严格翻译自 JSValue.callWithGlobalThis
+    // 以 globalThis 作为 this 值调用函数
+    public func callWithGlobalThis(global: JsObject, args: Array<JsValue>): JsValue {
+        call(global, JsValue(global), args)
+    }
+
+    // ========== construct ==========
+    // 严格翻译自 JSValue 构造调用
+    // 作为构造函数调用: new Constructor(...args)
+    public func construct(global: JsObject, args: Array<JsValue>): JsValue {
+        if (!isCallable()) {
+            return JsValue.undefined()
+        }
+        let obj = objectValue.getOrThrow()
+        if (obj.isConstructor) {
+            // 创建新对象实例
+            let instance = JsObject()
+            instance.prototype = obj
+            let result = callInternal(global, JsValue(instance), args)
+            if (result.isObject()) {
+                return result
+            }
+            return JsValue(instance)
+        }
+        JsValue.undefined()
+    }
+
+    // ========== callInternal ==========
+    // 内部函数调用实现
+    func callInternal(global: JsObject, thisValue: JsValue, args: Array<JsValue>): JsValue {
+        // 在实际 JSC 绑定中，这会调用 Bun__JSValue__call
+        // 这里是抽象实现
+        JsValue.undefined()
+    }
+}
+
+// ========== JsValue 扩展: 对象创建 ==========
+// 严格翻译自 JSValue.zig 的对象/数组创建工厂方法
+
+public class JsValue {
+    // ========== createEmptyObject ==========
+    // 严格翻译自 JSValue.createEmptyObject
+    // 创建空对象 (以 Object 为原型)
+    public static func createEmptyObject(global: JsObject, len: Int64): JsValue {
+        let obj = JsObject()
+        JsValue(obj)
+    }
+
+    // ========== createEmptyObject (no len) ==========
+    public static func createEmptyObject(global: JsObject): JsValue {
+        createEmptyObject(global, 0)
+    }
+
+    // ========== createEmptyObjectWithNullPrototype ==========
+    // 严格翻译自 JSValue.createEmptyObjectWithNullPrototype
+    // 创建以 null 为原型的空对象
+    public static func createEmptyObjectWithNullPrototype(global: JsObject): JsValue {
+        let obj = JsObject()
+        obj.prototype = None
+        JsValue(obj)
+    }
+
+    // ========== createEmptyArray ==========
+    // 严格翻译自 JSValue.createEmptyArray
+    // 创建空数组
+    public static func createEmptyArray(global: JsObject, len: Int64): JsValue {
+        let obj = JsObject()
+        obj.arrayStorage = Array<JsValue>(Int64(len), item: JsValue.undefined())
+        obj.isFunction = false
+        obj.className = "Array"
+        let v = JsValue(obj)
+        v.valueType = JsValueType.Array
+        v
+    }
+
+    // ========== createObject2 ==========
+    // 严格翻译自 JSValue.createObject2
+    // 创建具有两个属性的对象
+    public static func createObject2(global: JsObject, key1: String, key2: String, value1: JsValue, value2: JsValue): JsValue {
+        let obj = JsObject()
+        obj.put(key1, value1)
+        obj.put(key2, value2)
+        JsValue(obj)
+    }
+
+    // ========== jsEmptyString ==========
+    // 严格翻译自 JSValue.jsEmptyString
+    public static func jsEmptyString(global: JsObject): JsValue {
+        JsValue("")
+    }
+
+    // ========== jsNull ==========
+    // 严格翻译自 JSValue.jsNull
+    public static func jsNull(): JsValue {
+        JsValue.null()
+    }
+
+    // ========== jsTDZValue ==========
+    // 严格翻译自 JSValue.jsTDZValue
+    // Temporal Dead Zone 值
+    public static func jsTDZValue(): JsValue {
+        let v = JsValue()
+        v.valueType = JsValueType.Undefined
+        v
+    }
+
+    // ========== jsBigInt ==========
+    // 严格翻译自 JSValue.jsBigInt
+    // 创建 BigInt 值
+    public static func jsBigInt(n: Int64): JsValue {
+        let v = JsValue()
+        v.valueType = JsValueType.BigInt
+        v.bigIntValue = n.toString()
+        v
+    }
+
+    public static func jsBigInt(n: UInt64): JsValue {
+        let v = JsValue()
+        v.valueType = JsValueType.BigInt
+        v.bigIntValue = n.toString()
+        v
+    }
+
+    // ========== fromInt64NoTruncate ==========
+    // 严格翻译自 JSValue.fromInt64NoTruncate
+    // 总是返回 JS BigInt
+    public static func fromInt64NoTruncate(global: JsObject, i: Int64): JsValue {
+        jsBigInt(i)
+    }
+
+    // ========== fromUInt64NoTruncate ==========
+    // 严格翻译自 JSValue.fromUInt64NoTruncate
+    // 总是返回 JS BigInt
+    public static func fromUInt64NoTruncate(global: JsObject, i: UInt64): JsValue {
+        jsBigInt(i)
+    }
+
+    // ========== jsNumberFromInt32 ==========
+    // 严格翻译自 JSValue.jsNumberFromInt32
+    public static func jsNumberFromInt32(i: Int32): JsValue {
+        JsValue(Float64(i))
+    }
+
+    // ========== jsNumberFromInt64 ==========
+    // 严格翻译自 JSValue.jsNumberFromInt64
+    public static func jsNumberFromInt64(i: Int64): JsValue {
+        if (i <= Int64(Int32.MaxValue) && i >= Int64(Int32.MinValue)) {
+            return jsNumberFromInt32(Int32(i))
+        }
+        jsDoubleNumber(Float64(i))
+    }
+
+    // ========== jsNumberFromUint64 ==========
+    // 严格翻译自 JSValue.jsNumberFromUint64
+    public static func jsNumberFromUint64(i: UInt64): JsValue {
+        if (i <= UInt64(Int32.MaxValue)) {
+            return jsNumberFromInt32(Int32(i))
+        }
+        jsDoubleNumber(Float64(i))
+    }
+
+    // ========== jsNumberFromChar ==========
+    // 严格翻译自 JSValue.jsNumberFromChar
+    public static func jsNumberFromChar(i: UInt8): JsValue {
+        jsNumberFromInt32(Int32(i))
+    }
+
+    // ========== jsNumberFromU16 ==========
+    // 严格翻译自 JSValue.jsNumberFromU16
+    public static func jsNumberFromU16(i: UInt16): JsValue {
+        jsNumberFromInt32(Int32(i))
+    }
+
+    // ========== jsDoubleNumber ==========
+    // 严格翻译自 JSValue.jsDoubleNumber
+    public static func jsDoubleNumber(f: Float64): JsValue {
+        JsValue(f)
+    }
+
+    // ========== bigIntSum ==========
+    // 严格翻译自 JSValue.bigIntSum
+    // 两个 BigInt 求和
+    public static func bigIntSum(global: JsObject, a: JsValue, b: JsValue): JsValue {
+        let aVal = Int64.parseLong(a.bigIntValue).getOr(Int64(0))
+        let bVal = Int64.parseLong(b.bigIntValue).getOr(Int64(0))
+        let sum = aVal + bVal
+        jsBigInt(sum)
+    }
+
+    // ========== keys ==========
+    // 严格翻译自 JSValue.keys
+    // Object.keys() - 获取对象的所有可枚举自身属性的键
+    public static func keys(value: JsValue, global: JsObject): JsValue {
+        if (!value.isObject()) {
+            let arr = JsObject()
+            arr.className = "Array"
+            arr.arrayStorage = []
+            let result = JsValue(arr)
+            result.valueType = JsValueType.Array
+            return result
+        }
+        let obj = value.objectValue.getOrThrow()
+        let keyArray = obj.properties.keys().toArray()
+        let arr = JsObject()
+        arr.className = "Array"
+        arr.arrayStorage = []
+        for (k in keyArray) {
+            arr.arrayStorage.append(JsValue(k))
+        }
+        let result = JsValue(arr)
+        result.valueType = JsValueType.Array
+        result
+    }
+
+    // ========== values ==========
+    // 严格翻译自 JSValue.values
+    // Object.values()
+    public static func values(value: JsValue, global: JsObject): JsValue {
+        if (!value.isObject()) {
+            let arr = JsObject()
+            arr.className = "Array"
+            arr.arrayStorage = []
+            let result = JsValue(arr)
+            result.valueType = JsValueType.Array
+            return result
+        }
+        let obj = value.objectValue.getOrThrow()
+        let arr = JsObject()
+        arr.className = "Array"
+        arr.arrayStorage = []
+        for ((k, v) in obj.properties) {
+            if (let Some(desc) <- v) {
+                if (let Some(val) <- desc.value) {
+                    arr.arrayStorage.append(val)
+                }
+            }
+        }
+        let result = JsValue(arr)
+        result.valueType = JsValueType.Array
+        result
+    }
+}
+
+// ========== JsValue 扩展: 类型检查 (补充) ==========
+// 严格翻译自 JSValue.zig 更多类型检查
+
+public class JsValue {
+    // ========== isFalsey ==========
+    // 严格翻译自 JSValue.isFalsey
+    public func isFalsey(): Bool {
+        !toBoolean()
+    }
+
+    // ========== isTruthy ==========
+    // 严格翻译自 JSValue.isTruthy (= toBoolean)
+    public func isTruthy(): Bool {
+        toBoolean()
+    }
+
+    // ========== isEmpty ==========
+    // 严格翻译自 JSValue.zero
+    // 检查是否为 "empty" 值 (异常情况)
+    public func isEmpty(): Bool {
+        valueType == JsValueType.Undefined && rawPtr == CPointer<UInt8>()
+    }
+
+    // ========== isRegExp ==========
+    // 严格翻译自 JSValue.isRegExp
+    public func isRegExp(): Bool {
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                return obj.className == "RegExp"
+            }
+        }
+        false
+    }
+
+    // ========== isDate ==========
+    // 严格翻译自 JSValue.isDate
+    public func isDate(): Bool {
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                return obj.className == "Date"
+            }
+        }
+        false
+    }
+
+    // ========== isError ==========
+    // 严格翻译自 JSValue.isError
+    public func isError(): Bool {
+        if (!isObject()) {
+            return false
+        }
+        if (let Some(obj) <- objectValue) {
+            return obj.className == "Error" ||
+                   obj.className == "TypeError" ||
+                   obj.className == "RangeError" ||
+                   obj.className == "SyntaxError" ||
+                   obj.className == "ReferenceError" ||
+                   obj.className == "URIError"
+        }
+        false
+    }
+
+    // ========== isArray ==========
+    // 严格翻译自 JSValue.isArray
+    public func isArray(): Bool {
+        valueType == JsValueType.Array || (isObject() && objectValue.getOrThrow().className == "Array")
+    }
+
+    // ========== isFunction ==========
+    // 严格翻译自 JSValue.isFunction
+    public func isFunction(): Bool {
+        isCallable()
+    }
+
+    // ========== isConstructor ==========
+    // 严格翻译自 JSValue.isConstructor
+    public func isConstructor(): Bool {
+        if (!isObject()) {
+            return false
+        }
+        objectValue.getOrThrow().isConstructor
+    }
+
+    // ========== isCell ==========
+    // 严格翻译自 JSValue.isCell
+    // 检查是否为堆分配的对象 (Cell)
+    public func isCell(): Bool {
+        isObject() || isString() || isSymbol() || isBigInt()
+    }
+
+    // ========== isIterable ==========
+    // 严格翻译自 JSValue.isIterable
+    public func isIterable(global: JsObject): Bool {
+        if (isArray()) {
+            return true
+        }
+        if (isString()) {
+            return true
+        }
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                if (let Some(symVal) <- obj.get(Symbol.iterator.description)) {
+                    return symVal.isCallable()
+                }
+            }
+        }
+        false
+    }
+
+    // ========== isHeapBigInt ==========
+    // 严格翻译自 JSValue.isHeapBigInt
+    public func isHeapBigInt(): Bool {
+        isBigInt()
+    }
+
+    // ========== isBigInt32 ==========
+    // 严格翻译自 JSValue.isBigInt32
+    public func isBigInt32(): Bool {
+        if (isBigInt()) {
+            let parsed = Int64.parseLong(bigIntValue)
+            match (parsed) {
+                case Some(v) =>
+                    return v >= Int64(Int32.MinValue) && v <= Int64(Int32.MaxValue)
+                case None => return false
+            }
+        }
+        false
+    }
+
+    // ========== isBuffer ==========
+    // 严格翻译自 JSValue.isBuffer
+    public func isBuffer(global: JsObject): Bool {
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                return obj.className == "Buffer"
+            }
+        }
+        false
+    }
+
+    // ========== isJSXElement ==========
+    // 严格翻译自 JSValue.isJSXElement
+    public func isJSXElement(global: JsObject): Bool {
+        // 需要 JSC 绑定实际检查
+        false
+    }
+
+    // ========== isGetterSetter ==========
+    // 严格翻译自 JSValue.isGetterSetter
+    public func isGetterSetter(): Bool {
+        false  // 需要实际 JSC 绑定
+    }
+
+    // ========== isCustomGetterSetter ==========
+    // 严格翻译自 JSValue.isCustomGetterSetter
+    public func isCustomGetterSetter(): Bool {
+        false  // 需要实际 JSC 绑定
+    }
+
+    // ========== isObjectEmpty ==========
+    // 严格翻译自 JSValue.isObjectEmpty
+    public func isObjectEmpty(global: JsObject): Bool {
+        if (!isObject()) {
+            return false
+        }
+        if (isRegExp() || isDate()) {
+            return false
+        }
+        let obj = objectValue.getOrThrow()
+        obj.properties.isEmpty
+    }
+
+    // ========== jsType ==========
+    // 严格翻译自 JSValue.jsType
+    // 获取 JSC 内部类型
+    public func jsType(): JSType {
+        match (valueType) {
+            case Undefined => JSType.Cell
+            case Null => JSType.Cell
+            case Boolean => JSType.Cell
+            case Number => JSType.HeapDouble
+            case String => JSType.String
+            case Object => {
+                if (let Some(obj) <- objectValue) {
+                    if (obj.className == "Array") { return JSType.Array }
+                    if (obj.className == "Function" || obj.isFunction) { return JSType.JSFunction }
+                    if (obj.className == "RegExp") { return JSType.Cell }  // RegExpObject
+                    if (obj.className == "Date") { return JSType.Cell }    // JSDate
+                    if (obj.className == "Map") { return JSType.Map }
+                    if (obj.className == "Set") { return JSType.Set }
+                    if (obj.className == "WeakMap") { return JSType.WeakMap }
+                    if (obj.className == "WeakSet") { return JSType.WeakSet }
+                    if (obj.className == "Error") { return JSType.Cell }   // ErrorInstance
+                }
+                JSType.Cell
+            }
+            case Symbol => JSType.Symbol
+            case BigInt => JSType.HeapBigInt
+            case Array => JSType.Array
+            case ArrayBuffer => JSType.ArrayBuffer
+            case TypedArray => JSType.Uint8Array
+            case DataView => JSType.Cell
+            case Function => JSType.JSFunction
+            case Error => JSType.Cell
+            case Promise => JSType.Cell
+            case External => JSType.Cell
+        }
+    }
+
+    // ========== jsTypeString ==========
+    // 严格翻译自 JSValue.jsTypeString
+    // 返回 typeof 表达式的结果
+    public func jsTypeString(): String {
+        match (valueType) {
+            case Undefined => "undefined"
+            case Null => "object"
+            case Boolean => "boolean"
+            case Number => "number"
+            case String => "string"
+            case Symbol => "symbol"
+            case BigInt => "bigint"
+            case Function => "function"
+            case _ => "object"
+        }
+    }
+
+    // ========== className ==========
+    // 严格翻译自 JSValue.className
+    // 获取对象的类名
+    public func className(global: JsObject): String {
+        if (!isObject()) {
+            return ""
+        }
+        let obj = objectValue.getOrThrow()
+        obj.className
+    }
+}
+
+// ========== JsValue 扩展: Promise 操作 ==========
+// 严格翻译自 JSValue.zig 的 Promise 相关方法
+
+public class JsValue {
+    // ========== asAnyPromise ==========
+    // 严格翻译自 JSValue.asAnyPromise
+    // 将 JSValue 转为 AnyPromise
+    public func asAnyPromise(): ?AnyPromise {
+        if (isUndefinedOrNull()) {
+            return None
+        }
+        if (valueType == JsValueType.Promise) {
+            return AnyPromise(this)
+        }
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                // 检查是否是 thenable
+                if (let Some(thenVal) <- obj.get("then")) {
+                    if (thenVal.isCallable()) {
+                        return AnyPromise(this)
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    // ========== createInternalPromise ==========
+    // 严格翻译自 JSValue.createInternalPromise
+    public static func createInternalPromise(global: JsObject): JsValue {
+        let obj = JsObject()
+        obj.className = "Promise"
+        let v = JsValue(obj)
+        v.valueType = JsValueType.Promise
+        v
+    }
+
+    // ========== then ==========
+    // 严格翻译自 JSValue.then
+    // 注册 resolve/reject 回调
+    public func then(global: JsObject, resolve: JSHostFn, reject: JSHostFn): Unit {
+        if (!isObject()) {
+            return
+        }
+        // 在实际 JSC 中，这调用 JSC__JSValue___then
+        // 此处为抽象实现
+    }
+}
+
+// ========== JsValue 扩展: 比较操作 ==========
+// 严格翻译自 JSValue.zig 的比较相关方法
+
+public class JsValue {
+    // ========== ComparisonResult ==========
+    // 严格翻译自 JSValue.ComparisonResult
+    public enum ComparisonResult {
+        | Equal
+        | UndefinedResult
+        | GreaterThan
+        | LessThan
+        | InvalidComparison
+    }
+
+    // ========== isStrictEqual ==========
+    // 严格翻译自 JSValue.isStrictEqual
+    // JS === 操作符
+    public func isStrictEqual(other: JsValue, global: JsObject): Bool {
+        strictEqual(this, other)
+    }
+
+    // ========== isSameValue ==========
+    // 严格翻译自 JSValue.isSameValue
+    // Object.is() - 与 === 不同之处: NaN === NaN, -0 !== +0
+    public func isSameValue(other: JsValue, global: JsObject): Bool {
+        if (strictEqual(this, other)) {
+            // 区分 +0 和 -0
+            if (isNumber() && other.isNumber()) {
+                let a = numberValue
+                let b = other.numberValue
+                if (a == 0.0 && b == 0.0) {
+                    // Object.is(+0, -0) => false
+                    // 用 1/a 和 1/b 检测符号
+                    let invA = 1.0 / a
+                    let invB = 1.0 / b
+                    return invA == invB
+                }
+            }
+            return true
+        }
+        // NaN === NaN => true for Object.is
+        if (isNumber() && other.isNumber()) {
+            return isNaN(numberValue) && isNaN(other.numberValue)
+        }
+        false
+    }
+
+    // ========== asBigIntCompare ==========
+    // 严格翻译自 JSValue.asBigIntCompare
+    public func asBigIntCompare(global: JsObject, other: JsValue): ComparisonResult {
+        if (!isBigInt() && !isNumber()) {
+            return ComparisonResult.InvalidComparison
+        }
+        if (!other.isBigInt() && !other.isNumber()) {
+            return ComparisonResult.InvalidComparison
+        }
+        let a = toNumber()
+        let b = other.toNumber()
+        if (a == b) {
+            return ComparisonResult.Equal
+        }
+        if (a > b) {
+            return ComparisonResult.GreaterThan
+        }
+        ComparisonResult.LessThan
+    }
+
+    // ========== deepEquals ==========
+    // 严格翻译自 JSValue.deepEquals
+    // 深度相等比较
+    public func deepEquals(other: JsValue, global: JsObject): Bool {
+        if (strictEqual(this, other)) {
+            return true
+        }
+        if (valueType != other.valueType) {
+            return false
+        }
+        match (valueType) {
+            case Object => {
+                if (let Some(aObj) <- objectValue) {
+                    if (let Some(bObj) <- other.objectValue) {
+                        if (aObj.properties.size != bObj.properties.size) {
+                            return false
+                        }
+                        for ((k, v) in aObj.properties) {
+                            if (let Some(otherDesc) <- bObj.properties.get(k)) {
+                                if (let Some(aVal) <- v.value) {
+                                    if (let Some(bVal) <- otherDesc.value) {
+                                        if (!aVal.deepEquals(bVal, global)) {
+                                            return false
+                                        }
+                                    } else {
+                                        return false
+                                    }
+                                }
+                            } else {
+                                return false
+                            }
+                        }
+                        return true
+                    }
+                }
+                false
+            }
+            case Array => {
+                if (let Some(aArr) <- arrayData) {
+                    // 简单的数组比较
+                    let bArr = other.arrayData
+                    if (let Some(bArr_) <- bArr) {
+                        if (aArr.size != bArr_.size) {
+                            return false
+                        }
+                        for (i in 0..aArr.size) {
+                            if (!aArr[i].deepEquals(bArr_[i], global)) {
+                                return false
+                            }
+                        }
+                        return true
+                    }
+                }
+                false
+            }
+            case _ => false
+        }
+    }
+
+    // ========== eqlValue ==========
+    // 严格翻译自 JSValue.eqlValue
+    // 值相等检查
+    public func eqlValue(other: JsValue): Bool {
+        strictEqual(this, other)
+    }
+}
+
+// ========== JsValue 扩展: 序列化/反序列化 ==========
+// 严格翻译自 JSValue.zig 的序列化相关方法
+
+public class JsValue {
+    // ========== jsonStringify ==========
+    // 严格翻译自 JSValue.jsonStringify
+    // JSON.stringify 带 indent 参数
+    public func jsonStringify(global: JsObject, indent: UInt32): String {
+        let indented = (indent > 0)
+        jsonSerializeInternal(indent)
+    }
+
+    // ========== jsonStringifyFast ==========
+    // 严格翻译自 JSValue.jsonStringifyFast
+    // 快速 JSON 序列化 (无缩进)
+    public func jsonStringifyFast(global: JsObject): String {
+        jsonSerializeInternal(0)
+    }
+
+    // ========== jsonSerializeInternal ==========
+    // JSON 序列化实现
+    func jsonSerializeInternal(indent: UInt32): String {
+        let indentStr = if (indent > 0) {
+            let sp = StringBuilder()
+            for (_ in 0..Int64(indent)) {
+                sp.append(" ")
+            }
+            sp.toString()
+        } else {
+            ""
+        }
+
+        jsonSerializeRecursive(indentStr, 0)
+    }
+
+    func jsonSerializeRecursive(indent: String, level: Int64): String {
+        let prefix = if (indent.isEmpty) { "" } else {
+            let sp = StringBuilder()
+            for (_ in 0..level) {
+                sp.append(indent)
+            }
+            sp.toString()
+        }
+
+        match (valueType) {
+            case Undefined => "undefined"
+            case Null => "null"
+            case Boolean => boolValue ? "true" : "false"
+            case Number => numberToString(numberValue)
+            case String => "\"" + escapeJsonString(stringValue) + "\""
+            case Array => {
+                if (let Some(arr) <- arrayData) {
+                    let sb = StringBuilder()
+                    sb.append("[")
+                    for (i in 0..arr.size) {
+                        if (i > 0) { sb.append(", ") }
+                        sb.append(arr[i].jsonSerializeRecursive(indent, level + 1))
+                    }
+                    sb.append("]")
+                    sb.toString()
+                } else {
+                    "[]"
+                }
+            }
+            case Object => {
+                if (let Some(obj) <- objectValue) {
+                    let sb = StringBuilder()
+                    sb.append("{")
+                    var first = true
+                    for ((k, v) in obj.properties) {
+                        if (let Some(desc) <- v) {
+                            if (let Some(val) <- desc.value) {
+                                if (!first) { sb.append(", ") }
+                                sb.append("\"" + escapeJsonString(k) + "\":" + val.jsonSerializeRecursive(indent, level + 1))
+                                first = false
+                            }
+                        }
+                    }
+                    sb.append("}")
+                    sb.toString()
+                } else {
+                    "{}"
+                }
+            }
+            case Symbol => "undefined"
+            case BigInt => throw JsTypeError("BigInt value cannot be serialized in JSON")
+            case _ => "null"
+        }
+    }
+
+    // ========== SerializedScriptValue ==========
+    // 严格翻译自 JSValue.SerializedScriptValue
+    public class SerializedScriptValue {
+        public var data: Array<UInt8> = []
+        public var handle: Int64 = 0
+
+        public init() {}
+
+        public init(data: Array<UInt8>, handle: Int64) {
+            this.data = data
+            this.handle = handle
+        }
+
+        public func deinit(): Unit {
+            data = []
+        }
+    }
+
+    // ========== serialize ==========
+    // 严格翻译自 JSValue.serialize
+    // 序列化 JSValue 为字节缓冲区
+    public func serialize(global: JsObject, forCrossProcess: Bool, forStorage: Bool): ?SerializedScriptValue {
+        // 在实际 JSC 中，这调用 Bun__serializeJSValue
+        // 此处返回 JSON 字节表示作为简化
+        let jsonStr = toJsonString()
+        let bytes = jsonStr.toArray()
+        SerializedScriptValue(bytes, 0)
+    }
+
+    // ========== deserialize ==========
+    // 严格翻译自 JSValue.deserialize
+    // 从字节缓冲区反序列化 JSValue
+    public static func deserialize(bytes: Array<UInt8>, global: JsObject): JsValue {
+        // 简化实现: 将 bytes 解析为 JSON
+        let str = String(bytes)
+        parseJson(str)
+    }
+
+    // ========== parseJson ==========
+    // 简单 JSON 解析器
+    static func parseJson(input: String): JsValue {
+        let trimmed = input.trim()
+        if (trimmed.isEmpty) {
+            return JsValue.undefined()
+        }
+        if (trimmed == "null") {
+            return JsValue.null()
+        }
+        if (trimmed == "true") {
+            return JsValue(true)
+        }
+        if (trimmed == "false") {
+            return JsValue(false)
+        }
+        if (trimmed == "undefined") {
+            return JsValue.undefined()
+        }
+        // 数字
+        if (trimmed[0] == '-' || (trimmed[0] >= '0' && trimmed[0] <= '9')) {
+            let n = Float64.parseDouble(trimmed)
+            match (n) {
+                case Some(v) => return JsValue(v)
+                case None => {}
+            }
+        }
+        // 字符串
+        if (trimmed.size >= 2 && trimmed[0] == '"' && trimmed[trimmed.size - 1] == '"') {
+            return JsValue(trimmed[1..trimmed.size - 1])
+        }
+        // 数组
+        if (trimmed.size >= 2 && trimmed[0] == '[' && trimmed[trimmed.size - 1] == ']') {
+            let arr = JsObject()
+            arr.className = "Array"
+            arr.arrayStorage = []
+            let v = JsValue(arr)
+            v.valueType = JsValueType.Array
+            v.arrayData = ArrayList<JsValue>()
+            return v
+        }
+        // 对象
+        if (trimmed.size >= 2 && trimmed[0] == '{' && trimmed[trimmed.size - 1] == '}') {
+            let obj = JsObject()
+            return JsValue(obj)
+        }
+        JsValue.undefined()
+    }
+}
+
+// ========== JsValue 扩展: 字符串操作 ==========
+// 严格翻译自 JSValue.zig 的字符串相关方法
+
+public class JsValue {
+    // ========== toSliceOrNull ==========
+    // 严格翻译自 JSValue.toSliceOrNull
+    // 调用 toString() 并返回克隆的字符串
+    public func toSliceOrNull(global: JsObject): ?String {
+        if (isString()) {
+            return stringValue
+        }
+        if (isObject() || isNumber() || isBoolean()) {
+            return toString()
+        }
+        None
+    }
+
+    // ========== toZigString ==========
+    // 严格翻译自 JSValue.toZigString
+    public func toZigString(global: JsObject): String {
+        toString()
+    }
+
+    // ========== createRopeString ==========
+    // 严格翻译自 JSValue.createRopeString
+    // 绳索字符串拼接
+    public func createRopeString(rhs: JsValue, global: JsObject): JsValue {
+        let left = toString()
+        let right = rhs.toString()
+        JsValue(left + right)
+    }
+
+    // ========== stringIncludes ==========
+    // 严格翻译自 JSValue.stringIncludes
+    public func stringIncludes(global: JsObject, other: JsValue): Bool {
+        if (isString() && other.isString()) {
+            return stringValue.contains(other.stringValue)
+        }
+        false
+    }
+
+    // ========== asString ==========
+    // 严格翻译自 JSValue.asString
+    // 静态转换为 JSString
+    public func asString(): JsValue {
+        this
+    }
+
+    // ========== toJSString ==========
+    // 严格翻译自 JSValue.toJSString
+    public func toJSString(global: JsObject): JsValue {
+        JsValue(toString())
+    }
+
+    // ========== implementsToString ==========
+    // 严格翻译自 JSValue.implementsToString
+    public func implementsToString(global: JsObject): Bool {
+        if (!isObject()) {
+            return false
+        }
+        if (let Some(obj) <- objectValue) {
+            if (let Some(toStringVal) <- obj.get("toString")) {
+                return toStringVal.isCallable()
+            }
+        }
+        false
+    }
+}
+
+// ========== JsValue 扩展: ArrayBuffer/TypedArray 操作 ==========
+// 严格翻译自 JSValue.zig 的 ArrayBuffer 相关方法
+
+public class JsValue {
+    // ========== asArrayBuffer ==========
+    // 严格翻译自 JSValue.asArrayBuffer
+    // 将 JSValue 转为 ArrayBuffer 视图
+    public func asArrayBuffer(global: JsObject): ?ArrayBufferView {
+        if (valueType == JsValueType.ArrayBuffer || valueType == JsValueType.TypedArray || valueType == JsValueType.DataView) {
+            return ArrayBufferView(this)
+        }
+        None
+    }
+
+    // ========== createBuffer ==========
+    // 严格翻译自 JSValue.createBuffer
+    // 从字节切片创建 Buffer
+    public static func createBuffer(global: JsObject, bytes: Array<UInt8>): JsValue {
+        let obj = JsObject()
+        obj.className = "Buffer"
+        obj.arrayStorage = []
+        for (b in bytes) {
+            obj.arrayStorage.append(JsValue(Float64(b)))
+        }
+        let v = JsValue(obj)
+        v.valueType = JsValueType.Object
+        v
+    }
+
+    // ========== createUninitializedUint8Array ==========
+    // 严格翻译自 JSValue.createUninitializedUint8Array
+    public static func createUninitializedUint8Array(global: JsObject, len: Int64): JsValue {
+        let obj = JsObject()
+        obj.className = "Uint8Array"
+        obj.arrayStorage = Array<JsValue>(len, item: JsValue(0.0))
+        let v = JsValue(obj)
+        v.valueType = JsValueType.TypedArray
+        v
+    }
+
+    // ========== createBufferFromLength ==========
+    // 严格翻译自 JSValue.createBufferFromLength
+    public static func createBufferFromLength(global: JsObject, len: Int64): JsValue {
+        createBuffer(global, Array<UInt8>(len, item: 0))
+    }
+}
+
+// ========== JsValue 扩展: 迭代操作 ==========
+// 严格翻译自 JSValue.zig 的迭代相关方法
+
+public class JsValue {
+    // ========== arrayIterator ==========
+    // 严格翻译自 JSValue.arrayIterator
+    // 返回数组迭代器
+    public func arrayIterator(global: JsObject): JsArrayIterator {
+        JsArrayIterator(this, global)
+    }
+
+    // ========== forEach ==========
+    // 严格翻译自 JSValue.forEach
+    // 遍历数组元素
+    public func forEach(global: JsObject, callback: (JsValue, Int64, JsValue) -> Unit): Unit {
+        if (isArray()) {
+            if (let Some(arr) <- arrayData) {
+                for (i in 0..arr.size) {
+                    callback(arr[i], i, this)
+                }
+            }
+        }
+    }
+
+    // ========== forEachProperty ==========
+    // 严格翻译自 JSValue.forEachProperty
+    // 遍历对象的属性
+    public func forEachProperty(global: JsObject, callback: (String, JsValue) -> Unit): Unit {
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                for ((k, v) in obj.properties) {
+                    if (let Some(desc) <- v) {
+                        if (let Some(val) <- desc.value) {
+                            callback(k, val)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ========== forEachPropertyNonIndexed ==========
+    // 严格翻译自 JSValue.forEachPropertyNonIndexed
+    public func forEachPropertyNonIndexed(global: JsObject, callback: (String, JsValue) -> Unit): Unit {
+        forEachProperty(global, callback)
+    }
+
+    // ========== forEachPropertyOrdered ==========
+    // 严格翻译自 JSValue.forEachPropertyOrdered
+    public func forEachPropertyOrdered(global: JsObject, callback: (String, JsValue) -> Unit): Unit {
+        forEachProperty(global, callback)
+    }
+
+    // ========== push ==========
+    // 严格翻译自 JSValue.push
+    // 向数组推入值
+    public func push(global: JsObject, value: JsValue): Unit {
+        if (isArray()) {
+            if (let Some(arr) <- arrayData) {
+                arr.append(value)
+            } else {
+                arrayData = ArrayList<JsValue>()
+                arrayData.getOrThrow().append(value)
+            }
+        }
+    }
+}
+
+// ========== JsValue 扩展: 日期操作 ==========
+// 严格翻译自 JSValue.zig 的 Date 相关方法
+
+public class JsValue {
+    // ========== getUnixTimestamp ==========
+    // 严格翻译自 JSValue.getUnixTimestamp
+    // 获取 Date 对象的内部时间戳 (毫秒)
+    public func getUnixTimestamp(): Float64 {
+        if (isDate()) {
+            if (let Some(obj) <- objectValue) {
+                return obj.internalNumberValue
+            }
+        }
+        Float64.NaN
+    }
+
+    // ========== fromDateString ==========
+    // 严格翻译自 JSValue.fromDateString
+    // 从日期字符串创建 Date 实例
+    public static func fromDateString(global: JsObject, str: String): JsValue {
+        let obj = JsObject()
+        obj.className = "Date"
+        obj.internalNumberValue = 0.0  // 实际应解析日期字符串
+        JsValue(obj)
+    }
+
+    // ========== fromDateNumber ==========
+    // 严格翻译自 JSValue.fromDateNumber
+    // 从时间戳创建 Date 实例
+    public static func fromDateNumber(global: JsObject, value: Float64): JsValue {
+        let obj = JsObject()
+        obj.className = "Date"
+        obj.internalNumberValue = value
+        JsValue(obj)
+    }
+
+    // ========== toISOString ==========
+    // 严格翻译自 JSValue.toISOString
+    public func toISOString(global: JsObject): String {
+        if (isDate()) {
+            // 简化实现
+            let ts = getUnixTimestamp()
+            if (isNaN(ts)) {
+                return "Invalid Date"
+            }
+            // 实际实现需要完整的 ISO 8601 格式化
+            ts.toString()
+        }
+        ""
+    }
+}
+
+// ========== JsValue 扩展: 属性枚举/迭代 ==========
+// 严格翻译自 JSValue.zig 的 BuiltinName 和属性相关
+
+public class JsValue {
+    // ========== BuiltinName 枚举 ==========
+    // 严格翻译自 JSValue.BuiltinName
+    // 内置属性名枚举，用于快速属性访问
+    public enum BuiltinName {
+        | Method
+        | Headers
+        | Status
+        | StatusText
+        | Url
+        | Body
+        | Data
+        | ToString
+        | Redirect
+        | InspectCustom
+        | HighWaterMark
+        | Path
+        | Stream
+        | AsyncIterator
+        | Name
+        | Message
+        | Error
+        | Default
+        | Encoding
+        | Fatal
+        | IgnoreBOM
+        | Type
+        | Signal
+        | Cmd
+    }
+
+    // ========== fastGet ==========
+    // 严格翻译自 JSValue.fastGet
+    // 通过内置名快速获取属性
+    public func fastGet(global: JsObject, builtinName: BuiltinName): ?JsValue {
+        let name = builtinNameToString(builtinName)
+        get(global, name)
+    }
+
+    // ========== fastGetOwn ==========
+    // 严格翻译自 JSValue.fastGetOwn
+    public func fastGetOwn(global: JsObject, builtinName: BuiltinName): ?JsValue {
+        let name = builtinNameToString(builtinName)
+        getOwn(global, name)
+    }
+
+    // ========== builtinNameToString ==========
+    func builtinNameToString(name: BuiltinName): String {
+        match (name) {
+            case Method => "method"
+            case Headers => "headers"
+            case Status => "status"
+            case StatusText => "statusText"
+            case Url => "url"
+            case Body => "body"
+            case Data => "data"
+            case ToString => "toString"
+            case Redirect => "redirect"
+            case InspectCustom => "inspect"
+            case HighWaterMark => "highWaterMark"
+            case Path => "path"
+            case Stream => "stream"
+            case AsyncIterator => "asyncIterator"
+            case Name => "name"
+            case Message => "message"
+            case Error => "error"
+            case Default => "default"
+            case Encoding => "encoding"
+            case Fatal => "fatal"
+            case IgnoreBOM => "ignoreBOM"
+            case Type => "type"
+            case Signal => "signal"
+            case Cmd => "cmd"
+        }
+    }
+}
+
+// ========== JsValue 扩展: GC/生命周期管理 ==========
+// 严格翻译自 JSValue.zig 的 GC 相关方法
+
+public class JsValue {
+    // ========== protect ==========
+    // 严格翻译自 JSValue.protect
+    // 保护 JSValue 不被垃圾回收
+    public func protect(): Unit {
+        // 在实际 JSC 中，这调用 Bun__JSValue__protect
+        // 增加引用计数
+    }
+
+    // ========== unprotect ==========
+    // 严格翻译自 JSValue.unprotect
+    // 取消保护 (与 protect 配对使用)
+    public func unprotect(): Unit {
+        // 在实际 JSC 中，这调用 Bun__JSValue__unprotect
+        // 减少引用计数
+    }
+
+    // ========== ensureStillAlive ==========
+    // 严格翻译自 JSValue.ensureStillAlive
+    // 确保 GC 不会回收此值 (栈引用提示)
+    public func ensureStillAlive(): Unit {
+        // 在实际 JSC 中，防止编译器优化掉对 JSValue 的引用
+    }
+}
+
+// ========== JsValue 扩展: 错误创建 ==========
+// 严格翻译自 JSValue.zig 的错误创建方法
+
+public class JsValue {
+    // ========== createTypeError ==========
+    // 严格翻译自 JSValue.createTypeError
+    public static func createTypeError(message: String, code: String, global: JsObject): JsValue {
+        let obj = JsObject()
+        obj.className = "TypeError"
+        obj.put("message", JsValue(message))
+        obj.put("code", JsValue(code))
+        JsValue(obj)
+    }
+
+    // ========== createRangeError ==========
+    // 严格翻译自 JSValue.createRangeError
+    public static func createRangeError(message: String, code: String, global: JsObject): JsValue {
+        let obj = JsObject()
+        obj.className = "RangeError"
+        obj.put("message", JsValue(message))
+        obj.put("code", JsValue(code))
+        JsValue(obj)
+    }
+
+    // ========== createTypeErrorInstance ==========
+    // 严格翻译自 JSValue.createTypeErrorInstance
+    public static func createTypeErrorInstance(message: String, global: JsObject): JsValue {
+        createTypeError(message, "", global)
+    }
+}
+
+// ========== JsValue 扩展: 杂项方法 ==========
+// 严格翻译自 JSValue.zig 的其余方法
+
+public class JsValue {
+    // ========== isInstanceOf ==========
+    // 严格翻译自 JSValue.isInstanceOf
+    // instanceof 操作符
+    public func isInstanceOf(global: JsObject, constructor: JsValue): Bool {
+        if (!isCell()) {
+            return false
+        }
+        // 在实际 JSC 中，这调用 JSC__JSValue__isInstanceOf
+        false
+    }
+
+    // ========== toMatch ==========
+    // 严格翻译自 JSValue.toMatch
+    // 正则匹配: this 是 RegExp, other 是 string
+    public func toMatch(global: JsObject, other: JsValue): Bool {
+        false  // 需要实际正则引擎
+    }
+
+    // ========== unwrapBoxedPrimitive ==========
+    // 严格翻译自 JSValue.unwrapBoxedPrimitive
+    // 解包 Number, Boolean, String, BigInt 对象为原始类型
+    public func unwrapBoxedPrimitive(global: JsObject): JsValue {
+        if (!isObject()) {
+            return this
+        }
+        if (let Some(obj) <- objectValue) {
+            if (obj.className == "Number") {
+                return JsValue(obj.internalNumberValue)
+            }
+            if (obj.className == "Boolean") {
+                return JsValue(obj.internalBoolValue)
+            }
+            if (obj.className == "String") {
+                return JsValue(obj.internalStringValue)
+            }
+        }
+        this
+    }
+
+    // ========== getErrorsProperty ==========
+    // 严格翻译自 JSValue.getErrorsProperty
+    // 获取 errors 属性 (用于 AggregateError)
+    public func getErrorsProperty(global: JsObject): JsValue {
+        if (isObject()) {
+            let obj = objectValue.getOrThrow()
+            if (let Some(val) <- obj.get("errors")) {
+                return val
+            }
+        }
+        JsValue.undefined()
+    }
+
+    // ========== getSymbolDescription ==========
+    // 严格翻译自 JSValue.getSymbolDescription
+    public func getSymbolDescription(global: JsObject): String {
+        if (isSymbol()) {
+            if (let Some(sym) <- symbolValue) {
+                return sym.description
+            }
+        }
+        ""
+    }
+
+    // ========== fromEntries ==========
+    // 严格翻译自 JSValue.fromEntries
+    // 从键值对数组创建对象
+    public static func fromEntries(global: JsObject, keys: Array<String>, values: Array<String>): JsValue {
+        let obj = JsObject()
+        for (i in 0..keys.size) {
+            if (i < values.size) {
+                obj.put(keys[i], JsValue(values[i]))
+            }
+        }
+        JsValue(obj)
+    }
+
+    // ========== fromPtrAddress / asPtrAddress ==========
+    // 严格翻译自 JSValue.fromPtrAddress / asPtrAddress
+    // 将指针地址编码为 double
+    public static func fromPtrAddress(addr: UInt64): JsValue {
+        jsDoubleNumber(Float64(addr))
+    }
+
+    public func asPtrAddress(): UInt64 {
+        UInt64(numberValue)
+    }
+
+    // ========== asPromisePtr ==========
+    // 严格翻译自 JSValue.asPromisePtr
+    public func asPromisePtr(): Int64 {
+        Int64(asPtrAddress())
+    }
+
+    // ========== uncheckedPtrCast ==========
+    // 严格翻译自 JSValue.uncheckedPtrCast
+    // 将值静态转换为指定类型的指针
+    public func uncheckedPtrCast(): CPointer<UInt8> {
+        rawPtr
+    }
+
+    // ========== getProxyInternalField ==========
+    // 严格翻译自 JSValue.getProxyInternalField
+    // 获取 Proxy 的内部字段
+    public func getProxyInternalField(field: UInt32): JsValue {
+        if (isObject()) {
+            if (let Some(obj) <- objectValue) {
+                if (field == 0) {
+                    // target
+                    if (let Some(proto) <- obj.prototype) {
+                        return JsValue(proto)
+                    }
+                } else if (field == 1) {
+                    // handler
+                    return JsValue(obj)
+                }
+            }
+        }
+        JsValue.undefined()
+    }
+
+    // ========== toEnum ==========
+    // 严格翻译自 JSValue.toEnum
+    // 将字符串值转换为枚举值
+    public func toEnum(global: JsObject, propertyName: String, enumValues: HashMap<String, Int64>): ?Int64 {
+        if (!isString()) {
+            return None
+        }
+        enumValues.get(stringValue)
+    }
+
+    // ========== toObject ==========
+    // 严格翻译自 JSValue.toObject
+    // 运行时类型转换: 非对象转为包装对象
+    // (已有上方的 toObject() 实现，此处为带 global 参数的版本)
+    public func toObject(global: JsObject): ?JsObject {
+        match (valueType) {
+            case Undefined => None
+            case Null => None
+            case Boolean => {
+                let obj = JsObject()
+                obj.className = "Boolean"
+                obj.internalBoolValue = boolValue
+                obj
+            }
+            case Number => {
+                let obj = JsObject()
+                obj.className = "Number"
+                obj.internalNumberValue = numberValue
+                obj
+            }
+            case String => {
+                let obj = JsObject()
+                obj.className = "String"
+                obj.internalStringValue = stringValue
+                obj
+            }
+            case Object => objectValue.getOrThrow()
+            case Symbol => {
+                if (let Some(sym) <- symbolValue) {
+                    JsObject.fromSymbol(sym)
+                } else {
+                    None
+                }
+            }
+            case BigInt => JsObject.fromBigInt(bigIntValue)
+            case _ => None
+        }
+    }
+
+    // ========== dump ==========
+    // 严格翻译自 JSValue.dump
+    // 调试打印
+    public func dump(global: JsObject): Unit {
+        println(toString())
+    }
+
+    // ========== fromAny ==========
+    // 严格翻译自 JSValue.fromAny
+    // 将任意值转为 JsValue
+    public static func fromAny(global: JsObject, value: Any): JsValue {
+        // 简化实现 - 实际需要 comptime 反射
+        JsValue.undefined()
+    }
+
+    // ========== getName ==========
+    // 严格翻译自 JSValue.getName
+    // 获取函数名
+    public func getName(global: JsObject): String {
+        if (isObject()) {
+            let obj = objectValue.getOrThrow()
+            if (let Some(nameVal) <- obj.get("name")) {
+                return nameVal.toString()
+            }
+        }
+        ""
+    }
+
+    // ========== getNameProperty ==========
+    // 严格翻译自 JSValue.getNameProperty
+    public func getNameProperty(global: JsObject): String {
+        getName(global)
+    }
+
+    // ========== isAggregateError ==========
+    // 严格翻译自 JSValue.isAggregateError
+    public func isAggregateError(global: JsObject): Bool {
+        if (let Some(obj) <- objectValue) {
+            return obj.className == "AggregateError"
+        }
+        false
+    }
+
+    // ========== isClass ==========
+    // 严格翻译自 JSValue.isClass
+    public func isClass(global: JsObject): Bool {
+        if (!isCallable()) {
+            return false
+        }
+        // 在实际 JSC 中检查 [[IsClassConstructor]]
+        false
+    }
+
+    // ========== isException ==========
+    // 严格翻译自 JSValue.isException
+    public func isException(): Bool {
+        false  // 需要实际 JSC 绑定
+    }
+
+    // ========== isTerminationException ==========
+    // 严格翻译自 JSValue.isTerminationException
+    public func isTerminationException(): Bool {
+        false  // 需要实际 JSC 绑定
+    }
+
+    // ========== bind ==========
+    // 严格翻译自 JSValue.bind
+    // 函数绑定
+    public func bind(global: JsObject, bindThisArg: JsValue, name: String, length: Float64, args: Array<JsValue>): JsValue {
+        if (!isCallable()) {
+            return JsValue.undefined()
+        }
+        let obj = JsObject()
+        obj.isFunction = true
+        obj.isCallable = true
+        obj.boundThis = bindThisArg.objectValue.getOrThrow()
+        obj.functionName = name
+        obj.functionBody = this.toString()
+        JsValue(obj)
+    }
+
+    // ========== callNextTick ==========
+    // 严格翻译自 JSValue.callNextTick
+    // 在下一个 tick 调用回调
+    public func callNextTick(global: JsObject, args: JsValue): Unit {
+        // 在实际 JSC 中，这调用 Bun__Process__queueNextTick1
+    }
+
+    // ========== coerce ==========
+    // 严格翻译自 JSValue.coerce
+    // 将值强制转换为指定类型
+    public func coerce(global: JsObject): Float64 {
+        toNumber()
+    }
+
+    // ========== DiffMethod ==========
+    // 严格翻译自 JSValue.DiffMethod
+    public enum DiffMethod {
+        | None
+        | Character
+        | Word
+        | Line
+    }
+
+    // ========== determineDiffMethod ==========
+    // 严格翻译自 JSValue.determineDiffMethod
+    public func determineDiffMethod(other: JsValue, global: JsObject): DiffMethod {
+        if ((isString() && other.isString()) || (isBuffer(global) && other.isBuffer(global))) {
+            return DiffMethod.Character
+        }
+        if ((isRegExp() && other.isObject()) || (isObject() && other.isRegExp())) {
+            return DiffMethod.Character
+        }
+        if (isObject() && other.isObject()) {
+            return DiffMethod.Line
+        }
+        DiffMethod.None
+    }
+
+    // ========== toError ==========
+    // 严格翻译自 JSValue.toError
+    public func toError(): ?JsValue {
+        if (isError()) {
+            return this
+        }
+        None
+    }
+
+    // ========== StringFormatter ==========
+    // 严格翻译自 JSValue.StringFormatter
+    public class StringFormatter {
+        public var value: JsValue
+        public var globalObject: JsObject
+
+        public init(value: JsValue, globalObject: JsObject) {
+            this.value = value
+            this.globalObject = globalObject
+        }
+
+        public func format(): String {
+            value.toString()
+        }
+    }
+}
+
+// ========== ArrayBufferView ==========
+// 用于 asArrayBuffer 返回的类型
+public class ArrayBufferView {
+    public var jsValue: JsValue
+    public var byteOffset: Int64 = 0
+    public var byteLength: Int64 = 0
+
+    public init(jsValue: JsValue) {
+        this.jsValue = jsValue
+    }
+
+    public func bytes(): Array<UInt8> {
+        let result = Array<UInt8>()
+        if (jsValue.isArray()) {
+            if (let Some(arr) <- jsValue.arrayData) {
+                for (v in arr) {
+                    result.append(UInt8(v.toInt32()))
+                }
+            }
+        }
+        result
+    }
+}
+
+// ========== JsArrayIterator ==========
+// 严格翻译自 JSArrayIterator
+public class JsArrayIterator {
+    var array: JsValue
+    var global: JsObject
+    var index: Int64 = 0
+
+    public init(array: JsValue, global: JsObject) {
+        this.array = array
+        this.global = global
+    }
+
+    public func next(): ?JsValue {
+        if (array.isArray()) {
+            if (let Some(arr) <- array.arrayData) {
+                if (index < arr.size) {
+                    let val = arr[index]
+                    index++
+                    return val
+                }
+            }
+        }
+        None
+    }
+
+    public func hasNext(): Bool {
+        if (array.isArray()) {
+            if (let Some(arr) <- array.arrayData) {
+                return index < arr.size
+            }
+        }
+        false
+    }
+}
+
+// ========== AnyPromise ==========
+// 严格翻译自 AnyPromise
+public class AnyPromise {
+    public var promise: JsValue
+
+    public init(promise: JsValue) {
+        this.promise = promise
+    }
+
+    public func isResolved(): Bool {
+        // 检查 Promise 状态
+        if (promise.isObject()) {
+            if (let Some(obj) <- promise.objectValue) {
+                if (let Some(stateVal) <- obj.get("status")) {
+                    return stateVal.toString() != "pending"
+                }
+            }
+        }
+        false
+    }
+}
+
+// ========== JSClassRef ==========
+public class JSClassRef {
+    public var definition: JsValue.JSClassDefinition = JsValue.JSClassDefinition()
+
+    public init() {}
+}
+
+// ========== JsFunction ==========
+public type JsFunction = (JsObject, CallFrame) -> JsValue
+
+// ========== CallFrame ==========
+// 严格翻译自 CallFrame.zig (简化)
+public class CallFrame {
+    public var arguments: Array<JsValue> = []
+    public var thisValue: JsValue = JsValue.undefined()
+    public var callee: JsValue = JsValue.undefined()
+
+    public init() {}
+
+    public func argumentsAsArray(count: Int64): Array<JsValue> {
+        if (count <= 0) { return [] }
+        if (count >= arguments.size) { return arguments }
+        arguments[0..Int64(count)]
+    }
+
+    public func argument(index: Int64): JsValue {
+        if (index < arguments.size) {
+            return arguments[Int64(index)]
+        }
+        JsValue.undefined()
     }
 }

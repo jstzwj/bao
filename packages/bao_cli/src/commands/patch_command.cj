@@ -106,13 +106,11 @@ public class PatchCommand {
         let opts = parseArgs(args)
 
         match (opts.packageSpec) {
-            case Some(spec) => {
+            case Some(spec) =>
                 return executePatch(spec, opts)
-            }
-            case None => {
+            case None =>
                 logger.error("Usage: bao patch <package@version>")
                 return 1
-            }
         }
     }
 

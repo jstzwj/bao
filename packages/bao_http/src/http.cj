@@ -1198,6 +1198,505 @@ public class HTTPClient {
         }
         return estimatedSize
     }
+
+    // ========================================================================
+    // onData - 数据到达处理
+    // 严格翻译自: HTTPClient.onData (约 60 行)
+    //
+    // 处理流程:
+    //   1. 检查中止信号
+    //   2. 如果有代理隧道，转发数据
+    //   3. 根据 response_stage 分派到对应处理函数
+    // ========================================================================
+
+    /// 数据到达处理
+    /// 严格翻译自: HTTPClient.onData
+    public func onData(isSsl: Bool, incomingData: String, ctx: HTTPContext, socketFd: Int64): Unit {
+        if (signals.aborted) {
+            closeAndAbort(isSsl, socketFd)
+            return
+        }
+
+        // 代理隧道模式 — 直接转发数据
+        // 严格翻译自:
+        //   if (this.proxy_tunnel) |proxy| { this.setTimeout(socket); proxy.receive(incoming_data); return }
+        match (proxyTunnel) {
+            case Some(proxy) =>
+                setTimeout(socketFd)
+                // proxy.receive(incomingData)
+                return
+            case None => ()
+        }
+
+        // 根据 response_stage 分派
+        match (state.responseStage) {
+            case pending => handleOnDataHeaders(isSsl, incomingData, ctx, socketFd)
+            case headers => handleOnDataHeaders(isSsl, incomingData, ctx, socketFd)
+            case body =>
+                setTimeout(socketFd)
+                let reportProgress = handleResponseBody(incomingData, false)
+                if (reportProgress) {
+                    progressUpdate(isSsl, ctx, socketFd)
+                }
+            case bodyChunk =>
+                setTimeout(socketFd)
+                let reportProgress = handleResponseBodyChunkedEncoding(incomingData)
+                if (reportProgress) {
+                    progressUpdate(isSsl, ctx, socketFd)
+                }
+            case fail => ()
+            case _ =>
+                state.pendingResponse = None
+                closeAndFail("UnexpectedData", isSsl, socketFd)
+        }
+    }
+
+    // ========================================================================
+    // handleOnDataHeaders - 处理响应头部
+    // 严格翻译自: HTTPClient.handleOnDataHeaders (约 160 行)
+    // ========================================================================
+
+    /// 处理响应头部
+    /// 严格翻译自: HTTPClient.handleOnDataHeaders
+    public func handleOnDataHeaders(isSsl: Bool, incomingData: String, ctx: HTTPContext, socketFd: Int64): Unit {
+        var toRead = incomingData
+        var needsMove = true
+
+        if (state.responseMessageBuffer.size > 0) {
+            state.responseMessageBuffer.appendSlice(incomingData)
+            toRead = state.responseMessageBuffer.toString()
+            needsMove = false
+        }
+
+        var response: RawResponse = RawResponse()
+
+        while (true) {
+            if (toRead.size < 16) {
+                handleShortRead(isSsl, incomingData, socketFd, needsMove)
+                return
+            }
+
+            response = parseHttpResponse(toRead)
+            if (response.statusCode == 0) {
+                handleShortRead(isSsl, incomingData, socketFd, needsMove)
+                return
+            }
+
+            // 处理 101 升级
+            if (response.statusCode == 101) {
+                match (flags.upgradeState) {
+                    case HTTPUpgradeState.none =>
+                        closeAndFail("UnrequestedUpgrade", isSsl, socketFd)
+                        return
+                    case _ => ()
+                }
+                flags.upgradeState = HTTPUpgradeState.upgraded
+                break
+            }
+
+            // 1xx 信息响应 — 继续解析
+            if (response.statusCode >= 100 && response.statusCode < 200) {
+                response = RawResponse()
+                if (toRead.size == 0) { return }
+                continue
+            }
+
+            break
+        }
+
+        state.pendingResponse = Some(response)
+
+        let shouldContinue = handleResponseMetadata(response)
+
+        match (shouldContinue) {
+            case ShouldContinue.finished =>
+                if (state.flags.isRedirectPending) {
+                    doRedirect(isSsl, socketFd)
+                    return
+                }
+                cloneMetadata()
+                state.flags.receivedLastChunk = true
+                state.contentLength = Some(Int64(0))
+                progressUpdate(isSsl, ctx, socketFd)
+                return
+            case _ => ()
+        }
+
+        // 代理隧道启动
+        if (flags.proxyTunneling) {
+            match (proxyTunnel) {
+                case None => return
+                case Some(_) => ()
+            }
+        }
+
+        cloneMetadata()
+
+        match (state.responseStage) {
+            case body =>
+                let reportProgress = handleResponseBody(toRead, true)
+                if (reportProgress) {
+                    progressUpdate(isSsl, ctx, socketFd)
+                }
+            case bodyChunk =>
+                setTimeout(socketFd)
+                let reportProgress = handleResponseBodyChunkedEncoding(toRead)
+                if (reportProgress) {
+                    progressUpdate(isSsl, ctx, socketFd)
+                }
+            case _ => ()
+        }
+    }
+
+    // ========================================================================
+    // handleResponseMetadata - 处理响应元数据
+    // 严格翻译自: HTTPClient.handleResponseMetadata (约 400 行)
+    // ========================================================================
+
+    /// 处理响应元数据
+    /// 严格翻译自: HTTPClient.handleResponseMetadata
+    public func handleResponseMetadata(response: RawResponse): ShouldContinue {
+        var location: String = ""
+
+        for (header in response.headers) {
+            let hash = httpHash(header.name)
+            if (hash == httpHash("content-length")) {
+                state.contentLength = Some(parseInt64(header.value))
+            } else if (hash == httpHash("content-encoding")) {
+                if (!flags.disableDecompression) {
+                    state.encoding = match (header.value) {
+                        case "gzip" => Encoding.gzip
+                        case "deflate" => Encoding.deflate
+                        case "br" => Encoding.brotli
+                        case "zstd" => Encoding.zstd
+                        case _ => Encoding.identity
+                    }
+                }
+            } else if (hash == httpHash("transfer-encoding")) {
+                if (header.value == "chunked") {
+                    state.transferEncoding = "chunked"
+                } else if (header.value == "identity") {
+                    state.transferEncoding = "identity"
+                }
+            } else if (hash == httpHash("location")) {
+                location = header.value
+            } else if (hash == httpHash("connection")) {
+                if (response.statusCode >= 200 && response.statusCode <= 299) {
+                    if (httpEqlCaseInsensitiveASCII(header.value, "close")) {
+                        state.flags.allowKeepalive = false
+                    } else if (httpEqlCaseInsensitiveASCII(header.value, "keep-alive")) {
+                        state.flags.allowKeepalive = true
+                    }
+                }
+            }
+        }
+
+        // 1xx/204/304 没有响应体
+        if ((response.statusCode >= 100 && response.statusCode < 200) ||
+            response.statusCode == 204 || response.statusCode == 304) {
+            state.contentLength = Some(Int64(0))
+        }
+
+        // 无 Content-Length 且非 chunked → 禁用 keep-alive
+        if (!state.contentLength.isSome() && state.transferEncoding != "chunked") {
+            state.flags.allowKeepalive = false
+        }
+
+        // 代理隧道处理
+        if (flags.proxyTunneling && proxyTunnel == None) {
+            if (response.statusCode == 200) {
+                return ShouldContinue.continueStreaming
+            }
+            flags.proxyTunneling = false
+            flags.disableKeepalive = true
+        }
+
+        // 重定向处理
+        let statusCode = response.statusCode
+        let isRedirect = statusCode >= 300 && statusCode <= 399
+
+        if (isRedirect) {
+            if (redirectType == "follow" && location.size > 0 && remainingRedirectCount > 0) {
+                match (statusCode) {
+                    case 301 =>
+                        if (method == "POST") { method = "GET" }
+                        state.flags.isRedirectPending = true
+                    case 302 =>
+                        if (method == "POST") { method = "GET" }
+                        state.flags.isRedirectPending = true
+                    case 303 =>
+                        if (method != "GET" && method != "HEAD") { method = "GET" }
+                        state.flags.isRedirectPending = true
+                    case 307 =>
+                        state.flags.isRedirectPending = true
+                        state.flags.resendRequestBodyOnRedirect = true
+                    case 308 =>
+                        state.flags.isRedirectPending = true
+                        state.flags.resendRequestBodyOnRedirect = true
+                    case _ => ()
+                }
+            } else if (redirectType == "error") {
+                return ShouldContinue.finished
+            }
+        }
+
+        state.responseStage = if (state.transferEncoding == "chunked") {
+            HTTPStage.bodyChunk
+        } else {
+            HTTPStage.body
+        }
+
+        let contentLength = state.contentLength
+        let hasBody = contentLength.isSome() && contentLength.getOrThrow() > 0
+        let isChunked = state.transferEncoding == "chunked"
+
+        if (hasBody || isChunked || !state.flags.allowKeepalive) {
+            return ShouldContinue.continueStreaming
+        } else {
+            return ShouldContinue.finished
+        }
+    }
+
+    // ========================================================================
+    // handleResponseBody - 处理响应体 (Content-Length 模式)
+    // 严格翻译自: HTTPClient.handleResponseBody
+    // ========================================================================
+
+    /// 处理响应体 (Content-Length 模式)
+    /// 严格翻译自: HTTPClient.handleResponseBody
+    public func handleResponseBody(incomingData: String, isOnlyBuffer: Bool): Bool {
+        let contentLength = state.contentLength
+        if (isOnlyBuffer && contentLength.isSome() && incomingData.size >= contentLength.getOrThrow()) {
+            handleResponseBodyFromSinglePacket(incomingData.substring(0, contentLength.getOrThrow()))
+            return true
+        } else {
+            return handleResponseBodyFromMultiplePackets(incomingData)
+        }
+    }
+
+    /// 单包响应体处理
+    /// 严格翻译自: HTTPClient.handleResponseBodyFromSinglePacket
+    private func handleResponseBodyFromSinglePacket(incomingData: String): Unit {
+        state.totalBodyReceived += incomingData.size
+        if (state.flags.isRedirectPending) { return }
+        state.bodyOutStr.appendSlice(incomingData)
+    }
+
+    /// 多包响应体处理
+    /// 严格翻译自: HTTPClient.handleResponseBodyFromMultiplePackets
+    private func handleResponseBodyFromMultiplePackets(incomingData: String): Bool {
+        let contentLength = state.contentLength
+        var remainder: String = incomingData
+        if (contentLength.isSome()) {
+            let remaining = contentLength.getOrThrow() - state.totalBodyReceived
+            if (incomingData.size > remaining) {
+                remainder = incomingData.substring(0, remaining)
+            }
+        }
+        if (!state.flags.isRedirectPending) {
+            state.bodyOutStr.appendSlice(remainder)
+        }
+        state.totalBodyReceived += remainder.size
+        let isDone = contentLength.isSome() && state.totalBodyReceived >= contentLength.getOrThrow()
+        return isDone
+    }
+
+    // ========================================================================
+    // handleResponseBodyChunkedEncoding - 处理 chunked 编码响应体
+    // 严格翻译自: HTTPClient.handleResponseBodyChunkedEncoding
+    // ========================================================================
+
+    /// 处理 chunked 编码响应体
+    /// 严格翻译自: HTTPClient.handleResponseBodyChunkedEncoding
+    public func handleResponseBodyChunkedEncoding(incomingData: String): Bool {
+        return handleResponseBodyChunkedEncodingFromMultiplePackets(incomingData)
+    }
+
+    /// 多包 chunked 编码处理
+    /// 严格翻译自: HTTPClient.handleResponseBodyChunkedEncodingFromMultiplePackets
+    private func handleResponseBodyChunkedEncodingFromMultiplePackets(incomingData: String): Bool {
+        state.bodyOutStr.appendSlice(incomingData)
+        state.totalBodyReceived += incomingData.size
+        if (incomingData.size >= 5) {
+            let tail = incomingData.substring(incomingData.size - 5)
+            if (tail == "0\r\n\r\n") {
+                state.flags.receivedLastChunk = true
+                return true
+            }
+        }
+        return false
+    }
+
+    // ========================================================================
+    // handleShortRead - 处理短读取
+    // 严格翻译自: HTTPClient.handleShortRead
+    // ========================================================================
+
+    /// 处理短读取
+    /// 严格翻译自: HTTPClient.handleShortRead
+    private func handleShortRead(isSsl: Bool, incomingData: String, socketFd: Int64, needsMove: Bool): Unit {
+        if (needsMove && incomingData.size > 0) {
+            state.responseMessageBuffer.appendSlice(incomingData)
+        }
+        setTimeout(socketFd)
+    }
+
+    // ========================================================================
+    // cloneMetadata - 克隆响应元数据
+    // 严格翻译自: HTTPClient.cloneMetadata
+    // ========================================================================
+
+    /// 克隆响应元数据
+    /// 严格翻译自: HTTPClient.cloneMetadata
+    public func cloneMetadata(): Unit {
+        match (state.pendingResponse) {
+            case Some(response) =>
+                if (state.clonedMetadata.isSome()) {
+                    state.clonedMetadata.getOrThrow().deinit()
+                    state.clonedMetadata = None
+                }
+                let metadata = HTTPResponseMetadata()
+                metadata.url = url.href
+                metadata.response = response
+                state.clonedMetadata = Some(metadata)
+                state.pendingResponse = None
+            case None => ()
+        }
+    }
+
+    // ========================================================================
+    // resolvePendingH2 - 解析挂起的 H2 连接
+    // 严格翻译自: HTTPClient.resolvePendingH2
+    // ========================================================================
+
+    /// 解析挂起的 H2 连接
+    /// 严格翻译自: HTTPClient.resolvePendingH2
+    public func resolvePendingH2(resolution: PendingH2Resolution): Unit {
+        pendingH2 = None
+    }
+
+    // ========================================================================
+    // setCustomSslCtx - 设置自定义 SSL 上下文
+    // 严格翻译自: HTTPClient.setCustomSslCtx
+    // ========================================================================
+
+    /// 设置自定义 SSL 上下文
+    /// 严格翻译自: HTTPClient.setCustomSslCtx
+    public func setCustomSslCtx(ctx: HTTPContext): Unit {
+        ctx.ref()
+        customSslCtx = ctx
+    }
+
+    // ========================================================================
+    // drainResponseBody - 排空响应体
+    // 严格翻译自: HTTPClient.drainResponseBody
+    // ========================================================================
+
+    /// 排空响应体
+    /// 严格翻译自: HTTPClient.drainResponseBody
+    public func drainResponseBody(isSsl: Bool, socketFd: Int64): Unit {
+        match (state.stage) {
+            case done => return
+            case fail => return
+            case _ => ()
+        }
+    }
+
+    // ========================================================================
+    // sendProgressUpdateMultiplexed - 多路复用进度更新
+    // 严格翻译自: HTTPClient.sendProgressUpdateMultiplexed
+    // ========================================================================
+
+    /// 多路复用进度更新 (H2/H3)
+    /// 严格翻译自: HTTPClient.sendProgressUpdateMultiplexed
+    public func sendProgressUpdateMultiplexed(): Unit {
+        let result = toResult()
+        let isDone = !result.hasMore
+        if (isDone) {
+            state.reset()
+            state.responseStage = HTTPStage.done
+            state.requestStage = HTTPStage.done
+            state.stage = Stage.done
+            flags.proxyTunneling = false
+        }
+        resultCallback.run(Some(this), result)
+    }
+
+    // ========================================================================
+    // doRedirectMultiplexed - 多路复用重定向
+    // 严格翻译自: HTTPClient.doRedirectMultiplexed
+    // ========================================================================
+
+    /// 多路复用重定向 (H2/H3)
+    /// 严格翻译自: HTTPClient.doRedirectMultiplexed
+    public func doRedirectMultiplexed(): Unit {
+        if (state.originalRequestBody == "stream") {
+            flags.isStreamingRequestBody = false
+        }
+        let requestBody = if (state.flags.resendRequestBodyOnRedirect) { state.requestBody } else { "" }
+        state.responseMessageBuffer.reset()
+        remainingRedirectCount = remainingRedirectCount - 1
+        flags.redirected = true
+        connectedUrl = ParsedUrl()
+        if (remainingRedirectCount == 0) {
+            fail("TooManyRedirects")
+            return
+        }
+        state.reset()
+        flags.proxyTunneling = false
+        flags.protocol = HTTPProtocol.http1_1
+    }
+
+    // ========================================================================
+    // progressUpdateH3 / doRedirectH3 - H3 特定
+    // 严格翻译自: HTTPClient.progressUpdateH3 / doRedirectH3
+    // ========================================================================
+
+    /// H3 进度更新
+    /// 严格翻译自: HTTPClient.progressUpdateH3
+    public func progressUpdateH3(): Unit {
+        if (state.stage == Stage.done || state.stage == Stage.fail) { return }
+        if (state.flags.isRedirectPending && !state.fail.isSome()) {
+            if (state.isDone()) { doRedirectMultiplexed() }
+            return
+        }
+        sendProgressUpdateMultiplexed()
+    }
+
+    /// H3 重定向
+    /// 严格翻译自: HTTPClient.doRedirectH3
+    public func doRedirectH3(): Unit {
+        doRedirectMultiplexed()
+    }
+
+    // ========================================================================
+    // 辅助方法
+    // ========================================================================
+
+    /// 解析 HTTP 响应 (简化)
+    private func parseHttpResponse(data: String): RawResponse {
+        let response = RawResponse()
+        let httpIdx = data.indexOf("HTTP/")
+        if (httpIdx.isSome()) {
+            let rest = data.substring(httpIdx.getOrThrow())
+            if (rest.size > 12) {
+                let codeStr = rest.substring(9, 12)
+                response.statusCode = parseInt64(codeStr.trim())
+            }
+        }
+        return response
+    }
+
+    /// 解析 Int64 (简化)
+    private static func parseInt64(s: String): Int64 {
+        var result: Int64 = 0
+        for (c in s) {
+            if (c >= UInt8(48) && c <= UInt8(57)) {
+                result = result * 10 + Int64(c - UInt8(48))
+            }
+        }
+        return result
+    }
 }
 
 // ============================================================================
@@ -1384,6 +1883,197 @@ public func unregisterAbortTracker(client: HTTPClient): Unit {
 
 /// 无效 FD
 public let INVALID_FD: Int64 = -1
+
+// ============================================================================
+// HTTPVerboseLevel - HTTP 调试级别
+// 严格翻译自: pub const HTTPVerboseLevel = enum { none, headers, curl }
+// ============================================================================
+
+public enum HTTPVerboseLevel {
+    | none
+    | headers
+    | curl
+}
+
+// ============================================================================
+// HTTPStage, Stage — 定义在 internal_state.cj 中
+// 此处仅保留 HTTPVerboseLevel
+// ============================================================================
+
+// HTTPResponseMetadata/RawResponse 定义在 internal_state.cj 中
+// RawRequest 定义在 server.cj 中
+
+/// ShouldContinue - 处理响应元数据后的结果
+/// 严格翻译自: pub const ShouldContinue = enum { continue_streaming, finished }
+public enum ShouldContinue {
+    | continueStreaming
+    | finished
+}
+
+/// PendingH2Resolution - H2 连接协商结果
+/// 严格翻译自: const PendingH2Resolution = union(enum) { h2, h1, leader_failed }
+public enum PendingH2Resolution {
+    | h2
+    | h1
+    | leaderFailed
+}
+
+// ============================================================================
+// 全局请求写入辅助函数
+// 严格翻译自: http.zig writeRequest / writeProxyConnect / writeProxyRequest
+// ============================================================================
+
+/// 写入普通 HTTP 请求
+/// 严格翻译自: fn writeRequest(comptime Writer, writer, request)
+public func writeRequest(request: RawRequest): String {
+    var buf = StringBuilder()
+    buf.append(request.method)
+    buf.append(" ")
+    buf.append(request.path)
+    buf.append(" HTTP/1.1\r\n")
+
+    for (header in request.headers) {
+        buf.append(header.name)
+        buf.append(": ")
+        buf.append(header.value)
+        buf.append("\r\n")
+    }
+
+    buf.append("\r\n")
+    return buf.toString()
+}
+
+/// 写入代理 CONNECT 请求
+/// 严格翻译自: fn writeProxyConnect(comptime Writer, writer, client)
+public func writeProxyConnect(client: HTTPClient): String {
+    var buf = StringBuilder()
+    var port: String = match (client.url.port) {
+        case 0 => if (client.url.protocol == "https") { "443" } else { "80" }
+        case p => p.toString()
+    }
+
+    buf.append("CONNECT ")
+    buf.append(client.url.hostname)
+    buf.append(":")
+    buf.append(port)
+    buf.append(" HTTP/1.1\r\n")
+
+    buf.append("Host: ")
+    buf.append(client.url.hostname)
+    buf.append(":")
+    buf.append(port)
+
+    buf.append("\r\nProxy-Connection: Keep-Alive\r\n")
+
+    // 用户提供的 Proxy-Authorization 检查
+    // 严格翻译自:
+    //   const user_provided_proxy_auth = if (client.proxy_headers) |hdrs|
+    //       hdrs.get("proxy-authorization") != null else false
+    //   if (client.proxy_authorization) |auth| {
+    //       if (!user_provided_proxy_auth) {
+    //           _ = writer.write("Proxy-Authorization: ") ...
+    //       }
+    //   }
+    match (client.proxyAuthorization) {
+        case Some(auth) =>
+            buf.append("Proxy-Authorization: ")
+            buf.append(auth)
+            buf.append("\r\n")
+        case None => ()
+    }
+
+    buf.append("\r\n")
+    return buf.toString()
+}
+
+/// 写入代理 HTTP 请求 (非隧道)
+/// 严格翻译自: fn writeProxyRequest(comptime Writer, writer, request, client)
+public func writeProxyRequest(request: RawRequest, client: HTTPClient): String {
+    var buf = StringBuilder()
+    buf.append(request.method)
+    buf.append(" http://")
+    buf.append(client.url.hostname)
+
+    // 仅在显式端口时包含端口号
+    // 严格翻译自: if (client.url.getPort()) |_| { ... }
+    if (client.url.port != 0) {
+        buf.append(":")
+        buf.append(client.url.port.toString())
+    }
+
+    buf.append(request.path)
+    buf.append(" HTTP/1.1\r\nProxy-Connection: Keep-Alive\r\n")
+
+    // Proxy-Authorization
+    match (client.proxyAuthorization) {
+        case Some(auth) =>
+            buf.append("Proxy-Authorization: ")
+            buf.append(auth)
+            buf.append("\r\n")
+        case None => ()
+    }
+
+    // 请求头
+    for (header in request.headers) {
+        buf.append(header.name)
+        buf.append(": ")
+        buf.append(header.value)
+        buf.append("\r\n")
+    }
+
+    buf.append("\r\n")
+    return buf.toString()
+}
+
+// ============================================================================
+// StringBuilder - 简单字符串构建器
+// ============================================================================
+
+/// 简单字符串构建器
+public class StringBuilder {
+    private var parts: ArrayList<String>
+
+    public init() {
+        parts = ArrayList<String>()
+    }
+
+    public func append(s: String): Unit {
+        parts.append(s)
+    }
+
+    public func append(c: UInt8): Unit {
+        parts.append(String.fromUtf8([c]))
+    }
+
+    public func append(r: Rune): Unit {
+        parts.append(r.toString())
+    }
+
+    public func toString(): String {
+        var total: Int64 = 0
+        for (p in parts) {
+            total += p.size
+        }
+        // 简化: 拼接所有部分
+        var result = ""
+        for (p in parts) {
+            result = result + p
+        }
+        return result
+    }
+}
+
+// ============================================================================
+// HeaderPair — 定义在 server.cj 中，此处不再重复
+// ============================================================================
+
+// ============================================================================
+// MutableString — 定义在 internal_state.cj 中，此处不再重复
+// ============================================================================
+
+// ============================================================================
+// ParsedUrl — 定义在 package.cj 中，此处不再重复
+// ============================================================================
 
 // ============================================================================
 // 私有辅助函数

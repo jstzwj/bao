@@ -503,7 +503,9 @@ public class Macro {
 
                 case .JSON =>
                     isTopLevel = false
-                    // JSON 处理 - 待完善
+                    // JSON values are treated as passthrough — no special AST conversion
+                    // Bun: src/js_parser_jsc/Macro.zig coerce .JSON branch is empty
+                    // (date handling code was commented out in Bun)
 
                 case .Integer =>
                     return Expr.init(ENumber, ENumber(value: Float64(value.toInt32())), caller.loc)
@@ -601,10 +603,9 @@ public class Macro {
                     jsArgs[i] = value
                 }
             case .e_template =>
-                // TODO: support template literals in macros (Bun original)
+                // NOTE: Bun also has this as TODO — "support template literals in macros"
                 // Bun: @panic("TODO: support template literals in macros")
-                // 需要外部依赖: JS 模板字面量解析器
-                // Bun 实现: src/js_parser_jsc/Macro.zig:557
+                // See: https://github.com/oven-sh/bun/blob/main/src/js_parser_jsc/Macro.zig#L557-L558
             default =>
         }
 

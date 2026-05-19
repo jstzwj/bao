@@ -280,16 +280,35 @@ public class ParsedUrl {
     public var hostname: String
     public var port: Int64
     public var path: String
+    public var pathname: String
+    public var href: String
+    public var host: String
+    public var origin: String
     public var search: String
     public var hash: String
 
     public init() {
         protocol = "http"
         hostname = "localhost"
-        port = 80
+        port = 0
         path = "/"
+        pathname = "/"
+        href = ""
+        host = "localhost"
+        origin = "http://localhost"
         search = ""
         hash = ""
+    }
+
+    public func isHTTPS(): Bool {
+        return protocol == "https"
+    }
+
+    public func getPortAuto(): UInt16 {
+        if (port != 0) {
+            return UInt16(port)
+        }
+        return if (isHTTPS()) { UInt16(443) } else { UInt16(80) }
     }
 
     /// 从字符串解析 URL
@@ -326,9 +345,11 @@ public class ParsedUrl {
         if (pathIdxOpt.isSome()) {
             let pathIdx = pathIdxOpt.getOrThrow()
             result.path = remaining[pathIdx..]
+            result.pathname = result.path
             remaining = remaining[0..pathIdx]
         } else {
             result.path = "/"
+            result.pathname = "/"
         }
 
         // host:port
@@ -337,10 +358,14 @@ public class ParsedUrl {
             let colonIdx = colonIdxOpt.getOrThrow()
             result.hostname = remaining[0..colonIdx]
             result.port = parseInt64(remaining[(colonIdx + 1)..])
+            result.host = remaining
         } else {
             result.hostname = remaining
             result.port = if (result.protocol == "https") { 443 } else { 80 }
+            result.host = remaining
         }
+        result.origin = "${result.protocol}://${result.host}"
+        result.href = url
 
         return result
     }

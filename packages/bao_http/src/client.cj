@@ -1007,8 +1007,16 @@ private func base64Encode(data: Array<UInt8>): String {
 
         sb.append(chars[Int64((triplet >> 18) & 0x3F)])
         sb.append(chars[Int64((triplet >> 12) & 0x3F)])
-        sb.append(if (i + 1 < data.size) { chars[Int64((triplet >> 6) & 0x3F)] } else { '=' })
-        sb.append(if (i + 2 < data.size) { chars[Int64(triplet & 0x3F)] } else { '=' })
+        if (i + 1 < data.size) {
+            sb.append(chars[Int64((triplet >> 6) & 0x3F)])
+        } else {
+            sb.append(UInt8(61))
+        }
+        if (i + 2 < data.size) {
+            sb.append(chars[Int64(triplet & 0x3F)])
+        } else {
+            sb.append(UInt8(61))
+        }
 
         i += 3
     }

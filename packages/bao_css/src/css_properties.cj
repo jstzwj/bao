@@ -579,8 +579,260 @@ public class CssPropertyUtils {
                 ArrayList<String>(["transition-property", "transition-duration", "transition-timing-function", "transition-delay"])
             case "animation" =>
                 ArrayList<String>(["animation-name", "animation-duration", "animation-timing-function", "animation-delay", "animation-iteration-count", "animation-direction", "animation-fill-mode", "animation-play-state"])
+            case "border-color" =>
+                ArrayList<String>(["border-top-color", "border-right-color", "border-bottom-color", "border-left-color"])
+            case "border-style" =>
+                ArrayList<String>(["border-top-style", "border-right-style", "border-bottom-style", "border-left-style"])
+            case "border-width" =>
+                ArrayList<String>(["border-top-width", "border-right-width", "border-bottom-width", "border-left-width"])
+            case "border" =>
+                ArrayList<String>(["border-width", "border-style", "border-color"])
+            case "border-top" =>
+                ArrayList<String>(["border-top-width", "border-top-style", "border-top-color"])
+            case "border-bottom" =>
+                ArrayList<String>(["border-bottom-width", "border-bottom-style", "border-bottom-color"])
+            case "border-left" =>
+                ArrayList<String>(["border-left-width", "border-left-style", "border-left-color"])
+            case "border-right" =>
+                ArrayList<String>(["border-right-width", "border-right-style", "border-right-color"])
+            case "border-block" =>
+                ArrayList<String>(["border-block-start-width", "border-block-end-width", "border-block-start-style", "border-block-end-style", "border-block-start-color", "border-block-end-color"])
+            case "border-inline" =>
+                ArrayList<String>(["border-inline-start-width", "border-inline-end-width", "border-inline-start-style", "border-inline-end-style", "border-inline-start-color", "border-inline-end-color"])
+            case "outline" =>
+                ArrayList<String>(["outline-color", "outline-style", "outline-width"])
+            case "list-style" =>
+                ArrayList<String>(["list-style-type", "list-style-position", "list-style-image"])
+            case "columns" =>
+                ArrayList<String>(["column-width", "column-count"])
+            case "flex" =>
+                ArrayList<String>(["flex-grow", "flex-shrink", "flex-basis"])
+            case "flex-flow" =>
+                ArrayList<String>(["flex-direction", "flex-wrap"])
+            case "gap" =>
+                ArrayList<String>(["row-gap", "column-gap"])
+            case "grid" =>
+                ArrayList<String>(["grid-template-rows", "grid-template-columns", "grid-template-areas", "grid-auto-rows", "grid-auto-columns", "grid-auto-flow"])
+            case "grid-template" =>
+                ArrayList<String>(["grid-template-columns", "grid-template-rows", "grid-template-areas"])
+            case "grid-area" =>
+                ArrayList<String>(["grid-row-start", "grid-row-end", "grid-column-start", "grid-column-end"])
+            case "grid-column" =>
+                ArrayList<String>(["grid-column-start", "grid-column-end"])
+            case "grid-row" =>
+                ArrayList<String>(["grid-row-start", "grid-row-end"])
+            case "text-decoration" =>
+                ArrayList<String>(["text-decoration-line", "text-decoration-style", "text-decoration-color"])
+            case "text-emphasis" =>
+                ArrayList<String>(["text-emphasis-style", "text-emphasis-color"])
+            case "inset" =>
+                ArrayList<String>(["top", "right", "bottom", "left"])
+            case "inset-block" =>
+                ArrayList<String>(["inset-block-start", "inset-block-end"])
+            case "inset-inline" =>
+                ArrayList<String>(["inset-inline-start", "inset-inline-end"])
+            case "margin-block" =>
+                ArrayList<String>(["margin-block-start", "margin-block-end"])
+            case "margin-inline" =>
+                ArrayList<String>(["margin-inline-start", "margin-inline-end"])
+            case "padding-block" =>
+                ArrayList<String>(["padding-block-start", "padding-block-end"])
+            case "padding-inline" =>
+                ArrayList<String>(["padding-inline-start", "padding-inline-end"])
+            case "scroll-margin" =>
+                ArrayList<String>(["scroll-margin-top", "scroll-margin-right", "scroll-margin-bottom", "scroll-margin-left"])
+            case "scroll-margin-block" =>
+                ArrayList<String>(["scroll-margin-block-start", "scroll-margin-block-end"])
+            case "scroll-margin-inline" =>
+                ArrayList<String>(["scroll-margin-inline-start", "scroll-margin-inline-end"])
+            case "scroll-padding" =>
+                ArrayList<String>(["scroll-padding-top", "scroll-padding-right", "scroll-padding-bottom", "scroll-padding-left"])
+            case "scroll-padding-block" =>
+                ArrayList<String>(["scroll-padding-block-start", "scroll-padding-block-end"])
+            case "scroll-padding-inline" =>
+                ArrayList<String>(["scroll-padding-inline-start", "scroll-padding-inline-end"])
+            case "container" =>
+                ArrayList<String>(["container-name", "container-type"])
+            case "caret" =>
+                ArrayList<String>(["caret-color", "caret-shape"])
+            case "offset" =>
+                ArrayList<String>(["offset-position", "offset-path", "offset-distance", "offset-rotate", "offset-anchor"])
+            case "place-content" =>
+                ArrayList<String>(["align-content", "justify-content"])
+            case "place-items" =>
+                ArrayList<String>(["align-items", "justify-items"])
+            case "place-self" =>
+                ArrayList<String>(["align-self", "justify-self"])
             case _ =>
                 ArrayList<String>()
         }
+    }
+
+    // ========================================================================
+    // 属性类型分类 (严格翻译自 properties.zig 中的宏)
+    // ========================================================================
+
+    /// 属性的有效供应商前缀
+    /// 严格翻译自 properties.zig 中的 valid_prefixes 字段
+    public static func getValidPrefixes(property: String): ArrayList<String> {
+        let lower = property
+        match (lower) {
+            case "animation" | "animation-name" | "animation-duration" |
+                 "animation-timing-function" | "animation-delay" |
+                 "animation-iteration-count" | "animation-direction" |
+                 "animation-fill-mode" | "animation-play-state" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "transition" | "transition-property" | "transition-duration" |
+                 "transition-delay" | "transition-timing-function" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "transform" | "transform-origin" =>
+                ArrayList<String>(["-webkit-", "-moz-", "-ms-"])
+            case "transform-style" | "perspective" | "perspective-origin" |
+                 "backface-visibility" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "flex" | "flex-grow" | "flex-shrink" | "flex-basis" =>
+                ArrayList<String>(["-webkit-"])
+            case "flex-direction" | "flex-wrap" | "flex-flow" =>
+                ArrayList<String>(["-webkit-", "-ms-"])
+            case "order" =>
+                ArrayList<String>(["-webkit-"])
+            case "align-content" | "align-items" | "align-self" =>
+                ArrayList<String>(["-webkit-"])
+            case "box-sizing" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "border-radius" | "border-top-left-radius" | "border-top-right-radius" |
+                 "border-bottom-left-radius" | "border-bottom-right-radius" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "border-image" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "background-clip" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "box-shadow" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "filter" | "backdrop-filter" =>
+                ArrayList<String>(["-webkit-"])
+            case "user-select" =>
+                ArrayList<String>(["-webkit-", "-moz-", "-ms-"])
+            case "appearance" =>
+                ArrayList<String>(["-webkit-", "-moz-", "-ms-"])
+            case "text-decoration" | "text-decoration-line" | "text-decoration-style" |
+                 "text-decoration-color" =>
+                ArrayList<String>(["-webkit-", "-moz-"])
+            case "text-size-adjust" =>
+                ArrayList<String>(["-webkit-", "-moz-", "-ms-"])
+            case "hyphens" =>
+                ArrayList<String>(["-webkit-", "-moz-", "-ms-"])
+            case "tab-size" =>
+                ArrayList<String>(["-moz-"])
+            case "clip-path" =>
+                ArrayList<String>(["-webkit-"])
+            case "text-emphasis" | "text-emphasis-style" | "text-emphasis-color" |
+                 "text-emphasis-position" =>
+                ArrayList<String>(["-webkit-"])
+            case "mask" | "mask-image" | "mask-position" | "mask-size" |
+                 "mask-repeat" | "mask-origin" | "mask-clip" | "mask-composite" =>
+                ArrayList<String>(["-webkit-"])
+            case "box-decoration-break" =>
+                ArrayList<String>(["-webkit-"])
+            case "font-feature-settings" | "font-variant-ligatures" |
+                 "font-language_override" =>
+                ArrayList<String>(["-webkit-"])
+            case _ => ArrayList<String>()
+        }
+    }
+
+    /// 获取属性是否需要供应商前缀
+    /// 严格翻译自 properties.zig 中的 unprefixed 字段
+    public static func isUnprefixed(property: String): Bool {
+        let lower = property
+        match (lower) {
+            case "box-orient" | "box-direction" | "box-ordinal-group" |
+                 "box-align" | "box-flex" | "box-flex-group" | "box-pack" |
+                 "box-lines" =>
+                false // 旧版 2009 flexbox 属性，只有前缀版本
+            case "flex-pack" | "flex-order" | "flex-align" | "flex-item-align" |
+                 "flex-line-pack" | "flex-positive" | "flex-negative" |
+                 "flex-preferred-size" =>
+                false // 旧版 2012 flexbox 属性，只有前缀版本
+            case _ => true
+        }
+    }
+}
+
+// ============================================================================
+// CSS-wide 关键字
+// 严格翻译自: properties/properties.zig CSSWideKeyword enum
+// ============================================================================
+
+/// CSS 全局关键字
+/// 严格翻译自 CSSWideKeyword enum { initial, inherit, unset, revert, revert-layer }
+public enum CssWideKeyword {
+    | Initial      // 初始值
+    | Inherit      // 继承
+    | Unset        // unset (继承或初始)
+    | Revert       // 回退到上层来源
+    | RevertLayer  // 回退到上层层叠层
+
+    public func toCss(): String {
+        match (this) {
+            case Initial => "initial"
+            case Inherit => "inherit"
+            case Unset => "unset"
+            case Revert => "revert"
+            case RevertLayer => "revert-layer"
+        }
+    }
+
+    /// 从字符串解析
+    /// 严格翻译自 CSSWideKeyword.parse
+    public static func parse(input: String): ?CssWideKeyword {
+        match (input) {
+            case "initial" => Some(CssWideKeyword.Initial)
+            case "inherit" => Some(CssWideKeyword.Inherit)
+            case "unset" => Some(CssWideKeyword.Unset)
+            case "revert" => Some(CssWideKeyword.Revert)
+            case "revert-layer" => Some(CssWideKeyword.RevertLayer)
+            case _ => None
+        }
+    }
+
+    public operator func ==(right: CssWideKeyword): Bool {
+        this.toCss() == right.toCss()
+    }
+}
+
+// ============================================================================
+// 属性前缀处理器
+// 严格翻译自: properties/prefix_handler.zig 的关键逻辑
+// ============================================================================
+
+/// CSS 属性前缀处理工具
+/// 严格翻译自 prefix_handler
+public class CssPropertyPrefixHandler {
+    /// 从属性名中提取供应商前缀和基础属性名
+    /// 严格翻译自 property_id_mixin::from_string 中的前缀提取
+    public static func extractPrefix(name: String): (String, String) {
+        if (name.startsWith("-webkit-")) {
+            ("-webkit-", name[8..name.size])
+        } else if (name.startsWith("-moz-")) {
+            ("-moz-", name[5..name.size])
+        } else if (name.startsWith("-ms-")) {
+            ("-ms-", name[4..name.size])
+        } else if (name.startsWith("-o-")) {
+            ("-o-", name[3..name.size])
+        } else {
+            ("", name)
+        }
+    }
+
+    /// 为属性名添加供应商前缀
+    public static func addPrefix(name: String, prefix: String): String {
+        prefix + name
+    }
+
+    /// 移除属性名中的供应商前缀
+    public static func stripPrefix(name: String): String {
+        let (prefix, base) = extractPrefix(name)
+        base
     }
 }

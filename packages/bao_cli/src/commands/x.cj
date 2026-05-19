@@ -90,7 +90,7 @@ public class XCommand {
         // 严格翻译自: src/cli/bunx_command.zig initial_bin_name
         let initialBinName = match (opts.binaryName) {
             case Some(bn) => bn
-            case None => {
+            case None =>
                 if (updateName == "typescript") {
                     "tsc"
                 } else {
@@ -101,17 +101,15 @@ public class XCommand {
                         case None => updateName
                     }
                 }
-            }
         }
 
         // 步骤1: 尝试在本地 node_modules/.bin 中查找
         let localBin = findInNodeModules(initialBinName)
         match (localBin) {
-            case Some(binPath) => {
+            case Some(binPath) =>
                 logger.debug("Found binary locally: ${binPath}")
                 runBinary(binPath, opts.passthroughArgs)
                 return
-            }
             case None => ()
         }
 
@@ -119,7 +117,7 @@ public class XCommand {
         let cacheDir = getCacheDir(updateName)
         let cachedBin = findInCache(cacheDir, initialBinName)
         match (cachedBin) {
-            case Some(binPath) => {
+            case Some(binPath) =>
                 // 检查缓存是否过期
                 if (!isCacheStale(binPath)) {
                     logger.debug("Found cached binary: ${binPath}")
@@ -127,7 +125,6 @@ public class XCommand {
                     return
                 }
                 logger.debug("Cached binary is stale, re-installing...")
-            }
             case None => ()
         }
 
@@ -165,16 +162,14 @@ public class XCommand {
 
         let exitCode = Process.spawn(installArgs.toArray(), cacheDir)
         match (exitCode) {
-            case Some(code) => {
+            case Some(code) =>
                 if (code != 0) {
                     logger.error("Failed to install ${installParam}")
                     return
                 }
-            }
-            case None => {
+            case None =>
                 logger.error("Failed to run install command")
                 return
-            }
         }
 
         // 步骤4: 查找安装后的 bin
@@ -189,13 +184,12 @@ public class XCommand {
         // 步骤5: 如果初始名不对, 从 package.json 中读取实际的 bin 名称
         let actualBin = getBinNameFromPackageJson(cacheDir, updateName)
         match (actualBin) {
-            case Some(name) => {
+            case Some(name) =>
                 let actualBinPath = Path.join([binDir, name])
                 if (BaoFile.exists(actualBinPath)) {
                     runBinary(actualBinPath, opts.passthroughArgs)
                     return
                 }
-            }
             case None => ()
         }
 

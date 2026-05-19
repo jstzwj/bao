@@ -446,4 +446,39 @@ public class H2FetchClientSession {
         orphanHeaderBlock = ArrayList<UInt8>()
         encodeScratch = ArrayList<UInt8>()
     }
+
+    // ========================================================================
+    // adopt - 将 HTTPClient 附加到此 H2 会话
+    // 严格翻译自:
+    //   pub fn adopt(this: *ClientSession, client: *HTTPClient) void {
+    //       client.registerAbortTracker(true, this.socket);
+    //       if (this.delivering or !this.settings_received) {
+    //           bun.handleOom(this.pending_attach.append(bun.default_allocator, client));
+    //           this.rearmTimeout();
+    //           return;
+    //       }
+    //       if (!this.hasHeadroom()) {
+    //           client.retryAfterH2Coalesce();
+    //           this.maybeRelease();
+    //           return;
+    //       }
+    //       this.attach(client);
+    //       if (this.encoder_poisoned) this.maybeRelease();
+    //   }
+    // ========================================================================
+
+    /// 将 HTTPClient 附加到此 H2 会话
+    /// 严格翻译自: ClientSession.adopt
+    public func adopt(client: H2ClientRef): ?H2FetchClientStream {
+        // 正在投递循环中或尚未收到 SETTINGS — 排队等待
+        if (delivering || !settingsReceived) {
+            pendingAttach.append(client)
+            return None
+        }
+        // 没有余量 — 让调用方回退到 HTTP/1.1 重试
+        if (!hasHeadroom()) {
+            return None
+        }
+        Some(newStream(client))
+    }
 }

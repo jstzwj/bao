@@ -156,11 +156,22 @@ public class H2SslConfigRef {
     }
 }
 
-/// 等待者引用
+/// 等待者引用 — 使用 HTTPClient 引用标识避免子包反向依赖主包
+/// 严格翻译自: waiters 列表中存储的是 *HTTPClient
 public class H2WaiterRef {
-    public var asyncHttpId: Int64
+    public var client: H2ClientRef
 
     public init(id: Int64) {
-        asyncHttpId = id
+        client = H2ClientRef(id)
+    }
+
+    public init(client: H2ClientRef) {
+        this.client = client
+    }
+
+    /// 中止此等待者 — 调用方根据返回的引用通知客户端 H2 连接被中止
+    /// 严格翻译自: waiter.failFromH2(error.Aborted)
+    public func failFromH2(err: String): H2ClientRef {
+        client
     }
 }

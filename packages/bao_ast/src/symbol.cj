@@ -418,8 +418,8 @@ public class Symbol {
             originalName = old.originalName
             mustNotBeRenamed = true
         }
-        // TODO: MustStartWithCapitalLetterForJSX (Bun original)
-        // Bun: src/ast/symbol.zig:320
+        // NOTE: Bun also has this as TODO — MustStartWithCapitalLetterForJSX merge logic
+        // See: https://github.com/oven-sh/bun/blob/main/src/ast/symbol.zig#L320
     }
 }
 

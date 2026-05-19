@@ -17,9 +17,6 @@ public enum PacketType {
     | HANDSHAKE
     | MORE_DATA
 
-    /// AUTH_SWITCH 常量，值为 0xfe
-    public static const AUTH_SWITCH: UInt8 = 0xfe
-
     public func value(): UInt8 {
         match (this) {
             case PacketType.OK => UInt8(0x00)
@@ -31,3 +28,6 @@ public enum PacketType {
         }
     }
 }
+
+/// AUTH_SWITCH 常量，值为 0xfe
+public const AUTH_SWITCH: UInt8 = 0xfe

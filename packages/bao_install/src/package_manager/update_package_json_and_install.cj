@@ -12,6 +12,8 @@ import bao_install.*
 
 import bao_core.*
 import bao_collections.*
+import bao_io.*
+import bao_path.*
 
 // ============================================================================
 // 更新 package.json 并安装
@@ -33,20 +35,12 @@ public class UpdatePackageJSONAndInstall {
         logLevel: LogLevel
     ): Unit {
         try {
-            let manager = createPackageManager(ctx: ctx, logLevel: logLevel)
-
-            // 加载 package.json
-            let rootPackageJsonPath = Path.join(ctx.cwd, "package.json")
+            let manager = createPackageManager(ctx, logLevel)
+            let rootPackageJsonPath = Path.join([ctx.cwd, "package.json"])
             let originalCwd = ctx.cwd
-
-            updatePackageJSONAndInstallWithManager(
-                manager: manager,
-                ctx: ctx,
-                rootPackageJsonPath: rootPackageJsonPath,
-                originalCwd: originalCwd
-            )
+            updatePackageJSONAndInstallWithManager(manager, ctx, rootPackageJsonPath, originalCwd)
         } catch (err: Exception) {
-            updatePackageJSONAndInstallCatchError(err: err, logLevel: logLevel)
+            updatePackageJSONAndInstallCatchError(err, logLevel)
         }
     }
 
@@ -68,15 +62,13 @@ public class UpdatePackageJSONAndInstall {
     ): Unit {
         let logLevel = manager.options.logLevel
 
-        // 1. 加载锁文件
         var loadResult = LoadResult.NotFound
         if (manager.options.doLoadLockfile) {
             loadResult = manager.lockfile.loadFromCwd()
         }
 
-        // 2. 解析差异
         var hadAnyDiffs = false
-        var needsNewLockfile = loadResult.isNotFound() ||
+        let needsNewLockfile = loadResult.isNotFound() ||
             (loadResult.isOk() && manager.lockfile.dependenciesCount() == 0 && manager.updateRequests.size > 0)
 
         match (loadResult) {
@@ -85,7 +77,6 @@ public class UpdatePackageJSONAndInstall {
             case _ => ()
         }
 
-        // 3. 创建新锁文件 (如果需要)
         if (needsNewLockfile) {
             manager.lockfile.initEmpty()
             let root = manager.parseRootPackage(rootPackageJsonPath)
@@ -93,15 +84,13 @@ public class UpdatePackageJSONAndInstall {
             manager.enqueueDependencyList(root.dependencies)
         }
 
-        // 4. 下载/解压/安装
         if (manager.pendingTaskCount() > 0) {
             if (logLevel.showProgress()) {
                 manager.startProgressBar()
-            } else if (logLevel != LogLevel.Silent) {
-                bao_core.Output.print("Resolving dependencies\n")
+            } else if (!isSilent(logLevel)) {
+                Output.print("Resolving dependencies\n")
             }
 
-            // 等待所有任务完成
             manager.runAndWaitForTasks()
 
             if (logLevel.showProgress()) {
@@ -109,16 +98,13 @@ public class UpdatePackageJSONAndInstall {
             }
         }
 
-        // 5. 清理锁文件
         manager.cleanLockfile()
 
-        // 6. 安全扫描
         match (manager.securityScanner) {
             case Some(scanner) => runSecurityScan(scanner, manager)
             case None => ()
         }
 
-        // 7. 安装包
         if (manager.options.doInstallPackages) {
             let installSummary = match (manager.options.nodeLinker) {
                 case NodeLinker.Hoisted => manager.installHoistedPackages()
@@ -126,28 +112,16 @@ public class UpdatePackageJSONAndInstall {
                 case NodeLinker.Auto => manager.installAutoPackages()
             }
 
-            // 8. 保存锁文件
-            if (shouldSaveLockfile(
-                loadResult: loadResult,
-                manager: manager,
-                hadAnyDiffs: hadAnyDiffs
-            )) {
+            if (shouldSaveLockfile(loadResult, manager, hadAnyDiffs)) {
                 manager.saveLockfile()
             }
 
-            // 9. 运行脚本
             if (manager.options.doRunScripts) {
                 manager.runLifecycleScripts()
             }
 
-            // 10. 打印摘要
-            if (logLevel != LogLevel.Silent) {
-                printInstallSummary(
-                    manager: manager,
-                    ctx: ctx,
-                    summary: installSummary,
-                    hadAnyDiffs: hadAnyDiffs
-                )
+            if (!isSilent(logLevel)) {
+                printInstallSummary(manager, ctx, installSummary, hadAnyDiffs)
             }
         }
     }
@@ -158,8 +132,8 @@ public class UpdatePackageJSONAndInstall {
         err: Exception,
         logLevel: LogLevel
     ): Unit {
-        if (logLevel != LogLevel.Silent) {
-            bao_core.Output.error("Install failed: ${err.message}")
+        if (!isSilent(logLevel)) {
+            Output.printErrorln("Install failed: ${err.message}")
         }
     }
 
@@ -172,19 +146,14 @@ public class UpdatePackageJSONAndInstall {
     ): WorkspaceFilterResult {
         var workspaceFilters = ArrayList<WorkspaceFilter>()
 
-        // 只在 install 子命令时处理过滤器
-        if (manager.subcommand == PackageSubcommand.Install && manager.options.filterPatterns.size > 0) {
+        if (isInstallSubcommand(manager.subcommand) && manager.options.filterPatterns.size > 0) {
             for (pattern in manager.options.filterPatterns) {
-                workspaceFilters.append(WorkspaceFilter(pattern: pattern))
+                workspaceFilters.append(WorkspaceFilter(pattern))
             }
         }
 
-        var installRootDependencies = workspaceFilters.size == 0
-
-        return WorkspaceFilterResult(
-            filters: workspaceFilters,
-            installRootDependencies: installRootDependencies
-        )
+        let installRootDependencies = workspaceFilters.size == 0
+        return WorkspaceFilterResult(workspaceFilters, installRootDependencies)
     }
 
     /// 打印安装摘要
@@ -200,20 +169,20 @@ public class UpdatePackageJSONAndInstall {
 
         if (summary.success > 0) {
             let pkgsInstalled = max(summary.success, manager.updateRequests.size)
-            bao_core.Output.print("${pkgsInstalled} packages installed\n")
-            printBlockedPackagesInfo(summary: summary, global: manager.options.global)
+            Output.print("${pkgsInstalled} packages installed\n")
+            printBlockedPackagesInfo(summary, manager.options.global)
         } else if (manager.summary.remove > 0) {
-            bao_core.Output.print("${manager.summary.remove} packages removed\n")
-            printBlockedPackagesInfo(summary: summary, global: manager.options.global)
+            Output.print("${manager.summary.remove} packages removed\n")
+            printBlockedPackagesInfo(summary, manager.options.global)
         } else if (summary.skipped > 0 && summary.fail == 0 && manager.updateRequests.size == 0) {
             let count = manager.lockfile.packagesCount()
             if (count != summary.skipped) {
-                bao_core.Output.print("Checked ${summary.skipped} installs across ${count} packages (no changes)\n")
+                Output.print("Checked ${summary.skipped} installs across ${count} packages (no changes)\n")
             }
         }
 
         if (summary.fail > 0) {
-            bao_core.Output.error("Failed to install ${summary.fail} packages\n")
+            Output.printErrorln("Failed to install ${summary.fail} packages\n")
         }
     }
 
@@ -225,16 +194,9 @@ public class UpdatePackageJSONAndInstall {
         global: Bool
     ): Unit {
         let packagesCount = summary.packagesWithBlockedScripts.size
-        var scriptsCount: Int64 = 0
-        for (entry in summary.packagesWithBlockedScripts) {
-            scriptsCount += entry.value
-        }
-
         if (packagesCount > 0) {
             let globalStr = if (global) { "-g " } else { "" }
-            bao_core.Output.print(
-                "\nBlocked ${scriptsCount} postinstall${if (scriptsCount > 1) { "s" } else { "" }}. Run `bun pm ${globalStr}untrusted` for details.\n"
-            )
+            Output.print("\nBlocked postinstall scripts. Run `bun pm ${globalStr}untrusted` for details.\n")
         }
     }
 
@@ -258,19 +220,19 @@ public class UpdatePackageJSONAndInstall {
         return manager
     }
 
-    private static func processLoadOk(manager: PackageManager): Bool {
+    private static func processLoadOk(manager: UpdateInstallPackageManagerState): Bool {
         let diff = manager.generateDiff()
         return diff.hasDiffs()
     }
 
     private static func handleLoadError(cause: LoadResultErr, logLevel: LogLevel): Unit {
-        if (logLevel != LogLevel.Silent) {
-            Output.error("Failed to load lockfile: ${cause.message}")
+        if (!isSilent(logLevel)) {
+            Output.printErrorln("Failed to load lockfile: ${cause.message}")
         }
     }
 
-    private static func runSecurityScan(scanner: SecurityScanner, manager: UpdateInstallPackageManagerState): Unit {
-        let results = scanner.performSecurityScan(manager: manager)
+    private static func runSecurityScan(scanner: SecurityScannerRef, manager: UpdateInstallPackageManagerState): Unit {
+        let results = scanner.performSecurityScan(manager)
         match (results) {
             case Some(scanResults) => handleScanResults(scanResults)
             case None => ()
@@ -278,14 +240,28 @@ public class UpdatePackageJSONAndInstall {
     }
 
     private static func handleScanResults(scanResults: SecurityScanResults): Unit {
-        SecurityScanner.printSecurityAdvisories(results: scanResults)
+        SecurityScanner.printSecurityAdvisories(scanResults)
         if (scanResults.hasFatalAdvisories()) {
-            bao_core.Output.error("Installation aborted due to fatal security advisories")
+            Output.printErrorln("Installation aborted due to fatal security advisories")
             return
         } else if (scanResults.hasWarnings()) {
             if (!SecurityScanner.promptForWarnings()) {
                 return
             }
+        }
+    }
+
+    private static func isSilent(logLevel: LogLevel): Bool {
+        match (logLevel) {
+            case LogLevel.Silent => return true
+            case _ => return false
+        }
+    }
+
+    private static func isInstallSubcommand(subcommand: PackageSubcommand): Bool {
+        match (subcommand) {
+            case PackageSubcommand.Install => return true
+            case _ => return false
         }
     }
 }
@@ -300,7 +276,12 @@ public enum LoadResult {
     | Err(LoadResultErr)
     | NotFound
 
-    public func isNotFound(): Bool { return this == LoadResult.NotFound }
+    public func isNotFound(): Bool {
+        match (this) {
+            case LoadResult.NotFound => return true
+            case _ => return false
+        }
+    }
     public func isOk(): Bool {
         match (this) {
             case Ok(_) => return true
@@ -525,7 +506,7 @@ public class UpdateInstallCommandContext {
     public var cwd: String
 
     public init() {
-        cwd = bao_io.File.getCurrentDirectory()
+        cwd = "."
     }
 }
 

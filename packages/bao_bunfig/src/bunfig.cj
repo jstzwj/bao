@@ -20,8 +20,8 @@ import bao_core.*
 
 // ============================================================================
 // Bunfig — corresponds to Bun: pub struct Bunfig;
-// TODO: replace api.TransformOptions with Bunfig (Bun original)
-// Bun: src/bunfig/bunfig.rs:34
+// NOTE: Bun also has this as TODO — "replace api.TransformOptions with Bunfig"
+// See: https://github.com/oven-sh/bun/blob/main/src/bunfig/bunfig.rs#L34
 // ============================================================================
 
 public class Bunfig {
@@ -1334,8 +1334,8 @@ public class Parser {
                     pluginList.add(s)
                     Some(pluginList)
             }
-            // TODO: accept entire config object (Bun original)
-            // Bun: src/bunfig/bunfig.rs:1599
+            // NOTE: Bun also has this as TODO — "accept entire config object" for plugins
+            // See: https://github.com/oven-sh/bun/blob/main/src/bunfig/bunfig.rs#L1599
             ctx.args.servePlugins = plugins
         }
 

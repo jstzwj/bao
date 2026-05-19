@@ -256,8 +256,33 @@ public class IOWriteResult {
 // ============================================================================
 
 /// 事件循环句柄
+/// 严格翻译自 Bun EventLoopHandle (opaque *mut c_void in JSC bridge)
+/// 在 Bun 中，EventLoopHandle 持有事件循环的非拥有引用
+/// loop_() 返回底层 bun_io::Loop 指针
 public class EventLoopHandle {
-    public init() {}
+    /// 底层循环的原始指针表示 (uv_loop_t* 或 uws_loop*)
+    /// 对应 Bun EventLoopHandle.native_loop() -> *mut bun_io::Loop
+    private var loopPtr: Int64
+
+    public init() {
+        loopPtr = 0
+    }
+
+    public init(loopPtr: Int64) {
+        this.loopPtr = loopPtr
+    }
+
+    /// 获取底层循环指针
+    /// 对应 Bun EventLoopHandle.loop_() -> *mut bun_io::Loop
+    /// 用于 FileSink.loop_() 等需要底层循环引用的场景
+    public func loop_(): Int64 {
+        return loopPtr
+    }
+
+    /// 设置底层循环指针
+    public func setLoop(ptr: Int64): Unit {
+        loopPtr = ptr
+    }
 }
 
 // ============================================================================
@@ -582,10 +607,12 @@ public class FileSink {
         return eventLoopHandle
     }
 
-    /// 获取 loop
+    /// 获取底层事件循环
     /// 严格翻译自 FileSink.loop_()
+    /// Bun: self.event_loop_handle.native_loop() -> *mut bun_io::Loop
+    /// 仓颉: 委托给 EventLoopHandle.loop_() 获取底层循环引用
     public func loop(): Int64 {
-        return 0 // placeholder
+        return eventLoopHandle.loop_()
     }
 
     // ========================================================================

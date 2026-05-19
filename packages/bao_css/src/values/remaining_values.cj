@@ -162,34 +162,3 @@ public class Targets {
     }
 }
 
-public class CssColorFallbackKind {
-    public var rgb: Bool
-    public var p3: Bool
-    public var lab: Bool
-
-    public init() {
-        this.rgb = false
-        this.p3 = false
-        this.lab = false
-    }
-
-    public static func none(): CssColorFallbackKind {
-        CssColorFallbackKind()
-    }
-
-    public static func rgbOnly(): CssColorFallbackKind {
-        let kind = CssColorFallbackKind()
-        kind.rgb = true
-        kind
-    }
-
-    public func merge(other: CssColorFallbackKind): Unit {
-        if (other.rgb) { rgb = true }
-        if (other.p3) { p3 = true }
-        if (other.lab) { lab = true }
-    }
-
-    public func needsFallback(): Bool {
-        rgb || p3 || lab
-    }
-}

@@ -42,63 +42,90 @@ public class PopulateManifestCache {
         manager: ManifestPackageManagerState,
         packages: ManifestPackages
     ): Unit {
-        let logLevel = manager.options.logLevel
         let lockfile = manager.lockfile
-        let resolutions = lockfile.resolutions
-        let dependencies = lockfile.dependencies
-        let stringBuffer = lockfile.stringBuffer
-        let pkgs = lockfile.packages
-        let pkgResolutions = pkgs.resolutions
-        let pkgNames = pkgs.names
-        let pkgDependencies = pkgs.dependencies
-
         match (packages) {
             case ManifestPackages.All => populateAllPackages(lockfile, manager)
-            case ManifestPackages.Only(names) => populateNamedPackages(lockfile, manager, names)
+            case ManifestPackages.Ids(ids) => populateNamedPackages(lockfile, manager, ids)
+        }
+
+        // Final flush and wait for any remaining tasks
+        // Corresponds to Bun: manager.flushNetworkQueue() + manager.scheduleTasks() + sleepUntil
+        manager.flushNetworkQueue()
+        manager.scheduleTasks()
+
+        if (manager.pendingTaskCount() > 0) {
+            manager.runAndWaitForTasks(manager.options.logLevel)
         }
     }
 
-    private static func populateAllPackages(lockfile: LockfileRef, manager: PackageManager): Unit {
+    private static func populateAllPackages(lockfile: LockfileData, manager: ManifestPackageManagerState): Unit {
         let dependencies = lockfile.dependencies
         let resolutions = lockfile.resolutions
         let pkgResolutions = lockfile.packages.resolutions
         let pkgNames = lockfile.packages.names
+        let needsExtendedManifest = manager.options.minimumReleaseAgeMs != None
         let seenPkgIds = HashSet<UInt32>()
 
         for (i in 0..dependencies.size) {
             let dep = dependencies[Int64(i)]
             let pkgId = resolutions[Int64(i)]
 
-            if (pkgId == INVALID_PACKAGE_ID) { () }
-            if (seenPkgIds.contains(pkgId)) { () }
-            seenPkgIds.append(pkgId)
+            if (pkgId == INVALID_PACKAGE_ID) { continue }
+            if (seenPkgIds.contains(pkgId)) { continue }
+            seenPkgIds.put(pkgId)
 
+            if (Int64(pkgId) >= pkgResolutions.size || Int64(pkgId) >= pkgNames.size) { continue }
             let res = pkgResolutions[Int64(pkgId)]
-            if (res.tag != ResolutionTag.NPM) { () }
+            match (res.tag) {
+                case ResolutionTag.NPM => ()
+                case _ => continue
+            }
 
             let pkgName = pkgNames[Int64(pkgId)]
-            let manifest = manager.manifests.byName(
-                pkgName,
-                manager.scopeForPackageName(pkgName),
-                ManifestLoadStrategy.LoadFromMemoryFallbackToDisk
-            )
-
-            match (manifest) {
-                case None => startManifestTask(manager, pkgName, dep, false)
-                case Some(_) => ()
+            let manifest = manager.manifests.byName(pkgName, manager.scopeForPackageName(pkgName), ManifestLoadStrategy.LoadFromMemoryFallbackToDisk, needsExtendedManifest)
+            if (manifest == None) {
+                startManifestTask(manager, pkgName, dep, needsExtendedManifest)
             }
 
             manager.flushNetworkQueue()
             manager.scheduleTasks()
         }
 
-        // 清理
         seenPkgIds.clear()
     }
 
-    private static func populateNamedPackages(lockfile: LockfileData, manager: ManifestPackageManagerState, names: ArrayList<String>): Unit {
-        // Simplified placeholder for named package population
+    private static func populateNamedPackages(lockfile: LockfileData, manager: ManifestPackageManagerState, ids: ArrayList<UInt32>): Unit {
+        let dependencies = lockfile.dependencies
+        let resolutions = lockfile.resolutions
+        let pkgResolutions = lockfile.packages.resolutions
+        let pkgNames = lockfile.packages.names
+        let pkgDependencies = lockfile.packages.dependencies
+        let needsExtendedManifest = manager.options.minimumReleaseAgeMs != None
+
+        for (rootPkgId in ids) {
+            let pkgDeps = pkgDependencies[Int64(rootPkgId)]
+            for (depIdx in pkgDeps) {
+                if (Int64(depIdx) >= dependencies.size) { continue }
+                let pkgId = resolutions[Int64(depIdx)]
+                if (pkgId == INVALID_PACKAGE_ID) { continue }
+                let dep = dependencies[Int64(depIdx)]
+
+                if (Int64(pkgId) >= pkgResolutions.size || Int64(pkgId) >= pkgNames.size) { continue }
+                let resolution = pkgResolutions[Int64(pkgId)]
+                if (resolution.tag != ResolutionTag.NPM) { continue }
+
+                let packageName = pkgNames[Int64(pkgId)]
+                let manifest = manager.manifests.byName(packageName, manager.scopeForPackageName(packageName), ManifestLoadStrategy.LoadFromMemoryFallbackToDisk, needsExtendedManifest)
+                if (manifest == None) {
+                    startManifestTask(manager, packageName, dep, needsExtendedManifest)
+                }
+
+                manager.flushNetworkQueue()
+                manager.scheduleTasks()
+            }
+        }
     }
+
 
     /// 启动清单获取任务
     /// 翻译自: startManifestTask
@@ -110,25 +137,14 @@ public class PopulateManifestCache {
         needsExtendedManifest: Bool
     ): Unit {
         let taskId = TaskId.forManifest(pkgName)
-        if (manager.hasCreatedNetworkTask(taskId: taskId, optional: dep.behavior.isOptional())) {
+        if (manager.hasCreatedNetworkTask(taskId, dep.behavior.isOptional())) {
             return
         }
         manager.startProgressBarIfNone()
 
         let task = manager.getNetworkTask()
-        task.forManifest(
-            pkgName: pkgName,
-            scope: manager.scopeForPackageName(pkgName),
-            optional: dep.behavior.isOptional(),
-            needsExtendedManifest: needsExtendedManifest
-        )
+        task.forManifest(pkgName, manager.scopeForPackageName(pkgName), dep.behavior.isOptional(), needsExtendedManifest)
         manager.enqueueNetworkTask(task)
-    }
-
-    private static func startManifestAndFlush(manager: PackageManager, pkgName: String, dep: DependencyInfo): Unit {
-        startManifestTask(manager, pkgName, dep, false)
-        manager.flushNetworkQueue()
-        manager.scheduleTasks()
     }
 }
 
@@ -201,7 +217,7 @@ public class PackageSlice {
 
 /// 清单缓存
 public class ManifestCache {
-    public func byName(pkgName: String, scope: ScopeInfo, strategy: ManifestLoadStrategy): ?PackageManifestData {
+    public func byName(pkgName: String, scope: ScopeInfo, strategy: ManifestLoadStrategy, needsExtendedManifest: Bool): ?PackageManifestData {
         return None
     }
 }

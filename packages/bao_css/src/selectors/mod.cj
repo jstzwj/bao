@@ -30,31 +30,3 @@ public class CssSelectorsMarker {
     public init() {}
 }
 
-// ============================================================================
-// 辅助函数
-// 严格翻译自: selectors/mod.rs 顶层函数
-// ============================================================================
-
-/// 判断两个选择器列表是否等价 (忽略厂商前缀差异)
-/// 严格翻译自 is_equivalent
-public func isEquivalent(selectors: Array<CssSelectorImpl>, other: Array<CssSelectorImpl>): Bool {
-    if (selectors.size != other.size) {
-        return false
-    }
-
-    for (i in 0..selectors.size) {
-        let a = selectors[i]
-        let b = other[i]
-        if (!a.eql(b)) {
-            return false
-        }
-    }
-
-    true
-}
-
-/// 获取选择器列表的厂商前缀
-/// 严格翻译自 get_prefix
-public func getPrefix(selectors: CssSelectorListImpl): VendorPrefix {
-    VendorPrefix()
-}

@@ -10,6 +10,8 @@ import bao_install.*
 
 import bao_core.*
 import bao_collections.*
+import bao_io.*
+import bao_path.*
 
 // ============================================================================
 // Git 解析器
@@ -130,35 +132,25 @@ public class ProcessDependencyList {
 
         match (data.json) {
             case Some(jsonInfo) => processGitPackageJson(pkg, manager, depId, resolution, data, jsonInfo)
-            case None => pkg.name = Repository.createDependencyName(manager: manager, resolution: resolution, depId: depId)
+            case None => pkg.name = Repository.createDependencyName(manager, resolution, depId)
         }
 
-        // 设置完整性哈希
         if (data.integrity.isSupported()) {
             pkg.meta.integrity = data.integrity
         }
 
         pkg.meta.id = packageId
 
-        // 如果有依赖, 加入队列
         if (pkg.dependencies.size > 0) {
             manager.enqueueDependencyList(pkg.dependencies)
         }
 
-        return pkg
+        return Some(pkg)
     }
 
     /// Git package JSON processing helper
     private static func processGitPackageJson(pkg: PackageData, manager: PdlPackageManagerRef, depId: UInt32, resolution: PdlResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): Unit {
-        pkg.parse(
-            manager: manager,
-            source: jsonInfo.path,
-            resolver: GitResolver(
-                resolved: data.resolved,
-                resolution: resolution,
-                depId: depId
-            )
-        )
+        pkg.parse(manager, jsonInfo.path, GitResolver(data.resolved, resolution, depId))
         let hasScripts = pkg.scripts.hasAny() || checkBindingGyp(jsonInfo.path)
         pkg.meta.setHasInstallScript(hasScripts)
     }
@@ -186,19 +178,15 @@ public class ProcessDependencyList {
         data: ExtractData
     ): ?PackageData {
         match (data.json) {
-            case Some(jsonInfo) => processTarballWithJson(manager, packageId, depId, resolution, data, jsonInfo)
-            case None => None
+            case Some(jsonInfo) => return processTarballWithJson(manager, packageId, depId, resolution, data, jsonInfo)
+            case None => return None
         }
     }
 
     /// Tarball processing helper
     private static func processTarballWithJson(manager: PdlPackageManagerRef, packageId: UInt32, depId: UInt32, resolution: PdlResolutionInfo, data: ExtractData, jsonInfo: JsonInfo): ?PackageData {
         var pkg = PackageData()
-        pkg.parse(
-            manager: manager,
-            source: jsonInfo.path,
-            resolver: TarballResolver(url: data.url, resolution: resolution)
-        )
+        pkg.parse(manager, jsonInfo.path, TarballResolver(data.url, resolution))
 
         let hasScripts = pkg.scripts.hasAny() || checkBindingGyp(jsonInfo.path)
         pkg.meta.setHasInstallScript(hasScripts)
@@ -213,7 +201,7 @@ public class ProcessDependencyList {
             manager.enqueueDependencyList(pkg.dependencies)
         }
 
-        return pkg
+        return Some(pkg)
     }
 
     /// 处理单个依赖列表项
@@ -236,7 +224,7 @@ public class ProcessDependencyList {
     private static func processDepItem(manager: PdlPackageManagerRef, depId: UInt32, installPeer: Bool): Unit {
         let dependency = manager.lockfile.dependencies[Int64(depId)]
         let resolution = manager.lockfile.resolutions[Int64(depId)]
-        manager.enqueueDependencyWithMain(depId: depId, dependency: dependency, resolution: resolution, installPeer: installPeer)
+        manager.enqueueDependencyWithMain(depId, dependency, resolution, installPeer)
     }
 
     /// processDependencyListItem helper for RootDependency case
@@ -245,12 +233,12 @@ public class ProcessDependencyList {
         let resolution = manager.lockfile.resolutions[Int64(depId)]
 
         manager.enqueueDependencyWithMainAndSuccessFn(
-            depId: depId,
-            dependency: dependency,
-            resolution: resolution,
-            installPeer: installPeer,
-            successFn: Fn.assignRootResolution,
-            failFn: Fn.failRootResolution
+            depId,
+            dependency,
+            resolution,
+            installPeer,
+            Fn.assignRootResolution,
+            Fn.failRootResolution
         )
 
         match (anyRoot) {
@@ -283,7 +271,7 @@ public class ProcessDependencyList {
     private static func processPeerDepItem(manager: PdlPackageManagerRef, peerDepId: UInt32): Unit {
         let dependency = manager.lockfile.dependencies[Int64(peerDepId)]
         let resolution = manager.lockfile.resolutions[Int64(peerDepId)]
-        manager.enqueueDependencyWithMain(depId: peerDepId, dependency: dependency, resolution: resolution, installPeer: true)
+        manager.enqueueDependencyWithMain(peerDepId, dependency, resolution, true)
     }
 
     /// 处理依赖列表
@@ -298,13 +286,8 @@ public class ProcessDependencyList {
 
         var anyRoot = false
         for (item in depList.items) {
-            let anyRootRef = if (anyRoot) { BoolRef(true) } else { BoolRef(false) }
-            processDependencyListItem(
-                manager: manager,
-                item: item,
-                anyRoot: anyRootRef,
-                installPeer: installPeer
-            )
+            let anyRootRef = BoolRef(anyRoot)
+            processDependencyListItem(manager, item, Some(anyRootRef), installPeer)
             if (anyRootRef.value) { anyRoot = true }
         }
     }
@@ -312,8 +295,8 @@ public class ProcessDependencyList {
     /// 检查 binding.gyp 是否存在
     private static func checkBindingGyp(path: String): Bool {
         let dir = Path.dirname(path)
-        let bindingGypPath = Path.join(dir, "binding.gyp")
-        return bao_io.File.exists(bindingGypPath)
+        let bindingGypPath = Path.join([dir, "binding.gyp"])
+        return BaoFile.exists(bindingGypPath)
     }
 }
 

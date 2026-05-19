@@ -39,14 +39,6 @@ public enum FetchRedirect {
     | error    // 重定向时报错
 }
 
-/// HTTP 详细程度
-/// 严格翻译自: HTTPClient.HTTPVerboseLevel
-public enum HTTPVerboseLevel {
-    | none     // 不输出
-    | headers  // 输出头部
-    | curl     // curl 格式输出
-}
-
 /// 请求信号 — 用于跨线程通信
 /// 严格翻译自: bun/src/http/Signals.zig (简化)
 public class AsyncHTTPSignals {
@@ -137,11 +129,26 @@ public class TLSConfig {
     public var serverName: ?String
     public var rejectUnauthorized: Bool
     public var ca: ?String
+    /// 是否需要自定义请求上下文 (mTLS 等场景)
+    /// 严格翻译自: SSLConfig.requires_custom_request_ctx
+    public var requiresCustomRequestCtx: Bool
 
     public init() {
         serverName = None
         rejectUnauthorized = true
         ca = None
+        requiresCustomRequestCtx = false
+    }
+
+    /// 克隆 TLS 配置 (用于缓存条目持有强引用)
+    /// 严格翻译自: SSLConfig.SharedPtr.clone
+    public func clone(): TLSConfig {
+        let c = TLSConfig()
+        c.serverName = serverName
+        c.rejectUnauthorized = rejectUnauthorized
+        c.ca = ca
+        c.requiresCustomRequestCtx = requiresCustomRequestCtx
+        return c
     }
 }
 
@@ -405,46 +412,6 @@ public class AsyncHTTP {
     }
 }
 
-// ============================================================================
-// 线程池相关类型
-// ============================================================================
-
-/// 线程池批次
-/// 对应 Bun: bun.ThreadPool.Batch
-public class ThreadPoolBatch {
-    private var tasks: ArrayList<AsyncHTTP>
-
-    public init() {
-        tasks = ArrayList<AsyncHTTP>()
-    }
-
-    public func push(http: AsyncHTTP): Unit {
-        tasks.append(http)
-    }
-
-    public func pop(): ?AsyncHTTP {
-        if (tasks.size > 0) {
-            return tasks.removeAt(tasks.size - 1)
-        }
-        return None
-    }
-
-    public func len(): Int64 {
-        return tasks.size
-    }
-
-    public func isEmpty(): Bool {
-        return tasks.size == 0
-    }
-
-    /// 批量添加
-    public static func from(task: AsyncHTTP): ThreadPoolBatch {
-        let batch = ThreadPoolBatch()
-        batch.push(task)
-        return batch
-    }
-}
-
 /// HTTP 频道 — 异步回调对
 /// 严格翻译自: AsyncHTTP.HTTPChannel / SingleHTTPChannel
 public class HTTPChannel {
@@ -517,43 +484,3 @@ public class Preconnect {
     }
 }
 
-/// 全局活跃请求计数器
-/// 严格翻译自: AsyncHTTP.active_requests_count
-public let activeRequestsCount = AtomicCounter()
-
-/// 最大并发请求数
-/// 严格翻译自: AsyncHTTP.max_simultaneous_requests
-public let maxSimultaneousRequests = AtomicCounter()
-
-/// 原子计数器 (简化)
-public class AtomicCounter {
-    private var value: Int64
-
-    public init() {
-        value = 0
-    }
-
-    public init(initial: Int64) {
-        value = initial
-    }
-
-    public func load(): Int64 {
-        return value
-    }
-
-    public func store(v: Int64): Unit {
-        value = v
-    }
-
-    public func fetchAdd(delta: Int64): Int64 {
-        let old = value
-        value += delta
-        return old
-    }
-
-    public func fetchSub(delta: Int64): Int64 {
-        let old = value
-        value -= delta
-        return old
-    }
-}

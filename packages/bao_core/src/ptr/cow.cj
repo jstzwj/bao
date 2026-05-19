@@ -126,15 +126,21 @@ public class Cow<T> {
 
 /// 分配器接口 (简化)
 // 对应 Bun: std.mem.Allocator
+// std.mem.Allocator 是 Zig 的通用分配器接口, 提供 alloc/free/resize 等方法
+// 在仓颉中用 GC 管理内存, 此处提供 FFI 兼容的分配器接口
 public open class Allocator {
     /// 分配字节数组
+    // 对应 Bun: std.mem.Allocator.allocedBytes / alignedAlloc
     public func alloc(size: Int64): CPointer<UInt8> {
         CPointer<UInt8>()
     }
 
     /// 释放
+    // 对应 Bun: std.mem.Allocator.free
+    // 仓颉使用 GC, 此处为空操作 -- 原生内存由对应 FFI 层的 free 处理
     public func free(ptr: CPointer<Unit>): Unit {
-        // placeholder
+        // std.mem.Allocator.free 在实际分配器实现中释放内存
+        // 仓颉 GC 管理, 此处无操作; 子类可覆盖以调用 C free()
     }
 }
 

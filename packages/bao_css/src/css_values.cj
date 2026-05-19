@@ -366,6 +366,14 @@ public class VendorPrefix {
         this.o = false
     }
 
+    public init(none: Bool, webkit: Bool, moz: Bool, ms: Bool, o: Bool) {
+        this.none = none
+        this.webkit = webkit
+        this.moz = moz
+        this.ms = ms
+        this.o = o
+    }
+
     /// 无前缀
     public static func empty(): VendorPrefix {
         VendorPrefix()
@@ -381,6 +389,30 @@ public class VendorPrefix {
         vp.ms = true
         vp.o = true
         return vp
+    }
+
+    public static func all(): VendorPrefix {
+        allPrefixes()
+    }
+
+    public static func NONE(): VendorPrefix {
+        VendorPrefix(true, false, false, false, false)
+    }
+
+    public static func WEBKIT(): VendorPrefix {
+        webkitPrefix()
+    }
+
+    public static func MOZ(): VendorPrefix {
+        mozPrefix()
+    }
+
+    public static func MS(): VendorPrefix {
+        msPrefix()
+    }
+
+    public static func O(): VendorPrefix {
+        oPrefix()
     }
 
     public static func webkitPrefix(): VendorPrefix {
@@ -405,6 +437,26 @@ public class VendorPrefix {
         let vp = VendorPrefix()
         vp.o = true
         return vp
+    }
+
+    public func asBits(): UInt8 {
+        var bits: UInt8 = 0
+        if (none) { bits = bits | UInt8(1) }
+        if (webkit) { bits = bits | UInt8(2) }
+        if (moz) { bits = bits | UInt8(4) }
+        if (ms) { bits = bits | UInt8(8) }
+        if (o) { bits = bits | UInt8(16) }
+        bits
+    }
+
+    public static func fromBits(bits: UInt8): VendorPrefix {
+        VendorPrefix(
+            (bits & UInt8(1)) != UInt8(0),
+            (bits & UInt8(2)) != UInt8(0),
+            (bits & UInt8(4)) != UInt8(0),
+            (bits & UInt8(8)) != UInt8(0),
+            (bits & UInt8(16)) != UInt8(0)
+        )
     }
 
     /// 是否为空 (没有任何前缀)
@@ -464,13 +516,21 @@ public class VendorPrefix {
     /// 差集
     /// 严格翻译自 VendorPrefix.difference
     public func difference(other: VendorPrefix): VendorPrefix {
-        let result = VendorPrefix()
-        result.none = none && !other.none
-        result.webkit = webkit && !other.webkit
-        result.moz = moz && !other.moz
-        result.ms = ms && !other.ms
-        result.o = o && !other.o
-        return result
+        VendorPrefix.fromBits(asBits() & (UInt8(0x1F) ^ other.asBits()))
+    }
+
+    public func eql(other: VendorPrefix): Bool {
+        asBits() == other.asBits()
+    }
+
+    public static func FIELDS(): ArrayList<String> {
+        let list = ArrayList<String>()
+        list.append("webkit")
+        list.append("moz")
+        list.append("ms")
+        list.append("o")
+        list.append("none")
+        list
     }
 
     /// 合并另一个前缀

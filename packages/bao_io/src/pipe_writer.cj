@@ -119,6 +119,19 @@ public enum FileType {
     | NonblockingPipe
     | Socket
 
+    public operator func ==(right: FileType): Bool {
+        match (this) {
+            case File => match (right) { case File => true case _ => false }
+            case Pipe => match (right) { case Pipe => true case _ => false }
+            case NonblockingPipe => match (right) { case NonblockingPipe => true case _ => false }
+            case Socket => match (right) { case Socket => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: FileType): Bool {
+        return !(this == right)
+    }
+
     /// 是否可轮询 - 对应 Bun FileType.isPollable
     public func isPollable(): Bool {
         match (this) {
@@ -308,8 +321,17 @@ public class FilePollRef {
         isRegistered = false
     }
 
+    public func registerWithFd(): SysMaybe<Unit> {
+        let poll = FilePoll.`init`(Int32(fd), FilePollFlags(), FilePollOwnerTag.PipeReader, 0)
+        let result = poll.registerWithFd(UwsLoop(), FilePollFlag.Readable, FilePollOneShotFlag.None, Int32(fd))
+        match (result) {
+            case Ok(_) => isRegistered = true
+            case Err(_) => ()
+        }
+        return result
+    }
+
     public func setOwner(owner: Object): Unit {
-        // 设置所有者
     }
 }
 

@@ -80,6 +80,13 @@ public class ExprIn {
         isImmediatelyAssignedToDecl = false
     }
 
+    public init(assignTarget: AssignTarget, hasChainParent: Bool, propertyAccess: Bool) {
+        this.assignTarget = assignTarget
+        this.hasChainParent = hasChainParent
+        propertyAccessForMethodCallMaybeShouldReplaceWithUndefined = propertyAccess
+        isImmediatelyAssignedToDecl = false
+    }
+
     /// 创建默认实例 - 对应 Bun ExprIn{}
     public static func default(): ExprIn {
         return ExprIn()
@@ -229,7 +236,7 @@ public enum VisitFlag {
 //       ref: Ref,
 //       is_top_level: bool,
 //   }
-// DeclaredSymbol, TempRef - 已在 parser.cj 中定义
+// ============================================================================
 
 // ============================================================================
 // PrependTempRefsOpts - 临时引用前置选项
@@ -338,120 +345,157 @@ public class IdentifierOpts {
 //   }
 // ============================================================================
 
-/// 符号查找结果 - 对应 Bun FindSymbolResult
-public class FindSymbolResult {
-    /// 找到的符号引用
-    public var ref: Ref
-    /// 声明位置
-    public var declareLoc: Loc
-    /// 是否在 with 语句作用域内
-    public var isInsideWithScope: Bool
+// ============================================================================
+// FindLabelResult - 标签查找结果
+// 严格翻译自: src/js_parser/js_parser.zig
+// ============================================================================
 
-    public init(ref: Ref, declareLoc: Loc, isInsideWithScope: Bool) {
-        this.ref = ref
-        this.declareLoc = declareLoc
-        this.isInsideWithScope = isInsideWithScope
+/// 标签查找结果 - 对应 Bun findLabelSymbol 的返回值
+public class FindLabelResult {
+    public var ref: ?Ref
+    public var found: Bool
+    public var isLoop: Bool
+
+    public init() {
+        ref = None
+        found = false
+        isLoop = false
+    }
+
+    public init(ref: Ref, found: Bool, isLoop: Bool) {
+        this.ref = Some(ref)
+        this.found = found
+        this.isLoop = isLoop
     }
 }
 
 // ============================================================================
 // ImportScanner - 导入扫描器
 // 严格翻译自: src/js_parser/scan/scan_imports.zig
-//   pub const ImportScanner = struct {
-//       stmts: []Stmt = &.{},
-//       kept_import_equals: bool = false,
-//       removed_import_equals: bool = false,
+// ============================================================================
+
+// SideEffectFlag 和 SideEffectResult 已在 scan_side_effects.cj 中定义
+
+// ============================================================================
+// ThenCatchChain - .then().catch() 链跟踪
+// 严格翻译自: src/js_parser/js_parser.zig
+//   pub const ThenCatchChain = struct {
+//       next_target: Expr.Data = .e_missing,
+//       has_catch: bool = false,
+//       has_multiple_args: bool = false,
 //   }
 // ============================================================================
 
-/// 导入扫描结果 - 对应 Bun ImportScanner
-public class ImportScanner {
-    /// 保留的语句列表
-    public var stmts: ArrayList<Stmt>
-    /// 是否保留了 import-equals 语句
-    public var keptImportEquals: Bool
-    /// 是否移除了 import-equals 语句
-    public var removedImportEquals: Bool
+/// .then().catch() 链跟踪 - 对应 Bun ThenCatchChain
+/// 用于跟踪 Promise 链中的 catch 和多个参数
+public class ThenCatchChain {
+    public var hasCatch: Bool
+    public var hasMultipleArgs: Bool
 
     public init() {
-        stmts = ArrayList<Stmt>()
-        keptImportEquals = false
-        removedImportEquals = false
+        hasCatch = false
+        hasMultipleArgs = false
+    }
+
+    public init(hasCatch: Bool, hasMultipleArgs: Bool) {
+        this.hasCatch = hasCatch
+        this.hasMultipleArgs = hasMultipleArgs
     }
 }
 
 // ============================================================================
-// SideEffectFlag - 副作用标志
-// 严格翻译自: src/js_parser/scan/scan_side_effects.zig
-// ============================================================================
-
-/// 副作用标志 - 对应 Bun SideEffects 枚举
-public enum SideEffectFlag {
-    | CouldHaveSideEffects
-    | NoSideEffects
-
-    public operator func ==(right: SideEffectFlag): Bool {
-        match (this) {
-            case CouldHaveSideEffects => match (right) { case CouldHaveSideEffects => true case _ => false }
-            case NoSideEffects => match (right) { case NoSideEffects => true case _ => false }
-        }
-    }
-
-    public operator func !=(right: SideEffectFlag): Bool {
-        !(this == right)
-    }
-}
-
-// ============================================================================
-// SideEffectResult - 副作用分析结果
-// 严格翻译自: src/js_parser/scan/scan_side_effects.zig
-//   pub const Result = struct {
-//       side_effects: SideEffects,
-//       ok: bool = false,
-//       value: bool = false,
+// TransposeState - 导入/require 转换状态
+// 严格翻译自: src/js_parser/js_parser.zig
+//   pub const TransposeState = struct {
+//       is_await_target: bool = false,
+//       is_require_immediately_assigned_to_decl: bool = false,
+//       is_then_catch_target: bool = false,
+//       import_options: ?Expr = null,
+//       loc: logger.Loc = logger.Loc.Empty,
+//       import_loader: Resolver.Loader = .file,
 //   }
 // ============================================================================
 
-/// 副作用分析结果 - 对应 Bun SideEffects.Result
-public class SideEffectResult {
-    /// 副作用标志
-    public var sideEffects: SideEffectFlag
-    /// 分析是否成功
+/// 导入/require 转换状态 - 对应 Bun TransposeState
+public class TransposeState {
+    public var isAwaitTarget: Bool
+    public var isRequireImmediatelyAssignedToDecl: Bool
+    public var isThenCatchTarget: Bool
+    public var importOptions: ?Expr
+    public var loc: Loc
+
+    public init() {
+        isAwaitTarget = false
+        isRequireImmediatelyAssignedToDecl = false
+        isThenCatchTarget = false
+        importOptions = None
+        loc = Loc.EMPTY
+    }
+}
+
+// ============================================================================
+// ReactRefresh - React Fast Refresh 上下文
+// 严格翻译自: src/js_parser/js_parser.zig
+// ============================================================================
+
+/// 注册类型 - 对应 Bun ReactRefresh.RegisterKind
+public enum ReactRefreshRegisterKind {
+    | Default      // export default
+    | Named        // named export
+}
+
+/// Hook 上下文 - 对应 Bun ReactRefresh.HookContext
+public class ReactRefreshHookContext {
+    public var signatureCb: ?String
+    public var hasher: ArrayList<UInt8>
+
+    public init() {
+        signatureCb = None
+        hasher = ArrayList<UInt8>()
+    }
+}
+
+// ============================================================================
+// RelocateVars - 变量重定位
+// 严格翻译自: src/js_parser/js_parser.zig
+//   pub const RelocateVars = struct {
+//       pub const Mode = enum { normal, for_in_or_for_of };
+//       pub const Result = struct { ok: bool, stmt: ?Stmt = null };
+//   }
+// ============================================================================
+
+/// 变量重定位结果 - 对应 Bun RelocateVars.Result
+public class RelocateVarsResult {
     public var ok: Bool
-    /// 静态值 (用于布尔/null/undefined分析)
-    public var value: Bool
+    public var stmt: ?Stmt
 
-    public init() {
-        sideEffects = SideEffectFlag.CouldHaveSideEffects
-        ok = false
-        value = false
-    }
-
-    public init(sideEffects: SideEffectFlag, ok: Bool, value: Bool) {
-        this.sideEffects = sideEffects
+    public init(ok: Bool) {
         this.ok = ok
-        this.value = value
+        stmt = None
     }
 
-    /// 无结果 (分析不成功)
-    public static func unknown(): SideEffectResult {
-        return SideEffectResult(SideEffectFlag.CouldHaveSideEffects, false, false)
-    }
-
-    /// 已知值 (无副作用)
-    public static func known(value: Bool): SideEffectResult {
-        return SideEffectResult(SideEffectFlag.NoSideEffects, true, value)
-    }
-
-    /// 已知值 (可能有副作用)
-    public static func knownWithSideEffects(value: Bool): SideEffectResult {
-        return SideEffectResult(SideEffectFlag.CouldHaveSideEffects, true, value)
+    public init(ok: Bool, stmt: Stmt) {
+        this.ok = ok
+        this.stmt = Some(stmt)
     }
 }
+
+// ScopeKind, ScopeMember, Scope 已在 ast.cj 中定义
 
 // ============================================================================
 // fnBodyContainsUseStrict - 检查函数体是否包含 "use strict"
 // 严格翻译自: src/js_parser/visit/visit.zig:1343-1362
+//   pub fn fnBodyContainsUseStrict(body: []Stmt) ?logger.Loc {
+//     for (body) |stmt| {
+//       switch (stmt.data) {
+//         .s_comment => continue,
+//         .s_directive => |dir| { if (strings.eqlComptime(dir.value, "use strict")) return stmt.loc; },
+//         .s_empty => {},
+//         else => return null,
+//       }
+//     }
+//     return null;
+//   }
 // ============================================================================
 
 /// 检查函数体是否包含 "use strict" 指令
@@ -505,5 +549,11 @@ public func statementCaresAboutScope(stmt: Stmt): Bool {
             return true
         case _ =>
             return false
+    }
+}
+
+
+    public static func NONE(): Range {
+        return Range(Loc.EMPTY, 0)
     }
 }

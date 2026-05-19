@@ -8,7 +8,7 @@ package bao_jsc
 // 严格翻译自 JSPromiseRejectionOperation
 // 定义 Promise 拒绝的处理方式
 // 对应 WebKit JSPromiseRejectionOperation
-public enum JSPromiseRejectionOperation <: UInt32 {
-    | Reject(0)
-    | Handle(1)
+public enum JSPromiseRejectionOperation {
+    | Reject
+    | Handle
 }

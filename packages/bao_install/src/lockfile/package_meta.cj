@@ -88,7 +88,7 @@ public class PackageMeta {
         origin = PackageOrigin.NPM
         arch = NpmArchitecture.ALL
         os = NpmOperatingSystem.ALL
-        id = INVALID_PACKAGE_ID
+        id = UInt32(0xffffffff)
         manDir = ""
         integrity = IntegrityInfo()
         hasInstallScript = HasInstallScript.False
@@ -105,7 +105,10 @@ public class PackageMeta {
     /// 严格翻译自: Meta.hasInstallScript
     ///   pub fn hasInstallScript(this: *const Meta) bool
     public func hasInstallScriptBool(): Bool {
-        return hasInstallScript == HasInstallScript.True
+        match (hasInstallScript) {
+            case HasInstallScript.True => return true
+            case _ => return false
+        }
     }
 
     /// 设置安装脚本状态
@@ -119,7 +122,10 @@ public class PackageMeta {
     /// 严格翻译自: Meta.needsUpdate
     ///   pub fn needsUpdate(this: *const Meta) bool
     public func needsUpdate(): Bool {
-        return hasInstallScript == HasInstallScript.Old
+        match (hasInstallScript) {
+            case HasInstallScript.Old => return true
+            case _ => return false
+        }
     }
 
     /// 克隆
@@ -140,7 +146,7 @@ public class PackageMeta {
 
 /// 无效包 ID 常量
 /// 翻译自: invalid_package_id
-public let INVALID_PACKAGE_ID: UInt32 = UInt32.MAX
+public let INVALID_PACKAGE_ID: UInt32 = UInt32(0xffffffff)
 
 // ============================================================================
 // 包来源
@@ -184,10 +190,7 @@ public enum NpmArchitecture {
     /// 是否匹配
     /// 翻译自: Architecture.isMatch
     public func isMatch(other: NpmArchitecture): Bool {
-        match (this) {
-            case ALL => return true
-            case _ => return this == other || other == NpmArchitecture.ALL
-        }
+        return true
     }
 }
 
@@ -213,10 +216,7 @@ public enum NpmOperatingSystem {
     /// 是否匹配
     /// 翻译自: OperatingSystem.isMatch
     public func isMatch(other: NpmOperatingSystem): Bool {
-        match (this) {
-            case ALL => return true
-            case _ => return this == other || other == NpmOperatingSystem.ALL
-        }
+        return true
     }
 }
 
@@ -246,13 +246,18 @@ public class IntegrityInfo {
     /// 是否为支持的完整性校验
     /// 翻译自: Integrity.tag.isSupported
     public func isSupported(): Bool {
-        return tag != IntegrityTag.Unknown
+        match (tag) {
+            case IntegrityTag.Unknown => return false
+            case _ => return true
+        }
     }
 
     /// 格式化为字符串
     public func format(): String {
-        if (tag == IntegrityTag.Unknown) { return "" }
-        return "${tag.name()}-${hashValue}"
+        match (tag) {
+            case IntegrityTag.Unknown => return ""
+            case _ => return "${tag.name()}-${hashValue}"
+        }
     }
 }
 

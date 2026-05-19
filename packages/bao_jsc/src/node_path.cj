@@ -242,9 +242,9 @@ public impl Unprotect for PathOrFileDescriptor {
 // ========== PathOrFileDescriptorSerializeTag ==========
 // 严格翻译自 node_path.rs PathOrFileDescriptorSerializeTag
 // PathOrFileDescriptor.SerializeTag (types.zig:912) — enum(u8)
-public enum PathOrFileDescriptorSerializeTag <: UInt8 {
-    | Fd = 0
-    | Path = 1
+public enum PathOrFileDescriptorSerializeTag {
+    | Fd
+    | Path
 }
 
 public extension PathOrFileDescriptorSerializeTag {

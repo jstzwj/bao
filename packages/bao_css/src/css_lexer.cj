@@ -51,6 +51,14 @@ public enum CssTokenKind {
     | RBrace           // }
     | Eof              // 输入结束
 
+    public operator func ==(right: CssTokenKind): Bool {
+        this.name() == right.name()
+    }
+
+    public operator func !=(right: CssTokenKind): Bool {
+        !(this == right)
+    }
+
     /// 获取 token 类型名称
     public func name(): String {
         match (this) {

@@ -62,11 +62,11 @@ public class Tree {
 
     /// 无效 ID
     /// 翻译自: Tree.invalid_id = std.math.maxInt(Id)
-    public static let INVALID_ID: UInt32 = UInt32.MAX
+    public static let INVALID_ID: UInt32 = UInt32(0xffffffff)
 
     /// 根依赖 ID
     /// 翻译自: Tree.root_dep_id = invalid_package_id - 1
-    public static let ROOT_DEP_ID: UInt32 = UInt32.MAX - UInt32(1)
+    public static let ROOT_DEP_ID: UInt32 = UInt32(0xffffffff) - UInt32(1)
 
     /// 最大深度 (node_modules 嵌套层数)
     /// 翻译自: Tree.max_depth = (bun.MAX_PATH_BYTES / "node_modules".len) + 1

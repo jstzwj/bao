@@ -209,8 +209,16 @@ public class MutableString {
     }
 
     /// 获取长度
+    public prop size: Int64 {
+        get() { data.size }
+    }
+
     public func len(): Int64 {
         return data.size
+    }
+
+    public func appendSlice(s: String): Unit {
+        append(s)
     }
 
     /// 是否为空

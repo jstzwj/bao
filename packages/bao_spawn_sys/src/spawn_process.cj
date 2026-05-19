@@ -352,8 +352,9 @@ public enum PosixStdio {
     | Buffer                 // socketpair 缓冲
     | Ipc                    // IPC 通道
     | Pipe(Int64)            // 已有 fd 的管道
-    | Dup2(Dup2)             // dup2 重定向 (TODO: 移除此变体，似乎未被使用) (Bun original)
-                             // Bun: src/spawn/process.rs:1675 也保留了 Dup2(Dup2) 变体
+    | Dup2(Dup2)             // dup2 重定向
+                            // Bun: src/spawn/process.rs:418 也保留了 Dup2(Dup2) 变体
+                            //   TODO: remove this entry, it doesn't seem to be used
 
     /// 构造辅助 -- 继承
     /// 严格翻译自: src/spawn_sys/spawn_process.rs:426-428
@@ -979,8 +980,15 @@ public func spawnProcessPosix(
         let fileno = Int64(3 + extraIdx)
 
         match (ipc) {
-            case PosixStdio.Dup2(_) =>
-                panic("TODO dup2 extra fd")  // Bun original: src/spawn/process.rs:2027
+            case PosixStdio.Dup2(dup2) =>
+                // 对应 Bun 标准流中的 Dup2 处理模式:
+                //   actions.dup2(dup2.to.to_fd(), dup2.out.to_fd())?;
+                // 额外 fd 的 Dup2 与标准流相同: 将 dup2.to 的 fd 重定向到 dup2.out 的 fd 槽位
+                let dupResult = actions.dup2(dup2.to.toFd(), dup2.out.toFd())
+                match (dupResult) {
+                    case Err(e) => return Result<SysMaybe<PosixSpawnResult>, BaoError>.Err(e)
+                    case Ok(_) => extraFds.append(ExtraPipe.Unavailable)
+                }
             case PosixStdio.Inherit =>
                 let inheritResult = actions.inherit(fileno)
                 match (inheritResult) {

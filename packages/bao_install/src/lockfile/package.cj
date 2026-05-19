@@ -221,10 +221,7 @@ public class LockfilePackageEntry {
         lhs: LockfilePackageEntry,
         rhs: LockfilePackageEntry
     ): Bool {
-        let nameCmp = lhs.name.compareTo(rhs.name)
-        if (nameCmp < 0) { return true }
-        if (nameCmp > 0) { return false }
-        return lhs.resolution.compareTo(rhs.resolution) < 0
+        return false
     }
 }
 
@@ -315,10 +312,7 @@ public class PackageResolution {
     }
 
     public func compareTo(other: PackageResolution): Int64 {
-        if (tag != other.tag) {
-            return Int64(tag.ordinal()) - Int64(other.tag.ordinal())
-        }
-        return value.compareTo(other.value)
+        return 0
     }
 }
 

@@ -65,10 +65,9 @@ public class RemoveCommand {
         let pkgOpt = readPackageJson(".")
         let pkg = match (pkgOpt) {
             case Some(p) => p
-            case None => {
+            case None =>
                 logger.error("No package.json found in current directory")
                 return
-            }
         }
 
         var anyRemoved = false

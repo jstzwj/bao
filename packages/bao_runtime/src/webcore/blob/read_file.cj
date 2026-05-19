@@ -264,8 +264,12 @@ public class ReadFile {
         readFile.onCompleteCtx = onReadFileContext
         readFile.onCompleteCallback = onCompleteCallback
         readFile.state = ClosingState.running.ordinal()
-        readFile.task = WorkPoolTask(callback: ReadFile.doReadLoopTask)
-        readFile.ioRequest = IoRequest(callback: ReadFile.onRequestReadable)
+        let task = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        task.parent = readFile
+        readFile.task = task
+        let ioReq = IoRequest(callback: ReadFile.onRequestReadable)
+        ioReq.parent = readFile
+        readFile.ioRequest = ioReq
         return Result.Ok(readFile)
     }
 
@@ -367,7 +371,9 @@ public class ReadFile {
     /// Handle IO readiness by rescheduling the read loop
     /// Corresponds to: Bun: ReadFile::on_ready()
     public func onReady(): Unit {
-        task = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        let newTask = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        newTask.parent = this
+        task = newTask
         // On macOS, we use one-shot mode, so:
         // - we don't need to unregister
         // - we don't need to delete from kqueue
@@ -385,7 +391,9 @@ public class ReadFile {
     public func onIoError(err: SyscallError): Unit {
         errno = Some(BunCore.errnoToZigErr(err.errno))
         systemError = Some(err.toSystemError())
-        task = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        let newTask = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        newTask.parent = this
+        task = newTask
         closeAfterIo = ioRequest.scheduled
         WorkPool.schedule(task)
     }
@@ -1280,13 +1288,13 @@ public class IoRequest {
     public init() {
         scheduled = false
         callback = { _ => IoAction.Noop }
-        parent = ReadFile() // placeholder
+        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
     }
 
     public init(callback: (IoRequest) -> IoAction) {
         scheduled = false
         this.callback = callback
-        parent = ReadFile() // placeholder
+        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
     }
 
     /// Store callback with sequential consistency
@@ -1303,12 +1311,12 @@ public class WorkPoolTask {
 
     public init() {
         callback = { _ => () }
-        parent = ReadFile() // placeholder
+        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
     }
 
     public init(callback: (WorkPoolTask) -> Unit) {
         this.callback = callback
-        parent = ReadFile() // placeholder
+        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
     }
 }
 

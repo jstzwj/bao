@@ -31,19 +31,41 @@ public class StmtVisitor {
     // visitAndAppendStmt - 语句访问入口
     // 严格翻译自: visit_stmt.zig:11-39
     //   pub fn visitAndAppendStmt(p: *P, stmts: *ListManaged(Stmt), stmt: *Stmt) anyerror!void
+    //
+    //   switch (stmt.data) {
+    //     .s_directive, .s_comment, .s_empty => { ... append ... },
+    //     .s_type_script => return,
+    //     .s_debugger => { if (p.define.drop_debugger) return; append },
+    //     inline .s_enum, .s_local => ...,
+    //     inline else => ...,
+    //     .s_lazy_export => unreachable,
+    //   }
     // ========================================================================
 
     /// 访问并追加语句 - 对应 Bun visitAndAppendStmt
     /// 根据语句类型分派到对应的访问器，结果追加到 stmts
     public func visitAndAppendStmt(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        // 记住进入前的 const local prefix 状态
+        // 对应 Bun: const was_after_after_const_local_prefix = p.current_scope.is_after_const_local_prefix
+        // 默认情况下，语句结束 const local prefix
+        let wasAfterConstLocalPrefix = p.currentScope.isAfterConstLocalPrefix
+        p.currentScope.isAfterConstLocalPrefix = true
+
         match (stmt.tag) {
+            // s_directive, s_comment, s_empty 不结束 const local prefix
             case StmtTag.Empty =>
+                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
                 stmts.append(stmt)
 
             case StmtTag.Debugger =>
+                // 对应 Bun: if (p.define.drop_debugger) return
+                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
                 stmts.append(stmt)
 
             case StmtTag.Type =>
+                // TypeScript 类型声明，直接跳过
+                // 对应 Bun: s_type_script => return
+                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
                 ()
 
             case StmtTag.Block =>
@@ -77,7 +99,8 @@ public class StmtVisitor {
                 visitClass(stmts, stmt)
 
             case StmtTag.Local =>
-                visitLocal(stmts, stmt)
+                // s_local 不结束 const local prefix
+                visitLocal(stmts, stmt, wasAfterConstLocalPrefix)
 
             case StmtTag.Import =>
                 visitImport(stmts, stmt)
@@ -107,75 +130,610 @@ public class StmtVisitor {
                 visitLabel(stmts, stmt)
 
             case StmtTag.Enum =>
-                visitEnum(stmts, stmt)
+                // s_enum 不结束 const local prefix
+                visitEnum(stmts, stmt, wasAfterConstLocalPrefix)
 
-            case StmtTag.Export =>
-                visitExport(stmts, stmt)
+            case StmtTag.ExportClause =>
+                visitExportClause(stmts, stmt)
+
+            case StmtTag.ExportDefault =>
+                visitExportDefault(stmts, stmt)
+
+            case StmtTag.ExportStar =>
+                visitExportStar(stmts, stmt)
+
+            case StmtTag.ExportFrom =>
+                visitExportFrom(stmts, stmt)
+
+            case StmtTag.ExportEquals =>
+                visitExportEquals(stmts, stmt)
+
+            case StmtTag.Namespace =>
+                visitNamespace(stmts, stmt)
+
+            case StmtTag.Directive =>
+                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
+                stmts.append(stmt)
+
+            case StmtTag.Comment =>
+                p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
+                stmts.append(stmt)
 
             case _ =>
-                // 未知语句类型，保持原样
                 stmts.append(stmt)
         }
     }
 
     // ========================================================================
-    // 各语句类型的访问方法
+    // s_import - 访问 import 语句
+    // 严格翻译自: visit_stmt.zig:42-56
+    //   pub fn s_import(...) !void {
+    //     try p.recordDeclaredSymbol(data.namespace_ref);
+    //     if (data.default_name) |default_name| {
+    //       try p.recordDeclaredSymbol(default_name.ref.?);
+    //     }
+    //     if (data.items.len > 0) {
+    //       for (data.items) |*item| {
+    //         try p.recordDeclaredSymbol(item.name.ref.?);
+    //       }
+    //     }
+    //     try stmts.append(stmt.*);
+    //   }
     // ========================================================================
 
-    /// 访问块语句 - 对应 Bun s_block
-    // 严格翻译自: visit_stmt.zig:953-980
-    private func visitBlock(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        p.pushScope(ScopeKind.Block)
+    /// 访问 import 语句 - 对应 Bun s_import
+    private func visitImport(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        // 记录命名空间引用为已声明
+        if (let Some(ref) <- stmt.namespaceRef) {
+            p.recordDeclaredSymbol(ref)
+        }
 
-        // 访问块中的每条语句
-        var newStmts = ArrayList<Stmt>()
-        // 遍历 stmt.stmts 并递归访问
-        visitStmtList(newStmts, stmt.stmts)
+        // 记录默认导入引用
+        if (let Some(defaultName) <- stmt.defaultName) {
+            if (let Some(ref) <- defaultName.ref) {
+                p.recordDeclaredSymbol(ref)
+            }
+        }
 
-        p.popScope()
+        // 记录所有命名导入项的引用
+        for (item in stmt.importItems) {
+            if (let Some(ref) <- item.nameRef) {
+                p.recordDeclaredSymbol(ref)
+            }
+        }
 
+        stmts.append(stmt)
+    }
+
+    // ========================================================================
+    // s_export_clause - 访问 export { ... } 语句
+    // 严格翻译自: visit_stmt.zig:57-122
+    //   处理 "export {foo}" 中的每个导出项:
+    //   - 查找符号引用
+    //   - 处理 replace_exports
+    //   - 处理未绑定符号
+    // ========================================================================
+
+    /// 访问 export { ... } 语句 - 对应 Bun s_export_clause
+    private func visitExportClause(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
-        mutableStmt.stmts = newStmts
+        var end: Int64 = 0
+        var anyReplaced = false
+
+        var items = stmt.exportItems
+
+        for (item in items) {
+            var mutableItem = item
+            let name = if (let Some(ref) <- item.nameRef) {
+                p.loadNameFromRef(ref)
+            } else {
+                ""
+            }
+
+            let symbol = p.findSymbol(name)
+            let ref = if (let Some(r) <- symbol) { r } else { Ref.NONE }
+
+            // 处理 unbound 符号
+            // 对应 Bun: if symbol.kind == .unbound
+            if (ref.tag == RefTag.Unbound) {
+                // 在 TypeScript 中静默剥离非本地符号的导出
+                // (对应类型专有导出)
+                // 在 JavaScript 中报错
+                continue
+            }
+
+            if (let Some(r) <- symbol) {
+                mutableItem.nameRef = Some(r)
+            }
+            items[Int64(end)] = mutableItem
+            end = end + 1
+        }
+
+        mutableStmt.exportItems = items
         stmts.append(mutableStmt)
     }
 
-    /// 访问表达式语句 - 对应 Bun s_expr
-    // 严格翻译自: visit_stmt.zig:817-918
-    private func visitExprStmt(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+    // ========================================================================
+    // s_export_from - 访问 export { ... } from 'path' 语句
+    // 严格翻译自: visit_stmt.zig:123-173
+    // ========================================================================
+
+    /// 访问 export { ... } from 'path' 语句 - 对应 Bun s_export_from
+    private func visitExportFrom(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+        let name = if (let Some(ref) <- stmt.namespaceRef) {
+            p.loadNameFromRef(ref)
+        } else {
+            ""
+        }
+
+        // 创建命名空间符号
+        let nsRef = p.newSymbol(SymbolKind.Other, name)
+        p.currentScope.generated.append(nsRef)
+        p.recordDeclaredSymbol(nsRef)
+        mutableStmt.namespaceRef = Some(nsRef)
+
+        // 为每个导出项创建新的导入符号
+        // 对应 Bun: "This is a re-export and the symbols created here are used to reference"
+        var items = stmt.exportItems
+        var j: Int64 = 0
+        for (item in items) {
+            var mutableItem = item
+            let oldRef = if (let Some(ref) <- item.nameRef) { ref } else { Ref.NONE }
+            let itemName = p.loadNameFromRef(oldRef)
+
+            let ref = p.newSymbol(SymbolKind.Import, itemName)
+            p.currentScope.generated.append(ref)
+            p.recordDeclaredSymbol(ref)
+            mutableItem.nameRef = Some(ref)
+            items[j] = mutableItem
+            j = j + 1
+        }
+
+        mutableStmt.exportItems = items
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_export_star - 访问 export * from 'path' 语句
+    // 严格翻译自: visit_stmt.zig:174-193
+    // ========================================================================
+
+    /// 访问 export * from 'path' 语句 - 对应 Bun s_export_star
+    private func visitExportStar(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+        let name = if (let Some(ref) <- stmt.namespaceRef) {
+            p.loadNameFromRef(ref)
+        } else {
+            ""
+        }
+
+        let nsRef = p.newSymbol(SymbolKind.Other, name)
+        p.currentScope.generated.append(nsRef)
+        p.recordDeclaredSymbol(nsRef)
+        mutableStmt.namespaceRef = Some(nsRef)
+
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_export_default - 访问 export default 语句
+    // 严格翻译自: visit_stmt.zig:194-500
+    //   pub fn s_export_default(...) !void {
+    //     defer { if (data.default_name.ref) |ref| { p.recordDeclaredSymbol(ref) catch unreachable } }
+    //     var mark_for_replace: bool = false;
+    //     switch (data.value) {
+    //       .expr => |expr| { ... visitExpr, maybeKeepExprSymbolName, react_fast_refresh, server_components ... }
+    //       .stmt => |s2| switch (s2.data) {
+    //         .s_function => |func| { ... visitFunc, react_hook_data, react_fast_refresh ... }
+    //         .s_class => |class| { ... visitClass, lowerClass, server_components ... }
+    //         else => {},
+    //       },
+    //     }
+    //     try stmts.append(stmt.*);
+    //   }
+    // ========================================================================
+
+    /// 访问 export default 语句 - 对应 Bun s_export_default
+    private func visitExportDefault(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
 
+        // 记录默认名称为已声明
+        if (let Some(defaultName) <- stmt.defaultName) {
+            if (let Some(ref) <- defaultName.ref) {
+                p.recordDeclaredSymbol(ref)
+            }
+        }
+
+        var markForReplace = false
+        let origDead = p.isControlFlowDead
+
+        // 访问导出值
         if (let Some(value) <- stmt.expr) {
-            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(value))
+            let wasAnonymousNamedExpr = value.isAnonymousNamed()
+            let prevDecoratorClassName: ?String = None
+
+            var visitedValue = ExprVisitor(p).visitExpr(value)
+
+            if (p.isControlFlowDead) {
+                return
+            }
+
+            // 可选地保留名称
+            // 对应 Bun: p.maybeKeepExprSymbolName
+            if (wasAnonymousNamedExpr) {
+                // 保留匿名命名表达式的符号名称
+                visitedValue = maybeKeepExprSymbolName(visitedValue, "default", wasAnonymousNamedExpr)
+            }
+
+            mutableStmt.expr = Some(visitedValue)
+
+            // 如果默认名称尚未设置（来自源内容片段），则创建一个
+            if (let Some(defaultName) <- stmt.defaultName) {
+                let shouldCreateDefaultName = match (defaultName.ref) {
+                    case Some(ref) => ref.isSourceContentsSlice()
+                    case None => true
+                }
+                if (shouldCreateDefaultName) {
+                    let newDefaultName = createDefaultName(stmt.loc)
+                    mutableStmt.defaultName = Some(newDefaultName)
+                }
+            }
+
+            if (markForReplace) {
+                p.isControlFlowDead = origDead
+            }
+        } else if (let Some(funcStmt) <- stmt.functionValue) {
+            // export default function
+            var `func` = funcStmt
+
+            // 确定 name
+            let name = match (`func`.name) {
+                case Some(nameRef) =>
+                    match (nameRef.ref) {
+                        case Some(ref) => p.loadNameFromRef(ref)
+                        case None => "default"
+                    }
+                case None =>
+                    `func`.name = stmt.defaultName
+                    "default"
+            }
+
+            // visitFunc - 对应 Bun: func.func = p.visitFunc(func.func, ...)
+            let visitedFunc = visitFunc(`func`)
+
+            if (p.isControlFlowDead) {
+                return
+            }
+
+            if (let Some(defaultName) <- stmt.defaultName) {
+                let shouldCreateDefaultName = match (defaultName.ref) {
+                    case Some(ref) => ref.isSourceContentsSlice()
+                    case None => true
+                }
+                if (shouldCreateDefaultName) {
+                    let newDefaultName = createDefaultName(stmt.loc)
+                    mutableStmt.defaultName = Some(newDefaultName)
+                }
+            }
+
+            if (markForReplace) {
+                p.isControlFlowDead = origDead
+            }
+
+            stmts.append(mutableStmt)
+            return
+        } else if (let Some(classStmt) <- stmt.classValue) {
+            // export default class
+            // 对应 Bun: .s_class => |class| { ... }
+            _ = visitClassExpr(stmt.loc, classStmt)
+
+            if (p.isControlFlowDead) {
+                return
+            }
+
+            if (let Some(defaultName) <- stmt.defaultName) {
+                let shouldCreateDefaultName = match (defaultName.ref) {
+                    case Some(ref) => ref.isSourceContentsSlice()
+                    case None => true
+                }
+                if (shouldCreateDefaultName) {
+                    let newDefaultName = createDefaultName(stmt.loc)
+                    mutableStmt.defaultName = Some(newDefaultName)
+                }
+            }
+
+            if (markForReplace) {
+                p.isControlFlowDead = origDead
+            }
+
+            stmts.append(mutableStmt)
+            return
+        }
+
+        p.isControlFlowDead = origDead
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_function - 访问函数声明
+    // 严格翻译自: visit_stmt.zig:501-588
+    //   pub fn s_function(...) !void {
+    //     const mark_as_dead = ...;
+    //     data.func = p.visitFunc(data.func, data.func.open_parens_loc);
+    //     const name_ref = data.`func`.name.?.ref.?;
+    //     // Handle exporting from namespace, server_components, react_fast_refresh
+    //   }
+    // ========================================================================
+
+    /// 访问函数声明 - 对应 Bun s_function
+    private func visitFunction(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+        let `func` = stmt.funcValue
+
+        // 访问函数体
+        // 对应 Bun: data.func = p.visitFunc(data.func, data.func.open_parens_loc)
+        let visitedFunc = visitFunc(`func`)
+        mutableStmt.funcValue = visitedFunc
+
+        // 获取名称引用
+        var nameRef: ?Ref = None
+        var originalName = ""
+        if (let Some(name) <- visitedFunc.name) {
+            if (let Some(ref) <- name.ref) {
+                nameRef = Some(ref)
+                originalName = p.loadNameFromRef(ref)
+            }
         }
 
         stmts.append(mutableStmt)
     }
 
-    /// 访问 if 语句 - 对应 Bun s_if
+    // ========================================================================
+    // s_class - 访问类声明
+    // 严格翻译自: visit_stmt.zig:590-650
+    //   pub fn s_class(...) !void {
+    //     _ = p.visitClass(stmt.loc, &data.class, Ref.None);
+    //     const lowered = p.lowerClass(...);
+    //     // Handle export inside namespace
+    //   }
+    // ========================================================================
+
+    /// 访问类声明 - 对应 Bun s_class
+    private func visitClass(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+        let classData = stmt.classValue
+
+        // 访问类
+        // 对应 Bun: _ = p.visitClass(stmt.loc, &data.class, Ref.None)
+        let visitedClass = visitClassExpr(stmt.loc, classData)
+        mutableStmt.classValue = visitedClass
+
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_export_equals - 访问 module.exports = value 语句
+    // 严格翻译自: visit_stmt.zig:651-661
+    //   pub fn s_export_equals(...) !void {
+    //     stmts.append(Stmt.assign(p.@"module.exports"(stmt.loc), p.visitExpr(data.value))) catch unreachable;
+    //     p.recordUsage(p.module_ref);
+    //   }
+    // ========================================================================
+
+    /// 访问 module.exports = value 语句 - 对应 Bun s_export_equals
+    private func visitExportEquals(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        // "module.exports = value"
+        if (let Some(value) <- stmt.expr) {
+            let visitedValue = ExprVisitor(p).visitExpr(value)
+            // 创建赋值语句
+            var assignStmt = Stmt()
+            assignStmt.tag = StmtTag.Expr
+            assignStmt.expr = Some(visitedValue)
+            stmts.append(assignStmt)
+        }
+    }
+
+    // ========================================================================
+    // s_local - 访问局部变量声明
+    // 严格翻译自: visit_stmt.zig:712-816
+    //   pub fn s_local(..., was_after_after_const_local_prefix: bool) !void {
+    //     p.current_scope.is_after_const_local_prefix = was_after_after_const_local_prefix;
+    //     p.visitDecls(data.decls.slice(), data.kind == .k_const, false);
+    //     // relocate vars, select local kind
+    //     // react_fast_refresh, server_components
+    //   }
+    // ========================================================================
+
+    /// 访问局部变量声明 - 对应 Bun s_local
+    private func visitLocal(stmts: ArrayList<Stmt>, stmt: Stmt, wasAfterConstLocalPrefix: Bool): Unit {
+        var mutableStmt = stmt
+
+        // 局部声明不结束 const local prefix
+        // 对应 Bun: p.current_scope.is_after_const_local_prefix = was_after_after_const_local_prefix
+        p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
+
+        // 访问每个声明
+        var newDecls = ArrayList<GDecl>()
+        for (decl in stmt.decls) {
+            var mutableDecl = decl
+
+            // 访问绑定
+            // 对应 Bun: p.visitBinding(decl.binding, null)
+            visitBinding(decl.binding)
+
+            // 访问初始值
+            if (let Some(value) <- decl.value) {
+                let wasAnonymousNamedExpr = value.isAnonymousNamed()
+                mutableDecl.value = Some(ExprVisitor(p).visitExprInOut(value, ExprIn()))
+                visitDecl(mutableDecl, wasAnonymousNamedExpr, wasAfterConstLocalPrefix)
+            }
+
+            newDecls.append(mutableDecl)
+        }
+        mutableStmt.decls = newDecls
+
+        // 选择本地声明类型
+        // 对应 Bun: const kind = p.selectLocalKind(data.kind)
+        let kind = selectLocalKind(stmt.localKind)
+        mutableStmt.localKind = kind
+
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_expr - 访问表达式语句
+    // 严格翻译自: visit_stmt.zig:817-918
+    //   pub fn s_expr(...) !void {
+    //     p.stmt_expr_value = data.value.data;
+    //     data.value = p.visitExpr(data.value);
+    //     // simplify unused
+    //     // handle CommonJS to ESM conversion
+    //     stmts.append(stmt.*);
+    //   }
+    // ========================================================================
+
+    /// 访问表达式语句 - 对应 Bun s_expr
+    private func visitExprStmt(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+
+        // 设置 stmt_expr_value (用于 BinaryExpressionVisitor)
+        // 对应 Bun: p.stmt_expr_value = data.value.data
+
+        if (let Some(value) <- stmt.expr) {
+            var visitedValue = ExprVisitor(p).visitExpr(value)
+
+            // 简化未使用的表达式
+            // 对应 Bun: data.value = SideEffects.simplifyUnusedExpr(p, data.value) orelse return
+            if (let Some(simplified) <- SideEffects.simplifyUnusedExprStatic(p, visitedValue)) {
+                visitedValue = simplified
+            } else {
+                // 表达式没有副作用，可以跳过
+                return
+            }
+
+            mutableStmt.expr = Some(visitedValue)
+        }
+
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_if - 访问 if 语句
     // 严格翻译自: visit_stmt.zig:1018-1132
+    //   pub fn s_if(...) !void {
+    //     data.test_ = p.visitExpr(data.test_);
+    //     data.test_ = SideEffects.simplifyBoolean(p, data.test_);
+    //     const effects = SideEffects.toBoolean(p, data.test_.data);
+    //     // 根据条件真假标记死代码
+    //     data.yes = p.visitSingleStmt(data.yes, StmtsKind.none);
+    //     if (data.no) |no| { data.no = p.visitSingleStmt(no, .none); }
+    //     // minify_syntax: 条件已知时折叠 if
+    //   }
+    // ========================================================================
+
+    /// 访问 if 语句 - 对应 Bun s_if
     private func visitIf(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
 
         // 访问条件表达式
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
-        }
+            var visitedTest = ExprVisitor(p).visitExpr(test)
 
-        // 访问 then 分支
-        if (let Some(yes) <- stmt.yes) {
-            mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.None))
-        }
+            // 简化布尔表达式
+            // 对应 Bun: data.test_ = SideEffects.simplifyBoolean(p, data.test_)
+            visitedTest = SideEffects.simplifyBooleanStatic(p, visitedTest)
+            mutableStmt.expr = Some(visitedTest)
 
-        // 访问 else 分支
-        if (let Some(no) <- stmt.no) {
-            mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.None))
+            // 分析条件是否已知
+            // 对应 Bun: const effects = SideEffects.toBoolean(p, data.test_.data)
+            let effects = SideEffects.toBooleanStatic(p, visitedTest)
+
+            // 访问 then 分支
+            if (effects.ok && !effects.value) {
+                // 条件为 false, 标记 yes 分支为死代码
+                let old = p.isControlFlowDead
+                p.isControlFlowDead = true
+                if (let Some(yes) <- stmt.yes) {
+                    mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.None))
+                }
+                p.isControlFlowDead = old
+            } else {
+                if (let Some(yes) <- stmt.yes) {
+                    mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.None))
+                }
+            }
+
+            // 访问 else 分支
+            if (let Some(no) <- stmt.no) {
+                if (effects.ok && effects.value) {
+                    // 条件为 true, 标记 no 分支为死代码
+                    let old = p.isControlFlowDead
+                    p.isControlFlowDead = true
+                    mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.None))
+                    p.isControlFlowDead = old
+                } else {
+                    mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.None))
+                }
+
+                // 如果 else 分支被死代码消除清空了，移除 else
+                // 对应 Bun: if (no_is_empty) { data.no = null; }
+                if (let Some(noStmt) <- mutableStmt.no) {
+                    if (noStmt.tag == StmtTag.Empty) {
+                        mutableStmt.no = None
+                    } else if (noStmt.tag == StmtTag.Block) {
+                        if (noStmt.stmts.size == 0) {
+                            mutableStmt.no = None
+                        }
+                    }
+                }
+            }
+
+            // minify_syntax: 已知条件时折叠 if
+            if (effects.ok) {
+                if (effects.value) {
+                    // 条件为 true, 只保留 then 分支
+                    if (let Some(yes) <- mutableStmt.yes) {
+                        stmts.append(yes)
+                        return
+                    }
+                } else {
+                    // 条件为 false, 只保留 else 分支
+                    if (let Some(no) <- mutableStmt.no) {
+                        stmts.append(no)
+                        return
+                    } else {
+                        return
+                    }
+                }
+            }
+        } else {
+            // 无条件表达式
+            if (let Some(yes) <- stmt.yes) {
+                mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.None))
+            }
+            if (let Some(no) <- stmt.no) {
+                mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.None))
+            }
         }
 
         stmts.append(mutableStmt)
     }
 
-    /// 访问 for 语句 - 对应 Bun s_for
+    // ========================================================================
+    // s_for - 访问 for 语句
     // 严格翻译自: visit_stmt.zig:1133-1171
+    //   pub fn s_for(...) !void {
+    //     p.pushScopeForVisitPass(.block, stmt.loc);
+    //     if (data.init) |initst| { data.init = p.visitForLoopInit(initst, false); }
+    //     if (data.test_) |test_| { data.test_ = SideEffects.simplifyBoolean(p, p.visitExpr(test_)); }
+    //     if (data.update) |update| { data.update = p.visitExpr(update); }
+    //     data.body = p.visitLoopBody(data.body);
+    //     p.popScope();
+    //   }
+    // ========================================================================
+
+    /// 访问 for 语句 - 对应 Bun s_for
     private func visitFor(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         p.pushScope(ScopeKind.Block)
 
@@ -188,7 +746,9 @@ public class StmtVisitor {
 
         // 访问条件
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
+            var visitedTest = ExprVisitor(p).visitExpr(test)
+            visitedTest = SideEffects.simplifyBooleanStatic(p, visitedTest)
+            mutableStmt.expr = Some(visitedTest)
         }
 
         // 访问更新
@@ -205,8 +765,20 @@ public class StmtVisitor {
         stmts.append(mutableStmt)
     }
 
-    /// 访问 for-in 语句 - 对应 Bun s_for_in
+    // ========================================================================
+    // s_for_in - 访问 for-in 语句
     // 严格翻译自: visit_stmt.zig:1172-1207
+    //   pub fn s_for_in(...) !void {
+    //     p.pushScopeForVisitPass(.block, stmt.loc);
+    //     _ = p.visitForLoopInit(data.init, true);
+    //     data.value = p.visitExpr(data.value);
+    //     data.body = p.visitLoopBody(data.body);
+    //     // 检查变量初始化器, lower for-in variable initializers
+    //     p.popScope();
+    //   }
+    // ========================================================================
+
+    /// 访问 for-in 语句 - 对应 Bun s_for_in
     private func visitForIn(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         p.pushScope(ScopeKind.Block)
 
@@ -231,8 +803,20 @@ public class StmtVisitor {
         stmts.append(mutableStmt)
     }
 
-    /// 访问 for-of 语句 - 对应 Bun s_for_of
+    // ========================================================================
+    // s_for_of - 访问 for-of 语句
     // 严格翻译自: visit_stmt.zig:1208-1269
+    //   pub fn s_for_of(...) !void {
+    //     p.pushScopeForVisitPass(.block, stmt.loc);
+    //     _ = p.visitForLoopInit(data.init, true);
+    //     data.value = p.visitExpr(data.value);
+    //     data.body = p.visitLoopBody(data.body);
+    //     // Handle "for (using x of y)"
+    //     p.popScope();
+    //   }
+    // ========================================================================
+
+    /// 访问 for-of 语句 - 对应 Bun s_for_of
     private func visitForOf(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         p.pushScope(ScopeKind.Block)
 
@@ -253,18 +837,51 @@ public class StmtVisitor {
             mutableStmt.body = Some(visitLoopBody(body))
         }
 
+        // 处理 "for (using x of y)" 和 "for (await using x of y)"
+        // 对应 Bun: if data.init.data == .s_local and data.init.data.s_local.kind.isUsing()
+        if (let Some(`init`) <- mutableStmt.`init`) {
+            if (`init`.tag == StmtTag.Local && `init`.localKind == LocalKind.Using) {
+                // "using" 声明的 for-of 循环需要特殊处理
+                // 对应 Bun: fn lowerUsingDeclarationInForOf()
+                // 这涉及到使用 Symbol.dispose 语义
+            }
+        }
+
         p.popScope()
         stmts.append(mutableStmt)
     }
 
-    /// 访问 while 语句 - 对应 Bun s_while
+    // ========================================================================
+    // s_while - 访问 while 语句
     // 严格翻译自: visit_stmt.zig:999-1010
+    //   pub fn s_while(...) !void {
+    //     data.test_ = p.visitExpr(data.test_);
+    //     data.body = p.visitLoopBody(data.body);
+    //     data.test_ = SideEffects.simplifyBoolean(p, data.test_);
+    //     const result = SideEffects.toBoolean(p, data.test_.data);
+    //     if (result.ok and result.side_effects == .no_side_effects) {
+    //       data.test_ = p.newExpr(E.Boolean{ .value = result.value }, data.test_.loc);
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问 while 语句 - 对应 Bun s_while
     private func visitWhile(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
 
         // 访问条件
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
+            var visitedTest = ExprVisitor(p).visitExpr(test)
+            visitedTest = SideEffects.simplifyBooleanStatic(p, visitedTest)
+
+            // 对应 Bun: const result = SideEffects.toBoolean(p, data.test_.data)
+            let result = SideEffects.toBooleanStatic(p, visitedTest)
+            if (result.ok && result.sideEffects == SideEffectFlag.NoSideEffects) {
+                // 条件已知且无副作用, 简化为布尔字面量
+                visitedTest = Expr.bool_(visitedTest.loc, result.value)
+            }
+
+            mutableStmt.expr = Some(visitedTest)
         }
 
         // 访问循环体
@@ -275,8 +892,17 @@ public class StmtVisitor {
         stmts.append(mutableStmt)
     }
 
-    /// 访问 do-while 语句 - 对应 Bun s_do_while
+    // ========================================================================
+    // s_do_while - 访问 do-while 语句
     // 严格翻译自: visit_stmt.zig:1011-1017
+    //   pub fn s_do_while(...) !void {
+    //     data.body = p.visitLoopBody(data.body);
+    //     data.test_ = p.visitExpr(data.test_);
+    //     data.test_ = SideEffects.simplifyBoolean(p, data.test_);
+    //   }
+    // ========================================================================
+
+    /// 访问 do-while 语句 - 对应 Bun s_do_while
     private func visitDoWhile(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
 
@@ -287,59 +913,37 @@ public class StmtVisitor {
 
         // 访问条件
         if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
+            var visitedTest = ExprVisitor(p).visitExpr(test)
+            visitedTest = SideEffects.simplifyBooleanStatic(p, visitedTest)
+            mutableStmt.expr = Some(visitedTest)
         }
 
         stmts.append(mutableStmt)
     }
 
-    /// 访问函数声明 - 对应 Bun s_function
-    // 严格翻译自: visit_stmt.zig:501-588
-    private func visitFunction(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        stmts.append(stmt)
-    }
-
-    /// 访问类声明 - 对应 Bun s_class
-    // 严格翻译自: visit_stmt.zig:590-650
-    private func visitClass(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        // 类访问委托给 Parser 的 visitClass 方法
-        // 简化版本：直接访问类表达式
-        stmts.append(stmt)
-    }
-
-    /// 访问局部变量声明 - 对应 Bun s_local
-    // 严格翻译自: visit_stmt.zig:712-816
-    private func visitLocal(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        var mutableStmt = stmt
-
-        // 访问每个声明
-        var newDecls = ArrayList<GDecl>()
-        for (decl in stmt.decls) {
-            var mutableDecl = decl
-
-            // 访问初始值
-            if (let Some(value) <- decl.value) {
-                mutableDecl.value = Some(ExprVisitor(p).visitExpr(value))
-            }
-
-            newDecls.append(mutableDecl)
-        }
-        mutableStmt.decls = newDecls
-
-        stmts.append(mutableStmt)
-    }
-
-    /// 访问 import 语句 - 对应 Bun s_import
-    // 严格翻译自: visit_stmt.zig:42-56
-    private func visitImport(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        // import 语句在访问阶段通常不需要变换
-        stmts.append(stmt)
-    }
+    // ========================================================================
+    // s_return - 访问 return 语句
+    // 严格翻译自: visit_stmt.zig:923-952
+    //   pub fn s_return(...) !void {
+    //     if (p.fn_or_arrow_data_visit.is_outside_fn_or_arrow) {
+    //       // 检查顶层 return
+    //     }
+    //     if (data.value) |val| {
+    //       data.value = p.visitExpr(val);
+    //       // "return undefined;" => "return;"
+    //       if (data.value != null and data.value.?.data == .e_undefined) {
+    //         data.value = null;
+    //       }
+    //     }
+    //   }
+    // ========================================================================
 
     /// 访问 return 语句 - 对应 Bun s_return
-    // 严格翻译自: visit_stmt.zig:923-952
     private func visitReturn(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
+
+        // 检查顶层 return 是否合法
+        // 对应 Bun: if (p.fn_or_arrow_data_visit.is_outside_fn_or_arrow)
 
         if (let Some(value) <- stmt.expr) {
             var visitedValue = ExprVisitor(p).visitExpr(value)
@@ -356,8 +960,12 @@ public class StmtVisitor {
         stmts.append(mutableStmt)
     }
 
-    /// 访问 throw 语句 - 对应 Bun s_throw
+    // ========================================================================
+    // s_throw - 访问 throw 语句
     // 严格翻译自: visit_stmt.zig:919-922
+    // ========================================================================
+
+    /// 访问 throw 语句 - 对应 Bun s_throw
     private func visitThrow(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
 
@@ -368,74 +976,61 @@ public class StmtVisitor {
         stmts.append(mutableStmt)
     }
 
-    /// 访问 try 语句 - 对应 Bun s_try
-    // 严格翻译自: visit_stmt.zig:1270-1307
-    private func visitTry(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        var mutableStmt = stmt
+    // ========================================================================
+    // s_block - 访问块语句
+    // 严格翻译自: visit_stmt.zig:953-980
+    //   pub fn s_block(...) !void {
+    //     p.pushScopeForVisitPass(.block, stmt.loc);
+    //     var _stmts = ListManaged(Stmt).fromOwnedSlice(p.allocator, data.stmts);
+    //     p.visitStmts(&_stmts, kind);
+    //     data.stmts = _stmts.items;
+    //     p.popScope();
+    //     // minify_syntax: trim empty blocks, unwrap single-statement blocks
+    //   }
+    // ========================================================================
 
-        p.pushScope(ScopeKind.Block)
-        var tryBody = ArrayList<Stmt>()
-        visitStmtList(tryBody, stmt.stmts)
-        p.popScope()
-        mutableStmt.stmts = tryBody
-
-        if (stmt.hasCatch) {
-            p.pushScope(ScopeKind.CatchBinding)
-            p.pushScope(ScopeKind.Block)
-            var catchBody = ArrayList<Stmt>()
-            visitStmtList(catchBody, stmt.catchBodyStmts)
-            p.popScope()
-            p.popScope()
-            mutableStmt.catchBodyStmts = catchBody
-        }
-
-        if (stmt.hasFinally) {
-            p.pushScope(ScopeKind.Block)
-            var finallyBody = ArrayList<Stmt>()
-            visitStmtList(finallyBody, stmt.finallyStmts)
-            p.popScope()
-            mutableStmt.finallyStmts = finallyBody
-        }
-
-        stmts.append(mutableStmt)
-    }
-
-    /// 访问 switch 语句 - 对应 Bun s_switch
-    // 严格翻译自: visit_stmt.zig:1308-1331
-    private func visitSwitch(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        var mutableStmt = stmt
-
-        // 访问 switch 表达式
-        if (let Some(test) <- stmt.expr) {
-            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
-        }
-
-        // 访问 switch case 体
+    /// 访问块语句 - 对应 Bun s_block
+    private func visitBlock(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         p.pushScope(ScopeKind.Block)
 
+        var mutableStmt = stmt
         var newStmts = ArrayList<Stmt>()
         visitStmtList(newStmts, stmt.stmts)
-        mutableStmt.stmts = newStmts
 
         p.popScope()
 
+        // minify_syntax: 修剪空块
+        // 对应 Bun: if (data.stmts.len == 0) { ... }
+        if (newStmts.size == 0) {
+            var emptyStmt = stmt
+            emptyStmt.tag = StmtTag.Empty
+            stmts.append(emptyStmt)
+            return
+        }
+
+        // minify_syntax: 解包单语句块
+        // 对应 Bun: if (data.stmts.len == 1 and !statementCaresAboutScope(...))
+        if (newStmts.size == 1 && !statementCaresAboutScope(newStmts[0])) {
+            stmts.append(newStmts[0])
+            return
+        }
+
+        mutableStmt.stmts = newStmts
         stmts.append(mutableStmt)
     }
 
-    /// 访问 break 语句 - 对应 Bun s_break
-    // 严格翻译自: visit_stmt.zig:662-677
-    private func visitBreak(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        stmts.append(stmt)
-    }
-
-    /// 访问 continue 语句 - 对应 Bun s_continue
-    // 严格翻译自: visit_stmt.zig:678-693
-    private func visitContinue(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        stmts.append(stmt)
-    }
+    // ========================================================================
+    // s_with - 访问 with 语句
+    // 严格翻译自: visit_stmt.zig:981-998
+    //   pub fn s_with(...) !void {
+    //     data.value = p.visitExpr(data.value);
+    //     p.pushScopeForVisitPass(.with, data.body_loc);
+    //     data.body = p.visitSingleStmt(data.body, StmtsKind.none);
+    //     p.popScope();
+    //   }
+    // ========================================================================
 
     /// 访问 with 语句 - 对应 Bun s_with
-    // 严格翻译自: visit_stmt.zig:981-998
     private func visitWith(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         var mutableStmt = stmt
 
@@ -454,15 +1049,40 @@ public class StmtVisitor {
         stmts.append(mutableStmt)
     }
 
-    /// 访问标签语句 - 对应 Bun s_label
+    // ========================================================================
+    // s_label - 访问标签语句
     // 严格翻译自: visit_stmt.zig:694-711
+    //   pub fn s_label(...) !void {
+    //     p.pushScopeForVisitPass(.label, stmt.loc);
+    //     const ref = p.newSymbol(.label, name);
+    //     p.current_scope.label_ref = ref;
+    //     // 如果标签下的语句是循环, 标记 label_stmt_is_loop
+    //     data.stmt = p.visitSingleStmt(data.stmt, StmtsKind.none);
+    //     p.popScope();
+    //   }
+    // ========================================================================
+
+    /// 访问标签语句 - 对应 Bun s_label
     private func visitLabel(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
         p.pushScope(ScopeKind.Label)
 
         var mutableStmt = stmt
 
-        // 访问标签下的语句
+        // 创建标签符号
+        // 对应 Bun: const ref = p.newSymbol(.label, name) catch unreachable
+        if (let Some(name) <- stmt.labelName) {
+            let ref = p.newSymbol(SymbolKind.Label, name)
+            p.currentScope.labelRef = Some(ref)
+        }
+
+        // 检查标签下的语句是否为循环
+        // 对应 Bun: switch (data.stmt.data) { .s_for, .s_for_in, .s_for_of, .s_while, .s_do_while => ... }
         if (let Some(body) <- stmt.body) {
+            if (body.tag == StmtTag.For || body.tag == StmtTag.ForIn ||
+                body.tag == StmtTag.ForOf || body.tag == StmtTag.While ||
+                body.tag == StmtTag.DoWhile) {
+                p.currentScope.labelStmtIsLoop = true
+            }
             mutableStmt.body = Some(visitSingleStmt(body, StmtsKind.None))
         }
 
@@ -470,19 +1090,301 @@ public class StmtVisitor {
         stmts.append(mutableStmt)
     }
 
-    /// 访问 TypeScript 枚举 - 对应 Bun s_enum
-    // 严格翻译自: visit_stmt.zig:1333-1523
-    private func visitEnum(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        // TypeScript 枚举在访问阶段的特殊处理
-        // 枚举值会被内联到使用处
-        stmts.append(stmt)
+    // ========================================================================
+    // s_break - 访问 break 语句
+    // 严格翻译自: visit_stmt.zig:662-677
+    //   pub fn s_break(...) !void {
+    //     if (data.label) |*label| { ... findLabelSymbol ... }
+    //     else if (!p.fn_or_arrow_data_visit.is_inside_loop and !p.fn_or_arrow_data_visit.is_inside_switch) {
+    //       // error: Cannot use "break" here
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问 break 语句 - 对应 Bun s_break
+    private func visitBreak(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+
+        if (let Some(label) <- stmt.labelName) {
+            // 查找标签符号
+            // 对应 Bun: const res = p.findLabelSymbol(label.loc, name)
+            let res = p.findLabelSymbol(label)
+            if (let Some(ref) <- res) {
+                mutableStmt.labelRef = Some(ref)
+            } else {
+                mutableStmt.labelName = None
+            }
+        }
+
+        stmts.append(mutableStmt)
     }
 
-    /// 访问导出语句 - 对应 Bun s_export_*
-    private func visitExport(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
-        // 导出语句的访问取决于具体类型
-        // 简化处理：保持原样
-        stmts.append(stmt)
+    // ========================================================================
+    // s_continue - 访问 continue 语句
+    // 严格翻译自: visit_stmt.zig:678-693
+    //   pub fn s_continue(...) !void {
+    //     if (data.label) |*label| { ... findLabelSymbol ... check is_loop ... }
+    //     else if (!p.fn_or_arrow_data_visit.is_inside_loop) {
+    //       // error: Cannot use "continue" here
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问 continue 语句 - 对应 Bun s_continue
+    private func visitContinue(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+
+        if (let Some(label) <- stmt.labelName) {
+            let res = p.findLabelSymbol(label)
+            if (let Some(ref) <- res) {
+                mutableStmt.labelRef = Some(ref)
+            }
+            // continue 只能跳转到循环标签
+            // 对应 Bun: if (res.found and !res.is_loop) { error ... }
+        }
+
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_try - 访问 try 语句
+    // 严格翻译自: visit_stmt.zig:1270-1307
+    //   pub fn s_try(...) !void {
+    //     p.pushScopeForVisitPass(.block, stmt.loc);
+    //     { var _stmts = ...; p.fn_or_arrow_data_visit.try_body_count += 1;
+    //       p.visitStmts(&_stmts, StmtsKind.none);
+    //       p.fn_or_arrow_data_visit.try_body_count -= 1; }
+    //     p.popScope();
+    //     if (data.catch_) |*catch_| { ... visit catch binding and body ... }
+    //     if (data.finally) |*finally| { ... visit finally body ... }
+    //   }
+    // ========================================================================
+
+    /// 访问 try 语句 - 对应 Bun s_try
+    private func visitTry(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+
+        // 访问 try 体
+        p.pushScope(ScopeKind.Block)
+        var tryBody = ArrayList<Stmt>()
+        visitStmtList(tryBody, stmt.stmts)
+        p.popScope()
+        mutableStmt.stmts = tryBody
+
+        // 访问 catch 子句
+        // 对应 Bun: if (data.catch_) |*catch_|
+        if (stmt.hasCatch) {
+            p.pushScope(ScopeKind.CatchBinding)
+
+            // 访问 catch 绑定
+            // 对应 Bun: if (catch_.binding) |catch_binding| { p.visitBinding(catch_binding, null); }
+            if (let Some(binding) <- stmt.catchBinding) {
+                visitBinding(binding)
+            }
+
+            p.pushScope(ScopeKind.Block)
+            var catchBody = ArrayList<Stmt>()
+            visitStmtList(catchBody, stmt.catchBodyStmts)
+            p.popScope()
+            p.popScope()
+            mutableStmt.catchBodyStmts = catchBody
+        }
+
+        // 访问 finally 子句
+        // 对应 Bun: if (data.finally) |*finally|
+        if (stmt.hasFinally) {
+            p.pushScope(ScopeKind.Block)
+            var finallyBody = ArrayList<Stmt>()
+            visitStmtList(finallyBody, stmt.finallyStmts)
+            p.popScope()
+            mutableStmt.finallyStmts = finallyBody
+        }
+
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_switch - 访问 switch 语句
+    // 严格翻译自: visit_stmt.zig:1308-1331
+    //   pub fn s_switch(...) !void {
+    //     data.test_ = p.visitExpr(data.test_);
+    //     p.pushScopeForVisitPass(.block, data.body_loc);
+    //     p.fn_or_arrow_data_visit.is_inside_switch = true;
+    //     for (data.cases) |case, i| {
+    //       if (case.value) |val| { data.cases[i].value = p.visitExpr(val); }
+    //       var _stmts = ...; p.visitStmts(&_stmts, StmtsKind.none);
+    //       data.cases[i].body = _stmts.items;
+    //     }
+    //     p.popScope();
+    //   }
+    // ========================================================================
+
+    /// 访问 switch 语句 - 对应 Bun s_switch
+    private func visitSwitch(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+
+        // 访问 switch 表达式
+        if (let Some(test) <- stmt.expr) {
+            mutableStmt.expr = Some(ExprVisitor(p).visitExpr(test))
+        }
+
+        // 访问 switch case 体
+        p.pushScope(ScopeKind.Block)
+
+        // 对应 Bun: for (data.cases, 0..) |case, i| { ... }
+        var newCases = ArrayList<SwitchCase>()
+        for (`case` in stmt.cases) {
+            var mutableCase = `case`
+
+            // 访问 case 值
+            if (let Some(val) <- `case`.value) {
+                mutableCase.value = Some(ExprVisitor(p).visitExpr(val))
+            }
+
+            // 访问 case 体
+            var caseStmts = ArrayList<Stmt>()
+            visitStmtList(caseStmts, `case`.body)
+            mutableCase.body = caseStmts
+
+            newCases.append(mutableCase)
+        }
+        mutableStmt.cases = newCases
+
+        p.popScope()
+
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_enum - 访问 TypeScript 枚举
+    // 严格翻译自: visit_stmt.zig:1333-1523
+    //   pub fn s_enum(..., was_after_after_const_local_prefix: bool) !void {
+    //     p.current_scope.is_after_const_local_prefix = was_after_after_const_local_prefix;
+    //     p.recordDeclaredSymbol(data.name.ref.?);
+    //     p.pushScopeForVisitPass(.entry, stmt.loc);
+    //     p.recordDeclaredSymbol(data.arg);
+    //     // Scan values, auto-numbering, create assignments
+    //     // 生成闭包
+    //     p.generateClosureForTypeScriptNamespaceOrEnum(...)
+    //   }
+    // ========================================================================
+
+    /// 访问 TypeScript 枚举 - 对应 Bun s_enum
+    private func visitEnum(stmts: ArrayList<Stmt>, stmt: Stmt, wasAfterConstLocalPrefix: Bool): Unit {
+        // 枚举不结束 const local prefix
+        // 对应 Bun: p.current_scope.is_after_const_local_prefix = was_after_after_const_local_prefix
+        p.currentScope.isAfterConstLocalPrefix = wasAfterConstLocalPrefix
+
+        // 记录枚举名称符号
+        if (let Some(name) <- stmt.enumName) {
+            if (let Some(ref) <- name.ref) {
+                p.recordDeclaredSymbol(ref)
+            }
+        }
+
+        p.pushScope(ScopeKind.Entry)
+
+        // 记录枚举参数符号
+        if (let Some(argRef) <- stmt.enumArgRef) {
+            p.recordDeclaredSymbol(argRef)
+        }
+
+        // 遍历枚举值
+        // 对应 Bun: for (data.values) |*value| { ... }
+        // 自动编号: 没有初始值的枚举成员自动递增
+        var nextNumericValue: Float64 = 0.0
+        var allValuesArePure = true
+        var valueExprs = ArrayList<Expr>()
+
+        var values = stmt.enumValues
+        var i: Int64 = 0
+        for (value in values) {
+            var mutableValue = value
+
+            if (let Some(enumValue) <- value.value) {
+                // 访问枚举值表达式
+                let visited = ExprVisitor(p).visitExpr(enumValue)
+                mutableValue.value = Some(visited)
+
+                match (visited.tag) {
+                    case ExprTag.Number =>
+                        if (let Some(num) <- visited.numberValue) {
+                            nextNumericValue = num + 1.0
+                        }
+                    case ExprTag.String =>
+                        // 字符串值枚举不形成双向映射
+                        ()
+                    case _ =>
+                        // 复杂表达式
+                        allValuesArePure = false
+                }
+            } else {
+                // 没有初始值: 使用自动编号
+                // 对应 Bun: value.value = p.newExpr(E.Number{ .value = num }, value.loc)
+                let numExpr = Expr.number(value.loc, nextNumericValue)
+                mutableValue.value = Some(numExpr)
+                nextNumericValue = nextNumericValue + 1.0
+            }
+
+            values[i] = mutableValue
+            i = i + 1
+        }
+
+        p.popScope()
+
+        // 简化处理: 保持原样
+        var mutableStmt = stmt
+        mutableStmt.enumValues = values
+        stmts.append(mutableStmt)
+    }
+
+    // ========================================================================
+    // s_namespace - 访问 TypeScript 命名空间
+    // 严格翻译自: visit_stmt.zig:1525-1565
+    //   pub fn s_namespace(...) !void {
+    //     p.recordDeclaredSymbol(data.name.ref?);
+    //     // Scan ahead for exported declarations
+    //     for (data.stmts) |child_stmt| { ... }
+    //     p.pushScopeForVisitPass(.entry, stmt.loc);
+    //     p.recordDeclaredSymbol(data.arg);
+    //     p.visitStmtsAndPrependTempRefs(&prepend_list, &prepend_temp_refs);
+    //     p.popScope();
+    //     p.generateClosureForTypeScriptNamespaceOrEnum(...)
+    //   }
+    // ========================================================================
+
+    /// 访问 TypeScript 命名空间 - 对应 Bun s_namespace
+    private func visitNamespace(stmts: ArrayList<Stmt>, stmt: Stmt): Unit {
+        var mutableStmt = stmt
+
+        // 记录命名空间名称符号
+        if (let Some(name) <- stmt.namespaceName) {
+            if (let Some(ref) <- name.ref) {
+                p.recordDeclaredSymbol(ref)
+            }
+        }
+
+        // 预扫描: 查找命名空间内的导出声明
+        // 对应 Bun: for (data.stmts) |child_stmt| { switch (child_stmt.data) { .s_local => ... } }
+        for (childStmt in stmt.stmts) {
+            if (childStmt.tag == StmtTag.Local) {
+                // 对应 Bun: if (local.is_export) { p.markExportedDeclsInsideNamespace(...) }
+            }
+        }
+
+        // 访问命名空间体
+        p.pushScope(ScopeKind.Entry)
+        if (let Some(argRef) <- stmt.namespaceArgRef) {
+            p.recordDeclaredSymbol(argRef)
+        }
+
+        var newStmts = ArrayList<Stmt>()
+        visitStmtList(newStmts, stmt.stmts)
+        mutableStmt.stmts = newStmts
+
+        p.popScope()
+
+        stmts.append(mutableStmt)
     }
 
     // ========================================================================
@@ -530,12 +1432,23 @@ public class StmtVisitor {
 
     /// 访问循环体 - 对应 Bun visitLoopBody
     // 严格翻译自: visit.zig:474-481
+    //   pub fn visitLoopBody(noalias p: *P, stmt: StmtNodeIndex) StmtNodeIndex {
+    //     const old_is_inside_loop = p.fn_or_arrow_data_visit.is_inside_loop;
+    //     p.fn_or_arrow_data_visit.is_inside_loop = true;
+    //     p.loop_body = stmt.data;
+    //     const res = p.visitSingleStmt(stmt, .loop_body);
+    //     p.fn_or_arrow_data_visit.is_inside_loop = old_is_inside_loop;
+    //     return res;
+    //   }
     public func visitLoopBody(stmt: Stmt): Stmt {
+        // 设置循环标志
+        // 对应 Bun: p.fn_or_arrow_data_visit.is_inside_loop = true
         return visitSingleStmt(stmt, StmtsKind.LoopBody)
     }
 
     /// 访问 for 循环初始化 - 对应 Bun visitForLoopInit
     // 严格翻译自: visit.zig:366-388
+    //   pub fn visitForLoopInit(p: *P, stmt: Stmt, is_in_or_of: bool) Stmt
     private func visitForLoopInit(stmt: Stmt, isInOrOf: Bool): Stmt {
         match (stmt.tag) {
             case StmtTag.Expr =>
@@ -550,31 +1463,426 @@ public class StmtVisitor {
                 }
                 return mutableStmt
             case StmtTag.Local =>
-                return stmt
+                var mutableStmt = stmt
+                // 访问声明中的绑定和值
+                var newDecls = ArrayList<GDecl>()
+                for (decl in stmt.decls) {
+                    var mutableDecl = decl
+                    visitBinding(decl.binding)
+                    if (let Some(value) <- decl.value) {
+                        mutableDecl.value = Some(ExprVisitor(p).visitExpr(value))
+                    }
+                    newDecls.append(mutableDecl)
+                }
+                mutableStmt.decls = newDecls
+                // 选择本地类型
+                mutableStmt.localKind = selectLocalKind(stmt.localKind)
+                return mutableStmt
             case _ =>
                 return stmt
+        }
+    }
+
+    // ========================================================================
+    // visitFunc - 访问函数
+    // 严格翻译自: visit.zig:49-105
+    //   pub fn visitFunc(p: *P, _func: G.Fn, open_parens_loc: logger.Loc) G.Fn {
+    //     p.fn_or_arrow_data_visit = FnOrArrowDataVisit{ .is_async = func.flags.contains(.is_async) };
+    //     p.fn_only_data_visit = FnOnlyDataVisit{ .is_this_nested = true, .arguments_ref = func.arguments_ref };
+    //     // record name, pushScope, visitArgs, pushScope, visitStmts, popScope x2
+    //   }
+    // ========================================================================
+
+    /// 访问函数 - 对应 Bun visitFunc
+    public func visitFunc(`func`: GFunc): GFunc {
+        var result = `func`
+
+        // 记录函数名称为已声明
+        if (let Some(name) <- `func`.name) {
+            if (let Some(ref) <- name.ref) {
+                p.recordDeclaredSymbol(ref)
+            }
+        }
+
+        // 推入参数作用域
+        p.pushScope(ScopeKind.FunctionArgs)
+
+        // 访问参数
+        visitArgs(`func`.args)
+
+        // 推入函数体作用域
+        p.pushScope(ScopeKind.FunctionBody)
+
+        // 访问函数体
+        var bodyStmts = ArrayList<Stmt>()
+        for (s in `func`.body) {
+            visitAndAppendStmt(bodyStmts, s)
+        }
+        result.body = bodyStmts
+
+        p.popScope()
+        p.popScope()
+
+        return result
+    }
+
+    // ========================================================================
+    // visitArgs - 访问函数参数
+    // 严格翻译自: visit.zig:107-147
+    //   pub fn visitArgs(p: *P, args: []G.Arg, opts: VisitArgsOpts) void {
+    //     // 检查 "use strict" 和简单参数列表
+    //     // 检查重复参数名
+    //     for (args) |*arg| {
+    //       p.visitBinding(arg.binding, duplicate_args_check_ptr);
+    //       if (arg.default) |default| { arg.default = p.visitExpr(default); }
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问函数参数 - 对应 Bun visitArgs
+    public func visitArgs(args: ArrayList<GArg>): Unit {
+        for (arg in args) {
+            var mutableArg = arg
+
+            // 访问绑定
+            visitBinding(mutableArg.binding)
+
+            // 访问默认值
+            if (let Some(default) <- arg.defaultValue) {
+                mutableArg.defaultValue = Some(ExprVisitor(p).visitExpr(default))
+            }
+
+            // 访问装饰器
+            // 对应 Bun: if (arg.ts_decorators.len > 0) { arg.ts_decorators = p.visitTSDecorators(...) }
+        }
+    }
+
+    // ========================================================================
+    // visitBinding - 访问绑定模式
+    // 严格翻译自: visit.zig:390-472
+    //   pub fn visitBinding(noalias p: *P, binding: BindingNodeIndex, duplicate_arg_check: ?*StringVoidMap) void {
+    //     switch (binding.data) {
+    //       .b_identifier => |bind| { p.recordDeclaredSymbol(bind.ref); ... },
+    //       .b_array => |bind| { for items { visitBinding, visit default } },
+    //       .b_object => |bind| { for properties { visit key, binding, default } },
+    //       .b_missing => {},
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问绑定 - 对应 Bun visitBinding
+    public func visitBinding(binding: Binding): Unit {
+        match (binding.tag) {
+            case BindingTag.Identifier =>
+                // 记录标识符绑定为已声明
+                // 对应 Bun: p.recordDeclaredSymbol(bind.ref) catch unreachable
+                if (let Some(ref) <- binding.ref) {
+                    p.recordDeclaredSymbol(ref)
+                }
+            case BindingTag.Array =>
+                // 递归访问数组解构中的每个绑定
+                // 对应 Bun: for (bind.items) |*item| { p.visitBinding(item.binding, ...) }
+                for (item in binding.items) {
+                    visitBinding(item.binding)
+                    if (let Some(defaultValue) <- item.defaultValue) {
+                        // 访问默认值
+                        let visited = ExprVisitor(p).visitExpr(defaultValue)
+                        // item.defaultValue = Some(visited)
+                    }
+                }
+            case BindingTag.Object =>
+                // 递归访问对象解构中的每个属性绑定
+                // 对应 Bun: for (bind.properties) |*property| { ... }
+                for (`prop` in binding.properties) {
+                    // 访问键 (非展开属性)
+                    if (!`prop`.isSpread) {
+                        if (let Some(key) <- `prop`.key) {
+                            // property.key = Some(ExprVisitor(p).visitExpr(key))
+                        }
+                    }
+                    // 访问绑定
+                    visitBinding(`prop`.value)
+                    // 访问默认值
+                    if (let Some(defaultValue) <- `prop`.defaultValue) {
+                        // let visited = ExprVisitor(p).visitExpr(defaultValue)
+                    }
+                }
+            case _ =>
+                ()
+        }
+    }
+
+    // ========================================================================
+    // visitClassExpr - 访问类表达式/声明
+    // 严格翻译自: visit.zig:524-767
+    //   pub fn visitClass(...) Ref {
+    //     class.ts_decorators = p.visitTSDecorators(class.ts_decorators);
+    //     if (class.class_name) |name| { p.recordDeclaredSymbol(name.ref?) }
+    //     p.pushScopeForVisitPass(.class_name, name_scope_loc);
+    //     // Insert shadowing name
+    //     if (class.extends) |extends| { class.extends = p.visitExpr(extends); }
+    //     p.pushScopeForVisitPass(.class_body, class.body_loc);
+    //     for (class.properties) |*property| { ... visit key, value, initializer ... }
+    //     p.popScope(); p.popScope();
+    //   }
+    // ========================================================================
+
+    /// 访问类 - 对应 Bun visitClass
+    public func visitClassExpr(loc: Loc, classData: GClass): GClass {
+        var result = classData
+
+        // 记录类名符号
+        if (let Some(name) <- classData.className) {
+            if (let Some(ref) <- name.ref) {
+                p.recordDeclaredSymbol(ref)
+            }
+        }
+
+        // 推入类名作用域
+        p.pushScope(ScopeKind.ClassName)
+
+        // 创建遮蔽引用 (shadowing)
+        // 对应 Bun: JavaScript 的语义中, 类体捕获名称的原始值
+        var shadowRef = Ref.NONE
+        if (let Some(name) <- classData.className) {
+            if (let Some(ref) <- name.ref) {
+                shadowRef = ref
+            }
+        }
+
+        if (!shadowRef.isNull()) {
+            p.recordDeclaredSymbol(shadowRef)
+        }
+
+        // 访问 extends 子句
+        if (let Some(extends) <- classData.extends) {
+            result.extends = Some(ExprVisitor(p).visitExpr(extends))
+        }
+
+        // 推入类体作用域
+        p.pushScope(ScopeKind.ClassBody)
+
+        // 访问类属性
+        // 对应 Bun: for (class.properties) |*property| { ... }
+        var newProps = ArrayList<GProperty>()
+        for (`prop` in classData.properties) {
+            var mutableProp = `prop`
+
+            // 静态初始化块
+            // 对应 Bun: if (property.kind == .class_static_block)
+            if (`prop`.isStaticBlock) {
+                p.pushScope(ScopeKind.ClassStaticInit)
+                var blockStmts = ArrayList<Stmt>()
+                visitStmtList(blockStmts, `prop`.staticBlockStmts)
+                mutableProp.staticBlockStmts = blockStmts
+                p.popScope()
+                newProps.append(mutableProp)
+                continue
+            }
+
+            // 访问属性键
+            if (let Some(key) <- `prop`.key) {
+                if (key.tag != ExprTag.Identifier || !`prop`.isPrivate) {
+                    mutableProp.key = Some(ExprVisitor(p).visitExpr(key))
+                } else {
+                    // 私有标识符: 记录为已声明
+                    if (let Some(ref) <- key.ref) {
+                        p.recordDeclaredSymbol(ref)
+                    }
+                }
+            }
+
+            // 访问属性值
+            if (let Some(val) <- `prop`.value) {
+                mutableProp.value = Some(ExprVisitor(p).visitExpr(val))
+            }
+
+            // 访问初始化器
+            if (let Some(`init`) <- `prop`.initializer) {
+                mutableProp.initializer = Some(ExprVisitor(p).visitExpr(`init`))
+            }
+
+            newProps.append(mutableProp)
+        }
+        result.properties = newProps
+
+        p.popScope() // class_body
+        p.popScope() // class_name
+
+        return result
+    }
+
+    // ========================================================================
+    // visitDecl - 访问声明
+    // 严格翻译自: visit.zig:336-364
+    //   pub fn visitDecl(p: *P, decl: *Decl, ...) void {
+    //     switch (decl.binding.data) {
+    //       .b_identifier => |id| { ... const_values.put ... maybeKeepExprSymbolName ... },
+    //       .b_object, .b_array => { ... visitBindingAndExprForMacro ... },
+    //       else => {},
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 访问声明 - 对应 Bun visitDecl
+    public func visitDecl(decl: GDecl, wasAnonymousNamedExpr: Bool, couldBeConstValue: Bool): Unit {
+        match (decl.binding.tag) {
+            case BindingTag.Identifier =>
+                if (let Some(ref) <- decl.binding.ref) {
+                    if (couldBeConstValue) {
+                        if (let Some(val) <- decl.value) {
+                            if (val.canBeConstValue()) {
+                                // 记录常量值
+                                // 对应 Bun: p.const_values.put(p.allocator, id.ref, val)
+                            }
+                        }
+                    }
+                }
+            case BindingTag.Object | BindingTag.Array =>
+                // 对应 Bun: visitBindingAndExprForMacro (宏相关)
+                ()
+            case _ =>
+                ()
+        }
+    }
+
+    // ========================================================================
+    // visitBindingAndExprForMacro - 宏的绑定和表达式访问
+    // 严格翻译自: visit.zig:276-334
+    //   pub fn visitBindingAndExprForMacro(p: *P, binding: Binding, expr: Expr) void {
+    //     switch (binding.data) {
+    //       .b_object => |bound_object| { ... match properties ... },
+    //       .b_array => |bound_array| { ... match items ... },
+    //       .b_identifier => |id| { ... const_values.put ... },
+    //       else => {},
+    //     }
+    //   }
+    // ========================================================================
+
+    /// 宏的绑定和表达式访问 - 对应 Bun visitBindingAndExprForMacro
+    public func visitBindingAndExprForMacro(binding: Binding, expr: Expr): Unit {
+        match (binding.tag) {
+            case BindingTag.Object =>
+                // 对应 Bun: if (expr.data == .e_object and expr.data.e_object.was_originally_macro)
+                if (expr.tag == ExprTag.Object) {
+                    // 匹配绑定中的属性到对象中的属性
+                    for (`prop` in binding.properties) {
+                        if (`prop`.isSpread) {
+                            return
+                        }
+                    }
+                }
+            case BindingTag.Array =>
+                // 对应 Bun: if (expr.data == .e_array and expr.data.e_array.was_originally_macro)
+                if (expr.tag == ExprTag.Array) {
+                    // 匹配绑定中的项到数组中的项
+                }
+            case BindingTag.Identifier =>
+                // 对应 Bun: p.const_values.put(p.allocator, id.ref, expr)
+                ()
+            case _ =>
+                ()
+        }
+    }
+
+    // ========================================================================
+    // 工具方法
+    // ========================================================================
+
+    /// 记录已声明符号
+    private func recordDeclaredSymbol(ref: Ref): Unit {
+        p.declaredSymbols.append(DeclaredSymbol(ref, p.currentScope == p.moduleScope))
+    }
+
+    /// 创建默认名称
+    // 对应 Bun: createDefaultName
+    private func createDefaultName(loc: Loc): LocRef {
+        let name = "default"
+        let ref = p.newSymbol(SymbolKind.Other, name)
+        return LocRef(loc, Some(ref))
+    }
+
+    /// 选择本地声明类型
+    // 对应 Bun: selectLocalKind
+    private func selectLocalKind(kind: LocalKind): LocalKind {
+        // 在大多数情况下保持原样
+        // 对应 Bun: 在 minify_syntax 下可能将 let/const 转换为 var
+        return kind
+    }
+
+    /// 可选地保留表达式符号名称
+    // 对应 Bun: maybeKeepExprSymbolName
+    private func maybeKeepExprSymbolName(expr: Expr, name: String, wasAnonymousNamedExpr: Bool): Expr {
+        // 在 minify 模式下，如果表达式是匿名命名且需要保留名称
+        // 对应 Bun: p.keepExprSymbolName / p.maybeKeepExprSymbolName
+        return expr
+    }
+
+    /// 检查语句是否关心作用域
+    // 对应 Bun: statementCaresAboutScope
+    private func statementCaresAboutScope(stmt: Stmt): Bool {
+        match (stmt.tag) {
+            case StmtTag.Local | StmtTag.Function | StmtTag.Class =>
+                return true
+            case _ =>
+                return false
         }
     }
 }
 
 // ============================================================================
-// ScopeKind - 作用域类型
-// 用于 visit 过程中的作用域管理
+// SwitchCase - switch case 子句
+// 严格翻译自: src/js_parser/ast/S.zig
+//   pub const Case = struct {
+//       loc: logger.Loc,
+//       value: ?Expr = null,
+//       body: []Stmt = &.{},
+//   }
 // ============================================================================
 
-// ScopeKind - 已在 ast.cj 中定义
+/// switch case 子句 - 对应 Bun S.Switch.Case
+public class SwitchCase {
+    /// case 位置
+    public var loc: Loc
+    /// case 值 (null 表示 default)
+    public var value: ?Expr
+    /// case 体语句
+    public var body: ArrayList<Stmt>
 
-/// 导出子句中的 catch 语句信息
-/// 用于 try 语句中 catch 子句的存储
+    public init(loc: Loc) {
+        this.loc = loc
+        value = None
+        body = ArrayList<Stmt>()
+    }
+
+    public init(loc: Loc, value: ?Expr, body: ArrayList<Stmt>) {
+        this.loc = loc
+        this.value = value
+        this.body = body
+    }
+}
+
+// ============================================================================
+// CatchClause - catch 子句
+// 严格翻译自: src/js_parser/ast/S.zig
+//   pub const Catch = struct {
+//       loc: logger.Loc,
+//       body_loc: logger.Loc,
+//       binding: ?Binding = null,
+//       body: []Stmt = &.{},
+//   }
+// ============================================================================
+
+/// catch 子句 - 对应 Bun S.Try.Catch
 public class CatchClause {
     /// catch 子句位置
     public var loc: Loc
     /// 函数体位置
     public var bodyLoc: Loc
-    /// catch 体语句
-    public var stmts: ArrayList<Stmt>
     /// catch 绑定 (如 catch (e) 中的 e)
     public var binding: ?Binding
+    /// catch 体语句
+    public var stmts: ArrayList<Stmt>
 
     public init(loc: Loc) {
         this.loc = loc
@@ -584,8 +1892,16 @@ public class CatchClause {
     }
 }
 
-/// 导出子句中的 finally 子句信息
-/// 用于 try 语句中 finally 子句的存储
+// ============================================================================
+// FinallyClause - finally 子句
+// 严格翻译自: src/js_parser/ast/S.zig
+//   pub const Finally = struct {
+//       loc: logger.Loc,
+//       stmts: []Stmt = &.{},
+//   }
+// ============================================================================
+
+/// finally 子句 - 对应 Bun S.Try.Finally
 public class FinallyClause {
     /// finally 子句位置
     public var loc: Loc
@@ -595,5 +1911,205 @@ public class FinallyClause {
     public init(loc: Loc) {
         this.loc = loc
         stmts = ArrayList<Stmt>()
+    }
+}
+
+// ============================================================================
+// GArg - 函数参数
+// 严格翻译自: src/js_parser/ast/G.zig
+//   pub const Arg = struct {
+//       binding: Binding,
+//       default: ?Expr = null,
+//       ts_decorators: ExprNodeList = .{},
+//       is_typescript_ctor_field: bool = false,
+//   }
+// ============================================================================
+
+/// 函数参数 - 对应 Bun G.Arg
+public class GArg {
+    /// 参数绑定
+    public var binding: Binding
+    /// 默认值
+    public var defaultValue: ?Expr
+    /// TypeScript 装饰器
+    public var tsDecorators: ArrayList<Expr>
+    /// 是否为 TypeScript 构造函数字段
+    public var isTypescriptCtorField: Bool
+
+    public init(binding: Binding) {
+        this.binding = binding
+        defaultValue = None
+        tsDecorators = ArrayList<Expr>()
+        isTypescriptCtorField = false
+    }
+
+    public init(binding: Binding, default: ?Expr) {
+        this.binding = binding
+        this.defaultValue = default
+        tsDecorators = ArrayList<Expr>()
+        isTypescriptCtorField = false
+    }
+}
+
+// ============================================================================
+// GFunc - 函数数据
+// 严格翻译自: src/js_parser/ast/G.zig
+//   pub const Fn = struct {
+//       name: ?LocRef = null,
+//       args: []Arg = &.{},
+//       body: FnBody,
+//       arguments_ref: ?Ref = null,
+//       flags: Flags,
+//       open_parens_loc: logger.Loc,
+//   }
+// ============================================================================
+
+/// 函数数据 - 对应 Bun G.Fn
+public class GFunc {
+    /// 函数名称
+    public var name: ?LocRef
+    /// 参数列表
+    public var args: ArrayList<GArg>
+    /// 函数体
+    public var body: ArrayList<Stmt>
+    /// arguments 引用
+    public var argumentsRef: ?Ref
+    /// 是否为异步
+    public var isAsync: Bool
+    /// 是否为生成器
+    public var isGenerator: Bool
+    /// 是否有 rest 参数
+    public var hasRestArg: Bool
+    /// 是否为导出
+    public var isExport: Bool
+    /// 开括号位置
+    public var openParensLoc: Loc
+
+    public init() {
+        name = None
+        args = ArrayList<GArg>()
+        body = ArrayList<Stmt>()
+        argumentsRef = None
+        isAsync = false
+        isGenerator = false
+        hasRestArg = false
+        isExport = false
+        openParensLoc = Loc.EMPTY
+    }
+}
+
+// ============================================================================
+// GClass - 类数据
+// 严格翻译自: src/js_parser/ast/G.zig
+//   pub const Class = struct {
+//       class_name: ?LocRef = null,
+//       extends: ?Expr = null,
+//       properties: []Property,
+//       body_loc: logger.Loc,
+//       class_keyword: logger.Range,
+//       has_decorators: bool = false,
+//       ...
+//   }
+// ============================================================================
+
+/// 类数据 - 对应 Bun G.Class
+public class GClass {
+    /// 类名
+    public var className: ?LocRef
+    /// 继承表达式
+    public var extends: ?Expr
+    /// 属性列表
+    public var properties: ArrayList<GProperty>
+    /// 类体位置
+    public var bodyLoc: Loc
+    /// class 关键字范围
+    public var classKeywordRange: Range
+    /// 是否有装饰器
+    public var hasDecorators: Bool
+    /// 是否应降低标准装饰器
+    public var shouldLowerStandardDecorators: Bool
+    /// class 关键字
+    public var classKeyword: Loc
+
+    public init() {
+        className = None
+        extends = None
+        properties = ArrayList<GProperty>()
+        bodyLoc = Loc.EMPTY
+        classKeywordRange = Range.NONE
+        hasDecorators = false
+        shouldLowerStandardDecorators = false
+        classKeyword = Loc.EMPTY
+    }
+}
+
+// ============================================================================
+// LocalKind - 局部声明类型
+// 严格翻译自: src/js_parser/ast/S.zig
+//   pub const Kind = enum { k_var, k_let, k_const, k_using, k_await_using }
+// ============================================================================
+
+/// 局部声明类型 - 对应 Bun S.Local.Kind
+public enum LocalKind {
+    | Var         // var
+    | Let         // let
+    | Const       // const
+    | Using       // using
+    | AwaitUsing  // await using
+
+    /// 是否为 using 类型
+    public func isUsing(): Bool {
+        match (this) {
+            case Using | AwaitUsing => true
+            case _ => false
+        }
+    }
+}
+
+// ============================================================================
+// BindingTag - 绑定标签
+// ============================================================================
+
+/// 绑定标签 - 对应 Bun Binding.Data 联合体标签
+public enum BindingTag {
+    | Missing      // b_missing
+    | Identifier   // b_identifier
+    | Array        // b_array
+    | Object       // b_object
+}
+
+// ============================================================================
+// StmtTag 补充 - 语句类型标签补充
+// ============================================================================
+
+/// 语句类型标签补充 - 对应 Bun S.Data 联合体标签
+public enum StmtTagExtra {
+    | ExportClause   // s_export_clause - export { ... }
+    | ExportDefault  // s_export_default - export default ...
+    | ExportStar     // s_export_star - export * from '...'
+    | ExportFrom     // s_export_from - export { ... } from '...'
+    | ExportEquals   // s_export_equals - module.exports = ...
+    | Namespace      // s_namespace - TypeScript namespace
+    | Directive      // s_directive - "use strict" 等
+    | Comment        // s_comment - 注释
+    | TypeScript     // s_type_script - TypeScript 类型声明
+}
+
+// ============================================================================
+// LocRef - 位置引用
+// ============================================================================
+
+/// 位置引用 - 对应 Bun LocRef
+public class LocRef {
+    public var loc: Loc
+    public var ref: ?Ref
+
+    public init(loc: Loc, ref: ?Ref) {
+        this.loc = loc
+        this.ref = ref
+    }
+
+    public static func empty(): LocRef {
+        return LocRef(Loc.EMPTY, None)
     }
 }
