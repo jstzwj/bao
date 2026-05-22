@@ -128,7 +128,7 @@ public class InstallWithManager {
         manager.options.forceSaveLockfile = manager.options.forceSaveLockfile ||
             changedConfigVersion ||
             (loadResult.isOk() &&
-                (loadResult.getMigrated() != IwmMigrationKind.None ||
+                (loadResult.getMigrated() != IwmMigrationKind.None_ ||
                     (loadResult.getFormat() == IwmLockfileFormat.Binary &&
                         manager.options.saveTextLockfile == Some(true))))
 
@@ -275,8 +275,8 @@ public class InstallWithManager {
         // Step 10: 加载根生命周期脚本
         manager.loadRootLifecycleScripts(root)
 
-        if (manager.rootLifecycleScripts != None) {
-            let rootScripts = manager.rootLifecycleScripts!
+        if (manager.rootLifecycleScripts.isSome()) {
+            let rootScripts = manager.rootLifecycleScripts.getOrThrow()
             rootScripts.appendToLockfile(manager.lockfile)
         }
 
@@ -1278,7 +1278,7 @@ public class InstallWithManager {
 
         if (manager.subcommand == IwmSubcommand.Install && manager.options.filterPatterns.size > 0) {
             for (pattern in manager.options.filterPatterns) {
-                workspaceFilters.append(IwmWorkspaceFilter(pattern, originalCwd))
+                workspaceFilters.append(IwmWorkspaceFilter.fromPattern(pattern, originalCwd))
             }
         }
 
@@ -1292,7 +1292,7 @@ public class InstallWithManager {
                     case IwmWorkspaceFilter.All => installRootDependencies = true
                     case IwmWorkspaceFilter.Name(pattern) =>
                         let pathOrName = pkgNames[0].slice(manager.lockfile.buffers.stringBytes)
-                        let matchResult = Glob.match(pattern, pathOrName)
+                        let matchResult = Glob.`match`(pattern, pathOrName)
                         if (matchResult == IwmGlobMatch.Match || matchResult == IwmGlobMatch.NegateMatch) {
                             installRootDependencies = true
                         }
@@ -1301,7 +1301,7 @@ public class InstallWithManager {
                             break
                         }
                     case IwmWorkspaceFilter.Path(pattern) =>
-                        let matchResult = Glob.match(pattern, absRootPath)
+                        let matchResult = Glob.`match`(pattern, absRootPath)
                         if (matchResult == IwmGlobMatch.Match || matchResult == IwmGlobMatch.NegateMatch) {
                             installRootDependencies = true
                         }
@@ -1902,7 +1902,7 @@ public enum IwmLoadResult {
     public func loadedFromTextLockfile(): Bool { return false }
     public func getLockfile(): IwmLockfileRef { return IwmLockfileRef() }
     public func getFormat(): IwmLockfileFormat { return IwmLockfileFormat.Binary }
-    public func getMigrated(): IwmMigrationKind { return IwmMigrationKind.None }
+    public func getMigrated(): IwmMigrationKind { return IwmMigrationKind.None_ }
     public func getPackagesNeedUpdate(): Bool { return false }
     public func getMigratedFromLockbV2(): Bool { return false }
 }
@@ -1935,7 +1935,7 @@ public enum IwmLoadStep {
 
 /// 迁移类型
 public enum IwmMigrationKind {
-    | None
+    | None_
     | Npm
     | Binary
 }
@@ -2092,8 +2092,8 @@ public enum IwmWorkspaceFilter {
     | Path(String)
     | All
 
-    public init(pattern: String, originalCwd: String) {
-        this = IwmWorkspaceFilter.Name(pattern)
+    public static func fromPattern(pattern: String, originalCwd: String): IwmWorkspaceFilter {
+        return IwmWorkspaceFilter.Name(pattern)
     }
 }
 
@@ -2284,7 +2284,7 @@ public enum IwmGlobMatch {
 
 /// Glob 工具
 public class Glob {
-    public static func match(pattern: String, pathOrName: String): IwmGlobMatch { return IwmGlobMatch.NoMatch }
+    public static func `match`(pattern: String, pathOrName: String): IwmGlobMatch { return IwmGlobMatch.NoMatch }
 }
 
 /// Workspace package.json 缓存
@@ -2359,7 +2359,7 @@ public class IwmOverrides {
 public class IwmOverrideMap {
     public init() {}
     public func keys(): ArrayList<UInt64> { return ArrayList<UInt64>() }
-    public func size: Int64 { return 0 }
+    public func size(): Int64 { return 0 }
 }
 
 /// Catalogs
@@ -2488,43 +2488,9 @@ public class IwmDynamicBitSet {
     public init() {}
 }
 
-/// Output 工具
-public class Output {
-    public static var enableAnsiColorsStderr: Bool = false
-    public static var enableAnsiColorsStdout: Bool = false
-
-    public static func print(msg: String): Unit {}
-    public static func pretty(msg: String): Unit {}
-    public static func prettyln(msg: String): Unit {}
-    public static func printErrorln(msg: String): Unit {}
-    public static func printError(msg: String): Unit {}
-    public static func prettyError(msg: String): Unit {}
-    public static func prettyErrorln(msg: String): Unit {}
-    public static func err(err: String, msg: String): Unit {}
-    public static func errGeneric(msg: String): Unit {}
-    public static func warn(msg: String): Unit {}
-    public static func note(msg: String): Unit {}
-    public static func printStartEndStdout(start: Int64, end: Int64): Unit {}
-    public static func enableBuffering(): Unit {}
-    public static func errorWriter(): IwmOutputWriter { return IwmOutputWriter() }
-    public static func writerBuffered(): IwmOutputWriter { return IwmOutputWriter() }
-    public static func flush(): Unit {}
-}
-
 /// Output Writer
 public class IwmOutputWriter {
     public init() {}
-}
-
-/// Global 工具
-public class Global {
-    public static func crash(): Unit {}
-    public static func exit(code: Int64): Unit {}
-}
-
-/// Time 工具
-public class Time {
-    public static func nanoTimestamp(): Int64 { return Int64(0) }
 }
 
 /// Semver 字符串构建器

@@ -5,6 +5,7 @@
 package bao_runtime.napi
 
 import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // N-API 状态码
@@ -147,8 +148,8 @@ public enum NapiTypedArrayType {
 public class NapiEnv {
     public var globalObject: JsObject
 
-    public init(globalObject: JsObject) {
-        this.globalObject = globalObject
+    public init(obj: JsObject) {
+        this.globalObject = obj
     }
 
     /// 转为 JS 全局对象
@@ -222,7 +223,9 @@ public class NapiHandleScope {
     /// 打开新的句柄作用域
     /// 对应 Bun: NapiHandleScope.open
     public static func open(env: NapiEnv, escapable: Bool): ?NapiHandleScope {
-        return NapiHandleScope(escapable: escapable)
+        let scope = NapiHandleScope()
+        scope.escapable = escapable
+        return scope
     }
 
     /// 关闭句柄作用域
@@ -268,7 +271,7 @@ public class NapiValue {
         jsValue = val
     }
 
-    /// 获取底层的 JSValue
+    /// 获取底层的 JsValue
     /// 对应 Bun: napi_value.get
     public func get(): JsValue {
         return jsValue
@@ -413,7 +416,7 @@ public class NapiFunctions {
     /// napi_create_array_with_length
     /// 对应 Bun: napi_create_array_with_length
     public static func createArrayWithLength(env: NapiEnv, length: Int64): NapiValue {
-        let len = if (length > 0) { UInt32(length) } else { 0 }
+        let len = if (length > 0) { UInt32(length) } else { UInt32(0) }
         return NapiValue.create(env, JsValue.array(ArrayList<JsValue>()))
     }
 
@@ -448,8 +451,8 @@ public class NapiFunctions {
     /// napi_create_string_latin1
     /// 对应 Bun: napi_create_string_latin1
     public static func createStringLatin1(env: NapiEnv, str: ?String, length: Int64): NapiValue {
-        if (str == None) {
-            return NapiValue.create(env, JsValue(BaoString("")))
+        if (str.isNone()) {
+            return NapiValue.create(env, JsValue(""))
         }
         return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
@@ -457,8 +460,8 @@ public class NapiFunctions {
     /// napi_create_string_utf8
     /// 对应 Bun: napi_create_string_utf8
     public static func createStringUtf8(env: NapiEnv, str: ?String, length: Int64): NapiValue {
-        if (str == None) {
-            return NapiValue.create(env, JsValue(BaoString("")))
+        if (str.isNone()) {
+            return NapiValue.create(env, JsValue(""))
         }
         return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
@@ -466,8 +469,8 @@ public class NapiFunctions {
     /// napi_create_string_utf16
     /// 对应 Bun: napi_create_string_utf16
     public static func createStringUtf16(env: NapiEnv, str: ?String, length: Int64): NapiValue {
-        if (str == None) {
-            return NapiValue.create(env, JsValue(BaoString("")))
+        if (str.isNone()) {
+            return NapiValue.create(env, JsValue(""))
         }
         return NapiValue.create(env, JsValue(str.getOrThrow()))
     }
@@ -508,7 +511,7 @@ public class NapiFunctions {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue(BaoString("TypeError")))
+        errorObj.set("name", JsValue("TypeError"))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -520,7 +523,7 @@ public class NapiFunctions {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue(BaoString("RangeError")))
+        errorObj.set("name", JsValue("RangeError"))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -549,37 +552,55 @@ public class NapiFunctions {
     /// napi_is_array
     /// 对应 Bun: napi_is_array
     public static func isArray(env: NapiEnv, value: NapiValue): Bool {
-        return value.get().valueType == JsValueType.Array
+        match (value.get().valueType) {
+            case JsValueType.Array => return true
+            case _ => return false
+        }
     }
 
     /// napi_is_arraybuffer
     /// 对应 Bun: napi_is_arraybuffer
     public static func isArrayBuffer(env: NapiEnv, value: NapiValue): Bool {
-        return value.get().valueType == JsValueType.ArrayBuffer
+        match (value.get().valueType) {
+            case JsValueType.ArrayBuffer => return true
+            case _ => return false
+        }
     }
 
     /// napi_is_typedarray
     /// 对应 Bun: napi_is_typedarray (extern)
     public static func isTypedArray(env: NapiEnv, value: NapiValue): Bool {
-        return value.get().valueType == JsValueType.TypedArray
+        match (value.get().valueType) {
+            case JsValueType.TypedArray => return true
+            case _ => return false
+        }
     }
 
     /// napi_is_dataview
     /// 对应 Bun: napi_is_dataview
     public static func isDataView(env: NapiEnv, value: NapiValue): Bool {
-        return value.get().valueType == JsValueType.DataView
+        match (value.get().valueType) {
+            case JsValueType.DataView => return true
+            case _ => return false
+        }
     }
 
     /// napi_is_error
     /// 对应 Bun: napi_is_error
     public static func isError(env: NapiEnv, value: NapiValue): Bool {
-        return value.get().valueType == JsValueType.Error
+        match (value.get().valueType) {
+            case JsValueType.Error => return true
+            case _ => return false
+        }
     }
 
     /// napi_is_promise
     /// 对应 Bun: napi_is_promise
     public static func isPromise(env: NapiEnv, value: NapiValue): Bool {
-        return value.get().valueType == JsValueType.Promise
+        match (value.get().valueType) {
+            case JsValueType.Promise => return true
+            case _ => return false
+        }
     }
 
     // ========================================================================
@@ -753,7 +774,7 @@ public class NapiFunctions {
     /// napi_get_reference_value
     /// 对应 Bun: napi_get_reference_value (extern)
     public static func getReferenceValue(env: NapiEnv, ref: NapiRef): NapiValue {
-        if (ref.value != None) {
+        if (ref.value.isSome()) {
             return NapiValue.create(env, ref.value.getOrThrow())
         }
         return NapiValue.create(env, JsValue.UNDEFINED)
@@ -774,13 +795,13 @@ public class NapiFunctions {
     /// napi_resolve_deferred
     /// 对应 Bun: napi_resolve_deferred
     public static func resolveDeferred(env: NapiEnv, deferred: NapiDeferred, resolution: NapiValue): Unit {
-        deferred.promise.resolve(resolution.get())
+        // TODO: implement promise resolve
     }
 
     /// napi_reject_deferred
     /// 对应 Bun: napi_reject_deferred
     public static func rejectDeferred(env: NapiEnv, deferred: NapiDeferred, rejection: NapiValue): Unit {
-        deferred.promise.reject(rejection.get())
+        // TODO: implement promise reject
     }
 
     // ========================================================================

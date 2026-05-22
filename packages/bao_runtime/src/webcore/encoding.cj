@@ -244,7 +244,7 @@ public class EncodingHelper {
         }
 
         match (encoding) {
-            case Ascii => {
+            case Ascii =>
                 if (Strings.isAllAscii(input.toArray())) {
                     return BaoString.fromLatin1(input.toArray())
                 }
@@ -255,19 +255,16 @@ public class EncodingHelper {
                 }
                 Strings.copyLatin1IntoAscii(str.getMutableChars(), input.toArray())
                 return str
-            }
-            case Latin1 => {
+            case Latin1 =>
                 return BaoString.fromLatin1(input.toArray())
-            }
-            case Buffer | Utf8 => {
+            case Buffer | Utf8 =>
                 let converted = Strings.toUTF16Alloc(input.toArray(), false, false)
                 if (let Some(utf16) <- converted) {
                     return BaoString.fromUTF16(utf16)
                 }
                 // If we get here, it means we can safely assume the string is 100% ASCII
                 return BaoString.fromLatin1(input.toArray())
-            }
-            case Ucs2 | Utf16le => {
+            case Ucs2 | Utf16le =>
                 // Avoid incomplete characters - if input length is odd, trim one byte
                 var usableLen = input.size
                 if (input.size % 2 != 0) {
@@ -279,8 +276,7 @@ public class EncodingHelper {
                 // Reinterpret bytes as u16
                 let u16 = Bytes.reinterpretAsU16(input.toArray(), usableLen)
                 return BaoString.fromUTF16(u16)
-            }
-            case Hex => {
+            case Hex =>
                 let str = BaoString.createUninitializedLatin1(input.size * 2)
                 if (str.isDead()) {
                     return str
@@ -291,16 +287,14 @@ public class EncodingHelper {
                     return BaoString.EMPTY
                 }
                 return str
-            }
-            case Base64url => {
+            case Base64url =>
                 let outLen = Base64Codec.urlSafeEncodeLen(input.toArray())
                 let str = BaoString.createUninitializedLatin1(outLen)
                 if (!str.isDead()) {
                     let _ = Base64Codec.encodeURLSafe(str.getMutableChars(), input.toArray())
                 }
                 return str
-            }
-            case Base64 => {
+            case Base64 =>
                 let toLen = Base64Codec.encodeLen(input.toArray())
                 let str = BaoString.createUninitializedLatin1(toLen)
                 if (str.isDead()) {
@@ -308,7 +302,6 @@ public class EncodingHelper {
                 }
                 let wrote = Base64Codec.encode(str.getMutableChars(), input.toArray())
                 return str
-            }
         }
     }
 
@@ -325,15 +318,14 @@ public class EncodingHelper {
         }
 
         match (encoding) {
-            case Ascii => {
+            case Ascii =>
                 let str = BaoString.createUninitializedLatin1(input.size)
                 if (str.isDead()) {
                     return str
                 }
                 Strings.copyLatin1IntoAscii(str.getMutableChars(), input)
                 return str
-            }
-            case Latin1 => {
+            case Latin1 =>
                 let str = BaoString.createUninitializedLatin1(input.size)
                 if (str.isDead()) {
                     return str
@@ -344,8 +336,7 @@ public class EncodingHelper {
                     chars[i] = input[i]
                 }
                 return str
-            }
-            case Buffer | Utf8 => {
+            case Buffer | Utf8 =>
                 let converted = Strings.toUTF16Alloc(input, false, false)
                 if (let Some(utf16) <- converted) {
                     return BaoString.fromUTF16(utf16)
@@ -353,8 +344,7 @@ public class EncodingHelper {
                 // If we get here, it means we can safely assume the string is 100% ASCII
                 // For this, we rely on WebKit to manage the memory.
                 return BaoString.cloneLatin1(input)
-            }
-            case Ucs2 | Utf16le => {
+            case Ucs2 | Utf16le =>
                 // Avoid incomplete characters
                 if (input.size / 2 == 0) {
                     return BaoString.EMPTY
@@ -371,16 +361,14 @@ public class EncodingHelper {
                     outputBytes[i] = input[i]
                 }
                 return str
-            }
-            case Hex => {
+            case Hex =>
                 let str = BaoString.createUninitializedLatin1(input.size * 2)
                 if (str.isDead()) {
                     return str
                 }
                 let wrote = Strings.encodeBytesToHex(str.getMutableChars(), input)
                 return str
-            }
-            case Base64url => {
+            case Base64url =>
                 let toLen = Base64Codec.urlSafeEncodeLen(input)
                 let str = BaoString.createUninitializedLatin1(toLen)
                 if (str.isDead()) {
@@ -388,8 +376,7 @@ public class EncodingHelper {
                 }
                 let wrote = Base64Codec.encodeURLSafe(str.getMutableChars(), input)
                 return str
-            }
-            case Base64 => {
+            case Base64 =>
                 let toLen = Base64Codec.encodeLen(input)
                 let str = BaoString.createUninitializedLatin1(toLen)
                 if (str.isDead()) {
@@ -397,7 +384,6 @@ public class EncodingHelper {
                 }
                 let wrote = Base64Codec.encode(str.getMutableChars(), input)
                 return str
-            }
         }
     }
 
@@ -421,14 +407,13 @@ public class EncodingHelper {
         }
 
         match (encoding) {
-            case Buffer | Latin1 => {
+            case Buffer | Latin1 =>
                 let written = if (input.size < to.size) { input.size } else { to.size }
                 for (i in 0..written) {
                     to[i] = input[i]
                 }
                 return written
-            }
-            case Ascii => {
+            case Ascii =>
                 let written = if (input.size < to.size) { input.size } else { to.size }
                 let remain = Array<UInt8>(written)
                 for (i in 0..written) {
@@ -443,13 +428,11 @@ public class EncodingHelper {
                     Strings.copyLatin1IntoAscii(to, remain)
                 }
                 return written
-            }
-            case Utf8 => {
+            case Utf8 =>
                 // need to encode latin1 into UTF-8
                 return Strings.copyLatin1IntoUTF8(to, input).written
-            }
             // encode latin1 into UTF16
-            case Ucs2 | Utf16le => {
+            case Ucs2 | Utf16le =>
                 if (to.size < 2) {
                     return 0
                 }
@@ -462,13 +445,10 @@ public class EncodingHelper {
                     to[i * 2 + 1] = UInt8((val >> 8) & 0xFF)
                 }
                 return written * 2
-            }
-            case Hex => {
+            case Hex =>
                 return Strings.decodeHexToBytesTruncate(to, input)
-            }
-            case Base64 | Base64url => {
+            case Base64 | Base64url =>
                 return Base64Codec.decode(to, input).count
-            }
         }
     }
 
@@ -485,21 +465,16 @@ public class EncodingHelper {
         }
 
         match (encoding) {
-            case Utf8 => {
+            case Utf8 =>
                 return Strings.elementLengthLatin1IntoUTF8(input)
-            }
-            case Latin1 | Ascii | Buffer => {
+            case Latin1 | Ascii | Buffer =>
                 return input.size
-            }
-            case Ucs2 | Utf16le => {
+            case Ucs2 | Utf16le =>
                 return Strings.elementLengthUTF8IntoUTF16(input) * 2
-            }
-            case Hex => {
+            case Hex =>
                 return input.size / 2
-            }
-            case Base64 | Base64url => {
+            case Base64 | Base64url =>
                 return Base64Codec.decodeLen(input)
-            }
         }
     }
 
@@ -541,16 +516,14 @@ public class EncodingHelper {
         }
 
         match (encoding) {
-            case Utf8 => {
+            case Utf8 =>
                 return Strings.copyUTF16IntoUTF8Impl(to, input, allowPartialWrite).written
-            }
-            case Latin1 | Ascii | Buffer => {
+            case Latin1 | Ascii | Buffer =>
                 let out = if (input.size < to.size) { input.size } else { to.size }
                 Strings.copyU16IntoU8(to, input)
                 return out
-            }
             // string is already encoded, just need to copy the data
-            case Ucs2 | Utf16le => {
+            case Ucs2 | Utf16le =>
                 if (allowPartialWrite) {
                     let bytesInputLen = input.size * 2
                     let written = if (bytesInputLen < to.size) { bytesInputLen } else { to.size }
@@ -581,20 +554,17 @@ public class EncodingHelper {
                     }
                     return fixedLen
                 }
-            }
-            case Hex => {
+            case Hex =>
                 // Reinterpret u16 as u8 bytes for hex decoding
                 let asBytes = Bytes.reinterpretAsU8(input)
                 return Strings.decodeHexToBytesTruncate(to, asBytes)
-            }
-            case Base64 | Base64url => {
+            case Base64 | Base64url =>
                 if (to.size < 2 || input.size == 0) {
                     return 0
                 }
                 // very very slow case! shouldn't really happen though
                 let transcoded = Strings.toUTF8Alloc(input)
                 return writeU8(transcoded, to, encoding)
-            }
         }
     }
 
@@ -611,19 +581,17 @@ public class EncodingHelper {
         }
 
         match (encoding) {
-            case Buffer | Latin1 | Ascii => {
+            case Buffer | Latin1 | Ascii =>
                 let to = Array<UInt8>(input.size, item: 0)
                 for (i in 0..input.size) {
                     to[i] = input[i]
                 }
                 return to
-            }
-            case Utf8 => {
+            case Utf8 =>
                 // need to encode latin1 into UTF-8
                 return Strings.allocateLatin1IntoUTF8(input)
-            }
             // encode latin1 into UTF16; return as bytes
-            case Ucs2 | Utf16le => {
+            case Ucs2 | Utf16le =>
                 // Each Latin-1 byte widens to one native-endian u16 code unit
                 let to = Array<UInt8>(input.size * 2, item: 0)
                 for (i in 0..input.size) {
@@ -633,8 +601,7 @@ public class EncodingHelper {
                     to[i * 2 + 1] = UInt8((val >> 8) & 0xFF)
                 }
                 return to
-            }
-            case Hex => {
+            case Hex =>
                 if (input.size < 2) {
                     return Array<UInt8>()
                 }
@@ -644,8 +611,7 @@ public class EncodingHelper {
                     return Array<UInt8>()
                 }
                 return Bytes.truncate(to, wrote)
-            }
-            case Base64 | Base64url => {
+            case Base64 | Base64url =>
                 let trimChars: Array<UInt8> = [0x0D, 0x0A, 0x09, 0x20, 0x0B] // \r\n\t \x0B (VT)
                 let slice = Strings.trim(input, trimChars)
                 if (slice.size == 0) {
@@ -658,7 +624,6 @@ public class EncodingHelper {
                     return Array<UInt8>()
                 }
                 return Bytes.truncate(to, wrote)
-            }
         }
     }
 
@@ -675,20 +640,17 @@ public class EncodingHelper {
         }
 
         match (encoding) {
-            case Utf8 => {
+            case Utf8 =>
                 return Strings.toUTF8AllocWithType(input)
-            }
-            case Latin1 | Buffer | Ascii => {
+            case Latin1 | Buffer | Ascii =>
                 let to = Array<UInt8>(input.size, item: 0)
                 Strings.copyU16IntoU8(to, input)
                 return to
-            }
             // string is already encoded, just need to copy the data
-            case Ucs2 | Utf16le => {
+            case Ucs2 | Utf16le =>
                 // Copy u16 bytes verbatim as u8
                 return Bytes.reinterpretAsU8(input)
-            }
-            case Hex => {
+            case Hex =>
                 let asBytes = Bytes.reinterpretAsU8(input)
                 if (asBytes.size < 2) {
                     return Array<UInt8>()
@@ -699,12 +661,10 @@ public class EncodingHelper {
                     return Array<UInt8>()
                 }
                 return Bytes.truncate(to, wrote)
-            }
-            case Base64 | Base64url => {
+            case Base64 | Base64url =>
                 // very very slow case! shouldn't really happen though
                 let transcoded = Strings.toUTF8Alloc(input)
                 return constructFromU8(transcoded, encoding)
-            }
         }
     }
 }
@@ -1759,7 +1719,7 @@ public class ZigString {
         }
     }
 
-    public static func init(bytes: Array<UInt8>): ZigString {
+    public static func `init`(bytes: Array<UInt8>): ZigString {
         let z = ZigString()
         z.data = bytes
         return z

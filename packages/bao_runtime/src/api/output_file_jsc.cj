@@ -27,7 +27,7 @@ public class SavedFile {
         globalThis: JSGlobalObject,
         path: String,
         byteSize: Int64,
-    ): JSValue {
+    ): JsValue {
         let mimeType = globalThis.bunVm().mimeType(path)
 
         // 创建文件 Blob 存储
@@ -58,14 +58,14 @@ public class OutputFileJsc {
         outputFile: OutputFile,
         ownedPathname: ?String,
         globalObject: JSGlobalObject,
-    ): JSValue {
+    ): JsValue {
         // 提前返回: 未决的输出文件
         match (outputFile.value) {
-            | OutputFileValue.move(_) | OutputFileValue.pending(_) =>
+            case OutputFileValue.move(_) | OutputFileValue.pending(_) =>
                 panic("Unexpected pending output file")
-            | OutputFileValue.noop =>
-                return JSValue.undefined
-            | _ => ()
+            case OutputFileValue.noop =>
+                return JsValue.undefined
+            case _ => ()
         }
 
         // 取出值并重置为空缓冲区
@@ -75,7 +75,7 @@ public class OutputFileJsc {
         let mime = outputFile.loader.toMimeType([mimeHint])
 
         match (value) {
-            | OutputFileValue.copy(let copy) =>
+            case OutputFileValue.copy(let copy) =>
                 // 创建文件 Blob 存储
                 let fileBlob = match (
                     copy.fd.isValid(),
@@ -99,19 +99,19 @@ public class OutputFileJsc {
 
                 return BuildArtifact.toJsBoxed(buildOutput, globalObject)
 
-            | OutputFileValue.saved(_) =>
+            case OutputFileValue.saved(_) =>
                 let pathToUse: String = ownedPathname ?? outputFile.srcPath.text
 
                 let storePath = match (ownedPathname) {
-                    | Some(p) => PathLike.string(PathString.initOwned(p))
-                    | None => dupePathLike(outputFile.srcPath.text)
+                    case Some(p) => PathLike.string(PathString.initOwned(p))
+                    case None => dupePathLike(outputFile.srcPath.text)
                 }
 
                 let fileBlob = match (
                     BlobStore.initFile(PathOrFileDescriptor.path(storePath), Some(mime)),
                 ) {
-                    | ok(b) => b
-                    | err(err) => panic("Unable to create file blob: " + err.name()),
+                    case ok(b) => b
+                    case err(err) => panic("Unable to create file blob: " + err.name()),
                 }
 
                 let buildOutput = BuildArtifact(
@@ -125,15 +125,15 @@ public class OutputFileJsc {
 
                 return BuildArtifact.toJsBoxed(buildOutput, globalObject)
 
-            | OutputFileValue.buffer(let bytes) =>
-                let bytesLen = bytes.length
-                var blob = Blob.init(bytes, globalObject)
+            case OutputFileValue.buffer(let bytes) =>
+                let bytesLen = bytes.size
+                var blob = Blob(bytes, globalObject)
                 setBlobMime(blob, mime)
                 blob.size = bytesLen
 
                 let path: String = match (ownedPathname) {
-                    | Some(p) => p
-                    | None => outputFile.srcPath.text,
+                    case Some(p) => p
+                    case None => outputFile.srcPath.text,
                 }
 
                 let buildOutput = BuildArtifact(
@@ -147,7 +147,7 @@ public class OutputFileJsc {
 
                 return BuildArtifact.toJsBoxed(buildOutput, globalObject)
 
-            | _ => panic("Unexpected output file state")
+            case _ => panic("Unexpected output file state")
         }
     }
 
@@ -158,50 +158,50 @@ public class OutputFileJsc {
         globalThis: JSGlobalObject,
     ): ?Blob {
         match (outputFile.value) {
-            | OutputFileValue.move(_) | OutputFileValue.pending(_) =>
+            case OutputFileValue.move(_) | OutputFileValue.pending(_) =>
                 panic("Unexpected pending output file")
-            | OutputFileValue.noop =>
+            case OutputFileValue.noop =>
                 panic("Cannot convert noop output file to blob")
-            | _ => ()
+            case _ => ()
         }
 
         let value = outputFile.takeValue()
 
         let mime = outputFile.loader.toMimeType([
             outputFile.destPath,
-            outputFile.srcPath.text,
+            outputFile.srcPath.text
         ])
 
         match (value) {
-            | OutputFileValue.copy(let copy) =>
+            case OutputFileValue.copy(let copy) =>
                 let pathLike = if (copy.fd.isValid()) {
                     PathOrFileDescriptor.fd(copy.fd)
                 } else {
                     PathOrFileDescriptor.path(dupePathLike(copy.pathname))
                 }
                 match (BlobStore.initFile(pathLike, Some(mime))) {
-                    | ok(b) => Blob.initWithStore(b, globalThis)
-                    | err(e) => None
+                    case ok(b) => Blob.initWithStore(b, globalThis)
+                    case err(e) => None
                 }
 
-            | OutputFileValue.saved(_) =>
+            case OutputFileValue.saved(_) =>
                 let storePath = dupePathLike(outputFile.srcPath.text)
                 match (BlobStore.initFile(
                     PathOrFileDescriptor.path(storePath),
                     Some(mime),
                 )) {
-                    | ok(b) => Blob.initWithStore(b, globalThis)
-                    | err(e) => None
+                    case ok(b) => Blob.initWithStore(b, globalThis)
+                    case err(e) => None
                 }
 
-            | OutputFileValue.buffer(let bytes) =>
-                let bytesLen = bytes.length
-                var blob = Blob.init(bytes, globalThis)
+            case OutputFileValue.buffer(let bytes) =>
+                let bytesLen = bytes.size
+                var blob = Blob(bytes, globalThis)
                 setBlobMime(blob, mime)
                 blob.size = bytesLen
                 blob
 
-            | _ => None
+            case _ => None
         }
     }
 }
@@ -220,7 +220,7 @@ func dupePathLike(path: String): PathLike {
 /// 指针从 blob.store 借用（持有 blob 的生命周期），
 /// 因此无需单独分配即可保持有效。
 func setBlobMime(blob: Blob, mime: MimeType): Unit {
-    if (let Some(store) = blob.store.get()) {
+    if (let Some(store) <- blob.store.get()) {
         store.mimeType = mime
         blob.contentType = mime.value
     } else {

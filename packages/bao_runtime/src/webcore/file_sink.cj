@@ -256,12 +256,12 @@ public class IOWriteResult {
 // ============================================================================
 
 /// 事件循环句柄
-/// 严格翻译自 Bun EventLoopHandle (opaque *mut c_void in JSC bridge)
+/// 严格翻译自 Bun EventLoopHandle (opaque *c_void in JSC bridge)
 /// 在 Bun 中，EventLoopHandle 持有事件循环的非拥有引用
 /// loop_() 返回底层 bun_io::Loop 指针
 public class EventLoopHandle {
     /// 底层循环的原始指针表示 (uv_loop_t* 或 uws_loop*)
-    /// 对应 Bun EventLoopHandle.native_loop() -> *mut bun_io::Loop
+    /// 对应 Bun EventLoopHandle.native_loop() -> *bun_io::Loop
     private var loopPtr: Int64
 
     public init() {
@@ -273,7 +273,7 @@ public class EventLoopHandle {
     }
 
     /// 获取底层循环指针
-    /// 对应 Bun EventLoopHandle.loop_() -> *mut bun_io::Loop
+    /// 对应 Bun EventLoopHandle.loop_() -> *bun_io::Loop
     /// 用于 FileSink.loop_() 等需要底层循环引用的场景
     public func loop_(): Int64 {
         return loopPtr
@@ -508,7 +508,7 @@ public class FileSink {
 
     /// 减少引用
     /// 严格翻译自 FileSink.deref()
-    public static func deref(this: FileSink): Unit {
+    public static func deref(`this`: FileSink): Unit {
         this.refCount -= 1
         if (this.refCount <= 0) {
             FileSinkLiveCount.count -= 1
@@ -571,11 +571,11 @@ public class FileSink {
 
         match (ioPath) {
             case -1 => return Some(SyscallError(2, "open")) // ENOENT
-            case _ => {
+            case _ =>
                 fd = ioPath
                 match (writer.start(ioPath, pollableOut)) {
                     case Some(err) => return Some(err)
-                    case None => {
+                    case None =>
                         pollable = pollableOut
                         isSocket = isSocketOut
                         nonblocking = nonblockingOut
@@ -583,9 +583,7 @@ public class FileSink {
                             forceSync = true
                             writer.forceSync = true
                         }
-                    }
                 }
-            }
         }
 
         return None
@@ -609,7 +607,7 @@ public class FileSink {
 
     /// 获取底层事件循环
     /// 严格翻译自 FileSink.loop_()
-    /// Bun: self.event_loop_handle.native_loop() -> *mut bun_io::Loop
+    /// Bun: self.event_loop_handle.native_loop() -> *bun_io::Loop
     /// 仓颉: 委托给 EventLoopHandle.loop_() 获取底层循环引用
     public func loop(): Int64 {
         return eventLoopHandle.loop_()
@@ -629,17 +627,15 @@ public class FileSink {
     /// 严格翻译自 FileSink.start()
     public func start(streamStart: StreamStart): ?SyscallError {
         match (streamStart.tag) {
-            case StreamStartTag.FileSink => {
+            case StreamStartTag.FileSink =>
                 match (streamStart.fileSinkOptions) {
-                    case Some(opts) => {
+                    case Some(opts) =>
                         match (setup(opts)) {
                             case Some(err) => return Some(err)
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
-            }
             case _ => ()
         }
 
@@ -701,30 +697,26 @@ public class FileSink {
         }
 
         match (writer.flush().kind) {
-            case IOWriteResultKind.Done => {
+            case IOWriteResultKind.Done =>
                 written += writer.flush().amount
                 writer.end()
                 return None
-            }
-            case IOWriteResultKind.Err => {
+            case IOWriteResultKind.Err =>
                 writer.close()
                 match (writer.flush().err) {
                     case Some(e) => return Some(e)
                     case None => return Some(SyscallError(5, "write"))
                 }
-            }
-            case IOWriteResultKind.Pending => {
+            case IOWriteResultKind.Pending =>
                 if (!mustBeKeptAliveUntilEof) {
                     mustBeKeptAliveUntilEof = true
                     ref()
                 }
                 done = true
                 return None
-            }
-            case IOWriteResultKind.Wrote => {
+            case IOWriteResultKind.Wrote =>
                 writer.end()
                 return None
-            }
         }
     }
 
@@ -741,19 +733,17 @@ public class FileSink {
         let flushResult = writer.flush()
 
         match (flushResult.kind) {
-            case IOWriteResultKind.Done => {
+            case IOWriteResultKind.Done =>
                 updateRef(false)
                 writer.end()
                 return StreamEndResult.number(flushResult.amount)
-            }
-            case IOWriteResultKind.Err => {
+            case IOWriteResultKind.Err =>
                 writer.close()
                 match (flushResult.err) {
                     case Some(e) => return StreamEndResult.err(e)
                     case None => return StreamEndResult.err(SyscallError(5, "write"))
                 }
-            }
-            case IOWriteResultKind.Pending => {
+            case IOWriteResultKind.Pending =>
                 written += flushResult.amount
                 if (!mustBeKeptAliveUntilEof) {
                     mustBeKeptAliveUntilEof = true
@@ -762,11 +752,9 @@ public class FileSink {
                 done = true
                 pending.result = StreamResultWritable.owned(flushResult.amount)
                 return StreamEndResult.pending()
-            }
-            case IOWriteResultKind.Wrote => {
+            case IOWriteResultKind.Wrote =>
                 writer.end()
                 return StreamEndResult.number(flushResult.amount)
-            }
         }
     }
 
@@ -793,21 +781,17 @@ public class FileSink {
 
         let rc = writer.flush()
         match (rc.kind) {
-            case IOWriteResultKind.Done => {
+            case IOWriteResultKind.Done =>
                 written += rc.amount
-            }
-            case IOWriteResultKind.Pending => {
+            case IOWriteResultKind.Pending =>
                 written += rc.amount
-            }
-            case IOWriteResultKind.Wrote => {
+            case IOWriteResultKind.Wrote =>
                 written += rc.amount
-            }
-            case IOWriteResultKind.Err => {
+            case IOWriteResultKind.Err =>
                 match (rc.err) {
                     case Some(e) => return FlushResult.err(e)
                     case None => return FlushResult.err(SyscallError(5, "flush"))
                 }
-            }
         }
 
         return toWritableResult(rc)
@@ -936,25 +920,21 @@ public class FileSink {
         let amountBuffered = writer.buffer.size
 
         match (writer.flush().kind) {
-            case IOWriteResultKind.Err => {
+            case IOWriteResultKind.Err =>
                 updateRef(false)
                 runPendingLater()
                 guard.drop()
                 return false
-            }
-            case IOWriteResultKind.Done => {
+            case IOWriteResultKind.Done =>
                 updateRef(false)
                 runPendingLater()
                 guard.drop()
                 return false
-            }
-            case IOWriteResultKind.Wrote => {
-                // 检查是否全部写出
-            }
-            case IOWriteResultKind.Pending => {
+            case IOWriteResultKind.Wrote =>
+                () // 检查是否全部写出
+            case IOWriteResultKind.Pending =>
                 guard.drop()
                 return true
-            }
         }
 
         let isRegistered = !writer.hasPendingData
@@ -1003,25 +983,22 @@ public class FileSink {
     /// 严格翻译自 FileSink.to_result()
     public func toResult(writeResult: IOWriteResult): StreamResultWritable {
         match (writeResult.kind) {
-            case IOWriteResultKind.Done => {
+            case IOWriteResultKind.Done =>
                 if (writeResult.amount > 0) {
                     return StreamResultWritable.ownedAndDone(writeResult.amount)
                 }
                 return StreamResultWritable.done()
-            }
-            case IOWriteResultKind.Wrote => {
+            case IOWriteResultKind.Wrote =>
                 if (writeResult.amount > 0) {
                     return StreamResultWritable.owned(writeResult.amount)
                 }
                 return StreamResultWritable.temporary(0)
-            }
-            case IOWriteResultKind.Err => {
+            case IOWriteResultKind.Err =>
                 match (writeResult.err) {
                     case Some(e) => StreamResultWritable.err(e)
                     case None => StreamResultWritable.err(SyscallError(5, "write"))
                 }
-            }
-            case IOWriteResultKind.Pending => {
+            case IOWriteResultKind.Pending =>
                 if (!mustBeKeptAliveUntilEof) {
                     mustBeKeptAliveUntilEof = true
                     ref()
@@ -1029,7 +1006,6 @@ public class FileSink {
                 pending.consumed += writeResult.amount
                 pending.result = StreamResultWritable.owned(writeResult.amount)
                 return StreamResultWritable.pending(pending)
-            }
         }
     }
 
@@ -1037,15 +1013,13 @@ public class FileSink {
     /// 严格翻译自 FileSink 内部 toWritableResult
     private func toWritableResult(writeResult: IOWriteResult): FlushResult {
         match (writeResult.kind) {
-            case IOWriteResultKind.Err => {
+            case IOWriteResultKind.Err =>
                 match (writeResult.err) {
                     case Some(e) => FlushResult.err(e)
                     case None => FlushResult.err(SyscallError(5, "write"))
                 }
-            }
-            case IOWriteResultKind.Pending => {
+            case IOWriteResultKind.Pending =>
                 FlushResult.pending()
-            }
             case _ => FlushResult.number(written)
         }
     }
@@ -1077,7 +1051,7 @@ public class FileSink {
 
     /// 释放资源 (deinit)
     /// 严格翻译自 FileSink.deinit()
-    public static func deinit(this: FileSink): Unit {
+    public static func deinit(`this`: FileSink): Unit {
         FileSinkLiveCount.count -= 1
         this.clearData()
     }
@@ -1147,32 +1121,27 @@ public class FileSink {
         let promiseResult = JsValue.ZERO
 
         match (promiseResult.toError()) {
-            case Some(err) => {
+            case Some(err) =>
                 readableStreamRef = ReadableStreamStrong()
                 guard.drop()
                 return err
-            }
             case None => ()
         }
 
         if (!promiseResult.isEmptyOrUndefinedOrNull()) {
             match (promiseResult.asAnyPromise()) {
-                case Some(promise) => {
+                case Some(promise) =>
                     match (promise.status()) {
-                        case JsPromiseStatus.Pending => {
+                        case JsPromiseStatus.Pending =>
                             writer.enableKeepingProcessAlive(ioEvtloop())
                             ref()
                             // 绑定 resolve/reject 处理器
-                        }
-                        case JsPromiseStatus.Fulfilled => {
+                        case JsPromiseStatus.Fulfilled =>
                             handleResolveStream(globalThis)
-                        }
-                        case JsPromiseStatus.Rejected => {
+                        case JsPromiseStatus.Rejected =>
                             let result = promise.result(globalThis)
                             handleRejectStream(globalThis, result)
-                        }
                     }
-                }
                 case None => ()
             }
         }

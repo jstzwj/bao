@@ -42,8 +42,10 @@ public class BuildMessage {
         for (note in msg.notes) {
             let cloned = note.clone()
             let buildMsg = BuildMessage()
-            buildMsg.msg = LoggerMsg(data: cloned, kind: MsgKind.Note)
-            notes.append(buildMsg)
+            buildMsg.msg = LoggerMsg()
+            buildMsg.msg.data = cloned
+            buildMsg.msg.kind = MsgKind.Note
+            notes = notes.concat([buildMsg])
         }
         notes
     }
@@ -52,7 +54,7 @@ public class BuildMessage {
     // 转为字符串
     public func toStringFn(globalThis: JsObject): JsValue {
         let text = "BuildMessage: " + msg.data.text
-        JsValue(s: text)
+        JsValue(text)
     }
 
     // 严格翻译自 BuildMessage.toString
@@ -75,11 +77,11 @@ public class BuildMessage {
     public func toJSON(globalThis: JsObject): JsValue {
         let obj = JsObject.make()
         obj.className = "BuildMessage"
-        obj.set("name", JsValue(s: "BuildMessage"))
+        obj.set("name", JsValue("BuildMessage"))
         obj.set("position", getPosition(globalThis))
         obj.set("message", getMessage(globalThis))
         obj.set("level", getLevel(globalThis))
-        JsValue(obj: obj)
+        JsValue(obj)
     }
 
     // 严格翻译自 BuildMessage.getColumn
@@ -87,9 +89,9 @@ public class BuildMessage {
     public func getColumn(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let col = location.column - 1
-            return JsValue(n: Float64(if (col < 0) { 0 } else { col }))
+            return JsValue(Float64(if (col < 0) { 0 } else { col }))
         }
-        JsValue(n: 0.0)
+        JsValue(0.0)
     }
 
     // 严格翻译自 BuildMessage.getLine
@@ -97,9 +99,9 @@ public class BuildMessage {
     public func getLine(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let line = location.line - 1
-            return JsValue(n: Float64(if (line < 0) { 0 } else { line }))
+            return JsValue(Float64(if (line < 0) { 0 } else { line }))
         }
-        JsValue(n: 0.0)
+        JsValue(0.0)
     }
 
     // 严格翻译自 BuildMessage.getPosition
@@ -110,30 +112,31 @@ public class BuildMessage {
 
     // 严格翻译自 BuildMessage.getMessage
     public func getMessage(globalThis: JsObject): JsValue {
-        JsValue(s: msg.data.text)
+        JsValue(msg.data.text)
     }
 
     // 严格翻译自 BuildMessage.getLevel
     public func getLevel(globalThis: JsObject): JsValue {
-        JsValue(s: msg.kind.toString())
+        JsValue(msg.kind.toString())
     }
 
     // 严格翻译自 BuildMessage.generatePositionObject
     // 生成位置对象
     public static func generatePositionObject(msg: LoggerMsg, globalThis: JsObject): JsValue {
-        if (msg.data.location == None) {
-            return JsValue.null()
+        match (msg.data.location) {
+            case None => return JsValue.null()
+            case _ => ()
         }
         let location = msg.data.location.getOrThrow()
         let obj = JsObject.make()
-        obj.set("lineText", JsValue(s: location.lineText))
-        obj.set("file", JsValue(s: location.file))
-        obj.set("namespace", JsValue(s: location.namespace))
-        obj.set("line", JsValue(n: Float64(location.line)))
-        obj.set("column", JsValue(n: Float64(location.column)))
-        obj.set("length", JsValue(n: Float64(location.length_)))
-        obj.set("offset", JsValue(n: Float64(location.offset)))
-        JsValue(obj: obj)
+        obj.set("lineText", JsValue(location.lineText))
+        obj.set("file", JsValue(location.file))
+        obj.set("namespace", JsValue(location.namespace))
+        obj.set("line", JsValue(Float64(location.line)))
+        obj.set("column", JsValue(Float64(location.column)))
+        obj.set("length", JsValue(Float64(location.length_)))
+        obj.set("offset", JsValue(Float64(location.offset)))
+        JsValue(obj)
     }
 
     // 严格翻译自 BuildMessage.create
@@ -156,6 +159,7 @@ public class LoggerMsg {
     public var data: MsgData = MsgData()
     public var kind: MsgKind = MsgKind.Err
     public var notes: Array<MsgData> = []
+    public var metadata: MsgMetadata = MsgMetadata()
 
     public init() {}
 

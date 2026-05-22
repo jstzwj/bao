@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toContainKeys() - 检查对象是否包含所有指定键
 /// 用法: expect(received).toContainKeys(expected)
-public func toContainKeys(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toContainKeys(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toContainKeys() takes 1 argument")
     }
 
@@ -22,7 +22,7 @@ public func toContainKeys(`this`: Expect, globalThis: JSGlobalObject, callFrame:
 
     let expected = arguments[0]
     expected.ensureStillAlive()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainKeys", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainKeys", matcherParamsFmt: "<green>expected<r>")
 
     if (!expected.jsType().isArray()) {
         return globalThis.throwInvalidArgumentType("toContainKeys", argName: "expected", expectedType: "array")

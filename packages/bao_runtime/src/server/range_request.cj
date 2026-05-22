@@ -57,11 +57,11 @@ public class RangeBounded {
 public class RangeRequest {
 
     /// 将 Raw Range 解析为 Result，给定总大小
-    /// 对应 Bun: pub fn resolve(this: Raw, total: u64) Result
+    /// 对应 Bun: pub fn resolve(`this`: Raw, total: u64) Result
     public static func resolve(raw: RangeRaw, total: Int64): RangeResult {
         match (raw) {
             case RangeRaw.None => RangeResult.None
-            case RangeRaw.Suffix(let n) => {
+            case RangeRaw.Suffix(n) =>
                 if (n == 0) {
                     return RangeResult.Unsatisfiable
                 }
@@ -75,8 +75,7 @@ public class RangeRequest {
                     return RangeResult.Satisfiable(RangeSatisfiable(0, total - 1))
                 }
                 return RangeResult.Satisfiable(RangeSatisfiable(start, total - 1))
-            }
-            case RangeRaw.Bounded(let b) => {
+            case RangeRaw.Bounded(b) =>
                 if (b.start >= total) {
                     return RangeResult.Unsatisfiable
                 }
@@ -91,7 +90,6 @@ public class RangeRequest {
                     end = total - 1
                 }
                 return RangeResult.Satisfiable(RangeSatisfiable(b.start, end))
-            }
         }
     }
 
@@ -138,7 +136,7 @@ public class RangeRequest {
         // bytes=N-[M]
         let start = parseUnsigned(startS)
         match (start) {
-            case Some(s) => {
+            case Some(s) =>
                 let end: ?Int64 = if (endS.size == 0) {
                     None
                 } else {
@@ -152,7 +150,6 @@ public class RangeRequest {
                     }
                 }
                 return RangeRaw.Bounded(RangeBounded(s, end))
-            }
             case None => return RangeRaw.None
         }
     }

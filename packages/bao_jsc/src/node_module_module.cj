@@ -15,7 +15,7 @@ public class NodeModuleModule {
         requestBunStr: String,
         pathsMaybe: ?JsArray
     ): JsValue {
-        return JsValue.false_
+        return JsValue(false)
     }
 
     // 严格翻译自 findPathInner
@@ -68,5 +68,5 @@ public class NodeModuleModule {
 // 自定义加载器联合体
 public enum CustomLoader {
     | loader(Loader)
-    | custom(Strong)
+    | custom(StrongImpl)
 }

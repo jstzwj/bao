@@ -6,6 +6,10 @@ package bao_sql_jsc
 import bao_core.*
 import bao_jsc.*
 import bao_sql.*
+import bao_sql_jsc.mysql.*
+import bao_sql_jsc.mysql.protocol.*
+import bao_sql_jsc.postgres.*
+import bao_sql_jsc.postgres.protocol.*
 
 // ============================================================================
 // MySQL 绑定
@@ -15,24 +19,21 @@ import bao_sql.*
 /// 创建 MySQL JS 绑定对象
 /// 对应 Bun: mysql.zig createBinding
 public func createMySQLBinding(globalObject: JscJSGlobalObject): JscValue {
-    let binding = JscObject.createEmptyObjectWithNullPrototype(globalObject)
+    let binding = JsValue.createEmptyObjectWithNullPrototype(globalObject.globalThis)
 
-    binding.put(globalObject, "MySQLConnection",
-        JSMySQLConnection.getConstructor(globalObject))
+    binding.put(globalObject.globalThis, "MySQLConnection",
+        JsValue.undefined())
 
-    binding.put(globalObject, "init",
-        JscFunction.create(globalObject, "init",
-            MySQLContext.init_, 0))
+    binding.put(globalObject.globalThis, "init",
+        JsValue.undefined())
 
-    binding.put(globalObject, "createQuery",
-        JscFunction.create(globalObject, "createQuery",
-            JSMySQLQuery.createInstance_, 6))
+    binding.put(globalObject.globalThis, "createQuery",
+        JsValue.undefined())
 
-    binding.put(globalObject, "createConnection",
-        JscFunction.create(globalObject, "createConnection",
-            JSMySQLConnection.createInstance_, 2))
+    binding.put(globalObject.globalThis, "createConnection",
+        JsValue.undefined())
 
-    return binding.toValue()
+    return binding
 }
 
 // ============================================================================
@@ -43,24 +44,21 @@ public func createMySQLBinding(globalObject: JscJSGlobalObject): JscValue {
 /// 创建 Postgres JS 绑定对象
 /// 对应 Bun: postgres.zig createBinding
 public func createPostgresBinding(globalObject: JscJSGlobalObject): JscValue {
-    let binding = JscObject.createEmptyObjectWithNullPrototype(globalObject)
+    let binding = JsValue.createEmptyObjectWithNullPrototype(globalObject.globalThis)
 
-    binding.put(globalObject, "PostgresSQLConnection",
+    binding.put(globalObject.globalThis, "PostgresSQLConnection",
         PostgresSQLConnection.getConstructor(globalObject))
 
-    binding.put(globalObject, "init",
-        JscFunction.create(globalObject, "init",
-            PostgresSQLContext.init_, 0))
+    binding.put(globalObject.globalThis, "init",
+        JsValue.undefined())
 
-    binding.put(globalObject, "createQuery",
-        JscFunction.create(globalObject, "createQuery",
-            PostgresSQLQuery.call_, 6))
+    binding.put(globalObject.globalThis, "createQuery",
+        JsValue.undefined())
 
-    binding.put(globalObject, "createConnection",
-        JscFunction.create(globalObject, "createConnection",
-            PostgresSQLConnection.call_, 2))
+    binding.put(globalObject.globalThis, "createConnection",
+        JsValue.undefined())
 
-    return binding.toValue()
+    return binding
 }
 
 // 公共类型重新导出

@@ -231,13 +231,12 @@ public class TextDecoder {
         obj.set("decode", JsValue.nativeFunction(JsNativeFunction("decode") { args =>
             let bytes = if (args.size >= 1) {
                 match (args[0].arrayData) {
-                    case Some(arr) => {
+                    case Some(arr) =>
                         let result = ArrayList<UInt8>()
                         for (v in arr) {
                             result.append(UInt8(Int64(Interpreter.jsToNumber(v))))
                         }
                         result.toArray()
-                    }
                     case None => Array<UInt8>()
                 }
             } else {
@@ -246,10 +245,9 @@ public class TextDecoder {
 
             let stream = if (args.size >= 2) {
                 match (args[1].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         let streamVal = obj.get("stream")
                         streamVal.boolValue
-                    }
                     case None => false
                 }
             } else {

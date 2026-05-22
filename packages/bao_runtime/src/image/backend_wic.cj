@@ -51,8 +51,8 @@ public class COMGuid {
     public static func make(d1: UInt32, d2: UInt16, d3: UInt16,
         b0: UInt8, b1: UInt8, b2: UInt8, b3: UInt8,
         b4: UInt8, b5: UInt8, b6: UInt8, b7: UInt8): COMGuid {
-        return COMGuid(d1: d1, d2: d2, d3: d3,
-            d4: [b0, b1, b2, b3, b4, b5, b6, b7])
+        return COMGuid(d1, d2, d3,
+            [b0, b1, b2, b3, b4, b5, b6, b7])
     }
 }
 
@@ -63,39 +63,39 @@ public class COMGuid {
 
 public class WicGuids {
     public static let CLSID_WIC_IMAGING_FACTORY = COMGuid.make(
-        d1: 0xcacaf262, d2: 0x9370, d3: 0x4615,
-        b0: 0xa1, b1: 0x3b, b2: 0x9f, b3: 0x55,
-        b4: 0x39, b5: 0xda, b6: 0x4c, b7: 0x0a)
+        0xcacaf262, 0x9370, 0x4615,
+        0xa1, 0x3b, 0x9f, 0x55,
+        0x39, 0xda, 0x4c, 0x0a)
 
     public static let IID_IWIC_IMAGING_FACTORY = COMGuid.make(
-        d1: 0xec5ec8a9, d2: 0xc395, d3: 0x4314,
-        b0: 0x9c, b1: 0x77, b2: 0x54, b3: 0xd7,
-        b4: 0xa9, b5: 0x35, b6: 0xff, b7: 0x70)
+        0xec5ec8a9, 0xc395, 0x4314,
+        0x9c, 0x77, 0x54, 0xd7,
+        0xa9, 0x35, 0xff, 0x70)
 
     public static let GUID_WIC_PIXEL_FORMAT_32BPP_RGBA = COMGuid.make(
-        d1: 0xf5c7ad2d, d2: 0x6a8d, d3: 0x43dd,
-        b0: 0xa7, b1: 0xa8, b2: 0xa2, b3: 0x99,
-        b4: 0x35, b5: 0x26, b6: 0x1a, b7: 0xe9)
+        0xf5c7ad2d, 0x6a8d, 0x43dd,
+        0xa7, 0xa8, 0xa2, 0x99,
+        0x35, 0x26, 0x1a, 0xe9)
 
     public static let GUID_CONTAINER_FORMAT_JPEG = COMGuid.make(
-        d1: 0x19e4a5aa, d2: 0x5662, d3: 0x4fc5,
-        b0: 0xa0, b1: 0xc0, b2: 0x17, b3: 0x58,
-        b4: 0x02, b5: 0x8e, b6: 0x10, b7: 0x57)
+        0x19e4a5aa, 0x5662, 0x4fc5,
+        0xa0, 0xc0, 0x17, 0x58,
+        0x02, 0x8e, 0x10, 0x57)
 
     public static let GUID_CONTAINER_FORMAT_PNG = COMGuid.make(
-        d1: 0x1b7cfaf4, d2: 0x713f, d3: 0x473c,
-        b0: 0xbb, b1: 0xcd, b2: 0x61, b3: 0x37,
-        b4: 0x42, b5: 0x5f, b6: 0xae, b7: 0xaf)
+        0x1b7cfaf4, 0x713f, 0x473c,
+        0xbb, 0xcd, 0x61, 0x37,
+        0x42, 0x5f, 0xae, 0xaf)
 
     public static let GUID_CONTAINER_FORMAT_WEBP = COMGuid.make(
-        d1: 0xe094b0e2, d2: 0x67f2, d3: 0x45b3,
-        b0: 0xb0, b1: 0xea, b2: 0x11, b3: 0x53,
-        b4: 0x37, b5: 0xca, b6: 0x7c, b7: 0xf3)
+        0xe094b0e2, 0x67f2, 0x45b3,
+        0xb0, 0xea, 0x11, 0x53,
+        0x37, 0xca, 0x7c, 0xf3)
 
     public static let GUID_CONTAINER_FORMAT_HEIF = COMGuid.make(
-        d1: 0xe1e62521, d2: 0x6787, d3: 0x405b,
-        b0: 0xa3, b1: 0x39, b2: 0x50, b3: 0x07,
-        b4: 0x15, b5: 0xb5, b6: 0x76, b7: 0x3f)
+        0xe1e62521, 0x6787, 0x405b,
+        0xa3, 0x39, 0x50, 0x07,
+        0x15, 0xb5, 0x76, 0x3f)
 
     /// WICHeifCompressionOption — 编码器默认为 DontCare (= 选择安装的编解码器扩展),
     /// 所以没有这个 .avif() 可能在有 HEVC 扩展的机器上静默发出 HEIC。
@@ -151,58 +151,58 @@ public class BackendWic {
     // ========================================================================
 
     /// COM 初始化
-    public static func coInitializeEx(reserved: CPointer<Unit>, flags: UInt32): Int32 {
+    public static func coInitializeEx(reserved: UIntNative, flags: UInt32): Int32 {
         // FFI: ole32 CoInitializeEx
         return -1
     }
 
     /// COM 创建实例
-    public static func coCreateInstance(clsid: CPointer<COMGuid>, outer: CPointer<Unit>,
-        ctx: UInt32, iid: CPointer<COMGuid>, out: CPointer<CPointer<Unit>>): Int32 {
+    public static func coCreateInstance(clsid: CPointer<COMGuid>, outer: CPointer<UInt8>,
+        ctx: UInt32, iid: CPointer<COMGuid>, out: CPointer<CPointer<UInt8>>): Int32 {
         // FFI: ole32 CoCreateInstance
         return -1
     }
 
     /// 创建 HGLOBAL 上的流
-    public static func createStreamOnHGlobal(hglobal: CPointer<Unit>, deleteOnRelease: Int32,
-        out: CPointer<CPointer<Unit>>): Int32 {
+    public static func createStreamOnHGlobal(hglobal: UIntNative, deleteOnRelease: Int32,
+        out: CPointer<UIntNative>): Int32 {
         // FFI: ole32 CreateStreamOnHGlobal
         return -1
     }
 
     /// 从流获取 HGLOBAL
-    public static func getHGlobalFromStream(stream: CPointer<Unit>, out: CPointer<CPointer<Unit>>): Int32 {
+    public static func getHGlobalFromStream(stream: UIntNative, out: CPointer<UIntNative>): Int32 {
         // FFI: ole32 GetHGlobalFromStream
         return -1
     }
 
     /// 全局锁
-    public static func globalLock(h: CPointer<Unit>): ?CPointer<Unit> {
+    public static func globalLock(h: UIntNative): ?UIntNative {
         // FFI: kernel32 GlobalLock
         return None
     }
 
     /// 全局解锁
-    public static func globalUnlock(h: CPointer<Unit>): Int32 {
+    public static func globalUnlock(h: UIntNative): Int32 {
         // FFI: kernel32 GlobalUnlock
         return 0
     }
 
     /// 全局大小
-    public static func globalSize(h: CPointer<Unit>): UInt64 {
+    public static func globalSize(h: UIntNative): UInt64 {
         // FFI: kernel32 GlobalSize
         return 0
     }
 
     /// WIC 转换位图源 (从 windowscodecs.dll 延迟加载的唯一平坦导出)
-    public static func wicConvertBitmapSource(dstFmt: CPointer<COMGuid>, src: CPointer<Unit>,
-        out: CPointer<CPointer<Unit>>): Int32 {
+    public static func wicConvertBitmapSource(dstFmt: CPointer<COMGuid>, src: CPointer<UInt8>,
+        out: CPointer<CPointer<UInt8>>): Int32 {
         // FFI: WICConvertBitmapSource
         return -1
     }
 
     /// 打开剪贴板
-    public static func openClipboard(hwnd: CPointer<Unit>): Int32 {
+    public static func openClipboard(hwnd: UIntNative): Int32 {
         // FFI: user32 OpenClipboard
         return 0
     }
@@ -220,7 +220,7 @@ public class BackendWic {
     }
 
     /// 获取剪贴板数据
-    public static func getClipboardData(format: UInt32): ?CPointer<Unit> {
+    public static func getClipboardData(format: UInt32): ?UIntNative {
         // FFI: user32 GetClipboardData
         return None
     }
@@ -238,19 +238,19 @@ public class BackendWic {
     }
 
     /// C++ shim: 写入属性包 float 属性
-    public static func wicPropbagWriteF32(props: CPointer<Unit>, name: String, value: Float32): Int32 {
+    public static func wicPropbagWriteF32(props: UIntNative, name: String, value: Float32): Int32 {
         // FFI: bun_wic_propbag_write_f32
         return 0
     }
 
     /// C++ shim: 写入属性包 u8 属性
-    public static func wicPropbagWriteU8(props: CPointer<Unit>, name: String, value: UInt8): Int32 {
+    public static func wicPropbagWriteU8(props: UIntNative, name: String, value: UInt8): Int32 {
         // FFI: bun_wic_propbag_write_u8
         return 0
     }
 
     /// IStream::Seek 获取当前流位置
-    public static func iStreamSeek(stream: CPointer<Unit>, dlibMove: Int64, dwOrigin: UInt32,
+    public static func iStreamSeek(stream: UIntNative, dlibMove: Int64, dwOrigin: UInt32,
         plibNewPosition: CPointer<UInt64>): Int32 {
         // FFI: IStream::Seek
         return -1
@@ -262,10 +262,10 @@ public class BackendWic {
     // ========================================================================
 
     /// COM 必须在调用线程上进入; 工厂本身创建一次并共享（在 MTA 中有效）。
-    public static func ensureFactory(): ?CPointer<Unit> {
+    public static func ensureFactory(): ?UIntNative {
         // 1. COM 初始化 (每线程一次)
         // if (!comInitialized) {
-        //     if (coInitializeEx(CPointer<Unit>.null, COINIT_MULTITHREADED) < 0) { return None }
+        //     if (coInitializeEx(UIntNative.None, COINIT_MULTITHREADED) < 0) { return None }
         //     comInitialized = true
         // }
         // 2. 创建工厂 (进程全局一次)
@@ -283,8 +283,8 @@ public class BackendWic {
         // wicConvertBitmapSourceFn = cast(sym)
         //
         // 2. 创建 COM 工厂
-        // var out: CPointer<Unit> = null
-        // if (coCreateInstance(&CLSID_WIC_IMAGING_FACTORY, null, CLSCTX_INPROC_SERVER,
+        // var out: UIntNative = None
+        // if (coCreateInstance(&CLSID_WIC_IMAGING_FACTORY, None, CLSCTX_INPROC_SERVER,
         //                      &IID_IWIC_IMAGING_FACTORY, &out) < 0) { return }
         // factoryPtr = out
     }
@@ -301,15 +301,15 @@ public class BackendWic {
     /// -> decoder.GetFrame(0)
     /// -> frame.GetSize -> guard(max_pixels)
     /// -> WICConvertBitmapSource(GUID_WICPixelFormat32bppRGBA, frame)
-    /// -> converted.CopyPixels(null, stride, out)
+    /// -> converted.CopyPixels(None, stride, out)
     public static func decode(bytes: Array<UInt8>, maxPixels: UInt64): ?DecodedImage {
         let f = ensureFactory()
-        if (f == None) { return None }
+        if (f.isNone()) { return None }
 
         // IWICStream::InitializeFromMemory 接受 DWORD 计数; Windows 发布 ReleaseSafe,
         // 所以 @intCast 是进程中止, 不是静默截断。降级为 BackendUnavailable,
         // 以便 codecs.decode() 回退到静态解码器。
-        if (UInt64(bytes.size) > UInt64(UInt32.MaxValue)) { return None }
+        if (UInt64(bytes.size) > UInt64(UInt32.Max)) { return None }
 
         // 1. 创建流
         // 2. 从内存初始化
@@ -332,7 +332,7 @@ public class BackendWic {
 
     /// 编码图像
     /// 编码流程:
-    /// CreateStreamOnHGlobal(null) (可增长的内存 IStream)
+    /// CreateStreamOnHGlobal(None) (可增长的内存 IStream)
     /// -> factory.CreateEncoder(containerGUID)
     /// -> encoder.Initialize(stream)
     /// -> encoder.CreateNewFrame -> frame.Initialize/SetSize/SetPixelFormat
@@ -345,13 +345,13 @@ public class BackendWic {
 
         // 仅 heic/avif 路由到 WIC
         // WritePixels/WriteSource 接受 UINT 字节计数 — 与 CopyPixels 相同的 DWORD 限制
-        if (UInt64(rgba.size) > UInt64(UInt32.MaxValue)) { return None }
+        if (UInt64(rgba.size) > UInt64(UInt32.Max)) { return None }
 
         let f = ensureFactory()
-        if (f == None) { return None }
+        if (f.isNone()) { return None }
 
         let guidOpt = WicGuids.containerGuid(opts.format)
-        if (guidOpt == None) { return None }
+        if (guidOpt.isNone()) { return None }
 
         // 1. CreateStreamOnHGlobal (可增长内存流)
         // 2. CreateEncoder (container GUID) — 如果 HEIF/AV1 扩展未安装,
@@ -382,7 +382,7 @@ public class BackendWic {
     /// (剪贴板省略的) 将其重新包装为 BMP 文件。
     /// 无论哪种方式, 结果是常规 BunImage 解码器理解的字节; 此处不解码。
     public static func clipboard(): ?Array<UInt8> {
-        if (openClipboard(CPointer<Unit>.null) == 0) { return None }
+        if (openClipboard(UIntNative.None) == 0) { return None }
         // defer: closeClipboard()
 
         // 1. 注册的文件格式块 — 逐字复制
@@ -390,9 +390,9 @@ public class BackendWic {
             let id = registerClipboardFormatA(name)
             if (id != 0) {
                 let hOpt = getClipboardData(id)
-                if (hOpt != None) {
+                if (hOpt.isSome()) {
                     let dupOpt = dupGlobal(hOpt.getOrThrow(), 0)
-                    if (dupOpt != None) {
+                    if (dupOpt.isSome()) {
                         closeClipboard()
                         return dupOpt
                     }
@@ -407,11 +407,11 @@ public class BackendWic {
         let cfFormats: Array<UInt32> = [Win32Clipboard.CF_DIBV5, Win32Clipboard.CF_DIB]
         for (cf in cfFormats) {
             let hOpt = getClipboardData(cf)
-            if (hOpt != None) {
+            if (hOpt.isSome()) {
                 let bufOpt = dupGlobal(hOpt.getOrThrow(), 14)  // 14 字节前缀用于 BITMAPFILEHEADER
-                if (bufOpt != None) {
+                if (bufOpt.isSome()) {
                     let buf = bufOpt.getOrThrow()
-                    if (buf.size < 14 + 40 || UInt64(buf.size) > UInt64(UInt32.MaxValue)) {
+                    if (buf.size < 14 + 40 || UInt64(buf.size) > UInt64(UInt32.Max)) {
                         continue  // 释放 buf 并尝试下一个
                     }
 
@@ -469,15 +469,15 @@ public class BackendWic {
 
     /// 复制剪贴板 HGLOBAL 到 default_allocator, 可选在前面留 prefix 个零字节
     /// (用于 BITMAPFILEHEADER)
-    static func dupGlobal(h: CPointer<Unit>, prefix: Int64): ?Array<UInt8> {
+    static func dupGlobal(h: UIntNative, prefix: Int64): ?Array<UInt8> {
         let size = globalSize(h)
         if (size == 0) { return None }
         let ptrOpt = globalLock(h)
-        if (ptrOpt == None) { return None }
+        if (ptrOpt.isNone()) { return None }
         // defer: globalUnlock(h)
 
         let outLen = prefix + Int64(size)
-        var out = Array<UInt8>(outLen, item: 0)
+        var out = Array<UInt8>(Int64(outLen), { _: Int64 => UInt8(0) })
         // 从 ptrOpt 复制 size 字节到 out[prefix..]
         globalUnlock(h)
         return out

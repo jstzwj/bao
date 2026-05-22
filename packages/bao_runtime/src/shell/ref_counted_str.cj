@@ -24,14 +24,14 @@ public class RefCountedStr {
     public var ptr: Array<Byte>
 
     /// 从字节切片初始化引用计数字符串
-    /// 对应 Bun: RefCountedStr.init(slice)
+    /// 对应 Bun: RefCountedStr(slice)
     /// 在堆上分配 RefCountedStr 结构，并将切片的指针存储其中。
     /// 注意: 调用者必须确保 slice 的生命周期至少与 RefCountedStr 一样长，
     /// 或者在 init 前复制 slice。
     public static func initFunc(slice: Array<Byte>): RefCountedStr {
-        let this = RefCountedStr()
+        let `this` = RefCountedStr()
         this.refcount = 1
-        this.len = UInt32(slice.length)
+        this.len = UInt32(slice.size)
         this.ptr = slice
         return this
     }

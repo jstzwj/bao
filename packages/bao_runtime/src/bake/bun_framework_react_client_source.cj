@@ -3,7 +3,7 @@
 
 package bao_runtime.bake
 
-public const bunFrameworkReactClientSource: String = """
+public const bunFrameworkReactClientSource: String = #"""
 // This file contains the client-side logic for the built in React Server
 // Components integration. It is designed as a minimal base to build RSC
 // applications on, and to showcase what features that Bake offers.
@@ -67,7 +67,7 @@ const Root = () => {
       try {
         abortOnRender.abort();
         abortOnRender = undefined;
-      } catch {}
+      } catch (e: Exception) {}
     }
     requestAnimationFrame(() => {
       if (currentCssList) disableUnusedCssFiles();
@@ -101,7 +101,7 @@ const firstPageId = Date.now();
     // Collect the list of CSS files that were added from SSR
     const links = document.querySelectorAll<HTMLLinkElement>("link[data-bake-ssr]");
     currentCssList = [];
-    for (let i = 0; i < links.length; i++) {
+    for (let i = 0; i < links.size; i++) {
       const link = links[i];
       const href = new URL(link.href).pathname;
       currentCssList.push(href);
@@ -255,7 +255,7 @@ function ensureCssIsReady(cssList: string[]) {
       wait.push(promise);
     }
   }
-  if (wait.length === 0) return;
+  if (wait.size === 0) return;
   return Promise.all(wait);
 }
 
@@ -294,7 +294,7 @@ document.addEventListener("click", async (event, element = event.target as HTMLA
       let url;
       try {
         url = new URL(element instanceof SVGAElement ? element.href.baseVal : element.href, document.baseURI);
-      } catch {
+      } catch (e: Exception) {
         // Bail out to browser logic
         return;
       }
@@ -414,14 +414,14 @@ async function readCssMetadataFallback(stream: ReadableStream<Uint8Array>) {
         }
       }
     }
-    if (chunks.length === 1) {
+    if (chunks.size === 1) {
       const first = chunks[0];
       if (first.byteLength >= size) {
         chunks[0] = first.subarray(size);
         totalBytes -= size;
         return first.subarray(0, size);
       } else {
-        chunks.length = 0;
+        chunks.size = 0;
         totalBytes = 0;
         return first;
       }
@@ -451,7 +451,7 @@ async function readCssMetadataFallback(stream: ReadableStream<Uint8Array>) {
   } else {
     currentCssList = td.decode(await readChunk(header)).split("\n");
   }
-  if (chunks.length === 0) {
+  if (chunks.size === 0) {
     return stream;
   }
   // New readable stream that includes the remaining data
@@ -475,4 +475,4 @@ async function readCssMetadataFallback(stream: ReadableStream<Uint8Array>) {
   });
 }
 
-"""
+"""#

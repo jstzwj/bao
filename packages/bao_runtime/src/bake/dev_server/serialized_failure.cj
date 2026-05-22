@@ -80,9 +80,9 @@ public class SerializedFailure {
         let packed: Packed = bitCast<Packed>(data[0..4])
         return match (packed.kind) {
             case none => SerializedFailureOwner.none
-            case client => SerializedFailureOwner.client(IncrementalGraphClientFileIndex.`init`(packed.data))
-            case server => SerializedFailureOwner.server(IncrementalGraphServerFileIndex.`init`(packed.data))
-            case route => SerializedFailureOwner.route(RouteBundle.Index.`init`(packed.data))
+            case client => SerializedFailureOwner.client(IncrementalGraphClientFileIndex(packed.data))
+            case server => SerializedFailureOwner.server(IncrementalGraphServerFileIndex(packed.data))
+            case route => SerializedFailureOwner.route(RouteBundle.Index(packed.data))
         }
     }
 
@@ -99,7 +99,7 @@ public class SerializedFailure {
         owner_display_name: String,
         messages: Array<LogMsg>
     ): SerializedFailure {
-        assert(messages.length > 0)
+        assert(messages.size > 0)
 
         var payload: ArrayList<Byte> = ArrayList<Byte>.initCapacity(dev.allocator(), 65536)
         let w = payload.writer()
@@ -109,7 +109,7 @@ public class SerializedFailure {
         // 写入显示名称
         writeString32(owner_display_name, w)
         // 写入消息数量
-        w.writeInt(messages.length)
+        w.writeInt(messages.size)
         // 写入每条消息
         for (msg in messages) {
             writeLogMsg(msg, w)
@@ -129,7 +129,7 @@ public class SerializedFailure {
             case verbose => ErrorKind.bundler_log_verbose
         })
         writeLogData(msg.data, w)
-        w.writeInt(msg.notes.length)
+        w.writeInt(msg.notes.size)
         for (note in msg.notes) {
             writeLogData(note, w)
         }
@@ -145,7 +145,7 @@ public class SerializedFailure {
             }
             w.writeInt(loc.line)
             w.writeInt(loc.column)
-            w.writeInt(loc.length)
+            w.writeInt(loc.size)
             writeString32(loc.line_text ?? "", w)
         } else {
             w.writeInt(0)
@@ -154,7 +154,7 @@ public class SerializedFailure {
 
     /// 写入长度前缀字符串
     static func writeString32(data: String, w: Writer): Unit {
-        w.writeInt(data.length)
+        w.writeInt(data.size)
         w.writeAll(data)
     }
 }

@@ -5,6 +5,12 @@ package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
+import bao_sql_jsc.mysql.*
+
+// ===== 常量 =====
+
+let BINARY_CHARSET: UInt16 = 63
 
 /// MySQL 结果集行
 /// 对应 Bun: ResultSet.Row
@@ -29,7 +35,7 @@ public class MySQLResultSetRow {
                       resultMode: SQLQueryResultMode,
                       cachedStructure: ?CachedStructure): JscValue {
         // 通过 SQLDataCell.constructObjectFromDataCell 构建 JS 对象
-        return JscObject.createEmptyObject(globalObject).toValue()
+        return JscValue.createEmptyObject(globalObject.globalThis)
     }
 
     /// 解码行数据
@@ -45,14 +51,14 @@ public class MySQLResultSetRow {
     /// 解码文本协议行
     /// 对应 Bun: Row.decodeText
     private func decodeText(data: Array<UInt8>): Unit {
-        values = Array<SQLDataCell>(columns.size, item: SQLDataCell())
+        values = Array<SQLDataCell>(columns.size, { _ => SQLDataCell() })
         // 简化实现：解析长度编码字符串
     }
 
     /// 解码二进制协议行
     /// 对应 Bun: Row.decodeBinary
     private func decodeBinary(data: Array<UInt8>): Unit {
-        values = Array<SQLDataCell>(columns.size, item: SQLDataCell())
+        values = Array<SQLDataCell>(columns.size, { _ => SQLDataCell() })
         // 简化实现：解析 NULL 位图和二进制值
     }
 
@@ -84,26 +90,26 @@ public class MySQLResultSetRow {
             case 8 => // LONGLONG
                 if (column.flags.unsigned) {
                     let val = parseUInt64(data)
-                    if (val <= UInt32.MaxValue) {
+                    if (val <= 4294967295) {
                         cell.tag = DataCellTag.UInt4
                         cell.uint4Value = UInt32(val)
                     } else if (bigint) {
-                        cell.tag = DataCellTag.UInt8
+                        cell.tag = DataCellTag.`UInt8`
                         cell.uint8Value = val
                     } else {
-                        cell.tag = DataCellTag.String
+                        cell.tag = DataCellTag.`String`
                         cell.stringValue = val.toString()
                     }
                 } else {
                     let val = parseInt64(data)
-                    if (val >= Int64(Int32.MinValue) && val <= Int64(Int32.MaxValue)) {
+                    if (val >= -2147483648 && val <= 2147483647) {
                         cell.tag = DataCellTag.Int4
                         cell.int4Value = Int32(val)
                     } else if (bigint) {
-                        cell.tag = DataCellTag.Int8
+                        cell.tag = DataCellTag.`Int8`
                         cell.int8Value = val
                     } else {
-                        cell.tag = DataCellTag.String
+                        cell.tag = DataCellTag.`String`
                         cell.stringValue = val.toString()
                     }
                 }
@@ -117,7 +123,7 @@ public class MySQLResultSetRow {
                     cell.rawPtr = 0
                     cell.rawLen = UInt64(data.size)
                 } else {
-                    cell.tag = DataCellTag.String
+                    cell.tag = DataCellTag.`String`
                     cell.stringValue = String.fromUtf8(data)
                     cell.freeValue = 1
                 }
@@ -134,8 +140,6 @@ public class MySQLResultSetRow {
 }
 
 // ===== 辅助解析函数 =====
-
-let BINARY_CHARSET: UInt16 = 63
 
 func parseFloat(data: Array<UInt8>): Float64 {
     return 0.0

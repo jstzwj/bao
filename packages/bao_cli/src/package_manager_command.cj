@@ -73,19 +73,17 @@ public class PackageManagerCommand {
     public static func handleLoadLockfileErrors(result: LoadLockfileResult, logLevel: LogLevel): Unit {
         let notSilent = (logLevel != LogLevel.silent)
 
-        when (result) {
-            case LoadLockfileResult.notFound => {
+        match (result) {
+            case LoadLockfileResult.notFound =>
                 if (notSilent) {
                     Output.errGeneric("Lockfile not found")
                 }
                 Global.exit(1)
-            }
-            case LoadLockfileResult.err(e) => {
+            case LoadLockfileResult.err(e) =>
                 if (notSilent) {
                     Output.errGeneric("Error loading lockfile: ${e.name}")
                 }
                 Global.exit(1)
-            }
             case LoadLockfileResult.ok => ()
         }
     }
@@ -99,12 +97,11 @@ public class PackageManagerCommand {
     /// 对应 Bun: print_hash
     public static func printHash(ctx: CommandContext): Unit {
         let cli = PackageManager.CommandLineArguments.parse(Subcommand.pm)
-        val (pm, cwd) = match (PackageManager.init(ctx, cli, Subcommand.pm)) {
+        let (pm, cwd) = match (PackageManager.`init`(ctx, cli, Subcommand.pm)) {
             case Some((pm, dir)) => (pm, dir)
-            case None => {
+            case None =>
                 Output.errGeneric("Failed to initialize package manager")
                 Global.exit(1)
-            }
         }
 
         // 读取 lockfile 文件并计算 hash
@@ -115,7 +112,7 @@ public class PackageManagerCommand {
             Global.crash()
         }
 
-        let hash = CryptoHasher.hash(bytes!!, Algorithm.sha256)
+        let hash = CryptoHasher.hash(bytes.getOrThrow(), Algorithm.sha256)
         Output.println(hash.toHexString())
     }
 
@@ -152,7 +149,7 @@ public class PackageManagerCommand {
         handleLoadLockfileErrors(loadLockfile, logLevel)
 
         // 检查是否需要更新 lockfile
-        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult!!.packagesNeedUpdate) {
+        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
             updateLockfileIfNeeded(pm, loadLockfile)
         }
 
@@ -163,7 +160,7 @@ public class PackageManagerCommand {
         let dependencies = lockfile.buffers.dependencies
 
         // 使用 tree iterator 遍历
-        let treeIterator = TreeIterator.init(lockfile)
+        let treeIterator = TreeIterator.`init`(lockfile)
         let byName = ByName(dependencies, buf)
         var allDeps = ArrayList<Int64>()
         var seen = HashSet<Int64>()
@@ -173,7 +170,7 @@ public class PackageManagerCommand {
             if (nodeModules == None) {
                 break
             }
-            let nm = nodeModules!!
+            let nm = nodeModules.getOrThrow()
             for (depId in nm.dependencies) {
                 if (!seen.contains(depId)) {
                     seen.add(depId)
@@ -237,7 +234,16 @@ public class PackageManagerCommand {
     /// 获取缓存目录
     /// 对应 Bun: get_cache_directory
     private static func getCacheDirectory(): String {
-        let homeDir = Environment.get("HOME") ?: Environment.get("USERPROFILE") ?: "/tmp"
+        let homeEnv = Environment.get("HOME")
+        let homeDir = match (homeEnv) {
+            case Some(v) => v
+            case None =>
+                let userprofile = Environment.get("USERPROFILE")
+                match (userprofile) {
+                    case Some(v) => v
+                    case None => "/tmp"
+                }
+        }
         return Path.join(homeDir, ".bao", "install", "cache")
     }
 
@@ -292,11 +298,11 @@ public class PackageManagerCommand {
 
             let response = HttpClient.getSynchronous(url, headers)
             if (response != None) {
-                let json = JsonParser.parse(response!!)
-                if (json != None && json!!.isObject()) {
-                    let username = json!!.asObject().get("username")
-                    if (username != None && username!!.isString()) {
-                        Output.println(username!!.asString())
+                let json = JsonParser.parse(response.getOrThrow())
+                if (json != None && json.getOrThrow().isObject()) {
+                    let username = json.getOrThrow().asObject().get("username")
+                    if (username != None && username.getOrThrow().isString()) {
+                        Output.println(username.getOrThrow().asString())
                         return
                     }
                 }
@@ -388,17 +394,16 @@ public class PackageManagerCommand {
     /// 对应 Bun: PackageManagerCommand.exec 中的 match subcommand 分发
     public static func exec(ctx: CommandContext): Unit {
         let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.pm)
-        val (pm, cwd) = match (PackageManager.init(ctx, cli, Subcommand.pm)) {
+        let (pm, cwd) = match (PackageManager.`init`(ctx, cli, Subcommand.pm)) {
             case Some((pm, dir)) => (pm, dir)
-            case None => {
+            case None =>
                 Output.errGeneric("Failed to initialize package manager")
                 Global.exit(1)
-            }
         }
 
         // 根据子命令分发
         let subcommand = cli.subcommand
-        when (subcommand) {
+        match (subcommand) {
             case PmSubcommand.ls => execLs(ctx, pm)
             case PmSubcommand.bin => execBin(ctx, pm)
             case PmSubcommand.cache => execCache(ctx, pm)
@@ -415,10 +420,9 @@ public class PackageManagerCommand {
             case PmSubcommand.migrate => execMigrate(ctx, pm)
             case PmSubcommand.scan => execScan(ctx, pm, cwd)
             case PmSubcommand.pack => execPack(ctx, pm)
-            else => {
+            case _ =>
                 Output.errGeneric("Unknown pm subcommand")
                 printHelp()
-            }
         }
     }
 

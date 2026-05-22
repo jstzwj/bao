@@ -19,9 +19,13 @@ public class MySQLContext {
     /// 对应 Bun: MySQLContext.init
     public static func init_(globalObject: JscJSGlobalObject,
                               callFrame: JscCallFrame): JscValue {
-        let ctx = globalObject.bunVM().rareData().mysqlContext
-        ctx.onQueryResolveFn = callFrame.argument(0)
-        ctx.onQueryRejectFn = callFrame.argument(1)
+        let vm = globalObject.vm.getOrThrow()
+        let rd = vm.getRareData()
+        // Note: rareData is bao_jsc.RareData which doesn't have mysqlContext.
+        // The mysqlContext lives in bao_sql_jsc.RareData (sql_jsc.cj).
+        // For now, callback initialization is stubbed.
+        // ctx.onQueryResolveFn = callFrame.argument(0)
+        // ctx.onQueryRejectFn = callFrame.argument(1)
         return JscValue.undefined()
     }
 }

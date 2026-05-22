@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toMatchInlineSnapshot() - 行内快照匹配
 /// 用法: expect(received).toMatchInlineSnapshot(snapshot) / expect(received).toMatchInlineSnapshot(properties, hint)
-public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -25,10 +25,10 @@ public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, ca
 
     var hasExpected = false
     var expectedString = ZigString.Empty
-    var propertyMatchers: ?JSValue = None
-    if (arguments.length == 0) {
+    var propertyMatchers: ?JsValue = None
+    if (arguments.size == 0) {
         // 无参数
-    } else if (arguments.length == 1 ){
+    } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
             hasExpected = true
             arguments[0].toZigString(result: expectedString, globalThis: globalThis)

@@ -16,7 +16,7 @@ public class HTTPStatusText {
 
     /// 根据状态码获取对应的 HTTP 状态文本
     /// 严格翻译自: Bun HTTPStatusText.zig -> pub fn get(code: u16) ?[]const u8
-    /// Zig 原始实现: return switch (code) { 100 => "100 Continue", ... else => null }
+    /// Zig 原始实现: return match (code) { 100 => "100 Continue", ... else => null }
     public static func get(code: Int64): ?String {
         match (code) {
             // 1xx Informational

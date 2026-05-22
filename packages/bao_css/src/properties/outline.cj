@@ -29,7 +29,7 @@ public enum OutlineStyle {
     }
 
     public static func default(): OutlineStyle {
-        OutlineStyle.LineStyleVal(LineStyle.None)
+        OutlineStyle.LineStyleVal(LineStyle.NoneValue)
     }
 }
 
@@ -54,7 +54,7 @@ public class Outline {
     public static func default(): Outline {
         Outline(
             BorderSideWidth.Length("medium"),
-            OutlineStyle.LineStyleVal(LineStyle.None),
+            OutlineStyle.LineStyleVal(LineStyle.NoneValue),
             "currentcolor"
         )
     }
@@ -75,7 +75,7 @@ public class Outline {
 
         // 样式
         match (style) {
-            case OutlineStyle.LineStyleVal(LineStyle.None) => ()
+            case OutlineStyle.LineStyleVal(LineStyle.NoneValue) => ()
             case _ => parts.append(style.toCss())
         }
 

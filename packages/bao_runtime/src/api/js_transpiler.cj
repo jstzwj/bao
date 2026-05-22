@@ -2,6 +2,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_core.*
 import bao_collections.*
 
@@ -51,7 +52,7 @@ public class JSTranspiler {
             tsconfig = None
             tsconfigBuf = ""
             macrosBuf = ""
-            log = LoggerLog.init()
+            log = LoggerLog()
             runtime = RuntimeFeatures(topLevelAwait: true)
             treeShaking = false
             trimUnusedImports = None
@@ -77,7 +78,7 @@ public class JSTranspiler {
             }
 
             // 解析 define 选项
-            if (let define = try object.getTruthy(globalThis, "define")) {
+            if (let define <- try object.getTruthy(globalThis, "define")) {
                 if (!define.isUndefinedOrNull()) {
                     let defineObj = define.getObject() ?? {
                         globalThis.throwInvalidArguments("define must be an object")
@@ -87,7 +88,7 @@ public class JSTranspiler {
                     var defineIter = try JsPropertyIterator(
                         skipEmptyName: true,
                         includeValue: true,
-                    ).init(globalThis, defineObj)
+                    ).`init`(globalThis, defineObj)
                     defer defineIter.deinit()
 
                     var names = ArrayList<String>(allocator)
@@ -95,7 +96,7 @@ public class JSTranspiler {
                     names.ensureTotalCapacity(defineIter.len)
                     values.ensureTotalCapacity(defineIter.len)
 
-                    while (let prop = try defineIter.next()) {
+                    while (let prop <- try defineIter.next()) {
                         let propertyValue = defineIter.value
                         let valueType = propertyValue.jsType()
 
@@ -107,7 +108,7 @@ public class JSTranspiler {
                         names.append(prop.toOwnedSlice(allocator))
                         var val = propertyValue.toZigString(globalThis)
                         if (val.len == 0) {
-                            val = ZigString.init("\"\"")
+                            val = ZigString("\"\"")
                         }
                         values.append(val.toString())
                     }
@@ -117,7 +118,7 @@ public class JSTranspiler {
             }
 
             // 解析 external
-            if (let external = try object.get(globalThis, "external")) {
+            if (let external <- try object.get(globalThis, "external")) {
                 if (!external.isUndefinedOrNull()) {
                     let toplevelType = external.jsType()
                     if (toplevelType.isStringLike()) {
@@ -130,7 +131,7 @@ public class JSTranspiler {
                         if (count > 0) {
                             var externals = ArrayList<String>(allocator)
                             var iter = try external.arrayIterator(globalThis)
-                            while (let entry = try iter.next()) {
+                            while (let entry <- try iter.next()) {
                                 if (!entry.jsType().isStringLike()) {
                                     globalThis.throwInvalidArguments("external must be a string or string[]")
                                     return
@@ -150,8 +151,8 @@ public class JSTranspiler {
             }
 
             // 解析 loader
-            if (let loader = try object.get(globalThis, "loader")) {
-                if (let resolved = try Loader.fromJS(globalThis, loader)) {
+            if (let loader <- try object.get(globalThis, "loader")) {
+                if (let resolved <- try Loader.fromJS(globalThis, loader)) {
                     if (!resolved.isJavaScriptLike()) {
                         globalThis.throwInvalidArguments("only JavaScript-like loaders supported for now")
                         return
@@ -161,14 +162,14 @@ public class JSTranspiler {
             }
 
             // 解析 target
-            if (let target = try object.get(globalThis, "target")) {
-                if (let resolved = try Target.fromJS(globalThis, target)) {
+            if (let target <- try object.get(globalThis, "target")) {
+                if (let resolved <- try Target.fromJS(globalThis, target)) {
                     config.transform.target = resolved.toApi()
                 }
             }
 
             // 解析 tsconfig
-            if (let tsconfig = try object.get(globalThis, "tsconfig")) {
+            if (let tsconfig <- try object.get(globalThis, "tsconfig")) {
                 if (!tsconfig.isUndefinedOrNull()) {
                     let kind = tsconfig.jsType()
                     if (kind.isArray()) {
@@ -187,7 +188,7 @@ public class JSTranspiler {
 
                     if (!out.isEmpty()) {
                         config.tsconfigBuf = out.toOwnedSlice(allocator)
-                        if (let parsed = TSConfigJSON.parse(
+                        if (let parsed <- TSConfigJSON.parse(
                             allocator,
                             config.log,
                             LoggerSource.initPathString("tsconfig.json", config.tsconfigBuf),
@@ -202,7 +203,7 @@ public class JSTranspiler {
             config.runtime.allowRuntime = false
 
             // 解析 macro
-            if (let macros = try object.getTruthy(globalThis, "macro")) {
+            if (let macros <- try object.getTruthy(globalThis, "macro")) {
                 if (!macros.isUndefinedOrNull()) {
                     if (macros.isBoolean()) {
                         config.noMacros = !macros.asBoolean()
@@ -225,7 +226,7 @@ public class JSTranspiler {
                         if (!out.isEmpty()) {
                             config.macrosBuf = out.toOwnedSlice(allocator)
                             let source = LoggerSource.initPathString("macros.json", config.macrosBuf)
-                            if (let json = VirtualMachine.get().transpiler.resolver.caches.json.parseJson(
+                            if (let json <- VirtualMachine.get().transpiler.resolver.caches.json.parseJson(
                                 config.log,
                                 source,
                                 allocator,
@@ -240,39 +241,39 @@ public class JSTranspiler {
             }
 
             // 解析布尔选项
-            if (let flag = try object.getBooleanLoose(globalThis, "autoImportJSX")) {
+            if (let flag <- try object.getBooleanLoose(globalThis, "autoImportJSX")) {
                 config.runtime.autoImportJsx = flag
             }
-            if (let flag = try object.getBooleanLoose(globalThis, "allowBunRuntime")) {
+            if (let flag <- try object.getBooleanLoose(globalThis, "allowBunRuntime")) {
                 config.runtime.allowRuntime = flag
             }
-            if (let flag = try object.getBooleanLoose(globalThis, "inline")) {
+            if (let flag <- try object.getBooleanLoose(globalThis, "inline")) {
                 config.runtime.inlining = flag
             }
-            if (let flag = try object.getBooleanLoose(globalThis, "minifyWhitespace")) {
+            if (let flag <- try object.getBooleanLoose(globalThis, "minifyWhitespace")) {
                 config.minifyWhitespace = flag
             }
-            if (let flag = try object.getBooleanLoose(globalThis, "deadCodeElimination")) {
+            if (let flag <- try object.getBooleanLoose(globalThis, "deadCodeElimination")) {
                 config.deadCodeElimination = flag
             }
-            if (let flag = try object.getBooleanLoose(globalThis, "replMode")) {
+            if (let flag <- try object.getBooleanLoose(globalThis, "replMode")) {
                 config.replMode = flag
             }
 
             // 解析 minify
-            if (let minify = try object.getTruthy(globalThis, "minify")) {
+            if (let minify <- try object.getTruthy(globalThis, "minify")) {
                 if (minify.isBoolean()) {
                     config.minifyWhitespace = minify.toBoolean()
                     config.minifySyntax = config.minifyWhitespace
                     config.minifyIdentifiers = config.minifySyntax
                 } else if (minify.isObject()) {
-                    if (let whitespace = try minify.getBooleanLoose(globalThis, "whitespace")) {
+                    if (let whitespace <- try minify.getBooleanLoose(globalThis, "whitespace")) {
                         config.minifyWhitespace = whitespace
                     }
-                    if (let syntax = try minify.getBooleanLoose(globalThis, "syntax")) {
+                    if (let syntax <- try minify.getBooleanLoose(globalThis, "syntax")) {
                         config.minifySyntax = syntax
                     }
-                    if (let identifiers = try minify.getBooleanLoose(globalThis, "identifiers")) {
+                    if (let identifiers <- try minify.getBooleanLoose(globalThis, "identifiers")) {
                         config.minifyIdentifiers = identifiers
                     }
                 } else {
@@ -282,7 +283,7 @@ public class JSTranspiler {
             }
 
             // 解析 sourcemap
-            if (let flag = try object.get(globalThis, "sourcemap")) {
+            if (let flag <- try object.get(globalThis, "sourcemap")) {
                 if (flag.isBoolean() || flag.isUndefinedOrNull()) {
                     if (flag.toBoolean()) {
                         config.transform.sourceMap = SourceMapOption.inline
@@ -290,7 +291,7 @@ public class JSTranspiler {
                         config.transform.sourceMap = SourceMapOption.none
                     }
                 } else {
-                    if (let source = try SourceMapOption.fromJS(globalThis, flag)) {
+                    if (let source <- try SourceMapOption.fromJS(globalThis, flag)) {
                         config.transform.sourceMap = source
                     } else {
                         globalThis.throwInvalidArguments("sourcemap must be one of \"inline\", \"linked\", \"external\", or \"none\"")
@@ -300,23 +301,23 @@ public class JSTranspiler {
             }
 
             // 解析 packages
-            if (let packages = try object.getOptionalEnum(globalThis, "packages", PackagesOption)) {
+            if (let packages <- try object.getOptionalEnum(globalThis, "packages", PackagesOption)) {
                 config.transform.packages = packages.toApi()
             }
 
             // 解析 treeShaking
             var treeShaking: ?Bool = None
-            if (let treeShakingVal = try object.getBooleanLoose(globalThis, "treeShaking")) {
+            if (let treeShakingVal <- try object.getBooleanLoose(globalThis, "treeShaking")) {
                 treeShaking = treeShakingVal
             }
 
             var trimUnusedImports: ?Bool = None
-            if (let trimUnusedImportsVal = try object.getBooleanLoose(globalThis, "trimUnusedImports")) {
+            if (let trimUnusedImportsVal <- try object.getBooleanLoose(globalThis, "trimUnusedImports")) {
                 trimUnusedImports = trimUnusedImportsVal
             }
 
             // 解析 exports
-            if (let exports = try object.getTruthy(globalThis, "exports")) {
+            if (let exports <- try object.getTruthy(globalThis, "exports")) {
                 if (!exports.isObject()) {
                     globalThis.throwInvalidArguments("exports must be an object")
                     return
@@ -324,14 +325,14 @@ public class JSTranspiler {
 
                 var replacements = ReplaceableExportMap()
 
-                if (let eliminate = try exports.getTruthy(globalThis, "eliminate")) {
+                if (let eliminate <- try exports.getTruthy(globalThis, "eliminate")) {
                     if (!eliminate.jsType().isArray()) {
                         globalThis.throwInvalidArguments("exports.eliminate must be an array")
                         return
                     }
 
-                    var iter = try JsArrayIterator.init(eliminate, globalThis)
-                    while (let value = try iter.next()) {
+                    var iter = try JsArrayIterator(eliminate, globalThis)
+                    while (let value <- try iter.next()) {
                         if (value.isString()) {
                             let str = try value.getZigString(globalThis)
                             if (str.len > 0) {
@@ -341,7 +342,7 @@ public class JSTranspiler {
                     }
                 }
 
-                if (let replace = try exports.getTruthy(globalThis, "replace")) {
+                if (let replace <- try exports.getTruthy(globalThis, "replace")) {
                     let replaceObj = replace.getObject() ?? {
                         globalThis.throwInvalidArguments("replace must be an object")
                         return
@@ -350,12 +351,12 @@ public class JSTranspiler {
                     var iter = try JsPropertyIterator(
                         skipEmptyName: true,
                         includeValue: true,
-                    ).init(globalThis, replaceObj)
+                    ).`init`(globalThis, replaceObj)
                     defer iter.deinit()
 
-                    while (let key = try iter.next()) {
+                    while (let key <- try iter.next()) {
                         let value = iter.value
-                        if (value == JsValue.zero) {
+                        if (value == JsValue.jsUndefined()) {
                             continue
                         }
 
@@ -364,14 +365,14 @@ public class JSTranspiler {
                             return
                         }
 
-                        if (let expr = try exportReplacementValue(value, globalThis, allocator)) {
+                        if (let expr <- try exportReplacementValue(value, globalThis, allocator)) {
                             replacements.put(key, ReplaceableExport.replace(expr))
                             continue
                         }
 
                         if (value.isObject() && try value.getLength(globalThis) == 2) {
                             let replacementValue = try value.getIndex(globalThis, 1)
-                            if (let toReplace = try exportReplacementValue(replacementValue, globalThis, allocator)) {
+                            if (let toReplace <- try exportReplacementValue(replacementValue, globalThis, allocator)) {
                                 let replacementKey = try value.getIndex(globalThis, 0)
                                 let replacementName = replacementKey.toSliceCloneWithAllocator(globalThis, allocator)
 
@@ -395,8 +396,8 @@ public class JSTranspiler {
             }
 
             // 解析 logLevel
-            if (let logLevel = try object.getTruthy(globalThis, "logLevel")) {
-                if (let level = try LoggerLogLevel.Map.fromJS(globalThis, logLevel)) {
+            if (let logLevel <- try object.getTruthy(globalThis, "logLevel")) {
+                if (let level <- try LoggerLogLevel.Map.fromJS(globalThis, logLevel)) {
                     config.log.level = level
                 } else {
                     globalThis.throwInvalidArguments("logLevel must be one of \"verbose\", \"debug\", \"info\", \"warn\", or \"error\"")
@@ -429,11 +430,11 @@ public class JSTranspiler {
         let arguments = callframe.argumentsOld(3)
         var this = JSTranspiler()
         this.config = Config()
-        this.arena = ArenaAllocator.init()
-        this.scanPassResult = ScanPassResult.init()
+        this.arena = ArenaAllocator()
+        this.scanPassResult = ScanPassResult()
         this.refCount = RefCount.initExactRefs(1)
 
-        let configArg = if (arguments.len > 0) arguments.ptr[0] else JsValue.jsUndefined
+        let configArg = if (arguments.len > 0) arguments.ptr[0] else JsValue.jsUndefined()
         let allocator = this.arena.allocator()
 
         try Config.fromJS(this.config, globalThis, configArg, allocator)
@@ -447,7 +448,7 @@ public class JSTranspiler {
             return globalThis.throwValue(try config.log.toJS(globalThis, "Failed to create transpiler"))
         }
 
-        this.transpiler = Transpiler.init(
+        this.transpiler = Transpiler(
             config.transform,
             config.log,
             VirtualMachine.get().transpiler.env,
@@ -506,7 +507,7 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.transform
     public func transform(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
-        var args = CallFrame.ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer args.deinit()
 
         let codeArg = args.next() ?? {
@@ -523,7 +524,7 @@ public class JSTranspiler {
 
         args.eat()
         let loader: ?Loader = {
-            if (let arg = args.next()) {
+            if (let arg <- args.next()) {
                 args.eat()
                 return try Loader.fromJS(globalThis, arg)
             }
@@ -544,14 +545,14 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.transformSync
     public func transformSync(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
-        var args = CallFrame.ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer args.arena.deinit()
 
         let codeArg = args.next() ?? {
             return globalThis.throwInvalidArgumentType("transformSync", "code", "string or Uint8Array")
         }
 
-        var arena = MimallocArena.init()
+        var arena = MimallocArena()
         defer arena.deinit()
 
         let codeHolder = try StringOrBuffer.fromJS(globalThis, arena.allocator(), codeArg) ?? {
@@ -563,9 +564,9 @@ public class JSTranspiler {
         defer arguments.ptr[0].ensureStillAlive()
 
         args.eat()
-        var jsCtxValue: JsValue = JsValue.zero
+        var jsCtxValue: JsValue = JsValue.jsUndefined()
         let loader: ?Loader = {
-            if (let arg = args.next()) {
+            if (let arg <- args.next()) {
                 args.eat()
                 if (arg.isNumber() || arg.isString()) {
                     return try Loader.fromJS(globalThis, arg)
@@ -578,19 +579,19 @@ public class JSTranspiler {
             return None
         }
 
-        if (let arg = args.nextEat()) {
+        if (let arg <- args.nextEat()) {
             if (arg.isObject()) {
                 jsCtxValue = arg
             } else {
                 return globalThis.throwInvalidArgumentType("transformSync", "context", "object or loader")
             }
         }
-        if (jsCtxValue != JsValue.zero) {
+        if (jsCtxValue != JsValue.jsUndefined()) {
             jsCtxValue.ensureStillAlive()
         }
 
         defer {
-            if (jsCtxValue != JsValue.zero) {
+            if (jsCtxValue != JsValue.jsUndefined()) {
                 jsCtxValue.ensureStillAlive()
             }
         }
@@ -604,7 +605,7 @@ public class JSTranspiler {
         let prevBundler = transpiler
         transpiler.setAllocator(allocator)
         transpiler.macroContext = None
-        var log = LoggerLog.init(arena.backingAllocator())
+        var log = LoggerLog(arena.backingAllocator())
         log.level = config.log.level
         transpiler.setLog(log)
 
@@ -618,7 +619,7 @@ public class JSTranspiler {
             if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
                 return globalThis.throwValue(try transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
             }
-            return globalThis.throw("Failed to parse code")
+            return globalThis.`throw`("Failed to parse code")
         }
 
         if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
@@ -626,7 +627,7 @@ public class JSTranspiler {
         }
 
         var bufferWriter = this.bufferWriter ?? {
-            var writer = JsPrinterBufferWriter.init(arena.backingAllocator())
+            var writer = JsPrinterBufferWriter(arena.backingAllocator())
             writer.buffer.growIfNeeded(code.len)
             writer.buffer.list.expandToCapacity()
             return writer
@@ -637,13 +638,13 @@ public class JSTranspiler {
         }
 
         bufferWriter.reset()
-        var printer = JsPrinterBufferPrinter.init(bufferWriter)
+        var printer = JsPrinterBufferPrinter(bufferWriter)
         let _ = transpiler.print(parseResult, printer, PrintFormat.esmAscii) catch {
             err => return globalThis.throwError(err, "Failed to print code")
         }
 
         bufferWriter = printer.ctx
-        var out = ZigString.init(bufferWriter.written)
+        var out = ZigString(bufferWriter.written)
         out.setOutputEncoding()
 
         return out.toJS(globalThis)
@@ -653,7 +654,7 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.scan
     public func scan(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
-        var args = CallFrame.ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer args.deinit()
 
         let codeArg = args.next() ?? {
@@ -668,7 +669,7 @@ public class JSTranspiler {
         args.eat()
 
         let loader: ?Loader = {
-            if (let arg = args.next()) {
+            if (let arg <- args.next()) {
                 args.eat()
                 return try Loader.fromJS(globalThis, arg)
             }
@@ -676,14 +677,14 @@ public class JSTranspiler {
         }
 
         if (globalThis.hasException()) {
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
-        var arena = MimallocArena.init()
+        var arena = MimallocArena()
         let prevAllocator = transpiler.allocator
         let allocator = arena.allocator()
         transpiler.setAllocator(allocator)
-        var log = LoggerLog.init(arena.backingAllocator())
+        var log = LoggerLog(arena.backingAllocator())
         defer log.deinit()
         transpiler.setLog(log)
         defer {
@@ -700,7 +701,7 @@ public class JSTranspiler {
             if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
                 return globalThis.throwValue(try transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
             }
-            return globalThis.throw("Failed to parse")
+            return globalThis.`throw`("Failed to parse")
         }
 
         if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
@@ -720,8 +721,8 @@ public class JSTranspiler {
 
         return JsValue.createObject2(
             globalThis,
-            ZigString.static("imports"),
-            ZigString.static("exports"),
+            ZigString.`static`("imports"),
+            ZigString.`static`("exports"),
             namedImportsValue,
             namedExportsValue,
         )
@@ -731,7 +732,7 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.scanImports
     public func scanImports(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(2)
-        var args = CallFrame.ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer args.deinit()
 
         let codeArg = args.next() ?? {
@@ -742,15 +743,15 @@ public class JSTranspiler {
             if (!globalThis.hasException()) {
                 return globalThis.throwInvalidArgumentType("scanImports", "code", "string or Uint8Array")
             }
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
         args.eat()
         defer codeHolder.deinit()
         let code = codeHolder.slice()
 
         var loader: Loader = config.defaultLoader
-        if (let arg = args.next()) {
-            if (let loader_ = try Loader.fromJS(globalThis, arg)) {
+        if (let arg <- args.next()) {
+            if (let loader_ <- try Loader.fromJS(globalThis, arg)) {
                 loader = loader_
             }
             args.eat()
@@ -760,7 +761,7 @@ public class JSTranspiler {
             return globalThis.throwInvalidArguments("Only JavaScript-like files support this fast path")
         }
 
-        var arena = MimallocArena.init()
+        var arena = MimallocArena()
         let prevAllocator = transpiler.allocator
         let allocator = arena.allocator()
         var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
@@ -768,7 +769,7 @@ public class JSTranspiler {
         defer astScope.exit()
 
         transpiler.setAllocator(allocator)
-        var log = LoggerLog.init(arena.backingAllocator())
+        var log = LoggerLog(arena.backingAllocator())
         defer log.deinit()
         transpiler.setLog(log)
         defer {
@@ -779,15 +780,15 @@ public class JSTranspiler {
 
         let source = LoggerSource.initPathString(loader.stdinName(), code)
         var transpiler_ = transpiler
-        let jsx = if (config.tsconfig != None) {
+        let jsx = if (config.tsconfig.isSome()) {
             config.tsconfig.getOrThrow().mergeJSX(transpiler.options.jsx)
         } else {
             transpiler.options.jsx
         }
 
-        var opts = ParserOptions.init(jsx, loader)
-        if (transpiler.macroContext == None) {
-            transpiler.macroContext = MacroContext.init(transpiler)
+        var opts = ParserOptions(jsx, loader)
+        if (transpiler.macroContext.isNone()) {
+            transpiler.macroContext = MacroContext(transpiler)
         }
         opts.macroContext = transpiler.macroContext.getOrThrow()
 
@@ -831,17 +832,17 @@ public class JSTranspiler {
     func isLikelyObjectLiteral(code: String): Bool {
         // 跳过前导空白
         var start: Int = 0
-        while (start < code.length && (code[start] == ' ' || code[start] == '\t' || code[start] == '\n' || code[start] == '\r')) {
+        while (start < code.size && (code[start] == ' ' || code[start] == '\t' || code[start] == '\n' || code[start] == '\r')) {
             start += 1
         }
 
         // 检查是否以 { 开头
-        if (start >= code.length || code[start] != '{') {
+        if (start >= code.size || code[start] != '{') {
             return false
         }
 
         // 跳过尾部空白
-        var end: Int = code.length
+        var end: Int = code.size
         while (end > 0 && (code[end - 1] == ' ' || code[end - 1] == '\t' || code[end - 1] == '\n' || code[end - 1] == '\r')) {
             end -= 1
         }
@@ -867,7 +868,7 @@ public class JSTranspiler {
 
         let source = LoggerSource.initPathString(name, processedCode)
 
-        let jsx = if (config.tsconfig != None) {
+        let jsx = if (config.tsconfig.isSome()) {
             config.tsconfig.getOrThrow().mergeJSX(transpiler.options.jsx)
         } else {
             transpiler.options.jsx
@@ -884,8 +885,8 @@ public class JSTranspiler {
             virtualSource: source,
             replaceExports: config.runtime.replaceExports,
             macroJsCtx: macroJsCtx,
-            experimentalDecorators: if (let ts = config.tsconfig) ts.experimentalDecorators else false,
-            emitDecoratorMetadata: if (let ts = config.tsconfig) ts.emitDecoratorMetadata else false,
+            experimentalDecorators: if (let ts <- config.tsconfig) ts.experimentalDecorators else false,
+            emitDecoratorMetadata: if (let ts <- config.tsconfig) ts.emitDecoratorMetadata else false,
         )
 
         return transpiler.parse(parseOptions, None)
@@ -911,10 +912,10 @@ public class JSTranspiler {
         scanPassResult.namedImports.deinit(scanPassResult.importRecords.allocator)
         scanPassResult.importRecords.deinit()
         scanPassResult.usedSymbols.deinit()
-        if (let bw = bufferWriter) {
+        if (let bw <- bufferWriter) {
             bw.buffer.deinit()
         }
-        if (let tsconfig = config.tsconfig) {
+        if (let tsconfig <- config.tsconfig) {
             tsconfig.deinit()
         }
         arena.deinit()
@@ -952,7 +953,7 @@ public class JSTranspiler {
                 global_: globalThis,
                 macroMap: transpiler.config.macroMap,
                 tsconfig: transpiler.config.tsconfig,
-                log: LoggerLog.init(),
+                log: LoggerLog(),
                 loader: loader,
                 replaceExports: transpiler.config.runtime.replaceExports,
                 jsInstance: transpiler,
@@ -974,7 +975,7 @@ public class JSTranspiler {
             let name = loader.stdinName()
             let source = LoggerSource.initPathString(name, inputCode.slice())
 
-            var arena = MimallocArena.init()
+            var arena = MimallocArena()
             defer arena.deinit()
 
             let allocator = arena.allocator()
@@ -986,7 +987,7 @@ public class JSTranspiler {
             transpiler.setLog(log)
             log.msgs.allocator = default_allocator
 
-            let jsx = if (tsconfig != None) {
+            let jsx = if (tsconfig.isSome()) {
                 tsconfig.getOrThrow().mergeJSX(transpiler.options.jsx)
             } else {
                 transpiler.options.jsx
@@ -1002,8 +1003,8 @@ public class JSTranspiler {
                 path: source.path,
                 virtualSource: source,
                 replaceExports: replaceExports,
-                experimentalDecorators: if (let ts = tsconfig) ts.experimentalDecorators else false,
-                emitDecoratorMetadata: if (let ts = tsconfig) ts.emitDecoratorMetadata else false,
+                experimentalDecorators: if (let ts <- tsconfig) ts.experimentalDecorators else false,
+                emitDecoratorMetadata: if (let ts <- tsconfig) ts.emitDecoratorMetadata else false,
             )
 
             let parseResult = transpiler.parse(parseOptions, None) ?? {
@@ -1016,11 +1017,11 @@ public class JSTranspiler {
                 return
             }
 
-            var bufferWriter = JsPrinterBufferWriter.init(allocator)
+            var bufferWriter = JsPrinterBufferWriter(allocator)
             bufferWriter.buffer.list.ensureTotalCapacity(allocator, 512)
             bufferWriter.reset()
 
-            var printer = JsPrinterBufferPrinter.init(bufferWriter)
+            var printer = JsPrinterBufferPrinter(bufferWriter)
             let printed = transpiler.print(parseResult, printer, PrintFormat.esmAscii) catch {
                 err => err
                 return
@@ -1039,8 +1040,8 @@ public class JSTranspiler {
         public func then(promise: JsPromise): Unit {
             defer deinit()
 
-            if (log.hasAny() || err != None) {
-                if (let e = err) {
+            if (log.hasAny() || err.isSome()) {
+                if (let e <- err) {
                     if (!log.hasAny()) {
                         let errorValue = BuildMessage.create(
                             global_,
@@ -1130,7 +1131,7 @@ func namedExportsToJS(global: JsGlobalObject, namedExports: NamedExports): JsVal
 
     var names = Array<BunString>()
     var namedExportsIter = namedExports.iterator()
-    while (let entry = namedExportsIter.next()) {
+    while (let entry <- namedExportsIter.next()) {
         names.append(BunString.fromBytes(entry.key))
     }
     return BunString.toJSArray(global, names)
@@ -1139,8 +1140,8 @@ func namedExportsToJS(global: JsGlobalObject, namedExports: NamedExports): JsVal
 /// 将命名导入转换为 JS 值
 /// 对应 Bun: namedImportsToJS
 func namedImportsToJS(global: JsGlobalObject, importRecords: Array<ImportRecord>, trimUnusedImports: Bool): JsValue {
-    let pathLabel = ZigString.static("path")
-    let kindLabel = ZigString.static("kind")
+    let pathLabel = ZigString.`static`("path")
+    let kindLabel = ZigString.`static`("kind")
 
     var count: UInt32 = 0
     for (record in importRecords) {
@@ -1166,8 +1167,8 @@ func namedImportsToJS(global: JsGlobalObject, importRecords: Array<ImportRecord>
         }
 
         array.ensureStillAlive()
-        let path = ZigString.init(record.path.text).toJS(global)
-        let kind = ZigString.init(record.kind.label()).toJS(global)
+        let path = ZigString(record.path.text).toJS(global)
+        let kind = ZigString(record.kind.label()).toJS(global)
         try array.putIndex(global, i, try JsValue.createObject2(global, pathLabel, kindLabel, path, kind))
         i += 1
     }

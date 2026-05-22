@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toThrowErrorMatchingInlineSnapshot() - 检查抛出的错误是否匹配行内快照
 /// 用法: expect(fn).toThrowErrorMatchingInlineSnapshot(snapshot?)
-public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -25,9 +25,9 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
 
     var hasExpected = false
     var expectedString = ZigString.Empty
-    if (arguments.length == 0) {
+    if (arguments.size == 0) {
         // 无参数
-    } else if (arguments.length == 1 ){
+    } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
             hasExpected = true
             arguments[0].toZigString(result: expectedString, globalThis: globalThis)
@@ -45,15 +45,15 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
 
     let expectedSlice: ?String = if (hasExpected) { expected.slice() } else { None }
 
-    let valueOrNull: ?JSValue = this.fnToErrStringOrUndefined(globalThis: globalThis,
+    let valueOrNull: ?JsValue = this.fnToErrStringOrUndefined(globalThis: globalThis,
         value: this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toThrowErrorMatchingInlineSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
     )
-    if (valueOrNull == None) {
+    if (valueOrNull.isNone()) {
         let signature = Expect.getSignature(matcherName: "toThrowErrorMatchingInlineSnapshot", args: "", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Received function did not throw\n", args: [])
     }
-    let value: JSValue = valueOrNull.getOrThrow()
+    let value: JsValue = valueOrNull.getOrThrow()
 
     return this.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: None, result: expectedSlice, fnName: "toThrowErrorMatchingInlineSnapshot")
 }

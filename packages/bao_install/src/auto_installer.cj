@@ -326,7 +326,7 @@ public func initPackageManagerFromResolver(
     env: DotEnvLoader
 ): PackageManager {
     // 翻译自:
-    //   bun_http.http_thread.init({})
+    //   bun_http.http_thread.`init`({})
     //   let pm = PackageManager.initWithRuntime(log, bun_install, allocator, {}, env)
     //   return NonNull::new(pm as *mut dyn AutoInstaller)
     return PackageManager.initWithRuntime(log, Allocator(), CommandLineArguments(), env)

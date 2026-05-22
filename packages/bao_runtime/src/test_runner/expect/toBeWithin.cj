@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeWithin() - 检查值是否在指定范围内 [start, end)
 /// 用法: expect(received).toBeWithin(start, end)
-public func toBeWithin(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeWithin(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 2) {
+    if (arguments.size < 2) {
         return globalThis.throwInvalidArguments("toBeWithin() requires 2 arguments")
     }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeWithin", matcherParamsFmt: "<green>start<r><d>, <r><green>end<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeWithin", matcherParamsFmt: "<green>start<r><d>, <r><green>end<r>")
 
     let startValue = arguments[0]
     startValue.ensureStillAlive()
@@ -42,7 +42,7 @@ public func toBeWithin(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

@@ -55,11 +55,10 @@ public func openURL(url: String): Unit {
 
     let result = Sys.spawnSync(args, null, Stdio.inherit, Stdio.inherit, Stdio.inherit)
     match (result) {
-        case Some(procResult) => {
+        case Some(procResult) =>
             if (procResult.isOK()) {
                 return
             }
-        }
         case None => ()
     }
 
@@ -81,22 +80,18 @@ public enum Editor {
     | neovim
     | emacs
     | other
+}
 
+/// 编辑器辅助方法
+/// 对应 Bun: Editor methods (extracted to top-level)
+public class EditorHelper {
     /// 根据名称查找编辑器
-    /// 对应 Bun: Editor.byName()
     public static func byName(name: String): ?Editor {
-        // 处理名称中包含空格的情况 (如路径)
-        let cleanName = if (name.indexOf(' ') >= 0) {
-            name.substring(0, name.indexOf(' '))
-        } else {
-            name
-        }
-
+        let cleanName = if (name.indexOf(' ') >= 0) { name.substring(0, name.indexOf(' ')) } else { name }
         return EditorNameMap.get(cleanName)
     }
 
     /// 从环境变量检测编辑器
-    /// 对应 Bun: Editor.detect()
     public static func detect(env: DotEnvLoader): ?Editor {
         let varNames = ["EDITOR", "VISUAL"]
         for (varName in varNames) {
@@ -104,36 +99,34 @@ public enum Editor {
             if (value != None) {
                 let basename = Path.basename(value.getOrThrow())
                 let editor = byName(basename)
-                if (editor != None) {
-                    return editor
-                }
+                if (editor != None) { return editor }
             }
         }
         return None
     }
 
     /// 从 PATH 查找编辑器
-    /// 对应 Bun: Editor.byPATH()
     public static func byPATH(env: DotEnvLoader, cwd: String): ?Editor {
-        let pathEnv = env.get("PATH") ?: return None
-
+        let pathEnv = match (env.get("PATH")) {
+            case Some(v) => v
+            case None => return None
+        }
         for (editor in defaultPreferenceList) {
             let binName = binNameFor(editor)
             if (binName.length > 0) {
                 let bin = Which.which(pathEnv, cwd, binName)
-                if (bin != None) {
-                    return Some(editor)
-                }
+                if (bin != None) { return Some(editor) }
             }
         }
-
         return None
     }
 
     /// 为指定编辑器从 PATH 查找
-    /// 对应 Bun: Editor.byPATHForEditor()
     public static func byPATHForEditor(env: DotEnvLoader, editor: Editor, cwd: String): Bool {
-        let pathEnv = env.get("PATH") ?: return false
+        let pathEnv = match (env.get("PATH")) {
+            case Some(v) => v
+            case None => return false
+        }
         let binName = binNameFor(editor)
         if (binName.length > 0) {
             let bin = Which.which(pathEnv, cwd, binName)
@@ -143,96 +136,31 @@ public enum Editor {
     }
 
     /// 通过回退路径查找编辑器
-    /// 对应 Bun: Editor.byFallbackPathForEditor()
     public static func byFallbackPathForEditor(editor: Editor): Bool {
         let paths = binPathFor(editor)
         if (paths != None) {
-            for (path in paths!!) {
-                if (BaoFile.exists(path)) {
-                    return true
-                }
+            for (path in paths.getOrThrow()) {
+                if (BaoFile.exists(path)) { return true }
             }
         }
         return false
     }
 
     /// 回退检测编辑器
-    /// 对应 Bun: Editor.byFallback()
     public static func byFallback(env: DotEnvLoader, cwd: String): ?Editor {
         for (editor in defaultPreferenceList) {
-            if (byPATHForEditor(env, editor, cwd)) {
-                return Some(editor)
-            }
-            if (byFallbackPathForEditor(editor)) {
-                return Some(editor)
-            }
+            if (byPATHForEditor(env, editor, cwd)) { return Some(editor) }
+            if (byFallbackPathForEditor(editor)) { return Some(editor) }
         }
         return None
     }
 
     /// 判断是否为 JetBrains 编辑器
-    /// 对应 Bun: Editor.isJetBrains()
-    public func isJetBrains(): Bool {
-        return this == Editor.intellij || this == Editor.webstorm
-    }
-
-    /// 使用编辑器打开文件
-    /// 对应 Bun: Editor.open()
-    public func openFile(binary: String, file: String, line: ?String, column: ?String): Unit {
-        let args = ArrayList<String>()
-
-        // vim/emacs/neovim 需要通过终端打开
-        if (this == Editor.vim || this == Editor.emacs || this == Editor.neovim) {
-            args.append(getOpener())
-            args.append(binary)
-            if (Environment.isMac) {
-                args.append("--args")
-            }
-        }
-
-        args.append(binary)
-
-        // vscode 使用 --goto 参数
-        if (this == Editor.vscode && line != None && line!!.length > 0) {
-            args.append("--goto")
-        }
-
-        // 构建文件路径参数
-        when (this) {
-            case Editor.sublime | Editor.atom | Editor.vscode | Editor.webstorm | Editor.intellij => {
-                var filePath = file
-                if (line != None && line!!.length > 0) {
-                    filePath += ":" + line!!
-                    if (!isJetBrains() && column != None && column!!.length > 0) {
-                        filePath += ":" + column!!
-                    }
-                }
-                args.append(filePath)
-            }
-            case Editor.textmate => {
-                if (line != None && line!!.length > 0) {
-                    args.append("--line")
-                    var lineArg = line!!
-                    if (column != None && column!!.length > 0) {
-                        lineArg += ":" + column!!
-                    }
-                    args.append(lineArg)
-                }
-                args.append(file)
-            }
-            else => {
-                if (file.length > 0) {
-                    args.append(file)
-                }
-            }
-        }
-
-        // 启动编辑器进程
-        Sys.spawnDetached(args)
+    public static func isJetBrains(editor: Editor): Bool {
+        return editor == Editor.intellij || editor == Editor.webstorm
     }
 
     /// 默认偏好顺序
-    /// 对应 Bun: Editor.default_preference_list
     public static let defaultPreferenceList: Array<Editor> = [
         Editor.vscode,
         Editor.sublime,
@@ -248,7 +176,7 @@ public enum Editor {
 /// 获取编辑器的二进制名
 /// 对应 Bun: Editor.bin_name
 public func binNameFor(editor: Editor): String {
-    when (editor) {
+    match (editor) {
         case Editor.sublime => "subl"
         case Editor.vscode => "code"
         case Editor.atom => "atom"
@@ -269,7 +197,7 @@ public func binPathFor(editor: Editor): ?Array<String> {
     if (!Environment.isMac) {
         return None
     }
-    when (editor) {
+    match (editor) {
         case Editor.vscode => Some([
             "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
             "/Applications/VSCodium.app/Contents/Resources/app/bin/code",
@@ -283,7 +211,7 @@ public func binPathFor(editor: Editor): ?Array<String> {
             "/Applications/Sublime Text 2.app/Contents/SharedSupport/bin/subl",
             "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl",
         ])
-        else => None
+        case _ => None
     }
 }
 
@@ -349,20 +277,23 @@ public class EditorContext {
         if (name.length > 0) {
             // 绝对路径
             if (Path.isAbsolute(name)) {
-                editor = Editor.byName(Path.basename(name)) ?: Editor.other
+                editor = match (EditorHelper.byName(Path.basename(name))) {
+                    case Some(v) => v
+                    case None => Editor.other
+                }
                 path = name
                 return
             }
 
             // 名称查找
-            let editor_ = Editor.byName(Path.basename(name))
+            let editor_ = EditorHelper.byName(Path.basename(name))
             if (editor_ != None) {
-                if (Editor.byPATHForEditor(env, editor_!!, Fs.instance.topLevelDir)) {
+                if (EditorHelper.byPATHForEditor(env, editor_.getOrThrow(), Fs.instance.topLevelDir)) {
                     editor = editor_
                     // path = resolved from PATH
                     return
                 }
-                if (Editor.byFallbackPathForEditor(editor_!!)) {
+                if (EditorHelper.byFallbackPathForEditor(editor_.getOrThrow())) {
                     editor = editor_
                     return
                 }
@@ -370,20 +301,20 @@ public class EditorContext {
         }
 
         // 2. EDITOR 环境变量
-        let envEditor = Editor.detect(env)
+        let envEditor = EditorHelper.detect(env)
         if (envEditor != None) {
-            if (Editor.byPATHForEditor(env, envEditor!!, Fs.instance.topLevelDir)) {
+            if (EditorHelper.byPATHForEditor(env, envEditor.getOrThrow(), Fs.instance.topLevelDir)) {
                 editor = envEditor
                 return
             }
-            if (Editor.byFallbackPathForEditor(envEditor!!)) {
+            if (EditorHelper.byFallbackPathForEditor(envEditor.getOrThrow())) {
                 editor = envEditor
                 return
             }
         }
 
         // 3. 通过 PATH 回退检测
-        let fallbackEditor = Editor.byFallback(env, Fs.instance.topLevelDir)
+        let fallbackEditor = EditorHelper.byFallback(env, Fs.instance.topLevelDir)
         if (fallbackEditor != None) {
             editor = fallbackEditor
             return

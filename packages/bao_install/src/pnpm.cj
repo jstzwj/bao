@@ -110,13 +110,13 @@ public class PnpmDepPath {
     /// 翻译自: indexOfDepPathSuffix
     ///   解析形如 "name@version(patch_hash=xxx)(peer_hash=yyy)" 的路径
     ///   从右向左扫描, 匹配括号平衡, 找到 patch_hash 和 peers 后缀位置
-    public static func indexOfDepPathSuffix(path: String): Tuple2<?Int64, ?Int64> {
+    public static func indexOfDepPathSuffix(path: String): Tuple2<Option<Int64>, Option<Int64>> {
         if (path.size < 2) {
-            return Tuple2(<?Int64>.None, <?Int64>.None)
+            return Tuple2(Option<Int64>.None, Option<Int64>.None)
         }
 
         if (path[path.size - 1] != UInt8(41)) { // ')'
-            return Tuple2(<?Int64>.None, <?Int64>.None)
+            return Tuple2(Option<Int64>.None, Option<Int64>.None)
         }
 
         var open: Int64 = 1
@@ -135,17 +135,14 @@ public class PnpmDepPath {
                 if (suffix.startsWith("(patch_hash=")) {
                     // Look for peers index after patch_hash
                     // 翻译自: const peers_idx = strings.indexOfChar(path[i + 2 ..], '(') + i + 2
-                    let peersIdx: ?Int64 = match (path.indexOf("(", i + 2)) {
-                        case Some(idx) => idx
-                        case None => None
-                    }
-                    return Tuple2(<?Int64>.Some(peersIdx), <?Int64>.Some(Int64(i + 1)))
+                    let peersIdx: ?Int64 = path.indexOf("(", i + 2)
+                    return Tuple2(peersIdx, Option<Int64>.Some(Int64(i + 1)))
                 }
                 // Regular parenthesized suffix
-                return Tuple2(<?Int64>.Some(Int64(i + 1)), <?Int64>.None)
+                return Tuple2(Option<Int64>.Some(Int64(i + 1)), Option<Int64>.None)
             }
         }
-        return Tuple2(<?Int64>.None, <?Int64>.None)
+        return Tuple2(Option<Int64>.None, Option<Int64>.None)
     }
 
     /// 去除依赖路径后缀
@@ -214,25 +211,29 @@ public class PnpmDepPath {
     /// 翻译自: Dependency.splitVersionAndMaybeName
     ///   解析 "alias@version" 或 "version" 格式
     ///   如果版本字符串包含 @, 则前半部分是别名包名
-    public static func splitVersionAndMaybeName(versionStr: String): Tuple2<String, ?String> {
+    public static func splitVersionAndMaybeName(versionStr: String): Tuple2<String, Option<String>> {
         // Check for alias: "alias@version"
         if (versionStr.size > 0 && versionStr[0] == UInt8(64)) {
             // Scoped alias: @scope/name@version
-            match (versionStr.indexOf("@", Int64(1))) {
-                case Some(secondAt) =>
-                    let alias = versionStr[0..secondAt]
-                    let version = versionStr[secondAt + 1..]
-                    return Tuple2(version, Some(alias))
-                case None => return Tuple2(versionStr, None)
+            let secondAtOpt = versionStr.indexOf("@", Int64(1))
+            if (secondAtOpt.isSome()) {
+                let secondAt = secondAtOpt.getOrThrow()
+                let alias = versionStr[0..secondAt]
+                let version = versionStr[secondAt + 1..]
+                return Tuple2(version, Some(alias))
+            } else {
+                return Tuple2(versionStr, Option<String>.None)
             }
         }
 
-        match (versionStr.indexOf("@")) {
-            case Some(atIdx) =>
-                let alias = versionStr[0..atIdx]
-                let version = versionStr[atIdx + 1..]
-                return Tuple2(version, Some(alias))
-            case None => return Tuple2(versionStr, None)
+        let atIdxOpt = versionStr.indexOf("@")
+        if (atIdxOpt.isSome()) {
+            let atIdx = atIdxOpt.getOrThrow()
+            let alias = versionStr[0..atIdx]
+            let version = versionStr[atIdx + 1..]
+            return Tuple2(version, Some(alias))
+        } else {
+            return Tuple2(versionStr, Option<String>.None)
         }
     }
 }
@@ -269,7 +270,7 @@ public class PnpmLockfileData {
     /// overrides
     public var overrides: HashMap<String, String>
     /// catalogs (默认 + 命名)
-    public var catalogs: CatalogMap
+    public var catalogs: PnpmCatalogMap
     /// patched dependencies
     public var patchedDependencies: HashMap<String, PnpmPatchInfo>
     /// workspace 路径
@@ -283,7 +284,7 @@ public class PnpmLockfileData {
         packages = HashMap<String, PnpmPackageInfo>()
         snapshots = HashMap<String, PnpmSnapshot>()
         overrides = HashMap<String, String>()
-        catalogs = CatalogMap()
+        catalogs = PnpmCatalogMap()
         patchedDependencies = HashMap<String, PnpmPatchInfo>()
         workspacePaths = HashMap<String, String>()
         workspaceVersions = HashMap<String, String>()
@@ -442,35 +443,9 @@ public class PnpmPatchInfo {
     }
 }
 
-/// Catalog 映射
-/// 翻译自: Lockfile.CatalogMap
-public class CatalogMap {
-    /// 默认 catalog: name -> Dependency
-    public var defaultCatalog: HashMap<String, CatalogEntry>
-    /// 命名 catalogs: groupName -> (name -> Dependency)
-    public var namedCatalogs: HashMap<String, HashMap<String, CatalogEntry>>
-
-    public init() {
-        defaultCatalog = HashMap<String, CatalogEntry>()
-        namedCatalogs = HashMap<String, HashMap<String, CatalogEntry>>()
-    }
-
-    /// 获取 catalog 条目
-    /// 翻译自: lockfile.catalogs.get(lockfile, catalog_group_name, name.value)
-    public func get(groupName: String, name: String): ?CatalogEntry {
-        if (groupName.size == 0) {
-            return defaultCatalog.get(name)
-        }
-        match (namedCatalogs.get(groupName)) {
-            case Some(group) => return group.get(name)
-            case None => return None
-        }
-    }
-}
-
-/// Catalog 条目
-/// 翻译自: catalog 中的依赖条目
-public class CatalogEntry {
+// NOTE: CatalogMap defined in lockfile_package.cj (canonical)
+// NOTE: CatalogEntry is unique to pnpm (kept as PnpmCatalogEntry)
+public class PnpmCatalogEntry {
     public var name: String
     public var version: String
 
@@ -480,115 +455,19 @@ public class CatalogEntry {
     }
 }
 
-/// 锁文件包
-/// 翻译自: Lockfile.Package
-public class LockfilePkg {
-    public var name: String
-    public var version: String
-    public var resolution: LockfileResolution
-    public var integrity: String
-    public var os: ArrayList<String>
-    public var cpu: ArrayList<String>
-    public var dependencies: HashMap<String, String>
-    public var optionalDependencies: HashMap<String, String>
-    public var peerDependencies: HashMap<String, String>
-    public var devDependencies: HashMap<String, String>
+public class PnpmCatalogMap {
+    public var defaultCatalog: HashMap<String, PnpmCatalogEntry>
+    public var namedCatalogs: HashMap<String, HashMap<String, PnpmCatalogEntry>>
 
     public init() {
-        name = ""
-        version = ""
-        resolution = LockfileResolution()
-        integrity = ""
-        os = ArrayList<String>()
-        cpu = ArrayList<String>()
-        dependencies = HashMap<String, String>()
-        optionalDependencies = HashMap<String, String>()
-        peerDependencies = HashMap<String, String>()
-        devDependencies = HashMap<String, String>()
+        defaultCatalog = HashMap<String, PnpmCatalogEntry>()
+        namedCatalogs = HashMap<String, HashMap<String, PnpmCatalogEntry>>()
     }
 }
 
-/// 锁文件 Resolution
-/// 翻译自: Resolution
-public class LockfileResolution {
-    public var tag: String // "npm", "git", "github", "workspace", "folder", "local_tarball", "remote_tarball", "root", "symlink"
-    public var value: String
-    public var url: String
-    public var commit: ?String
-    public var owner: ?String
-    public var repo: ?String
-    public var packageName: ?String
-
-    public init() {
-        tag = ""
-        value = ""
-        url = ""
-        commit = None
-        owner = None
-        repo = None
-        packageName = None
-    }
-
-    /// 从 pnpm lockfile resolution 字符串解析
-    /// 翻译自: Resolution.fromPnpmLockfile(res_str, &string_buf)
-    public static func fromPnpmLockfile(resStr: String): LockfileResolution {
-        let res = LockfileResolution()
-
-        if (resStr.size == 0) {
-            return res
-        }
-
-        // Check for various resolution types
-        if (resStr.startsWith("github:")) {
-            res.tag = "github"
-            res.value = "https://github.com/" + resStr[7..]
-        } else if (resStr.startsWith("git+")) {
-            res.tag = "git"
-            res.value = resStr[4..]
-        } else if (resStr.startsWith("git://")) {
-            res.tag = "git"
-            res.value = resStr
-        } else if (resStr.startsWith("https://") || resStr.startsWith("http://")) {
-            if (resStr.endsWith(".tgz") || resStr.endsWith(".tar.gz")) {
-                res.tag = "remote_tarball"
-            } else {
-                res.tag = "remote_tarball"
-            }
-            res.value = resStr
-        } else if (resStr.startsWith("file:")) {
-            let filePath = resStr[5..]
-            if (filePath.endsWith(".tgz") || filePath.endsWith(".tar.gz")) {
-                res.tag = "local_tarball"
-            } else {
-                res.tag = "folder"
-            }
-            res.value = filePath
-        } else if (resStr.startsWith("link:")) {
-            res.tag = "symlink"
-            res.value = resStr[5..]
-        } else {
-            // Assume npm version
-            res.tag = "npm"
-            res.value = resStr
-        }
-
-        return res
-    }
-}
-
-/// TextLockfileVersion
-/// 翻译自: Lockfile.TextLockfileVersion
-public class TextLockfileVersion {
-    public var value: Int64
-
-    public init() {
-        value = 1
-    }
-
-    public static func current(): TextLockfileVersion {
-        return TextLockfileVersion()
-    }
-}
+// NOTE: LockfilePkg defined in lockfile_package.cj (canonical)
+// NOTE: LockfileResolution defined in lockfile_package.cj (canonical)
+// NOTE: TextLockfileVersion defined in lockfile_bun.cj (canonical)
 
 // ============================================================================
 // pnpm 锁文件迁移器
@@ -607,7 +486,7 @@ public class PnpmMigrator {
         // Parse YAML content
         let parser = YamlLikeParser()
         let root = parser.parse(content)
-        if (root == None) {
+        if (root .isNone()) {
             return None
         }
         let rootObj = root.getOrThrow()
@@ -623,7 +502,7 @@ public class PnpmMigrator {
                     case Some(idx) => versionStr[0..idx]
                     case None => versionStr
                 }
-                let versionNum = majorStr.toFloat64()
+                let versionNum: Float64 = Float64(IntParser.parseInt(majorStr, 10))
                 if (versionNum < 7.0) {
                     return None
                 }
@@ -682,21 +561,22 @@ public class PnpmMigrator {
     /// 解析 catalogs
     /// 翻译自: Lockfile.CatalogMap.fromPnpmLockfile
     private static func parseCatalogs(catalogsObj: YamlObject, data: PnpmLockfileData): Unit {
-        var iter = catalogsObj.iterator()
-        while (iter.hasNext()) {
-            let entry = iter.next()
-            let groupName = entry.key
-            let catalogObj = entry.value.getObject()
-            if (catalogObj == None) { continue }
+        catalogsObj.forEachEntry({ groupName, yamlValue =>
+            let catalogObj = yamlValue.getObject()
+            if (catalogObj.isNone()) { return }
             let catalog = catalogObj.getOrThrow()
 
-            var entries = HashMap<String, CatalogEntry>()
-            var catIter = catalog.iterator()
-            while (catIter.hasNext()) {
-                let catEntry = catIter.next()
-                let name = catEntry.key
-                let version = catEntry.value.getString().getOrThrow()
-                entries.put(name, CatalogEntry(name, version))
+            var entries = HashMap<String, PnpmCatalogEntry>()
+            let catKeys = catalog.keys()
+            for (name in catKeys) {
+                let catValueOpt = catalog.get(name)
+                if (catValueOpt.isSome()) {
+                    let catValue = catValueOpt.getOrThrow()
+                    let versionOpt = catValue.getString()
+                    if (versionOpt.isSome()) {
+                        entries.put(name, PnpmCatalogEntry(name, versionOpt.getOrThrow()))
+                    }
+                }
             }
 
             if (groupName.size == 0 || groupName == "default") {
@@ -704,32 +584,26 @@ public class PnpmMigrator {
             } else {
                 data.catalogs.namedCatalogs.put(groupName, entries)
             }
-        }
+        })
     }
 
     /// 解析 overrides
     /// 翻译自: for (overrides_expr.data.e_object.properties.slice()) |prop| { ... }
     private static func parseOverrides(overridesObj: YamlObject, data: PnpmLockfileData): Unit {
-        var iter = overridesObj.iterator()
-        while (iter.hasNext()) {
-            let entry = iter.next()
-            let name = entry.key
-            match (entry.value.getString()) {
+        overridesObj.forEachEntry({ name, yamlValue =>
+            match (yamlValue.getString()) {
                 case Some(version) => data.overrides.put(name, version)
                 case None => ()
             }
-        }
+        })
     }
 
     /// 解析 patchedDependencies
     /// 翻译自: for (patched_dependencies_expr.data.e_object.properties.slice()) |prop| { ... }
     private static func parsePatchedDependencies(patchedObj: YamlObject, data: PnpmLockfileData): Unit {
-        var iter = patchedObj.iterator()
-        while (iter.hasNext()) {
-            let entry = iter.next()
-            let depName = entry.key
-            let patchObj = entry.value.getObject()
-            if (patchObj == None) { continue }
+        patchedObj.forEachEntry({ depName, yamlValue =>
+            let patchObj = yamlValue.getObject()
+            if (patchObj.isNone()) { return }
             let patch = patchObj.getOrThrow()
 
             let pathStr: String = match (patch.getString("path")) {
@@ -744,7 +618,7 @@ public class PnpmMigrator {
             let info = PnpmPatchInfo(pathStr, depName)
             info.hash = hashStr
             data.patchedDependencies.put(depName, info)
-        }
+        })
     }
 
     /// 解析 importers
@@ -752,28 +626,18 @@ public class PnpmMigrator {
     ///   Each importer has dependencies, devDependencies, optionalDependencies
     ///   with nested { specifier, version } objects
     private static func parseImporters(importersObj: YamlObject, data: PnpmLockfileData): Unit {
-        var iter = importersObj.iterator()
-        while (iter.hasNext()) {
-            let entry = iter.next()
-            let importerPath = entry.key
-            let importerObj = entry.value.getObject()
-            if (importerObj == None) { continue }
+        importersObj.forEachEntry({ importerPath, yamlValue =>
+            let importerObj = yamlValue.getObject()
+            if (importerObj.isNone()) { return }
             let importer = PnpmImporter(importerPath)
 
-            // Parse dependency groups
-            // 翻译自: parseAppendImporterDependencies 中的
-            //   const importer_dependency_groups = [3]struct { key, behavior }{
-            //     .{ "dependencies", .{ .prod = true } },
-            //     .{ "devDependencies", .{ .dev = true } },
-            //     .{ "optionalDependencies", .{ .optional = true } },
-            //   };
             let imp = importerObj.getOrThrow()
             parseImporterDeps(imp, "dependencies", importer.dependencies)
             parseImporterDeps(imp, "devDependencies", importer.devDependencies)
             parseImporterDeps(imp, "optionalDependencies", importer.optionalDependencies)
 
             data.importers.put(importerPath, importer)
-        }
+        })
     }
 
     /// 解析单个 importer 的依赖组
@@ -786,12 +650,9 @@ public class PnpmMigrator {
     ): Unit {
         match (importerObj.getObject(groupName)) {
             case Some(depsObj) =>
-                var iter = depsObj.iterator()
-                while (iter.hasNext()) {
-                    let depEntry = iter.next()
-                    let name = depEntry.key
-                    let depValue = depEntry.value.getObject()
-                    if (depValue == None) { continue }
+                depsObj.forEachEntry({ name, yamlValue =>
+                    let depValue = yamlValue.getObject()
+                    if (depValue.isNone()) { return }
                     let depObj = depValue.getOrThrow()
 
                     let specifier: String = match (depObj.getString("specifier")) {
@@ -803,12 +664,10 @@ public class PnpmMigrator {
                         case None => ""
                     }
 
-                    // Remove suffix from version
-                    // 翻译自: entry.value_ptr.* = removeSuffix(version_str)
                     let cleanVersion = PnpmDepPath.removeDepPathSuffix(version)
 
                     depMap.put(name, PnpmDepVersion(specifier, cleanVersion))
-                }
+                })
             case None => ()
         }
     }
@@ -818,39 +677,27 @@ public class PnpmMigrator {
     private static func parsePackagesAndSnapshots(packagesObj: YamlObject, snapshotsObj: YamlObject, data: PnpmLockfileData): Unit {
         // First parse snapshots
         // 翻译自: for (snapshots_obj.data.e_object.properties.slice()) |snapshot_prop| { ... }
-        var snapIter = snapshotsObj.iterator()
-        while (snapIter.hasNext()) {
-            let snapEntry = snapIter.next()
-            let keyStr = snapEntry.key
-            let snapValue = snapEntry.value.getObject()
-            if (snapValue == None) { continue }
+        snapshotsObj.forEachEntry({ keyStr, yamlValue =>
+            let snapValue = yamlValue.getObject()
+            if (snapValue.isNone()) { return }
 
-            // Remove suffix from key
-            // 翻译自: const key_str_without_suffix = ... removeSuffix(key_str)
             let cleanKey = PnpmDepPath.removeDepPathSuffix(keyStr)
 
             let snapshot = PnpmSnapshot()
             let snapObj = snapValue.getOrThrow()
 
-            // Parse dependencies
             parseSnapshotDeps(snapObj, "dependencies", snapshot.dependencies)
             parseSnapshotDeps(snapObj, "devDependencies", snapshot.optionalDependencies)
             parseSnapshotDeps(snapObj, "optionalDependencies", snapshot.peerDependencies)
 
             data.snapshots.put(cleanKey, snapshot)
-        }
+        })
 
         // Then parse packages
-        // 翻译自: for (packages_obj.data.e_object.properties.slice()) |packages_prop| { ... }
-        var pkgIter = packagesObj.iterator()
-        while (pkgIter.hasNext()) {
-            let pkgEntry = pkgIter.next()
-            let keyStr = pkgEntry.key
-            let pkgValue = pkgEntry.value.getObject()
-            if (pkgValue == None) { continue }
+        packagesObj.forEachEntry({ keyStr, yamlValue =>
+            let pkgValue = yamlValue.getObject()
+            if (pkgValue.isNone()) { return }
 
-            // Split name and version from key
-            // 翻译自: const name_str, const res_str = Dependency.splitNameAndVersion(key_str)
             let nameVersion = PnpmDepPath.splitNameAndVersion(keyStr)
             let nameStr = nameVersion.first
             let resStr = nameVersion.second
@@ -904,27 +751,20 @@ public class PnpmMigrator {
             // 翻译自: const snapshot = snapshots.get(key_str) orelse { ... }
             match (data.snapshots.get(keyStr)) {
                 case Some(snapshot) =>
-                    // Copy dependencies from snapshot
-                    var depIter = snapshot.dependencies.iterator()
-                    while (depIter.hasNext()) {
-                        let dep = depIter.next()
-                        pkgInfo.dependencies.put(dep.key, dep.value)
-                    }
-                    var optIter = snapshot.optionalDependencies.iterator()
-                    while (optIter.hasNext()) {
-                        let dep = optIter.next()
-                        pkgInfo.optionalDependencies.put(dep.key, dep.value)
-                    }
-                    var peerIter = snapshot.peerDependencies.iterator()
-                    while (peerIter.hasNext()) {
-                        let dep = peerIter.next()
-                        pkgInfo.peerDependencies.put(dep.key, dep.value)
-                    }
+                    snapshot.dependencies.forEach({ k, v =>
+                        pkgInfo.dependencies.put(k, v)
+                    })
+                    snapshot.optionalDependencies.forEach({ k, v =>
+                        pkgInfo.optionalDependencies.put(k, v)
+                    })
+                    snapshot.peerDependencies.forEach({ k, v =>
+                        pkgInfo.peerDependencies.put(k, v)
+                    })
                 case None => ()
             }
 
             data.packages.put(keyStr, pkgInfo)
-        }
+        })
     }
 
     /// 解析 snapshot 中的依赖
@@ -932,15 +772,13 @@ public class PnpmMigrator {
     private static func parseSnapshotDeps(snapObj: YamlObject, groupName: String, depMap: HashMap<String, String>): Unit {
         match (snapObj.getObject(groupName)) {
             case Some(depsObj) =>
-                var iter = depsObj.iterator()
-                while (iter.hasNext()) {
-                    let depEntry = iter.next()
-                    let name = depEntry.key
-                    let version = depEntry.value.getString().getOrThrow()
-                    // Remove suffix from version
-                    let cleanVersion = PnpmDepPath.removeDepPathSuffix(version)
-                    depMap.put(name, cleanVersion)
-                }
+                depsObj.forEachEntry({ name, yamlValue =>
+                    let versionOpt = yamlValue.getString()
+                    if (versionOpt.isSome()) {
+                        let cleanVersion = PnpmDepPath.removeDepPathSuffix(versionOpt.getOrThrow())
+                        depMap.put(name, cleanVersion)
+                    }
+                })
             case None => ()
         }
     }
@@ -961,9 +799,9 @@ public class PnpmMigrator {
     ///   12. 排序依赖列表
     ///   13. resolve + fetchNecessaryPackageMetadataAfterYarnOrPnpmMigration
     ///   14. updatePackageJsonAfterMigration
-    public static func migrate(content: String): ?MigrationResult {
+    public static func migrate(content: String): ?PnpmMigrationResult {
         let data = parse(content)
-        if (data == None) {
+        if (data .isNone()) {
             return None
         }
 
@@ -973,51 +811,55 @@ public class PnpmMigrator {
             return None
         }
 
-        let result = MigrationResult()
+        let result = PnpmMigrationResult()
         result.migratedFrom = "pnpm"
 
         // Build package map: key -> package index
-        // 翻译自: var pkg_map: bun.StringArrayHashMap(PackageID) = .init(allocator)
+        // 翻译自: var pkg_map: bun.StringArrayHashMap(PackageID) = .`init`(allocator)
         var pkgMap = HashMap<String, UInt32>()
         var nextPackageId: UInt32 = UInt32(0)
 
         // Root package (index 0)
-        // 翻译自: root_pkg.resolution = .init(.{ .root = {} })
+        // 翻译自: root_pkg.resolution = .`init`(.{ .root = {} })
         let rootPkg = LockfilePkg()
         rootPkg.name = ""
         rootPkg.version = ""
         rootPkg.resolution = LockfileResolution()
-        rootPkg.resolution.tag = "root"
+        rootPkg.resolution.tag = DependencyTag.Uninitialized
         result.packages.append(rootPkg)
         pkgMap.put(".", UInt32(0))
         nextPackageId = nextPackageId + UInt32(1)
 
         // Process importers for workspace packages
         // 翻译自: for (lockfile.workspace_paths.values()) |workspace_path| { ... }
-        var importerIter = lockfileData.importers.iterator()
-        while (importerIter.hasNext()) {
-            let importerEntry = importerIter.next()
-            let importerPath = importerEntry.key
-            let importer = importerEntry.value
+        let importerKeys = lockfileData.importers.keys()
+        for (importerPath in importerKeys) {
+            if (importerPath != "." ) {
+                let importerOpt = lockfileData.importers.get(importerPath)
+                if (importerOpt.isNone()) { continue }
+                let importer = importerOpt.getOrThrow()
+                if (importer.path == ".") { continue }
 
-            if (importerPath != ". && importer.path != ".") {
                 // Workspace package
                 let wsPkg = LockfilePkg()
                 wsPkg.name = importerPath
-                wsPkg.version = ""
-                wsPkg.resolution.tag = "workspace"
-                wsPkg.resolution.value = importerPath
+                wsPkg.resolution.tag = DependencyTag.Workspace
+                wsPkg.resolution.workspacePath = importerPath
 
                 // Copy dependencies from importer
-                var depIter = importer.dependencies.iterator()
-                while (depIter.hasNext()) {
-                    let dep = depIter.next()
-                    wsPkg.dependencies.put(dep.key, dep.value.version)
+                let depKeys = importer.dependencies.keys()
+                for (depName in depKeys) {
+                    let depVerOpt = importer.dependencies.get(depName)
+                    if (depVerOpt.isSome()) {
+                        wsPkg.depMap.put(depName, depVerOpt.getOrThrow().version)
+                    }
                 }
-                var devIter = importer.devDependencies.iterator()
-                while (devIter.hasNext()) {
-                    let dep = devIter.next()
-                    wsPkg.devDependencies.put(dep.key, dep.value.version)
+                let devDepKeys = importer.devDependencies.keys()
+                for (depName in devDepKeys) {
+                    let depVerOpt = importer.devDependencies.get(depName)
+                    if (depVerOpt.isSome()) {
+                        wsPkg.devDependencies.put(depName, depVerOpt.getOrThrow().version)
+                    }
                 }
 
                 let pkgId = nextPackageId
@@ -1030,16 +872,14 @@ public class PnpmMigrator {
         }
 
         // Process packages from lockfile
-        // 翻译自: for (packages_obj.data.e_object.properties.slice()) |packages_prop| { ... }
-        var packagesIter = lockfileData.packages.iterator()
-        while (packagesIter.hasNext()) {
-            let pkgEntry = packagesIter.next()
-            let keyStr = pkgEntry.key
-            let pkgInfo = pkgEntry.value
+        let packageKeys = lockfileData.packages.keys()
+        for (keyStr in packageKeys) {
+            let pkgInfoOpt = lockfileData.packages.get(keyStr)
+            if (pkgInfoOpt.isNone()) { continue }
+            let pkgInfo = pkgInfoOpt.getOrThrow()
 
             let pkg = LockfilePkg()
             pkg.name = pkgInfo.name
-            pkg.version = pkgInfo.version
             pkg.resolution = pkgInfo.resolution
             pkg.integrity = pkgInfo.integrity
 
@@ -1052,20 +892,20 @@ public class PnpmMigrator {
             }
 
             // Copy dependencies
-            var depIter = pkgInfo.dependencies.iterator()
-            while (depIter.hasNext()) {
-                let dep = depIter.next()
-                pkg.dependencies.put(dep.key, dep.value)
+            let depKeys = pkgInfo.dependencies.keys()
+            for (k in depKeys) {
+                let vOpt = pkgInfo.dependencies.get(k)
+                if (vOpt.isSome()) { pkg.depMap.put(k, vOpt.getOrThrow()) }
             }
-            var optIter = pkgInfo.optionalDependencies.iterator()
-            while (optIter.hasNext()) {
-                let dep = optIter.next()
-                pkg.optionalDependencies.put(dep.key, dep.value)
+            let optDepKeys = pkgInfo.optionalDependencies.keys()
+            for (k in optDepKeys) {
+                let vOpt = pkgInfo.optionalDependencies.get(k)
+                if (vOpt.isSome()) { pkg.optionalDependencies.put(k, vOpt.getOrThrow()) }
             }
-            var peerIter = pkgInfo.peerDependencies.iterator()
-            while (peerIter.hasNext()) {
-                let dep = peerIter.next()
-                pkg.peerDependencies.put(dep.key, dep.value)
+            let peerDepKeys = pkgInfo.peerDependencies.keys()
+            for (k in peerDepKeys) {
+                let vOpt = pkgInfo.peerDependencies.get(k)
+                if (vOpt.isSome()) { pkg.peerDependencies.put(k, vOpt.getOrThrow()) }
             }
 
             let pkgId = nextPackageId
@@ -1089,7 +929,7 @@ public class PnpmMigrator {
     ///   3. 解析 package dependencies (workspace_pkgs_end..lockfile.packages.len)
     ///   每个依赖通过 name@version 在 pkg_map 中查找对应的 package_id
     private static func resolveDependencies(
-        result: MigrationResult,
+        result: PnpmMigrationResult,
         pkgMap: HashMap<String, UInt32>,
         data: PnpmLockfileData
     ): Unit {
@@ -1103,16 +943,13 @@ public class PnpmMigrator {
 
         // Resolve workspace dependencies
         // 翻译自: for (workspace_pkgs_off..workspace_pkgs_end) |_pkg_id| { ... }
-        var wsPathIter = data.workspacePaths.iterator()
-        while (wsPathIter.hasNext()) {
-            let wsEntry = wsPathIter.next()
-            let wsPath = wsEntry.key
+        data.workspacePaths.forEach({ wsPath, _ =>
             match (data.importers.get(wsPath)) {
                 case Some(importer) =>
                     resolveImporterDeps(importer, pkgMap, result)
                 case None => ()
             }
-        }
+        })
     }
 
     /// 解析单个 importer 的依赖引用
@@ -1121,7 +958,7 @@ public class PnpmMigrator {
     private static func resolveImporterDeps(
         importer: PnpmImporter,
         pkgMap: HashMap<String, UInt32>,
-        result: MigrationResult
+        result: PnpmMigrationResult
     ): Unit {
         // Process each dependency group
         let depGroups = ArrayList<HashMap<String, PnpmDepVersion>>()
@@ -1130,11 +967,8 @@ public class PnpmMigrator {
         depGroups.append(importer.optionalDependencies)
 
         for (depGroup in depGroups) {
-            var iter = depGroup.iterator()
-            while (iter.hasNext()) {
-                let depEntry = iter.next()
-                let depName = depEntry.key
-                let depVersion = depEntry.value.version
+            depGroup.forEach({ depName, depVer =>
+                let depVersion = depVer.version
 
                 // Build lookup key
                 var versionMaybeAlias = depVersion
@@ -1167,7 +1001,7 @@ public class PnpmMigrator {
                     case Some(_) => () // resolved successfully
                     case None => () // unresolved - may need special handling
                 }
-            }
+            })
         }
     }
 
@@ -1202,13 +1036,13 @@ public class PnpmMigrator {
         // Parse pnpm section
         // 翻译自: if (json.asProperty("pnpm")) |pnpm_prop| { ... }
         let pnpmSection = extractJsonObject(json, "pnpm")
-        if (pnpmSection != None) {
+        if (pnpmSection .isSome()) {
             let pnpmObj = pnpmSection.getOrThrow()
 
             // Move pnpm.overrides
             // 翻译自: if (pnpm_obj.get("overrides")) |overrides_field|
             let overrides = extractJsonValue(pnpmObj, "overrides")
-            if (overrides != None) {
+            if (overrides .isSome()) {
                 movedOverrides = true
                 needsUpdate = true
             }
@@ -1216,7 +1050,7 @@ public class PnpmMigrator {
             // Move pnpm.patchedDependencies
             // 翻译自: if (pnpm_obj.get("patchedDependencies")) |patched_field|
             let patchedDeps = extractJsonValue(pnpmObj, "patchedDependencies")
-            if (patchedDeps != None) {
+            if (patchedDeps .isSome()) {
                 movedPatchedDeps = true
                 needsUpdate = true
             }
@@ -1224,7 +1058,7 @@ public class PnpmMigrator {
 
         // Handle pnpm-workspace.yaml
         // 翻译自: switch (bun.sys.File.readFrom(bun.FD.cwd(), "pnpm-workspace.yaml", allocator))
-        if (pnpmWorkspaceYamlContent != None) {
+        if (pnpmWorkspaceYamlContent .isSome()) {
             let wsContent = pnpmWorkspaceYamlContent.getOrThrow()
             let wsRoot = parseSimpleYaml(wsContent)
 
@@ -1272,7 +1106,7 @@ public class PnpmMigrator {
     private static func extractJsonObject(json: String, key: String): ?String {
         let searchKey = "\"" + key + "\""
         let idx = json.indexOf(searchKey)
-        if (idx == None) { return None }
+        if (idx .isNone()) { return None }
         return Some("{}")
     }
 
@@ -1280,7 +1114,7 @@ public class PnpmMigrator {
     private static func extractJsonValue(json: String, key: String): ?String {
         let searchKey = "\"" + key + "\""
         let idx = json.indexOf(searchKey)
-        if (idx == None) { return None }
+        if (idx .isNone()) { return None }
         return Some("{}")
     }
 
@@ -1312,7 +1146,7 @@ public class YamlObject {
         match (data.get(key)) {
             case Some(val) =>
                 match (val) {
-                    case YamlValue.String(s) => return s
+                    case YamlValue.YamlString(s) => return s
                     case _ => return None
                 }
             case None => return None
@@ -1334,26 +1168,55 @@ public class YamlObject {
         match (data.get(key)) {
             case Some(val) =>
                 match (val) {
-                    case YamlValue.Array(arr) => return arr
+                    case YamlValue.YamlArray(arr) => return arr
                     case _ => return None
                 }
             case None => return None
         }
     }
 
-    public func iterator(): Iterator<Tuple2<String, YamlValue>> {
-        return data.iterator()
+    public func keys(): ArrayList<String> {
+        return data.keys()
+    }
+
+    public func get(key: String): ?YamlValue {
+        return data.get(key)
+    }
+
+    public func forEachEntry(fn: (String, YamlValue) -> Unit): Unit {
+        data.forEach(fn)
     }
 }
 
 /// YAML Value (简化)
 public enum YamlValue {
-    | String(String)
+    | YamlString(String)
     | Object(YamlObject)
-    | Array(ArrayList<String>)
+    | YamlArray(ArrayList<String>)
     | Number(Float64)
-    | Bool(Bool)
+    | YamlBool(Bool)
     | Null
+
+    public func getString(): ?String {
+        match (this) {
+            case YamlString(s) => return s
+            case _ => return None
+        }
+    }
+
+    public func getObject(): ?YamlObject {
+        match (this) {
+            case Object(obj) => return obj
+            case _ => return None
+        }
+    }
+
+    public func getArray(): ?ArrayList<String> {
+        match (this) {
+            case YamlArray(arr) => return arr
+            case _ => return None
+        }
+    }
 }
 
 /// YAML-like 解析器
@@ -1371,7 +1234,7 @@ public class YamlLikeParser {
     /// 解析 YAML-like 内容为 YamlObject
     /// 翻译自: YAML.parse(yaml_source, log, yaml_arena.allocator())
     public func parse(content: String): ?YamlObject {
-        lines = content.split("\n")
+        lines = ArrayList<String>(content.split("\n"))
         pos = 0
         let root = YamlObject()
         parseBlock(root, Int64(0))
@@ -1383,7 +1246,7 @@ public class YamlLikeParser {
     private func parseBlock(parent: YamlObject, minIndent: Int64): Int64 {
         while (pos < lines.size) {
             let line = lines[pos]
-            let trimmed = line.trim(" \r\t")
+            let trimmed = line.trimStart().trimEnd()
             if (trimmed.size == 0 || trimmed[0] == UInt8(35)) { // '#'
                 pos = pos + 1
                 continue
@@ -1397,14 +1260,14 @@ public class YamlLikeParser {
             // Key: value line
             match (trimmed.indexOf(": ")) {
                 case Some(colonIdx) =>
-                    let key = trimmed[0..colonIdx].trim(" \"")
-                    let value = trimmed[colonIdx + 2..].trim(" \"")
-                    parent.put(key, YamlValue.String(value))
+                    let key = trimmed[0..colonIdx].trimStart(' ').trimEnd(' ').trimStart('"').trimEnd('"')
+                    let value = trimmed[colonIdx + 2..].trimStart(' ').trimEnd(' ').trimStart('"').trimEnd('"')
+                    parent.put(key, YamlValue.YamlString(value))
                     pos = pos + 1
                 case None =>
                     // Key: (object start)
                     if (trimmed.endsWith(":")) {
-                        let key = trimmed[0..trimmed.size - 1].trim(" \"")
+                        let key = trimmed[0..trimmed.size - 1].trimStart(' ').trimEnd(' ').trimStart('"').trimEnd('"')
                         pos = pos + 1
                         let childObj = YamlObject()
                         // Check if next line is same or deeper indent
@@ -1433,8 +1296,8 @@ public class YamlLikeParser {
     }
 }
 
-/// 迁移结果
-public class MigrationResult {
+/// Pnpm 迁移结果 (重命名避免冲突)
+public class PnpmMigrationResult {
     public var format: TextLockfileVersion
     public var packages: ArrayList<LockfilePkg>
     public var warnings: ArrayList<String>
@@ -1449,17 +1312,5 @@ public class MigrationResult {
     }
 }
 
-/// JsonValue (简化, 用于 YAML 解析兼容)
-public enum JsonValue {
-    | Object(HashMap<String, JsonValue>)
-    | Array(ArrayList<JsonValue>)
-    | String(String)
-    | Number(Float64)
-    | Bool(Bool)
-    | Null
-}
-
-/// JsonParser (简化)
-public class JsonParser {
-    public init() {}
-}
+// NOTE: JsonValue defined in package.cj (canonical)
+// NOTE: PkgJsonParser defined in package.cj (canonical PkgJsonParser)

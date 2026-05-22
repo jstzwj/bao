@@ -26,7 +26,7 @@ public class RefString {
 
     // 严格翻译自 RefString.toJS
     public func toJS(global: JsObject): JsValue {
-        // FFI: bun.String.init(this.impl).toJS(global)
+        // FFI: bun.String(this.impl).toJS(global)
         JsValue.undefined()
     }
 

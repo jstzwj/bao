@@ -6,6 +6,7 @@ package bao_runtime.webcore
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_http_types.*
 import bao_http_jsc.*
 
@@ -134,8 +135,8 @@ public type AbortEventType = Int64
 /// HTTP Request — 对应 Web Request API
 /// 对应 Bun: src/runtime/webcore/Request.rs Request
 ///
-/// R-2: every JS-facing host-fn takes &Request (not &mut Request)
-/// so re-entrant JS calls cannot stack two &mut to the same instance.
+/// R-2: every JS-facing host-fn takes &Request (not &Request)
+/// so re-entrant JS calls cannot stack two &to the same instance.
 /// Fields mutated by host-fns use Cell (Copy scalars) or JsCell (non-Copy).
 public class Request {
     /// 请求 URL — OwnedStringCell
@@ -294,12 +295,11 @@ public class Request {
             // 从 Blob body 中提取 Content-Type
             if (body.value.tag == BodyValueTag.Blob) {
                 match (body.value.blob) {
-                    case Some(b) => {
+                    case Some(b) =>
                         let ct = b.getContentType()
-                        if (ct.isSome() && ct.getOrThrow().length > 0) {
+                        if (ct.isSome() && ct.getOrThrow().size > 0) {
                             // put Content-Type header
                         }
-                    }
                     case None => ()
                 }
             }
@@ -311,13 +311,13 @@ public class Request {
     /// 获取 headers (除非为空)
     /// 对应 Bun: Request::get_fetch_headers_unless_empty (Request.rs:332-347)
     public func getFetchHeadersUnlessEmpty(): ?HeadersRef {
-        if (headers == None) {
+        if (headers.isNone()) {
             if (requestContext.hasRequest()) {
                 headers = Some(HeadersRef.createFromUWS(requestContext.getRequest()))
             }
         }
 
-        if (headers == None) {
+        if (headers.isNone()) {
             return None
         }
         return headers
@@ -332,7 +332,7 @@ public class Request {
     /// 克隆 headers
     /// 对应 Bun: Request::clone_headers (Request.rs:355-373)
     public func cloneHeaders(global: JsGlobalObject): ?HeadersRef {
-        if (headers == None) {
+        if (headers.isNone()) {
             if (requestContext.hasRequest()) {
                 headers = Some(HeadersRef.createFromUWS(requestContext.getRequest()))
             }
@@ -361,12 +361,11 @@ public class Request {
 
         if (body.value.tag == BodyValueTag.Blob) {
             match (body.value.blob) {
-                case Some(b) => {
+                case Some(b) =>
                     let ct = b.getContentType()
-                    if (ct.isSome() && ct.getOrThrow().length > 0) {
+                    if (ct.isSome() && ct.getOrThrow().size > 0) {
                         return ct
                     }
-                }
                 case None => ()
             }
         }
@@ -389,20 +388,20 @@ public class Request {
 
     /// 确保 URL 已设置 — 对应 Bun: Request::ensure_url (Request.rs:936-1024)
     public func ensureUrl(): Unit {
-        if (url.length > 0) {
+        if (url.size > 0) {
             return
         }
 
         if (requestContext.hasRequest()) {
             let reqUrl = requestContext.getUrl()
-            if (reqUrl.length > 0 && reqUrl[0] == '/') {
+            if (reqUrl.size > 0 && reqUrl[0] == '/') {
                 let host = requestContext.getHeader("host")
-                if (host.length > 0) {
+                if (host.size > 0) {
                     url = "${getProtocol()}${host}${reqUrl}"
                     return
                 }
             }
-            if (reqUrl.length > 0) {
+            if (reqUrl.size > 0) {
                 url = reqUrl
             }
         }
@@ -411,19 +410,19 @@ public class Request {
     /// URL 的字节大小
     /// 对应 Bun: Request::size_of_url (Request.rs:903-926)
     public func sizeOfUrl(): Int64 {
-        if (url.length > 0) {
-            return Int64(url.length)
+        if (url.size > 0) {
+            return Int64(url.size)
         }
 
         if (requestContext.hasRequest()) {
             let reqUrl = requestContext.getUrl()
-            if (reqUrl.length > 0 && reqUrl[0] == '/') {
+            if (reqUrl.size > 0 && reqUrl[0] == '/') {
                 let host = requestContext.getHeader("host")
-                if (host.length > 0) {
-                    return Int64(getProtocol().length) + Int64(host.length) + Int64(reqUrl.length)
+                if (host.size > 0) {
+                    return Int64(getProtocol().size) + Int64(host.size) + Int64(reqUrl.size)
                 }
             }
-            return Int64(reqUrl.length)
+            return Int64(reqUrl.size)
         }
 
         return 0
@@ -433,7 +432,7 @@ public class Request {
     /// 对应 Bun: Request::get_form_data_encoding (Request.rs:480-494)
     public func getFormDataEncoding(): ?FormDataEncoding {
         let ct = getContentType()
-        if (ct == None) {
+        if (ct.isNone()) {
             return None
         }
         return FormDataEncoding.fromContentType(ct.getOrThrow())
@@ -448,7 +447,7 @@ public class Request {
     /// 内存开销
     /// 对应 Bun: Request::memory_cost (Request.rs:402-408)
     public func memoryCost(): Int64 {
-        return Int64(1024) + Int64(url.length) + body.value.memoryCost()  // 1024 = approximate sizeof(Request)
+        return Int64(1024) + Int64(url.size) + body.value.memoryCost()  // 1024 = approximate sizeof(Request)
     }
 
     // ========================================================================
@@ -537,7 +536,7 @@ public class Request {
     /// 对应 Bun: Request::get_remote_socket_info (Request.rs:500-518)
     public func getRemoteSocketInfo(global: JsGlobalObject): ?JsValue {
         let info = requestContext.getRemoteSocketInfo()
-        if (info == None) {
+        if (info.isNone()) {
             return None
         }
         let socketInfo = info.getOrThrow()
@@ -551,7 +550,7 @@ public class Request {
     /// 计算估算字节大小
     /// 对应 Bun: Request::calculate_estimated_byte_size (Request.rs:521-528)
     public func calculateEstimatedByteSize(): Unit {
-        reportedEstimatedSize = body.value.size() + Int64(url.length) + Int64(1024)  // 1024 = sizeof(Request) approx
+        reportedEstimatedSize = body.value.size() + Int64(url.size) + Int64(1024)  // 1024 = sizeof(Request) approx
     }
 
     /// finalize_without_deinit — 释放资源但保留分配
@@ -684,32 +683,28 @@ public class Request {
         result += "  headers: <headers>,\n"
 
         match (body.value.tag) {
-            case BodyValueTag.Blob => {
+            case BodyValueTag.Blob =>
                 match (body.value.blob) {
                     case Some(b) => result += "  body: ${b.writeFormat(false, b.getSizeForBindings())},\n"
                     case None => ()
                 }
-            }
-            case BodyValueTag.InternalBlob => {
+            case BodyValueTag.InternalBlob =>
                 if (body.value.bytes.size == 0) {
                     result += "  body: Blob (0 B),\n"
                 } else {
                     result += "  body: ${formatSize(Int64(body.value.bytes.size))},\n"
                 }
-            }
-            case BodyValueTag.WTFStringImpl => {
-                if (body.value.stringValue.length == 0) {
+            case BodyValueTag.WTFStringImpl =>
+                if (body.value.stringValue.size == 0) {
                     result += "  body: Blob (0 B),\n"
                 } else {
-                    result += "  body: ${formatSize(Int64(body.value.stringValue.length))},\n"
+                    result += "  body: ${formatSize(Int64(body.value.stringValue.size))},\n"
                 }
-            }
-            case BodyValueTag.Locked => {
+            case BodyValueTag.Locked =>
                 let stream = getBodyReadableStream(JsGlobalObject.current())
-                if (stream != None) {
+                if (stream.isSome()) {
                     result += "  body: <ReadableStream>,\n"
                 }
-            }
             case _ => ()
         }
 
@@ -733,18 +728,16 @@ public class Request {
         }
 
         match (body.value.tag) {
-            case BodyValueTag.Blob => {
+            case BodyValueTag.Blob =>
                 match (body.value.blob) {
-                    case Some(b) => {
+                    case Some(b) =>
                         let ct = b.getContentType()
-                        if (ct.isSome() && ct.getOrThrow().length > 0) {
+                        if (ct.isSome() && ct.getOrThrow().size > 0) {
                             return ct.getOrThrow()
                         }
                         return "application/octet-stream"
-                    }
                     case None => return "application/octet-stream"
                 }
-            }
             case BodyValueTag.InternalBlob => return "application/octet-stream"
             case BodyValueTag.WTFStringImpl => return "text/plain;charset=utf-8"
             case _ => return "application/octet-stream"
@@ -806,7 +799,7 @@ public class Request {
     public func doClone(global: JsGlobalObject, callframe: CallFrame): JsValue {
         let thisValue = callframe.this()
         let cloned = clone(global)
-        if (cloned != None) {
+        if (cloned.isSome()) {
             let jsWrapper = cloned.getOrThrow().toJs(global)
             syncClonedBodyStreamCaches(thisValue, jsWrapper, global)
             return jsWrapper
@@ -839,7 +832,7 @@ public class Request {
             }
         }
 
-        if (arguments.length == 0) {
+        if (arguments.size == 0) {
             return None
         }
 
@@ -853,7 +846,7 @@ public class Request {
         if (isFirstArgUrl) {
             let str = urlOrObject.toString()
             req.url = str
-            if (req.url.length > 0) {
+            if (req.url.size > 0) {
                 fields.insert(Fields.Url)
             }
         } else if (!urlOrObjectType.isObject()) {
@@ -862,7 +855,7 @@ public class Request {
 
         // 构建 values_to_try 数组
         let valuesToTry = ArrayList<JsValue>()
-        if (arguments.length > 1 && arguments[1].isObject()) {
+        if (arguments.size > 1 && arguments[1].isObject()) {
             valuesToTry.append(arguments[1])
         } else if (!isFirstArgUrl) {
             valuesToTry.append(urlOrObject)
@@ -870,24 +863,24 @@ public class Request {
 
         if (!isFirstArgUrl) {
             valuesToTry.append(urlOrObject)
-        } else if (arguments.length > 1 && arguments[1].isObject()) {
+        } else if (arguments.size > 1 && arguments[1].isObject()) {
             valuesToTry.append(arguments[1])
         }
 
         for (value in valuesToTry) {
             let valueType = value.jsType()
-            let explicitCheck = valuesToTry.length == 2 &&
+            let explicitCheck = valuesToTry.size == 2 &&
                 valueType == JsType.FinalObject &&
-                valuesToTry[valuesToTry.length - 1].jsType() == JsType.DOMWrapper
+                valuesToTry[valuesToTry.size - 1].jsType() == JsType.DOMWrapper
 
             if (valueType == JsType.DOMWrapper) {
                 // 如果是 Request 对象
                 if (value.isRequest()) {
                     let sourceReq = value.toRequest()
-                    if (sourceReq != None) {
+                    if (sourceReq.isSome()) {
                         let src = sourceReq.getOrThrow()
 
-                        if (valuesToTry.length == 1) {
+                        if (valuesToTry.size == 1) {
                             src.cloneInto(req, global, fields.contains(Fields.Url))
                             success = true
                             cleanup(req, success)
@@ -916,7 +909,7 @@ public class Request {
 
                         if (!fields.contains(Fields.Headers)) {
                             let clonedHeaders = src.cloneHeaders(global)
-                            if (clonedHeaders != None) {
+                            if (clonedHeaders.isSome()) {
                                 req.headers = clonedHeaders
                                 fields.insert(Fields.Headers)
                             }
@@ -927,10 +920,9 @@ public class Request {
                                 case BodyValueTag.Null => ()
                                 case BodyValueTag.Empty => ()
                                 case BodyValueTag.Used => ()
-                                case _ => {
+                                case _ =>
                                     req.body = Body(value: src.body.value.clone())
                                     fields.insert(Fields.Body)
-                                }
                             }
                         }
                     }
@@ -939,7 +931,7 @@ public class Request {
                 // 如果是 Response 对象
                 if (value.isResponse()) {
                     let sourceResp = value.toResponse()
-                    if (sourceResp != None) {
+                    if (sourceResp.isSome()) {
                         let src = sourceResp.getOrThrow()
 
                         if (!fields.contains(Fields.Method)) {
@@ -949,9 +941,9 @@ public class Request {
 
                         if (!fields.contains(Fields.Headers)) {
                             let respHeaders = src.getInitHeaders()
-                            if (respHeaders != None) {
+                            if (respHeaders.isSome()) {
                                 let cloned = respHeaders.getOrThrow().cloneThis(global)
-                                if (cloned != None) {
+                                if (cloned.isSome()) {
                                     req.headers = cloned
                                     fields.insert(Fields.Headers)
                                 }
@@ -960,7 +952,7 @@ public class Request {
 
                         if (!fields.contains(Fields.Url)) {
                             let respUrl = src.getUrl()
-                            if (respUrl.length > 0) {
+                            if (respUrl.size > 0) {
                                 req.url = respUrl
                                 fields.insert(Fields.Url)
                             }
@@ -972,10 +964,9 @@ public class Request {
                                 case BodyValueTag.Null => ()
                                 case BodyValueTag.Empty => ()
                                 case BodyValueTag.Used => ()
-                                case _ => {
+                                case _ =>
                                     req.body = Body(value: bodyValue.clone())
                                     fields.insert(Fields.Body)
-                                }
                             }
                         }
                     }
@@ -985,7 +976,7 @@ public class Request {
             // 提取 body 属性
             if (!fields.contains(Fields.Body)) {
                 let bodyProp = value.fastGet(global, BuiltinName.body)
-                if (bodyProp != None) {
+                if (bodyProp.isSome()) {
                     fields.insert(Fields.Body)
                     req.body = Body.extract(bodyProp.getOrThrow())
                 }
@@ -994,10 +985,10 @@ public class Request {
             // 提取 url 属性
             if (!fields.contains(Fields.Url)) {
                 let urlProp = value.fastGet(global, BuiltinName.url)
-                if (urlProp != None) {
+                if (urlProp.isSome()) {
                     let urlStr = urlProp.getOrThrow().toString()
                     req.url = urlStr
-                    if (req.url.length > 0) {
+                    if (req.url.size > 0) {
                         fields.insert(Fields.Url)
                     }
                 } else {
@@ -1006,7 +997,7 @@ public class Request {
                         if (implementsStr) {
                             let str = value.toString()
                             req.url = str
-                            if (req.url.length > 0) {
+                            if (req.url.size > 0) {
                                 fields.insert(Fields.Url)
                             }
                         }
@@ -1017,7 +1008,7 @@ public class Request {
             // 提取 signal 属性
             if (!fields.contains(Fields.Signal)) {
                 let signalProp = value.getTruthy("signal")
-                if (signalProp != None) {
+                if (signalProp.isSome()) {
                     fields.insert(Fields.Signal)
                     if (signalProp.getOrThrow().isAbortSignal()) {
                         req.signal = Some(AbortSignalRef(signalProp.getOrThrow()))
@@ -1027,16 +1018,16 @@ public class Request {
 
             // 提取 method/headers (via Init::init)
             if (!fields.contains(Fields.Method) || !fields.contains(Fields.Headers)) {
-                let initResult = ResponseInit.init(global, value)
-                if (initResult != None) {
+                let initResult = ResponseInit(global, value)
+                if (initResult.isSome()) {
                     let responseInit = initResult.getOrThrow()
 
                     let headerCheck = !explicitCheck || {
                         let h = value.fastGet(global, BuiltinName.headers)
-                        h != None
+                        h.isSome()
                     }
                     if (headerCheck) {
-                        if (responseInit.headers != None) {
+                        if (responseInit.headers.isSome()) {
                             if (!fields.contains(Fields.Headers)) {
                                 req.headers = responseInit.headers
                                 fields.insert(Fields.Headers)
@@ -1046,7 +1037,7 @@ public class Request {
 
                     let methodCheck = !explicitCheck || {
                         let m = value.fastGet(global, BuiltinName.method)
-                        m != None
+                        m.isSome()
                     }
                     if (methodCheck) {
                         if (!fields.contains(Fields.Method)) {
@@ -1060,7 +1051,7 @@ public class Request {
             // 提取 redirect 选项
             if (!fields.contains(Fields.Redirect)) {
                 let redirectValue = value.getOptionalEnum("redirect")
-                if (redirectValue != None) {
+                if (redirectValue.isSome()) {
                     req.flags.redirect = redirectValue.getOrThrow()
                     fields.insert(Fields.Redirect)
                 }
@@ -1069,7 +1060,7 @@ public class Request {
             // 提取 cache 选项
             if (!fields.contains(Fields.Cache)) {
                 let cacheValue = value.getOptionalEnumFetchCacheMode("cache")
-                if (cacheValue != None) {
+                if (cacheValue.isSome()) {
                     req.flags.cache = cacheValue.getOrThrow()
                     fields.insert(Fields.Cache)
                 }
@@ -1078,26 +1069,25 @@ public class Request {
             // 提取 mode 选项
             if (!fields.contains(Fields.Mode)) {
                 let modeValue = value.getOptionalEnumFetchRequestMode("mode")
-                if (modeValue != None) {
+                if (modeValue.isSome()) {
                     req.flags.mode = modeValue.getOrThrow()
                     fields.insert(Fields.Mode)
                 }
             }
         }
 
-        if (req.url.length == 0) {
+        if (req.url.size == 0) {
             return None
         }
 
         // 如果 body 是 Blob 且有 Content-Type, 且 headers 存在且没有 Content-Type
-        if (req.body.value.tag == BodyValueTag.Blob && req.headers != None) {
+        if (req.body.value.tag == BodyValueTag.Blob && req.headers.isSome()) {
             match (req.body.value.blob) {
-                case Some(b) => {
+                case Some(b) =>
                     let ct = b.getContentType()
-                    if (ct.isSome() && ct.getOrThrow().length > 0) {
+                    if (ct.isSome() && ct.getOrThrow().size > 0) {
                         // put Content-Type if not already present
                     }
-                }
                 case None => ()
             }
         }
@@ -1115,7 +1105,7 @@ public class Request {
     public static func constructor(global: JsGlobalObject, callframe: CallFrame, thisValue: JsValue): ?Request {
         let args = callframe.argumentsOld(2)
         let arguments = ArrayList<JsValue>()
-        for (i in 0..args.length) {
+        for (i in 0..args.size) {
             arguments.append(args[i])
         }
         let request = constructInto(global, arguments.toArray(), thisValue)
@@ -1150,7 +1140,7 @@ public class Request {
         // headers getter
         obj.set("headers", JsValue.nativeFunction(JsNativeFunction("headers") { _ =>
             let h = self.getHeaders(JsGlobalObject.current())
-            if (h != None) {
+            if (h.isSome()) {
                 return h.getOrThrow().toJsValue(JsGlobalObject.current())
             }
             JsValue(BaoString(""))
@@ -1179,7 +1169,7 @@ public class Request {
         // clone 方法
         obj.set("clone", JsValue.nativeFunction(JsNativeFunction("clone") { _ =>
             let cloned = self.clone(JsGlobalObject.current())
-            if (cloned != None) {
+            if (cloned.isSome()) {
                 cloned.getOrThrow().toJsValue()
             } else {
                 JsValue.undefined()
@@ -1415,7 +1405,7 @@ public class JsValueHelper {
     public static func fastGet(value: JsValue, global: JsGlobalObject, name: BuiltinName): ?JsValue {
         let propName = builtinNameToString(name)
         let result = value.get(propName)
-        if (result == None || result.getOrThrow().isUndefinedOrNull()) {
+        if (result.isNone() || result.getOrThrow().isUndefinedOrNull()) {
             return None
         }
         return result
@@ -1424,7 +1414,7 @@ public class JsValueHelper {
     /// 获取 truthy 属性
     public static func getTruthy(value: JsValue, name: String): ?JsValue {
         let result = value.get(name)
-        if (result == None || result.getOrThrow().isUndefinedOrNull()) {
+        if (result.isNone() || result.getOrThrow().isUndefinedOrNull()) {
             return None
         }
         return result
@@ -1433,7 +1423,7 @@ public class JsValueHelper {
     /// 获取可选枚举 (FetchRedirect)
     public static func getOptionalEnum(value: JsValue, name: String): ?FetchRedirect {
         let result = value.get(name)
-        if (result == None || result.getOrThrow().isUndefinedOrNull()) {
+        if (result.isNone() || result.getOrThrow().isUndefinedOrNull()) {
             return None
         }
         return FetchRedirectUtil.fromString(result.getOrThrow().toString())
@@ -1442,7 +1432,7 @@ public class JsValueHelper {
     /// 获取可选枚举 (FetchCacheMode)
     public static func getOptionalEnumFetchCacheMode(value: JsValue, name: String): ?FetchCacheMode {
         let result = value.get(name)
-        if (result == None || result.getOrThrow().isUndefinedOrNull()) {
+        if (result.isNone() || result.getOrThrow().isUndefinedOrNull()) {
             return None
         }
         return FetchCacheModeUtil.fromString(result.getOrThrow().toString())
@@ -1451,7 +1441,7 @@ public class JsValueHelper {
     /// 获取可选枚举 (FetchRequestMode)
     public static func getOptionalEnumFetchRequestMode(value: JsValue, name: String): ?FetchRequestMode {
         let result = value.get(name)
-        if (result == None || result.getOrThrow().isUndefinedOrNull()) {
+        if (result.isNone() || result.getOrThrow().isUndefinedOrNull()) {
             return None
         }
         return FetchRequestModeUtil.fromString(result.getOrThrow().toString())

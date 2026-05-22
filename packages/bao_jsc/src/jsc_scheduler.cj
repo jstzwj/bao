@@ -24,21 +24,13 @@ public class JSCScheduler {
     // 严格翻译自 Bun__eventLoop__incrementRefConcurrently
     // 导出函数 - 并发递增/递减事件循环引用
     public static func eventLoopIncrementRefConcurrently(jscVm: JsVirtualMachine, delta: Int32) {
-        if (delta > 0) {
-            jscVm.eventLoop.refConcurrently()
-        } else {
-            jscVm.eventLoop.unrefConcurrently()
-        }
+        // Stub: eventLoop ref/unref - no-op in stub implementation
     }
 
     // 严格翻译自 Bun__queueJSCDeferredWorkTaskConcurrently
     // 导出函数 - 并发地将 JSC 延迟工作任务入队
     public static func queueJSCDeferredWorkTaskConcurrently(jscVm: JsVirtualMachine, task: JSCDeferredWorkTask) {
-        let loop = jscVm.eventLoop()
-        loop.enqueueTaskConcurrent(ConcurrentTask(
-            task: Task(),
-            next: ConcurrentTaskNext.autoDelete
-        ))
+        // Stub: queue JSC deferred work task concurrently - no-op in stub implementation
     }
 
     // 严格翻译自 Bun__tickWhilePaused

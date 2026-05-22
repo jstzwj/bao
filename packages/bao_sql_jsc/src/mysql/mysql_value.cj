@@ -11,16 +11,16 @@ import bao_jsc.*
 /// MySQL 查询参数值的联合类型
 public enum MySQLValue {
     | Null
-    | Bool(Bool)
-    | Short(Int16)
+    | `Bool`(Bool)
+    | `Short`(Int16)
     | UShort(UInt16)
-    | Int(Int32)
+    | `Int`(Int32)
     | UInt(UInt32)
     | Long(Int64)
     | ULong(UInt64)
     | Float(Float32)
     | Double(Float64)
-    | String(String)
+    | `String`(String)
     | Bytes(Array<UInt8>)
     | Date(MySQLDateTime)
     | Time(MySQLTime)
@@ -87,7 +87,7 @@ public class MySQLDateTime {
     /// 转换为 JS 值
     /// 对应 Bun: DateTime.toJS
     public func toJS(globalObject: JscJSGlobalObject): JscValue {
-        return JscValue.fromDateNumber(globalObject, toJSTimestamp())
+        return JscValue.fromDateNumber(globalObject.globalThis, toJSTimestamp())
     }
 }
 
@@ -107,7 +107,7 @@ public class MySQLTime {
     /// 对应 Bun: Time.fromJS
     public static func fromJS(value: JscValue, globalObject: JscJSGlobalObject): ?MySQLTime {
         if (value.isDate() || value.isNumber()) {
-            let totalMs = if (value.isDate()) value.getUnixTimestamp() else value.asNumber()
+            let totalMs = if (value.isDate()) { value.getUnixTimestamp() } else { value.asNumber() }
             let ts = Int64(totalMs / 1000.0)
             let ms = UInt32(totalMs - Float64(ts) * 1000.0)
             return fromUnixTimestamp(ts, ms * 1000)
@@ -158,7 +158,7 @@ func daysInMonth(year: UInt16, month: UInt8): UInt8 {
     if (month == 2 && isLeapYear(year)) {
         return 29
     }
-    return days[Int64(month) - 1]
+    return UInt8(days[Int64(month) - 1])
 }
 
 /// 格里高利日期
@@ -179,49 +179,113 @@ func gregorianDate(days: Int32): GregorianDate {
     var d = days
     var y: UInt16 = 1970
 
-    while (d >= 365 + (if (isLeapYear(y)) 1 else 0)) {
-        d -= 365 + (if (isLeapYear(y)) 1 else 0)
+    while (d >= 365 + (if (isLeapYear(y)) { 1 } else { 0 })) {
+        d -= 365 + (if (isLeapYear(y)) { 1 } else { 0 })
         y += 1
     }
 
     var m: UInt8 = 1
-    while (d >= daysInMonth(y, m)) {
-        d -= daysInMonth(y, m)
+    while (d >= Int32(daysInMonth(y, m))) {
+        d -= Int32(daysInMonth(y, m))
         m += 1
     }
 
-    return GregorianDate(year: y, month: m, day: UInt8(d + 1))
+    return GregorianDate(y, m, UInt8(d + 1))
 }
 
 /// MySQL 字段类型枚举
 /// 对应 Bun: FieldType
 public enum MySQLFieldType {
-    | MySQLTypeNull(6)
-    | MySQLTypeTiny(1)
-    | MySQLTypeShort(2)
-    | MySQLTypeLong(3)
-    | MySQLTypeInt24(9)
-    | MySQLTypeLongLong(8)
-    | MySQLTypeDouble(5)
-    | MySQLTypeFloat(4)
-    | MySQLTypeDate(10)
-    | MySQLTypeDateTime(12)
-    | MySQLTypeTimestamp(7)
-    | MySQLTypeTime(11)
-    | MySQLTypeYear(13)
-    | MySQLTypeString(254)
-    | MySQLTypeVarchar(15)
-    | MySQLTypeVarString(253)
-    | MySQLTypeBlob(252)
-    | MySQLTypeTinyBlob(249)
-    | MySQLTypeMediumBlob(250)
-    | MySQLTypeLongBlob(251)
-    | MySQLTypeJSON(245)
-    | MySQLTypeBit(16)
-    | MySQLTypeEnum(247)
-    | MySQLTypeSet(248)
-    | MySQLTypeGeometry(255)
-    | MySQLTypeNewDecimal(246)
+    | MySQLTypeNull
+    | MySQLTypeTiny
+    | MySQLTypeShort
+    | MySQLTypeLong
+    | MySQLTypeInt24
+    | MySQLTypeLongLong
+    | MySQLTypeDouble
+    | MySQLTypeFloat
+    | MySQLTypeDate
+    | MySQLTypeDateTime
+    | MySQLTypeTimestamp
+    | MySQLTypeTime
+    | MySQLTypeYear
+    | MySQLTypeString
+    | MySQLTypeVarchar
+    | MySQLTypeVarString
+    | MySQLTypeBlob
+    | MySQLTypeTinyBlob
+    | MySQLTypeMediumBlob
+    | MySQLTypeLongBlob
+    | MySQLTypeJSON
+    | MySQLTypeBit
+    | MySQLTypeEnum
+    | MySQLTypeSet
+    | MySQLTypeGeometry
+    | MySQLTypeNewDecimal
+
+    /// 获取字段类型的数值
+    public func value(): Int32 {
+        return match (this) {
+            case MySQLTypeNull => 6
+            case MySQLTypeTiny => 1
+            case MySQLTypeShort => 2
+            case MySQLTypeLong => 3
+            case MySQLTypeInt24 => 9
+            case MySQLTypeLongLong => 8
+            case MySQLTypeDouble => 5
+            case MySQLTypeFloat => 4
+            case MySQLTypeDate => 10
+            case MySQLTypeDateTime => 12
+            case MySQLTypeTimestamp => 7
+            case MySQLTypeTime => 11
+            case MySQLTypeYear => 13
+            case MySQLTypeString => 254
+            case MySQLTypeVarchar => 15
+            case MySQLTypeVarString => 253
+            case MySQLTypeBlob => 252
+            case MySQLTypeTinyBlob => 249
+            case MySQLTypeMediumBlob => 250
+            case MySQLTypeLongBlob => 251
+            case MySQLTypeJSON => 245
+            case MySQLTypeBit => 16
+            case MySQLTypeEnum => 247
+            case MySQLTypeSet => 248
+            case MySQLTypeGeometry => 255
+            case MySQLTypeNewDecimal => 246
+        }
+    }
+
+    /// 获取类型名称
+    public func name(): String {
+        return match (this) {
+            case MySQLTypeNull => "null"
+            case MySQLTypeTiny => "tiny"
+            case MySQLTypeShort => "short"
+            case MySQLTypeLong => "long"
+            case MySQLTypeInt24 => "int24"
+            case MySQLTypeLongLong => "longlong"
+            case MySQLTypeDouble => "double"
+            case MySQLTypeFloat => "float"
+            case MySQLTypeDate => "date"
+            case MySQLTypeDateTime => "datetime"
+            case MySQLTypeTimestamp => "timestamp"
+            case MySQLTypeTime => "time"
+            case MySQLTypeYear => "year"
+            case MySQLTypeString => "string"
+            case MySQLTypeVarchar => "varchar"
+            case MySQLTypeVarString => "var_string"
+            case MySQLTypeBlob => "blob"
+            case MySQLTypeTinyBlob => "tiny_blob"
+            case MySQLTypeMediumBlob => "medium_blob"
+            case MySQLTypeLongBlob => "long_blob"
+            case MySQLTypeJSON => "json"
+            case MySQLTypeBit => "bit"
+            case MySQLTypeEnum => "enum"
+            case MySQLTypeSet => "set"
+            case MySQLTypeGeometry => "geometry"
+            case MySQLTypeNewDecimal => "new_decimal"
+        }
+    }
 
     /// 从 JS 值推断类型
     /// 对应 Bun: fieldTypeFromJS
@@ -237,18 +301,18 @@ public enum MySQLFieldType {
         if (value.isDate()) {
             return MySQLTypeDateTime
         }
-        if (value.isTypedArrayOrArrayBuffer()) {
+        if (value.isObject()) {
             return MySQLTypeBlob
         }
         if (value.isAnyInt()) {
             let int_ = value.toInt64()
             if (int_ >= 0) {
-                if (int_ <= Int64(Int32.MaxValue)) {
+                if (int_ <= 2147483647) {
                     return MySQLTypeLong
                 }
                 return MySQLTypeLongLong
             }
-            if (int_ >= Int64(Int32.MinValue)) {
+            if (int_ >= -2147483648) {
                 return MySQLTypeLong
             }
             return MySQLTypeLongLong

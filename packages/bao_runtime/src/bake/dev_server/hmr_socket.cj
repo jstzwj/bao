@@ -58,16 +58,16 @@ public class HmrSocket {
 
     /// WebSocket 消息回调
     public func onMessage(ws: AnyWebSocket, msg: Array<Byte>, opcode: Opcode): Unit {
-        if (msg.length == 0) {
+        if (msg.size == 0) {
             return ws.close()
         }
 
         match (IncomingMessageId(msg[0])) {
             case `init` =>
-                if (msg.length != 9) { return ws.close() }
+                if (msg.size != 9) { return ws.close() }
                 var generation: UInt32
                 // 解析十六进制生成 ID
-                let source_map_id = SourceMapStore.Key.`init`(UInt64(generation) << 32)
+                let source_map_id = SourceMapStore.Key(UInt64(generation) << 32)
                 if (dev.source_maps.removeOrUpgradeWeakRef(source_map_id, WeakRefMode.upgrade)) {
                     referenced_source_maps.put(dev.allocator(), source_map_id, ())
                 }
@@ -75,7 +75,7 @@ public class HmrSocket {
             case subscribe =>
                 var new_bits: HmrTopic.Bits = HmrTopic.Bits()
                 let topics = msg.slice(1)
-                if (topics.length > HmrTopic.max_count) { return }
+                if (topics.size > HmrTopic.max_count) { return }
                 for (char in topics) {
                     // 匹配主题字符
                 }
@@ -107,7 +107,7 @@ public class HmrSocket {
             case testing_batch_events =>
                 match (dev.testing_batch_events) {
                     case disabled =>
-                        if (dev.current_bundle != None) {
+                        if (dev.current_bundle.isSome()) {
                             dev.testing_batch_events = TestingBatchEvents.enable_after_bundle
                         } else {
                             dev.testing_batch_events = TestingBatchEvents.enabled(TestingBatch.empty)
@@ -127,7 +127,7 @@ public class HmrSocket {
                 }
 
             case console_log =>
-                if (msg.length < 2) {
+                if (msg.size < 2) {
                     ws.close()
                     return
                 }
@@ -148,7 +148,7 @@ public class HmrSocket {
                 }
 
             case unref_source_map =>
-                let source_map_id = SourceMapStore.Key.`init`(UInt64(0))
+                let source_map_id = SourceMapStore.Key(UInt64(0))
                 let kv = referenced_source_maps.fetchRemove(source_map_id) ?? return
                 dev.source_maps.unref(kv.key)
 

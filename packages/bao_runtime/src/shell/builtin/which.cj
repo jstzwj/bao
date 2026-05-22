@@ -59,14 +59,14 @@ public class WhichCmd {
             return this.bltn().done(1)
         }
 
-        if (this.bltn().stdout.needsIO() == None) {
+        if (this.bltn().stdout.needsIO().isNone()) {
             let pathBuf = PathBuffer()
             let PATH = this.bltn().exportEnv.get(EnvStr.initSlice("PATH")) ?? EnvStr.initSlice("")
             defer { PATH.deref() }
             var hadNotFound = false
             for (arg in args) {
                 let resolved = WhichUtils.which(pathBuf, PATH.slice(), this.bltn().parentCmd().base.shell.cwdZ(), arg)
-                if (resolved == None) {
+                if (resolved.isNone()) {
                     hadNotFound = true
                     let buf = this.bltn().fmtErrorArena("which", "${arg} not found\n", [])
                     this.bltn().writeNoIO(OutKind.stdout, buf.toByteArray())
@@ -98,7 +98,7 @@ public class WhichCmd {
             defer { PATH.deref() }
 
             let resolved = WhichUtils.which(pathBuf, PATH.slice(), this.bltn().parentCmd().base.shell.cwdZ(), arg)
-            if (resolved == None) {
+            if (resolved.isNone()) {
                 // 需要修改state中的hadNotFound
                 this.state = WhichState.multiArgs(MultiArgsState(
                     argsSlice: multiArgs.argsSlice,

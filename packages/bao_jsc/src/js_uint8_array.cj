@@ -60,8 +60,8 @@ public class JsUint8Array_ {
         if (buffer.size == 0) {
             return CPointer<UInt8>()
         }
-        // 返回 buffer 的 C 指针表示
-        buffer.data()
+        // 返回 buffer 的 C 指针表示 - stub
+        CPointer<UInt8>()
     }
 
     // ========== len ==========
@@ -105,7 +105,8 @@ public class JsUint8Array_ {
     // FFI: JSUint8Array__fromDefaultAllocator(*JSGlobalObject, [*]u8, usize) JSValue
     public static func fromBytes(globalThis: JsObject, bytes: Array<UInt8>): JsValue {
         // FFI: JSUint8Array__fromDefaultAllocator(globalThis, bytes.ptr, bytes.len)
-        let arr = JsUint8Array_(buffer: bytes)
+        let arr = JsUint8Array_()
+        arr.buffer = bytes
         arr.toJsValue()
     }
 
@@ -120,7 +121,8 @@ public class JsUint8Array_ {
         for (b in bytes) {
             copy.append(b)
         }
-        let arr = JsUint8Array_(buffer: copy)
+        let arr = JsUint8Array_()
+        arr.buffer = copy
         arr.toJsValue()
     }
 
@@ -155,9 +157,9 @@ public class JsUint8Array_ {
     public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Uint8Array"
-        obj.set("byteLength", JsValue(n: byteLength))
-        obj.set("byteOffset", JsValue(n: byteOffset))
-        obj.set("length", JsValue(n: byteLength))
-        JsValue(obj: obj)
+        obj.set("byteLength", JsValue(byteLength))
+        obj.set("byteOffset", JsValue(byteOffset))
+        obj.set("length", JsValue(byteLength))
+        JsValue(obj)
     }
 }

@@ -5,6 +5,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // UDP Socket 配置
@@ -41,7 +42,7 @@ public class UdpSocketConfig {
         let config = UdpSocketConfig()
 
         match (options.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 let hostname = obj.get("hostname")
                 if (hostname.valueType == JsValueType.String) {
                     config.hostname = hostname.toString()
@@ -61,7 +62,7 @@ public class UdpSocketConfig {
                 let connectObj = obj.get("connect")
                 if (connectObj.valueType == JsValueType.Object) {
                     match (connectObj.objectData) {
-                        case Some(conn) => {
+                        case Some(conn) =>
                             let addr = conn.get("address")
                             let port = conn.get("port")
                             if (addr.valueType == JsValueType.String &&
@@ -71,11 +72,9 @@ public class UdpSocketConfig {
                                     port: UInt16(port.toNumber())
                                 ))
                             }
-                        }
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
 
@@ -206,9 +205,8 @@ public class UdpSocket {
 
         // 如果有连接目标, 执行 connect
         match (config.connect) {
-            case Some(conn) => {
+            case Some(conn) =>
                 connectSocket(fd, conn.address, conn.port)
-            }
             case None => ()
         }
     }
@@ -254,20 +252,17 @@ public class UdpSocket {
             var port: UInt16 = 0
 
             match (peer.family) {
-                case 2 => {
+                case 2 =>
                     // IPv4
                     hostname = formatAddrV4(peer.addr4)
                     port = peer.port
-                }
-                case 10 => {
+                case 10 =>
                     // IPv6
                     hostname = formatAddrV6(peer.addr6)
                     port = peer.port
-                }
-                case _ => {
+                case _ =>
                     i += 1
                     continue
-                }
             }
 
             // 构建回调参数: (thisValue, data, port, hostname, flags)

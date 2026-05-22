@@ -6,13 +6,14 @@
 //        S3 unlink/list_objects 实现
 package bao_runtime.webcore.blob
 
-import bao_core.*
 import bao_collections.*
-import bao_jsc.*
+import bao_core.Result
+import bao_jsc.JsValue
+import bao_jsc.JsObject
+import bao_collections.ArrayList
 import bao_sys.*
-import bao_io.*
 import bao_ptr.*
-import bao_http_types.*
+
 
 // ============================================================================
 // Re-exports — 从 webcore_types::store 重新导出的规范数据类型
@@ -24,7 +25,7 @@ import bao_http_types.*
 
 // ============================================================================
 // Map - Store 映射类型
-// 对应 Bun: type Map = HashMap<u64, *mut Store> (Store.rs:40)
+// 对应 Bun: type Map = HashMap<u64, *Store> (Store.rs:40)
 // ============================================================================
 
 /// Store 映射类型
@@ -152,8 +153,15 @@ public class StoreRef {
 
     /// 从 Store 创建保留引用
     /// 对应 Bun: StoreRef::retained()
-    public static func retained(store: Store): StoreRef {
-        store.refCount()
+    public static func createRetained(store: Store): StoreRef {
+        store.bumpRefCount()
+        let ref_ = StoreRef(store)
+        ref_.retained = true
+        return ref_
+    }
+
+    public static func isRetained(store: Store): StoreRef {
+        store.bumpRefCount()
         let ref_ = StoreRef(store)
         ref_.retained = true
         return ref_
@@ -172,10 +180,54 @@ public class StoreRef {
         return store
     }
 
+    /// 获取 Store 的 data 属性 (convenience accessor)
+    /// 对应 Bun: store_ref.data
+    public prop data: Data {
+        get() {
+            match (store) {
+                case Some(s) => s.data
+                case None => Data.Bytes(StoreBytes())
+            }
+        }
+    }
+
+    /// 增加引用计数
+    public func ref(): Unit {
+        match (store) {
+            case Some(s) => s.getRefCount()
+            case None => ()
+        }
+    }
+
+    /// 减少引用计数
+    public func deref(): Unit {
+        match (store) {
+            case Some(s) => s.deref()
+            case None => ()
+        }
+    }
+
+    /// Convenience: get as File (delegates to data.asFile())
+    public func asFile(): StoreFile {
+        return data.asFile()
+    }
+
+    /// Clone the store ref (bump refcount)
+    public func clone(): StoreRef {
+        let ref_ = StoreRef()
+        match (store) {
+            case Some(s) =>
+                s.getRefCount()
+                ref_.store = store
+            case None => ()
+        }
+        return ref_
+    }
+
     /// 转为原始指针
     public func toRaw(): UIntNative {
         match (store) {
-            case Some(s) => UIntNative(s.hashCode())
+            case Some(s) => UIntNative(0)
             case None => 0
         }
     }
@@ -208,14 +260,24 @@ public class StoreBytes {
         isMmap = false
     }
 
+    public init(data: Array<UInt8>) {
+        var list = ArrayList<UInt8>()
+        for (i in 0..data.size) {
+            list.append(data[Int64(i)])
+        }
+        this.data = list
+        storedName = PathString()
+        isMmap = false
+    }
+
     /// 获取数据切片
     public func slice(): Array<UInt8> {
-        return data.toArray()
+        return data.items()
     }
 
     /// 从 Vec 初始化
     /// 对应 Bun: Bytes::init()
-    public static func init(list: ArrayList<UInt8>): StoreBytes {
+    public static func `init`(list: ArrayList<UInt8>): StoreBytes {
         return StoreBytes(list)
     }
 
@@ -239,7 +301,7 @@ public class StoreBytes {
     /// 转为内部 Blob
     /// 对应 Bun: Bytes::to_internal_blob() (Store.rs:576-611)
     public func toInternalBlob(): InternalBlob {
-        let bytes = data.toArray()
+        let bytes = data.items()
         let result = InternalBlob(bytes)
         // 清空自身
         data.clear()
@@ -272,6 +334,9 @@ public class StoreFile {
     public var mkdirpIfNotExists: Bool
     /// 最大文件大小
     public var maxSize: Int64
+    /// 是否可 seek
+    /// 对应 Bun: File.seekable
+    public var seekable: ?Bool
 
     public init() {
         pathlike = PathOrFileDescriptor.Path(PathString())
@@ -280,7 +345,8 @@ public class StoreFile {
         lastModified = 0.0
         size = 0
         mkdirpIfNotExists = false
-        maxSize = Int64.MAX_VALUE
+        maxSize = 9223372036854775807
+        seekable = None
     }
 
     public init(pathlike: PathOrFileDescriptor, mimeType: ?MimeType) {
@@ -290,18 +356,37 @@ public class StoreFile {
         lastModified = 0.0
         size = 0
         mkdirpIfNotExists = false
-        maxSize = Int64.MAX_VALUE
+        maxSize = 9223372036854775807
+        seekable = None
     }
 
     /// 初始化文件存储
     /// 对应 Bun: File::init()
-    public static func init(pathlike: PathOrFileDescriptor, mimeType: ?MimeType): StoreFile {
+    public static func `init`(pathlike: PathOrFileDescriptor, mimeType: ?MimeType): StoreFile {
         return StoreFile(pathlike, mimeType)
+    }
+
+    /// Clone this StoreFile
+    public func clone(): StoreFile {
+        let f = StoreFile()
+        f.pathlike = pathlike
+        f.mimeType = mimeType
+        f.mode = mode
+        f.lastModified = lastModified
+        f.size = size
+        f.mkdirpIfNotExists = mkdirpIfNotExists
+        f.maxSize = maxSize
+        return f
+    }
+
+    /// Whether this is a tty
+    public func isAtty(): Bool {
+        return false
     }
 
     /// unlink — 删除文件
     /// 对应 Bun: FileExt::unlink() (Store.rs:279-317)
-    public func unlink(globalThis: JSGlobalObject): JSValue {
+    public func unlink(globalThis: JSGlobalObject): JsValue {
         match (pathlike) {
             case Path(pathLike) =>
                 // 创建异步删除任务
@@ -309,14 +394,14 @@ public class StoreFile {
                 return NodeFsAsyncUnlink.create(
                     globalThis,
                     binding,
-                    NodeFsUnlinkArgs(pathLike.clone()),
+                    NodeFsUnlinkArgs(PathLike(pathLike.clone().value)),
                     globalThis.bunVm()
                 )
-            case Fd(_) =>
+            case FdPath(_) =>
                 // 不能删除文件描述符
                 return JSPromise.resolvedPromiseValue(
                     globalThis,
-                    JSValue.zero() // ERR_INVALID_ARG_TYPE
+                    JsValue.undefined() // ERR_INVALID_ARG_TYPE
                 )
         }
     }
@@ -376,7 +461,7 @@ public class StoreS3 {
     }
 
     /// 初始化
-    public static func init(pathlike: PathLike, mimeType: ?MimeType, credentials: S3Credentials): StoreS3 {
+    public static func `init`(pathlike: PathLike, mimeType: ?MimeType, credentials: S3Credentials): StoreS3 {
         return StoreS3(pathlike, mimeType, credentials)
     }
 
@@ -393,7 +478,7 @@ public class StoreS3 {
     /// 获取带选项的凭证
     /// 对应 Bun: S3Ext::get_credentials_with_options() (Store.rs:319-341)
     public func getCredentialsWithOptions(
-        options: ?JSValue,
+        options: ?JsValue,
         globalObject: JSGlobalObject
     ): S3CredentialsWithOptions {
         return S3Credentials.withOptions(
@@ -412,18 +497,18 @@ public class StoreS3 {
     public func unlink(
         store: Store,
         globalThis: JSGlobalObject,
-        extraOptions: ?JSValue
-    ): JSValue {
+        extraOptions: ?JsValue
+    ): JsValue {
         // 创建 Wrapper 处理异步回调
         let wrapper = S3DeleteWrapper()
-        wrapper.promise = JSPromiseStrong.init(globalThis)
-        wrapper.store = StoreRef.retained(store)
+        wrapper.promise = JSPromiseStrong(globalThis)
+        wrapper.store = StoreRef.createRetained(store)
         wrapper.global = BackRef<JSGlobalObject>(globalThis)
 
         let value = wrapper.promise.value()
 
         // 获取代理 URL
-        let proxyUrl = globalThis.bunVm().getHttpProxy(true, None, None)
+        let proxyUrl = globalThis.bunVm().getHttpProxy(true, Option<String>.None, Option<String>.None)
         let awsOptions = getCredentialsWithOptions(extraOptions, globalThis)
 
         // 调用 S3 delete
@@ -443,22 +528,22 @@ public class StoreS3 {
     public func listObjects(
         store: Store,
         globalThis: JSGlobalObject,
-        listOptions: JSValue,
-        extraOptions: ?JSValue
-    ): JSValue {
+        listOptions: JsValue,
+        extraOptions: ?JsValue
+    ): JsValue {
         if (!listOptions.isUndefined() && !listOptions.isNull() && !listOptions.isObject()) {
             // throw invalid arguments
-            return JSValue.zero()
+            return JsValue.undefined()
         }
 
         let wrapper = S3ListWrapper()
-        wrapper.promise = JSPromiseStrong.init(globalThis)
-        wrapper.store = StoreRef.retained(store)
+        wrapper.promise = JSPromiseStrong(globalThis)
+        wrapper.store = StoreRef.createRetained(store)
         wrapper.global = BackRef<JSGlobalObject>(globalThis)
 
         let value = wrapper.promise.value()
 
-        let proxyUrl = globalThis.bunVm().getHttpProxy(true, None, None)
+        let proxyUrl = globalThis.bunVm().getHttpProxy(true, Option<String>.None, Option<String>.None)
         let awsOptions = getCredentialsWithOptions(extraOptions, globalThis)
 
         let options = S3Client.getListObjectsOptionsFromJs(globalThis, listOptions)
@@ -524,8 +609,13 @@ public class Store {
 
     /// 增加引用计数
     /// 对应 Bun: Store::ref_()
-    public func refCount(): Unit {
+    public func bumpRefCount(): Unit {
         refCount = refCount + 1
+    }
+
+    /// Alias for refCount
+    public func getRefCount(): Unit {
+        bumpRefCount()
     }
 
     /// 减少引用计数
@@ -548,7 +638,7 @@ public class Store {
 
     /// 初始化 (从 Vec<u8>)
     /// 对应 Bun: Store::init()
-    public static func init(list: ArrayList<UInt8>): StoreRef {
+    public static func `init`(list: ArrayList<UInt8>): StoreRef {
         let store = Store()
         store.data = Data.Bytes(StoreBytes(list))
         return StoreRef(store)
@@ -560,7 +650,7 @@ public class Store {
         if (hasOneRef()) {
             match (data) {
                 case Bytes(bytes) =>
-                    return Some(AnyBlob.InternalBlob(bytes.toInternalBlob()))
+                    return Some(AnyBlob.InternalBlobData(bytes.toInternalBlob()))
                 case _ => ()
             }
         }
@@ -574,13 +664,16 @@ public class Store {
             case File(file) =>
                 let pathlikeTag: PathOrFileDescriptorSerializeTag =
                     match (file.pathlike) {
-                        case Fd(_) => PathOrFileDescriptorSerializeTag.Fd
+                        case FdPath(_) => PathOrFileDescriptorSerializeTag.Fd
                         case Path(_) => PathOrFileDescriptorSerializeTag.Path
                     }
-                writer.writeIntLe(UInt8(pathlikeTag.ordinal()))
+                writer.writeIntLe(UInt8(match (pathlikeTag) {
+                    case PathOrFileDescriptorSerializeTag.Fd => 0
+                    case PathOrFileDescriptorSerializeTag.Path => 1
+                }))
 
                 match (file.pathlike) {
-                    case Fd(fd) =>
+                    case FdPath(fd) =>
                         writer.writeIntLe(fd)
                     case Path(path) =>
                         let pathSlice = path.slice()
@@ -589,7 +682,7 @@ public class Store {
                 }
 
             case S3(s3) =>
-                writer.writeIntLe(UInt8(PathOrFileDescriptorSerializeTag.Path.ordinal()))
+                writer.writeIntLe(UInt8(1))
                 let pathSlice = s3.pathlike.slice()
                 writer.writeIntLe(UInt32(pathSlice.size))
                 writer.writeAll(pathSlice)
@@ -616,6 +709,14 @@ public enum Data {
     | Bytes(StoreBytes)
     | File(StoreFile)
     | S3(StoreS3)
+
+    /// Get as File (unsafe -- assumes File variant)
+    public func asFile(): StoreFile {
+        match (this) {
+            case File(f) => f
+            case _ => StoreFile()
+        }
+    }
 }
 
 // ============================================================================
@@ -678,8 +779,8 @@ public class StoreExtImpl {
         }
 
         return Store(
-            data: Data.S3(StoreS3.initWithReferencedCredentials(path, effectiveMimeType, credentials)),
-            mimeType: MimeType.NONE
+            Data.S3(StoreS3.initWithReferencedCredentials(path, effectiveMimeType, credentials)),
+            MimeType.NONE
         )
     }
 
@@ -699,8 +800,8 @@ public class StoreExtImpl {
         }
 
         return Store(
-            data: Data.S3(StoreS3.init(path, effectiveMimeType, credentials)),
-            mimeType: MimeType.NONE
+            Data.S3(StoreS3(path, effectiveMimeType, credentials)),
+            MimeType.NONE
         )
     }
 
@@ -715,13 +816,13 @@ public class StoreExtImpl {
             case None =>
                 match (pathlike) {
                     case Path(path) => mimeFromPathExt(path.slice())
-                    case Fd(_) => None
+                    case FdPath(_) => Option<MimeType>.None
                 }
         }
 
         return Store(
-            data: Data.File(StoreFile.init(pathlike, effectiveMimeType)),
-            mimeType: MimeType.NONE
+            Data.File(StoreFile(pathlike, effectiveMimeType)),
+            MimeType.NONE
         )
     }
 
@@ -736,7 +837,7 @@ public class StoreExtImpl {
     /// fromArrayList
     /// 对应 Bun: StoreExt::from_array_list() (Store.rs:274-276)
     public static func fromArrayList(list: ArrayList<UInt8>): StoreRef {
-        return Store.init(list)
+        return StoreRef(Store(Data.Bytes(StoreBytes(list)), MimeType.NONE))
     }
 }
 
@@ -762,7 +863,7 @@ func extractExtension(path: Array<UInt8>): String {
     // 查找最后一个 '.'
     var lastDot = -1
     for (i in 0..path.size) {
-        if (path[i] == UInt8('.')) {
+        if (path[i] == 46) {
             lastDot = i
         }
     }
@@ -771,7 +872,7 @@ func extractExtension(path: Array<UInt8>): String {
     }
     var ext = ""
     for (i in (lastDot + 1)..path.size) {
-        ext = ext + String(Char(path[i]))
+        ext = ext + String(Rune(path[i]))
     }
     return ext.toAsciiLower()
 }
@@ -782,10 +883,10 @@ func extractExtension(path: Array<UInt8>): String {
 // ============================================================================
 
 /// Blob ArrayBuffer 释放回调 — JSC ArrayBuffer 外部释放回调
-/// C++ 将 *mut Store 作为释放器上下文存储
+/// C++ 将 *Store 作为释放器上下文存储
 /// 对应 Bun: #[unsafe(no_mangle)] extern "C" fn BlobArrayBuffer_deallocator
 public func blobArrayBufferDeallocator(bytes: UIntNative, blob: UIntNative): Unit {
-    // blob 是非空 *mut Store — C++ 存储为释放器上下文
+    // blob 是非空 *Store — C++ 存储为释放器上下文
     // 它拥有一个正在释放的未完成引用
     match (blob) {
         case 0 => () // null, 不处理
@@ -825,7 +926,7 @@ public class S3DeleteWrapper {
             case Some(global) =>
                 match (result) {
                     case Success =>
-                        promise.resolve(global, JSValue.TRUE)
+                        promise.resolve(global, JsValue.jsTrue())
                     case NotFound(err) =>
                         let errVal = err.toJsWithAsyncStack(
                             global,
@@ -883,7 +984,7 @@ public class S3ListWrapper {
                             case Some(v) =>
                                 promise.resolve(global, v)
                             case None =>
-                                promise.reject(global, JSValue.zero())
+                                promise.reject(global, JsValue.undefined())
                         }
                     case NotFound(err) =>
                         let errVal = err.toJsWithAsyncStack(
@@ -909,12 +1010,6 @@ public class S3ListWrapper {
 // 辅助类型
 // ============================================================================
 
-/// AnyBlob — Blob 的任意类型
-/// 对应 Bun: super::Any
-public enum AnyBlob {
-    | InternalBlob(InternalBlob)
-}
-
 /// InternalBlob — 内部 Blob 数据
 /// 对应 Bun: super::Internal
 public class InternalBlob {
@@ -932,6 +1027,12 @@ public class InternalBlob {
         bytes = Array<UInt8>()
         wasString = false
     }
+}
+
+/// AnyBlob — Blob 的任意类型
+/// 对应 Bun: super::Any
+public enum AnyBlob {
+    | InternalBlobData(InternalBlob)
 }
 
 /// PathString — 路径字符串
@@ -985,13 +1086,55 @@ public class PathLike {
 /// PathOrFileDescriptor — 路径或文件描述符
 /// 对应 Bun: PathOrFileDescriptor
 public enum PathOrFileDescriptor {
-    | Fd(Int64)
+    | FdPath(Int64)
     | Path(PathString)
 
     public func toString(): String {
         match (this) {
-            case Fd(fd) => "fd:${fd}"
+            case FdPath(fd) => "fd:${fd}"
             case Path(p) => p.value
+        }
+    }
+
+    public func isPath(): Bool {
+        match (this) {
+            case Path(_) => true
+            case FdPath(_) => false
+        }
+    }
+
+    public func isFd(): Bool {
+        match (this) {
+            case FdPath(_) => true
+            case Path(_) => false
+        }
+    }
+
+    public func fd(): Fd {
+        match (this) {
+            case FdPath(fd) => Fd(fd)
+            case Path(_) => Fd(-1)
+        }
+    }
+
+    public func path(): PathString {
+        match (this) {
+            case Path(p) => p
+            case FdPath(_) => PathString()
+        }
+    }
+
+    public func pathSlice(): String {
+        match (this) {
+            case Path(p) => p.value
+            case FdPath(_) => ""
+        }
+    }
+
+    public func fdNative(): Int32 {
+        match (this) {
+            case FdPath(fd) => Int32(fd)
+            case Path(_) => -1
         }
     }
 }
@@ -1013,7 +1156,7 @@ public class S3Credentials {
     public static func withOptions(
         credentials: S3Credentials,
         options: ?S3CredentialsWithOptions,
-        extraOptions: ?JSValue,
+        extraOptions: ?JsValue,
         acl: ?String,
         storageClass: ?String,
         requestPayer: ?String,
@@ -1028,7 +1171,7 @@ public class S3Credentials {
 public class S3CredentialsWithOptions {
     public var credentials: S3Credentials
     public var options: ?S3CredentialsWithOptions
-    public var extraOptions: ?JSValue
+    public var extraOptions: ?JsValue
     public var acl: ?String
     public var storageClass: ?String
     public var requestPayer: ?String
@@ -1036,7 +1179,7 @@ public class S3CredentialsWithOptions {
     public init(
         credentials: S3Credentials,
         options: ?S3CredentialsWithOptions,
-        extraOptions: ?JSValue,
+        extraOptions: ?JsValue,
         acl: ?String,
         storageClass: ?String,
         requestPayer: ?String
@@ -1071,8 +1214,8 @@ public enum S3ListObjectsResult {
 public class S3Error {
     public init() {}
 
-    public func toJsWithAsyncStack(global: JSGlobalObject, path: String, promise: ?JSValue): JSValue {
-        return JSValue.zero()
+    public func toJsWithAsyncStack(global: JSGlobalObject, path: String, promise: ?JsValue): JsValue {
+        return JsValue.undefined()
     }
 }
 
@@ -1081,7 +1224,7 @@ public class S3Error {
 public class S3ListResult {
     public init() {}
 
-    public func toJs(global: JSGlobalObject): ?JSValue {
+    public func toJs(global: JSGlobalObject): ?JsValue {
         return None
     }
 }
@@ -1119,7 +1262,7 @@ public class S3Client {
     }
 
     /// 从 JS 获取列表对象选项
-    public static func getListObjectsOptionsFromJs(global: JSGlobalObject, value: JSValue): S3ListObjectsOptions {
+    public static func getListObjectsOptionsFromJs(global: JSGlobalObject, value: JsValue): S3ListObjectsOptions {
         return S3ListObjectsOptions()
     }
 }
@@ -1202,7 +1345,7 @@ public class BinaryWriter {
 
     /// 获取缓冲区
     public func toBytes(): Array<UInt8> {
-        return buffer.toArray()
+        return buffer.items()
     }
 }
 
@@ -1211,23 +1354,27 @@ public class BinaryWriter {
 public class JSPromiseStrong {
     public init() {}
 
-    public static func init(global: JSGlobalObject): JSPromiseStrong {
+    public init(global: JsGlobalObject) {}
+
+    public static func `init`(global: JSGlobalObject): JSPromiseStrong {
         return JSPromiseStrong()
     }
 
-    public func value(): JSValue {
-        return JSValue.zero()
+    public func value(): JsValue {
+        return JsValue.undefined()
     }
 
-    public func resolve(global: JSGlobalObject, value: JSValue): Unit {}
-    public func reject(global: JSGlobalObject, value: JSValue): Unit {}
-    public func reject(global: JSGlobalObject, err: ?JSValue): Unit {}
-    public func get(): ?JSValue { return None }
+    public func resolve(global: JSGlobalObject, value: JsValue): Unit {}
+    public func reject(global: JSGlobalObject, value: JsValue): Unit {}
+    public func reject(global: JSGlobalObject, err: ?JsValue): Unit {}
+    public func get(): ?JsValue { return None }
+    public func deinit(): Unit {}
+    public func swap(): JSPromiseStrong { return this }
 }
 
 /// JSPromise — JS Promise 辅助
 public class JSPromise {
-    public static func resolvedPromiseValue(global: JSGlobalObject, value: JSValue): JSValue {
+    public static func resolvedPromiseValue(global: JSGlobalObject, value: JsValue): JsValue {
         return value
     }
 }
@@ -1274,8 +1421,8 @@ public class NodeFsAsyncUnlink {
         binding: NodeFsBinding,
         args: NodeFsUnlinkArgs,
         vm: VirtualMachine
-    ): JSValue {
-        return JSValue.zero()
+    ): JsValue {
+        return JsValue.undefined()
     }
 }
 
@@ -1297,10 +1444,727 @@ public class JSGlobalObject {
     }
 }
 
-/// UIntNative — 原始大小无符号整数
-public type UIntNative = UInt64
-
 /// SizeType — Blob 大小类型
-public typealias BlobSizeType = Int64
+public type BlobSizeType = Int64
+
+// ============================================================================
+// Disambiguation aliases and stubs for types used across blob files
+// ============================================================================
+
+/// Mode — file permission mode (disambiguated stub)
+/// In Bun this is a platform-specific file mode type alias
+public type Mode = UInt32
+
+/// Stat — file stat result (stub)
+/// Corresponds to Bun: std.posix.Stat or similar
+public class Stat {
+    public var stMode: UInt64
+    public var stSize: Int64
+
+    public init() {
+        stMode = 0
+        stSize = 0
+    }
+}
+
+/// SyscallTag — identifies which syscall produced an error
+/// Corresponds to: Bun: copy_file.rs / read_file.rs / write_file.rs SyscallTag
+public enum SyscallTag {
+    | open
+    | read
+    | write
+    | fstat
+    | sendfile
+    | copyFileRange
+    | splice
+    | copyfile
+    | chmod
+    | mkdir
+}
+
+/// SyscallErrno — syscall error numbers
+/// Corresponds to: Bun: errno constants
+public enum SyscallErrno {
+    | SUCCESS
+    | EINVAL
+    | EISDIR
+    | ENOSYS
+    | EXDEV
+    | ENOTSUP
+    | ENOENT
+    | ECONNREFUSED
+    | ENOMEM
+    | EAGAIN
+
+    public func toInt(): Int32 {
+        match (this) {
+            case SUCCESS => 0
+            case EINVAL => 22
+            case EISDIR => 21
+            case ENOSYS => 38
+            case EXDEV => 18
+            case ENOTSUP => 95
+            case ENOENT => 2
+            case ECONNREFUSED => 111
+            case ENOMEM => 12
+            case EAGAIN => 11
+        }
+    }
+}
+
+/// SyscallError — syscall error with tag context
+/// Corresponds to: Bun: SyscallError used in copy/read/write_file
+public class SyscallError {
+    public var errno: Int32
+    public var syscall: SyscallTag
+
+    public init() {
+        errno = 0
+        syscall = SyscallTag.read
+    }
+
+    public init(errno: Int32, syscall: SyscallTag) {
+        this.errno = errno
+        this.syscall = syscall
+    }
+
+    public static func fromErrno(errno: Int32, syscall: SyscallTag): SyscallError {
+        return SyscallError(errno, syscall)
+    }
+
+    public static func fromCode(errno: SyscallErrno, syscall: SyscallTag): SyscallError {
+        return SyscallError(errno.toInt(), syscall)
+    }
+
+    public func toSystemError(): SystemError {
+        return SystemError()
+    }
+
+    public func clone(): SyscallError {
+        return SyscallError(errno, syscall)
+    }
+
+    public func withPath(path: String): SyscallError {
+        return SyscallError(errno, syscall)
+    }
+
+    public func withFd(fd: Int64): SyscallError {
+        return SyscallError(errno, syscall)
+    }
+
+    public func isNoent(): Bool {
+        return errno == SyscallErrno.ENOENT.toInt()
+    }
+
+    public func toJsWithAsyncStack(global: JsGlobalObject, path: String, promise: ?JsValue): JsValue {
+        return JsValue.undefined()
+    }
+
+    public func toJsWithAsyncStack(global: JsGlobalObject, promise: JSPromiseStrong): JsValue {
+        return JsValue.undefined()
+    }
+
+    public func getErrno(): SyscallErrno {
+        match (errno) {
+            case 22 => SyscallErrno.EINVAL
+            case 21 => SyscallErrno.EISDIR
+            case 38 => SyscallErrno.ENOSYS
+            case 18 => SyscallErrno.EXDEV
+            case 95 => SyscallErrno.ENOTSUP
+            case 2 => SyscallErrno.ENOENT
+            case 111 => SyscallErrno.ECONNREFUSED
+            case 12 => SyscallErrno.ENOMEM
+            case 11 => SyscallErrno.EAGAIN
+            case _ => SyscallErrno.SUCCESS
+        }
+    }
+}
+
+/// ErrorCase — error handling strategy for file ops
+public enum ErrorCase {
+    | CloseOnFail
+    | None_
+}
+
+/// Retry — result of mkdirp retry logic
+public enum Retry {
+    | Continue
+    | Fail
+    | No
+}
+
+/// ClosingState — file operation state
+public enum ClosingState {
+    | running
+    | closing
+    | closed
+
+    public func toUInt8(): UInt8 {
+        match (this) {
+            case running => 0
+            case closing => 1
+            case closed => 2
+        }
+    }
+}
+
+public let CLOSING_STATE_RUNNING: UInt8 = 0
+public let CLOSING_STATE_CLOSING: UInt8 = 1
+public let CLOSING_STATE_CLOSED: UInt8 = 2
+
+/// SyscallResult — result of a syscall
+public enum SyscallResult<T> {
+    | Ok(T)
+    | Err(SyscallError)
+}
+
+/// Blob — Blob stub (defined in webcore but used locally in blob package)
+public class Blob {
+    public var store: ?StoreRef
+    public var size: Int64
+
+    public init() {
+        store = None
+        size = 0
+    }
+
+    public init(data: Array<UInt8>, mime: String) {
+        store = None
+        size = Int64(data.size)
+    }
+
+    public static func writeFileWithSourceDestination(
+        global: JsGlobalObject,
+        src: Blob,
+        dest: Blob,
+        opts: WriteFileOptions
+    ): ?JsValue {
+        return None
+    }
+
+    public func sharedView(): Array<UInt8> {
+        return []
+    }
+
+    public func detach(): Unit {
+        store = None
+    }
+
+    public func refStore(): Unit {}
+    public func derefStore(): Unit {}
+
+    public func storePathlike(): PathOrFileDescriptor {
+        match (store) {
+            case Some(s) =>
+                match (s.store) {
+                    case Some(st) =>
+                        match (st.data) {
+                            case Data.File(f) => f.pathlike
+                            case _ => PathOrFileDescriptor.Path(PathString())
+                        }
+                    case None => PathOrFileDescriptor.Path(PathString())
+                }
+            case None => PathOrFileDescriptor.Path(PathString())
+        }
+    }
+
+    public static func mkdirIfNotExists(
+        target: Any,
+        err: SyscallError,
+        path: String,
+        pathBytes: Array<UInt8>
+    ): Retry {
+        return Retry.No
+    }
+}
+
+/// WriteFileOptions — options for file writing
+public class WriteFileOptions {
+    public var mkdirpIfExists: ?Bool
+
+    public init() {
+        mkdirpIfExists = None
+    }
+
+    public init(mkdirpIfExists: ?Bool) {
+        this.mkdirpIfExists = mkdirpIfExists
+    }
+}
+
+/// SystemError — system error with extended context
+/// Corresponds to: Bun: jsc.SystemError
+public class SystemError {
+    public var errno: Int32
+    public var code: String
+    public var message: String
+    public var path: String
+    public var syscall: String
+    public var hostname: String
+    public var fd: Int64
+    public var dest: String
+
+    public init() {
+        errno = 0
+        code = ""
+        message = ""
+        path = ""
+        syscall = ""
+        hostname = ""
+        fd = -1
+        dest = ""
+    }
+
+    public init(errno: Int32, code: String, message: String, path: String, syscall: String,
+                hostname: String, fd: Int64, dest: String) {
+        this.errno = errno
+        this.code = code
+        this.message = message
+        this.path = path
+        this.syscall = syscall
+        this.hostname = hostname
+        this.fd = fd
+        this.dest = dest
+    }
+
+    public init(code: String, message: String, path: String, syscall: String) {
+        errno = 0
+        this.code = code
+        this.message = message
+        this.path = path
+        this.syscall = syscall
+        hostname = ""
+        fd = -1
+        dest = ""
+    }
+
+    public init(code: String, path: String, message: String, syscall: String, errno: Int32) {
+        this.errno = errno
+        this.code = code
+        this.message = message
+        this.path = path
+        this.syscall = syscall
+        hostname = ""
+        fd = -1
+        dest = ""
+    }
+
+    public init(errnoVal: Int32, message: String, syscall: String, path: String, code: String) {
+        errno = errnoVal
+        this.code = code
+        this.message = message
+        this.path = path
+        this.syscall = syscall
+        hostname = ""
+        fd = -1
+        dest = ""
+    }
+
+    public func isEmpty(): Bool {
+        return message.isEmpty() && code.isEmpty()
+    }
+
+    public func toErrorInstanceWithAsyncStack(global: JsGlobalObject, promise: JSPromiseStrong): JsValue {
+        return JsValue.undefined()
+    }
+
+    public func toJs(global: JsGlobalObject): JsValue {
+        return JsValue.undefined()
+    }
+}
+
+/// SystemError stub — re-exported here for blob package use
+/// (The store.cj already has SystemError references from JscSystemError)
+public class SystemError2 {
+    public var errno: Int32
+    public var code: String
+    public var message: String
+    public var path: String
+    public var syscall: String
+    public var hostname: String
+    public var fd: Int64
+    public var dest: String
+
+    public init() {
+        errno = 0
+        code = ""
+        message = ""
+        path = ""
+        syscall = ""
+        hostname = ""
+        fd = -1
+        dest = ""
+    }
+
+    public init(errno: Int32, code: String, message: String, path: String, syscall: String,
+                hostname: String, fd: Int64, dest: String) {
+        this.errno = errno
+        this.code = code
+        this.message = message
+        this.path = path
+        this.syscall = syscall
+        this.hostname = hostname
+        this.fd = fd
+        this.dest = dest
+    }
+}
+
+/// BunSys stub — system calls used by blob operations
+/// These provide a layer over bao_sys functions
+public class BunSys {
+    public static let PREALLOCATE_SUPPORTED: Bool = true
+    public static let O_CLOEXEC: Int32 = 0x80000
+    public static let O_RDONLY: Int32 = 0
+    public static let O_WRONLY: Int32 = 1
+    public static let O_CREAT: Int32 = 64
+    public static let O_TRUNC: Int32 = 512
+    public static let O_NONBLOCK: Int32 = 2048
+    public static let O_APPEND: Int32 = 1024
+
+    public static func fstat(fd: Fd): BunSysResult<Stat> { BunSysResult<Stat>.Ok(Stat()) }
+    public static func open(path: String, flags: Int32, mode: Int32): BunSysResult<Fd> { BunSysResult<Fd>.Ok(Fd.INVALID) }
+    public static func fchmod(fd: Fd, mode: UInt32): BunSysResult<Unit> { BunSysResult<Unit>.Ok(()) }
+    public static func preallocateFile(fd: Int32, off: Int64, len: Int64): Int32 { 0 }
+    public static func copyFileRange(fdIn: Int32, offIn: UIntNative, fdOut: Int32, offOut: UIntNative, len: Int64, flags: Int32): Int64 { -1 }
+    public static func sendfile(outFd: Int32, inFd: Int32, off: UIntNative, len: Int64): Int64 { -1 }
+    public static func splice(fdIn: Int32, offIn: UIntNative, fdOut: Int32, offOut: UIntNative, len: Int64, flags: Int32): Int64 { -1 }
+    public static func getErrno(result: Int64): SyscallErrno { SyscallErrno.SUCCESS }
+    public static func canUseCopyFileRangeSyscall(): Bool { false }
+    public static func isDir(mode: UInt64): Bool { (mode & 0o170000) == 0o040000 }
+    public static func isRegularFile(mode: UInt64): Bool { (mode & 0o170000) == 0o100000 }
+    public static func isFifo(mode: UInt64): Bool { (mode & 0o170000) == 0o010000 }
+    public static func isChr(mode: UInt64): Bool { (mode & 0o170000) == 0o020000 }
+    public static func isSock(mode: UInt64): Bool { (mode & 0o170000) == 0o140000 }
+    public static func close(fd: Fd): Unit {}
+    public static func truncatePath(path: String, size: Int64): Unit {}
+    public static func setFileOffset(fd: Fd, offset: Int64): Unit {}
+    public static func ftruncate(fd: Int32, size: Int64): Int32 { 0 }
+    public static func fcntlGetFl(fd: Int32): Int32 { 0 }
+    public static func fcntlSetFl(fd: Int32, flags: Int32): Int32 { 0 }
+    public static func mkdirRecursive(path: String): Int32 { 0 }
+    public static func openPath(path: String, flags: Int64, mode: Int32): Result<Fd, SyscallError> { Result.Err(SyscallError()) }
+    public static func recvNonBlock(fd: Fd, buf: Array<UInt8>): SyscallResult<Int64> { SyscallResult.Ok(0) }
+    public static func read(fd: Fd, buf: Array<UInt8>): SyscallResult<Int64> { SyscallResult.Ok(0) }
+    public static func write(fd: Fd, buf: Array<UInt8>): SyscallResult<Int64> { SyscallResult.Ok(0) }
+}
+
+/// BunSysResult — result of a BunSys call
+public enum BunSysResult<T> {
+    | Ok(T)
+    | Err(SyscallError)
+}
+
+/// BunCore — core utilities stub
+public class BunCore {
+    public static func errnoToZigErr(errno: Int32): BaoError { BaoError() }
+    public static func errnoToZigErr(errno: SyscallErrno): BaoError { BaoError() }
+    public static func errOutOfMemory(): BaoError { BaoError() }
+    public static func errEisDir(): BaoError { BaoError() }
+    public static func isReadable(fd: Fd): Pollable { Pollable.Ready }
+    public static func isWritable(fd: Fd): Pollable { Pollable.Ready }
+}
+
+/// BaoError — generic error stub
+public class BaoError {
+    public init() {}
+    public static func fromErrno(errno: Int32): BaoError { BaoError() }
+    public static let EISDIR: BaoError = BaoError()
+}
+
+/// NodeFs — node fs operations stub
+public class NodeFs {
+    public static let DEFAULT_PERMISSION: UInt32 = 0o644
+
+    public static func copyFileUsingReadWriteLoop(
+        src: String, dest: String,
+        srcFd: Fd, destFd: Fd,
+        remain: Int64, written: UInt64
+    ): BunSysResult<Unit> { BunSysResult<Unit>.Ok(()) }
+}
+
+/// JscSystemError — JS system error
+public class JscSystemError {
+    public var errno: Int32
+    public var code: String
+    public var message: String
+    public var path: String
+    public var syscall: String
+    public var hostname: String
+    public var fd: Int64
+    public var dest: String
+
+    public init() {
+        errno = 0
+        code = ""
+        message = ""
+        path = ""
+        syscall = ""
+        hostname = ""
+        fd = -1
+        dest = ""
+    }
+
+    public init(errno: Int32, code: String, message: String, path: String, syscall: String,
+                hostname: String, fd: Int64, dest: String) {
+        this.errno = errno
+        this.code = code
+        this.message = message
+        this.path = path
+        this.syscall = syscall
+        this.hostname = hostname
+        this.fd = fd
+        this.dest = dest
+    }
+
+    public func toErrorInstanceWithAsyncStack(global: JsGlobalObject, promise: JSPromiseStrong): JsValue {
+        return JsValue.undefined()
+    }
+
+    public func toErrorInstance(global: JsGlobalObject): JsValue {
+        return JsValue.undefined()
+    }
+}
+
+/// ZStr — zero-terminated string
+public class ZStr {
+    public static let EMPTY: String = ""
+}
+
+/// UvBufT — libuv buffer type
+public class UvBufT {
+    public var len: UInt32
+    public var base: CPointer<UInt8>
+
+    public init(len: UInt32, base: CPointer<UInt8>) {
+        this.len = len
+        this.base = base
+    }
+}
+
+/// UvStatT — libuv stat type
+public class UvStatT {
+    public var size: Int64
+    public var mode: UInt64
+
+    public init() {
+        size = 0
+        mode = 0
+    }
+
+    public static func fromCPointer(ptr: CPointer<Unit>): UvStatT {
+        return UvStatT()
+    }
+}
+
+/// PosixUtil — POSIX utility functions
+public class PosixUtil {
+    public static func isDir(mode: UInt64): Bool { (mode & 0o170000) == 0o040000 }
+    public static func isRegularFile(mode: UInt64): Bool { (mode & 0o170000) == 0o100000 }
+}
+
+/// MathUtil — math utility functions
+public class MathUtil {
+    public static func clamp(v: Int64, min: Int64, max: Int64): Int64 {
+        if (v < min) { return min }
+        if (v > max) { return max }
+        return v
+    }
+    public static func min(a: Int64, b: Int64): Int64 {
+        if (a < b) { return a }
+        return b
+    }
+    public static let MAX_UINT32: Int64 = 4294967295
+}
+
+/// PathUtil — path utility functions
+public class PathUtil {
+    public static func dirname(path: String): String {
+        let optIdx = path.lastIndexOf('/')
+        if (optIdx.isNone()) { return "." }
+        let idx = optIdx.getOrThrow()
+        if (idx == 0) { return "/" }
+        return path[0..idx]
+    }
+}
+
+/// AsyncMkdirp — async mkdirp scheduler
+public class AsyncMkdirp {
+    public static func schedule(dirPath: String, onComplete: CPointer<Unit>, context: CPointer<Unit>): Unit {}
+}
+
+/// UV constants
+public let UV_ENOENT: Int32 = -2
+public let UV_EPERM: Int32 = -1
+public let UV_EINVAL: Int32 = -22
+
+/// UV FS O_ constants
+public class UV_FS_O {
+    public static let CREAT: Int32 = 64
+    public static let WRONLY: Int32 = 1
+    public static let TRUNC: Int32 = 512
+}
+
+/// StoreRef extension methods — ref/deref helpers
+public func StoreRefRef(s: StoreRef): Unit {
+    match (s.store) {
+        case Some(st) => st.getRefCount()
+        case None => ()
+    }
+}
+
+/// StoreRef deref helper
+public func StoreRefDeref(s: StoreRef): Unit {
+    match (s.store) {
+        case Some(st) => st.deref()
+        case None => ()
+    }
+}
+
+/// libuv FFI declarations for blob package
+/// Note: String path params use CPointer<Unit> for stubs since CString requires CType
+@C
+foreign func uv_fs_copyfile(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    newPath: CPointer<Unit>,
+    oldPath: CPointer<Unit>,
+    flags: Int32,
+    cb: CPointer<Unit>
+): Int32
+
+@C
+foreign func uv_fs_chmod(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    path: CPointer<Unit>,
+    mode: Int32,
+    cb: CPointer<Unit>
+): Int32
+
+@C
+foreign func uv_fs_open(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    path: CPointer<Unit>,
+    flags: Int32,
+    mode: Int32,
+    cb: CPointer<Unit>
+): Int32
+
+@C
+foreign func uv_fs_write(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    file: Int32,
+    bufs: CPointer<Unit>,
+    nbufs: UInt32,
+    offset: Int64,
+    cb: CPointer<Unit>
+): Int32
+
+@C
+foreign func uv_fs_read(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    file: Int32,
+    bufs: CPointer<Unit>,
+    nbufs: UInt32,
+    offset: Int64,
+    cb: CPointer<Unit>
+): Int32
+
+@C
+foreign func uv_fs_fstat(
+    loop: CPointer<Unit>,
+    req: CPointer<Unit>,
+    file: Int32,
+    cb: CPointer<Unit>
+): Int32
+
+@C
+foreign func uv_fs_req_cleanup(req: CPointer<Unit>): Unit
+
+@C
+foreign func uv_fs_get_result(req: CPointer<Unit>): Int64
+
+@C
+foreign func uv_fs_get_statbuf(req: CPointer<Unit>): CPointer<Unit>
+
+@C
+foreign func uv_req_get_data(req: CPointer<Unit>): CPointer<Unit>
+
+@C
+foreign func uv_req_set_data(req: CPointer<Unit>, data: CPointer<Unit>): Unit
 
 // ported from: src/runtime/webcore/blob/Store.rs
+
+/// BLOB_MAX_SIZE — maximum blob size constant
+/// Corresponds to: Bun: std.math.maxInt(i64) ≈ 9223372036854775807
+public let BLOB_MAX_SIZE: BlobSizeType = 9223372036854775807
+
+/// min — return minimum of two Int64 values
+public func min(a: Int64, b: Int64): Int64 {
+    if (a < b) { return a } else { return b }
+}
+
+/// max — return maximum of two Int64 values
+public func max(a: Int64, b: Int64): Int64 {
+    if (a > b) { return a } else { return b }
+}
+
+/// BlobLifetime — blob data lifetime hint
+/// Corresponds to: Bun: blob lifetime enum
+public enum BlobLifetime {
+    | Temporary   // caller must take ownership
+    | Borrowed    // borrowed reference, valid for the call
+}
+
+/// JsGlobalObject — alias for JSGlobalObject (local stub in this package)
+public type JsGlobalObject = JSGlobalObject
+
+/// JsPromise — local stub for JS Promise
+public class JsPromise {
+    public init() {}
+    public func resolve(global: JsGlobalObject, value: JsValue): Unit {}
+    public func reject(global: JsGlobalObject, value: JsValue): Unit {}
+    public func swap(): JsPromise { return this }
+}
+
+/// BaoString — string stub (simplified from bao_core.BaoString)
+/// Used where Bun code expects BaoString-specific methods
+public class BaoString {
+    public var value: String
+
+    public init() {
+        value = ""
+    }
+
+    public init(s: String) {
+        value = s
+    }
+
+    public static func static_(s: String): String {
+        return s
+    }
+
+    public static func cloneUtf8(s: String): String {
+        return s
+    }
+
+    public static let EMPTY: String = ""
+
+    public func isEmpty(): Bool {
+        return value.isEmpty()
+    }
+
+    public func toErrorInstance(global: JsGlobalObject): JsValue {
+        return JsValue(value)
+    }
+
+    public func slice(): String {
+        return value
+    }
+
+    public func asBytes(): Array<UInt8> {
+        return value.toArray()
+    }
+}

@@ -66,12 +66,12 @@ public class Btjs {
     // 严格翻译自 printUnknownSource
     // 打印未知源码位置
     private static func printUnknownSource(address: UIntNative): String {
-        "???:?:?: 0x" + address.toHexString() + " in ??? (???)\n"
+        "???:?:?: 0x" + address.toString() + " in ??? (???)\n"
     }
 
     private static func formatSourceInfo(sourceInfo: SourceInfo, address: UIntNative): String {
-        var result = sourceInfo.fileName + ":" + String(sourceInfo.line) + ":" + String(sourceInfo.column) + ": "
-        result += "0x" + address.toHexString() + " in " + sourceInfo.symbolName + " (" + sourceInfo.compileUnitName + ")\n"
+        var result = sourceInfo.fileName + ":" + sourceInfo.line.toString() + ":" + sourceInfo.column.toString() + ": "
+        result += "0x" + address.toString() + " in " + sourceInfo.symbolName + " (" + sourceInfo.compileUnitName + ")\n"
         match (readSourceLine(sourceInfo.fileName, sourceInfo.line)) {
             case Some(sourceLine) => result += sourceLine + "\n"
             case None => ()
@@ -91,14 +91,14 @@ public class Btjs {
         var result = ""
 
         match (sourceLocation) {
-            case Some(sl) => result += sl.fileName + ":" + String(sl.line) + ":" + String(sl.column) + ": "
+            case Some(sl) => result += sl.fileName + ":" + sl.line.toString() + ":" + sl.column.toString() + ": "
             case None =>
                 if (!doLlint) {
                     result += "???:?:?"
                 }
         }
 
-        result += ": 0x" + address.toHexString() + " in " + symbolName + " (" + compileUnitName + ")\n"
+        result += ": 0x" + address.toString() + " in " + symbolName + " (" + compileUnitName + ")\n"
 
         match (sourceLocation) {
             case Some(sl) => result += sourceLineSnippet(sl)
@@ -135,7 +135,7 @@ public class Btjs {
     // 严格翻译自 printUnwindError
     // 打印展开错误
     private static func printUnwindError(address: UIntNative, err: String): String {
-        "Unwind error at address 0x" + address.toHexString() + " (" + err + "), trace may be incomplete\n\n"
+        "Unwind error at address 0x" + address.toString() + " (" + err + "), trace may be incomplete\n\n"
     }
 
     // 检查是否为调试构建

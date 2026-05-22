@@ -21,7 +21,7 @@ public class ExecCommand {
 
         // 创建 Transpiler 以运行环境变量加载器
         // 对应 Bun: 创建 dummy bundler 并运行 env loader
-        let bundle = Transpiler.init(
+        let bundle = Transpiler.`init`(
             ctx.allocator,
             ctx.log,
             Config.configureTransformOptionsForBunVM(ctx.allocator, ctx.args),

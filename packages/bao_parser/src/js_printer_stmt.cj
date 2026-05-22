@@ -999,6 +999,20 @@ public enum LocalKind {
     | Const
     | Using
     | AwaitUsing
+
+    public operator func ==(right: LocalKind): Bool {
+        match (this) {
+            case Var => match (right) { case Var => true case _ => false }
+            case Let => match (right) { case Let => true case _ => false }
+            case Const => match (right) { case Const => true case _ => false }
+            case Using => match (right) { case Using => true case _ => false }
+            case AwaitUsing => match (right) { case AwaitUsing => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: LocalKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// ClauseItemAsKind - moved to top-level

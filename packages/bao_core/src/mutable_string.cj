@@ -47,7 +47,7 @@ public class MutableString {
 
     /// 2048 字节初始容量 - 对应 Bun MutableString.init2048
     /// pub fn init2048(allocator) !MutableString {
-    ///     return MutableString.init(allocator, 2048);
+    ///     return MutableString(allocator, 2048);
     /// }
     public static func init2048(): MutableString {
         return MutableString(2048)
@@ -55,7 +55,7 @@ public class MutableString {
 
     /// 从字符串拷贝创建 - 对应 Bun MutableString.initCopy
     /// pub fn initCopy(allocator, str) !MutableString {
-    ///     var mutable = try MutableString.init(allocator, str.len);
+    ///     var mutable = try MutableString(allocator, str.len);
     ///     try mutable.copy(str);
     ///     return mutable;
     /// }

@@ -14,25 +14,8 @@ package bao_jsc
 //   export fn Bun__eventLoop__incrementRefConcurrently(...) void { ... }
 //   export fn Bun__queueJSCDeferredWorkTaskConcurrently(...) void { ... }
 //   export fn Bun__tickWhilePaused(...) void { ... }
-public class JSCScheduler {
-    public init() {}
-}
-
-// ========== JSCDeferredWorkTask ==========
-// 严格翻译自 JSCScheduler.JSCDeferredWorkTask
-// JSC 延迟工作任务 opaque 类型
-public class JSCDeferredWorkTask {
-    public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
-
-    public init() {}
-
-    public func run() {
-        runDeferredWorkFFI()
-    }
-
-    private func runDeferredWorkFFI() {
-    }
-}
+// 注意: JSCScheduler 已移至 jsc_scheduler.cj
+// 注意: JSCDeferredWorkTask 已移至 jsc_scheduler.cj
 
 // ========== Bun__eventLoop__incrementRefConcurrently ==========
 // 严格翻译自 JSCScheduler.zig Bun__eventLoop__incrementRefConcurrently
@@ -49,47 +32,18 @@ public class JSCDeferredWorkTask {
 //   }
 public func eventLoopIncrementRefConcurrently(jscVm: BunVirtualMachine, delta: Int32) {
     if (delta > 0) {
-        // FFI: jscVm.eventLoop.refConcurrently()
-        jscVm.eventLoopRefConcurrently()
+        bunVMEventLoopRefConcurrently()
     } else {
-        // FFI: jscVm.eventLoop.unrefConcurrently()
-        jscVm.eventLoopUnrefConcurrently()
+        bunVMEventLoopUnrefConcurrently()
     }
 }
 
 // ========== Bun__queueJSCDeferredWorkTaskConcurrently ==========
-// 严格翻译自 JSCScheduler.zig Bun__queueJSCDeferredWorkTaskConcurrently
-// 并发地将延迟工作任务排入事件循环
-//
-// 原始 Zig:
-//   export fn Bun__queueJSCDeferredWorkTaskConcurrently(jsc_vm: *VirtualMachine, task: *JSCScheduler.JSCDeferredWorkTask) void {
-//       jsc.markBinding(@src());
-//       var loop = jsc_vm.eventLoop();
-//       loop.enqueueTaskConcurrent(ConcurrentTask.new(.{
-//           .task = Task.init(task),
-//           .next = .auto_delete,
-//       }));
-//   }
 public func queueJSCDeferredWorkTaskConcurrently(jscVm: BunVirtualMachine, task: JSCDeferredWorkTask) {
-    // FFI: var loop = jscVm.eventLoop()
-    // loop.enqueueTaskConcurrent(ConcurrentTask.new({
-    //     task = Task.init(task),
-    //     next = .auto_delete,
-    // }))
-    jscVm.enqueueDeferredWorkTask(task)
+    bunVMEnqueueDeferredWorkTask(task)
 }
 
 // ========== Bun__tickWhilePaused ==========
-// 严格翻译自 JSCScheduler.zig Bun__tickWhilePaused
-// 在暂停状态下驱动事件循环
-//
-// 原始 Zig:
-//   export fn Bun__tickWhilePaused(paused: *bool) void {
-//       jsc.markBinding(@src());
-//       VirtualMachine.get().eventLoop().tickWhilePaused(paused);
-//   }
 public func tickWhilePaused(paused: Bool) {
-    // FFI: VirtualMachine.get().eventLoop().tickWhilePaused(paused)
-    let vm = BunVirtualMachine()
-    vm.eventLoopTickWhilePaused(paused)
+    bunVMEventLoopTickWhilePaused(paused)
 }

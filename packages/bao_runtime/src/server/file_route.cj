@@ -88,9 +88,9 @@ public class FileRoute {
         route.server = server
 
         // 检查预设头部
-        route.hasLastModifiedHeader = route.headers.get("last-modified") != None
-        route.hasContentLengthHeader = route.headers.get("content-length") != None
-        route.hasContentRangeHeader = route.headers.get("content-range") != None
+        route.hasLastModifiedHeader = route.headers.get("last-modified").isSome()
+        route.hasContentLengthHeader = route.headers.get("content-length").isSome()
+        route.hasContentRangeHeader = route.headers.get("content-range").isSome()
 
         return route
     }
@@ -122,9 +122,8 @@ public class FileRoute {
         ref()
 
         match (server) {
-            case Some(s) => {
+            case Some(s) =>
                 resp.timeout(s.config.idleTimeout)
-            }
             case None => ()
         }
 
@@ -178,11 +177,10 @@ public class FileRoute {
         match (range) {
             case RangeResult.Unsatisfiable => effectiveStatus = 416
             case RangeResult.Satisfiable(_) => effectiveStatus = 206
-            case RangeResult.None => {
+            case RangeResult.None =>
                 if (fileSize == 0 && fileType == FileType.File && statusCode == 200) {
                     effectiveStatus = 204
                 }
-            }
         }
 
         writeStatusCode(effectiveStatus, resp)
@@ -203,29 +201,26 @@ public class FileRoute {
         var bodyLen: ?Int64 = None
 
         match (range) {
-            case RangeResult.Satisfiable(let r) => {
+            case RangeResult.Satisfiable(r) =>
                 resp.writeHeader("Content-Range",
                     "bytes ${r.start}-${r.end}/${fileSize}")
                 resp.writeHeader("Accept-Ranges", "bytes")
                 bodyOffset = blob.offset + r.start
                 bodyLen = r.end - r.start + 1
-            }
-            case RangeResult.Unsatisfiable => {
+            case RangeResult.Unsatisfiable =>
                 resp.writeHeader("Content-Range", "bytes */${fileSize}")
                 resp.writeHeader("Accept-Ranges", "bytes")
                 resp.end("", resp.shouldCloseConnection())
                 closeFile(fd)
                 onResponseComplete(resp)
                 return
-            }
-            case RangeResult.None => {
+            case RangeResult.None =>
                 bodyOffset = if (fileType == FileType.File) { blob.offset } else { 0 }
                 bodyLen = if (fileType == FileType.File && blob.size > 0) {
                     Some(fileSize)
                 } else {
                     None
                 }
-            }
         }
 
         if (fileType == FileType.File) {
@@ -252,17 +247,17 @@ public class FileRoute {
         opts.fileType = fileType
         opts.pollable = false
         opts.offset = bodyOffset
-        opts.length = bodyLen
+        opts.size = bodyLen
         match (server) {
             case Some(s) => opts.idleTimeout = s.config.idleTimeout
             case None => opts.idleTimeout = 10
         }
 
         let stream = FileResponseStream.start(opts)
-        stream.onComplete = Some({ (s: FileResponseStream) =>
+        stream.onComplete = Some({ s: FileResponseStream =>
             onResponseComplete(resp)
         })
-        stream.onError = Some({ (s: FileResponseStream, err: BaoError) =>
+        stream.onError = Some({ s: FileResponseStream, err: BaoError =>
             onResponseComplete(resp)
         })
     }

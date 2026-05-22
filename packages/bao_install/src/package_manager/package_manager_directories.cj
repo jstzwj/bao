@@ -480,15 +480,7 @@ public class DirectoryLogLevelExt {
     }
 }
 
-/// 子命令
-public enum Subcommand {
-    | Install
-    | Add
-    | Remove
-    | Update
-    | Link
-    | Unlink
-}
+/// 启用标志
 
 /// 启用标志
 public class Enable {
@@ -593,26 +585,6 @@ public class DirectoryUpdateRequest {
     public init(name: String, version: String) {
         this.name = name
         this.version = version
-    }
-}
-
-/// 锁文件打印机
-public class LockfilePrinter {
-    public var lockfile: Lockfile
-    public var options: Options
-    public var successfullyInstalled: ?DynamicBitSet
-    public var updates: ArrayList<DirectoryUpdateRequest>
-
-    public init(
-        lockfile: Lockfile,
-        options: Options,
-        successfullyInstalled: ?DynamicBitSet,
-        updates: ArrayList<DirectoryUpdateRequest>
-    ) {
-        this.lockfile = lockfile
-        this.options = options
-        this.successfullyInstalled = successfullyInstalled
-        this.updates = updates
     }
 }
 

@@ -76,7 +76,7 @@ public class CatCmd {
         let parseResult = this.opts.parse(this.bltn().argsSlice())
         match (parseResult) {
             case ok(filepathArgs) =>
-                let shouldReadFromStdin = filepathArgs == None || filepathArgs.size == 0
+                let shouldReadFromStdin = filepathArgs.isNone() || filepathArgs.size == 0
                 if (shouldReadFromStdin) {
                     this.state = CatState.execStdin(ExecStdinState())
                 } else {

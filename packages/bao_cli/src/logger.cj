@@ -56,10 +56,9 @@ public class AnsiColors {
         }
         // 检查 TERM
         match (Sys.getEnv("TERM")) {
-            case Some(term) => {
+            case Some(term) =>
                 if (term == "dumb") { return false }
                 if (term.contains("color") || term.contains("256")) { return true }
-            }
             case None => ()
         }
         // 检查是否是 TTY

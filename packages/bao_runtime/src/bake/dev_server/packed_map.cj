@@ -70,7 +70,7 @@ public class PackedMap {
 
     /// 对应 Bun PackedMap.memoryCost
     public func memoryCost(): Int64 {
-        return Int64(vlqData.length) + Int64(escapedSource.length)
+        return Int64(vlqData.size) + Int64(escapedSource.size)
     }
 
     /// 对应 Bun PackedMap.vlq()

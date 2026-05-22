@@ -7,12 +7,12 @@ import bao_jsc.*
 
 /// toHaveBeenNthCalledWith() - 检查mock函数第N次调用的参数
 /// 用法: expect(mockFn).toHaveBeenNthCalledWith(n, ...expected)
-public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.arguments()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenNthCalledWith", matcherParamsFmt: "<green>n<r>, <green>...expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenNthCalledWith", matcherParamsFmt: "<green>n<r>, <green>...expected<r>")
 
     this.incrementExpectCallCounter()
 
@@ -26,7 +26,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
             args: [value.toFmt(formatter)])
     }
 
-    if (arguments.length == 0 || !arguments[0].isAnyInt() ){
+    if (arguments.size == 0 || !arguments[0].isAnyInt() ){
         return globalThis.throwInvalidArguments("toHaveBeenNthCalledWith() requires a positive integer as the first argument")
     }
     let nthCallNumI32 = arguments[0].toInt32()
@@ -38,7 +38,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
 
     let totalCalls: UInt32 = calls.getLength(globalThis: globalThis)
     var pass = totalCalls >= nthCallNum
-    var nthCallValue: JSValue = JSValue.zero
+    var nthCallValue: JsValue = JsValue.zero
 
     if (pass) {
         nthCallValue = calls.getIndex(globalThis: globalThis, index: nthCallNum - 1)
@@ -48,7 +48,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
             return globalThis.throw_("Internal error: expected mock call item to be an array of arguments.")
         }
 
-        if (nthCallValue.getLength(globalThis: globalThis) != expectedArgs.length) {
+        if (nthCallValue.getLength(globalThis: globalThis) != expectedArgs.size) {
             pass = false
         } else {
             var itr = nthCallValue.arrayIterator(globalThis: globalThis)
@@ -62,7 +62,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
     }
 
     if (pass != this.flags.not) {
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     // 处理失败
@@ -70,7 +70,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
     defer { formatter.deinit() }
 
     let expectedArgsSlice = arguments.slice(from: 1)
-    let expectedArgsJsArray = JSValue.createEmptyArray(globalThis: globalThis, length: expectedArgsSlice.length)
+    let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: expectedArgsSlice.size)
     for ((arg, i) in expectedArgsSlice) {
         expectedArgsJsArray.putIndex(globalThis: globalThis, index: UInt32(i), value: arg)
     }

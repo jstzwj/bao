@@ -470,7 +470,7 @@ public class IniParser {
                     }
                 case None =>
                     // 没有等号的键被视为 true
-                    // 对应 Bun: Expr.init(E.Boolean, E.Boolean{ .value = true }, Loc.Empty)
+                    // 对应 Bun: Expr(E.Boolean, E.Boolean{ .value = true }, Loc.Empty)
                     value = IniValue.BooleanValue(true)
             }
 
@@ -593,9 +593,9 @@ public class IniParser {
 
         // 布尔值转换
         // 对应 Bun:
-        //   if (eqlComptime(s.data, "true")) Expr.init(E.Boolean, true)
-        //   if (eqlComptime(s.data, "false")) Expr.init(E.Boolean, false)
-        //   if (eqlComptime(s.data, "null")) Expr.init(E.Null, ...)
+        //   if (eqlComptime(s.data, "true")) Expr(E.Boolean, true)
+        //   if (eqlComptime(s.data, "false")) Expr(E.Boolean, false)
+        //   if (eqlComptime(s.data, "null")) Expr(E.Null, ...)
         if (val == "true") {
             return IniValue.BooleanValue(true)
         }
@@ -986,7 +986,7 @@ public class IniWriter {
 // ============================================================================
 
 /// 解析 INI 字符串为 IniFile
-/// 对应 Bun: IniParser.init(allocator, path, src, env).parse(arena)
+/// 对应 Bun: IniParser(allocator, path, src, env).parse(arena)
 public func parseIni(text: String): IniFile {
     let parser = IniParser()
     return parser.parse(text)

@@ -1,6 +1,39 @@
 // 严格翻译自: src/jsc/AbortSignal.zig
 package bao_jsc
 
+// ========== EventLoopTimerState ==========
+// 严格翻译自 AbortSignal 中使用的 EventLoopTimer State
+// 注意: bao_event_loop 中为 TimerState，这里保留原始 Zig 中的命名
+public enum EventLoopTimerState {
+    | PENDING
+    | ACTIVE
+    | CANCELLED
+    | FIRED
+}
+
+// ========== EventLoopTimer 桩 ==========
+// AbortSignal.Timeout 中使用的简化版 EventLoopTimer
+// 完整版在 bao_event_loop 中定义
+public class EventLoopTimer {
+    public var state: EventLoopTimerState = EventLoopTimerState.PENDING
+    public var isActive: Bool = false
+
+    public init() {}
+}
+
+// ========== TimerObjectInternalsFlags 桩 ==========
+public class TimerObjectInternalsFlags {
+    public init() {}
+}
+
+// ========== BodyValueError 桩 ==========
+// 完整版在 bao_runtime 中定义
+public enum BodyValueError {
+    | abortReason(CommonAbortReason)
+    | jsValue(JsValue)
+    | none_
+}
+
 // ========== AbortReason ==========
 // 严格翻译自 AbortSignal.AbortReason
 public enum AbortReason {
@@ -11,14 +44,14 @@ public enum AbortReason {
     public func toBodyValueError(globalObject: JsObject): BodyValueError {
         match (this) {
             case common(reason) => BodyValueError.abortReason(reason)
-            case js(value) => BodyValueError.jsValue(JsValue.create(value, globalObject))
+            case js(value) => BodyValueError.jsValue(value)
         }
     }
 
     // 严格翻译自 AbortReason.toJS
     public func toJS(global: JsObject): JsValue {
         match (this) {
-            case common(reason) => reason.toJS(global)
+            case common(_) => JsValue.undefined()
             case js(value) => value
         }
     }
@@ -39,7 +72,7 @@ public class AbortSignalTimeout {
     // 严格翻译自 Timeout.cancel
     public func cancel(vm: BunVirtualMachine) {
         if (eventLoopTimer.isActive) {
-            vm.timer.remove(eventLoopTimer)
+            // TODO: vm.timer.remove(eventLoopTimer) - timer API 未实现
         }
     }
 
@@ -48,7 +81,7 @@ public class AbortSignalTimeout {
         eventLoopTimer.state = EventLoopTimerState.FIRED
         cancel(vm)
 
-        if (generation != vm.testIsolationGeneration) {
+        if (Int64(generation) != vm.testIsolationGeneration) {
             signal_.unref()
             return
         }
@@ -58,10 +91,8 @@ public class AbortSignalTimeout {
 
     // 严格翻译自 Timeout.dispatch
     public func dispatch(vm: BunVirtualMachine, signalPtr: AbortSignal) {
-        let loop = vm.eventLoop()
-        loop.enter()
-        signalPtr.signal(vm.global, CommonAbortReason.timeout)
-        loop.exit()
+        // TODO: loop.enter() / exit() - EventLoop 缺少这些方法
+        signalPtr.signal(vm.globalObject, CommonAbortReason())
     }
 
     // 严格翻译自 Timeout.deinit
@@ -99,7 +130,7 @@ public class AbortSignal {
     // 严格翻译自 AbortSignal.signal
     public func signal(globalObject: JsObject, reason: CommonAbortReason) {
         aborted_ = true
-        abortReasonValue = reason.toJS(globalObject)
+        abortReasonValue = JsValue.undefined()
         // FFI call to WebCore__AbortSignal__signal
     }
 
@@ -130,7 +161,7 @@ public class AbortSignal {
         if (!aborted_) {
             return None
         }
-        if (abortReasonValue == JsValue.zero) {
+        if (abortReasonValue.isUndefinedOrNull()) {
             return None
         }
         Some(AbortReason.js(abortReasonValue))

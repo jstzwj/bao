@@ -5,6 +5,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // SSL 配置
@@ -99,7 +100,7 @@ public class SSLConfig {
         let config = SSLConfig()
 
         match (value.objectData) {
-            case Some(obj) => {
+            case Some(obj) =>
                 // 读取服务器名称
                 let sni = obj.get("serverName")
                 if (sni.valueType == JsValueType.String) {
@@ -160,7 +161,6 @@ public class SSLConfig {
                 if (lowMem.valueType == JsValueType.Boolean) {
                     config.lowMemoryMode = lowMem.toBoolean()
                 }
-            }
             case None => ()
         }
 
@@ -231,7 +231,7 @@ public class SSLConfig {
     }
 
     /// 克隆配置
-    /// 对应 Bun: pub fn clone(this: *const SSLConfig) SSLConfig
+    /// 对应 Bun: pub fn clone(`this`: *const SSLConfig) SSLConfig
     public func clone(): SSLConfig {
         let config = SSLConfig()
         config.serverName = this.serverName
@@ -258,32 +258,32 @@ public class SSLConfig {
     }
 
     /// 判断两个配置是否相同
-    /// 对应 Bun: pub fn isSame(this: *const SSLConfig, other: *const SSLConfig) bool
+    /// 对应 Bun: pub fn isSame(`this`: *const SSLConfig, other: *const SSLConfig) bool
     public func isSame(other: SSLConfig): Bool {
-        if (this.serverName != other.serverName) return false
-        if (this.keyFileName != other.keyFileName) return false
-        if (this.certFileName != other.certFileName) return false
-        if (this.caFileName != other.caFileName) return false
-        if (this.dhParamsFileName != other.dhParamsFileName) return false
-        if (this.passphrase != other.passphrase) return false
-        if (this.secureOptions != other.secureOptions) return false
-        if (this.requestCert != other.requestCert) return false
-        if (this.rejectUnauthorized != other.rejectUnauthorized) return false
-        if (this.sslCiphers != other.sslCiphers) return false
-        if (this.lowMemoryMode != other.lowMemoryMode) return false
+        if (this.serverName != other.serverName) { return false }
+        if (this.keyFileName != other.keyFileName) { return false }
+        if (this.certFileName != other.certFileName) { return false }
+        if (this.caFileName != other.caFileName) { return false }
+        if (this.dhParamsFileName != other.dhParamsFileName) { return false }
+        if (this.passphrase != other.passphrase) { return false }
+        if (this.secureOptions != other.secureOptions) { return false }
+        if (this.requestCert != other.requestCert) { return false }
+        if (this.rejectUnauthorized != other.rejectUnauthorized) { return false }
+        if (this.sslCiphers != other.sslCiphers) { return false }
+        if (this.lowMemoryMode != other.lowMemoryMode) { return false }
         return true
     }
 
     /// 计算内容哈希
-    /// 对应 Bun: pub fn contentHash(this: *SSLConfig) u64
+    /// 对应 Bun: pub fn contentHash(`this`: *SSLConfig) u64
     public func contentHash(): UInt64 {
         var h: UInt64 = 0
-        if (let sn = this.serverName) { h = h * 31 + UInt64(sn.hash()) }
-        if (let kf = this.keyFileName) { h = h * 31 + UInt64(kf.hash()) }
-        if (let cf = this.certFileName) { h = h * 31 + UInt64(cf.hash()) }
-        if (let ca = this.caFileName) { h = h * 31 + UInt64(ca.hash()) }
-        if (let dp = this.dhParamsFileName) { h = h * 31 + UInt64(dp.hash()) }
-        if (let pp = this.passphrase) { h = h * 31 + UInt64(pp.hash()) }
+        if (let sn <- this.serverName) { h = h * 31 + UInt64(sn.hash()) }
+        if (let kf <- this.keyFileName) { h = h * 31 + UInt64(kf.hash()) }
+        if (let cf <- this.certFileName) { h = h * 31 + UInt64(cf.hash()) }
+        if (let ca <- this.caFileName) { h = h * 31 + UInt64(ca.hash()) }
+        if (let dp <- this.dhParamsFileName) { h = h * 31 + UInt64(dp.hash()) }
+        if (let pp <- this.passphrase) { h = h * 31 + UInt64(pp.hash()) }
         h = h * 31 + UInt64(this.secureOptions)
         h = h * 31 + UInt64(this.requestCert)
         h = h * 31 + UInt64(this.rejectUnauthorized)
@@ -292,7 +292,7 @@ public class SSLConfig {
     }
 
     /// 创建用于客户端验证的配置
-    /// 对应 Bun: pub fn forClientVerification(this: SSLConfig) SSLConfig
+    /// 对应 Bun: pub fn forClientVerification(`this`: SSLConfig) SSLConfig
     public func forClientVerification(): SSLConfig {
         let config = this.clone()
         config.requestCert = 1
@@ -301,7 +301,7 @@ public class SSLConfig {
     }
 
     /// 转为客户端验证用的 uWS 选项
-    /// 对应 Bun: pub fn asUSocketsForClientVerification(this: *const SSLConfig) uws.SocketContext.BunSocketContextOptions
+    /// 对应 Bun: pub fn asUSocketsForClientVerification(`this`: *const SSLConfig) uws.SocketContext.BunSocketContextOptions
     public func asUSocketsForClientVerification(): BunSocketContextOptions {
         let config = this.forClientVerification()
         return config.asUSockets()

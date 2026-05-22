@@ -5,6 +5,8 @@ package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
+import bao_collections.ArrayList
 
 /// Postgres SQL 预处理语句
 /// 对应 Bun: PostgresSQLStatement
@@ -44,7 +46,7 @@ public class PostgresSQLStatement {
         needsDuplicateCheck = false
 
         var seenNumbers = ArrayList<UInt32>()
-        var seenFields = HashSet<String>()
+        var seenFields = HashMap<String, Bool>()
         var flags = DataCellFlags()
 
         var remaining = fields.size
@@ -57,7 +59,7 @@ public class PostgresSQLStatement {
                         fields[remaining].nameOrIndex = PostgresNameOrIndex.Duplicate
                         flags.hasDuplicateColumns = true
                     }
-                    seenFields.put(name)
+                    seenFields.put(name, true)
                     flags.hasNamedColumns = true
                 case Index(index) =>
                     if (seenNumbers.contains(index)) {
@@ -91,7 +93,7 @@ public class PostgresSQLStatement {
             }
         }
 
-        let ids = Array<ExternColumnIdentifier>(nonDuplicatedCount, item: ExternColumnIdentifier())
+        let ids = Array<ExternColumnIdentifier>(nonDuplicatedCount, { _ => ExternColumnIdentifier() })
         var i: Int64 = 0
         for (field in fields) {
             match (field.nameOrIndex) {
@@ -105,7 +107,7 @@ public class PostgresSQLStatement {
             i += 1
         }
 
-        cachedStructure.set(globalObject, None, ids)
+        cachedStructure.set(globalObject, Option<JscValue>.None, ids)
         return cachedStructure
     }
 
@@ -127,7 +129,10 @@ public enum PostgresStatementStatus {
     | Failed
 
     public func isRunning(): Bool {
-        return this == Parsing
+        return match (this) {
+            case Parsing => true
+            case _ => false
+        }
     }
 }
 
@@ -139,14 +144,14 @@ public enum PostgresStatementError {
 
     public func toJS(globalObject: JscJSGlobalObject): JscValue {
         match (this) {
-            case Protocol(err) => err.toJS(globalObject)
-            case PostgresError(err) => postgresErrorToJS(globalObject, None, err)
+            case Protocol(errResp) => errResp.toJS(globalObject)
+            case PostgresError(pgErr) => postgresErrorToJS(globalObject, Option<String>.None, pgErr)
         }
     }
 
     public func deinit(): Unit {
         match (this) {
-            case Protocol(err) => err.deinit()
+            case Protocol(errResp) => errResp.deinit()
             case PostgresError(_) => ()
         }
     }
@@ -201,7 +206,7 @@ public class ErrorResponse {
             }
         }
 
-        let errorCode = if (code == "42601") "ERR_POSTGRES_SYNTAX_ERROR" else "ERR_POSTGRES_SERVER_ERROR"
+        let errorCode = if (code == "42601") { "ERR_POSTGRES_SYNTAX_ERROR" } else { "ERR_POSTGRES_SERVER_ERROR" }
         return createPostgresError(globalObject, message, errorCode, code, detail, hint, severity)
     }
 
@@ -232,99 +237,12 @@ public enum ErrorField {
     | Other(String)
 }
 
-/// Postgres 签名
-/// 对应 Bun: postgres/Signature.zig
-public class PostgresSignature {
-    public var fields: Array<Int32> = []
-    public var name: String = ""
-    public var query: String = ""
-    public var preparedStatementName: String = ""
-
-    public init() {}
-
-    public static func empty(): PostgresSignature {
-        return PostgresSignature()
-    }
-
-    /// 生成签名
-    /// 对应 Bun: Signature.generate
-    public static func generate(globalObject: JscJSGlobalObject, query: String,
-                                 arrayValue: JscValue, columns: JscValue,
-                                 preparedStatementId: UInt64, unnamed: Bool): ?PostgresSignature {
-        let sig = PostgresSignature()
-        sig.query = query
-        sig.name = query
-
-        do {
-            let iter = QueryBindingIterator.init(arrayValue, columns, globalObject)
-            if (iter == None) {
-                return None
-            }
-
-            var fields = ArrayList<Int32>()
-            var nameBuilder = StringBuilder()
-            nameBuilder.append(query)
-
-            var nextValue = iter.getOrThrow().next()
-            while (nextValue != None) {
-                let value = nextValue.getOrThrow()
-                if (value.isEmptyOrUndefinedOrNull()) {
-                    fields.append(0)
-                    nameBuilder.append(".null")
-                } else {
-                    let tag = PostgresTag.fromJS(globalObject, value)
-                    if (tag != None) {
-                        let tagName = tag.getOrThrow().name()
-                        nameBuilder.append(".${tagName}")
-
-                        match (tag.getOrThrow()) {
-                            case Bool | Int4 | Int8 | Float8 | Int2 | Numeric | Float4 | Bytea =>
-                                fields.append(tag.getOrThrow().toInt())
-                            case _ =>
-                                fields.append(0)
-                        }
-                    }
-                }
-                nextValue = iter.getOrThrow().next()
-            }
-
-            if (iter.getOrThrow().anyFailed()) {
-                return None
-            }
-
-            if (!unnamed) {
-                let maxNameLen = if (sig.name.size > 40) 40 else sig.name.size
-                sig.preparedStatementName = "P${sig.name[0..maxNameLen]}\$${preparedStatementId}"
-            }
-
-            sig.fields = fields.toArray()
-            return sig
-        } catch (_: Exception) {
-            return None
-        }
-    }
-
-    /// 计算哈希
-    public func hash(): UInt64 {
-        var hasher = Wyhash.init(0)
-        hasher.update(name)
-        return hasher.final()
-    }
-
-    public func deinit(): Unit {
-        fields = []
-        name = ""
-        query = ""
-        preparedStatementName = ""
-    }
-}
-
 /// Postgres 标签
 /// 对应 Bun: types.Tag
 public enum PostgresTag {
-    | Bool
+    | `Bool`
     | Int4
-    | Int8
+    | `Int8`
     | Float8
     | Float4
     | Int2
@@ -387,9 +305,9 @@ public enum PostgresTag {
 
     public static func fromInt(oid: Int32): PostgresTag {
         match (oid) {
-            case 16 => Bool
+            case 16 => `Bool`
             case 23 => Int4
-            case 20 => Int8
+            case 20 => `Int8`
             case 701 => Float8
             case 700 => Float4
             case 21 => Int2
@@ -415,7 +333,7 @@ public enum PostgresTag {
         if (value.isDate()) {
             return Timestamptz
         }
-        if (value.isTypedArrayOrArrayBuffer()) {
+        if (value.isTypedArray()) {
             return Bytea
         }
         if (value.isInt32()) {
@@ -423,25 +341,25 @@ public enum PostgresTag {
         }
         if (value.isAnyInt()) {
             let int_ = value.toInt64()
-            if (int_ >= Int64(Int32.MinValue) && int_ <= Int64(Int32.MaxValue)) {
+            if (int_ >= Int64(-2147483648) && int_ <= Int64(2147483647)) {
                 return Int4
             }
-            return Int8
+            return `Int8`
         }
         if (value.isNumber()) {
             return Float8
         }
         if (value.isBoolean()) {
-            return Bool
+            return `Bool`
         }
         return Numeric
     }
 
     public func toInt(): Int32 {
         return match (this) {
-            case Bool => 16
+            case `Bool` => 16
             case Int4 => 23
-            case Int8 => 20
+            case `Int8` => 20
             case Float8 => 701
             case Float4 => 700
             case Int2 => 21
@@ -459,9 +377,9 @@ public enum PostgresTag {
 
     public func name(): String {
         return match (this) {
-            case Bool => "bool"
+            case `Bool` => "bool"
             case Int4 => "int4"
-            case Int8 => "int8"
+            case `Int8` => "int8"
             case Float8 => "float8"
             case Float4 => "float4"
             case Int2 => "int2"
@@ -479,14 +397,14 @@ public enum PostgresTag {
 
     public func isBinaryFormatSupported(): Bool {
         return match (this) {
-            case Bool | Int4 | Int8 | Float8 | Float4 | Int2 |
+            case `Bool` | Int4 | `Int8` | Float8 | Float4 | Int2 |
                  Timestamp | Timestamptz | Bytea | Date => true
             case _ => false
         }
     }
 
     public func formatCode(): Int16 {
-        return if (isBinaryFormatSupported()) Int16(1) else Int16(0)
+        return if (isBinaryFormatSupported()) { Int16(1) } else { Int16(0) }
     }
 
     public func tagName(): ?String {
@@ -498,20 +416,20 @@ public enum PostgresTag {
 public func createPostgresError(globalObject: JscJSGlobalObject, message: String,
                                   code: String, errno: ?String, detail: ?String,
                                   hint: ?String, severity: ?String): JscValue {
-    let optsObj = JscObject.createEmptyObject(globalObject)
-    optsObj.put(globalObject, "code", JscValue(code))
-    if (errno != None) {
-        optsObj.put(globalObject, "errno", JscValue(errno.getOrThrow()))
+    let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+    optsObj.put(globalObject.globalThis, "code", JscValue(code))
+    if (errno.isSome()) {
+        optsObj.put(globalObject.globalThis, "errno", JscValue(errno.getOrThrow()))
     }
-    optsObj.put(globalObject, "message", JscValue(message))
-    if (detail != None) {
-        optsObj.put(globalObject, "detail", JscValue(detail.getOrThrow()))
+    optsObj.put(globalObject.globalThis, "message", JscValue(message))
+    if (detail.isSome()) {
+        optsObj.put(globalObject.globalThis, "detail", JscValue(detail.getOrThrow()))
     }
-    if (hint != None) {
-        optsObj.put(globalObject, "hint", JscValue(hint.getOrThrow()))
+    if (hint.isSome()) {
+        optsObj.put(globalObject.globalThis, "hint", JscValue(hint.getOrThrow()))
     }
-    if (severity != None) {
-        optsObj.put(globalObject, "severity", JscValue(severity.getOrThrow()))
+    if (severity.isSome()) {
+        optsObj.put(globalObject.globalThis, "severity", JscValue(severity.getOrThrow()))
     }
-    return optsObj.toValue()
+    return optsObj
 }

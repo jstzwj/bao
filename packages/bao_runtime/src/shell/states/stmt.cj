@@ -65,7 +65,7 @@ public class StmtState {
         let stmt = StmtState()
         stmt.base = Base.initWithNewAllocScope(StateKind.stmt, interpreter, shellState)
         stmt.node = node
-        stmt.parent = StmtParentPtr.`init`(parent)
+        stmt.parent = StmtParentPtr(parent)
         stmt.idx = 0
         stmt.lastExitCode = None
         stmt.currentlyExecuting = None

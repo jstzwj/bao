@@ -3,6 +3,19 @@
 
 package bao_jsc
 
+// Helper: ASCII lowercase for String
+func asciiLower(s: String): String {
+    var result = ""
+    for (b in s) {
+        if (b >= UInt8(65) && b <= UInt8(90)) {
+            result = result + String(Rune(b + UInt8(32)))
+        } else {
+            result = result + String(Rune(b))
+        }
+    }
+    result
+}
+
 // ========== TextCodec ==========
 // 严格翻译自 TextCodec.zig TextCodec
 // 文本编解码器，用于处理字符编码转换
@@ -18,7 +31,7 @@ public class TextCodec {
     // extern fn Bun__createTextCodec(encodingName: [*]const u8, encodingNameLen: usize) ?*TextCodec
     public static func create(encoding: String): ?TextCodec {
         // FFI: Bun__createTextCodec(encoding.ptr, encoding.len)
-        if (encoding.isEmpty) {
+        if (encoding.size == 0) {
             return None
         }
         let codec = TextCodec()
@@ -46,7 +59,7 @@ public class TextCodec {
         // 实际 FFI 调用:
         // let result = Bun__decodeWithTextCodec(nativePtr, data, data.size, flush, stopOnError, &sawError)
         let result = String.fromUtf8(data)
-        return DecodeResult(result: result, sawError: sawError)
+        return DecodeResult(result, sawError)
     }
 
     // 严格翻译自 stripBOM
@@ -62,7 +75,7 @@ public class TextCodec {
     public static func isSupported(encoding: String): Bool {
         // FFI: Bun__isEncodingSupported(encoding.ptr, encoding.size)
         // 常见编码支持列表
-        let lower = encoding.toLowerCase()
+        let lower = asciiLower(encoding)
         lower == "utf-8" || lower == "utf-16" || lower == "utf-16le" || lower == "utf-16be" ||
             lower == "ascii" || lower == "us-ascii" || lower == "latin1" || lower == "iso-8859-1" ||
             lower == "gbk" || lower == "gb2312" || lower == "gb18030" || lower == "big5" ||
@@ -75,7 +88,7 @@ public class TextCodec {
     // extern fn Bun__getCanonicalEncodingName(encodingName, encodingNameLen, outLen) ?[*]const u8
     public static func getCanonicalEncodingName(encoding: String): ?String {
         // FFI: Bun__getCanonicalEncodingName(encoding.ptr, encoding.size, &len)
-        let lower = encoding.toLowerCase().trim()
+        let lower = asciiLower(encoding).trimAscii()
         let canonicalMap: HashMap<String, String> = HashMap<String, String>()
         canonicalMap.put("utf8", "utf-8")
         canonicalMap.put("utf16", "utf-16")
@@ -89,8 +102,9 @@ public class TextCodec {
         canonicalMap.put("euc-jp", "euc-jp")
         canonicalMap.put("shift_jis", "shift_jis")
         canonicalMap.put("iso-2022-jp", "iso-2022-jp")
-        if (let Some(name) <- canonicalMap.get(lower)) {
-            return name
+        let name = canonicalMap.get(lower)
+        if (name.isSome()) {
+            return name.getOrThrow()
         }
         lower
     }

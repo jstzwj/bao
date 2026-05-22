@@ -15,15 +15,15 @@ import bao_collections.*
 public class HmrClientConfig {
     public var version: String
     public var generation: UInt64
-    public var main: String
+    public var `main`: String
     public var refresh: ?String = None
     public var console_: Bool = false
     public var bun: String = ""
 
-    public init(version: String, generation: UInt64, main: String) {
+    public init(version: String, generation: UInt64, `main`: String) {
         this.version = version
         this.generation = generation
-        this.main = main
+        this.`main` = `main`
     }
 }
 
@@ -58,9 +58,9 @@ public class HmrRuntimeClient {
             return Promise.unit()
         }
 
-        if (onServerSideReload != None) {
+        if (onServerSideReload.isSome()) {
             isPerformingRouteReload = true
-            return onServerSideReload.get()().then({ (_) =>
+            return onServerSideReload.get()().then({ _ =>
                 var shouldContinue = true
                 while (shouldContinue) {
                     shouldContinue = shouldPerformAnotherRouteReload
@@ -71,7 +71,7 @@ public class HmrRuntimeClient {
                 }
                 isPerformingRouteReload = false
                 Promise.unit()
-            }).catch({ (err) =>
+            }).`catch`({ err =>
                 console.error("Failed to perform Server-side reload.")
                 console.error(err.toString())
                 console.error("The page will hard-reload now.")
@@ -186,8 +186,8 @@ public class HmrRuntimeClient {
     // ========================================================================
 
     /// 处理 HMR 加载错误
-    public func onHmrLoadError(event: Any, source: ?String = None, lineno: ?Int64 = None, colno: ?Int64 = None, error: ?Any = None): Unit {
-        if (error != None) {
+    public func onHmrLoadError(event: Any, source: ?String, lineno: ?Int64, colno: ?Int64, error: ?Any): Unit {
+        if (error.isSome()) {
             console.error(error.get().toString())
         } else {
             console.error("Failed to load HMR script")
@@ -202,13 +202,13 @@ public class HmrRuntimeClient {
     /// 初始化并加载用户代码
     public func start(): Promise<Unit> {
         // 加载刷新运行时
-        if (config.refresh != None) {
+        if (config.refresh.isSome()) {
             let refreshModule = loadModuleAsync(config.refresh.get(), false, None)
             // 设置刷新运行时
         }
 
         // 加载主模块
-        let mainLoad = loadModuleAsync(config.main, false, None)
+        let mainLoad = loadModuleAsync(config.`main`, false, None)
         emitEvent("bun:ready", None)
 
         return Promise.unit()
@@ -225,7 +225,7 @@ public class DataViewReader {
     private var view: Array<Byte>
     public var cursor: Int64
 
-    public init(view: Array<Byte>, cursor: Int64 = 0) {
+    public init(view: Array<Byte>, cursor: Int64) {
         this.view = view
         this.cursor = cursor
     }
@@ -278,7 +278,7 @@ public class DataViewReader {
 
     /// 是否还有更多数据
     public func hasMoreData(): Bool {
-        return cursor < view.length
+        return cursor < view.size
     }
 
     /// 获取剩余数据

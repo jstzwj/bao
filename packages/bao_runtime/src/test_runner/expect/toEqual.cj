@@ -7,27 +7,27 @@ import bao_jsc.*
 
 /// toEqual() - 深度相等比较
 /// 用法: expect(received).toEqual(expected)
-public func toEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toEqual() requires 1 argument")
     }
 
     this.incrementExpectCallCounter()
 
     let expected = arguments[0]
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqual", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqual", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = value.jestDeepEquals(expected, globalThis: globalThis)
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let diffFormatter = DiffFormatter(received: value, expected: expected, globalThis: globalThis, not: not)

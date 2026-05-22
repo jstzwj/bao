@@ -25,11 +25,11 @@ import bao_core.*
 /// 对应 Bun: EnvStr.Tag (enum(u16))
 public enum EnvStrTag {
     /// 空值
-    case empty
+    | empty
     /// 通过引用计数释放
-    case refcounted
+    | refcounted
     /// 内存由其他地方管理，不需要释放
-    case slice
+    | slice
 }
 
 /// 环境变量字符串
@@ -56,22 +56,22 @@ public struct EnvStr {
     /// 对应 Bun: EnvStr.initSlice(str)
     /// 零长度字符串返回 empty 标签，避免无效指针。
     public static func initSlice(str: Array<Byte>): EnvStr {
-        if (str.length == 0) {
+        if (str.size == 0) {
             // 零长度字符串可能有无效指针，导致错误的整数转换。
             return EnvStr(tag: EnvStrTag.empty, len: 0, data: Array<Byte>())
         }
-        return EnvStr(tag: EnvStrTag.slice, len: UInt64(str.length), data: str)
+        return EnvStr(tag: EnvStrTag.slice, len: UInt64(str.size), data: str)
     }
 
     /// 从引用计数字符串初始化
     /// 对应 Bun: EnvStr.initRefCounted(str)
     /// 创建一个 RefCountedStr 来管理字符串的生命周期。
     public static func initRefCounted(str: Array<Byte>): EnvStr {
-        if (str.length == 0) {
+        if (str.size == 0) {
             return EnvStr(tag: EnvStrTag.empty, len: 0, data: Array<Byte>())
         }
         let refc = RefCountedStr.initFunc(str)
-        return EnvStr(tag: EnvStrTag.refcounted, len: UInt64(str.length), data: refc.byteSlice())
+        return EnvStr(tag: EnvStrTag.refcounted, len: UInt64(str.size), data: refc.byteSlice())
     }
 
     /// 复制并创建引用计数字符串
@@ -79,12 +79,12 @@ public struct EnvStr {
     /// 与 initRefCounted 不同，此方法会复制传入的字符串。
     /// 适用于字符串生命周期不确定的情况。
     public static func dupeRefCounted(oldStr: Array<Byte>): EnvStr {
-        if (oldStr.length == 0) {
+        if (oldStr.size == 0) {
             return EnvStr(tag: EnvStrTag.empty, len: 0, data: Array<Byte>())
         }
         let str = oldStr.clone()
         let refc = RefCountedStr.initFunc(str)
-        return EnvStr(tag: EnvStrTag.refcounted, len: UInt64(str.length), data: refc.byteSlice())
+        return EnvStr(tag: EnvStrTag.refcounted, len: UInt64(str.size), data: refc.byteSlice())
     }
 
     // ========================================================================
@@ -98,16 +98,16 @@ public struct EnvStr {
     /// - slice: 直接返回借用的切片
     /// - refcounted: 返回引用计数字符串的字节切片
     public func slice(): Array<Byte> {
-        switch (this.tag) {
-            case .empty =>
+        match (this.tag) {
+            case empty =>
                 Array<Byte>()
-            case .slice =>
+            case slice =>
                 if (this.len == 0) {
                     Array<Byte>()
                 } else {
                     this.data[0..this.len]
                 }
-            case .refcounted =>
+            case refcounted =>
                 if (this.len == 0) {
                     Array<Byte>()
                 } else {
@@ -128,7 +128,7 @@ public struct EnvStr {
         if (this.len == 0) {
             return 0
         }
-        let divisor: UInt64 = this.asRefCounted() match {
+        let divisor: UInt64 = match (this.asRefCounted()) {
             case Some(refc) => UInt64(refc.refcount)
             case None => 1
         }
@@ -142,7 +142,7 @@ public struct EnvStr {
     /// 对应 Bun: EnvStr.ref()
     /// 仅对引用计数类型的字符串有效。
     public func ref() {
-        if (let Some(refc) = this.asRefCounted()) {
+        if (let Some(refc) <- this.asRefCounted()) {
             refc.ref()
         }
     }
@@ -152,7 +152,7 @@ public struct EnvStr {
     /// 仅对引用计数类型的字符串有效。
     /// 引用计数归零时自动释放字符串内存。
     public func deref() {
-        if (let Some(refc) = this.asRefCounted()) {
+        if (let Some(refc) <- this.asRefCounted()) {
             refc.deref()
         }
     }

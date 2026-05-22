@@ -20,59 +20,59 @@ public class SQLConnectionClasses {
 
     /// close fn
     /// 严格翻译自: proto.close { fn: "doClose" }
-    public static func doClose(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func doClose(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// connected getter
     /// 严格翻译自: proto.connected { getter: "getConnected" }
-    public static func getConnected(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getConnected(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 
     /// ref fn
     /// 严格翻译自: proto.ref { fn: "doRef" }
-    public static func doRef(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func doRef(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// unref fn
     /// 严格翻译自: proto.unref { fn: "doUnref" }
-    public static func doUnref(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func doUnref(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// flush fn
     /// 严格翻译自: proto.flush { fn: "doFlush" }
-    public static func doFlush(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func doFlush(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
-    /// queries getter (this: true)
-    /// 严格翻译自: proto.queries { getter: "getQueries", this: true }
-    public static func getQueries(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    /// queries getter (`this`: true)
+    /// 严格翻译自: proto.queries { getter: "getQueries", `this`: true }
+    public static func getQueries(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
-    /// onconnect getter/setter (this: true)
-    /// 严格翻译自: proto.onconnect { getter: "getOnConnect", setter: "setOnConnect", this: true }
-    public static func getOnConnect(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    /// onconnect getter/setter (`this`: true)
+    /// 严格翻译自: proto.onconnect { getter: "getOnConnect", setter: "setOnConnect", `this`: true }
+    public static func getOnConnect(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// setOnConnect setter
-    public static func setOnConnect(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setOnConnect(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
-    /// onclose getter/setter (this: true)
-    /// 严格翻译自: proto.onclose { getter: "getOnClose", setter: "setOnClose", this: true }
-    public static func getOnClose(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    /// onclose getter/setter (`this`: true)
+    /// 严格翻译自: proto.onclose { getter: "getOnClose", setter: "setOnClose", `this`: true }
+    public static func getOnClose(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// setOnClose setter
-    public static func setOnClose(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setOnClose(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }
@@ -90,31 +90,31 @@ public class SQLQueryClasses {
 
     /// run fn
     /// 严格翻译自: proto.run { fn: "doRun", length: 2 }
-    public static func doRun(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func doRun(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// cancel fn
     /// 严格翻译自: proto.cancel { fn: "doCancel", length: 0 }
-    public static func doCancel(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func doCancel(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// done fn
     /// 严格翻译自: proto.done { fn: "doDone", length: 0 }
-    public static func doDone(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func doDone(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// setMode fn
     /// 严格翻译自: proto.setMode { fn: "setModeFromJS", length: 1 }
-    public static func setModeFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setModeFromJS(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// setPendingValue fn
     /// 严格翻译自: proto.setPendingValue { fn: "setPendingValueFromJS", length: 1 }
-    public static func setPendingValueFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setPendingValueFromJS(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }

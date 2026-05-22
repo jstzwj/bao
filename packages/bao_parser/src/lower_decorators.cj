@@ -123,6 +123,13 @@ public class StaticElement {
 public enum RewriteKind {
     | ReplaceRef       // 替换标识符引用
     | ReplaceThis      // 替换 this
+
+    public operator func ==(right: RewriteKind): Bool {
+        match (this) {
+            case ReplaceRef => match (right) { case ReplaceRef => true case _ => false }
+            case ReplaceThis => match (right) { case ReplaceThis => true case _ => false }
+        }
+    }
 }
 
 /// 重写操作数据
@@ -277,7 +284,7 @@ public class LowerDecorators {
     public func makeStaticBlock(expr: Expr, loc: Loc): GProperty {
         let stmts = ArrayList<Stmt>()
         let sexpr = Stmt(loc, StmtTag.Expr)
-        sexpr.exprValue = expr
+        sexpr.expr = Some(expr)
         stmts.append(sexpr)
         let `prop` = GProperty(loc, "", Some(expr))
         `prop`.kind = GPropertyKind.Method
@@ -306,13 +313,13 @@ public class LowerDecorators {
     /// 初始化标志计算
     /// 对应 Bun: fn initFlag(idx: usize) f64
     public static func initFlag(idx: Int64): Float64 {
-        return Float64((4 + 2 * Int64.toInt(idx)) << 1)
+        return Float64((4 + 2 * idx) << 1)
     }
 
     /// 额外初始化标志计算
     /// 对应 Bun: fn extraInitFlag(idx: usize) f64
     public static func extraInitFlag(idx: Int64): Float64 {
-        return Float64(((5 + 2 * Int64.toInt(idx)) << 1) | 1)
+        return Float64(((5 + 2 * idx) << 1) | 1)
     }
 
     /// 获取方法类型码 (1=方法, 2=getter, 3=setter)
@@ -358,7 +365,10 @@ public class LowerDecorators {
         if (result.size == 0) {
             return None
         }
-        return Some(result[0].exprValue)
+        if (let Some(e) <- result[0].expr) {
+            return Some(e)
+        }
+        return Some(Expr(Loc.EMPTY, ExprTag.Missing))
     }
 
     // ========================================================================
@@ -408,13 +418,14 @@ public class LowerDecorators {
             // 类装饰器
             if (classDecorators.size > 0) {
                 decCounter += 1
-                classDecRef = Some(newSym(SymbolKind.Other, "_dec"))
+                let decRef = newSym(SymbolKind.Other, "_dec")
+                classDecRef = Some(decRef)
                 let arr = Expr(loc, ExprTag.Array)
                 arr.items = ArrayList<Expr>()
                 for (d in classDecorators) {
                     arr.items.append(d)
                 }
-                preEvalStmts.append(varDecl(classDecRef.getOrElse(Ref.NONE), Some(arr), loc))
+                preEvalStmts.append(varDecl(decRef, Some(arr), loc))
             }
 
             // 属性装饰器
@@ -507,35 +518,35 @@ public class LowerDecorators {
                 if (`prop`.decorators.size == 0) {
                     // 私有成员降级
                     if (lowerAllPrivate && `prop`.key.startsWith("#")) {
-                        let privateOrig = `prop`.key.substring(1)
+                        let privateOrig = `prop`.key[1..]
                         if (`prop`.flags.isMethod) {
                             // 私有方法 -> WeakSet + 函数提取
                             let k = methodKind(`prop`)
                             let wsRef = newSym(SymbolKind.Other, "_${privateOrig}")
                             let fnRef = newSym(SymbolKind.Other, "_${privateOrig}${fnSuffix(k)}")
 
-                            privateLoweredMap.put(UInt32(Int64.toInt(`prop`.ref.innerIndex())),
-                                PrivateLoweredInfo(wsRef, Some(fnRef), None, None, None))
+                            privateLoweredMap.put(UInt32(`prop`.ref.innerIndex),
+                                PrivateLoweredInfo(wsRef, Some(fnRef), Option<Ref>.None, Option<Ref>.None, Option<Ref>.None))
 
                             // _name = new WeakSet(); _name_fn = null;
                             prefixStmts.append(varDecl2(wsRef, Some(newWeakSetExpr(loc)),
-                                                         fnRef, None, loc))
+                                                         fnRef, Option<Expr>.None, loc))
 
                             // _name_fn = function() { ... }
                             let fnValue = if (let Some(v) <- `prop`.value) { v } else { Expr.undefined(loc) }
                             prefixStmts.append(stmtFromExpr(assignTo(fnRef, fnValue, loc)))
 
                             // __privateAdd(this, _name) once
-                            if (!emittedPrivateAdds.contains(UInt32(Int64.toInt(`prop`.ref.innerIndex())))) {
-                                emittedPrivateAdds.put(UInt32(Int64.toInt(`prop`.ref.innerIndex())))
-                                emitPrivateAdd(`prop`.flags.isStatic, wsRef, None, loc,
+                            if (!emittedPrivateAdds.contains(UInt32(`prop`.ref.innerIndex))) {
+                                emittedPrivateAdds.put(UInt32(`prop`.ref.innerIndex))
+                                emitPrivateAdd(`prop`.flags.isStatic, wsRef, Option<Expr>.None, loc,
                                                constructorInjectStmts, staticPrivateAddBlocks)
                             }
                             continue
                         } else {
                             // 私有字段 -> WeakMap
                             let wmRef = newSym(SymbolKind.Other, "_${privateOrig}")
-                            privateLoweredMap.put(UInt32(Int64.toInt(`prop`.ref.innerIndex())),
+                            privateLoweredMap.put(UInt32(`prop`.ref.innerIndex),
                                 PrivateLoweredInfo(wmRef))
                             prefixStmts.append(varDecl(wmRef, Some(newWeakMapExpr(loc)), loc))
 
@@ -591,14 +602,14 @@ public class LowerDecorators {
                     decoratorArray.items.append(d)
                 }
 
-                let k = UInt8(Int64.toInt(Float64.toInt64(flags)) & 7)
+                let k = UInt8(Int64(flags) & 7)
                 var decArgCount: Int64 = 5
                 var privateStorageRef: ?Ref = None
                 var privateExtraRef: ?Ref = None
                 var privateMethodFnRef: ?Ref = None
 
                 if (isPrivate) {
-                    let privateOrig = `prop`.key.substring(1)
+                    let privateOrig = `prop`.key[1..]
                     if (k >= 1 && k <= 3) {
                         // 装饰私有方法/getter/setter -> WeakSet
                         let wsRef = newSym(SymbolKind.Other, "_${privateOrig}")
@@ -606,18 +617,18 @@ public class LowerDecorators {
                         let fnRef = newSym(SymbolKind.Other, "_${privateOrig}${fnSuffix(k)}")
                         privateMethodFnRef = Some(fnRef)
 
-                        privateLoweredMap.put(UInt32(Int64.toInt(`prop`.ref.innerIndex())),
-                            PrivateLoweredInfo(wsRef, if (k == UInt8(1)) { Some(fnRef) } else { None },
-                                               if (k == UInt8(2)) { Some(fnRef) } else { None },
-                                               if (k == UInt8(3)) { Some(fnRef) } else { None }, None))
+                        privateLoweredMap.put(UInt32(`prop`.ref.innerIndex),
+                            PrivateLoweredInfo(wsRef, if (k == UInt8(1)) { Some(fnRef) } else { Option<Ref>.None },
+                                               if (k == UInt8(2)) { Some(fnRef) } else { Option<Ref>.None },
+                                               if (k == UInt8(3)) { Some(fnRef) } else { Option<Ref>.None }, Option<Ref>.None))
 
-                        prefixStmts.append(varDecl2(wsRef, Some(newWeakSetExpr(loc)), fnRef, None, loc))
+                        prefixStmts.append(varDecl2(wsRef, Some(newWeakSetExpr(loc)), fnRef, Option<Expr>.None, loc))
                         decArgCount = 6
                     } else if (k == 5) {
                         // 装饰私有字段 -> WeakMap
                         let wmRef = newSym(SymbolKind.Other, "_${privateOrig}")
                         privateStorageRef = Some(wmRef)
-                        privateLoweredMap.put(UInt32(Int64.toInt(`prop`.ref.innerIndex())),
+                        privateLoweredMap.put(UInt32(`prop`.ref.innerIndex),
                             PrivateLoweredInfo(wmRef))
                         prefixStmts.append(varDecl(wmRef, Some(newWeakMapExpr(loc)), loc))
                     } else if (k == 4) {
@@ -626,9 +637,9 @@ public class LowerDecorators {
                         privateStorageRef = Some(wmRef)
                         let accRef = newSym(SymbolKind.Other, "_${privateOrig}_acc")
                         privateMethodFnRef = Some(accRef)
-                        privateLoweredMap.put(UInt32(Int64.toInt(`prop`.ref.innerIndex())),
-                            PrivateLoweredInfo(wmRef, None, None, None, Some(accRef)))
-                        prefixStmts.append(varDecl2(wmRef, Some(newWeakMapExpr(loc)), accRef, None, loc))
+                        privateLoweredMap.put(UInt32(`prop`.ref.innerIndex),
+                            PrivateLoweredInfo(wmRef, Option<Ref>.None, Option<Ref>.None, Option<Ref>.None, Some(accRef)))
+                        prefixStmts.append(varDecl2(wmRef, Some(newWeakMapExpr(loc)), accRef, Option<Expr>.None, loc))
                         decArgCount = 6
                     }
                 } else if (k == 4) {
@@ -652,17 +663,22 @@ public class LowerDecorators {
                 }
                 decArgs.append(decoratorArray)
 
-                if (isPrivate && privateStorageRef != None) {
-                    decArgs.append(useRef(privateStorageRef.getOrElse(Ref.NONE), loc))
-                    if (decArgCount == 6) {
-                        if (k >= 1 && k <= 3) {
-                            let fnVal = if (let Some(v) <- `prop`.value) { v } else { Expr.undefined(loc) }
-                            decArgs.append(fnVal)
-                        } else if (k == 4) {
-                            decArgs.append(useRef(privateStorageRef.getOrElse(Ref.NONE), loc))
-                        } else {
-                            decArgs.append(Expr.undefined(loc))
+                if (isPrivate) {
+                    if (let Some(psRef) <- privateStorageRef) {
+                        decArgs.append(useRef(psRef, loc))
+                        if (decArgCount == 6) {
+                            if (k >= 1 && k <= 3) {
+                                let fnVal = if (let Some(v) <- `prop`.value) { v } else { Expr.undefined(loc) }
+                                decArgs.append(fnVal)
+                            } else if (k == 4) {
+                                decArgs.append(useRef(psRef, loc))
+                            } else {
+                                decArgs.append(Expr.undefined(loc))
+                            }
                         }
+                    } else {
+                        // should not happen for private with storage
+                        decArgs.append(useRef(classNameRef, loc))
                     }
                 } else {
                     decArgs.append(useRef(classNameRef, loc))
@@ -706,13 +722,15 @@ public class LowerDecorators {
                         }
                         instanceInitEntries.append(initEntry)
                     }
-                } else if (isPrivate && privateStorageRef != None) {
+                } else if (isPrivate) {
                     // 私有方法/getter/setter - 从类体中移除
-                    let privInner = UInt32(Int64.toInt(`prop`.ref.innerIndex()))
+                    let privInner = UInt32(`prop`.ref.innerIndex)
                     if (!emittedPrivateAdds.contains(privInner)) {
                         emittedPrivateAdds.put(privInner)
-                        emitPrivateAdd(`prop`.flags.isStatic, privateStorageRef.getOrElse(Ref.NONE), None,
-                                       loc, constructorInjectStmts, staticPrivateAddBlocks)
+                        if (let Some(psRef) <- privateStorageRef) {
+                            emitPrivateAdd(`prop`.flags.isStatic, psRef, Option<Expr>.None,
+                                           loc, constructorInjectStmts, staticPrivateAddBlocks)
+                        }
                     }
                     if (`prop`.flags.isStatic) {
                         staticNonFieldElements.append(element)
@@ -766,7 +784,7 @@ public class LowerDecorators {
 
             // 5: 类装饰器
             if (classDecorators.size > 0) {
-                let classNameStr = stmt.className
+                let classNameStr = cls.name
                 let clsDecArgs = ArrayList<Expr>()
                 clsDecArgs.append(useRef(initRef, loc))
                 clsDecArgs.append(Expr.number(loc, 0.0))
@@ -889,7 +907,7 @@ public class LowerDecorators {
 
             // 注入到构造函数
             if (constructorInjectStmts.size > 0) {
-                injectIntoConstructor(newProperties, constructorInjectStmts, cls.extends_ != None, loc)
+                injectIntoConstructor(newProperties, constructorInjectStmts, cls.extends_.isSome(), loc)
             }
 
             // 静态私有 __privateAdd 块在开头
@@ -929,7 +947,7 @@ public class LowerDecorators {
         let exprClassRef = newSym(SymbolKind.Other, "_class")
         let initRef = newSym(SymbolKind.Other, "_init")
 
-        let initStartExpr = if (classData.extends_ != None) {
+        let initStartExpr = if (classData.extends_.isSome()) {
             let baseRef = newSym(SymbolKind.Other, "_base")
             let args = ArrayList<Expr>()
             args.append(useRef(baseRef, loc))
@@ -1070,7 +1088,7 @@ public class LowerDecorators {
                 // 检查是否为私有标识符索引 (obj.#field)
                 if (let Some(idx) <- expr.indexExpr) {
                     if (idx.tag == ExprTag.Identifier && idx.identifierName.startsWith("#")) {
-                        let innerIdx = UInt32(Int64.toInt(idx.ref.innerIndex()))
+                        let innerIdx = UInt32(idx.ref.innerIndex)
                         if (let Some(info) <- privateLoweredMap.get(innerIdx)) {
                             // 替换为 __privateGet
                             if (let Some(target) <- expr.target) {
@@ -1086,12 +1104,12 @@ public class LowerDecorators {
 
             case ExprTag.Binary =>
                 // 检查 obj.#field = value -> __privateSet
-                if (expr.op == OpCode.Assign) {
+                if (expr.op == OpCode.BinAssign) {
                     if (let Some(left) <- expr.left) {
                         if (left.tag == ExprTag.Index) {
                             if (let Some(idx) <- left.indexExpr) {
                                 if (idx.tag == ExprTag.Identifier && idx.identifierName.startsWith("#")) {
-                                    let innerIdx = UInt32(Int64.toInt(idx.ref.innerIndex()))
+                                    let innerIdx = UInt32(idx.ref.innerIndex)
                                     if (let Some(info) <- privateLoweredMap.get(innerIdx)) {
                                         if (let Some(target) <- left.target) {
                                             if (let Some(rightVal) <- expr.right) {
@@ -1113,7 +1131,7 @@ public class LowerDecorators {
                 if (expr.op == OpCode.BinIn) {
                     if (let Some(left) <- expr.left) {
                         if (left.tag == ExprTag.Identifier && left.identifierName.startsWith("#")) {
-                            let innerIdx = UInt32(Int64.toInt(left.ref.innerIndex()))
+                            let innerIdx = UInt32(left.ref.innerIndex)
                             if (let Some(info) <- privateLoweredMap.get(innerIdx)) {
                                 if (let Some(rightVal) <- expr.right) {
                                     let args = ArrayList<Expr>()
@@ -1173,7 +1191,14 @@ public class LowerDecorators {
             case ExprTag.Function | ExprTag.Arrow =>
                 // 递归重写函数体
                 if (let Some(fn) <- expr.fn) {
-                    rewritePrivateAccessesInStmts(fn.body)
+                    match (fn.body) {
+                        case GFnBody.StmtsBody(stmts) => rewritePrivateAccessesInStmts(stmts)
+                        case GFnBody.StmtBody(s) =>
+                            let arr = ArrayList<Stmt>()
+                            arr.append(s)
+                            rewritePrivateAccessesInStmts(arr)
+                        case _ => ()
+                    }
                 }
 
             case _ =>
@@ -1192,36 +1217,32 @@ public class LowerDecorators {
     /// 在单个语句中重写私有访问
     public func rewritePrivateAccessesInStmt(stmt: Stmt): Unit {
         match (stmt.tag) {
-            case StmtTag.Expr =>
-                if (let Some(v) <- stmt.exprValue) { rewritePrivateAccessesInExpr(v) }
-            case StmtTag.Return =>
-                if (let Some(v) <- stmt.returnValue) { rewritePrivateAccessesInExpr(v) }
-            case StmtTag.Throw =>
-                if (let Some(v) <- stmt.throwValue) { rewritePrivateAccessesInExpr(v) }
+            case StmtTag.Expr | StmtTag.Return | StmtTag.Throw =>
+                if (let Some(v) <- stmt.expr) { rewritePrivateAccessesInExpr(v) }
             case StmtTag.Local =>
                 // 遍历声明中的值表达式
                 for (decl in stmt.decls) {
                     if (let Some(v) <- decl.value) { rewritePrivateAccessesInExpr(v) }
                 }
             case StmtTag.If =>
-                if (let Some(t) <- stmt.test) { rewritePrivateAccessesInExpr(t) }
+                if (let Some(t) <- stmt.expr) { rewritePrivateAccessesInExpr(t) }
                 if (let Some(y) <- stmt.yes) { rewritePrivateAccessesInStmt(y) }
                 if (let Some(n) <- stmt.no) { rewritePrivateAccessesInStmt(n) }
             case StmtTag.Block =>
                 for (child in stmt.stmts) { rewritePrivateAccessesInStmt(child) }
             case StmtTag.For =>
                 if (let Some(`init`) <- stmt.`init`) { rewritePrivateAccessesInStmt(`init`) }
-                if (let Some(t) <- stmt.test) { rewritePrivateAccessesInExpr(t) }
+                if (let Some(t) <- stmt.expr) { rewritePrivateAccessesInExpr(t) }
                 if (let Some(u) <- stmt.update) { rewritePrivateAccessesInExpr(u) }
                 if (let Some(b) <- stmt.body) { rewritePrivateAccessesInStmt(b) }
             case StmtTag.ForIn | StmtTag.ForOf =>
-                if (let Some(v) <- stmt.forValue) { rewritePrivateAccessesInExpr(v) }
+                if (let Some(v) <- stmt.iterValue) { rewritePrivateAccessesInExpr(v) }
                 if (let Some(b) <- stmt.body) { rewritePrivateAccessesInStmt(b) }
             case StmtTag.While | StmtTag.DoWhile =>
-                if (let Some(t) <- stmt.test) { rewritePrivateAccessesInExpr(t) }
+                if (let Some(t) <- stmt.expr) { rewritePrivateAccessesInExpr(t) }
                 if (let Some(b) <- stmt.body) { rewritePrivateAccessesInStmt(b) }
             case StmtTag.Switch =>
-                if (let Some(t) <- stmt.test) { rewritePrivateAccessesInExpr(t) }
+                if (let Some(t) <- stmt.expr) { rewritePrivateAccessesInExpr(t) }
                 for (c in stmt.cases) {
                     if (let Some(v) <- c.value) { rewritePrivateAccessesInExpr(v) }
                     for (s in c.body) { rewritePrivateAccessesInStmt(s) }
@@ -1295,11 +1316,29 @@ public class LowerDecorators {
                 if (let Some(t) <- expr.templateTag) { rewriteExpr(t, data) }
                 for (part in expr.templateParts) { rewriteExpr(part, data) }
             case ExprTag.Arrow =>
-                if (let Some(fn) <- expr.fn) { rewriteStmts(fn.body, data) }
+                if (let Some(fn) <- expr.fn) {
+                    match (fn.body) {
+                        case GFnBody.StmtsBody(stmts) => rewriteStmts(stmts, data)
+                        case GFnBody.StmtBody(s) =>
+                            let arr = ArrayList<Stmt>()
+                            arr.append(s)
+                            rewriteStmts(arr, data)
+                        case _ => ()
+                    }
+                }
             case ExprTag.Function =>
                 // replace_this 不递归进入函数
                 if (data.kind == RewriteKind.ReplaceRef) {
-                    if (let Some(fn) <- expr.fn) { rewriteStmts(fn.body, data) }
+                    if (let Some(fn) <- expr.fn) {
+                        match (fn.body) {
+                            case GFnBody.StmtsBody(stmts) => rewriteStmts(stmts, data)
+                            case GFnBody.StmtBody(s) =>
+                                let arr = ArrayList<Stmt>()
+                                arr.append(s)
+                                rewriteStmts(arr, data)
+                            case _ => ()
+                        }
+                    }
                 }
             case _ =>
                 ()
@@ -1317,41 +1356,37 @@ public class LowerDecorators {
     /// 重写单个语句中的引用
     public func rewriteStmt(stmt: Stmt, data: RewriteData): Unit {
         match (stmt.tag) {
-            case StmtTag.Expr =>
-                if (let Some(v) <- stmt.exprValue) { rewriteExpr(v, data) }
+            case StmtTag.Expr | StmtTag.Return | StmtTag.Throw =>
+                if (let Some(v) <- stmt.expr) { rewriteExpr(v, data) }
             case StmtTag.Local =>
                 for (decl in stmt.decls) {
                     if (let Some(v) <- decl.value) { rewriteExpr(v, data) }
                 }
-            case StmtTag.Return =>
-                if (let Some(v) <- stmt.returnValue) { rewriteExpr(v, data) }
-            case StmtTag.Throw =>
-                if (let Some(v) <- stmt.throwValue) { rewriteExpr(v, data) }
             case StmtTag.If =>
-                if (let Some(t) <- stmt.test) { rewriteExpr(t, data) }
+                if (let Some(t) <- stmt.expr) { rewriteExpr(t, data) }
                 if (let Some(y) <- stmt.yes) { rewriteStmt(y, data) }
                 if (let Some(n) <- stmt.no) { rewriteStmt(n, data) }
             case StmtTag.Block =>
                 for (child in stmt.stmts) { rewriteStmt(child, data) }
             case StmtTag.For =>
                 if (let Some(fi) <- stmt.`init`) { rewriteStmt(fi, data) }
-                if (let Some(t) <- stmt.test) { rewriteExpr(t, data) }
+                if (let Some(t) <- stmt.expr) { rewriteExpr(t, data) }
                 if (let Some(u) <- stmt.update) { rewriteExpr(u, data) }
                 if (let Some(b) <- stmt.body) { rewriteStmt(b, data) }
             case StmtTag.ForIn =>
-                if (let Some(v) <- stmt.forValue) { rewriteExpr(v, data) }
+                if (let Some(v) <- stmt.iterValue) { rewriteExpr(v, data) }
                 if (let Some(b) <- stmt.body) { rewriteStmt(b, data) }
             case StmtTag.ForOf =>
-                if (let Some(v) <- stmt.forValue) { rewriteExpr(v, data) }
+                if (let Some(v) <- stmt.iterValue) { rewriteExpr(v, data) }
                 if (let Some(b) <- stmt.body) { rewriteStmt(b, data) }
             case StmtTag.While =>
-                if (let Some(t) <- stmt.test) { rewriteExpr(t, data) }
+                if (let Some(t) <- stmt.expr) { rewriteExpr(t, data) }
                 if (let Some(b) <- stmt.body) { rewriteStmt(b, data) }
             case StmtTag.DoWhile =>
-                if (let Some(t) <- stmt.test) { rewriteExpr(t, data) }
+                if (let Some(t) <- stmt.expr) { rewriteExpr(t, data) }
                 if (let Some(b) <- stmt.body) { rewriteStmt(b, data) }
             case StmtTag.Switch =>
-                if (let Some(t) <- stmt.test) { rewriteExpr(t, data) }
+                if (let Some(t) <- stmt.expr) { rewriteExpr(t, data) }
                 for (c in stmt.cases) {
                     if (let Some(v) <- c.value) { rewriteExpr(v, data) }
                     for (s in c.body) { rewriteStmt(s, data) }
@@ -1374,7 +1409,7 @@ public class LowerDecorators {
     /// 从表达式创建语句
     private func stmtFromExpr(expr: Expr): Stmt {
         let stmt = Stmt(expr.loc, StmtTag.Expr)
-        stmt.exprValue = expr
+        stmt.expr = Some(expr)
         return stmt
     }
 
@@ -1397,22 +1432,27 @@ public class LowerDecorators {
                 // 找到构造函数，注入初始化语句
                 // 查找 super() 调用的位置
                 var superIndex: ?Int64 = None
-                if (let Some(fn) <- `prop`.value.flatMap({ e => e.fn })) {
-                    let bodyStmts = fn.body
-                    for (j in 0..bodyStmts.size) {
-                        let s = bodyStmts[Int64(j)]
-                        if (s.tag == StmtTag.Expr) {
-                            if (let Some(v) <- s.exprValue) {
-                                if (v.tag == ExprTag.Call) {
-                                    if (let Some(t) <- v.target) {
-                                        if (t.tag == ExprTag.Super) {
-                                            superIndex = Some(Int64(j))
-                                            break
+                if (let Some(exprVal) <- `prop`.value) {
+                    if (let Some(fn) <- exprVal.fn) {
+                    match (fn.body) {
+                        case GFnBody.StmtsBody(bodyStmts) =>
+                            for (j in 0..bodyStmts.size) {
+                                let s = bodyStmts[Int64(j)]
+                                if (s.tag == StmtTag.Expr) {
+                                    if (let Some(v) <- s.expr) {
+                                        if (v.tag == ExprTag.Call) {
+                                            if (let Some(t) <- v.target) {
+                                                if (t.tag == ExprTag.Super) {
+                                                    superIndex = Some(Int64(j))
+                                                    break
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
+                        case _ => ()
+                    }
                     }
                 }
                 // 在 super() 之后插入初始化语句

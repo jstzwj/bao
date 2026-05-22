@@ -450,7 +450,7 @@ public class RegistryClient {
     private var config: RegistryConfig
     private var cache: RegistryCache
     private var httpClient: HttpClient
-    private var jsonParser: JsonParser
+    private var jsonParser: PkgJsonParser
 
     /// 用户代理字符串
     /// 对应 Bun: Global.user_agent
@@ -478,7 +478,7 @@ public class RegistryClient {
         this.config = config
         this.cache = RegistryCache()
         this.httpClient = HttpClient()
-        this.jsonParser = JsonParser()
+        this.jsonParser = PkgJsonParser()
     }
 
     public init() {
@@ -486,7 +486,7 @@ public class RegistryClient {
         this.config.loadAuthFromEnv()
         this.cache = RegistryCache()
         this.httpClient = HttpClient()
-        this.jsonParser = JsonParser()
+        this.jsonParser = PkgJsonParser()
     }
 
     // ========================================================================

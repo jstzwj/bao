@@ -19,25 +19,25 @@ public enum Readable {
 
     /// 是否有待处理活动
     public func hasPendingActivity(): Bool {
-        return switch (this) {
-            case .pipe => this.pipe.hasPendingActivity()
+        return match (this) {
+            case pipe => this.pipe.hasPendingActivity()
             else => false
         }
     }
 
     /// 引用
     public func ref() {
-        switch (this) {
-            case .pipe => this.pipe.updateRef(true)
-            else => {}
+        match (this) {
+            case pipe => this.pipe.updateRef(true)
+            else => ()
         }
     }
 
     /// 取消引用
     public func unref() {
-        switch (this) {
-            case .pipe => this.pipe.updateRef(false)
-            else => {}
+        match (this) {
+            case pipe => this.pipe.updateRef(false)
+            else => ()
         }
     }
 
@@ -54,36 +54,33 @@ public enum Readable {
         Subprocess.assertStdioResult(result)
 
         if (Environment.isPosix) {
-            if (stdio == .pipe) {
+            if (stdio == pipe) {
                 _ = Sys.setNonblocking(result)
             }
         }
 
-        return switch (stdio) {
-            case .inherit => Readable.inherit()
-            case .ignore, .ipc, .path => Readable.ignore()
-            case .fd(let fd) => if (Environment.isPosix) Readable.fd(result) else Readable.fd(fd)
-            case .memfd => if (Environment.isPosix) Readable.memfd(stdio.memfd) else Readable.ignore()
-            case .dup2(let dup2) => if (Environment.isPosix) {
+        return match (stdio) {
+            case inherit => Readable.inherit()
+            case ignore, .ipc, .path => Readable.ignore()
+            case fd(fd) => if (Environment.isPosix) Readable.fd(result) else Readable.fd(fd)
+            case memfd => if (Environment.isPosix) Readable.memfd(stdio.memfd) else Readable.ignore()
+            case dup2(dup2) => if (Environment.isPosix) {
                 // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init: POSIX dup2 stdout/stderr has no JS readable handle.
                 Readable.ignore()
             } else {
                 Readable.fd(dup2.out.toFd())
             }
-            case .pipe => Readable.pipe(PipeReader.create(eventLoop, process, result, maxSize))
-            case .array_buffer(let arrayBuffer) => {
+            case pipe => Readable.pipe(PipeReader.create(eventLoop, process, result, maxSize))
+            case array_buffer(arrayBuffer) =>
                 // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init + buffer variant: buffered stdio becomes Readable.buffer.
                 Readable.buffer(CowString.initOwned(arrayBuffer.array_buffer.byteSlice(), default_allocator))
-            }
-            case .blob(let blob) => {
+            case blob(blob) =>
                 // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init + buffer variant: buffered stdio becomes Readable.buffer.
                 Readable.buffer(CowString.initOwned(blob.slice(), default_allocator))
-            }
-            case .capture(let buf) => {
+            case capture(buf) =>
                 // 严格翻译自 Bun src/runtime/api/bun/subprocess/Readable.zig Readable.init + buffer variant: captured bytes are exposed as Readable.buffer.
                 Readable.buffer(CowString.initOwned(buf.slice(), default_allocator))
-            }
-            case .readable_stream => Readable.ignore()  // ReadableStream 单独处理
+            case readable_stream => Readable.ignore()  // ReadableStream 单独处理
         }
     }
 
@@ -100,65 +97,55 @@ public enum Readable {
 
     /// 关闭
     public func close() {
-        switch (this) {
-            case .memfd(let fd) => {
+        match (this) {
+            case memfd(fd) =>
                 this = .closed()
                 fd.close()
-            }
-            case .fd => {
+            case fd =>
                 this = .closed()
-            }
-            case .pipe => {
+            case pipe =>
                 this.pipe.close()
-            }
-            else => {}
+            else => ()
         }
     }
 
     /// 终结化
     public func finalize() {
-        switch (this) {
-            case .memfd(let fd) => {
+        match (this) {
+            case memfd(fd) =>
                 this = .closed()
                 fd.close()
-            }
-            case .fd => {
+            case fd =>
                 this = .closed()
-            }
-            case .pipe(let pipe) => {
+            case pipe(pipe) =>
                 defer pipe.detach()
                 this = .closed()
-            }
-            case .buffer(let buf) => {
+            case buffer(buf) =>
                 buf.deinit(default_allocator)
-            }
-            else => {}
+            else => ()
         }
     }
 
     /// 转换为 JS 值
     public func toJS(globalThis: JsGlobalObject, exited: Bool): JsValue {
-        switch (this) {
-            case .memfd => return this.toBufferedValue(globalThis)
+        match (this) {
+            case memfd => return this.toBufferedValue(globalThis)
 
-            case .fd(let fd) => {
+            case fd(fd) =>
                 return fd.toJS(globalThis)
-            }
-            case .pipe(let pipe) => {
+            case pipe(pipe) =>
                 defer pipe.detach()
                 this = .closed()
                 return pipe.toJS(globalThis)
-            }
-            case .buffer(let buffer) => {
+            case buffer(buffer) =>
                 defer this = .closed()
 
-                if (buffer.length() == 0) {
+                if (buffer.size() == 0) {
                     return ReadableStream.empty(globalThis)
                 }
 
                 let own = try buffer.takeSlice(default_allocator)
                 return ReadableStream.fromOwnedSlice(globalThis, own, 0)
-            }
             else => {
                 return JsValue.jsUndefined()
             }
@@ -167,29 +154,25 @@ public enum Readable {
 
     /// 转换为缓冲区 JS 值
     public func toBufferedValue(globalThis: JsGlobalObject): JsValue {
-        switch (this) {
-            case .fd(let fd) => {
+        match (this) {
+            case fd(fd) =>
                 return fd.toJS(globalThis)
-            }
-            case .memfd(let fd) => {
+            case memfd(fd) =>
                 if (!Environment.isPosix) {
                     panic("memfd is only supported on Linux")
                 }
                 this = .closed()
                 return ArrayBuffer.toJSBufferFromMemfd(fd, globalThis)
-            }
-            case .pipe(let pipe) => {
+            case pipe(pipe) =>
                 defer pipe.detach()
                 this = .closed()
                 return pipe.toBuffer(globalThis)
-            }
-            case .buffer(let buf) => {
+            case buffer(buf) =>
                 defer this = .closed()
                 let own = buf.takeSlice(default_allocator) catch {
                     return globalThis.throwOutOfMemory()
                 }
                 return MarkedArrayBuffer.fromBytes(own, default_allocator, .Uint8Array).toNodeBuffer(globalThis)
-            }
             else => {
                 return JsValue.jsUndefined()
             }
@@ -201,9 +184,9 @@ public enum Readable {
 // 类型别名
 // ========================================================================
 
-public typealias CowString = CowString
-public typealias StdioResult = StdioResult
-public typealias MaxBuf = MaxBuf
-public typealias PipeReader = PipeReader
-public typealias BlobSizeType = BlobSizeType
+public type CowString = CowString
+public type StdioResult = StdioResult
+public type MaxBuf = MaxBuf
+public type PipeReader = PipeReader
+public type BlobSizeType = BlobSizeType
 public let default_allocator = default_allocator

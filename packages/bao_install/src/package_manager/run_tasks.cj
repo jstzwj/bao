@@ -133,10 +133,10 @@ public class RunTasks {
                 if (ptask.getApplyLoggerErrors() == 0) {
                     if (callbacks.hasOnExtract()) {
                         match (ptask.getApplyTaskId()) {
-                            case Some(_) => {
+                            case Some(_) =>
                                 // task_id 存在 - autofix 分支
-                            }
-                            case None => {
+                                ()
+                            case None =>
                                 if (ctx.isPackageInstaller()) {
                                     if (ptask.hasApplyInstallContext()) {
                                         let installCtx = ptask.getApplyInstallContext()
@@ -157,12 +157,11 @@ public class RunTasks {
                                         )
                                     }
                                 }
-                            }
                         }
                     }
                 } else {
                     // Patch 应用失败 - 传播错误以导致安装失败
-                    throw BaoError("InstallFailed: patch application failed with errors")
+                    throw BaoError(ErrorCode.Unreachable, "InstallFailed: patch application failed with errors")
                 }
             }
         }
@@ -188,17 +187,14 @@ public class RunTasks {
             let task = iter.next()
 
             match (task.result) {
-                case StoreInstallerTaskResult.None => {
+                case StoreInstallerTaskResult.None =>
                     RunTasksDebug.ciAssert(false)
                     installer.onTaskComplete(task.entryId, StoreInstallerTaskStatus.Success)
-                }
-                case StoreInstallerTaskResult.Err(err) => {
+                case StoreInstallerTaskResult.Err(err) =>
                     installer.onTaskFail(task.entryId, err)
-                }
-                case StoreInstallerTaskResult.Blocked => {
+                case StoreInstallerTaskResult.Blocked =>
                     installer.onTaskBlocked(task.entryId)
-                }
-                case StoreInstallerTaskResult.RunScripts(list) => {
+                case StoreInstallerTaskResult.RunScripts(list) =>
                     let entries = installer.storeEntries
                     let nodeId = entries.getNodeId(task.entryId)
                     let depId = installer.storeNodes.getDepId(nodeId)
@@ -215,11 +211,9 @@ public class RunTasks {
                         entries.setStepDone(task.entryId)
                         installer.onTaskFail(task.entryId, StoreInstallerTaskError.RunScripts(err))
                     }
-                }
-                case StoreInstallerTaskResult.Done => {
+                case StoreInstallerTaskResult.Done =>
                     RunTasksDebug.ciAssert(entriesCheckStepDone(installer, task.entryId))
                     installer.onTaskComplete(task.entryId, StoreInstallerTaskStatus.Success)
-                }
             }
         }
     }
@@ -261,7 +255,7 @@ public class RunTasks {
             manager.decrementPendingTasks()
 
             match (task.callback) {
-                case NetworkTaskCallback.PackageManifest(manifestReq) => {
+                case NetworkTaskCallback.PackageManifest(manifestReq) =>
                     // ----------------------------------------------------------
                     // package_manifest 回调处理
                     // 严格翻译自: runTasks.zig 第137-330行
@@ -362,7 +356,7 @@ public class RunTasks {
 
                     // HTTP 304: 缓存的请求
                     if (response.statusCode == 304) {
-                        if (manifestReq.loadedManifest != None) {
+                        if (manifestReq.loadedManifest.isSome()) {
                             let manifest = manifestReq.loadedManifest
                             RunTasksDebug.assert(!manifestReq.isExtendedManifest || manifest.hasExtendedManifest())
 
@@ -370,10 +364,10 @@ public class RunTasks {
                             entry.setManifest(manifest)
 
                             if (timestamp == None) {
-                                timestamp = UInt32(truncateTimestamp(currentTimestamp())) +| 300
+                                timestamp = UInt32(truncateTimestamp(currentTimestamp())) + UInt32(300)
                             }
 
-                            entry.setPublicMaxAge(timestamp!)
+                            entry.setPublicMaxAge(timestamp.getOrThrow())
 
                             if (manager.options.enableManifestCache) {
                                 // Npm.PackageManifest.Serializer.saveAsync(...)
@@ -399,8 +393,7 @@ public class RunTasks {
 
                     // 非304: 推入 parse NPM 包任务
                     manager.taskBatch.push(manager.enqueueParseNPMPackage(task.taskId, name, task))
-                }
-                case NetworkTaskCallback.Extract(extract) => {
+                case NetworkTaskCallback.Extract(extract) =>
                     // ----------------------------------------------------------
                     // extract 回调处理
                     // 严格翻译自: runTasks.zig 第331-577行
@@ -552,10 +545,9 @@ public class RunTasks {
                     }
 
                     manager.taskBatch.push(manager.enqueueExtractNPMPackage(extract, task))
-                }
-                case _ => {
+                case _ =>
                     // unreachable
-                }
+                    ()
             }
         }
 
@@ -603,18 +595,14 @@ public class RunTasks {
             }
 
             match (task.tag) {
-                case ResolveTaskTag.PackageManifest => {
+                case ResolveTaskTag.PackageManifest =>
                     processResolvePackageManifest(manager, ctx, callbacks, installPeer, logLevel, task, updated, timestamp)
-                }
-                case ResolveTaskTag.Extract | ResolveTaskTag.LocalTarball => {
+                case ResolveTaskTag.Extract | ResolveTaskTag.LocalTarball =>
                     processResolveExtractOrLocalTarball(manager, ctx, callbacks, installPeer, logLevel, task, updated)
-                }
-                case ResolveTaskTag.GitClone => {
+                case ResolveTaskTag.GitClone =>
                     processResolveGitClone(manager, ctx, callbacks, installPeer, logLevel, task, updated)
-                }
-                case ResolveTaskTag.GitCheckout => {
+                case ResolveTaskTag.GitCheckout =>
                     processResolveGitCheckout(manager, ctx, callbacks, installPeer, logLevel, task, updated)
-                }
             }
         }
     }
@@ -699,7 +687,7 @@ public class RunTasks {
         let tarball = match (task.tag) {
             case ResolveTaskTag.Extract => task.getExtractTarball()
             case ResolveTaskTag.LocalTarball => task.getLocalTarballTarball()
-            case _ => throw BaoError("unreachable")
+            case _ => throw BaoError(ErrorCode.Unreachable, "unreachable")
         }
         let dependencyId = tarball.dependencyId
         var packageId = manager.lockfile.getResolutionAt(dependencyId)
@@ -717,7 +705,7 @@ public class RunTasks {
                 let failUrl = match (task.tag) {
                     case ResolveTaskTag.Extract => task.getExtractNetworkUrlBuf()
                     case ResolveTaskTag.LocalTarball => tarball.url
-                    case _ => throw BaoError("unreachable")
+                    case _ => throw BaoError(ErrorCode.Unreachable, "unreachable")
                 }
                 if (ctx.isStoreInstaller()) {
                     callbacks.onPackageDownloadError(ctx, task.id, alias, resolution, err, failUrl)
@@ -744,14 +732,12 @@ public class RunTasks {
         // 有 onExtract 回调
         if (callbacks.hasOnExtract()) {
             match (ctx.contextType()) {
-                case RunTasksContextType.PackageInstaller => {
+                case RunTasksContextType.PackageInstaller =>
                     ctx.getInstaller().fixCachedLockfilePackageSlices()
                     callbacks.onExtract(ctx, task.id, dependencyId, task.getExtractData(), logLevel)
-                }
-                case RunTasksContextType.StoreInstaller => {
+                case RunTasksContextType.StoreInstaller =>
                     callbacks.onExtract(ctx, task.id)
-                }
-                case _ => throw BaoError("unexpected context type")
+                case _ => throw BaoError(ErrorCode.Unreachable, "unexpected context type")
             }
         } else if (manager.processExtractedTarballPackage(packageId, dependencyId, resolution, task.getExtractData(), logLevel)) {
             // processExtractedTarballPackage 返回了 pkg, 处理依赖列表
@@ -760,7 +746,7 @@ public class RunTasks {
             if (dependencyListEntry == None) {
                 // break :handle_pkg
             } else {
-                let entry = dependencyListEntry!
+                let entry = dependencyListEntry.getOrThrow()
                 var dependencyList = entry.value
                 entry.clearValue()
 
@@ -775,20 +761,18 @@ public class RunTasks {
 
                 for (dep in dependencyList.items) {
                     match (dep) {
-                        case TaskCallbackContext.Dependency(id) | TaskCallbackContext.RootDependency(id) => {
+                        case TaskCallbackContext.Dependency(id) | TaskCallbackContext.RootDependency(id) =>
                             let depVersion = manager.lockfile.getDependencyVersion(id)
                             match (depVersion.tag) {
                                 case DependencyVersionTag.Git => depVersion.setGitPackageName(depVersion.getPkgName())
                                 case DependencyVersionTag.GitHub => depVersion.setGitHubPackageName(depVersion.getPkgName())
                                 case DependencyVersionTag.Tarball => depVersion.setTarballPackageName(depVersion.getPkgName())
-                                case _ => {}
+                                case _ => ()
                             }
                             manager.processDependencyListItem(dep, anyRoot, installPeer)
-                        }
-                        case _ => {
+                        case _ =>
                             // node_module 文件夹安装: 放回队列
                             entry.append(dep)
-                        }
                     }
                 }
             }
@@ -798,8 +782,8 @@ public class RunTasks {
                 manager.lockfile.getPackageNameAt(packageId)
             )
             let dependencyListEntry = manager.taskQueue.getEntry(manifestTaskId)
-            if (dependencyListEntry != None) {
-                let entry = dependencyListEntry!
+            if (dependencyListEntry.isSome()) {
+                let entry = dependencyListEntry.getOrThrow()
                 let dependencyList = entry.value
                 entry.clearValue()
                 manager.processDependencyList(dependencyList, RunTasksContext.voidContext(), RunTasksCallbacks.voidCallbacks(), installPeer)
@@ -847,8 +831,8 @@ public class RunTasks {
                 // 隔离安装器: 排空所有等待 checkout 的任务
                 var drainedAny = false
                 let removed = manager.taskQueue.fetchRemove(task.id)
-                if (removed != None) {
-                    let waiters = removed!
+                if (removed.isSome()) {
+                    let waiters = removed.getOrThrow()
                     defer {
                         waiters.deinit()
                     }
@@ -896,15 +880,19 @@ public class RunTasks {
             let committish = git.committish
             let repo = git.repo
 
-            let resolved = try Repository.findCommit(
-                manager.allocator,
-                manager.env,
-                manager.log,
-                repoFd,
-                depName,
-                committish,
-                task.id
-            )
+            let resolved = try {
+                Repository.findCommit(
+                    manager.allocator,
+                    manager.env,
+                    manager.log,
+                    repoFd,
+                    depName,
+                    committish,
+                    task.id
+                )
+            } catch (e: Exception) {
+                ""
+            }
 
             let checkoutId = TaskId.forGitCheckout(repo, resolved)
 
@@ -919,7 +907,7 @@ public class RunTasks {
                 depName,
                 clone.res,
                 resolved,
-                None
+                Option<String>.None
             ))
         } else {
             // 解析模式
@@ -983,14 +971,12 @@ public class RunTasks {
         // 成功处理
         if (callbacks.hasOnExtract()) {
             match (ctx.contextType()) {
-                case RunTasksContextType.PackageInstaller => {
+                case RunTasksContextType.PackageInstaller =>
                     ctx.getInstaller().fixCachedLockfilePackageSlices()
                     callbacks.onExtract(ctx, task.id, gitCheckout.dependencyId, task.getGitCheckoutData(), logLevel)
-                }
-                case RunTasksContextType.StoreInstaller => {
+                case RunTasksContextType.StoreInstaller =>
                     callbacks.onExtract(ctx, task.id)
-                }
-                case _ => throw BaoError("unexpected context type")
+                case _ => throw BaoError(ErrorCode.Unreachable, "unexpected context type")
             }
         } else if (manager.processExtractedTarballPackage(
             packageId,
@@ -1005,7 +991,7 @@ public class RunTasks {
             if (dependencyListEntry == None) {
                 // break :handle_pkg
             } else {
-                let entry = dependencyListEntry!
+                let entry = dependencyListEntry.getOrThrow()
                 var dependencyList = entry.value
                 entry.clearValue()
 
@@ -1020,15 +1006,13 @@ public class RunTasks {
 
                 for (dep in dependencyList.items) {
                     match (dep) {
-                        case TaskCallbackContext.Dependency(id) | TaskCallbackContext.RootDependency(id) => {
+                        case TaskCallbackContext.Dependency(id) | TaskCallbackContext.RootDependency(id) =>
                             let depVersion = manager.lockfile.getDependencyVersionGit(id)
                             depVersion.setGitResolved(manager.getGitCheckoutResolved())
                             depVersion.setGitPackageName(manager.getGitCheckoutPkgName())
                             manager.processDependencyListItem(dep, anyRoot, installPeer)
-                        }
-                        case _ => {
+                        case _ =>
                             entry.append(dep)
-                        }
                     }
                 }
             }
@@ -1160,13 +1144,12 @@ public class FlushNetworkQueue {
         while (true) {
             let networkTask = network.readItem()
             match (networkTask) {
-                case Some(task) => {
+                case Some(task) =>
                     if (task.isExtractCallback()) {
                         task.schedule(manager.networkTarballBatch)
                     } else {
                         task.schedule(manager.networkResolveBatch)
                     }
-                }
                 case None => break
             }
         }
@@ -1192,13 +1175,12 @@ public class FlushPatchTaskQueue {
         while (true) {
             let patchTask = patchTaskFifo.readItem()
             match (patchTask) {
-                case Some(task) => {
+                case Some(task) =>
                     if (task.isApplyCallback()) {
                         task.schedule(manager.patchApplyBatch)
                     } else {
                         task.schedule(manager.patchCalcHashBatch)
                     }
-                }
                 case None => break
             }
         }
@@ -1226,7 +1208,7 @@ public class FlushDependencyQueue {
         while (true) {
             let dependenciesList = dependencyQueue.readItem()
             match (dependenciesList) {
-                case Some(depList) => {
+                case Some(depList) =>
                     var i: UInt32 = depList.off
                     let end = depList.off + depList.len
                     while (i < end) {
@@ -1239,7 +1221,6 @@ public class FlushDependencyQueue {
                         )
                         i += 1
                     }
-                }
                 case None => break
             }
         }
@@ -1371,11 +1352,10 @@ public class AllocGitHubURL {
         var githubApiUrl: String = "https://api.github.com"
         let envUrl = manager.env.get("GITHUB_API_URL")
         match (envUrl) {
-            case Some(url) => {
+            case Some(url) =>
                 if (url.size > 0) {
                     githubApiUrl = url
                 }
-            }
             case None => ()
         }
 
@@ -1507,7 +1487,7 @@ public class GenerateNetworkTaskForTarball {
             )
             networkTask.setStreamingExtractTask(extractTask)
             networkTask.setTarballStream(
-                TarballStream.init(manager.allocator, extractTask, networkTask, manager)
+                TarballStream.`init`(manager.allocator, extractTask, networkTask, manager)
             )
         }
 
@@ -1522,12 +1502,11 @@ public class GenerateNetworkTaskForTarball {
         taskId: TaskId
     ): ?PatchTaskRef {
         match (patchNameAndVersionHash) {
-            case Some(h) => {
+            case Some(h) =>
                 let patchHash = manager.lockfile.getPatchedDependencyPatchfileHash(h)
                 let task = PatchTask.newApplyPatchHash(manager, package_.meta.id, patchHash, h)
                 task.setApplyTaskId(taskId)
                 return Some(task)
-            }
             case None => return None
         }
     }
@@ -1548,14 +1527,6 @@ public class LoggerLoc {
     public static func empty(): LoggerLoc {
         return LoggerLoc(0)
     }
-}
-
-/// 子命令
-public enum Subcommand {
-    | Install
-    | Add
-    | Remove
-    | Update
 }
 
 /// 网络任务回调类型
@@ -2314,6 +2285,8 @@ public class RunTasksPackageManagerState {
     public func enqueueParseNPMPackage(taskId: TaskId, name: String, task: NetworkTaskRef): ThreadPoolBatch { return ThreadPoolBatch() }
     public func enqueueExtractNPMPackage(extract: ExtractRequestRef, task: NetworkTaskRef): ThreadPoolBatch { return ThreadPoolBatch() }
     public func enqueueGitCheckout(checkoutId: TaskId, repoFd: Int64, depId: UInt32, depName: String, res: ResolutionRef, resolved: String, b: ?String): ThreadPoolBatch { return ThreadPoolBatch() }
+    public func getGitCheckoutResolved(): String { return "" }
+    public func getGitCheckoutPkgName(): String { return "" }
     public func scopeForPackageName(name: String): ScopeInfo { return ScopeInfo() }
     public func getCacheDirectory(): String { return "" }
     public func getTemporaryDirectory(): TempDirRef { return TempDirRef() }
@@ -2694,7 +2667,7 @@ public class TarballConfig {
 public class TarballStream {
     public init() {}
 
-    public static func init(allocator: Allocator, extractTask: ResolveTaskRef, networkTask: NetworkTaskRef, manager: RunTasksPackageManagerState): TarballStream {
+    public static func `init`(allocator: Allocator, extractTask: ResolveTaskRef, networkTask: NetworkTaskRef, manager: RunTasksPackageManagerState): TarballStream {
         return TarballStream()
     }
 }
@@ -2764,16 +2737,6 @@ public enum LogLevel {
     }
 }
 
-/// 输出工具
-public class Output {
-    public static func print(msg: String): Unit {}
-    public static func printErrorln(msg: String): Unit {}
-    public static func printElapsed(ms: Float64): Unit {}
-    public static func prettyError(fmt: String): Unit {}
-    public static func errorWriter(): OutputWriter { return OutputWriter() }
-    public static func flush(): Unit {}
-}
-
 /// 输出写入器
 public class OutputWriter {
     public init() {}
@@ -2783,7 +2746,7 @@ public class OutputWriter {
 public class RunTasksDebug {
     public static func assert(condition: Bool): Unit {
         if (!condition) {
-            throw BaoError("assertion failed")
+            throw BaoError(ErrorCode.Unreachable, "assertion failed")
         }
     }
 

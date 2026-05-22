@@ -76,7 +76,7 @@ public func toPosixPath(path: Array<UInt8>): Result<String, BaoError> {
     for (b in path) {
         s.append(Char32(b))
     }
-    s.append('\x00')
+    s.append('\0')
     return Result<String, BaoError>.Ok(s.toString())
 }
 
@@ -242,7 +242,7 @@ public class Actions {
     /// 初始化
     /// 严格翻译自: src/spawn_sys/posix_spawn.rs:162-165
     ///   pub fn init() -> Result<Actions, Error> { Ok(Actions::default()) }
-    public static func init(): Result<Actions, BaoError> {
+    public static func `init`(): Result<Actions, BaoError> {
         return Result<Actions, BaoError>.Ok(Actions())
     }
 
@@ -374,7 +374,7 @@ public struct Attr {
     /// 初始化
     /// 严格翻译自: src/spawn_sys/posix_spawn.rs:247-249
     ///   pub fn init() -> Result<Attr, Error> { Ok(Attr::default()) }
-    public static func init(): Result<Attr, BaoError> {
+    public static func `init`(): Result<Attr, BaoError> {
         return Result<Attr, BaoError>.Ok(Attr())
     }
 
@@ -435,7 +435,7 @@ public class MacPosixSpawnAttr {
     /// 初始化
     /// 严格翻译自: src/spawn_sys/posix_spawn.rs:333-346
     ///   pub fn init() -> Result<PosixSpawnAttr, Error>
-    public static func init(): Result<MacPosixSpawnAttr, BaoError> {
+    public static func `init`(): Result<MacPosixSpawnAttr, BaoError> {
         // FFI: posix_spawnattr_init
         let result = MacPosixSpawnAttr()
         let rc = posixSpawnattrInit(result)
@@ -493,7 +493,7 @@ public class MacPosixSpawnActions {
 
     /// 初始化
     /// 严格翻译自: src/spawn_sys/posix_spawn.rs:397-408
-    public static func init(): Result<MacPosixSpawnActions, BaoError> {
+    public static func `init`(): Result<MacPosixSpawnActions, BaoError> {
         let result = MacPosixSpawnActions()
         let rc = posixSpawnFileActionsInit(result)
         match (spawnErrno(posixErrno(rc))) {
@@ -806,11 +806,11 @@ public func spawnZMacos(
     envp: Envp
 ): SysMaybe<PidT> {
     // 初始化系统级 posix_spawn actions
-    let posixActionsResult = MacPosixSpawnActions.init()
+    let posixActionsResult = MacPosixSpawnActions()
     match (posixActionsResult) {
         case Ok(posixActions) =>
             // 初始化系统级 posix_spawn attr
-            let posixAttrResult = MacPosixSpawnAttr.init()
+            let posixAttrResult = MacPosixSpawnAttr()
             match (posixAttrResult) {
                 case Ok(posixAttr) =>
                     // 从 BunSpawn.Attr 传递 flags

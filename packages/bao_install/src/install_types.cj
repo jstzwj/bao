@@ -132,7 +132,7 @@ public class SemverString {
         length = 0
     }
 
-    /// 从内联字符串初始化 - 对应 Bun String.init(buf, in) 中短字符串路径
+    /// 从内联字符串初始化 - 对应 Bun String(buf, in) 中短字符串路径
     /// 翻译自:
     ///   pub fn init(buf: string, in: string) String {
     ///       return switch (in.len) {
@@ -165,7 +165,7 @@ public class SemverString {
         }
     }
 
-    /// 从外部缓冲区和切片初始化 - 对应 Bun String.init(buf, in)
+    /// 从外部缓冲区和切片初始化 - 对应 Bun String(buf, in)
     /// 翻译自:
     ///   pub fn init(buf: string, in: string) String {
     ///       // 当 len > max_inline_len 时存储 Pointer { off, len }
@@ -312,6 +312,31 @@ public class SemverString {
     /// 翻译自: pub inline fn order(lhs, rhs, lhs_buf, rhs_buf) std.math.Order {
     ///     return strings.order(lhs.slice(lhs_buf), rhs.slice(rhs_buf));
     /// }
+    /// 转为普通字符串
+    public func toString(): String {
+        if (isInlineFlag) {
+            var sb = StringBuilder()
+            var i: Int64 = 0
+            while (i < bytes.size && bytes[i] != UInt8(0)) {
+                sb.append(String(Rune(UInt32(bytes[i]))))
+                i += 1
+            }
+            return sb.toString()
+        }
+        match (externalBuf) {
+            case Some(buf) =>
+                var sb = StringBuilder()
+                let end = if (offset + length > buf.size) { buf.size } else { offset + length }
+                var i = offset
+                while (i < end) {
+                    sb.append(String(Rune(UInt32(buf[i]))))
+                    i += 1
+                }
+                return sb.toString()
+            case None => return ""
+        }
+    }
+
     public func order(other: SemverString, thisBuf: ?Array<UInt8>, otherBuf: ?Array<UInt8>): Int64 {
         let a = slice(thisBuf)
         let b = other.slice(otherBuf)
@@ -375,8 +400,8 @@ public class SemverString {
 
     /// 转为 SlicedString - 对应 Bun String.sliced
     /// 翻译自: pub inline fn sliced(this, buf) SlicedString {
-    ///     return if (this.isInline()) SlicedString.init(this.slice(""), this.slice(""))
-    ///            else SlicedString.init(buf, this.slice(buf))
+    ///     return if (this.isInline()) SlicedString(this.slice(""), this.slice(""))
+    ///            else SlicedString(buf, this.slice(buf))
     /// }
     public func sliced(buf: ?Array<UInt8>): SlicedString {
         if (isInline()) {
@@ -447,7 +472,7 @@ public class ExternalString {
     /// 翻译自:
     ///   pub inline fn from(in: string) ExternalString {
     ///       return ExternalString{
-    ///           .value = String.init(in, in),
+    ///           .value = String(in, in),
     ///           .hash = bun.Wyhash.hash(0, in),
     ///       }
     ///   }
@@ -456,11 +481,11 @@ public class ExternalString {
         hash = Wyhash11.hash(input)
     }
 
-    /// 从 SemverString 和哈希值初始化 - 对应 Bun ExternalString.init(buf, in, hash)
+    /// 从 SemverString 和哈希值初始化 - 对应 Bun ExternalString(buf, in, hash)
     /// 翻译自:
     ///   pub inline fn init(buf: string, in: string, hash: u64) ExternalString {
     ///       return ExternalString{
-    ///           .value = String.init(buf, in),
+    ///           .value = String(buf, in),
     ///           .hash = hash,
     ///       }
     ///   }
@@ -469,7 +494,7 @@ public class ExternalString {
         this.hash = hash
     }
 
-    /// 从缓冲区和切片创建 - 对应 Bun ExternalString.init(buf, in, hash)
+    /// 从缓冲区和切片创建 - 对应 Bun ExternalString(buf, in, hash)
     public init(buf: Array<UInt8>, input: Array<UInt8>, hash: UInt64) {
         value = SemverString(buf, input)
         this.hash = hash
@@ -580,7 +605,7 @@ public class SlicedString {
     /// 转为 ExternalString - 对应 Bun SlicedString.external
     /// 翻译自:
     ///   pub inline fn external(this: SlicedString) ExternalString {
-    ///       return ExternalString.init(this.buf, this.slice, bun.Wyhash11.hash(0, this.slice));
+    ///       return ExternalString(this.buf, this.slice, bun.Wyhash11.hash(0, this.slice));
     ///   }
     public func external(): ExternalString {
         let hashVal = Wyhash11.hash(slice_)
@@ -590,7 +615,7 @@ public class SlicedString {
     /// 转为 SemverString - 对应 Bun SlicedString.value
     /// 翻译自:
     ///   pub inline fn value(this: SlicedString) String {
-    ///       return String.init(this.buf, this.slice);
+    ///       return String(this.buf, this.slice);
     ///   }
     public func value(): SemverString {
         return SemverString(buf, slice_)
@@ -761,7 +786,7 @@ public class SemverStringBuilder {
     ///           bun.copy(u8, this.ptr.?[this.len..this.cap], slice_);
     ///           const final_slice = this.ptr.?[this.len..this.cap][0..slice_.len];
     ///           this.len += slice_.len;
-    ///           string_entry.value_ptr.* = String.init(this.allocatedSlice(), final_slice);
+    ///           string_entry.value_ptr.* = String(this.allocatedSlice(), final_slice);
     ///       }
     ///       return ExternalString{ .value = string_entry.value_ptr.*, .hash = hash };
     ///   }

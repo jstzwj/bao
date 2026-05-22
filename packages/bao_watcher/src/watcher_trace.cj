@@ -64,7 +64,7 @@ public class WatcherTrace {
     }
 
     // ========================================================================
-    // 初始化 - 对应 Bun WatcherTrace.init()
+    // 初始化 - 对应 Bun WatcherTrace()
     // 严格翻译自: WatcherTrace.zig:6-23
     //
     //   pub fn init() void {
@@ -84,7 +84,7 @@ public class WatcherTrace {
     //   }
     // ========================================================================
 
-    /// 初始化追踪文件 - 对应 Bun WatcherTrace.init()
+    /// 初始化追踪文件 - 对应 Bun WatcherTrace()
     /// 严格翻译自: WatcherTrace.zig:6-23
     ///
     /// 如果设置了 BUN_WATCHER_TRACE 环境变量, 打开追踪文件

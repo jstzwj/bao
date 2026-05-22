@@ -152,7 +152,7 @@ public class LockfilePackageEntry {
     public var resolutions: PackageIDSlice
 
     /// 元数据
-    /// 翻译自: meta: Meta = Meta.init()
+    /// 翻译自: meta: Meta = Meta()
     public var meta: PackageMeta
 
     /// bin 字段

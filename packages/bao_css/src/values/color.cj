@@ -119,7 +119,7 @@ public class CssRGBA {
     /// 严格翻译自 RGBA.tryFromCssColor (Zig lines 1349)
     public static func tryFromCssColor(color: CssColor): ?CssRGBA {
         match (color) {
-            case CssColor.rgba(value) => Some(value)
+            case CssColor.rgba_color(value) => Some(value)
             case _ => None
         }
     }
@@ -298,7 +298,7 @@ public class CssSRGB {
     /// 严格翻译自 SRGB.fromFloatColor (通过 ColorspaceConversions)
     public static func fromFloatColor(fc: CssFloatColor): ?CssSRGB {
         match (fc) {
-            case CssFloatColor.rgb(srgb) => Some(srgb)
+            case CssFloatColor.rgb(val) => Some(val)
             case _ => None
         }
     }
@@ -346,7 +346,7 @@ public class CssSRGB {
     /// 将 SRGB 包装为 CssColor (RGBA 变体)
     /// 严格翻译自 convert_SRGB.intoCssColor
     public func intoCssColor(): CssColor {
-        CssColor.rgba(intoRGBA())
+        CssColor.rgba_color(intoRGBA())
     }
 
     /// 组件元组
@@ -781,7 +781,7 @@ public class CssLCH {
     public func interpolate(p1: Float32, other: CssLCH, p2: Float32): CssLCH { CssLCH(l * p1 + other.l * p2, c * p1 + other.c * p2, h * p1 + other.h * p2, alpha * p1 + other.alpha * p2) }
     public func premultiply(): Unit { if (!CssColorMath.isNaN(alpha)) { l *= alpha; c *= alpha } }
     public func unpremultiply(m: Float32): Unit {
-        h = h % 360.0f32
+        h = CssColorMath.fmod(h, 360.0f32)
         if (!CssColorMath.isNaN(alpha)) { l /= alpha; c /= alpha; alpha *= m }
     }
 
@@ -856,7 +856,7 @@ public class CssOKLCH {
     public func interpolate(p1: Float32, other: CssOKLCH, p2: Float32): CssOKLCH { CssOKLCH(l * p1 + other.l * p2, c * p1 + other.c * p2, h * p1 + other.h * p2, alpha * p1 + other.alpha * p2) }
     public func premultiply(): Unit { if (!CssColorMath.isNaN(alpha)) { l *= alpha; c *= alpha } }
     public func unpremultiply(m: Float32): Unit {
-        h = h % 360.0f32
+        h = CssColorMath.fmod(h, 360.0f32)
         if (!CssColorMath.isNaN(alpha)) { l /= alpha; c /= alpha; alpha *= m }
     }
 
@@ -899,7 +899,7 @@ public class CssHSL {
     public func inGamut(): Bool { s >= 0.0f32 && s <= 1.0f32 && l >= 0.0f32 && l <= 1.0f32 }
 
     public func clip(): CssHSL {
-        let h2 = h % 360.0f32
+        let h2 = CssColorMath.fmod(h, 360.0f32)
         CssHSL(h2, CssColorMath.max(0.0f32, CssColorMath.min(1.0f32, s)), CssColorMath.max(0.0f32, CssColorMath.min(1.0f32, l)), CssColorMath.max(0.0f32, CssColorMath.min(1.0f32, alpha)))
     }
 
@@ -907,7 +907,7 @@ public class CssHSL {
     public func interpolate(p1: Float32, other: CssHSL, p2: Float32): CssHSL { CssHSL(h * p1 + other.h * p2, s * p1 + other.s * p2, l * p1 + other.l * p2, alpha * p1 + other.alpha * p2) }
     public func premultiply(): Unit { if (!CssColorMath.isNaN(alpha)) { s *= alpha; l *= alpha } }
     public func unpremultiply(m: Float32): Unit {
-        h = h % 360.0f32
+        h = CssColorMath.fmod(h, 360.0f32)
         if (!CssColorMath.isNaN(alpha)) { s /= alpha; l /= alpha; alpha *= m }
     }
 
@@ -948,7 +948,7 @@ public class CssHWB {
     public func inGamut(): Bool { w >= 0.0f32 && w <= 1.0f32 && b >= 0.0f32 && b <= 1.0f32 }
 
     public func clip(): CssHWB {
-        let h2 = h % 360.0f32
+        let h2 = CssColorMath.fmod(h, 360.0f32)
         CssHWB(h2, CssColorMath.max(0.0f32, CssColorMath.min(1.0f32, w)), CssColorMath.max(0.0f32, CssColorMath.min(1.0f32, b)), CssColorMath.max(0.0f32, CssColorMath.min(1.0f32, alpha)))
     }
 
@@ -956,7 +956,7 @@ public class CssHWB {
     public func interpolate(p1: Float32, other: CssHWB, p2: Float32): CssHWB { CssHWB(h * p1 + other.h * p2, w * p1 + other.w * p2, b * p1 + other.b * p2, alpha * p1 + other.alpha * p2) }
     public func premultiply(): Unit { if (!CssColorMath.isNaN(alpha)) { w *= alpha; b *= alpha } }
     public func unpremultiply(m: Float32): Unit {
-        h = h % 360.0f32
+        h = CssColorMath.fmod(h, 360.0f32)
         if (!CssColorMath.isNaN(alpha)) { w /= alpha; b /= alpha; alpha *= m }
     }
 
@@ -1085,6 +1085,10 @@ public enum CssSystemColor {
             case accentcolortext => true
             case _ => true
         }
+    }
+
+    public operator func ==(other: CssSystemColor): Bool {
+        this.toCss() == other.toCss()
     }
 }
 
@@ -1265,8 +1269,16 @@ public class CssColorFallbackKind {
     public static func rgbFallback(): CssColorFallbackKind { CssColorFallbackKind(true, false, false, false) }
     public static func labFallback(): CssColorFallbackKind { CssColorFallbackKind(false, false, true, false) }
     public static func oklabFallback(): CssColorFallbackKind { CssColorFallbackKind(false, false, false, true) }
+    public static func none(): CssColorFallbackKind { CssColorFallbackKind() }
 
     public func isEmpty(): Bool { !rgb && !p3 && !lab && !oklab }
+
+    public func merge(other: CssColorFallbackKind): Unit {
+        this.rgb = this.rgb || other.rgb
+        this.p3 = this.p3 || other.p3
+        this.lab = this.lab || other.lab
+        this.oklab = this.oklab || other.oklab
+    }
 
     public func asBits(): UInt8 {
         var bits: UInt8 = 0
@@ -1398,7 +1410,9 @@ public enum CssHueInterpolationMethod {
 
     /// 色调插值
     /// 严格翻译自 HueInterpolationMethod.interpolate
-    public func interpolate(a: Float32, b: Float32): Unit {
+    public func interpolate(aIn: Float32, bIn: Float32): Unit {
+        var a = aIn
+        var b = bIn
         match (this) {
             case shorter =>
                 let delta = b - a
@@ -1756,57 +1770,69 @@ public class CssRelativeComponentParser {
     /// 尝试解析 NumberOrPercentage (相对颜色通道引用)
     /// 严格翻译自 RelativeComponentParser.parseNumberOrPercentage (Zig line ~2556)
     public func tryParseNumberOrPercentage(input: CssColorParserInput): ?CssColorNumberOrPercentage {
-        if (let Some(ident) <- input.peekIdent()) {
+        let identOpt = input.peekIdent()
+        if (identOpt.isSome()) {
+            let ident = identOpt.getOrThrow()
             let allowed = CssChannelType(true, false, true)  // percentage + number
-            if (let Some(value) <- getIdent(ident, allowed)) {
+            let valueOpt = getIdent(ident, allowed)
+            if (valueOpt.isSome()) {
                 input.consumeIdent()
-                return CssColorNumberOrPercentage.percentage(value)
+                return CssColorNumberOrPercentage.percentage(valueOpt.getOrThrow())
             }
         }
-        return None
+        Option<CssColorNumberOrPercentage>.None
     }
 
     /// 尝试解析 AngleOrNumber (相对颜色通道引用)
     /// 严格翻译自 RelativeComponentParser.parseAngleOrNumber (Zig line ~2492)
     public func tryParseAngleOrNumber(input: CssColorParserInput): ?CssAngleOrNumber {
-        if (let Some(ident) <- input.peekIdent()) {
+        let identOpt = input.peekIdent()
+        if (identOpt.isSome()) {
+            let ident = identOpt.getOrThrow()
             let allowed = CssChannelType(false, true, true)  // angle + number
-            if (let Some(value) <- getIdent(ident, allowed)) {
+            let valueOpt = getIdent(ident, allowed)
+            if (valueOpt.isSome()) {
                 input.consumeIdent()
-                return CssAngleOrNumber.number(value)
+                return CssAngleOrNumber.number(valueOpt.getOrThrow())
             }
         }
-        return None
+        Option<CssAngleOrNumber>.None
     }
 
     /// 尝试解析百分比值
     public func tryParsePercentageValue(input: CssColorParserInput): ?Float32 {
-        if (let Some(ident) <- input.peekIdent()) {
+        let identOpt = input.peekIdent()
+        if (identOpt.isSome()) {
+            let ident = identOpt.getOrThrow()
             let allowed = CssChannelType(true, false, false)
-            if (let Some(value) <- getIdent(ident, allowed)) {
+            let valueOpt = getIdent(ident, allowed)
+            if (valueOpt.isSome()) {
                 input.consumeIdent()
-                return value
+                return valueOpt.getOrThrow()
             }
         }
-        return None
+        Option<Float32>.None
     }
 
     /// 尝试解析数字值
     public func tryParseNumberValue(input: CssColorParserInput): ?Float32 {
-        if (let Some(ident) <- input.peekIdent()) {
+        let identOpt = input.peekIdent()
+        if (identOpt.isSome()) {
+            let ident = identOpt.getOrThrow()
             let allowed = CssChannelType(false, false, true)
-            if (let Some(value) <- getIdent(ident, allowed)) {
+            let valueOpt = getIdent(ident, allowed)
+            if (valueOpt.isSome()) {
                 input.consumeIdent()
-                return value
+                return valueOpt.getOrThrow()
             }
         }
-        return None
+        Option<Float32>.None
     }
 
     /// 大小写不敏感字符串比较
     static func identEqualsIgnoreCase(a: String, b: String): Bool {
-        if (a.length != b.length) { return false }
-        a.toLowerCase() == b.toLowerCase()
+        if (a.size != b.size) { return false }
+        a.toAsciiLower() == b.toAsciiLower()
     }
 
     /// 检查通道类型是否有交集
@@ -1826,7 +1852,7 @@ public class CssColorParser {
     /// 解析颜色函数
     /// 严格翻译自 parseColorFunction (Zig line ~645)
     public static func parseColorFunction(name: String, input: CssColorParserInput): ?CssColor {
-        match (name.toLowerCase()) {
+        match (name.toAsciiLower()) {
             case "lab" => parseLab(input)
             case "oklab" => parseOKLAB(input)
             case "lch" => parseLCH(input)
@@ -2071,14 +2097,14 @@ public class CssColorParser {
         // 如果没有 NaN 组件, 转为 RGBA
         if (!CssColorMath.isNaN(r) && !CssColorMath.isNaN(g) && !CssColorMath.isNaN(b) && !CssColorMath.isNaN(alpha)) {
             if (isLegacy) {
-                return Some(CssColor.rgba(CssRGBA(
+                return Some(CssColor.rgba_color(CssRGBA(
                     UInt8(CssColorMath.max(0.0f32, CssColorMath.min(255.0f32, r))),
                     UInt8(CssColorMath.max(0.0f32, CssColorMath.min(255.0f32, g))),
                     UInt8(CssColorMath.max(0.0f32, CssColorMath.min(255.0f32, b))),
                     clampUnitF32(alpha)
                 )))
             }
-            return Some(CssColor.rgba(CssRGBA.fromFloats(r, g, b, alpha)))
+            return Some(CssColor.rgba_color(CssRGBA.fromFloats(r, g, b, alpha)))
         }
         return Some(CssColor.float_color(CssFloatColor.rgb(CssSRGB(r, g, b, alpha))))
     }
@@ -2097,7 +2123,7 @@ public class CssColorParser {
         }
 
         // 检测是否为 legacy 语法 (逗号分隔)
-        let isLegacy = parser.from == None &&
+        let isLegacy = parser.from.isNone() &&
             !CssColorMath.isNaN(red.unitValue()) &&
             input.tryExpectComma()
 
@@ -2199,14 +2225,14 @@ public class CssColorParser {
             // HSL
             let hsl = CssHSL(h, compA, compB, alpha)
             if (!CssColorMath.isNaN(h) && !CssColorMath.isNaN(compA) && !CssColorMath.isNaN(compB) && !CssColorMath.isNaN(alpha)) {
-                return Some(CssColor.rgba(CssColorMath.hslToRGBA(h, compA, compB, alpha)))
+                return Some(CssColor.rgba_color(CssColorMath.hslToRGBA(h, compA, compB, alpha)))
             }
             return Some(CssColor.float_color(CssFloatColor.hsl(hsl)))
         } else {
             // HWB
             let hwb = CssHWB(h, compA, compB, alpha)
             if (!CssColorMath.isNaN(h) && !CssColorMath.isNaN(compA) && !CssColorMath.isNaN(compB) && !CssColorMath.isNaN(alpha)) {
-                return Some(CssColor.rgba(CssColorMath.hwbToRGBA(h, compA, compB, alpha)))
+                return Some(CssColor.rgba_color(CssColorMath.hwbToRGBA(h, compA, compB, alpha)))
             }
             return Some(CssColor.float_color(CssFloatColor.hwb(hwb)))
         }
@@ -2231,7 +2257,7 @@ public class CssColorParser {
 
         // 检测 legacy 语法
         let isLegacy = allowsLegacy &&
-            parser.from == None &&
+            parser.from.isNone() &&
             !CssColorMath.isNaN(h) &&
             input.tryExpectComma()
 
@@ -2255,7 +2281,7 @@ public class CssColorParser {
             return None
         }
 
-        return Some((h, aClamped, bClamped, isLegacy))
+        return Option<(Float32, Float32, Float32, Bool)>.Some((h, aClamped, bClamped, isLegacy))
     }
 
     // ========================================================================
@@ -2304,7 +2330,7 @@ public class CssColorParser {
         let alpha = parseAlphaValue(input, parser)
 
         // 根据颜色空间创建对应类型
-        match (colorspace.toLowerCase()) {
+        match (colorspace.toAsciiLower()) {
             case "srgb" => Some(CssColor.predefined(CssPredefinedColor.srgb(CssSRGB(aVal, bVal, cVal, alpha))))
             case "srgb-linear" => Some(CssColor.predefined(CssPredefinedColor.srgb_linear(CssSRGBLinear(aVal, bVal, cVal, alpha))))
             case "display-p3" => Some(CssColor.predefined(CssPredefinedColor.display_p3(CssP3(aVal, bVal, cVal, alpha))))
@@ -2355,7 +2381,7 @@ public class CssColorParser {
         }
         let alpha = parseAlphaValue(input, parser)
 
-        match (colorspace.toLowerCase()) {
+        match (colorspace.toAsciiLower()) {
             case "srgb" => Some(CssColor.predefined(CssPredefinedColor.srgb(CssSRGB(a, b, c, alpha))))
             case "srgb-linear" => Some(CssColor.predefined(CssPredefinedColor.srgb_linear(CssSRGBLinear(a, b, c, alpha))))
             case "display-p3" => Some(CssColor.predefined(CssPredefinedColor.display_p3(CssP3(a, b, c, alpha))))
@@ -2410,7 +2436,7 @@ public class CssColorParser {
             case Some(value) => value
             case None => return None
         }
-        let p1raw: ?Float32 = if (firstPercent != None) {
+        let p1raw: ?Float32 = if (firstPercent.isSome()) {
             firstPercent
         } else {
             input.tryParsePercentageValue()
@@ -2425,7 +2451,7 @@ public class CssColorParser {
             case Some(value) => value
             case None => return None
         }
-        let p2raw: ?Float32 = if (secondPercent != None) {
+        let p2raw: ?Float32 = if (secondPercent.isSome()) {
             secondPercent
         } else {
             input.tryParsePercentageValue()
@@ -2433,7 +2459,7 @@ public class CssColorParser {
 
         // 百分比归一化
         // 严格翻译自 color-mix percent normalization (Zig line ~3096)
-        let (normP1, normP2): (Float32, Float32) = if (p1raw == None && p2raw == None) {
+        let (normP1, normP2): (Float32, Float32) = if (p1raw.isNone() && p2raw.isNone()) {
             (0.5f32, 0.5f32)
         } else {
             let pv2 = match (p2raw) {
@@ -2549,7 +2575,7 @@ public class CssColorParser {
             case Some(value) => value
             case None => return None
         }
-        match (name.toLowerCase()) {
+        match (name.toAsciiLower()) {
             case "srgb" => Some(CssColorSpaceName.srgb)
             case "srgb-linear" => Some(CssColorSpaceName.srgb_linear)
             case "lab" => Some(CssColorSpaceName.lab)
@@ -2572,7 +2598,7 @@ public class CssColorParser {
             case Some(value) => value
             case None => return None
         }
-        match (name.toLowerCase()) {
+        match (name.toAsciiLower()) {
             case "shorter" =>
                 input.consumeIdent()
                 Some(CssHueInterpolationMethod.shorter)
@@ -2599,13 +2625,13 @@ public class CssColorParser {
     /// 从 CssColor 解析为 SRGB (用于 rgb() 的 from)
     static func resolveFromSRGB(color: CssColor): ?CssSRGB {
         match (color) {
-            case rgba(rgba) => Some(rgba.intoSRGB())
+            case rgba_color(val_) => Option<CssSRGB>.Some(val_.intoSRGB())
             case float_color(fc) =>
                 match (fc) {
-                    case CssFloatColor.rgb(srgb) => Some(srgb)
-                    case _ => None
+                    case CssFloatColor.rgb(val) => Option<CssSRGB>.Some(val)
+                    case _ => Option<CssSRGB>.None
                 }
-            case _ => None
+            case _ => Option<CssSRGB>.None
         }
     }
 
@@ -2614,10 +2640,10 @@ public class CssColorParser {
         match (color) {
             case lab(lc) =>
                 match (lc) {
-                    case CssLABColor.lab(v) => Some(v)
-                    case _ => None
+                    case CssLABColor.lab(v) => Option<CssLAB>.Some(v)
+                    case _ => Option<CssLAB>.None
                 }
-            case _ => None
+            case _ => Option<CssLAB>.None
         }
     }
 
@@ -2626,10 +2652,10 @@ public class CssColorParser {
         match (color) {
             case lab(lc) =>
                 match (lc) {
-                    case CssLABColor.oklab(v) => Some(v)
-                    case _ => None
+                    case CssLABColor.oklab(v) => Option<CssOKLAB>.Some(v)
+                    case _ => Option<CssOKLAB>.None
                 }
-            case _ => None
+            case _ => Option<CssOKLAB>.None
         }
     }
 
@@ -2638,10 +2664,10 @@ public class CssColorParser {
         match (color) {
             case lab(lc) =>
                 match (lc) {
-                    case CssLABColor.lch(v) => Some(v)
-                    case _ => None
+                    case CssLABColor.lch(v) => Option<CssLCH>.Some(v)
+                    case _ => Option<CssLCH>.None
                 }
-            case _ => None
+            case _ => Option<CssLCH>.None
         }
     }
 
@@ -2650,10 +2676,10 @@ public class CssColorParser {
         match (color) {
             case lab(lc) =>
                 match (lc) {
-                    case CssLABColor.oklch(v) => Some(v)
-                    case _ => None
+                    case CssLABColor.oklch(v) => Option<CssOKLCH>.Some(v)
+                    case _ => Option<CssOKLCH>.None
                 }
-            case _ => None
+            case _ => Option<CssOKLCH>.None
         }
     }
 
@@ -2662,10 +2688,10 @@ public class CssColorParser {
         match (color) {
             case float_color(fc) =>
                 match (fc) {
-                    case CssFloatColor.hsl(v) => Some(v)
-                    case _ => None
+                    case CssFloatColor.hsl(v) => Option<CssHSL>.Some(v)
+                    case _ => Option<CssHSL>.None
                 }
-            case _ => None
+            case _ => Option<CssHSL>.None
         }
     }
 
@@ -2674,17 +2700,17 @@ public class CssColorParser {
         match (color) {
             case float_color(fc) =>
                 match (fc) {
-                    case CssFloatColor.hwb(v) => Some(v)
-                    case _ => None
+                    case CssFloatColor.hwb(v) => Option<CssHWB>.Some(v)
+                    case _ => Option<CssHWB>.None
                 }
-            case _ => None
+            case _ => Option<CssHWB>.None
         }
     }
 
     /// 从 CssColor 和颜色空间名称解析为 RelativeComponentParser
     /// 严格翻译自 parsePredefinedRelative 中的 set_from 逻辑 (Zig line ~2814)
     static func resolveFromPredefined(color: CssColor, colorspace: String): ?CssRelativeComponentParser {
-        match (colorspace.toLowerCase()) {
+        match (colorspace.toAsciiLower()) {
             case "srgb" =>
                 let srgb = match (resolveFromSRGB(color)) {
                     case Some(value) => value
@@ -2783,22 +2809,22 @@ public class CssColorParserInput {
 
     /// 尝试解析数字
     /// 严格翻译自 CSSNumberFns.parse
-    public func tryParseNumber(): ?Float32 { None }
+    public func tryParseNumber(): ?Float32 { Option<Float32>.None }
 
     /// 尝试解析百分比 (返回 0.0~1.0)
     /// 严格翻译自 Percentage.parse
-    public func tryParsePercentage(): ?Float32 { None }
+    public func tryParsePercentage(): ?Float32 { Option<Float32>.None }
 
     /// 尝试解析角度 (返回度数)
     /// 严格翻译自 Angle.parse
-    public func tryParseAngle(): ?Float32 { None }
+    public func tryParseAngle(): ?Float32 { Option<Float32>.None }
 
     /// 期望标识符
     /// 严格翻译自 expectIdent
-    public func expectIdent(): ?String { None }
+    public func expectIdent(): ?String { Option<String>.None }
 
     /// 查看当前标识符 (不消费)
-    public func peekIdent(): ?String { None }
+    public func peekIdent(): ?String { Option<String>.None }
 
     /// 消费当前标识符
     public func consumeIdent(): Unit {}
@@ -2808,7 +2834,7 @@ public class CssColorParserInput {
     public func tryExpectIdent(expected: String): Bool { false }
 
     /// 尝试解析百分比并返回其值
-    public func tryParsePercentageValue(): ?Float32 { None }
+    public func tryParsePercentageValue(): ?Float32 { Option<Float32>.None }
 
     /// 期望逗号分隔符
     /// 严格翻译自 expectComma
@@ -2824,7 +2850,7 @@ public class CssColorParserInput {
 
     /// 解析颜色值
     /// 严格翻译自 CssColor.parse
-    public func parseColor(): ?CssColor { None }
+    public func parseColor(): ?CssColor { Option<CssColor>.None }
 
     /// 检查输入是否已耗尽
     /// 严格翻译自 isExhausted
@@ -2867,7 +2893,7 @@ public class CssColorParserInput {
 /// 支持多种颜色空间表示: currentColor, RGBA, LAB, 预定义颜色空间, 浮点颜色, light-dark(), 系统颜色
 public enum CssColor {
     | current_color                                                  // currentColor 关键字
-    | rgba(CssRGBA)                                                  // RGB 颜色 (含 hex, rgb(), hsl(), hwb())
+    | rgba_color(CssRGBA)                                                  // RGB 颜色 (含 hex, rgb(), hsl(), hwb())
     | lab(CssLABColor)                                               // LAB 系颜色 (lab, lch, oklab, oklch)
     | predefined(CssPredefinedColor)                                 // 预定义颜色空间 (display-p3 等)
     | float_color(CssFloatColor)                                     // 浮点 RGB/HSL/HWB (含 none 组件)
@@ -2879,7 +2905,7 @@ public enum CssColor {
     public func isCompatible(browsers: CssBrowsers): Bool {
         match (this) {
             case current_color => true
-            case rgba(_) => true
+            case rgba_color(_) => true
             case float_color(_) => true
             case lab(lab_color) =>
                 match (lab_color) {
@@ -2906,7 +2932,7 @@ public enum CssColor {
     public func toCss(): String {
         match (this) {
             case current_color => "currentColor"
-            case rgba(color) => color.toHex()
+            case rgba_color(c) => c.toHex()
             case lab(lab_color) => lab_color.toCss()
             case predefined(pre) => pre.toCss()
             case float_color(fc) => fc.toCss()
@@ -2920,7 +2946,7 @@ public enum CssColor {
     public func deepClone(): CssColor {
         match (this) {
             case current_color => CssColor.current_color
-            case rgba(c) => CssColor.rgba(c.clone())
+            case rgba_color(c) => CssColor.rgba_color(c.clone())
             case lab(l) => CssColor.lab(l)  // enum, copy
             case predefined(p) => CssColor.predefined(p)  // enum, copy
             case float_color(fc) => CssColor.float_color(fc)
@@ -2943,14 +2969,14 @@ public enum CssColor {
     public func interpolate(other: CssColor, p1: Float32, p2: Float32, method: CssHueInterpolationMethod): ?CssColor {
         // 简化实现: 仅对 RGBA 做基本插值
         match (this) {
-            case rgba(a) =>
+            case rgba_color(a) =>
                 match (other) {
-                    case rgba(b) =>
+                    case rgba_color(b) =>
                         let r = a.redF32() * p1 + b.redF32() * p2
                         let g = a.greenF32() * p1 + b.greenF32() * p2
                         let bl = a.blueF32() * p1 + b.blueF32() * p2
                         let al = a.alphaF32() * p1 + b.alphaF32() * p2
-                        Some(CssColor.rgba(CssRGBA.fromFloats(r, g, bl, al)))
+                        Some(CssColor.rgba_color(CssRGBA.fromFloats(r, g, bl, al)))
                     case _ => None
                 }
 
@@ -2973,7 +2999,7 @@ public enum CssColor {
     public func getPossibleFallbacks(targets: CssTargets): CssColorFallbackKind {
         match (this) {
             case current_color => CssColorFallbackKind()
-            case rgba(_) => CssColorFallbackKind()
+            case rgba_color(_) => CssColorFallbackKind()
             case float_color(_) => CssColorFallbackKind()
             case system(_) => CssColorFallbackKind()
             case lab(_) => CssColorFallbackKind.labFallback().andBelow()
@@ -2987,7 +3013,7 @@ public enum CssColor {
     public func eql(other: CssColor): Bool {
         match (this) {
             case current_color => match (other) { case current_color => true case _ => false }
-            case rgba(a) => match (other) { case rgba(b) => a.eql(b) case _ => false }
+            case rgba_color(a) => match (other) { case rgba_color(b) => a.eql(b) case _ => false }
             case lab(a) => match (other) { case lab(b) => a.eql(b) case _ => false }
             case predefined(a) => match (other) { case predefined(b) => false case _ => false } // 简化
             case float_color(a) => match (other) { case float_color(b) => false case _ => false }
@@ -3000,7 +3026,7 @@ public enum CssColor {
     /// 严格翻译自 CssColor.toRGB
     public func toRGB(): ?CssColor {
         match (this) {
-            case rgba(_) => Some(deepClone())
+            case rgba_color(_) => Some(deepClone())
             case light_dark(l, d) =>
                 let lr = l.toRGB()
                 let dr = d.toRGB()
@@ -3042,8 +3068,8 @@ public enum CssColor {
                 // 简化: 对于非 light-dark 颜色, 尝试转换为 P3
                 // 完整实现需要 SRGB -> P3 的颜色空间转换链
                 match (this) {
-                    case rgba(rgba) =>
-                        let srgb = rgba.intoSRGB()
+                    case rgba_color(rgbaVal) =>
+                        let srgb = rgbaVal.intoSRGB()
                         let xyzd65 = CssColorConversions.srgbLinearToXYZd65(CssColorConversions.srgbToSRGBLinear(srgb))
                         let p3 = CssColorConversions.xyzd65ToP3(xyzd65)
                         Some(CssColor.predefined(CssPredefinedColor.display_p3(p3)))
@@ -3076,8 +3102,8 @@ public enum CssColor {
                 }
             case _ =>
                 match (this) {
-                    case rgba(rgba) =>
-                        let srgb = rgba.intoSRGB()
+                    case rgba_color(rgbaVal) =>
+                        let srgb = rgbaVal.intoSRGB()
                         let srgbLinear = CssColorConversions.srgbToSRGBLinear(srgb)
                         let xyzd65 = CssColorConversions.srgbLinearToXYZd65(srgbLinear)
                         let xyzd50 = CssColorConversions.xyzd65ToXYZd50(xyzd65)
@@ -3128,7 +3154,7 @@ public enum CssColor {
         // 简化实现: 基于类型的哈希
         match (this) {
             case current_color => 0
-            case rgba(c) => UInt64(c.red) << 24 | UInt64(c.green) << 16 | UInt64(c.blue) << 8 | UInt64(c.alpha)
+            case rgba_color(c) => UInt64(c.red) << 24 | UInt64(c.green) << 16 | UInt64(c.blue) << 8 | UInt64(c.alpha)
             case lab(_) => 1
             case predefined(_) => 2
             case float_color(_) => 3
@@ -3139,7 +3165,7 @@ public enum CssColor {
 
     /// 默认值
     public static func default(): CssColor {
-        CssColor.rgba(CssRGBA.transparent())
+        CssColor.rgba_color(CssRGBA.transparent())
     }
 }
 
@@ -3152,8 +3178,14 @@ public enum CssColor {
 /// 严格翻译自 gamSrgb, linSrgb, multiplyMatrix, polarToRectangular, rectangularToPolar
 public class CssColorMath {
     public static let PI: Float32 = 3.14159265358979323846f32
+    public static let NaN: Float32 = Float32.NaN
 
     public static func isNaN(v: Float32): Bool { v != v }
+    public static func fmod(a: Float32, b: Float32): Float32 {
+        var r = a - Float32(Int64(a / b)) * b
+        if (r < 0.0f32) { r += b }
+        r
+    }
     public static func min(a: Float32, b: Float32): Float32 { if (a < b) { a } else { b } }
     public static func max(a: Float32, b: Float32): Float32 { if (a > b) { a } else { b } }
     public static func abs(v: Float32): Float32 { if (v < 0.0f32) { -v } else { v } }
@@ -3175,6 +3207,7 @@ public class CssColorMath {
         if (n < 0) { 1.0f32 / result } else { result }
     }
     public static func sqrt(v: Float32): Float32 { pow(v, 0.5f32) }
+    public static func cbrt(v: Float32): Float32 { pow(v, 1.0f32 / 3.0f32) }
     public static func sin(v: Float32): Float32 { v }
     public static func cos(v: Float32): Float32 { 1.0f32 }
     public static func atan2(y: Float32, x: Float32): Float32 { if (x == 0.0f32) { if (y >= 0.0f32) { PI / 2.0f32 } else { -PI / 2.0f32 } } else { y / x } }
@@ -3202,7 +3235,7 @@ public class CssColorMath {
         var h = CssColorMath.atan2(b, a) * 180.0f32 / Float32(CssColorMath.PI)
         if (h < 0.0f32) { h = h + 360.0f32 }
         let c = CssColorMath.sqrt(a * a + b * b)
-        h = h % 360.0f32
+        h = CssColorMath.fmod(h, 360.0f32)
         (l, c, h)
     }
 
@@ -3326,7 +3359,7 @@ public class CssColorHex {
     /// 解析十六进制颜色字符串
     /// 严格翻译自 parseHashColor
     public static func parseHashColor(hex: String): ?(UInt8, UInt8, UInt8, UInt8) {
-        let len = hex.length
+        let len = hex.size
         if (len == 3) {
             // #RGB -> #RRGGBB
             let r = hexDigitValue(hex[0])
@@ -3417,10 +3450,10 @@ public class CssColorHex {
     }
 
     static func hexDigitValue(c: UInt8): ?Int64 {
-        if (c >= UInt8('0') && c <= UInt8('9')) { return Some(Int64(c) - Int64(UInt8('0'))) }
-        if (c >= UInt8('a') && c <= UInt8('f')) { return Some(Int64(c) - Int64(UInt8('a')) + 10) }
-        if (c >= UInt8('A') && c <= UInt8('F')) { return Some(Int64(c) - Int64(UInt8('A')) + 10) }
-        return None
+        if (c >= UInt8(48) && c <= UInt8(57)) { return Option<Int64>.Some(Int64(c) - Int64(48)) }
+        if (c >= UInt8(97) && c <= UInt8(102)) { return Option<Int64>.Some(Int64(c) - Int64(97) + 10) }
+        if (c >= UInt8(65) && c <= UInt8(70)) { return Option<Int64>.Some(Int64(c) - Int64(65) + 10) }
+        Option<Int64>.None
     }
 
     static func hexDigitPair(hi: UInt8, lo: UInt8): ?UInt8 {
@@ -3493,7 +3526,7 @@ public class CssColorNamedColors {
     /// 返回 (r, g, b) 各为 0~255
     /// 严格翻译自 parseNamedColor
     public static func parseNamedColor(name: String): ?(UInt8, UInt8, UInt8) {
-        match (name.toLowerCase()) {
+        match (name.toAsciiLower()) {
             case "black" => Some((UInt8(0), UInt8(0), UInt8(0)))
             case "white" => Some((UInt8(255), UInt8(255), UInt8(255)))
             case "red" => Some((UInt8(255), UInt8(0), UInt8(0)))
@@ -3543,32 +3576,33 @@ public class CssColorNamedColors {
 public class CssColorParse {
     /// 从字符串解析颜色
     public static func parse(value: String): ?CssColor {
-        let trimmed = value.trim()
-        if (trimmed.isEmpty()) { return None }
+        let trimmed = value.trimAscii()
+        if (trimmed.isEmpty()) { return Option<CssColor>.None }
 
         // 处理 # 开头的十六进制颜色
-        if (trimmed[0] == '#') {
-            let hex = cssSubstring(trimmed, 1)
+        if (trimmed[0] == UInt8(35)) {
+            let hex = trimmed[1..trimmed.size]
             match (CssColorHex.parseHashColor(hex)) {
-                case Some((r, g, b, a)) => return Some(CssColor.rgba(CssRGBA(r, g, b, a)))
+                case Some((r, g, b, a)) => return Option<CssColor>.Some(CssColor.rgba_color(CssRGBA(r, g, b, a)))
                 case None => ()
             }
-            return None
+            return Option<CssColor>.None
         }
 
         // 处理命名颜色
-        let lower = cssAsciiLower(trimmed)
+        let lower = trimmed.toAsciiLower()
         if (lower == "currentcolor") { return Some(CssColor.current_color) }
-        if (lower == "transparent") { return Some(CssColor.rgba(CssRGBA.transparent())) }
+        if (lower == "transparent") { return Some(CssColor.rgba_color(CssRGBA.transparent())) }
         match (CssColorNamedColors.parseNamedColor(trimmed)) {
-            case Some((r, g, b)) => return Some(CssColor.rgba(CssRGBA(r, g, b, 255)))
+            case Some((r, g, b)) => return Some(CssColor.rgba_color(CssRGBA(r, g, b, 255)))
             case None => ()
         }
 
         // 处理函数形式
         let parenIdx = lower.indexOf('(')
-        if (parenIdx >= 0) {
-            let name = cssSubstring(lower, 0, parenIdx)
+        if (parenIdx.isSome()) {
+            let parenIdxVal = parenIdx.getOrThrow()
+            let name = lower[0..parenIdxVal]
             // 简化: 创建一个 parser input
             let input = CssColorParserInput()
             return CssColorParser.parseColorFunction(name, input)
@@ -4196,7 +4230,7 @@ public class CssColorGamut {
     public static func mapGamutToSRGB(color: CssColor): CssColor {
         // 简化实现: 对 RGBA 直接返回
         match (color) {
-            case CssColor.rgba(rgba) => return color
+            case CssColor.rgba_color(rgba) => return color
             case _ => ()
         }
         return color
@@ -4241,7 +4275,11 @@ public class CssColorGamut {
             current.c = chroma
 
             // 转换到 sRGB
-            let lab = CssOKLAB(current.l, current.a, current.b, current.alpha)
+            let cosH = CssColorMath.cos(current.h * Float32(CssColorMath.PI) / 180.0f32)
+            let sinH = CssColorMath.sin(current.h * Float32(CssColorMath.PI) / 180.0f32)
+            let oklab_a = current.c * cosH
+            let oklab_b = current.c * sinH
+            let lab = CssOKLAB(current.l, oklab_a, oklab_b, current.alpha)
             let xyzd65 = CssColorConversions.oklabToXYZd65(lab)
             let srgbLinear = CssColorConversions.xyzd65ToSRGBLinear(xyzd65)
             let srgb = CssColorConversions.srgbLinearToSRGB(srgbLinear)
@@ -4260,7 +4298,9 @@ public class CssColorGamut {
         }
 
         // 最终转换
-        let finalLab = CssOKLAB(current.l, current.a, current.b, current.alpha)
+        let cosH2 = CssColorMath.cos(current.h * Float32(CssColorMath.PI) / 180.0f32)
+        let sinH2 = CssColorMath.sin(current.h * Float32(CssColorMath.PI) / 180.0f32)
+        let finalLab = CssOKLAB(current.l, current.c * cosH2, current.c * sinH2, current.alpha)
         let finalXyz = CssColorConversions.oklabToXYZd65(finalLab)
         let finalLinear = CssColorConversions.xyzd65ToSRGBLinear(finalXyz)
         return CssColorConversions.srgbLinearToSRGB(finalLinear)
@@ -4279,7 +4319,7 @@ public class CssColorWriter {
     /// 将颜色分量写入 CSS 字符串
     /// 严格翻译自 writeComponents (Zig lines ~3530-3554)
     public static func writeComponents(name: String, a: Float32, b: Float32, c: Float32, alpha: Float32): String {
-        var sb = StringBuilder()
+        var sb = CssStringBuilder()
         sb.append(name)
         sb.append("(")
         if (CssColorMath.isNaN(a)) {
@@ -4334,7 +4374,7 @@ public class CssColorWriter {
     }
 
     static func writePredefinedColor(name: String, a: Float32, b: Float32, c: Float32, alpha: Float32): String {
-        var sb = StringBuilder()
+        var sb = CssStringBuilder()
         sb.append("color(")
         sb.append(name)
         sb.append(" ")
@@ -4360,22 +4400,22 @@ public class CssColorWriter {
 /// 颜色空间转换目标
 /// 严格翻译自 ConvertTo enum
 public enum CssConvertTo {
-    | rgba
-    | lab
-    | srgb
-    | hsl
-    | hwb
-    | srgb_linear
-    | p3
-    | a98
-    | prophoto
-    | rec2020
-    | xyz_d50
-    | xyz_d65
-    | lch
-    | oklab
-    | oklch
-    | predefined_color
+    | toRgba
+    | toLab
+    | toSrgb
+    | toHsl
+    | toHwb
+    | toSrgbLinear
+    | toP3
+    | toA98
+    | toProphoto
+    | toRec2020
+    | toXyzD50
+    | toXyzD65
+    | toLch
+    | toOklab
+    | toOklch
+    | toPredefinedColor
 }
 
 // ============================================================================
@@ -4393,20 +4433,20 @@ public class CssColorIntoMixin {
     /// 严格翻译自 ColorIntoMixin.into (通过 convert_SRGB)
     public static func srgbInto(color: CssSRGB, target: CssConvertTo): Any {
         match (target) {
-            case CssConvertTo.srgb => color
-            case CssConvertTo.srgb_linear => CssColorConversions.srgbToSRGBLinear(color)
-            case CssConvertTo.rgba => color.intoRGBA()
-            case CssConvertTo.hsl => color.intoHSL()
-            case CssConvertTo.hwb => color.intoHWB()
-            case CssConvertTo.xyz_d65 =>
+            case CssConvertTo.toSrgb => color
+            case CssConvertTo.toSrgbLinear => CssColorConversions.srgbToSRGBLinear(color)
+            case CssConvertTo.toRgba => color.intoRGBA()
+            case CssConvertTo.toHsl => color.intoHSL()
+            case CssConvertTo.toHwb => color.intoHWB()
+            case CssConvertTo.toXyzD65 =>
                 let lin = CssColorConversions.srgbToSRGBLinear(color)
                 CssColorConversions.srgbLinearToXYZd65(lin)
-            case CssConvertTo.lab =>
+            case CssConvertTo.toLab =>
                 let lin = CssColorConversions.srgbToSRGBLinear(color)
                 let xyz65 = CssColorConversions.srgbLinearToXYZd65(lin)
                 let xyz50 = CssColorConversions.xyzd65ToXYZd50(xyz65)
                 CssColorConversions.xyzd50ToLAB(xyz50)
-            case CssConvertTo.oklab =>
+            case CssConvertTo.toOklab =>
                 let lin = CssColorConversions.srgbToSRGBLinear(color)
                 let xyz65 = CssColorConversions.srgbLinearToXYZd65(lin)
                 CssColorConversions.xyzd65ToOKLAB(xyz65)
@@ -4418,13 +4458,13 @@ public class CssColorIntoMixin {
     /// 严格翻译自 ColorIntoMixin.into (通过 convert_LAB)
     public static func labInto(color: CssLAB, target: CssConvertTo): Any {
         match (target) {
-            case CssConvertTo.lab => color
-            case CssConvertTo.lch => CssColorConversions.labToLCH(color)
-            case CssConvertTo.xyz_d50 => CssColorConversions.labToXYZd50(color)
-            case CssConvertTo.xyz_d65 =>
+            case CssConvertTo.toLab => color
+            case CssConvertTo.toLch => CssColorConversions.labToLCH(color)
+            case CssConvertTo.toXyzD50 => CssColorConversions.labToXYZd50(color)
+            case CssConvertTo.toXyzD65 =>
                 let xyz50 = CssColorConversions.labToXYZd50(color)
                 CssColorConversions.xyzd50ToXYZd65(xyz50)
-            case CssConvertTo.oklab =>
+            case CssConvertTo.toOklab =>
                 let xyz50 = CssColorConversions.labToXYZd50(color)
                 let xyz65 = CssColorConversions.xyzd50ToXYZd65(xyz50)
                 CssColorConversions.xyzd65ToOKLAB(xyz65)
@@ -4436,10 +4476,10 @@ public class CssColorIntoMixin {
     /// 严格翻译自 ColorIntoMixin.into (通过 convert_OKLAB)
     public static func oklabInto(color: CssOKLAB, target: CssConvertTo): Any {
         match (target) {
-            case CssConvertTo.oklab => color
-            case CssConvertTo.oklch => CssColorConversions.oklabToOKLCH(color)
-            case CssConvertTo.xyz_d65 => CssColorConversions.oklabToXYZd65(color)
-            case CssConvertTo.lab =>
+            case CssConvertTo.toOklab => color
+            case CssConvertTo.toOklch => CssColorConversions.oklabToOKLCH(color)
+            case CssConvertTo.toXyzD65 => CssColorConversions.oklabToXYZd65(color)
+            case CssConvertTo.toLab =>
                 let xyz65 = CssColorConversions.oklabToXYZd65(color)
                 let xyz50 = CssColorConversions.xyzd65ToXYZd50(xyz65)
                 CssColorConversions.xyzd50ToLAB(xyz50)
@@ -4451,9 +4491,9 @@ public class CssColorIntoMixin {
     /// 严格翻译自 ColorIntoMixin.into (通过 convert_OKLCH)
     public static func oklchInto(color: CssOKLCH, target: CssConvertTo): Any {
         match (target) {
-            case CssConvertTo.oklch => color
-            case CssConvertTo.oklab => CssColorConversions.oklchToOKLAB(color)
-            case CssConvertTo.xyz_d65 =>
+            case CssConvertTo.toOklch => color
+            case CssConvertTo.toOklab => CssColorConversions.oklchToOKLAB(color)
+            case CssConvertTo.toXyzD65 =>
                 let lab = CssColorConversions.oklchToOKLAB(color)
                 CssColorConversions.oklabToXYZd65(lab)
             case _ => color
@@ -4464,8 +4504,8 @@ public class CssColorIntoMixin {
     /// 严格翻译自 ColorIntoMixin.into (通过 convert_LCH)
     public static func lchInto(color: CssLCH, target: CssConvertTo): Any {
         match (target) {
-            case CssConvertTo.lch => color
-            case CssConvertTo.lab => CssColorConversions.lchToLAB(color)
+            case CssConvertTo.toLch => color
+            case CssConvertTo.toLab => CssColorConversions.lchToLAB(color)
             case _ => color
         }
     }
@@ -4474,17 +4514,17 @@ public class CssColorIntoMixin {
     /// 严格翻译自 ColorIntoMixin.into (通过 convert_XYZd65)
     public static func xyzd65Into(color: CssXYZd65, target: CssConvertTo): Any {
         match (target) {
-            case CssConvertTo.xyz_d65 => color
-            case CssConvertTo.xyz_d50 => CssColorConversions.xyzd65ToXYZd50(color)
-            case CssConvertTo.srgb_linear => CssColorConversions.xyzd65ToSRGBLinear(color)
-            case CssConvertTo.srgb =>
+            case CssConvertTo.toXyzD65 => color
+            case CssConvertTo.toXyzD50 => CssColorConversions.xyzd65ToXYZd50(color)
+            case CssConvertTo.toSrgbLinear => CssColorConversions.xyzd65ToSRGBLinear(color)
+            case CssConvertTo.toSrgb =>
                 let lin = CssColorConversions.xyzd65ToSRGBLinear(color)
                 CssColorConversions.srgbLinearToSRGB(lin)
-            case CssConvertTo.p3 => CssColorConversions.xyzd65ToP3(color)
-            case CssConvertTo.a98 => CssColorConversions.xyzd65ToA98(color)
-            case CssConvertTo.rec2020 => CssColorConversions.xyzd65ToRec2020(color)
-            case CssConvertTo.oklab => CssColorConversions.xyzd65ToOKLAB(color)
-            case CssConvertTo.lab =>
+            case CssConvertTo.toP3 => CssColorConversions.xyzd65ToP3(color)
+            case CssConvertTo.toA98 => CssColorConversions.xyzd65ToA98(color)
+            case CssConvertTo.toRec2020 => CssColorConversions.xyzd65ToRec2020(color)
+            case CssConvertTo.toOklab => CssColorConversions.xyzd65ToOKLAB(color)
+            case CssConvertTo.toLab =>
                 let xyz50 = CssColorConversions.xyzd65ToXYZd50(color)
                 CssColorConversions.xyzd50ToLAB(xyz50)
             case _ => color
@@ -4504,7 +4544,7 @@ public class CssImplementIntoCssColor {
     /// 将 SRGB 包装为 CssColor (RGBA 变体)
     /// 严格翻译自 convert_SRGB.intoCssColor
     public static func srgbToCssColor(srgb: CssSRGB): CssColor {
-        CssColor.rgba(srgb.intoRGBA())
+        CssColor.rgba_color(srgb.intoRGBA())
     }
 
     /// 将 LAB 包装为 CssColor
@@ -4552,7 +4592,7 @@ public class CssColorspaceConversions {
     /// 严格翻译自 tryFromCssColor for RGBA
     public static func tryRGBAFromCssColor(color: CssColor): ?CssRGBA {
         match (color) {
-            case CssColor.rgba(value) => Some(value)
+            case CssColor.rgba_color(value) => Some(value)
             case _ => None
         }
     }
@@ -4561,7 +4601,7 @@ public class CssColorspaceConversions {
     /// 严格翻译自 tryFromCssColor for SRGB
     public static func trySRGBFromCssColor(color: CssColor): ?CssSRGB {
         match (color) {
-            case rgba(rgba) => Some(rgba.intoSRGB())
+            case rgba_color(rgbaVal) => Some(rgbaVal.intoSRGB())
             case _ => None
         }
     }
@@ -4595,7 +4635,7 @@ public class CssColorspaceConversions {
 // ============================================================================
 
 /// 简单字符串构建器
-public class StringBuilder {
+public class CssStringBuilder {
     private var parts: ArrayList<String>
 
     public init() {

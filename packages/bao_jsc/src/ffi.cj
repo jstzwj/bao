@@ -37,20 +37,19 @@ public let FFI_BOOL_TAG: Int32 = 0x4
 public let FFI_UNDEFINED_TAG: Int32 = 0x8
 public let FFI_TAG_VALUE_FALSE: Int64 = (2 | 4) | 0
 public let FFI_TAG_VALUE_TRUE: Int64 = (2 | 4) | 1
-public let FFI_TAG_VALUE_UNDEFINED: Int64 = 2 | 8
 public let FFI_TAG_VALUE_NULL: Int64 = 2
-public let FFI_NOT_CELL_MASK: Int64 = 0xfffe000000000000_i64 | 0x0000000000000002_i64
-public let FFI_MAX_INT32: Int32 = 2147483648_i32
+public let FFI_NOT_CELL_MASK: UInt64 = UInt64(0x7fff) << 49 | UInt64(0x0000000000000002)
+public let FFI_MAX_INT32: Int64 = 2147483647  // Int32 max value
 public let FFI_MAX_INT52: Int64 = 9007199254740991_i64
-public let FFI_NUMBER_TAG: Int64 = 0xfffe000000000000_i64
+public let FFI_NUMBER_TAG: UInt64 = UInt64(0x7fff) << 49
 
 // ========== ValueUndefined ==========
 // 严格翻译自 FFI.zig ValueUndefined
-public let ValueUndefined: EncodedJSValue = EncodedJSValue(asInt64: FFI_TAG_VALUE_UNDEFINED)
+public let ValueUndefined: EncodedJSValue = EncodedJSValue( FFI_TAG_VALUE_UNDEFINED)
 
 // ========== ValueTrue ==========
 // 严格翻译自 FFI.zig ValueTrue
-public let ValueTrue: EncodedJSValue = EncodedJSValue(asInt64: FFI_TRUE_I64)
+public let ValueTrue: EncodedJSValue = EncodedJSValue( FFI_TRUE_I64)
 
 // ========== FFI 工具函数 ==========
 public class FFI {
@@ -71,12 +70,12 @@ public class FFI {
 
     // 严格翻译自 INT32_TO_JSVALUE
     public static func int32ToJSValue(val: Int32): EncodedJSValue {
-        EncodedJSValue(asInt64: Int64(0xfffe000000000000_u64 | UInt64(UInt32(val))))
+        EncodedJSValue(Int64(UInt64(0x7fff) << 49 | UInt64(UInt32(val))))
     }
 
     // 严格翻译自 DOUBLE_TO_JSVALUE
     public static func doubleToJSValue(val: Float64): EncodedJSValue {
-        var res = EncodedJSValue(asDouble: val)
+        var res = EncodedJSValue(val)
         res.asInt64 += 1_i64 << 49
         res
     }
@@ -88,13 +87,13 @@ public class FFI {
 
     // 严格翻译自 BOOLEAN_TO_JSVALUE
     public static func booleanToJSValue(val: Bool): EncodedJSValue {
-        let intVal: Int64 = val ? ((2 | 4) | 1) : ((2 | 4) | 0)
-        EncodedJSValue(asInt64: intVal)
+        let intVal: Int64 = if (val) { ((2 | 4) | 1) } else { ((2 | 4) | 0) }
+        EncodedJSValue( intVal)
     }
 
     // 严格翻译自 JSVALUE_TO_INT32
     public static func jsValueToInt32(val: EncodedJSValue): Int32 {
-        Int32(truncating: val.asInt64)
+        Int32(val.asInt64)
     }
 
     // 严格翻译自 JSVALUE_TO_DOUBLE
@@ -139,7 +138,7 @@ public class FFI {
     // 严格翻译自 UINT64_TO_JSVALUE
     public static func uint64ToJSValue(globalObject: UInt64, val: UInt64): EncodedJSValue {
         if (val < 2147483648_u64) {
-            return int32ToJSValue(Int32(truncating: val))
+            return int32ToJSValue(Int32(val))
         }
         if (val < 9007199254740991_u64) {
             return doubleToJSValue(Float64(val))
@@ -151,7 +150,7 @@ public class FFI {
     // 严格翻译自 INT64_TO_JSVALUE
     public static func int64ToJSValue(globalObject: UInt64, val: Int64): EncodedJSValue {
         if (val >= -2147483648_i64 && val <= 2147483648_i64) {
-            return int32ToJSValue(Int32(truncating: val))
+            return int32ToJSValue(Int32(val))
         }
         if (val >= -9007199254740991_i64 && val <= 9007199254740991_i64) {
             return doubleToJSValue(Float64(val))

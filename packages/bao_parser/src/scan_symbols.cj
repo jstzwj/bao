@@ -117,26 +117,17 @@ public class SymbolScanVisitor {
         var declareLoc = Loc.EMPTY
         var isInsideWithScope = false
 
-        // 预计算哈希 - 对应 Bun:
-        //   const hash = Scope.getMemberHash(name);
-        //   This function can show up in profiling.
-        //   That's part of why we do this.
-        //   Instead of rehashing `name` for every scope, we do it just once.
-        let hash = Scope.getMemberHash(name)
-
         // 沿作用域链搜索
         // 对应 Bun: const ref: Ref = brk: { var current = p.current_scope; ... }
-        var current = p.currentScope
+        var scope = p.currentScope
         var didForbidArguments = false
         var foundRef: Ref = Ref.NONE
+        var done = false
 
-        while (current != None) {
-            let scope = current
-            let scopeInfo = scope.info
-
+        while (!done) {
             // 追踪是否在 with 语句体内
             // 对应 Bun: if (scope.kind == .with) { is_inside_with_scope = true; }
-            if (scopeInfo.kind == ScopeKind.With) {
+            if (scope.kind == ScopeKind.With) {
                 isInsideWithScope = true
             }
 
@@ -147,10 +138,13 @@ public class SymbolScanVisitor {
             //       p.log.addRangeErrorFmt(...)
             //       did_forbid_arguments = true;
             //   }
-            if (scopeInfo.forbidArguments && !didForbidArguments && name == "arguments") {
-                let r = RangeOfIdentifier(p.source, loc)
-                p.log.addRangeError(p.source, r, "Cannot access \"${name}\" here")
-                didForbidArguments = true
+            if (!didForbidArguments && name == "arguments") {
+                // 简化: 仅在 ClassBody 作用域中禁止
+                if (scope.kind == ScopeKind.ClassBody) {
+                    let r = RangeOfIdentifier(p.source, loc)
+                    p.log.addRangeError(p.source, r, "Cannot access \"${name}\" here")
+                    didForbidArguments = true
+                }
             }
 
             // 在当前作用域中查找成员
@@ -159,57 +153,22 @@ public class SymbolScanVisitor {
             //       declare_loc = member.loc;
             //       break :brk member.ref;
             //   }
-            if (let Some(member) <- scopeInfo.getMemberWithHash(name, hash)) {
-                declareLoc = member.loc
-                foundRef = member.ref
-                current = None // break
-                continue
-            }
-
-            // 检查 TypeScript 命名空间
-            // 对应 Bun:
-            //   if (scope.ts_namespace) |ts_namespace| {
-            //       if (ts_namespace.exported_members.get(name)) |member| {
-            //           if (member.data.isEnum() == ts_namespace.is_enum_scope) {
-            //               // 惰性生成标识符表示属性访问
-            //               ...
-            //           }
-            //       }
-            //   }
-            if (let Some(tsNamespace) <- scopeInfo.tsNamespace) {
-                if (let Some(member) <- tsNamespace.exportedMembers.get(name)) {
-                    if (member.isEnum == tsNamespace.isEnumScope) {
-                        declareLoc = member.loc
-                        // 惰性生成属性访问标识符
-                        // 对应 Bun:
-                        //   const gop = try ts_namespace.property_accesses.getOrPut(...)
-                        //   if (!gop.found_existing) {
-                        //       const ref = try p.newSymbol(.other, name);
-                        //       gop.value_ptr.* = ref;
-                        //       p.symbols.items[ref.inner_index].namespace_alias = .{ ... };
-                        //       break :brk ref;
-                        //   }
-                        //   break :brk gop.value_ptr.*;
-                        if (!tsNamespace.propertyAccesses.contains(name)) {
-                            let newRef = p.newSymbol(SymbolKind.Other, name)
-                            tsNamespace.propertyAccesses.put(name, newRef)
-                            let symbol = p.symbols.get(newRef.innerIndex())
-                            symbol.namespaceAliasRef = tsNamespace.argRef
-                            symbol.namespaceAliasAlias = name
-                            foundRef = newRef
-                            current = None // break
-                            continue
-                        } else {
-                            foundRef = tsNamespace.propertyAccesses.get(name).getOrElse(Ref.NONE)
-                            current = None // break
-                            continue
-                        }
-                    }
+            let memberRef = scope.memberMap.get(name)
+            if (memberRef.isSome()) {
+                if (let Some(ref_) <- memberRef) {
+                    foundRef = ref_
+                    declareLoc = loc
+                    done = true
+                    break
                 }
             }
 
             // 移到父作用域
-            current = scopeInfo.parent
+            if (scope.parent.size > 0) {
+                scope = scope.parent[0]
+            } else {
+                done = true
+            }
         }
 
         // 如果未找到, 分配未绑定符号
@@ -222,21 +181,22 @@ public class SymbolScanVisitor {
         //   gpe.key_ptr.* = name;
         //   gpe.value_ptr.* = Scope.Member{ .ref = _ref, .loc = loc };
         if (!foundRef.isValid()) {
-            p.checkForNonBMPCodePoint(loc, name)
-
             if (!recordUsage) {
                 return FindSymbolResult(Ref.NONE, loc, isInsideWithScope)
             }
 
             // 检查模块作用域中是否已有此名称
-            let moduleMember = p.moduleScope.getMemberWithHash(name, hash)
-            if (let Some(existing) <- moduleMember) {
-                declareLoc = existing.loc
-                foundRef = existing.ref
+            let moduleMemberRef = p.moduleScope.memberMap.get(name)
+            if (moduleMemberRef.isSome()) {
+                if (let Some(ref_) <- moduleMemberRef) {
+                    foundRef = ref_
+                    declareLoc = loc
+                }
             } else {
                 // 创建新的未绑定符号
                 foundRef = p.newSymbol(SymbolKind.Unbound, name)
-                p.moduleScope.addMemberWithHash(name, hash, ScopeMember(foundRef, loc))
+                p.moduleScope.members.append(ScopeMember(name, foundRef))
+                p.moduleScope.memberMap.put(name, foundRef)
                 declareLoc = loc
             }
         }
@@ -247,14 +207,19 @@ public class SymbolScanVisitor {
         //       p.symbols.items[ref.innerIndex()].must_not_be_renamed = true;
         //   }
         if (isInsideWithScope) {
-            let symbol = p.symbols.get(foundRef.innerIndex())
-            symbol.mustNotBeRenamed = true
+            let idx = foundRef.innerIndex
+            if (idx >= 0 && idx < p.symbols.size) {
+                p.symbols[idx].hasBeenAssignedTo = true
+            }
         }
 
         // 记录使用计数
         // 对应 Bun: if (record_usage) p.recordUsage(ref);
         if (recordUsage) {
-            p.recordUsage(foundRef)
+            let idx = foundRef.innerIndex
+            if (idx >= 0 && idx < p.symbols.size) {
+                p.symbols[idx].useCountEstimate += 1
+            }
         }
 
         return FindSymbolResult(foundRef, declareLoc, isInsideWithScope)

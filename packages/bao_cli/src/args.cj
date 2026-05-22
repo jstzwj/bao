@@ -370,12 +370,12 @@ public class ArgParser {
         // 查找参数规格
         let spec = findSpecByLongName(key)
         match (spec) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.argType) {
                     case ArgType.Flag =>
                         result.flags.put(key, true)
                         return i + 1
-                    case ArgType.Option => {
+                    case ArgType.Option =>
                         // 消耗下一个参数作为值
                         if (i + 1 < args.size) {
                             result.options.put(key, args[i + 1])
@@ -385,13 +385,11 @@ public class ArgParser {
                             result.options.put(key, "")
                             return i + 1
                         }
-                    }
                     case ArgType.Positional =>
                         result.positionals.append(arg)
                         return i + 1
                 }
-            }
-            case None => {
+            case None =>
                 // 未知参数 — 尝试猜测是 flag 还是 option
                 if (i + 1 < args.size && !args[i + 1].startsWith("-")) {
                     result.options.put(key, args[i + 1])
@@ -400,7 +398,6 @@ public class ArgParser {
                     result.flags.put(key, true)
                     return i + 1
                 }
-            }
         }
     }
 
@@ -416,49 +413,44 @@ public class ArgParser {
             let firstChar = key.substring(0, 1)
             let spec = findSpecByShortName(firstChar)
             match (spec) {
-                case Some(s) => {
+                case Some(s) =>
                     match (s.argType) {
-                        case ArgType.Option => {
+                        case ArgType.Option =>
                             // -ovalue 格式
                             let value = key.substring(1)
                             result.options.put(s.longName, value)
                             return i + 1
-                        }
-                        case ArgType.Flag | ArgType.Positional => {
+                        case ArgType.Flag | ArgType.Positional =>
                             // -abc 拆分为 -a -b -c
                             for (c in key) {
                                 let charName = c.toString()
                                 let cSpec = findSpecByShortName(charName)
                                 match (cSpec) {
-                                    case Some(cs) => {
+                                    case Some(cs) =>
                                         match (cs.argType) {
                                             case ArgType.Flag => result.flags.put(cs.longName, true)
                                             case _ => result.unknown.append("-${charName}")
                                         }
-                                    }
                                     case None => result.unknown.append("-${charName}")
                                 }
                             }
                             return i + 1
-                        }
                     }
-                }
-                case None => {
+                case None =>
                     result.unknown.append(arg)
                     return i + 1
-                }
             }
         }
 
         // 单个短选项
         let spec = findSpecByShortName(key)
         match (spec) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.argType) {
                     case ArgType.Flag =>
                         result.flags.put(s.longName, true)
                         return i + 1
-                    case ArgType.Option => {
+                    case ArgType.Option =>
                         if (i + 1 < args.size) {
                             result.options.put(s.longName, args[i + 1])
                             return i + 2
@@ -467,16 +459,13 @@ public class ArgParser {
                             result.options.put(s.longName, "")
                             return i + 1
                         }
-                    }
                     case ArgType.Positional =>
                         result.positionals.append(arg)
                         return i + 1
                 }
-            }
-            case None => {
+            case None =>
                 result.unknown.append(arg)
                 return i + 1
-            }
         }
     }
 

@@ -72,7 +72,7 @@ public class NameMinifier {
         tail = ArrayList<UInt8>()
     }
 
-    /// 初始化 - 对应 Bun NameMinifier.init()
+    /// 初始化 - 对应 Bun NameMinifier()
     public static func initFunc(allocator: Any): NameMinifier {
         return NameMinifier()
     }

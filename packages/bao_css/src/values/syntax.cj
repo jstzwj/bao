@@ -11,7 +11,7 @@ private func trimSyntaxSpaces(s: String): String {
 }
 
 private func joinSyntaxParts(parts: ArrayList<String>, sep: String): String {
-    let sb = StringBuilder()
+    let sb = CssStringBuilder()
     for (i in 0..parts.size) {
         if (i > 0) { sb.append(sep) }
         sb.append(parts[i])
@@ -27,14 +27,14 @@ private func joinSyntaxParts(parts: ArrayList<String>, sep: String): String {
 /// CSS 语法组件乘数
 /// 严格翻译自 Multiplier enum { None, Space, Comma }
 public enum CssMultiplier {
-    | None    // 不可重复
+    | NoMultiplier    // 不可重复
     | Space   // 空格分隔重复
     | Comma   // 逗号分隔重复
 
     /// 转为 CSS 文本
     public func toCss(): String {
         match (this) {
-            case None => ""
+            case NoMultiplier => ""
             case Space => "+"
             case Comma => "#"
         }
@@ -141,8 +141,8 @@ public class CssSyntaxComponent {
     public static func parseString(input: String): ?CssSyntaxComponent {
         if (input.isEmpty()) { return None }
         match (CssSyntaxComponentKind.fromString(input)) {
-            case Some(kind) => Some(CssSyntaxComponent(kind, CssMultiplier.None))
-            case None => Some(CssSyntaxComponent(input, CssMultiplier.None))
+            case Some(kind) => Some(CssSyntaxComponent(kind, CssMultiplier.NoMultiplier))
+            case None => Some(CssSyntaxComponent(input, CssMultiplier.NoMultiplier))
         }
     }
 
@@ -295,7 +295,7 @@ public class CssParsedComponent {
         this.kind = kind
         this.valueText = value
         this.repeatedComponents = ArrayList<CssParsedComponent>()
-        this.repeatedMultiplier = CssMultiplier.None
+        this.repeatedMultiplier = CssMultiplier.NoMultiplier
     }
 
     public init(repeated: ArrayList<CssParsedComponent>, multiplier: CssMultiplier) {
@@ -317,7 +317,7 @@ public class CssParsedComponent {
                 let sep = match (repeatedMultiplier) {
                     case Comma => ", "
                     case Space => " "
-                    case None => ""
+                    case NoMultiplier => ""
                 }
                 joinSyntaxParts(parts, sep)
             case TokenList => valueText

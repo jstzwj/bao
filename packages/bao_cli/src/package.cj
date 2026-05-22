@@ -191,51 +191,45 @@ public class CliParser {
 
         let first = args[0]
         match (first) {
-            case "run" => {
+            case "run" =>
                 let options = RunOptions()
                 var i = 1
                 while (i < args.size) {
                     match (args[i]) {
                         case "--watch" | "-w" => options.watch = true
                         case "--silent" => options.silent = true
-                        case _ => {
+                        case _ =>
                             if (options.script.length == 0) {
                                 options.script = args[i]
                             } else {
                                 options.args.append(args[i])
                             }
-                        }
                     }
                     i++
                 }
                 return Command.Run(options)
-            }
-            case "build" => {
+            case "build" =>
                 let options = BuildOptions()
                 var i = 1
                 while (i < args.size) {
                     match (args[i]) {
-                        case "--outdir" => {
+                        case "--outdir" =>
                             i++
                             if (i < args.size) { options.outdir = args[i] }
-                        }
                         case "--minify" | "-m" => options.minify = true
                         case "--sourcemap" => options.sourcemap = true
-                        case "--target" => {
+                        case "--target" =>
                             i++
                             if (i < args.size) { options.target = args[i] }
-                        }
-                        case "--format" => {
+                        case "--format" =>
                             i++
                             if (i < args.size) { options.format = args[i] }
-                        }
                         case _ => options.entryPoints.append(args[i])
                     }
                     i++
                 }
                 return Command.Build(options)
-            }
-            case "install" | "i" => {
+            case "install" | "i" =>
                 let options = InstallCliOptions()
                 var i = 1
                 while (i < args.size) {
@@ -243,21 +237,18 @@ public class CliParser {
                         case "--production" | "-p" => options.production = true
                         case "--frozen" => options.frozen = true
                         case "--verbose" | "-v" => options.verbose = true
-                        case "add" => {
+                        case "add" =>
                             i++
                             if (i < args.size) { options.add = Some(args[i]) }
-                        }
-                        case "remove" => {
+                        case "remove" =>
                             i++
                             if (i < args.size) { options.remove = Some(args[i]) }
-                        }
                         case _ => ()
                     }
                     i++
                 }
                 return Command.Install(options)
-            }
-            case "test" => {
+            case "test" =>
                 let options = TestOptions()
                 var i = 1
                 while (i < args.size) {
@@ -270,29 +261,25 @@ public class CliParser {
                     i++
                 }
                 return Command.Test(options)
-            }
-            case "init" => {
+            case "init" =>
                 let options = InitOptions()
                 var i = 1
                 while (i < args.size) {
                     match (args[i]) {
-                        case "--name" | "-n" => {
+                        case "--name" | "-n" =>
                             i++
                             if (i < args.size) { options.name = args[i] }
-                        }
-                        case "--template" | "-t" => {
+                        case "--template" | "-t" =>
                             i++
                             if (i < args.size) { options.template = args[i] }
-                        }
                         case _ => options.name = args[i]
                     }
                     i++
                 }
                 return Command.Init(options)
-            }
             case "--version" | "-v" => return Command.Version
             case "--help" | "-h" => return Command.Help
-            case _ => {
+            case _ =>
                 // 直接运行脚本
                 let options = RunOptions()
                 options.script = first
@@ -300,7 +287,6 @@ public class CliParser {
                     options.args.append(args[i])
                 }
                 return Command.Run(options)
-            }
         }
     }
 }
@@ -346,7 +332,7 @@ private func executeRun(opts: RunOptions): Unit {
         // 没有指定脚本 — 尝试从 package.json 的 scripts 读取
         let pkgOpt = readPackageJson()
         match (pkgOpt) {
-            case Some(pkg) => {
+            case Some(pkg) =>
                 println("Available scripts:")
                 for (key in pkg.scripts.keys()) {
                     match (pkg.scripts.get(key)) {
@@ -354,7 +340,6 @@ private func executeRun(opts: RunOptions): Unit {
                         case None => ()
                     }
                 }
-            }
             case None => println("error: no script specified and no package.json found")
         }
         return
@@ -363,9 +348,9 @@ private func executeRun(opts: RunOptions): Unit {
     // 先检查是否是 package.json 中的 script 名称
     let pkgOpt = readPackageJson()
     match (pkgOpt) {
-        case Some(pkg) => {
+        case Some(pkg) =>
             match (pkg.scripts.get(opts.script)) {
-                case Some(cmd) => {
+                case Some(cmd) =>
                     // 运行 package.json 中定义的脚本命令
                     if (!opts.silent) {
                         println("$ ${cmd}")
@@ -379,10 +364,8 @@ private func executeRun(opts: RunOptions): Unit {
                         println("error: ${e.message}")
                     }
                     return
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
@@ -451,17 +434,15 @@ private func executeInstall(opts: InstallCliOptions): Unit {
 
     // 处理 add/remove 子命令
     match (opts.add) {
-        case Some(name) => {
+        case Some(name) =>
             pm.add(name, None)
             return
-        }
         case None => ()
     }
     match (opts.remove) {
-        case Some(name) => {
+        case Some(name) =>
             pm.remove(name)
             return
-        }
         case None => ()
     }
 
@@ -622,7 +603,7 @@ private func readPackageJson(): ?PackageInfo {
     let jsonParser = JsonParser()
     let json = jsonParser.parse(content)
     match (json) {
-        case Some(root) => {
+        case Some(root) =>
             let name = match (JsonHelper.getString(root, "name")) {
                 case Some(n) => n
                 case None => "unknown"
@@ -645,19 +626,17 @@ private func readPackageJson(): ?PackageInfo {
             pkg.devDependencies = JsonHelper.getStringMap(root, "devDependencies")
 
             match (JsonHelper.getField(root, "scripts")) {
-                case Some(JsonValue.Object(scripts)) => {
+                case Some(JsonValue.Object(scripts)) =>
                     for (k in scripts.keys()) {
                         match (scripts.get(k)) {
                             case Some(JsonValue.Str(v)) => pkg.scripts.put(k, v)
                             case _ => ()
                         }
                     }
-                }
                 case _ => ()
             }
 
             return Some(pkg)
-        }
         case None => return None
     }
 }

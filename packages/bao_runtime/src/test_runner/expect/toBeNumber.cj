@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeNumber() - 检查值是否为数字类型
 /// 用法: expect(received).toBeNumber()
-public func toBeNumber(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeNumber(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeNumber", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeNumber", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
     let pass = value.isNumber() != not
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

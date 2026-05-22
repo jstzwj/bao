@@ -36,7 +36,7 @@ public class TextEncoder {
         var byteIndex = 0
         let destCapacity = dest.size
 
-        for (i in 0..src.length) {
+        for (i in 0..src.size) {
             let codePoint = Int64(src[Int64(i)])
             let byteLen = Utf8Codec.codePointLength(UInt8(codePoint & 0xFF))
 
@@ -75,7 +75,7 @@ public class TextEncoder {
     /// 对应 Bun: TextEncoder__encode8
     public func encode8(text: String): Array<UInt8> {
         let result = ArrayList<UInt8>()
-        for (i in 0..text.length) {
+        for (i in 0..text.size) {
             let ch = text[Int64(i)]
             let cp = Int64(ch)
             if (cp < 0x80) {
@@ -118,7 +118,7 @@ public class TextEncoder {
                 let text = Interpreter.jsToString(args[0])
                 let bytes = self.encode(text)
                 let result = EncodeIntoResult(0, bytes.size)
-                result.read = text.length
+                result.read = text.size
                 return result.toJsValue()
             }
             EncodeIntoResult().toJsValue()

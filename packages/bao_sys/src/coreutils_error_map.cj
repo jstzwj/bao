@@ -153,7 +153,7 @@ public enum SystemErrno {
     | EUNKNOWN   // Unknown error
 
     /// 从原始 errno 值构建
-    /// 对应 Bun: SystemErrno.init(errno)
+    /// 对应 Bun: SystemErrno(errno)
     public static func fromRaw(value: UInt16): SystemErrno {
         match (value) {
             case 0 => SUCCESS

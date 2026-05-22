@@ -206,7 +206,7 @@ public class UploadPart {
 
     // ========================================================================
     // freeAllocatedSlice - 释放分配的切片
-    // 严格翻译自: fn free_allocated_slice(&mut self) (multipart.rs line 236-252)
+    // 严格翻译自: fn free_allocated_slice(&self) (multipart.rs line 236-252)
     // ========================================================================
 
     /// 释放分配的切片
@@ -236,14 +236,14 @@ public class UploadPart {
 
     // ========================================================================
     // onPartResponse - 分片上传响应回调
-    // 严格翻译自: pub fn on_part_response(result: S3PartResult, this: *mut c_void)
+    // 严格翻译自: pub fn on_part_response(result: S3PartResult, `this`: *c_void)
     //   -> JsTerminatedResult<()> (multipart.rs line 260-335)
     // ========================================================================
 
     /// 分片上传响应回调
     /// 对应 Bun: onPartResponse
     /// 处理分片上传的响应：成功时记录 etag，失败时重试或报告错误
-    public static func onPartResponse(result: S3PartResult, this: UploadPart): Unit {
+    public static func onPartResponse(result: S3PartResult, `this`: UploadPart): Unit {
         let ctx = this.ctx
 
         if (this.state == PartState.CANCELED || ctx.state == MultipartUploadState.FINISHED) {
@@ -255,9 +255,9 @@ public class UploadPart {
         this.state = PartState.COMPLETED
 
         match (result.tag) {
-            case S3PartResultTag.Failure => {
+            case S3PartResultTag.Failure =>
                 match (result.error) {
-                    case Some(err) => {
+                    case Some(err) =>
                         if (this.retry > 0) {
                             this.retry -= 1
                             this.perform()
@@ -267,8 +267,7 @@ public class UploadPart {
                             ctx.fail(err)
                             MultiPartUpload.deref(ctx)
                         }
-                    }
-                    case None => {
+                    case None =>
                         if (this.retry > 0) {
                             this.retry -= 1
                             this.perform()
@@ -277,11 +276,9 @@ public class UploadPart {
                             this.freeAllocatedSlice()
                             MultiPartUpload.deref(ctx)
                         }
-                    }
                 }
-            }
-            case S3PartResultTag.Etag => {
-                let sent = this.getData().length
+            case S3PartResultTag.Etag =>
+                let sent = this.getData().size
                 this.freeAllocatedSlice()
 
                 // 将 etag 添加到结果数组
@@ -294,13 +291,12 @@ public class UploadPart {
                 // 继续排空队列
                 ctx.drainEnqueuedParts(sent)
                 MultiPartUpload.deref(ctx)
-            }
         }
     }
 
     // ========================================================================
     // perform - 执行分片上传
-    // 严格翻译自: fn perform(&mut self) -> JsTerminatedResult<()> (multipart.rs line 337-371)
+    // 严格翻译自: fn perform(&self) -> JsTerminatedResult<()> (multipart.rs line 337-371)
     // ========================================================================
 
     /// 执行分片上传
@@ -328,7 +324,7 @@ public class UploadPart {
 
     // ========================================================================
     // start - 启动分片上传
-    // 严格翻译自: pub fn start(&mut self) -> JsTerminatedResult<()> (multipart.rs line 373-381)
+    // 严格翻译自: pub fn start(&self) -> JsTerminatedResult<()> (multipart.rs line 373-381)
     // ========================================================================
 
     /// 启动分片上传
@@ -346,7 +342,7 @@ public class UploadPart {
 
     // ========================================================================
     // cancel - 取消分片
-    // 严格翻译自: pub fn cancel(&mut self) (multipart.rs line 383-395)
+    // 严格翻译自: pub fn cancel(&self) (multipart.rs line 383-395)
     // ========================================================================
 
     /// 取消分片
@@ -357,9 +353,8 @@ public class UploadPart {
         state = PartState.CANCELED
 
         match (prevState) {
-            case PartState.PENDING => {
+            case PartState.PENDING =>
                 freeAllocatedSlice()
-            }
             case _ => ()
         }
     }
@@ -491,15 +486,15 @@ public class MultiPartUpload {
     public var state: MultipartUploadState
 
     /// 完成回调
-    /// 对应 Bun: callback: fn(S3UploadResult, *mut c_void) -> JsTerminatedResult<()>
+    /// 对应 Bun: callback: fn(S3UploadResult, *c_void) -> JsTerminatedResult<()>
     public var callback: (S3UploadResult, UIntNative) -> Unit
 
     /// 可写回调
-    /// 对应 Bun: on_writable: Option<fn(*mut MultiPartUpload, *mut c_void, u64)>
+    /// 对应 Bun: on_writable: Option<fn(*MultiPartUpload, *c_void, u64)>
     public var onWritable: ?((MultiPartUpload, UIntNative, UInt64) -> Unit)
 
     /// 回调上下文
-    /// 对应 Bun: callback_context: *mut c_void
+    /// 对应 Bun: callback_context: *c_void
     public var callbackContext: UIntNative
 
     public init() {
@@ -574,9 +569,9 @@ public class MultiPartUpload {
     }
 
     /// 减少引用计数
-    /// 对应 Bun: intrusive deref_(this: *mut Self)
+    /// 对应 Bun: intrusive deref_(`this`: *Self)
     /// 当引用计数归零时释放资源
-    public static func deref(this: MultiPartUpload): Unit {
+    public static func deref(`this`: MultiPartUpload): Unit {
         this.refCount -= 1
         if (this.refCount <= 0) {
             this.deinit()
@@ -602,22 +597,22 @@ public class MultiPartUpload {
     // ========================================================================
     // singleSendUploadResponse - 单次上传响应回调
     // 严格翻译自: pub fn single_send_upload_response(
-    //   result: S3UploadResult, this: *mut c_void) -> JsTerminatedResult<()>
+    //   result: S3UploadResult, `this`: *c_void) -> JsTerminatedResult<()>
     // (multipart.rs line 418-472)
     // ========================================================================
 
     /// 单次上传响应回调
     /// 对应 Bun: singleSendUploadResponse
     /// 处理单次上传的响应：失败时重试或报告错误，成功时通知完成
-    public static func singleSendUploadResponse(result: S3UploadResult, this: MultiPartUpload): Unit {
+    public static func singleSendUploadResponse(result: S3UploadResult, `this`: MultiPartUpload): Unit {
         if (this.state == MultipartUploadState.FINISHED) {
             return
         }
 
         match (result.tag) {
-            case S3UploadResultTag.Failure => {
+            case S3UploadResultTag.Failure =>
                 match (result.error) {
-                    case Some(err) => {
+                    case Some(err) =>
                         if (this.options.retry > 0) {
                             this.options.retry -= 1
                             // 重试
@@ -642,28 +637,24 @@ public class MultiPartUpload {
                         } else {
                             this.fail(err)
                         }
-                    }
-                    case None => {
+                    case None =>
                         this.fail(S3Error("UnknownError", "Upload failed"))
-                    }
                 }
-            }
-            case S3UploadResultTag.Success => {
+            case S3UploadResultTag.Success =>
                 // 通知可写回调
                 match (this.onWritable) {
                     case Some(cb) => cb(this, this.callbackContext, this.buffered.size())
                     case None => ()
                 }
                 this.done()
-            }
         }
     }
 
     // ========================================================================
     // getCreatePart - 获取/创建分片
     // 严格翻译自: fn get_create_part(
-    //   &mut self, chunk: &[u8], allocated_size: usize, needs_clone: bool
-    // ) -> Option<*mut UploadPart> (multipart.rs line 475-535)
+    //   &self, chunk: &[u8], allocated_size: usize, needs_clone: bool
+    // ) -> Option<*UploadPart> (multipart.rs line 475-535)
     // ========================================================================
 
     /// 获取/创建分片
@@ -687,7 +678,7 @@ public class MultiPartUpload {
 
         // 初始化队列（如果尚未创建）
         match (queue) {
-            case None => {
+            case None =>
                 let newQueue = ArrayList<UploadPart>()
                 var i: Int64 = 0
                 while (i < queueSize) {
@@ -695,7 +686,6 @@ public class MultiPartUpload {
                     i += 1
                 }
                 queue = Some(newQueue)
-            }
             case Some(_) => ()
         }
 
@@ -705,7 +695,7 @@ public class MultiPartUpload {
         let ownsData: Bool
         if (needsClone) {
             partData = chunk
-            partAllocatedSize = chunk.length
+            partAllocatedSize = chunk.size
             ownsData = true
         } else {
             partData = chunk
@@ -718,7 +708,7 @@ public class MultiPartUpload {
 
         // 获取队列中的分片并设置字段
         match (queue) {
-            case Some(q) => {
+            case Some(q) =>
                 if (index < q.size) {
                     let queueItem = q[index]
                     queueItem.data = partData
@@ -731,7 +721,6 @@ public class MultiPartUpload {
                     queueItem.state = PartState.PENDING
                     return Some(queueItem)
                 }
-            }
             case None => ()
         }
         return None
@@ -739,7 +728,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // drainEnqueuedParts - 排空已入队的分片
-    // 严格翻译自: fn drain_enqueued_parts(&mut self, flushed: u64)
+    // 严格翻译自: fn drain_enqueued_parts(&self, flushed: u64)
     //   -> JsTerminatedResult<()> (multipart.rs line 538-574)
     // ========================================================================
 
@@ -754,14 +743,13 @@ public class MultiPartUpload {
         // 启动待上传的分片
         if (state == MultipartUploadState.MULTIPART_COMPLETED) {
             match (queue) {
-                case Some(q) => {
+                case Some(q) =>
                     for (i in 0..q.size) {
                         let part = q[i]
                         if (part.state == PartState.PENDING) {
                             part.start()
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -791,7 +779,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // fail - 失败
-    // 严格翻译自: pub fn fail(&mut self, err: S3Error) -> JsTerminatedResult<()>
+    // 严格翻译自: pub fn fail(&self, err: S3Error) -> JsTerminatedResult<()>
     // (multipart.rs line 577-619)
     // ========================================================================
 
@@ -803,14 +791,13 @@ public class MultiPartUpload {
 
         // 取消所有进行中的分片
         match (queue) {
-            case Some(q) => {
+            case Some(q) =>
                 for (i in 0..q.size) {
                     let part = q[i]
                     if (part.state != PartState.NOT_ASSIGNED) {
                         part.cancel()
                     }
                 }
-            }
             case None => ()
         }
 
@@ -831,7 +818,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // done - 完成
-    // 严格翻译自: fn done(&mut self) -> JsTerminatedResult<()> (multipart.rs line 622-657)
+    // 严格翻译自: fn done(&self) -> JsTerminatedResult<()> (multipart.rs line 622-657)
     // ========================================================================
 
     /// 完成
@@ -871,31 +858,30 @@ public class MultiPartUpload {
     // ========================================================================
     // startMultiPartRequestResult - 启动多部分请求结果
     // 严格翻译自: pub fn start_multi_part_request_result(
-    //   result: S3DownloadResult, this: *mut c_void) -> JsTerminatedResult<()>
+    //   result: S3DownloadResult, `this`: *c_void) -> JsTerminatedResult<()>
     // (multipart.rs line 660-723)
     // ========================================================================
 
     /// 启动多部分请求结果
     /// 对应 Bun: startMultiPartRequestResult
     /// 处理 CreateMultipartUpload 请求的响应
-    public static func startMultiPartRequestResult(result: S3DownloadResult, this: MultiPartUpload): Unit {
+    public static func startMultiPartRequestResult(result: S3DownloadResult, `this`: MultiPartUpload): Unit {
         if (this.state == MultipartUploadState.FINISHED) {
             return
         }
 
         match (result.tag) {
-            case S3DownloadResultTag.Failure => {
+            case S3DownloadResultTag.Failure =>
                 match (result.error) {
                     case Some(err) => this.fail(err)
                     case None => this.fail(S3Error("UnknownError", "Failed to initiate multipart upload"))
                 }
-            }
-            case S3DownloadResultTag.Success => {
+            case S3DownloadResultTag.Success =>
                 // 从响应体中解析 UploadId
                 let slice = result.body.list
                 let uploadIdStart = slice.indexOf("<UploadId>")
                 if (uploadIdStart >= 0) {
-                    let valueStart = uploadIdStart + "<UploadId>".length
+                    let valueStart = uploadIdStart + "<UploadId>".size
                     let uploadIdEnd = slice.indexOfFrom(valueStart, "</UploadId>")
                     if (uploadIdEnd >= 0) {
                         this.uploadId = slice.substring(valueStart, uploadIdEnd)
@@ -903,7 +889,7 @@ public class MultiPartUpload {
                 }
                 this.uploadidBuffer = result.body
 
-                if (this.uploadId.length == 0 || this.uploadId.length > MAX_UPLOAD_ID_LEN) {
+                if (this.uploadId.size == 0 || this.uploadId.size > MAX_UPLOAD_ID_LEN) {
                     this.fail(S3Error("UnknownError", "Failed to initiate multipart upload"))
                     return
                 }
@@ -911,28 +897,26 @@ public class MultiPartUpload {
                 this.state = MultipartUploadState.MULTIPART_COMPLETED
                 // 开始排空分片
                 this.drainEnqueuedParts(0)
-            }
-            case S3DownloadResultTag.NotFound => {
+            case S3DownloadResultTag.NotFound =>
                 this.fail(S3Error("UnknownError", "Failed to initiate multipart upload"))
-            }
         }
     }
 
     // ========================================================================
     // onCommitMultiPartRequest - 提交多部分请求回调
     // 严格翻译自: pub fn on_commit_multi_part_request(
-    //   result: S3CommitResult, this: *mut c_void) -> JsTerminatedResult<()>
+    //   result: S3CommitResult, `this`: *c_void) -> JsTerminatedResult<()>
     // (multipart.rs line 726-762)
     // ========================================================================
 
     /// 提交多部分请求回调
     /// 对应 Bun: onCommitMultiPartRequest
     /// 尽力提交多部分上传，失败时重试
-    public static func onCommitMultiPartRequest(result: S3CommitResult, this: MultiPartUpload): Unit {
+    public static func onCommitMultiPartRequest(result: S3CommitResult, `this`: MultiPartUpload): Unit {
         match (result.tag) {
-            case S3CommitResultTag.Failure => {
+            case S3CommitResultTag.Failure =>
                 match (result.error) {
-                    case Some(err) => {
+                    case Some(err) =>
                         if (this.options.retry > 0) {
                             this.options.retry -= 1
                             this.commitMultiPartRequest()
@@ -941,50 +925,44 @@ public class MultiPartUpload {
                         this.state = MultipartUploadState.FINISHED
                         this.callback(S3UploadResult.failure(err), this.callbackContext)
                         MultiPartUpload.deref(this)
-                    }
-                    case None => {
+                    case None =>
                         this.state = MultipartUploadState.FINISHED
                         MultiPartUpload.deref(this)
-                    }
                 }
-            }
-            case S3CommitResultTag.Success => {
+            case S3CommitResultTag.Success =>
                 this.state = MultipartUploadState.FINISHED
                 this.callback(S3UploadResult.success(), this.callbackContext)
                 MultiPartUpload.deref(this)
-            }
         }
     }
 
     // ========================================================================
     // onRollbackMultiPartRequest - 回滚多部分请求回调
     // 严格翻译自: pub fn on_rollback_multi_part_request(
-    //   result: S3UploadResult, this: *mut c_void) -> JsTerminatedResult<()>
+    //   result: S3UploadResult, `this`: *c_void) -> JsTerminatedResult<()>
     // (multipart.rs line 765-793)
     // ========================================================================
 
     /// 回滚多部分请求回调
     /// 对应 Bun: onRollbackMultiPartRequest
     /// 尽力回滚，失败时重试，最终释放引用
-    public static func onRollbackMultiPartRequest(result: S3UploadResult, this: MultiPartUpload): Unit {
+    public static func onRollbackMultiPartRequest(result: S3UploadResult, `this`: MultiPartUpload): Unit {
         match (result.tag) {
-            case S3UploadResultTag.Failure => {
+            case S3UploadResultTag.Failure =>
                 if (this.options.retry > 0) {
                     this.options.retry -= 1
                     this.rollbackMultiPartRequest()
                     return
                 }
                 MultiPartUpload.deref(this)
-            }
-            case S3UploadResultTag.Success => {
+            case S3UploadResultTag.Success =>
                 MultiPartUpload.deref(this)
-            }
         }
     }
 
     // ========================================================================
     // commitMultiPartRequest - 提交多部分上传
-    // 严格翻译自: fn commit_multi_part_request(&mut self) -> JsTerminatedResult<()>
+    // 严格翻译自: fn commit_multi_part_request(&self) -> JsTerminatedResult<()>
     // (multipart.rs line 795-824)
     // ========================================================================
 
@@ -1012,7 +990,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // rollbackMultiPartRequest - 回滚多部分上传
-    // 严格翻译自: fn rollback_multi_part_request(&mut self) -> JsTerminatedResult<()>
+    // 严格翻译自: fn rollback_multi_part_request(&self) -> JsTerminatedResult<()>
     // (multipart.rs line 826-855)
     // ========================================================================
 
@@ -1040,7 +1018,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // enqueuePart - 入队分片
-    // 严格翻译自: fn enqueue_part(&mut self, chunk: &[u8], allocated_size: usize,
+    // 严格翻译自: fn enqueue_part(&self, chunk: &[u8], allocated_size: usize,
     //   needs_clone: bool) -> JsTerminatedResult<bool> (multipart.rs line 857-896)
     // ========================================================================
 
@@ -1087,7 +1065,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // processMultiPart - 处理多部分上传
-    // 严格翻译自: fn process_multi_part(&mut self, part_size: usize)
+    // 严格翻译自: fn process_multi_part(&self, part_size: usize)
     //   -> JsTerminatedResult<()> (multipart.rs line 898-997)
     // ========================================================================
 
@@ -1158,7 +1136,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // processBuffered - 处理缓冲数据
-    // 严格翻译自: fn process_buffered(&mut self, part_size: usize) (multipart.rs line 1003-1038)
+    // 严格翻译自: fn process_buffered(&self, part_size: usize) (multipart.rs line 1003-1038)
     // ========================================================================
 
     /// 处理缓冲数据
@@ -1206,7 +1184,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // continueStream - 继续流处理
-    // 严格翻译自: pub fn continue_stream(&mut self) (multipart.rs line 1044-1051)
+    // 严格翻译自: pub fn continue_stream(&self) (multipart.rs line 1044-1051)
     // ========================================================================
 
     /// 继续流处理
@@ -1258,7 +1236,7 @@ public class MultiPartUpload {
 
     // ========================================================================
     // write - 写入数据
-    // 严格翻译自: fn write(&mut self, encoding: WriteEncoding, chunk: &[u8],
+    // 严格翻译自: fn write(&self, encoding: WriteEncoding, chunk: &[u8],
     //   is_last: bool) -> Result<ResumableSinkBackpressure, AllocError>
     // (multipart.rs line 1070-1141)
     // ========================================================================
@@ -1275,7 +1253,7 @@ public class MultiPartUpload {
         ref()
         defer { deref(this) }
 
-        if (state == MultipartUploadState.WAIT_STREAM_CHECK && chunk.length == 0 && isLast) {
+        if (state == MultipartUploadState.WAIT_STREAM_CHECK && chunk.size == 0 && isLast) {
             // 流关闭但文件可能不存在，不发送空分片
             ended = true
             if (buffered.size() > 0) {
@@ -1290,7 +1268,7 @@ public class MultiPartUpload {
 
         if (isLast) {
             ended = true
-            if (chunk.length > 0) {
+            if (chunk.size > 0) {
                 match (encoding) {
                     case WriteEncoding.BYTES => buffered.write(chunk)
                     case WriteEncoding.LATIN1 => buffered.writeLatin1(chunk)
@@ -1300,7 +1278,7 @@ public class MultiPartUpload {
             processBuffered(partSizeInBytes())
         } else {
             // 仍有更多数据，收到空 chunk 无需处理
-            if (chunk.length == 0) {
+            if (chunk.size == 0) {
                 return if (hasBackpressure()) {
                     ResumableSinkBackpressure.BACKPRESSURE
                 } else {

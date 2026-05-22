@@ -18,7 +18,7 @@ import bao_core.*
 // ============================================================================
 
 /// memfd 计数器 (原子变量)
-/// 对应 Zig: var memfd_counter = std.atomic.Value(usize).init(0)
+/// 对应 Zig: var memfd_counter = std.atomic.Value(usize).`init`(0)
 private var memfdCounter: AtomicUInt64 = AtomicUInt64(0)
 
 /// Linux memfd 分配器

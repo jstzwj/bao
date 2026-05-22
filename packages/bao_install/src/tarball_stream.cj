@@ -23,6 +23,15 @@ public enum TarballPhase {
     | WantHeader   // 调用 archive_read_next_header
     | WantData     // 写入文件体数据
     | Done         // 完成
+
+    public operator func ==(right: TarballPhase): Bool {
+        match (this) {
+            case WantHeader => match (right) { case WantHeader => true case _ => false }
+            case WantData => match (right) { case WantData => true case _ => false }
+            case Done => match (right) { case Done => true case _ => false }
+        }
+    }
+    public operator func !=(right: TarballPhase): Bool { !(this == right) }
 }
 
 // ============================================================================
@@ -38,6 +47,16 @@ public enum FileKind {
     | Directory
     | SymLink
     | Other
+
+    public operator func ==(right: FileKind): Bool {
+        match (this) {
+            case File => match (right) { case File => true case _ => false }
+            case Directory => match (right) { case Directory => true case _ => false }
+            case SymLink => match (right) { case SymLink => true case _ => false }
+            case Other => match (right) { case Other => true case _ => false }
+        }
+    }
+    public operator func !=(right: FileKind): Bool { !(this == right) }
 }
 
 // ============================================================================
@@ -55,6 +74,18 @@ public enum ArchiveResult {
     | Eof
     | Failed
     | Fatal
+
+    public operator func ==(right: ArchiveResult): Bool {
+        match (this) {
+            case Ok => match (right) { case Ok => true case _ => false }
+            case Warn => match (right) { case Warn => true case _ => false }
+            case Retry => match (right) { case Retry => true case _ => false }
+            case Eof => match (right) { case Eof => true case _ => false }
+            case Failed => match (right) { case Failed => true case _ => false }
+            case Fatal => match (right) { case Fatal => true case _ => false }
+        }
+    }
+    public operator func !=(right: ArchiveResult): Bool { !(this == right) }
 }
 
 // ============================================================================
@@ -150,33 +181,31 @@ public class ArchiveReader {
     /// 读取下一个头
     /// 翻译自: archive.readNextHeader
     public func readNextHeader(entry: ArchiveEntry): ArchiveResult {
-        match (tarballStream) {
-            case Some(stream) =>
-                if (stream.reading.size <= stream.readPos) {
-                    return ArchiveResult.Retry
-                }
-                // 简化: 解析 tar 头
-                // 实际实现由 libarchive 完成
-                return ArchiveResult.Ok
-            case None => return ArchiveResult.Failed
+        if (tarballStream.isSome()) {
+            let stream = tarballStream.getOrThrow()
+            if (stream.pending.size <= 0) {
+                return ArchiveResult.Retry
+            }
+            return ArchiveResult.Ok
         }
+        return ArchiveResult.Failed
     }
 
     /// 读取下一个数据块
     /// 翻译自: archive.next / archive_read_data_block
     public func next(offset: Ref<Int64>): ?ArchiveBlock {
-        match (tarballStream) {
-            case Some(stream) =>
-                if (stream.reading.size <= stream.readPos) {
-                    return None  // 数据结束
-                }
-                // 简化: 返回当前数据块
-                let block = ArchiveBlock()
-                offset.value = 0
-                block.result = ArchiveResult.Ok
-                return block
-            case None => return None
+        if (tarballStream.isNone()) {
+            return None
         }
+        let stream = tarballStream.getOrThrow()
+        if (stream.pending.size <= 0) {
+            return None  // 数据结束
+        }
+        // 简化: 返回当前数据块
+        let block = ArchiveBlock()
+        offset.value = 0
+        block.result = ArchiveResult.Ok
+        return block
     }
 
     /// 读取回调
@@ -184,30 +213,20 @@ public class ArchiveReader {
     ///   从 reading 缓冲区提供数据给 libarchive
     ///   返回可读字节数, 或 ARCHIVE_RETRY (需要更多数据), 或 0 (EOF)
     public func readCallback(): Int64 {
-        match (tarballStream) {
-            case Some(stream) =>
-                let remaining = stream.reading.size - stream.readPos
-                if (remaining > 0) {
-                    return remaining
-                }
-
-                // 没有更多数据, 检查 pending
-                let hasPending = stream.pending.size > 0
-                if (hasPending) {
-                    stream.takePending()
-                    let again = stream.reading.size - stream.readPos
-                    if (again > 0) { return again }
-                }
-
-                // 检查是否已关闭
-                if (stream.closed) {
-                    return Int64(0)  // EOF
-                }
-
-                // 告诉 libarchive 重试
-                return Int64(-30)  // ARCHIVE_RETRY
-            case None => return Int64(0)
+        if (tarballStream.isNone()) { return Int64(0) }
+        let stream = tarballStream.getOrThrow()
+        let remaining = stream.pending.size
+        if (remaining > 0) {
+            return Int64(remaining)
         }
+
+        // 检查是否已关闭
+        if (stream.closed) {
+            return Int64(0)  // EOF
+        }
+
+        // 告诉 libarchive 重试
+        return Int64(-30)  // ARCHIVE_RETRY
     }
 
     /// 关闭归档
@@ -351,7 +370,7 @@ public class TarballStream {
 
     /// 包管理器
     /// 翻译自: package_manager: *PackageManager
-    public var packageManager: ?PackageManagerRef
+    public var packageManager: ?TsPackageManagerRef
 
     // ===== 跳过验证标志 =====
 
@@ -400,10 +419,10 @@ public class TarballStream {
     /// 翻译自: TarballStream.init
     ///   pub fn init(allocator, extract_task, network_task, manager) *TarballStream
     ///   根据 resolution tag 决定是否计算完整性哈希
-    public static func init(
+    public static func `init`(
         extractTask: ExtractTask,
         networkTask: NetworkTaskRef,
-        manager: PackageManagerRef
+        manager: TsPackageManagerRef
     ): TarballStream {
         let stream = TarballStream()
         stream.extractTask = Some(extractTask)
@@ -430,18 +449,9 @@ public class TarballStream {
     /// 翻译自: TarballStream.deinit
     ///   pub fn deinit(this: *TarballStream) void
     public func deinit(): Unit {
-        match (outFd) {
-            case Some(fd) => fd.close()
-            case None => ()
-        }
-        match (dest) {
-            case Some(d) => d.close()
-            case None => ()
-        }
-        match (archive) {
-            case Some(a) => a.close()
-            case None => ()
-        }
+        if (outFd.isSome()) { outFd.getOrThrow().close() }
+        if (dest.isSome()) { dest.getOrThrow().close() }
+        if (archive.isSome()) { archive.getOrThrow().close() }
         pending.clear()
         reading.clear()
         tmpname = ""
@@ -454,12 +464,15 @@ public class TarballStream {
     ///   小于此大小的 tarball 使用缓冲方式
     ///   从 BUN_INSTALL_STREAMING_MIN_SIZE 环境变量读取, 默认 512KB
     public static func minSize(): Int64 {
-        let envVal = EnvVar.get("BUN_INSTALL_STREAMING_MIN_SIZE")
-        if (envVal.size > 0) {
-            let parsed = Int64.parse(envVal)
-            match (parsed) {
-                case Some(v) => return v
-                case None => ()
+        let envValOpt = EnvVar.get("BUN_INSTALL_STREAMING_MIN_SIZE")
+        if (envValOpt.isSome()) {
+            let envVal = envValOpt.getOrThrow()
+            if (envVal.size > 0) {
+                try {
+                    return IntParser.parseInt(envVal, 10)
+                } catch (_: Exception) {
+                    // fall through to default
+                }
             }
         }
         return 1024 * 512  // 512KB 默认
@@ -480,10 +493,7 @@ public class TarballStream {
             bytesReceived += chunk.size
         }
         if (isLast) { closed = true }
-        match (err) {
-            case Some(e) => httpErr = e
-            case None => ()
-        }
+        if (err.isSome()) { httpErr = err.getOrThrow() }
         mutex.unlock()
 
         scheduleDrain()
@@ -518,20 +528,18 @@ public class TarballStream {
     ///   4. 如果完成或出错, 调用 finish()
     public func drain(): Unit {
         while (true) {
-            if (fail == None && phase != TarballPhase.Done) {
+            if (fail .isNone() && phase != TarballPhase.Done) {
                 // 获取 pending 数据
                 let more = takePending()
 
                 // 执行 libarchive 步骤
                 let stepResult = step()
-                match (stepResult) {
-                    case Some(err) =>
-                        fail = err
-                        closeOutputFile()
-                    case None => ()
+                if (stepResult.isSome()) {
+                    fail = stepResult.getOrThrow()
+                    closeOutputFile()
                 }
 
-                if (fail == None && phase != TarballPhase.Done) {
+                if (fail .isNone() && phase != TarballPhase.Done) {
                     if (more) { continue }
 
                     // libarchive 消费了所有数据, 释放工作线程
@@ -555,7 +563,7 @@ public class TarballStream {
 
             // 对 libarchive 处理完毕后到达的尾部字节计算哈希
             mutex.lock()
-            if (fail == None && pending.size > 0) {
+            if (fail .isNone() && pending.size > 0) {
                 hasher.updateFromList(pending)
             }
             pending.clear()
@@ -564,12 +572,10 @@ public class TarballStream {
             mutex.unlock()
 
             // HTTP 错误不应覆盖成功的提取结果
-            match (streamHttpErr) {
-                case Some(e) =>
-                    if (fail == None && phase != TarballPhase.Done) {
-                        fail = e
-                    }
-                case None => ()
+            if (streamHttpErr.isSome()) {
+                if (fail .isNone() && phase != TarballPhase.Done) {
+                    fail = streamHttpErr.getOrThrow()
+                }
             }
 
             if (streamClosed) {
@@ -645,72 +651,73 @@ public class TarballStream {
     ///   - done: 完成
     public func step(): ?String {
         // 首次打开归档
-        if (archive == None) {
+        if (archive .isNone()) {
             let openResult = openArchive()
-            match (openResult) {
-                case Some(err) => return err
-                case None => ()
-            }
+            if (openResult.isSome()) { return openResult.getOrThrow() }
         }
 
         // 首次打开目标目录
-        if (dest == None) {
+        if (dest .isNone()) {
             let destResult = openDestination()
-            match (destResult) {
-                case Some(err) => return err
-                case None => ()
-            }
+            if (destResult.isSome()) { return destResult.getOrThrow() }
         }
 
-        let reader = archive.unwrap()
+        let reader = archive.getOrThrow()
 
+        var loopResult: ?String = None
         while (true) {
-            match (phase) {
-                case TarballPhase.Done => return None
-                case TarballPhase.WantHeader =>
-                    let entry = ArchiveEntry()
-                    let headerResult = reader.readNextHeader(entry)
-                    match (headerResult) {
-                        case ArchiveResult.Retry => return None  // 需要更多数据
-                        case ArchiveResult.Eof =>
-                            phase = TarballPhase.Done
-                            return None
-                        case ArchiveResult.Ok | ArchiveResult.Warn =>
-                            let beginResult = beginEntry(entry)
-                            match (beginResult) {
-                                case Some(err) => return err
-                                case None => ()
-                            }
-                        case ArchiveResult.Failed | ArchiveResult.Fatal =>
-                            return "readNextHeader failed: ${reader.errorString()}"
+            if (phase == TarballPhase.Done) {
+                loopResult = None
+                break
+            }
+            if (phase == TarballPhase.WantHeader) {
+                let entry = ArchiveEntry()
+                let headerResult = reader.readNextHeader(entry)
+                if (headerResult == ArchiveResult.Retry) {
+                    loopResult = None
+                    break  // 需要更多数据
+                }
+                if (headerResult == ArchiveResult.Eof) {
+                    phase = TarballPhase.Done
+                    loopResult = None
+                    break
+                }
+                if (headerResult == ArchiveResult.Ok || headerResult == ArchiveResult.Warn) {
+                    let beginResult = beginEntry(entry)
+                    if (beginResult.isSome()) { loopResult = beginResult; break }
+                }
+                if (headerResult == ArchiveResult.Failed || headerResult == ArchiveResult.Fatal) {
+                    loopResult = Some("readNextHeader failed: ${reader.errorString()}")
+                    break
+                }
+            }
+            if (phase == TarballPhase.WantData) {
+                let offset = Ref<Int64>(Int64(0))
+                let block = reader.next(offset)
+                if (block.isNone()) {
+                    // 数据结束, 关闭输出文件
+                    closeOutputFile()
+                    phase = TarballPhase.WantHeader
+                } else {
+                    let blk = block.getOrThrow()
+                    if (blk.result == ArchiveResult.Retry) {
+                        loopResult = None
+                        break  // 需要更多数据
                     }
-                case TarballPhase.WantData =>
-                    let offset = Ref<Int64>(Int64(0))
-                    let block = reader.next(offset)
-                    match (block) {
-                        case None =>
-                            // 数据结束, 关闭输出文件
-                            closeOutputFile()
-                            phase = TarballPhase.WantHeader
-                        case Some(blk) =>
-                            match (blk.result) {
-                                case ArchiveResult.Retry => return None  // 需要更多数据
-                                case ArchiveResult.Ok | ArchiveResult.Warn =>
-                                    match (outFd) {
-                                        case Some(fd) =>
-                                            let writeResult = writeDataBlock(fd, blk)
-                                            match (writeResult) {
-                                                case Some(err) => return err
-                                                case None => ()
-                                            }
-                                        case None => ()
-                                    }
-                                case _ =>
-                                    return "read_data_block failed: ${reader.errorString()}"
-                            }
+                    if (blk.result == ArchiveResult.Ok || blk.result == ArchiveResult.Warn) {
+                        if (outFd.isSome()) {
+                            let writeResult = writeDataBlock(outFd.getOrThrow(), blk)
+                            if (writeResult.isSome()) { loopResult = writeResult; break }
+                        }
                     }
+                    if (blk.result == ArchiveResult.Failed || blk.result == ArchiveResult.Fatal) {
+                        loopResult = Some("read_data_block failed: ${reader.errorString()}")
+                        break
+                    }
+                }
             }
         }
+        return loopResult
     }
 
     /// 打开归档
@@ -721,17 +728,16 @@ public class TarballStream {
     public func openArchive(): ?String {
         let reader = ArchiveReader()
         let result = reader.open(this)
-        match (result) {
-            case ArchiveResult.Ok | ArchiveResult.Warn =>
-                archive = Some(reader)
-                return None
-            case ArchiveResult.Retry =>
-                // 过滤器投标已跳过, 但客户端打开路径可能仍会探测
-                archive = Some(reader)
-                return None
-            case _ =>
-                return "archive_read_open failed: ${reader.errorString()}"
+        if (result == ArchiveResult.Ok || result == ArchiveResult.Warn) {
+            archive = Some(reader)
+            return None
         }
+        if (result == ArchiveResult.Retry) {
+            // 过滤器投标已跳过, 但客户端打开路径可能仍会探测
+            archive = Some(reader)
+            return None
+        }
+        return "archive_read_open failed: ${reader.errorString()}"
     }
 
     /// 打开目标临时目录
@@ -740,18 +746,21 @@ public class TarballStream {
     ///   在 tarball.temp_dir 中创建随机命名的临时目录
     public func openDestination(): ?String {
         let basename = "tarball-extract"
-        let tmpnameVal = FileSystem.tmpname(basename, String.fromUInt64(FastRandom.next()))
+        let tmpnameVal = FileSystem.tmpname(basename, FastRandom.next())
         this.tmpname = tmpnameVal
 
-        let extractTask = this.extractTask
-        match (extractTask) {
-            case Some(task) =>
-                let tempDir = task.tarball.tempDir
-                dest = Some(TarballFd.makeDir(tempDir, tmpname))
-                return None
-            case None =>
-                return "no extract task"
+        if (extractTask.isSome()) {
+            let task = extractTask.getOrThrow()
+            let tempDirOpt = task.tarball.tempDir
+            if (tempDirOpt.isSome()) {
+                let tempDirPath = tempDirOpt.getOrThrow().path
+                dest = Some(TarballFd.makeDir(tempDirPath, tmpname))
+            } else {
+                dest = Some(TarballFd(tmpname))
+            }
+            return None
         }
+        return "no extract task"
     }
 
     /// 关闭输出文件
@@ -760,15 +769,14 @@ public class TarballStream {
     ///   处理稀疏文件尾部空洞: 如果 final_offset > actual_offset,
     ///   使用 ftruncate 扩展文件
     public func closeOutputFile(): Unit {
-        match (outFd) {
-            case Some(fd) =>
-                // 稀疏文件尾部处理
-                if (entryFinalOffset > entryActualOffset) {
-                    fd.ftruncate(entryFinalOffset)
-                }
-                fd.close()
-                outFd = None
-            case None => ()
+        if (outFd.isSome()) {
+            let fd = outFd.getOrThrow()
+            // 稀疏文件尾部处理
+            if (entryFinalOffset > entryActualOffset) {
+                fd.ftruncate(entryFinalOffset)
+            }
+            fd.close()
+            outFd = None
         }
     }
 
@@ -786,11 +794,10 @@ public class TarballStream {
         // GitHub tarball: 提取第一个目录名
         if (wantFirstDirname) {
             wantFirstDirname = false
-            let rootIt = StringSplitter.split(pathname, "/")
-            match (rootIt.next()) {
-                case Some(root) =>
-                    resolvedGithubDirname = root
-                case None => ()
+            let rootIt = TsStringSplitter.split(pathname, "/")
+            let rootOpt = rootIt.next()
+            if (rootOpt.isSome()) {
+                resolvedGithubDirname = rootOpt.getOrThrow()
             }
         }
 
@@ -804,13 +811,12 @@ public class TarballStream {
         }
 
         // 剥离前导目录组件 (package/ 或 repo-sha/)
-        let tokenizer = StringSplitter.split(pathname, "/")
-        match (tokenizer.next()) {
-            case None =>
-                phase = TarballPhase.WantData
-                outFd = None
-                return None
-            case Some(_) => ()
+        let tokenizer = TsStringSplitter.split(pathname, "/")
+        let firstOpt = tokenizer.next()
+        if (firstOpt.isNone()) {
+            phase = TarballPhase.WantData
+            outFd = None
+            return None
         }
         let rest = tokenizer.rest()
         pathname = rest
@@ -833,40 +839,39 @@ public class TarballStream {
             }
         }
 
-        let destFd = dest.unwrap()
+        let destFd = dest.getOrThrow()
 
-        match (kind) {
-            case FileKind.Directory =>
-                makeDirectory(entry, destFd, normalized)
-                phase = TarballPhase.WantData
-                outFd = None
-            case FileKind.SymLink =>
-                makeSymlink(entry, destFd, normalized)
-                phase = TarballPhase.WantData
-                outFd = None
-            case FileKind.File =>
-                let mode: UInt32 = UInt32(entry.perm) | UInt32(0o666)
-                let fd = openOutputFile(destFd, normalized, mode)
-                match (fd) {
-                    case Some(openedFd) =>
-                        outFd = Some(openedFd)
-                        entryCount = entryCount + UInt32(1)
+        if (kind == FileKind.Directory) {
+            makeDirectory(entry, destFd, normalized)
+            phase = TarballPhase.WantData
+            outFd = None
+        } else if (kind == FileKind.SymLink) {
+            makeSymlink(entry, destFd, normalized)
+            phase = TarballPhase.WantData
+            outFd = None
+        } else if (kind == FileKind.File) {
+            let mode: UInt32 = UInt32(entry.perm) | UInt32(0o666)
+            let fd = openOutputFile(destFd, normalized, mode)
+            if (fd.isSome()) {
+                let openedFd = fd.getOrThrow()
+                outFd = Some(openedFd)
+                entryCount = entryCount + UInt32(1)
 
-                        // Linux: 大文件预分配空间
-                        if (entry.size > 1000000) {
-                            openedFd.preallocate(entry.size)
-                        }
-
-                        entryActualOffset = 0
-                        entryFinalOffset = 0
-                        phase = TarballPhase.WantData
-                    case None =>
-                        phase = TarballPhase.WantData
-                        outFd = None
+                // Linux: 大文件预分配空间
+                if (entry.size > 1000000) {
+                    openedFd.preallocate(entry.size)
                 }
-            case FileKind.Other =>
+
+                entryActualOffset = 0
+                entryFinalOffset = 0
+                phase = TarballPhase.WantData
+            } else {
                 phase = TarballPhase.WantData
                 outFd = None
+            }
+        } else {
+            phase = TarballPhase.WantData
+            outFd = None
         }
 
         return None
@@ -879,17 +884,14 @@ public class TarballStream {
     private func openOutputFile(destFd: TarballFd, path: String, mode: UInt32): ?TarballFd {
         let flags = TarballFd.WRONLY | TarballFd.CREAT | TarballFd.TRUNC
         let result = TarballFd.openat(destFd, path, flags, mode)
-        match (result) {
-            case Some(fd) => return Some(fd)
-            case None =>
-                // 可能父目录不存在, 尝试创建
-                let parentDir = Path.dirname(path)
-                if (parentDir.size > 0) {
-                    destFd.makePath(parentDir)
-                    return TarballFd.openat(destFd, path, flags, mode)
-                }
-                return None
+        if (result.isSome()) { return result }
+        // 可能父目录不存在, 尝试创建
+        let parentDir = Path.dirname(path)
+        if (parentDir.size > 0) {
+            destFd.makePath(parentDir)
+            return TarballFd.openat(destFd, path, flags, mode)
         }
+        return None
     }
 
     /// 创建目录
@@ -915,7 +917,7 @@ public class TarballStream {
         if (target.size == 0 || target.startsWith("/")) { return }
         // 拒绝逃逸路径
         let symlinkDir = Path.dirname(path)
-        let resolved = Path.joinAbs("/packages/", [symlinkDir, target])
+        let resolved = Path.join([symlinkDir, target])
         if (!resolved.startsWith("/packages/")) { return }
 
         destFd.symlinkat(target, path)
@@ -940,16 +942,14 @@ public class TarballStream {
         // POSIX: 尝试 pwrite
         if (usePwrite) {
             let pwriteResult = fd.pwriteAll(data, block.offset)
-            match (pwriteResult) {
-                case Some(_) =>
-                    entryActualOffset = Math.max(
-                        entryActualOffset,
-                        block.offset + Int64(data.size)
-                    )
-                    return None
-                case None =>
-                    usePwrite = false
+            if (pwriteResult.isSome()) {
+                entryActualOffset = Math.max(
+                    entryActualOffset,
+                    block.offset + Int64(data.size)
+                )
+                return None
             }
+            usePwrite = false
         }
 
         // 如果偏移量不匹配, 需要 seek 或填充零
@@ -989,21 +989,17 @@ public class TarballStream {
         populateResult()
 
         // 失败时清理临时目录
-        match (extractTask) {
-            case Some(task) =>
-                if (task.status != "success" && tmpname.size > 0) {
-                    match (dest) {
-                        case Some(d) =>
-                            d.close()
-                            dest = None
-                        case None => ()
-                    }
-                    match (task.tarball.tempDir) {
-                        case Some(tempDir) => tempDir.deleteTree(tmpname)
-                        case None => ()
-                    }
+        if (extractTask.isSome()) {
+            let task = extractTask.getOrThrow()
+            if (task.status != "success" && tmpname.size > 0) {
+                if (dest.isSome()) {
+                    dest.getOrThrow().close()
+                    dest = None
                 }
-            case None => ()
+                if (task.tarball.tempDir.isSome()) {
+                    task.tarball.tempDir.getOrThrow().deleteTree(tmpname)
+                }
+            }
         }
 
         deinit()
@@ -1018,65 +1014,56 @@ public class TarballStream {
     ///   4. 将临时目录移动到缓存目录
     ///   5. 设置最终完整性信息
     public func populateResult(): Unit {
-        match (extractTask) {
-            case Some(task) =>
-                // 检查提取错误
-                match (fail) {
-                    case Some(err) =>
+        if (extractTask.isSome()) {
+            let task = extractTask.getOrThrow()
+
+            // 检查提取错误
+            if (fail.isSome()) {
+                task.status = "fail"
+                task.err = fail.getOrThrow()
+                return
+            }
+
+            // 验证完整性
+            if (!skipVerify) {
+                let tag = hasher.getIntegrityTag()
+                let isSupported = tag.isSupported()
+                if (isSupported) {
+                    if (!hasher.verify()) {
                         task.status = "fail"
-                        task.err = err
+                        task.err = "Integrity check failed for tarball"
                         return
-                    case None => ()
-                }
-
-                // 验证完整性
-                if (!skipVerify) {
-                    let tag = hasher.integrityTag()
-                    let isSupported = tag.isSupported()
-                    if (isSupported) {
-                        if (!hasher.verify()) {
-                            task.status = "fail"
-                            task.err = "Integrity check failed for tarball"
-                            return
-                        }
                     }
                 }
+            }
 
-                // GitHub tarball: 写入 .bun-tag
-                if (resolutionTag == "github" && resolvedGithubDirname.size > 0) {
-                    match (dest) {
-                        case Some(d) =>
-                            d.writeFile(".bun-tag", resolvedGithubDirname)
-                        case None => ()
-                    }
+            // GitHub tarball: 写入 .bun-tag
+            if (resolutionTag == "github" && resolvedGithubDirname.size > 0) {
+                if (dest.isSome()) {
+                    dest.getOrThrow().writeFile(".bun-tag", resolvedGithubDirname)
+                }
+            }
+
+            // 关闭目标目录 (在重命名之前)
+            if (dest.isSome()) {
+                dest.getOrThrow().close()
+                dest = None
+            }
+
+            // 移动到缓存目录
+            let moveResult = moveToCacheDirectory(task, tmpname, resolvedGithubDirname)
+            if (moveResult.isSome()) {
+                task.status = "fail"
+                task.err = moveResult.getOrThrow()
+            } else {
+                // 设置完整性信息
+                if (resolutionTag == "github" || resolutionTag == "remote_tarball" || resolutionTag == "local_tarball") {
+                    let integrity = hasher.finalIntegrity()
+                    task.integrity = integrity
                 }
 
-                // 关闭目标目录 (在重命名之前)
-                match (dest) {
-                    case Some(d) =>
-                        d.close()
-                        dest = None
-                    case None => ()
-                }
-
-                // 移动到缓存目录
-                let moveResult = moveToCacheDirectory(task, tmpname, resolvedGithubDirname)
-                match (moveResult) {
-                    case Some(err) =>
-                        task.status = "fail"
-                        task.err = err
-                    case None =>
-                        // 设置完整性信息
-                        match (resolutionTag) {
-                            case "github" | "remote_tarball" | "local_tarball" =>
-                                let integrity = hasher.finalIntegrity()
-                                task.integrity = integrity
-                            case _ => ()
-                        }
-
-                        task.status = "success"
-                }
-            case None => ()
+                task.status = "success"
+            }
         }
     }
 
@@ -1115,7 +1102,7 @@ public class StreamingIntegrity {
     private var expectedHash: ?String
     private var computeIfMissing: Bool
     private var totalBytes: Int64
-    private var integrityTag: IntegrityTag
+    private var integrityTag: TsIntegrityTag
     private var computedHash: String
 
     public init() {
@@ -1123,7 +1110,7 @@ public class StreamingIntegrity {
         expectedHash = None
         computeIfMissing = false
         totalBytes = 0
-        integrityTag = IntegrityTag.Unknown
+        integrityTag = TsIntegrityTag.Unknown
         computedHash = ""
     }
 
@@ -1132,7 +1119,7 @@ public class StreamingIntegrity {
         this.expectedHash = expectedHash
         this.computeIfMissing = computeIfMissing
         totalBytes = 0
-        integrityTag = IntegrityTag.SHA512
+        integrityTag = TsIntegrityTag.SHA512
         computedHash = ""
     }
 
@@ -1156,14 +1143,13 @@ public class StreamingIntegrity {
     /// 翻译自: Integrity.Streaming.verify
     ///   将计算的哈希与预期哈希比较
     public func verify(): Bool {
-        match (expectedHash) {
-            case Some(expected) =>
-                let actual = finalHash()
-                return actual == expected
-            case None =>
-                // 没有预期哈希, 无需验证
-                return true
+        if (expectedHash.isSome()) {
+            let expected = expectedHash.getOrThrow()
+            let actual = finalHash()
+            return actual == expected
         }
+        // 没有预期哈希, 无需验证
+        return true
     }
 
     /// 获取最终哈希值
@@ -1175,19 +1161,19 @@ public class StreamingIntegrity {
     }
 
     /// 获取完整性标签
-    public func integrityTag(): IntegrityTag {
+    public func getIntegrityTag(): TsIntegrityTag {
         return integrityTag
     }
 
     /// 获取最终完整性信息
     /// 翻译自: Integrity.Streaming.final
-    public func finalIntegrity(): IntegrityInfo {
-        return IntegrityInfo(integrityTag, finalHash())
+    public func finalIntegrity(): TsIntegrityInfo {
+        return TsIntegrityInfo(integrityTag, finalHash())
     }
 }
 
-/// 完整性标签
-public enum IntegrityTag {
+/// 完整性标签 (tarball_stream 本地版本)
+public enum TsIntegrityTag {
     | Unknown
     | SHA1
     | SHA256
@@ -1206,16 +1192,16 @@ public enum IntegrityTag {
 }
 
 /// 完整性信息
-public class IntegrityInfo {
-    public var tag: IntegrityTag
+public class TsIntegrityInfo {
+    public var tag: TsIntegrityTag
     public var value: String
 
     public init() {
-        tag = IntegrityTag.Unknown
+        tag = TsIntegrityTag.Unknown
         value = ""
     }
 
-    public init(tag: IntegrityTag, value: String) {
+    public init(tag: TsIntegrityTag, value: String) {
         this.tag = tag
         this.value = value
     }
@@ -1241,13 +1227,13 @@ public class Sha512State {
 
     public func finalize(): String {
         // 简化: 返回基于内容的十六进制哈希
-        var h1: UInt64 = UInt64(0x6a09e667f3bcc908)
-        var h2: UInt64 = UInt64(0xbb67ae8584caa73b)
+        var h1: UInt64 = 0x6a09e667f3bcc908u64
+        var h2: UInt64 = 0xbb67ae8584caa73bu64
         for (i in 0..bytes.size) {
             h1 = h1 * UInt64(31) + UInt64(bytes[Int64(i)])
             h2 = h2 * UInt64(37) + UInt64(bytes[Int64(i)])
         }
-        return "sha512-${HexUtil.toHex(h1)}${HexUtil.toHex(h2)}"
+        return "sha512-${TsHexUtil.toHex(h1)}${TsHexUtil.toHex(h2)}"
     }
 }
 
@@ -1263,7 +1249,7 @@ public class TarballFd {
     public static let CREAT: UInt32 = UInt32(64)
     public static let TRUNC: UInt32 = UInt32(512)
 
-    private var path: String
+    public var path: String
     private var isOpen: Bool
 
     public init(path: String) {
@@ -1360,13 +1346,13 @@ public class ExtractTask {
     /// 错误信息
     public var err: ?String
     /// 完整性信息
-    public var integrity: IntegrityInfo
+    public var integrity: TsIntegrityInfo
 
     public init() {
         tarball = TarballInfo()
         status = "pending"
         err = None
-        integrity = IntegrityInfo()
+        integrity = TsIntegrityInfo()
     }
 }
 
@@ -1399,9 +1385,9 @@ public class NetworkTaskRef {
     public init() {}
 }
 
-/// 包管理器引用
+/// 包管理器引用 (tarball_stream 本地版本)
 /// 翻译自: install.PackageManager
-public class PackageManagerRef {
+public class TsPackageManagerRef {
     public init() {}
 }
 
@@ -1445,8 +1431,8 @@ public class FastRandom {
     }
 }
 
-/// 字符串分割迭代器 (重用 hosted_git_info.cj 中的定义)
-public class StringSplitter {
+/// 字符串分割迭代器 (tarball_stream 本地版本)
+public class TsStringSplitter {
     private var str: String
     private var delimiter: String
     private var pos: Int64
@@ -1457,23 +1443,22 @@ public class StringSplitter {
         pos = 0
     }
 
-    public static func split(str: String, delimiter: String): StringSplitter {
-        return StringSplitter(str, delimiter)
+    public static func split(str: String, delimiter: String): TsStringSplitter {
+        return TsStringSplitter(str, delimiter)
     }
 
     public func next(): ?String {
         if (pos >= str.size) { return None }
         let idx = str.indexOf(delimiter, pos)
-        match (idx) {
-            case Some(i) =>
-                let result = str[pos..i]
-                pos = i + Int64(delimiter.size)
-                return result
-            case None =>
-                let result = str[pos..]
-                pos = str.size
-                return result
+        if (idx.isSome()) {
+            let i = idx.getOrThrow()
+            let result = str[pos..i]
+            pos = i + Int64(delimiter.size)
+            return result
         }
+        let result = str[pos..]
+        pos = str.size
+        return result
     }
 
     /// 获取剩余未分割的部分
@@ -1488,12 +1473,12 @@ public class FileSystem {
     /// 生成临时文件名
     /// 翻译自: FileSystem.tmpname
     public static func tmpname(basename: String, random: UInt64): String {
-        return "${basename}-${HexUtil.toHex(random)}"
+        return "${basename}-${TsHexUtil.toHex(random)}"
     }
 }
 
-/// 十六进制工具
-public class HexUtil {
+/// 十六进制工具 (tarball_stream 本地版本)
+public class TsHexUtil {
     /// 将 UInt64 转为十六进制字符串
     public static func toHex(value: UInt64): String {
         let hexChars = "0123456789abcdef"

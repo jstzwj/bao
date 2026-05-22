@@ -76,7 +76,7 @@ public class ShellCompletions {
         }
 
         // fish 使用空格分隔，其他使用换行
-        let delimiter = if (shell == Shell.fish) " " else "\n"
+        let delimiter = if (shell == Shell.fish) { " " } else { "\n" }
 
         // 第一个命令
         Output.write(commands[0])

@@ -821,8 +821,8 @@ public class StandaloneModuleGraph {
                 totalCap += outputFile.buffer.size
             } else if (outputFile.outputKind.isFileInStandaloneMode()) {
                 // 入口点检测
-                if (entryPointId == None) {
-                    if (outputFile.side == None || outputFile.side == FileSide.Server) {
+                if (entryPointId.isNone()) {
+                    if (outputFile.side.isNone() || outputFile.side == FileSide.Server) {
                         if (outputFile.outputKind == OutputKind.EntryPoint) {
                             entryPointId = moduleCount
                         }
@@ -833,7 +833,7 @@ public class StandaloneModuleGraph {
             }
         }
 
-        if (moduleCount == 0 || entryPointId == None) {
+        if (moduleCount == 0 || entryPointId.isNone()) {
             return []
         }
 
@@ -937,7 +937,7 @@ public class StandaloneModuleGraph {
             // 此处预留结构，实际实现在 serializeJsonSourceMapForStandalone 中
 
             // 确定文件端
-            let fileSide = if (outputFile.side == None) {
+            let fileSide = if (outputFile.side.isNone()) {
                 FileSide.Server
             } else {
                 outputFile.side.getOrThrow()
@@ -1289,10 +1289,10 @@ public class CompileResult {
 
     /// 获取错误描述 - 对应 Bun CompileResult.Error.slice()
     public func errorSlice(): String {
-        if (errorMessage != None) {
+        if (errorMessage.isSome()) {
             return errorMessage.getOrThrow()
         }
-        if (errorReason != None) {
+        if (errorReason.isSome()) {
             return errorReason.getOrThrow().message()
         }
         return ""

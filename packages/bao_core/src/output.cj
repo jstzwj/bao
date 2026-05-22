@@ -85,7 +85,7 @@ public class OutputSource {
         this.initialized = false
     }
 
-    /// 初始化 - 对应 Bun Source.init()
+    /// 初始化 - 对应 Bun Source()
     /// pub fn init(out: *Source, stream: StreamType, err_stream: StreamType) void { ... }
     public func initFunc(): Unit {
         initialized = true
@@ -807,3 +807,4 @@ public class TerminalSize {
         this.ypixel = 0
     }
 }
+

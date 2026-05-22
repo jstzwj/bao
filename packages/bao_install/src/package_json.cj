@@ -126,119 +126,8 @@ public enum VersionTag {
     | Workspace      // workspace 协议
 }
 
-/// Bin 字段类型
-/// 严格翻译自: src/install/bin.zig Bin
-public class PackageBin {
-    /// bin 类型
-    public var tag: BinTag
-    /// 单文件路径 (tag == File)
-    public var filePath: ?String
-    /// 命名文件 (tag == NamedFile)
-    public var name: ?String
-    public var namedPath: ?String
-    /// 目录 (tag == Dir)
-    public var dirPath: ?String
-    /// 映射 (tag == Map)
-    public var binMap: HashMap<String, String>
-
-    public init() {
-        tag = BinTag.None
-        filePath = None
-        name = None
-        namedPath = None
-        dirPath = None
-        binMap = HashMap<String, String>()
-    }
-
-    private static func parseBinString(path: String, result: PackageBin): Unit {
-        if (!path.isEmpty()) {
-            result.tag = BinTag.File
-            result.filePath = Some(path)
-        }
-    }
-
-    private static func parseBinObject(obj: HashMap<String, JsonValue>, result: PackageBin): Unit {
-        let keys = obj.keys()
-        if (keys.size == 1) {
-            result.tag = BinTag.NamedFile
-            result.name = Some(keys[0])
-            match (obj.get(keys[0])) {
-                case Some(JsonValue.Str(v)) => result.namedPath = Some(v)
-                case _ => ()
-            }
-        } else if (keys.size > 1) {
-            result.tag = BinTag.Map
-            for (key in keys) {
-                match (obj.get(key)) {
-                    case Some(JsonValue.Str(v)) => result.binMap.put(key, v)
-                    case _ => ()
-                }
-            }
-        }
-    }
-
-    /// 从 JSON 解析 bin 字段
-    // 严格翻译自: src/install/bin.zig Bin.parseAppend
-    public static func parse(binValue: ?JsonValue): PackageBin {
-        let result = PackageBin()
-        match (binValue) {
-            case Some(JsonValue.Str(path)) => parseBinString(path, result)
-            case Some(JsonValue.Object(obj)) => parseBinObject(obj, result)
-            case _ => ()
-        }
-        return result
-    }
-
-    /// 获取所有 bin 名称
-    public func getBinNames(): ArrayList<String> {
-        let names = ArrayList<String>()
-        match (tag) {
-            case BinTag.None => ()
-            case BinTag.File => names.append("<package-name>")
-            case BinTag.NamedFile => appendNameIfPresent(names)
-            case BinTag.Map => appendMapKeys(names)
-            case BinTag.Dir=> ()  // 遍历目录
-        }
-        return names
-    }
-
-    private func appendNameIfPresent(names: ArrayList<String>): Unit {
-        match (name) {
-            case Some(n) => names.append(n)
-            case None => ()
-        }
-    }
-
-    private func appendMapKeys(names: ArrayList<String>): Unit {
-        for (key in binMap.keys()) {
-            names.append(key)
-        }
-    }
-}
-
-/// Bin 类型枚举
-/// 严格翻译自: src/install/bin.zig Bin.Tag
-public enum BinTag {
-    | None
-    | File
-    | NamedFile
-    | Dir
-    | Map
-
-    public operator func ==(right: BinTag): Bool {
-        match (this) {
-            case None => match (right) { case None => true case _ => false }
-            case File => match (right) { case File => true case _ => false }
-            case NamedFile => match (right) { case NamedFile => true case _ => false }
-            case Dir => match (right) { case Dir => true case _ => false }
-            case Map => match (right) { case Map => true case _ => false }
-        }
-    }
-
-    public operator func !=(right: BinTag): Bool {
-        return !(this == right)
-    }
-}
+// NOTE: PackageBin defined in bin.cj (canonical)
+// NOTE: BinTag defined in bin.cj (canonical)
 
 /// 完整的 package.json 数据
 /// 严格翻译自: src/install/install.zig PackageJSON
@@ -347,27 +236,27 @@ public class PackageJson {
         pkg.raw = Some(json)
 
         // 基本字段
-        pkg.name = JsonHelper.getString(json, "name") ?? ""
-        pkg.version = JsonHelper.getString(json, "version") ?? "0.0.0"
-        pkg.description = JsonHelper.getString(json, "description") ?? ""
-        pkg.`main` = JsonHelper.getString(json, "main") ?? "index.js"
-        pkg.moduleEntry = JsonHelper.getString(json, "module")
-        pkg.types = JsonHelper.getString(json, "types")
+        pkg.name = PkgJsonHelper.getString(json, "name") ?? ""
+        pkg.version = PkgJsonHelper.getString(json, "version") ?? "0.0.0"
+        pkg.description = PkgJsonHelper.getString(json, "description") ?? ""
+        pkg.`main` = PkgJsonHelper.getString(json, "main") ?? "index.js"
+        pkg.moduleEntry = PkgJsonHelper.getString(json, "module")
+        pkg.types = PkgJsonHelper.getString(json, "types")
         match (pkg.types) {
             case Some(_) => ()
-            case None => pkg.types = JsonHelper.getString(json, "typings")
+            case None => pkg.types = PkgJsonHelper.getString(json, "typings")
         }
-        pkg.moduleType = JsonHelper.getString(json, "type") ?? "commonjs"
-        pkg.license = JsonHelper.getString(json, "license")
-        pkg.author = JsonHelper.getString(json, "author")
-        pkg.homepage = JsonHelper.getString(json, "homepage")
-        pkg.packageManager = JsonHelper.getString(json, "packageManager")
+        pkg.moduleType = PkgJsonHelper.getString(json, "type") ?? "commonjs"
+        pkg.license = PkgJsonHelper.getString(json, "license")
+        pkg.author = PkgJsonHelper.getString(json, "author")
+        pkg.homepage = PkgJsonHelper.getString(json, "homepage")
+        pkg.packageManager = PkgJsonHelper.getString(json, "packageManager")
 
         // exports
-        pkg.exports = JsonHelper.getField(json, "exports")
+        pkg.exports = PkgJsonHelper.getField(json, "exports")
 
         // imports
-        match (JsonHelper.getField(json, "imports")) {
+        match (PkgJsonHelper.getField(json, "imports")) {
             case Some(JsonValue.Object(obj)) =>
                 // Parse imports map - store as string map
                 for (key in obj.keys()) {
@@ -380,9 +269,12 @@ public class PackageJson {
         }
 
         // bin
-        pkg.bin = PackageBin.parse(JsonHelper.getField(json, "bin"))
+        match (PkgJsonHelper.getField(json, "bin")) {
+            case Some(binVal) => pkg.bin = PackageBin.parseFromJson(binVal)
+            case None => ()
+        }
         // 也检查 directories.bin
-        match (JsonHelper.getField(json, "directories")) {
+        match (PkgJsonHelper.getField(json, "directories")) {
             case Some(JsonValue.Object(dirs)) =>
                 match (dirs.get("bin")) {
                     case Some(JsonValue.Str(binDir)) =>
@@ -396,7 +288,7 @@ public class PackageJson {
         }
 
         // scripts
-        match (JsonHelper.getField(json, "scripts")) {
+        match (PkgJsonHelper.getField(json, "scripts")) {
             case Some(JsonValue.Object(obj)) =>
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
@@ -408,13 +300,13 @@ public class PackageJson {
         }
 
         // dependencies
-        pkg.dependencies = JsonHelper.getStringMap(json, "dependencies")
-        pkg.devDependencies = JsonHelper.getStringMap(json, "devDependencies")
-        pkg.peerDependencies = JsonHelper.getStringMap(json, "peerDependencies")
-        pkg.optionalDependencies = JsonHelper.getStringMap(json, "optionalDependencies")
+        pkg.dependencies = PkgJsonHelper.getStringMap(json, "dependencies")
+        pkg.devDependencies = PkgJsonHelper.getStringMap(json, "devDependencies")
+        pkg.peerDependencies = PkgJsonHelper.getStringMap(json, "peerDependencies")
+        pkg.optionalDependencies = PkgJsonHelper.getStringMap(json, "optionalDependencies")
 
         // trustedDependencies
-        match (JsonHelper.getField(json, "trustedDependencies")) {
+        match (PkgJsonHelper.getField(json, "trustedDependencies")) {
             case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
@@ -426,26 +318,26 @@ public class PackageJson {
         }
 
         // cpu, os
-        pkg.cpu = JsonHelper.getStringArray(json, "cpu")
-        pkg.os = JsonHelper.getStringArray(json, "os")
+        pkg.cpu = PkgJsonHelper.getStringArray(json, "cpu")
+        pkg.os = PkgJsonHelper.getStringArray(json, "os")
 
         // private
-        match (JsonHelper.getBool(json, "private")) {
+        match (PkgJsonHelper.getBool(json, "private")) {
             case Some(b) => pkg.isPrivate = b
             case None => ()
         }
 
         // sideEffects
-        match (JsonHelper.getBool(json, "sideEffects")) {
+        match (PkgJsonHelper.getBool(json, "sideEffects")) {
             case Some(b) => pkg.sideEffects = Some(b)
             case None => pkg.sideEffects = None
         }
 
         // keywords
-        pkg.keywords = JsonHelper.getStringArray(json, "keywords")
+        pkg.keywords = PkgJsonHelper.getStringArray(json, "keywords")
 
         // engines
-        match (JsonHelper.getField(json, "engines")) {
+        match (PkgJsonHelper.getField(json, "engines")) {
             case Some(JsonValue.Object(obj)) =>
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
@@ -457,7 +349,7 @@ public class PackageJson {
         }
 
         // workspaces
-        match (JsonHelper.getField(json, "workspaces")) {
+        match (PkgJsonHelper.getField(json, "workspaces")) {
             case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
@@ -481,7 +373,7 @@ public class PackageJson {
         }
 
         // repository
-        match (JsonHelper.getField(json, "repository")) {
+        match (PkgJsonHelper.getField(json, "repository")) {
             case Some(JsonValue.Str(url)) => pkg.repository = Some(url)
             case Some(JsonValue.Object(obj))=>
                 match (obj.get("url")) {
@@ -492,7 +384,7 @@ public class PackageJson {
         }
 
         // bundledDependencies
-        match (JsonHelper.getField(json, "bundledDependencies")) {
+        match (PkgJsonHelper.getField(json, "bundledDependencies")) {
             case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
@@ -605,11 +497,45 @@ public class DependencyEntry {
     public let name: String
     public let version: String
     public let kind: DependencyKind
+    /// 是否为 peer 依赖
+    public var isPeer: Bool
+    /// 名称哈希
+    public var nameHash: UInt64
+    /// 版本标签
+    public var versionTag: DependencyVersionTag
+    /// 是否为 workspace 依赖
+    public var isWorkspace: Bool
+    /// 是否为可选依赖
+    public var isOptional: Bool
+    /// 依赖 ID
+    public var depId: UInt32
+    /// 包 ID
+    public var pkgId: UInt32
 
     public init(name: String, version: String, kind: DependencyKind) {
         this.name = name
         this.version = version
         this.kind = kind
+        this.isPeer = false
+        this.nameHash = UInt64(0)
+        this.versionTag = DependencyVersionTag.Uninitialized
+        this.isWorkspace = false
+        this.isOptional = false
+        this.depId = UInt32(0)
+        this.pkgId = UInt32(0)
+    }
+
+    public init() {
+        name = ""
+        version = ""
+        kind = DependencyKind.Production
+        isPeer = false
+        nameHash = UInt64(0)
+        versionTag = DependencyVersionTag.Uninitialized
+        isWorkspace = false
+        isOptional = false
+        depId = UInt32(0)
+        pkgId = UInt32(0)
     }
 }
 

@@ -65,7 +65,7 @@ import bao_core.*
 //      Bun: defer bun.default_allocator.destroy(this)
 //   3. cancel() 替换回调为空操作, 不释放内存
 //      Bun: this.callback = &struct { fn f(_: *anyopaque) bun.JSError!void {} }.f
-//   4. New(Type, Callback).init(ctx) 分配并返回 Task
+//   4. New(Type, Callback).`init`(ctx) 分配并返回 Task
 //      Bun: bun.default_allocator.create(ManagedTask)
 //
 // 仓颉实现:
@@ -209,7 +209,7 @@ public class ManagedTask {
     // 仓颉: 不需要 comptime, 使用泛型和闭包
     // ========================================================================
 
-    /// 创建托管任务 - 对应 Bun ManagedTask.New(Type, Callback).init(ctx)
+    /// 创建托管任务 - 对应 Bun ManagedTask.New(Type, Callback).`init`(ctx)
     /// Bun: 分配 ManagedTask, 设置 callback 和 ctx, 返回 Task
     /// 仓颉: 创建 ManagedTask, 闭包捕获上下文
     public static func create(callback: () -> Unit): ManagedTask {
@@ -224,7 +224,7 @@ public class ManagedTask {
     /// 从回调创建并发任务 - 对应 Bun ConcurrentTask.fromCallback
     /// Bun:
     ///   pub fn fromCallback(ptr: anytype, comptime callback: anytype) *ConcurrentTask {
-    ///       return create(ManagedTask.New(std.meta.Child(@TypeOf(ptr)), callback).init(ptr))
+    ///       return create(ManagedTask.New(std.meta.Child(@TypeOf(ptr)), callback).`init`(ptr))
     ///   }
     public static func createConcurrent(tag: TaskTagKind, callback: () -> Unit): ConcurrentTask {
         let managed = ManagedTask(callback)

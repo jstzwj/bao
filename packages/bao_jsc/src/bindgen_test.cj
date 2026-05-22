@@ -22,7 +22,7 @@ public class BindgenTest {
     /// 对应 Bun: add
     public static func add(global: JsGlobalObject, a: Int32, b: Int32): Int32 {
         let result = Int64(a) + Int64(b)
-        if (result > Int64(Int32.MaxValue) || result < Int64(Int32.MinValue)) {
+        if (result > Int64(2147483647) || result < Int64(-2147483648)) {
             // 整数溢出
             return 0 // 实际实现应抛出异常
         }
@@ -33,12 +33,12 @@ public class BindgenTest {
     /// 对应 Bun: requiredAndOptionalArg
     public static func requiredAndOptionalArg(a: Bool, b: ?Int64, c: Int32, d: ?UInt8): Int32 {
         let bVal = b
-        if (bVal == None) {
+        if (bVal.isNone()) {
             var r = 123456 + c
-            if (d != None) { r = r + Int32(d.getOrThrow()) }
+            if (d.isSome()) { r = r + Int32(d.getOrThrow()) }
             return r
         }
-        var mathResult: Int32 = Int32((bVal! + Int64(abs(c))) * (if (d != None) { Int64(d.getOrThrow()) } else { 1 }))
+        var mathResult: Int32 = Int32((bVal! + Int64(abs(c))) * (if (d.isSome()) { Int64(d.getOrThrow()) } else { 1 }))
         if (a) {
             mathResult = -mathResult
         }

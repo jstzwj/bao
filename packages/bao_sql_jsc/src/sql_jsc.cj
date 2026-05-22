@@ -39,10 +39,10 @@ public func jsErrorToMySQL(e: JsError): AnyMySQLError {
 /// 对应 Bun: jsc::verify_error_to_js
 public func verifyErrorToJS(globalObject: JscJSGlobalObject,
                               error: VerifyError): JscValue {
-    let optsObj = JscObject.createEmptyObject(globalObject)
-    optsObj.put(globalObject, "code", JscValue(error.code))
-    optsObj.put(globalObject, "message", JscValue(error.message))
-    return optsObj.toValue()
+    let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+    optsObj.put(globalObject.globalThis, "code", JscValue(error.code))
+    optsObj.put(globalObject.globalThis, "message", JscValue(error.message))
+    return optsObj
 }
 
 /// 创建 socket 错误转 JS
@@ -51,30 +51,30 @@ public func createBunSocketErrorToJS(globalObject: JscJSGlobalObject,
                                       err: CreateBunSocketError): JscValue {
     match (err) {
         case None =>
-            let optsObj = JscObject.createEmptyObject(globalObject)
-            optsObj.put(globalObject, "code", JscValue("BORINGSSL"))
-            optsObj.put(globalObject, "message", JscValue("An unknown BoringSSL error occurred"))
-            return optsObj.toValue()
+            let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+            optsObj.put(globalObject.globalThis, "code", JscValue("BORINGSSL"))
+            optsObj.put(globalObject.globalThis, "message", JscValue("An unknown BoringSSL error occurred"))
+            return optsObj
         case LoadCAFile =>
-            let optsObj = JscObject.createEmptyObject(globalObject)
-            optsObj.put(globalObject, "code", JscValue("BORINGSSL"))
-            optsObj.put(globalObject, "message", JscValue("Failed to load CA file"))
-            return optsObj.toValue()
+            let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+            optsObj.put(globalObject.globalThis, "code", JscValue("BORINGSSL"))
+            optsObj.put(globalObject.globalThis, "message", JscValue("Failed to load CA file"))
+            return optsObj
         case InvalidCAFile =>
-            let optsObj = JscObject.createEmptyObject(globalObject)
-            optsObj.put(globalObject, "code", JscValue("BORINGSSL"))
-            optsObj.put(globalObject, "message", JscValue("Invalid CA file"))
-            return optsObj.toValue()
+            let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+            optsObj.put(globalObject.globalThis, "code", JscValue("BORINGSSL"))
+            optsObj.put(globalObject.globalThis, "message", JscValue("Invalid CA file"))
+            return optsObj
         case InvalidCA =>
-            let optsObj = JscObject.createEmptyObject(globalObject)
-            optsObj.put(globalObject, "code", JscValue("BORINGSSL"))
-            optsObj.put(globalObject, "message", JscValue("Invalid CA"))
-            return optsObj.toValue()
+            let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+            optsObj.put(globalObject.globalThis, "code", JscValue("BORINGSSL"))
+            optsObj.put(globalObject.globalThis, "message", JscValue("Invalid CA"))
+            return optsObj
         case InvalidCiphers =>
-            let optsObj = JscObject.createEmptyObject(globalObject)
-            optsObj.put(globalObject, "code", JscValue("BORINGSSL"))
-            optsObj.put(globalObject, "message", JscValue("Invalid ciphers"))
-            return optsObj.toValue()
+            let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+            optsObj.put(globalObject.globalThis, "code", JscValue("BORINGSSL"))
+            optsObj.put(globalObject.globalThis, "message", JscValue("Invalid ciphers"))
+            return optsObj
     }
 }
 
@@ -88,7 +88,7 @@ public class JSGlobalObjectSqlExt {
     /// 创建超出范围错误
     public static func errOutOfRange(globalObject: JscJSGlobalObject,
                                       message: String): ErrorBuilder {
-        return ErrorBuilder(code: "OUT_OF_RANGE", message: message)
+        return ErrorBuilder("OUT_OF_RANGE", message)
     }
 
     /// 抛出无效参数错误
@@ -506,6 +506,12 @@ public class MySQLContext {
 /// Postgres SQL 上下文（前端引用）
 public class PostgresSQLContext {
     public init() {}
+
+    /// Stub init_ for binding creation
+    public static func init_(globalObject: JscJSGlobalObject,
+                              callFrame: JscCallFrame): JscValue {
+        return JscValue.undefined()
+    }
 }
 
 /// JSMySQLConnection 前端引用

@@ -90,11 +90,11 @@ public class ScriptState {
                 }
                 let stmtNode = this.node.stmts[idx]
                 this.state = ScriptStateKind.`normal`(idx + 1)
-                let stmt = StmtState.`init`(
+                let stmt = StmtState(
                     interpreter: this.base.interpreter,
                     shellState: this.base.shell,
                     node: stmtNode,
-                    parent: StmtParentPtr.`init`(this),
+                    parent: StmtParentPtr(this),
                     io: this.io.ref()
                 )
                 return stmt.start()

@@ -166,7 +166,7 @@ public class TracyProfiler {
     private static var libraryHandle: ?CPointer<Unit> = None
 
     /// 初始化 Tracy (检测库是否存在)
-    /// 对应 Bun: tracy.init() -> bool
+    /// 对应 Bun: tracy.`init`() -> bool
     /// 通过 dlsym 检测 ___tracy_emit_message 是否存在
     public static func initTracy(): Bool {
         if (enable) { return true }

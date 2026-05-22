@@ -305,7 +305,7 @@ public class JsObjectOps {
 
 // ============================================================================
 // JsSymbol - Symbol 类型
-// 对应 Bun: JSC::Symbol (JSC 中 Symbol 通过 JSValue tag 区分)
+// 对应 Bun: JSC::Symbol (JSC 中 Symbol 通过 JsValue tag 区分)
 //   JS Symbol 是唯一且不可变的标识符，用作对象属性键
 //   仓颉通过自增 id + 可选 description 模拟唯一性
 // ============================================================================

@@ -91,9 +91,9 @@ public class DataViewWriter {
     }
 
     public func string(value: String): Unit {
-        if (value.length == 0) { return }
+        if (value.size == 0) { return }
         let result = te.encodeInto(value, uint8ArrayView.slice(cursor))
-        if (result.read != value.length) {
+        if (result.read != value.size) {
             throw Error("Failed to encode string")
         }
         cursor += result.written

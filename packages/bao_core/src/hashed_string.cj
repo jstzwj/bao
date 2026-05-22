@@ -32,7 +32,7 @@ public class HashedStringView {
         this.hash = hash
     }
 
-    /// 初始化并计算哈希 - 对应 Bun HashedString.init(buf)
+    /// 初始化并计算哈希 - 对应 Bun HashedString(buf)
     /// pub fn init(buf: []const u8) HashedString {
     ///     return HashedString{
     ///         .ptr = buf.ptr,

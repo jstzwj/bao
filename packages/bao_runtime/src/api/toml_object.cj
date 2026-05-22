@@ -15,7 +15,7 @@ public func create(globalThis: JsGlobalObject): JsValue {
     let object = JsValue.createEmptyObject(globalThis, 1)
     object.put(
         globalThis,
-        ZigString.static("parse"),
+        ZigString.`static`("parse"),
         JsFunction.create(
             globalThis,
             "parse",
@@ -28,7 +28,7 @@ public func create(globalThis: JsGlobalObject): JsValue {
 
 /// TOML.parse - 解析 TOML 字符串为 JS 对象
 public func parse(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-    var arena = ArenaAllocator.init(globalThis.allocator())
+    var arena = ArenaAllocator(globalThis.allocator())
     let allocator = arena.allocator()
     defer arena.deinit()
 
@@ -36,7 +36,7 @@ public func parse(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
     var astScope = astMemoryAllocator.enter(allocator)
     defer astScope.exit()
 
-    var log = Logger.Log.init(default_allocator)
+    var log = Logger.Log(default_allocator)
     defer log.deinit()
 
     let inputValue = callframe.argument(0)
@@ -56,8 +56,8 @@ public func parse(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
     }
 
     // 序列化为 JSON 再解析为 JS 值
-    let bufferWriter = JsPrinter.BufferWriter.init(allocator)
-    var writer = JsPrinter.BufferPrinter.init(bufferWriter)
+    let bufferWriter = JsPrinter.BufferWriter(allocator)
+    var writer = JsPrinter.BufferPrinter(bufferWriter)
     _ = JsPrinter.printJSON(
         writer,
         parseResult,
@@ -78,9 +78,9 @@ public func parse(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
 // 类型别名
 // ============================================================================
 
-public typealias BunString = BunString
-public typealias ASTMemoryAllocator = ASTMemoryAllocator
-public typealias Logger = Logger
-public typealias JsPrinter = JsPrinter
-public typealias TOML = TOML
+public type BunString = BunString
+public type ASTMemoryAllocator = ASTMemoryAllocator
+public type Logger = Logger
+public type JsPrinter = JsPrinter
+public type TOML = TOML
 public let default_allocator = default_allocator

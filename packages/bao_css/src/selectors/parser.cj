@@ -389,6 +389,13 @@ public enum CssDirection {
     | Ltr   // 从左到右
     | Rtl   // 从右到左
 
+    public operator func ==(other: CssDirection): Bool {
+        match (this) {
+            case Ltr => match (other) { case Ltr => true; case _ => false }
+            case Rtl => match (other) { case Rtl => true; case _ => false }
+        }
+    }
+
     public func asStr(): String {
         match (this) {
             case Ltr => "ltr"
@@ -3054,10 +3061,11 @@ func parseNthExpression(input: String): Array<Int32> {
 
     // 尝试解析 An+B 格式
     let nIdx = s.indexOf("n")
-    if (nIdx >= 0) {
+    if (nIdx.isSome()) {
+        let nIdxVal = nIdx.getOrThrow()
         // An+B
-        let aPart = s[0..nIdx]
-        let bPart = s[(nIdx + 1)..s.size]
+        let aPart = s[0..nIdxVal]
+        let bPart = s[(nIdxVal + 1)..s.size]
         if (aPart.isEmpty() || aPart == "+") {
             result[0] = 1
         } else if (aPart == "-") {
@@ -3107,7 +3115,7 @@ func substring(chars: Array<UInt8>, start: Int64, end: Int64): String {
     if (end <= start) { return "" }
     var sb = StringBuilder()
     for (i in start..end) {
-        sb.append(String.fromUInt8(chars[i]))
+        sb.append(String(Rune(chars[i])))
     }
     sb.toString()
 }
@@ -3157,7 +3165,7 @@ func parseInt32(s: String): Int32 {
     while (idx < chars.size) {
         let c = chars[idx]
         if (c >= UInt8(48) && c <= UInt8(57)) {
-            result = result * 10 + (c - UInt8(48))
+            result = result * 10 + Int32(c - UInt8(48))
         }
         idx += 1
     }

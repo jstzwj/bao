@@ -134,11 +134,11 @@ public class IfState {
                     let idx = execState.stmtIdx
                     execState.stmtIdx += 1
                     let stmt = stmts[idx]
-                    let newStmt = StmtState.`init`(
+                    let newStmt = StmtState(
                         interpreter: this.base.interpreter,
                         shellState: this.base.shell,
                         node: stmt,
-                        parent: StmtParentPtr.`init`(this),
+                        parent: StmtParentPtr(this),
                         io: this.io.copy()
                     )
                     return newStmt.start()

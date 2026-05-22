@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toBeInstanceOf() - 检查值是否为指定类的实例
 /// 用法: expect(received).toBeInstanceOf(Expected)
-public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toBeInstanceOf() requires 1 argument")
     }
 
@@ -28,12 +28,12 @@ public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame
     }
     expectedValue.ensureStillAlive()
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeInstanceOf", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeInstanceOf", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = value.isInstanceOf(globalThis: globalThis, expected: expectedValue)
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let expectedFmt = expectedValue.toFmt(formatter)

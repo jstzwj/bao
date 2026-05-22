@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toHaveBeenCalled() - 检查mock函数是否被调用
 /// 用法: expect(mockFn).toHaveBeenCalled()
-public func toHaveBeenCalled(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenCalled(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -17,7 +17,7 @@ public func toHaveBeenCalled(`this`: Expect, globalThis: JSGlobalObject, callFra
         return globalThis.throwInvalidArguments("toHaveBeenCalled() must not have an argument")
     }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalled", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalled", matcherParamsFmt: "")
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     this.incrementExpectCallCounter()
@@ -32,7 +32,7 @@ public func toHaveBeenCalled(`this`: Expect, globalThis: JSGlobalObject, callFra
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     if (not) {

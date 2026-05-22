@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_collections.*
+
 // ========== JSMap_ ==========
 // 严格翻译自 JSMap.zig
 // JavaScript Map 对象的不透明类型绑定
@@ -73,7 +75,7 @@ public class JsMap_ {
     // 清除所有条目
     // FFI: bun.cpp.JSC__JSMap__clear(map)
     public static func clear(map: JsMap_) {
-        map.entries.clear()
+        map.entries = ArrayList<(JsValue, JsValue)>()
     }
 
     // ========== size ==========

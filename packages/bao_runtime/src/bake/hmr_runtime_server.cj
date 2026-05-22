@@ -70,9 +70,9 @@ public class ServerExports {
             Any, String, Array<String>, String, Array<String>,
             ?HashMap<String, String>, (Any) -> Unit,
             (Any, String) -> Tuple<Int64, ?Promise<Unit>>,
-            (Any, Int64, String) -> NewRouteParams,
+            (Any, Int64, String) -> NewRouteParams
         ) -> Promise<Any>,
-        registerUpdate: (HashMap<String, Any>, ?Array<String>, ?Array<String>) -> Unit,
+        registerUpdate: (HashMap<String, Any>, ?Array<String>, ?Array<String>) -> Unit
     ) {
         this.handleRequest = handleRequest
         this.registerUpdate = registerUpdate
@@ -104,14 +104,14 @@ public class NewRouteParams {
 /// 创建默认的服务器端导出
 public func createServerExports(): ServerExports {
     return ServerExports(
-        handleRequest: { (req, routerTypeMain, routeModules, clientEntryUrl, styles, params, setAsyncLocalStorage, bundleNewRoute, newRouteParams) =>
+        { req, routerTypeMain, routeModules, clientEntryUrl, styles, params, setAsyncLocalStorage, bundleNewRoute, newRouteParams =>
             // 加载服务器入口点并执行渲染
             serverHandleRequest(
                 req, routerTypeMain, routeModules, clientEntryUrl, styles, params,
                 setAsyncLocalStorage, bundleNewRoute, newRouteParams,
             )
         },
-        registerUpdate: { (modules, componentManifestAdd, componentManifestDelete) =>
+        { modules, componentManifestAdd, componentManifestDelete =>
             // 调用 replaceModules 并更新 manifest
             serverRegisterUpdate(modules, componentManifestAdd, componentManifestDelete)
         },
@@ -128,12 +128,12 @@ func serverHandleRequest(
     params: ?HashMap<String, String>,
     setAsyncLocalStorage: (Any) -> Unit,
     bundleNewRoute: (Any, String) -> Tuple<Int64, ?Promise<Unit>>,
-    newRouteParams: (Any, Int64, String) -> NewRouteParams,
+    newRouteParams: (Any, Int64, String) -> NewRouteParams
 ): Promise<Any> {
     // 加载入口点导出
     let exportsPromise = loadExports<Any>(routerTypeMain)
 
-    return exportsPromise.then({ (exports) =>
+    return exportsPromise.then({ exports =>
         // 查找 render 函数
         let serverRenderer = exports // 简化：假设 exports 就是 render 函数
 
@@ -143,7 +143,7 @@ func serverHandleRequest(
             pageModulePromises.append(loadExports<Any>(moduleId))
         }
 
-        Promise.all(pageModulePromises).then({ (pageModules) =>
+        Promise.all(pageModulePromises).then({ pageModules =>
             // 构建渲染上下文
             // 调用 render 函数
             // 返回 Response
@@ -156,20 +156,20 @@ func serverHandleRequest(
 func serverRegisterUpdate(
     modules: HashMap<String, Any>,
     componentManifestAdd: ?Array<String>,
-    componentManifestDelete: ?Array<String>,
+    componentManifestDelete: ?Array<String>
 ): Unit {
     // 构建模块映射并调用 replaceModules
     var moduleMap: HashMap<Id, UnloadedModule> = HashMap<Id, UnloadedModule>()
     // 简化实现
     // replaceModules(moduleMap)
 
-    if (componentManifestAdd != None) {
+    if (componentManifestAdd.isSome()) {
         for (uid in componentManifestAdd.get()) {
             // 更新 server manifest
         }
     }
 
-    if (componentManifestDelete != None) {
+    if (componentManifestDelete.isSome()) {
         for (fileName in componentManifestDelete.get()) {
             // 从 manifest 中删除
         }
@@ -177,7 +177,3 @@ func serverRegisterUpdate(
 }
 
 // 类型别名
-public type Id = String
-public type Promise<T> = std.Promise<T>
-public type HashMap<K, V> = std.HashMap<K, V>
-public type Tuple<A, B> = std.Tuple<A, B>

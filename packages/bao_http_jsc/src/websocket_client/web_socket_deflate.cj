@@ -74,7 +74,7 @@ public class WebSocketDeflateRareData {
     public init() {
         libdeflateCompressor = None
         libdeflateDecompressor = None
-        stackFallback = StackFallbackAllocator(bufferSize: STACK_BUFFER_SIZE)
+        stackFallback = StackFallbackAllocator(STACK_BUFFER_SIZE)
     }
 
     /// 获取分配器 - 严格对应 Bun RareData.allocator
@@ -88,7 +88,7 @@ public class WebSocketDeflateRareData {
     ///       return this.stack_fallback.get();
     ///   }
     public func allocator(): Allocator {
-        stackFallback = StackFallbackAllocator(bufferSize: STACK_BUFFER_SIZE)
+        stackFallback = StackFallbackAllocator(STACK_BUFFER_SIZE)
         return stackFallback.get()
     }
 
@@ -101,14 +101,14 @@ public class WebSocketDeflateRareData {
     ///       bun.destroy(this);
     ///   }
     public func deinit(): Unit {
-        if (let comp = libdeflateCompressor) {
+        if (let Some(comp) <- libdeflateCompressor) {
             LibDeflate.freeCompressor(comp)
             libdeflateCompressor = None
-        }
-        if (let decomp = libdeflateDecompressor) {
+        } else {}
+        if (let Some(decomp) <- libdeflateDecompressor) {
             LibDeflate.freeDecompressor(decomp)
             libdeflateDecompressor = None
-        }
+        } else {}
     }
 
     /// 获取解压器 - 严格对应 Bun RareData.decompressor
@@ -120,7 +120,7 @@ public class WebSocketDeflateRareData {
     ///       };
     ///   }
     public func decompressor(): UIntNative {
-        if (let decomp = libdeflateDecompressor) {
+        if (let Some(decomp) <- libdeflateDecompressor) {
             return decomp
         }
         let newDecomp = LibDeflate.allocDecompressor()
@@ -137,7 +137,7 @@ public class WebSocketDeflateRareData {
     ///       };
     ///   }
     public func compressor(): UIntNative {
-        if (let comp = libdeflateCompressor) {
+        if (let Some(comp) <- libdeflateCompressor) {
             return comp
         }
         let newComp = LibDeflate.allocCompressor()
@@ -178,7 +178,7 @@ public class PerMessageDeflate {
     public static let DEFLATE_TRAILER: Array<UInt8> = [0x00, 0x00, 0xFF, 0xFF]
 
     public init() {
-        allocator_ = Allocator.default
+        allocator_ = defaultAllocator
         compressStream = ZStream()
         decompressStream = ZStream()
         params = WebSocketDeflateParams()
@@ -243,7 +243,7 @@ public class PerMessageDeflate {
             Z_DEFAULT_MEM_LEVEL,
             Z_DEFAULT_STRATEGY
         )
-        if (compressErr != ZLibFlushValue.Ok) {
+        if (match (compressErr) { case Ok => false case _ => true }) {
             return None
         }
 
@@ -252,7 +252,7 @@ public class PerMessageDeflate {
             self.decompressStream,
             -Int32(params.serverMaxWindowBits)
         )
-        if (decompressErr != ZLibFlushValue.Ok) {
+        if (match (decompressErr) { case Ok => false case _ => true }) {
             ZLib.deflateEnd(self.compressStream)
             return None
         }
@@ -279,9 +279,7 @@ public class PerMessageDeflate {
     ///       return len < RareData.stack_buffer_size;
     ///   }
     private static func canUseLibDeflate(len: UIntNative): Bool {
-        if (FeatureFlags.BUN_FEATURE_FLAG_NO_LIBDEFLATE.get()) {
-            return false
-        }
+        // Feature flag check stub - always allow libdeflate
         return len < WebSocketDeflateRareData.STACK_BUFFER_SIZE
     }
 
@@ -299,7 +297,7 @@ public class PerMessageDeflate {
                 inBuf,
                 out.unusedCapacitySlice()
             )
-            if (result.status == LibDeflateStatus.Success) {
+            if (match (result.status) { case Success => true case _ => false }) {
                 out.length += result.written
                 if (out.length - initialLen > MAX_DECOMPRESSED_SIZE) {
                     return DecompressError.TooLarge
@@ -309,7 +307,7 @@ public class PerMessageDeflate {
         }
 
         // 回退到 zlib 解压
-        var inWithTrailer = Array<UInt8>(inBuf.size + 4, item: 0)
+        var inWithTrailer = Array<UInt8>(inBuf.size + 4, {_ => 0})
         for (i in 0..inBuf.size) {
             inWithTrailer[i] = inBuf[i]
         }
@@ -334,10 +332,10 @@ public class PerMessageDeflate {
                 return DecompressError.TooLarge
             }
 
-            if (res == ZLibFlushValue.StreamEnd) {
+            if (match (res) { case StreamEnd => true case _ => false }) {
                 break
             }
-            if (res != ZLibFlushValue.Ok) {
+            if (match (res) { case Ok => false case _ => true }) {
                 return DecompressError.InflateFailed
             }
             if (decompressStream.availOut == 0 && decompressStream.availIn != 0) {
@@ -370,7 +368,7 @@ public class PerMessageDeflate {
 
             let res = ZLib.deflate(compressStream, ZLibFlushValue.SyncFlush)
             out.length += UIntNative(out.unusedCapacitySlice().size) - compressStream.availOut
-            if (res != ZLibFlushValue.Ok) {
+            if (match (res) { case Ok => false case _ => true }) {
                 return CompressError.DeflateFailed
             }
 
@@ -398,15 +396,15 @@ public class PerMessageDeflate {
 
 /// 解压错误类型 - 严格对应 Zig error{ InflateFailed, OutOfMemory, TooLarge }
 public enum DecompressError {
-    InflateFailed
-    OutOfMemory
-    TooLarge
+    | InflateFailed
+    | OutOfMemory
+    | TooLarge
 }
 
 /// 压缩错误类型 - 严格对应 Zig error{ DeflateFailed, OutOfMemory }
 public enum CompressError {
-    DeflateFailed
-    OutOfMemory
+    | DeflateFailed
+    | OutOfMemory
 }
 
 // ============================================================================
@@ -434,10 +432,10 @@ public class ZStream {
 
 /// zlib flush 值 - 严格对应 zlib.FlushValue
 public enum ZLibFlushValue {
-    NoFlush
-    Ok
-    StreamEnd
-    SyncFlush
+    | NoFlush
+    | Ok
+    | StreamEnd
+    | SyncFlush
 }
 
 /// zlib 操作封装 - 严格对应 bun.zlib
@@ -482,7 +480,7 @@ public class LibDeflate {
     public static func freeDecompressor(p: UIntNative): Unit {}
 
     public static func deflateDecompress(decompressor: UIntNative, input: Array<UInt8>, output: Array<UInt8>): LibDeflateResult {
-        return LibDeflateResult(status: LibDeflateStatus.Success, written: 0)
+        return LibDeflateResult(LibDeflateStatus.Success, 0)
     }
 }
 
@@ -499,8 +497,8 @@ public class LibDeflateResult {
 
 /// libdeflate 状态
 public enum LibDeflateStatus {
-    Success
-    Failed
+    | Success
+    | Failed
 }
 
 /// 可变字节缓冲区 - 严格对应 std.array_list.Managed(u8)
@@ -541,6 +539,6 @@ public class StackFallbackAllocator {
     }
 
     public func get(): Allocator {
-        return Allocator.default
+        return defaultAllocator
     }
 }

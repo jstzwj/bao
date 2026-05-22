@@ -7,11 +7,11 @@ import bao_jsc.*
 
 /// toHaveNthReturnedWith() - 检查mock函数第N次返回的值
 /// 用法: expect(mockFn).toHaveNthReturnedWith(n, expected)
-public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveNthReturnedWith", matcherParamsFmt: "<green>n<r>, <green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveNthReturnedWith", matcherParamsFmt: "<green>n<r>, <green>expected<r>")
 
     let (nthArg, expected) = callFrame.argumentsAsArray(2)
 
@@ -37,34 +37,34 @@ public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, ca
     let index: UInt32 = UInt32(n - 1) // 转为 0-based index
 
     var pass = false
-    var nthReturnValue: JSValue = JSValue.jsUndefined
+    var nthReturnValue: JsValue = JsValue.jsUndefined
     var nthCallThrew = false
-    var nthErrorValue: JSValue = JSValue.jsUndefined
+    var nthErrorValue: JsValue = JsValue.jsUndefined
     var nthCallExists = false
 
     if (index < callsCount) {
         nthCallExists = true
         let nthResult = returns.getDirectIndex(globalThis: globalThis, index: index)
         if (nthResult.isObject()) {
-            let resultType = nthResult.get(globalThis: globalThis, key: "type") ?? JSValue.jsUndefined
+            let resultType = nthResult.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
                 defer { typeStr.deref() }
                 if (typeStr.eqlComptime("return")) {
-                    nthReturnValue = nthResult.get(globalThis: globalThis, key: "value") ?? JSValue.jsUndefined
+                    nthReturnValue = nthResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
                     if (nthReturnValue.jestDeepEquals(expected, globalThis: globalThis)) {
                         pass = true
                     }
                 } else if (typeStr.eqlComptime("throw")) {
                     nthCallThrew = true
-                    nthErrorValue = nthResult.get(globalThis: globalThis, key: "value") ?? JSValue.jsUndefined
+                    nthErrorValue = nthResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
                 }
             }
         }
     }
 
     if (pass != this.flags.not) {
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     // 处理失败

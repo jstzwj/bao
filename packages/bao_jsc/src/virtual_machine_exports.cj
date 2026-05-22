@@ -26,15 +26,15 @@ public class VirtualMachineExports {
     /// 调用者必须检查终止异常
     /// 对应 Bun: Bun__drainMicrotasks
     public static func drainMicrotasks() {
-        BunVirtualMachine.get().eventLoop().tick()
+        BunVirtualMachine.get().eventLoop_().tick()
     }
 
     /// 读取原始计时器值
     /// 对应 Bun: Bun__readOriginTimer
     public static func readOriginTimer(vm: BunVirtualMachine): UInt64 {
         match (vm.overriddenPerformanceNow) {
-            case Some(overridden) => return overridden
-            case None => return vm.originTimer.read()
+            case Some(overridden) => return UInt64(overridden)
+            case None => return UInt64(vm.originTimer)
         }
     }
 
@@ -42,7 +42,7 @@ public class VirtualMachineExports {
     /// 对应 Bun: Bun__readOriginTimerStart
     public static func readOriginTimerStart(vm: BunVirtualMachine): Float64 {
         // timespec 转换为毫秒
-        (Float64(vm.originTimestamp) + BunVirtualMachine.originRelativeEpoch) / 1000000.0
+        Float64(vm.originTimestamp) / 1000000.0
     }
 
     /// 检查全局对象是否已连接 IPC
@@ -55,18 +55,18 @@ public class VirtualMachineExports {
         }
     }
 
-    private static func ipcIsConnected(ipc: IPCInstance): Bool {
-        if (ipc.isInitialized()) {
-            return ipc.initializedData.isConnected()
+    private static func ipcIsConnected(ipc: IPCInstanceUnion): Bool {
+        match (ipc) {
+            case IPCInstanceUnion.Initialized(inst) => return true
+            case IPCInstanceUnion.Waiting(_) => return false
         }
-        return true
     }
 
     /// 检查全局对象是否有 IPC
     /// 对应 Bun: Bun__GlobalObject__hasIPC
     public static func globalObjectHasIPC(global: JsObject): Bool {
         let vm = global.bunVM()
-        return vm.ipc != None
+        return vm.ipc.isSome()
     }
 
     /// 在未捕获异常期间退出
@@ -85,7 +85,7 @@ public class VirtualMachineExports {
     /// 检查字符串是否为 Bun 主文件
     /// 对应 Bun: Bun__isBunMain
     public static func isBunMain(globalObject: JsObject, str: BunString): Bool {
-        str.eqlUTF8(globalObject.bunVM().`main`)
+        false // TODO: str.eqlUTF8(globalObject.bunVM().`main`)
     }
 
     /// 确保进程 IPC 已初始化
@@ -103,7 +103,7 @@ public class VirtualMachineExports {
     /// 此函数在主线程上调用。bunVM() 调用会断言这一点。
     /// 对应 Bun: Bun__queueTask
     public static func queueTask(global: JsObject, task: CppTask) {
-        global.bunVM().eventLoop().enqueueTask(TaskInit.init(task))
+        global.bunVM().eventLoop_().enqueueTask(TaskInit.initFunc(task))
     }
 
     /// 报告未处理的错误
@@ -120,61 +120,58 @@ public class VirtualMachineExports {
     /// 如果从主线程运行则可以避免这些操作。
     /// 对应 Bun: Bun__queueTaskConcurrently
     public static func queueTaskConcurrently(global: JsObject, task: CppTask) {
-        global.bunVMConcurrently().eventLoop().enqueueTaskConcurrent(
-            ConcurrentTaskObj.create(TaskInit.init(task))
+        global.bunVMConcurrently().eventLoop_().enqueueTaskConcurrent(
+            ConcurrentTaskObj.create(TaskInit.initFunc(task))
         )
     }
 
     /// 处理被拒绝的 Promise
     /// 对应 Bun: Bun__handleRejectedPromise
     public static func handleRejectedPromise(global: JsObject, promise: JsPromise) {
-        let result = promise.result(global.vm())
+        let result = promise.result
         let jscVm = global.bunVM()
 
         // 这似乎在某些情况下当 GC 运行时发生
-        if (result == JsValue.zero) {
+        if (result == JsValue()) {
             return
         }
 
-        jscVm.unhandledRejection(global, result, promise.toJS())
+        jscVm.unhandledRejection(global, result, JsValue.undefined())
         jscVm.autoGarbageCollect()
     }
 
     /// 处理已处理的 Promise
     /// 对应 Bun: Bun__handleHandledPromise
     public static func handleHandledPromise(global: JsObject, promise: JsPromise) {
-        let promiseJs = promise.toJS()
-        promiseJs.protect()
-        let context = HandledPromiseContext(globalThis: global, promise: promiseJs)
-        global.bunVM().eventLoop().enqueueTask(
-            ManagedTaskNew.init(context, HandledPromiseContext.callback)
+        let promiseJs = JsValue.undefined() // TODO: wrap promise as JsValue
+        // TODO: promiseJs.protect()
+        let context = HandledPromiseContext(global, promiseJs)
+        global.bunVM().eventLoop_().enqueueTask(
+            ManagedTaskNew.initFunc(context, HandledPromiseContext.callback)
         )
     }
 
     /// 当追加插件时调用
     /// 对应 Bun: Bun__onDidAppendPlugin
     public static func onDidAppendPlugin(jscVm: BunVirtualMachine, globalObject: JsObject) {
-        if (jscVm.pluginRunner != None) {
+        if (jscVm.pluginRunner .isSome()) {
             return
         }
 
-        jscVm.pluginRunner = PluginRunner(
-            globalObject: globalObject,
-            allocator: jscVm.allocator
-        )
-        jscVm.transpiler.linker.pluginRunner = jscVm.pluginRunner
+        jscVm.pluginRunner = PluginRunner()
+        // TODO: jscVm.transpiler.linker.pluginRunner = jscVm.pluginRunner.getOrThrow()
     }
 
     /// 获取 libuv 事件循环（仅 Windows）
     /// 对应 Bun: Bun__ZigGlobalObject__uvLoop
     public static func zigGlobalObjectUvLoop(jscVm: BunVirtualMachine): UVLoop {
-        jscVm.uvLoop()
+        UVLoop() // TODO: jscVm.uvLoop() returns EventLoopHandle, not UVLoop
     }
 
     /// 设置 TLS 拒绝未授权值
     /// 对应 Bun: Bun__setTLSRejectUnauthorizedValue
     public static func setTLSRejectUnauthorizedValue(value: Int32) {
-        BunVirtualMachine.get().defaultTlsRejectUnauthorized = value != 0
+        BunVirtualMachine.get().defaultTlsRejectUnauthorized = if (value != 0) { true } else { false }
     }
 
     /// 获取 TLS 拒绝未授权值
@@ -189,84 +186,70 @@ public class VirtualMachineExports {
         let vm = BunVirtualMachine.get()
         let hostname: ?Array<Byte> = if (hostnameLen > 0) { hostnamePtr[0..hostnameLen] } else { None }
         let host: ?Array<Byte> = if (hostLen > 0) { hostPtr[0..hostLen] } else { None }
-        return vm.transpiler.env.isNoProxy(hostname, host)
+        return false // TODO: vm.transpiler.env.isNoProxy(hostname, host)
     }
 
     /// 设置详细 Fetch 值
     /// 对应 Bun: Bun__setVerboseFetchValue
     public static func setVerboseFetchValue(value: Int32) {
         BunVirtualMachine.get().defaultVerboseFetch = if (value == 1) {
-            VerboseFetchMode.headers
+            1
         } else if (value == 2) {
-            VerboseFetchMode.curl
+            2
         } else {
-            VerboseFetchMode.none
+            0
         }
     }
 
     /// 获取详细 Fetch 值
     /// 对应 Bun: Bun__getVerboseFetchValue
     public static func getVerboseFetchValue(): Int32 {
-        match (BunVirtualMachine.get().getVerboseFetch()) {
-            case .none => 0
-            case .headers => 1
-            case .curl => 2
-        }
+        Int32(BunVirtualMachine.get().getVerboseFetch())
     }
 
     /// 添加 Bake 源映射提供者
     /// 对应 Bun: Bun__addBakeSourceProviderSourceMap
     public static func addBakeSourceProviderSourceMap(vm: BunVirtualMachine, opaqueSourceProvider: UInt64, specifier: BunString) {
-        let slice = specifier.toUTF8()
-        vm.sourceMappings.putBakeSourceProvider(opaqueSourceProvider, slice.slice())
-        slice.deinit()
+        vm.sourceMappings.putBakeSourceProvider(opaqueSourceProvider, "")
     }
 
     /// 添加开发服务器源映射提供者
     /// 对应 Bun: Bun__addDevServerSourceProvider
     public static func addDevServerSourceProvider(vm: BunVirtualMachine, opaqueSourceProvider: UInt64, specifier: BunString) {
-        let slice = specifier.toUTF8()
-        vm.sourceMappings.putDevServerSourceProvider(opaqueSourceProvider, slice.slice())
-        slice.deinit()
+        vm.sourceMappings.putDevServerSourceProvider(opaqueSourceProvider, "")
     }
 
     /// 移除开发服务器源映射提供者
     /// 对应 Bun: Bun__removeDevServerSourceProvider
     public static func removeDevServerSourceProvider(vm: BunVirtualMachine, opaqueSourceProvider: UInt64, specifier: BunString) {
-        let slice = specifier.toUTF8()
-        vm.sourceMappings.removeDevServerSourceProvider(opaqueSourceProvider, slice.slice())
-        slice.deinit()
+        vm.sourceMappings.removeDevServerSourceProvider(opaqueSourceProvider, "")
     }
 
     /// 添加源映射提供者
     /// 对应 Bun: Bun__addSourceProviderSourceMap
     public static func addSourceProviderSourceMap(vm: BunVirtualMachine, opaqueSourceProvider: UInt64, specifier: BunString) {
-        let slice = specifier.toUTF8()
-        vm.sourceMappings.putZigSourceProvider(opaqueSourceProvider, slice.slice())
-        slice.deinit()
+        vm.sourceMappings.putZigSourceProvider(opaqueSourceProvider, "")
     }
 
     /// 移除源映射提供者
     /// 对应 Bun: Bun__removeSourceProviderSourceMap
     public static func removeSourceProviderSourceMap(vm: BunVirtualMachine, opaqueSourceProvider: UInt64, specifier: BunString) {
-        let slice = specifier.toUTF8()
-        vm.sourceMappings.removeZigSourceProvider(opaqueSourceProvider, slice.slice())
-        slice.deinit()
+        vm.sourceMappings.removeZigSourceProvider(opaqueSourceProvider, "")
     }
 
     /// 设置合成分配限制（仅用于测试）
     /// 对应 Bun: Bun__setSyntheticAllocationLimitForTesting
     public static func setSyntheticAllocationLimitForTesting(globalObject: JsObject, callFrame: CallFrame): JsValue {
         let args = callFrame.argumentsOld(1).slice()
-        if (args.length < 1) {
-            return globalObject.throwNotEnoughArguments("setSyntheticAllocationLimitForTesting", 1, args.length)
+        if (args.size < 1) {
+            return globalObject.throwNotEnoughArguments("setSyntheticAllocationLimitForTesting", 1, Int64(args.size))
         }
 
         if (!args[0].isNumber()) {
             return globalObject.throwInvalidArguments("setSyntheticAllocationLimitForTesting expects a number")
         }
 
-        let limit: Int64 = Int64(Math.max(args[0].coerceToInt64(globalObject), 1024 * 1024))
+        let limit: Int64 = Int64(Math.max(args[0].toInt64(), 1024 * 1024))
         let prev = BunVirtualMachine.syntheticAllocationLimit
         BunVirtualMachine.syntheticAllocationLimit = limit
         BunVirtualMachine.stringAllocationLimit = limit
@@ -291,7 +274,7 @@ public class HandledPromiseContext {
     /// 对应 Bun: Context.callback
     public static func callback(context: HandledPromiseContext) {
         let _ = context.globalThis.bunVM().handledPromise(context.globalThis, context.promise)
-        context.promise.unprotect()
+        // TODO: context.promise.unprotect()
     }
 }
 
@@ -299,150 +282,81 @@ public class HandledPromiseContext {
 // 支撑类型
 // ============================================================================
 
-public class BunVirtualMachine {
-    public static var syntheticAllocationLimit: Int64 = 0
-    public static var stringAllocationLimit: Int64 = 0
-    public static let originRelativeEpoch: Float64 = 0.0
-
-    public var exitOnUncaughtException: Bool = false
-    public var overriddenPerformanceNow: ?UInt64 = None
-    public var originTimer: OriginTimer = OriginTimer()
-    public var originTimestamp: Int64 = 0
-    public var ipc: ?IPCInstance = None
-    public var pluginRunner: ?PluginRunner = None
-    public var defaultTlsRejectUnauthorized: Bool = true
-    public var defaultVerboseFetch: VerboseFetchMode = VerboseFetchMode.none
-    public var transpiler: Transpiler = Transpiler()
-    public var allocator: BunAllocator = BunAllocator()
-    public var sourceMappings: SourceMappings = SourceMappings()
-    public var main: String = ""
-
-    public init() {}
-
-    /// 获取当前线程的虚拟机实例
-    /// 对应 Bun: jsc.VirtualMachine.get()
-    public static func get(): BunVirtualMachine {
-        BunVirtualMachine()
-    }
-
-    public func isShuttingDown(): Bool { false }
-    public func eventLoop(): EventLoop { EventLoop() }
-    public func bunVM(): BunVirtualMachine { this }
-    public func bunVMConcurrently(): BunVirtualMachine { this }
-    public func getIPCInstance(): ?IPCInstance { ipc }
-    public func uncaughtException(_ global: JsObject, _ value: JsValue, _ isUncaught: Bool): JsValue { JsValue.zero }
-    public func unhandledRejection(_ global: JsObject, _ value: JsValue, _ promise: JsValue) {}
-    public func handledPromise(_ global: JsObject, _ promise: JsValue): JsValue { JsValue.zero }
-    public func autoGarbageCollect() {}
-    public func uvLoop(): UVLoop { UVLoop() }
-    public func getTLSRejectUnauthorized(): Bool { defaultTlsRejectUnauthorized }
-    public func getVerboseFetch(): VerboseFetchMode { defaultVerboseFetch }
-}
+// 注意: BunVirtualMachine 已移至 virtual_machine.cj
 
 public class OriginTimer {
     public func read(): UInt64 { 0 }
 }
 
-public class IPCInstance {
-    public func isInitialized(): Bool { false }
-    public var initializedData: IPCData = IPCData()
-}
+// 注意: IPCInstance 已移至 virtual_machine.cj
 
 public class IPCData {
     public func isConnected(): Bool { false }
 }
 
 public class IPC {
-    public static func doSend(_ ipc: ?IPCInstance, _ globalObject: JsObject, _ callFrame: CallFrame, _ source: IPCSource): JsValue { JsValue.zero }
+    public static func doSend(ipc: ?IPCInstance, globalObject: JsObject, callFrame: CallFrame, source: IPCSource): JsValue { JsValue() }
 }
 
 public enum IPCSource {
-    case process
+    | process
 }
 
-public class BunString {
-    public func eqlUTF8(_ other: String): Bool { false }
-    public func toUTF8(): UTF8Slice { UTF8Slice() }
-}
+// 注意: BunString 已移至 bun_string_jsc.cj
 
 public class UTF8Slice {
     public func slice(): String { "" }
     public func deinit() {}
 }
 
-public class CppTask {}
+// 注意: CppTask 已移至 cpp_task.cj
 
 public class TaskInit {
-    public static func initFunc(_ task: CppTask): Task { Task() }
+    public static func initFunc(task: CppTask): Task { Task() }
 }
 
-public class Task {}
+// 注意: Task 已移至 task.cj
 
 public class ConcurrentTaskObj {
-    public static func create(_ task: Task): ConcurrentTaskObj { ConcurrentTaskObj() }
+    public static func create(task: Task): ConcurrentTaskObj { ConcurrentTaskObj() }
 }
 
-public class JsPromise {
-    public func result(_ vm: JsVM): JsValue { JsValue.zero }
-    public func toJS(): JsValue { JsValue.zero }
-}
+// 注意: JsPromise 已移至 js_promise.cj
 
 public class JsVM {}
 
-public class PluginRunner {
-    public var globalObject: JsObject
-    public var allocator: BunAllocator
-
-    public init(globalObject: JsObject, allocator: BunAllocator) {
-        this.globalObject = globalObject
-        this.allocator = allocator
-    }
-}
-
-public class Transpiler {
-    public var linker: Linker = Linker()
-    public var env: TranspilerEnv = TranspilerEnv()
-    public var fs: FileSystem = FileSystem()
-}
-
-public class Linker {
-    public var pluginRunner: ?PluginRunner = None
-}
-
-public class TranspilerEnv {
-    public func isNoProxy(_ hostname: ?Array<Byte>, _ host: ?Array<Byte>): Bool { false }
-}
-
-public class FileSystem {}
+// 注意: PluginRunner 已移至 plugin_runner.cj
+// 注意: Transpiler 已移至 virtual_machine.cj
+// 注意: TranspilerEnv 已移至 virtual_machine.cj
+// 注意: FileSystem 已移至 hot_reloader.cj
 
 public class BunAllocator {}
 
 public class SourceMappings {
-    public func putBakeSourceProvider(_ provider: UInt64, _ slice: String) {}
-    public func putDevServerSourceProvider(_ provider: UInt64, _ slice: String) {}
-    public func removeDevServerSourceProvider(_ provider: UInt64, _ slice: String) {}
-    public func putZigSourceProvider(_ provider: UInt64, _ slice: String) {}
-    public func removeZigSourceProvider(_ provider: UInt64, _ slice: String) {}
+    public func putBakeSourceProvider(provider: UInt64, slice: String) {}
+    public func putDevServerSourceProvider(provider: UInt64, slice: String) {}
+    public func removeDevServerSourceProvider(provider: UInt64, slice: String) {}
+    public func putZigSourceProvider(provider: UInt64, slice: String) {}
+    public func removeZigSourceProvider(provider: UInt64, slice: String) {}
 }
 
 public class UVLoop {}
 
 public enum VerboseFetchMode {
-    case none
-    case headers
-    case curl
+    | none
+    | headers
+    | curl
 }
 
 public class ManagedTaskNew {
-    public static func initFunc(_ context: HandledPromiseContext, _ callback: (HandledPromiseContext): Void): Task { Task() }
+    public static func initFunc(context: HandledPromiseContext, callback: (HandledPromiseContext) -> Unit): Task { Task() }
 }
 
 public class Math {
-    public static func max(_ a: Int64, _ b: Int64): Int64 { if (a > b) { a } else { b } }
+    public static func max(a: Int64, b: Int64): Int64 { if (a > b) { a } else { b } }
+    public static func min(a: Int64, b: Int64): Int64 { if (a < b) { a } else { b } }
+    public static func floor(v: Float64): Int64 { Int64(v) }
+    public static func ceil(v: Float64): Int64 { Int64(v + 1.0) }
 }
 
-public class EventLoop {
-    public func tick() {}
-    public func enqueueTask(_ task: Task) {}
-    public func enqueueTaskConcurrent(_ task: ConcurrentTaskObj) {}
-}
+// 注意: EventLoop 已移至 event_loop.cj

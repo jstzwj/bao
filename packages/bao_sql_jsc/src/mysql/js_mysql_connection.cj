@@ -6,6 +6,7 @@ package bao_sql_jsc.mysql
 import bao_core.*
 import bao_jsc.*
 import bao_sql.*
+import bao_sql_jsc.shared.*
 
 /// JS MySQL 连接
 /// 对应 Bun: JSMySQLConnection
@@ -15,15 +16,15 @@ public class JSMySQLConnection {
     var jsValue: JscValue = JscValue.undefined()
     var globalObject: JscJSGlobalObject
     var vm: JscVirtualMachine
-    var pollRef: KeepAlive = KeepAlive()
+    var pollRef: MySQLKeepAlive = MySQLKeepAlive()
     var connection: MySQLConnection
 
     var autoFlusher: AutoFlusher = AutoFlusher()
     var idleTimeoutIntervalMs: UInt32 = 0
     var connectionTimeoutMs: UInt32 = 0
-    var timer: EventLoopTimer = EventLoopTimer(tag: TimerTag.MySQLConnectionTimeout)
+    var timer: SQLEventLoopTimer = SQLEventLoopTimer(TimerTag.MySQLConnectionTimeout)
     var maxLifetimeIntervalMs: UInt32 = 0
-    var maxLifetimeTimer: EventLoopTimer = EventLoopTimer(tag: TimerTag.MySQLConnectionMaxLifetime)
+    var maxLifetimeTimer: SQLEventLoopTimer = SQLEventLoopTimer(TimerTag.MySQLConnectionMaxLifetime)
 
     public init(globalObject: JscJSGlobalObject, vm: JscVirtualMachine,
                 connection: MySQLConnection) {
@@ -56,7 +57,7 @@ public class JSMySQLConnection {
     /// 对应 Bun: JSMySQLConnection.constructor
     public static func constructor(globalObject: JscJSGlobalObject,
                                     callFrame: JscCallFrame): ?JSMySQLConnection {
-        globalObject.throwError("MySQLConnection cannot be constructed directly")
+        globalObject.throwUnsupported("MySQLConnection cannot be constructed directly")
         return None
     }
 
@@ -64,14 +65,14 @@ public class JSMySQLConnection {
     /// 对应 Bun: JSMySQLConnection.createInstance
     public static func createInstance_(globalObject: JscJSGlobalObject,
                                        callFrame: JscCallFrame): JscValue {
-        let vm = globalObject.bunVM()
+        let vm = globalObject.vm.getOrThrow()
         let arguments = callFrame.arguments()
 
-        let hostnameStr = arguments[0].toBunString(globalObject)
-        let port = arguments[1].coerceInt32(globalObject)
-        let usernameStr = arguments[2].toBunString(globalObject)
-        let passwordStr = arguments[3].toBunString(globalObject)
-        let databaseStr = arguments[4].toBunString(globalObject)
+        let hostnameStr = arguments[0].toString()
+        let port = arguments[1].toInt32()
+        let usernameStr = arguments[2].toString()
+        let passwordStr = arguments[3].toString()
+        let databaseStr = arguments[4].toString()
 
         // SSL 模式
         let sslModeInt = arguments[5].toInt32()
@@ -88,11 +89,7 @@ public class JSMySQLConnection {
         let maxLifetime = arguments[13].toInt32()
 
         let conn = MySQLConnection()
-        let ptr = JSMySQLConnection(
-            globalObject: globalObject,
-            vm: vm,
-            connection: conn
-        )
+        let ptr = JSMySQLConnection(globalObject, vm, conn)
         ptr.idleTimeoutIntervalMs = UInt32(idleTimeout)
         ptr.connectionTimeoutMs = UInt32(connectionTimeout)
         ptr.maxLifetimeIntervalMs = UInt32(maxLifetime)
@@ -120,15 +117,13 @@ public class JSMySQLConnection {
         ref()
         stopTimers()
         unregisterAutoFlusher()
-        defer {
-            updateReferenceType()
-            deref()
-        }
         if (vm.isShuttingDown()) {
             connection.close()
         } else {
             connection.cleanQueueAndClose(None, getQueriesArray())
         }
+        updateReferenceType()
+        deref()
     }
 
     /// 连接已建立回调
@@ -138,11 +133,14 @@ public class JSMySQLConnection {
             return
         }
         let onConnect = consumeOnConnectCallback(globalObject)
-        if (onConnect == None) {
+        if (onConnect.isNone()) {
             return
         }
         let jsVal = jsValue
-        globalObject.queueMicrotask(onConnect.getOrThrow(), [JscValue.null(), jsVal])
+        let callback = onConnect.getOrThrow()
+        vm.enqueueTask({ =>
+            callback.call(globalObject.globalThis, JscValue.null(), [JscValue.null(), jsVal])
+        })
     }
 
     /// 查询结果回调
@@ -154,7 +152,7 @@ public class JSMySQLConnection {
     /// 错误回调
     /// 对应 Bun: JSMySQLConnection.onError
     public func onError(request: ?JSMySQLQuery, err: AnyMySQLError): Unit {
-        if (request != None) {
+        if (request.isSome()) {
             let req = request.getOrThrow()
             if (vm.isShuttingDown()) {
                 req.markAsFailed()
@@ -182,7 +180,7 @@ public class JSMySQLConnection {
     /// 获取连接状态
     /// 对应 Bun: JSMySQLConnection.getConnected
     public func getConnected(): JscValue {
-        return JscValue(connection.status == ConnectionState.Connected)
+        return JscValue(isConnected(connection.status))
     }
 
     /// 引用
@@ -210,10 +208,8 @@ public class JSMySQLConnection {
     /// 对应 Bun: JSMySQLConnection.doClose
     public func doClose(): JscValue {
         stopTimers()
-        defer {
-            updateReferenceType()
-        }
         connection.cleanQueueAndClose(None, getQueriesArray())
+        updateReferenceType()
         return JscValue.undefined()
     }
 
@@ -226,18 +222,16 @@ public class JSMySQLConnection {
         connection.cleanup()
     }
 
-    private func resetConnectionTimeout(): Unit {
+    public func resetConnectionTimeout(): Unit {
         let interval = getTimeoutInterval()
-        if (timer.isActive) {
-            vm.timer.remove(timer)
-        }
-        if (connection.status == ConnectionState.Failed ||
+        timer.deactivate()
+        if (isConnectionFailed(connection.status) ||
             connection.isProcessingData() ||
             interval == 0) {
             return
         }
         timer.next = TimeSpec.msFromNow(interval)
-        vm.timer.insert(timer)
+        timer.activate()
     }
 
     private func getTimeoutInterval(): UInt32 {
@@ -253,31 +247,27 @@ public class JSMySQLConnection {
     }
 
     private func stopTimers(): Unit {
-        if (timer.isActive) {
-            vm.timer.remove(timer)
-        }
-        if (maxLifetimeTimer.isActive) {
-            vm.timer.remove(maxLifetimeTimer)
-        }
+        timer.deactivate()
+        maxLifetimeTimer.deactivate()
     }
 
     private func registerAutoFlusher(): Unit {
         if (!autoFlusher.registered && connection.canFlush()) {
-            AutoFlusher.registerDeferredMicrotask(this, vm)
+            registerDeferredMicrotask(this, vm)
             autoFlusher.registered = true
         }
     }
 
     private func unregisterAutoFlusher(): Unit {
         if (autoFlusher.registered) {
-            AutoFlusher.unregisterDeferredMicrotask(this, vm)
+            unregisterDeferredMicrotask(this, vm)
             autoFlusher.registered = false
         }
     }
 
     private func updateReferenceType(): Unit {
         if (connection.isActive()) {
-            if (connection.status == ConnectionState.Connected && connection.isIdle()) {
+            if (isConnected(connection.status) && connection.isIdle()) {
                 pollRef.unref(vm)
             } else {
                 pollRef.ref(vm)
@@ -308,23 +298,24 @@ public class JSMySQLConnection {
 
     private func failWithJSValue(value: JscValue): Unit {
         ref()
-        defer {
-            if (vm.isShuttingDown()) {
-                connection.close()
-            } else {
-                connection.cleanQueueAndClose(value, getQueriesArray())
-            }
-            updateReferenceType()
-            deref()
-        }
         stopTimers()
-        if (connection.status == ConnectionState.Failed) {
+        if (isConnectionFailed(connection.status)) {
+            deref()
             return
         }
         connection.status = ConnectionState.Failed
         if (vm.isShuttingDown()) {
+            updateReferenceType()
+            deref()
             return
         }
+        if (vm.isShuttingDown()) {
+            connection.close()
+        } else {
+            connection.cleanQueueAndClose(value, getQueriesArray())
+        }
+        updateReferenceType()
+        deref()
     }
 
     /// 转换为 JS 值
@@ -334,7 +325,7 @@ public class JSMySQLConnection {
 }
 
 /// 保持活跃引用
-public class KeepAlive {
+public class MySQLKeepAlive {
     public var isActive: Bool = false
 
     public init() {}
@@ -356,13 +347,21 @@ public class AutoFlusher {
 }
 
 /// 事件循环定时器
-public class EventLoopTimer {
+public class SQLEventLoopTimer {
     public var tag: TimerTag
     public var isActive: Bool = false
     public var next: TimeSpec = TimeSpec.epoch()
 
     public init(tag: TimerTag) {
         this.tag = tag
+    }
+
+    public func activate(): Unit {
+        isActive = true
+    }
+
+    public func deactivate(): Unit {
+        isActive = false
     }
 }
 
@@ -404,6 +403,20 @@ public enum SSLMode {
             case _ => SSLMode.Disable
         }
     }
+
+    public operator func ==(right: SSLMode): Bool {
+        match (this) {
+            case Disable => match (right) { case Disable => true case _ => false }
+            case Prefer => match (right) { case Prefer => true case _ => false }
+            case Require => match (right) { case Require => true case _ => false }
+            case VerifyCA => match (right) { case VerifyCA => true case _ => false }
+            case VerifyFull => match (right) { case VerifyFull => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: SSLMode): Bool {
+        !(this == right)
+    }
 }
 
 /// 连接状态
@@ -416,10 +429,80 @@ public enum ConnectionState {
     | AuthenticationAwaitingPK
     | Connected
     | Failed
+
+    public operator func ==(right: ConnectionState): Bool {
+        match (this) {
+            case Disconnected => match (right) { case Disconnected => true case _ => false }
+            case Connecting => match (right) { case Connecting => true case _ => false }
+            case Handshaking => match (right) { case Handshaking => true case _ => false }
+            case Authenticating => match (right) { case Authenticating => true case _ => false }
+            case AuthenticationAwaitingPK => match (right) { case AuthenticationAwaitingPK => true case _ => false }
+            case Connected => match (right) { case Connected => true case _ => false }
+            case Failed => match (right) { case Failed => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ConnectionState): Bool {
+        !(this == right)
+    }
 }
 
-/// 自动刷新器静态方法
-public class AutoFlusher {
-    public static func registerDeferredMicrotask(conn: JSMySQLConnection, vm: JscVirtualMachine): Unit {}
-    public static func unregisterDeferredMicrotask(conn: JSMySQLConnection, vm: JscVirtualMachine): Unit {}
+/// 连接状态辅助函数
+public func isConnected(status: ConnectionState): Bool {
+    match (status) {
+        case Connected => true
+        case _ => false
+    }
+}
+
+public func isConnectionFailed(status: ConnectionState): Bool {
+    match (status) {
+        case Failed => true
+        case _ => false
+    }
+}
+
+/// 自动刷新器扩展方法
+public func registerDeferredMicrotask(conn: JSMySQLConnection, vm: JscVirtualMachine): Unit {}
+public func unregisterDeferredMicrotask(conn: JSMySQLConnection, vm: JscVirtualMachine): Unit {}
+
+/// MySQL 错误类型（本地定义，避免与 protocol 子包循环依赖）
+/// 对应 Bun: AnyMySQLError
+public enum AnyMySQLError {
+    | UnknownError
+    | ConnectionClosed
+    | ConnectionTimedOut
+    | IdleTimeout
+    | LifetimeTimeout
+    | AuthenticationFailed
+    | ShortRead
+    | UnexpectedPacket
+    | JSError
+    | OutOfMemory
+    | JSTerminated
+
+    public static func mysqlErrorToJS(globalObject: JscJSGlobalObject,
+                                       message: String,
+                                       err: AnyMySQLError): JscValue {
+        let optsObj = JscValue.createEmptyObject(globalObject.globalThis)
+        optsObj.put(globalObject.globalThis, "message", JscValue(message))
+        optsObj.put(globalObject.globalThis, "code", JscValue(err.toString()))
+        return optsObj
+    }
+
+    public func toString(): String {
+        match (this) {
+            case UnknownError => "UNKNOWN_ERROR"
+            case ConnectionClosed => "CONNECTION_CLOSED"
+            case ConnectionTimedOut => "CONNECTION_TIMEOUT"
+            case IdleTimeout => "IDLE_TIMEOUT"
+            case LifetimeTimeout => "LIFETIME_TIMEOUT"
+            case AuthenticationFailed => "AUTHENTICATION_FAILED"
+            case ShortRead => "SHORT_READ"
+            case UnexpectedPacket => "UNEXPECTED_PACKET"
+            case JSError => "JS_ERROR"
+            case OutOfMemory => "OUT_OF_MEMORY"
+            case JSTerminated => "JS_TERMINATED"
+        }
+    }
 }

@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toSatisfy() - 检查值是否满足自定义谓词
 /// 用法: expect(received).toSatisfy(predicate)
-public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toSatisfy() requires 1 argument")
     }
 
@@ -28,12 +28,12 @@ public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     }
 
     let value = Expect.js.capturedValueGetCached(thisValue)
-    if (value == None) {
+    if (value.isNone()) {
         return globalThis.throw_("Internal consistency error: the expect(value) was garbage collected but it should not have been!")
     }
     value.ensureStillAlive()
 
-    let result = predicate.callWithCatch(globalThis: globalThis, thisValue: JSValue.jsUndefined, args: [value])
+    let result = predicate.callWithCatch(globalThis: globalThis, thisValue: JsValue.jsUndefined, args: [value])
     if (let Some(e) <- result.exception) {
         let fmt = ZigString("toSatisfy() predicate threw an exception")
         return globalThis.throwValue(globalThis.createAggregateError(errors: [e], message: fmt))
@@ -42,7 +42,7 @@ public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     let not = this.flags.not
     let pass = (result.value.isBoolean() && result.value.toBoolean()) != not
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

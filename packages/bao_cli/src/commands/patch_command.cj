@@ -126,7 +126,7 @@ public class PatchCommand {
         // 解析包规格
         let parsed = parsePackageSpec(spec)
         match (parsed) {
-            case Some(info) => {
+            case Some(info) =>
                 let name = info.name
                 let version = info.version ?? "latest"
 
@@ -141,14 +141,13 @@ public class PatchCommand {
                 let pkgJsonPath = Path.join([pkgPath, "package.json"])
                 let pkgContent = BaoFile.readAllText(pkgJsonPath)
                 let exactVersion = match (pkgContent) {
-                    case Some(content) => {
+                    case Some(content) =>
                         let parser = JsonParser()
                         let json = parser.parse(content)
                         match (json) {
                             case Some(root) => JsonHelper.getString(root, "version") ?? version
                             case None => version
                         }
-                    }
                     case None => version
                 }
 
@@ -179,29 +178,24 @@ public class PatchCommand {
                 // (可选) 打开编辑器
                 // 严格翻译自: PackageManager 中打开编辑器的逻辑
                 match (opts.editor) {
-                    case Some(editor) => {
+                    case Some(editor) =>
                         Process.spawn([editor, patchDir], ".")
-                    }
-                    case None => {
+                    case None =>
                         // 检查 $EDITOR / $VISUAL 环境变量
                         let editorEnv = Sys.getEnv("EDITOR") ?? Sys.getEnv("VISUAL")
                         match (editorEnv) {
-                            case Some(ed) => {
+                            case Some(ed) =>
                                 if (!ed.isEmpty()) {
                                     Process.spawn([ed, patchDir], ".")
                                 }
-                            }
                             case None => ()
                         }
-                    }
                 }
 
                 return 0
-            }
-            case None => {
+            case None =>
                 logger.error("Invalid package specification: '${spec}'")
                 return 1
-            }
         }
     }
 
@@ -212,23 +206,21 @@ public class PatchCommand {
 
         let atIndex = spec.lastIndexOf("@")
         match (atIndex) {
-            case Some(idx) => {
+            case Some(idx) =>
                 // 跳过 scoped package 的 @ 前缀 (@org/pkg@version)
                 if (idx == 0) {
                     // scoped package, 找第二个 @
                     let secondAt = spec.indexOfFrom("@", 1)
                     match (secondAt) {
-                        case Some(i) => {
+                        case Some(i) =>
                             let info = PackageSpec()
                             info.name = spec.substring(0, i)
                             info.version = Some(spec.substring(i + 1))
                             return Some(info)
-                        }
-                        case None => {
+                        case None =>
                             let info = PackageSpec()
                             info.name = spec
                             return Some(info)
-                        }
                     }
                 } else {
                     let info = PackageSpec()
@@ -236,12 +228,10 @@ public class PatchCommand {
                     info.version = Some(spec.substring(idx + 1))
                     return Some(info)
                 }
-            }
-            case None => {
+            case None =>
                 let info = PackageSpec()
                 info.name = spec
                 return Some(info)
-            }
         }
     }
 
@@ -268,22 +258,19 @@ public class PatchCommand {
         while (i < args.size) {
             let arg = args[i]
             match (arg) {
-                case "--editor" => {
+                case "--editor" =>
                     i++
                     if (i < args.size) {
                         opts.editor = Some(args[i])
                     }
-                }
                 case "--silent" => opts.silent = true
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printPatchHelp()
                     return opts
-                }
-                case _ => {
+                case _ =>
                     if (!arg.startsWith("-")) {
                         opts.packageSpec = Some(arg)
                     }
-                }
             }
             i++
         }
@@ -340,13 +327,11 @@ public class PatchCommitCommand {
         let opts = parseArgs(args)
 
         match (opts.patchDir) {
-            case Some(dir) => {
+            case Some(dir) =>
                 return executePatchCommit(dir, opts)
-            }
-            case None => {
+            case None =>
                 logger.error("Usage: bao patch-commit <patch-dir>")
                 return 1
-            }
         }
     }
 
@@ -363,16 +348,16 @@ public class PatchCommitCommand {
         let pkgJsonPath = Path.join([patchDir, "package.json"])
         let pkgContent = BaoFile.readAllText(pkgJsonPath)
         match (pkgContent) {
-            case Some(content) => {
+            case Some(content) =>
                 let parser = JsonParser()
                 let json = parser.parse(content)
                 match (json) {
-                    case Some(root) => {
+                    case Some(root) =>
                         let name = JsonHelper.getString(root, "name")
                         let version = JsonHelper.getString(root, "version")
 
                         match (name, version) {
-                            case (Some(n), Some(v)) => {
+                            case (Some(n), Some(v)) =>
                                 // 获取原始包路径
                                 let originalPath = Path.join(["node_modules", n])
                                 if (!BaoFile.exists(originalPath)) {
@@ -405,7 +390,7 @@ public class PatchCommitCommand {
                                 installArgs.append("install")
                                 let exitCode = Process.spawn(installArgs.toArray(), ".")
                                 match (exitCode) {
-                                    case Some(code) => {
+                                    case Some(code) =>
                                         if (code == 0) {
                                             if (!opts.silent) {
                                                 println("Patch committed successfully!")
@@ -413,26 +398,19 @@ public class PatchCommitCommand {
                                             }
                                         }
                                         return code
-                                    }
                                     case None => return 1
                                 }
-                            }
-                            case _ => {
+                            case _ =>
                                 logger.error("Patch directory package.json must have name and version")
                                 return 1
-                            }
                         }
-                    }
-                    case None => {
+                    case None =>
                         logger.error("Failed to parse package.json in patch directory")
                         return 1
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 logger.error("No package.json found in '${patchDir}'")
                 return 1
-            }
         }
     }
 
@@ -450,10 +428,9 @@ public class PatchCommitCommand {
         // 将 diff 输出重定向到文件
         let result = Process.spawnWithOutput(args.toArray(), ".")
         match (result) {
-            case Some(output) => {
+            case Some(output) =>
                 BaoFile.writeAllText(outputPath, output)
                 return true
-            }
             case None => return false
         }
     }
@@ -463,10 +440,9 @@ public class PatchCommitCommand {
     private func updatePackageJsonPatch(name: String, version: String, patchFilePath: String): Unit {
         let pkgContent = BaoFile.readAllText("package.json")
         match (pkgContent) {
-            case Some(content) => {
+            case Some(content) =>
                 // 简化: 实际需要 JSON 操作
                 // 添加 "patchedDependencies": { "<name>@<version>": "<patch-file-path>" }
-            }
             case None => ()
         }
     }
@@ -479,15 +455,13 @@ public class PatchCommitCommand {
             let arg = args[i]
             match (arg) {
                 case "--silent" => opts.silent = true
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printPatchCommitHelp()
                     return opts
-                }
-                case _ => {
+                case _ =>
                     if (!arg.startsWith("-")) {
                         opts.patchDir = Some(arg)
                     }
-                }
             }
             i++
         }

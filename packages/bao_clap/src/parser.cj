@@ -718,7 +718,7 @@ public class ClapParser {
                         // 布尔标志, 不接受值
                         // 严格翻译自: if (param.takes_value == .none and maybe_value != null)
                         //   return parser.err(..., error.DoesntTakeValue);
-                        if (maybeValue != None) {
+                        if (maybeValue.isSome()) {
                             // 布尔标志不接受值, 忽略或记录错误
                             // 为宽松性, 仍设置标志
                             return Some(ParsedArg(param))

@@ -33,7 +33,7 @@ public class DoneCallback {
     ///
     /// 返回一个JSValue，其中包含新创建的DoneCallback实例。
     /// 该值通过ensureStillAlive确保GC不会在绑定之前回收它。
-    public static func createUnbound(globalThis: JSGlobalObject): JSValue {
+    public static func createUnbound(globalThis: JSGlobalObject): JsValue {
         let doneCallback = DoneCallback()
         // 将DoneCallback实例转换为JSValue包装
         let value = doneCallback.toJS(global: globalThis)
@@ -45,7 +45,7 @@ public class DoneCallback {
     ///
     /// 创建一个名为"done"的JS函数，将其绑定到DoneCallback包装对象上。
     /// 当JS代码调用done()时，会触发bunTestDoneCallback。
-    public static func bind(value: JSValue, globalThis: JSGlobalObject): ?JSValue {
+    public static func bind(value: JsValue, globalThis: JSGlobalObject): ?JsValue {
         let callFn = JSFunction.create(globalThis, "done", BunTest.bunTestDoneCallback, 1)
         return callFn.bind(globalThis, value, BunString.staticStr("done"), 1.0)
     }

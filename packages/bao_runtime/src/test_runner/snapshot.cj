@@ -4,6 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_collections.*  // std.collection.*
 
 // ========== Snapshots - 快照管理 ==========
@@ -92,7 +93,7 @@ public class Snapshots {
         if (bun.ci.isCI()) {
             if (!updateSnapshots) {
                 // 存储快照名称以用于错误报告
-                if (lastErrorSnapshotName != None) {
+                if (lastErrorSnapshotName.isSome()) {
                     allocator.free(lastErrorSnapshotName.getOrThrow())
                     lastErrorSnapshotName = None
                 }
@@ -101,7 +102,7 @@ public class Snapshots {
             }
         }
 
-        let estimatedLength = "\nexports[`".length + nameWithCounter.length + "`] = `".length + targetValue.length + "`;\n".length
+        let estimatedLength = "\nexports[`".size + nameWithCounter.size + "`] = `".size + targetValue.size + "`;\n".size
         fileBuf.ensureUnusedCapacity(estimatedLength + 10)
 
         // 格式化转义后写入
@@ -118,7 +119,7 @@ public class Snapshots {
     /// 解析快照文件
     /// 解析.snap文件中的exports, 提取快照键值对
     public func parseFile(file: SnapshotFile) {
-        if (fileBuf.length == 0) { return }
+        if (fileBuf.size == 0) { return }
 
         let testFile = Jest.runner.files.get(file.id)
         let testFilename = testFile.source.path.name.filename
@@ -135,26 +136,26 @@ public class Snapshots {
 
         // 简单解析: 查找 exports[`...`] = `...` 模式
         var i = 0
-        while (i < content.length) {
+        while (i < content.size) {
             // 查找 exports[`
             let exportsIdx = content.indexOf("exports[`", startIndex: i)
-            if (exportsIdx == None) { break }
+            if (exportsIdx.isNone()) { break }
             i = exportsIdx.getOrThrow()
 
             // 提取键
-            let keyStart = i + "exports[`".length
+            let keyStart = i + "exports[`".size
             let keyEnd = content.indexOf("`]", startIndex: keyStart)
-            if (keyEnd == None) { break }
+            if (keyEnd.isNone()) { break }
             let key = content[keyStart..keyEnd.getOrThrow()]
 
             // 查找 = `
             let assignStart = content.indexOf("= `", startIndex: keyEnd.getOrThrow() + 2)
-            if (assignStart == None) { break }
+            if (assignStart.isNone()) { break }
 
-            let valueStart = assignStart.getOrThrow() + "= `".length
+            let valueStart = assignStart.getOrThrow() + "= `".size
             // 查找未转义的结束反引号
             var valueEnd = valueStart
-            while (valueEnd < content.length) {
+            while (valueEnd < content.size) {
                 if (content[valueEnd] == '`' && content[valueEnd - 1] != '\\') {
                     break
                 }
@@ -250,7 +251,7 @@ public class Snapshots {
                     targetCol: ils.col
                 )
 
-                if (byteOffsetAdd == None) {
+                if (byteOffsetAdd.isNone()) {
                     success = false
                     continue
                 }
@@ -263,7 +264,7 @@ public class Snapshots {
                 // 写入新值
                 resultText.append(ils.value)
 
-                uncommittedSegmentEnd = byteOffset + lastValue.length
+                uncommittedSegmentEnd = byteOffset + lastValue.size
                 lastByte = byteOffset
                 lastLine = ils.line
                 lastCol = ils.col
@@ -286,12 +287,12 @@ public class Snapshots {
     /// - Return: 是否成功
     public func getSnapshotFile(fileId: UInt32): Bool {
         // 检查是否已加载此文件的快照
-        if (currentFile != None && currentFile.getOrThrow().id == fileId) {
+        if (currentFile.isSome() && currentFile.getOrThrow().id == fileId) {
             return true
         }
 
         // 写入之前文件的快照
-        if (currentFile != None) {
+        if (currentFile.isSome()) {
             writeSnapshotFile()
         }
 
@@ -327,7 +328,7 @@ public class Snapshots {
         snapshotDirPath = snapshotDirPath
 
         // 解析快照
-        if (fileBuf.length > 0) {
+        if (fileBuf.size > 0) {
             parseFile(file: currentFile.getOrThrow())
         }
 

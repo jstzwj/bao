@@ -39,7 +39,7 @@ public enum Visibility {
 /// display 关键字
 /// 严格翻译自 DisplayKeyword
 public enum DisplayKeyword {
-    | None
+    | NoneValue
     | Contents
     | TableRowGroup
     | TableHeaderGroup
@@ -56,7 +56,7 @@ public enum DisplayKeyword {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Contents => "contents"
             case TableRowGroup => "table-row-group"
             case TableHeaderGroup => "table-header-group"

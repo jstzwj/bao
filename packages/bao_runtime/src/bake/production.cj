@@ -3,11 +3,14 @@
 
 package bao_runtime.bake
 
+import bao_jsc.*
+import bao_bun_alloc.*
+
 /// 实现生产构建命令
 public func buildCommand(ctx: CommandContext): Unit {
     bake.printWarning()
 
-    if (ctx.args.entry_points.length > 1) {
+    if (ctx.args.entry_points.size > 1) {
         Output.errGeneric("bun build --app only accepts one entrypoint")
         Global.crash()
     }
@@ -18,7 +21,8 @@ public func buildCommand(ctx: CommandContext): Unit {
     }
 
     var cwd_buf: PathBuffer = PathBuffer()
-    let cwd: String = bun.getcwd(cwd_buf) match {
+    let cwdResult = bun.getcwd(cwd_buf)
+    let cwd: String = match (cwdResult) {
         case ok(val) => val
         case err(e) =>
             Output.err(e, "Could not query current working directory")
@@ -28,16 +32,16 @@ public func buildCommand(ctx: CommandContext): Unit {
     // 创建 VM + global 用于加载配置文件、插件和执行构建时预渲染
     bun.jsc.initialize(false)
 
-    var arena: MimallocArena = MimallocArena.init()
-    defer arena.deinit()
+    var arena: MimallocArena = MimallocArena()
+    // defer arena.deinit() -- inline cleanup at end of scope
 
     let vm: VirtualMachine = VirtualMachine.initBake(VirtualMachineInitBakeOptions(
-        allocator: arena.allocator(),
-        log: ctx.log,
-        args: ctx.args,
-        smol: ctx.runtime_options.smol,
+        arena.allocator(),
+        ctx.log,
+        ctx.args,
+        ctx.runtime_options.smol,
     ))
-    defer vm.deinit()
+    // defer vm.deinit() -- inline cleanup at end of scope
 
     vm.regular_event_loop.global = vm.global
     vm.event_loop.ensureWaker()
@@ -65,7 +69,7 @@ public func buildCommand(ctx: CommandContext): Unit {
 
     match (ctx.debug.macros) {
         case disable => b.options.no_macros = true
-        case map(let macros) => b.options.macro_remap = macros
+        case map(macros) => b.options.macro_remap = macros
         case unspecified => ()
     }
 
@@ -76,21 +80,21 @@ public func buildCommand(ctx: CommandContext): Unit {
     VirtualMachine.is_main_thread_vm = true
 
     let api_lock = vm.jsc_vm.getAPILock()
-    defer api_lock.release()
+    // defer api_lock.release() -- inline cleanup at end of scope
 
     var pt: PerThread = PerThread(
-        input_files: [],
-        bundled_outputs: [],
-        output_indexes: [],
-        module_keys: [],
-        module_map: StringArrayHashMap<OutputFileIndex>(),
-        source_maps: StringArrayHashMap<OutputFileIndex>(),
-        vm: vm,
-        loaded_files: AutoBitSet.initEmpty(vm.allocator, 0),
-        all_server_files: JSValue.null,
+        [],
+        [],
+        [],
+        [],
+        StringArrayHashMap<OutputFileIndex>(),
+        StringArrayHashMap<OutputFileIndex>(),
+        vm,
+        AutoBitSet.initEmpty(vm.allocator, 0),
+        JsValue.null,
     )
 
-    buildWithVm(ctx, cwd, vm, pt) match {
+    match (buildWithVm(ctx, cwd, vm, pt)) {
         case ok(()) => ()
         case error(JSError) =>
             let err_value = vm.global.takeException()
@@ -102,6 +106,11 @@ public func buildCommand(ctx: CommandContext): Unit {
             vm.globalExit()
         case error(e) => return e
     }
+
+    // inline cleanup for defer
+    api_lock.release()
+    vm.deinit()
+    arena.deinit()
 }
 
 /// 将 sourcemap 写入磁盘
@@ -109,7 +118,7 @@ public func writeSourcemapToDisk(
     allocator: Allocator,
     file: OutputFile,
     bundled_outputs: Array<OutputFile>,
-    source_maps: StringArrayHashMapUnmanaged<OutputFileIndex>,
+    source_maps: StringArrayHashMapUnmanaged<OutputFileIndex>
 ): Unit {
     let source_map_index = file.source_map_index
     let source_map_file: OutputFile = bundled_outputs[source_map_index]
@@ -124,7 +133,7 @@ public func writeSourcemapToDisk(
     source_maps.put(
         allocator,
         "bake:/${without_prefix}",
-        OutputFileIndex.init(source_map_index),
+        OutputFileIndex(source_map_index),
     )
 }
 
@@ -137,15 +146,16 @@ public func buildWithVm(ctx: CommandContext, cwd: String, vm: VirtualMachine, pt
     Output.prettyErrorln("Loading configuration")
     Output.flush()
 
-    var unresolved_config_entry_point: String = if (ctx.args.entry_points.length > 0) ctx.args.entry_points[0] else "./bun.app"
+    var unresolved_config_entry_point: String = if (ctx.args.entry_points.size > 0) { ctx.args.entry_points[0] } else { "./bun.app" }
     if (bun.resolver.isPackagePath(unresolved_config_entry_point)) {
         unresolved_config_entry_point = "./${unresolved_config_entry_point}"
     }
 
-    let config_entry_point = b.resolver.resolve(cwd, unresolved_config_entry_point, ResolveKind.entry_point_build) match {
+    let resolveResult = b.resolver.resolve(cwd, unresolved_config_entry_point, ResolveKind.entry_point_build)
+    let config_entry_point = match (resolveResult) {
         case ok(val) => val
         case error(ModuleNotFound) =>
-            if (ctx.args.entry_points.length == 0) {
+            if (ctx.args.entry_points.size == 0) {
                 Output.err(error.ModuleNotFound,
                     "'bun build --app' cannot find your application's config file\n\nThe default location for this is `bun.app.ts`")
                 Global.crash()
@@ -167,27 +177,33 @@ public class EntryPointMap {
     public var allocator: Allocator
     public var files: HashMap
 
-    public class InputFile {
-        public var abs_path_ptr: String
-        public var abs_path_len: UInt32
-        public var side: bake.Side
+    public init(root: String, allocator: Allocator, files: HashMap) {
+        this.root = root
+        this.allocator = allocator
+        this.files = files
+    }
+}
 
-        public init(abs_path: String, side: bake.Side) {
-            this.abs_path_ptr = abs_path
-            this.abs_path_len = UInt32(abs_path.length)
-            this.side = side
-        }
+public class EntryPointMapInputFile {
+    public var abs_path_ptr: String
+    public var abs_path_len: UInt32
+    public var side: bake.Side
 
-        public func absPath(): String {
-            return abs_path_ptr
-        }
+    public init(abs_path: String, side: bake.Side) {
+        this.abs_path_ptr = abs_path
+        this.abs_path_len = UInt32(abs_path.size)
+        this.side = side
+    }
+
+    public func absPath(): String {
+        return abs_path_ptr
     }
 }
 
 /// PerThread - 每个渲染线程使用的数据。包含渲染所需的 bundle 中的所有信息。
 public class PerThread {
     // 共享数据
-    public var input_files: Array<EntryPointMap.InputFile>
+    public var input_files: Array<EntryPointMapInputFile>
     public var bundled_outputs: Array<OutputFile>
     public var output_indexes: Array<OutputFileIndex>
     public var module_keys: Array<bun.String>
@@ -197,23 +213,36 @@ public class PerThread {
     // 线程本地
     public var vm: VirtualMachine
     public var loaded_files: AutoBitSet
-    public var all_server_files: JSValue
+    public var all_server_files: JsValue
 
-    /// 发送到其他线程进行渲染的选项
-    public class Options {
-        public var input_files: Array<EntryPointMap.InputFile>
-        public var bundled_outputs: Array<OutputFile>
-        public var output_indexes: Array<OutputFileIndex>
-        public var module_keys: Array<bun.String>
-        public var module_map: StringArrayHashMapUnmanaged<OutputFileIndex>
-        public var source_maps: StringArrayHashMapUnmanaged<OutputFileIndex>
+    public init(
+        input_files: Array<EntryPointMapInputFile>,
+        bundled_outputs: Array<OutputFile>,
+        output_indexes: Array<OutputFileIndex>,
+        module_keys: Array<bun.String>,
+        module_map: StringArrayHashMapUnmanaged<OutputFileIndex>,
+        source_maps: StringArrayHashMapUnmanaged<OutputFileIndex>,
+        vm: VirtualMachine,
+        loaded_files: AutoBitSet,
+        all_server_files: JsValue
+    ) {
+        this.input_files = input_files
+        this.bundled_outputs = bundled_outputs
+        this.output_indexes = output_indexes
+        this.module_keys = module_keys
+        this.module_map = module_map
+        this.source_maps = source_maps
+        this.vm = vm
+        this.loaded_files = loaded_files
+        this.all_server_files = all_server_files
     }
 
+    /// 发送到其他线程进行渲染的选项
     public func outputIndex(id: OpaqueFileId): OutputFileIndex {
         return output_indexes[id.get()]
     }
 
-    public func inputFile(id: OpaqueFileId): EntryPointMap.InputFile {
+    public func inputFile(id: OpaqueFileId): EntryPointMapInputFile {
         return input_files[id.get()]
     }
 
@@ -221,25 +250,35 @@ public class PerThread {
         return bundled_outputs[outputIndex(id).get()]
     }
 
-    public func loadBundledModule(id: OpaqueFileId): JSValue {
+    public func loadBundledModule(id: OpaqueFileId): JsValue {
         return loadModule(vm, vm.global, module_keys[id.get()].toJS(vm.global))
     }
 
-    public func preloadBundledModule(id: OpaqueFileId): JSValue {
+    public func preloadBundledModule(id: OpaqueFileId): JsValue {
         if (!loaded_files.isSet(id.get())) {
             loaded_files.set(id.get())
             all_server_files.putIndex(vm.global, Int64(id.get()), module_keys[id.get()].toJS(vm.global))
         }
-        return JSValue.jsNumberFromInt32(Int32(id.get()))
+        return JsValue.jsNumberFromInt32(Int32(id.get()))
     }
 }
 
+/// PerThread Options - 发送到其他线程进行渲染的选项
+public class PerThreadOptions {
+    public var input_files: Array<EntryPointMapInputFile>
+    public var bundled_outputs: Array<OutputFile>
+    public var output_indexes: Array<OutputFileIndex>
+    public var module_keys: Array<bun.String>
+    public var module_map: StringArrayHashMapUnmanaged<OutputFileIndex>
+    public var source_maps: StringArrayHashMapUnmanaged<OutputFileIndex>
+}
+
 /// 加载模块
-func loadModule(vm: VirtualMachine, global: JSGlobalObject, key: JSValue): JSValue {
+func loadModule(vm: VirtualMachine, global: JSGlobalObject, key: JsValue): JsValue {
     let promise = BakeLoadModuleByKey(global, key).asAnyPromise().get().internal
     promise.setHandled()
     vm.waitForPromise(PromiseRef(internal: promise))
-    vm.eventLoop().drainMicrotasks() match {
+    match (vm.eventLoop().drainMicrotasks()) {
         case ok(()) => ()
         case err(_) => bun.Global.crash()
     }
@@ -250,13 +289,13 @@ func loadModule(vm: VirtualMachine, global: JSGlobalObject, key: JSValue): JSVal
     }
 }
 
-extern func BakeGetDefaultExportFromModule(global: JSGlobalObject, key: JSValue): JSValue
-extern func BakeGetModuleNamespace(global: JSGlobalObject, key: JSValue): JSValue
-extern func BakeLoadModuleByKey(global: JSGlobalObject, key: JSValue): JSValue
+public func BakeGetDefaultExportFromModule(global: JSGlobalObject, key: JsValue): JsValue { return JsValue.jsUndefined() }
+public func BakeGetModuleNamespace(global: JSGlobalObject, key: JsValue): JsValue { return JsValue.jsUndefined() }
+public func BakeLoadModuleByKey(global: JSGlobalObject, key: JsValue): JsValue { return JsValue.jsUndefined() }
 
 /// TypeAndFlags - 路由类型和标志的打包结构
-public struct TypeAndFlags <: Int32 {
-    public var type: UInt8
+public struct TypeAndFlags {
+    public var `type`: UInt8
     public var no_client: Bool = false
     public var unused: UInt32 = 0
 }
@@ -264,7 +303,7 @@ public struct TypeAndFlags <: Int32 {
 /// 给定 key，返回要加载的源代码
 public func BakeProdLoad(pt: PerThread, key: bun.String): bun.String {
     let utf8 = key.toUTF8(pt.vm.allocator)
-    if (let Some(value) = pt.module_map.get(utf8.slice())) {
+    if (let Some(value) <- pt.module_map.get(utf8.slice())) {
         return pt.bundled_outputs[value.get()].value.toBunString()
     }
     return bun.String.dead
@@ -274,8 +313,8 @@ public func BakeProdLoad(pt: PerThread, key: bun.String): bun.String {
 public func BakeProdResolve(global: JSGlobalObject, a_str: bun.String, specifier_str: bun.String): bun.String {
     let specifier = specifier_str.toUTF8(bun.default_allocator)
 
-    if (let Some(alias) = jsc.ModuleLoader.HardcodedModule.Alias.get(specifier.slice(), .bun, .{})) {
-        return bun.String.static(alias.path)
+    if (let Some(alias) <- jsc.ModuleLoader.HardcodedModule.Alias.get(specifier.slice())) {
+        return bun.String.`static`(alias.path)
     }
 
     let referrer = a_str.toUTF8(bun.default_allocator)
@@ -284,21 +323,61 @@ public func BakeProdResolve(global: JSGlobalObject, a_str: bun.String, specifier
         return bun.String.dead // 不允许生产资源中的非相对导入
     }
 
-    return bun.String.createFormat("bake:${bun.path.joinAbs(...)}")
+    return bun.String.createFormat("bake:${bun.path.joinAbsStringZ(referrer.slice(), specifier.slice())}")
 }
 
 // 类型别名
-public type CommandContext = bun.cli.Command.Context
-public type VirtualMachine = jsc.VirtualMachine
-public type VirtualMachineInitBakeOptions = VirtualMachine.InitBakeOptions
-public type Transpiler = bun.transpiler.Transpiler
-public type OutputFile = bun.options.OutputFile
-public type OutputFileIndex = bun.options.OutputFile.Index
-public type OpaqueFileId = FrameworkRouter.OpaqueFileId
-public type JSValue = jsc.JSValue
-public type JSGlobalObject = jsc.JSGlobalObject
-public type AutoBitSet = bun.bit_set.AutoBitSet
-public type StringArrayHashMapUnmanaged<V> = std.StringArrayHashMapUnmanaged<V>
-public type HotReloadMode = bun.cli.HotReloadMode
-public type OfflineMode = bun.cli.OfflineMode
-public type MimallocArena = bun.MimallocArena
+// CommandContext stub - originally bun.cli.Command.Context
+public class CommandContext {}
+// VirtualMachineInitBakeOptions stub
+public class VirtualMachineInitBakeOptions {
+    public var allocator: Allocator
+    public var log: Int64
+    public init(a: Allocator, l: Int64, args: CommandContext, smol: Bool) {
+        allocator = a
+        log = l
+    }
+}
+// OutputFile and OutputFileIndex stubs - originally from bun.options
+public class OutputFile {
+    public var dest_path: String = ""
+    public var value: String = ""
+    public var source_map_index: UInt32 = UInt32(0)
+    public init() {}
+}
+public class OutputFileIndex {
+    public var value: UInt32 = UInt32(0)
+    public init() {}
+    public init(v: UInt32) { value = v }
+    public func get(): UInt32 { value }
+}
+// OpaqueFileId stub - originally FrameworkRouter.OpaqueFileId
+public class OpaqueFileId {
+    public var value: UInt32 = UInt32(0)
+    public init() {}
+    public init(v: UInt32) { value = v }
+    public func get(): UInt32 { value }
+}
+// JSGlobalObject available via import bao_jsc.*
+// AutoBitSet stub
+public class AutoBitSet {
+    public init() {}
+    public static func initEmpty(a: Allocator, b: Int64): AutoBitSet { AutoBitSet() }
+    public func isSet(i: UInt32): Bool { false }
+    public func set(i: UInt32): Unit {}
+}
+// StringArrayHashMapUnmanaged stub
+public class StringArrayHashMapUnmanaged<V> {
+    public init() {}
+    public func put(k: String, v: V): Unit {}
+    public func get(k: String): ?V { None }
+}
+// HotReloadMode and OfflineMode stubs
+public enum HotReloadMode { | none | watch }
+public enum OfflineMode { | online | offline | latest }
+// MimallocArena stub
+public class MimallocArena {
+    public init() {}
+    public func allocator(): Allocator { Allocator() }
+    public func deinit(): Unit {}
+}

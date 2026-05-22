@@ -43,7 +43,7 @@ public class JSBundler {
             if (map.count() == 0) { return none }
 
             // POSIX: 直接查找
-            if (let entry = map.get(specifier)) {
+            if (let entry <- map.get(specifier)) {
                 return entry.slice()
             }
 
@@ -69,7 +69,7 @@ public class JSBundler {
             if (map.count() == 0) { return none }
 
             // 1. 直接匹配
-            if (let key = map.getKey(specifier)) {
+            if (let key <- map.getKey(specifier)) {
                 return ResolverResult(
                     pathPair: PathPair(primary: FsPath.initWithNamespace(key, "file")),
                     moduleType: .unknown,
@@ -97,7 +97,7 @@ public class JSBundler {
                     // 连接路径
                     let joined = joinPath(sourceDir, specifier)
 
-                    if (let key = map.getKey(joined)) {
+                    if (let key <- map.getKey(joined)) {
                         return ResolverResult(
                             pathPair: PathPair(primary: FsPath.initWithNamespace(key, "file")),
                             moduleType: .unknown,
@@ -123,14 +123,14 @@ public class JSBundler {
             }
 
             // 遍历属性
-            var filesIter = JsPropertyIterator.init(globalThis, filesObj,
+            var filesIter = JsPropertyIterator(globalThis, filesObj,
                 skipEmptyName: true,
                 includeValue: true)
             defer filesIter.deinit()
 
             self.map.ensureTotalCapacity(filesIter.len)
 
-            while (let prop = filesIter.next()) {
+            while (let prop <- filesIter.next()) {
                 let propertyValue = filesIter.value
 
                 // 将值解析为 BlobOrStringOrBuffer
@@ -187,7 +187,7 @@ public class JSBundler {
         public var target: Target = Target.browser
 
         /// 入口点
-        public var entryPoints: StringSet = StringSet.init(default_allocator)
+        public var entryPoints: StringSet = StringSet(default_allocator)
 
         /// 热更新
         public var hot: Bool = false
@@ -196,7 +196,7 @@ public class JSBundler {
         public var reactFastRefresh: Bool = false
 
         /// 全局定义
-        public var define: StringMap = StringMap.init(default_allocator, true)
+        public var define: StringMap = StringMap(default_allocator, true)
 
         /// 加载器映射
         public var loaders: ?LoaderMap = none
@@ -238,7 +238,7 @@ public class JSBundler {
         public var names: Names = Names()
 
         /// 外部模块
-        public var external: StringSet = StringSet.init(default_allocator)
+        public var external: StringSet = StringSet(default_allocator)
 
         /// 允许未解析的模块
         public var allowUnresolved: ?StringSet = none
@@ -250,7 +250,7 @@ public class JSBundler {
         public var publicPath: OwnedString = OwnedString.initEmpty(default_allocator)
 
         /// 条件列表
-        public var conditions: StringSet = StringSet.init(default_allocator)
+        public var conditions: StringSet = StringSet(default_allocator)
 
         /// 包处理选项
         public var packages: PackagesOption = .bundle
@@ -277,10 +277,10 @@ public class JSBundler {
         public var cssChunking: Bool = false
 
         /// Drop 列表
-        public var drop: StringSet = StringSet.init(default_allocator)
+        public var drop: StringSet = StringSet(default_allocator)
 
         /// Features 列表
-        public var features: StringSet = StringSet.init(default_allocator)
+        public var features: StringSet = StringSet(default_allocator)
 
         /// 是否有任何 onBeforeParse 插件
         public var hasAnyOnBeforeParse: Bool = false
@@ -307,7 +307,7 @@ public class JSBundler {
         public var metafile: Bool = false
 
         /// 优化导入
-        public var optimizeImports: StringSet = StringSet.init(default_allocator)
+        public var optimizeImports: StringSet = StringSet(default_allocator)
 
         // ====================================================================
         // 从 JS 解析配置
@@ -320,7 +320,7 @@ public class JSBundler {
             var this = Config()
 
             // ---- target ----
-            if (let slice = configValue.getOptional(globalThis, "target")) {
+            if (let slice <- configValue.getOptional(globalThis, "target")) {
                 if (slice.hasPrefix("bun-")) {
                     // 编译目标 (如 "bun-linux-x64")
                     this.compile = CompileOptions(compileTarget: CompileTarget.fromSlice(globalThis, slice))
@@ -335,7 +335,7 @@ public class JSBundler {
 
             // ---- plugins ----
             // 严格翻译自: Config.fromJS 中的 plugins 解析
-            if (let array = configValue.getArray(globalThis, "plugins")) {
+            if (let array <- configValue.getArray(globalThis, "plugins")) {
                 let length = array.getLength(globalThis)
                 var i: Int64 = 0
                 while (i < length) {
@@ -346,7 +346,7 @@ public class JSBundler {
                     }
 
                     // 检查 name
-                    if (let nameSlice = plugin.getOptional(globalThis, "name")) {
+                    if (let nameSlice <- plugin.getOptional(globalThis, "name")) {
                         if (nameSlice.count == 0) {
                             globalThis.throwInvalidArguments("Expected plugin to have a non-empty name")
                             return none
@@ -367,12 +367,12 @@ public class JSBundler {
             }
 
             // ---- macros ----
-            if (let macrosFlag = configValue.getBooleanLoose(globalThis, "macros")) {
+            if (let macrosFlag <- configValue.getBooleanLoose(globalThis, "macros")) {
                 this.noMacros = !macrosFlag
             }
 
             // ---- bytecode ----
-            if (let bytecodeVal = configValue.getBooleanLoose(globalThis, "bytecode")) {
+            if (let bytecodeVal <- configValue.getBooleanLoose(globalThis, "bytecode")) {
                 this.bytecode = bytecodeVal
                 if (bytecodeVal) {
                     this.format = .cjs
@@ -381,27 +381,27 @@ public class JSBundler {
             }
 
             // ---- reactFastRefresh ----
-            if (let rfr = configValue.getBooleanLoose(globalThis, "reactFastRefresh")) {
+            if (let rfr <- configValue.getBooleanLoose(globalThis, "reactFastRefresh")) {
                 this.reactFastRefresh = rfr
             }
 
             // ---- outdir ----
-            if (let slice = configValue.getOptional(globalThis, "outdir")) {
+            if (let slice <- configValue.getOptional(globalThis, "outdir")) {
                 this.outdir.appendSliceExact(slice)
             }
 
             // ---- banner ----
-            if (let slice = configValue.getOptional(globalThis, "banner")) {
+            if (let slice <- configValue.getOptional(globalThis, "banner")) {
                 this.banner.appendSliceExact(slice)
             }
 
             // ---- footer ----
-            if (let slice = configValue.getOptional(globalThis, "footer")) {
+            if (let slice <- configValue.getOptional(globalThis, "footer")) {
                 this.footer.appendSliceExact(slice)
             }
 
             // ---- sourcemap ----
-            if (let smJs = configValue.getTruthy(globalThis, "sourcemap")) {
+            if (let smJs <- configValue.getTruthy(globalThis, "sourcemap")) {
                 if (smJs.isBoolean() && smJs.toBoolean()) {
                     this.sourceMap = if (this.outdir.isEmpty()) .inline else .linked
                 } else if (!smJs.isEmptyOrUndefinedOrNull()) {
@@ -410,11 +410,11 @@ public class JSBundler {
             }
 
             // ---- env ----
-            if (let env = configValue.get(globalThis, "env")) {
+            if (let env <- configValue.get(globalThis, "env")) {
                 if (!env.isUndefined()) {
-                    if (env == .null || env == .false || (env.isNumber() && env.toNumber() == 0.0)) {
+                    if (env == null || env == false || (env.isNumber() && env.toNumber() == 0.0)) {
                         this.envBehavior = .disable
-                    } else if (env == .true || (env.isNumber() && env.toNumber() == 1.0)) {
+                    } else if (env == true || (env.isNumber() && env.toNumber() == 1.0)) {
                         this.envBehavior = .loadAll
                     } else if (env.isString()) {
                         let slice = env.toSlice(globalThis)
@@ -422,7 +422,7 @@ public class JSBundler {
                             this.envBehavior = .loadAll
                         } else if (slice == "disable") {
                             this.envBehavior = .disable
-                        } else if (let asterisk = slice.indexOf('*')) {
+                        } else if (let asterisk <- slice.indexOf('*')) {
                             if (asterisk > 0) {
                                 this.envBehavior = .prefix
                                 this.envPrefix.appendSliceExact(slice.substring(0, asterisk))
@@ -435,74 +435,74 @@ public class JSBundler {
             }
 
             // ---- packages ----
-            if (let packages = configValue.getOptionalEnum(globalThis, "packages")) {
+            if (let packages <- configValue.getOptionalEnum(globalThis, "packages")) {
                 this.packages = packages
             }
 
             // ---- jsx ----
-            if (let jsxValue = configValue.getTruthy(globalThis, "jsx")) {
+            if (let jsxValue <- configValue.getTruthy(globalThis, "jsx")) {
                 if (!jsxValue.isObject()) {
                     globalThis.throwInvalidArguments("jsx must be an object")
                     return none
                 }
 
-                if (let runtimeSlice = jsxValue.getOptional(globalThis, "runtime")) {
+                if (let runtimeSlice <- jsxValue.getOptional(globalThis, "runtime")) {
                     this.jsx.runtime = JsxRuntime.fromString(runtimeSlice)
                 }
-                if (let factorySlice = jsxValue.getOptional(globalThis, "factory")) {
+                if (let factorySlice <- jsxValue.getOptional(globalThis, "factory")) {
                     this.jsx.factory = factorySlice
                 }
-                if (let fragmentSlice = jsxValue.getOptional(globalThis, "fragment")) {
+                if (let fragmentSlice <- jsxValue.getOptional(globalThis, "fragment")) {
                     this.jsx.fragment = fragmentSlice
                 }
-                if (let importSourceSlice = jsxValue.getOptional(globalThis, "importSource")) {
+                if (let importSourceSlice <- jsxValue.getOptional(globalThis, "importSource")) {
                     this.jsx.importSource = importSourceSlice
                 }
-                if (let dev = jsxValue.getBooleanLoose(globalThis, "development")) {
+                if (let dev <- jsxValue.getBooleanLoose(globalThis, "development")) {
                     this.jsx.development = dev
                 }
-                if (let sideEffects = jsxValue.getBooleanLoose(globalThis, "sideEffects")) {
+                if (let sideEffects <- jsxValue.getBooleanLoose(globalThis, "sideEffects")) {
                     this.jsx.sideEffects = sideEffects
                 }
             }
 
             // ---- format ----
-            if (let format = configValue.getOptionalEnum(globalThis, "format")) {
+            if (let format <- configValue.getOptionalEnum(globalThis, "format")) {
                 this.format = format
             }
 
             // ---- splitting ----
-            if (let splitting = configValue.getBooleanLoose(globalThis, "splitting")) {
+            if (let splitting <- configValue.getBooleanLoose(globalThis, "splitting")) {
                 this.codeSplitting = splitting
             }
 
             // ---- minify ----
-            if (let minifyVal = configValue.getTruthy(globalThis, "minify")) {
+            if (let minifyVal <- configValue.getTruthy(globalThis, "minify")) {
                 if (minifyVal.isBoolean()) {
                     let value = minifyVal.toBoolean()
                     this.minify.whitespace = value
                     this.minify.syntax = value
                     this.minify.identifiers = value
                 } else if (minifyVal.isObject()) {
-                    if (let ws = minifyVal.getBooleanLoose(globalThis, "whitespace")) {
+                    if (let ws <- minifyVal.getBooleanLoose(globalThis, "whitespace")) {
                         this.minify.whitespace = ws
                     }
-                    if (let syn = minifyVal.getBooleanLoose(globalThis, "syntax")) {
+                    if (let syn <- minifyVal.getBooleanLoose(globalThis, "syntax")) {
                         this.minify.syntax = syn
                     }
-                    if (let ids = minifyVal.getBooleanLoose(globalThis, "identifiers")) {
+                    if (let ids <- minifyVal.getBooleanLoose(globalThis, "identifiers")) {
                         this.minify.identifiers = ids
                     }
-                    if (let kn = minifyVal.getBooleanLoose(globalThis, "keepNames")) {
+                    if (let kn <- minifyVal.getBooleanLoose(globalThis, "keepNames")) {
                         this.minify.keepNames = kn
                     }
                 }
             }
 
             // ---- entrypoints ----
-            if (let entryPoints = configValue.getArray(globalThis, "entrypoints") ?? configValue.getArray(globalThis, "entryPoints")) {
+            if (let entryPoints <- configValue.getArray(globalThis, "entrypoints") ?? configValue.getArray(globalThis, "entryPoints")) {
                 var iter = entryPoints.arrayIterator(globalThis)
-                while (let ep = iter.next()) {
+                while (let ep <- iter.next()) {
                     let slice = ep.toSliceOrNull(globalThis)
                     this.entryPoints.insert(slice)
                 }
@@ -512,34 +512,34 @@ public class JSBundler {
             }
 
             // ---- files ----
-            if (let filesObj = configValue.getOwnObject(globalThis, "files")) {
+            if (let filesObj <- configValue.getOwnObject(globalThis, "files")) {
                 this.files = FileMap.fromJS(globalThis, filesObj) ?? FileMap()
             }
 
             // ---- emitDCEAnnotations ----
-            if (let flag = configValue.getBooleanLoose(globalThis, "emitDCEAnnotations")) {
+            if (let flag <- configValue.getBooleanLoose(globalThis, "emitDCEAnnotations")) {
                 this.emitDceAnnotations = flag
             }
 
             // ---- ignoreDCEAnnotations ----
-            if (let flag = configValue.getBooleanLoose(globalThis, "ignoreDCEAnnotations")) {
+            if (let flag <- configValue.getBooleanLoose(globalThis, "ignoreDCEAnnotations")) {
                 this.ignoreDceAnnotations = flag
             }
 
             // ---- conditions ----
-            if (let conditionsValue = configValue.getTruthy(globalThis, "conditions")) {
+            if (let conditionsValue <- configValue.getTruthy(globalThis, "conditions")) {
                 if (conditionsValue.isString()) {
                     this.conditions.insert(conditionsValue.toSliceOrNull(globalThis))
                 } else if (conditionsValue.jsType().isArray()) {
                     var iter = conditionsValue.arrayIterator(globalThis)
-                    while (let ep = iter.next()) {
+                    while (let ep <- iter.next()) {
                         this.conditions.insert(ep.toSliceOrNull(globalThis))
                     }
                 }
             }
 
             // ---- rootdir ----
-            if (let slice = configValue.getOptional(globalThis, "root")) {
+            if (let slice <- configValue.getOptional(globalThis, "root")) {
                 this.rootdir.appendSliceExact(slice)
             } else {
                 // 自动推断: 使用第一个入口点的目录
@@ -547,86 +547,86 @@ public class JSBundler {
             }
 
             // ---- external ----
-            if (let externals = configValue.getOwnArray(globalThis, "external")) {
+            if (let externals <- configValue.getOwnArray(globalThis, "external")) {
                 var iter = externals.arrayIterator(globalThis)
-                while (let ep = iter.next()) {
+                while (let ep <- iter.next()) {
                     this.external.insert(ep.toSliceOrNull(globalThis))
                 }
             }
 
             // ---- allowUnresolved ----
-            if (let allowUnresolvedVal = configValue.getOwn(globalThis, "allowUnresolved")) {
+            if (let allowUnresolvedVal <- configValue.getOwn(globalThis, "allowUnresolved")) {
                 if (!allowUnresolvedVal.isUndefined() && !allowUnresolvedVal.isNull()) {
-                    this.allowUnresolved = StringSet.init(default_allocator)
+                    this.allowUnresolved = StringSet(default_allocator)
                     var iter = allowUnresolvedVal.arrayIterator(globalThis)
-                    while (let ep = iter.next()) {
+                    while (let ep <- iter.next()) {
                         this.allowUnresolved.insert(ep.toSliceOrNull(globalThis))
                     }
                 }
             }
 
             // ---- drop ----
-            if (let drops = configValue.getOwnArray(globalThis, "drop")) {
+            if (let drops <- configValue.getOwnArray(globalThis, "drop")) {
                 var iter = drops.arrayIterator(globalThis)
-                while (let ep = iter.next()) {
+                while (let ep <- iter.next()) {
                     this.drop.insert(ep.toSliceOrNull(globalThis))
                 }
             }
 
             // ---- features ----
-            if (let featureArr = configValue.getOwnArray(globalThis, "features")) {
+            if (let featureArr <- configValue.getOwnArray(globalThis, "features")) {
                 var iter = featureArr.arrayIterator(globalThis)
-                while (let ep = iter.next()) {
+                while (let ep <- iter.next()) {
                     this.features.insert(ep.toSliceOrNull(globalThis))
                 }
             }
 
             // ---- optimizeImports ----
-            if (let optImports = configValue.getOwnArray(globalThis, "optimizeImports")) {
+            if (let optImports <- configValue.getOwnArray(globalThis, "optimizeImports")) {
                 var iter = optImports.arrayIterator(globalThis)
-                while (let ep = iter.next()) {
+                while (let ep <- iter.next()) {
                     this.optimizeImports.insert(ep.toSliceOrNull(globalThis))
                 }
             }
 
             // ---- publicPath ----
-            if (let slice = configValue.getOptional(globalThis, "publicPath")) {
+            if (let slice <- configValue.getOptional(globalThis, "publicPath")) {
                 this.publicPath.appendSliceExact(slice)
             }
 
             // ---- naming ----
-            if (let naming = configValue.getTruthy(globalThis, "naming")) {
+            if (let naming <- configValue.getTruthy(globalThis, "naming")) {
                 if (naming.isString()) {
                     this.names.ownedEntryPoint = naming.toSliceOrNull(globalThis)
                 } else if (naming.isObject()) {
-                    if (let entry = naming.getOptional(globalThis, "entry")) {
+                    if (let entry <- naming.getOptional(globalThis, "entry")) {
                         this.names.ownedEntryPoint = entry
                     }
-                    if (let chunk = naming.getOptional(globalThis, "chunk")) {
+                    if (let chunk <- naming.getOptional(globalThis, "chunk")) {
                         this.names.ownedChunk = chunk
                     }
-                    if (let asset = naming.getOptional(globalThis, "asset")) {
+                    if (let asset <- naming.getOptional(globalThis, "asset")) {
                         this.names.ownedAsset = asset
                     }
                 }
             }
 
             // ---- define ----
-            if (let defineObj = configValue.getOwnObject(globalThis, "define")) {
-                var defineIter = JsPropertyIterator.init(globalThis, defineObj,
+            if (let defineObj <- configValue.getOwnObject(globalThis, "define")) {
+                var defineIter = JsPropertyIterator(globalThis, defineObj,
                     skipEmptyName: true,
                     includeValue: true)
                 defer defineIter.deinit()
 
-                while (let prop = defineIter.next()) {
+                while (let prop <- defineIter.next()) {
                     let propertyValue = defineIter.value
                     this.define.insert(prop.toOwnedSlice(default_allocator), propertyValue.toString())
                 }
             }
 
             // ---- loader ----
-            if (let loadersObj = configValue.getOwnObject(globalThis, "loader")) {
-                var loaderIter = JsPropertyIterator.init(globalThis, loadersObj,
+            if (let loadersObj <- configValue.getOwnObject(globalThis, "loader")) {
+                var loaderIter = JsPropertyIterator(globalThis, loadersObj,
                     skipEmptyName: true,
                     includeValue: true)
                 defer loaderIter.deinit()
@@ -634,7 +634,7 @@ public class JSBundler {
                 var loaderNames: Array<String> = []
                 var loaderValues: Array<Loader> = []
 
-                while (let prop = loaderIter.next()) {
+                while (let prop <- loaderIter.next()) {
                     if (!prop.hasPrefix(".") || prop.count < 2) {
                         globalThis.throwInvalidArguments("loader property names must be file extensions, such as '.txt'")
                         return none
@@ -648,12 +648,12 @@ public class JSBundler {
             }
 
             // ---- throw ----
-            if (let flag = configValue.getBooleanStrict(globalThis, "throw")) {
+            if (let flag <- configValue.getBooleanStrict(globalThis, "throw")) {
                 this.throwOnError = flag
             }
 
             // ---- metafile ----
-            if (let metafileValue = configValue.getOwn(globalThis, "metafile")) {
+            if (let metafileValue <- configValue.getOwn(globalThis, "metafile")) {
                 if (metafileValue.isBoolean()) {
                     this.metafile = metafileValue.toBoolean()
                 } else if (metafileValue.isString()) {
@@ -661,10 +661,10 @@ public class JSBundler {
                     this.metafileJsonPath.appendSliceExact(metafileValue.toSlice(globalThis))
                 } else if (metafileValue.isObject()) {
                     this.metafile = true
-                    if (let jsonPath = metafileValue.getOptional(globalThis, "json")) {
+                    if (let jsonPath <- metafileValue.getOptional(globalThis, "json")) {
                         this.metafileJsonPath.appendSliceExact(jsonPath)
                     }
-                    if (let mdPath = metafileValue.getOptional(globalThis, "markdown")) {
+                    if (let mdPath <- metafileValue.getOptional(globalThis, "markdown")) {
                         this.metafileMarkdownPath.appendSliceExact(mdPath)
                     }
                 }
@@ -678,7 +678,7 @@ public class JSBundler {
         public func deinit(): Unit {
             entryPoints.deinit()
             external.deinit()
-            if (let a = allowUnresolved) { a.deinit() }
+            if (let a <- allowUnresolved) { a.deinit() }
             define.deinit()
             dir.deinit()
             serve.deinit()
@@ -790,14 +790,14 @@ public class JSBundler {
                 return this
             } else if (compileValue.isObject()) {
                 // 解析详细配置
-                if (let target = compileValue.getOwn(globalThis, "target")) {
+                if (let target <- compileValue.getOwn(globalThis, "target")) {
                     this.compileTarget = CompileTarget.fromJS(globalThis, target)
                 }
 
-                if (let execArgvArr = compileValue.getOwnArray(globalThis, "execArgv")) {
+                if (let execArgvArr <- compileValue.getOwnArray(globalThis, "execArgv")) {
                     var iter = execArgvArr.arrayIterator(globalThis)
                     var isFirst = true
-                    while (let arg = iter.next()) {
+                    while (let arg <- iter.next()) {
                         let slice = arg.toSlice(globalThis, default_allocator)
                         if (isFirst) {
                             this.execArgv.appendSlice(slice)
@@ -809,53 +809,53 @@ public class JSBundler {
                     }
                 }
 
-                if (let execPath = compileValue.getOwn(globalThis, "executablePath")) {
+                if (let execPath <- compileValue.getOwn(globalThis, "executablePath")) {
                     this.executablePath.appendSliceExact(execPath.toSlice(globalThis, default_allocator))
                 }
 
-                if (let windows = compileValue.getOwnTruthy(globalThis, "windows")) {
+                if (let windows <- compileValue.getOwnTruthy(globalThis, "windows")) {
                     if (!windows.isObject()) {
                         globalThis.throwInvalidArguments("windows must be an object")
                         return none
                     }
 
-                    if (let hideConsole = windows.getOwn(globalThis, "hideConsole")) {
+                    if (let hideConsole <- windows.getOwn(globalThis, "hideConsole")) {
                         this.windowsHideConsole = hideConsole.toBoolean()
                     }
-                    if (let icon = windows.getOwn(globalThis, "icon")) {
+                    if (let icon <- windows.getOwn(globalThis, "icon")) {
                         this.windowsIconPath.appendSliceExact(icon.toSlice(globalThis, default_allocator))
                     }
-                    if (let title = windows.getOwn(globalThis, "title")) {
+                    if (let title <- windows.getOwn(globalThis, "title")) {
                         this.windowsTitle.appendSliceExact(title.toSlice(globalThis, default_allocator))
                     }
-                    if (let publisher = windows.getOwn(globalThis, "publisher")) {
+                    if (let publisher <- windows.getOwn(globalThis, "publisher")) {
                         this.windowsPublisher.appendSliceExact(publisher.toSlice(globalThis, default_allocator))
                     }
-                    if (let version = windows.getOwn(globalThis, "version")) {
+                    if (let version <- windows.getOwn(globalThis, "version")) {
                         this.windowsVersion.appendSliceExact(version.toSlice(globalThis, default_allocator))
                     }
-                    if (let description = windows.getOwn(globalThis, "description")) {
+                    if (let description <- windows.getOwn(globalThis, "description")) {
                         this.windowsDescription.appendSliceExact(description.toSlice(globalThis, default_allocator))
                     }
-                    if (let copyright = windows.getOwn(globalThis, "copyright")) {
+                    if (let copyright <- windows.getOwn(globalThis, "copyright")) {
                         this.windowsCopyright.appendSliceExact(copyright.toSlice(globalThis, default_allocator))
                     }
                 }
 
-                if (let outfile = compileValue.getOwn(globalThis, "outfile")) {
+                if (let outfile <- compileValue.getOwn(globalThis, "outfile")) {
                     this.outfile.appendSliceExact(outfile.toSlice(globalThis, default_allocator))
                 }
 
-                if (let autoloadDotenv = compileValue.getBooleanLoose(globalThis, "autoloadDotenv")) {
+                if (let autoloadDotenv <- compileValue.getBooleanLoose(globalThis, "autoloadDotenv")) {
                     this.autoloadDotenv = autoloadDotenv
                 }
-                if (let autoloadBunfig = compileValue.getBooleanLoose(globalThis, "autoloadBunfig")) {
+                if (let autoloadBunfig <- compileValue.getBooleanLoose(globalThis, "autoloadBunfig")) {
                     this.autoloadBunfig = autoloadBunfig
                 }
-                if (let autoloadTsconfig = compileValue.getBooleanLoose(globalThis, "autoloadTsconfig")) {
+                if (let autoloadTsconfig <- compileValue.getBooleanLoose(globalThis, "autoloadTsconfig")) {
                     this.autoloadTsconfig = autoloadTsconfig
                 }
-                if (let autoloadPackageJson = compileValue.getBooleanLoose(globalThis, "autoloadPackageJson")) {
+                if (let autoloadPackageJson <- compileValue.getBooleanLoose(globalThis, "autoloadPackageJson")) {
                     this.autoloadPackageJson = autoloadPackageJson
                 }
 
@@ -989,19 +989,19 @@ public class JSBundler {
         /// OutputKind - 输出类型
         /// 严格翻译自: BuildArtifact.OutputKind
         public enum OutputKind {
-            case chunk
-            case asset
-            case entryPoint
-            case sourcemap
-            case bytecode
-            case moduleInfo
-            case metafileJson
-            case metafileMarkdown
+            | chunk
+            | asset
+            | entryPoint
+            | sourcemap
+            | bytecode
+            | moduleInfo
+            | metafileJson
+            | metafileMarkdown
 
             /// 是否为独立模式中的文件
             /// 严格翻译自: OutputKind.isFileInStandaloneMode
             public func isFileInStandaloneMode(): Bool {
-                return this != .sourcemap && this != .bytecode && this != .moduleInfo && this != .metafileJson && this != .metafileMarkdown
+                return this != sourcemap && this != bytecode && this != moduleInfo && this != metafileJson && this != metafileMarkdown
             }
         }
 
@@ -1093,7 +1093,7 @@ public class JSBundler {
         /// getHash - 获取产物的哈希值 (截断为 32 位显示)
         public func getHash(globalThis: JsGlobalObject): JsValue {
             let truncatedHash = truncatedHash32(hash)
-            return ZigString.init(truncatedHash.toString()).toJS(globalThis)
+            return ZigString(truncatedHash.toString()).toJS(globalThis)
         }
 
         // ====================================================================
@@ -1133,7 +1133,7 @@ public class JSBundler {
 
         /// getSourceMap - 获取关联的 sourcemap
         public func getSourceMap(globalThis: JsGlobalObject): JsValue {
-            if (let value = sourcemap.get()) {
+            if (let value <- sourcemap.get()) {
                 return value
             }
             return JsValue.jsNull()
@@ -1174,7 +1174,7 @@ public class JSBundler {
     public static func build(globalThis: JsGlobalObject, arguments: Array<JsValue>): JsValue {
         if (arguments.size == 0 || !arguments[0].isObject()) {
             globalThis.throwInvalidArguments("Expected a config object to be passed to Bun.build")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         let vm = globalThis.bunVM()
@@ -1182,19 +1182,19 @@ public class JSBundler {
         // 检测从宏中调用 Bun.build (会导致死锁)
         // 严格翻译自: JSBundler.build 中的 macro_mode 检测
         if (vm.macroMode) {
-            globalThis.throw(
+            globalThis.`throw`(
                 "Bun.build cannot be called from within a macro during bundling. " +
                 "This would cause a deadlock because the bundler is waiting for the macro to complete, " +
                 "but the macro's Bun.build call is waiting for the bundler."
             )
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         // 解析配置
         var plugins: Array<Plugin> = []
         let config = Config.fromJS(globalThis, arguments[0], plugins)
         if (config == none) {
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         // 运行打包器
@@ -1210,14 +1210,14 @@ public class JSBundler {
 /// Target - 构建目标
 /// 严格翻译自: options.Target
 public enum Target {
-    case browser
-    case node
-    case bun
-    case macro
-    case bunMacro
+    | browser
+    | node
+    | bun
+    | macro
+    | bunMacro
 
     public static func fromString(s: String): ?Target {
-        switch (s) {
+        match (s) {
             case "browser": return .browser
             case "node": return .node
             case "bun": return .bun
@@ -1230,21 +1230,21 @@ public enum Target {
 /// Format - 输出格式
 /// 严格翻译自: options.Format
 public enum Format {
-    case esm
-    case cjs
-    case iife
+    | esm
+    | cjs
+    | iife
 }
 
 /// SourceMapOption - Source Map 选项
 /// 严格翻译自: options.SourceMapOption
 public enum SourceMapOption {
-    case none
-    case inline
-    case linked
-    case external
+    | none
+    | inline
+    | linked
+    | external
 
     public static func fromString(s: String): SourceMapOption {
-        switch (s) {
+        match (s) {
             case "inline": return .inline
             case "linked": return .linked
             case "external": return .external
@@ -1256,60 +1256,60 @@ public enum SourceMapOption {
 /// PackagesOption - 包处理选项
 /// 严格翻译自: options.PackagesOption
 public enum PackagesOption {
-    case bundle
-    case external
+    | bundle
+    | external
 }
 
 /// DotEnvBehavior - 环境变量行为
 public enum DotEnvBehavior {
-    case disable
-    case loadAll
-    case prefix
+    | disable
+    | loadAll
+    | prefix
 }
 
 /// ForceNodeEnv - Node env 强制设置
 public enum ForceNodeEnv {
-    case unspecified
-    case development
-    case production
+    | unspecified
+    | development
+    | production
 }
 
 /// ImportKind - 导入类型
 public enum ImportKind {
-    case entryPoint
-    case importStatement
-    case requireResolve
-    case dynamicImport
-    case require
-    case atImport
-    case urlToken
-    case httpImport
-    case css
+    | entryPoint
+    | importStatement
+    | requireResolve
+    | dynamicImport
+    | require
+    | atImport
+    | urlToken
+    | httpImport
+    | css
 }
 
 /// Loader - 文件加载器类型
 /// 严格翻译自: options.Loader
 public enum Loader {
-    case js
-    case jsx
-    case ts
-    case tsx
-    case json
-    case tomll
-    case yaml
-    case file
-    case css
-    case html
-    case text
-    case wasm
-    case napi
-    case base64
-    case dataurl
-    case sqlite
-    case bun
+    | js
+    | jsx
+    | ts
+    | tsx
+    | json
+    | tomll
+    | yaml
+    | file
+    | css
+    | html
+    | text
+    | wasm
+    | napi
+    | base64
+    | dataurl
+    | sqlite
+    | bun
 
     public static func fromString(s: String): Loader {
-        switch (s) {
+        match (s) {
             case "js": return .js
             case "jsx": return .jsx
             case "ts": return .ts
@@ -1325,17 +1325,17 @@ public enum Loader {
     }
 
     public func toString(): String {
-        switch (this) {
-            case .js: return "js"
-            case .jsx: return "jsx"
-            case .ts: return "ts"
-            case .tsx: return "tsx"
-            case .json: return "json"
-            case .css: return "css"
-            case .html: return "html"
-            case .text: return "text"
-            case .file: return "file"
-            case .wasm: return "wasm"
+        match (this) {
+            case js: return "js"
+            case jsx: return "jsx"
+            case ts: return "ts"
+            case tsx: return "tsx"
+            case json: return "json"
+            case css: return "css"
+            case html: return "html"
+            case text: return "text"
+            case file: return "file"
+            case wasm: return "wasm"
             default: return "file"
         }
     }
@@ -1359,11 +1359,11 @@ public class Jsx {
 
 /// JsxRuntime - JSX 运行时类型
 public enum JsxRuntime {
-    case classic
-    case automatic
+    | classic
+    | automatic
 
     public static func fromString(s: String): JsxRuntime {
-        switch (s) {
+        match (s) {
             case "classic", "react": return .classic
             case "automatic", "react-jsx", "react-jsxdev": return .automatic
             default: return .automatic
@@ -1373,11 +1373,11 @@ public enum JsxRuntime {
 
 /// ResolveValue - 解析结果值
 public enum ResolveValue {
-    case err(LoggerMsg)
-    case success(path: String, namespace: String, external: Bool)
-    case noMatch
-    case pending
-    case consumed
+    | err(LoggerMsg)
+    | success(path: String, namespace: String, external: Bool)
+    | noMatch
+    | pending
+    | consumed
 
     public func consume(): ResolveValue {
         let result = this
@@ -1392,11 +1392,11 @@ public enum ResolveValue {
 
 /// LoadValue - 加载结果值
 public enum LoadValue {
-    case err(LoggerMsg)
-    case success(sourceCode: String, loader: Loader)
-    case pending
-    case noMatch
-    case consumed
+    | err(LoggerMsg)
+    | success(sourceCode: String, loader: Loader)
+    | pending
+    | noMatch
+    | consumed
 
     public func consume(): LoadValue {
         let result = this
@@ -1412,22 +1412,22 @@ public enum LoadValue {
 // 类型别名 - 与 Bun 对应
 // ============================================================================
 
-public typealias CompileTarget = CompileTarget
-public typealias CompileTargetType = CompileTargetType
-public typealias LoggerMsg = LoggerMsg
-public typealias LoggerRange = LoggerRange
-public typealias BundleV2 = BundleV2
-public typealias ParseTask = ParseTask
-public typealias Index = Index
-public typealias Plugin = Plugin
-public typealias OwnedString = OwnedString
-public typealias PathTemplate = PathTemplate
-public typealias FsPath = FsPath
-public typealias PathPair = PathPair
-public typealias ResolverResult = ResolverResult
-public typealias Blob = Blob
-public typealias AnyTask = AnyTask
-public typealias AnyEventLoopTask = AnyEventLoopTask
-public typealias JsStrongOptional = JsStrongOptional
+public type CompileTarget = CompileTarget
+public type CompileTargetType = CompileTargetType
+public type LoggerMsg = LoggerMsg
+public type LoggerRange = LoggerRange
+public type BundleV2 = BundleV2
+public type ParseTask = ParseTask
+public type Index = Index
+public type Plugin = Plugin
+public type OwnedString = OwnedString
+public type PathTemplate = PathTemplate
+public type FsPath = FsPath
+public type PathPair = PathPair
+public type ResolverResult = ResolverResult
+public type Blob = Blob
+public type AnyTask = AnyTask
+public type AnyEventLoopTask = AnyEventLoopTask
+public type JsStrongOptional = JsStrongOptional
 
 // ported from: src/runtime/api/JSBundler.zig

@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeInteger() - 检查值是否为整数
 /// 用法: expect(received).toBeInteger()
-public func toBeInteger(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeInteger(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeInteger", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeInteger", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
     let pass = value.isAnyInt() != not
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

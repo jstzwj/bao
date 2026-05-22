@@ -34,7 +34,7 @@ public class CssString {
     /// 严格翻译自 CssStringFns.to_css -> serialize_string
     public func toCss(): String {
         // 序列化字符串: 添加引号并转义
-        var sb = StringBuilder()
+        var sb = CssStringBuilder()
         sb.append('"')
         for (c in value) {
             match (c) {

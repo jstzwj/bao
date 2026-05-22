@@ -10,6 +10,7 @@ import bao_collections.*
 import bao_sys.*
 import bao_event_loop.*
 import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // ShellAsyncTask - 异步状态弹回主线程的任务载荷
@@ -78,7 +79,7 @@ public class ShellAsyncSubprocessDone {
     }
 
     /// 在主线程上运行
-    /// 对应 Bun: pub fn run_from_main_thread(this: *mut Self)
+    /// 对应 Bun: pub fn run_from_main_thread(`this`: *Self)
     /// 调度契约: `this` 是由 ShellSubprocess::on_process_exit 入队的活动载荷
     public func runFromMainThread(): Unit {
         match (interp) {
@@ -115,7 +116,7 @@ public class AsyncDeinitWriter {
     }
 
     /// 在主线程上运行
-    /// 对应 Bun: pub fn run_from_main_thread(this: *mut Self)
+    /// 对应 Bun: pub fn run_from_main_thread(`this`: *Self)
     public func runFromMainThread(): Unit {
         match (writer) {
             case Some(w) =>
@@ -151,7 +152,7 @@ public class AsyncDeinitReader {
     }
 
     /// 在主线程上运行
-    /// 对应 Bun: pub fn run_from_main_thread(this: *mut Self)
+    /// 对应 Bun: pub fn run_from_main_thread(`this`: *Self)
     public func runFromMainThread(): Unit {
         match (reader) {
             case Some(r) =>
@@ -203,7 +204,7 @@ public class ShellCondExprStatTask {
     }
 
     /// 在主线程上运行
-    /// 对应 Bun: pub fn run_from_main_thread(this: *mut Self, interp: &Interpreter)
+    /// 对应 Bun: pub fn run_from_main_thread(`this`: *Self, interp: &Interpreter)
     public func runFromMainThread(interp: Interpreter): Unit {
         CondExprState.onStatTaskDone(
             interp,
@@ -263,7 +264,7 @@ public class ShellGlobTask {
                                           walker: GlobWalker): Unit {
         var task = ShellTask(interp.eventLoop)
         task.interp = interp.asCtxPtr()
-        let this = ShellGlobTask()
+        let `this` = ShellGlobTask()
         this.task = task
         this.expansion = expansion
         this.walker = walker
@@ -274,17 +275,17 @@ public class ShellGlobTask {
     }
 
     /// 在线程池中运行
-    /// 对应 Bun: fn run_from_thread_pool(this: &mut Self)
+    /// 对应 Bun: fn run_from_thread_pool(`this`: &Self)
     public func runFromThreadPool(): Unit {
         match (walkImpl()) {
-            case .ok(()) => {}
-            case .err(let e) =>
+            case ok(()) => ()
+            case err(e) =>
                 err = ShellGlobErr.Unknown(e)
         }
     }
 
     /// 在主线程上运行
-    /// 对应 Bun: fn run_from_main_thread(this: *mut Self, interp: &Interpreter)
+    /// 对应 Bun: fn run_from_main_thread(`this`: *Self, interp: &Interpreter)
     public func runFromMainThread(interp: Interpreter): Unit {
         ExpansionState.onGlobWalkDone(
             interp,
@@ -298,9 +299,9 @@ public class ShellGlobTask {
     /// 对应 Bun: fn walk_impl(walker, result) -> Result<Result<()>, Error>
     private func walkImpl(): Result<Unit> {
         var iter = GlobIterator(walker)
-        match (iter.init()) {
-            case .err(let e) => return Result<Unit>.error(e)
-            case .ok(let initResult) =>
+        match (iter.`init`()) {
+            case err(e) => return Result<Unit>.error(e)
+            case ok(initResult) =>
                 if (initResult.isErr()) {
                     err = ShellGlobErr.Syscall(initResult.getErr())
                     return Result<Unit>.success()
@@ -310,19 +311,19 @@ public class ShellGlobTask {
         var done = false
         while (!done) {
             match (iter.next()) {
-                case .ok(let nextResult) =>
+                case ok(nextResult) =>
                     match (nextResult) {
-                        case .some(let path) =>
+                        case some(path) =>
                             // 去除 NUL 终止符
                             var bytes = path
                             if (bytes.size > 0 && bytes[bytes.size - 1] == 0) {
                                 bytes = bytes[0..bytes.size - 1]
                             }
                             result.append(bytes)
-                        case .none =>
+                        case none =>
                             done = true
                     }
-                case .err(let e) =>
+                case err(e) =>
                     err = ShellGlobErr.Syscall(e)
                     done = true
             }
@@ -546,7 +547,7 @@ public class GlobIterator {
     }
 
     /// 初始化
-    public func init(): Result<GlobInitResult> {
+    public func `init`(): Result<GlobInitResult> {
         Result<GlobInitResult>.success(GlobInitResult())
     }
 

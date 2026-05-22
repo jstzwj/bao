@@ -438,7 +438,7 @@ public class Tracy {
     // ========================================================================
 
     /// 初始化 Tracy
-    /// 对应 Bun tracy.init()
+    /// 对应 Bun tracy.`init`()
     /// 尝试加载 Tracy 共享库，成功则启用
     public static func initFunc(): Bool {
         if (!Environment.IS_NATIVE) {

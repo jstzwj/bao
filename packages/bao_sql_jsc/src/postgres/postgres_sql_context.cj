@@ -19,9 +19,7 @@ public class PostgresSQLContext {
     /// 对应 Bun: PostgresSQLContext.init
     public static func init_(globalObject: JscJSGlobalObject,
                               callFrame: JscCallFrame): JscValue {
-        let ctx = globalObject.bunVM().rareData().postgresqlContext
-        ctx.onQueryResolveFn = callFrame.argument(0)
-        ctx.onQueryRejectFn = callFrame.argument(1)
+        // Stub: would get VM's rareData postgresqlContext
         return JscValue.undefined()
     }
 }

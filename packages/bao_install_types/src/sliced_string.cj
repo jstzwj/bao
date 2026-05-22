@@ -81,7 +81,7 @@ public class SlicedString {
     /// 获取 String 值
     /// 翻译自:
     ///   pub inline fn value(this: SlicedString) String {
-    ///       return String.init(this.buf, this.slice);
+    ///       return String(this.buf, this.slice);
     ///   }
     public func value(): String {
         return slice_

@@ -90,10 +90,9 @@ public class ByteStream {
 
         // 如果有管道回调，直接传递
         match (pipeCallback) {
-            case Some(cb) => {
+            case Some(cb) =>
                 cb.onPipe(data.toArray(), isDone)
                 return
-            }
             case None => ()
         }
 

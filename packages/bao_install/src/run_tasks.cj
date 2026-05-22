@@ -56,7 +56,7 @@ public class RunTasks {
     ///   pub fn runTasks(manager, comptime Ctx, extract_ctx, comptime callbacks, install_peer, log_level) !void
     public static func runTasks(
         manager: PackageManager,
-        logLevel: LogLevel
+        logLevel: InstallLogLevel
     ): Unit {
         return
     }
@@ -69,7 +69,7 @@ public class RunTasks {
 
     /// 处理 patch 任务
     /// 翻译自: runTasks 中的 patch_tasks_batch 处理
-    private static func processPatchTasks(manager: PackageManager, logLevel: LogLevel): Unit {
+    private static func processPatchTasks(manager: PackageManager, logLevel: InstallLogLevel): Unit {
         // 从 patch_task_queue 弹出并处理
         // 翻译自: var patch_tasks_batch = manager.patch_task_queue.popBatch()
         // 如果 patch 应用成功, 继续安装
@@ -78,7 +78,7 @@ public class RunTasks {
 
     /// 处理网络任务
     /// 翻译自: runTasks 中的 network_tasks_batch 处理
-    private static func processNetworkTasks(manager: PackageManager, logLevel: LogLevel): Unit {
+    private static func processNetworkTasks(manager: PackageManager, logLevel: InstallLogLevel): Unit {
         // 从 async_network_task_queue 弹出所有任务
         let tasks = manager.asyncNetworkTaskQueue.drain()
         for (task in tasks) {
@@ -100,12 +100,12 @@ public class RunTasks {
     private static func processManifestResponse(
         manager: PackageManager,
         task: NetworkTask,
-        logLevel: LogLevel
+        logLevel: InstallLogLevel
     ): Unit {
         return
     }
 
-    private static func handleManifestCallback(manager: PackageManager, task: NetworkTask, logLevel: LogLevel, cb: ManifestCallback): Unit {
+    private static func handleManifestCallback(manager: PackageManager, task: NetworkTask, logLevel: InstallLogLevel, cb: ManifestCallback): Unit {
         return
     }
 
@@ -114,18 +114,18 @@ public class RunTasks {
     private static func processExtractResponse(
         manager: PackageManager,
         task: NetworkTask,
-        logLevel: LogLevel
+        logLevel: InstallLogLevel
     ): Unit {
         return
     }
 
-    private static func handleExtractCallback(manager: PackageManager, task: NetworkTask, logLevel: LogLevel, cb: ExtractCallback): Unit {
+    private static func handleExtractCallback(manager: PackageManager, task: NetworkTask, logLevel: InstallLogLevel, cb: ExtractCallback): Unit {
         return
     }
 
     /// 处理解析任务
     /// 翻译自: runTasks 中 resolve_tasks 处理
-    private static func processResolveTasks(manager: PackageManager, logLevel: LogLevel): Unit {
+    private static func processResolveTasks(manager: PackageManager, logLevel: InstallLogLevel): Unit {
         // 从 resolve_tasks 队列弹出任务
         // 翻译自: manager.resolve_tasks 中的任务
     }

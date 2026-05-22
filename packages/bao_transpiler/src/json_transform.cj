@@ -370,7 +370,7 @@ public class JSONTransformer {
             case JSONValueKind.Null => "null"
             case JSONValueKind.`Bool` => if (value.boolValue) { "true" } else { "false" }
             case JSONValueKind.Number => value.stringValue
-            case JSONValueKind.String => "\"${escapeJSONString(value.stringValue)}\""
+            case JSONValueKind.`String` => "\"${escapeJSONString(value.stringValue)}\""
             case JSONValueKind.Array =>
                 let sb = StringBuilder()
                 sb.append("[")
@@ -481,7 +481,7 @@ public enum JSONValueKind {
     | Null
     | `Bool`
     | Number
-    | String
+    | `String`
     | Array
     | Object
 }
@@ -519,7 +519,7 @@ public class JSONValue {
     }
 
     public static func makeString(s: String): JSONValue {
-        let result = JSONValue(JSONValueKind.String)
+        let result = JSONValue(JSONValueKind.`String`)
         result.stringValue = s
         return result
     }

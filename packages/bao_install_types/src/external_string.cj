@@ -68,7 +68,7 @@ public class ExternalString {
     /// 翻译自:
     ///   pub inline fn from(in: string) ExternalString {
     ///       return ExternalString{
-    ///           .value = String.init(in, in),
+    ///           .value = String(in, in),
     ///           .hash = bun.Wyhash.hash(0, in),
     ///       };
     ///   }
@@ -79,7 +79,7 @@ public class ExternalString {
     /// 初始化 (带指定缓冲区引用和哈希)
     /// 翻译自:
     ///   pub inline fn init(buf: string, in: string, hash: u64) ExternalString {
-    ///       return ExternalString{ .value = String.init(buf, in), .hash = hash };
+    ///       return ExternalString{ .value = String(buf, in), .hash = hash };
     ///   }
     public static func make(buf: String, input: String, hash: UInt64): ExternalString {
         return ExternalString(input, hash)

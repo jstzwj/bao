@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeNaN() - 检查值是否为NaN
 /// 用法: expect(received).toBeNaN()
-public func toBeNaN(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeNaN(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeNaN", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeNaN", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
     let pass = value.isNaN() != not
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

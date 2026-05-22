@@ -85,7 +85,7 @@ public class PackageManagerResolution {
     ///   pub fn verifyResolutions(this: *PackageManager, log_level) void
     public static func verifyResolutions(
         manager: PackageManager,
-        logLevel: LogLevel
+        logLevel: InstallLogLevel
     ): Unit {
         // 遍历所有包和依赖, 检查是否每个依赖都成功解析
         // 翻译自: 遍历 resolutions_lists 和 dependency_lists

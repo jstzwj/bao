@@ -30,7 +30,7 @@ public class PmViewCommand {
         }
 
         let packageSpec = positionals[0]
-        let propertyPath = if (positionals.size > 1) Some(positionals[1]) else None
+        let propertyPath = if (positionals.size > 1) { Some(positionals[1]) } else { None }
 
         // 解析包名和版本
         // 对应 Bun: dependency.split_name_and_version_or_latest
@@ -42,12 +42,12 @@ public class PmViewCommand {
             // 尝试从 package.json 获取包名
             let pkgName = readCurrentPackageName(pm)
             if (pkgName != None) {
-                name = pkgName!!
+                name = pkgName.getOrThrow()
             } else {
                 name = Path.basename(FileSystem.instance.topLevelDir)
             }
         } else {
-            val (parsedName, parsedVersion) = parsePackageSpec(packageSpec)
+            let (parsedName, parsedVersion) = parsePackageSpec(packageSpec)
             name = parsedName
             version = parsedVersion
         }
@@ -62,22 +62,22 @@ public class PmViewCommand {
 
         // 打印结果
         if (propertyPath != None) {
-            let value = resolveJsonPath(metadata!!, propertyPath!!)
+            let value = resolveJsonPath(metadata.getOrThrow(), propertyPath.getOrThrow())
             if (value != None) {
                 // 检查是否为数组 (多值输出, 每行一个)
-                if (value!!.isArray()) {
-                    let arr = value!!.asArray()
+                if (value.getOrThrow().isArray()) {
+                    let arr = value.getOrThrow().asArray()
                     for (item in arr) {
                         Output.println(formatJsonValue(item))
                     }
                 } else {
-                    Output.println(formatJsonValue(value!!))
+                    Output.println(formatJsonValue(value.getOrThrow()))
                 }
             } else {
-                Output.errGeneric("Property not found: ${propertyPath!!}")
+                Output.errGeneric("Property not found: ${propertyPath.getOrThrow()}")
             }
         } else {
-            printPackageInfo(metadata!!)
+            printPackageInfo(metadata.getOrThrow())
         }
     }
 
@@ -90,12 +90,12 @@ public class PmViewCommand {
         if (spec == "." || spec == "") {
             let pkgName = readCurrentPackageName(pm)
             if (pkgName != None) {
-                name = pkgName!!
+                name = pkgName.getOrThrow()
             } else {
                 name = Path.basename(FileSystem.instance.topLevelDir)
             }
         } else {
-            val (parsedName, parsedVersion) = parsePackageSpec(spec)
+            let (parsedName, parsedVersion) = parsePackageSpec(spec)
             name = parsedName
             version = parsedVersion
         }
@@ -107,27 +107,27 @@ public class PmViewCommand {
         }
 
         if (propertyPath != None) {
-            let value = resolveJsonPath(metadata!!, propertyPath!!)
+            let value = resolveJsonPath(metadata.getOrThrow(), propertyPath.getOrThrow())
             if (value != None) {
                 if (jsonOutput) {
-                    Output.println(JsonFormatter.format(value!!))
+                    Output.println(JsonFormatter.format(value.getOrThrow()))
                 } else {
-                    if (value!!.isArray()) {
-                        for (item in value!!.asArray()) {
+                    if (value.getOrThrow().isArray()) {
+                        for (item in value.getOrThrow().asArray()) {
                             Output.println(formatJsonValue(item))
                         }
                     } else {
-                        Output.println(formatJsonValue(value!!))
+                        Output.println(formatJsonValue(value.getOrThrow()))
                     }
                 }
             } else {
-                Output.errGeneric("Property not found: ${propertyPath!!}")
+                Output.errGeneric("Property not found: ${propertyPath.getOrThrow()}")
             }
         } else {
             if (jsonOutput) {
-                Output.println(JsonFormatter.format(metadata!!))
+                Output.println(JsonFormatter.format(metadata.getOrThrow()))
             } else {
-                printPackageInfo(metadata!!)
+                printPackageInfo(metadata.getOrThrow())
             }
         }
     }
@@ -139,11 +139,11 @@ public class PmViewCommand {
         if (pkgContent == None) {
             return None
         }
-        let json = JsonParser.parse(pkgContent!!)
-        if (json != None && json!!.isObject()) {
-            let name = json!!.asObject().get("name")
-            if (name != None && name!!.isString()) {
-                let nameStr = name!!.asString()
+        let json = JsonParser.parse(pkgContent.getOrThrow())
+        if (json != None && json.getOrThrow().isObject()) {
+            let name = json.getOrThrow().asObject().get("name")
+            if (name != None && name.getOrThrow().isString()) {
+                let nameStr = name.getOrThrow().asString()
                 if (nameStr.length > 0) {
                     return nameStr
                 }
@@ -201,7 +201,7 @@ public class PmViewCommand {
             return None
         }
 
-        return JsonParser.parse(response!!)
+        return JsonParser.parse(response.getOrThrow())
     }
 
     /// 解析 JSON 路径 (点分隔)
@@ -214,7 +214,7 @@ public class PmViewCommand {
             if (current.isObject()) {
                 let obj = current.asObject()
                 if (obj.contains(part)) {
-                    current = obj.get(part)!!
+                    current = obj.get(part).getOrThrow()
                 } else {
                     return None
                 }
@@ -223,8 +223,8 @@ public class PmViewCommand {
                 let idx = Int64.parse(part)
                 if (idx != None) {
                     let arr = current.asArray()
-                    if (idx!! >= 0 && idx!! < arr.length) {
-                        current = arr[idx!!]
+                    if (idx.getOrThrow() >= 0 && idx.getOrThrow() < arr.length) {
+                        current = arr[idx.getOrThrow()]
                     } else {
                         return None
                     }
@@ -257,8 +257,8 @@ public class PmViewCommand {
 
         // 打印关键词
         let keywords = obj.get("keywords")
-        if (keywords != None && keywords!!.isArray()) {
-            let kw = keywords!!.asArray().map { it.asString() }.joinToString(" ")
+        if (keywords != None && keywords.getOrThrow().isArray()) {
+            let kw = keywords.getOrThrow().asArray().map { it.asString() }.joinToString(" ")
             Output.println("keywords: ${kw}")
         }
 
@@ -269,8 +269,8 @@ public class PmViewCommand {
 
         // 打印可用版本
         let versions = obj.get("versions")
-        if (versions != None && versions!!.isObject()) {
-            let versionList = versions!!.asObject().keys()
+        if (versions != None && versions.getOrThrow().isObject()) {
+            let versionList = versions.getOrThrow().asObject().keys()
             Output.println("versions: ${versionList.length} versions available")
             // 显示最近的 5 个版本
             let recentCount = Math.min(5, versionList.length)
@@ -286,9 +286,9 @@ public class PmViewCommand {
 
         // 打印 dist-tags
         let distTags = obj.get("dist-tags")
-        if (distTags != None && distTags!!.isObject()) {
+        if (distTags != None && distTags.getOrThrow().isObject()) {
             Output.println("dist-tags:")
-            for ((tag, ver) in distTags!!.asObject()) {
+            for ((tag, ver) in distTags.getOrThrow().asObject()) {
                 Output.println("  ${tag}: ${ver.asString()}")
             }
         }
@@ -297,15 +297,15 @@ public class PmViewCommand {
     private static func printField(obj: JsonObject, field: String): Unit {
         let value = obj.get(field)
         if (value != None) {
-            Output.println("${field}: ${formatJsonValue(value!!)}")
+            Output.println("${field}: ${formatJsonValue(value.getOrThrow())}")
         }
     }
 
     private static func printDependencies(obj: JsonObject, field: String): Unit {
         let deps = obj.get(field)
-        if (deps != None && deps!!.isObject() && deps!!.asObject().size > 0) {
+        if (deps != None && deps.getOrThrow().isObject() && deps.getOrThrow().asObject().size > 0) {
             Output.println("${field}:")
-            for ((name, version) in deps!!.asObject()) {
+            for ((name, version) in deps.getOrThrow().asObject()) {
                 Output.println("  ${name}: ${version.asString()}")
             }
         }
@@ -313,7 +313,7 @@ public class PmViewCommand {
 
     /// 格式化 JSON 值
     public static func formatJsonValue(value: JsonValue): String {
-        when (value) {
+        match (value) {
             case JsonValue.Str(s) => return s
             case JsonValue.Num(n) => return "${n}"
             case JsonValue.Bool(b) => return "${b}"

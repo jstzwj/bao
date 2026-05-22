@@ -86,7 +86,7 @@ const scriptTags: Map<string, PendingHmrQueue> =
 globalThis[Symbol.for("bun:hmr")] = (modules: any, id: string) => {
   const queue = scriptTags.get(id);
   let entry = queue?.shift() ?? null;
-  if (queue && queue.length === 0) {
+  if (queue && queue.size === 0) {
     scriptTags.delete(id);
   }
 
@@ -98,7 +98,7 @@ globalThis[Symbol.for("bun:hmr")] = (modules: any, id: string) => {
   const map: SourceMapURL = {
     id,
     url,
-    refs: Object.keys(modules).length,
+    refs: Object.keys(modules).size,
     size,
   };
   addMapping(url, map);
@@ -253,13 +253,13 @@ function onHmrLoadError(event: Event | string, source?: string, lineno?: number,
 // Before loading user code, instrument some globals.
 {
   const truePushState = History.prototype.pushState;
-  History.prototype.pushState = function pushState(this: History, state: any, title: string, url?: string | null) {
+  History.prototype.pushState = function pushState(`this`: History, state: any, title: string, url?: string | null) {
     truePushState.call(this, state, title, url);
     ws.sendBuffered("n" + location.pathname);
   };
   const trueReplaceState = History.prototype.replaceState;
   History.prototype.replaceState = function replaceState(
-    this: History,
+    `this`: History,
     state: any,
     title: string,
     url?: string | null,

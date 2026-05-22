@@ -731,24 +731,24 @@ public class LockfileJsonStringifier {
 /// 文本锁文件解析器
 public class TextLockfileParser {
     public static func parse(content: String): ?BinaryLockfileData {
-        let parser = JsonParser()
+        let parser = PkgJsonParser()
         let json = parser.parse(content)
 
         match (json) {
             case Some(root) =>
                 let data = BinaryLockfileData()
 
-                match (JsonHelper.getField(root, "lockfileVersion")) {
+                match (PkgJsonHelper.getField(root, "lockfileVersion")) {
                     case Some(JsonValue.Number(n))=> data.format = TextLockfileVersion.fromInt(Int64(n))
                     case _ => ()
                 }
 
-                match (JsonHelper.getField(root, "workspaces")) {
+                match (PkgJsonHelper.getField(root, "workspaces")) {
                     case Some(JsonValue.Object(ws))=> ()
                     case _ => ()
                 }
 
-                match (JsonHelper.getField(root, "packages")) {
+                match (PkgJsonHelper.getField(root, "packages")) {
                     case Some(JsonValue.Object(packages)) =>
                         for (pkgKey in packages.keys()) {
                             match (packages.get(pkgKey)) {

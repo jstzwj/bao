@@ -75,12 +75,9 @@ public func postgresErrorToJS(globalObject: JscJSGlobalObject, message: ?String,
         case _ => "ERR_POSTGRES_UNKNOWN_ERROR"
     }
 
-    var msg = message.getOrThrow()
-    if (msg == None) {
-        msg = "Failed to bind query: ${err.name()"
-    }
+    var msg = if (message.isSome()) { message.getOrThrow() } else { "Postgres error" }
 
-    return createPostgresError(globalObject, msg, code, None, None, None, None)
+    return createPostgresError(globalObject, msg, code, Option<String>.None, Option<String>.None, Option<String>.None, Option<String>.None)
 }
 
 /// Postgres 错误选项

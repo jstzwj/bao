@@ -82,8 +82,8 @@ class GifDict {
     var suffix: Array<UInt8>
 
     init() {
-        prefix = Array<UInt16>(4096, item: 0)
-        suffix = Array<UInt8>(4096, item: 0)
+        prefix = Array<UInt16>(Int64(4096), { _: Int64 => UInt16(0) })
+        suffix = Array<UInt8>(Int64(4096), { _: Int64 => UInt8(0) })
     }
 
     /// 沿前缀链走到 scratch（反转），然后正向复制到 out
@@ -138,7 +138,7 @@ public class CodecGif {
         let gct: Array<UInt8> = if (hasGct) {
             sliceArray(bytes, 13, Int64(gctSize) * 3)
         } else {
-            Array<UInt8>(0, item: 0)
+            Array<UInt8>(Int64(0), { _: Int64 => UInt8(0) })
         }
 
         var trns: Int64 = -1 // 透明索引
@@ -213,9 +213,9 @@ public class CodecGif {
         var prev: Int64 = -1
 
         var dict = GifDict()
-        var scratch = Array<UInt8>(4096, item: 0)
+        var scratch = Array<UInt8>(Int64(4096), { _: Int64 => UInt8(0) })
 
-        let idx = Array<UInt8>(Int64(npix), item: 0)
+        let idx = Array<UInt8>(Int64(npix), { _: Int64 => UInt8(0) })
         var written: Int64 = 0
 
         var bits = GifBits(bytes, lzwOff)
@@ -272,10 +272,10 @@ public class CodecGif {
         }
 
         // 隔行重排
-        let out = Array<UInt8>(Int64(npix) * 4, item: 0)
+        let out = Array<UInt8>(Int64(npix) * 4, { _: Int64 => UInt8(0) })
 
         // 构建调色板
-        var pal = Array<UInt8>(256 * 4, item: 0)
+        var pal = Array<UInt8>(Int64(256) * 4, { _: Int64 => UInt8(0) })
         var ci: Int64 = 0
         while (ci < ct.size / 3) {
             pal[ci * 4 + 0] = ct[Int64(ci * 3 + 0)]
@@ -357,7 +357,7 @@ public class CodecGif {
     }
 
     static func sliceArray(b: Array<UInt8>, start: Int64, len: Int64): Array<UInt8> {
-        var result = Array<UInt8>(len, item: 0)
+        var result = Array<UInt8>(Int64(len), { _: Int64 => UInt8(0) })
         var i: Int64 = 0
         while (i < len && start + i < b.size) {
             result[i] = b[start + i]

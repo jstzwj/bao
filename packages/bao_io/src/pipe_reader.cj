@@ -692,7 +692,7 @@ public class PosixBufferedReader {
     /// 严格翻译自: pub fn registerPoll(this) void
     ///   const poll = this.handle.getPoll() orelse brk: {
     ///       if (handle == .fd and pollable) {
-    ///           handle = .{ .poll = FilePoll.init(...) };
+    ///           handle = .{ .poll = FilePoll(...) };
     ///           break :brk handle.poll;
     ///       }
     ///       return;
@@ -729,7 +729,7 @@ public class PosixBufferedReader {
     /// 获取缓冲区 (转移所有权)
     /// 严格翻译自: pub fn takeBuffer(this) std.array_list.Managed(u8)
     ///   const out = this._buffer;
-    ///   this._buffer = ...init(out.allocator);
+    ///   this._buffer = ...`init`(out.allocator);
     ///   return out;
     public func takeBuffer(): ArrayList<UInt8> {
         let out = buffer

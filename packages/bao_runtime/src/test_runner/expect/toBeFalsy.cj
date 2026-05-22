@@ -7,11 +7,11 @@ import bao_jsc.*
 
 /// toBeFalsy() - 检查值是否为假值
 /// 用法: expect(received).toBeFalsy()
-public func toBeFalsy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeFalsy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeFalsy", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeFalsy", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
@@ -22,7 +22,7 @@ public func toBeFalsy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (!truthy) { pass = true }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)

@@ -66,26 +66,26 @@ public class CronExpression {
     // ========================================================================
 
     public enum Error {
-        case invalidField
-        case invalidStep
-        case invalidRange
-        case invalidNumber
-        case tooManyFields
-        case tooFewFields
+        | invalidField
+        | invalidStep
+        | invalidRange
+        | invalidNumber
+        | tooManyFields
+        | tooFewFields
 
         public func errorMessage(): String {
             match (this) {
-                case .tooFewFields =>
+                case tooFewFields =>
                     "Invalid cron expression: expected 5 space-separated fields (minute hour day month weekday)"
-                case .tooManyFields =>
+                case tooManyFields =>
                     "Invalid cron expression: too many fields. Bun.cron uses 5 fields (minute hour day month weekday) \u{2014} seconds are not supported"
-                case .invalidStep =>
+                case invalidStep =>
                     "Invalid cron expression: step value must be a positive integer"
-                case .invalidRange =>
+                case invalidRange =>
                     "Invalid cron expression: range must be ascending (use 'a,b' or 'a-max,0-b' for wrap-around)"
-                case .invalidNumber =>
+                case invalidNumber =>
                     "Invalid cron expression: value out of range for field"
-                case .invalidField =>
+                case invalidField =>
                     "Invalid cron expression: unrecognized field syntax"
             }
         }
@@ -105,7 +105,7 @@ public class CronExpression {
 
         // 检查预定义昵称
         if (!expr.isEmpty && expr[0] == UInt8('@')) {
-            if (let result = parseNickname(expr)) {
+            if (let result <- parseNickname(expr)) {
                 return result
             }
             throw Error.invalidField
@@ -162,7 +162,7 @@ public class CronExpression {
         try {
             _ = parse(expr)
             return true
-        } catch {
+        } catch (e: Exception) {
             return false
         }
     }
@@ -204,7 +204,7 @@ public class CronExpression {
 
     /// 计算匹配此表达式的下一个 UTC 时间 (毫秒时间戳)
     /// 严格在 fromMs 之后. 在 8 年内未找到匹配则返回 none
-    public func next(globalObject: JsGlobalObject, fromMs: Float64): ?Float64 {
+    public func next(JsGlobalObject, fromMs: Float64): ?Float64 {
         var dt = globalObject.msToGregorianDateTimeUTC(fromMs)
         let startYear = dt.year
         dt.minute += 1
@@ -263,9 +263,9 @@ public class CronExpression {
 
     /// 名称种类
     public enum NameKind {
-        case none
-        case weekday
-        case month
+        | none
+        | weekday
+        | month
     }
 
     /// 解析单个 cron 字段 (64位位集)
@@ -306,7 +306,7 @@ public class CronExpression {
                 }
                 if (slashCount > 1) { throw Error.invalidStep }
 
-                let step: UInt8 = if (let s = stepStr) {
+                let step: UInt8 = if (let s <- stepStr) {
                     if (s.isEmpty) { throw Error.invalidStep }
                     let parsed = parseDecimal8(s)
                     if (parsed == none) { throw Error.invalidStep }
@@ -322,7 +322,7 @@ public class CronExpression {
                 if (basePart.size == 1 && basePart[0] == UInt8('*')) {
                     rangeMin = min
                     rangeMax = max
-                } else if (let rangeParts = splitRange(basePart)) {
+                } else if (let rangeParts <- splitRange(basePart)) {
                     let lo = parseValue(rangeParts[0], min, max, kind)
                     if (lo == none) { throw Error.invalidNumber }
                     let hi = parseValue(rangeParts[1], min, max, kind)
@@ -406,11 +406,11 @@ public class CronExpression {
     public static func parseValue(str: Array<UInt8>, min: UInt8, max: UInt8, kind: NameKind): ?UInt8 {
         // 先尝试命名值查找 (不区分大小写)
         match (kind) {
-            case .weekday =>
-                if (let v = lookupWeekday(str)) { return v }
-            case .month =>
-                if (let v = lookupMonth(str)) { return v }
-            case .none => ()
+            case weekday =>
+                if (let v <- lookupWeekday(str)) { return v }
+            case month =>
+                if (let v <- lookupMonth(str)) { return v }
+            case none => ()
         }
 
         let val = parseDecimal8(str)
@@ -591,7 +591,7 @@ public class CronExpression {
             ("sun", 0), ("mon", 1), ("tue", 2), ("wed", 3),
             ("thu", 4), ("fri", 5), ("sat", 6),
             ("sunday", 0), ("monday", 1), ("tuesday", 2),
-            ("wednesday", 3), ("thursday", 4), ("friday", 5), ("saturday", 6),
+            ("wednesday", 3), ("thursday", 4), ("friday", 5), ("saturday", 6)
         ]
         for ((name, value) in names) {
             if (eqlCaseInsensitiveASCII(str, name)) {
@@ -609,7 +609,7 @@ public class CronExpression {
             ("sep", 9), ("oct", 10), ("nov", 11), ("dec", 12),
             ("january", 1), ("february", 2), ("march", 3), ("april", 4),
             ("june", 6), ("july", 7), ("august", 8), ("september", 9),
-            ("october", 10), ("november", 11), ("december", 12),
+            ("october", 10), ("november", 11), ("december", 12)
         ]
         for ((name, value) in names) {
             if (eqlCaseInsensitiveASCII(str, name)) {

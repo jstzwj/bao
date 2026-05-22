@@ -55,7 +55,7 @@ public class MemoryUtils {
     /// 对应 Zig: pub fn initDefault(comptime T: type) T
     /// 尝试顺序:
     ///   1. .initDefault() 如果存在
-    ///   2. .init() 如果存在
+    ///   2. .`init`() 如果存在
     ///   3. 零值初始化
     public static func initDefault<T>(): T {
         return throw Exception("MemoryUtils.initDefault is unavailable")

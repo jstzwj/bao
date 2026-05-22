@@ -15,7 +15,7 @@ import bao_collections.*
 /// Glob 对象，用于文件模式匹配
 public class Glob {
     var pattern: String
-    var hasPendingActivity: AtomicUInt64 = AtomicUInt64.init(0)
+    var hasPendingActivity: AtomicUInt64 = AtomicUInt64(0)
 
     // ========================================================================
     // ScanOpts - 扫描选项
@@ -54,12 +54,11 @@ public class Glob {
 
                 // 转换为绝对路径
                 var pathBuf = PathBuffer()
-                let cwd = switch (Sys.getcwd(pathBuf)) {
-                    case .result(let cwd) => cwd
-                    case .err(let err) => {
+                let cwd = match (Sys.getcwd(pathBuf)) {
+                    case result(cwd) => cwd
+                    case err(err) =>
                         let errJs = try err.toJS(globalThis)
                         return globalThis.throwValue(errJs)
-                    }
                 }
 
                 let cwdStr = ResolvePath.joinStringBuf(pathBuf2, [cwd, cwdUtf8.slice()], .auto)
@@ -67,7 +66,7 @@ public class Glob {
             }
 
             if (cwdStr.len > MAX_PATH_BYTES) {
-                return globalThis.throw("\{fnName}: invalid `cwd`, longer than \{MAX_PATH_BYTES} bytes")
+                return globalThis.`throw`("\{fnName}: invalid `cwd`, longer than \{MAX_PATH_BYTES} bytes")
             }
 
             return cwdStr
@@ -93,28 +92,28 @@ public class Glob {
                     }
                     return out
                 }
-                return globalThis.throw("\{fnName}: expected first argument to be an object")
+                return globalThis.`throw`("\{fnName}: expected first argument to be an object")
             }
 
-            if (let onlyFiles = try optsObj.getTruthy(globalThis, "onlyFiles")) {
+            if (let onlyFiles <- try optsObj.getTruthy(globalThis, "onlyFiles")) {
                 out.onlyFiles = if (onlyFiles.isBoolean()) onlyFiles.asBoolean() else false
             }
 
-            if (let errorOnBroken = try optsObj.getTruthy(globalThis, "throwErrorOnBrokenSymlink")) {
+            if (let errorOnBroken <- try optsObj.getTruthy(globalThis, "throwErrorOnBrokenSymlink")) {
                 out.errorOnBrokenSymlinks = if (errorOnBroken.isBoolean()) errorOnBroken.asBoolean() else false
             }
 
-            if (let followSymlinksVal = try optsObj.getTruthy(globalThis, "followSymlinks")) {
+            if (let followSymlinksVal <- try optsObj.getTruthy(globalThis, "followSymlinks")) {
                 out.followSymlinks = if (followSymlinksVal.isBoolean()) followSymlinksVal.asBoolean() else false
             }
 
-            if (let absoluteVal = try optsObj.getTruthy(globalThis, "absolute")) {
+            if (let absoluteVal <- try optsObj.getTruthy(globalThis, "absolute")) {
                 out.absolute = if (absoluteVal.isBoolean()) absoluteVal.asBoolean() else false
             }
 
-            if (let cwdVal = try optsObj.getTruthy(globalThis, "cwd")) {
+            if (let cwdVal <- try optsObj.getTruthy(globalThis, "cwd")) {
                 if (!cwdVal.isString()) {
-                    return globalThis.throw("\{fnName}: invalid `cwd`, not a string")
+                    return globalThis.`throw`("\{fnName}: invalid `cwd`, not a string")
                 }
 
                 let result = try parseCWD(globalThis, arena.allocator(), cwdVal, out.absolute, fnName)
@@ -123,7 +122,7 @@ public class Glob {
                 }
             }
 
-            if (let dot = try optsObj.getTruthy(globalThis, "dot")) {
+            if (let dot <- try optsObj.getTruthy(globalThis, "dot")) {
                 out.dot = if (dot.isBoolean()) dot.asBoolean() else false
             }
 
@@ -144,13 +143,13 @@ public class Glob {
 
         /// 错误类型
         public enum Err {
-            case syscall(SyscallError)
-            case unknown(Error)
+            | syscall(SyscallError)
+            | unknown(Error)
 
             public func toJS(globalThis: JsGlobalObject): JsValue {
-                return switch (this) {
-                    case .syscall(let err) => try err.toJS(globalThis)
-                    case .unknown(let err) => ZigString.fromBytes(err.name).toJS(globalThis)
+                return match (this) {
+                    | syscall(err) => try err.toJS(globalThis)
+                    case unknown(err) => ZigString.fromBytes(err.name).toJS(globalThis)
                 }
             }
         }
@@ -179,11 +178,10 @@ public class Glob {
                 this.err = Err.unknown(err)
                 return
             }
-            switch (result) {
-                case .err(let err) => {
+            match (result) {
+                case err(err) =>
                     this.err = Err.syscall(err)
-                }
-                case .result => ()
+                case result => ()
             }
         }
 
@@ -191,7 +189,7 @@ public class Glob {
         public func then(promise: JsPromise) {
             defer this.deinit()
 
-            if (let err = this.err) {
+            if (let err <- this.err) {
                 try promise.rejectWithAsyncStack(this.global, err.toJS(this.global))
                 return
             }
@@ -217,15 +215,15 @@ public class Glob {
     /// 构造函数
     public static func constructor(globalThis: JsGlobalObject, callframe: JsCallFrame): Glob {
         let arguments = callframe.argumentsOld(1)
-        var arguments = ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var arguments = ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer arguments.deinit()
 
         let patArg = arguments.nextEat() ?? {
-            return globalThis.throw("Glob.constructor: expected 1 arguments, got 0")
+            return globalThis.`throw`("Glob.constructor: expected 1 arguments, got 0")
         }
 
         if (!patArg.isString()) {
-            return globalThis.throw("Glob.constructor: first argument is not a string")
+            return globalThis.`throw`("Glob.constructor: first argument is not a string")
         }
 
         let patStr = (try patArg.toSliceClone(globalThis)).slice()
@@ -249,10 +247,10 @@ public class Glob {
         let alloc = default_allocator
 
         let arguments = callframe.argumentsOld(1)
-        var arguments = ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var arguments = ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer arguments.deinit()
 
-        var arena = ArenaAllocator.init(alloc)
+        var arena = ArenaAllocator(alloc)
         let globWalker = this.makeGlobWalker(globalThis, arguments, "scan", alloc, arena) catch { err =>
             arena.deinit()
             throw err
@@ -278,10 +276,10 @@ public class Glob {
         let alloc = default_allocator
 
         let arguments = callframe.argumentsOld(1)
-        var arguments = ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var arguments = ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer arguments.deinit()
 
-        var arena = ArenaAllocator.init(alloc)
+        var arena = ArenaAllocator(alloc)
         var globWalker = this.makeGlobWalker(globalThis, arguments, "scanSync", alloc, arena) catch { err =>
             arena.deinit()
             throw err
@@ -294,11 +292,10 @@ public class Glob {
             alloc.destroy(globWalker)
         }
 
-        switch (try globWalker.walk()) {
-            case .err(let err) => {
+        match (try globWalker.walk()) {
+            case err(err) =>
                 return globalThis.throwValue(try err.toJS(globalThis))
-            }
-            case .result => ()
+            case result => ()
         }
 
         let matchedPaths = globWalkResultToJS(globWalker, globalThis)
@@ -308,19 +305,19 @@ public class Glob {
     /// match - 测试字符串是否匹配模式
     public func match(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
         let alloc = default_allocator
-        var arena = Arena.init(alloc)
+        var arena = Arena(alloc)
         defer arena.deinit()
 
         let arguments = callframe.argumentsOld(1)
-        var arguments = ArgumentsSlice.init(globalThis.bunVM(), arguments.slice())
+        var arguments = ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         defer arguments.deinit()
 
         let strArg = arguments.nextEat() ?? {
-            return globalThis.throw("Glob.matchString: expected 1 arguments, got 0")
+            return globalThis.`throw`("Glob.matchString: expected 1 arguments, got 0")
         }
 
         if (!strArg.isString()) {
-            return globalThis.throw("Glob.matchString: first argument is not a string")
+            return globalThis.`throw`("Glob.matchString: first argument is not a string")
         }
 
         var str = try strArg.toSlice(globalThis, arena.allocator())
@@ -353,7 +350,7 @@ public class Glob {
         globWalker = GlobWalker{}
 
         if (cwd != null) {
-            switch (try globWalker.initWithCwd(
+            match (try globWalker.initWithCwd(
                 arena,
                 this.pattern,
                 cwd,
@@ -363,15 +360,14 @@ public class Glob {
                 errorOnBrokenSymlinks,
                 onlyFiles,
             )) {
-                case .err(let err) => {
+                case err(err) =>
                     return globalThis.throwValue(try err.toJS(globalThis))
-                }
-                else => {}
+                else => ()
             }
             return globWalker
         }
 
-        switch (try globWalker.init(
+        match (try globWalker(
             arena,
             this.pattern,
             dot,
@@ -380,10 +376,9 @@ public class Glob {
             errorOnBrokenSymlinks,
             onlyFiles,
         )) {
-            case .err(let err) => {
+            case err(err) =>
                 return globalThis.throwValue(try err.toJS(globalThis))
-            }
-            else => {}
+            else => ()
         }
         return globWalker
     }
@@ -412,5 +407,5 @@ func globWalkResultToJS(globWalk: GlobWalker, globalThis: JsGlobalObject): JsVal
 // 类型别名
 // ========================================================================
 
-public typealias AsyncGlobWalkTask = ConcurrentPromiseTask(WalkTask)
+public type AsyncGlobWalkTask = ConcurrentPromiseTask(WalkTask)
 public let default_allocator = default_allocator

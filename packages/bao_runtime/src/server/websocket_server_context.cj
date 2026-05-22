@@ -63,19 +63,19 @@ public class WebSocketHandlerFlags {
 /// 严格翻译自: WebSocketServerContext.Handler
 /// 对应 Bun: pub const Handler = struct { onOpen, onMessage, onClose, ... }
 public class WebSocketHandler {
-    /// 打开回调 - 对应 Bun: onOpen: jsc.JSValue = .zero
+    /// 打开回调 - 对应 Bun: onOpen: jsc.JsValue = .zero
     public var onOpen: ?WebSocketCallback
-    /// 消息回调 - 对应 Bun: onMessage: jsc.JSValue = .zero
+    /// 消息回调 - 对应 Bun: onMessage: jsc.JsValue = .zero
     public var onMessage: ?WebSocketMessageCallback
-    /// 关闭回调 - 对应 Bun: onClose: jsc.JSValue = .zero
+    /// 关闭回调 - 对应 Bun: onClose: jsc.JsValue = .zero
     public var onClose: ?WebSocketCloseCallback
-    /// 排水回调 - 对应 Bun: onDrain: jsc.JSValue = .zero
+    /// 排水回调 - 对应 Bun: onDrain: jsc.JsValue = .zero
     public var onDrain: ?WebSocketCallback
-    /// 错误回调 - 对应 Bun: onError: jsc.JSValue = .zero
+    /// 错误回调 - 对应 Bun: onError: jsc.JsValue = .zero
     public var onError: ?WebSocketErrorCallback
-    /// Ping 回调 - 对应 Bun: onPing: jsc.JSValue = .zero
+    /// Ping 回调 - 对应 Bun: onPing: jsc.JsValue = .zero
     public var onPing: ?WebSocketMessageCallback
-    /// Pong 回调 - 对应 Bun: onPong: jsc.JSValue = .zero
+    /// Pong 回调 - 对应 Bun: onPong: jsc.JsValue = .zero
     public var onPong: ?WebSocketMessageCallback
 
     /// 应用引用 - 对应 Bun: app: ?*anyopaque = null
@@ -112,10 +112,9 @@ public class WebSocketHandler {
     /// 对应 Bun: pub fn runErrorCallback(this, vm, globalObject, error_value) void
     public func runErrorCallback(errorValue: BaoError): Unit {
         match (onError) {
-            case Some(cb) => {
+            case Some(cb) =>
                 cb(errorValue)
                 return
-            }
             case None => ()
         }
         // 对应 Bun: vm.uncaughtException(globalObject, error_value, false)

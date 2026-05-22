@@ -140,33 +140,33 @@ public class S3HttpDownloadStreamingTask {
 
     // ========================================================================
     // getState - 获取当前状态
-    // 严格翻译自: pub fn getState(this: @This()) State
+    // 严格翻译自: pub fn getState(`this`: @This()) State
     // ========================================================================
 
     /// 获取当前状态
-    /// 对应 Bun: pub fn getState(this: @This()) State
+    /// 对应 Bun: pub fn getState(`this`: @This()) State
     public func getState(): S3DownloadState {
         return state
     }
 
     // ========================================================================
     // setState - 设置状态
-    // 严格翻译自: pub fn setState(this: *@This(), state: State) void
+    // 严格翻译自: pub fn setState(`this`: *@This(), state: State) void
     // ========================================================================
 
     /// 设置状态
-    /// 对应 Bun: pub fn setState(this: *@This(), state: State) void
+    /// 对应 Bun: pub fn setState(`this`: *@This(), state: State) void
     public func setState(newState: S3DownloadState): Unit {
         state = newState
     }
 
     // ========================================================================
     // deinit - 释放资源
-    // 严格翻译自: pub fn deinit(this: *@This()) void
+    // 严格翻译自: pub fn deinit(`this`: *@This()) void
     // ========================================================================
 
     /// 释放资源
-    /// 对应 Bun: pub fn deinit(this: *@This()) void
+    /// 对应 Bun: pub fn deinit(`this`: *@This()) void
     /// 释放 poll_ref、response_buffer、reported_response_buffer、headers、
     /// sign_result、http 数据、range、proxy_url
     public func deinit(): Unit {
@@ -177,18 +177,18 @@ public class S3HttpDownloadStreamingTask {
         signResult.deinit()
         http.clearData()
         range = ""
-        if (proxyUrl.length > 0) {
+        if (proxyUrl.size > 0) {
             proxyUrl = ""
         }
     }
 
     // ========================================================================
     // reportProgress - 报告下载进度
-    // 严格翻译自: fn reportProgress(this: *@This(), state: State) void
+    // 严格翻译自: fn reportProgress(`this`: *@This(), state: State) void
     // ========================================================================
 
     /// 报告下载进度
-    /// 对应 Bun: fn reportProgress(this: *@This(), state: State) void
+    /// 对应 Bun: fn reportProgress(`this`: *@This(), state: State) void
     /// 根据 HTTP 状态码和请求错误判断是否失败：
     /// - 200/204/206: 正常，除非有 request_error
     /// - 其他: 失败
@@ -218,7 +218,7 @@ public class S3HttpDownloadStreamingTask {
                     hasBodyCode = true
                 } else {
                     let bytes = reportedResponseBuffer.slice()
-                    if (bytes.length > 0) {
+                    if (bytes.size > 0) {
                         message = bytes
 
                         // 解析 XML <Code>...</Code>
@@ -226,7 +226,7 @@ public class S3HttpDownloadStreamingTask {
                         if (codeStart >= 0) {
                             let codeEnd = bytes.indexOf("</Code>")
                             if (codeEnd > codeStart) {
-                                let startIdx = codeStart + "<Code>".length
+                                let startIdx = codeStart + "<Code>".size
                                 code = bytes.substring(startIdx, codeEnd)
                                 hasBodyCode = true
                             }
@@ -237,7 +237,7 @@ public class S3HttpDownloadStreamingTask {
                         if (msgStart >= 0) {
                             let msgEnd = bytes.indexOf("</Message>")
                             if (msgEnd > msgStart) {
-                                let startIdx = msgStart + "<Message>".length
+                                let startIdx = msgStart + "<Message>".size
                                 message = bytes.substring(startIdx, msgEnd)
                                 hasBodyMessage = true
                             }
@@ -254,7 +254,7 @@ public class S3HttpDownloadStreamingTask {
         } else {
             let chunk = reportedResponseBuffer
             // 不报告空块（除非这是最后一块）
-            if (!hasMore || chunk.length() > 0) {
+            if (!hasMore || chunk.size() > 0) {
                 callback(chunk, hasMore, None, callbackContext)
                 reportedResponseBuffer.reset()
             }
@@ -263,11 +263,11 @@ public class S3HttpDownloadStreamingTask {
 
     // ========================================================================
     // onResponse - 主线程上的任务回调
-    // 严格翻译自: pub fn onResponse(this: *@This()) void
+    // 严格翻译自: pub fn onResponse(`this`: *@This()) void
     // ========================================================================
 
     /// 响应回调 (在主线程上执行)
-    /// 对应 Bun: pub fn onResponse(this: *@This()) void
+    /// 对应 Bun: pub fn onResponse(`this`: *@This()) void
     /// 加锁后加载状态，报告进度，如果没有更多数据则释放资源
     public func onResponse(): Unit {
         mutex.lock()
@@ -293,17 +293,17 @@ public class S3HttpDownloadStreamingTask {
     // ========================================================================
 
     /// 更新状态
-    /// 对应 Bun: fn updateState(this: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult, state: *State) bool
+    /// 对应 Bun: fn updateState(`this`: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult, state: *State) bool
     /// 返回 true 表示应等到缓冲完成再报告
     public func updateState(asyncHttp: AsyncHttp, result: HttpClientResult, state: S3DownloadState): Bool {
         let isDone = !result.hasMore
         var waitUntilDone = false
 
         state.hasMore = !isDone
-        state.requestError = if (result.fail) 1 else 0
+        state.requestError = if (result.fail) { 1 } else { 0 }
 
         if (state.statusCode == 0) {
-            if (result.metadata != None) {
+            if (result.metadata.isSome()) {
                 state.statusCode = result.metadata.response.statusCode
             }
         }
@@ -326,7 +326,7 @@ public class S3HttpDownloadStreamingTask {
     // ========================================================================
 
     /// 处理 HTTP 回调
-    /// 对应 Bun: fn processHttpCallback(this: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult) bool
+    /// 对应 Bun: fn processHttpCallback(`this`: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult) bool
     /// 返回 true 表示应入队另一个任务
     public func processHttpCallback(asyncHttp: AsyncHttp, result: HttpClientResult): Bool {
         mutex.lock()
@@ -337,14 +337,14 @@ public class S3HttpDownloadStreamingTask {
         let shouldEnqueue = !waitUntilDone || isDone
 
         if (shouldEnqueue) {
-            if (result.body != None) {
+            if (result.body.isSome()) {
                 let body = result.body
                 responseBuffer = body
-                if (body.length() > 0) {
+                if (body.size() > 0) {
                     reportedResponseBuffer.write(body.slice())
                 }
                 responseBuffer.reset()
-                if (reportedResponseBuffer.length() == 0 && !isDone) {
+                if (reportedResponseBuffer.size() == 0 && !isDone) {
                     mutex.unlock()
                     return false
                 }
@@ -371,7 +371,7 @@ public class S3HttpDownloadStreamingTask {
     // ========================================================================
 
     /// HTTP 回调 (从 HTTP 线程调用)
-    /// 对应 Bun: pub fn httpCallback(this: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult) void
+    /// 对应 Bun: pub fn httpCallback(`this`: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult) void
     public func httpCallback(asyncHttp: AsyncHttp, result: HttpClientResult): Unit {
         if (processHttpCallback(asyncHttp, result)) {
             vm.eventLoop().enqueueTaskConcurrent(concurrentTask.from(this))

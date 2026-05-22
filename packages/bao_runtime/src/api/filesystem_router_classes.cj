@@ -19,7 +19,7 @@ public class FileSystemRouterClasses {
 
     /// match fn
     /// 严格翻译自: proto.match { fn: "match", length: 1 }
-    public static func match(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func match(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         // 匹配 URL 路径到路由
         // 参数: (url: string | URL | Request)
         // 返回: MatchedRoute | null
@@ -28,27 +28,27 @@ public class FileSystemRouterClasses {
 
     /// routes getter (cached)
     /// 严格翻译自: proto.routes { getter: "getRoutes", cache: true }
-    public static func getRoutes(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getRoutes(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回所有已注册路由的对象
         return JsValue.jsObject()
     }
 
     /// reload fn
     /// 严格翻译自: proto.reload { fn: "reload", length: 0 }
-    public static func reload(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func reload(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         // 重新扫描文件系统以发现新路由
         return JsValue.jsUndefined()
     }
 
     /// origin getter (cached)
     /// 严格翻译自: proto.origin { getter: "getOrigin", cache: true }
-    public static func getOrigin(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getOrigin(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// style getter (cached)
     /// 严格翻译自: proto.style { getter: "getStyle", cache: true }
-    public static func getStyle(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getStyle(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("nextjs")
     }
 }
@@ -64,14 +64,14 @@ public class FrameworkFileSystemRouterClasses {
 
     /// toJSON fn
     /// 严格翻译自: proto.toJSON { fn: "toJSON", length: 0 }
-    public static func toJSON(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func toJSON(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         // 返回路由表的 JSON 表示
         return JsValue.jsObject()
     }
 
     /// match fn
     /// 严格翻译自: proto.match { fn: "match", length: 1 }
-    public static func match(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func match(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         // 匹配请求到路由
         return JsValue.jsNull()
     }
@@ -87,41 +87,41 @@ public class MatchedRouteClasses {
 
     /// params getter (cached)
     /// 严格翻译自: proto.params { getter: "getParams", cache: true }
-    public static func getParams(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getParams(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回路由参数对象 (如 { id: "123" })
         return JsValue.jsObject()
     }
 
     /// pathname getter (cached)
     /// 严格翻译自: proto.pathname { getter: "getPathname", cache: true }
-    public static func getPathname(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getPathname(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// query getter (cached)
     /// 严格翻译自: proto.query { getter: "getQuery", cache: true }
-    public static func getQuery(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getQuery(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回查询参数对象
         return JsValue.jsObject()
     }
 
     /// name getter (cached)
     /// 严格翻译自: proto.name { getter: "getName", cache: true }
-    public static func getName(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getName(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回路由名称
         return JsValue.jsString("")
     }
 
     /// kind getter (cached)
     /// 严格翻译自: proto.kind { getter: "getKind", cache: true }
-    public static func getKind(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getKind(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回路由类型 (exact, prefix, etc.)
         return JsValue.jsString("")
     }
 
     /// filePath getter (cached)
     /// 严格翻译自: proto.filePath { getter: "getFilePath", cache: true }
-    public static func getFilePath(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getFilePath(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回对应的文件路径
         return JsValue.jsString("")
     }
@@ -129,13 +129,13 @@ public class MatchedRouteClasses {
     /// scriptSrc getter (cached)
     /// 严格翻译自: proto.scriptSrc { getter: "getScriptSrc", cache: true }
     /// 兼容旧版 bun-framework-next
-    public static func getScriptSrc(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getScriptSrc(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// src getter (cached, alias: scriptSrc)
     /// 严格翻译自: proto.src { getter: "getScriptSrc", cache: "scriptSrc" }
-    public static func getSrc(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getSrc(JsGlobalObject, thisValue: JsValue): JsValue {
         return getScriptSrc(globalObject, thisValue)
     }
 }

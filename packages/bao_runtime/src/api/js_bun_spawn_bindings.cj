@@ -2,6 +2,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_core.*
 import bao_sys.*
 
@@ -40,12 +41,12 @@ public class JsBunSpawnBindings {
     public static func spawnMaybeSync(globalThis: JsGlobalObject, args_: JsValue, secondaryArgsValue: ?JsValue, isSync: Bool): JsValue {
         if (isSync) {
             // 检查栈溢出
-            if (!StackCheck.init().isSafeToRecurse()) {
+            if (!StackCheck().isSafeToRecurse()) {
                 return globalThis.throwStackOverflow()
             }
         }
 
-        var arena = ArenaAllocator.init(default_allocator)
+        var arena = ArenaAllocator(default_allocator)
         defer arena.deinit()
         let allocator = arena.allocator()
 
@@ -67,15 +68,15 @@ public class JsBunSpawnBindings {
         }
 
         var lazy: Bool = false
-        var onExitCallback: JsValue = JsValue.zero
-        var onDisconnectCallback: JsValue = JsValue.zero
+        var onExitCallback: JsValue = JsValue.jsUndefined()
+        var onDisconnectCallback: JsValue = JsValue.jsUndefined()
         var path: String = jscVm.transpiler.env.get("PATH") ?? ""
         var argv = ArrayList<?String>(allocator)
-        var cmdValue: JsValue = JsValue.zero
+        var cmdValue: JsValue = JsValue.jsUndefined()
         var detached: Bool = false
         var args = args_
         var maybeIpcMode: ?IpcMode = if (!isSync) None else ()
-        var ipcCallback: JsValue = JsValue.zero
+        var ipcCallback: JsValue = JsValue.jsUndefined()
         var extraFds = ArrayList<SpawnStdio>(default_allocator)
         defer extraFds.deinit()
         var argv0: ?String = None
@@ -86,14 +87,14 @@ public class JsBunSpawnBindings {
         var abortSignal: ?AbortSignal = None
         var terminalInfo: ?TerminalCreateResult = None
         var existingTerminal: ?Terminal = None
-        var terminalJsValue: JsValue = JsValue.zero
+        var terminalJsValue: JsValue = JsValue.jsUndefined()
 
         // 清理 abort_signal 和 terminal
         defer {
-            if (let Some(signal) = abortSignal) {
+            if (let Some(signal) <- abortSignal) {
                 signal.unref()
             }
-            if (let Some(info) = terminalInfo) {
+            if (let Some(info) <- terminalInfo) {
                 info.terminal.thisValue.downgrade()
                 info.terminal.flags.finalized = true
                 info.terminal.closeInternal()
@@ -108,10 +109,10 @@ public class JsBunSpawnBindings {
         let argsType = args.jsType()
         if (argsType.isArray()) {
             cmdValue = args
-            args = secondaryArgsValue ?? JsValue.zero
+            args = secondaryArgsValue ?? JsValue.jsUndefined()
         } else if (!args.isObject()) {
             return globalThis.throwInvalidArguments("cmd must be an array")
-        } else if (let cmdValue_ = try args.getTruthy(globalThis, "cmd")) {
+        } else if (let cmdValue_ <- try args.getTruthy(globalThis, "cmd")) {
             cmdValue = cmdValue_
         } else {
             return globalThis.throwInvalidArguments("cmd must be an array")
@@ -119,7 +120,7 @@ public class JsBunSpawnBindings {
 
         if (args.isObject()) {
             // argv0
-            if (let argv0_ = try args.getTruthy(globalThis, "argv0")) {
+            if (let argv0_ <- try args.getTruthy(globalThis, "argv0")) {
                 let argv0Str = try argv0_.getZigString(globalThis)
                 if (argv0Str.len > 0) {
                     argv0 = try argv0Str.toOwnedSliceZ(allocator)
@@ -127,7 +128,7 @@ public class JsBunSpawnBindings {
             }
 
             // cwd (必须在搜索可执行文件之前更新)
-            if (let cwd_ = try args.getTruthy(globalThis, "cwd")) {
+            if (let cwd_ <- try args.getTruthy(globalThis, "cwd")) {
                 let cwdStr = try cwd_.getZigString(globalThis)
                 if (cwdStr.len > 0) {
                     cwd = try cwdStr.toOwnedSliceZ(allocator)
@@ -135,21 +136,21 @@ public class JsBunSpawnBindings {
             }
         }
 
-        if (args != JsValue.zero && args.isObject()) {
+        if (args != JsValue.jsUndefined() && args.isObject()) {
             // terminal 仅支持异步 spawn
             if (isSync) {
-                if (try args.getTruthy(globalThis, "terminal") != None) {
+                if (try args.getTruthy(globalThis, "terminal").isSome()) {
                     return globalThis.throwInvalidArguments("terminal option is only supported for Bun.spawn, not Bun.spawnSync")
                 }
             }
 
             // IPC (仅异步)
             if (!isSync) {
-                if (let val = try args.getTruthy(globalThis, "ipc")) {
+                if (let val <- try args.getTruthy(globalThis, "ipc")) {
                     if (val.isCell() && val.isCallable()) {
                         // 解析 IPC 模式
                         maybeIpcMode = IpcMode.advanced
-                        if (let modeVal = try args.getTruthy(globalThis, "serialization")) {
+                        if (let modeVal <- try args.getTruthy(globalThis, "serialization")) {
                             if (modeVal.isString()) {
                                 maybeIpcMode = try IpcMode.fromJs(globalThis, modeVal) ?? {
                                     return globalThis.throwInvalidArguments("serialization must be \"json\" or \"advanced\"")
@@ -158,7 +159,7 @@ public class JsBunSpawnBindings {
                                 if (!globalThis.hasException()) {
                                     return globalThis.throwInvalidArgumentType("spawn", "serialization", "string")
                                 }
-                                return JsValue.zero
+                                return JsValue.jsUndefined()
                             }
                         }
                         ipcCallback = val.withAsyncContextIfNeeded(globalThis)
@@ -167,8 +168,8 @@ public class JsBunSpawnBindings {
             }
 
             // abort signal
-            if (let signalVal = try args.getTruthy(globalThis, "signal")) {
-                if (let signal = signalVal.as(AbortSignal)) {
+            if (let signalVal <- try args.getTruthy(globalThis, "signal")) {
+                if (let signal <- signalVal.as(AbortSignal)) {
                     abortSignal = signal.ref()
                 } else {
                     return globalThis.throwInvalidArgumentTypeValue("signal", "AbortSignal", signalVal)
@@ -176,7 +177,7 @@ public class JsBunSpawnBindings {
             }
 
             // onDisconnect
-            if (let onDisconnect_ = try args.getTruthy(globalThis, "onDisconnect")) {
+            if (let onDisconnect_ <- try args.getTruthy(globalThis, "onDisconnect")) {
                 if (!onDisconnect_.isCell() || !onDisconnect_.isCallable()) {
                     return globalThis.throwInvalidArguments("onDisconnect must be a function or undefined")
                 }
@@ -188,7 +189,7 @@ public class JsBunSpawnBindings {
             }
 
             // onExit
-            if (let onExit_ = try args.getTruthy(globalThis, "onExit")) {
+            if (let onExit_ <- try args.getTruthy(globalThis, "onExit")) {
                 if (!onExit_.isCell() || !onExit_.isCallable()) {
                     return globalThis.throwInvalidArguments("onExit must be a function or undefined")
                 }
@@ -200,7 +201,7 @@ public class JsBunSpawnBindings {
             }
 
             // env
-            if (let envArg = try args.getTruthy(globalThis, "env")) {
+            if (let envArg <- try args.getTruthy(globalThis, "env")) {
                 envArg.ensureStillAlive()
                 let object = envArg.getObject() ?? {
                     return globalThis.throwInvalidArguments("env must be an object")
@@ -217,12 +218,12 @@ public class JsBunSpawnBindings {
             try getArgv(globalThis, cmdValue, path, cwd, argv0, allocator, argv)
 
             // stdio
-            if (let stdioVal = try args.get(globalThis, "stdio")) {
+            if (let stdioVal <- try args.get(globalThis, "stdio")) {
                 if (!stdioVal.isEmptyOrUndefinedOrNull()) {
                     if (stdioVal.jsType().isArray()) {
                         var stdioIter = try stdioVal.arrayIterator(globalThis)
                         var i: Int32 = 0
-                        while (let value = try stdioIter.next()) {
+                        while (let value <- try stdioIter.next()) {
                             try stdio[i].extract(globalThis, i, value, isSync)
                             if (i == 2) {
                                 break
@@ -231,7 +232,7 @@ public class JsBunSpawnBindings {
                         }
                         i += 1
 
-                        while (let value = try stdioIter.next()) {
+                        while (let value <- try stdioIter.next()) {
                             var newItem = Stdio.ignore()
                             try newItem.extract(globalThis, i, value, isSync)
 
@@ -240,7 +241,7 @@ public class JsBunSpawnBindings {
                                 case SpawnOption.err(let e) => return e.throwJs(globalThis)
                             }
                             if (opt == SpawnOption.ipc()) {
-                                ipcChannel = Int32(extraFds.items.length)
+                                ipcChannel = Int32(extraFds.items.size)
                             }
                             try extraFds.append(opt)
                             i += 1
@@ -250,20 +251,20 @@ public class JsBunSpawnBindings {
                     }
                 }
             } else {
-                if (let value = try args.get(globalThis, "stdin")) {
+                if (let value <- try args.get(globalThis, "stdin")) {
                     try stdio[0].extract(globalThis, 0, value, isSync)
                 }
-                if (let value = try args.get(globalThis, "stderr")) {
+                if (let value <- try args.get(globalThis, "stderr")) {
                     try stdio[2].extract(globalThis, 2, value, isSync)
                 }
-                if (let value = try args.get(globalThis, "stdout")) {
+                if (let value <- try args.get(globalThis, "stdout")) {
                     try stdio[1].extract(globalThis, 1, value, isSync)
                 }
             }
 
             // lazy (仅异步)
             if (!isSync) {
-                if (let lazyVal = try args.get(globalThis, "lazy")) {
+                if (let lazyVal <- try args.get(globalThis, "lazy")) {
                     if (lazyVal.isBoolean()) {
                         lazy = lazyVal.toBoolean()
                     }
@@ -271,15 +272,15 @@ public class JsBunSpawnBindings {
             }
 
             // detached
-            if (let detachedVal = try args.get(globalThis, "detached")) {
+            if (let detachedVal <- try args.get(globalThis, "detached")) {
                 if (detachedVal.isBoolean()) {
                     detached = detachedVal.toBoolean()
                 }
             }
 
             // timeout
-            if (let timeoutValue = try args.get(globalThis, "timeout")) {
-                if (timeoutValue != JsValue.null) {
+            if (let timeoutValue <- try args.get(globalThis, "timeout")) {
+                if (timeoutValue != JsValue.jsNull()) {
                     if (timeoutValue.isNumber() && timeoutValue.asNumber().isPositiveInf()) {
                         // Infinity: 无超时
                     } else {
@@ -292,12 +293,12 @@ public class JsBunSpawnBindings {
             }
 
             // killSignal
-            if (let val = try args.get(globalThis, "killSignal")) {
+            if (let val <- try args.get(globalThis, "killSignal")) {
                 killSignal = try SignalCode.fromJs(val, globalThis)
             }
 
             // maxBuffer
-            if (let val = try args.get(globalThis, "maxBuffer")) {
+            if (let val <- try args.get(globalThis, "maxBuffer")) {
                 if (val.isNumber() && val.isFinite()) {
                     let value = try val.coerce(Int64, globalThis)
                     if (value > 0 && (stdio[0].isPiped() || stdio[1].isPiped() || stdio[2].isPiped())) {
@@ -308,7 +309,7 @@ public class JsBunSpawnBindings {
 
             // terminal (仅异步)
             if (!isSync) {
-                if (let terminalVal = try args.getTruthy(globalThis, "terminal")) {
+                if (let terminalVal <- try args.getTruthy(globalThis, "terminal")) {
                     if (Terminal.fromJs(terminalVal)) {
                         let terminal = Terminal.fromJs(terminalVal).getOrThrow()
                         if (terminal.flags.closed) {
@@ -323,11 +324,11 @@ public class JsBunSpawnBindings {
                         let termOptions = try Terminal.Options.parseFromJs(globalThis, terminalVal)
                         terminalInfo = Terminal.createFromSpawn(globalThis, termOptions) catch {
                             err => match (err) {
-                                case Error.OpenPtyFailed => return globalThis.throw("Failed to open PTY")
-                                case Error.DupFailed => return globalThis.throw("Failed to duplicate PTY file descriptor")
-                                case Error.NotSupported => return globalThis.throw("PTY not supported on this platform")
-                                case Error.WriterStartFailed => return globalThis.throw("Failed to start terminal writer")
-                                case Error.ReaderStartFailed => return globalThis.throw("Failed to start terminal reader")
+                                case Error.OpenPtyFailed => return globalThis.`throw`("Failed to open PTY")
+                                case Error.DupFailed => return globalThis.`throw`("Failed to duplicate PTY file descriptor")
+                                case Error.NotSupported => return globalThis.`throw`("PTY not supported on this platform")
+                                case Error.WriterStartFailed => return globalThis.`throw`("Failed to start terminal writer")
+                                case Error.ReaderStartFailed => return globalThis.`throw`("Failed to start terminal reader")
                             }
                         }
                     } else {
@@ -347,16 +348,16 @@ public class JsBunSpawnBindings {
         }
 
         // 构建 envp
-        if (!overrideEnv && envArray.items.length == 0) {
+        if (!overrideEnv && envArray.items.size == 0) {
             envArray.items = jscVm.transpiler.env.map.createNullDelimitedEnvMap(allocator) catch {
                 err => return globalThis.throwError(err, "in Bun.spawn")
             }
-            envArray.capacity = envArray.items.length
+            envArray.capacity = envArray.items.size
         }
 
         // memfd 优化 (Linux)
-        for (fdIndex in 0..stdio.length) {
-            if (stdio[fdIndex].canUseMemfd(isSync, fdIndex > 0 && maxBuffer != None)) {
+        for (fdIndex in 0..stdio.size) {
+            if (stdio[fdIndex].canUseMemfd(isSync, fdIndex > 0 && maxBuffer.isSome())) {
                 if (stdio[fdIndex].useMemfd(fdIndex)) {
                     jscVm.counters.mark(Counter.spawnMemfd)
                 }
@@ -366,12 +367,12 @@ public class JsBunSpawnBindings {
 
         defer {
             if (shouldCloseMemfd) {
-                for (fdIndex in 0..stdio.length) {
+                for (fdIndex in 0..stdio.size) {
                     match (stdio[fdIndex]) {
                         case Stdio.memfd(let m) =>
                             m.close()
                             stdio[fdIndex] = Stdio.ignore()
-                        default => ()
+                        case _ => ()
                     }
                 }
             }
@@ -380,13 +381,13 @@ public class JsBunSpawnBindings {
         // IPC 环境变量设置
         var ipcEnvBuf: Array<Byte> = Array<Byte>(32)
         if (!isSync) {
-            if (let ipcMode = maybeIpcMode) {
+            if (let ipcMode <- maybeIpcMode) {
                 envArray.ensureUnusedCapacity(allocator, 3) catch {
                     err => return globalThis.throwError(err, "in Bun.spawn")
                 }
                 let ipcFd: Int32 = {
                     if (ipcChannel == -1) {
-                        ipcChannel = Int32(extraFds.items.length)
+                        ipcChannel = Int32(extraFds.items.size)
                         let fd: Int32 = ipcChannel + 3
                         let opt = match (Stdio.ipc().asSpawnOption(fd)) {
                             case SpawnOption.result(let o) => o
@@ -417,13 +418,13 @@ public class JsBunSpawnBindings {
 
         // 快速路径检查
         let canBlockEntireThread = isSync &&
-            abortSignal == None &&
-            timeout == None &&
-            maxBuffer == None &&
+            abortSignal.isNone() &&
+            timeout.isNone() &&
+            maxBuffer.isNone() &&
             !stdio[0].isPiped() &&
             !stdio[1].isPiped() &&
             !stdio[2].isPiped() &&
-            extraFds.items.length == 0 &&
+            extraFds.items.size == 0 &&
             !jscVm.autoKiller.enabled &&
             !jscVm.jscVm.hasExecutionTimeLimit() &&
             !jscVm.isInspectorEnabled() &&
@@ -446,7 +447,7 @@ public class JsBunSpawnBindings {
             }
         }
 
-        let loopHandle = EventLoopHandle.init(eventLoop)
+        let loopHandle = EventLoopHandle(eventLoop)
 
         // 构建 spawn 选项
         let spawnOptions = SpawnOptions(
@@ -467,7 +468,7 @@ public class JsBunSpawnBindings {
             extraFds: extraFds.items,
             argv0: argv0,
             canBlockEntireThread: canBlockEntireThread,
-            ptySlaveFd: if (terminalInfo != None) {
+            ptySlaveFd: if (terminalInfo.isSome()) {
                 terminalInfo.?.terminal.getSlaveFd().native()
             } else {
                 -1
@@ -483,7 +484,7 @@ public class JsBunSpawnBindings {
             err => match (err) {
                 case Error.EMFILE | Error.ENFILE =>
                     spawnOptions.deinit()
-                    let displayPath: String = if (argv.items.length > 0 && argv.items[0] != None) {
+                    let displayPath: String = if (argv.items.size > 0 && argv.items[0].isSome()) {
                         sliceTo(argv.items[0]!, 0)
                     } else {
                         ""
@@ -494,7 +495,7 @@ public class JsBunSpawnBindings {
                     ).withPath(displayPath).toSystemError()
                     systemError.errno = if (err == Error.EMFILE) -UV_E.MFILE else -UV_E.NFILE
                     return globalThis.throwValue(systemError.toErrorInstance(globalThis))
-                default =>
+                case _ =>
                     spawnOptions.deinit()
                     return globalThis.throwError(err, ": failed to spawn process")
             }
@@ -505,7 +506,7 @@ public class JsBunSpawnBindings {
                 spawnOptions.deinit()
                 match (err.getErrno()) {
                     case Errno.ACCES | Errno.NOENT | Errno.PERM | Errno.ISDIR | Errno.NOTDIR =>
-                        let displayPath: String = if (argv.items.length > 0 && argv.items[0] != None) {
+                        let displayPath: String = if (argv.items.size > 0 && argv.items[0].isSome()) {
                             sliceTo(argv.items[0]!, 0)
                         } else {
                             ""
@@ -517,7 +518,7 @@ public class JsBunSpawnBindings {
                             }
                             return globalThis.throwValue(systemError.toErrorInstance(globalThis))
                         }
-                    default => ()
+                    case _ => ()
                 }
                 return globalThis.throwValue(try err.toJs(globalThis))
             case SpawnResult.result(let result) => spawned = result
@@ -542,7 +543,7 @@ public class JsBunSpawnBindings {
         MaxBuf.createForSubprocess(subprocess, subprocess.stderrMaxbuf, maxBuffer)
         MaxBuf.createForSubprocess(subprocess, subprocess.stdoutMaxbuf, maxBuffer)
 
-        var promiseForStream: JsValue = JsValue.zero
+        var promiseForStream: JsValue = JsValue.jsUndefined()
 
         subprocess = Subprocess(
             globalThis: globalThis,
@@ -558,16 +559,16 @@ public class JsBunSpawnBindings {
             killSignal: killSignal,
             stderrMaxbuf: subprocess.stderrMaxbuf,
             stdoutMaxbuf: subprocess.stdoutMaxbuf,
-            terminal: existingTerminal ?? (if (terminalInfo != None) terminalInfo.?.terminal else None),
+            terminal: existingTerminal ?? (if (terminalInfo.isSome()) terminalInfo.?.terminal else None),
         )
 
         // 初始化 stdin
-        subprocess.stdin = try Writable.init(stdio[0], eventLoop, subprocess, spawned.stdin, promiseForStream) catch {
+        subprocess.stdin = try Writable(stdio[0], eventLoop, subprocess, spawned.stdin, promiseForStream) catch {
             err =>
-                if (spawned.stdout != None) {
+                if (spawned.stdout.isSome()) {
                     spawned.stdout.close()
                 }
-                if (spawned.stderr != None) {
+                if (spawned.stderr.isSome()) {
                     spawned.stderr.close()
                 }
                 subprocess.finalizeStreams()
@@ -583,11 +584,11 @@ public class JsBunSpawnBindings {
                 return globalThis.throwOutOfMemory()
         }
 
-        subprocess.stdout = Readable.init(stdio[1], eventLoop, subprocess, spawned.stdout, jscVm.allocator, subprocess.stdoutMaxbuf, isSync)
-        subprocess.stderr = Readable.init(stdio[2], eventLoop, subprocess, spawned.stderr, jscVm.allocator, subprocess.stderrMaxbuf, isSync)
+        subprocess.stdout = Readable(stdio[1], eventLoop, subprocess, spawned.stdout, jscVm.allocator, subprocess.stdoutMaxbuf, isSync)
+        subprocess.stderr = Readable(stdio[2], eventLoop, subprocess, spawned.stderr, jscVm.allocator, subprocess.stderrMaxbuf, isSync)
 
         // 终端: 关闭父进程的 slave_fd
-        if (let info = terminalInfo) {
+        if (let info <- terminalInfo) {
             terminalJsValue = info.jsValue
             info.terminal.closeSlaveFd()
             subprocess.flags.ownsTerminal = true
@@ -597,10 +598,10 @@ public class JsBunSpawnBindings {
         subprocess.process.setExitHandler(subprocess)
 
         promiseForStream.ensureStillAlive()
-        subprocess.flags.isStdinAReadableStream = (promiseForStream != JsValue.zero)
+        subprocess.flags.isStdinAReadableStream = (promiseForStream != JsValue.jsUndefined())
 
-        if (promiseForStream != JsValue.zero && !globalThis.hasException()) {
-            if (let err = promiseForStream.toError()) {
+        if (promiseForStream != JsValue.jsUndefined() && !globalThis.hasException()) {
+            if (let err <- promiseForStream.toError()) {
                 let _ = globalThis.throwValue(err)
             }
         }
@@ -618,36 +619,36 @@ public class JsBunSpawnBindings {
         }
 
         // 设置 IPC
-        if (!isSync && maybeIpcMode != None) {
-            if (let socket = jscVm.rareData().spawnIpcGroup(jscVm).fromFd(
+        if (!isSync && maybeIpcMode.isSome()) {
+            if (let socket <- jscVm.rareData().spawnIpcGroup(jscVm).fromFd(
                 .spawnIpc,
                 None,
                 sizeOf<IpcSendQueue>(),
                 spawned.extraPipes.items[Int64(ipcChannel)].fd().cast(),
                 true,
             )) {
-                subprocess.ipcData = IpcData.init(maybeIpcMode.getOrThrow(), IpcDataContext.subprocess(subprocess), IpcState.uninitialized)
+                subprocess.ipcData = IpcData(maybeIpcMode.getOrThrow(), IpcDataContext.subprocess(subprocess), IpcState.uninitialized)
             }
         }
 
-        if (let ipcData = subprocess.ipcData) {
+        if (let ipcData <- subprocess.ipcData) {
             // 写入版本包
             ipcData.writeVersionPacket(globalThis)
             subprocess.stdioPipes.items[Int64(ipcChannel)] = SpawnPipe.unavailable
         }
 
         // stdin pipe 信号
-        if (subprocess.stdin == SubprocessStdio.pipe && promiseForStream == JsValue.zero) {
-            subprocess.stdin.pipe.signal = Signal.init(subprocess.stdin)
+        if (subprocess.stdin == SubprocessStdio.pipe && promiseForStream == JsValue.jsUndefined()) {
+            subprocess.stdin.pipe.signal = Signal(subprocess.stdin)
         }
 
         // 创建 JS 值
         let out = if (!isSync) {
             subprocess.toJs(globalThis)
         } else {
-            JsValue.zero
+            JsValue.jsUndefined()
         }
-        if (out != JsValue.zero) {
+        if (out != JsValue.jsUndefined()) {
             subprocess.thisValue.setWeak(out)
             subprocess.updateHasPendingActivity()
         }
@@ -656,7 +657,7 @@ public class JsBunSpawnBindings {
 
         if (!isSync) {
             // 超时计时器
-            if (let timeoutVal = timeout) {
+            if (let timeoutVal <- timeout) {
                 subprocess.eventLoopTimer.next = Timespec.msFromNow(timeoutVal)
                 globalThis.bunVm().timer.insert(subprocess.eventLoopTimer)
                 subprocess.setEventLoopTimerRefd(true)
@@ -677,7 +678,7 @@ public class JsBunSpawnBindings {
                 JSSubprocess.stdinSetCached(out, globalThis, stdio[0].readableStream.value)
             }
 
-            if (terminalJsValue != JsValue.zero) {
+            if (terminalJsValue != JsValue.jsUndefined()) {
                 JSSubprocess.terminalSetCached(out, globalThis, terminalJsValue)
             }
 
@@ -701,7 +702,7 @@ public class JsBunSpawnBindings {
 
         // stdin buffer 错误检查
         if (subprocess.stdin == SubprocessStdio.buffer) {
-            if (let err = subprocess.stdin.buffer.start().asErr()) {
+            if (let err <- subprocess.stdin.buffer.start().asErr()) {
                 let _ = subprocess.tryKill(subprocess.killSignal)
                 let _ = globalThis.throwValue(err.toJs(globalThis))
                 return Error.JsError
@@ -710,7 +711,7 @@ public class JsBunSpawnBindings {
 
         // 启动 stdout pipe
         if (subprocess.stdout == SubprocessStdio.pipe) {
-            if (let err = subprocess.stdout.pipe.start(subprocess, eventLoop).asErr()) {
+            if (let err <- subprocess.stdout.pipe.start(subprocess, eventLoop).asErr()) {
                 let _ = subprocess.tryKill(subprocess.killSignal)
                 let _ = globalThis.throwValue(err.toJs(globalThis))
                 return Error.JsError
@@ -722,7 +723,7 @@ public class JsBunSpawnBindings {
 
         // 启动 stderr pipe
         if (subprocess.stderr == SubprocessStdio.pipe) {
-            if (let err = subprocess.stderr.pipe.start(subprocess, eventLoop).asErr()) {
+            if (let err <- subprocess.stderr.pipe.start(subprocess, eventLoop).asErr()) {
                 let _ = subprocess.tryKill(subprocess.killSignal)
                 let _ = globalThis.throwValue(err.toJs(globalThis))
                 return Error.JsError
@@ -735,7 +736,7 @@ public class JsBunSpawnBindings {
         shouldCloseMemfd = false
 
         // 最后添加 abort 监听器
-        if (let signal = abortSignal) {
+        if (let signal <- abortSignal) {
             signal.pendingActivityRef()
             subprocess.abortSignal = signal.addListener(subprocess, Subprocess.onAbortSignal)
             abortSignal = None
@@ -758,7 +759,7 @@ public class JsBunSpawnBindings {
         match (subprocess.process.watchOrReap()) {
             case WatchResult.result =>
                 // 重新添加 abort 监听器
-                if (let signal = abortSignal) {
+                if (let signal <- abortSignal) {
                     signal.pendingActivityRef()
                     subprocess.abortSignal = signal.addListener(subprocess, Subprocess.onAbortSignal)
                     abortSignal = None
@@ -777,7 +778,7 @@ public class JsBunSpawnBindings {
         {
             var absoluteTimespec = Timespec.epoch
             var now = Timespec.now()
-            var userTimespec: Timespec = if (let timeoutMs = timeout) {
+            var userTimespec: Timespec = if (let timeoutMs <- timeout) {
                 now.addMs(timeoutMs)
             } else {
                 absoluteTimespec
@@ -809,7 +810,7 @@ public class JsBunSpawnBindings {
                         now = Timespec.now()
                     case TickResult.timeout =>
                         now = Timespec.now()
-                        let didUserTimeout = hasUserTimespec && (absoluteTimespec.eql(userTimespec) || userTimespec.order(now) == .lt)
+                        let didUserTimeout = hasUserTimespec && (absoluteTimespec.eql(userTimespec) || userTimespec.order(now) == lt)
 
                         if (didUserTimeout) {
                             didTimeout = true
@@ -820,7 +821,7 @@ public class JsBunSpawnBindings {
         }
 
         if (globalThis.hasException()) {
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         subprocess.updateHasPendingActivity()
@@ -832,7 +833,7 @@ public class JsBunSpawnBindings {
         let resourceUsage: JsValue = if (!globalThis.hasException()) {
             try subprocess.createResourceUsageObject(globalThis)
         } else {
-            JsValue.zero
+            JsValue.jsUndefined()
         }
         let exitedDueToTimeout = didTimeout
         let exitedDueToMaxBuffer = subprocess.exitedDueToMaxbuf
@@ -840,21 +841,21 @@ public class JsBunSpawnBindings {
         subprocess.finalize()
 
         let syncValue = JsValue.createEmptyObject(globalThis, 0)
-        syncValue.put(globalThis, ZigString.static("exitCode"), exitCode)
+        syncValue.put(globalThis, ZigString.`static`("exitCode"), exitCode)
         if (!signalCode.isEmptyOrUndefinedOrNull()) {
-            syncValue.put(globalThis, ZigString.static("signalCode"), signalCode)
+            syncValue.put(globalThis, ZigString.`static`("signalCode"), signalCode)
         }
-        syncValue.put(globalThis, ZigString.static("stdout"), stdout)
-        syncValue.put(globalThis, ZigString.static("stderr"), stderr)
-        syncValue.put(globalThis, ZigString.static("success"), JsValue.jsBoolean(exitCode.isInt32() && exitCode.asInt32() == 0))
-        syncValue.put(globalThis, ZigString.static("resourceUsage"), resourceUsage)
-        if (timeout != None) {
-            syncValue.put(globalThis, ZigString.static("exitedDueToTimeout"), if (exitedDueToTimeout) JsValue.true else JsValue.false)
+        syncValue.put(globalThis, ZigString.`static`("stdout"), stdout)
+        syncValue.put(globalThis, ZigString.`static`("stderr"), stderr)
+        syncValue.put(globalThis, ZigString.`static`("success"), JsValue.jsBoolean(exitCode.isInt32() && exitCode.asInt32() == 0))
+        syncValue.put(globalThis, ZigString.`static`("resourceUsage"), resourceUsage)
+        if (timeout.isSome()) {
+            syncValue.put(globalThis, ZigString.`static`("exitedDueToTimeout"), if (exitedDueToTimeout) JsValue.true else JsValue.false)
         }
-        if (maxBuffer != None) {
-            syncValue.put(globalThis, ZigString.static("exitedDueToMaxBuffer"), if (exitedDueToMaxBuffer != None) JsValue.true else JsValue.false)
+        if (maxBuffer.isSome()) {
+            syncValue.put(globalThis, ZigString.`static`("exitedDueToMaxBuffer"), if (exitedDueToMaxBuffer.isSome()) JsValue.true else JsValue.false)
         }
-        syncValue.put(globalThis, ZigString.static("pid"), resultPid)
+        syncValue.put(globalThis, ZigString.`static`("pid"), resultPid)
 
         return syncValue
     }
@@ -884,7 +885,7 @@ public class JsBunSpawnBindings {
 
         // 添加其余参数
         var argIndex: Int = 1
-        while (let value = try cmdsArray.next()) {
+        while (let value <- try cmdsArray.next()) {
             let arg = try value.toBunString(globalThis)
             defer arg.deref()
 
@@ -958,7 +959,7 @@ public class JsBunSpawnBindings {
     public static func throwCommandNotFound(globalThis: JsGlobalObject, command: String): JsError {
         let err = SystemError(
             message: BunString.createFormat("Executable not found in $PATH: \"{}\"", [command]),
-            code: BunString.static("ENOENT"),
+            code: BunString.`static`("ENOENT"),
             errno: -UV_E.NOENT,
             path: BunString.cloneUTF8(command),
         )
@@ -980,12 +981,12 @@ public class JsBunSpawnBindings {
         var objectIter = try JsPropertyIterator(
             skipEmptyName: false,
             includeValue: true,
-        ).init(globalThis, object)
+        ).`init`(globalThis, object)
         defer objectIter.deinit()
 
         try envp.ensureTotalCapacityPrecise(objectIter.len + 2)
 
-        while (let key = try objectIter.next()) {
+        while (let key <- try objectIter.next()) {
             var value = objectIter.value
             if (value.isUndefined()) {
                 continue
@@ -995,25 +996,25 @@ public class JsBunSpawnBindings {
             defer valueBunStr.deref()
 
             // 检查 null 字节 (安全: 防止 null 字节注入)
-            if (key.indexOfAsciiChar(0) != None) {
+            if (key.indexOfAsciiChar(0).isSome()) {
                 return globalThis.ERR(
                     .INVALID_ARG_VALUE,
                     "The property 'options.env[{}']' must be a string without null bytes. Received \"{}\"",
                     [key.toZigString(), key.toZigString()],
-                ).throw()
+                ).`throw`()
             }
-            if (valueBunStr.indexOfAsciiChar(0) != None) {
+            if (valueBunStr.indexOfAsciiChar(0).isSome()) {
                 return globalThis.ERR(
                     .INVALID_ARG_VALUE,
                     "The property 'options.env[{}']' must be a string without null bytes. Received \"{}\"",
                     [key.toZigString(), valueBunStr.toZigString()],
-                ).throw()
+                ).`throw`()
             }
 
             let line = try formatAllocSentinel(envp.allocator, "{}={}", [key, valueBunStr.toZigString()], 0)
 
             if (key.eqlComptime("PATH")) {
-                path = asByteSlice(line.substring("PATH=".length))
+                path = asByteSlice(line.substring("PATH=".size))
             }
 
             try envp.append(line)

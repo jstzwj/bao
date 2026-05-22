@@ -21,11 +21,13 @@ public class ZigStackFramePosition {
     }
 
     // 严格翻译自 ZigStackFramePosition.invalid
-    public static let invalid: ZigStackFramePosition = ZigStackFramePosition(
-        line: Ordinal.invalid,
-        column: Ordinal.invalid,
-        lineStartByte: -1
-    )
+    public static func invalid(): ZigStackFramePosition {
+        ZigStackFramePosition(
+            Ordinal.invalid,
+            Ordinal.invalid,
+            -1
+        )
+    }
 
     // 严格翻译自 ZigStackFramePosition.isInvalid
     public func isInvalid(): Bool {
@@ -35,8 +37,9 @@ public class ZigStackFramePosition {
     // 严格翻译自 ZigStackFramePosition.decode
     public static func decode(reader: ByteReader): ZigStackFramePosition {
         ZigStackFramePosition(
-            line: Ordinal.fromZeroBased(v:reader.readInt32()),
-            column: Ordinal.fromZeroBased(v:reader.readInt32())
+            Ordinal.fromZeroBased(reader.readInt32()),
+            Ordinal.fromZeroBased(reader.readInt32()),
+            -1
         )
     }
 
@@ -55,13 +58,29 @@ public class Ordinal {
     public init() {}
     public init(v: Int32) { value = v }
 
-    public static let invalid: Ordinal = Ordinal(v: -1)
+    public static let invalid: Ordinal = Ordinal(-1)
 
     public func zeroBased(): Int32 { value }
-    public static func fromZeroBased(v: Int32): Ordinal { Ordinal(v: v) }
+    public static func fromZeroBased(v: Int32): Ordinal { Ordinal(v) }
 
     public func equals(other: Ordinal): Bool {
         value == other.value
+    }
+
+    public operator func >(right: Int64): Bool {
+        Int64(value) > right
+    }
+
+    public operator func <(right: Int64): Bool {
+        Int64(value) < right
+    }
+
+    public operator func ==(right: Ordinal): Bool {
+        value == right.value
+    }
+
+    public operator func !=(right: Ordinal): Bool {
+        value != right.value
     }
 }
 

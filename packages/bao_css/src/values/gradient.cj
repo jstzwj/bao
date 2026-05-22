@@ -924,7 +924,7 @@ public class CssLinearGradient {
     /// 转为 CSS 文本
     /// 严格翻译自 LinearGradient.toCss
     public func toCss(funcName: String): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
 
         // 前缀
         let prefixStr = vendorPrefix.toString()
@@ -958,7 +958,7 @@ public class CssLinearGradient {
     /// 序列化渐变项列表
     /// 严格翻译自 serializeItems 函数
     public func serializeItems(): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         var first = true
 
         for (item in items) {
@@ -1056,7 +1056,7 @@ public class CssRadialGradient {
     /// 转为 CSS 文本
     /// 严格翻译自 RadialGradient.toCss
     public func toCss(funcName: String): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
 
         // 前缀
         let prefixStr = vendorPrefix.toString()
@@ -1093,7 +1093,7 @@ public class CssRadialGradient {
 
     /// 序列化渐变项列表
     public func serializeItems(): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         var first = true
 
         for (item in items) {
@@ -1182,7 +1182,7 @@ public class CssConicGradient {
     /// 转为 CSS 文本
     /// 严格翻译自 ConicGradient.toCss
     public func toCss(funcName: String): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         sb.append("${funcName}(")
 
         // 输出 from-angle (如果不是零)
@@ -1320,7 +1320,7 @@ public class CssWebKitGradient {
     /// 转为 CSS 文本
     /// 严格翻译自 WebKitGradient.toCss
     public func toCss(): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         sb.append("-webkit-gradient(")
 
         match (kind) {
@@ -1601,10 +1601,10 @@ public class CssGradient {
         // 简化版本: 根据渐变类型返回相应前缀
         let prefix = getVendorPrefix()
         match (kind) {
-            case Linear => targets.prefixes(prefix, Feature.None)
-            case RepeatingLinear => targets.prefixes(prefix, Feature.None)
-            case Radial => targets.prefixes(prefix, Feature.None)
-            case RepeatingRadial => targets.prefixes(prefix, Feature.None)
+            case Linear => targets.prefixes(prefix, Feature.NoFeature)
+            case RepeatingLinear => targets.prefixes(prefix, Feature.NoFeature)
+            case Radial => targets.prefixes(prefix, Feature.NoFeature)
+            case RepeatingRadial => targets.prefixes(prefix, Feature.NoFeature)
             case _ => VendorPrefix()
         }
     }

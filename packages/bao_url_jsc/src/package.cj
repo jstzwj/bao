@@ -125,7 +125,7 @@ public class URLJsc {
 
         // 步骤 2: 检查 Dead 标签
         // 对应 Zig: if (href.tag == .Dead) return error.InvalidURL;
-        if (href == None || href.getOrThrow().isEmpty()) {
+        if (href.isNone() || href.getOrThrow().isEmpty()) {
             return None
         }
 
@@ -154,7 +154,7 @@ public class URLJsc {
 
         // 如果值本身就是字符串，直接作为 href
         let str = jsValue.asString()
-        if (str != None) {
+        if (str.isSome()) {
             return str
         }
 
@@ -173,7 +173,7 @@ public class URLJsc {
         global: JSGlobalContext
     ): ?OwnedURL {
         let url = urlFromJS(jsValue, global)
-        if (url == None) {
+        if (url.isNone()) {
             return None
         }
         return OwnedURL(url.getOrThrow())

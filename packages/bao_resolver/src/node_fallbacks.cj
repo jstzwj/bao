@@ -15,8 +15,8 @@
 //       code: *const fn () string,
 //   }
 //   pub const Map = bun.ComptimeStringMap(FallbackModule, .{
-//       .{ "assert", FallbackModule.init("assert") },
-//       .{ "buffer", FallbackModule.init("buffer") },
+//       .{ "assert", FallbackModule("assert") },
+//       .{ "buffer", FallbackModule("buffer") },
 //       ... // 23 个核心模块
 //   })
 package bao_resolver
@@ -65,8 +65,8 @@ public class FallbackModule {
 //
 // Bun 使用 ComptimeStringMap 进行 O(1) 查找:
 //   pub const Map = bun.ComptimeStringMap(FallbackModule, .{
-//       .{ "assert", FallbackModule.init("assert") },
-//       .{ "buffer", FallbackModule.init("buffer") },
+//       .{ "assert", FallbackModule("assert") },
+//       .{ "buffer", FallbackModule("buffer") },
 //       ... // 23 个模块
 //   })
 // ============================================================================

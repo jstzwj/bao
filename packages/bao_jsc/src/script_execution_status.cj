@@ -19,6 +19,15 @@ public enum ScriptExecutionStatus {
     | Stopped
     | None
 
+    public operator func ==(other: ScriptExecutionStatus): Bool {
+        match (this) {
+            case Running => match (other) { case Running => true case _ => false }
+            case Suspended => match (other) { case Suspended => true case _ => false }
+            case Stopped => match (other) { case Stopped => true case _ => false }
+            case None => match (other) { case None => true case _ => false }
+        }
+    }
+
     // 是否正在运行
     public func isRunning(): Bool {
         this == Running

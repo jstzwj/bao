@@ -110,7 +110,7 @@ public class NodeProcess {
     // ========================================================================
     public static func nodeNoWarnings(): Bool {
         let val = System.getenv("NODE_NO_WARNINGS")
-        return val != None
+        return val.isSome()
     }
 
     // ========================================================================
@@ -120,7 +120,7 @@ public class NodeProcess {
     // ========================================================================
     public static func suppressCrashOnProcessKillSelf(): Bool {
         let val = System.getenv("BUN_INTERNAL_SUPPRESS_CRASH_ON_PROCESS_KILL_SELF")
-        return val != None
+        return val.isSome()
     }
 
     // ========================================================================
@@ -158,7 +158,7 @@ public class NodeProcess {
 
         // Set of options that consume an extra argument
         // Corresponds to Bun: node_process.rs MAP (LazyLock<HashSet>)
-        // Built from CLI auto_params with takes_value != None
+        // Built from CLI auto_params with takes_value.isSome()
         let stringOptions = Array<String>([
             "--eval", "-e",
             "--print", "-p",
@@ -170,7 +170,7 @@ public class NodeProcess {
             "--es-module-lexer",
             "--conditions",
             "--extension-order",
-            "--tsconfig-override",
+            "--tsconfig-override"
         ])
 
         // Skip argv[0]
@@ -198,7 +198,7 @@ public class NodeProcess {
             }
 
             // If previous argument is one that takes a value, include this arg
-            if (prevVal != None) {
+            if (prevVal.isSome()) {
                 var isStringOpt = false
                 for (opt in stringOptions) {
                     if (prevVal == opt) {

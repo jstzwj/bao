@@ -7,42 +7,6 @@ public enum CssParseError {
     | invalidValue
 }
 
-public class CssParser {
-    public init() {}
-
-    public func expectNumber(): ?Float64 {
-        None
-    }
-
-    public func expectInteger(): ?Int64 {
-        None
-    }
-
-    public func expectPercentage(): ?Float64 {
-        None
-    }
-
-    public func expectString(): ?String {
-        None
-    }
-
-    public func expectIdent(): ?String {
-        None
-    }
-
-    public func expectDelim(): ?Rune {
-        None
-    }
-
-    public func expectDelim(delim: Rune): ?Rune {
-        None
-    }
-
-    public func tryParse<T>(parser: (CssParser) -> T): ?T {
-        Some(parser(this))
-    }
-}
-
 public class CssBrowsers {
     public var hasBrowsers: Bool
 
@@ -145,7 +109,7 @@ public class VendorPrefix {
 }
 
 public enum Feature {
-    | None
+    | NoFeature
 }
 
 public class Targets {

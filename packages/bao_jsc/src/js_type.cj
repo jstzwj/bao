@@ -8,6 +8,7 @@ package bao_jsc
 // JSType 是 JavaScriptCore 中的关键性能优化，实现 O(1) 类型识别
 // 该枚举提供了 JavaScript 运行时类型的完整分类
 public enum JSType {
+    | Unknown
     | Cell
     | Structure
     | String
@@ -42,9 +43,116 @@ public enum JSType {
     | DirectArguments
     | ClonedArguments
     | ScopedArguments
+    | DataView
+    | Object
+    | ProxyObject
+    | DOMWrapper
+    | GlobalObject
+    | RegExpObject
+    | BooleanObject
+    | NumberObject
+    | MapIterator
+    | SetIterator
+    | Date
+    | Promise
+    | Event
+    | APIValueWrapper
+    | NativeExecutable
+    | ProgramExecutable
+    | ModuleProgramExecutable
+    | EvalExecutable
+    | CodeBlock
+    | JSCellButterfly
+    | JSSourceCode
+    | SlimPromiseReaction
+    | FullPromiseReaction
+    | PromiseAllContext
+    | PromiseAllGlobalContext
+    | ErrorInstance
+    | FinalObject
+    | JSArrayIterator
+    | AsyncGenerator
+    | JSDate
+    | JSPromise
+    | Generator
+    | IteratorHelper
+    | Iterator
+    | StringIterator
+    | ModuleNamespaceObject
     | None
 
+    public operator func ==(right: JSType): Bool {
+        match (this) {
+            case Unknown => match(right) { case Unknown => true case _ => false }
+            case Cell => match(right) { case Cell => true case _ => false }
+            case Structure => match(right) { case Structure => true case _ => false }
+            case String => match(right) { case String => true case _ => false }
+            case HeapBigInt => match(right) { case HeapBigInt => true case _ => false }
+            case HeapDouble => match(right) { case HeapDouble => true case _ => false }
+            case HeapInt32 => match(right) { case HeapInt32 => true case _ => false }
+            case Symbol => match(right) { case Symbol => true case _ => false }
+            case StringObject => match(right) { case StringObject => true case _ => false }
+            case DerivedStringObject => match(right) { case DerivedStringObject => true case _ => false }
+            case JSFunction => match(right) { case JSFunction => true case _ => false }
+            case FunctionExecutable => match(right) { case FunctionExecutable => true case _ => false }
+            case InternalFunction => match(right) { case InternalFunction => true case _ => false }
+            case Array => match(right) { case Array => true case _ => false }
+            case DerivedArray => match(right) { case DerivedArray => true case _ => false }
+            case ArrayBuffer => match(right) { case ArrayBuffer => true case _ => false }
+            case Int8Array => match(right) { case Int8Array => true case _ => false }
+            case Uint8Array => match(right) { case Uint8Array => true case _ => false }
+            case Uint8ClampedArray => match(right) { case Uint8ClampedArray => true case _ => false }
+            case Int16Array => match(right) { case Int16Array => true case _ => false }
+            case Uint16Array => match(right) { case Uint16Array => true case _ => false }
+            case Int32Array => match(right) { case Int32Array => true case _ => false }
+            case Uint32Array => match(right) { case Uint32Array => true case _ => false }
+            case Float16Array => match(right) { case Float16Array => true case _ => false }
+            case Float32Array => match(right) { case Float32Array => true case _ => false }
+            case Float64Array => match(right) { case Float64Array => true case _ => false }
+            case BigInt64Array => match(right) { case BigInt64Array => true case _ => false }
+            case BigUint64Array => match(right) { case BigUint64Array => true case _ => false }
+            case Set => match(right) { case Set => true case _ => false }
+            case WeakSet => match(right) { case WeakSet => true case _ => false }
+            case Map => match(right) { case Map => true case _ => false }
+            case WeakMap => match(right) { case WeakMap => true case _ => false }
+            case DirectArguments => match(right) { case DirectArguments => true case _ => false }
+            case ClonedArguments => match(right) { case ClonedArguments => true case _ => false }
+            case ScopedArguments => match(right) { case ScopedArguments => true case _ => false }
+            case DataView => match(right) { case DataView => true case _ => false }
+            case Object => match(right) { case Object => true case _ => false }
+            case ProxyObject => match(right) { case ProxyObject => true case _ => false }
+            case DOMWrapper => match(right) { case DOMWrapper => true case _ => false }
+            case GlobalObject => match(right) { case GlobalObject => true case _ => false }
+            case RegExpObject => match(right) { case RegExpObject => true case _ => false }
+            case BooleanObject => match(right) { case BooleanObject => true case _ => false }
+            case NumberObject => match(right) { case NumberObject => true case _ => false }
+            case MapIterator => match(right) { case MapIterator => true case _ => false }
+            case SetIterator => match(right) { case SetIterator => true case _ => false }
+            case Date => match(right) { case Date => true case _ => false }
+            case Promise => match(right) { case Promise => true case _ => false }
+            case Event => match(right) { case Event => true case _ => false }
+            case None => match(right) { case None => true case _ => false }
+            case _ => match(right) { case _ => false }
+        }
+    }
+
+    public operator func !=(right: JSType): Bool {
+        match (this == right) {
+            case true => false
+            case false => true
+        }
+    }
+
     // ========== 类型检查方法 ==========
+
+    // Helper for equality comparison
+    public func equals(other: JSType): Bool {
+        this == other
+    }
+
+    public func notEquals(other: JSType): Bool {
+        !equals(other)
+    }
 
     // 严格翻译自 JSType.isObject
     public func isObject(): Bool {
@@ -151,30 +259,29 @@ public enum JSType {
         this == ErrorInstance || this == JSFunction || this == InternalFunction ||
         isTypedArrayOrArrayBuffer()
     }
+
+    // 严格翻译自 JSType.toTypedArrayType
+    public func toTypedArrayType(): TypedArrayType {
+        match (this) {
+            case Int8Array => TypedArrayType.TypeInt8
+            case Uint8Array => TypedArrayType.TypeUint8
+            case Uint8ClampedArray => TypedArrayType.TypeUint8Clamped
+            case Int16Array => TypedArrayType.TypeInt16
+            case Uint16Array => TypedArrayType.TypeUint16
+            case Int32Array => TypedArrayType.TypeInt32
+            case Uint32Array => TypedArrayType.TypeUint32
+            case Float16Array => TypedArrayType.TypeFloat16
+            case Float32Array => TypedArrayType.TypeFloat32
+            case Float64Array => TypedArrayType.TypeFloat64
+            case BigInt64Array => TypedArrayType.TypeBigInt64
+            case BigUint64Array => TypedArrayType.TypeBigUint64
+            case DataView => TypedArrayType.TypeDataView
+            case _ => TypedArrayType.TypeNone
+        }
+    }
 }
 
-// ========== JSRuntimeType 枚举 ==========
-// 严格翻译自 JSRuntimeType.zig
-// 表示 JavaScript 运行时值类型 (位标志)
-public enum JSRuntimeType {
-    | None
-}
-
-// ========== JSErrorCode 枚举 ==========
-// 严格翻译自 JSErrorCode.zig
-// 表示 JavaScript 错误类型
-public enum JSErrorCode {
-    | None
-}
-
-// ========== DOMExceptionCode 枚举 ==========
-// 严格翻译自 JSErrorCode.zig DOMExceptionCode
-public enum DOMExceptionCode {
-    | None
-}
-
-// ========== JSPromiseRejectionOperation 枚举 ==========
-// 严格翻译自 JSPromiseRejectionOperation.zig
-public enum JSPromiseRejectionOperation {
-    | None
-}
+// 注意: JSRuntimeType 已移至 js_runtime_type.cj
+// 注意: JSErrorCode 已移至 js_error_code.cj
+// 注意: DOMExceptionCode 已移至 js_error_code.cj
+// 注意: JSPromiseRejectionOperation 已移至 js_promise_rejection_operation.cj

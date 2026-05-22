@@ -48,7 +48,7 @@ public struct SmolStr {
     ///         baby_list.appendSliceAssumeCapacity(values);
     ///         return SmolStr.fromBabyList(baby_list);
     ///     }
-    ///     const inlined = Inlined.init(values) catch unreachable;
+    ///     const inlined = Inlined(values) catch unreachable;
     ///     return SmolStr.fromInlined(inlined);
     /// }
     public init(s: String) {

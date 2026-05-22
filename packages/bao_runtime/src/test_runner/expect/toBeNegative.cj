@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeNegative() - 检查值是否为负数
 /// 用法: expect(received).toBeNegative()
-public func toBeNegative(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeNegative(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeNegative", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeNegative", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
     let pass = value.isNumber() && value.asNumber() < 0 != not
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

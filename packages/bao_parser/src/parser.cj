@@ -30,16 +30,31 @@ public enum JsxTransformType {
     | Classic   // 经典运行时
 }
 
+/// React Fast Refresh 上下文 - 对应 Bun Parser.react_refresh
+public class ReactRefreshContext {
+    public var registerUsed: Bool
+    public var signatureCb: ?String
+
+    public init() {
+        registerUsed = false
+        signatureCb = None
+    }
+}
+
 /// 解析器特性配置 - 对应 Bun ParserFeatures
 public class ParserFeatures {
     public var typescript: Bool
     public var jsx: JsxTransformType
     public var scanOnly: Bool
+    public var reactFastRefresh: Bool
+    public var trimUnusedImports: Bool
 
     public init() {
         typescript = false
         jsx = JsxTransformType.None
         scanOnly = false
+        reactFastRefresh = false
+        trimUnusedImports = false
     }
 
     public static func js(): ParserFeatures {
@@ -92,6 +107,10 @@ public class ParserOptions {
     public var sourceFile: String
     /// 是否启用死代码消除 - 对应 Bun dce
     public var deadCodeElimination: Bool
+    /// 是否保留未使用的 TS 导入 - 对应 Bun preserve_unused_imports_ts
+    public var preserveUnusedImportsTs: Bool
+    /// 是否为 bundle 模式 - 对应 Bun bundle
+    public var bundle: Bool
 
     public init() {
         strictMode = false
@@ -100,6 +119,8 @@ public class ParserOptions {
         target = "browser"
         sourceFile = ""
         deadCodeElimination = true
+        preserveUnusedImportsTs = false
+        bundle = false
     }
 
     public init(features: ParserFeatures) {
@@ -109,6 +130,8 @@ public class ParserOptions {
         target = "browser"
         sourceFile = ""
         deadCodeElimination = true
+        preserveUnusedImportsTs = false
+        bundle = false
     }
 }
 
@@ -171,6 +194,8 @@ public class ImportRecord {
     public var pathIsDisabled: Bool
     /// 模块ID
     public var moduleId: Int64
+    /// 是否未使用 - 对应 Bun ImportRecord.is_unused
+    public var isUnused: Bool
 
     public init(path: String, kind: ImportRecordKind, range: Range) {
         this.path = path
@@ -182,6 +207,7 @@ public class ImportRecord {
         flags = ImportRecordFlags()
         pathIsDisabled = false
         moduleId = 0
+        isUnused = false
     }
 }
 
@@ -380,7 +406,7 @@ public class Parser {
     /// 导入记录 - 对应 Bun import_records
     public var importRecords: ArrayList<ImportRecord>
     /// 命名导入 - 对应 Bun named_imports
-    public var namedImports: HashMap<Ref, ImportItem>
+    public var namedImports: HashMap<Ref, NamedImport>
     /// 命名导出 - 对应 Bun named_exports
     public var namedExports: HashMap<String, Ref>
     /// 导出引用 - 对应 Bun exports_ref
@@ -389,6 +415,18 @@ public class Parser {
     public var requireRef: Ref
     /// module 引用 - 对应 Bun module_ref
     public var moduleRef: Ref
+    /// HMR API 引用 - 对应 Bun Parser.hmr_api_ref
+    public var hmrApiRef: Ref
+    /// React Fast Refresh 上下文 - 对应 Bun Parser.react_refresh
+    public var reactRefresh: ReactRefreshContext
+    /// 当前部分的导入记录索引 - 对应 Bun Parser.import_records_for_current_part
+    public var importRecordsForCurrentPart: ArrayList<UInt32>
+    /// TypeScript 使用计数 - 对应 Bun Parser.ts_use_counts
+    public var tsUseCounts: ArrayList<Int64>
+    /// 命名空间导入项映射 - 对应 Bun Parser.import_items_for_namespace
+    public var importItemsForNamespace: HashMap<Ref, ImportItemForNamespaceMap>
+    /// export * from 导入记录索引 - 对应 Bun Parser.export_star_import_records
+    public var exportStarImportRecords: ArrayList<Int64>
 
     // ===== 已分配名称 =====
     /// 已分配的名称 - 对应 Bun allocated_names
@@ -460,11 +498,17 @@ public class Parser {
 
         // 导入/导出
         importRecords = ArrayList<ImportRecord>()
-        namedImports = HashMap<Ref, ImportItem>()
+        namedImports = HashMap<Ref, NamedImport>()
         namedExports = HashMap<String, Ref>()
         exportsRef = Ref.NONE
         requireRef = Ref.NONE
         moduleRef = Ref.NONE
+        hmrApiRef = Ref.NONE
+        reactRefresh = ReactRefreshContext()
+        importRecordsForCurrentPart = ArrayList<UInt32>()
+        tsUseCounts = ArrayList<Int64>()
+        importItemsForNamespace = HashMap<Ref, ImportItemForNamespaceMap>()
+        exportStarImportRecords = ArrayList<Int64>()
 
         // 名称
         allocatedNames = ArrayList<String>()
@@ -560,6 +604,77 @@ public class Parser {
     public func allocateName(name: String): String {
         allocatedNames.append(name)
         return name
+    }
+
+    // ========================================================================
+    // 导出/导入辅助方法
+    // 严格翻译自: src/js_parser/p.zig 中的各种辅助方法
+    // ========================================================================
+
+    /// 记录命名导出 - 对应 Bun p.recordExport
+    /// 将名称添加到 namedExports 映射中
+    public func recordExport(loc: Loc, name: String, ref: Ref): Unit {
+        namedExports.put(name, ref)
+    }
+
+    /// 记录导出的绑定 - 对应 Bun p.recordExportedBinding
+    /// 遍历绑定结构，记录所有导出的名称
+    public func recordExportedBinding(binding: Binding): Unit {
+        match (binding.tag) {
+            case BindingTag.Identifier =>
+                let name = binding.name
+                if (name.size > 0 && binding.ref.isValid()) {
+                    namedExports.put(name, binding.ref)
+                }
+            case BindingTag.Object =>
+                for (bindingProp in binding.objectProperties) {
+                    if (let Some(inner) <- bindingProp.value) {
+                        recordExportedBinding(inner)
+                    }
+                }
+            case BindingTag.Array =>
+                for (item in binding.arrayItems) {
+                    recordExportedBinding(item)
+                }
+            case _ =>
+                ()
+        }
+    }
+
+    /// 忽略符号使用 - 对应 Bun p.ignoreUsage
+    /// 将符号的使用计数设为 0 以避免未使用警告
+    public func ignoreUsage(ref: Ref): Unit {
+        if (ref.innerIndex >= 0 && ref.innerIndex < symbols.size) {
+            symbols[ref.innerIndex].useCountEstimate = 0
+        }
+    }
+
+    /// 创建 module.exports 表达式 - 对应 Bun p.moduleExports
+    public func moduleExports(loc: Loc): Expr {
+        // 确保 moduleRef 已分配
+        if (!moduleRef.isValid()) {
+            moduleRef = newSymbol(SymbolKind.Other, "module")
+        }
+        let moduleExpr = Expr.identifier(loc, "module", moduleRef)
+        let exportsExpr = Expr.identifier(loc, "exports", exportsRef)
+        return Expr.dot(loc, moduleExpr, "exports")
+    }
+
+    /// 调用运行时函数 - 对应 Bun p.callRuntime
+    /// 创建一个 __runtimeName(...args) 调用表达式
+    public func callRuntime(loc: Loc, runtimeName: String, args: ArrayList<Expr>): Expr {
+        let runtimeRef = newSymbol(SymbolKind.Other, runtimeName)
+        let callee = Expr.identifier(loc, runtimeName, runtimeRef)
+        return Expr.call(loc, callee, args)
+    }
+
+    /// 从引用加载名称 - 对应 Bun p.loadNameFromRef
+    /// 通过符号的 innerIndex 获取原始名称
+    public func loadNameFromRef(ref: Ref): String {
+        if (ref.innerIndex >= 0 && ref.innerIndex < symbols.size) {
+            return symbols[ref.innerIndex].originalName
+        }
+        return ""
     }
 
     // ========================================================================

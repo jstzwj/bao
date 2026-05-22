@@ -257,7 +257,7 @@ public func propertyIdTagFromName(name: String): PropertyIdTag {
     if (name == "grid-auto-columns") { return PropertyIdTag.GridAutoColumns }
     if (name == "grid-auto-flow") { return PropertyIdTag.GridAutoFlow }
     if (name == "grid-auto-rows") { return PropertyIdTag.GridAutoRows }
-    if (name == "grid-column") { return PropertyIdTag.gridColumn }
+    if (name == "grid-column") { return PropertyIdTag.GridColumn }
     if (name == "grid-column-end") { return PropertyIdTag.GridColumnEnd }
     if (name == "grid-column-start") { return PropertyIdTag.GridColumnStart }
     if (name == "grid-row") { return PropertyIdTag.GridRow }
@@ -493,7 +493,7 @@ public func propertyIdTagFromName(name: String): PropertyIdTag {
     if (name == "page-break-inside") { return PropertyIdTag.PageBreakInside }
     if (name == "image-rendering") { return PropertyIdTag.ImageRendering }
     if (name == "aspect-ratio") { return PropertyIdTag.AspectRatio }
-    if (name == "float") { return PropertyIdTag.Float }
+    if (name == "float") { return PropertyIdTag.`Float` }
     if (name == "clear") { return PropertyIdTag.Clear }
     if (name == "outline-color") { return PropertyIdTag.OutlineColor }
     if (name == "outline-style") { return PropertyIdTag.OutlineStyle }
@@ -687,7 +687,7 @@ public class PropertyIdTagHelper {
             case PropertyIdTag.GridAutoColumns => "grid-auto-columns"
             case PropertyIdTag.GridAutoFlow => "grid-auto-flow"
             case PropertyIdTag.GridAutoRows => "grid-auto-rows"
-            case PropertyIdTag.gridColumn => "grid-column"
+            case PropertyIdTag.GridColumn => "grid-column"
             case PropertyIdTag.GridColumnEnd => "grid-column-end"
             case PropertyIdTag.GridColumnStart => "grid-column-start"
             case PropertyIdTag.GridRow => "grid-row"
@@ -846,7 +846,7 @@ public class PropertyIdTagHelper {
             case PropertyIdTag.PageBreakBefore => "page-break-before"
             case PropertyIdTag.PageBreakInside => "page-break-inside"
             case PropertyIdTag.ImageRendering => "image-rendering"
-            case PropertyIdTag.Float => "float"
+            case PropertyIdTag.`Float` => "float"
             case PropertyIdTag.Clear => "clear"
             case PropertyIdTag.OverflowAnchor => "overflow-anchor"
             case PropertyIdTag.OverflowClipMargin => "overflow-clip-margin"
@@ -866,5 +866,15 @@ public class PropertyIdTagHelper {
             case PropertyIdTag.Unparsed => "unparsed"
             case _ => "unknown"
         }
+    }
+
+    /// 从 CSS 属性名反查 PropertyIdTag
+    /// 严格翻译自 from_css_name
+    public static func fromCssName(name: String): ?PropertyIdTag {
+        let tag = propertyIdTagFromName(name)
+        if (tag == PropertyIdTag.Custom && name != "custom") {
+            return None
+        }
+        Some(tag)
     }
 }

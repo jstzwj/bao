@@ -96,7 +96,7 @@ public class Transition {
 
     /// 获取 CSS 文本
     public func toCssString(): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         // 属性名称
         sb.append(this.property.name())
 
@@ -362,7 +362,7 @@ public class TransitionHelper {
 /// 逻辑属性映射结果
 /// 严格翻译自 LogicalPropertyId union(enum) { none, block, inline }
 public enum LogicalPropertyKind {
-    | None
+    | NoneValue
     | Block
     | Inline
 }
@@ -382,7 +382,7 @@ public class LogicalPropertyId {
     public var inlineRtlProperties: Array<PropertyId>
 
     public init() {
-        kind = LogicalPropertyKind.None
+        kind = LogicalPropertyKind.NoneValue
         blockFeature = Feature.Transition
         blockProperties = Array<PropertyId>()
         inlineFeature = Feature.Transition
@@ -392,7 +392,7 @@ public class LogicalPropertyId {
 
     public static func none(): LogicalPropertyId {
         let r = LogicalPropertyId()
-        r.kind = LogicalPropertyKind.None
+        r.kind = LogicalPropertyKind.NoneValue
         return r
     }
 

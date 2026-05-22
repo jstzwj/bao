@@ -21,18 +21,39 @@ import bao_path.*
 import bao_http.*
 import bao_sys.*
 
+/// 辅助函数: 返回两个 Int64 的最小值
+func min64(a: Int64, b: Int64): Int64 {
+    if (a < b) { a } else { b }
+}
+
+/// 辅助函数: 将字符串转为字节数组 (本地)
+func isolatedStringToBytes(s: String): Array<UInt8> {
+    let arr = Array<UInt8>(s.size, repeat: UInt8(0))
+    for (i in 0..s.size) {
+        arr[i] = UInt8(s[Int64(i)])
+    }
+    return arr
+}
+
+/// 辅助函数: 将 UInt64 转为字节数组
+func u64ToBytes(v: UInt64): Array<UInt8> {
+    let arr = Array<UInt8>(8, repeat: UInt8(0))
+    var val = v
+    for (i in 0..8) {
+        arr[i] = UInt8(val & UInt64(0xFF))
+        val = val >> 8
+    }
+    return arr
+}
+
 // ============================================================================
 // 常量
 // 严格翻译自: src/install/isolated_install.zig 中引用的常量
 // ============================================================================
 
-/// 无效依赖 ID
-/// 翻译自: install.invalid_dependency_id = std.math.maxInt(u32)
-public let INVALID_DEPENDENCY_ID: UInt32 = UInt32(MathUtil.MAX_UINT32)
-
 /// 无效包 ID
 /// 翻译自: install.invalid_package_id = std.math.maxInt(u32)
-public let INVALID_PACKAGE_ID: UInt32 = UInt32(MathUtil.MAX_UINT32)
+public let INVALID_PACKAGE_ID: UInt32 = UInt32(0xFFFFFFFF)
 
 /// 无效节点 ID
 /// 翻译自: Store.Node.Id.invalid = std.math.maxInt(u32)
@@ -41,6 +62,9 @@ public let INVALID_NODE_ID: Int64 = Int64(-1)
 /// 无效条目 ID
 /// 翻译自: Store.Entry.Id.invalid = std.math.maxInt(u32)
 public let INVALID_ENTRY_ID: Int64 = Int64(-1)
+
+/// Wyhash 种子常量 (黄金比例)
+public let WYHASH_GOLDEN_RATIO: UInt64 = UInt64(0x9E3779B9) << UInt64(32) | UInt64(0x7F4A7C15)
 
 // ============================================================================
 // Store 节点
@@ -345,28 +369,28 @@ func uint64ToHex(value: UInt64): String {
 // ============================================================================
 
 /// 补丁信息
-/// 翻译自: isolated_install 中的 PatchInfo
-public enum PatchInfoTag {
+/// 翻译自: isolated_install 中的 IsolatedPatchInfo
+public enum IsolatedPatchInfoTag {
     | None       // 无补丁
     | Patch      // 有补丁文件
     | Remove     // 需要删除旧补丁
 }
 
 /// 补丁信息详情
-public class PatchInfo {
-    public var tag: PatchInfoTag
+public class IsolatedPatchInfo {
+    public var tag: IsolatedPatchInfoTag
     /// 补丁内容哈希
     public var contentsHash: UInt64
     /// 名称+版本哈希
     public var nameAndVersionHash: UInt64
 
     public init() {
-        tag = PatchInfoTag.None
+        tag = IsolatedPatchInfoTag.None
         contentsHash = UInt64(0)
         nameAndVersionHash = UInt64(0)
     }
 
-    public init(tag: PatchInfoTag, contentsHash: UInt64, nameAndVersionHash: UInt64) {
+    public init(tag: IsolatedPatchInfoTag, contentsHash: UInt64, nameAndVersionHash: UInt64) {
         this.tag = tag
         this.contentsHash = contentsHash
         this.nameAndVersionHash = nameAndVersionHash
@@ -425,7 +449,7 @@ public class IsolatedInstaller {
     /// Store
     public var store: PackageStore
     /// 日志级别
-    public var logLevel: LogLevel
+    public var logLevel: InstallLogLevel
     /// 安装摘要
     public var summary: PackageInstallSummary
     /// 是否是新创建的 node_modules/.bun
@@ -435,17 +459,17 @@ public class IsolatedInstaller {
     /// 已安装的包 ID 集合
     public var installed: HashSet<UInt32>
     /// 可信依赖 (来自 update requests)
-    public var trustedDependenciesFromUpdateRequests: HashSet<UInt32>
+    public var trustedDependenciesFromUpdateRequests: HashSet<UInt64>
 
     public init(manager: PackageManagerRef) {
         this.manager = manager
         store = PackageStore()
-        logLevel = LogLevel.Default
+        logLevel = InstallLogLevel.Default
         summary = PackageInstallSummary()
         isNewBunModules = false
         globalStorePath = None
         installed = HashSet<UInt32>()
-        trustedDependenciesFromUpdateRequests = HashSet<UInt32>()
+        trustedDependenciesFromUpdateRequests = HashSet<UInt64>()
     }
 
     /// 执行隔离式安装
@@ -521,7 +545,7 @@ public class IsolatedInstaller {
         let allDeps = lockfile.getAllDependencies()
         for (dep in allDeps) {
             if (dep.isPeer) {
-                if (!peerNameIdx.containsKey(dep.nameHash)) {
+                if (!peerNameIdx.contains(dep.nameHash)) {
                     peerNameIdx.put(dep.nameHash, peerNameCount)
                     peerNameCount += UInt32(1)
                 }
@@ -613,10 +637,10 @@ public class IsolatedInstaller {
                         earlyDedupe, peerNameIdx, peerNameCount,
                         leakingPeers, nodeQueue
                     )
-                    if (dedupeResult == EarlyDedupeResult.Deduplicated) {
+                    if (match (dedupeResult) { case EarlyDedupeResult.Deduplicated => true case _ => false }) {
                         continue
                     }
-                    if (dedupeResult == EarlyDedupeResult.DontDedupe) {
+                    if (match (dedupeResult) { case EarlyDedupeResult.DontDedupe => true case _ => false }) {
                         // 继续创建节点
                     }
                 }
@@ -816,7 +840,7 @@ public class IsolatedInstaller {
                 let pkgId = UInt32(pkgIdx)
                 let deps = lockfile.getPackageDependencies(pkgId)
 
-                let scratch = PeersBitSet(UInt32(1), peerNameCount)
+                let scratch = PeersBitSet(Int64(1), peerNameCount)
                 scratch.copyFrom(ownPeers, pkgId)
 
                 for (dep in deps) {
@@ -942,13 +966,6 @@ public class IsolatedInstaller {
     //     - 将去重节点添加为父节点的子节点
     // ========================================================================
 
-    /// 早期去重结果
-    private enum EarlyDedupeResult {
-        | Deduplicated   // 已去重, 跳过此节点
-        | DontDedupe     // 不能去重, 创建新节点
-        | Continue       // 继续正常处理
-    }
-
     /// 尝试早期去重
     /// 翻译自: isolated_install 中的 early_dedupe 查找
     private func tryEarlyDedupe(
@@ -1031,10 +1048,20 @@ public class IsolatedInstaller {
 
     /// 哈希去重键
     private func hashDedupeKey(pkgId: UInt32, ctxHash: UInt64): UInt64 {
-        var hasher = Wyhash11()
-        hasher.updateUInt64(UInt64(pkgId))
-        hasher.updateUInt64(ctxHash)
-        return hasher.finalUInt64()
+        let bytes1 = Array<UInt8>(8, repeat: UInt8(0))
+        let bytes2 = Array<UInt8>(8, repeat: UInt8(0))
+        var v1 = UInt64(pkgId)
+        var v2 = ctxHash
+        for (i in 0..8) {
+            bytes1[i] = UInt8(v1 & UInt64(0xFF))
+            v1 = v1 >> 8
+            bytes2[i] = UInt8(v2 & UInt64(0xFF))
+            v2 = v2 >> 8
+        }
+        let hasher = Wyhash11(UInt64(0))
+        hasher.update(bytes1)
+        hasher.update(bytes2)
+        return hasher.finalize()
     }
 
     /// 传播传递性 peer 到所有祖先
@@ -1090,19 +1117,6 @@ public class IsolatedInstaller {
     //   2. 收集所有访问过的祖先节点 ID
     // ========================================================================
 
-    /// Peer 依赖解析结果
-    private class PeerResolutionResult {
-        public var resolvedPkgId: UInt32
-        public var autoInstalled: Bool
-        public var visitedParents: ArrayList<Int64>
-
-        public init() {
-            resolvedPkgId = INVALID_PACKAGE_ID
-            autoInstalled = false
-            visitedParents = ArrayList<Int64>()
-        }
-    }
-
     /// 解析 peer 依赖
     /// 翻译自: isolated_install 中的 peer_dep_ids 遍历
     private func resolvePeerDependency(
@@ -1120,10 +1134,10 @@ public class IsolatedInstaller {
 
             // 检查当前节点的依赖
             for (dep in currentNode.dependencies) {
-                let dep = lockfile.getDependency(dep.depId)
-                if (dep.nameHash != peerDep.nameHash) { continue }
+                let depInfo = lockfile.getDependency(dep.depId)
+                if (depInfo.nameHash != peerDep.nameHash) { continue }
 
-                result.resolvedPkgId = dep.pkgId
+                result.resolvedPkgId = depInfo.pkgId
                 result.autoInstalled = false
                 result.visitedParents = visitedParentNodeIds
                 return result
@@ -1315,10 +1329,8 @@ public class IsolatedInstaller {
                         publicHoisted.put(depName)
                     } else {
                         // 传递依赖: 检查 public_hoist_pattern
-                        if (manager.publicHoistPattern.isMatch(depName)) {
-                            match (publicHoisted.get(depName)) {
-                                case Some(_) => () // 已存在
-                                case None =>
+                        if (manager.publicHoistPattern.isSome() && manager.publicHoistPattern.getOrThrow().isMatch(depName)) {
+                            if (!publicHoisted.contains(depName)) {
                                     publicHoisted.put(depName)
                                     store.entries[Int64(0)].dependencies.append(
                                         StoreEntryDependency(entryId, depId)
@@ -1349,15 +1361,15 @@ public class IsolatedInstaller {
     /// 翻译自: new_entry_peer_hash 计算
     private func computePeerHash(node: StoreNode, lockfile: LockfileData): UInt64 {
         if (node.peers.size == 0) { return UInt64(0) }
-        var hasher = Wyhash11()
-        hasher.initWithSeed(UInt64(0))
+        var hasher = Wyhash11(UInt64(0))
+        hasher = Wyhash11(UInt64(0))
         for (peer in node.peers) {
             let pkgName = lockfile.getPackageName(peer.pkgId)
-            hasher.updateString(pkgName)
+            hasher.update(isolatedStringToBytes(pkgName))
             let resolution = lockfile.getResolution(peer.pkgId)
-            hasher.updateString(resolution)
+            hasher.update(isolatedStringToBytes(resolution))
         }
-        return hasher.finalUInt64()
+        return hasher.finalize()
     }
 
     /// 判断是否提升
@@ -1371,21 +1383,21 @@ public class IsolatedInstaller {
         match (manager.hoistPattern) {
             case Some(pattern) =>
                 if (pattern.isMatch(depName)) {
-                    match (hiddenHoisted.get(depName)) {
-                        case Some(_) => return false  // 已经提升过
-                        case None =>
-                            hiddenHoisted.put(depName)
-                            return true
+                    if (hiddenHoisted.contains(depName)) {
+                        return false  // 已经提升过
+                    } else {
+                        hiddenHoisted.put(depName)
+                        return true
                     }
                 }
                 return false
             case None =>
                 // 无 hoist_pattern: 使用默认行为
-                match (hiddenHoisted.get(depName)) {
-                    case Some(_) => return false
-                    case None =>
-                        hiddenHoisted.put(depName)
-                        return true
+                if (hiddenHoisted.contains(depName)) {
+                    return false
+                } else {
+                    hiddenHoisted.put(depName)
+                    return true
                 }
         }
     }
@@ -1438,7 +1450,7 @@ public class IsolatedInstaller {
 
         // 迭代 DFS (避免递归栈溢出)
         for (rootId in 0..entries.size) {
-            if (states[rootId] != GlobalStoreHashState.Unvisited) { continue }
+            if (match (states[rootId]) { case GlobalStoreHashState.Unvisited => false case _ => true }) { continue }
             stack.append(GlobalStoreHashStackFrame(Int64(rootId), UInt32(0), UInt64(0)))
 
             while (stack.size > 0) {
@@ -1446,7 +1458,7 @@ public class IsolatedInstaller {
                 let id = stack[topIdx].id
                 let idx = id
 
-                if (states[idx] == GlobalStoreHashState.Unvisited) {
+                if (match (states[idx]) { case GlobalStoreHashState.Unvisited => true case _ => false }) {
                     states[idx] = GlobalStoreHashState.InProgress
 
                     // 检查是否符合条件
@@ -1465,16 +1477,16 @@ public class IsolatedInstaller {
                     }
 
                     // 种子: store path + integrity
-                    var hasher = Wyhash11()
-                    hasher.initWithSeed(UInt64(0x9E3779B97F4A7C15))
+                    var hasher = Wyhash11(UInt64(0))
+                    hasher = Wyhash11(WYHASH_GOLDEN_RATIO)
                     let storePath = store.formatStorePath(idx, lockfile)
-                    hasher.updateString(storePath)
+                    hasher.update(isolatedStringToBytes(storePath))
                     let integrity = lockfile.getIntegrity(pkgId)
-                    hasher.updateString(integrity)
-                    stack[topIdx].hasher = hasher.finalUInt64()
+                    hasher.update(isolatedStringToBytes(integrity))
+                    stack[topIdx].hasher = hasher.finalize()
                 }
 
-                if (states[idx] == GlobalStoreHashState.Ineligible) {
+                if (match (states[idx]) { case GlobalStoreHashState.Ineligible => true case _ => false }) {
                     stack.removeAt(topIdx)
                     continue
                 }
@@ -1503,12 +1515,12 @@ public class IsolatedInstaller {
                             advanced = true
                             break
                     }
-                    if (states[idx] == GlobalStoreHashState.Ineligible) { break }
+                    if (match (states[idx]) { case GlobalStoreHashState.Ineligible => true case _ => false }) { break }
                 }
 
                 if (advanced) { continue }
 
-                if (states[idx] != GlobalStoreHashState.Ineligible) {
+                if (match (states[idx]) { case GlobalStoreHashState.Ineligible => false case _ => true }) {
                     var h = stack[topIdx].hasher
                     if (h == UInt64(0)) { h = UInt64(1) }
                     entries[idx].entryHash = h
@@ -1598,11 +1610,11 @@ public class IsolatedInstaller {
 
     /// 组合哈希
     private func combineHash(base: UInt64, depNameHash: UInt64, depHash: UInt64): UInt64 {
-        var hasher = Wyhash11()
-        hasher.initWithSeed(base)
-        hasher.updateUInt64(depNameHash)
-        hasher.updateUInt64(depHash)
-        return hasher.finalUInt64()
+        var hasher = Wyhash11(UInt64(0))
+        hasher = Wyhash11(base)
+        hasher.update(u64ToBytes(depNameHash))
+        hasher.update(u64ToBytes(depHash))
+        return hasher.finalize()
     }
 
     /// Tarjan SCC 计算
@@ -1613,7 +1625,7 @@ public class IsolatedInstaller {
         let lowlink = ArrayList<UInt32>()
         let onStack = ArrayList<Bool>()
         for (i in 0..n) {
-            tarjanIndex.append(UInt32(MathUtil.MAX_UINT32))
+            tarjanIndex.append(UInt32(0xFFFFFFFF))
             lowlink.append(UInt32(0))
             onStack.append(false)
         }
@@ -1623,7 +1635,7 @@ public class IsolatedInstaller {
         var indexCounter: UInt32 = UInt32(0)
 
         for (root in 0..n) {
-            if (tarjanIndex[root] != UInt32(MathUtil.MAX_UINT32)) { continue }
+            if (tarjanIndex[root] != UInt32(0xFFFFFFFF)) { continue }
             work.append(TarjanWorkFrame(UInt32(root), UInt32(0)))
 
             while (work.size > 0) {
@@ -1642,12 +1654,14 @@ public class IsolatedInstaller {
                 while (work[frameIdx].child < UInt32(deps.size)) {
                     let w = Int64(deps[Int64(work[frameIdx].child)].entryId)
                     work[frameIdx].child += UInt32(1)
-                    if (tarjanIndex[w] == UInt32(MathUtil.MAX_UINT32)) {
+                    if (tarjanIndex[w] == UInt32(0xFFFFFFFF)) {
                         work.append(TarjanWorkFrame(UInt32(w), UInt32(0)))
                         recursed = true
                         break
                     } else if (onStack[w]) {
-                        lowlink[Int64(v)] = MathUtil.min32(lowlink[Int64(v)], tarjanIndex[w])
+                        let lv = lowlink[Int64(v)]
+                        let tw = tarjanIndex[w]
+                        if (tw < lv) { lowlink[Int64(v)] = tw }
                     }
                 }
                 if (recursed) { continue }
@@ -1663,7 +1677,7 @@ public class IsolatedInstaller {
                     let members = ArrayList<UInt32>()
                     for (i in start..sccStack.size) {
                         members.append(sccStack[Int64(i)])
-                        onStack[Int64(sccStack[Int64(i))] = false
+                        onStack[Int64(sccStack[Int64(i)])] = false
                     }
 
                     if (members.size == 1) {
@@ -1678,16 +1692,15 @@ public class IsolatedInstaller {
                     }
 
                     // 从 scc_stack 中移除
-                    sccStack.removeRange(Int64(start), sccStack.size)
+                    while (sccStack.size > Int64(start)) { sccStack.removeAt(sccStack.size - 1) }
                 }
 
                 work.removeAt(frameIdx)
                 if (work.size > 0) {
                     let parentIdx = work.size - 1
-                    lowlink[Int64(work[parentIdx].v)] = MathUtil.min32(
-                        lowlink[Int64(work[parentIdx].v)],
-                        lowlink[Int64(v)]
-                    )
+                    let pval = lowlink[Int64(work[parentIdx].v)]
+                    let lval = lowlink[Int64(v)]
+                    if (lval < pval) { lowlink[Int64(work[parentIdx].v)] = lval }
                 }
             }
         }
@@ -1696,13 +1709,13 @@ public class IsolatedInstaller {
     /// 重新计算 singleton SCC 哈希
     /// 翻译自: singleton SCC 处理
     private func recomputeSingletonHash(m: Int64, lockfile: LockfileData): Unit {
-        var hasher = Wyhash11()
-        hasher.initWithSeed(UInt64(0x9E3779B97F4A7C15))
+        var hasher = Wyhash11(UInt64(0))
+        hasher = Wyhash11(WYHASH_GOLDEN_RATIO)
         let storePath = store.formatStorePath(m, lockfile)
-        hasher.updateString(storePath)
+        hasher.update(isolatedStringToBytes(storePath))
         let node = store.nodes[Int64(store.entries[m].nodeId)]
         let integrity = lockfile.getIntegrity(node.pkgId)
-        hasher.updateString(integrity)
+        hasher.update(isolatedStringToBytes(integrity))
 
         var poisoned = false
         for (dep in store.entries[m].dependencies) {
@@ -1712,14 +1725,14 @@ public class IsolatedInstaller {
                 break
             }
             let depNameHash = lockfile.getDependency(dep.depId).nameHash
-            hasher.updateUInt64(depNameHash)
-            hasher.updateUInt64(dh)
+            hasher.update(u64ToBytes(depNameHash))
+            hasher.update(u64ToBytes(dh))
         }
 
         if (poisoned) {
             store.entries[m].entryHash = UInt64(0)
         } else {
-            var h = hasher.finalUInt64()
+            var h = hasher.finalize()
             if (h == UInt64(0)) { h = UInt64(1) }
             store.entries[m].entryHash = h
         }
@@ -1736,14 +1749,14 @@ public class IsolatedInstaller {
         for (m in members) {
             if (store.entries[Int64(m)].entryHash == UInt64(0)) { anyIneligible = true }
 
-            var hasher = Wyhash11()
-            hasher.initWithSeed(UInt64(0))
+            var hasher = Wyhash11(UInt64(0))
+            hasher = Wyhash11(UInt64(0))
             let storePath = store.formatStorePath(Int64(m), lockfile)
-            hasher.updateString(storePath)
+            hasher.update(isolatedStringToBytes(storePath))
             let node = store.nodes[Int64(store.entries[Int64(m)].nodeId)]
             let integrity = lockfile.getIntegrity(node.pkgId)
-            hasher.updateString(integrity)
-            memberSubs.append(hasher.finalUInt64())
+            hasher.update(isolatedStringToBytes(integrity))
+            memberSubs.append(hasher.finalize())
 
             for (dep in store.entries[Int64(m)].dependencies) {
                 let di = Int64(dep.entryId)
@@ -1756,24 +1769,39 @@ public class IsolatedInstaller {
 
                 if (store.entries[di].entryHash == UInt64(0)) { anyIneligible = true }
 
-                var extHasher = Wyhash11()
-                extHasher.initWithSeed(UInt64(0))
-                extHasher.updateUInt64(lockfile.getDependency(dep.depId).nameHash)
-                extHasher.updateUInt64(store.entries[di].entryHash)
-                extKeys.append(extHasher.finalUInt64())
+                var extHasher = Wyhash11(UInt64(0))
+                extHasher.update(u64ToBytes(lockfile.getDependency(dep.depId).nameHash))
+                extHasher.update(u64ToBytes(store.entries[di].entryHash))
+                extKeys.append(extHasher.finalize())
             }
         }
 
-        // 排序
-        memberSubs.sort()
-        extKeys.sort()
+        // 排序 (简单冒泡排序)
+        for (i in 0..memberSubs.size) {
+            for (j in i + 1..memberSubs.size) {
+                if (memberSubs[i] > memberSubs[j]) {
+                    let tmp = memberSubs[i]
+                    memberSubs[i] = memberSubs[j]
+                    memberSubs[j] = tmp
+                }
+            }
+        }
+        for (i in 0..extKeys.size) {
+            for (j in i + 1..extKeys.size) {
+                if (extKeys[i] > extKeys[j]) {
+                    let tmp = extKeys[i]
+                    extKeys[i] = extKeys[j]
+                    extKeys[j] = tmp
+                }
+            }
+        }
 
         // 计算最终哈希
-        var hasher = Wyhash11()
-        hasher.initWithSeed(UInt64(0x42A7C15F9E3779B9))
-        for (k in memberSubs) { hasher.updateUInt64(k) }
-        for (k in extKeys) { hasher.updateUInt64(k) }
-        var h = hasher.finalUInt64()
+        var hasher = Wyhash11(UInt64(0))
+        hasher = Wyhash11(UInt64(0x42A7C15F9E3779B9))
+        for (k in memberSubs) { hasher.update(u64ToBytes(k)) }
+        for (k in extKeys) { hasher.update(u64ToBytes(k)) }
+        var h = hasher.finalize()
         if (h == UInt64(0)) { h = UInt64(1) }
         let finalH = if (anyIneligible) { UInt64(0) } else { h }
 
@@ -1825,10 +1853,10 @@ public class IsolatedInstaller {
 
             // Posix 迁移路径:
             // 1. rename node_modules -> tmp
-            let randomHex = MathUtil.randomHex(UInt64(8))
+            let randomHex = "" // TODO: MathUtil.randomHex(UInt64(8))
             let tmpName = "${cwd}/tmp_modules_${randomHex}"
             let renameSuccess = SysFs.rename(nodeModulesPath, tmpName)
-            if (!renameSuccess) {
+            if (match (renameSuccess) { case SysMaybe<Unit>.Err(_) => true case _ => false }) {
                 // 重命名失败: 直接创建 .bun
                 BaoFile.mkdir(bunModulesPath, true)
                 isNewBunModules = true
@@ -1911,12 +1939,6 @@ public class IsolatedInstaller {
             case DependencyVersionTag.Uninitialized =>
                 // 根包/未初始化: 标记 done
                 entry.step = StoreEntryStep.Done
-            case DependencyVersionTag.Root =>
-                // 根包: 设置为符号链接阶段
-                if (depId == INVALID_DEPENDENCY_ID) {
-                    entry.step = StoreEntryStep.SymlinkDependencies
-                }
-                // 根包的依赖会有自己的 entry
             case DependencyVersionTag.Workspace =>
                 // workspace: 只需符号链接
                 entry.step = StoreEntryStep.SymlinkDependencies
@@ -1986,7 +2008,7 @@ public class IsolatedInstaller {
 
         if (!missingFromCache) {
             // 缓存命中
-            if (patchInfo.tag == PatchInfoTag.Patch) {
+            if (match (patchInfo.tag) { case IsolatedPatchInfoTag.Patch => true case _ => false }) {
                 // 应用补丁
                 applyPackagePatch(entryId, patchInfo, lockfile)
             }
@@ -2000,16 +2022,16 @@ public class IsolatedInstaller {
     }
 
     /// 检查补丁信息
-    private func checkPatchInfo(pkgName: String, pkgId: UInt32, lockfile: LockfileData): PatchInfo {
+    private func checkPatchInfo(pkgName: String, pkgId: UInt32, lockfile: LockfileData): IsolatedPatchInfo {
         if (!lockfile.hasPatchedDependencies()) {
-            return PatchInfo()
+            return IsolatedPatchInfo()
         }
         // 检查是否有补丁
         let patchHash = lockfile.getPatchHash(pkgName, pkgId)
         if (patchHash.size > 0) {
-            return PatchInfo(PatchInfoTag.Patch, Wyhash.hash(patchHash), UInt64(0))
+            return IsolatedPatchInfo(IsolatedPatchInfoTag.Patch, Wyhash.hash(patchHash), UInt64(0))
         }
-        return PatchInfo()
+        return IsolatedPatchInfo()
     }
 
     /// 检查陈旧的全局存储链接
@@ -2017,9 +2039,9 @@ public class IsolatedInstaller {
         if (usesGlobalStore) { return false }
         if (globalStorePath.isNone()) { return false }
         // 检查本地 entry 路径是否是一个指向全局存储的符号链接
-        let storePath = store.formatStorePath(entryId, DummyLockfileData())
+        let storePath = store.formatStorePath(Int64(entryId), LockfileData())
         let localPath = "node_modules/${PackageStore.MODULES_DIR_NAME}/${storePath}"
-        if (SysFs.isSymlink(localPath)) {
+        if (BaoFile.exists(localPath)) {
             return true
         }
         return false
@@ -2034,7 +2056,7 @@ public class IsolatedInstaller {
         lockfile: LockfileData,
         usesGlobalStore: Bool,
         hasStaleGvsLink: Bool,
-        patchInfo: PatchInfo
+        patchInfo: IsolatedPatchInfo
     ): Bool {
         // 强制安装
         if (manager.forceInstall) { return true }
@@ -2046,7 +2068,7 @@ public class IsolatedInstaller {
         if (hasStaleGvsLink) { return true }
 
         // 补丁需要删除
-        if (patchInfo.tag == PatchInfoTag.Remove) { return true }
+        if (match (patchInfo.tag) { case IsolatedPatchInfoTag.Remove => true case _ => false }) { return true }
 
         // 检查磁盘上的存在
         let storePath = store.formatStorePath(entryId, lockfile)
@@ -2057,7 +2079,7 @@ public class IsolatedInstaller {
             match (globalStorePath) {
                 case Some(gsp) =>
                     let globalPath = "${gsp}/${uint64ToHex(store.entries[entryId].entryHash)}"
-                    return !SysFs.directoryExists(globalPath)
+                    return !BaoFile.isDirectory(globalPath)
                 case None => ()
             }
         }
@@ -2072,7 +2094,7 @@ public class IsolatedInstaller {
         }
 
         // 检查补丁标记
-        if (patchInfo.tag == PatchInfoTag.Patch) {
+        if (match (patchInfo.tag) { case IsolatedPatchInfoTag.Patch => true case _ => false }) {
             let buntagHash = ".patched-${uint64ToHex(patchInfo.contentsHash)}"
             let patchTagPath = "${fullPath}/${buntagHash}"
             if (!SysFs.exists(patchTagPath)) { return true }
@@ -2087,9 +2109,9 @@ public class IsolatedInstaller {
         pkgId: UInt32,
         tag: DependencyVersionTag,
         lockfile: LockfileData,
-        patchInfo: PatchInfo
+        patchInfo: IsolatedPatchInfo
     ): Bool {
-        if (patchInfo.tag != PatchInfoTag.None) {
+        if (match (patchInfo.tag) { case IsolatedPatchInfoTag.None => false case _ => true }) {
             return true
         }
 
@@ -2103,12 +2125,12 @@ public class IsolatedInstaller {
             return !SysFs.exists(pjPath)
         }
         // 其他: 检查目录
-        return !SysFs.directoryExists(cachePath)
+        return !BaoFile.isDirectory(cachePath)
     }
 
     /// 应用包补丁
     /// 翻译自: applyPackagePatch
-    private func applyPackagePatch(entryId: Int64, patchInfo: PatchInfo, lockfile: LockfileData): Unit {
+    private func applyPackagePatch(entryId: Int64, patchInfo: IsolatedPatchInfo, lockfile: LockfileData): Unit {
         // 简化: 记录需要应用补丁
     }
 
@@ -2160,10 +2182,10 @@ public class IsolatedInstaller {
     ///   - 生命周期脚本: 等待脚本完成
     private func waitForAllTasks(): Unit {
         // 等待网络任务和安装任务完成
-        var pending = manager.pendingTaskCount()
+        var pending = manager.pendingTaskCount
         while (pending > 0) {
             manager.runTasks()
-            pending = manager.pendingTaskCount()
+            pending = manager.pendingTaskCount
         }
     }
 
@@ -2211,6 +2233,27 @@ public class IsolatedInstaller {
     }
 }
 
+/// Peer 依赖解析结果
+class PeerResolutionResult {
+    public var resolvedPkgId: UInt32
+    public var autoInstalled: Bool
+    public var visitedParents: ArrayList<Int64>
+
+    public init() {
+        resolvedPkgId = INVALID_PACKAGE_ID
+        autoInstalled = false
+        visitedParents = ArrayList<Int64>()
+    }
+}
+
+/// 早期去重结果
+/// 翻译自: isolated_install 中的 early_dedupe 结果
+enum EarlyDedupeResult {
+    | Deduplicated   // 已去重, 跳过此节点
+    | DontDedupe     // 不能去重, 创建新节点
+    | Continue       // 继续正常处理
+}
+
 // ============================================================================
 // Peers 位集缓存
 // 用于高效存储每个包的 leaking peers
@@ -2223,13 +2266,13 @@ public class LeakingPeersCache {
     private var pkgCount: UInt32
     private var peerNameCount: UInt32
     /// 每个包的位集 (pkgIdx * peerNameCount + bitIdx)
-    private var bits: Array<Bool>
+    public var bits: Array<Bool>
 
-    public init(pkgCount: UInt32, peerNameCount: UInt32) {
-        this.pkgCount = pkgCount
+    public init(pkgCount: Int64, peerNameCount: UInt32) {
+        this.pkgCount = UInt32(pkgCount)
         this.peerNameCount = peerNameCount
-        let size = Int64(pkgCount) * Int64(peerNameCount)
-        bits = Array<Bool>(size, item: false)
+        let size = pkgCount * Int64(peerNameCount)
+        bits = Array<Bool>(size, repeat: false)
     }
 
     /// 获取指定位
@@ -2257,17 +2300,38 @@ public class LeakingPeersCache {
         }
         return c
     }
+
+    /// 从 PeersBitSet 复制到指定包
+    public func copyFrom(other: PeersBitSet, srcPkg: UInt32, dstPkg: UInt32): Unit {
+        for (i in 0..Int64(peerNameCount)) {
+            let srcIdx = Int64(srcPkg) * Int64(peerNameCount) + i
+            let dstIdx = Int64(dstPkg) * Int64(peerNameCount) + i
+            if (srcIdx >= 0 && srcIdx < other.bits.size && dstIdx >= 0 && dstIdx < bits.size) {
+                bits[dstIdx] = other.bits[srcIdx]
+            }
+        }
+    }
+
+    /// 从另一个位集复制 (单包)
+    public func copyFrom(other: PeersBitSet, pkgId: UInt32): Unit {
+        for (i in 0..Int64(peerNameCount)) {
+            let idx = Int64(pkgId) * Int64(peerNameCount) + i
+            if (idx >= 0 && idx < other.bits.size) {
+                set(pkgId, UInt32(i))
+            }
+        }
+    }
 }
 
 /// Peers 位集 (单包视图)
 public class PeersBitSet {
-    private var bits: Array<Bool>
+    public var bits: Array<Bool>
     private var size: UInt32
 
-    public init(pkgCount: UInt32, peerNameCount: UInt32) {
+    public init(pkgCount: Int64, peerNameCount: UInt32) {
         this.size = peerNameCount
-        let totalSize = Int64(pkgCount) * Int64(peerNameCount)
-        bits = Array<Bool>(totalSize, item: false)
+        let totalSize = pkgCount * Int64(peerNameCount)
+        bits = Array<Bool>(totalSize, repeat: false)
     }
 
     /// 设置位
@@ -2306,13 +2370,12 @@ public class PeersBitSet {
         }
     }
 
+
     /// 从 leaking_peers 复制到 leaking_peers
     public func copyTo(other: LeakingPeersCache, srcPkg: UInt32, dstPkg: UInt32): Unit {
         for (i in 0..Int64(size)) {
-            let val = bits[i]
-            let idx = Int64(dstPkg) * Int64(size) + i
-            if (idx >= 0 && idx < other.bits.size) {
-                // 直接操作
+            if (bits[i]) {
+                other.set(dstPkg, UInt32(i))
             }
         }
     }
@@ -2424,6 +2487,8 @@ class TarjanWorkFrame {
 /// 占位类型: 锁文件数据
 /// 实际定义在 lockfile 包中
 public class LockfileData {
+    public var trees: ArrayList<TreeNode>
+    public var resolutions: ArrayList<UInt32>
     public func getPackageName(pkgId: UInt32): String { "" }
     public func getResolution(pkgId: UInt32): String { "" }
     public func getResolutionTag(pkgId: UInt32): DependencyVersionTag { DependencyVersionTag.Uninitialized }
@@ -2443,75 +2508,32 @@ public class LockfileData {
     public func getPatchHash(pkgName: String, pkgId: UInt32): String { "" }
     public func hasTrustedDependency(name: String): Bool { false }
     public func getWorkspacePaths(): ArrayList<String> { ArrayList<String>() }
+    public func getTreeRelativePath(pkgId: UInt32): String { "" }
+    public func setIntegrity(pkgId: UInt32, integrity: Integrity): Unit {}
+    public func getPackageMetas(): ArrayList<PackageMeta> { ArrayList<PackageMeta>() }
+    public func getPackageNameHashes(): ArrayList<UInt64> { ArrayList<UInt64>() }
+    public func getPackageBins(): ArrayList<PackageBinInfo> { ArrayList<PackageBinInfo>() }
+    public func getPackageResolutions(): ArrayList<String> { ArrayList<String>() }
+    public var packages: ArrayList<LockfilePackage> = ArrayList<LockfilePackage>()
+    public func getAllPackageDependencies(): ArrayList<DependencySlice> { ArrayList<DependencySlice>() }
+    public func addTrustedDependency(name: String): Unit {}
+    public func getScripts(pkgId: UInt32): LockfileScripts { return LockfileScripts() }
+    public func hasPatchedDependency(name: String, version: String): Bool { return false }
+    public func getPatchedDependencyPatchfileHash(name: String, version: String): String { return "" }
+
+    public init() {
+        trees = ArrayList<TreeNode>()
+        resolutions = ArrayList<UInt32>()
+    }
 }
 
-/// 占位类型: 依赖条目
-public class DependencyEntry {
-    public var depId: UInt32 = UInt32(0)
-    public var nameHash: UInt64 = UInt64(0)
-    public var pkgId: UInt32 = UInt32(0)
-    public var isPeer: Bool = false
-    public var isWorkspace: Bool = false
-    public var versionTag: DependencyVersionTag = DependencyVersionTag.Uninitialized
-}
-
-/// 依赖版本标签
-/// 翻译自: install.Resolution.Tag
-public enum DependencyVersionTag {
-    | Uninitialized
-    | Root
-    | Workspace
-    | Symlink
-    | Folder
-    | Npm
-    | Git
-    | Github
-    | Tarball
-}
-
-/// 占位类型: 包管理器引用
-public class PackageManagerRef {
-    public var cacheDirectoryPath: String = ""
-    public var enableGlobalVirtualStore: Bool = false
-    public var forceInstall: Bool = false
-    public var hoistPattern: ?HoistPattern = None
-    public var publicHoistPattern: HoistPattern = HoistPattern()
-
-    public func pendingTaskCount(): Int64 { Int64(0) }
-    public func runTasks(): Unit {}
-    public func enqueueNpmDownload(depId: UInt32, pkgId: UInt32, name: String, version: String): Unit {}
-    public func enqueueGitCheckout(depId: UInt32, name: String, resolution: String): Unit {}
-    public func enqueueGitHubDownload(depId: UInt32, pkgId: UInt32, resolution: String): Unit {}
-    public func enqueueTarballDownload(depId: UInt32, pkgId: UInt32, resolution: String): Unit {}
-}
-
-/// 占位类型: 提升模式
-public class HoistPattern {
-    public func isMatch(name: String): Bool { false }
-}
-
-/// 占位类型: 工作区过滤器
-public class WorkspaceFilter {}
-
-/// 占位类型: 安装摘要
-public class PackageInstallSummary {
-    public var successfullyInstalled: HashSet<UInt32> = HashSet<UInt32>()
-}
-
-/// 占位类型: 日志级别
-public enum LogLevel {
-    | Silent
-    | Default
-    | Verbose
-}
-
-/// 占位类型: 包 JSON
-public class PackageJson {
-    public var bin: PackageBin = PackageBin()
-}
+// NOTE: DependencyEntry defined in package_json.cj (canonical)
+// NOTE: PackageJson defined in package_json.cj (canonical)
 
 /// 占位类型: 锁文件数据 (用于无参数调用)
-class DummyLockfileData extends LockfileData {}
+class DummyLockfileData {
+    public init() {}
+}
 
 /// 占位: resolutions 数组
 public let resolutions: ArrayList<UInt32> = ArrayList<UInt32>()

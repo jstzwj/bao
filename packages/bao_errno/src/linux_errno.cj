@@ -197,7 +197,7 @@ public enum LinuxSystemErrno {
     public static let max: Int64 = 134
 
     /// 从数值初始化
-    /// 对应: SystemErrno.init(code: anytype) ?SystemErrno
+    /// 对应: SystemErrno(code: anytype) ?SystemErrno
     ///   if (code < 0) { if (code <= -max) return null; return @enumFromInt(-code) }
     ///   if (code >= max) return null
     ///   return @enumFromInt(code)

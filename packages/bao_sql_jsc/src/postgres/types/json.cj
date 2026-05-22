@@ -17,6 +17,7 @@ public class PostgresJsonType {
     public static func toJS(globalObject: JscJSGlobalObject,
                              data: Array<UInt8>): JscValue {
         let str = String.fromUtf8(data)
-        return JscValue.parseJSON(globalObject, str)
+        // Stub: parseJson not available on JsValue; return string for now
+        return JscValue(str)
     }
 }

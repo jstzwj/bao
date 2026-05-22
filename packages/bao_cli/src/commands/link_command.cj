@@ -247,16 +247,14 @@ public class LinkCommand {
         // 链接 bin
         let pkgContent = BaoFile.readAllText(Path.join([realPath, "package.json"]))
         match (pkgContent) {
-            case Some(content) => {
+            case Some(content) =>
                 let parser = JsonParser()
                 let json = parser.parse(content)
                 match (json) {
-                    case Some(root) => {
+                    case Some(root) =>
                         linkBins(root, packageName, localNodeModules, opts.binDir)
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
@@ -277,15 +275,14 @@ public class LinkCommand {
     private func linkBins(root: JsonValue, packageName: String, nodeModulesPath: String, binDir: ?String): Unit {
         let binInfo = JsonHelper.getField(root, "bin")
         match (binInfo) {
-            case Some(JsonValue.Str(binPath)) => {
+            case Some(JsonValue.Str(binPath)) =>
                 // bin 是字符串: 二进制名 = 包名, 路径 = binPath
                 let binDirPath = binDir ?? getGlobalBinDir()
                 BaoFile.mkdir(binDirPath, true)
                 let binLinkPath = Path.join([binDirPath, packageName])
                 let targetPath = Path.join([nodeModulesPath, packageName, binPath])
                 BaoFile.createSymlink(targetPath, binLinkPath)
-            }
-            case Some(JsonValue.Object(binMap)) => {
+            case Some(JsonValue.Object(binMap)) =>
                 // bin 是对象: { "bin-name": "path/to/bin" }
                 let binDirPath = binDir ?? getGlobalBinDir()
                 BaoFile.mkdir(binDirPath, true)
@@ -297,7 +294,6 @@ public class LinkCommand {
                     let targetPath = Path.join([nodeModulesPath, packageName, binPath])
                     BaoFile.createSymlink(targetPath, binLinkPath)
                 }
-            }
             case _ => ()
         }
     }
@@ -306,10 +302,9 @@ public class LinkCommand {
     private func updatePackageJsonWithLink(packageName: String): Unit {
         let pkgContent = BaoFile.readAllText("package.json")
         match (pkgContent) {
-            case Some(content) => {
+            case Some(content) =>
                 // 简化: 在实际实现中需要 JSON 操作
                 // 添加 "dependencies": { "<name>": "link:<name>" }
-            }
             case None => ()
         }
     }
@@ -319,10 +314,9 @@ public class LinkCommand {
     private func getGlobalNodeModulesDir(explicitDir: ?String): String {
         match (explicitDir) {
             case Some(dir) => return Path.join([dir, "node_modules"])
-            case None => {
+            case None =>
                 let homeDir = Sys.getHomeDir()
                 return Path.join([homeDir, ".bao", "install", "global", "node_modules"])
-            }
         }
     }
 
@@ -339,30 +333,26 @@ public class LinkCommand {
         while (i < args.size) {
             let arg = args[i]
             match (arg) {
-                case "--global-dir" => {
+                case "--global-dir" =>
                     i++
                     if (i < args.size) {
                         opts.globalDir = Some(args[i])
                     }
-                }
-                case "--bin-dir" => {
+                case "--bin-dir" =>
                     i++
                     if (i < args.size) {
                         opts.binDir = Some(args[i])
                     }
-                }
                 case "--silent" => opts.silent = true
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printLinkHelp()
                     return opts
-                }
-                case _ => {
+                case _ =>
                     if (!arg.startsWith("-")) {
                         opts.packageName = Some(arg)
                     } else {
                         logger.warn("Unknown option: ${arg}")
                     }
-                }
             }
             i++
         }

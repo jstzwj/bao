@@ -323,7 +323,7 @@ public enum GenericFontFamily {
 public enum FontStyle {
     | Normal           // 正常
     | Italic           // 斜体
-    | Oblique(String)  // 倾斜角度（字符串表示）
+    | ObliqueVal(String)  // 倾斜角度（字符串表示）
 
     private func obliqueToCss(angle: String): String {
         if (angle == "14deg") {
@@ -337,7 +337,7 @@ public enum FontStyle {
         match (this) {
             case Normal => "normal"
             case Italic => "italic"
-            case Oblique(angle) => obliqueToCss(angle)
+            case ObliqueVal(a) => obliqueToCss(a)
         }
     }
 
@@ -349,7 +349,7 @@ public enum FontStyle {
         match (this) {
             case Normal => match (rhs) { case Normal => true case _ => false }
             case Italic => match (rhs) { case Italic => true case _ => false }
-            case Oblique(a) => match (rhs) { case Oblique(b) => a == b case _ => false }
+            case ObliqueVal(a) => match (rhs) { case ObliqueVal(b) => a == b case _ => false }
         }
     }
 

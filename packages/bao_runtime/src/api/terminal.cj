@@ -28,10 +28,10 @@ public enum GcValue {
 }
 
 /// GcAccessor - GC 值访问器, 对应 js.gc 模块
-/// Bun: js.gc.get / js.gc.set 访问缓存的 JSValue
+/// Bun: js.gc.get / js.gc.set 访问缓存的 JsValue
 public class GcAccessor {
 
-    /// 获取缓存的 JSValue
+    /// 获取缓存的 JsValue
     /// 严格翻译自: js.gc.get(which, this_value)
     public static func get(which: GcValue, thisValue: JsValue): ?JsValue {
         // 对应 Bun 的 data_get_cached / exit_get_cached / drain_get_cached
@@ -42,7 +42,7 @@ public class GcAccessor {
         }
     }
 
-    /// 设置缓存的 JSValue
+    /// 设置缓存的 JsValue
     /// 严格翻译自: js.gc.set(which, this_value, global, value)
     public static func set(which: GcValue, thisValue: JsValue, global: JsGlobalObject, value: JsValue): Unit {
         match (which) {
@@ -132,14 +132,14 @@ public struct Flags: Equatable {
 
 /// IOWriter - 流式写入器类型
 /// Bun: StreamingWriter<Terminal>
-public typealias IOWriter = StreamingWriter
+public type IOWriter = StreamingWriter
 
 /// IOReader - 缓冲读取器类型
 /// Bun: BufferedReader
-public typealias IOReader = BufferedReader
+public type IOReader = BufferedReader
 
 /// Poll 类型别名, 用于 FilePoll Owner 注册
-public typealias Poll = StreamingWriter
+public type Poll = StreamingWriter
 
 // ============================================================================
 // StreamingWriter - 流式写入器
@@ -261,11 +261,11 @@ public struct Options {
 
     /// 从 JS 对象解析选项
     /// 严格翻译自: Options::parse_from_js(global_object, js_options)
-    public static func parseFromJS(globalObject: JsGlobalObject, jsOptions: JsValue): Maybe<Options> {
+    public static func parseFromJS(JsGlobalObject, jsOptions: JsValue): Maybe<Options> {
         var options = Options()
 
         // 解析 cols
-        if (let Some(colsVal) = jsOptions.get(globalObject, "cols")) {
+        if (let Some(colsVal) <- jsOptions.get(globalObject, "cols")) {
             if (!colsVal.isUndefinedOrNull() && colsVal.isNumber()) {
                 let n = colsVal.toInt32()
                 if (n > 0 && n <= 65535) {
@@ -275,7 +275,7 @@ public struct Options {
         }
 
         // 解析 rows
-        if (let Some(rowsVal) = jsOptions.get(globalObject, "rows")) {
+        if (let Some(rowsVal) <- jsOptions.get(globalObject, "rows")) {
             if (!rowsVal.isUndefinedOrNull() && rowsVal.isNumber()) {
                 let n = rowsVal.toInt32()
                 if (n > 0 && n <= 65535) {
@@ -285,7 +285,7 @@ public struct Options {
         }
 
         // 解析 name (终端名称)
-        if (let Some(nameVal) = jsOptions.get(globalObject, "name")) {
+        if (let Some(nameVal) <- jsOptions.get(globalObject, "name")) {
             if (!nameVal.isUndefinedOrNull()) {
                 let slice = nameVal.toSlice(globalObject)
                 if (slice.slice().size > Options.MAX_TERM_NAME_LEN) {
@@ -300,21 +300,21 @@ public struct Options {
         }
 
         // 解析 data 回调
-        if (let Some(dataVal) = jsOptions.get(globalObject, "data")) {
+        if (let Some(dataVal) <- jsOptions.get(globalObject, "data")) {
             if (!dataVal.isUndefinedOrNull() && dataVal.isCell() && dataVal.isCallable()) {
                 options.dataCallback = Some(dataVal.withAsyncContextIfNeeded(globalObject))
             }
         }
 
         // 解析 exit 回调
-        if (let Some(exitVal) = jsOptions.get(globalObject, "exit")) {
+        if (let Some(exitVal) <- jsOptions.get(globalObject, "exit")) {
             if (!exitVal.isUndefinedOrNull() && exitVal.isCell() && exitVal.isCallable()) {
                 options.exitCallback = Some(exitVal.withAsyncContextIfNeeded(globalObject))
             }
         }
 
         // 解析 drain 回调
-        if (let Some(drainVal) = jsOptions.get(globalObject, "drain")) {
+        if (let Some(drainVal) <- jsOptions.get(globalObject, "drain")) {
             if (!drainVal.isUndefinedOrNull() && drainVal.isCell() && drainVal.isCallable()) {
                 options.drainCallback = Some(drainVal.withAsyncContextIfNeeded(globalObject))
             }
@@ -821,7 +821,7 @@ public class Terminal {
     }
 
     /// updateFlags - 读-修改-写 flags
-    /// 严格翻译自: fn update_flags(&self, f: impl FnOnce(&mut Flags))
+    /// 严格翻译自: fn update_flags(&self, f: impl FnOnce(&Flags))
     public func updateFlags(f: (Flags) -> Flags): Unit {
         flags = f(flags)
     }
@@ -850,7 +850,7 @@ public class Terminal {
     /// 创建 PTY, 启动读写器, 存储 JS 回调
     /// 返回 CreateResult 或 InitError
     public static func initTerminal(
-        globalObject: JsGlobalObject,
+        JsGlobalObject,
         options: Options,
         existingJsValue: ?JsValue
     ): Maybe<TerminalCreateResult> {
@@ -863,7 +863,7 @@ public class Terminal {
                     e.toString(),
                     ""
                 )
-            case SysMaybe<PtyResult>.Ok(pty) => {
+            case SysMaybe<PtyResult>.Ok(pty) =>
                 // 使用默认 term name 如果为空
                 var termName = options.termName
                 if (termName.slice().size == 0) {
@@ -945,20 +945,19 @@ public class Terminal {
                 terminal.thisValue = JsRef.initStrong(thisValue, globalObject)
 
                 // 存储回调 (通过 GC setter, 防止回调被 GC 回收)
-                if (let Some(cb) = options.dataCallback) {
+                if (let Some(cb) <- options.dataCallback) {
                     GcAccessor.set(GcValue.Data, thisValue, globalObject, cb)
                 }
-                if (let Some(cb) = options.exitCallback) {
+                if (let Some(cb) <- options.exitCallback) {
                     GcAccessor.set(GcValue.Exit, thisValue, globalObject, cb)
                 }
-                if (let Some(cb) = options.drainCallback) {
+                if (let Some(cb) <- options.drainCallback) {
                     GcAccessor.set(GcValue.Drain, thisValue, globalObject, cb)
                 }
 
                 return Maybe<TerminalCreateResult>(
                     result: TerminalCreateResult(terminal: terminal, jsValue: thisValue)
                 )
-            }
         }
     }
 
@@ -968,8 +967,8 @@ public class Terminal {
     // ========================================================================
 
     /// constructor - 从 JS 创建 Terminal
-    /// 严格翻译自: pub fn constructor(global_object, callframe, this_value) -> JsResult<*mut Terminal>
-    public static func constructor(globalObject: JsGlobalObject, callframe: CallFrame, thisValue: JsValue): Maybe<Terminal> {
+    /// 严格翻译自: pub fn constructor(global_object, callframe, this_value) -> JsResult<*Terminal>
+    public static func constructor(JsGlobalObject, callframe: CallFrame, thisValue: JsValue): Maybe<Terminal> {
         let args = callframe.argumentsAsArray(1)
         let jsOptions = args[0]
 
@@ -1014,7 +1013,7 @@ public class Terminal {
     /// 严格翻译自: pub fn create_from_spawn(global_object, options) -> Result<CreateResult, InitError>
     /// 返回 Terminal 和 JS 包装值, slave_fd 应用于子进程的 stdin/stdout/stderr
     public static func createFromSpawn(
-        globalObject: JsGlobalObject,
+        JsGlobalObject,
         options: Options
     ): Maybe<TerminalCreateResult> {
         return initTerminal(globalObject, options, None)
@@ -1044,59 +1043,59 @@ public class Terminal {
     }
 
     /// getClosed - 获取关闭状态 (JS getter)
-    /// 严格翻译自: pub fn get_closed(&self, _global) -> JSValue
+    /// 严格翻译自: pub fn get_closed(&self, _global) -> JsValue
     public func getClosed(_: JsGlobalObject): JsValue {
         return JsValue(flags.contains(Flags.CLOSED))
     }
 
     /// getInputFlags - 获取输入标志 (JS getter)
-    /// 严格翻译自: pub fn get_input_flags(&self, _global) -> JSValue
+    /// 严格翻译自: pub fn get_input_flags(&self, _global) -> JsValue
     public func getInputFlags(_: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Iflag)
     }
 
     /// setInputFlags - 设置输入标志 (JS setter)
     /// 严格翻译自: pub fn set_input_flags(&self, global_object, value) -> JsResult<bool>
-    public func setInputFlags(globalObject: JsGlobalObject, value: JsValue): Bool {
+    public func setInputFlags(JsGlobalObject, value: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Iflag)
         return true
     }
 
     /// getOutputFlags - 获取输出标志 (JS getter)
-    /// 严格翻译自: pub fn get_output_flags(&self, _global) -> JSValue
+    /// 严格翻译自: pub fn get_output_flags(&self, _global) -> JsValue
     public func getOutputFlags(_: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Oflag)
     }
 
     /// setOutputFlags - 设置输出标志 (JS setter)
     /// 严格翻译自: pub fn set_output_flags(&self, global_object, value) -> JsResult<bool>
-    public func setOutputFlags(globalObject: JsGlobalObject, value: JsValue): Bool {
+    public func setOutputFlags(JsGlobalObject, value: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Oflag)
         return true
     }
 
     /// getLocalFlags - 获取本地标志 (JS getter)
-    /// 严格翻译自: pub fn get_local_flags(&self, _global) -> JSValue
+    /// 严格翻译自: pub fn get_local_flags(&self, _global) -> JsValue
     public func getLocalFlags(_: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Lflag)
     }
 
     /// setLocalFlags - 设置本地标志 (JS setter)
     /// 严格翻译自: pub fn set_local_flags(&self, global_object, value) -> JsResult<bool>
-    public func setLocalFlags(globalObject: JsGlobalObject, value: JsValue): Bool {
+    public func setLocalFlags(JsGlobalObject, value: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Lflag)
         return true
     }
 
     /// getControlFlags - 获取控制标志 (JS getter)
-    /// 严格翻译自: pub fn get_control_flags(&self, _global) -> JSValue
+    /// 严格翻译自: pub fn get_control_flags(&self, _global) -> JsValue
     public func getControlFlags(_: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Cflag)
     }
 
     /// setControlFlags - 设置控制标志 (JS setter)
     /// 严格翻译自: pub fn set_control_flags(&self, global_object, value) -> JsResult<bool>
-    public func setControlFlags(globalObject: JsGlobalObject, value: JsValue): Bool {
+    public func setControlFlags(JsGlobalObject, value: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Cflag)
         return true
     }
@@ -1107,13 +1106,13 @@ public class Terminal {
     // ========================================================================
 
     /// getTermiosFlag - 获取 termios 标志值
-    /// 严格翻译自: fn get_termios_flag<const FIELD: TermiosField>(&self) -> JSValue
+    /// 严格翻译自: fn get_termios_flag<const FIELD: TermiosField>(&self) -> JsValue
     public func getTermiosFlag(field: TermiosField): JsValue {
         if (flags.contains(Flags.CLOSED) || masterFd == INVALID_FD) {
             return JsValue(0.0)
         }
 
-        if (let Some(termiosData) = getTermios(masterFd)) {
+        if (let Some(termiosData) <- getTermios(masterFd)) {
             let raw: Float64 = match (field) {
                 case TermiosField.Iflag => Float64(Int64(termiosData.iflag))
                 case TermiosField.Oflag => Float64(Int64(termiosData.oflag))
@@ -1127,13 +1126,13 @@ public class Terminal {
 
     /// setTermiosFlag - 设置 termios 标志值
     /// 严格翻译自: fn set_termios_flag<const FIELD: TermiosField>(&self, global_object, value)
-    public func setTermiosFlag(globalObject: JsGlobalObject, value: JsValue, field: TermiosField): Unit {
+    public func setTermiosFlag(JsGlobalObject, value: JsValue, field: TermiosField): Unit {
         if (flags.contains(Flags.CLOSED) || masterFd == INVALID_FD) {
             return
         }
 
         let num = value.coerceF64(globalObject)
-        if (let Some(mut termiosData) = getTermios(masterFd)) {
+        if (let Some(termiosData) <- getTermios(masterFd)) {
             // 限制到 tcflag_t 范围
             var clamped = num
             if (clamped < 0.0) { clamped = 0.0 }
@@ -1155,8 +1154,8 @@ public class Terminal {
     // ========================================================================
 
     /// write - 向终端写入数据
-    /// 严格翻译自: pub fn write(&self, global_object, callframe) -> JsResult<JSValue>
-    public func write(globalObject: JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
+    /// 严格翻译自: pub fn write(&self, global_object, callframe) -> JsResult<JsValue>
+    public func write(JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1170,7 +1169,7 @@ public class Terminal {
 
         // 使用 StringOrBuffer 获取要写入的字节
         let stringOrBuffer = StringOrBuffer.fromJS(globalObject, data)
-        if (stringOrBuffer == None) {
+        if (stringOrBuffer.isNone()) {
             return Maybe<JsValue>.err("TypeError", "write() argument must be a string or ArrayBuffer", "")
         }
 
@@ -1205,8 +1204,8 @@ public class Terminal {
     // ========================================================================
 
     /// resize - 调整终端大小
-    /// 严格翻译自: pub fn resize(&self, global_object, callframe) -> JsResult<JSValue>
-    public func resize(globalObject: JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
+    /// 严格翻译自: pub fn resize(&self, global_object, callframe) -> JsResult<JsValue>
+    public func resize(JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1269,8 +1268,8 @@ public class Terminal {
     // ========================================================================
 
     /// setRawMode - 设置原始模式
-    /// 严格翻译自: pub fn set_raw_mode(&self, global_object, callframe) -> JsResult<JSValue>
-    public func setRawMode(globalObject: JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
+    /// 严格翻译自: pub fn set_raw_mode(&self, global_object, callframe) -> JsResult<JsValue>
+    public func setRawMode(JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1284,7 +1283,7 @@ public class Terminal {
         match (ttyResult) {
             case SysMaybe<Unit>.Err(_) =>
                 return Maybe<JsValue>.err("Error", "Failed to set raw mode", "")
-            case SysMaybe<Unit>.Ok(_) => {}
+            case SysMaybe<Unit>.Ok(_) => ()
         }
 
         flags.set(Flags.RAW_MODE, enabled)
@@ -1297,14 +1296,14 @@ public class Terminal {
     // ========================================================================
 
     /// doRef - 引用终端, 保持事件循环活跃
-    /// 严格翻译自: pub fn do_ref(&self, _g, _f) -> JsResult<JSValue>
+    /// 严格翻译自: pub fn do_ref(&self, _g, _f) -> JsResult<JsValue>
     public func doRef(_: JsGlobalObject, _: CallFrame): Maybe<JsValue> {
         updateRef(true)
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
 
     /// doUnref - 取消引用终端
-    /// 严格翻译自: pub fn do_unref(&self, _g, _f) -> JsResult<JSValue>
+    /// 严格翻译自: pub fn do_unref(&self, _g, _f) -> JsResult<JsValue>
     public func doUnref(_: JsGlobalObject, _: CallFrame): Maybe<JsValue> {
         updateRef(false)
         return Maybe<JsValue>(result: JsValue.jsUndefined())
@@ -1323,7 +1322,7 @@ public class Terminal {
     // ========================================================================
 
     /// close - 关闭终端
-    /// 严格翻译自: pub fn close(&self, _g, _f) -> JsResult<JSValue>
+    /// 严格翻译自: pub fn close(&self, _g, _f) -> JsResult<JsValue>
     public func close(_: JsGlobalObject, _: CallFrame): Maybe<JsValue> {
         closeInternal()
         return Maybe<JsValue>(result: JsValue.jsUndefined())
@@ -1335,9 +1334,9 @@ public class Terminal {
     // ========================================================================
 
     /// asyncDispose - 异步释放, 用于 "using" 语法
-    /// 严格翻译自: pub fn async_dispose(&self, global_object, _f) -> JsResult<JSValue>
+    /// 严格翻译自: pub fn async_dispose(&self, global_object, _f) -> JsResult<JsValue>
     /// 关闭后调用者不应再看到进一步的 data/exit 回调
-    public func asyncDispose(globalObject: JsGlobalObject, _: CallFrame): Maybe<JsValue> {
+    public func asyncDispose(JsGlobalObject, _: CallFrame): Maybe<JsValue> {
         // 降级 JSRef 使包装器可被 GC 回收
         thisValue.downgrade()
         // 标记为已终结, 抑制回调
@@ -1461,12 +1460,12 @@ public class Terminal {
     /// 调用 drain 回调
     fn onWriterReady(): Unit {
         let thisJsvalue = thisValue.tryGet()
-        if (thisJsvalue == None) {
+        if (thisJsvalue.isNone()) {
             return
         }
         match (thisJsvalue) {
             case Some(jsVal) =>
-                if (let Some(callback) = GcAccessor.get(GcValue.Drain, jsVal)) {
+                if (let Some(callback) <- GcAccessor.get(GcValue.Drain, jsVal)) {
                     let globalThis = global()
                     globalThis.bunVm().eventLoopMut().runCallback(
                         callback,
@@ -1547,12 +1546,12 @@ public class Terminal {
     /// signal 参数仅在信号导致 PTY 关闭时填充
     fn callExitCallback(exitCode: Int32, signal: ?SignalCode): Unit {
         let thisJsvalue = thisValue.tryGet()
-        if (thisJsvalue == None) {
+        if (thisJsvalue.isNone()) {
             return
         }
         match (thisJsvalue) {
             case Some(jsVal) =>
-                if (let Some(callback) = GcAccessor.get(GcValue.Exit, jsVal)) {
+                if (let Some(callback) <- GcAccessor.get(GcValue.Exit, jsVal)) {
                     let globalThis = global()
 
                     let signalValue: JsValue = match (signal) {
@@ -1592,12 +1591,12 @@ public class Terminal {
         }
 
         let thisJsvalue = thisValue.tryGet()
-        if (thisJsvalue == None) {
+        if (thisJsvalue.isNone()) {
             return true
         }
         match (thisJsvalue) {
             case Some(jsVal) =>
-                if (let Some(callback) = GcAccessor.get(GcValue.Data, jsVal)) {
+                if (let Some(callback) <- GcAccessor.get(GcValue.Data, jsVal)) {
                     let globalThis = global()
 
                     // 复制数据块以创建 ArrayBuffer
@@ -1629,7 +1628,7 @@ public class Terminal {
     }
 
     /// loop_ - 获取事件循环原始指针
-    /// 严格翻译自: pub fn loop_(&self) -> *mut AsyncLoop
+    /// 严格翻译自: pub fn loop_(&self) -> *AsyncLoop
     public func loop_(): CPointer<Unit> {
         return eventLoopHandle.loop()
     }
@@ -1649,11 +1648,11 @@ public class Terminal {
 
     // ========================================================================
     // deinitAndDestroy - 销毁终端
-    // 严格翻译自: Terminal.rs fn deinit_and_destroy(this: *mut Terminal)
+    // 严格翻译自: Terminal.rs fn deinit_and_destroy(`this`: *Terminal)
     // ========================================================================
 
     /// deinitAndDestroy - 销毁终端
-    /// 严格翻译自: fn deinit_and_destroy(this: *mut Terminal)
+    /// 严格翻译自: fn deinit_and_destroy(`this`: *Terminal)
     /// 引用计数归零时调用
     public func deinitAndDestroy(): Unit {
         // 设置 reader/writer done 标志防止 closeInternal 中的额外 deref 调用
@@ -1671,7 +1670,7 @@ public class Terminal {
 // ============================================================================
 // BufferedReaderParent trait 实现
 // 严格翻译自: Terminal.rs impl BufferedReaderParent for Terminal { ... }
-// Bun: bun.io.BufferedReader.init(@This()) - vtable parent
+// Bun: bun.io.BufferedReader(@This()) - vtable parent
 // Terminal 声明 onReadChunk/onReaderDone/onReaderError/loop/eventLoop
 // ============================================================================
 
@@ -1767,7 +1766,7 @@ public class StringOrBuffer {
 
     /// 从 JS 值创建 StringOrBuffer
     /// 严格翻译自: StringOrBuffer::from_js(global_object, data)
-    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?StringOrBuffer {
+    public static func fromJS(JsGlobalObject, value: JsValue): ?StringOrBuffer {
         if (value.isString()) {
             let str = value.toString()
             return Some(StringOrBuffer(bytes: str.toArray(), isString: true))
@@ -1833,7 +1832,7 @@ public class JsRef {
         isStrong = true
     }
 
-    /// 尝试获取 JSValue
+    /// 尝试获取 JsValue
     /// 严格翻译自: JsRef::try_get()
     public func tryGet(): ?JsValue {
         return value
@@ -2021,7 +2020,7 @@ public class RefCount {
     }
 
     /// 初始化
-    public static func init(): RefCount {
+    public static func `init`(): RefCount {
         return RefCount()
     }
 }

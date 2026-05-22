@@ -83,7 +83,7 @@ public class Entry {
         j.pushStatic("],\"sourcesContent\":[\"// (Bun's internal HMR runtime is minified)\"")
 
         // 添加源内容
-        for (i in 0..map_files.length) {
+        for (i in 0..map_files.size) {
             let chunk = map_files.get(i)
             if (let Some(source_map) <- chunk.get()) {
                 j.pushStatic(",")
@@ -116,7 +116,7 @@ public class Entry {
         let map_files = files.slice()
         let runtime: HmrRuntime = match (kind) {
             case initial_response => bake.getHmrRuntime(Side.client)
-            case hmr_chunk => HmrRuntime.`init`("self[Symbol.for(\"bun:hmr\")]({\n")
+            case hmr_chunk => HmrRuntime("self[Symbol.for(\"bun:hmr\")]({\n")
         }
 
         var prev_end_state: SourceMapState = SourceMapState(
@@ -130,7 +130,7 @@ public class Entry {
         var lines_between: UInt32 = runtime.line_count
 
         // 连接所有映射
-        for (i in 0..map_files.length) {
+        for (i in 0..map_files.size) {
             match (map_files.get(i)) {
                 case some(source_map) =>
                     let source_index = i + 1
@@ -157,7 +157,7 @@ public class Entry {
     /// 析构
     public func deinit(): Unit {
         let files = files.slice()
-        for (i in 0..files.length) {
+        for (i in 0..files.size) {
             var file = files.get(i)
             file.deinit()
         }
@@ -181,7 +181,7 @@ public class WeakRef {
 
     /// 获取键
     public func key(): Key {
-        return Key.`init`(UInt64(key_top_bits) << 32)
+        return Key(UInt64(key_top_bits) << 32)
     }
 
     /// 初始化
@@ -258,7 +258,7 @@ public func addWeakRef(key: Key): Unit {
     }
 
     let expire = bun.timespec.msFromNow(TimeMode.allow_mocked_time, weak_ref_expiry_seconds * 1000)
-    weak_refs.writeItem(WeakRef.`init`(key, new_weak_ref_count, expire.sec))
+    weak_refs.writeItem(WeakRef(key, new_weak_ref_count, expire.sec))
 
     if (weak_ref_sweep_timer.state != TimerState.ACTIVE) {
         owner().vm.timer.update(weak_ref_sweep_timer, expire)
@@ -321,7 +321,7 @@ public func getParsedSourceMap(script_id: Key, arena: Allocator, gpa: Allocator)
 
     let vlq_bytes = entry.renderMappings(ChunkKind.initial_response, arena, arena)
 
-    match (SourceMap.Mapping.parse(gpa, vlq_bytes, null, entry.paths.length, 0)) {
+    match (SourceMap.Mapping.parse(gpa, vlq_bytes, null, entry.paths.size, 0)) {
         case success(psm) =>
             return GetResult(
                 GenericIndex<UInt32, Entry>.`init`(index),

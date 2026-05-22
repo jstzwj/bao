@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeTypeOf() - 检查值的类型名称
 /// 用法: expect(received).toBeTypeOf("string")
-public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toBeTypeOf() requires 1 argument")
     }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeTypeOf", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeTypeOf", matcherParamsFmt: "")
 
     let expected = arguments[0]
     expected.ensureStillAlive()
@@ -32,7 +32,7 @@ public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     this.incrementExpectCallCounter()
 
     let typeOfOpt = expectedType.inMap(JSTypeOfMap)
-    if (typeOfOpt == None) {
+    if (typeOfOpt.isNone()) {
         return globalThis.throwInvalidArguments("toBeTypeOf() requires a valid type string argument ('function', 'object', 'bigint', 'boolean', 'number', 'string', 'symbol', 'undefined')")
     }
     let typeOf = typeOfOpt.getOrThrow()
@@ -59,13 +59,13 @@ public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     } else if (value.isUndefined()) {
         whatIsTheType = "undefined"
     } else {
-        return globalThis.throw_("Internal consistency error: unknown JSValue type")
+        return globalThis.throw_("Internal consistency error: unknown JsValue type")
     }
 
     pass = strings.eql(typeOf, whatIsTheType)
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

@@ -124,10 +124,10 @@ public class NapiNodeVersion {
     public static func globalVersion(): NapiNodeVersion {
         // 对应 Bun: bun.Environment.reported_nodejs_version
         return NapiNodeVersion(
-            major: 20,
-            minor: 11,
-            patch: 0,
-            release: "node"
+            20,
+            11,
+            0,
+            "node"
         )
     }
 
@@ -158,7 +158,7 @@ public class NapiModule {
     /// 模块私有数据
     public var nmPriv: ?Any = None
     /// 保留字段
-    public var reserved: Array<?Any> = Array<?Any>(4, item: None)
+    public var reserved: Array<?Any> = Array<?Any>(4, { _: Int64 => None })
 
     public init() {
         this.nmVersion = NapiModule.NAPI_MODULE_VERSION

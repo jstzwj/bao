@@ -5,6 +5,7 @@ package bao_sql_jsc.postgres.protocol
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.postgres.*
 
 /// 错误响应 JS 转换
 /// 对应 Bun: protocol/error_response_jsc.zig
@@ -35,73 +36,68 @@ public func errorResponseToJS(errorResponse: ErrorResponse,
     // 解析错误字段
     for (field in errorResponse.messages) {
         match (field) {
-            case Severity(s) => severity = s
-            case Code(c) => code = c
-            case Message(m) => message = m
-            case Detail(d) => detail = d
-            case Hint(h) => hint = h
-            case Position(p) => position = p
-            case InternalPosition(p) => internalPosition = p
-            case Internal(q) => internalQuery = q
-            case Where(w) => where_ = w
-            case Schema(s) => schema = s
-            case Table(t) => table = t
-            case Column(c) => column = c
-            case DataType(d) => dataType = d
-            case Constraint(c) => constraint = c
-            case File(f) => file = f
-            case Line(l) => line = l
-            case Routine(r) => routine = r
+            case ErrorField.Severity(s) => severity = s
+            case ErrorField.Code(c) => code = c
+            case ErrorField.Message(m) => message = m
+            case ErrorField.Detail(d) => detail = d
+            case ErrorField.Hint(h) => hint = h
+            case ErrorField.Position(p) => position = p
+            case ErrorField.InternalPosition(p) => internalPosition = p
+            case ErrorField.Internal(q) => internalQuery = q
+            case ErrorField.Where(w) => where_ = w
+            case ErrorField.Schema(s) => schema = s
+            case ErrorField.Table(t) => table = t
+            case ErrorField.Column(c) => column = c
+            case ErrorField.DataType(d) => dataType = d
+            case ErrorField.Constraint(c) => constraint = c
+            case ErrorField.File(f) => file = f
+            case ErrorField.Line(l) => line = l
+            case ErrorField.Routine(r) => routine = r
             case _ => ()
         }
     }
 
     // 构建错误消息
-    var errorBuilder = StringBuilder()
-    if (message.size > 0) {
-        errorBuilder.append(message)
-    }
+    var errorMessage = message
     if (detail.size > 0) {
-        errorBuilder.append("\n")
-        errorBuilder.append(detail)
+        errorMessage = errorMessage + "\n" + detail
     }
     if (hint.size > 0) {
-        errorBuilder.append("\n")
-        errorBuilder.append(hint)
+        errorMessage = errorMessage + "\n" + hint
     }
 
-    let errorCodes = if (code == "42601") "ERR_POSTGRES_SYNTAX_ERROR" else "ERR_POSTGRES_SERVER_ERROR"
+    let errorCodes = if (code == "42601") { "ERR_POSTGRES_SYNTAX_ERROR" } else { "ERR_POSTGRES_SERVER_ERROR" }
 
     // 创建 JS 错误对象
-    let optsObj = JscObject.createEmptyObject(globalObject)
-    optsObj.put(globalObject, "code", JscValue(errorCodes))
+    let optsObj = JsValue.createEmptyObject(globalObject.globalThis)
+    optsObj.put(globalObject.globalThis, "code", JscValue(errorCodes))
     if (code.size > 0) {
-        optsObj.put(globalObject, "errno", JscValue(code))
+        optsObj.put(globalObject.globalThis, "errno", JscValue(code))
     }
-    optsObj.put(globalObject, "message", JscValue(errorBuilder.toString()))
+    optsObj.put(globalObject.globalThis, "message", JscValue(errorMessage))
 
     // 可选字段
     if (detail.size > 0) {
-        optsObj.put(globalObject, "detail", JscValue(detail))
+        optsObj.put(globalObject.globalThis, "detail", JscValue(detail))
     }
     if (hint.size > 0) {
-        optsObj.put(globalObject, "hint", JscValue(hint))
+        optsObj.put(globalObject.globalThis, "hint", JscValue(hint))
     }
     if (severity.size > 0) {
-        optsObj.put(globalObject, "severity", JscValue(severity))
+        optsObj.put(globalObject.globalThis, "severity", JscValue(severity))
     }
     if (position.size > 0) {
-        optsObj.put(globalObject, "position", JscValue(position))
+        optsObj.put(globalObject.globalThis, "position", JscValue(position))
     }
     if (schema.size > 0) {
-        optsObj.put(globalObject, "schema", JscValue(schema))
+        optsObj.put(globalObject.globalThis, "schema", JscValue(schema))
     }
     if (table.size > 0) {
-        optsObj.put(globalObject, "table", JscValue(table))
+        optsObj.put(globalObject.globalThis, "table", JscValue(table))
     }
     if (column.size > 0) {
-        optsObj.put(globalObject, "column", JscValue(column))
+        optsObj.put(globalObject.globalThis, "column", JscValue(column))
     }
 
-    return optsObj.toValue()
+    return optsObj
 }

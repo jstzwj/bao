@@ -7,11 +7,11 @@ import bao_jsc.*
 
 /// toHaveBeenCalledOnce() - 检查mock函数是否只被调用一次
 /// 用法: expect(mockFn).toHaveBeenCalledOnce()
-public func toHaveBeenCalledOnce(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenCalledOnce(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalledOnce", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalledOnce", matcherParamsFmt: "<green>expected<r>")
 
     this.incrementExpectCallCounter()
 
@@ -27,7 +27,7 @@ public func toHaveBeenCalledOnce(`this`: Expect, globalThis: JSGlobalObject, cal
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     if (not) {

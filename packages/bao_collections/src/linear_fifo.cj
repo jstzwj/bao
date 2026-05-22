@@ -28,7 +28,7 @@ public class LinearFifo<T> {
     private var count: Int64
 
     /// 初始化指定容量的FIFO
-    /// 对应 Bun LinearFifo.init()
+    /// 对应 Bun LinearFifo()
     public init(capacity: Int64, defaultValue: T) {
         // 容量向上取到2的幂
         var cap = Int64(1)

@@ -5,10 +5,20 @@ package bao_runtime.bake
 
 /// Bundler 消息级别
 /// 对应 Bun: enums.ts BundlerMessageLevel
-public enum BundlerMessageLevel <: UInt8 {
-    | err = 0
-    | warn = 1
-    | note = 2
-    | debug = 3
-    | verbose = 4
+public enum BundlerMessageLevel {
+    | err
+    | warn
+    | note
+    | debug
+    | verbose
+
+    public func value(): UInt8 {
+        match (this) {
+            case err => 0
+            case warn => 1
+            case note => 2
+            case debug => 3
+            case verbose => 4
+        }
+    }
 }

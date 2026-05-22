@@ -285,7 +285,7 @@ public class SourceFileProjectGenerator {
                 if (created) {
                     createdFiles[index] = true
                     filenames[index] = fileName
-                    maxFilenameLen = Math.max(maxFilenameLen, Int64(fileName.size))
+                    maxFilenameLen = if (Int64(fileName.size) > maxFilenameLen) { Int64(fileName.size) } else { maxFilenameLen }
                 }
             }
         }

@@ -63,7 +63,7 @@ public class PopulateManifestCache {
         let resolutions = lockfile.resolutions
         let pkgResolutions = lockfile.packages.resolutions
         let pkgNames = lockfile.packages.names
-        let needsExtendedManifest = manager.options.minimumReleaseAgeMs != None
+        let needsExtendedManifest = manager.options.minimumReleaseAgeMs.isSome()
         let seenPkgIds = HashSet<UInt32>()
 
         for (i in 0..dependencies.size) {
@@ -100,7 +100,7 @@ public class PopulateManifestCache {
         let pkgResolutions = lockfile.packages.resolutions
         let pkgNames = lockfile.packages.names
         let pkgDependencies = lockfile.packages.dependencies
-        let needsExtendedManifest = manager.options.minimumReleaseAgeMs != None
+        let needsExtendedManifest = manager.options.minimumReleaseAgeMs.isSome()
 
         for (rootPkgId in ids) {
             let pkgDeps = pkgDependencies[Int64(rootPkgId)]

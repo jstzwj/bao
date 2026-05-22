@@ -131,7 +131,7 @@ public class SslWrapper<T> {
 
         // 创建 SSL 对象
         let ssl = BoringSSL.sslNew(ctx)
-        if (ssl == None) {
+        if (ssl.isNone()) {
             throw SslError.OutOfMemory
         }
         this.ssl = ssl
@@ -144,7 +144,7 @@ public class SslWrapper<T> {
             if (BoringSSL.sslCtxGetVerifyMode(ctx) == SSLVerifyMode.NONE) {
                 BoringSSL.sslSetVerify(ssl, SSLVerifyMode.PEER, SslWrapper.alwaysContinueVerify)
                 let roots = usGetSharedDefaultCaStore()
-                if (roots != None) {
+                if (roots.isSome()) {
                     BoringSSL.sslSet0VerifyCertStore(ssl, roots)
                 }
             }
@@ -156,11 +156,11 @@ public class SslWrapper<T> {
 
         // 创建输入/输出 BIO
         let input = BoringSSL.bioNew(BoringSSL.bioSMem())
-        if (input == None) {
+        if (input.isNone()) {
             throw SslError.OutOfMemory
         }
         let output = BoringSSL.bioNew(BoringSSL.bioSMem())
-        if (output == None) {
+        if (output.isNone()) {
             BoringSSL.bioFree(input)
             throw SslError.OutOfMemory
         }
@@ -177,12 +177,12 @@ public class SslWrapper<T> {
         let ctxOpts = sslOptions.asUSockets()
         var err: CreateBunSocketError = CreateBunSocketError.NONE
         let sslCtx = ctxOpts.createSSLContext(err)
-        if (sslCtx == None) {
+        if (sslCtx.isNone()) {
             throw SslError.InvalidOptions
         }
         try {
             initWithCTX(sslCtx, isClient, userCtx, handlers)
-        } catch ex: SslError {
+        } catch (ex: SslError) {
             BoringSSL.sslCtxFree(sslCtx)
             throw ex
         }
@@ -191,7 +191,7 @@ public class SslWrapper<T> {
     /// 启动 SSL 连接
     /// 触发 onOpen 回调以便用户在第一次握手前配置 SSL 连接
     public func start(): Unit {
-        if (userCtx != None) {
+        if (userCtx.isSome()) {
             handlers.onOpen(userCtx.getOrThrow())
         }
         handleTraffic()
@@ -199,7 +199,7 @@ public class SslWrapper<T> {
 
     /// 使用初始载荷启动 SSL 连接
     public func startWithPayload(payload: Array<Byte>): Unit {
-        if (userCtx != None) {
+        if (userCtx.isSome()) {
             handlers.onOpen(userCtx.getOrThrow())
         }
         receiveData(payload)
@@ -219,7 +219,7 @@ public class SslWrapper<T> {
     /// 注意: 如果 fast_shutdown = true，不要重用 socket
     public func shutdown(fastShutdown: Bool): Bool {
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             return false
         }
         // 已经发送了 SSL 关闭
@@ -260,7 +260,7 @@ public class SslWrapper<T> {
     public func flush(): Int64 {
         handleTraffic()
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             return 0
         }
         let pending = BoringSSL.bioCtrlPending(BoringSSL.sslGetWbio(sslVal))
@@ -273,7 +273,7 @@ public class SslWrapper<T> {
     /// 返回是否有待读取或写入的数据
     public func hasPendingData(): Bool {
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             return false
         }
         return BoringSSL.bioCtrlPending(BoringSSL.sslGetWbio(sslVal)) > 0 ||
@@ -283,7 +283,7 @@ public class SslWrapper<T> {
     /// 返回 BIO 读缓冲区中是否有缓冲数据
     func hasPendingRead(): Bool {
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             return false
         }
         return BoringSSL.bioCtrlPending(BoringSSL.sslGetRbio(sslVal)) > 0
@@ -310,11 +310,11 @@ public class SslWrapper<T> {
     /// 从网络接收数据 (加密数据)
     public func receiveData(data: Array<Byte>): Unit {
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             return
         }
         let input = BoringSSL.sslGetRbio(sslVal)
-        if (input == None) {
+        if (input.isNone()) {
             return
         }
         let written = BoringSSL.bioWrite(input, data, data.size)
@@ -326,7 +326,7 @@ public class SslWrapper<T> {
     /// 向网络发送数据 (未加密数据)
     public func writeData(data: Array<Byte>): Int64 {
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             throw SslError.ConnectionClosed
         }
         // 已发送关闭，不能再写入
@@ -362,13 +362,13 @@ public class SslWrapper<T> {
     /// 释放所有资源
     public func deinit(): Unit {
         flags.closedNotified = true
-        if (ssl != None) {
+        if (ssl.isSome()) {
             let sslVal = ssl
             ssl = None
             // SSL_free 也会释放输入和输出 BIO
             BoringSSL.sslFree(sslVal)
         }
-        if (ctx != None) {
+        if (ctx.isSome()) {
             let ctxVal = ctx
             ctx = None
             // SSL_CTX_free 释放 SSL 上下文和所有证书
@@ -382,8 +382,8 @@ public class SslWrapper<T> {
             return
         }
         flags.authorized = success
-        if (userCtx != None) {
-            handlers.onHandshake(userCtx!, success, result)
+        if (userCtx.isSome()) {
+            handlers.onHandshake(userCtx.getOrThrow(), success, result)
         }
     }
 
@@ -392,8 +392,8 @@ public class SslWrapper<T> {
         if (flags.closedNotified) {
             return
         }
-        if (userCtx != None) {
-            handlers.write(userCtx!, data)
+        if (userCtx.isSome()) {
+            handlers.write(userCtx.getOrThrow(), data)
         }
     }
 
@@ -402,8 +402,8 @@ public class SslWrapper<T> {
         if (flags.closedNotified) {
             return
         }
-        if (userCtx != None) {
-            handlers.onData(userCtx!, data)
+        if (userCtx.isSome()) {
+            handlers.onData(userCtx.getOrThrow(), data)
         }
     }
 
@@ -413,7 +413,7 @@ public class SslWrapper<T> {
             return
         }
         flags.closedNotified = true
-        if (userCtx != None) {
+        if (userCtx.isSome()) {
             handlers.onClose(userCtx.getOrThrow())
         }
     }
@@ -424,7 +424,7 @@ public class SslWrapper<T> {
             return UsBunVerifyError()
         }
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             return UsBunVerifyError()
         }
         return BoringSSL.getSslVerifyError(sslVal)
@@ -437,7 +437,7 @@ public class SslWrapper<T> {
             return false
         }
         let sslVal = ssl
-        if (sslVal == None) {
+        if (sslVal.isNone()) {
             return false
         }
 
@@ -495,7 +495,7 @@ public class SslWrapper<T> {
     func handleEndOfRenegotiation(): Unit {
         let sslVal = ssl
         if (flags.handshakeState == HandshakeState.HandshakeRenegotiationPending &&
-            (sslVal == None || BoringSSL.sslIsInitFinished(sslVal) != 0)) {
+            (sslVal.isNone() || BoringSSL.sslIsInitFinished(sslVal) != 0)) {
             // 重协商成功完成
             flags.handshakeState = HandshakeState.HandshakeCompleted
             triggerHandshakeCallback(true, getVerifyError())
@@ -509,11 +509,11 @@ public class SslWrapper<T> {
 
         while (true) {
             let sslVal = ssl
-            if (sslVal == None) {
+            if (sslVal.isNone()) {
                 return false
             }
 
-            let available = buffer[read.toInt():]
+            let available = buffer[read.toInt()..]
             let justRead = BoringSSL.sslRead(sslVal, available, available.size)
             if (justRead <= 0) {
                 let err = BoringSSL.sslGetError(sslVal, justRead)
@@ -539,8 +539,8 @@ public class SslWrapper<T> {
 
                     // 刷新读取
                     if (read > 0) {
-                        triggerDataCallback(buffer[0:read.toInt()])
-                        if (ssl == None || flags.closedNotified) {
+                        triggerDataCallback(buffer[0..read.toInt()])
+                        if (ssl.isNone() || flags.closedNotified) {
                             return false
                         }
                     }
@@ -557,8 +557,8 @@ public class SslWrapper<T> {
             read += justRead
             if (read == buffer.size) {
                 // 缓冲区已满
-                triggerDataCallback(buffer[0:read.toInt()])
-                if (ssl == None || flags.closedNotified) {
+                triggerDataCallback(buffer[0..read.toInt()])
+                if (ssl.isNone() || flags.closedNotified) {
                     return false
                 }
                 read = 0
@@ -566,8 +566,8 @@ public class SslWrapper<T> {
         }
         // 读取完成
         if (read > 0) {
-            triggerDataCallback(buffer[0:read.toInt()])
-            if (ssl == None || flags.closedNotified) {
+            triggerDataCallback(buffer[0..read.toInt()])
+            if (ssl.isNone() || flags.closedNotified) {
                 return false
             }
         }
@@ -579,19 +579,19 @@ public class SslWrapper<T> {
         var read: Int64 = 0
         while (true) {
             let sslVal = ssl
-            if (sslVal == None) {
+            if (sslVal.isNone()) {
                 return
             }
             let output = BoringSSL.sslGetWbio(sslVal)
-            if (output == None) {
+            if (output.isNone()) {
                 return
             }
-            let available = buffer[read.toInt():]
+            let available = buffer[read.toInt()..]
             let justRead = BoringSSL.bioRead(output, available, available.size)
             if (justRead > 0) {
                 read += justRead
                 if (read == buffer.size) {
-                    triggerWannaWriteCallback(buffer[0:read.toInt()])
+                    triggerWannaWriteCallback(buffer[0..read.toInt()])
                     read = 0
                 }
             } else {
@@ -599,7 +599,7 @@ public class SslWrapper<T> {
             }
         }
         if (read > 0) {
-            triggerWannaWriteCallback(buffer[0:read.toInt()])
+            triggerWannaWriteCallback(buffer[0..read.toInt()])
         }
     }
 
@@ -628,7 +628,7 @@ public class SslWrapper<T> {
 
 /// 获取共享的默认 CA 证书存储
 /// 进程范围的捆绑根存储，仅构建一次
-extern func usGetSharedDefaultCaStore(): ?X509Store
+public func usGetSharedDefaultCaStore(): ?X509Store { return None }
 
 /// Socket 创建错误类型
 public enum CreateBunSocketError {
@@ -679,41 +679,41 @@ public enum SSLRenegotiateMode {
 
 /// BoringSSL FFI 桥接
 public class BoringSSL {
-    public static func sslNew(ctx: SslCtx): ?Ssl { ... }
-    public static func sslFree(ssl: Ssl): Unit { ... }
-    public static func sslCtxFree(ctx: SslCtx): Unit { ... }
-    public static func sslSetRenegotiateMode(ssl: Ssl, mode: SSLRenegotiateMode): Unit { ... }
-    public static func sslSetConnectState(ssl: Ssl): Unit { ... }
-    public static func sslSetAcceptState(ssl: Ssl): Unit { ... }
-    public static func sslCtxGetVerifyMode(ctx: SslCtx): Int32 { ... }
-    public static func sslSetVerify(ssl: Ssl, mode: SSLVerifyMode, callback: (Int32, ?X509StoreCtx) -> Int32): Unit { ... }
-    public static func sslSet0VerifyCertStore(ssl: Ssl, store: X509Store): Bool { ... }
-    public static func bioNew(method: BioMethod): ?Bio { ... }
-    public static func bioSMem(): BioMethod { ... }
-    public static func bioFree(bio: Bio): Unit { ... }
-    public static func bioSetMemEofReturn(bio: Bio, value: Int32): Unit { ... }
-    public static func sslSetBio(ssl: Ssl, input: Bio, output: Bio): Unit { ... }
-    public static func sslShutdown(ssl: Ssl): Int32 { ... }
-    public static func sslGetError(ssl: Ssl, retCode: Int64): SSLError { ... }
-    public static func errClearError(): Unit { ... }
-    public static func bioCtrlPending(bio: Bio): Int64 { ... }
-    public static func sslGetWbio(ssl: Ssl): ?Bio { ... }
-    public static func sslGetRbio(ssl: Ssl): ?Bio { ... }
-    public static func bioWrite(bio: Bio, data: Array<Byte>, len: Int64): Int32 { ... }
-    public static func bioRead(bio: Bio, data: Array<Byte>, len: Int64): Int32 { ... }
-    public static func sslWrite(ssl: Ssl, data: Array<Byte>, len: Int64): Int32 { ... }
-    public static func sslRead(ssl: Ssl, data: Array<Byte>, len: Int64): Int32 { ... }
-    public static func sslIsInitFinished(ssl: Ssl): Int32 { ... }
-    public static func sslGetShutdown(ssl: Ssl): Int32 { ... }
-    public static func sslDoHandshake(ssl: Ssl): Int32 { ... }
-    public static func sslRenegotiate(ssl: Ssl): Int32 { ... }
-    public static func sslCtxUpRef(ctx: SslCtx): Unit { ... }
-    public static func getSslVerifyError(ssl: Ssl): UsBunVerifyError { ... }
+    public static func sslNew(ctx: SslCtx): ?Ssl { None }
+    public static func sslFree(ssl: Ssl): Unit {}
+    public static func sslCtxFree(ctx: SslCtx): Unit {}
+    public static func sslSetRenegotiateMode(ssl: Ssl, mode: SSLRenegotiateMode): Unit {}
+    public static func sslSetConnectState(ssl: Ssl): Unit {}
+    public static func sslSetAcceptState(ssl: Ssl): Unit {}
+    public static func sslCtxGetVerifyMode(ctx: SslCtx): Int32 { 0 }
+    public static func sslSetVerify(ssl: Ssl, mode: SSLVerifyMode, callback: (Int32, ?X509StoreCtx) -> Int32): Unit {}
+    public static func sslSet0VerifyCertStore(ssl: Ssl, store: X509Store): Bool { false }
+    public static func bioNew(method: BioMethod): ?Bio { None }
+    public static func bioSMem(): BioMethod { BioMethod() }
+    public static func bioFree(bio: Bio): Unit {}
+    public static func bioSetMemEofReturn(bio: Bio, value: Int32): Unit {}
+    public static func sslSetBio(ssl: Ssl, input: Bio, output: Bio): Unit {}
+    public static func sslShutdown(ssl: Ssl): Int32 { 0 }
+    public static func sslGetError(ssl: Ssl, retCode: Int64): SSLError { SSLError.none }
+    public static func errClearError(): Unit {}
+    public static func bioCtrlPending(bio: Bio): Int64 { 0 }
+    public static func sslGetWbio(ssl: Ssl): ?Bio { None }
+    public static func sslGetRbio(ssl: Ssl): ?Bio { None }
+    public static func bioWrite(bio: Bio, data: Array<Byte>, len: Int64): Int32 { 0 }
+    public static func bioRead(bio: Bio, data: Array<Byte>, len: Int64): Int32 { 0 }
+    public static func sslWrite(ssl: Ssl, data: Array<Byte>, len: Int64): Int32 { 0 }
+    public static func sslRead(ssl: Ssl, data: Array<Byte>, len: Int64): Int32 { 0 }
+    public static func sslIsInitFinished(ssl: Ssl): Int32 { 0 }
+    public static func sslGetShutdown(ssl: Ssl): Int32 { 0 }
+    public static func sslDoHandshake(ssl: Ssl): Int32 { 0 }
+    public static func sslRenegotiate(ssl: Ssl): Int32 { 0 }
+    public static func sslCtxUpRef(ctx: SslCtx): Unit {}
+    public static func getSslVerifyError(ssl: Ssl): UsBunVerifyError { UsBunVerifyError() }
 
     public static let SSL_RECEIVED_SHUTDOWN: Int32 = 4
 
     // ERR_toJS 相关
-    public static func errGetError(): Int64 { ... }
+    public static func errGetError(): Int64 { 0 }
 }
 
 /// SSL 对象的不透明类型
@@ -724,6 +724,8 @@ public class SslCtx {}
 public class Bio {}
 /// BIO 方法的不透明类型
 public class BioMethod {}
+/// X509 证书对象的不透明类型
+public class X509 {}
 /// X509_STORE 对象的不透明类型
 public class X509Store {}
 /// X509_STORE_CTX 对象的不透明类型

@@ -38,8 +38,8 @@ public class DirIteratorResultW {
 // 对应 Bun: dir_iterator.zig - PathType
 // ============================================================================
 public enum PathType {
-    u8,
-    u16
+    | U8
+    | U16
 }
 
 // ============================================================================
@@ -106,7 +106,7 @@ public class DirIterator {
 
         // 调用系统 readdir（平台相关）
         let entry = System.readdirEntry(fd)
-        if (entry == None) {
+        if (entry.isNone()) {
             finished = true
             return None
         }

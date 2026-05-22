@@ -54,6 +54,7 @@ package bao_resolver
 
 import bao_core.*
 import bao_collections.*
+import bao_hash.*
 import bao_io.*
 import bao_path.*
 import bao_sys.*
@@ -184,9 +185,10 @@ public class PathName {
             return "_"
         }
         var result = StringBuilder()
-        for (ch in s) {
-            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
-                result.append(ch)
+        for (i in 0..s.size) {
+            let ch = s[i]
+            if ((ch >= UInt8(97) && ch <= UInt8(122)) || (ch >= UInt8(65) && ch <= UInt8(90)) || (ch >= UInt8(48) && ch <= UInt8(57)) || ch == UInt8(95)) {
+                result.append(s[Int64(i)..Int64(i + 1)])
             } else {
                 result.append('_')
             }
@@ -209,7 +211,7 @@ public class PathName {
         return dir + "/"
     }
 
-    /// 从路径解析 PathName - 对应 Bun PathName.init(_path)
+    /// 从路径解析 PathName - 对应 Bun PathName(_path)
     public static func fromPath(path: String): PathName {
         let result = PathName()
         if (path.size == 0) {
@@ -289,7 +291,7 @@ public class NodeJSPathName {
         filename = ""
     }
 
-    /// 从路径解析 - 对应 Bun NodeJSPathName.init()
+    /// 从路径解析 - 对应 Bun NodeJSPathName()
     public static func fromPath(path: String): NodeJSPathName {
         let result = NodeJSPathName()
         var current = path
@@ -520,7 +522,7 @@ public class ResolverPath {
         }
         // 第一个字符必须是字母数字
         let firstChar = pkgName[Int64(0)]
-        if (!((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z') || (firstChar >= '0' && firstChar <= '9'))) {
+        if (!((firstChar >= UInt8(97) && firstChar <= UInt8(122)) || (firstChar >= UInt8(65) && firstChar <= UInt8(90)) || (firstChar >= UInt8(48) && firstChar <= UInt8(57)))) {
             return None
         }
         return Some(pkgName)
@@ -985,12 +987,12 @@ public class EntriesOption {
 
     /// 是否为条目结果 - 对应 Bun EntriesOption == .entries
     public func isEntries(): Bool {
-        return kind == EntriesOptionKind.Entries
+        return match (kind) { case EntriesOptionKind.Entries => true case _ => false }
     }
 
     /// 是否为错误结果 - 对应 Bun EntriesOption == .err
     public func isErr(): Bool {
-        return kind == EntriesOptionKind.Err
+        return match (kind) { case EntriesOptionKind.Err => true case _ => false }
     }
 }
 
@@ -1080,7 +1082,7 @@ public class ModKey {
         for (_ in 0..8) {
             bytes.append(UInt8(0))
         }
-        return XxHash64.hash(bytes.toArray())
+        return XxHash64.hash(bytes.items())
     }
 
     private static func appendUInt64(bytes: ArrayList<UInt8>, n: UInt64): Unit {
@@ -1470,10 +1472,10 @@ public class ResolverFileSystem {
     }
 
     // ========================================================================
-    // 初始化 - 对应 Bun FileSystem.init() / initWithForce()
+    // 初始化 - 对应 Bun FileSystem() / initWithForce()
     // ========================================================================
 
-    /// 初始化文件系统 - 对应 Bun FileSystem.init()
+    /// 初始化文件系统 - 对应 Bun FileSystem()
     public static func `init`(topLevelDir: String): ResolverFileSystem {
         return ResolverFileSystem(topLevelDir)
     }

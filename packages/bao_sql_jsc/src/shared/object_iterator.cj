@@ -45,46 +45,37 @@ public class ObjectIterator {
         let rowI = this.rowI
 
         if (currentRow.isUndefined()) {
-            do {
-                currentRow = JscObject.getIndex(array, globalObject, rowI)
-            } catch (_: Exception) {
+            currentRow = array.toObject().get(Int64(rowI).toString())
+            if (currentRow.isEmptyOrUndefinedOrNull()) {
                 anyFailed = true
                 return None
             }
-            if (currentRow.isEmptyOrUndefinedOrNull()) {
-                globalObject.throwError("Expected a row to be returned at index ${rowI}")
-                return None
-            }
         }
 
-        defer {
-            if (this.cellI >= columnsCount) {
-                this.cellI = 0
-                currentRow = JscValue.undefined()
-                this.rowI += 1
-            }
-        }
-
-        var property: JscValue
-        do {
-            property = JscObject.getIndex(columns, globalObject, cellI)
-        } catch (_: Exception) {
-            anyFailed = true
-            return None
-        }
+        // 获取属性名
+        let colObj = columns.toObject()
+        let property = colObj.get(Int64(cellI).toString())
         if (property.isUndefined()) {
-            globalObject.throwError("Expected a column at index ${cellI} in row ${rowI}")
-            return None
-        }
-
-        let value = currentRow.getOwnByValue(globalObject, property)
-        if (value.isUndefined() || value.isZero()) {
-            if (!globalObject.hasException()) {
-                globalObject.throwError("Expected a value at index ${cellI} in row ${rowI}")
-            }
             anyFailed = true
             return None
         }
+
+        // 获取值
+        let rowObj = currentRow.toObject()
+        let propName = property.toString()
+        let value = rowObj.get(propName)
+        if (value.isUndefined()) {
+            anyFailed = true
+            return None
+        }
+
+        // 检查是否需要移动到下一行
+        if (this.cellI >= columnsCount) {
+            this.cellI = 0
+            currentRow = JscValue.undefined()
+            this.rowI += 1
+        }
+
         return value
     }
 }

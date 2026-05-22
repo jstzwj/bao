@@ -15,28 +15,28 @@ public class S3StatClasses {
 
     /// size getter (cached)
     /// 严格翻译自: proto.size { getter: "getSize", cache: true }
-    public static func getSize(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getSize(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回文件大小 (字节)
         return JsValue.jsNumber(0)
     }
 
     /// lastModified getter (cached)
     /// 严格翻译自: proto.lastModified { getter: "getLastModified", cache: true }
-    public static func getLastModified(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getLastModified(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回最后修改时间 (Date 字符串或时间戳)
         return JsValue.jsString("")
     }
 
     /// etag getter (cached)
     /// 严格翻译自: proto.etag { getter: "getEtag", cache: true }
-    public static func getEtag(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getEtag(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回 ETag 值
         return JsValue.jsString("")
     }
 
     /// type getter (cached)
     /// 严格翻译自: proto.type { getter: "getContentType", cache: true }
-    public static func getContentType(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getContentType(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回 MIME 类型
         return JsValue.jsString("")
     }

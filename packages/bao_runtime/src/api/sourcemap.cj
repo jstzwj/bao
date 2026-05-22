@@ -32,7 +32,7 @@ public class SourceMap {
 
     /// constructor - JS 构造函数
     /// 严格翻译自: sourcemap.classes.ts construct: true, constructNeedsThis: true
-    public static func constructor(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?SourceMap {
+    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?SourceMap {
         let sourceMap = SourceMap()
 
         // 解析可选参数: 可以传入 payload 对象
@@ -53,7 +53,7 @@ public class SourceMap {
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::findOrigin
     /// 参数: (generatedLine: number, generatedColumn: number)
     /// 返回: { source: string, line: number, column: number, name?: string } | null
-    public func findOrigin(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func findOrigin(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
 
         var generatedLine: Int32 = 0
@@ -69,12 +69,12 @@ public class SourceMap {
         // 委托给底层 sourcemap 库进行查找
         // 严格翻译自: bun_sourcemap_jsc::JSSourceMap::findOrigin
         let result = findOriginInternal(generatedLine, generatedColumn)
-        if (let Some(r) = result) {
+        if (let Some(r) <- result) {
             let obj = JsValue.createEmptyObject(globalObject, 4)
             obj.put(globalObject, "source", r.source)
             obj.put(globalObject, "line", JsValue.jsNumber(r.line))
             obj.put(globalObject, "column", JsValue.jsNumber(r.column))
-            if (let Some(name) = r.name) {
+            if (let Some(name) <- r.name) {
                 obj.put(globalObject, "name", name)
             }
             return obj
@@ -92,7 +92,7 @@ public class SourceMap {
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::findEntry
     /// 参数: (generatedLine: number, generatedColumn: number)
     /// 返回: { generatedLine, generatedColumn, originalLine, originalColumn, source, name? } | null
-    public func findEntry(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func findEntry(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
 
         var generatedLine: Int32 = 0
@@ -108,14 +108,14 @@ public class SourceMap {
         // 委托给底层 sourcemap 库进行查找
         // 严格翻译自: bun_sourcemap_jsc::JSSourceMap::findEntry
         let result = findEntryInternal(generatedLine, generatedColumn)
-        if (let Some(r) = result) {
+        if (let Some(r) <- result) {
             let obj = JsValue.createEmptyObject(globalObject, 6)
             obj.put(globalObject, "generatedLine", JsValue.jsNumber(r.generatedLine))
             obj.put(globalObject, "generatedColumn", JsValue.jsNumber(r.generatedColumn))
             obj.put(globalObject, "originalLine", JsValue.jsNumber(r.originalLine))
             obj.put(globalObject, "originalColumn", JsValue.jsNumber(r.originalColumn))
             obj.put(globalObject, "source", r.source)
-            if (let Some(name) = r.name) {
+            if (let Some(name) <- r.name) {
                 obj.put(globalObject, "name", name)
             }
             return obj
@@ -132,8 +132,8 @@ public class SourceMap {
     /// getPayload - 获取源码映射的 payload 数据
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::getPayload
     /// 结果被缓存
-    public func getPayload(globalObject: JsGlobalObject): JsValue {
-        if (let Some(p) = payload) {
+    public func getPayload(JsGlobalObject): JsValue {
+        if (let Some(p) <- payload) {
             return p
         }
 
@@ -151,8 +151,8 @@ public class SourceMap {
     /// getLineLengths - 获取原始源码每行的长度数组
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::getLineLengths
     /// 结果被缓存
-    public func getLineLengths(globalObject: JsGlobalObject): JsValue {
-        if (let Some(ll) = lineLengths) {
+    public func getLineLengths(JsGlobalObject): JsValue {
+        if (let Some(ll) <- lineLengths) {
             return ll
         }
 
@@ -209,7 +209,7 @@ public class SourceMap {
 
     /// 计算行长度 (内部)
     /// 需要 FFI: 调用 bun_sourcemap_jsc 的 getLineLengths 实现
-    private func computeLineLengthsInternal(globalObject: JsGlobalObject): JsValue {
+    private func computeLineLengthsInternal(JsGlobalObject): JsValue {
         return JsValue.jsNull()
     }
 }

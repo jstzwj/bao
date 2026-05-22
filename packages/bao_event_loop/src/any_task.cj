@@ -103,7 +103,7 @@ public class AnyTask {
         }
     }
 
-    /// 创建任务 - 对应 Bun AnyTask.New(Type, Callback).init(ctx)
+    /// 创建任务 - 对应 Bun AnyTask.New(Type, Callback).`init`(ctx)
     /// 仓颉: 使用闭包捕获上下文, 无需 comptime 泛型
     /// Bun:
     ///   pub fn New(comptime Type: type, comptime Callback: anytype) type {

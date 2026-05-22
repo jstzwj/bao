@@ -26,7 +26,7 @@ class ThumbHashChannel {
     var n: Int64 = 0
 
     init() {
-        ac = Array<Float32>(49, item: 0.0f32)
+        ac = Array<Float32>(Int64(49), { _: Int64 => Float32(0.0) })
     }
 }
 
@@ -64,7 +64,7 @@ class NibbleReader {
             var cx: UInt32 = if (cy > 0) { 0 } else { 1 }
             while (cx * ny < nx * (ny - cy)) {
                 let nib = next()
-                if (nib == None) { return None }
+                if (nib.isNone()) { return None }
                 out[n] = (Float32(nib.getOrThrow()) / 7.5 - 1.0f32) * scale
                 n += 1
                 cx += 1
@@ -91,10 +91,10 @@ public class ThumbHash {
         if (w == 0 || w > 100 || h == 0 || h > 100) { return None }
         if (rgba.size != Int64(w) * Int64(h) * 4) { return None }
 
-        var out = Array<UInt8>(THUMBHASH_MAX_LEN, item: 0)
+        var out = Array<UInt8>(Int64(THUMBHASH_MAX_LEN), { _: Int64 => UInt8(0) })
 
         // 平均颜色 (alpha 加权)
-        var avg = Array<Float32>(4, item: 0.0f32)
+        var avg = Array<Float32>(Int64(4), { _: Int64 => Float32(0.0) })
         var ii: Int64 = 0
         while (ii < rgba.size) {
             let a: Float32 = Float32(rgba[ii + 3]) / 255.0f32
@@ -119,10 +119,10 @@ public class ThumbHash {
 
         // RGBA -> LPQA
         let pixCount = Int64(w) * Int64(h)
-        var l = Array<Float32>(pixCount, item: 0.0f32)
-        var p = Array<Float32>(pixCount, item: 0.0f32)
-        var q = Array<Float32>(pixCount, item: 0.0f32)
-        var a = Array<Float32>(pixCount, item: 0.0f32)
+        var l = Array<Float32>(Int64(pixCount), { _: Int64 => Float32(0.0) })
+        var p = Array<Float32>(Int64(pixCount), { _: Int64 => Float32(0.0) })
+        var q = Array<Float32>(Int64(pixCount), { _: Int64 => Float32(0.0) })
+        var a = Array<Float32>(Int64(pixCount), { _: Int64 => Float32(0.0) })
 
         ii = 0
         var px: Int64 = 0
@@ -222,28 +222,28 @@ public class ThumbHash {
         }
 
         let nibbles = NibbleReader(hash, off)
-        var lAc = Array<Float32>(49, item: 0.0f32)
-        var pAc = Array<Float32>(5, item: 0.0f32)
-        var qAc = Array<Float32>(5, item: 0.0f32)
-        var aAc = Array<Float32>(14, item: 0.0f32)
+        var lAc = Array<Float32>(Int64(49), { _: Int64 => Float32(0.0) })
+        var pAc = Array<Float32>(Int64(5), { _: Int64 => Float32(0.0) })
+        var qAc = Array<Float32>(Int64(5), { _: Int64 => Float32(0.0) })
+        var aAc = Array<Float32>(Int64(14), { _: Int64 => Float32(0.0) })
 
         let ln = nibbles.channel(lAc, lx, ly, lScale)
-        if (ln == None) { return None }
+        if (ln.isNone()) { return None }
         // 1.25x 饱和度提升补偿 4 位量化
         let pn = nibbles.channel(pAc, 3, 3, pScale * 1.25f32)
-        if (pn == None) { return None }
+        if (pn.isNone()) { return None }
         let qn = nibbles.channel(qAc, 3, 3, qScale * 1.25f32)
-        if (qn == None) { return None }
+        if (qn.isNone()) { return None }
         let an = if (hasAlpha) { nibbles.channel(aAc, 5, 5, aScale) } else { Int64(0) }
-        if (hasAlpha && an == None) { return None }
+        if (hasAlpha && an.isNone()) { return None }
 
         let ratio = Float32(lx) / Float32(ly)
         let w: UInt32 = if (ratio > 1) { 32 } else { UInt32(round(32 * ratio)) }
         let h: UInt32 = if (ratio > 1) { UInt32(round(32 / ratio)) } else { 32 }
-        let rgba = Array<UInt8>(Int64(w) * Int64(h) * 4, item: 0)
+        let rgba = Array<UInt8>(Int64(w) * Int64(h) * 4, { _: Int64 => UInt8(0) })
 
-        var fx = Array<Float32>(7, item: 0.0f32)
-        var fy = Array<Float32>(7, item: 0.0f32)
+        var fx = Array<Float32>(Int64(7), { _: Int64 => Float32(0.0) })
+        var fy = Array<Float32>(Int64(7), { _: Int64 => Float32(0.0) })
 
         var y: UInt32 = 0
         while (y < h) {
@@ -299,7 +299,7 @@ public class ThumbHash {
     /// 三角 DCT-II
     static func dct(chan: Array<Float32>, pixCount: Int64, w: UInt32, h: UInt32, nx: UInt32, ny: UInt32): ThumbHashChannel {
         var c = ThumbHashChannel()
-        var fx = Array<Float32>(100, item: 0.0f32)
+        var fx = Array<Float32>(Int64(100), { _: Int64 => Float32(0.0) })
         var cy: UInt32 = 0
         while (cy < ny) {
             var cx: UInt32 = 0
@@ -390,8 +390,8 @@ public class ThumbHash {
 
     static func sliceArray(b: Array<UInt8>, start: Int64, end: Int64): Array<UInt8> {
         let len = end - start
-        if (len <= 0) { return Array<UInt8>(0, item: 0) }
-        var result = Array<UInt8>(len, item: 0)
+        if (len <= 0) { return Array<UInt8>(Int64(0), { _: Int64 => UInt8(0) }) }
+        var result = Array<UInt8>(Int64(len), { _: Int64 => UInt8(0) })
         var i: Int64 = 0
         while (i < len) {
             result[i] = b[start + i]

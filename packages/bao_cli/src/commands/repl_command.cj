@@ -137,11 +137,10 @@ public class ReplCommand {
         // 对应 Bun: if (vm.transpiler.env.get("TZ")) |tz| { ... }
         let tz = Sys.getEnv("TZ")
         match (tz) {
-            case Some(t) => {
+            case Some(t) =>
                 if (!t.isEmpty()) {
                     vm.setTimeZone(t)
                 }
-            }
             case None => ()
         }
 
@@ -183,7 +182,7 @@ public class ReplCommand {
             // 对应 Bun: repl.zig 中的行编辑器
             let input = readLine("bao> ")
             match (input) {
-                case Some(line) => {
+                case Some(line) =>
                     // 处理内置命令
                     // 对应 Bun: repl.zig → .help, .exit, .clear, .load, .save, .editor
                     match (line) {
@@ -191,7 +190,7 @@ public class ReplCommand {
                         case ".help" => printHelp()
                         case ".clear" => vm.clearContext()
                         case ".editor" => enterMultilineMode(vm)
-                        case _ => {
+                        case _ =>
                             if (line.startsWith(".load ")) {
                                 let filename = line.substring(".load ".length)
                                 loadAndRunFile(vm, filename)
@@ -208,9 +207,7 @@ public class ReplCommand {
                                     // 错误已在 VM 内部打印
                                 }
                             }
-                        }
                     }
-                }
                 case None => running = false
             }
         }
@@ -239,10 +236,9 @@ public class ReplCommand {
     private func loadAndRunFile(vm: ReplVM, filename: String): Unit {
         let content = BaoFile.readAllText(filename)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 println("-- Loading ${filename}")
                 vm.evalScript(text, false)
-            }
             case None => println("Error: Could not read file '${filename}'")
         }
     }
@@ -289,18 +285,15 @@ public class ReplCommand {
         while (i < args.size) {
             let arg = args[i]
             match (arg) {
-                case "--eval" | "-e" => {
+                case "--eval" | "-e" =>
                     i++
                     if (i < args.size) {
                         opts.evalScript = Some(args[i])
                     }
-                }
-                case "--print" | "-p" => {
+                case "--print" | "-p" =>
                     opts.evalAndPrint = true
-                }
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printReplHelp()
-                }
                 case _ => ()
             }
             i++

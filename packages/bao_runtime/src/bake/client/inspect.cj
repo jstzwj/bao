@@ -99,7 +99,7 @@ function formatValue(ctx: InspectContext, value: any, recurseTimes: number) {
   }
 
   // Format based on type
-  switch (typeof value) {
+  match (typeof value) {
     case "string":
       return formatString(ctx, value);
     case "number":
@@ -127,8 +127,8 @@ function formatValue(ctx: InspectContext, value: any, recurseTimes: number) {
  */
 function formatString(ctx, value) {
   // Truncate long strings
-  if (value.length > ctx.maxStringLength) {
-    const remaining = value.length - ctx.maxStringLength;
+  if (value.size > ctx.maxStringLength) {
+    const remaining = value.size - ctx.maxStringLength;
     const truncated = value.slice(0, ctx.maxStringLength);
     return `'${escape(truncated)}'... ${remaining} more character${remaining > 1 ? "s" : ""}`;
   }
@@ -147,7 +147,7 @@ function escape(str) {
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\r")
     .replace(/\t/g, "\\t")
-    .replace(/[\x00-\x1F\x7F-\x9F]/g, ch => {
+    .replace(/[\0-\x1F\x7F-\x9F]/g, ch => {
       const code = ch.charCodeAt(0);
       return `\\x${code.toString(16).padStart(2, "0")}`;
     });
@@ -262,9 +262,9 @@ function formatObject(ctx: InspectContext, value: any, recurseTimes: number) {
  */
 function formatArray(ctx: InspectContext, value: any[], recurseTimes: number) {
   // Special case for empty arrays
-  if (value.length === 0) return "[]";
+  if (value.size === 0) return "[]";
 
-  const maxLength = Math.min(ctx.maxArrayLength!, value.length);
+  const maxLength = Math.min(ctx.maxArrayLength!, value.size);
   const output: string[] = [];
 
   for (let i = 0; i < maxLength; i++) {
@@ -275,17 +275,17 @@ function formatArray(ctx: InspectContext, value: any[], recurseTimes: number) {
     }
   }
 
-  if (value.length > maxLength) {
-    const remaining = value.length - maxLength;
+  if (value.size > maxLength) {
+    const remaining = value.size - maxLength;
     output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
   }
 
   // Add array properties that aren't indices
   const keys = Object.keys(value).filter(key => {
-    return !(Number(key) >= 0 && Number(key) < value.length && Number(key) === +key);
+    return !(Number(key) >= 0 && Number(key) < value.size && Number(key) === +key);
   });
 
-  if (keys.length > 0) {
+  if (keys.size > 0) {
     for (const key of keys) {
       output.push(`${key}: ${formatValue(ctx, value[key], recurseTimes)}`);
     }
@@ -309,9 +309,9 @@ function formatPlainObject(ctx: InspectContext, value: any, recurseTimes: number
   // Get own and inherited properties
   const keys = getObjectKeys(value, ctx.showHidden);
 
-  if (keys.length === 0) {
+  if (keys.size === 0) {
     // Handle empty objects
-    if (constructorName !== "Object" && getPrototypeKeys(value).length > 0) {
+    if (constructorName !== "Object" && getPrototypeKeys(value).size > 0) {
       // If the object has no own properties but has inherited ones
       return formatWithPrototype(ctx, value, recurseTimes, constructorName);
     }
@@ -347,12 +347,12 @@ function formatPlainObject(ctx: InspectContext, value: any, recurseTimes: number
   }
 
   // Create the final string
-  if (output.length === 0) {
+  if (output.size === 0) {
     return `${prefix}{}`;
   }
 
   // Check if it fits on one line
-  if (output.join(", ").length < ctx.breakLength!) {
+  if (output.join(", ").size < ctx.breakLength!) {
     return `${prefix}{ ${output.join(", ")} }`;
   }
 
@@ -371,7 +371,7 @@ function formatPlainObject(ctx: InspectContext, value: any, recurseTimes: number
 function formatWithPrototype(ctx: InspectContext, value: any, recurseTimes: number, constructorName: string) {
   const protoKeys = getPrototypeKeys(value);
 
-  if (protoKeys.length === 0) {
+  if (protoKeys.size === 0) {
     return `${constructorName} {}`;
   }
 
@@ -389,11 +389,11 @@ function formatWithPrototype(ctx: InspectContext, value: any, recurseTimes: numb
     output.sort();
   }
 
-  if (output.length === 0) {
+  if (output.size === 0) {
     return `${constructorName} {}`;
   }
 
-  if (output.join(", ").length < ctx.breakLength!) {
+  if (output.join(", ").size < ctx.breakLength!) {
     return `${constructorName} { ${output.join(", ")} }`;
   }
 
@@ -531,13 +531,13 @@ function formatMap(ctx: InspectContext, value: Map<any, any>, recurseTimes: numb
     i++;
   }
 
-  if (output.length === 0) {
+  if (output.size === 0) {
     return "Map {}";
   }
 
   const joined = output.join(", ");
 
-  if (joined.length < ctx.breakLength!) {
+  if (joined.size < ctx.breakLength!) {
     return `Map { ${joined} }`;
   }
 
@@ -568,11 +568,11 @@ function formatSet(ctx: InspectContext, value: Set<any>, recurseTimes: number) {
     i++;
   }
 
-  if (output.length === 0) {
+  if (output.size === 0) {
     return "Set {}";
   }
 
-  if (output.join(", ").length < ctx.breakLength!) {
+  if (output.join(", ").size < ctx.breakLength!) {
     return `Set { ${output.join(", ")} }`;
   }
 
@@ -587,7 +587,7 @@ function formatSet(ctx: InspectContext, value: Set<any>, recurseTimes: number) {
  */
 function formatTypedArray(ctx: InspectContext, value: ArrayBufferView & { length: number }) {
   const name = value.constructor.name;
-  const length = value.length;
+  const length = value.size;
   const maxLength = Math.min(ctx.maxArrayLength!, length);
   const output: string[] = [];
 
@@ -595,8 +595,8 @@ function formatTypedArray(ctx: InspectContext, value: ArrayBufferView & { length
     output.push(String(value[i]));
   }
 
-  if (value.length > maxLength) {
-    const remaining = value.length - maxLength;
+  if (value.size > maxLength) {
+    const remaining = value.size - maxLength;
     output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
   }
 
@@ -614,7 +614,7 @@ function formatArrayBuffer(ctx: InspectContext, value: ArrayBuffer) {
   let bytes;
   try {
     bytes = new Uint8Array(value);
-  } catch {
+  } catch (e: Exception) {
     return `${constructorName} { [Detached] }`;
   }
 

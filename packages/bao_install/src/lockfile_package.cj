@@ -25,7 +25,7 @@ import bao_sys.*
 //           resolution: Resolution = .{},
 //           dependencies: DependencySlice = .{},
 //           resolutions: PackageIDSlice = .{},
-//           meta: Meta = Meta.init(),
+//           meta: Meta = Meta(),
 //           bin: Bin = .{},
 //           scripts: Scripts = .{},
 //       }
@@ -51,20 +51,30 @@ public class LockfilePkg {
     /// 包名
     /// 对应 Bun: name: String = .{}
     public var name: String
+    /// 版本
+    public var version: String
     /// 包名哈希 (用于快速查找)
     /// 对应 Bun: name_hash: PackageNameHash = 0
     public var nameHash: UInt64
     /// 解析信息
     /// 对应 Bun: resolution: Resolution = .{}
     public var resolution: LockfileResolution
-    /// 依赖列表 (name -> version range)
+    /// 依赖列表 (ArrayList for lockfile_bun use)
     /// 对应 Bun: dependencies: DependencySlice = .{}
     public var dependencies: ArrayList<LockfileDependency>
+    /// 依赖 HashMap (for pnpm/yarn migration use)
+    public var depMap: HashMap<String, String>
+    /// dev 依赖
+    public var devDependencies: HashMap<String, String>
+    /// optional 依赖
+    public var optionalDependencies: HashMap<String, String>
+    /// peer 依赖
+    public var peerDependencies: HashMap<String, String>
     /// 解析后的包 ID 列表 (与 dependencies 一一对应)
     /// 对应 Bun: resolutions: PackageIDSlice = .{}
     public var resolutions: ArrayList<UInt32>
     /// 元数据
-    /// 对应 Bun: meta: Meta = Meta.init()
+    /// 对应 Bun: meta: Meta = Meta()
     public var meta: PackageMeta
     /// bin 条目
     /// 对应 Bun: bin: Bin = .{}
@@ -72,27 +82,49 @@ public class LockfilePkg {
     /// 生命周期脚本
     /// 对应 Bun: scripts: Scripts = .{}
     public var scripts: PackageScripts
+    /// integrity hash
+    public var integrity: String
+    /// os 列表
+    public var os: ArrayList<String>
+    /// cpu 列表
+    public var cpu: ArrayList<String>
 
     public init() {
         name = ""
+        version = ""
         nameHash = UInt64(0)
         resolution = LockfileResolution()
         dependencies = ArrayList<LockfileDependency>()
+        depMap = HashMap<String, String>()
+        devDependencies = HashMap<String, String>()
+        optionalDependencies = HashMap<String, String>()
+        peerDependencies = HashMap<String, String>()
         resolutions = ArrayList<UInt32>()
         meta = PackageMeta()
         bin = HashMap<String, String>()
         scripts = PackageScripts()
+        integrity = ""
+        os = ArrayList<String>()
+        cpu = ArrayList<String>()
     }
 
     public init(name: String, nameHash: UInt64) {
         this.name = name
+        this.version = ""
         this.nameHash = nameHash
         resolution = LockfileResolution()
         dependencies = ArrayList<LockfileDependency>()
+        depMap = HashMap<String, String>()
+        devDependencies = HashMap<String, String>()
+        optionalDependencies = HashMap<String, String>()
+        peerDependencies = HashMap<String, String>()
         resolutions = ArrayList<UInt32>()
         meta = PackageMeta()
         bin = HashMap<String, String>()
         scripts = PackageScripts()
+        integrity = ""
+        os = ArrayList<String>()
+        cpu = ArrayList<String>()
     }
 
     /// 唯一键
@@ -669,12 +701,15 @@ public class TreeNode {
     /// 子依赖 ID 列表
     /// 对应 Bun: dependencies: DependencyIDSlice = .{}
     public var dependencies: ArrayList<UInt32>
+    /// 相对路径
+    public var relativePath: String
 
     public init() {
         id = TREE_INVALID_ID
         dependencyId = INVALID_DEPENDENCY_ID
         parentId = TREE_INVALID_ID
         dependencies = ArrayList<UInt32>()
+        relativePath = ""
     }
 
     public init(id: UInt32, dependencyId: UInt32, parentId: UInt32) {
@@ -682,6 +717,12 @@ public class TreeNode {
         this.dependencyId = dependencyId
         this.parentId = parentId
         dependencies = ArrayList<UInt32>()
+        relativePath = ""
+    }
+
+    /// 依赖数量
+    public func dependencyCount(): Int64 {
+        return dependencies.size
     }
 
     /// 获取文件夹名
@@ -993,10 +1034,10 @@ public class CatalogMap {
     /// 从 JSON 表达式解析并计数
     /// 翻译自: CatalogMap.parseCount
     public func parseCount(root: JsonValue): Unit {
-        let parser = JsonParser()
+        let parser = PkgJsonParser()
 
         // 解析 "catalog" (默认 catalog)
-        match (JsonHelper.getField(root, "catalog")) {
+        match (PkgJsonHelper.getField(root, "catalog")) {
             case Some(JsonValue.Object(obj)) =>
                 for (key in obj.keys()) {
                     match (obj.get(key)) {
@@ -1008,7 +1049,7 @@ public class CatalogMap {
         }
 
         // 解析 "catalogs" (命名 catalog)
-        match (JsonHelper.getField(root, "catalogs")) {
+        match (PkgJsonHelper.getField(root, "catalogs")) {
             case Some(JsonValue.Object(catalogs)) =>
                 for (catalogName in catalogs.keys()) {
                     match (catalogs.get(catalogName)) {
@@ -1033,7 +1074,7 @@ public class CatalogMap {
         var foundAny = false
 
         // 解析 "catalog" (默认)
-        match (JsonHelper.getField(root, "catalog")) {
+        match (PkgJsonHelper.getField(root, "catalog")) {
             case Some(JsonValue.Object(obj)) =>
                 foundAny = true
                 let group = getOrPutGroup("")
@@ -1049,7 +1090,7 @@ public class CatalogMap {
         }
 
         // 解析 "catalogs" (命名)
-        match (JsonHelper.getField(root, "catalogs")) {
+        match (PkgJsonHelper.getField(root, "catalogs")) {
             case Some(JsonValue.Object(catalogs)) =>
                 foundAny = true
                 for (catalogName in catalogs.keys()) {
@@ -1096,7 +1137,7 @@ public class CatalogMap {
         for (depName in entriesObj.keys()) {
             match (entriesObj.get(depName)) {
                 case Some(JsonValue.Object(info)) =>
-                    match (JsonHelper.getString(JsonValue.Object(info), "specifier")) {
+                    match (PkgJsonHelper.getString(JsonValue.Object(info), "specifier")) {
                         case Some(versionStr) =>
                             let dep = LockfileDependency(depName, Wyhash11.hash(depName), versionStr)
                             catalogMap.put(depName, dep)
@@ -1363,16 +1404,16 @@ public class WorkspaceMap {
             }
 
             if (content.size > 0) {
-                let parser = JsonParser()
+                let parser = PkgJsonParser()
                 let json = parser.parse(content)
                 match (json) {
                     case Some(root) =>
-                        let wsName = match (JsonHelper.getString(root, "name")) {
+                        let wsName = match (PkgJsonHelper.getString(root, "name")) {
                             case Some(n) => n
                             case None => ""
                         }
                         if (wsName.size > 0) {
-                            let wsVersion = JsonHelper.getString(root, "version")
+                            let wsVersion = PkgJsonHelper.getString(root, "version")
                             let absPath = Path.join([rootDir, wsPath])
                             let entry = WorkspaceMapEntry(wsName, absPath, wsVersion)
                             insert(absPath, entry)

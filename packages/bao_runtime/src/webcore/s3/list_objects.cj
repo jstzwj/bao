@@ -215,11 +215,11 @@ public class S3ListObjectsV2Result {
 
     // ========================================================================
     // deinit - 释放资源
-    // 严格翻译自: pub fn deinit(this: *const @This()) void
+    // 严格翻译自: pub fn deinit(`this`: *const @This()) void
     // ========================================================================
 
     /// 释放资源
-    /// 对应 Bun: pub fn deinit(this: *const @This()) void
+    /// 对应 Bun: pub fn deinit(`this`: *const @This()) void
     public func deinit(): Unit {
         for (i in 0..contents.size) {
             contents[i].deinit()
@@ -228,40 +228,40 @@ public class S3ListObjectsV2Result {
 
     // ========================================================================
     // toJS - 转为 JS 对象
-    // 严格翻译自: pub fn toJS(this: *const @This(), globalObject) bun.JSError!JSValue
+    // 严格翻译自: pub fn toJS(`this`: *const @This(), globalObject) bun.JSError!JsValue
     // ========================================================================
 
     /// 转为 JS 对象
-    /// 对应 Bun: pub fn toJS(this: *const @This(), globalObject: *JSGlobalObject) bun.JSError!JSValue
+    /// 对应 Bun: pub fn toJS(`this`: *const @This(), globalObject: *JSGlobalObject) bun.JSError!JsValue
     /// 将 ListObjectsV2 结果转为 JS 对象，包含所有字段
     public func toJS(globalObject: JsGlobalObject): JsValue {
         let jsResult = JsObject()
 
-        if (name.length > 0) {
+        if (name.size > 0) {
             jsResult.set("name", JsValue(BaoString(name)))
         }
 
-        if (prefix.length > 0) {
+        if (prefix.size > 0) {
             jsResult.set("prefix", JsValue(BaoString(prefix)))
         }
 
-        if (delimiter.length > 0) {
+        if (delimiter.size > 0) {
             jsResult.set("delimiter", JsValue(BaoString(delimiter)))
         }
 
-        if (startAfter.length > 0) {
+        if (startAfter.size > 0) {
             jsResult.set("startAfter", JsValue(BaoString(startAfter)))
         }
 
-        if (encodingType.length > 0) {
+        if (encodingType.size > 0) {
             jsResult.set("encodingType", JsValue(BaoString(encodingType)))
         }
 
-        if (continuationToken.length > 0) {
+        if (continuationToken.size > 0) {
             jsResult.set("continuationToken", JsValue(BaoString(continuationToken)))
         }
 
-        if (nextContinuationToken.length > 0) {
+        if (nextContinuationToken.size > 0) {
             jsResult.set("nextContinuationToken", JsValue(BaoString(nextContinuationToken)))
         }
 
@@ -284,19 +284,19 @@ public class S3ListObjectsV2Result {
                 let objectInfo = JsObject()
                 objectInfo.set("key", JsValue(BaoString(item.key)))
 
-                if (item.etag.length > 0) {
+                if (item.etag.size > 0) {
                     objectInfo.set("eTag", JsValue(BaoString(item.etag)))
                 }
 
-                if (item.checksumAlgorithme.length > 0) {
+                if (item.checksumAlgorithme.size > 0) {
                     objectInfo.set("checksumAlgorithme", JsValue(BaoString(item.checksumAlgorithme)))
                 }
 
-                if (item.checksumType.length > 0) {
+                if (item.checksumType.size > 0) {
                     objectInfo.set("checksumType", JsValue(BaoString(item.checksumType)))
                 }
 
-                if (item.lastModified.length > 0) {
+                if (item.lastModified.size > 0) {
                     objectInfo.set("lastModified", JsValue(BaoString(item.lastModified)))
                 }
 
@@ -304,21 +304,20 @@ public class S3ListObjectsV2Result {
                     objectInfo.set("size", JsValue(item.objectSize))
                 }
 
-                if (item.storageClass.length > 0) {
+                if (item.storageClass.size > 0) {
                     objectInfo.set("storageClass", JsValue(BaoString(item.storageClass)))
                 }
 
                 match (item.owner) {
-                    case Some(owner) => {
+                    case Some(owner) =>
                         let jsOwner = JsObject()
-                        if (owner.id.length > 0) {
+                        if (owner.id.size > 0) {
                             jsOwner.set("id", JsValue(BaoString(owner.id)))
                         }
-                        if (owner.displayName.length > 0) {
+                        if (owner.displayName.size > 0) {
                             jsOwner.set("displayName", JsValue(BaoString(owner.displayName)))
                         }
                         objectInfo.set("owner", JsValue(jsOwner))
-                    }
                     case None => ()
                 }
 
@@ -392,11 +391,11 @@ public class S3ListObjectsOptions {
 
     // ========================================================================
     // deinit - 释放资源
-    // 严格翻译自: pub fn deinit(this: *@This()) void
+    // 严格翻译自: pub fn deinit(`this`: *@This()) void
     // ========================================================================
 
     /// 释放资源
-    /// 对应 Bun: pub fn deinit(this: *@This()) void
+    /// 对应 Bun: pub fn deinit(`this`: *@This()) void
     public func deinit(): Unit {
         // 仓颉 GC 管理
     }
@@ -424,7 +423,7 @@ public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
         var i: Int64 = 0
         let xmlFromResult = xml.substring(deleteResultPos)
 
-        while (i < xmlFromResult.length) {
+        while (i < xmlFromResult.size) {
             if (xmlFromResult[i] != '<') {
                 i += 1
                 continue
@@ -458,7 +457,7 @@ public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
                     var restoreExpiryDate = ""
 
                     while (lookingForEndTag) {
-                        if (i >= xmlFromResult.length) {
+                        if (i >= xmlFromResult.size) {
                             break
                         }
 
@@ -585,7 +584,7 @@ public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
                     }
 
                     // 构建 S3ListObjectsContents
-                    if (objectKey.length > 0) {
+                    if (objectKey.size > 0) {
                         let item = S3ListObjectsContents()
                         item.key = objectKey
                         item.etag = etag
@@ -597,12 +596,12 @@ public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
                         item.etagOwned = etagOwned
 
                         // 所有者
-                        if (ownerId.length > 0 || ownerDisplayName.length > 0) {
+                        if (ownerId.size > 0 || ownerDisplayName.size > 0) {
                             item.owner = Some(ObjectOwner(ownerId, ownerDisplayName))
                         }
 
                         // 恢复状态
-                        if (hasIsRestoreInProgress || restoreExpiryDate.length > 0) {
+                        if (hasIsRestoreInProgress || restoreExpiryDate.size > 0) {
                             item.restoreStatus = Some(ObjectRestoreStatus(isRestoreInProgress, restoreExpiryDate))
                         }
 
@@ -666,7 +665,7 @@ public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
                     let tagEnd = xmlFromResult.indexOfFrom(i, "</Prefix>")
                     if (tagEnd >= 0) {
                         let prefixStr = xmlFromResult.substring(i, tagEnd)
-                        if (prefixStr.length != 0) {
+                        if (prefixStr.size != 0) {
                             result.prefix = prefixStr
                         }
                         i = tagEnd
@@ -693,7 +692,7 @@ public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
                         i = tagEnd
 
                         var j: Int64 = 0
-                        while (j < commonPrefixesStr.length) {
+                        while (j < commonPrefixesStr.size) {
                             let prefixStart = commonPrefixesStr.indexOfFrom(j, "<Prefix>")
                             if (prefixStart >= 0) {
                                 j = prefixStart + 8
@@ -729,7 +728,7 @@ public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
 // ============================================================================
 // getListObjectsOptionsFromJS - 从 JS 对象解析列出对象选项
 // 严格翻译自: pub fn getListObjectsOptionsFromJS(globalThis, listOptions) !S3ListObjectsOptions
-// Bun: pub fn getListObjectsOptionsFromJS(globalThis: *jsc.JSGlobalObject, listOptions: JSValue) !S3ListObjectsOptions
+// Bun: pub fn getListObjectsOptionsFromJS(globalThis: *jsc.JSGlobalObject, listOptions: JsValue) !S3ListObjectsOptions
 // ============================================================================
 
 /// 从 JS 对象解析列出对象选项
@@ -746,42 +745,39 @@ public func getListObjectsOptionsFromJS(globalThis: JsGlobalObject, listOptions:
     // continuationToken
     let ctVal = listOptions.getTruthy("continuationToken")
     match (ctVal) {
-        case Some(val) => {
+        case Some(val) =>
             if (val.isString()) {
                 let str = val.toString()
-                if (str.length > 0) {
+                if (str.size > 0) {
                     listObjectsOptions.continuationToken = str
                 }
             }
-        }
         case None => ()
     }
 
     // delimiter
     let delimVal = listOptions.getTruthy("delimiter")
     match (delimVal) {
-        case Some(val) => {
+        case Some(val) =>
             if (val.isString()) {
                 let str = val.toString()
-                if (str.length > 0) {
+                if (str.size > 0) {
                     listObjectsOptions.delimiter = str
                 }
             }
-        }
         case None => ()
     }
 
     // encodingType
     let etVal = listOptions.getTruthy("encodingType")
     match (etVal) {
-        case Some(val) => {
+        case Some(val) =>
             if (val.isString()) {
                 let str = val.toString()
-                if (str.length > 0) {
+                if (str.size > 0) {
                     listObjectsOptions.encodingType = str
                 }
             }
-        }
         case None => ()
     }
 
@@ -795,39 +791,36 @@ public func getListObjectsOptionsFromJS(globalThis: JsGlobalObject, listOptions:
     // maxKeys
     let mkVal = listOptions.getTruthy("maxKeys")
     match (mkVal) {
-        case Some(val) => {
+        case Some(val) =>
             if (val.isNumber()) {
                 listObjectsOptions.maxKeys = val.toInt32()
             }
-        }
         case None => ()
     }
 
     // prefix
     let prefixVal = listOptions.getTruthy("prefix")
     match (prefixVal) {
-        case Some(val) => {
+        case Some(val) =>
             if (val.isString()) {
                 let str = val.toString()
-                if (str.length > 0) {
+                if (str.size > 0) {
                     listObjectsOptions.prefix = str
                 }
             }
-        }
         case None => ()
     }
 
     // startAfter
     let saVal = listOptions.getTruthy("startAfter")
     match (saVal) {
-        case Some(val) => {
+        case Some(val) =>
             if (val.isString()) {
                 let str = val.toString()
-                if (str.length > 0) {
+                if (str.size > 0) {
                     listObjectsOptions.startAfter = str
                 }
             }
-        }
         case None => ()
     }
 

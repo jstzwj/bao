@@ -47,7 +47,7 @@ class QuantizeBox {
 
     init() {
         min = Array<UInt8>(4, item: 255)
-        max = Array<UInt8>(4, item: 0)
+        max = Array<UInt8>(Int64(4), { _: Int64 => UInt8(0) })
     }
 
     /// 找到最宽的通道
@@ -95,7 +95,7 @@ public class Quantize {
         let want: UInt16 = max(UInt16(1), min(opts.maxColors, UInt16(256)))
 
         // order 是像素索引的排列，我们在原地分区
-        var order = Array<UInt32>(Int64(n), item: 0)
+        var order = Array<UInt32>(Int64(n), { _: Int64 => UInt32(0) })
         var ii: UInt32 = 0
         while (ii < n) {
             order[Int64(ii)] = ii
@@ -135,12 +135,12 @@ public class Quantize {
         }
 
         let k: UInt16 = UInt16(boxCount)
-        var palette = Array<UInt8>(Int64(k) * 4, item: 0)
+        var palette = Array<UInt8>(Int64(k) * 4, { _: Int64 => UInt8(0) })
         var hasAlpha = false
 
         var i: Int64 = 0
         while (i < boxCount) {
-            var sum = Array<UInt64>(4, item: 0)
+            var sum = Array<UInt64>(Int64(4), { _: Int64 => UInt64(0) })
             let b = boxes[i]
             var j: UInt32 = b.lo
             while (j < b.hi) {
@@ -164,7 +164,7 @@ public class Quantize {
             i += 1
         }
 
-        var indices = Array<UInt8>(Int64(n), item: 0)
+        var indices = Array<UInt8>(Int64(n), { _: Int64 => UInt8(0) })
         if (opts.dither) {
             mapFloydSteinberg(rgba, w, h, palette, k, indices)
         } else {
@@ -189,8 +189,8 @@ public class Quantize {
         palette: Array<UInt8>, k: UInt16, indices: Array<UInt8>): Unit {
 
         let stride = Int64(w) * 4
-        var cur = Array<Int32>(stride, item: 0)
-        var nxt = Array<Int32>(stride, item: 0)
+        var cur = Array<Int32>(Int64(stride), { _: Int64 => Int32(0) })
+        var nxt = Array<Int32>(Int64(stride), { _: Int64 => Int32(0) })
 
         var y: UInt32 = 0
         while (y < h) {
@@ -202,7 +202,7 @@ public class Quantize {
                 let px: Int64 = Int64(y) * Int64(w) + x
                 let off: Int64 = x * 4
 
-                var cand = Array<Int32>(4, item: 0)
+                var cand = Array<Int32>(Int64(4), { _: Int64 => Int32(0) })
                 var c: Int64 = 0
                 while (c < 4) {
                     cand[c] = Int32(rgba[px * 4 + c]) + cur[off + c]

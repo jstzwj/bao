@@ -406,7 +406,7 @@ public class ThreadPool {
         // 工作线程循环:
         //   while (running) {
         //       let task = taskQueue.remove()
-        //       if (task != None) {
+        //       if (task.isSome()) {
         //           activeTasks.incrementAndGet()
         //           task.unwrap().run()
         //           activeTasks.decrementAndGet()

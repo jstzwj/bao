@@ -36,17 +36,16 @@ public class PmPkgCommand {
             ArrayList<String>()
         }
 
-        when (subcommand) {
+        match (subcommand) {
             case "get" => execGet(ctx, pm, rest)
             case "set" => execSet(ctx, pm, rest)
             case "delete" => execDelete(ctx, pm, rest)
             case "fix" => execFix(ctx, pm)
             case "help" => printHelp()
-            else => {
+            case _ =>
                 Output.errGeneric("Unknown subcommand: ${subcommand}")
                 printHelp()
                 Global.exit(1)
-            }
         }
     }
 
@@ -59,14 +58,20 @@ public class PmPkgCommand {
             return
         }
 
-        let pkgContent = readPackageJson() ?: return
-        let json = parsePackageJson(pkgContent) ?: return
+        let pkgContent = match (readPackageJson()) {
+            case Some(v) => v
+            case None => return
+        }
+        let json = match (parsePackageJson(pkgContent)) {
+            case Some(v) => v
+            case None => return
+        }
         let source = Source.initPathString("package.json", pkgContent.toByteArray())
 
         for (key in args) {
             let value = resolveJsonPath(json, key)
             if (value != None) {
-                printValue(value!!, source)
+                printValue(value.getOrThrow(), source)
             }
         }
     }
@@ -99,8 +104,14 @@ public class PmPkgCommand {
             keyValues.append((key, value))
         }
 
-        let pkgContent = readPackageJson() ?: return
-        let json = parsePackageJson(pkgContent) ?: return
+        let pkgContent = match (readPackageJson()) {
+            case Some(v) => v
+            case None => return
+        }
+        let json = match (parsePackageJson(pkgContent)) {
+            case Some(v) => v
+            case None => return
+        }
         var modified = json
 
         for ((key, rawValue) in keyValues) {
@@ -108,7 +119,7 @@ public class PmPkgCommand {
                 // 尝试将值解析为 JSON
                 let parsed = JsonParser.parse(rawValue)
                 if (parsed != None) {
-                    parsed!!
+                    parsed.getOrThrow()
                 } else {
                     JsonValue.Str(rawValue)
                 }
@@ -130,8 +141,14 @@ public class PmPkgCommand {
             return
         }
 
-        let pkgContent = readPackageJson() ?: return
-        let json = parsePackageJson(pkgContent) ?: return
+        let pkgContent = match (readPackageJson()) {
+            case Some(v) => v
+            case None => return
+        }
+        let json = match (parsePackageJson(pkgContent)) {
+            case Some(v) => v
+            case None => return
+        }
         var modified = json
 
         for (key in args) {
@@ -149,12 +166,15 @@ public class PmPkgCommand {
     ///   - 移除重复字段
     ///   - 修正常见错误 (scripts 字段类型等)
     public static func execFix(ctx: CommandContext, pm: PackageManager): Unit {
-        let pkgContent = readPackageJson() ?: return
+        let pkgContent = match (readPackageJson()) {
+            case Some(v) => v
+            case None => return
+        }
         let json = parsePackageJson(pkgContent)
 
         if (json != None) {
             // 修复逻辑
-            var fixed = json!!
+            var fixed = json.getOrThrow()
 
             // 确保顶级字段顺序正确 (name, version, description, ...)
             fixed = sortPackageJsonFields(fixed)
@@ -184,7 +204,7 @@ public class PmPkgCommand {
             if (current.isObject()) {
                 let obj = current.asObject()
                 if (obj.contains(part)) {
-                    current = obj.get(part)!!
+                    current = obj.get(part).getOrThrow()
                 } else {
                     return None
                 }
@@ -216,7 +236,7 @@ public class PmPkgCommand {
             let restPath = parts.subList(1, parts.length).joinToString(".")
             let existing = obj.get(first)
             let newValue = if (existing != None) {
-                setNestedValue(existing!!, restPath, value)
+                setNestedValue(existing.getOrThrow(), restPath, value)
             } else {
                 // 创建嵌套对象
                 setNestedValue(JsonValue.Obj(MutableJsonObject()), restPath, value)
@@ -247,7 +267,7 @@ public class PmPkgCommand {
             let restPath = parts.subList(1, parts.length).joinToString(".")
             let existing = obj.get(first)
             if (existing != None) {
-                obj.put(first, deleteNestedField(existing!!, restPath, value))
+                obj.put(first, deleteNestedField(existing.getOrThrow(), restPath, value))
             }
             return JsonValue.Obj(obj)
         }
@@ -324,7 +344,7 @@ public class PmPkgCommand {
         for (key in sortedOrder) {
             let value = obj.get(key)
             if (value != None) {
-                sorted.put(key, value!!)
+                sorted.put(key, value.getOrThrow())
             }
         }
         // 再添加其余字段
@@ -357,24 +377,23 @@ public class PmPkgCommand {
     /// 打印 JSON 值
     /// 对应 Bun: printValue — 根据类型输出
     private static func printValue(value: JsonValue, source: Source): Unit {
-        when (value) {
+        match (value) {
             case JsonValue.Str(s) => Output.println(s)
             case JsonValue.Num(n) => Output.println("${n}")
             case JsonValue.Bool(b) => Output.println("${b}")
             case JsonValue.Null => Output.println("null")
             case JsonValue.Obj(obj) => Output.println(JsonFormatter.format(value))
-            case JsonValue.Arr(arr) => {
+            case JsonValue.Arr(arr) =>
                 // 数组每行输出一个
                 for (item in arr) {
                     Output.println(formatJsonValue(item))
                 }
-            }
         }
     }
 
     /// 格式化 JSON 值
     public static func formatJsonValue(value: JsonValue): String {
-        when (value) {
+        match (value) {
             case JsonValue.Str(s) => return s
             case JsonValue.Num(n) => return "${n}"
             case JsonValue.Bool(b) => return "${b}"

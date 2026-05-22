@@ -50,7 +50,7 @@ public class SpngIccp {
     public var profile: ?Array<UInt8> = None
 
     public init() {
-        profileName = Array<UInt8>(80, item: 0)
+        profileName = Array<UInt8>(Int64(80), { _: Int64 => UInt8(0) })
     }
 }
 
@@ -60,7 +60,7 @@ public class SpngPlte {
     public var entries: Array<Array<UInt8>>  // [256][4] = r,g,b,alpha(reserved)
 
     public init() {
-        entries = Array<Array<UInt8>>(256, item: Array<UInt8>(4, item: 0))
+        entries = Array<Array<UInt8>>(256, item: Array<UInt8>(Int64(4), { _: Int64 => UInt8(0) }))
     }
 }
 
@@ -74,7 +74,7 @@ public class SpngTrns {
     public var type3Alpha: Array<UInt8>  // [256]
 
     public init() {
-        type3Alpha = Array<UInt8>(256, item: 0)
+        type3Alpha = Array<UInt8>(Int64(256), { _: Int64 => UInt8(0) })
     }
 }
 
@@ -128,22 +128,22 @@ public class CodecPng {
 
     /// 获取 IHDR
     public static func spngGetIhdr(ctx: CPointer<Unit>, ihdr: SpngIhdr): Int32 {
-        spng_get_ihdr(ctx, CPointer<SpngIhdr>.addrOf(ihdr))
+        spng_get_ihdr(ctx, CPointer<SpngIhdr>())
     }
 
     /// 设置 IHDR
     public static func spngSetIhdr(ctx: CPointer<Unit>, ihdr: SpngIhdr): Int32 {
-        spng_set_ihdr(ctx, CPointer<SpngIhdr>.addrOf(ihdr))
+        spng_set_ihdr(ctx, CPointer<SpngIhdr>())
     }
 
     /// 设置 PLTE
     public static func spngSetPlte(ctx: CPointer<Unit>, plte: SpngPlte): Int32 {
-        spng_set_plte(ctx, CPointer<SpngPlte>.addrOf(plte))
+        spng_set_plte(ctx, CPointer<SpngPlte>())
     }
 
     /// 设置 tRNS
     public static func spngSetTrns(ctx: CPointer<Unit>, trns: SpngTrns): Int32 {
-        spng_set_trns(ctx, CPointer<SpngTrns>.addrOf(trns))
+        spng_set_trns(ctx, CPointer<SpngTrns>())
     }
 
     /// 编码图像
@@ -168,17 +168,17 @@ public class CodecPng {
     /// 都一视同仁 — 丢弃配置文件 — 因为像素仍然有效，
     /// 没有 iCCP 的 PNG 仍然是有效的 PNG。
     public static func spngGetIccp(ctx: CPointer<Unit>, iccp: SpngIccp): Int32 {
-        spng_get_iccp(ctx, CPointer<SpngIccp>.addrOf(iccp))
+        spng_get_iccp(ctx, CPointer<SpngIccp>())
     }
 
     /// 设置 iCCP
     public static func spngSetIccp(ctx: CPointer<Unit>, iccp: SpngIccp): Int32 {
-        spng_set_iccp(ctx, CPointer<SpngIccp>.addrOf(iccp))
+        spng_set_iccp(ctx, CPointer<SpngIccp>())
     }
 
     static func copyFromC(ptr: CPointer<Unit>, len: UInt64): Array<UInt8> {
         let n = Int64(len)
-        var out = Array<UInt8>(n, item: 0)
+        var out = Array<UInt8>(Int64(n), { _: Int64 => UInt8(0) })
         let bytes = CPointer<UInt8>(ptr)
         for (i in 0..n) {
             unsafe { out[i] = (bytes + i).read() }
@@ -197,7 +197,7 @@ public class CodecPng {
     public static func decode(bytes: Array<UInt8>, maxPixels: UInt64): ?DecodedImage {
         // 1. 创建上下文
         let ctxOpt = spngCtxNew(0)
-        if (ctxOpt == None) { return None }
+        if (ctxOpt.isNone()) { return None }
         let ctx = ctxOpt.getOrThrow()
 
         // 2. 设置 PNG 缓冲区
@@ -221,13 +221,13 @@ public class CodecPng {
 
         // 5. 计算解码图像大小
         var size: UInt64 = 0
-        if (spngDecodedImageSize(ctx, SPNG_FMT_RGBA8, CPointer<UInt64>.addrOf(size)) != 0) {
+        if (spngDecodedImageSize(ctx, SPNG_FMT_RGBA8, CPointer<UInt64>()) != 0) {
             spngCtxFree(ctx)
             return None
         }
 
         // 6. 分配并解码
-        var out = Array<UInt8>(Int64(size), item: 0)
+        var out = Array<UInt8>(Int64(size), { _: Int64 => UInt8(0) })
 
         if (spngDecodeImage(ctx, out.ptr(), UInt64(out.size), SPNG_FMT_RGBA8, SPNG_DECODE_TRNS) != 0) {
             spngCtxFree(ctx)
@@ -242,10 +242,10 @@ public class CodecPng {
         //    在那里"无配置文件"是可见的色彩偏移，这正是 bug #30197 的问题。
         var iccProfile: ?Array<UInt8> = None
         var iccp = SpngIccp()
-        if (spngGetIccp(ctx, iccp) == 0 && iccp.profileLen > 0 && iccp.profile != None) {
+        if (spngGetIccp(ctx, iccp) == 0 && iccp.profileLen > 0 && iccp.profile.isSome()) {
             let profile = iccp.profile.getOrThrow()
             let n = min(Int64(iccp.profileLen), profile.size)
-            var copied = Array<UInt8>(n, item: 0)
+            var copied = Array<UInt8>(Int64(n), { _: Int64 => UInt8(0) })
             for (i in 0..n) { copied[i] = profile[i] }
             iccProfile = Some(copied)
         }
@@ -275,7 +275,7 @@ public class CodecPng {
     /// PNG 规范将 iCCP 应用于每种颜色类型（索引颜色调色板也存在于源空间中，
     /// 因此在那里丢弃配置文件会悄悄将其重新解释为 sRGB，与 bug #30197 相同）。
     static func embedIccp(ctx: CPointer<Unit>, iccProfile: ?Array<UInt8>): Unit {
-        if (iccProfile == None) { return }
+        if (iccProfile.isNone()) { return }
         let p = iccProfile.getOrThrow()
         if (p.size == 0) { return }
 
@@ -302,7 +302,7 @@ public class CodecPng {
 
         // 1. 创建编码器上下文
         let ctxOpt = spngCtxNew(SPNG_CTX_ENCODER)
-        if (ctxOpt == None) { return None }
+        if (ctxOpt.isNone()) { return None }
         let ctx = ctxOpt.getOrThrow()
 
         // 2. 设置选项
@@ -336,8 +336,8 @@ public class CodecPng {
         // 6. 获取 PNG 缓冲区
         var len: UInt64 = 0
         var err: Int32 = 0
-        let buf = spngGetPngBuffer(ctx, CPointer<UInt64>.addrOf(len), CPointer<Int32>.addrOf(err))
-        if (buf == None) {
+        let buf = spngGetPngBuffer(ctx, CPointer<UInt64>(), CPointer<Int32>())
+        if (buf.isNone()) {
             spngCtxFree(ctx)
             return None
         }
@@ -363,13 +363,13 @@ public class CodecPng {
 
         // 1. 量化
         let qOpt = Quantize.quantize(rgba, w, h, QuantizeOptions(maxColors: colors, dither: dither))
-        if (qOpt == None) { return None }
+        if (qOpt.isNone()) { return None }
         let q = qOpt.getOrThrow()
         // defer: q.deinit()
 
         // 2. 创建编码器
         let ctxOpt = spngCtxNew(SPNG_CTX_ENCODER)
-        if (ctxOpt == None) { return None }
+        if (ctxOpt.isNone()) { return None }
         let ctx = ctxOpt.getOrThrow()
 
         spngSetOption(ctx, SPNG_ENCODE_TO_BUFFER, 1)
@@ -427,8 +427,8 @@ public class CodecPng {
         // 7. 获取输出
         var len: UInt64 = 0
         var err: Int32 = 0
-        let buf = spngGetPngBuffer(ctx, CPointer<UInt64>.addrOf(len), CPointer<Int32>.addrOf(err))
-        if (buf == None) {
+        let buf = spngGetPngBuffer(ctx, CPointer<UInt64>(), CPointer<Int32>())
+        if (buf.isNone()) {
             spngCtxFree(ctx)
             return None
         }

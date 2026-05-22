@@ -9,6 +9,15 @@ package bao_jsc
 // 使用 UInt32 透明表示以支持 (1 << 9) | id 的内部模块 ID 编码
 public enum ResolvedSourceTag {
     | Javascript
+    | ExportsObject
+    | ExportDefaultObject
+    | Esm
+    | CommonJS
+    | Wasm
+    | JsonForObjectLoader
+    | PackageJsonTypeModule
+    | PackageJsonTypeCommonjs
+    | BunInternalForTesting
 }
 
 // ========== ResolvedSource ==========
@@ -87,12 +96,7 @@ public class ResolvedSource_ {
 
     public init() {}
 
-    public init(
-        specifier: String,
-        sourceCode: String,
-        sourceURL: String,
-        tag: ResolvedSourceTag
-    ) {
+    public init(specifier: String, sourceCode: String, sourceURL: String, tag: ResolvedSourceTag) {
         this.specifier = specifier
         this.sourceCode = sourceCode
         this.sourceURL = sourceURL
@@ -108,10 +112,10 @@ public class ResolvedSource_ {
         sourceURL: String
     ): ResolvedSource_ {
         ResolvedSource_(
-            specifier: specifier,
-            sourceCode: sourceCode,
-            sourceURL: sourceURL,
-            tag: ResolvedSourceTag.Javascript
+            specifier,
+            sourceCode,
+            sourceURL,
+            ResolvedSourceTag.Javascript
         )
     }
 
@@ -122,10 +126,10 @@ public class ResolvedSource_ {
         sourceURL: String
     ): ResolvedSource_ {
         let rs = ResolvedSource_(
-            specifier: specifier,
-            sourceCode: sourceCode,
-            sourceURL: sourceURL,
-            tag: ResolvedSourceTag.CommonJS
+            specifier,
+            sourceCode,
+            sourceURL,
+            ResolvedSourceTag.CommonJS
         )
         rs.isCommonjsModule = true
         rs
@@ -138,10 +142,10 @@ public class ResolvedSource_ {
         sourceURL: String
     ): ResolvedSource_ {
         ResolvedSource_(
-            specifier: specifier,
-            sourceCode: sourceCode,
-            sourceURL: sourceURL,
-            tag: ResolvedSourceTag.Wasm
+            specifier,
+            sourceCode,
+            sourceURL,
+            ResolvedSourceTag.Wasm
         )
     }
 }

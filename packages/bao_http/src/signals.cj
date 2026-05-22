@@ -26,11 +26,11 @@ import bao_threading.*
 //
 // Signals.Store 包含实际的原子变量:
 //   pub const Store = struct {
-//       header_progress: std.atomic.Value(bool) = .init(false),
-//       response_body_streaming: std.atomic.Value(bool) = .init(false),
-//       aborted: std.atomic.Value(bool) = .init(false),
-//       cert_errors: std.atomic.Value(bool) = .init(false),
-//       upgraded: std.atomic.Value(bool) = .init(false),
+//       header_progress: std.atomic.Value(bool) = .`init`(false),
+//       response_body_streaming: std.atomic.Value(bool) = .`init`(false),
+//       aborted: std.atomic.Value(bool) = .`init`(false),
+//       cert_errors: std.atomic.Value(bool) = .`init`(false),
+//       upgraded: std.atomic.Value(bool) = .`init`(false),
 //   };
 // ============================================================================
 
@@ -135,11 +135,11 @@ public enum SignalType {
 ///
 /// Bun:
 ///   pub const Store = struct {
-///       header_progress: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
-///       response_body_streaming: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
-///       aborted: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
-///       cert_errors: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
-///       upgraded: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
+///       header_progress: std.atomic.Value(bool) = std.atomic.Value(bool).`init`(false),
+///       response_body_streaming: std.atomic.Value(bool) = std.atomic.Value(bool).`init`(false),
+///       aborted: std.atomic.Value(bool) = std.atomic.Value(bool).`init`(false),
+///       cert_errors: std.atomic.Value(bool) = std.atomic.Value(bool).`init`(false),
+///       upgraded: std.atomic.Value(bool) = std.atomic.Value(bool).`init`(false),
 ///
 ///       pub fn to(this: *Store) Signals {
 ///           return .{

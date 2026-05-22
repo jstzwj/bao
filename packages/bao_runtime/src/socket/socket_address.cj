@@ -5,6 +5,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // 地址族枚举
@@ -17,6 +18,17 @@ public enum AddressFamily {
     | IPv4   // AF_INET
     | IPv6   // AF_INET6
 
+    public operator func ==(right: AddressFamily): Bool {
+        match (this) {
+            case IPv4 => match (right) { case IPv4 => true case _ => false }
+            case IPv6 => match (right) { case IPv6 => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: AddressFamily): Bool {
+        return !(this == right)
+    }
+
     /// 转为整数值
     public func toInt(): Int32 {
         match (this) {
@@ -28,7 +40,7 @@ public enum AddressFamily {
     /// 从字符串解析地址族
     /// 对应 Zig: AF.fromJS
     public static func fromString(value: String): ?AddressFamily {
-        let lower = value.toRuneArray().map({ r => r.toAsciiLowerCase() })
+        let lower = value.toAsciiLower()
         if (lower == "ipv4") {
             return AddressFamily.IPv4
         }
@@ -74,7 +86,7 @@ public class SocketAddress {
     public init() {
         family = AddressFamily.IPv4
         addrV4 = [127, 0, 0, 1]
-        addrV6 = Array<UInt8>(16, item: 0)
+        addrV6 = Array<UInt8>(16, repeat: 0)
         port = 0
         flowLabel = 0
         scopeId = 0
@@ -92,14 +104,12 @@ public class SocketAddress {
 
         // 解析地址字符串为字节数组
         match (family) {
-            case IPv4 => {
+            case IPv4 =>
                 addrV4 = SocketAddress.parseIPv4ToBytes(address)
-                addrV6 = Array<UInt8>(16, item: 0)
-            }
-            case IPv6 => {
+                addrV6 = Array<UInt8>(16, repeat: 0)
+            case IPv6 =>
                 addrV4 = [0, 0, 0, 0]
                 addrV6 = SocketAddress.parseIPv6ToBytes(address)
-            }
         }
     }
 
@@ -149,25 +159,27 @@ public class SocketAddress {
 
         // 处理 IPv6 地址格式 [host]:port
         if (input.startsWith("[")) {
-            let closeBracket = input.indexOf(']')
-            if (closeBracket < 0) {
+            let closeBracketOpt = input.indexOf(']')
+            if (closeBracketOpt.isNone()) {
                 return None
             }
-            let host = input.subString(1, closeBracket - 1)
-            let portStr = input.subString(closeBracket + 1)
+            let closeBracket = closeBracketOpt.getOrThrow()
+            let host = input[1..closeBracket - 1]
+            let portStr = input[closeBracket + 1..]
             var port: UInt16 = 0
             if (portStr.startsWith(":")) {
-                port = UInt16.parse(portStr.subString(1)).getOr(0)
+                port = UInt16(IntParser.parseInt(portStr[1..], 10))
             }
             return SocketAddress(AddressFamily.IPv6, host, port, 0)
         }
 
         // 处理 IPv4 地址格式 host:port
-        let lastColon = input.lastIndexOf(':')
-        if (lastColon >= 0) {
-            let host = input.subString(0, lastColon)
-            let portStr = input.subString(lastColon + 1)
-            let port = UInt16.parse(portStr).getOr(0)
+        let lastColonOpt = input.lastIndexOf(':')
+        if (lastColonOpt.isSome()) {
+            let lastColon = lastColonOpt.getOrThrow()
+            let host = input[0..lastColon]
+            let portStr = input[lastColon + 1..]
+            let port = UInt16(IntParser.parseInt(portStr, 10))
             return SocketAddress(AddressFamily.IPv4, host, port, 0)
         }
 
@@ -176,62 +188,60 @@ public class SocketAddress {
     }
 
     /// 获取地址的展示格式 (不含端口)
-    /// 对应 Zig: pub fn address(this: *SocketAddress) bun.String
+    /// 对应 Zig: pub fn address(`this`: *SocketAddress) bun.String
     public func getAddress(): String {
         if (!presentation.isEmpty()) {
             return presentation
         }
         match (family) {
-            case IPv4 => {
+            case IPv4 =>
                 if (addrV4.size == 4) {
                     presentation = formatIPv4(addrV4)
                 } else {
                     presentation = "127.0.0.1"
                 }
-            }
-            case IPv6 => {
+            case IPv6 =>
                 if (addrV6.size == 16) {
                     presentation = formatIPv6(addrV6)
                 } else {
                     presentation = "::"
                 }
-            }
         }
         return presentation
     }
 
     /// 获取地址的JS值
-    /// 对应 Bun: pub fn getAddress(this: *SocketAddress, global: *jsc.JSGlobalObject) bun.JSError!jsc.JSValue
+    /// 对应 Bun: pub fn getAddress(`this`: *SocketAddress, global: *jsc.JSGlobalObject) bun.JSError!jsc.JsValue
     public func getAddressJS(global: JsObject): JsValue {
         return JsValue(getAddress())
     }
 
     /// 获取地址族的JS值
-    /// 对应 Bun: pub fn getFamily(this: *SocketAddress, global: *jsc.JSGlobalObject) bun.JSError!JSValue
+    /// 对应 Bun: pub fn getFamily(`this`: *SocketAddress, global: *jsc.JSGlobalObject) bun.JSError!JsValue
     public func getFamilyJS(global: JsObject): JsValue {
         return JsValue(getFamily().label())
     }
 
     /// 获取地址族的数值
-    /// 对应 Bun: pub fn getAddrFamily(this: *SocketAddress, _: *jsc.JSGlobalObject) JSValue
+    /// 对应 Bun: pub fn getAddrFamily(`this`: *SocketAddress, _: *jsc.JSGlobalObject) JsValue
     public func getAddrFamilyJS(global: JsObject): JsValue {
-        return JsValue(getFamily().toInt())
+        return JsValue(Int64(getFamily().toInt()))
     }
 
     /// 获取端口的JS值
-    /// 对应 Bun: pub fn getPort(this: *SocketAddress, _: *jsc.JSGlobalObject) JSValue
+    /// 对应 Bun: pub fn getPort(`this`: *SocketAddress, _: *jsc.JSGlobalObject) JsValue
     public func getPortJS(global: JsObject): JsValue {
         return JsValue(Int64(getPort()))
     }
 
     /// 获取流标签的JS值
-    /// 对应 Bun: pub fn getFlowLabel(this: *SocketAddress, _: *jsc.JSGlobalObject) JSValue
+    /// 对应 Bun: pub fn getFlowLabel(`this`: *SocketAddress, _: *jsc.JSGlobalObject) JsValue
     public func getFlowLabelJS(global: JsObject): JsValue {
         return JsValue(Int64(getFlowLabel()))
     }
 
     /// 转为DTO对象
-    /// 对应 Bun: pub fn intoDTO(this: *SocketAddress, global: *jsc.JSGlobalObject) bun.JSError!jsc.JSValue
+    /// 对应 Bun: pub fn intoDTO(`this`: *SocketAddress, global: *jsc.JSGlobalObject) bun.JSError!jsc.JsValue
     /// this被消耗，返回一个普通JS对象（非SocketAddress实例）
     public func intoDTO(global: JsObject): JsValue {
         let obj = JsObject()
@@ -243,12 +253,13 @@ public class SocketAddress {
     }
 
     /// 静态创建DTO
-    /// 对应 Bun: pub fn createDTO(globalObject, addr_, port_, is_ipv6) bun.JSError!jsc.JSValue
-    public static func createDTO(global: JsObject, addr: String, port: UInt16, isIPv6: Boolean): JsValue {
+    /// 对应 Bun: pub fn createDTO(globalObject, addr_, port_, is_ipv6) bun.JSError!jsc.JsValue
+    public static func createDTO(global: JsObject, addr: String, port: UInt16, isIPv6: Bool): JsValue {
         let obj = JsObject()
         obj.set("address", JsValue(addr))
         obj.set("port", JsValue(Int64(port)))
-        obj.set("family", JsValue(if (isIPv6) "IPv6" else "IPv4"))
+        let family = if (isIPv6) { "IPv6" } else { "IPv4" }
+        obj.set("family", JsValue(family))
         return JsValue(obj)
     }
 
@@ -265,20 +276,20 @@ public class SocketAddress {
     }
 
     /// 去初始化
-    /// 对应 Bun: fn deinit(this: *SocketAddress) void
+    /// 对应 Bun: fn deinit(`this`: *SocketAddress) void
     public func deinit() {
         presentation = ""
     }
 
     /// 终结化
-    /// 对应 Bun: pub fn finalize(this: *SocketAddress) void
+    /// 对应 Bun: pub fn finalize(`this`: *SocketAddress) void
     public func finalize() {
         this.deinit()
     }
 
     /// 判断是否为IPv4映射的IPv6地址
     /// 对应 Bun: as_v4 中对IPv4-mapped IPv6地址的检测
-    public func isIPv4MappedIPv6(): Boolean {
+    public func isIPv4MappedIPv6(): Bool {
         if (family != IPv6) {
             return false
         }
@@ -356,14 +367,14 @@ public class SocketAddress {
     }
 
     /// 判断JS值是否为SocketAddress
-    /// 对应 Bun: pub fn isSocketAddress(_: *jsc.JSGlobalObject, callframe: *jsc.CallFrame) bun.JSError!JSValue
-    public static func isSocketAddress(value: JsValue): Boolean {
+    /// 对应 Bun: pub fn isSocketAddress(_: *jsc.JSGlobalObject, callframe: *jsc.CallFrame) bun.JSError!JsValue
+    public static func isSocketAddress(value: JsValue): Bool {
         // 检查是否为SocketAddress JS包装对象
-        return value.isCell() && value.isInstanceOf(SocketAddress)
+        return value.isCell() && value.isObject()
     }
 
     /// 从JS对象构造选项
-    /// 对应 Bun: pub fn fromJS(global: *jsc.JSGlobalObject, obj: JSValue) bun.JSError!Options
+    /// 对应 Bun: pub fn fromJS(global: *jsc.JSGlobalObject, obj: JsValue) bun.JSError!Options
     public static func optionsFromJS(global: JsObject, obj: JsValue): ?SocketAddressOptions {
         if (!obj.isObject()) {
             return None
@@ -372,14 +383,14 @@ public class SocketAddress {
 
         // 解析 family
         let familyVal = obj.get(global, "family")
-        if (familyVal.isString()) {
-            opts.family = AddressFamily.fromString(familyVal.toString()) ?? AddressFamily.IPv4
+        if (familyVal.isSome() && familyVal.getOrThrow().isString()) {
+            opts.family = AddressFamily.fromString(familyVal.getOrThrow().toString()) ?? AddressFamily.IPv4
         }
 
         // 解析 address
         let addressVal = obj.get(global, "address")
-        if (addressVal.isString()) {
-            opts.address = addressVal.toString()
+        if (addressVal.isSome() && addressVal.getOrThrow().isString()) {
+            opts.address = addressVal.getOrThrow().toString()
         } else {
             // 默认地址根据family决定
             if (opts.family == IPv4) {
@@ -391,8 +402,8 @@ public class SocketAddress {
 
         // 解析 port
         let portVal = obj.get(global, "port")
-        if (portVal.isNumber()) {
-            let port32 = portVal.toInt32()
+        if (portVal.isSome() && portVal.getOrThrow().isNumber()) {
+            let port32 = portVal.getOrThrow().toInt32()
             if (port32 >= 0 && port32 <= 65535) {
                 opts.port = UInt16(port32)
             }
@@ -400,8 +411,8 @@ public class SocketAddress {
 
         // 解析 flowlabel
         let flowlabelVal = obj.get(global, "flowlabel")
-        if (flowlabelVal.isNumber()) {
-            opts.flowLabel = flowlabelVal.toUInt32()
+        if (flowlabelVal.isSome() && flowlabelVal.getOrThrow().isNumber()) {
+            opts.flowLabel = UInt32(flowlabelVal.getOrThrow().toNumber())
         }
 
         return opts
@@ -428,13 +439,16 @@ public class SocketAddress {
         var groups = ArrayList<String>()
         var i: Int64 = 0
         while (i < 16) {
-            let hi = bytes[i].toInt()
-            let lo = bytes[i + 1].toInt()
+            let hi = Int64(bytes[i])
+            let lo = Int64(bytes[i + 1])
             let val = (hi << 8) | lo
-            groups.append(val.toHexString())
+            groups.append(val.toString())
             i += 2
         }
-        return groups.join(":")
+        // join with ":"
+        var result = ""
+        for (g in groups) { result = result + g + ":" }
+        return result[0..result.size - 1]
     }
 
     /// 解析 IPv4 字符串为字节数组
@@ -445,13 +459,14 @@ public class SocketAddress {
         }
         var bytes = ArrayList<UInt8>()
         for (part in parts) {
-            let v = UInt8.parse(part)
-            match (v) {
-                case Some(b) => bytes.append(b)
-                case None => bytes.append(0)
+            let v = IntParser.parseInt(part, 10)
+            if (v >= 0 && v <= 255) {
+                bytes.append(UInt8(v))
+            } else {
+                bytes.append(0)
             }
         }
-        return bytes.toArray()
+        return bytes.toOwnedSlice()
     }
 
     /// 解析 IPv6 字符串为字节数组
@@ -464,7 +479,7 @@ public class SocketAddress {
 
         // 处理 :: 缩写
         if (addr == "::") {
-            return bytes.toArray()
+            return bytes.toOwnedSlice()
         }
 
         let parts = addr.split(':')
@@ -477,13 +492,13 @@ public class SocketAddress {
                 continue
             }
             if (idx + 1 < 16) {
-                let val = Int64.parse(part, radix: 16).getOr(0)
+                let val = IntParser.parseInt(part, 16)
                 bytes[idx] = UInt8((val >> 8) & 0xFF)
                 bytes[idx + 1] = UInt8(val & 0xFF)
                 idx += 2
             }
         }
-        return bytes.toArray()
+        return bytes.toOwnedSlice()
     }
 }
 
@@ -517,8 +532,8 @@ public class SocketAddressOptions {
     /// 获取默认地址
     /// 对应 Bun: null地址时根据family决定默认值
     public func defaultAddress(): String {
-        if (let addr = this.address) {
-            return addr
+        if (this.address.isSome()) {
+            return this.address.getOrThrow()
         }
         match (family) {
             case IPv4 => return "127.0.0.1"

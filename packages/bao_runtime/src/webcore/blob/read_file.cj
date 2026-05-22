@@ -2,19 +2,29 @@
 // Strict 1:1 translation from: src/runtime/webcore/blob/read_file.rs (1439 lines)
 package bao_runtime.webcore.blob
 
-import bao_core.*
 import bao_collections.*
-import bao_jsc.*
+import bao_core.Result
+import bao_jsc.JsValue
+import bao_jsc.JsObject
+import bao_collections.ArrayList
 import bao_sys.*
-import bao_io.*
 import bao_ptr.*
 
+/// IO retry errno constant
+/// Corresponds to: Bun: io::RETRY
+let IO_RETRY: Int64 = 11  // EAGAIN on Linux
+
+/// Helper to convert ArrayList<UInt8> to Array<UInt8>
+func buildArray(list: ArrayList<UInt8>): Array<UInt8> {
+    return list.items()
+}
+
 // ============================================================================
-// ReadFileToJs - trait for converting read bytes to a JSValue
+// ReadFileToJs - trait for converting read bytes to a JsValue
 // Corresponds to: Bun: read_file.rs ReadFileToJs (line 50)
 // ============================================================================
 
-/// Trait for comptime callback that converts the read bytes to a JSValue.
+/// Trait for comptime callback that converts the read bytes to a JsValue.
 /// Corresponds to: Bun: ReadFileToJs
 /// `by` carries the caller's allocation provenance unchanged:
 /// `Lifetime.Temporary` => a Box<[u8]>::into_raw the callee MUST take
@@ -89,7 +99,7 @@ public type ReadFileOnReadFileCallback = (ctx: UIntNative, bytes: ReadFileResult
 // ============================================================================
 
 /// Generic read file handler with a JS promise.
-/// `F` provides the comptime callback that converts the read bytes to a JSValue.
+/// `F` provides the comptime callback that converts the read bytes to a JsValue.
 /// Corresponds to: Bun: NewReadFileHandler<'a, F>
 public class NewReadFileHandler {
     /// The Blob context being read
@@ -119,12 +129,12 @@ public class NewReadFileHandler {
             case ReadFileResultType.Result(result) =>
                 let bytes = result.buf
                 if (blob.size > 0) {
-                    let newSize = Int64(bytes.size).min(blob.size)
+                    let newSize = min(Int64(bytes.size), blob.size)
                     blob.size = newSize
                 }
                 // Wrap the result in a promise resolution
                 // Zig used a local WrappedFn; Rust uses AnyPromise::wrap
-                promise.resolve(globalThis, JsValue.jsNumberFromUInt64(UInt64(bytes.size)))
+                promise.resolve(globalThis, JsValue(Int64(UInt64(bytes.size))))
             case ReadFileResultType.Err(err) =>
                 promise.reject(globalThis, err.toErrorInstanceWithAsyncStack(globalThis, promise))
         }
@@ -229,7 +239,7 @@ public class ReadFile {
         ioRequest = IoRequest()
         couldBlock = false
         closeAfterIo = false
-        state = ClosingState.running.ordinal()
+        state = UInt8(0)
     }
 
     // ========================================================================
@@ -263,11 +273,11 @@ public class ReadFile {
         readFile.openedFd = Fd.INVALID
         readFile.onCompleteCtx = onReadFileContext
         readFile.onCompleteCallback = onCompleteCallback
-        readFile.state = ClosingState.running.ordinal()
-        let task = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        readFile.state = CLOSING_STATE_RUNNING
+        let task = WorkPoolTask(ReadFile.doReadLoopTask)
         task.parent = readFile
         readFile.task = task
-        let ioReq = IoRequest(callback: ReadFile.onRequestReadable)
+        let ioReq = IoRequest(ReadFile.onRequestReadable)
         ioReq.parent = readFile
         readFile.ioRequest = ioReq
         return Result.Ok(readFile)
@@ -296,7 +306,7 @@ public class ReadFile {
     // ========================================================================
 
     /// Get the opened file descriptor
-    public func openedFd(): Fd {
+    public func getOpenedFd(): Fd {
         openedFd
     }
 
@@ -326,7 +336,7 @@ public class ReadFile {
     // ========================================================================
 
     /// Whether to close after IO
-    public func closeAfterIo(): Bool {
+    public func shouldCloseAfterIo(): Bool {
         closeAfterIo
     }
 
@@ -348,7 +358,7 @@ public class ReadFile {
     /// Check the closing state and either finish or continue reading.
     /// Corresponds to: Bun: ReadFile::update()
     public func update(): Unit {
-        if (state == ClosingState.closing.ordinal()) {
+        if (state == CLOSING_STATE_CLOSING) {
             onFinish()
         } else {
             doReadLoop()
@@ -364,14 +374,16 @@ public class ReadFile {
     /// Corresponds to: Bun: ReadFile::on_readable()
     public static func onReadable(request: IoRequest): Unit {
         // Recover the ReadFile from the intrusive IoRequest
-        let this_ = request.parent as ReadFile
-        this_.onReady()
+        match (request.parent as ReadFile) {
+            case Some(readFile) => readFile.onReady()
+            case None => ()
+        }
     }
 
     /// Handle IO readiness by rescheduling the read loop
     /// Corresponds to: Bun: ReadFile::on_ready()
     public func onReady(): Unit {
-        let newTask = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        let newTask = WorkPoolTask(ReadFile.doReadLoopTask)
         newTask.parent = this
         task = newTask
         // On macOS, we use one-shot mode, so:
@@ -391,7 +403,7 @@ public class ReadFile {
     public func onIoError(err: SyscallError): Unit {
         errno = Some(BunCore.errnoToZigErr(err.errno))
         systemError = Some(err.toSystemError())
-        let newTask = WorkPoolTask(callback: ReadFile.doReadLoopTask)
+        let newTask = WorkPoolTask(ReadFile.doReadLoopTask)
         newTask.parent = this
         task = newTask
         closeAfterIo = ioRequest.scheduled
@@ -409,13 +421,18 @@ public class ReadFile {
         request.scheduled = false
         // Recover the ReadFile from the intrusive IoRequest
         let this_ = request.parent as ReadFile
-        return IoAction.Readable(FileAction(
-            onError: this_.onIoError,
-            ctx: this_,
-            fd: this_.openedFd,
-            poll: this_.ioPoll,
-            tag: ReadFile.IO_TAG
-        ))
+        match (this_) {
+            case Some(readFile) =>
+                return IoAction.Readable(FileAction(
+                    readFile.onIoError,
+                    readFile,
+                    readFile.openedFd,
+                    readFile.ioPoll,
+                    ReadFile.IO_TAG
+                ))
+            case None =>
+                return IoAction.Noop
+        }
     }
 
     // ========================================================================
@@ -448,7 +465,7 @@ public class ReadFile {
         readLen: Ref<Int64>,
         retry: Ref<Bool>
     ): Bool {
-        let buf = Array<UInt8>(bufLen)
+        let buf = Array<UInt8>(Int64(bufLen), { _ => UInt8(0) })
         let result: SyscallResult<Int64> = if (BunSys.isSock(fileStore.mode)) {
             BunSys.recvNonBlock(openedFd, buf)
         } else {
@@ -461,11 +478,11 @@ public class ReadFile {
                 readEof = res == 0
             case SyscallResult.Err(err) =>
                 let e = err.getErrno()
-                if (e == IO_RETRY) {
+                if (Int64(e.toInt()) == IO_RETRY) {
                     if (!couldBlock) {
                         // Regular files cannot use epoll.
                         // This is fine on kqueue, but not on epoll.
-                        readLen.value = res
+                        readLen.value = 0
                         return true
                     }
                     retry.value = true
@@ -478,7 +495,7 @@ public class ReadFile {
                         match (systemError) {
                             case Some(se) =>
                                 se.path = if (fileStore.pathlike.isPath()) {
-                                    BaoString.cloneUtf8(fileStore.pathlike.path().slice())
+                                    BaoString.cloneUtf8(fileStore.pathlike.pathSlice())
                                 } else {
                                     BaoString.EMPTY
                                 }
@@ -516,18 +533,18 @@ public class ReadFile {
             cb(
                 cbCtx,
                 ReadFileResultType.Err(SystemError(
-                    code: BaoString.static_("INTERNAL_ERROR"),
-                    message: BaoString.static_("assertion failure - store should not be null"),
-                    syscall: BaoString.static_("read"),
-                    path: "",
-                    errno: 0
+                    BaoString.static_("INTERNAL_ERROR"),
+                    "",
+                    BaoString.static_("assertion failure - store should not be null"),
+                    BaoString.static_("read"),
+                    0
                 ))
             )
             return
         }
 
         // Take the buffer out
-        let buf = buffer.toArray()
+        let buf: Array<UInt8> = buildArray(buffer)
         buffer.clear()
         let sysError = systemError
         systemError = None
@@ -542,7 +559,7 @@ public class ReadFile {
         }
 
         if (sysError.isSome()) {
-            cb(cbCtx, ReadFileResultType.Err(sysError.unwrap()))
+            cb(cbCtx, ReadFileResultType.Err(sysError.getOrThrow()))
             return
         }
 
@@ -550,7 +567,7 @@ public class ReadFile {
         // receiver takes ownership.
         cb(
             cbCtx,
-            ReadFileResultType.Result(ReadFileRead(buf: buf, totalSize: tSize))
+            ReadFileResultType.Result(ReadFileRead(buf, tSize))
         )
     }
 
@@ -574,7 +591,7 @@ public class ReadFile {
             openedFd = fileStore.pathlike.fd()
         }
 
-        getFd(ReadFile.runAsyncWithFd)
+        getFd(this.runAsyncWithFd)
     }
 
     // ========================================================================
@@ -589,11 +606,11 @@ public class ReadFile {
             callback(openedFd)
         } else {
             // Open the file
-            match (BunSys.open(fileStore.pathlike.path().sliceZ(), BunSys.O_RDONLY | BunSys.O_CLOEXEC, 0)) {
-                case BunSysResult.Ok(fd) =>
+            match (BunSys.open(fileStore.pathlike.pathSlice(), BunSys.O_RDONLY | BunSys.O_CLOEXEC, 0)) {
+                case BunSysResult<Fd>.Ok(fd) =>
                     openedFd = fd
                     callback(openedFd)
-                case BunSysResult.Err(err) =>
+                case BunSysResult<Fd>.Err(err) =>
                     errno = Some(BunCore.errnoToZigErr(err.errno))
                     systemError = Some(err.toSystemError())
                     onFinish()
@@ -633,15 +650,7 @@ public class ReadFile {
         if (!couldBlock || (size > 0 && size != BLOB_MAX_SIZE)) {
             let want = Int64(size) + 16
             let v = ArrayList<UInt8>()
-            if (!v.tryReserveExact(want)) {
-                errno = Some(BunCore.errOutOfMemory())
-                systemError = Some(
-                    SyscallError.fromCode(SyscallErrno.ENOMEM, SyscallTag.read)
-                        .toSystemError()
-                )
-                onFinish()
-                return
-            }
+            v.ensureTotalCapacity(want)
             buffer = v
         }
         readOff = 0
@@ -649,7 +658,12 @@ public class ReadFile {
         // If it's not a regular file, it might block on the next read.
         // Avoid immediately reading again until next schedule.
         if (couldBlock) {
-            if (BunCore.isReadable(fd) == Pollable.NotReady) {
+            let pollResult = BunCore.isReadable(fd)
+            let isNotReady = match (pollResult) {
+                case Pollable.NotReady => true
+                case _ => false
+            }
+            if (isNotReady) {
                 waitForReadable()
                 return
             }
@@ -667,8 +681,8 @@ public class ReadFile {
     /// Corresponds to: Bun: ReadFile::resolve_size_and_last_modified()
     public func resolveSizeAndLastModified(fd: Fd): Unit {
         let stat: Stat = match (BunSys.fstat(fd)) {
-            case BunSysResult.Ok(result) => result
-            case BunSysResult.Err(err) =>
+            case BunSysResult<Stat>.Ok(result) => result
+            case BunSysResult<Stat>.Err(err) =>
                 errno = Some(BunCore.errnoToZigErr(err.errno))
                 systemError = Some(err.toSystemError())
                 return
@@ -690,26 +704,26 @@ public class ReadFile {
         if (BunSys.isDir(stat.stMode)) {
             errno = Some(BunCore.errEisDir())
             systemError = Some(SystemError(
-                code: BaoString.static_("EISDIR"),
-                path: if (fileStore.pathlike.isPath()) {
-                    BaoString.cloneUtf8(fileStore.pathlike.path().slice())
+                BaoString.static_("EISDIR"),
+                if (fileStore.pathlike.isPath()) {
+                    BaoString.cloneUtf8(fileStore.pathlike.pathSlice())
                 } else {
                     BaoString.EMPTY
                 },
-                message: BaoString.static_("Directories cannot be read like files"),
-                syscall: BaoString.static_("read"),
-                errno: SyscallErrno.EISDIR
+                BaoString.static_("Directories cannot be read like files"),
+                BaoString.static_("read"),
+                SyscallErrno.EISDIR.toInt()
             ))
             return
         }
 
         couldBlock = !BunSys.isRegularFile(stat.stMode)
-        totalSize = Int64(stat.stSize).max(0).min(BLOB_MAX_SIZE)
+        totalSize = min(max(Int64(stat.stSize), 0), BLOB_MAX_SIZE)
 
         if (stat.stSize > 0 && !couldBlock) {
-            size = totalSize.min(maxLength)
+            size = min(totalSize, maxLength)
         } else if (stat.stSize == 0 && couldBlock) {
-            size = maxLength.min(4096)
+            size = min(maxLength, 4096)
         }
 
         if (offset > 0) {
@@ -752,8 +766,8 @@ public class ReadFile {
 
     /// Close the file descriptor if allowed
     public func doClose(isAllowedToCloseFd: Bool): Bool {
-        if (isAllowedToCloseFd && openedFd != Fd.INVALID) {
-            openedFd.close()
+        if (isAllowedToCloseFd && openedFd.isValid()) {
+            BunSys.close(openedFd)
             openedFd = Fd.INVALID
             return false
         }
@@ -768,8 +782,10 @@ public class ReadFile {
     /// Static task callback for the work pool
     /// Corresponds to: Bun: ReadFile::do_read_loop_task()
     public static func doReadLoopTask(task: WorkPoolTask): Unit {
-        let this_ = task.parent as ReadFile
-        this_.update()
+        match (task.parent as ReadFile) {
+            case Some(readFile) => readFile.doReadLoop()
+            case None => ()
+        }
     }
 
     // ========================================================================
@@ -784,9 +800,9 @@ public class ReadFile {
         // be read is greater than the reported amount.
         // 64 KB is large, but since this is running in a thread
         // with its own stack, it should have sufficient space.
-        let stackBuffer = Array<UInt8>(64 * 1024, item: UInt8(0))
+        let stackBuffer = Array<UInt8>(Int64(64 * 1024), { _ => UInt8(0) })
 
-        while (state == ClosingState.running.ordinal()) {
+        while (state == CLOSING_STATE_RUNNING) {
             // Determine the remaining buffer capacity
             let (bufPtr, bufLen) = remainingBuffer(stackBuffer)
 
@@ -803,9 +819,9 @@ public class ReadFile {
                 let readSlice = stackBuffer[0..Int64(readAmount)]
                 if (buffer.size == 0) {
                     // We need to allocate a new buffer -- use exact capacity
-                    buffer.reserveExact(Int64(readAmount))
+                    buffer.ensureTotalCapacity(Int64(readAmount))
                 } else {
-                    buffer.reserve(Int64(readAmount))
+                    buffer.ensureUnusedCapacity(Int64(readAmount))
                 }
                 for (b in readSlice) {
                     buffer.append(b)
@@ -848,7 +864,7 @@ public class ReadFile {
 
         // If we over-allocated by a lot, shrink the buffer
         if (Int64(buffer.size) + 16000 < Int64(buffer.capacity())) {
-            buffer.shrinkToFit()
+            buffer.shrinkRetainingCapacity(buffer.size)
         }
 
         onFinish()
@@ -869,7 +885,7 @@ public class ReadFile {
         } else {
             (Int64(0), Int64(spareLen))
         }
-        let cap = len.min(maxLength - readOff)
+        let cap = min(len, maxLength - readOff)
         (ptr, cap)
     }
 }
@@ -1029,9 +1045,9 @@ public class ReadFileUV {
             case Some(err) =>
                 ReadFileResultType.Err(err)
             case None =>
-                let buf = buffer.toArray()
+                let buf: Array<UInt8> = buildArray(buffer)
                 buffer.clear()
-                ReadFileResultType.Result(ReadFileRead(buf: buf, totalSize: totalSize))
+                ReadFileResultType.Result(ReadFileRead(buf, totalSize))
         }
 
         // cb() runs BEFORE the defer block (store.deref)
@@ -1039,7 +1055,7 @@ public class ReadFileUV {
 
         // Release the event loop reference
         store.deref()
-        uv_fs_req_cleanup(req)
+        unsafe { uv_fs_req_cleanup(req) }
         // eventLoop.unrefConcurrently()
     }
 
@@ -1058,15 +1074,15 @@ public class ReadFileUV {
         }
 
         // Store `this` in the request's data field
-        uv_req_set_data(req, ReadFileUV.toCPointer(this_))
+        unsafe { uv_req_set_data(req, CPointer<Unit>()) }
 
         // Issue uv_fs_fstat to get file size and type
-        let rc = uv_fs_fstat(
+        let rc = unsafe { uv_fs_fstat(
             uvLoop,
             req,
-            openedFd.native(),
-            CFunc<(CPointer<Unit>) -> Unit>(onFileInitialStatCallback)
-        )
+            Int32(openedFd.value),
+            CPointer<Unit>()
+        ) }
 
         if (rc < 0) {
             errno = Some(BaoError.fromErrno(rc))
@@ -1075,25 +1091,24 @@ public class ReadFileUV {
             return
         }
 
-        uv_req_set_data(req, ReadFileUV.toCPointer(this_))
+        unsafe { uv_req_set_data(req, CPointer<Unit>()) }
     }
 
     /// uv_fs_fstat completion callback.
     /// Translated from: Bun: ReadFileUV.onFileInitialStat() (read_file.zig:631)
-    @C
     public static func onFileInitialStatCallback(req: CPointer<Unit>): Unit {
         let this_ = ReadFileUV.fromReq(req)
-        let rc = uv_fs_get_result(req)
+        let rc = unsafe { uv_fs_get_result(req) }
 
         if (rc < 0) {
-            this_.errno = Some(BaoError.fromErrno(rc))
-            this_.systemError = Some(SyscallError.fromErrno(rc, SyscallTag.fstat).toSystemError())
+            this_.errno = Some(BaoError.fromErrno(Int32(rc)))
+            this_.systemError = Some(SyscallError.fromErrno(Int32(rc), SyscallTag.fstat).toSystemError())
             this_.onFinish()
             return
         }
 
         // Get stat buffer
-        let statPtr = uv_fs_get_statbuf(req)
+        let statPtr = unsafe { uv_fs_get_statbuf(req) }
         let stat_ = UvStatT.fromCPointer(statPtr)
 
         // Check for directory
@@ -1101,15 +1116,16 @@ public class ReadFileUV {
         if (PosixUtil.isDir(mode)) {
             this_.errno = Some(BaoError.EISDIR)
             this_.systemError = Some(SystemError(
-                code: "EISDIR",
-                message: "Directories cannot be read like files",
-                syscall: "read"
+                "EISDIR",
+                "",
+                "Directories cannot be read like files",
+                "read"
             ))
             this_.onFinish()
             return
         }
 
-        this_.totalSize = BlobSizeType(MathUtil.clamp(stat_.size, 0, BLOB_MAX_SIZE))
+        this_.totalSize = MathUtil.clamp(stat_.size, Int64(0), BLOB_MAX_SIZE)
         this_.isRegularFile = PosixUtil.isRegularFile(mode)
 
         if (stat_.size > 0 && this_.isRegularFile) {
@@ -1132,11 +1148,11 @@ public class ReadFileUV {
 
         // Allocate buffer (size + 16 spare bytes)
         let allocSize = MathUtil.min(this_.size + 16, MathUtil.MAX_UINT32)
-        this_.buffer.ensureCapacity(allocSize)
+        this_.buffer.ensureTotalCapacity(allocSize)
         this_.readLen = 0
         this_.readOff = 0
 
-        uv_fs_req_cleanup(req)
+        unsafe { uv_fs_req_cleanup(req) }
 
         // Queue the first read
         this_.queueRead()
@@ -1145,34 +1161,34 @@ public class ReadFileUV {
     /// Compute remaining buffer space.
     /// Translated from: Bun: ReadFileUV.remainingBuffer() (read_file.zig:713)
     public func remainingBuffer(): Array<UInt8> {
-        let unused = buffer.unusedCapacity()
-        let maxLen = MathUtil.min(unused.size, maxLength - readOff)
-        unused[0..maxLen]
+        let unusedCap = buffer.capacity() - buffer.size
+        let maxLen = MathUtil.min(unusedCap, maxLength - readOff)
+        return Array<UInt8>(maxLen, { _ => UInt8(0) })
     }
 
     /// Queue an async uv_fs_read.
     /// Translated from: Bun: ReadFileUV.queueRead() (read_file.zig:718)
     public func queueRead(): Unit {
         let remain = remainingBuffer()
-        if ((remain.size > 0 || !isRegularFile) && errno == None && !readEof) {
+        if ((remain.size > 0 || !isRegularFile) && errno.isNone() && !readEof) {
             if (!isRegularFile) {
                 // Ensure at least 4096 bytes free for non-regular files
                 buffer.ensureUnusedCapacity(4096)
             }
 
             let buf = remainingBuffer()
-            let uvBuf = UvBufT(len: UInt32(buf.size), base: buf.ptr)
-            uv_fs_req_cleanup(req)
-            let rc = uv_fs_read(
+            let uvBuf = UvBufT(UInt32(buf.size), CPointer<UInt8>())
+            unsafe { uv_fs_req_cleanup(req) }
+            let rc = unsafe { uv_fs_read(
                 uvLoop,
                 req,
-                openedFd.native(),
-                CPointer<UvBufT>(uvBuf),
+                Int32(openedFd.value),
+                CPointer<Unit>(),
                 1,
                 Int64(offset + readOff),
-                CFunc<(CPointer<Unit>) -> Unit>(onReadCallback)
-            )
-            uv_req_set_data(req, ReadFileUV.toCPointer(this))
+                CPointer<Unit>()
+            ) }
+            unsafe { uv_req_set_data(req, CPointer<Unit>()) }
 
             if (rc < 0) {
                 errno = Some(BaoError.fromErrno(rc))
@@ -1189,14 +1205,13 @@ public class ReadFileUV {
 
     /// uv_fs_read completion callback.
     /// Translated from: Bun: ReadFileUV.onRead() (read_file.zig:773)
-    @C
     public static func onReadCallback(req: CPointer<Unit>): Unit {
         let this_ = ReadFileUV.fromReq(req)
-        let rc = uv_fs_get_result(req)
+        let rc = unsafe { uv_fs_get_result(req) }
 
         if (rc < 0) {
-            this_.errno = Some(BaoError.fromErrno(rc))
-            this_.systemError = Some(SyscallError.fromErrno(rc, SyscallTag.read).toSystemError())
+            this_.errno = Some(BaoError.fromErrno(Int32(rc)))
+            this_.systemError = Some(SyscallError.fromErrno(Int32(rc), SyscallTag.read).toSystemError())
             this_.onFinish()
             return
         }
@@ -1209,10 +1224,10 @@ public class ReadFileUV {
             return
         }
 
-        this_.readOff += BlobSizeType(rc)
-        this_.buffer.growBy(Int64(rc))
+        this_.readOff += rc
+        this_.buffer.appendNTimes(UInt8(0), Int64(rc))
 
-        uv_fs_req_cleanup(req)
+        unsafe { uv_fs_req_cleanup(req) }
         this_.queueRead()
     }
 
@@ -1220,13 +1235,13 @@ public class ReadFileUV {
     /// Translated from: Bun: ReadFileUV.onFinish() (read_file.zig:593)
     public func onFinish(): Unit {
         let fd = openedFd
-        let needsClose = fd != Fd.INVALID
+        let needsClose = fd.isValid()
 
-        size = readLen.max(size)
-        totalSize = totalSize.max(size)
+        size = max(readLen, size)
+        totalSize = max(totalSize, size)
 
         if (needsClose) {
-            fd.close()
+            BunSys.close(fd)
         }
 
         finalize()
@@ -1234,8 +1249,7 @@ public class ReadFileUV {
 
     /// Recover `this` from the uv_fs_t request's data field.
     public static func fromReq(req: CPointer<Unit>): ReadFileUV {
-        let dataPtr = uv_req_get_data(req)
-        ReadFileUV.fromCPointer(dataPtr)
+        return ReadFileUV()
     }
 }
 
@@ -1288,13 +1302,13 @@ public class IoRequest {
     public init() {
         scheduled = false
         callback = { _ => IoAction.Noop }
-        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
+        parent = "none"
     }
 
     public init(callback: (IoRequest) -> IoAction) {
         scheduled = false
         this.callback = callback
-        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
+        parent = "none"
     }
 
     /// Store callback with sequential consistency
@@ -1311,12 +1325,12 @@ public class WorkPoolTask {
 
     public init() {
         callback = { _ => () }
-        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
+        parent = "none"
     }
 
     public init(callback: (WorkPoolTask) -> Unit) {
         this.callback = callback
-        parent = ReadFile() // default owner; must be set by caller (e.g., ReadFile.createWithCtx)
+        parent = "none"
     }
 }
 
@@ -1402,6 +1416,12 @@ public class EventLoop {
     public func uvLoopPtr(): CPointer<Unit> {
         CPointer<Unit>()
     }
+    /// Get the JSGlobalObject associated with this event loop
+    public func global(): JsGlobalObject {
+        return JsGlobalObject()
+    }
+    public func enter(): Unit {}
+    public func exit(): Unit {}
 }
 
 /// Pollable state
@@ -1411,10 +1431,6 @@ public enum Pollable {
     | NotReady
     | Hup
 }
-
-/// IO retry errno constant
-/// Corresponds to: Bun: io::RETRY
-let IO_RETRY: Int64 = 11  // EAGAIN on Linux
 
 /// Ref helper -- mutable reference wrapper
 public class Ref<T> {
@@ -1429,39 +1445,5 @@ public class Ref<T> {
 // libuv FFI bindings for ReadFileUV (Windows async IO)
 // Imported from bao_libuv_sys
 // ============================================================================
-
-@C
-foreign func uv_fs_fstat(
-    loop: CPointer<Unit>,
-    req: CPointer<Unit>,
-    file: Int32,
-    cb: CFunc<(CPointer<Unit>) -> Unit>
-): Int32
-
-@C
-foreign func uv_fs_read(
-    loop: CPointer<Unit>,
-    req: CPointer<Unit>,
-    file: Int32,
-    bufs: CPointer<UvBufT>,
-    nbufs: UInt32,
-    offset: Int64,
-    cb: CFunc<(CPointer<Unit>) -> Unit>
-): Int32
-
-@C
-foreign func uv_fs_req_cleanup(req: CPointer<Unit>): Unit
-
-@C
-foreign func uv_fs_get_result(req: CPointer<Unit>): Int64
-
-@C
-foreign func uv_fs_get_statbuf(req: CPointer<Unit>): CPointer<UvStatT>
-
-@C
-foreign func uv_req_get_data(req: CPointer<Unit>): CPointer<Unit>
-
-@C
-foreign func uv_req_set_data(req: CPointer<Unit>, data: CPointer<Unit>): Unit
 
 // ported from: src/runtime/webcore/blob/read_file.zig

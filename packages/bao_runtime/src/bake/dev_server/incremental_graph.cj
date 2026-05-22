@@ -106,7 +106,7 @@ public class IncrementalGraph {
         var code: UInt64 = 0
         var source_maps: UInt64 = 0
         graph += DevServer.memoryCostArrayHashMap(bundled_files)
-        graph += stale_files.bytes().length
+        graph += stale_files.bytes().size
         graph += DevServer.memoryCostArrayList(first_dep)
         graph += DevServer.memoryCostArrayList(first_import)
         graph += DevServer.memoryCostArrayList(edges)
@@ -119,7 +119,7 @@ public class IncrementalGraph {
     /// 获取文件索引
     public func getFileIndex(path: String): ?FileIndex {
         if (let Some(i) <- bundled_files.getIndex(path)) {
-            return FileIndex.`init`(i)
+            return FileIndex(i)
         }
         return None
     }
@@ -143,7 +143,7 @@ public class IncrementalGraph {
         let key = path.keyForIncrementalGraph()
 
         let gop = bundled_files.getOrPut(dev.allocator(), key)
-        let file_index = FileIndex.`init`(gop.index)
+        let file_index = FileIndex(gop.index)
 
         if (!gop.found_existing) {
             gop.key_ptr = dev.allocator().dupe(key)
@@ -265,7 +265,7 @@ public class IncrementalGraph {
                 }
                 if (goal == TraceImportGoal.find_client_modules) {
                     current_chunk_parts.append(allocator(), file_index)
-                    current_chunk_len += file.jsCode()?.length ?? 0
+                    current_chunk_len += file.jsCode()?.size ?? 0
                 }
         }
 
@@ -289,7 +289,7 @@ public class IncrementalGraph {
         let dev_alloc = allocator()
 
         let gop = bundled_files.getOrPut(dev_alloc, abs_path)
-        let file_index = FileIndex.`init`(gop.index)
+        let file_index = FileIndex(gop.index)
 
         if (!gop.found_existing) {
             gop.key_ptr = dev_alloc.dupe(abs_path)
@@ -315,7 +315,7 @@ public class IncrementalGraph {
             first_import.append(dev_alloc, EdgeIndex.Optional.none)
             ensureStaleBitCapacity(true)
         }
-        return (FileIndex.`init`(gop.index), gop.key_ptr)
+        return (FileIndex(gop.index), gop.key_ptr)
     }
 
     /// 使文件失效
@@ -352,8 +352,8 @@ public class IncrementalGraph {
         let runtime: HmrRuntime = match (options.kind) {
             case initial_response => bake.getHmrRuntime(side)
             case hmr_chunk => match (side) {
-                case server => HmrRuntime.`init`("({")
-                case client => HmrRuntime.`init`("self[Symbol.for(\"bun:hmr\")]({\n")
+                case server => HmrRuntime("({")
+                case client => HmrRuntime("self[Symbol.for(\"bun:hmr\")]({\n")
             }
         }
 
@@ -379,9 +379,9 @@ public class IncrementalGraph {
         match (side) {
             case client =>
                 let files = bundled_files.values()
-                var file_paths: ArrayListUnmanaged<String> = ArrayListUnmanaged<String>.initCapacity(gpa, current_chunk_parts.items.length)
+                var file_paths: ArrayListUnmanaged<String> = ArrayListUnmanaged<String>.initCapacity(gpa, current_chunk_parts.items.size)
                 var contained_maps: MultiArrayList<PackedMap.Shared> = MultiArrayList<PackedMap.Shared>.empty
-                contained_maps.ensureTotalCapacity(gpa, current_chunk_parts.items.length)
+                contained_maps.ensureTotalCapacity(gpa, current_chunk_parts.items.size)
 
                 for (file_index in current_chunk_parts.items) {
                     file_paths.appendAssumeCapacity(paths[file_index.get()])
@@ -393,9 +393,9 @@ public class IncrementalGraph {
                 out.files = contained_maps
 
             case server =>
-                var file_paths: ArrayListUnmanaged<String> = ArrayListUnmanaged<String>.initCapacity(gpa, current_chunk_parts.items.length)
+                var file_paths: ArrayListUnmanaged<String> = ArrayListUnmanaged<String>.initCapacity(gpa, current_chunk_parts.items.size)
                 var contained_maps: MultiArrayList<PackedMap.Shared> = MultiArrayList<PackedMap.Shared>.empty
-                contained_maps.ensureTotalCapacity(gpa, current_chunk_parts.items.length)
+                contained_maps.ensureTotalCapacity(gpa, current_chunk_parts.items.size)
 
                 for (item in current_chunk_source_maps.items) {
                     file_paths.appendAssumeCapacity(paths[item.file_index.get()])
@@ -465,15 +465,15 @@ public class IncrementalGraph {
             edges.items[index.get()] = edge
             return index
         }
-        let index = EdgeIndex.`init`(edges.items.length)
+        let index = EdgeIndex(edges.items.size)
         edges.append(allocator(), edge)
         return index
     }
 
     /// 释放边
     func freeEdge(edge_index: EdgeIndex): Unit {
-        if (edge_index.get() == edges.items.length - 1) {
-            edges.items.length -= 1
+        if (edge_index.get() == edges.items.size - 1) {
+            edges.items.size -= 1
         } else {
             edges_free_list.append(allocator(), edge_index)
         }

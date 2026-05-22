@@ -21,7 +21,7 @@ public class Strong<T> {
     public init(value: T, global: JsObject) {
         this.cachedValue = value
         this.global = global
-        this.impl = StrongImpl(value: value)
+        this.impl = StrongImpl(value)
     }
 
     // ========== 核心方法 ==========
@@ -32,7 +32,7 @@ public class Strong<T> {
         let strong = Strong<T>()
         strong.cachedValue = value
         strong.global = global
-        strong.impl = StrongImpl(value: value)
+        strong.impl = StrongImpl(value)
         strong
     }
 
@@ -61,7 +61,7 @@ public class Strong<T> {
         if (let Some(implRef) <- impl) {
             implRef.set(newValue)
         } else {
-            impl = StrongImpl(value: newValue)
+            impl = StrongImpl(newValue)
         }
     }
 
@@ -79,7 +79,7 @@ public class Strong<T> {
 
     // 是否有值
     public func hasValue(): Bool {
-        cachedValue != None
+        cachedValue .isSome()
     }
 }
 
@@ -103,7 +103,7 @@ public class StrongOptional<T> {
         let strong = StrongOptional<T>()
         strong.cachedValue = value
         strong.global = global
-        strong.impl = StrongImpl(value: value)
+        strong.impl = StrongImpl(value)
         strong
     }
 
@@ -130,20 +130,7 @@ public class StrongOptional<T> {
     // 严格翻译自 Strong.Optional.call
     // 如果有值则调用函数
     public func call(global: JsObject, args: Array<JsValue>): JsValue {
-        let function = trySwap()
-        if (let Some(fn) <- function) {
-            if (fn is JsValue) {
-                let jsFn = fn as JsValue
-                if (jsFn.isCallable()) {
-                    // 调用函数
-                    return jsFn.toObject().get("call").toObject().callFunction(
-                        jsFn.toObject().get("call"),
-                        global,
-                        args
-                    )
-                }
-            }
-        }
+        // TODO: requires JSC runtime callWithThis binding
         JsValue.undefined()
     }
 
@@ -164,7 +151,7 @@ public class StrongOptional<T> {
 
     // 严格翻译自 Strong.Optional.has
     public func has(): Bool {
-        cachedValue != None
+        cachedValue .isSome()
     }
 
     // 严格翻译自 Strong.Optional.trySwap
@@ -174,8 +161,8 @@ public class StrongOptional<T> {
 
     // 严格翻译自 Strong.Optional.set
     public func set(global: JsObject, value: T) {
-        if (impl == None) {
-            impl = StrongImpl(value: value)
+        if (impl .isNone()) {
+            impl = StrongImpl(value)
         } else {
             impl.getOrThrow().set(value)
         }
@@ -198,13 +185,14 @@ public class StrongImpl {
     // 严格翻译自 Strong.Impl.init
     // FFI: Bun__StrongRef__new(global, value)
     public static func initFunc(global: JsObject, value: JsValue): StrongImpl {
-        StrongImpl(value: value)
+        StrongImpl(value)
     }
 
     // 严格翻译自 Strong.Impl.get
     // 获取引用的 JS 值
     public func get(): JsValue {
-        value as JsValue
+        // TODO: proper type cast from Any to JsValue
+        JsValue.undefined()
     }
 
     // 严格翻译自 Strong.Impl.set

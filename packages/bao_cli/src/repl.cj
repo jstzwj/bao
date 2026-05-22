@@ -41,30 +41,30 @@ private let TAB_WIDTH: Int64 = 2
 
 /// ANSI 颜色代码
 private class Color {
-    public static let reset = "\u001b[0m"
-    public static let bold = "\u001b[1m"
-    public static let dim = "\u001b[2m"
-    public static let red = "\u001b[31m"
-    public static let green = "\u001b[32m"
-    public static let yellow = "\u001b[33m"
-    public static let blue = "\u001b[34m"
-    public static let magenta = "\u001b[35m"
-    public static let cyan = "\u001b[36m"
-    public static let white = "\u001b[37m"
+    public static let reset = "\u{001b}[0m"
+    public static let bold = "\u{001b}[1m"
+    public static let dim = "\u{001b}[2m"
+    public static let red = "\u{001b}[31m"
+    public static let green = "\u{001b}[32m"
+    public static let yellow = "\u{001b}[33m"
+    public static let blue = "\u{001b}[34m"
+    public static let magenta = "\u{001b}[35m"
+    public static let cyan = "\u{001b}[36m"
+    public static let white = "\u{001b}[37m"
 }
 
 /// 光标控制代码
 private class CursorControl {
-    public static let hide = "\u001b[?25l"
-    public static let show = "\u001b[?25h"
-    public static let save = "\u001b7"
-    public static let restore = "\u001b8"
-    public static let home = "\u001b[H"
-    public static let clearLine = "\u001b[2K"
-    public static let clearToEnd = "\u001b[0K"
-    public static let clearToStart = "\u001b[1K"
-    public static let clearScreen = "\u001b[2J"
-    public static let clearScrollback = "\u001b[3J"
+    public static let hide = "\u{001b}[?25l"
+    public static let show = "\u{001b}[?25h"
+    public static let save = "\u{001b}7"
+    public static let restore = "\u{001b}8"
+    public static let home = "\u{001b}[H"
+    public static let clearLine = "\u{001b}[2K"
+    public static let clearToEnd = "\u{001b}[0K"
+    public static let clearToStart = "\u{001b}[1K"
+    public static let clearScreen = "\u{001b}[2J"
+    public static let clearScrollback = "\u{001b}[3J"
 }
 
 // ============================================================================
@@ -122,7 +122,7 @@ public enum Key {
     /// 从字节解析按键
     /// 对应 Bun: Key.fromByte
     public static func fromByte(byte: UInt8): Key {
-        when (byte) {
+        match (byte) {
             case 1 => return Key.ctrlA
             case 2 => return Key.ctrlB
             case 3 => return Key.ctrlC
@@ -137,16 +137,17 @@ public enum Key {
             case 20 => return Key.ctrlT
             case 21 => return Key.ctrlU
             case 23 => return Key.ctrlW
-            case 8, 127 => return Key.backspace
+            case 8 => return Key.backspace
+            case 127 => return Key.backspace
             case 9 => return Key.tab
-            case 10, 13 => return Key.enter
+            case 10 => return Key.enter
+            case 13 => return Key.enter
             case 27 => return Key.escape
-            case _ => {
+            case _ =>
                 if (byte >= 32 && byte <= 126) {
                     return Key.char_(byte)
                 }
                 return Key.unknown
-            }
         }
     }
 }
@@ -173,11 +174,11 @@ public class History {
     /// 对应 Bun: History.load
     public func load(): Unit {
         let homePath = EnvVar.HOME.get()
-        if (homePath == None || homePath!!.length == 0) {
+        if (homePath == None || homePath.getOrThrow().length == 0) {
             return
         }
 
-        let path = Path.join([homePath!!, HISTORY_FILENAME])
+        let path = Path.join([homePath.getOrThrow(), HISTORY_FILENAME])
         filePath = path
 
         let content = BaoFile.readAllText(path)
@@ -185,7 +186,7 @@ public class History {
             return
         }
 
-        let lines = content!!.split('\n')
+        let lines = content.getOrThrow().split('\n')
         for (line in lines) {
             if (line.length > 0) {
                 entries.append(line)
@@ -206,7 +207,10 @@ public class History {
         if (!modified) {
             return
         }
-        let path = filePath ?: return
+        let path = match (filePath) {
+            case Some(v) => v
+            case None => return
+        }
 
         let start = if (entries.size > MAX_HISTORY_SIZE) {
             entries.size - MAX_HISTORY_SIZE
@@ -614,7 +618,7 @@ public class ReplCommandHandlers {
         }
 
         repl.print("${Color.dim}Loading ${filename}...${Color.reset}\n")
-        repl.evaluateAndPrint(content!!)
+        repl.evaluateAndPrint(content.getOrThrow())
         return ReplResult.skipEval
     }
 
@@ -783,28 +787,40 @@ public class Repl {
     /// 读取按键
     /// 对应 Bun: Repl.readKey
     public func readKey(): ?Key {
-        let byte = readByte() ?: return None
+        let byte = match (readByte()) {
+            case Some(v) => v
+            case None => return None
+        }
 
         // 处理转义序列
         if (byte == 27) { // ESC
-            let second = readByte() ?: return Key.escape
+            let second = match (readByte()) {
+                case Some(v) => v
+                case None => return Key.escape
+            }
 
             if (second == '['.toUInt8()) { // CSI
-                let third = readByte() ?: return Key.escape
+                let third = match (readByte()) {
+                    case Some(v) => v
+                    case None => return Key.escape
+                }
 
-                when (third) {
+                match (third) {
                     case 'A'.toUInt8() => return Key.arrowUp
                     case 'B'.toUInt8() => return Key.arrowDown
                     case 'C'.toUInt8() => return Key.arrowRight
                     case 'D'.toUInt8() => return Key.arrowLeft
                     case 'H'.toUInt8() => return Key.home
                     case 'F'.toUInt8() => return Key.end
-                    case _ => {
+                    case _ =>
                         // 处理数字后跟 ~
                         if (third >= '1'.toUInt8() && third <= '6'.toUInt8()) {
-                            let fourth = readByte() ?: return Key.unknown
+                            let fourth = match (readByte()) {
+                                case Some(v) => v
+                                case None => return Key.unknown
+                            }
                             if (fourth == '~'.toUInt8()) {
-                                when (third) {
+                                match (third) {
                                     case '1'.toUInt8() => return Key.home
                                     case '3'.toUInt8() => return Key.delete
                                     case '4'.toUInt8() => return Key.end
@@ -813,10 +829,16 @@ public class Repl {
                                     case _ => return Key.unknown
                                 }
                             } else if (fourth == ';'.toUInt8()) {
-                                let mod = readByte() ?: return Key.unknown
-                                let dir = readByte() ?: return Key.unknown
+                                let mod = match (readByte()) {
+                                    case Some(v) => v
+                                    case None => return Key.unknown
+                                }
+                                let dir = match (readByte()) {
+                                    case Some(v) => v
+                                    case None => return Key.unknown
+                                }
                                 if (mod == '5'.toUInt8() || mod == '3'.toUInt8()) {
-                                    when (dir) {
+                                    match (dir) {
                                         case 'C'.toUInt8() => return Key.altRight
                                         case 'D'.toUInt8() => return Key.altLeft
                                         case _ => return Key.unknown
@@ -826,11 +848,13 @@ public class Repl {
                             }
                         }
                         return Key.unknown
-                    }
                 }
             } else if (second == 'O'.toUInt8()) { // SS3
-                let third = readByte() ?: return Key.escape
-                when (third) {
+                let third = match (readByte()) {
+                    case Some(v) => v
+                    case None => return Key.escape
+                }
+                match (third) {
                     case 'H'.toUInt8() => return Key.home
                     case 'F'.toUInt8() => return Key.end
                     case _ => return Key.unknown
@@ -861,7 +885,7 @@ public class Repl {
         if (inMultiline || editorMode) {
             return if (useColors) "${Color.dim}... ${Color.reset}" else "... "
         }
-        return if (useColors) "${Color.dim}\u276f${Color.reset} " else "> "
+        return if (useColors) "${Color.dim}\u{276f}${Color.reset} " else "> "
     }
 
     /// 获取提示符长度
@@ -901,7 +925,7 @@ public class Repl {
         if (cursorPos < terminalWidth) {
             write("\r")
             if (cursorPos > 0) {
-                write("\u001b[${cursorPos}C")
+                write("\u{001b}[${cursorPos}C")
             }
         }
 
@@ -965,7 +989,7 @@ public class Repl {
             }
 
             // 计数括号
-            when (char) {
+            match (char) {
                 case '{' => braceCount += 1
                 case '}' => braceCount -= 1
                 case '[' => bracketCount += 1
@@ -982,8 +1006,14 @@ public class Repl {
     /// 评估并打印结果
     /// 对应 Bun: Repl.evaluateAndPrint
     public func evaluateAndPrint(code: String): Unit {
-        let global = this.global ?: return
-        let vm = this.vm ?: return
+        let global = match (this.global) {
+            case Some(v) => v
+            case None => return
+        }
+        let vm = match (this.vm) {
+            case Some(v) => v
+            case None => return
+        }
 
         // 转换代码
         let transformedCode = transformForRepl(code)
@@ -993,7 +1023,7 @@ public class Repl {
         }
 
         // 评估
-        val (result, exception) = JscREPL.evaluate(global, transformedCode!!, "[repl]")
+        val (result, exception) = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
 
         // 检查异常
         if (!exception.isUndefined() && !exception.isNull()) {
@@ -1006,7 +1036,7 @@ public class Repl {
         var resolvedResult = result
         let promise = result.asPromise()
         if (promise != None) {
-            promise!!.setHandled()
+            promise.getOrThrow().setHandled()
             vm.waitForPromise(promise)
 
             if (vm.executionForbidden()) {
@@ -1016,20 +1046,17 @@ public class Repl {
                 return
             }
 
-            when (promise!!.status()) {
-                case PromiseStatus.fulfilled => {
-                    resolvedResult = promise!!.result()
-                }
-                case PromiseStatus.rejected => {
-                    let rejection = promise!!.result()
+            match (promise.getOrThrow().status()) {
+                case PromiseStatus.fulfilled =>
+                    resolvedResult = promise.getOrThrow().result()
+                case PromiseStatus.rejected =>
+                    let rejection = promise.getOrThrow().result()
                     setLastError(rejection)
                     printJSError(rejection)
                     return
-                }
-                case PromiseStatus.pending => {
+                case PromiseStatus.pending =>
                     print("\n")
                     return
-                }
             }
         }
 
@@ -1038,7 +1065,7 @@ public class Repl {
         if (resolvedResult.isObject()) {
             let maybeValue = resolvedResult.getOwn(global, "value")
             if (maybeValue != None) {
-                actualResult = maybeValue!!
+                actualResult = maybeValue.getOrThrow()
             }
         }
 
@@ -1065,8 +1092,14 @@ public class Repl {
     /// 评估脚本 (非交互式, 用于 -e/--eval)
     /// 对应 Bun: Repl.evalScript
     public func evalScript(code: String, printResult: Bool): Bool {
-        let global = this.global ?: return true
-        let vm = this.vm ?: return true
+        let global = match (this.global) {
+            case Some(v) => v
+            case None => return true
+        }
+        let vm = match (this.vm) {
+            case Some(v) => v
+            case None => return true
+        }
 
         let noColor = EnvVar.NO_COLOR.get()
         useColors = Output.enableAnsiColorsStdout && !noColor
@@ -1092,7 +1125,7 @@ public class Repl {
             return true
         }
 
-        val (result, exception) = JscREPL.evaluate(global, transformedCode!!, "[eval]")
+        val (result, exception) = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[eval]")
 
         if (!exception.isUndefined() && !exception.isNull()) {
             printJSError(exception)
@@ -1103,14 +1136,13 @@ public class Repl {
         var resolvedResult = result
         let promise = result.asPromise()
         if (promise != None) {
-            promise!!.setHandled()
+            promise.getOrThrow().setHandled()
             vm.waitForPromise(promise)
-            when (promise!!.status()) {
-                case PromiseStatus.fulfilled => resolvedResult = promise!!.result()
-                case PromiseStatus.rejected => {
-                    printJSError(promise!!.result())
+            match (promise.getOrThrow().status()) {
+                case PromiseStatus.fulfilled => resolvedResult = promise.getOrThrow().result()
+                case PromiseStatus.rejected =>
+                    printJSError(promise.getOrThrow().result())
                     return true
-                }
                 case PromiseStatus.pending => return true
             }
         }
@@ -1119,7 +1151,7 @@ public class Repl {
         if (resolvedResult.isObject()) {
             let maybeValue = resolvedResult.getOwn(global, "value")
             if (maybeValue != None) {
-                actualResult = maybeValue!!
+                actualResult = maybeValue.getOrThrow()
             }
         }
 
@@ -1147,7 +1179,10 @@ public class Repl {
     /// 原始评估 (无 REPL 转换)
     /// 对应 Bun: Repl.evaluateRaw
     public func evaluateRaw(code: String): Unit {
-        let global = this.global ?: return
+        let global = match (this.global) {
+            case Some(v) => v
+            case None => return
+        }
 
         val (result, exception) = JscREPL.evaluate(global, code, "[repl]")
 
@@ -1170,15 +1205,21 @@ public class Repl {
         }
 
         if (vm != None) {
-            vm!!.tick()
+            vm.getOrThrow().tick()
         }
     }
 
     /// 评估并复制到剪贴板
     /// 对应 Bun: Repl.evaluateAndCopy
     public func evaluateAndCopy(code: String): Unit {
-        let global = this.global ?: return
-        let vm = this.vm ?: return
+        let global = match (this.global) {
+            case Some(v) => v
+            case None => return
+        }
+        let vm = match (this.vm) {
+            case Some(v) => v
+            case None => return
+        }
 
         let transformedCode = transformForRepl(code)
         if (transformedCode == None) {
@@ -1186,7 +1227,7 @@ public class Repl {
             return
         }
 
-        val (result, exception) = JscREPL.evaluate(global, transformedCode!!, "[repl]")
+        val (result, exception) = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
 
         if (!exception.isUndefined() && !exception.isNull()) {
             setLastError(exception)
@@ -1197,15 +1238,14 @@ public class Repl {
         var resolvedResult = result
         let promise = result.asPromise()
         if (promise != None) {
-            promise!!.setHandled()
+            promise.getOrThrow().setHandled()
             vm.waitForPromise(promise)
-            when (promise!!.status()) {
-                case PromiseStatus.fulfilled => resolvedResult = promise!!.result()
-                case PromiseStatus.rejected => {
-                    setLastError(promise!!.result())
-                    printJSError(promise!!.result())
+            match (promise.getOrThrow().status()) {
+                case PromiseStatus.fulfilled => resolvedResult = promise.getOrThrow().result()
+                case PromiseStatus.rejected =>
+                    setLastError(promise.getOrThrow().result())
+                    printJSError(promise.getOrThrow().result())
                     return
-                }
                 case PromiseStatus.pending => return
             }
         }
@@ -1214,7 +1254,7 @@ public class Repl {
         if (resolvedResult.isObject()) {
             let maybeValue = resolvedResult.getOwn(global, "value")
             if (maybeValue != None) {
-                actualResult = maybeValue!!
+                actualResult = maybeValue.getOrThrow()
             }
         }
 
@@ -1230,7 +1270,10 @@ public class Repl {
     /// 为 REPL 转换代码
     /// 对应 Bun: Repl.transformForRepl
     public func transformForRepl(code: String): ?String {
-        let vm = this.vm ?: return None
+        let vm = match (this.vm) {
+            case Some(v) => v
+            case None => return None
+        }
 
         if (code.length == 0 || code.trim(" \t\n\r").length == 0) {
             return None
@@ -1308,11 +1351,11 @@ public class Repl {
             return
         }
 
-        copyToClipboardOSC52(text!!)
+        copyToClipboardOSC52(text.getOrThrow())
         if (useColors) {
-            print("${Color.dim}Copied ${text!!.length} characters to clipboard${Color.reset}\n")
+            print("${Color.dim}Copied ${text.getOrThrow().length} characters to clipboard${Color.reset}\n")
         } else {
-            print("Copied ${text!!.length} characters to clipboard\n")
+            print("Copied ${text.getOrThrow().length} characters to clipboard\n")
         }
     }
 
@@ -1336,7 +1379,7 @@ public class Repl {
     /// 对应 Bun: Repl.copyToClipboardOSC52
     public func copyToClipboardOSC52(text: String): Unit {
         let encoded = Base64.encode(text)
-        write("\u001b]52;c;${encoded}\u0007")
+        write("\u{001b}]52;c;${encoded}\u{7}")
     }
 
     // ========================================================================
@@ -1354,7 +1397,7 @@ public class Repl {
     public func runWithVM(vm: ?VirtualMachine): Unit {
         this.vm = vm
         if (vm != None) {
-            global = vm!!.global
+            global = vm.getOrThrow().global
         }
 
         setupTerminal()
@@ -1376,17 +1419,17 @@ public class Repl {
                 break
             }
 
-            let k = key!!
+            let k = key.getOrThrow()
 
             // 在任何其他按键时重置双 Ctrl+C 状态
             if (k != Key.ctrlC) {
                 ctrlCPressed = false
             }
 
-            when (k) {
+            match (k) {
                 case Key.enter => handleEnter()
                 case Key.ctrlC => handleCtrlC()
-                case Key.ctrlD => {
+                case Key.ctrlD =>
                     if (editorMode) {
                         print("\n")
                         let code = editorBufferToString()
@@ -1403,93 +1446,73 @@ public class Repl {
                         lineEditor.deleteChar()
                         refreshLine()
                     }
-                }
-                case Key.ctrlL => {
+                case Key.ctrlL =>
                     write(CursorControl.clearScreen)
                     write(CursorControl.home)
                     refreshLine()
-                }
-                case Key.ctrlA => {
+                case Key.ctrlA =>
                     lineEditor.moveToStart()
                     refreshLine()
-                }
-                case Key.ctrlE => {
+                case Key.ctrlE =>
                     lineEditor.moveToEnd()
                     refreshLine()
-                }
-                case Key.ctrlB, Key.arrowLeft => {
+                case Key.ctrlB, Key.arrowLeft =>
                     lineEditor.moveLeft()
                     refreshLine()
-                }
-                case Key.ctrlF, Key.arrowRight => {
+                case Key.ctrlF, Key.arrowRight =>
                     lineEditor.moveRight()
                     refreshLine()
-                }
-                case Key.altB, Key.altLeft => {
+                case Key.altB, Key.altLeft =>
                     lineEditor.moveWordLeft()
                     refreshLine()
-                }
-                case Key.altF, Key.altRight => {
+                case Key.altF, Key.altRight =>
                     lineEditor.moveWordRight()
                     refreshLine()
-                }
-                case Key.ctrlU => {
+                case Key.ctrlU =>
                     lineEditor.deleteToStart()
                     refreshLine()
-                }
-                case Key.ctrlK => {
+                case Key.ctrlK =>
                     lineEditor.deleteToEnd()
                     refreshLine()
-                }
-                case Key.ctrlW, Key.altBackspace => {
+                case Key.ctrlW, Key.altBackspace =>
                     lineEditor.backspaceWord()
                     refreshLine()
-                }
-                case Key.altD => {
+                case Key.altD =>
                     lineEditor.deleteWord()
                     refreshLine()
-                }
-                case Key.ctrlT => {
+                case Key.ctrlT =>
                     lineEditor.swap()
                     refreshLine()
-                }
-                case Key.backspace => {
+                case Key.backspace =>
                     lineEditor.backspace()
                     refreshLine()
-                }
-                case Key.delete => {
+                case Key.delete =>
                     lineEditor.deleteChar()
                     refreshLine()
-                }
-                case Key.arrowUp, Key.ctrlP => {
+                case Key.arrowUp, Key.ctrlP =>
                     let prevLine = history.prev(lineEditor.getLine())
                     if (prevLine != None) {
-                        lineEditor.set(prevLine!!)
+                        lineEditor.set(prevLine.getOrThrow())
                         refreshLine()
                     }
-                }
-                case Key.arrowDown, Key.ctrlN => {
+                case Key.arrowDown, Key.ctrlN =>
                     let nextLine = history.next()
                     if (nextLine != None) {
-                        lineEditor.set(nextLine!!)
+                        lineEditor.set(nextLine.getOrThrow())
                     } else {
                         lineEditor.clear()
                     }
                     refreshLine()
-                }
                 case Key.tab => handleTab()
-                case Key.home => {
+                case Key.home =>
                     lineEditor.moveToStart()
                     refreshLine()
-                }
-                case Key.end => {
+                case Key.end =>
                     lineEditor.moveToEnd()
                     refreshLine()
-                }
-                case Key.char_(c) => {
+                case Key.char_(c) =>
                     lineEditor.insert(c)
                     refreshLine()
-                }
                 case _ => ()
             }
         }
@@ -1531,23 +1554,21 @@ public class Repl {
         // 检查 REPL 命令
         if (line.length > 0 && line[0] == '.') {
             let spaceIdx = line.indexOf(' ')
-            let cmdName = if (spaceIdx >= 0) line.substring(0, spaceIdx) else line
-            let args = if (spaceIdx >= 0) line.substring(spaceIdx + 1) else ""
+            let cmdName = if (spaceIdx >= 0) { line.substring(0, spaceIdx) } else { line }
+            let args = if (spaceIdx >= 0) { line.substring(spaceIdx + 1) } else { "" }
 
             let cmd = ReplCommandDef.find(cmdName)
             if (cmd != None) {
-                let result = cmd!!.handler(this, args)
-                when (result) {
-                    case ReplResult.exitRepl => {
+                let result = cmd.getOrThrow().handler(this, args)
+                match (result) {
+                    case ReplResult.exitRepl =>
                         running = false
                         return
-                    }
-                    case ReplResult.skipEval => {
+                    case ReplResult.skipEval =>
                         lineEditor.clear()
                         history.resetPosition()
                         refreshLine()
                         return
-                    }
                     case ReplResult.continueRepl => ()
                 }
             } else {
@@ -1688,16 +1709,16 @@ public class Repl {
         let prefix = line.substring(wordStart)
 
         // 从全局对象获取补全
-        let completions = JscREPL.getCompletions(global!!, JSValue.jsUndefined(), prefix)
+        let completions = JscREPL.getCompletions(global.getOrThrow(), JSValue.jsUndefined(), prefix)
 
-        if (completions == None || !completions!!.isArray()) {
+        if (completions == None || !completions.getOrThrow().isArray()) {
             lineEditor.insert(' '.toUInt8())
             lineEditor.insert(' '.toUInt8())
             refreshLine()
             return
         }
 
-        let len = completions!!.getLength()
+        let len = completions.getOrThrow().getLength()
         if (len == 0) {
             lineEditor.insert(' '.toUInt8())
             lineEditor.insert(' '.toUInt8())
@@ -1707,7 +1728,7 @@ public class Repl {
 
         if (len == 1) {
             // 单个补全
-            let item = completions!!.getIndex(0)
+            let item = completions.getOrThrow().getIndex(0)
             if (item.isString()) {
                 let completion = item.asString()
                 while (lineEditor.cursor > wordStart) {
@@ -1720,7 +1741,7 @@ public class Repl {
             // 多个补全 - 显示它们
             print("\n")
             for (i in 0..len) {
-                let item = completions!!.getIndex(i)
+                let item = completions.getOrThrow().getIndex(i)
                 if (item.isString()) {
                     print("  ${Color.cyan}${item.asString()}${Color.reset}\n")
                 }

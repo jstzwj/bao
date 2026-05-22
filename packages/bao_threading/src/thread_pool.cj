@@ -256,7 +256,7 @@ public class ThreadPool {
         pendingCount = AtomicInt64(0)
     }
 
-    /// 静态初始化 - 对应 Bun ThreadPool.init(config)
+    /// 静态初始化 - 对应 Bun ThreadPool(config)
     /// 严格翻译自: ThreadPool.zig:77-82
     public static func initFunc(config: ThreadPoolConfig): ThreadPool {
         return ThreadPool(config)

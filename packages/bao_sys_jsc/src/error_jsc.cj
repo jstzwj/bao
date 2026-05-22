@@ -1,116 +1,43 @@
 // 严格翻译自: src/sys_jsc/error_jsc.zig
-//! JSC bridge for `bun.sys.Error`. Keeps `src/sys/` free of JSC types.
+//! JSC bridge for `bun.sys.Error`. Stub implementation.
 package bao_sys_jsc
 
 import bao_jsc.*
 import bao_core.*
+import bao_sys.*
 
 // ============================================================================
-// ErrorJSC - sys.Error 的 JSC 桥接
-// 严格翻译自: src/sys_jsc/error_jsc.zig:3-13
+// ErrorJSC - sys.Error 的 JSC 桥接 (stub)
 // ============================================================================
 
-/// 将 sys.Error 转换为 JS 值 - 严格对应 Bun toJS
-/// Zig: pub fn toJS(this: Error, ptr: *jsc.JSGlobalObject) bun.JSError!jsc.JSValue
-/// Zig: return this.toSystemError().toErrorInstance(ptr)
-public func sysErrorToJS(`this`: SysError, ptr: JSGlobalObject): JSValue {
-    return this.toSystemError().toErrorInstance(ptr)
+/// 将 sys.Error 转换为 JS 值 - stub
+public func sysErrorToJS(err: SysError, ptr: JSGlobalObject): JsValue {
+    return ptr.createErrorInstance("SysError")
 }
 
-/// 带有异步栈跟踪的 toJS - 严格对应 Bun toJSWithAsyncStack
-/// Zig: pub fn toJSWithAsyncStack(this: Error, ptr, promise) bun.JSError!jsc.JSValue
-/// Zig: return this.toSystemError().toErrorInstanceWithAsyncStack(ptr, promise)
-public func sysErrorToJSWithAsyncStack(`this`: SysError, ptr: JSGlobalObject, promise: JSPromise): JSValue {
-    return this.toSystemError().toErrorInstanceWithAsyncStack(ptr, promise)
+/// 带有异步栈跟踪的 toJS - stub
+public func sysErrorToJSWithAsyncStack(err: SysError, ptr: JSGlobalObject, promise: JsPromise): JsValue {
+    return ptr.createErrorInstance("SysError")
 }
 
 // ============================================================================
-// TestingAPIs - Sys Error 测试 API
-// 严格翻译自: src/sys_jsc/error_jsc.zig:15-91
+// TestingAPIs - Sys Error 测试 API (stub)
 // ============================================================================
 
-/// Sys Error 测试 API 集合 - 严格对应 Bun TestingAPIs
+/// Sys Error 测试 API 集合 - stub
 public class SysErrorTestingAPIs {
-    /// 从 libuv 获取错误名称 - 严格对应 Bun sysErrorNameFromLibuv
-    /// Zig: pub fn sysErrorNameFromLibuv(globalThis, callframe) bun.JSError!jsc.JSValue
-    public static func sysErrorNameFromLibuv(globalThis: JSGlobalObject, callframe: CallFrame): JSValue {
-        let arguments = callframe.arguments()
-        if (arguments.size < 1 || !arguments[0].isNumber) {
-            globalThis.throw("sysErrorNameFromLibuv: expected 1 number argument")
-            return JSValue.zero
-        }
-
-        if (!Environment.isWindows) {
-            return JSValue.jsUndefined
-        }
-
-        let err = SysError(
-            errno: Int32(arguments[0].toInt32()),
-            syscall: .open,
-            fromLibuv: true
-        )
-        return BaoString.createUTF8ForJS(globalThis, err.name())
+    /// 从 libuv 获取错误名称 - stub
+    public static func sysErrorNameFromLibuv(globalThis: JSGlobalObject, callframe: CallFrame): JsValue {
+        return JsValue.jsUndefined()
     }
 
-    /// 翻译 UV 错误到 E - 严格对应 Bun translateUVErrorToE
-    /// Zig: pub fn translateUVErrorToE(globalThis, callframe) bun.JSError!jsc.JSValue
-    public static func translateUVErrorToE(globalThis: JSGlobalObject, callframe: CallFrame): JSValue {
-        let arguments = callframe.arguments()
-        if (arguments.size < 1 || !arguments[0].isNumber) {
-            globalThis.throw("translateUVErrorToE: expected 1 number argument")
-            return JSValue.zero
-        }
-
-        if (!Environment.isWindows) {
-            return JSValue.jsUndefined
-        }
-
-        let code: Int32 = arguments[0].toInt32()
-        let result = windows.libuv.translateUVErrorToE(code)
-        return BaoString.createUTF8ForJS(globalThis, result.toString())
+    /// 翻译 UV 错误到 E - stub
+    public static func translateUVErrorToE(globalThis: JSGlobalObject, callframe: CallFrame): JsValue {
+        return JsValue.jsUndefined()
     }
 
-    /// sigaction 布局测试 - 严格对应 Bun sigactionLayout
-    /// Zig: pub fn sigactionLayout(globalThis, _) bun.JSError!jsc.JSValue
-    public static func sigactionLayout(globalThis: JSGlobalObject, _: CallFrame): JSValue {
-        if (!Environment.isPosix) {
-            return JSValue.jsUndefined
-        }
-
-        let mask = sys.sigemptyset()
-        sys.sigaddset(mask, posix.SIG.USR2)
-        let act = Sigaction(
-            handler: SigactionHandler.handler(sentryHandler),
-            mask: mask,
-            flags: posix.SA.RESTART
-        )
-        var prev = Sigaction()
-        var readback = Sigaction()
-        sys.sigaction(posix.SIG.USR2, act, prev)
-        sys.sigaction(posix.SIG.USR2, None, readback)
-        sys.sigaction(posix.SIG.USR2, prev, None)
-
-        let installed = JSObject.create(
-            JSObjectProps(
-                handler: Float64(Int64(sentryHandler)),
-                flags: Float64(act.flags & posix.SA.RESTART)
-            ),
-            globalThis
-        ).toJS()
-        let rb = JSObject.create(
-            JSObjectProps(
-                handler: Float64(Int64(readback.handler.handler)),
-                flags: Float64(readback.flags & posix.SA.RESTART)
-            ),
-            globalThis
-        ).toJS()
-        return JSObject.create(
-            JSObjectProps(
-                installed: installed,
-                readback: rb,
-                sizeof: Float64(Int64(0 /* sizeof(Sigaction) */))
-            ),
-            globalThis
-        ).toJS()
+    /// sigaction 布局测试 - stub
+    public static func sigactionLayout(globalThis: JSGlobalObject, _: CallFrame): JsValue {
+        return JsValue.jsUndefined()
     }
 }

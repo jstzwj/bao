@@ -32,8 +32,8 @@ public class GarbageCollectionController {
     public func init_(vm: BunVirtualMachine) {
         var gcTimerInterval: Int32 = 1000
         // Parse BUN_GC_TIMER_INTERVAL env var
-        self.gcTimerInterval = gcTimerInterval
-        self.disabled = false  // Check BUN_GC_TIMER_DISABLE env
+        this.gcTimerInterval = gcTimerInterval
+        this.disabled = false  // Check BUN_GC_TIMER_DISABLE env
 
         if (!disabled) {
             // Set repeating timer
@@ -95,32 +95,29 @@ public class GarbageCollectionController {
     public func processGCTimerWithHeapSize(vm: JsVirtualMachine, thisHeapSize: UInt64) {
         let prev = gcLastHeapSize
         match (gcTimerState) {
-            case runOnNextTick => {
+            case runOnNextTick=>
                 if (thisHeapSize != prev) {
                     scheduleGCTimer()
-                    updateGCRepeatTimer(setting: GCRepeatSetting.fast)
+                    updateGCRepeatTimer( GCRepeatSetting.fast)
                 } else {
                     gcTimerState = GCTimerState.pending
                 }
                 // vm.collectAsync()
                 gcLastHeapSize = thisHeapSize
-            }
-            case pending => {
+            case pending=>
                 if (thisHeapSize != prev) {
-                    updateGCRepeatTimer(setting: GCRepeatSetting.fast)
+                    updateGCRepeatTimer( GCRepeatSetting.fast)
                     if (thisHeapSize > prev * 2) {
                         performGC()
                     } else {
                         scheduleGCTimer()
                     }
                 }
-            }
-            case scheduled => {
+            case scheduled=>
                 if (thisHeapSize > prev * 2) {
-                    updateGCRepeatTimer(setting: GCRepeatSetting.fast)
+                    updateGCRepeatTimer( GCRepeatSetting.fast)
                     performGC()
                 }
-            }
         }
     }
 
@@ -136,6 +133,17 @@ public class GarbageCollectionController {
 public enum GCRepeatSetting {
     | fast
     | slow
+
+    public operator func ==(right: GCRepeatSetting): Bool {
+        match (this) {
+            case fast => match(right) { case fast => true case _ => false }
+            case slow => match(right) { case slow => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: GCRepeatSetting): Bool {
+        !(this == right)
+    }
 }
 
 // ========== UwsTimer ==========

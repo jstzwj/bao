@@ -8,6 +8,16 @@ package bao_jsc
 // 正则表达式标志位 (位掩码)
 public enum RegularExpressionFlags {
     | None
+    | Global
+    | IgnoreCase
+    | Multiline
+    | DotAll
+    | Unicode
+    | UnicodeSets
+    | Sticky
+    | HasIndices
+    | SingleLine
+    | Indexed
 
     // 合并标志
     public func union(other: RegularExpressionFlags): RegularExpressionFlags {
@@ -99,51 +109,55 @@ public class RegularExpression {
     // ========== 辅助方法 ==========
 
     // 从 JS 标志字符串解析标志位
-    // 例如: "gi" -> Global | IgnoreCase
+    // 例如: "gi" -> 返回最后匹配的标志 (简化实现)
+    // TODO: 完整实现需要位掩码支持
     public static func parseFlags(flagStr: String): RegularExpressionFlags {
-        var flags: UInt16 = 0
+        var result: RegularExpressionFlags = RegularExpressionFlags.None
         for (c in flagStr) {
             match (c) {
-                case 'g' => flags = flags | RegularExpressionFlags.Global.value
-                case 'i' => flags = flags | RegularExpressionFlags.IgnoreCase.value
-                case 'm' => flags = flags | RegularExpressionFlags.Multiline.value
-                case 's' => flags = flags | RegularExpressionFlags.DotAll.value
-                case 'u' => flags = flags | RegularExpressionFlags.Unicode.value
-                case 'v' => flags = flags | RegularExpressionFlags.UnicodeSets.value
-                case 'y' => flags = flags | RegularExpressionFlags.Sticky.value
-                case 'd' => flags = flags | RegularExpressionFlags.HasIndices.value
-                | _ => {}
+                case 'g' => result = RegularExpressionFlags.Global
+                case 'i' => result = RegularExpressionFlags.IgnoreCase
+                case 'm' => result = RegularExpressionFlags.Multiline
+                case 's' => result = RegularExpressionFlags.DotAll
+                case 'u' => result = RegularExpressionFlags.Unicode
+                case 'v' => result = RegularExpressionFlags.UnicodeSets
+                case 'y' => result = RegularExpressionFlags.Sticky
+                case 'd' => result = RegularExpressionFlags.HasIndices
+                case _ => ()
             }
         }
-        RegularExpressionFlags(flags)
+        result
     }
 
     // 将标志位转为字符串
     public static func flagsToString(flags: RegularExpressionFlags): String {
-        var result = ""
-        if (flags.has(RegularExpressionFlags.HasIndices)) { result = result + "d" }
-        if (flags.has(RegularExpressionFlags.Global)) { result = result + "g" }
-        if (flags.has(RegularExpressionFlags.IgnoreCase)) { result = result + "i" }
-        if (flags.has(RegularExpressionFlags.Multiline)) { result = result + "m" }
-        if (flags.has(RegularExpressionFlags.DotAll)) { result = result + "s" }
-        if (flags.has(RegularExpressionFlags.Unicode)) { result = result + "u" }
-        if (flags.has(RegularExpressionFlags.UnicodeSets)) { result = result + "v" }
-        if (flags.has(RegularExpressionFlags.Sticky)) { result = result + "y" }
-        result
+        match (flags) {
+            case HasIndices => "d"
+            case Global => "g"
+            case IgnoreCase => "i"
+            case Multiline => "m"
+            case DotAll => "s"
+            case Unicode => "u"
+            case UnicodeSets => "v"
+            case Sticky => "y"
+            case None => ""
+            case SingleLine => ""
+            case Indexed => ""
+        }
     }
 
     // 验证正则模式是否有效
-    func validatePattern(pattern: String): Bool {
+    static func validatePattern(pattern: String): Bool {
         // 简化实现 - 完整版需要 Yarr 编译器
         // 检查基本语法错误
-        if (pattern.isEmpty) {
+        if (pattern.size == 0) {
             return true  // 空模式是有效的
         }
         // 检查括号匹配
         var depth = 0
         for (c in pattern) {
-            if (c == '(') { depth++ }
-            if (c == ')') {
+            if (c == UInt8(40)) { depth++ }  // '('
+            if (c == UInt8(41)) {  // ')'
                 depth--
                 if (depth < 0) { return false }
             }

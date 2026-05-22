@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_collections.*
+
 // ========== ZigException ==========
 // 严格翻译自 ZigException.zig ZigException
 // 表示 JavaScript 异常及其附加信息
@@ -64,12 +66,12 @@ public class ZigException {
         apiException.runtimeType = runtimeType
         apiException.code = type_
 
-        if (!name.isEmpty) {
+        if (!name.size == 0) {
             apiException.name = name
             isEmpty = false
         }
 
-        if (!message.isEmpty) {
+        if (!message.size == 0) {
             apiException.message = message
             isEmpty = false
         }
@@ -119,15 +121,15 @@ public class ZigExceptionHolderImpl {
     public var needToClearParserArenaOnDeinit: Bool = false
 
     public init() {
-        sourceLineNumbers = Array<Int64>(SOURCE_LINES_COUNT, item: -1)
-        sourceLines = Array<String>(SOURCE_LINES_COUNT, item: "")
+        sourceLineNumbers = Array<Int64>(SOURCE_LINES_COUNT, `repeat`: Int64(-1))
+        sourceLines = Array<String>(SOURCE_LINES_COUNT, `repeat`: "")
         frames = Array<ZigStackFrame>()
     }
 
     // 严格翻译自 Holder.init
     public static func init_(): ZigExceptionHolderImpl {
         let holder = ZigExceptionHolderImpl()
-        for (i in 0..Int64(holder.frames.capacity)) {
+        for (i in 0..holder.frames.size) {
             holder.frames.append(ZigStackFrame.zero())
         }
         holder

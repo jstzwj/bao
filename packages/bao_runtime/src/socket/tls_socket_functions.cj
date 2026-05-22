@@ -4,6 +4,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // TLS Socket 函数
@@ -22,14 +23,14 @@ public class TlsSocketFunctions {
 
     /// 获取服务器名称 (SNI)
     /// 对应 Zig: pub fn getServername
-    public func getServername(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getServername(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
 
         let servername = BoringSSL.sslGetServername(sslPtr, BoringSSL.TLSEXT_NAMETYPE_HOST_NAME)
-        if (servername == None) {
+        if (servername.isNone()) {
             return JsValue.jsUndefined()
         }
         return ZigString.fromUTF8(servername).toJS(globalObject)
@@ -37,38 +38,38 @@ public class TlsSocketFunctions {
 
     /// 设置服务器名称 (SNI)
     /// 对应 Zig: pub fn setServername
-    public func setServername(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func setServername(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         if (socket.isServer()) {
-            return globalObject.throw("Cannot issue SNI from a TLS server-side socket")
+            return globalObject.`throw`("Cannot issue SNI from a TLS server-side socket")
         }
 
         let args = callFrame.argumentsOld(1)
         if (args.size < 1) {
-            return globalObject.throw("Expected 1 argument")
+            return globalObject.`throw`("Expected 1 argument")
         }
 
         let serverName = args[0]
         if (!serverName.isString()) {
-            return globalObject.throw("Expected \"serverName\" to be a string")
+            return globalObject.`throw`("Expected \"serverName\" to be a string")
         }
 
         let slice = serverName.getZigString(globalObject).toOwnedSlice()
         let old = socket.serverName
         socket.serverName = slice
-        if (old != None) {
+        if (old.isSome()) {
             defaultAllocator.free(old)
         }
 
         let host = slice
         if (host.size > 0) {
             let sslPtr = socket.ssl()
-            if (sslPtr == None) {
+            if (sslPtr.isNone()) {
                 return JsValue.jsUndefined()
             }
 
             if (sslPtr.isInitFinished()) {
                 // 匹配 node.js 异常
-                return globalObject.throw("Already started.")
+                return globalObject.`throw`("Already started.")
             }
             let hostZ = defaultAllocator.dupeZ(host)
             sslPtr.setHostname(hostZ)
@@ -80,13 +81,13 @@ public class TlsSocketFunctions {
 
     /// 获取对端 X509 证书
     /// 对应 Zig: pub fn getPeerX509Certificate
-    public func getPeerX509Certificate(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getPeerX509Certificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         let cert = BoringSSL.sslGetPeerCertificate(sslPtr)
-        if (cert != None) {
+        if (cert.isSome()) {
             return X509Wrapper.toJSObject(cert, globalObject)
         }
         return JsValue.jsUndefined()
@@ -94,13 +95,13 @@ public class TlsSocketFunctions {
 
     /// 获取本地 X509 证书
     /// 对应 Zig: pub fn getX509Certificate
-    public func getX509Certificate(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getX509Certificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         let cert = BoringSSL.sslGetCertificate(sslPtr)
-        if (cert != None) {
+        if (cert.isSome()) {
             return X509Wrapper.toJSObject(cert.ref(), globalObject)
         }
         return JsValue.jsUndefined()
@@ -108,13 +109,13 @@ public class TlsSocketFunctions {
 
     /// 获取 TLS 版本
     /// 对应 Zig: pub fn getTLSVersion
-    public func getTLSVersion(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getTLSVersion(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsNull()
         }
         let version = BoringSSL.sslGetVersion(sslPtr)
-        if (version == None) {
+        if (version.isNone()) {
             return JsValue.jsNull()
         }
         let versionLen = version.len()
@@ -126,27 +127,27 @@ public class TlsSocketFunctions {
 
     /// 设置最大发送分片大小
     /// 对应 Zig: pub fn setMaxSendFragment
-    public func setMaxSendFragment(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func setMaxSendFragment(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
 
         if (args.size < 1) {
-            return globalObject.throw("Expected size to be a number")
+            return globalObject.`throw`("Expected size to be a number")
         }
 
         let arg = args[0]
         if (!arg.isNumber()) {
-            return globalObject.throw("Expected size to be a number")
+            return globalObject.`throw`("Expected size to be a number")
         }
         let size = arg.coerceToInt64(globalObject)
         if (size < 1) {
-            return globalObject.throw("Expected size to be greater than 1")
+            return globalObject.`throw`("Expected size to be greater than 1")
         }
         if (size > 16384) {
-            return globalObject.throw("Expected size to be less than 16385")
+            return globalObject.`throw`("Expected size to be less than 16385")
         }
 
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsFalse()
         }
         let result = BoringSSL.sslSetMaxSendFragment(sslPtr, size)
@@ -155,19 +156,19 @@ public class TlsSocketFunctions {
 
     /// 获取对端证书
     /// 对应 Zig: pub fn getPeerCertificate
-    public func getPeerCertificate(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getPeerCertificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
         var abbreviated: Bool = true
         if (args.size > 0) {
             let arg = args[0]
             if (!arg.isBoolean()) {
-                return globalObject.throw("Expected abbreviated to be a boolean")
+                return globalObject.`throw`("Expected abbreviated to be a boolean")
             }
             abbreviated = arg.toBoolean()
         }
 
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
 
@@ -175,17 +176,17 @@ public class TlsSocketFunctions {
             if (socket.isServer()) {
                 // SSL_get_peer_certificate 返回 +1 引用，需要释放
                 let cert = BoringSSL.sslGetPeerCertificate(sslPtr)
-                if (cert != None) {
+                if (cert.isSome()) {
                     return X509Wrapper.toJS(cert, globalObject)
                 }
             }
 
             let certChain = BoringSSL.sslGetPeerCertChain(sslPtr)
-            if (certChain == None) {
+            if (certChain.isNone()) {
                 return JsValue.jsUndefined()
             }
             let cert = BoringSSL.skX509Value(certChain, 0)
-            if (cert == None) {
+            if (cert.isNone()) {
                 return JsValue.jsUndefined()
             }
             return X509Wrapper.toJS(cert, globalObject)
@@ -197,9 +198,9 @@ public class TlsSocketFunctions {
         }
 
         let certChain = BoringSSL.sslGetPeerCertChain(sslPtr)
-        let firstCert = if (cert != None) { cert } else if (certChain != None) { BoringSSL.skX509Value(certChain, 0) } else { None }
+        let firstCert = if (cert.isSome()) { cert } else if (certChain.isSome()) { BoringSSL.skX509Value(certChain, 0) } else { None }
 
-        if (firstCert == None) {
+        if (firstCert.isNone()) {
             return JsValue.jsUndefined()
         }
 
@@ -208,13 +209,13 @@ public class TlsSocketFunctions {
 
     /// 获取本地证书
     /// 对应 Zig: pub fn getCertificate
-    public func getCertificate(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getCertificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         let cert = BoringSSL.sslGetCertificate(sslPtr)
-        if (cert != None) {
+        if (cert.isSome()) {
             return X509Wrapper.toJS(cert, globalObject)
         }
         return JsValue.jsUndefined()
@@ -222,9 +223,9 @@ public class TlsSocketFunctions {
 
     /// 获取 TLS Finished 消息
     /// 对应 Zig: pub fn getTLSFinishedMessage
-    public func getTLSFinishedMessage(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getTLSFinishedMessage(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         // 不能传递 nullptr 给 SSL_get_finished() 因为会传播到 memcpy()
@@ -246,9 +247,9 @@ public class TlsSocketFunctions {
 
     /// 获取共享的签名算法
     /// 对应 Zig: pub fn getSharedSigalgs
-    public func getSharedSigalgs(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getSharedSigalgs(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsNull()
         }
 
@@ -280,18 +281,17 @@ public class TlsSocketFunctions {
                     sigWithMd = "gost2012_256"
                 case BoringSSL.NID_id_GostR3410_2012_512 =>
                     sigWithMd = "gost2012_512"
-                case _ => {
+                case _ =>
                     let snStr = BoringSSL.objNid2sn(signNid)
-                    if (snStr != None) {
+                    if (snStr.isSome()) {
                         sigWithMd = snStr
                     } else {
                         sigWithMd = "UNDEF"
                     }
-                }
             }
 
             let hashStr = BoringSSL.objNid2sn(hashNid)
-            if (hashStr != None) {
+            if (hashStr.isSome()) {
                 let hashStrLen = hashStr.len()
                 var buffer = sigWithMd + "+" + hashStr
                 array.putIndex(globalObject, i, ZigString.fromUTF8(buffer).toJS(globalObject))
@@ -305,40 +305,40 @@ public class TlsSocketFunctions {
 
     /// 获取密码套件信息
     /// 对应 Zig: pub fn getCipher
-    public func getCipher(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getCipher(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         let cipher = BoringSSL.sslGetCurrentCipher(sslPtr)
         var result = JsValue.createEmptyObject(globalObject, 0)
 
-        if (cipher == None) {
-            result.put(globalObject, ZigString.static("name"), JsValue.jsNull())
-            result.put(globalObject, ZigString.static("standardName"), JsValue.jsNull())
-            result.put(globalObject, ZigString.static("version"), JsValue.jsNull())
+        if (cipher.isNone()) {
+            result.put(globalObject, ZigString.`static`("name"), JsValue.jsNull())
+            result.put(globalObject, ZigString.`static`("standardName"), JsValue.jsNull())
+            result.put(globalObject, ZigString.`static`("version"), JsValue.jsNull())
             return result
         }
 
         let name = BoringSSL.sslCipherGetName(cipher)
-        if (name == None) {
-            result.put(globalObject, ZigString.static("name"), JsValue.jsNull())
+        if (name.isNone()) {
+            result.put(globalObject, ZigString.`static`("name"), JsValue.jsNull())
         } else {
-            result.put(globalObject, ZigString.static("name"), ZigString.fromUTF8(name).toJS(globalObject))
+            result.put(globalObject, ZigString.`static`("name"), ZigString.fromUTF8(name).toJS(globalObject))
         }
 
         let standardName = BoringSSL.sslCipherStandardName(cipher)
-        if (standardName == None) {
-            result.put(globalObject, ZigString.static("standardName"), JsValue.jsNull())
+        if (standardName.isNone()) {
+            result.put(globalObject, ZigString.`static`("standardName"), JsValue.jsNull())
         } else {
-            result.put(globalObject, ZigString.static("standardName"), ZigString.fromUTF8(standardName).toJS(globalObject))
+            result.put(globalObject, ZigString.`static`("standardName"), ZigString.fromUTF8(standardName).toJS(globalObject))
         }
 
         let version = BoringSSL.sslCipherGetVersion(cipher)
-        if (version == None) {
-            result.put(globalObject, ZigString.static("version"), JsValue.jsNull())
+        if (version.isNone()) {
+            result.put(globalObject, ZigString.`static`("version"), JsValue.jsNull())
         } else {
-            result.put(globalObject, ZigString.static("version"), ZigString.fromUTF8(version).toJS(globalObject))
+            result.put(globalObject, ZigString.`static`("version"), ZigString.fromUTF8(version).toJS(globalObject))
         }
 
         return result
@@ -346,9 +346,9 @@ public class TlsSocketFunctions {
 
     /// 获取 TLS 对端 Finished 消息
     /// 对应 Zig: pub fn getTLSPeerFinishedMessage
-    public func getTLSPeerFinishedMessage(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getTLSPeerFinishedMessage(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         var dummy = Array<Byte>(1)
@@ -367,41 +367,41 @@ public class TlsSocketFunctions {
 
     /// 导出密钥材料
     /// 对应 Zig: pub fn exportKeyingMaterial
-    public func exportKeyingMaterial(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func exportKeyingMaterial(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         if (socket.isDetached()) {
             return JsValue.jsUndefined()
         }
 
         let args = callFrame.argumentsOld(3)
         if (args.size < 2) {
-            return globalObject.throw("Expected length and label to be provided")
+            return globalObject.`throw`("Expected length and label to be provided")
         }
         let lengthArg = args[0]
         if (!lengthArg.isNumber()) {
-            return globalObject.throw("Expected length to be a number")
+            return globalObject.`throw`("Expected length to be a number")
         }
 
         let length = lengthArg.coerceToInt64(globalObject)
         if (length < 0) {
-            return globalObject.throw("Expected length to be a positive number")
+            return globalObject.`throw`("Expected length to be a positive number")
         }
 
         let labelArg = args[1]
         if (!labelArg.isString()) {
-            return globalObject.throw("Expected label to be a string")
+            return globalObject.`throw`("Expected label to be a string")
         }
 
         let label = labelArg.toSliceOrNull(globalObject)
         let labelSlice = label.slice()
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
 
         if (args.size > 2) {
             let contextArg = args[2]
             let sb = NodeStringOrBuffer.fromJS(globalObject, contextArg)
-            if (sb != None) {
+            if (sb.isSome()) {
                 let contextSlice = sb.slice()
                 let bufferSize = length
                 var buffer = JsValue.createBufferFromLength(globalObject, bufferSize)
@@ -417,7 +417,7 @@ public class TlsSocketFunctions {
                 }
                 return buffer
             } else {
-                return globalObject.throw("Expected context to be a string, Buffer or TypedArray")
+                return globalObject.`throw`("Expected context to be a string, Buffer or TypedArray")
             }
         } else {
             let bufferSize = length
@@ -438,20 +438,20 @@ public class TlsSocketFunctions {
 
     /// 获取临时密钥信息
     /// 对应 Zig: pub fn getEphemeralKeyInfo
-    public func getEphemeralKeyInfo(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getEphemeralKeyInfo(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         // 仅对客户端可用
         if (socket.isServer()) {
             return JsValue.jsNull()
         }
 
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsNull()
         }
         var result = JsValue.createEmptyObject(globalObject, 0)
 
         let rawKey = BoringSSL.sslGetPrivatekey(sslPtr)
-        if (rawKey == None) {
+        if (rawKey.isNone()) {
             return result
         }
 
@@ -459,33 +459,31 @@ public class TlsSocketFunctions {
         let bits = BoringSSL.evpPkeyBits(rawKey)
 
         match (kid) {
-            case BoringSSL.EVP_PKEY_DH => {
-                result.put(globalObject, ZigString.static("type"), BunString.static("DH").toJS(globalObject))
-                result.put(globalObject, ZigString.static("size"), JsValue.jsNumber(bits))
-            }
-            case BoringSSL.EVP_PKEY_EC | BoringSSL.EVP_PKEY_X25519 | BoringSSL.EVP_PKEY_X448 => {
+            case BoringSSL.EVP_PKEY_DH =>
+                result.put(globalObject, ZigString.`static`("type"), BunString.`static`("DH").toJS(globalObject))
+                result.put(globalObject, ZigString.`static`("size"), JsValue.jsNumber(bits))
+            case BoringSSL.EVP_PKEY_EC | BoringSSL.EVP_PKEY_X25519 | BoringSSL.EVP_PKEY_X448 =>
                 var curveName = ""
                 if (kid == BoringSSL.EVP_PKEY_EC) {
                     let ec = BoringSSL.evpPkeyGet1ECKey(rawKey)
                     let nid = BoringSSL.ecGroupGetCurveName(BoringSSL.ecKeyGet0Group(ec))
                     let nidStr = BoringSSL.objNid2sn(nid)
-                    if (nidStr != None) {
+                    if (nidStr.isSome()) {
                         curveName = nidStr
                     } else {
                         curveName = ""
                     }
                 } else {
                     let kidStr = BoringSSL.objNid2sn(kid)
-                    if (kidStr != None) {
+                    if (kidStr.isSome()) {
                         curveName = kidStr
                     } else {
                         curveName = ""
                     }
                 }
-                result.put(globalObject, ZigString.static("type"), BunString.static("ECDH").toJS(globalObject))
-                result.put(globalObject, ZigString.static("name"), ZigString.fromUTF8(curveName).toJS(globalObject))
-                result.put(globalObject, ZigString.static("size"), JsValue.jsNumber(bits))
-            }
+                result.put(globalObject, ZigString.`static`("type"), BunString.`static`("ECDH").toJS(globalObject))
+                result.put(globalObject, ZigString.`static`("name"), ZigString.fromUTF8(curveName).toJS(globalObject))
+                result.put(globalObject, ZigString.`static`("size"), JsValue.jsNumber(bits))
             case _ => ()
         }
         return result
@@ -498,33 +496,33 @@ public class TlsSocketFunctions {
         var alpnProtoLen: UInt32 = 0
 
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsFalse()
         }
 
         BoringSSL.sslGet0AlpnSelected(sslPtr, alpnProto, alpnProtoLen)
-        if (alpnProto == None || alpnProtoLen == 0) {
+        if (alpnProto.isNone() || alpnProtoLen == 0) {
             return JsValue.jsFalse()
         }
 
         if (alpnProto == "h2") {
-            return BunString.static("h2").toJS(globalObject)
+            return BunString.`static`("h2").toJS(globalObject)
         }
         if (alpnProto == "http/1.1") {
-            return BunString.static("http/1.1").toJS(globalObject)
+            return BunString.`static`("http/1.1").toJS(globalObject)
         }
         return ZigString.fromUTF8(alpnProto).toJS(globalObject)
     }
 
     /// 获取会话
     /// 对应 Zig: pub fn getSession
-    public func getSession(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getSession(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         let session = BoringSSL.sslGetSession(sslPtr)
-        if (session == None) {
+        if (session.isNone()) {
             return JsValue.jsUndefined()
         }
         let size = BoringSSL.i2dSslSession(session, None)
@@ -542,64 +540,64 @@ public class TlsSocketFunctions {
 
     /// 设置会话
     /// 对应 Zig: pub fn setSession
-    public func setSession(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func setSession(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         if (socket.isDetached()) {
             return JsValue.jsUndefined()
         }
 
         let args = callFrame.argumentsOld(1)
         if (args.size < 1) {
-            return globalObject.throw("Expected session to be a string, Buffer or TypedArray")
+            return globalObject.`throw`("Expected session to be a string, Buffer or TypedArray")
         }
 
         let sessionArg = args[0]
         let sb = NodeStringOrBuffer.fromJS(globalObject, sessionArg)
-        if (sb != None) {
+        if (sb.isSome()) {
             let sessionSlice = sb.slice()
             let sslPtr = socket.ssl()
             var tmp = sessionSlice.ptr
             let session = BoringSSL.d2iSslSession(None, tmp, sessionSlice.size)
-            if (session == None) {
+            if (session.isNone()) {
                 return JsValue.jsUndefined()
             }
             // SSL_set_session 获取自己的引用
-            defer BoringSSL.sslSessionFree(session)
+            defer { BoringSSL.sslSessionFree(session) }
             if (BoringSSL.sslSetSession(sslPtr, session) != 1) {
                 return globalObject.throwValue(getSSLException(globalObject, "SSL_set_session error"))
             }
             return JsValue.jsUndefined()
         } else {
-            return globalObject.throw("Expected session to be a string, Buffer or TypedArray")
+            return globalObject.`throw`("Expected session to be a string, Buffer or TypedArray")
         }
     }
 
     /// 获取 TLS 票据
     /// 对应 Zig: pub fn getTLSTicket
-    public func getTLSTicket(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getTLSTicket(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         let session = BoringSSL.sslGetSession(sslPtr)
-        if (session == None) {
+        if (session.isNone()) {
             return JsValue.jsUndefined()
         }
         var ticket: ?String = None
         var length: Int64 = 0
         BoringSSL.sslSessionGet0Ticket(session, ticket, length)
 
-        if (ticket == None || length == 0) {
+        if (ticket.isNone() || length == 0) {
             return JsValue.jsUndefined()
         }
 
-        return JsArrayBuffer.createBuffer(globalObject, ticket[0..length])
+        return JsArrayBuffer.createBuffer(globalObject, ticket[0..size])
     }
 
     /// 重协商
     /// 对应 Zig: pub fn renegotiate
-    public func renegotiate(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func renegotiate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         BoringSSL.errClearError()
@@ -611,9 +609,9 @@ public class TlsSocketFunctions {
 
     /// 禁用重协商
     /// 对应 Zig: pub fn disableRenegotiation
-    public func disableRenegotiation(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func disableRenegotiation(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsUndefined()
         }
         BoringSSL.sslSetRenegotiateMode(sslPtr, SSLRenegotiateMode.NEVER)
@@ -622,9 +620,9 @@ public class TlsSocketFunctions {
 
     /// 是否会话重用
     /// 对应 Zig: pub fn isSessionReused
-    public func isSessionReused(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func isSessionReused(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let sslPtr = socket.ssl()
-        if (sslPtr == None) {
+        if (sslPtr.isNone()) {
             return JsValue.jsFalse()
         }
         return JsValue.jsBoolean(BoringSSL.sslSessionReused(sslPtr) == 1)
@@ -632,19 +630,19 @@ public class TlsSocketFunctions {
 
     /// 设置验证模式
     /// 对应 Zig: pub fn setVerifyMode
-    public func setVerifyMode(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func setVerifyMode(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         if (socket.isDetached()) {
             return JsValue.jsUndefined()
         }
 
         let args = callFrame.argumentsOld(2)
         if (args.size < 2) {
-            return globalObject.throw("Expected requestCert and rejectUnauthorized arguments")
+            return globalObject.`throw`("Expected requestCert and rejectUnauthorized arguments")
         }
         let requestCertJs = args[0]
         let rejectUnauthorizedJs = args[1]
         if (!requestCertJs.isBoolean() || !rejectUnauthorizedJs.isBoolean()) {
-            return globalObject.throw("Expected requestCert and rejectUnauthorized arguments to be boolean")
+            return globalObject.`throw`("Expected requestCert and rejectUnauthorized arguments to be boolean")
         }
 
         let requestCert = requestCertJs.toBoolean()
@@ -673,7 +671,7 @@ public class TlsSocketFunctions {
 /// 获取 SSL 异常
 /// 对应 Zig: noinline fn getSSLException
 func getSSLException(globalObject: JsGlobalObject, defaultMessage: String): JsValue {
-    var zigStr = ZigString.init("")
+    var zigStr = ZigString("")
     var outputBuf = Array<Byte>(4096)
 
     var written: Int64 = 0
@@ -685,7 +683,7 @@ func getSSLException(globalObject: JsGlobalObject, defaultMessage: String): JsVa
         }
 
         let reasonPtr = BoringSSL.errReasonErrorString(sslError)
-        if (reasonPtr != None) {
+        if (reasonPtr.isSome()) {
             let reason = reasonPtr
             if (reason.size == 0) {
                 break
@@ -695,7 +693,7 @@ func getSSLException(globalObject: JsGlobalObject, defaultMessage: String): JsVa
         }
 
         let funcPtr = BoringSSL.errFuncErrorString(sslError)
-        if (funcPtr != None) {
+        if (funcPtr.isSome()) {
             let reason = funcPtr
             if (reason.size > 0) {
                 " via ".copyTo(outputBuf, written.toInt())
@@ -706,7 +704,7 @@ func getSSLException(globalObject: JsGlobalObject, defaultMessage: String): JsVa
         }
 
         let libPtr = BoringSSL.errLibErrorString(sslError)
-        if (libPtr != None) {
+        if (libPtr.isSome()) {
             let reason = libPtr
             if (reason.size > 0) {
                 outputBuf[written.toInt()] = ' '.toByte()
@@ -720,15 +718,15 @@ func getSSLException(globalObject: JsGlobalObject, defaultMessage: String): JsVa
     }
 
     if (written > 0) {
-        let message = outputBuf[0:written.toInt()]
-        zigStr = ZigString.init("OpenSSL " + message)
+        let message = outputBuf[0..written.toInt()]
+        zigStr = ZigString("OpenSSL " + message)
 
         // 清除错误
         BoringSSL.errClearError()
     }
 
     if (zigStr.len() == 0) {
-        zigStr = ZigString.init(defaultMessage)
+        zigStr = ZigString(defaultMessage)
     }
 
     // 将异常存储在这里

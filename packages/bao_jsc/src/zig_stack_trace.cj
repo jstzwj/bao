@@ -53,13 +53,13 @@ public class ZigStackTrace {
     // 从帧切片创建堆栈追踪
     public static func fromFrames(framesSlice: Array<ZigStackFrame>): ZigStackTrace {
         ZigStackTrace(
-            sourceLinesPtr: [],
-            sourceLineNumbers: [],
-            sourceLinesLen: 0,
-            sourceLinesToCollect: 0,
-            framesPtr: framesSlice,
-            framesLen: Int64(framesSlice.size),
-            framesCap: Int64(framesSlice.size)
+            [],
+            [],
+            0,
+            0,
+            framesSlice,
+            Int64(framesSlice.size),
+            Int64(framesSlice.size)
         )
     }
 
@@ -112,60 +112,9 @@ public class ZigStackTrace {
 
     // ========== SourceLineIterator ==========
     // 严格翻译自 ZigStackTrace.SourceLineIterator
-    public class SourceLineIterator {
-        public var trace: ZigStackTrace
-        public var i: Int64
-
-        public init(trace: ZigStackTrace, i: Int64) {
-            this.trace = trace
-            this.i = i
-        }
-
-        // 严格翻译自 SourceLineIterator.getLength
-        public func getLength(): Int64 {
-            var count: Int64 = 0
-            let end = if (i + 1 >= 0) { i + 1 } else { 0 }
-            let len = if (end <= Int64(trace.sourceLinesPtr.size)) { end } else { Int64(trace.sourceLinesPtr.size) }
-            for (j in 0..len) {
-                count += Int64(trace.sourceLinesPtr[Int64(j)].size)
-            }
-            count
-        }
-
-        // 严格翻译自 SourceLineIterator.untilLast
-        public func untilLast(): ?SourceLine {
-            if (i < 1) { return None }
-            next()
-        }
-
-        // 严格翻译自 SourceLineIterator.next
-        public func next(): ?SourceLine {
-            if (i < 0) { return None }
-            let idx = Int64(i)
-            if (idx >= Int64(trace.sourceLinesPtr.size)) { return None }
-            let sourceLine = trace.sourceLinesPtr[idx]
-            let lineNum = if (idx < Int64(trace.sourceLineNumbers.size)) {
-                trace.sourceLineNumbers[idx]
-            } else {
-                -1
-            }
-            let result = SourceLine(line: lineNum, text: sourceLine)
-            i--
-            Some(result)
-        }
-    }
 
     // ========== SourceLine ==========
     // 严格翻译自 ZigStackTrace.SourceLineIterator.SourceLine
-    public class SourceLine {
-        public var line: Int64
-        public var text: String
-
-        public init(line: Int64, text: String) {
-            this.line = line
-            this.text = text
-        }
-    }
 
     // 严格翻译自 ZigStackTrace.sourceLineIterator
     public func sourceLineIterator(): SourceLineIterator {
@@ -177,7 +126,7 @@ public class ZigStackTrace {
                 i = if (Int64(j) > i) { Int64(j) } else { i }
             }
         }
-        SourceLineIterator(trace: this, i: i)
+        SourceLineIterator(this, i)
     }
 }
 
@@ -190,5 +139,59 @@ public class SourceProvider {
 
     public func deref() {
         isValid = false
+    }
+}
+
+
+public class SourceLineIterator {
+    public var trace: ZigStackTrace
+    public var i: Int64
+
+    public init(trace: ZigStackTrace, i: Int64) {
+        this.trace = trace
+        this.i = i
+    }
+
+    // 严格翻译自 SourceLineIterator.getLength
+    public func getLength(): Int64 {
+        var count: Int64 = 0
+        let end = if (i + 1 >= 0) { i + 1 } else { 0 }
+        let len = if (end <= Int64(trace.sourceLinesPtr.size)) { end } else { Int64(trace.sourceLinesPtr.size) }
+        for (j in 0..len) {
+            count += Int64(trace.sourceLinesPtr[Int64(j)].size)
+        }
+        count
+    }
+
+    // 严格翻译自 SourceLineIterator.untilLast
+    public func untilLast(): ?SourceLine {
+        if (i < 1) { return None }
+        next()
+    }
+
+    // 严格翻译自 SourceLineIterator.next
+    public func next(): ?SourceLine {
+        if (i < 0) { return None }
+        let idx = Int64(i)
+        if (idx >= Int64(trace.sourceLinesPtr.size)) { return None }
+        let sourceLine = trace.sourceLinesPtr[idx]
+        let lineNum = if (idx < Int64(trace.sourceLineNumbers.size)) {
+            trace.sourceLineNumbers[idx]
+        } else {
+            -1
+        }
+        let result = SourceLine(lineNum, sourceLine)
+        i--
+        Some(result)
+    }
+}
+
+public class SourceLine {
+    public var line: Int64
+    public var text: String
+
+    public init(line: Int64, text: String) {
+        this.line = line
+        this.text = text
     }
 }

@@ -34,7 +34,7 @@ public enum JsErrorCode {
 
 // ============================================================================
 // JS 值类型
-// 对应 Bun: src/j.zig - JSValue
+// 对应 Bun: src/j.zig - JsValue
 // ============================================================================
 
 /// JavaScript 值类型
@@ -69,7 +69,7 @@ public enum JsValueType {
 }
 
 /// JavaScript 值表示
-/// 对应 Bun: src/jsc/JSValue.zig
+/// 对应 Bun: src/jsc/JsValue.zig
 public class JsValue {
     public let valueType: JsValueType
     public var boolValue: Bool

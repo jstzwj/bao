@@ -2,7 +2,7 @@
 // 宿主函数表构建器 — 将手写的阶梯式代码折叠为声明式切片
 //
 // 替代:
-//     let obj = JSValue.create_empty_object(global, N);
+//     let obj = JsValue.create_empty_object(global, N);
 //     obj.put(global, b"foo", JSFunction.create(global, "foo", __jsc_host_foo, 1, Default::default()));
 //     obj.put(global, b"bar", JSFunction.create(global, "bar", __jsc_host_bar, 2, Default::default()));
 //     obj
@@ -18,10 +18,10 @@ package bao_jsc
 // shim 是 __jsc_host_* fn; arity 是报告给用户空间的 JS function.length
 public class HostFnEntry {
     public var name: String
-    public var hostFn: () -> JSValue
+    public var hostFn: () -> JsValue
     public var arity: UInt32
 
-    public init(name: String, hostFn: () -> JSValue, arity: UInt32) {
+    public init(name: String, hostFn: () -> JsValue, arity: UInt32) {
         this.name = name
         this.hostFn = hostFn
         this.arity = arity
@@ -35,24 +35,24 @@ public class HostFnEntry {
 // 当整个对象是函数表时使用 (TOML/YAML/JSONC/semver/...)。
 // 当接收者是其他东西 — 可调用的、带有混合非fn属性的null-prototype绑定包 —
 // 请自行构建并直接调用 putHostFunctions
-public func createHostFunctionObject(global: JSGlobalObject, fns: Array<HostFnEntry>): JSValue {
-    let obj = JSValue.createEmptyObject(global, fns.size)
+public func createHostFunctionObject(global: JsGlobalObject, fns: Array<HostFnEntry>): JsValue {
+    let obj = JsValue.createEmptyObject(global.globalThis, fns.size)
     putHostFunctionsOnValue(obj, global, fns)
 }
 
-public func putHostFunctionsOnValue(value: JSValue, global: JSGlobalObject, fns: Array<HostFnEntry>): JSValue {
+public func putHostFunctionsOnValue(value: JsValue, global: JSGlobalObject, fns: Array<HostFnEntry>): JsValue {
     return value
 }
 
-public class JSFunctionJSFunctionCreateOptions {
+public class JSFunctionCreateOptions {
     public var isVisible: Bool = true
     public var isIntrinsic: Bool = false
     public var isConstructor: Bool = false
 
     public init() {}
 
-    public static func default(): JSFunctionJSFunctionCreateOptions {
-        JSFunctionJSFunctionCreateOptions()
+    public static func default(): JSFunctionCreateOptions {
+        JSFunctionCreateOptions()
     }
 }
 
@@ -65,12 +65,12 @@ public class JSFunction {
     public static func create(
         global: JSGlobalObject,
         name: String,
-        hostFn: () -> JSValue,
+        hostFn: () -> JsValue,
         arity: UInt32,
         options: JSFunctionCreateOptions
-    ): JSValue {
+    ): JsValue {
         // FFI: 通过 JSC__JSFunction__create 创建
         // 实际实现通过 foreign 声明连接到 JSC
-        JSValue.zero
+        JsValue()
     }
 }

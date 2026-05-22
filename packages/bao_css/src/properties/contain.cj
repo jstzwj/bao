@@ -28,7 +28,7 @@ public struct ContainerType {
 /// container-name 属性值
 /// 严格翻译自 ContainerNameList
 public enum ContainerNameList {
-    | None                          // "none"
+    | NoneValue                          // "none"
     | Names(ArrayList<String>)      // 容器名称列表
 
     private func namesToCss(names: ArrayList<String>): String {
@@ -44,7 +44,7 @@ public enum ContainerNameList {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Names(names) => namesToCss(names)
         }
     }

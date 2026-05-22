@@ -5,6 +5,7 @@ package bao_sql_jsc.postgres.types
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.postgres.*
 
 /// Postgres 纪元（2000-01-01 00:00:00 UTC 的 Unix 毫秒时间戳）
 let POSTGRES_EPOCH_MS: Float64 = 946684800000.0
@@ -45,7 +46,7 @@ public class PostgresDateType {
     /// 转换为 JS Date 值
     /// 对应 Bun: date.toJS
     public static func toJS(globalObject: JscJSGlobalObject, microseconds: Int64): JscValue {
-        let ms = microseconds / 1000 + Int64(POSTGRES_EPOCH_MS)
-        return JscValue.fromDateNumber(globalObject, Float64(ms))
+        let ms = Float64(microseconds / 1000) + POSTGRES_EPOCH_MS
+        return JscValue.fromDateNumber(globalObject.globalThis, ms)
     }
 }

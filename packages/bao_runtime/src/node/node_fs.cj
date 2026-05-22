@@ -55,7 +55,7 @@ public class Maybe<T> {
     }
 
     public static func success(): Maybe<Unit> {
-        return Maybe<Unit>(result: Unit)
+        return Maybe<Unit>()
     }
 
     public static func err(code: String, syscall: String, path: String): Maybe<T> {
@@ -146,10 +146,10 @@ public class SyscallError {
         obj.set("message", JsValue(BaoString(message)))
         obj.set("errno", JsValue(Int64(errno)))
         obj.set("syscall", JsValue(BaoString(syscall)))
-        if (path.length > 0) {
+        if (path.size > 0) {
             obj.set("path", JsValue(BaoString(path)))
         }
-        if (dest.length > 0) {
+        if (dest.size > 0) {
             obj.set("dest", JsValue(BaoString(dest)))
         }
         return JsValue(obj).toError(globalObject)
@@ -521,7 +521,7 @@ public class ReadArgs {
         this.fd = fd
         this.buffer = buffer
         this.offset = offset
-        this.length = length
+        this.size = length
         this.position = position
     }
 }
@@ -538,7 +538,7 @@ public class WriteArgs {
         this.fd = fd
         this.buffer = buffer
         this.offset = offset
-        this.length = length
+        this.size = length
         this.position = position
     }
 }
@@ -735,7 +735,7 @@ public class StatOrNotFound {
         if (notFound) {
             return JsValue()
         }
-        if (stats != None) {
+        if (stats.isSome()) {
             return stats.getOrThrow().toJsValue(globalObject)
         }
         return JsValue()
@@ -756,7 +756,7 @@ public class StringOrUndefined {
     }
 
     public func toJS(globalObject: JsGlobalObject): JsValue {
-        if (value != None) {
+        if (value.isSome()) {
             return JsValue(BaoString(value.getOrThrow()))
         }
         return JsValue()
@@ -786,7 +786,7 @@ public class NodeFS {
     // ========================================================================
     public func access(args: AccessArgs, flavor: Flavor): Maybe<Unit> {
         let path = args.path.slice()
-        if (path.length == 0) {
+        if (path.size == 0) {
             return Maybe<Unit>.err(code: "ENOENT", syscall: "access", path: "")
         }
         let ok = System.access(path, mode: UInt32(args.mode))
@@ -804,8 +804,8 @@ public class NodeFS {
         let data = args.data.slice()
         if (args.file.isFd) {
             var remaining = data
-            while (remaining.length > 0) {
-                let written = System.writeFd(args.file.fd, buffer: remaining, offset: 0, length: Int64(remaining.length), position: -1)
+            while (remaining.size > 0) {
+                let written = System.writeFd(args.file.fd, buffer: remaining, offset: 0, length: Int64(remaining.size), position: -1)
                 if (written < 0) {
                     return Maybe<Unit>.err(code: "EIO", syscall: "write", path: "")
                 }
@@ -819,8 +819,8 @@ public class NodeFS {
             return Maybe<Unit>.err(code: "ENOENT", syscall: "open", path: args.file.path)
         }
         var remaining = data
-        while (remaining.length > 0) {
-            let written = System.writeFd(fd, buffer: remaining, offset: 0, length: Int64(remaining.length), position: -1)
+        while (remaining.size > 0) {
+            let written = System.writeFd(fd, buffer: remaining, offset: 0, length: Int64(remaining.size), position: -1)
             if (written < 0) {
                 System.close(fd)
                 return Maybe<Unit>.err(code: "EIO", syscall: "write", path: args.file.path)
@@ -857,15 +857,15 @@ public class NodeFS {
     // 对应 Bun: NodeFS.read
     // ========================================================================
     public func read(args: ReadArgs, flavor: Flavor): Maybe<ReadResult> {
-        let bufLen = Int64(args.buffer.length)
-        if (bufLen == 0 || Int64(args.length) == 0) {
+        let bufLen = Int64(args.buffer.size)
+        if (bufLen == 0 || Int64(args.size) == 0) {
             return Maybe<ReadResult>(result: ReadResult(bytesRead: 0))
         }
         let pos: Int64 = match (args.position) {
             case Some(p) => p
             case None => -1
         }
-        let bytesRead = System.readFd(args.fd, buffer: args.buffer, offset: Int64(args.offset), length: Int64(args.length), position: pos)
+        let bytesRead = System.readFd(args.fd, buffer: args.buffer, offset: Int64(args.offset), length: Int64(args.size), position: pos)
         if (bytesRead < 0) {
             return Maybe<ReadResult>.err(code: "EIO", syscall: "read", path: "")
         }
@@ -879,14 +879,14 @@ public class NodeFS {
     public func write(args: WriteArgs, flavor: Flavor): Maybe<WriteResult> {
         let data = args.buffer.slice()
         let offset = Int64(args.offset)
-        let length = Int64(args.length)
+        let length = Int64(args.size)
         let buf = if (offset > 0) { data[offset..] } else { data }
-        let toWrite = if (length < Int64(buf.length)) { buf[0..length] } else { buf }
+        let toWrite = if (length < Int64(buf.size)) { buf[0..size] } else { buf }
         let pos: Int64 = match (args.position) {
             case Some(p) => p
             case None => -1
         }
-        let bytesWritten = System.writeFd(args.fd, buffer: toWrite, offset: 0, length: Int64(toWrite.length), position: pos)
+        let bytesWritten = System.writeFd(args.fd, buffer: toWrite, offset: 0, length: Int64(toWrite.size), position: pos)
         if (bytesWritten < 0) {
             return Maybe<WriteResult>.err(code: "EIO", syscall: "write", path: "")
         }
@@ -902,7 +902,7 @@ public class NodeFS {
             case true => System.readFileFd(args.path.fd)
             case false => System.readFile(args.path.path)
         }
-        if (result.length == 0 && !args.path.isFd) {
+        if (result.size == 0 && !args.path.isFd) {
             return Maybe<Buffer>.err(code: "ENOENT", syscall: "open", path: args.path.path)
         }
         return Maybe<Buffer>(result: Buffer(bytes: result))
@@ -916,8 +916,8 @@ public class NodeFS {
         let data = args.data.slice()
         if (args.file.isFd) {
             var remaining = data
-            while (remaining.length > 0) {
-                let written = System.writeFd(args.file.fd, buffer: remaining, offset: 0, length: Int64(remaining.length), position: -1)
+            while (remaining.size > 0) {
+                let written = System.writeFd(args.file.fd, buffer: remaining, offset: 0, length: Int64(remaining.size), position: -1)
                 if (written < 0) {
                     return Maybe<Unit>.err(code: "EIO", syscall: "write", path: "")
                 }
@@ -935,7 +935,7 @@ public class NodeFS {
     // ========================================================================
     public func stat(args: StatArgs, flavor: Flavor): Maybe<StatOrNotFound> {
         let result = System.stat(args.path.slice())
-        if (result == None) {
+        if (result.isNone()) {
             if (!args.throwIfNoEntry) {
                 return Maybe<StatOrNotFound>(result: StatOrNotFound(notFound: true))
             }
@@ -950,7 +950,7 @@ public class NodeFS {
     // ========================================================================
     public func fstat(args: FstatArgs, flavor: Flavor): Maybe<Stats> {
         let result = System.fstat(args.fd)
-        if (result == None) {
+        if (result.isNone()) {
             return Maybe<Stats>.err(code: "EBADF", syscall: "fstat", path: "")
         }
         return Maybe<Stats>(result: result.getOrThrow())
@@ -962,7 +962,7 @@ public class NodeFS {
     // ========================================================================
     public func lstat(args: StatArgs, flavor: Flavor): Maybe<StatOrNotFound> {
         let result = System.lstat(args.path.slice())
-        if (result == None) {
+        if (result.isNone()) {
             if (!args.throwIfNoEntry) {
                 return Maybe<StatOrNotFound>(result: StatOrNotFound(notFound: true))
             }
@@ -976,7 +976,7 @@ public class NodeFS {
     // 对应 Bun: NodeFS.mkdir
     // ========================================================================
     public func mkdir(args: MkdirArgs, flavor: Flavor): Maybe<StringOrUndefined> {
-        if (args.path.slice().length == 0) {
+        if (args.path.slice().size == 0) {
             return Maybe<StringOrUndefined>.err(code: "ENOENT", syscall: "mkdir", path: "")
         }
         if (args.recursive) {
@@ -1015,7 +1015,7 @@ public class NodeFS {
     public func mkdtemp(args: MkdirTempArgs, flavor: Flavor): Maybe<String> {
         let prefix = args.prefix.slice()
         let result = System.mkdtemp(prefix)
-        if (result == None) {
+        if (result.isNone()) {
             return Maybe<String>.err(code: "EIO", syscall: "mkdtemp", path: prefix)
         }
         return Maybe<String>(result: result.getOrThrow())
@@ -1131,7 +1131,7 @@ public class NodeFS {
     // ========================================================================
     public func readlink(args: ReadlinkArgs, flavor: Flavor): Maybe<String> {
         let target = System.readlink(args.path.slice())
-        if (target == None) {
+        if (target.isNone()) {
             return Maybe<String>.err(code: "ENOENT", syscall: "readlink", path: args.path.slice())
         }
         return Maybe<String>(result: target.getOrThrow())
@@ -1143,7 +1143,7 @@ public class NodeFS {
     // ========================================================================
     public func realpath(args: RealpathArgs, flavor: Flavor): Maybe<String> {
         let resolved = System.realpath(args.path.slice())
-        if (resolved == None) {
+        if (resolved.isNone()) {
             return Maybe<String>.err(code: "ENOENT", syscall: "realpath", path: args.path.slice())
         }
         return Maybe<String>(result: resolved.getOrThrow())
@@ -1322,7 +1322,7 @@ public class NodeFS {
     // 对应 Bun: NodeFS.exists
     // ========================================================================
     public func exists(args: ExistsArgs, flavor: Flavor): Maybe<Bool> {
-        if (args.path == None) {
+        if (args.path.isNone()) {
             return Maybe<Bool>(result: false)
         }
         let path = args.path.getOrThrow().slice()
@@ -1348,7 +1348,7 @@ public class NodeFS {
     // ========================================================================
     public func statfs(args: StatFSArgs, flavor: Flavor): Maybe<StatFS> {
         let result = System.statfs(args.path.slice())
-        if (result == None) {
+        if (result.isNone()) {
             return Maybe<StatFS>.err(code: "ENOENT", syscall: "statfs", path: args.path.slice())
         }
         return Maybe<StatFS>(result: result.getOrThrow())
@@ -1417,7 +1417,7 @@ public class FsWatcher {
         active = false
     }
 
-    public func toJsValue(globalObject: JsGlobalObject): JsValue {
+    public func toJsValue(JsGlobalObject): JsValue {
         let obj = JsObject(globalObject)
         obj.set("close", JsValue.nativeFunction(JsNativeFunction("close") { _ =>
             this.close()
@@ -1448,7 +1448,7 @@ public class StatWatcher {
         active = false
     }
 
-    public func toJsValue(globalObject: JsGlobalObject): JsValue {
+    public func toJsValue(JsGlobalObject): JsValue {
         let obj = JsObject(globalObject)
         obj.set("stop", JsValue.nativeFunction(JsNativeFunction("stop") { _ =>
             this.stop()
@@ -1471,7 +1471,7 @@ public class Async {
 
     /// 异步 access
     /// 对应 Bun: Async.access
-    public static func access(globalObject: JsGlobalObject, nodeFs: NodeFS, args: AccessArgs): JsValue {
+    public static func access(JsGlobalObject, nodeFs: NodeFS, args: AccessArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.access(args, flavor: Flavor.async)
         }
@@ -1479,7 +1479,7 @@ public class Async {
 
     /// 异步 appendFile
     /// 对应 Bun: Async.appendFile
-    public static func appendFile(globalObject: JsGlobalObject, nodeFs: NodeFS, args: WriteFileArgs): JsValue {
+    public static func appendFile(JsGlobalObject, nodeFs: NodeFS, args: WriteFileArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.appendFile(args, flavor: Flavor.async)
         }
@@ -1487,7 +1487,7 @@ public class Async {
 
     /// 异步 chmod
     /// 对应 Bun: Async.chmod
-    public static func chmod(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ChmodArgs): JsValue {
+    public static func chmod(JsGlobalObject, nodeFs: NodeFS, args: ChmodArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.chmod(args, flavor: Flavor.async)
         }
@@ -1495,7 +1495,7 @@ public class Async {
 
     /// 异步 chown
     /// 对应 Bun: Async.chown
-    public static func chown(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ChownArgs): JsValue {
+    public static func chown(JsGlobalObject, nodeFs: NodeFS, args: ChownArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.chown(args, flavor: Flavor.async)
         }
@@ -1503,7 +1503,7 @@ public class Async {
 
     /// 异步 close
     /// 对应 Bun: Async.close
-    public static func close(globalObject: JsGlobalObject, nodeFs: NodeFS, args: CloseArgs): JsValue {
+    public static func close(JsGlobalObject, nodeFs: NodeFS, args: CloseArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.close(args, flavor: Flavor.async)
         }
@@ -1511,7 +1511,7 @@ public class Async {
 
     /// 异步 copyFile
     /// 对应 Bun: Async.copyFile
-    public static func copyFile(globalObject: JsGlobalObject, nodeFs: NodeFS, args: CopyFileArgs): JsValue {
+    public static func copyFile(JsGlobalObject, nodeFs: NodeFS, args: CopyFileArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.copyFile(args, flavor: Flavor.async)
         }
@@ -1519,7 +1519,7 @@ public class Async {
 
     /// 异步 exists
     /// 对应 Bun: Async.exists
-    public static func exists(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ExistsArgs): JsValue {
+    public static func exists(JsGlobalObject, nodeFs: NodeFS, args: ExistsArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.exists(args, flavor: Flavor.async)
         }
@@ -1527,7 +1527,7 @@ public class Async {
 
     /// 异步 fchmod
     /// 对应 Bun: Async.fchmod
-    public static func fchmod(globalObject: JsGlobalObject, nodeFs: NodeFS, args: FChmodArgs): JsValue {
+    public static func fchmod(JsGlobalObject, nodeFs: NodeFS, args: FChmodArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.fchmod(args, flavor: Flavor.async)
         }
@@ -1535,7 +1535,7 @@ public class Async {
 
     /// 异步 fchown
     /// 对应 Bun: Async.fchown
-    public static func fchown(globalObject: JsGlobalObject, nodeFs: NodeFS, args: FchownArgs): JsValue {
+    public static func fchown(JsGlobalObject, nodeFs: NodeFS, args: FchownArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.fchown(args, flavor: Flavor.async)
         }
@@ -1543,7 +1543,7 @@ public class Async {
 
     /// 异步 fdatasync
     /// 对应 Bun: Async.fdatasync
-    public static func fdatasync(globalObject: JsGlobalObject, nodeFs: NodeFS, args: FdataSyncArgs): JsValue {
+    public static func fdatasync(JsGlobalObject, nodeFs: NodeFS, args: FdataSyncArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.fdatasync(args, flavor: Flavor.async)
         }
@@ -1551,7 +1551,7 @@ public class Async {
 
     /// 异步 fstat
     /// 对应 Bun: Async.fstat
-    public static func fstat(globalObject: JsGlobalObject, nodeFs: NodeFS, args: FstatArgs): JsValue {
+    public static func fstat(JsGlobalObject, nodeFs: NodeFS, args: FstatArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.fstat(args, flavor: Flavor.async)
         }
@@ -1559,7 +1559,7 @@ public class Async {
 
     /// 异步 fsync
     /// 对应 Bun: Async.fsync
-    public static func fsync(globalObject: JsGlobalObject, nodeFs: NodeFS, args: FsyncArgs): JsValue {
+    public static func fsync(JsGlobalObject, nodeFs: NodeFS, args: FsyncArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.fsync(args, flavor: Flavor.async)
         }
@@ -1567,7 +1567,7 @@ public class Async {
 
     /// 异步 ftruncate
     /// 对应 Bun: Async.ftruncate
-    public static func ftruncate(globalObject: JsGlobalObject, nodeFs: NodeFS, args: FTruncateArgs): JsValue {
+    public static func ftruncate(JsGlobalObject, nodeFs: NodeFS, args: FTruncateArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.ftruncate(args, flavor: Flavor.async)
         }
@@ -1575,7 +1575,7 @@ public class Async {
 
     /// 异步 futimes
     /// 对应 Bun: Async.futimes
-    public static func futimes(globalObject: JsGlobalObject, nodeFs: NodeFS, args: FutimesArgs): JsValue {
+    public static func futimes(JsGlobalObject, nodeFs: NodeFS, args: FutimesArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.futimes(args, flavor: Flavor.async)
         }
@@ -1583,7 +1583,7 @@ public class Async {
 
     /// 异步 lchmod
     /// 对应 Bun: Async.lchmod
-    public static func lchmod(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ChmodArgs): JsValue {
+    public static func lchmod(JsGlobalObject, nodeFs: NodeFS, args: ChmodArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.lchmod(args, flavor: Flavor.async)
         }
@@ -1591,7 +1591,7 @@ public class Async {
 
     /// 异步 lchown
     /// 对应 Bun: Async.lchown
-    public static func lchown(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ChownArgs): JsValue {
+    public static func lchown(JsGlobalObject, nodeFs: NodeFS, args: ChownArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.lchown(args, flavor: Flavor.async)
         }
@@ -1599,7 +1599,7 @@ public class Async {
 
     /// 异步 link
     /// 对应 Bun: Async.link
-    public static func link(globalObject: JsGlobalObject, nodeFs: NodeFS, args: LinkArgs): JsValue {
+    public static func link(JsGlobalObject, nodeFs: NodeFS, args: LinkArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.link(args, flavor: Flavor.async)
         }
@@ -1607,7 +1607,7 @@ public class Async {
 
     /// 异步 lstat
     /// 对应 Bun: Async.lstat
-    public static func lstat(globalObject: JsGlobalObject, nodeFs: NodeFS, args: StatArgs): JsValue {
+    public static func lstat(JsGlobalObject, nodeFs: NodeFS, args: StatArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.lstat(args, flavor: Flavor.async)
         }
@@ -1615,7 +1615,7 @@ public class Async {
 
     /// 异步 lutimes
     /// 对应 Bun: Async.lutimes
-    public static func lutimes(globalObject: JsGlobalObject, nodeFs: NodeFS, args: UtimesArgs): JsValue {
+    public static func lutimes(JsGlobalObject, nodeFs: NodeFS, args: UtimesArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.lutimes(args, flavor: Flavor.async)
         }
@@ -1623,7 +1623,7 @@ public class Async {
 
     /// 异步 mkdir
     /// 对应 Bun: Async.mkdir
-    public static func mkdir(globalObject: JsGlobalObject, nodeFs: NodeFS, args: MkdirArgs): JsValue {
+    public static func mkdir(JsGlobalObject, nodeFs: NodeFS, args: MkdirArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.mkdir(args, flavor: Flavor.async)
         }
@@ -1631,7 +1631,7 @@ public class Async {
 
     /// 异步 mkdtemp
     /// 对应 Bun: Async.mkdtemp
-    public static func mkdtemp(globalObject: JsGlobalObject, nodeFs: NodeFS, args: MkdirTempArgs): JsValue {
+    public static func mkdtemp(JsGlobalObject, nodeFs: NodeFS, args: MkdirTempArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.mkdtemp(args, flavor: Flavor.async)
         }
@@ -1639,7 +1639,7 @@ public class Async {
 
     /// 异步 open
     /// 对应 Bun: Async.open
-    public static func open(globalObject: JsGlobalObject, nodeFs: NodeFS, args: OpenArgs): JsValue {
+    public static func open(JsGlobalObject, nodeFs: NodeFS, args: OpenArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.open(args, flavor: Flavor.async)
         }
@@ -1647,7 +1647,7 @@ public class Async {
 
     /// 异步 read
     /// 对应 Bun: Async.read
-    public static func read(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ReadArgs): JsValue {
+    public static func read(JsGlobalObject, nodeFs: NodeFS, args: ReadArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.read(args, flavor: Flavor.async)
         }
@@ -1655,7 +1655,7 @@ public class Async {
 
     /// 异步 readdir
     /// 对应 Bun: Async.readdir
-    public static func readdir(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ReaddirArgs): JsValue {
+    public static func readdir(JsGlobalObject, nodeFs: NodeFS, args: ReaddirArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.readdir(args, flavor: Flavor.async)
         }
@@ -1663,7 +1663,7 @@ public class Async {
 
     /// 异步 readFile
     /// 对应 Bun: Async.readFile
-    public static func readFile(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ReadFileArgs): JsValue {
+    public static func readFile(JsGlobalObject, nodeFs: NodeFS, args: ReadFileArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.readFile(args, flavor: Flavor.async)
         }
@@ -1671,7 +1671,7 @@ public class Async {
 
     /// 异步 readlink
     /// 对应 Bun: Async.readlink
-    public static func readlink(globalObject: JsGlobalObject, nodeFs: NodeFS, args: ReadlinkArgs): JsValue {
+    public static func readlink(JsGlobalObject, nodeFs: NodeFS, args: ReadlinkArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.readlink(args, flavor: Flavor.async)
         }
@@ -1679,7 +1679,7 @@ public class Async {
 
     /// 异步 realpath
     /// 对应 Bun: Async.realpath
-    public static func realpath(globalObject: JsGlobalObject, nodeFs: NodeFS, args: RealpathArgs): JsValue {
+    public static func realpath(JsGlobalObject, nodeFs: NodeFS, args: RealpathArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.realpath(args, flavor: Flavor.async)
         }
@@ -1687,7 +1687,7 @@ public class Async {
 
     /// 异步 rename
     /// 对应 Bun: Async.rename
-    public static func rename(globalObject: JsGlobalObject, nodeFs: NodeFS, args: RenameArgs): JsValue {
+    public static func rename(JsGlobalObject, nodeFs: NodeFS, args: RenameArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.rename(args, flavor: Flavor.async)
         }
@@ -1695,7 +1695,7 @@ public class Async {
 
     /// 异步 rm
     /// 对应 Bun: Async.rm
-    public static func rm(globalObject: JsGlobalObject, nodeFs: NodeFS, args: RmDirArgs): JsValue {
+    public static func rm(JsGlobalObject, nodeFs: NodeFS, args: RmDirArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.rm(args, flavor: Flavor.async)
         }
@@ -1703,7 +1703,7 @@ public class Async {
 
     /// 异步 rmdir
     /// 对应 Bun: Async.rmdir
-    public static func rmdir(globalObject: JsGlobalObject, nodeFs: NodeFS, args: RmDirArgs): JsValue {
+    public static func rmdir(JsGlobalObject, nodeFs: NodeFS, args: RmDirArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.rmdir(args, flavor: Flavor.async)
         }
@@ -1711,7 +1711,7 @@ public class Async {
 
     /// 异步 stat
     /// 对应 Bun: Async.stat
-    public static func stat(globalObject: JsGlobalObject, nodeFs: NodeFS, args: StatArgs): JsValue {
+    public static func stat(JsGlobalObject, nodeFs: NodeFS, args: StatArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.stat(args, flavor: Flavor.async)
         }
@@ -1719,7 +1719,7 @@ public class Async {
 
     /// 异步 symlink
     /// 对应 Bun: Async.symlink
-    public static func symlink(globalObject: JsGlobalObject, nodeFs: NodeFS, args: SymlinkArgs): JsValue {
+    public static func symlink(JsGlobalObject, nodeFs: NodeFS, args: SymlinkArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.symlink(args, flavor: Flavor.async)
         }
@@ -1727,7 +1727,7 @@ public class Async {
 
     /// 异步 truncate
     /// 对应 Bun: Async.truncate
-    public static func truncate(globalObject: JsGlobalObject, nodeFs: NodeFS, args: TruncateArgs): JsValue {
+    public static func truncate(JsGlobalObject, nodeFs: NodeFS, args: TruncateArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.truncate(args, flavor: Flavor.async)
         }
@@ -1735,7 +1735,7 @@ public class Async {
 
     /// 异步 unlink
     /// 对应 Bun: Async.unlink
-    public static func unlink(globalObject: JsGlobalObject, nodeFs: NodeFS, args: UnlinkArgs): JsValue {
+    public static func unlink(JsGlobalObject, nodeFs: NodeFS, args: UnlinkArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.unlink(args, flavor: Flavor.async)
         }
@@ -1743,7 +1743,7 @@ public class Async {
 
     /// 异步 utimes
     /// 对应 Bun: Async.utimes
-    public static func utimes(globalObject: JsGlobalObject, nodeFs: NodeFS, args: UtimesArgs): JsValue {
+    public static func utimes(JsGlobalObject, nodeFs: NodeFS, args: UtimesArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.utimes(args, flavor: Flavor.async)
         }
@@ -1751,7 +1751,7 @@ public class Async {
 
     /// 异步 write
     /// 对应 Bun: Async.write
-    public static func write(globalObject: JsGlobalObject, nodeFs: NodeFS, args: WriteArgs): JsValue {
+    public static func write(JsGlobalObject, nodeFs: NodeFS, args: WriteArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.write(args, flavor: Flavor.async)
         }
@@ -1759,7 +1759,7 @@ public class Async {
 
     /// 异步 writeFile
     /// 对应 Bun: Async.writeFile
-    public static func writeFile(globalObject: JsGlobalObject, nodeFs: NodeFS, args: WriteFileArgs): JsValue {
+    public static func writeFile(JsGlobalObject, nodeFs: NodeFS, args: WriteFileArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.writeFile(args, flavor: Flavor.async)
         }
@@ -1767,7 +1767,7 @@ public class Async {
 
     /// 异步 statfs
     /// 对应 Bun: Async.statfs
-    public static func statfs(globalObject: JsGlobalObject, nodeFs: NodeFS, args: StatFSArgs): JsValue {
+    public static func statfs(JsGlobalObject, nodeFs: NodeFS, args: StatFSArgs): JsValue {
         return WorkPool.schedulePromise(globalObject) { =>
             nodeFs.statfs(args, flavor: Flavor.async)
         }
@@ -1780,7 +1780,7 @@ public class Async {
 // ============================================================================
 public class WorkPool {
     /// 在工作线程执行任务并返回 Promise
-    public static func schedulePromise<T>(globalObject: JsGlobalObject, work: () -> Maybe<T>): JsValue {
+    public static func schedulePromise<T>(JsGlobalObject, work: () -> Maybe<T>): JsValue {
         let promise = JsPromise(globalObject)
         // 在 Cangjie 中使用协程模拟线程池
         spawn {

@@ -382,7 +382,7 @@ public class ZstdDecompressor {
     private func decompressStreaming(data: Array<UInt8>): Array<UInt8> {
         // 实际实现:
         // let stream = ZstdDecompressStream()
-        // stream.init()
+        // stream.`init`()
         // let output = stream.decompressAll(data)
         // stream.deinit()
         // return output

@@ -160,19 +160,17 @@ public class S3HttpDownloadStreamingTask {
         // 简化: 实际实现会使用流式 HTTP 下载
         let client = S3Client(credentials)
         match (client.download(path)) {
-            case Some(bytes) => {
+            case Some(bytes) =>
                 match (targetStream) {
-                    case Some(stream) => {
+                    case Some(stream) =>
                         let data = ArrayList<UInt8>()
                         for (b in bytes) {
                             data.append(b)
                         }
                         stream.onData(data, true)
                         downloadedBytes = bytes.size
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
         done = true

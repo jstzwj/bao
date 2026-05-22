@@ -128,12 +128,10 @@ public class InstallCommand {
             return 0
         } catch (e: InstallException) {
             match (e.kind) {
-                case InstallFailed => {
+                case InstallFailed =>
                     println("error: install failed: ${e.message}")
-                }
-                case InvalidPackageJson => {
+                case InvalidPackageJson =>
                     println("error: invalid package.json: ${e.message}")
-                }
             }
             return 1
         }
@@ -194,10 +192,9 @@ public class InstallCommand {
         if (name.startsWith("@")) {
             let secondAt = name.indexOfFrom('@', 1)
             match (secondAt) {
-                case Some(idx) => {
+                case Some(idx) =>
                     version = Some(name.substring(idx + 1))
                     name = name.substring(0, idx)
-                }
                 case None => ()
             }
         } else {

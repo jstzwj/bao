@@ -68,15 +68,15 @@ public class JSBundleCompletionTask {
         globalThis: JSGlobalObject,
         eventLoop: EventLoop,
     ) {
-        refCount = RefCount.init()
+        refCount = RefCount()
         this.config = config
         jscEventLoop = BackRef.from(eventLoop)
         task = AnyTask.default()
         this.globalThis = BackRef.new(globalThis)
         promise = JSPromiseStrong.default()
-        pollRef = KeepAlive.init()
+        pollRef = KeepAlive()
         env = globalThis.bunVm().transpiler.env
-        log = Log.init()
+        log = Log()
         cancelled = false
         htmlBuildTask = None
         result = BundleV2Result.pending
@@ -89,7 +89,7 @@ public class JSBundleCompletionTask {
     /// 引用计数析构器 — 最后一个引用被丢弃时调用
     public func deinit(): Unit {
         pollRef.disable()
-        if (let Some(plugin) = plugins) {
+        if (let Some(plugin) <- plugins) {
             Plugin.destroy(plugin)
             plugins = None
         }
@@ -117,7 +117,7 @@ public func createAndScheduleCompletionTask(
         completion,
         JSBundleCompletionTask.onCompleteAnytask,
     )
-    if (let Some(plugin) = completion.plugins) {
+    if (let Some(plugin) <- completion.plugins) {
         plugin.setConfig(completion)
     }
 
@@ -139,13 +139,13 @@ public func generateFromJavaScript(
     plugins: ?Plugin,
     globalThis: JSGlobalObject,
     eventLoop: EventLoop,
-): ?JSValue {
+): ?JsValue {
     let completion = createAndScheduleCompletionTask(config, plugins, globalThis, eventLoop)
     if (completion.isNone()) {
         return None
     }
     let task = completion.unwrap()
-    task.promise = JSPromiseStrong.init(globalThis)
+    task.promise = JSPromiseStrong(globalThis)
     return task.promise.value()
 }
 
@@ -168,11 +168,11 @@ public func runOnEndCallbacks(
     globalThis: JSGlobalObject,
     plugin: Plugin,
     promise: JSPromise,
-    buildResult: JSValue,
-    rejection: ?JSValue,
+    buildResult: JsValue,
+    rejection: ?JsValue,
 ): Bool {
     let value = plugin.runOnEndCallbacks(globalThis, promise, buildResult, rejection)
-    return (value != JSValue.undefined)
+    return (value != JsValue.undefined)
 }
 
 /// 扩展: 获取可变插件引用
@@ -188,13 +188,13 @@ public func toJsError(
 ): Unit {
     let throwOnError = task.config.throwOnError
 
-    let buildResult = JSValue.createEmptyObject(globalThis, 3)
-    buildResult.put(globalThis, "outputs", JSValue.createEmptyArray(globalThis, 0))
-    buildResult.put(globalThis, "success", JSValue.false)
+    let buildResult = JsValue.createEmptyObject(globalThis, 3)
+    buildResult.put(globalThis, "outputs", JsValue.createEmptyArray(globalThis, 0))
+    buildResult.put(globalThis, "success", JsValue.false)
 
     match (LogJsc.logToJsArray(task.log, globalThis)) {
-        | ok(v) => buildResult.put(globalThis, "logs", v)
-        | err(e) => promise.reject(globalThis, e)
+        case ok(v) => buildResult.put(globalThis, "logs", v)
+        case err(e) => promise.reject(globalThis, e)
     }
 
     var didHandleCallbacks: Bool = false
@@ -202,9 +202,9 @@ public func toJsError(
         let rejection = if (throwOnError) {
             LogJsc.logToJsAggregateError(task.log, globalThis, "Bundle failed")
         } else {
-            JSValue.undefined
+            JsValue.undefined
         }
-        if (let Some(plugin) = pluginsMut(task)) {
+        if (let Some(plugin) <- pluginsMut(task)) {
             didHandleCallbacks = runOnEndCallbacks(globalThis, plugin, promise, buildResult, rejection)
         }
     }
@@ -331,7 +331,7 @@ public func doCompilation(
         } else if (result == CompileResult.success
             && outputFile.outputKind == OutputKind.sourcemap
             && outputFile.value.isBuffer()) {
-            let bytesLen = outputFile.value.bufferBytes().length
+            let bytesLen = outputFile.value.bufferBytes().size
             if (bytesLen > 0) {
                 // 写入 sourcemap 文件
                 let mapBasename = paths.basename(outputFile.destPath)
@@ -345,16 +345,16 @@ public func doCompilation(
                     encoding: Encoding.buffer,
                     flag: FileSystemFlags.w,
                     mode: DEFAULT_PERMISSION,
-                    file: PathOrFileDescriptor.path(PathLike.string(PathString.init(mapBasename))),
+                    file: PathOrFileDescriptor.path(PathLike.string(PathString(mapBasename))),
                     flush: false,
                     data: StringOrBuffer.encodedSlice(outputFile.value.bufferBytes()),
                 ))
 
                 match (writeResult) {
-                    | ok(_) =>
+                    case ok(_) =>
                         outputFile.destPath = sourcemapFullPath
                         true
-                    | err(_) => false
+                    case err(_) => false
                 }
             } else {
                 false
@@ -376,7 +376,7 @@ public func doCompilation(
 /// 扩展: AnyTask 入口 — onComplete
 /// 在 JS 线程上运行，当 bundle 线程通过 complete_on_bundle_thread 回调时调用。
 public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
-    let this = ctx
+    let `this` = ctx
     this.pollRef.unref(VirtualMachine.eventLoopCtx(this.globalThis.bunVmPtr()))
 
     if (this.cancelled) {
@@ -384,7 +384,7 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
     }
 
     // HTML 构建任务
-    if (let Some(htmlBuildTask) = this.htmlBuildTask) {
+    if (let Some(htmlBuildTask) <- this.htmlBuildTask) {
         this.plugins = None
         HTMLBundleRoute.onComplete(htmlBuildTask, this)
         return
@@ -416,9 +416,9 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
     }
 
     // 成功路径
-    if (let Some(build) = this.result.asValue()) {
+    if (let Some(build) <- this.result.asValue()) {
         let outputFiles = build.outputFiles
-        let outputFilesJs = JSValue.createEmptyArray(globalThis, outputFiles.length)
+        let outputFilesJs = JsValue.createEmptyArray(globalThis, outputFiles.size)
 
         let outdirIsAbs = !this.config.outdir.isEmpty()
             && paths.isAbsolute(this.config.outdir)
@@ -426,7 +426,7 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
         let dir = this.config.dir
         let topLevelDir = FileSystem.get().topLevelDir
 
-        var toAssignOnSourcemap = JSValue.zero
+        var toAssignOnSourcemap = JsValue.zero
         for ((i, outputFile) in outputFiles) {
             var path: String = ""
             if (!outdir.isEmpty()) {
@@ -441,9 +441,9 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
 
             let result = OutputFileJsc.toJs(outputFile, Some(path), globalThis)
 
-            if (toAssignOnSourcemap != JSValue.zero) {
+            if (toAssignOnSourcemap != JsValue.zero) {
                 BuildArtifact.sourcemapSetCached(toAssignOnSourcemap, globalThis, result)
-                toAssignOnSourcemap = JSValue.zero
+                toAssignOnSourcemap = JsValue.zero
             }
 
             if (outputFile.sourceMapIndex != UInt32.max) {
@@ -453,27 +453,27 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
             outputFilesJs.putIndex(globalThis, i, result)
         }
 
-        let buildOutput = JSValue.createEmptyObject(globalThis, 4)
+        let buildOutput = JsValue.createEmptyObject(globalThis, 4)
         buildOutput.put(globalThis, "outputs", outputFilesJs)
-        buildOutput.put(globalThis, "success", JSValue.true)
+        buildOutput.put(globalThis, "success", JsValue.true)
 
         match (LogJsc.logToJsArray(this.log, globalThis)) {
-            | ok(v) => buildOutput.put(globalThis, "logs", v)
-            | err(e) => promise.reject(globalThis, e)
+            case ok(v) => buildOutput.put(globalThis, "logs", v)
+            case err(e) => promise.reject(globalThis, e)
         }
 
         // Metafile
-        if (let Some(metafile) = build.metafile) {
+        if (let Some(metafile) <- build.metafile) {
             let metafileJsStr = createUtf8ForJs(globalThis, metafile)
             let metafileMdStr = match (build.metafileMarkdown) {
-                | Some(md) => createUtf8ForJs(globalThis, md)
-                | None => JSValue.undefined,
+                case Some(md) => createUtf8ForJs(globalThis, md)
+                case None => JsValue.undefined,
             }
             setupLazyMetafile(globalThis, buildOutput, metafileJsStr, metafileMdStr)
         }
 
         var didHandleCallbacks: Bool = false
-        if (let Some(plugin) = pluginsMut(this)) {
+        if (let Some(plugin) <- pluginsMut(this)) {
             didHandleCallbacks = runOnEndCallbacks(
                 globalThis, plugin, promise, buildOutput, None,
             )
@@ -513,7 +513,7 @@ public func configureBundler(
     transpiler.options.compile = config.compile.isSome()
 
     // 编译模式的 public_path
-    if (let Some(compileOpts) = config.compile) {
+    if (let Some(compileOpts) <- config.compile) {
         transpiler.options.publicPath = targetBasePublicPath(compileOpts.compileTarget.os, "root/")
     } else {
         transpiler.options.publicPath = config.publicPath
@@ -582,7 +582,7 @@ public func createAndConfigureTranspiler(
         jsx: Some(config.jsx.clone()),
     )
 
-    let t = Transpiler.init(bump, task.log, opts, Some(task.env))
+    let t = Transpiler(bump, task.log, opts, Some(task.env))
     if (t.isErr()) {
         return None
     }
@@ -601,7 +601,7 @@ public func initAndRun(
     threadPool: ?ThreadPool,
 ): Bool {
     // 创建 BundleV2 并运行
-    let bv2 = BundleV2.init(transpiler, None, bump, None, false, threadPool)
+    let bv2 = BundleV2(transpiler, None, bump, None, false, threadPool)
     if (bv2.isErr()) {
         return false
     }
@@ -617,11 +617,11 @@ public func initAndRun(
     let run = bundleV2.runFromJsInNewThread(entryPoints)
 
     match (run) {
-        | ok(build) =>
+        case ok(build) =>
             task.result = BundleV2Result.value(build)
             bundleV2.deinitWithoutFreeingArena()
             true
-        | err(err) =>
+        case err(err) =>
             bundleV2.linker.sourceMaps.lineOffsetWaitGroup.wait()
             bundleV2.linker.sourceMaps.quotedContentsWaitGroup.wait()
             bundleV2.deinitWithoutFreeingArena()

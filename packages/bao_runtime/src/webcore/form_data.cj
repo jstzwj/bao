@@ -122,7 +122,7 @@ public class FieldExternal {
 
 /// Map type for FormData fields
 /// 对应 Bun: Map = ArrayHashMap<bun_semver::String, FieldEntry>
-public typealias FormDataMap = ArrayList<KeyValuePair<SemverString, FieldEntry>>
+public type FormDataMap = ArrayList<KeyValuePair<SemverString, FieldEntry>>
 
 /// Key-value pair helper
 public class KeyValuePair<K, V> {
@@ -202,14 +202,12 @@ public class FormData {
         for (entry in fields) {
             if (entry.key.toString() == name) {
                 match (entry.value) {
-                    case Field(f) => {
+                    case Field(f) =>
                         return Some(Utf8Codec.decode(f.value))
-                    }
-                    case List(list) => {
+                    case List(list) =>
                         if (list.size > 0) {
                             return Some(Utf8Codec.decode(list[0].value))
                         }
-                    }
                 }
             }
         }
@@ -223,14 +221,12 @@ public class FormData {
         for (entry in fields) {
             if (entry.key.toString() == name) {
                 match (entry.value) {
-                    case Field(f) => {
+                    case Field(f) =>
                         result.add(Utf8Codec.decode(f.value))
-                    }
-                    case List(list) => {
+                    case List(list) =>
                         for (f in list) {
                             result.add(Utf8Codec.decode(f.value))
                         }
-                    }
                 }
             }
         }
@@ -277,14 +273,12 @@ public class FormData {
         let result = ArrayList<String>()
         for (entry in fields) {
             match (entry.value) {
-                case Field(f) => {
+                case Field(f) =>
                     result.add(Utf8Codec.decode(f.value))
-                }
-                case List(list) => {
+                case List(list) =>
                     for (f in list) {
                         result.add(Utf8Codec.decode(f.value))
                     }
-                }
             }
         }
         return result
@@ -296,14 +290,12 @@ public class FormData {
         let result = ArrayList<(String, String)>()
         for (entry in fields) {
             match (entry.value) {
-                case Field(f) => {
+                case Field(f) =>
                     result.add((entry.key.toString(), Utf8Codec.decode(f.value)))
-                }
-                case List(list) => {
+                case List(list) =>
                     for (f in list) {
                         result.add((entry.key.toString(), Utf8Codec.decode(f.value)))
                     }
-                }
             }
         }
         return result
@@ -315,14 +307,12 @@ public class FormData {
         let self = this
         for (entry in fields) {
             match (entry.value) {
-                case Field(f) => {
+                case Field(f) =>
                     callback(entry.key.toString(), Utf8Codec.decode(f.value), self)
-                }
-                case List(list) => {
+                case List(list) =>
                     for (f in list) {
                         callback(entry.key.toString(), Utf8Codec.decode(f.value), self)
                     }
-                }
             }
         }
     }
@@ -343,12 +333,11 @@ public class FormData {
             if (!first) { sb.append("&") }
             first = false
             match (entry.value) {
-                case Field(f) => {
+                case Field(f) =>
                     sb.append(urlEncode(entry.key.toString()))
                     sb.append("=")
                     sb.append(urlEncode(Utf8Codec.decode(f.value)))
-                }
-                case List(list) => {
+                case List(list) =>
                     for (f in list) {
                         if (!first) { sb.append("&") }
                         first = false
@@ -356,7 +345,6 @@ public class FormData {
                         sb.append("=")
                         sb.append(urlEncode(Utf8Codec.decode(f.value)))
                     }
-                }
             }
         }
         return sb.toString()
@@ -368,14 +356,14 @@ public class FormData {
         let sb = StringBuilder()
         for (entry in fields) {
             match (entry.value) {
-                case Field(f) => {
+                case Field(f) =>
                     sb.append("--")
                     sb.append(boundary)
                     sb.append("\r\n")
                     if (f.isFile) {
                         let fname = f.filename.toString()
                         sb.append("Content-Disposition: form-data; name=\"${entry.key.toString()}\"; filename=\"${fname}\"\r\n")
-                        if (f.contentType.toString().length > 0) {
+                        if (f.contentType.toString().size > 0) {
                             sb.append("Content-Type: ${f.contentType.toString()}\r\n")
                         }
                     } else {
@@ -384,8 +372,7 @@ public class FormData {
                     sb.append("\r\n")
                     sb.append(Utf8Codec.decode(f.value))
                     sb.append("\r\n")
-                }
-                case List(list) => {
+                case List(list) =>
                     for (f in list) {
                         sb.append("--")
                         sb.append(boundary)
@@ -393,7 +380,7 @@ public class FormData {
                         if (f.isFile) {
                             let fname = f.filename.toString()
                             sb.append("Content-Disposition: form-data; name=\"${entry.key.toString()}\"; filename=\"${fname}\"\r\n")
-                            if (f.contentType.toString().length > 0) {
+                            if (f.contentType.toString().size > 0) {
                                 sb.append("Content-Type: ${f.contentType.toString()}\r\n")
                             }
                         } else {
@@ -403,7 +390,6 @@ public class FormData {
                         sb.append(Utf8Codec.decode(f.value))
                         sb.append("\r\n")
                     }
-                }
             }
         }
         sb.append("--")
@@ -418,15 +404,13 @@ public class FormData {
     /// 对应 Bun: FormData::toJS
     public static func toJS(global: JSGlobalObject, input: Array<UInt8>, encoding: FormDataEncoding): JsResult {
         match (encoding) {
-            case URLEncoded => {
+            case URLEncoded =>
                 let str = ZigString.initUtf8(Strings.withoutUTF8Bom(input))
                 // C++ may throw (e.g. string too long) — createFromURLQuery
                 // wraps the FFI in a validation scope and maps zero → JsError.
                 return DOMFormData.createFromURLQuery(global, str)
-            }
-            case Multipart(boundary) => {
+            case Multipart(boundary) =>
                 return toJSFromMultipartData(global, input, boundary.toArray())
-            }
         }
     }
 
@@ -722,7 +706,7 @@ public class FormData {
     /// URL 编码辅助函数
     private static func urlEncode(s: String): String {
         let sb = StringBuilder()
-        for (i in 0..s.length) {
+        for (i in 0..s.size) {
             let c = s[Int64(i)]
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
                 c == '-' || c == '_' || c == '.' || c == '~') {
@@ -744,12 +728,12 @@ public class FormData {
     private static func urlDecode(s: String): String {
         let sb = StringBuilder()
         var i: Int64 = 0
-        while (i < s.length) {
+        while (i < s.size) {
             let c = s[Int64(i)]
             if (c == '+') {
                 sb.append(" ")
                 i += 1
-            } else if (c == '%' && i + 2 < s.length) {
+            } else if (c == '%' && i + 2 < s.size) {
                 let hex = s.substring(Int64(i) + 1, Int64(i) + 3)
                 try {
                     let byte = UInt8(Int64.parse(hex, 16))
@@ -772,7 +756,7 @@ public class FormData {
     /// 对应 Bun: FormData.toJS URLEncoded path
     public static func fromURLQuery(query: String): FormData {
         let form = FormData()
-        if (query.length == 0) { return form }
+        if (query.size == 0) { return form }
         let pairs = query.split("&")
         for (pair in pairs) {
             let eqIdx = pair.indexOf("=")
@@ -834,22 +818,19 @@ public class AsyncFormData {
     /// 对应 Bun: AsyncFormDataExt::toJS
     public func toJS(global: JSGlobalObject, data: Array<UInt8>, promise: AnyPromise): Unit {
         match (encoding) {
-            case Multipart(b) => {
+            case Multipart(b) =>
                 if (b.size == 0) {
-                    promise.reject(global, ZigString.init("FormData missing boundary").toErrorInstance(global))
+                    promise.reject(global, ZigString("FormData missing boundary").toErrorInstance(global))
                     return
                 }
-            }
             case _ => ()
         }
 
         match (FormData.toJS(global, data, encoding)) {
-            case Ok(jsValue) => {
+            case Ok(jsValue) =>
                 promise.resolve(global, jsValue)
-            }
-            case Err(e) => {
+            case Err(e) =>
                 promise.reject(global, global.createErrorInstance("FormData error"))
-            }
         }
     }
 }
@@ -961,7 +942,7 @@ public class SemverString {
     public init(data: Array<UInt8>, start: Int64, length: Int64) {
         this.data = data
         this.start = start
-        this.length = length
+        this.size = length
     }
 
     public func len(): Int64 { return length }

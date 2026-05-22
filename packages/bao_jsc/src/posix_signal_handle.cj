@@ -10,7 +10,7 @@ package bao_jsc
 public class PosixSignalHandle {
     public static let BUFFER_SIZE: Int64 = 8192
 
-    public var signals: Array<UInt8> = Array<UInt8>(BUFFER_SIZE, item: 0)
+    public var signals: Array<UInt8> = Array<UInt8>(BUFFER_SIZE, { _: Int64 => UInt8(0) })
     // 生产者索引（信号处理程序写入）
     public var tail: AtomicUInt16 = AtomicUInt16(0)
     // 消费者索引（主线程读取）
@@ -34,7 +34,7 @@ public class PosixSignalHandle {
         }
 
         // 存储信号到环形缓冲区槽位
-        signals[Int(oldTail % UInt16(PosixSignalHandle.BUFFER_SIZE))] = signal
+        signals[Int64(oldTail % UInt16(PosixSignalHandle.BUFFER_SIZE))] = signal
 
         // 发布新 tail
         tail.store(oldTail + UInt16(1))
@@ -55,9 +55,9 @@ public class PosixSignalHandle {
             return None
         }
 
-        let slotIndex = Int(oldHead % UInt16(PosixSignalHandle.BUFFER_SIZE))
+        let slotIndex = Int64(oldHead % UInt16(PosixSignalHandle.BUFFER_SIZE))
         let signal = signals[slotIndex]
-        signals[slotIndex] = 0
+        signals[slotIndex] = UInt8(0)
 
         // 发布更新的 head
         head.store(oldHead + UInt16(1))
@@ -92,7 +92,7 @@ public class PosixSignalTask {
 public class AtomicUInt16 {
     public var value: UInt16 = 0
 
-    public init(_ v: UInt16) { value = v }
+    public init(v: UInt16) { value = v }
     public func load(): UInt16 { value }
-    public func store(_ v: UInt16) { value = v }
+    public func store(v: UInt16) { value = v }
 }

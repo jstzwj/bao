@@ -57,7 +57,7 @@ public class Debug {
                 defer { group.end() }
 
                 var currentEntry = sequence.firstEntry
-                while (currentEntry != None) {
+                while (currentEntry.isSome()) {
                     let entry = currentEntry.getOrThrow()
                     group.log("ExecutionEntry \"" + entry.base.name ?? "(unnamed)" + "\" (concurrent=" + entry.base.concurrent + ", mode=" + entry.base.mode + ", only=" + entry.base.only + ", has_callback=" + entry.base.hasCallback + ")")
                     currentEntry = entry.next

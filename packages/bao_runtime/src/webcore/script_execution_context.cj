@@ -56,7 +56,7 @@ public class ScriptExecutionContextIdentifier {
     /// 对应 Bun: Identifier.valid() -> bool
     ///   global_object().is_some()
     public func valid(): Bool {
-        return globalObject() != None
+        return globalObject().isSome()
     }
 }
 
@@ -73,7 +73,7 @@ public class ScriptExecutionContextIdentifier {
 /// 对应 Bun: pub trait IdentifierExt
 ///
 /// Runtime-tier convenience: typed `&VirtualMachine` view of Identifier::bun_vm
-/// (the bun_jsc method returns `*mut VirtualMachine` to avoid lifetime claims).
+/// (the bun_jsc method returns `*VirtualMachine` to avoid lifetime claims).
 public class IdentifierExt {
     /// 获取 VM 的类型化引用
     /// 对应 Bun: fn bun_vm_ref(self) -> Option<&'static VirtualMachine>

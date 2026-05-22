@@ -55,7 +55,7 @@ public class NativeBrotli {
         //   BROTLI_DECODE => {
         //     this.last_result.d = c.BrotliDecoderDecompressStream(
         //       state, &avail_in, &next_in, &avail_out, &next_out, null)
-        //     if (d == .err) this.error_ = c.BrotliDecoderGetErrorCode(state)
+        //     if (d == err) this.error_ = c.BrotliDecoderGetErrorCode(state)
         //   }
         unsafe {
             match (mode) {
@@ -95,11 +95,11 @@ public class NativeBrotli {
         // 对应 Bun NativeBrotli.zig Context.setParams:
         //   BROTLI_ENCODE => {
         //     if (c.BrotliEncoderSetParameter(state, key, value) == 0)
-        //       return Error.init("Setting parameter failed", -1, "ERR_BROTLI_PARAM_SET_FAILED")
+        //       return Error("Setting parameter failed", -1, "ERR_BROTLI_PARAM_SET_FAILED")
         //   }
         //   BROTLI_DECODE => {
         //     if (c.BrotliDecoderSetParameter(state, key, value) == 0)
-        //       return Error.init("Setting parameter failed", -1, "ERR_BROTLI_PARAM_SET_FAILED")
+        //       return Error("Setting parameter failed", -1, "ERR_BROTLI_PARAM_SET_FAILED")
         //   }
         // FFI: BrotliEncoderSetParameter(state, param, value) 或 BrotliDecoderSetParameter(state, param, value)
     }

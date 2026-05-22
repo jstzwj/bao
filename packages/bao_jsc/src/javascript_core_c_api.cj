@@ -10,6 +10,9 @@ package bao_jsc
 // 严格翻译自 JSContextGroupRef
 public type JSContextGroupRef = UInt64
 
+// 严格翻译自 JSContextRef
+public type JSContextRef = UInt64
+
 // 严格翻译自 JSGlobalContextRef
 public type JSGlobalContextRef = JsObject
 
@@ -122,7 +125,7 @@ public class JSCAPI {
     // JSObjectCallAsFunctionReturnValueHoldingAPILock
     public static func jsObjectCallAsFunctionReturnValueHoldingAPILock(ctx: JsObject, object: JSObjectRef, thisObject: JSObjectRef, argumentCount: Int64, arguments: Array<JSValueRef>): JsValue {
         // FFI: JSObjectCallAsFunctionReturnValueHoldingAPILock
-        JsValue.zero
+        JsValue()
     }
 
     // JSObjectMakeTypedArray

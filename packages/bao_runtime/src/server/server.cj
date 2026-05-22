@@ -8,6 +8,7 @@ import bao_sys.*
 import bao_event_loop.*
 import bao_io.*
 import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // 子模块引用
@@ -15,49 +16,49 @@ import bao_jsc.*
 // ============================================================================
 
 /// WebSocket服务器上下文
-public typealias WebSocketServerContext = server_websocket.WebSocketServerContext
+public type WebSocketServerContext = server_websocket.WebSocketServerContext
 
 /// HTTP状态文本
-public typealias HTTPStatusText = http_status_text.HTTPStatusText
+public type HTTPStatusText = http_status_text.HTTPStatusText
 
 /// HTML Bundle路由
-public typealias HTMLBundleRoute = html_bundle.HTMLBundleRoute
+public type HTMLBundleRoute = html_bundle.HTMLBundleRoute
 
 /// 静态路由
-public typealias StaticRoute = static_route.StaticRoute
+public type StaticRoute = static_route.StaticRoute
 
 /// 文件路由
-public typealias FileRoute = file_route.FileRoute
+public type FileRoute = file_route.FileRoute
 
 /// 文件响应流
-public typealias FileResponseStream = file_response_stream.FileResponseStream
+public type FileResponseStream = file_response_stream.FileResponseStream
 
 /// 范围请求
-public typealias RangeRequest = range_request.RangeRequest
+public type RangeRequest = range_request.RangeRequest
 
 /// 请求上下文
-public typealias RequestContext = request_context.RequestContext
+public type RequestContext = request_context.RequestContext
 
 /// 服务器配置
-public typealias ServerConfig = server_config.ServerConfig
+public type ServerConfig = server_config.ServerConfig
 
 /// 服务器WebSocket
-public typealias ServerWebSocket = server_websocket.ServerWebSocket
+public type ServerWebSocket = server_websocket.ServerWebSocket
 
 /// Node HTTP响应
-public typealias NodeHTTPResponse = node_http_response.NodeHTTPResponse
+public type NodeHTTPResponse = node_http_response.NodeHTTPResponse
 
 /// 请求对象
-public typealias Request = request.Request
+public type Request = request.Request
 
 /// Inspector Bun 前端开发服务器代理
-public typealias BunFrontendDevServerAgent = inspector_bun_frontend_dev_server_agent.BunFrontendDevServerAgent
+public type BunFrontendDevServerAgent = inspector_bun_frontend_dev_server_agent.BunFrontendDevServerAgent
 
 /// Inspector 句柄
-public typealias InspectorBunFrontendDevServerAgentHandle = inspector_bun_frontend_dev_server_agent.InspectorBunFrontendDevServerAgentHandle
+public type InspectorBunFrontendDevServerAgentHandle = inspector_bun_frontend_dev_server_agent.InspectorBunFrontendDevServerAgentHandle
 
 /// 控制台日志类型
-public typealias ConsoleLogKind = inspector_bun_frontend_dev_server_agent.ConsoleLogKind
+public type ConsoleLogKind = inspector_bun_frontend_dev_server_agent.ConsoleLogKind
 
 // ============================================================================
 // 写入HTTP状态行
@@ -68,16 +69,14 @@ public typealias ConsoleLogKind = inspector_bun_frontend_dev_server_agent.Consol
 /// 根据状态码查找对应的状态文本，写入到响应中
 public func writeStatus(resp: ?ResponseRef, status: UInt16): Unit {
     match (resp) {
-        case Some(r) => {
+        case Some(r) =>
             match (HTTPStatusText.get(status)) {
                 case Some(t) => r.writeStatus(t)
-                case None => {
+                case None =>
                     var statusTextBuf: Array<Byte> = Array<Byte>(48)
-                    let text = " \(status) HM"
+                    let text = " ${status} HM"
                     r.writeStatus(text)
-                }
             }
-        }
         case None => ()
     }
 }
@@ -127,113 +126,98 @@ public class AnyRoute {
     }
 
     /// 内存开销
-    /// 对应 Bun: pub fn memoryCost(this: AnyRoute) usize
+    /// 对应 Bun: pub fn memoryCost(`this`: AnyRoute) usize
     public func memoryCost(): Int64 {
-        switch (routeType) {
-            case RouteType.Static => {
+        match (routeType) {
+            case RouteType.Static =>
                 match (staticRoute) {
                     case Some(r) => r.memoryCost()
                     case None => Int64(0)
                 }
-            }
-            case RouteType.File => {
+            case RouteType.File =>
                 match (fileRoute) {
                     case Some(r) => r.memoryCost()
                     case None => Int64(0)
                 }
-            }
-            case RouteType.Html => {
+            case RouteType.Html =>
                 match (htmlRoute) {
                     case Some(r) => r.memoryCost()
                     case None => Int64(0)
                 }
-            }
             case RouteType.FrameworkRouter => Int64(0)
         }
     }
 
     /// 设置服务器引用
-    /// 对应 Bun: pub fn setServer(this: AnyRoute, server: ?AnyServer) void
+    /// 对应 Bun: pub fn setServer(`this`: AnyRoute, server: ?AnyServer) void
     public func setServer(srv: ?ServerRef): Unit {
         server = srv
-        switch (routeType) {
-            case RouteType.Static => {
+        match (routeType) {
+            case RouteType.Static =>
                 match (staticRoute) {
                     case Some(r) => r.server = srv
                     case None => ()
                 }
-            }
-            case RouteType.File => {
+            case RouteType.File =>
                 match (fileRoute) {
                     case Some(r) => r.server = srv
                     case None => ()
                 }
-            }
-            case RouteType.Html => {
+            case RouteType.Html =>
                 match (htmlRoute) {
                     case Some(r) => r.server = srv
                     case None => ()
                 }
-            }
-            case RouteType.FrameworkRouter => {
-                // DevServer包含.server字段，不需要设置
-            }
+            case RouteType.FrameworkRouter =>
+                () // DevServer包含.server字段，不需要设置
         }
     }
 
     /// 增加引用计数
-    /// 对应 Bun: pub fn ref(this: AnyRoute) void
+    /// 对应 Bun: pub fn ref(`this`: AnyRoute) void
     public func refRoute(): Unit {
-        switch (routeType) {
-            case RouteType.Static => {
+        match (routeType) {
+            case RouteType.Static =>
                 match (staticRoute) {
                     case Some(r) => r.refRoute()
                     case None => ()
                 }
-            }
-            case RouteType.File => {
+            case RouteType.File =>
                 match (fileRoute) {
                     case Some(r) => r.refRoute()
                     case None => ()
                 }
-            }
-            case RouteType.Html => {
+            case RouteType.Html =>
                 match (htmlRoute) {
                     case Some(r) => r.refRoute()
                     case None => ()
                 }
-            }
-            case RouteType.FrameworkRouter => {
-                // 框架路由不是引用计数的
-            }
+            case RouteType.FrameworkRouter =>
+                () // 框架路由不是引用计数的
         }
     }
 
     /// 减少引用计数
-    /// 对应 Bun: pub fn deref(this: AnyRoute) void
+    /// 对应 Bun: pub fn deref(`this`: AnyRoute) void
     public func derefRoute(): Unit {
-        switch (routeType) {
-            case RouteType.Static => {
+        match (routeType) {
+            case RouteType.Static =>
                 match (staticRoute) {
                     case Some(r) => r.deref()
                     case None => ()
                 }
-            }
-            case RouteType.File => {
+            case RouteType.File =>
                 match (fileRoute) {
                     case Some(r) => r.deref()
                     case None => ()
                 }
-            }
-            case RouteType.Html => {
+            case RouteType.Html =>
                 match (htmlRoute) {
                     case Some(r) => r.deref()
                     case None => ()
                 }
-            }
-            case RouteType.FrameworkRouter => {
-                // 框架路由不是引用计数的
-            }
+            case RouteType.FrameworkRouter =>
+                () // 框架路由不是引用计数的
         }
     }
 
@@ -245,24 +229,22 @@ public class AnyRoute {
 
         if (blob.needsToReadFile()) {
             // 验证文件是否存在
-            if (let store = blob.store) {
-                if (let storePath = store.getPath()) {
+            if (let store <- blob.store) {
+                if (let storePath <- store.getPath()) {
                     let existsType = Sys.existsAtType(FD.cwd(), storePath)
-                    switch (existsType) {
-                        case .result(let fileType) => {
-                            if (fileType == .directory) {
+                    match (existsType) {
+                        case result(fileType) =>
+                            if (fileType == FileType.directory) {
                                 global.throwInvalidArguments(
-                                    "Bundled file \(storePath) cannot be a directory"
+                                    "Bundled file ${storePath} cannot be a directory"
                                 )
                                 return AnyRoute()
                             }
-                        }
-                        case .err => {
+                        case err =>
                             global.throwInvalidArguments(
-                                "Bundled file \(storePath) not found"
+                                "Bundled file ${storePath} not found"
                             )
                             return AnyRoute()
-                        }
                     }
                 }
             }
@@ -283,10 +265,10 @@ public class AnyRoute {
 
     /// 从JS值创建HTML路由
     /// 对应 Bun: pub fn htmlRouteFromJS(...)
-    public static func htmlRouteFromJS(argument: JSValue, initCtx: ServerInitContext): ?AnyRoute {
+    public static func htmlRouteFromJS(argument: JsValue, initCtx: ServerInitContext): ?AnyRoute {
         // HTML Bundle处理
-        if (let htmlBundle = argument.asHTMLBundle()) {
-            let route = HTMLBundleRoute.init(htmlBundle)
+        if (let htmlBundle <- argument.asHTMLBundle()) {
+            let route = HTMLBundleRoute(htmlBundle)
             let result = AnyRoute()
             result.routeType = RouteType.Html
             result.htmlRoute = route
@@ -297,16 +279,16 @@ public class AnyRoute {
 
     /// 从JS值创建路由
     /// 对应 Bun: pub fn fromJS(global, path, argument, init_ctx) bun.JSError!?AnyRoute
-    public static func fromJS(global: JSGlobalObject, path: String, argument: JSValue,
+    public static func fromJS(global: JSGlobalObject, path: String, argument: JsValue,
                                initCtx: ServerInitContext): ?AnyRoute {
         // 1. 尝试HTML路由
-        if (let htmlRoute = htmlRouteFromJS(argument, initCtx)) {
+        if (let htmlRoute <- htmlRouteFromJS(argument, initCtx)) {
             return htmlRoute
         }
 
         // 2. 尝试框架路由器
         if (argument.isObject()) {
-            if (let dir = argument.getOptional(global, "dir")) {
+            if (let dir <- argument.getOptional(global, "dir")) {
                 // 框架路由器路由
                 if (!path.endsWith("/*")) {
                     global.throwInvalidArguments(
@@ -321,7 +303,7 @@ public class AnyRoute {
         }
 
         // 3. 尝试文件路由
-        if (let fileRoute = FileRoute.fromJS(global, argument)) {
+        if (let fileRoute <- FileRoute.fromJS(global, argument)) {
             let result = AnyRoute()
             result.routeType = RouteType.File
             result.fileRoute = fileRoute
@@ -329,7 +311,7 @@ public class AnyRoute {
         }
 
         // 4. 尝试静态路由
-        if (let staticRoute = StaticRoute.fromJS(global, argument)) {
+        if (let staticRoute <- StaticRoute.fromJS(global, argument)) {
             let result = AnyRoute()
             result.routeType = RouteType.Static
             result.staticRoute = staticRoute
@@ -374,13 +356,13 @@ public class ServerInitContext {
 /// 对应 Bun: pub const State = union(enum) { unqueued, pending, loaded, err }
 public enum ServePluginState {
     /// 尚未开始加载
-    case unqueued(Array<String>)
+    | unqueued(Array<String>)
     /// 正在加载中
-    case pending(ServePluginPending)
+    | pending(ServePluginPending)
     /// 加载完成
-    case loaded(JSBundlerPlugin)
+    | loaded(JSBundlerPlugin)
     /// 加载失败
-    case err
+    | err
 }
 
 /// 插件加载中的临时数据
@@ -402,18 +384,18 @@ public class ServePluginPending {
 /// 对应 Bun: pub const GetOrStartLoadResult = union(enum) { ready, pending, err }
 public enum GetOrStartLoadResult {
     /// 准备就绪（null = 无插件）
-    case ready(JSBundlerPlugin)
+    | ready(JSBundlerPlugin)
     /// 正在加载
-    case pending
+    | pending
     /// 加载失败
-    case err
+    | err
 }
 
 /// 插件回调类型
 /// 对应 Bun: pub const Callback = union(enum) { html_bundle_route, dev_server }
 public enum ServePluginCallback {
-    case htmlBundleRoute(HTMLBundleRoute)
-    case devServer(DevServer)
+    | htmlBundleRoute(HTMLBundleRoute)
+    | devServer(DevServer)
 }
 
 /// 服务器插件状态机
@@ -430,25 +412,23 @@ public class ServePlugins {
     /// 获取或开始加载插件
     /// 对应 Bun: pub fn getOrStartLoad(this, global, cb) bun.JSError!GetOrStartLoadResult
     public func getOrStartLoad(global: JSGlobalObject, cb: ServePluginCallback): GetOrStartLoadResult {
-        switch (state) {
-            case .unqueued(let plugins) => {
+        match (state) {
+            case unqueued(plugins) =>
                 loadAndResolvePlugins(global)
                 // 同步完成后可能跳转到任何分支
                 return getOrStartLoad(global, cb)
-            }
-            case .pending(let pending) => {
-                switch (cb) {
-                    case .htmlBundleRoute(let route) =>
+            case pending(pending) =>
+                match (cb) {
+                    case htmlBundleRoute(route) =>
                         route.refRoute()
                         pending.htmlBundleRoutes.append(route)
-                    case .devServer(let dev) =>
+                    case devServer(dev) =>
                         pending.devServer = dev
                 }
                 return GetOrStartLoadResult.pending
-            }
-            case .loaded(let plugin) =>
+            case loaded(plugin) =>
                 return GetOrStartLoadResult.ready(plugin)
-            case .err =>
+            case err =>
                 return GetOrStartLoadResult.err
         }
     }
@@ -462,8 +442,8 @@ public class ServePlugins {
     /// 处理插件加载成功
     /// 对应 Bun: pub fn handleOnResolve(this) void
     public func handleOnResolve(): Unit {
-        switch (state) {
-            case .pending(let pending) =>
+        match (state) {
+            case pending(pending) =>
                 let plugin = pending.plugin
                 let devServer = pending.devServer
                 let htmlBundleRoutes = pending.htmlBundleRoutes
@@ -474,18 +454,18 @@ public class ServePlugins {
                     route.onPluginsResolved(plugin)
                     route.deref()
                 }
-                if (let dev = devServer) {
+                if (let dev <- devServer) {
                     dev.onPluginsResolved(plugin)
                 }
-            else => ()
+            case _ => ()
         }
     }
 
     /// 处理插件加载失败
     /// 对应 Bun: pub fn handleOnReject(this, global, err) void
-    public func handleOnReject(global: JSGlobalObject, err: JSValue): Unit {
-        switch (state) {
-            case .pending(let pending) =>
+    public func handleOnReject(global: JSGlobalObject, err: JsValue): Unit {
+        match (state) {
+            case pending(pending) =>
                 let devServer = pending.devServer
                 let htmlBundleRoutes = pending.htmlBundleRoutes
                 pending.htmlBundleRoutes = ArrayList<HTMLBundleRoute>()
@@ -496,12 +476,12 @@ public class ServePlugins {
                     route.onPluginsRejected()
                     route.deref()
                 }
-                if (let dev = devServer) {
+                if (let dev <- devServer) {
                     dev.onPluginsRejected()
                 }
                 Output.errGeneric("Failed to load plugins for Bun.serve:")
                 global.bunVM().runErrorHandler(err, None)
-            else => ()
+            case _ => ()
         }
     }
 
@@ -520,9 +500,9 @@ public class ServePlugins {
 
     /// 释放资源
     public func deinit(): Unit {
-        switch (state) {
-            case .loaded(let plugin) => plugin.deinit()
-            else => ()
+        match (state) {
+            case loaded(plugin) => plugin.deinit()
+            case _ => ()
         }
     }
 }
@@ -567,11 +547,11 @@ public class UserRoute {
 /// 预处理的请求
 /// 对应 Bun: pub const PreparedRequest = struct { js_request, request_object, ctx }
 public class PreparedRequest {
-    public var jsRequest: JSValue
+    public var jsRequest: JsValue
     public var requestObject: Request
     public var ctx: RequestContext
 
-    public init(jsRequest: JSValue, requestObject: Request, ctx: RequestContext) {
+    public init(jsRequest: JsValue, requestObject: Request, ctx: RequestContext) {
         this.jsRequest = jsRequest
         this.requestObject = requestObject
         this.ctx = ctx
@@ -584,7 +564,7 @@ public class PreparedRequest {
         return SavedRequest(
             jsRequest: JSStrong.create(jsRequest, global),
             request: requestObject,
-            ctx: AnyRequestContext.init(ctx),
+            ctx: AnyRequestContext(ctx),
             response: resp
         )
     }
@@ -686,15 +666,15 @@ public class HttpServer {
         devServer = None
         userRoutes = ArrayList<UserRoute>()
         onClientError = JSStrongOptional.empty()
-        inspectorServerId = DebuggerId.init(0)
+        inspectorServerId = DebuggerId(0)
     }
 
     /// 从配置初始化
     /// 对应 Bun: pub fn init(config: *ServerConfig, global: *JSGlobalObject) bun.JSOOM!*ThisServer
     public static func initFunc(config: ServerConfig, global: JSGlobalObject): HttpServer {
         let baseUrl = DefaultAllocator().dupe(config.baseUrl.href.trim('/'))
-        let devServer = if (let bakeOptions = config.bake) {
-            DevServer.init(DevServer.Options(
+        let devServer = if (let bakeOptions <- config.bake) {
+            DevServer(DevServer.Options(
                 arena: bakeOptions.arena.allocator(),
                 root: bakeOptions.root,
                 vm: global.bunVM(),
@@ -719,19 +699,19 @@ public class HttpServer {
     // ========================================================================
 
     /// 内存开销
-    /// 对应 Bun: pub fn memoryCost(this: *ThisServer) usize
+    /// 对应 Bun: pub fn memoryCost(`this`: *ThisServer) usize
     public func memoryCost(): Int64 {
         var cost: Int64 = Int64(sizeOf<HttpServer>())
         cost += Int64(baseUrlStringForJoining.size)
         cost += config.memoryCost()
-        if (let dev = devServer) {
+        if (let dev <- devServer) {
             cost += dev.memoryCost()
         }
         return cost
     }
 
     /// 释放
-    /// 对应 Bun: pub fn deinit(this: *ThisServer) void
+    /// 对应 Bun: pub fn deinit(`this`: *ThisServer) void
     public func deinit(): Unit {
         allClosedPromise.deinit()
         for (userRoute in userRoutes) {
@@ -741,10 +721,10 @@ public class HttpServer {
         config.deinit()
         onClientError.deinit()
 
-        if (let dev = devServer) {
+        if (let dev <- devServer) {
             dev.deinit()
         }
-        if (let p = plugins) {
+        if (let p <- plugins) {
             p.deref()
         }
     }
@@ -754,9 +734,9 @@ public class HttpServer {
     // ========================================================================
 
     /// 监听成功回调
-    /// 对应 Bun: pub fn onListen(this: *ThisServer, socket: ?*App.ListenSocket) void
+    /// 对应 Bun: pub fn onListen(`this`: *ThisServer, socket: ?*App.ListenSocket) void
     public func onListen(socket: ?ListenSocket): Unit {
-        if (socket == None) {
+        if (socket.isNone()) {
             onListenFailed()
             return
         }
@@ -765,39 +745,37 @@ public class HttpServer {
     }
 
     /// 监听失败回调
-    /// 对应 Bun: noinline fn onListenFailed(this: *ThisServer) void
+    /// 对应 Bun: noinline fn onListenFailed(`this`: *ThisServer) void
     public func onListenFailed(): Unit {
         let globalThis = this.globalThis
-        var errorInstance: JSValue = JSValue.zero
-        switch (config.address) {
-            case .tcp(let tcp) => {
+        var errorInstance: JsValue = JsValue.zero
+        match (config.address) {
+            case tcp(tcp) =>
                 errorInstance = SystemError(
-                    message: "Failed to start server. Is port \(tcp.port) in use?",
+                    message: "Failed to start server. Is port ${tcp.port} in use?",
                     code: "EADDRINUSE",
                     syscall: "listen"
                 ).toErrorInstance(globalThis)
-            }
-            case .unix(let unix) => {
+            case unix(unix) =>
                 errorInstance = SystemError(
-                    message: "Failed to listen on unix socket \(unix)",
+                    message: "Failed to listen on unix socket ${unix}",
                     code: "EADDRINUSE",
                     syscall: "listen"
                 ).toErrorInstance(globalThis)
-            }
         }
         globalThis.throwValue(errorInstance)
     }
 
     /// 停止监听
-    /// 对应 Bun: pub fn stopListening(this: *ThisServer, abrupt: bool) void
+    /// 对应 Bun: pub fn stopListening(`this`: *ThisServer, abrupt: bool) void
     public func stopListening(abrupt: Bool): Unit {
         let l = listener
-        if (l == None) return
+        if (l.isNone()) { return }
         listener = None
         unref()
         notifyInspectorServerStopped()
 
-        if (config.address == .unix) {
+        if (config.address == unix) {
             let path = config.address.unix
             if (path.size > 0 && path[0] != '\0') {
                 Sys.unlink(path)
@@ -807,7 +785,7 @@ public class HttpServer {
         if (!abrupt) {
             l.get().close()
         } else if (!flags.terminated) {
-            if (let ws = config.websocket) {
+            if (let ws <- config.websocket) {
                 ws.handler.app = None
             }
             flags.terminated = true
@@ -816,13 +794,13 @@ public class HttpServer {
     }
 
     /// 停止服务器
-    /// 对应 Bun: pub fn stop(this: *ThisServer, abrupt: bool) void
+    /// 对应 Bun: pub fn stop(`this`: *ThisServer, abrupt: bool) void
     public func stop(abrupt: Bool): Unit {
         if (jsValue.isNotEmpty()) {
             jsValue.downgrade()
         }
         if (config.allowHot && config.id.size > 0) {
-            if (let hot = globalThis.bunVM().hotMap()) {
+            if (let hot <- globalThis.bunVM().hotMap()) {
                 hot.remove(config.id)
             }
         }
@@ -831,11 +809,11 @@ public class HttpServer {
     }
 
     /// 从JS停止
-    /// 对应 Bun: pub fn stopFromJS(this: *ThisServer, abruptly: ?JSValue) jsc.JSValue
-    public func stopFromJS(abruptly: ?JSValue): JSValue {
+    /// 对应 Bun: pub fn stopFromJS(`this`: *ThisServer, abruptly: ?JsValue) jsc.JsValue
+    public func stopFromJS(abruptly: ?JsValue): JsValue {
         let rc = getAllClosedPromise(globalThis)
         if (hasListener()) {
-            let abrupt = if (let val = abruptly) {
+            let abrupt = if (let val <- abruptly) {
                 val.isBoolean() && val.toBoolean()
             } else { false }
             stop(abrupt)
@@ -848,16 +826,16 @@ public class HttpServer {
     // ========================================================================
 
     /// 增加引用
-    /// 对应 Bun: pub fn ref(this: *ThisServer) void
+    /// 对应 Bun: pub fn ref(`this`: *ThisServer) void
     public func ref(): Unit {
-        if (pollRef.isActive()) return
+        if (pollRef.isActive()) { return }
         pollRef.ref(vm)
     }
 
     /// 减少引用
-    /// 对应 Bun: pub fn unref(this: *ThisServer) void
+    /// 对应 Bun: pub fn unref(`this`: *ThisServer) void
     public func unref(): Unit {
-        if (!pollRef.isActive()) return
+        if (!pollRef.isActive()) { return }
         pollRef.unref(vm)
     }
 
@@ -866,17 +844,17 @@ public class HttpServer {
     // ========================================================================
 
     /// 处理请求
-    /// 对应 Bun: pub fn onRequest(this: *ThisServer, req, resp) void
+    /// 对应 Bun: pub fn onRequest(`this`: *ThisServer, req, resp) void
     public func onRequest(req: UwsRequest, resp: ResponseRef): Unit {
         pendingRequests += 1
         // 创建请求上下文并调用用户的fetch处理器
         let prepared = prepareJsRequestContext(req, resp, None, true, None)
-        if (prepared == None) return
+        if (prepared.isNone()) { return }
 
         let jsValue = jsValueAssertAlive()
         let responseValue = config.onRequest.call(
             globalThis, jsValue,
-            Array<JSValue>(prepared.get().jsRequest, jsValue)
+            Array<JsValue>(prepared.get().jsRequest, jsValue)
         )
 
         handleRequest(prepared.get(), req, responseValue)
@@ -885,7 +863,7 @@ public class HttpServer {
     /// 处理预处理后的请求
     /// 对应 Bun: fn handleRequest(this, should_deinit_context, prepared, req, response_value) void
     public func handleRequest(prepared: PreparedRequest, req: UwsRequest,
-                               responseValue: JSValue): Unit {
+                               responseValue: JsValue): Unit {
         let ctx = prepared.ctx
         ctx.onResponse(this, prepared.jsRequest, responseValue)
         prepared.jsRequest.ensureStillAlive()
@@ -899,7 +877,7 @@ public class HttpServer {
     }
 
     /// 请求完成回调
-    /// 对应 Bun: pub fn onRequestComplete(this: *ThisServer) void
+    /// 对应 Bun: pub fn onRequestComplete(`this`: *ThisServer) void
     public func onRequestComplete(): Unit {
         vm.eventLoop().processGCTimer()
         pendingRequests -= 1
@@ -907,14 +885,14 @@ public class HttpServer {
     }
 
     /// 静态请求完成回调
-    /// 对应 Bun: pub fn onStaticRequestComplete(this: *ThisServer) void
+    /// 对应 Bun: pub fn onStaticRequestComplete(`this`: *ThisServer) void
     public func onStaticRequestComplete(): Unit {
         pendingRequests -= 1
         deinitIfWeCan()
     }
 
     /// 待处理请求
-    /// 对应 Bun: pub fn onPendingRequest(this: *ThisServer) void
+    /// 对应 Bun: pub fn onPendingRequest(`this`: *ThisServer) void
     public func onPendingRequest(): Unit {
         pendingRequests += 1
     }
@@ -931,7 +909,7 @@ public class HttpServer {
         let methodVal = method ?? HTTPMethod.which(req.method()) ?? HTTPMethod.GET
         var requestBodyLength: ?Int64 = None
         if (methodVal.hasRequestBody()) {
-            let len = if (let contentLength = req.header("content-length")) {
+            let len = if (let contentLength <- req.header("content-length")) {
                 Int64.parse(contentLength) ?? 0
             } else { 0 }
             if (len > config.maxRequestBodySize) {
@@ -956,23 +934,23 @@ public class HttpServer {
         ctx.signal = signal
         signal.pendingActivityRef()
 
-        let requestObject = Request.new(Request.init(
+        let requestObject = Request.new(Request(
             ctx.method,
-            AnyRequestContext.init(ctx),
+            AnyRequestContext(ctx),
             signal.ref(),
             body.ref()
         ))
         ctx.requestWeakref = JSWeakRef.initRef(requestObject)
 
         // 处理请求体
-        if (let reqLen = requestBodyLength) {
+        if (let reqLen <- requestBodyLength) {
             ctx.requestBodyContentLen = reqLen
             ctx.isWaitingForRequestBody = true
             resp.onData(ctx.onBufferedBodyChunk, ctx)
         }
 
         return PreparedRequest(
-            jsRequest: if (createJsRequest) { requestObject.toJS(globalThis) } else { JSValue.zero },
+            jsRequest: if (createJsRequest) { requestObject.toJS(globalThis) } else { JsValue.zero },
             requestObject: requestObject,
             ctx: ctx
         )
@@ -983,24 +961,24 @@ public class HttpServer {
     // ========================================================================
 
     /// WebSocket升级
-    /// 对应 Bun: pub fn onUpgrade(this, globalThis, object, optional) bun.JSError!JSValue
-    public func onUpgrade(globalThis: JSGlobalObject, object: JSValue,
-                           optional: ?JSValue): JSValue {
-        if (config.websocket == None) {
+    /// 对应 Bun: pub fn onUpgrade(this, globalThis, object, optional) bun.JSError!JsValue
+    public func onUpgrade(globalThis: JSGlobalObject, object: JsValue,
+                           optional: ?JsValue): JsValue {
+        if (config.websocket.isNone()) {
             return globalThis.throwInvalidArguments(
                 "To enable websocket support, set the \"websocket\" object in Bun.serve({})"
             )
         }
 
-        if (flags.terminated) return JSValue.false
+        if (flags.terminated) { return JsValue(false) }
 
         // NodeHTTPResponse路径
-        if (let nodeHttpResponse = object.asNodeHTTPResponse()) {
+        if (let nodeHttpResponse <- object.asNodeHTTPResponse()) {
             return handleNodeHttpUpgrade(globalThis, nodeHttpResponse, optional)
         }
 
         // Request路径
-        if (let request = object.asRequest()) {
+        if (let request <- object.asRequest()) {
             return handleRequestUpgrade(globalThis, request, optional)
         }
 
@@ -1010,23 +988,23 @@ public class HttpServer {
     /// 处理NodeHTTP升级
     private func handleNodeHttpUpgrade(globalThis: JSGlobalObject,
                                         nodeHttpResponse: NodeHTTPResponse,
-                                        optional: ?JSValue): JSValue {
-        var dataValue: JSValue = JSValue.zero
+                                        optional: ?JsValue): JsValue {
+        var dataValue: JsValue = JsValue.zero
         var secWebsocketProtocol: String = ""
         var secWebsocketExtensions: String = ""
 
-        if (let opts = optional) {
+        if (let opts <- optional) {
             if (!opts.isEmptyOrUndefinedOrNull() && opts.isObject()) {
-                if (let headersValue = opts.fastGet(globalThis, "data")) {
+                if (let headersValue <- opts.fastGet(globalThis, "data")) {
                     dataValue = headersValue
                 }
-                if (let headersValue = opts.fastGet(globalThis, "headers")) {
+                if (let headersValue <- opts.fastGet(globalThis, "headers")) {
                     // 处理headers
                 }
             }
         }
 
-        return JSValue.jsBoolean(
+        return JsValue.jsBoolean(
             nodeHttpResponse.upgrade(dataValue, secWebsocketProtocol, secWebsocketExtensions)
         )
     }
@@ -1034,36 +1012,25 @@ public class HttpServer {
     /// 处理Request升级
     private func handleRequestUpgrade(globalThis: JSGlobalObject,
                                        request: Request,
-                                       optional: ?JSValue): JSValue {
+                                       optional: ?JsValue): JsValue {
         let upgrader = request.requestContext.get()
-        if (upgrader == None) return JSValue.false
-        if (upgrader.isAbortedOrEnded()) return JSValue.false
+        if (upgrader.isNone()) { return JsValue(false) }
+        if (upgrader.isAbortedOrEnded()) { return JsValue(false) }
 
         let resp = upgrader.resp
         let ctx = upgrader.upgradeContext
-        if (resp == None || ctx == None) return JSValue.false
+        if (resp.isNone() || ctx.isNone()) { return JsValue(false) }
 
         upgrader.ref()
 
         var secWebsocketKey: String = ""
         var secWebsocketProtocol: String = ""
         var secWebsocketExtensions: String = ""
-        var dataValue: JSValue = JSValue.zero
+        var dataValue: JsValue = JsValue.zero
 
-        // 获取WebSocket头信息
-        if (let fetchHeaders = request.getFetchHeaders()) {
-            if (let key = fetchHeaders.fastGet(.SecWebSocketKey)) {
-                secWebsocketKey = key
-            }
-            if (let protocol = fetchHeaders.fastGet(.SecWebSocketProtocol)) {
-                secWebsocketProtocol = protocol
-            }
-            if (let extensions = fetchHeaders.fastGet(.SecWebSocketExtensions)) {
-                secWebsocketExtensions = extensions
-            }
-        }
+        // WebSocket 头信息将从请求中直接获取（见下方 fallback）
 
-        if (let req = upgrader.req) {
+        if (let req <- upgrader.req) {
             if (secWebsocketKey.size == 0) {
                 secWebsocketKey = req.header("sec-websocket-key") ?? ""
             }
@@ -1075,12 +1042,12 @@ public class HttpServer {
             }
         }
 
-        if (secWebsocketKey.size == 0) return JSValue.false
+        if (secWebsocketKey.size == 0) { return JsValue(false) }
 
         // 处理选项
-        if (let opts = optional) {
+        if (let opts <- optional) {
             if (!opts.isEmptyOrUndefinedOrNull() && opts.isObject()) {
-                if (let headersValue = opts.fastGet(globalThis, "data")) {
+                if (let headersValue <- opts.fastGet(globalThis, "data")) {
                     dataValue = headersValue
                 }
             }
@@ -1089,7 +1056,7 @@ public class HttpServer {
         // 检查升级是否已被消费
         if (upgrader.isAbortedOrEnded() || upgrader.didUpgradeWebSocket()) {
             upgrader.deref()
-            return JSValue.false
+            return JsValue(false)
         }
 
         // 标记升级已使用
@@ -1098,7 +1065,7 @@ public class HttpServer {
         upgrader.resp = None
 
         // 创建WebSocket
-        let ws = ServerWebSocket.init(config.websocket.handler, dataValue, upgrader.signal)
+        let ws = ServerWebSocket(config.websocket.handler, dataValue, upgrader.signal)
         resp.get().clearAborted()
         resp.get().clearOnData()
         resp.get().clearOnWritable()
@@ -1107,32 +1074,32 @@ public class HttpServer {
         upgrader.deref()
 
         resp.get().upgrade(ws, secWebsocketKey, secWebsocketProtocol, secWebsocketExtensions, ctx.get())
-        return JSValue.true
+        return JsValue(true)
     }
 
     /// 发布消息到WebSocket频道
-    /// 对应 Bun: pub fn publish(this, globalThis, topic, message_value, compress_value) bun.JSError!JSValue
+    /// 对应 Bun: pub fn publish(this, globalThis, topic, message_value, compress_value) bun.JSError!JsValue
     public func publish(globalThis: JSGlobalObject, topic: String,
-                         messageValue: JSValue, compressValue: ?JSValue): JSValue {
-        if (config.websocket == None) return JSValue.jsNumber(0)
+                         messageValue: JsValue, compressValue: ?JsValue): JsValue {
+        if (config.websocket.isNone()) { return JsValue(0) }
         let app = this.app.get()
 
         if (topic.size == 0) {
-            return globalThis.throw("publish requires a topic string")
+            return globalThis.`throw`("publish requires a topic string")
         }
 
         let compress = compressValue?.toBoolean() ?? true
 
-        if (let buffer = messageValue.asArrayBuffer(globalThis)) {
-            let sent = UwsAnyWebSocket.publishWithOptions(app, topic, buffer, .binary, compress)
-            return JSValue.jsNumber(Int64(sent))
+        if (let buffer <- messageValue.asArrayBuffer(globalThis)) {
+            let sent = UwsAnyWebSocket.publishWithOptions(app, topic, buffer, Opcode.binary, compress)
+            return JsValue.jsNumber(Int64(sent))
         }
 
         // 字符串消息
         let jsString = messageValue.toJSString(globalThis)
         let slice = jsString.view(globalThis).toSlice()
-        let sent = UwsAnyWebSocket.publishWithOptions(app, topic, slice, .text, compress)
-        return JSValue.jsNumber(Int64(sent))
+        let sent = UwsAnyWebSocket.publishWithOptions(app, topic, slice, Opcode.text, compress)
+        return JsValue.jsNumber(Int64(sent))
     }
 
     // ========================================================================
@@ -1140,59 +1107,53 @@ public class HttpServer {
     // ========================================================================
 
     /// 设置路由
-    /// 对应 Bun: fn setRoutes(this: *ThisServer) jsc.JSValue
-    public func setRoutes(): JSValue {
-        var routeListValue = JSValue.zero
+    /// 对应 Bun: fn setRoutes(`this`: *ThisServer) jsc.JsValue
+    public func setRoutes(): JsValue {
+        var routeListValue = JsValue.zero
         let app = this.app.get()
         let devServer = this.devServer
 
         // 1. 注册用户路由
         for (userRoute in userRoutes) {
             let path = userRoute.route.path
-            switch (userRoute.route.method) {
-                case .any => {
+            match (userRoute.route.method) {
+                case any =>
                     app.any(path, userRoute, onUserRouteRequest)
-                }
-                case .specific(let method) => {
+                case specific(method) =>
                     app.method(method, path, userRoute, onUserRouteRequest)
-                }
             }
         }
 
         // 2. 设置WebSocket处理器
-        if (let websocket = config.websocket) {
+        if (let websocket <- config.websocket) {
             websocket.globalObject = globalThis
             websocket.handler.app = app
         }
 
         // 3. 注册静态路由
         for (entry in config.staticRoutes) {
-            switch (entry.route.routeType) {
-                case .Static => {
+            match (entry.route.routeType) {
+                case Static =>
                     ServerConfig.applyStaticRoute(app, entry.route.staticRoute.get(), entry.path, entry.method)
-                }
-                case .File => {
+                case File =>
                     ServerConfig.applyStaticRoute(app, entry.route.fileRoute.get(), entry.path, entry.method)
-                }
-                case .Html => {
+                case Html =>
                     ServerConfig.applyStaticRoute(app, entry.route.htmlRoute.get(), entry.path, entry.method)
-                    if (let dev = devServer) {
+                    if (let dev <- devServer) {
                         dev.htmlRouter.put(allocator(), entry.path, entry.route.htmlRoute.get())
                     }
-                }
-                case .FrameworkRouter => {
-                    // 框架路由器由DevServer处理
-                }
+                case FrameworkRouter =>
+                    () // 框架路由器由DevServer处理
             }
         }
 
         // 4. DevServer路由
-        if (let dev = devServer) {
+        if (let dev <- devServer) {
             dev.setRoutes(this)
         }
 
         // 5. 全局"/*"回退路由
-        if (config.onRequest != JSValue.zero) {
+        if (config.onRequest != JsValue.zero) {
             app.any("/*", this, onRequest)
         } else {
             app.any("/*", this, on404)
@@ -1212,21 +1173,21 @@ public class HttpServer {
 
         // 更新fetch处理器
         if (config.onRequest != newConfig.onRequest &&
-            newConfig.onRequest != JSValue.zero && !newConfig.onRequest.isUndefined()) {
+            newConfig.onRequest != JsValue.zero && !newConfig.onRequest.isUndefined()) {
             config.onRequest.unprotect()
             config.onRequest = newConfig.onRequest
         }
 
         // 更新错误处理器
         if (config.onError != newConfig.onError &&
-            newConfig.onError != JSValue.zero && !newConfig.onError.isUndefined()) {
+            newConfig.onError != JsValue.zero && !newConfig.onError.isUndefined()) {
             config.onError.unprotect()
             config.onError = newConfig.onError
         }
 
         // 更新WebSocket配置
-        if (let ws = newConfig.websocket) {
-            if (config.websocket != None) {
+        if (let ws <- newConfig.websocket) {
+            if (config.websocket.isSome()) {
                 config.websocket.unprotect()
             }
             ws.globalObject = globalThis
@@ -1240,7 +1201,7 @@ public class HttpServer {
         config.staticRoutes = newConfig.staticRoutes
 
         // 清除HTML路由器
-        if (let dev = devServer) {
+        if (let dev <- devServer) {
             dev.htmlRouter.clear()
         }
 
@@ -1249,8 +1210,8 @@ public class HttpServer {
     }
 
     /// 从JS重新加载
-    /// 对应 Bun: pub fn onReload(this, globalThis, callframe) bun.JSError!jsc.JSValue
-    public func onReload(globalThis: JSGlobalObject, callframe: CallFrame): JSValue {
+    /// 对应 Bun: pub fn onReload(this, globalThis, callframe) bun.JSError!jsc.JsValue
+    public func onReload(globalThis: JSGlobalObject, callframe: CallFrame): JsValue {
         let arguments = callframe.arguments()
         if (arguments.size < 1) {
             return globalThis.throwNotEnoughArguments("reload", 1, 0)
@@ -1264,7 +1225,7 @@ public class HttpServer {
         ))
 
         onReloadFromZig(newConfig, globalThis)
-        return jsValue.tryGet() ?? JSValue.jsUndefined
+        return jsValue.tryGet() ?? JsValue.jsUndefined
     }
 
     // ========================================================================
@@ -1272,9 +1233,9 @@ public class HttpServer {
     // ========================================================================
 
     /// 服务器端fetch
-    /// 对应 Bun: pub fn onFetch(this, ctx, callframe) bun.JSError!jsc.JSValue
-    public func onFetch(ctx: JSGlobalObject, callframe: CallFrame): JSValue {
-        if (config.onRequest == JSValue.zero) {
+    /// 对应 Bun: pub fn onFetch(this, ctx, callframe) bun.JSError!jsc.JsValue
+    public func onFetch(ctx: JSGlobalObject, callframe: CallFrame): JsValue {
+        if (config.onRequest == JsValue.zero) {
             return JSPromise.dangerouslyCreateRejectedPromiseValue(
                 ctx, "fetch() requires the server to have a fetch handler"
             )
@@ -1300,15 +1261,15 @@ public class HttpServer {
 
             if (arguments.size >= 2 && arguments[1].isObject()) {
                 let opts = arguments[1]
-                if (let methodVal = opts.fastGet(ctx, "method")) {
+                if (let methodVal <- opts.fastGet(ctx, "method")) {
                     let slice = methodVal.toString(ctx)
                     method = HTTPMethod.which(slice) ?? method
                 }
-                if (let headersVal = opts.fastGet(ctx, "headers")) {
+                if (let headersVal <- opts.fastGet(ctx, "headers")) {
                     headers = FetchHeaders.createFromJS(ctx, headersVal)
                 }
-                if (let bodyVal = opts.fastGet(ctx, "body")) {
-                    if (let blob = Blob.get(ctx, bodyVal, true, false)) {
+                if (let bodyVal <- opts.fastGet(ctx, "body")) {
+                    if (let blob <- Blob.get(ctx, bodyVal, true, false)) {
                         body = BodyValue.Blob(blob)
                     }
                 }
@@ -1318,11 +1279,11 @@ public class HttpServer {
                 baseUrlStringForJoining + url.pathname
             } else { urlStr }
 
-            existingRequest = Request.init(
+            existingRequest = Request(
                 BunString.cloneUTF8(effectiveUrl),
                 headers, body, method
             )
-        } else if (let req = firstArg.asRequest()) {
+        } else if (let req <- firstArg.asRequest()) {
             existingRequest = req.cloneInto(allocator(), ctx, false)
         } else {
             return JSPromise.dangerouslyCreateRejectedPromiseValue(
@@ -1333,18 +1294,18 @@ public class HttpServer {
         let request = Request.new(existingRequest)
         let responseValue = config.onRequest.call(
             globalThis, jsValueAssertAlive(),
-            Array<JSValue>(request.toJS(globalThis))
+            Array<JsValue>(request.toJS(globalThis))
         )
 
         if (responseValue.isAnyError()) {
             return JSPromise.dangerouslyCreateRejectedPromiseValue(ctx, responseValue)
         }
 
-        if (responseValue.asAnyPromise() != None) {
+        if (responseValue.asAnyPromise().isSome()) {
             return responseValue
         }
 
-        if (let resp = responseValue.asResponse()) {
+        if (let resp <- responseValue.asResponse()) {
             resp.setUrl(existingRequest.url.clone())
         }
         return JSPromise.resolvedPromiseValue(ctx, responseValue)
@@ -1355,50 +1316,48 @@ public class HttpServer {
     // ========================================================================
 
     /// 获取端口
-    /// 对应 Bun: pub fn getPort(this, _) jsc.JSValue
-    public func getPort(): JSValue {
-        switch (config.address) {
-            case .unix => JSValue.jsUndefined
-            case .tcp(let tcp) => {
-                if (let l = listener) return JSValue.jsNumber(l.getLocalPort())
-                return JSValue.jsNumber(tcp.port)
-            }
+    /// 对应 Bun: pub fn getPort(this, _) jsc.JsValue
+    public func getPort(): JsValue {
+        match (config.address) {
+            case unix => JsValue.jsUndefined
+            case tcp(tcp) =>
+                if (let l <- listener) { return JsValue(l.getLocalPort()) }
+                return JsValue.jsNumber(tcp.port)
         }
     }
 
     /// 获取ID
-    /// 对应 Bun: pub fn getId(this, globalThis) bun.JSError!jsc.JSValue
-    public func getId(globalThis: JSGlobalObject): JSValue {
+    /// 对应 Bun: pub fn getId(this, globalThis) bun.JSError!jsc.JsValue
+    public func getId(globalThis: JSGlobalObject): JsValue {
         BunString.createUTF8ForJS(globalThis, config.id)
     }
 
     /// 获取待处理请求数
-    /// 对应 Bun: pub fn getPendingRequests(this, _) jsc.JSValue
-    public func getPendingRequests(): JSValue {
-        JSValue.jsNumber(pendingRequests)
+    /// 对应 Bun: pub fn getPendingRequests(this, _) jsc.JsValue
+    public func getPendingRequests(): JsValue {
+        JsValue.jsNumber(pendingRequests)
     }
 
     /// 获取地址
-    /// 对应 Bun: pub fn getAddress(this, globalThis) bun.JSError!jsc.JSValue
-    public func getAddress(globalThis: JSGlobalObject): JSValue {
-        switch (config.address) {
-            case .unix(let unix) =>
+    /// 对应 Bun: pub fn getAddress(this, globalThis) bun.JSError!jsc.JsValue
+    public func getAddress(globalThis: JSGlobalObject): JsValue {
+        match (config.address) {
+            case unix(unix) =>
                 BunString.createUTF8ForJS(globalThis, unix)
-            case .tcp(let tcp) => {
+            case tcp(tcp) =>
                 var port: UInt16 = tcp.port
-                if (let l = listener) {
+                if (let l <- listener) {
                     port = UInt16(l.getLocalPort())
-                    let addr = SocketAddress.init(l.localAddress(), port)
+                    let addr = SocketAddress(l.localAddress(), port)
                     return addr.intoDTO(globalThis)
                 }
-                return JSValue.jsNull()
-            }
+                return JsValue.jsNull()
         }
     }
 
     /// 获取URL
-    /// 对应 Bun: pub fn getURL(this, globalThis) bun.OOM!jsc.JSValue
-    public func getURL(globalThis: JSGlobalObject): JSValue {
+    /// 对应 Bun: pub fn getURL(this, globalThis) bun.OOM!jsc.JsValue
+    public func getURL(globalThis: JSGlobalObject): JsValue {
         let url = getURLAsString()
         url.toJSDOMURL(globalThis)
     }
@@ -1406,44 +1365,42 @@ public class HttpServer {
     /// 获取URL字符串
     /// 对应 Bun: pub fn getURLAsString(this) bun.OOM!bun.String
     public func getURLAsString(): BunString {
-        switch (config.address) {
-            case .unix(let unix) =>
-                BunString.cloneUTF8("unix://\(unix)")
-            case .tcp(let tcp) => {
+        match (config.address) {
+            case unix(unix) =>
+                BunString.cloneUTF8("unix://${unix}")
+            case tcp(tcp) =>
                 var port: UInt16 = tcp.port
-                if (let l = listener) {
+                if (let l <- listener) {
                     port = UInt16(l.getLocalPort())
                 }
                 let hostname = tcp.hostname ?? "localhost"
-                BunString.cloneUTF8("http://\(hostname):\(port)")
-            }
+                BunString.cloneUTF8("http://${hostname}:${port}")
         }
     }
 
     /// 获取主机名
-    /// 对应 Bun: pub fn getHostname(this, globalThis) !jsc.JSValue
-    public func getHostname(globalThis: JSGlobalObject): JSValue {
-        switch (config.address) {
-            case .unix => JSValue.jsUndefined
-            case .tcp(let tcp) => {
-                if (let l = listener) {
+    /// 对应 Bun: pub fn getHostname(this, globalThis) !jsc.JsValue
+    public func getHostname(globalThis: JSGlobalObject): JsValue {
+        match (config.address) {
+            case unix => JsValue.jsUndefined
+            case tcp(tcp) =>
+                if (let l <- listener) {
                     let addr = l.remoteAddress()
                     if (addr.size > 0) {
                         return BunString.createUTF8ForJS(globalThis, addr)
                     }
                 }
-                if (let hostname = tcp.hostname) {
+                if (let hostname <- tcp.hostname) {
                     return BunString.createUTF8ForJS(globalThis, hostname)
                 }
-                return BunString.static("localhost").toJS(globalThis)
-            }
+                return BunString.`static`("localhost").toJS(globalThis)
         }
     }
 
     /// 获取协议
-    /// 对应 Bun: pub fn getProtocol(this, globalThis) bun.JSError!jsc.JSValue
-    public func getProtocol(globalThis: JSGlobalObject): JSValue {
-        BunString.static("http").toJS(globalThis)
+    /// 对应 Bun: pub fn getProtocol(this, globalThis) bun.JSError!jsc.JsValue
+    public func getProtocol(globalThis: JSGlobalObject): JsValue {
+        BunString.`static`("http").toJS(globalThis)
     }
 
     // ========================================================================
@@ -1453,13 +1410,13 @@ public class HttpServer {
     /// 是否有监听器
     /// 对应 Bun: pub fn hasListener(this) bool
     public func hasListener(): Bool {
-        listener != None
+        listener.isSome()
     }
 
     /// 活跃WebSocket数
     /// 对应 Bun: pub fn activeSocketsCount(this) u32
     public func activeSocketsCount(): UInt32 {
-        if (let ws = config.websocket) {
+        if (let ws <- config.websocket) {
             return UInt32(ws.handler.activeConnections)
         }
         return 0
@@ -1472,15 +1429,15 @@ public class HttpServer {
     }
 
     /// 获取全部关闭的Promise
-    /// 对应 Bun: pub fn getAllClosedPromise(this, globalThis) jsc.JSValue
-    public func getAllClosedPromise(globalThis: JSGlobalObject): JSValue {
+    /// 对应 Bun: pub fn getAllClosedPromise(this, globalThis) jsc.JsValue
+    public func getAllClosedPromise(globalThis: JSGlobalObject): JsValue {
         if (!hasListener() && pendingRequests == 0) {
-            return JSPromise.resolvedPromise(globalThis, JSValue.jsUndefined).toJS()
+            return JSPromise.resolvedPromise(globalThis, JsValue.jsUndefined).toJS()
         }
         if (allClosedPromise.has()) {
             return allClosedPromise.value()
         }
-        allClosedPromise = JSPromiseStrong.init(globalThis)
+        allClosedPromise = JSPromiseStrong(globalThis)
         return allClosedPromise.value()
     }
 
@@ -1488,15 +1445,15 @@ public class HttpServer {
     /// 对应 Bun: pub fn deinitIfWeCan(this) void
     public func deinitIfWeCan(): Unit {
         if (pendingRequests == 0 && !hasListener() && !hasActiveWebSockets()) {
-            if (let ws = config.websocket) {
+            if (let ws <- config.websocket) {
                 ws.handler.app = None
             }
             unref()
 
             // 分离DevServer
-            if (let dev = devServer) {
+            if (let dev <- devServer) {
                 devServer = None
-                if (let a = app) { a.clearRoutes() }
+                if (let a <- app) { a.clearRoutes() }
                 dev.deinit()
             }
 
@@ -1509,7 +1466,7 @@ public class HttpServer {
     /// 调度释放
     /// 对应 Bun: pub fn scheduleDeinit(this) void
     public func scheduleDeinit(): Unit {
-        if (flags.deinitScheduled) return
+        if (flags.deinitScheduled) { return }
         flags.deinitScheduled = true
 
         if (!flags.terminated) {
@@ -1525,26 +1482,26 @@ public class HttpServer {
     /// 通知调试器服务器已停止
     /// 对应 Bun: fn notifyInspectorServerStopped(this) void
     public func notifyInspectorServerStopped(): Unit {
-        if (inspectorServerId.toOptional().unwrap() != None) {
-            if (let debugger = vm.debugger) {
+        if (inspectorServerId.toOptional().unwrap().isSome()) {
+            if (let debugger <- vm.debugger) {
                 debugger.httpServerAgent.notifyServerStopped(AnyServer.from(this))
-                inspectorServerId = DebuggerId.init(0)
+                inspectorServerId = DebuggerId(0)
             }
         }
     }
 
     /// 断言JS值存活并获取
-    /// 对应 Bun: pub fn jsValueAssertAlive(server) jsc.JSValue
-    public func jsValueAssertAlive(): JSValue {
+    /// 对应 Bun: pub fn jsValueAssertAlive(server) jsc.JsValue
+    public func jsValueAssertAlive(): JsValue {
         jsValue.tryGet().get()
     }
 
     /// 请求IP
-    /// 对应 Bun: pub fn requestIP(this, request) bun.JSError!jsc.JSValue
-    public func requestIP(request: Request): JSValue {
-        if (config.address == .unix) return JSValue.jsNull()
+    /// 对应 Bun: pub fn requestIP(this, request) bun.JSError!jsc.JsValue
+    public func requestIP(request: Request): JsValue {
+        if (config.address == unix) { return JsValue.null }
         let info = request.requestContext.getRemoteSocketInfo()
-        if (info == None) return JSValue.jsNull()
+        if (info.isNone()) { return JsValue.null }
         return SocketAddress.createDTO(globalThis, info.get().ip, info.get().port, info.get().isIpv6)
     }
 
@@ -1557,26 +1514,26 @@ public class HttpServer {
     /// 设置标志
     /// 对应 Bun: pub fn setFlags(this, require_host_header, use_strict_method_validation) void
     public func setFlags(requireHostHeader: Bool, useStrictMethodValidation: Bool): Unit {
-        if (let a = app) {
+        if (let a <- app) {
             a.setFlags(requireHostHeader, useStrictMethodValidation)
         }
     }
 
     /// 关闭空闲连接
-    /// 对应 Bun: pub fn closeIdleConnections(this, globalObject, callframe) bun.JSError!jsc.JSValue
-    public func closeIdleConnections(): JSValue {
-        if (app == None) return JSValue.jsUndefined
+    /// 对应 Bun: pub fn closeIdleConnections(this, globalObject, callframe) bun.JSError!jsc.JsValue
+    public func closeIdleConnections(): JsValue {
+        if (app.isNone()) { return JsValue.undefined }
         app.get().closeIdleConnections()
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     /// 从JS释放
-    /// 对应 Bun: pub fn disposeFromJS(this) jsc.JSValue
-    public func disposeFromJS(): JSValue {
+    /// 对应 Bun: pub fn disposeFromJS(this) jsc.JsValue
+    public func disposeFromJS(): JsValue {
         if (hasListener()) {
             stop(true)
         }
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 }
 
@@ -1593,11 +1550,11 @@ public func onUserRouteRequest(userRoute: UserRoute, req: UwsRequest, resp: Resp
     server.onPendingRequest()
 
     let prepared = server.prepareJsRequestContext(req, resp, None, false, None)
-    if (prepared == None) return
+    if (prepared.isNone()) { return }
 
     let responseValue = server.config.onRequest.call(
         server.globalThis, server.jsValueAssertAlive(),
-        Array<JSValue>(prepared.get().jsRequest)
+        Array<JsValue>(prepared.get().jsRequest)
     )
 
     server.handleRequest(prepared.get(), req, responseValue)

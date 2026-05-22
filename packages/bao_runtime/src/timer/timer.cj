@@ -586,14 +586,14 @@ public class TimerAll {
         let warningString: String = match (warningType) {
             case TimeoutWarning.TimeoutOverflowWarning => {
                 if (countdown == countdown && countdown != Float64.PositiveInfinity && countdown != Float64.NegativeInfinity) {
-                    "\(countdown) does not fit into a 32-bit signed integer" + suffix
+                    "${countdown} does not fit into a 32-bit signed integer" + suffix
                 } else {
                     "Infinity does not fit into a 32-bit signed integer" + suffix
                 }
             }
             case TimeoutWarning.TimeoutNegativeWarning => {
                 if (countdown == countdown && countdown != Float64.PositiveInfinity && countdown != Float64.NegativeInfinity) {
-                    "\(countdown) is a negative number" + suffix
+                    "${countdown} is a negative number" + suffix
                 } else {
                     "-Infinity is a negative number" + suffix
                 }

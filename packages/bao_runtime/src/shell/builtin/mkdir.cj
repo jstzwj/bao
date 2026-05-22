@@ -89,7 +89,7 @@ public class MkdirCmd {
                 return this.writeFailingError(buf, 1)
         }
 
-        if (filepathArgs == None || filepathArgs.size == 0) {
+        if (filepathArgs.isNone() || filepathArgs.size == 0) {
             return this.writeFailingError(Builtin.Kind.usageString("mkdir"), 1)
         }
 
@@ -105,7 +105,7 @@ public class MkdirCmd {
             case exec(exec) =>
                 if (exec.started) {
                     if (exec.tasksDone >= exec.tasksCount && exec.outputDone >= exec.outputWaiting) {
-                        let exitCode: ExitCode = if (exec.err != None) { 1 } else { 0 }
+                        let exitCode: ExitCode = if (exec.err.isSome()) { 1 } else { 0 }
                         if (let Some(e) <- exec.err) {
                             e.deref()
                         }

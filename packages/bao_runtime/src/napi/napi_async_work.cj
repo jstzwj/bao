@@ -5,6 +5,8 @@
 
 package bao_runtime.napi
 
+import bao_jsc.*
+
 // ============================================================================
 // NapiAsyncWorkStatus - 异步工作状态
 // 对应 Bun: napi.zig - napi_async_work.Status
@@ -120,8 +122,16 @@ public class NapiAsyncWorkImpl {
     /// 执行完成后状态改为 COMPLETED，然后将任务入队到事件循环。
     public func run(): Unit {
         // 对应 Bun: cmpxchgStrong(.pending, .started, .seq_cst, .seq_cst)
-        if (this.status != NapiAsyncWorkStatus.PENDING) {
-            if (this.status == NapiAsyncWorkStatus.CANCELLED) {
+        let isPending: Bool = match (this.status) {
+            case NapiAsyncWorkStatus.PENDING => true
+            case _ => false
+        }
+        if (!isPending) {
+            let isCancelled: Bool = match (this.status) {
+                case NapiAsyncWorkStatus.CANCELLED => true
+                case _ => false
+            }
+            if (isCancelled) {
                 // 对应 Bun: this.event_loop.enqueueTaskConcurrent(...)
                 return
             }
@@ -130,7 +140,7 @@ public class NapiAsyncWorkImpl {
         this.status = NapiAsyncWorkStatus.STARTED
 
         // 执行回调
-        if (this.execute != None) {
+        if (this.execute.isSome()) {
             this.execute.getOrThrow()(this.env, this.data)
         }
 
@@ -145,7 +155,11 @@ public class NapiAsyncWorkImpl {
     /// 只有在 PENDING 状态下才能取消。
     /// 返回 true 表示成功取消，false 表示无法取消。
     public func cancel(): Bool {
-        if (this.status == NapiAsyncWorkStatus.PENDING) {
+        let isPending: Bool = match (this.status) {
+            case NapiAsyncWorkStatus.PENDING => true
+            case _ => false
+        }
+        if (isPending) {
             this.status = NapiAsyncWorkStatus.CANCELLED
             return true
         }
@@ -165,7 +179,7 @@ public class NapiAsyncWorkImpl {
         // 对应 Bun: var poll_ref = this.poll_ref; defer poll_ref.unref(vm)
 
         let completeFunc = this.complete
-        if (completeFunc == None) {
+        if (completeFunc.isNone()) {
             return
         }
 
@@ -175,8 +189,12 @@ public class NapiAsyncWorkImpl {
         let handleScope = NapiHandleScope.open(env, false)
 
         // 确定传递给 complete 的状态码
-/// 对应 Bun: const status: NapiStatus = if (this.status.load(.seq_cst) == .cancelled) .cancelled else .ok
-        let status: NapiStatus = if (this.status == NapiAsyncWorkStatus.CANCELLED) {
+/// 对应 Bun: const status: NapiStatus = if (this.status.load(.seq_cst) == cancelled) .cancelled else .ok
+        let isCancelled: Bool = match (this.status) {
+            case NapiAsyncWorkStatus.CANCELLED => true
+            case _ => false
+        }
+        let status: NapiStatus = if (isCancelled) {
             NapiStatus.cancelled
         } else {
             NapiStatus.ok
@@ -187,7 +205,7 @@ public class NapiAsyncWorkImpl {
         completeFunc.getOrThrow()(env, status.toInt(), this.data)
 
         // 关闭句柄作用域
-        if (handleScope != None) {
+        if (handleScope.isSome()) {
             handleScope.getOrThrow().close(env)
         }
 
@@ -214,7 +232,7 @@ public class NapiAsyncWorkFunctions {
         complete: ?NapiAsyncCompleteCallback,
         data: ?Any): ?NapiAsyncWorkImpl {
         // 对应 Bun: const execute = execute_ orelse return env.invalidArg()
-        if (execute == None) {
+        if (execute.isNone()) {
             return None
         }
         return NapiAsyncWorkImpl.new_(env, execute.getOrThrow(), complete, data)
@@ -223,7 +241,7 @@ public class NapiAsyncWorkFunctions {
     /// napi_delete_async_work
     /// 对应 Bun: pub export fn napi_delete_async_work
     public static func delete_(env: NapiEnv, work: ?NapiAsyncWorkImpl): UInt32 {
-        if (work == None) {
+        if (work.isNone()) {
             return NapiStatus.invalidArg.toInt()
         }
         work.getOrThrow().destroy()
@@ -233,7 +251,7 @@ public class NapiAsyncWorkFunctions {
     /// napi_queue_async_work
     /// 对应 Bun: pub export fn napi_queue_async_work
     public static func queue(env: NapiEnv, work: ?NapiAsyncWorkImpl): UInt32 {
-        if (work == None) {
+        if (work.isNone()) {
             return NapiStatus.invalidArg.toInt()
         }
         work.getOrThrow().schedule()
@@ -243,7 +261,7 @@ public class NapiAsyncWorkFunctions {
     /// napi_cancel_async_work
     /// 对应 Bun: pub export fn napi_cancel_async_work
     public static func cancel(env: NapiEnv, work: ?NapiAsyncWorkImpl): UInt32 {
-        if (work == None) {
+        if (work.isNone()) {
             return NapiStatus.invalidArg.toInt()
         }
         if (work.getOrThrow().cancel()) {

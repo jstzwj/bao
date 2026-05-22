@@ -7,7 +7,7 @@ package bao_jsc
 // 严格翻译自 UUID
 // 通用唯一标识符 (v4)
 public class UUID {
-    public var bytes: Array<UInt8> = Array<UInt8>(16, item: 0)
+    public var bytes: Array<UInt8> = Array<UInt8>(16, repeat: UInt8(0))
 
     public init() {}
 
@@ -49,10 +49,10 @@ public class UUID {
     // 严格翻译自 UUID.parse
     public static func parse(buf: String): ?UUID {
         if (buf.size != 36) { return None }
-        if (buf[8] != Character('-')) { return None }
-        if (buf[13] != Character('-')) { return None }
-        if (buf[18] != Character('-')) { return None }
-        if (buf[23] != Character('-')) { return None }
+        if (buf[8] != UInt8(45)) { return None }   // '-'
+        if (buf[13] != UInt8(45)) { return None }
+        if (buf[18] != UInt8(45)) { return None }
+        if (buf[23] != UInt8(45)) { return None }
 
         let uuid = UUID()
         // Parse hex digits
@@ -73,7 +73,7 @@ public class UUID {
 // 严格翻译自 UUID.UUID7
 // 基于时间戳的 UUID v7
 public class UUID7 {
-    public var bytes: Array<UInt8> = Array<UInt8>(16, item: 0)
+    public var bytes: Array<UInt8> = Array<UInt8>(16, repeat: UInt8(0))
 
     public init() {}
 
@@ -110,7 +110,7 @@ public class UUID7 {
 // 严格翻译自 UUID.UUID5
 // 基于名称的 UUID v5（使用 SHA-1）
 public class UUID5 {
-    public var bytes: Array<UInt8> = Array<UInt8>(16, item: 0)
+    public var bytes: Array<UInt8> = Array<UInt8>(16, repeat: UInt8(0))
 
     public init() {}
 

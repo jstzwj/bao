@@ -53,7 +53,7 @@ public class MySQLQuery {
     /// 运行预处理查询
     /// 对应 Bun: MySQLQuery.runPreparedQuery
     private func runPreparedQuery(connection: JSMySQLConnection): Unit {
-        if (statement == None) {
+        if (statement.isNone()) {
             // 创建新语句
             let stmt = MySQLStatement()
             stmt.status = StatementStatus.Pending
@@ -79,7 +79,7 @@ public class MySQLQuery {
                     stmt.status = StatementStatus.Parsing
                 }
             case Failed =>
-                // 语句失败
+                () // 语句失败
             case _ => ()
         }
     }
@@ -96,7 +96,7 @@ public class MySQLQuery {
         if (status == QueryStatus.Success || status == QueryStatus.Fail) {
             return false
         }
-        status = if (isLastResult) QueryStatus.Success else QueryStatus.PartialResponse
+        status = if (isLastResult) { QueryStatus.Success } else { QueryStatus.PartialResponse }
         return true
     }
 
@@ -113,7 +113,7 @@ public class MySQLQuery {
     /// 清理
     /// 对应 Bun: MySQLQuery.cleanup
     public func cleanup(): Unit {
-        if (statement != None) {
+        if (statement.isSome()) {
             statement.getOrThrow().deref()
             statement = None
         }
@@ -141,7 +141,7 @@ public class MySQLQuery {
     /// 是否在准备中
     public func isBeingPrepared(): Bool {
         return status == QueryStatus.Pending &&
-            statement != None &&
+            statement.isSome() &&
             statement.getOrThrow().status == StatementStatus.Parsing
     }
 
@@ -168,10 +168,10 @@ public class MySQLQuery {
     /// 标记为已准备
     public func markAsPrepared(): Unit {
         if (status == QueryStatus.Pending) {
-            if (statement != None) {
+            if (statement.isSome()) {
                 let stmt = statement.getOrThrow()
                 if (stmt.status == StatementStatus.Parsing &&
-                    stmt.paramsReceived == stmt.params.size &&
+                    stmt.paramsReceived == UInt32(stmt.params.size) &&
                     stmt.statementId > 0) {
                     stmt.status = StatementStatus.Prepared
                 }
@@ -194,6 +194,21 @@ public enum QueryStatus {
     | PartialResponse
     | Success
     | Fail
+
+    public operator func ==(right: QueryStatus): Bool {
+        match (this) {
+            case Pending => match (right) { case Pending => true case _ => false }
+            case Binding => match (right) { case Binding => true case _ => false }
+            case Running => match (right) { case Running => true case _ => false }
+            case PartialResponse => match (right) { case PartialResponse => true case _ => false }
+            case Success => match (right) { case Success => true case _ => false }
+            case Fail => match (right) { case Fail => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: QueryStatus): Bool {
+        !(this == right)
+    }
 }
 
 /// 语句状态
@@ -203,6 +218,19 @@ public enum StatementStatus {
     | Parsing
     | Prepared
     | Failed
+
+    public operator func ==(right: StatementStatus): Bool {
+        match (this) {
+            case Pending => match (right) { case Pending => true case _ => false }
+            case Parsing => match (right) { case Parsing => true case _ => false }
+            case Prepared => match (right) { case Prepared => true case _ => false }
+            case Failed => match (right) { case Failed => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: StatementStatus): Bool {
+        !(this == right)
+    }
 }
 
 /// 查询签名

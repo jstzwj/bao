@@ -95,7 +95,7 @@ public class S3Stat {
     ///   1. 解析 last_modified 字符串为日期 (JS Date number)
     ///   2. clone_utf8 etag 和 content_type
     ///   3. 构建 S3Stat 实例
-    public static func init(
+    public static func `init`(
         size: UInt64,
         etag: Array<UInt8>,
         contentType: Array<UInt8>,
@@ -106,7 +106,7 @@ public class S3Stat {
         let dateStr = BaoString.fromBytes(lastModified)
         let parsedDate = dateStr.parseDate(global)
         match (parsedDate) {
-            case Ok(lastMod) => {
+            case Ok(lastMod) =>
                 let stat = S3Stat(
                     size: size,
                     etag: BaoString.cloneUtf8(etag),
@@ -114,7 +114,6 @@ public class S3Stat {
                     lastModified: lastMod
                 )
                 return Result<S3Stat>.Ok(stat)
-            }
             case Err(e) => return Result<S3Stat>.Err(e)
         }
     }
@@ -125,31 +124,31 @@ public class S3Stat {
     // ========================================================================
 
     /// 获取对象大小
-    /// 对应 Bun: pub fn get_size(&self, _global) -> JSValue
-    ///   JSValue::js_number(self.size as f64)
-    public func getSize(global: JSGlobalObject): JSValue {
-        return JSValue.jsNumber(Float64(size))
+    /// 对应 Bun: pub fn get_size(&self, _global) -> JsValue
+    ///   JsValue::js_number(self.size as f64)
+    public func getSize(global: JSGlobalObject): JsValue {
+        return JsValue.jsNumber(Float64(size))
     }
 
     /// 获取 ETag
-    /// 对应 Bun: pub fn get_etag(&self, global) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn get_etag(&self, global) -> JsResult<JsValue>
     ///   self.etag.to_js(global)
-    public func getEtag(global: JSGlobalObject): Result<JSValue> {
+    public func getEtag(global: JSGlobalObject): Result<JsValue> {
         return etag.toJs(global)
     }
 
     /// 获取 Content-Type
-    /// 对应 Bun: pub fn get_content_type(&self, global) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn get_content_type(&self, global) -> JsResult<JsValue>
     ///   self.content_type.to_js(global)
-    public func getContentType(global: JSGlobalObject): Result<JSValue> {
+    public func getContentType(global: JSGlobalObject): Result<JsValue> {
         return contentType.toJs(global)
     }
 
     /// 获取最后修改时间
-    /// 对应 Bun: pub fn get_last_modified(&self, global) -> JSValue
-    ///   JSValue::from_date_number(global, self.last_modified)
-    public func getLastModified(global: JSGlobalObject): JSValue {
-        return JSValue.fromDateNumber(global, lastModified)
+    /// 对应 Bun: pub fn get_last_modified(&self, global) -> JsValue
+    ///   JsValue::from_date_number(global, self.last_modified)
+    public func getLastModified(global: JSGlobalObject): JsValue {
+        return JsValue.fromDateNumber(global, lastModified)
     }
 
     // ========================================================================

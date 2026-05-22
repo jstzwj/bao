@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toBeCloseTo() - 检查浮点数是否近似相等
 /// 用法: expect(received).toBeCloseTo(expected, precision?)
-public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -16,7 +16,7 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
 
     this.incrementExpectCallCounter()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toBeCloseTo() requires at least 1 argument. Expected value must be a number")
     }
 
@@ -26,7 +26,7 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     }
 
     var precision: Float64 = 2.0
-    if (arguments.length > 1 ){
+    if (arguments.size > 1 ){
         let precision_ = arguments[1]
         if (!precision_.isNumber()) {
             return globalThis.throwInvalidArgumentType("toBeCloseTo", argName: "precision", expectedType: "number")
@@ -34,7 +34,7 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
         precision = precision_.asNumber()
     }
 
-    let received_: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeCloseTo", matcherParamsFmt: "<green>expected<r>, precision")
+    let received_: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeCloseTo", matcherParamsFmt: "<green>expected<r>, precision")
     if (!received_.isNumber()) {
         return globalThis.throwInvalidArgumentType("expect", argName: "received", expectedType: "number")
     }
@@ -51,7 +51,7 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     }
 
     if (std.math.isPositiveInf(expected) && std.math.isPositiveInf(received)) {
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     let expectedDiff = bun.pow(10.0, -precision) / 2.0
@@ -61,7 +61,7 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     let not = this.flags.not
     if (not) { pass = !pass }
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

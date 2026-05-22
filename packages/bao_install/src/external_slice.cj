@@ -156,6 +156,16 @@ public class ExternalPackageNameHashList {
         this.off = off
         this.len = len
     }
+
+    /// 获取元素 (简化: 返回空)
+    public func get(buf: String): ArrayList<String> {
+        return ArrayList<String>()
+    }
+
+    /// 是否无效
+    public func isInvalid(): Bool {
+        return len == UInt32(0)
+    }
 }
 
 /// 版本切片
@@ -172,5 +182,18 @@ public class VersionSlice {
     public init(off: UInt32, len: UInt32) {
         this.off = off
         this.len = len
+    }
+
+    /// 从缓冲区获取切片
+    public func get(buffer: ArrayList<SemverVersion>): ArrayList<SemverVersion> {
+        let start = Int64(off)
+        let end = Int64(off + len)
+        if (start >= buffer.size) { return ArrayList<SemverVersion>() }
+        let actualEnd = if (end > buffer.size) { buffer.size } else { end }
+        let result = ArrayList<SemverVersion>()
+        for (i in start..actualEnd) {
+            result.append(buffer[i])
+        }
+        return result
     }
 }

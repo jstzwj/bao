@@ -23,17 +23,26 @@ public class Recover {
     /// - Param globalThis: 全局对象
     /// - Param error: 错误值
     /// - Return: 是否成功恢复
-    public static func recover(globalThis: JSGlobalObject, error: JSValue): Bool {
+    public static func recover(globalThis: JsObject, error: JsValue): Bool {
         let ctx = RecoverContext()
         ctx.hasRecovered = true
 
         // 提取错误消息
-        if (let Some(err) <- error.toError()) {
-            let name: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "name") ?? JSValue.jsUndefined
-            let message: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "message") ?? JSValue.jsUndefined
-            ctx.errorMessage = "" + name.toSliceOrNull(globalThis: globalThis) ?? "" + ": ${message.toSliceOrNull(globalThis: globalThis) ?? ""}"
+        let errOpt = error.toError()
+        if (errOpt.isSome()) {
+            let err = errOpt.getOrThrow()
+            let nameOpt = err.getTruthy(globalThis, "name")
+            let name: JsValue = if (nameOpt.isSome()) { nameOpt.getOrThrow() } else { JsValue.jsUndefined() }
+            let messageOpt = err.getTruthy(globalThis, "message")
+            let message: JsValue = if (messageOpt.isSome()) { messageOpt.getOrThrow() } else { JsValue.jsUndefined() }
+            let nameStrOpt = name.toSliceOrNull(globalThis)
+            let nameStr = if (nameStrOpt.isSome()) { nameStrOpt.getOrThrow() } else { "" }
+            let messageStrOpt = message.toSliceOrNull(globalThis)
+            let messageStr = if (messageStrOpt.isSome()) { messageStrOpt.getOrThrow() } else { "" }
+            ctx.errorMessage = "${nameStr}: ${messageStr}"
         } else {
-            ctx.errorMessage = error.toSliceOrNull(globalThis: globalThis) ?? "unknown error"
+            let msgOpt = error.toSliceOrNull(globalThis)
+            ctx.errorMessage = if (msgOpt.isSome()) { msgOpt.getOrThrow() } else { "unknown error" }
         }
 
         return ctx.hasRecovered
@@ -55,11 +64,11 @@ public class Recover {
     /// - Param func: 被包装的函数
     /// - Param args: 函数参数
     /// - Return: 函数返回值或错误
-    public static func call<T>(`func`: () -> T): Result<T, String> {
+    public static func call<T>(`func`: () -> T): Option<T> {
         try {
-            return Result<T, String>.Ok(`func`())
+            return Some(`func`())
         } catch (e: Exception) {
-            return Result<T, String>.Err(e.message)
+            return None
         }
     }
 }

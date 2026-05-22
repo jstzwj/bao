@@ -39,8 +39,8 @@ public class AllocScope {
     /// 当 enableAllocScopes 为 true 时，创建 AllocationScope。
     /// 否则返回一个空的作用域包装器。
     public static func beginScope(alloc: Allocator): AllocScope {
-        let as = AllocScope(scope: AllocationScope.init(alloc), enabled: IS_DEBUG_BUILD)
-        return as
+        let allocScope = AllocScope(scope: AllocationScope(alloc), enabled: IS_DEBUG_BUILD)
+        return allocScope
     }
 
     /// 结束分配作用域

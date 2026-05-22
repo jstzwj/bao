@@ -7,6 +7,7 @@ package bao_runtime.webcore.s3
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // Re-exports - 重导出
@@ -29,8 +30,8 @@ import bao_jsc.*
 // stat - 获取对象元数据
 // 严格翻译自: pub fn stat(
 //   this: &S3Credentials, path: &[u8],
-//   callback: fn(S3StatResult, *mut c_void) -> JsTerminatedResult<()>,
-//   callback_context: *mut c_void,
+//   callback: fn(S3StatResult, *c_void) -> JsTerminatedResult<()>,
+//   callback_context: *c_void,
 //   proxy_url: Option<&[u8]>,
 //   request_payer: bool,
 // ) -> JsTerminatedResult<()>
@@ -67,8 +68,8 @@ public func s3Stat(
 // download - 下载对象
 // 严格翻译自: pub fn download(
 //   this: &S3Credentials, path: &[u8],
-//   callback: fn(S3DownloadResult, *mut c_void) -> JsTerminatedResult<()>,
-//   callback_context: *mut c_void,
+//   callback: fn(S3DownloadResult, *c_void) -> JsTerminatedResult<()>,
+//   callback_context: *c_void,
 //   proxy_url: Option<&[u8]>,
 //   request_payer: bool,
 // ) -> JsTerminatedResult<()>
@@ -105,8 +106,8 @@ public func s3Download(
 // 严格翻译自: pub fn download_slice(
 //   this: &S3Credentials, path: &[u8],
 //   offset: usize, size: Option<usize>,
-//   callback: fn(S3DownloadResult, *mut c_void) -> JsTerminatedResult<()>,
-//   callback_context: *mut c_void,
+//   callback: fn(S3DownloadResult, *c_void) -> JsTerminatedResult<()>,
+//   callback_context: *c_void,
 //   proxy_url: Option<&[u8]>,
 //   request_payer: bool,
 // ) -> JsTerminatedResult<()>
@@ -128,20 +129,18 @@ public func s3DownloadSlice(
 ): Unit {
     // 构造 Range 头
     let range: String = match (size) {
-        case Some(size_) => {
+        case Some(size_) =>
             var end = offset + size_
             if (size_ > 0) {
                 end -= 1
             }
             "bytes=${offset}-${end}"
-        }
-        case None => {
+        case None =>
             if (offset == 0) {
                 ""
             } else {
                 "bytes=${offset}-"
             }
-        }
     }
 
     let options = S3SimpleRequestOptions()
@@ -164,8 +163,8 @@ public func s3DownloadSlice(
 // delete - 删除对象
 // 严格翻译自: pub fn delete(
 //   this: &S3Credentials, path: &[u8],
-//   callback: fn(S3DeleteResult, *mut c_void) -> JsTerminatedResult<()>,
-//   callback_context: *mut c_void,
+//   callback: fn(S3DeleteResult, *c_void) -> JsTerminatedResult<()>,
+//   callback_context: *c_void,
 //   proxy_url: Option<&[u8]>,
 //   request_payer: bool,
 // ) -> JsTerminatedResult<()>
@@ -202,8 +201,8 @@ public func s3Delete(
 // 严格翻译自: pub fn list_objects(
 //   this: &S3Credentials,
 //   list_options: &S3ListObjectsOptions,
-//   callback: fn(S3ListObjectsResult, *mut c_void) -> JsTerminatedResult<()>,
-//   callback_context: *mut c_void,
+//   callback: fn(S3ListObjectsResult, *c_void) -> JsTerminatedResult<()>,
+//   callback_context: *c_void,
 //   proxy_url: Option<&[u8]>,
 // ) -> JsTerminatedResult<()>
 // Bun: 构造查询参数字符串, 签名请求, 创建 S3HttpSimpleTask 并调度
@@ -227,15 +226,15 @@ public func s3ListObjects(
     var searchParams = "?".toStringBuilder()
 
     // continuation-token
-    if (listOptions.continuationToken.length > 0) {
+    if (listOptions.continuationToken.size > 0) {
         let encoded = encodeURIComponent(listOptions.continuationToken)
         searchParams.append("continuation-token=${encoded}")
     }
 
     // delimiter
-    if (listOptions.delimiter.length > 0) {
+    if (listOptions.delimiter.size > 0) {
         let encoded = encodeURIComponent(listOptions.delimiter)
-        if (listOptions.continuationToken.length > 0) {
+        if (listOptions.continuationToken.size > 0) {
             searchParams.append("&delimiter=${encoded}")
         } else {
             searchParams.append("delimiter=${encoded}")
@@ -243,8 +242,8 @@ public func s3ListObjects(
     }
 
     // encoding-type
-    if (listOptions.encodingType.length > 0) {
-        if (listOptions.continuationToken.length > 0 || listOptions.delimiter.length > 0) {
+    if (listOptions.encodingType.size > 0) {
+        if (listOptions.continuationToken.size > 0 || listOptions.delimiter.size > 0) {
             searchParams.append("&encoding-type=url")
         } else {
             searchParams.append("encoding-type=url")
@@ -253,9 +252,9 @@ public func s3ListObjects(
 
     // fetch-owner
     if (listOptions.fetchOwner) {
-        if (listOptions.continuationToken.length > 0 ||
-            listOptions.delimiter.length > 0 ||
-            listOptions.encodingType.length > 0) {
+        if (listOptions.continuationToken.size > 0 ||
+            listOptions.delimiter.size > 0 ||
+            listOptions.encodingType.size > 0) {
             searchParams.append("&fetch-owner=true")
         } else {
             searchParams.append("fetch-owner=true")
@@ -263,9 +262,9 @@ public func s3ListObjects(
     }
 
     // list-type=2
-    if (listOptions.continuationToken.length > 0 ||
-        listOptions.delimiter.length > 0 ||
-        listOptions.encodingType.length > 0 ||
+    if (listOptions.continuationToken.size > 0 ||
+        listOptions.delimiter.size > 0 ||
+        listOptions.encodingType.size > 0 ||
         listOptions.fetchOwner) {
         searchParams.append("&list-type=2")
     } else {
@@ -278,13 +277,13 @@ public func s3ListObjects(
     }
 
     // prefix
-    if (listOptions.prefix.length > 0) {
+    if (listOptions.prefix.size > 0) {
         let encoded = encodeURIComponent(listOptions.prefix)
         searchParams.append("&prefix=${encoded}")
     }
 
     // start-after
-    if (listOptions.startAfter.length > 0) {
+    if (listOptions.startAfter.size > 0) {
         let encoded = encodeURIComponent(listOptions.startAfter)
         searchParams.append("&start-after=${encoded}")
     }
@@ -304,7 +303,7 @@ public func s3ListObjects(
             None,
             false
         )
-    } catch {
+    } catch (e: Exception) {
         let errorCodeAndMessage = getSignErrorCodeAndMessage()
         let err = S3Error(errorCodeAndMessage.code, errorCodeAndMessage.message)
         callback(S3ListObjectsResultEx.failure(err), callbackContext)
@@ -328,7 +327,7 @@ public func s3ListObjects(
 
     // 配置 AsyncHTTP
     let url = UrlParser.parse(signResult.url)
-    task.http = AsyncHttp.init(
+    task.http = AsyncHttp(
         HttpMethod.GET,
         url,
         task.headers,
@@ -339,7 +338,7 @@ public func s3ListObjects(
     )
 
     // 调度 HTTP 请求
-    HTTPThread.init()
+    HTTPThread()
     let batch = ThreadPoolBatch()
     task.http.schedule(batch)
     HTTPThread.schedule(batch)
@@ -353,8 +352,8 @@ public func s3ListObjects(
 //   content_encoding: Option<&[u8]>, acl: Option<ACL>,
 //   proxy_url: Option<&[u8]>, storage_class: Option<StorageClass>,
 //   request_payer: bool,
-//   callback: fn(S3UploadResult, *mut c_void) -> JsTerminatedResult<()>,
-//   callback_context: *mut c_void,
+//   callback: fn(S3UploadResult, *c_void) -> JsTerminatedResult<()>,
+//   callback_context: *c_void,
 // ) -> JsTerminatedResult<()>
 // ============================================================================
 
@@ -487,7 +486,7 @@ public class S3UploadStreamWrapper {
 
     // ========================================================================
     // detachSink - 分离 Sink
-    // 严格翻译自: fn detachSink(this: *@This()) void
+    // 严格翻译自: fn detachSink(`this`: *@This()) void
     // ========================================================================
 
     /// 分离 Sink
@@ -495,10 +494,9 @@ public class S3UploadStreamWrapper {
     /// 释放持有的 ResumableSink 引用
     public func detachSink(): Unit {
         match (sink) {
-            case Some(s) => {
+            case Some(s) =>
                 s.deref()
                 sink = None
-            }
             case None => ()
         }
     }
@@ -518,16 +516,15 @@ public class S3UploadStreamWrapper {
         }
         // 队列有空间，从 sink 排数据
         match (self_.sink) {
-            case Some(s) => {
+            case Some(s) =>
                 s.drain()
-            }
             case None => ()
         }
     }
 
     // ========================================================================
     // writeRequestData - 写入请求数据
-    // 严格翻译自: pub fn writeRequestData(this: *@This(), data: []const u8) ResumableSinkBackpressure
+    // 严格翻译自: pub fn writeRequestData(`this`: *@This(), data: []const u8) ResumableSinkBackpressure
     // ========================================================================
 
     /// 写入请求数据
@@ -539,7 +536,7 @@ public class S3UploadStreamWrapper {
 
     // ========================================================================
     // writeEndRequest - 写入结束请求
-    // 严格翻译自: pub fn writeEndRequest(this: *@This(), err: ?JSValue) void
+    // 严格翻译自: pub fn writeEndRequest(`this`: *@This(), err: ?JsValue) void
     // ========================================================================
 
     /// 写入结束请求
@@ -551,7 +548,7 @@ public class S3UploadStreamWrapper {
         defer { deref() }
 
         match (err) {
-            case Some(jsErr) => {
+            case Some(jsErr) =>
                 if (endPromise.hasValue() && !jsErr.isEmptyOrUndefinedOrNull()) {
                     // 如果有明确错误，拒绝 Promise
                     endPromise.reject(global, jsErr)
@@ -560,11 +557,9 @@ public class S3UploadStreamWrapper {
                 if (!task.ended) {
                     task.fail(S3Error("UnknownError", "ReadableStream ended with an error"))
                 }
-            }
-            case None => {
+            case None =>
                 // 正常结束
                 task.writeBytes("", true)
-            }
         }
     }
 
@@ -581,36 +576,31 @@ public class S3UploadStreamWrapper {
         defer { self_.deref() }
 
         match (result.tag) {
-            case S3UploadResultTag.Success => {
+            case S3UploadResultTag.Success =>
                 if (self_.endPromise.hasValue()) {
                     self_.endPromise.resolve(self_.global, JsValue(0.0))
                     self_.endPromise = JsPromiseStrong()
                 }
-            }
-            case S3UploadResultTag.Failure => {
+            case S3UploadResultTag.Failure =>
                 match (self_.sink) {
-                    case Some(s) => {
+                    case Some(s) =>
                         // sink 正在进行中，取消它
                         let jsErr = s3ErrorToJS(result.error, self_.global, Some(self_.path))
                         s.cancel(jsErr)
                         s.deref()
-                    }
-                    case None => {
+                    case None =>
                         if (self_.endPromise.hasValue()) {
                             let jsErr = s3ErrorToJS(result.error, self_.global, Some(self_.path))
                             self_.endPromise.reject(self_.global, jsErr)
                             self_.endPromise = JsPromiseStrong()
                         }
-                    }
                 }
-            }
         }
 
         // 调用用户回调
         match (self_.callback) {
-            case Some(cb) => {
+            case Some(cb) =>
                 cb(result, self_.callbackContext)
-            }
             case None => ()
         }
     }
@@ -639,7 +629,7 @@ public class S3UploadStreamWrapper {
 //   content_type: Option<&[u8]>, content_disposition: Option<&[u8]>,
 //   content_encoding: Option<&[u8]>, proxy: Option<&[u8]>,
 //   storage_class: Option<StorageClass>, request_payer: bool,
-// ) -> JsResult<JSValue>
+// ) -> JsResult<JsValue>
 // Bun: 创建一个写入 S3 路径的可写流
 // ============================================================================
 
@@ -680,9 +670,9 @@ public func s3WritableStream(
     task.buffered = StreamBuffer()
     task.path = path
     task.proxy = proxyUrl
-    task.contentType = if (contentType.length > 0) { Some(contentType) } else { None }
-    task.contentDisposition = if (contentDisposition.length > 0) { Some(contentDisposition) } else { None }
-    task.contentEncoding = if (contentEncoding.length > 0) { Some(contentEncoding) } else { None }
+    task.contentType = if (contentType.size > 0) { Some(contentType) } else { None }
+    task.contentDisposition = if (contentDisposition.size > 0) { Some(contentDisposition) } else { None }
+    task.contentEncoding = if (contentEncoding.size > 0) { Some(contentEncoding) } else { None }
     task.uploadId = ""
     task.uploadidBuffer = MutableString()
     task.multipartEtags = ArrayList<UploadPartResult>()
@@ -723,7 +713,7 @@ private func onWritableThunk(task: MultiPartUpload, ctx: UIntNative, flushed: UI
 //   acl, storage_class, content_type, content_disposition,
 //   content_encoding, proxy, request_payer,
 //   callback, callback_context,
-// ) -> JsResult<JSValue>
+// ) -> JsResult<JsValue>
 // Bun: 消费 readable stream 并上传到 S3
 // ============================================================================
 
@@ -759,12 +749,11 @@ public func s3UploadStream(
 
     // 检查流是否无效
     match (readableStream.ptr) {
-        case ReadableStreamPtr.INVALID => {
+        case ReadableStreamPtr.INVALID =>
             return JsPromise.rejectedPromise(
                 globalThis,
                 BaoString("ReadableStream is invalid").toErrorInstance(globalThis)
             ).toJS()
-        }
         case _ => ()
     }
 
@@ -787,9 +776,9 @@ public func s3UploadStream(
     task.buffered = StreamBuffer()
     task.path = path
     task.proxy = proxyUrl
-    task.contentType = if (contentType.length > 0) { Some(contentType) } else { None }
-    task.contentDisposition = if (contentDisposition.length > 0) { Some(contentDisposition) } else { None }
-    task.contentEncoding = if (contentEncoding.length > 0) { Some(contentEncoding) } else { None }
+    task.contentType = if (contentType.size > 0) { Some(contentType) } else { None }
+    task.contentDisposition = if (contentDisposition.size > 0) { Some(contentDisposition) } else { None }
+    task.contentEncoding = if (contentEncoding.size > 0) { Some(contentEncoding) } else { None }
     task.uploadId = ""
     task.uploadidBuffer = MutableString()
     task.multipartEtags = ArrayList<UploadPartResult>()
@@ -808,10 +797,10 @@ public func s3UploadStream(
         path,
         globalThis.toGlobalRef()
     )
-    ctx.endPromise = JsPromiseStrong.init(globalThis)
+    ctx.endPromise = JsPromiseStrong(globalThis)
 
     // +1 因为 ctx 引用了 sink
-    ctx.sink = Some(ResumableS3UploadSink.init(globalThis.toGlobalRef(), readableStream, ctx, 2))
+    ctx.sink = Some(ResumableS3UploadSink(globalThis.toGlobalRef(), readableStream, ctx, 2))
 
     task.callbackContext = ctx.toOpaque()
     task.onWritable = Some(uploadStreamOnWritableThunk)
@@ -834,8 +823,8 @@ private func uploadStreamOnWritableThunk(task: MultiPartUpload, ctx: UIntNative,
 //   this: &S3Credentials, path: &[u8],
 //   offset: usize, size: Option<usize>,
 //   proxy_url: Option<&[u8]>, request_payer: bool,
-//   callback: fn(chunk: MutableString, has_more: bool, err: ?S3Error, ctx: *mut c_void),
-//   callback_context: *mut c_void,
+//   callback: fn(chunk: MutableString, has_more: bool, err: ?S3Error, ctx: *c_void),
+//   callback_context: *c_void,
 // )
 // Bun: 流式下载 S3 对象，逐块回调数据
 // ============================================================================
@@ -855,20 +844,18 @@ public func s3DownloadStream(
 ): Unit {
     // 构造 Range 头
     let range: String = match (size) {
-        case Some(size_) => {
+        case Some(size_) =>
             var end = offset + size_
             if (size_ > 0) {
                 end -= 1
             }
             "bytes=${offset}-${end}"
-        }
-        case None => {
+        case None =>
             if (offset == 0) {
                 ""
             } else {
                 "bytes=${offset}-"
             }
-        }
     }
 
     // 签名请求
@@ -884,7 +871,7 @@ public func s3DownloadStream(
             None,
             requestPayer
         )
-    } catch {
+    } catch (e: Exception) {
         let errorCodeAndMessage = getSignErrorCodeAndMessage()
         callback(
             MutableString(),
@@ -897,7 +884,7 @@ public func s3DownloadStream(
 
     // 构造 HTTP 头
     let httpHeaders: HttpHeaders
-    if (range.length > 0) {
+    if (range.size > 0) {
         httpHeaders = signResult.mixWithHeader("range", range)
     } else {
         httpHeaders = signResult.toHttpHeaders()
@@ -921,7 +908,7 @@ public func s3DownloadStream(
 
     // 配置 AsyncHTTP
     let url = UrlParser.parse(signResult.url)
-    let httpProxy = if (task.proxyUrl.length > 0) {
+    let httpProxy = if (task.proxyUrl.size > 0) {
         Some(UrlParser.parse(task.proxyUrl))
     } else {
         None
@@ -931,7 +918,7 @@ public func s3DownloadStream(
     let verbose = vm.getVerboseFetch()
     let rejectUnauthorized = vm.getTlsRejectUnauthorized()
 
-    task.http = AsyncHttp.init(
+    task.http = AsyncHttp(
         HttpMethod.GET,
         url,
         task.headers,
@@ -945,7 +932,7 @@ public func s3DownloadStream(
     task.http.enableResponseBodyStreaming()
 
     // 调度 HTTP 请求
-    HTTPThread.init()
+    HTTPThread()
     let batch = ThreadPoolBatch()
     task.http.schedule(batch)
     HTTPThread.schedule(batch)
@@ -958,7 +945,7 @@ public func s3DownloadStream(
 //   offset: usize, size: Option<usize>,
 //   proxy_url: Option<&[u8]>, request_payer: bool,
 //   global_this: &JSGlobalObject,
-// ) -> JsResult<JSValue>
+// ) -> JsResult<JsValue>
 // Bun: 创建一个读取 S3 路径的可读流
 // ============================================================================
 
@@ -1055,16 +1042,15 @@ public class S3DownloadStreamWrapper {
 
         let readable = readableStreamRef.get(global)
         match (readable) {
-            case Some(r) => {
+            case Some(r) =>
                 let bytes = r.ptr.bytes()
                 match (bytes) {
-                    case Some(b) => {
+                    case Some(b) =>
                         match (requestErr) {
-                            case Some(err) => {
+                            case Some(err) =>
                                 let jsErr = s3ErrorToJS(err, global, Some(path))
                                 b.onData(StreamResult.err(StreamError.jsValue(jsErr)))
                                 return
-                            }
                             case None => ()
                         }
 
@@ -1075,10 +1061,8 @@ public class S3DownloadStreamWrapper {
 
                         b.onData(StreamResult.temporaryAndDone(RawSlice(chunk.list)))
                         return
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -1094,17 +1078,15 @@ public class S3DownloadStreamWrapper {
     public func clearStreamCancelHandler(): Unit {
         let readable = readableStreamRef.get(global)
         match (readable) {
-            case Some(r) => {
+            case Some(r) =>
                 let bytes = r.ptr.bytes()
                 match (bytes) {
-                    case Some(b) => {
+                    case Some(b) =>
                         let source = b.parentConst()
                         source.cancelHandler = None
                         source.cancelCtx = None
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -1119,11 +1101,10 @@ public class S3DownloadStreamWrapper {
     /// 释放 Strong 引用使 ReadableStream 可被 GC 回收
     public static func onStreamCancelled(ctx: ?UIntNative): Unit {
         match (ctx) {
-            case Some(opaque) => {
+            case Some(opaque) =>
                 let self_ = S3DownloadStreamWrapper.fromOpaque(opaque)
                 // 释放 Strong 引用
                 self_.readableStreamRef.deinit()
-            }
             case None => ()
         }
     }
@@ -1179,13 +1160,11 @@ private func getSignErrorCodeAndMessage(): S3Error {
 /// 创建 JSS3Error 并转为 Error 实例
 public func s3ErrorToJS(err: ?S3Error, globalObject: JsGlobalObject, path: ?String): JsValue {
     match (err) {
-        case Some(e) => {
+        case Some(e) =>
             let jsErr = JSS3Error(e.code, e.message, path)
             return jsErr.toErrorInstance(globalObject)
-        }
-        case None => {
+        case None =>
             return JsValue(JsObject())
-        }
     }
 }
 

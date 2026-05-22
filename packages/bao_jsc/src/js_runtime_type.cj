@@ -54,6 +54,27 @@ public enum JSRuntimeType {
         }
     }
 
+    public operator func ==(right: JSRuntimeType): Bool {
+        match (this) {
+            case `Nothing` => match(right) { case `Nothing` => true case _ => false }
+            case Function => match(right) { case Function => true case _ => false }
+            case Undefined => match(right) { case Undefined => true case _ => false }
+            case Null => match(right) { case Null => true case _ => false }
+            case Boolean => match(right) { case Boolean => true case _ => false }
+            case AnyInt => match(right) { case AnyInt => true case _ => false }
+            case Number => match(right) { case Number => true case _ => false }
+            case String => match(right) { case String => true case _ => false }
+            case Object => match(right) { case Object => true case _ => false }
+            case Symbol => match(right) { case Symbol => true case _ => false }
+            case BigInt => match(right) { case BigInt => true case _ => false }
+            case Unknown => match(right) { case Unknown => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: JSRuntimeType): Bool {
+        !(this == right)
+    }
+
     public func isNothing(): Bool { this == `Nothing` }
     public func isFunction(): Bool { this == Function }
     public func isUndefined(): Bool { this == Undefined }

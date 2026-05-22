@@ -24,7 +24,7 @@ public class HiveArray<T> {
     private var totalCount: Int64
 
     /// 初始化
-    /// 对应 Bun HiveArray.init(allocator, chunk_size)
+    /// 对应 Bun HiveArray(allocator, chunk_size)
     public init(chunkSize: Int64) {
         this.chunkSize = if (chunkSize < 16) { 16 } else { chunkSize }
         chunks = ArrayList<ArrayList<T>>()

@@ -1,5 +1,5 @@
 // JsValue 扩展 — 运行时增强
-// 对应 Bun: src/jsc/JSValue.zig 中的运行时扩展方法
+// 对应 Bun: src/jsc/JsValue.zig 中的运行时扩展方法
 package bao_runtime.jsc
 
 import bao_core.*
@@ -8,7 +8,7 @@ import bao_runtime.*
 
 // ============================================================================
 // JsValue 运行时扩展
-// 对应 Bun: JSValue 上的各种工具方法
+// 对应 Bun: JsValue 上的各种工具方法
 // ============================================================================
 
 /// JsValue 工厂方法扩展

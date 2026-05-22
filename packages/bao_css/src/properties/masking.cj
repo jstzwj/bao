@@ -20,14 +20,14 @@ import bao_collections.*
 /// clip-path 属性值
 /// 严格翻译自 ClipPath
 public enum ClipPath {
-    | None
+    | NoneValue
     | Url(String)
     | Shape(BasicShape)
     | Box(GeometryBox)
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Url(u) => "url(" + u + ")"
             case Shape(s) => s.toCss()
             case Box(b) => b.toCss()

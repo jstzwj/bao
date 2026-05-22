@@ -10,11 +10,19 @@ import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
 import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // 子进程管理
 // Shell子进程用于执行外部命令
 // ============================================================================
+
+/// Shell子进程标志位
+public struct ShellSubprocessFlags {
+    public var isSync: Boolean = false
+    public var killed: Boolean = false
+    public var waitingForOnexit: Boolean = false
+}
 
 /// Shell IO
 /// 用于捕获写入
@@ -23,21 +31,21 @@ public struct ShellIO {
     public var stderr: ?IOWriter = None
 
     /// 增加引用
-    public mutating func ref() {
-        if (let io = this.stdout) {
+    public func ref() {
+        if (let io <- this.stdout) {
             io.ref()
         }
-        if (let io = this.stderr) {
+        if (let io <- this.stderr) {
             io.ref()
         }
     }
 
     /// 减少引用
-    public mutating func deref() {
-        if (let io = this.stdout) {
+    public func deref() {
+        if (let io <- this.stdout) {
             io.deref()
         }
-        if (let io = this.stderr) {
+        if (let io <- this.stderr) {
             io.deref()
         }
     }
@@ -64,26 +72,19 @@ public class ShellSubprocess {
     /// 已关闭集合
     public var closed: Set<StdioKind>
     /// JS值
-    public var thisJsvalue: JSValue
+    public var thisJsvalue: JsValue
     /// 标志
-    public var flags: Flags
+    public var flags: ShellSubprocessFlags
 
     /// 默认最大缓冲区大小 4MB
-    public const defaultMaxBufferSize: UInt64 = 1024 * 1024 * 4
-
-    /// 标志位
-    public struct Flags {
-        public var isSync: Boolean = false
-        public var killed: Boolean = false
-        public var waitingForOnexit: Boolean = false
-    }
+    public static let defaultMaxBufferSize: UInt64 = 1024 * 1024 * 4
 
     /// 获取IO
     public func getIO(outKind: OutKind): Readable {
-        switch (outKind) {
-            case .stdout =>
+        match (outKind) {
+            case stdout =>
                 return this.stdout
-            case .stderr =>
+            case stderr =>
                 return this.stderr
         }
     }
@@ -137,12 +138,12 @@ public class ShellSubprocess {
             return
         }
         this.closed.append(io)
-        switch (io) {
-            case .stdin =>
+        match (io) {
+            case stdin =>
                 this.stdin.finalize()
-            case .stdout =>
+            case stdout =>
                 this.stdout.finalize()
-            case .stderr =>
+            case stderr =>
                 this.stderr.finalize()
         }
     }
@@ -150,9 +151,9 @@ public class ShellSubprocess {
     /// 同步终结化
     public func finalizeSync() {
         this.closeProcess()
-        this.closeIO(.stdin)
-        this.closeIO(.stdout)
-        this.closeIO(.stderr)
+        this.closeIO(StdioKind.stdin)
+        this.closeIO(StdioKind.stdout)
+        this.closeIO(StdioKind.stderr)
     }
 
     /// 去初始化
@@ -161,73 +162,73 @@ public class ShellSubprocess {
     }
 
     /// 进程退出回调
-    /// 对应 Bun: pub fn onProcessExit(this: *@This(), _: *Process, status: bun.spawn.Status, _: *const bun.spawn.Rusage) void
+    /// 对应 Bun: pub fn onProcessExit(`this`: *@This(), _: *Process, status: bun.spawn.Status, _: *const bun.spawn.Rusage) void
     public func onProcessExit(process: Process, status: SpawnStatus, rusage: Rusage) {
         var exitCode: ?UInt8 = None
-        if (status == .exited) {
+        if (status == exited) {
             exitCode = status.exited.code
-        } else if (status == .signaled) {
-            if (let code = status.signalCode()) {
+        } else if (status == signaled) {
+            if (let code <- status.signalCode()) {
                 exitCode = code.toExitCode()
             }
         }
 
-        if (let code = exitCode) {
+        if (let code <- exitCode) {
             let cmd = this.cmdParent
-            if (cmd.exitCode == None) {
+            if (cmd.exitCode.isNone()) {
                 cmd.onExit(code)
             }
         }
     }
 
     /// 静态管道写入器完成回调
-    /// 对应 Bun: pub fn onStaticPipeWriterDone(this: *ShellSubprocess) void
+    /// 对应 Bun: pub fn onStaticPipeWriterDone(`this`: *ShellSubprocess) void
     public func onStaticPipeWriterDone() {
         this.cmdParent.bufferedInputClose()
     }
 
     /// IO关闭回调
-    /// 对应 Bun: pub fn onCloseIO(this: *Subprocess, kind: StdioKind) void
+    /// 对应 Bun: pub fn onCloseIO(`this`: *Subprocess, kind: StdioKind) void
     public func onCloseIO(kind: StdioKind) {
-        switch (kind) {
-            case .stdin =>
-                switch (this.stdin) {
-                    case .pipe(let pipe) =>
+        match (kind) {
+            case stdin =>
+                match (this.stdin) {
+                    case pipe(pipe) =>
                         pipe.signal.clear()
                         pipe.deref()
                         this.stdin = Writable.ignore
-                    case .buffer(let buffer) =>
+                    case buffer(buffer) =>
                         this.onStaticPipeWriterDone()
                         buffer.source.detach()
                         buffer.deref()
                         this.stdin = Writable.ignore
-                    case .fd, .memfd, .inherit, .ignore =>
-                        // 无操作
+                    case fd, .memfd, .inherit, .ignore =>
+                        () // 无操作
                 }
-            case .stdout, .stderr =>
+            case stdout, .stderr =>
                 let out: Readable = this.getIO(kind)
-                switch (out) {
-                    case .pipe(let pipe) =>
-                        if (pipe.state == .done(let data)) {
+                match (out) {
+                    case pipe(pipe) =>
+                        if (pipe.state == done(let data)) {
                             // 将管道输出转为buffer
                             out = Readable.buffer(data)
                         } else {
                             out = Readable.ignore
                         }
                         pipe.deref()
-                    case .fd, .memfd, .inherit, .ignore, .closed, .buffer =>
-                        // 无操作
+                    case fd, .memfd, .inherit, .ignore, .closed, .buffer =>
+                        () // 无操作
                 }
         }
     }
 
     /// 启动失败后中止
-    /// 对应 Bun: fn abortAfterFailedStart(this: *@This()) void
+    /// 对应 Bun: fn abortAfterFailedStart(`this`: *@This()) void
     public func abortAfterFailedStart() {
         // 将待处理的管道读取器标记为错误状态
         for (kind in [StdioKind.stdout, StdioKind.stderr]) {
             let r = this.getIO(kind)
-            if (r == .pipe && r.pipe.state == .pending) {
+            if (r == pipe && r.pipe.state == pending) {
                 r.pipe.state = PipeReaderState.err(None)
             }
         }
@@ -236,7 +237,7 @@ public class ShellSubprocess {
     }
 
     /// 等待进程
-    /// 对应 Bun: pub fn wait(this: *@This(), sync: bool) void
+    /// 对应 Bun: pub fn wait(`this`: *@This(), sync: bool) void
     public func wait(sync: Boolean) {
         return this.process.wait(sync)
     }
@@ -284,10 +285,10 @@ public class ShellSubprocess {
         public func fillEnv(envIter: EnvMap.Iterator, disablePathLookup: Boolean) {
             let allocator = this.arena.allocator()
             this.overrideEnv = true
-            while (let entry = envIter.next()) {
+            while (let entry <- envIter.next()) {
                 let key = entry.key.slice()
                 let value = entry.value.slice()
-                let line = "\(key)=\(value)"
+                let line = "${key}=${value}"
                 this.envArray.append(line)
             }
         }
@@ -314,72 +315,72 @@ public class ShellSubprocess {
 
     /// 可写入端
     public enum Writable {
-        case pipe(FileSink)
-        case fd(FD)
-        case buffer(StaticPipeWriter)
-        case memfd(FD)
-        case inherit
-        case ignore
+        | pipe(FileSink)
+        | fd(FD)
+        | buffer(StaticPipeWriter)
+        | memfd(FD)
+        | inherit
+        | ignore
 
         /// 是否有待处理活动
         public func hasPendingActivity(): Boolean {
-            switch (this) {
-                case .pipe, .buffer =>
+            match (this) {
+                case pipe, .buffer =>
                     return true
-                case .fd, .memfd, .inherit, .ignore =>
+                case fd, .memfd, .inherit, .ignore =>
                     return false
             }
         }
 
         /// 增加引用
         public func ref() {
-            switch (this) {
-                case .pipe(let pipe) =>
+            match (this) {
+                case pipe(pipe) =>
                     pipe.updateRef(true)
-                case .buffer(let buffer) =>
+                case buffer(buffer) =>
                     buffer.updateRef(true)
-                case .fd, .memfd, .inherit, .ignore =>
-                    // 无操作
+                case fd, .memfd, .inherit, .ignore =>
+                    () // 无操作
             }
         }
 
         /// 减少引用
         public func unref() {
-            switch (this) {
-                case .pipe(let pipe) =>
+            match (this) {
+                case pipe(pipe) =>
                     pipe.updateRef(false)
-                case .buffer(let buffer) =>
+                case buffer(buffer) =>
                     buffer.updateRef(false)
-                case .fd, .memfd, .inherit, .ignore =>
-                    // 无操作
+                case fd, .memfd, .inherit, .ignore =>
+                    () // 无操作
             }
         }
 
         /// 关闭
         public mutating func close() {
-            switch (this) {
-                case .pipe(let pipe) =>
+            match (this) {
+                case pipe(pipe) =>
                     pipe.end(None)
-                case .memfd(let fd), .fd(let fd) =>
+                case memfd(fd), .fd(let fd) =>
                     fd.close()
                     this = Writable.ignore
-                case .buffer(let buffer) =>
+                case buffer(buffer) =>
                     buffer.close()
-                case .inherit, .ignore =>
-                    // 无操作
+                case inherit, .ignore =>
+                    () // 无操作
             }
         }
 
         /// 关闭回调 - 防止use-after-free
-        /// 对应 Bun: pub fn onClose(this: *Writable, _: ?bun.sys.Error) void
+        /// 对应 Bun: pub fn onClose(`this`: *Writable, _: ?bun.sys.Error) void
         public mutating func onClose(err: ?SystemError) {
-            switch (this) {
-                case .buffer(let buffer) =>
+            match (this) {
+                case buffer(buffer) =>
                     buffer.deref()
-                case .pipe(let pipe) =>
+                case pipe(pipe) =>
                     pipe.deref()
-                case .fd, .memfd, .inherit, .ignore =>
-                    // 无操作
+                case fd, .memfd, .inherit, .ignore =>
+                    () // 无操作
             }
             this = Writable.ignore
         }
@@ -398,65 +399,65 @@ public class ShellSubprocess {
 
         /// 初始化可写入端
         /// 对应 Bun: pub fn init(stdio: Stdio, event_loop: ..., subprocess: ..., result: ...) !Writable
-        public static func init(stdio: Stdio, eventLoop: EventLoopHandle, subprocess: ShellSubprocess, result: StdioResult): Writable {
+        public static func `init`(stdio: Stdio, eventLoop: EventLoopHandle, subprocess: ShellSubprocess, result: StdioResult): Writable {
             assertStdioResult(result)
-            switch (stdio) {
-                case .dup2 =>
+            match (stdio) {
+                case dup2 =>
                     // Shell不使用dup2作为stdin
                     return Writable.ignore
-                case .pipe =>
+                case pipe =>
                     // Shell不使用pipe作为stdin
                     return Writable.ignore
-                case .blob(let blob) =>
+                case blob(blob) =>
                     return Writable.buffer(StaticPipeWriter.create(eventLoop, subprocess, result, blob))
-                case .arrayBuffer(let arrayBuffer) =>
+                case arrayBuffer(arrayBuffer) =>
                     return Writable.buffer(StaticPipeWriter.create(eventLoop, subprocess, result, arrayBuffer))
-                case .memfd(let memfd) =>
+                case memfd(memfd) =>
                     return Writable.memfd(memfd)
-                case .fd =>
+                case fd =>
                     return Writable.fd(result)
-                case .inherit =>
+                case inherit =>
                     return Writable.inherit
-                case .path, .ignore =>
+                case path, .ignore =>
                     return Writable.ignore
-                case .ipc, .capture =>
+                case ipc, .capture =>
                     return Writable.ignore
-                case .readableStream =>
+                case readableStream =>
                     return Writable.ignore
             }
         }
 
         /// 转为JS值
-        /// 对应 Bun: pub fn toJS(this: *Writable, globalThis: ..., subprocess: ...) JSValue
-        public func toJS(globalThis: JSGlobalObject, subprocess: ShellSubprocess): JSValue {
-            switch (this) {
-                case .fd(let fd) =>
-                    return JSValue.jsNumber(fd)
-                case .memfd, .ignore =>
-                    return JSValue.jsUndefined()
-                case .buffer, .inherit =>
-                    return JSValue.jsUndefined()
-                case .pipe(let pipe) =>
+        /// 对应 Bun: pub fn toJS(`this`: *Writable, globalThis: ..., subprocess: ...) JsValue
+        public func toJS(globalThis: JSGlobalObject, subprocess: ShellSubprocess): JsValue {
+            match (this) {
+                case fd(fd) =>
+                    return JsValue.jsNumber(fd)
+                case memfd, .ignore =>
+                    return JsValue.jsUndefined()
+                case buffer, .inherit =>
+                    return JsValue.jsUndefined()
+                case pipe(pipe) =>
                     // 对应 Bun: pipe.toJSWithDestructor(...)
                     return pipe.toJS(globalThis)
             }
         }
 
         /// 终结化
-        /// 对应 Bun: pub fn finalize(this: *Writable) void
+        /// 对应 Bun: pub fn finalize(`this`: *Writable) void
         public mutating func finalize() {
-            switch (this) {
-                case .pipe(let pipe) =>
+            match (this) {
+                case pipe(pipe) =>
                     pipe.deref()
                     this = Writable.ignore
-                case .buffer(let buffer) =>
+                case buffer(buffer) =>
                     buffer.updateRef(false)
                     buffer.deref()
-                case .memfd(let fd) =>
+                case memfd(fd) =>
                     fd.close()
                     this = Writable.ignore
-                case .fd, .inherit, .ignore =>
-                    // 无操作
+                case fd, .inherit, .ignore =>
+                    () // 无操作
             }
         }
     }
@@ -468,17 +469,17 @@ public class ShellSubprocess {
     /// 可读取端
     /// 对应 Bun: pub const Readable = union(enum) { ... }
     public enum Readable {
-        case fd(FD)
-        case memfd(FD)
-        case pipe(PipeReader)
-        case inherit
-        case ignore
-        case closed
-        case buffer(Array<Byte>)
+        | fd(FD)
+        | memfd(FD)
+        | pipe(PipeReader)
+        | inherit
+        | ignore
+        | closed
+        | buffer(Array<Byte>)
 
         /// 初始化可读取端
         /// 对应 Bun: pub fn init(out_type, stdio, shellio, event_loop, process, result, allocator, max_size, is_sync) Readable
-        public static func init(
+        public static func `init`(
             outType: OutKind,
             stdio: Stdio,
             shellio: ?IOWriter,
@@ -490,29 +491,29 @@ public class ShellSubprocess {
             isSync: Boolean
         ): Readable {
             assertStdioResult(result)
-            switch (stdio) {
-                case .inherit =>
+            match (stdio) {
+                case inherit =>
                     return Readable.inherit
-                case .ipc, .dup2, .ignore =>
+                case ipc, .dup2, .ignore =>
                     return Readable.ignore
-                case .path =>
+                case path =>
                     return Readable.ignore
-                case .fd(let fd) =>
+                case fd(fd) =>
                     return Readable.fd(fd)
-                case .blob =>
+                case blob =>
                     // Blob是不可变的，应该只有带fd的情况
                     return Readable.ignore
-                case .memfd(let memfd) =>
+                case memfd(memfd) =>
                     return Readable.memfd(memfd)
-                case .pipe =>
+                case pipe =>
                     return Readable.pipe(PipeReader.create(eventLoop, process, result, None, outType))
-                case .arrayBuffer(let arrayBuffer) =>
+                case arrayBuffer(arrayBuffer) =>
                     let readable = Readable.pipe(PipeReader.create(eventLoop, process, result, None, outType))
                     readable.pipe.setBufferedOutputArrayBuffer(arrayBuffer)
                     return readable
-                case .capture =>
+                case capture =>
                     return Readable.pipe(PipeReader.create(eventLoop, process, result, shellio, outType))
-                case .readableStream =>
+                case readableStream =>
                     // Shell不使用readable_stream
                     return Readable.ignore
             }
@@ -520,67 +521,67 @@ public class ShellSubprocess {
 
         /// 增加引用
         public func ref() {
-            switch (this) {
-                case .pipe(let pipe) =>
+            match (this) {
+                case pipe(pipe) =>
                     pipe.updateRef(true)
-                case .fd, .memfd, .inherit, .ignore, .closed, .buffer =>
-                    // 无操作
+                case fd, .memfd, .inherit, .ignore, .closed, .buffer =>
+                    () // 无操作
             }
         }
 
         /// 减少引用
         public func unref() {
-            switch (this) {
-                case .pipe(let pipe) =>
+            match (this) {
+                case pipe(pipe) =>
                     pipe.updateRef(false)
-                case .fd, .memfd, .inherit, .ignore, .closed, .buffer =>
-                    // 无操作
+                case fd, .memfd, .inherit, .ignore, .closed, .buffer =>
+                    () // 无操作
             }
         }
 
         /// 获取切片
         public func toSlice(): ?String {
-            switch (this) {
-                case .fd =>
+            match (this) {
+                case fd =>
                     return None
-                case .pipe(let pipe) =>
+                case pipe(pipe) =>
                     return String.fromBytes(pipe.slice())
-                case .buffer(let buf) =>
+                case buffer(buf) =>
                     return String.fromBytes(buf)
-                case .memfd =>
+                case memfd =>
                     return None
-                case .inherit, .ignore, .closed =>
+                case inherit, .ignore, .closed =>
                     return None
             }
         }
 
         /// 关闭
         public mutating func close() {
-            switch (this) {
-                case .memfd(let fd) =>
+            match (this) {
+                case memfd(fd) =>
                     this = Readable.closed
                     fd.close()
-                case .fd =>
+                case fd =>
                     this = Readable.closed
-                case .pipe(let pipe) =>
+                case pipe(pipe) =>
                     pipe.close()
-                case .inherit, .ignore, .closed, .buffer =>
-                    // 无操作
+                case inherit, .ignore, .closed, .buffer =>
+                    () // 无操作
             }
         }
 
         /// 终结化
         public mutating func finalize() {
-            switch (this) {
-                case .memfd(let fd) =>
+            match (this) {
+                case memfd(fd) =>
                     this = Readable.closed
                     fd.close()
-                case .fd =>
+                case fd =>
                     this = Readable.closed
-                case .pipe(let pipe) =>
+                case pipe(pipe) =>
                     this = Readable.closed
-                case .inherit, .ignore, .closed, .buffer =>
-                    // 无操作
+                case inherit, .ignore, .closed, .buffer =>
+                    () // 无操作
             }
         }
     }
@@ -588,9 +589,9 @@ public class ShellSubprocess {
 
 /// 标准IO类型
 public enum StdioKind {
-    case stdin
-    case stdout
-    case stderr
+    | stdin
+    | stdout
+    | stderr
 }
 
 // ============================================================================
@@ -625,9 +626,9 @@ public class PipeReader {
     /// 管道读取器状态
     /// 对应 Bun: state: union(enum) { pending, done: []u8, err: ?jsc.SystemError }
     public enum PipeReaderState {
-        case pending
-        case done(Array<Byte>)
-        case err(?SystemError)
+        | pending
+        | done(Array<Byte>)
+        | err(?SystemError)
     }
 
     // ========================================================================
@@ -638,44 +639,44 @@ public class PipeReader {
     /// 缓冲输出
     /// 对应 Bun: const BufferedOutput = union(enum) { bytelist, array_buffer }
     public enum BufferedOutput {
-        case bytelist(ByteList)
-        case arrayBuffer(ArrayBufferEntry)
+        | bytelist(ByteList)
+        | arrayBuffer(ArrayBufferEntry)
 
         /// 获取长度
-        /// 对应 Bun: pub inline fn len(this: *BufferedOutput) usize
+        /// 对应 Bun: pub inline fn len(`this`: *BufferedOutput) usize
         public func len(): Int64 {
-            switch (this) {
-                case .bytelist(let bl) =>
-                    return bl.length
-                case .arrayBuffer(let entry) =>
+            match (this) {
+                case bytelist(bl) =>
+                    return bl.size
+                case arrayBuffer(entry) =>
                     return entry.i
             }
         }
 
         /// 获取切片
-        /// 对应 Bun: pub fn slice(this: *BufferedOutput) []const u8
+        /// 对应 Bun: pub fn slice(`this`: *BufferedOutput) []const u8
         public func slice(): Array<Byte> {
-            switch (this) {
-                case .bytelist(let bl) =>
+            match (this) {
+                case bytelist(bl) =>
                     return bl.toArray()
-                case .arrayBuffer(let entry) =>
+                case arrayBuffer(entry) =>
                     return entry.buf.slice()
             }
         }
 
         /// 追加字节
-        /// 对应 Bun: pub fn append(this: *BufferedOutput, bytes: []const u8) void
+        /// 对应 Bun: pub fn append(`this`: *BufferedOutput, bytes: []const u8) void
         public func append(bytes: Array<Byte>) {
-            switch (this) {
-                case .bytelist(let bl) =>
+            match (this) {
+                case bytelist(bl) =>
                     bl.appendSlice(bytes)
-                case .arrayBuffer(let entry) =>
+                case arrayBuffer(entry) =>
                     let arrayBufSlice = entry.buf.slice()
                     if (entry.i >= arrayBufSlice.size) {
                         return
                     }
                     let length = Math.min(arrayBufSlice.size - entry.i, bytes.size)
-                    for (j in 0..length) {
+                    for (j in 0..size) {
                         arrayBufSlice[entry.i + j] = bytes[j]
                     }
                     entry.i = entry.i + length
@@ -683,12 +684,12 @@ public class PipeReader {
         }
 
         /// 去初始化
-        /// 对应 Bun: pub fn deinit(this: *BufferedOutput) void
+        /// 对应 Bun: pub fn deinit(`this`: *BufferedOutput) void
         public func deinit() {
-            switch (this) {
-                case .bytelist(let bl) =>
+            match (this) {
+                case bytelist(bl) =>
                     bl.clear()
-                case .arrayBuffer(let entry) =>
+                case arrayBuffer(entry) =>
                     entry.buf.deinit()
             }
         }
@@ -723,16 +724,16 @@ public class PipeReader {
         public var err: ?SystemError = None
 
         /// 执行写入
-        /// 对应 Bun: pub fn doWrite(this: *CapturedWriter, chunk: []const u8) void
+        /// 对应 Bun: pub fn doWrite(`this`: *CapturedWriter, chunk: []const u8) void
         public func doWrite(chunk: Array<Byte>) {
-            if (this.dead || this.err != None) {
+            if (this.dead || this.err.isSome()) {
                 return
             }
             this.writer.enqueue(this, None, chunk).run()
         }
 
         /// 获取缓冲区
-        /// 对应 Bun: pub fn getBuffer(this: *CapturedWriter) []const u8
+        /// 对应 Bun: pub fn getBuffer(`this`: *CapturedWriter) []const u8
         public func getBuffer(): Array<Byte> {
             let parent = this.parent()
             let buf = parent.reader.buffer()
@@ -753,47 +754,47 @@ public class PipeReader {
         public var parentRef: PipeReader
 
         /// 是否完成
-        /// 对应 Bun: pub fn isDone(this: *CapturedWriter, just_written: usize) bool
+        /// 对应 Bun: pub fn isDone(`this`: *CapturedWriter, just_written: usize) bool
         public func isDone(justWritten: Int64): Boolean {
-            if (this.dead || this.err != None) {
+            if (this.dead || this.err.isSome()) {
                 return true
             }
             let p = this.parent()
-            if (p.state == .pending) {
+            if (p.state == pending) {
                 return false
             }
             return this.written + justWritten >= p.bufferedOutput.len()
         }
 
         /// IO写入器数据块回调
-        /// 对应 Bun: pub fn onIOWriterChunk(this: *CapturedWriter, amount: usize, err: ?jsc.SystemError) Yield
+        /// 对应 Bun: pub fn onIOWriterChunk(`this`: *CapturedWriter, amount: usize, err: ?jsc.SystemError) Yield
         public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
             this.written += amount
-            if (err != None) {
+            if (err.isSome()) {
                 this.err = err
                 return this.parent().trySignalDoneToCmd()
-            } else if (this.written >= this.parent().bufferedOutput.len() && this.parent().state != .pending) {
+            } else if (this.written >= this.parent().bufferedOutput.len() && this.parent().state != pending) {
                 return this.parent().trySignalDoneToCmd()
             }
             return Yield.suspended
         }
 
         /// 错误回调
-        /// 对应 Bun: pub fn onError(this: *CapturedWriter, err: bun.sys.Error) void
+        /// 对应 Bun: pub fn onError(`this`: *CapturedWriter, err: bun.sys.Error) void
         public func onError(err: SystemError) {
             this.err = err
         }
 
         /// 关闭回调
-        /// 对应 Bun: pub fn onClose(this: *CapturedWriter) void
+        /// 对应 Bun: pub fn onClose(`this`: *CapturedWriter) void
         public func onClose() {
             this.parent().onCapturedWriterDone()
         }
 
         /// 去初始化
-        /// 对应 Bun: pub fn deinit(this: *CapturedWriter) void
+        /// 对应 Bun: pub fn deinit(`this`: *CapturedWriter) void
         public func deinit() {
-            if (this.err != None) {
+            if (this.err.isSome()) {
                 this.err = None
             }
             this.writer.deref()
@@ -801,23 +802,23 @@ public class PipeReader {
     }
 
     /// 分离
-    /// 对应 Bun: pub fn detach(this: *PipeReader) void
+    /// 对应 Bun: pub fn detach(`this`: *PipeReader) void
     public func detach() {
         this.process = None
         this.deref()
     }
 
     /// 是否完成
-    /// 对应 Bun: pub fn isDone(this: *PipeReader) bool
+    /// 对应 Bun: pub fn isDone(`this`: *PipeReader) bool
     public func isDone(): Boolean {
-        if (this.state == .pending) {
+        if (this.state == pending) {
             return false
         }
         return this.capturedWriter.isDone(0)
     }
 
     /// 捕获写入器完成回调
-    /// 对应 Bun: pub fn onCapturedWriterDone(this: *PipeReader) void
+    /// 对应 Bun: pub fn onCapturedWriterDone(`this`: *PipeReader) void
     public func onCapturedWriterDone() {
         this.trySignalDoneToCmd().run()
     }
@@ -834,7 +835,7 @@ public class PipeReader {
         let reader = PipeReader()
         reader.refCount = 1
         reader.process = process
-        reader.reader = BufferedReader.init()
+        reader.reader = BufferedReader()
         reader.eventLoop = eventLoop
         reader.stdioResult = result
         reader.outType = outType
@@ -845,7 +846,7 @@ public class PipeReader {
         reader.capturedWriter = CapturedWriter()
         reader.capturedWriter.parentRef = reader
 
-        if (capture != None) {
+        if (capture.isSome()) {
             reader.capturedWriter.writer = capture.dupeRef()
             reader.capturedWriter.dead = false
         }
@@ -861,22 +862,22 @@ public class PipeReader {
     }
 
     /// 读取全部
-    /// 对应 Bun: pub fn readAll(this: *PipeReader) void
+    /// 对应 Bun: pub fn readAll(`this`: *PipeReader) void
     public func readAll() {
-        if (this.state == .pending) {
+        if (this.state == pending) {
             this.reader.read()
         }
     }
 
     /// 启动读取
-    /// 对应 Bun: pub fn start(this: *PipeReader, process, event_loop) bun.sys.Maybe(void)
+    /// 对应 Bun: pub fn start(`this`: *PipeReader, process, event_loop) bun.sys.Maybe(void)
     public func start(process: ShellSubprocess, eventLoop: EventLoopHandle): Maybe<Unit> {
         this.process = process
         this.eventLoop = eventLoop
-        switch (this.reader.start(this.stdioResult, true)) {
-            case .err(let err) =>
+        match (this.reader.start(this.stdioResult, true)) {
+            case err(err) =>
                 return Maybe<Unit>.err(err)
-            case .result =>
+            case result =>
                 // 对应 Bun: poll.flags.insert(.socket)
                 this.reader.flags.socket = true
                 return Maybe<Unit>.success()
@@ -901,7 +902,7 @@ public class PipeReader {
     }
 
     /// 读取完成
-    /// 对应 Bun: pub fn onReaderDone(this: *PipeReader) void
+    /// 对应 Bun: pub fn onReaderDone(`this`: *PipeReader) void
     public func onReaderDone() {
         let owned = this.toOwnedSlice()
         this.state = PipeReaderState.done(owned)
@@ -912,7 +913,7 @@ public class PipeReader {
         defer { this.deref() }
         this.trySignalDoneToCmd().run()
 
-        if (this.process != None) {
+        if (this.process.isSome()) {
             let proc = this.process
             proc.onCloseIO(this.kind(proc))
             this.deref()
@@ -920,31 +921,31 @@ public class PipeReader {
     }
 
     /// 尝试向命令发出完成信号
-    /// 对应 Bun: pub fn trySignalDoneToCmd(this: *PipeReader) Yield
+    /// 对应 Bun: pub fn trySignalDoneToCmd(`this`: *PipeReader) Yield
     public func trySignalDoneToCmd(): Yield {
         if (!this.isDone()) {
             return Yield.suspended
         }
-        if (this.process != None) {
+        if (this.process.isSome()) {
             let proc = this.process
             let cmd = proc.cmdParent
 
             // 转移捕获写入器的错误
-            if (this.capturedWriter.err != None) {
+            if (this.capturedWriter.err.isSome()) {
                 let capturedErr = this.capturedWriter.err
                 this.capturedWriter.err = None
-                if (this.state == .done(let data)) {
+                if (this.state == done(let data)) {
                     // 释放已完成的内存
                 }
-                if (this.state != .err) {
+                if (this.state != err) {
                     this.state = PipeReaderState.err(capturedErr)
                 }
             }
 
             // 获取错误
             var err: ?SystemError = None
-            if (this.state == .err(let e)) {
-                if (e != None) {
+            if (this.state == err(let e)) {
+                if (e.isSome()) {
                     err = e
                 }
             }
@@ -956,32 +957,32 @@ public class PipeReader {
     /// 获取此读取器的StdioKind
     /// 对应 Bun: pub fn kind(reader: *const PipeReader, process: *const ShellSubprocess) StdioKind
     public func kind(process: ShellSubprocess): StdioKind {
-        if (process.stdout == .pipe(let pipe) && pipe == this) {
+        if (process.stdout == pipe(let pipe) && pipe == this) {
             return StdioKind.stdout
         }
-        if (process.stderr == .pipe(let pipe) && pipe == this) {
+        if (process.stderr == pipe(let pipe) && pipe == this) {
             return StdioKind.stderr
         }
         return StdioKind.stdout  // 不应到达
     }
 
     /// 获取缓冲区
-    /// 对应 Bun: pub fn takeBuffer(this: *PipeReader) std.array_list.Managed(u8)
+    /// 对应 Bun: pub fn takeBuffer(`this`: *PipeReader) std.array_list.Managed(u8)
     public func takeBuffer(): ArrayList<Byte> {
         return this.reader.takeBuffer()
     }
 
     /// 读取错误
-    /// 对应 Bun: pub fn onReaderError(this: *PipeReader, err: bun.sys.Error) void
+    /// 对应 Bun: pub fn onReaderError(`this`: *PipeReader, err: bun.sys.Error) void
     public func onReaderError(err: SyscallError) {
-        if (this.state == .done(let data)) {
+        if (this.state == done(let data)) {
             // 释放已完成的内存
         }
         this.state = PipeReaderState.err(err.toSystemError())
         this.ref()
         defer { this.deref() }
         this.trySignalDoneToCmd().run()
-        if (this.process != None) {
+        if (this.process.isSome()) {
             let proc = this.process
             proc.onCloseIO(this.kind(proc))
             this.deref()
@@ -989,15 +990,15 @@ public class PipeReader {
     }
 
     /// 获取切片
-    /// 对应 Bun: pub fn slice(this: *PipeReader) []const u8
+    /// 对应 Bun: pub fn slice(`this`: *PipeReader) []const u8
     public func slice(): Array<Byte> {
         return this.bufferedOutput.slice()
     }
 
     /// 获取拥有的切片
-    /// 对应 Bun: pub fn toOwnedSlice(this: *PipeReader) []u8
+    /// 对应 Bun: pub fn toOwnedSlice(`this`: *PipeReader) []u8
     public func toOwnedSlice(): Array<Byte> {
-        if (this.state == .done(let data)) {
+        if (this.state == done(let data)) {
             return data
         }
         let out = this.reader.buffer()
@@ -1010,48 +1011,48 @@ public class PipeReader {
     }
 
     /// 转为可读流
-    /// 对应 Bun: pub fn toReadableStream(this: *PipeReader, globalObject: ...) jsc.JSValue
-    public func toReadableStream(globalObject: JSGlobalObject): JSValue {
+    /// 对应 Bun: pub fn toReadableStream(`this`: *PipeReader, globalObject: ...) jsc.JsValue
+    public func toReadableStream(globalObject: JSGlobalObject): JsValue {
         defer { this.deinit() }
-        switch (this.state) {
-            case .pending =>
+        match (this.state) {
+            case pending =>
                 let stream = ReadableStream.fromPipe(globalObject, this, this.reader)
                 this.state = PipeReaderState.done(Array<Byte>())
                 return stream
-            case .done(let bytes) =>
+            case done(bytes) =>
                 this.state = PipeReaderState.done(Array<Byte>())
                 return ReadableStream.fromOwnedSlice(globalObject, bytes, 0)
-            case .err(let err) =>
+            case err(err) =>
                 let empty = ReadableStream.empty(globalObject)
                 return empty
         }
     }
 
     /// 转为Buffer
-    /// 对应 Bun: pub fn toBuffer(this: *PipeReader, globalThis: ...) jsc.JSValue
-    public func toBuffer(globalThis: JSGlobalObject): JSValue {
-        switch (this.state) {
-            case .done(let bytes) =>
+    /// 对应 Bun: pub fn toBuffer(`this`: *PipeReader, globalThis: ...) jsc.JsValue
+    public func toBuffer(globalThis: JSGlobalObject): JsValue {
+        match (this.state) {
+            case done(bytes) =>
                 this.state = PipeReaderState.done(Array<Byte>())
                 return MarkedArrayBuffer.fromBytes(bytes, .Uint8Array).toNodeBuffer(globalThis)
-            case .pending, .err =>
-                return JSValue.jsUndefined()
+            case pending, .err =>
+                return JsValue.jsUndefined()
         }
     }
 
     /// 关闭
-    /// 对应 Bun: pub fn close(this: *PipeReader) void
+    /// 对应 Bun: pub fn close(`this`: *PipeReader) void
     public func close() {
-        switch (this.state) {
-            case .pending =>
+        match (this.state) {
+            case pending =>
                 this.reader.close()
-            case .done, .err =>
-                // 无操作
+            case done, .err =>
+                () // 无操作
         }
     }
 
     /// 监视
-    /// 对应 Bun: pub fn watch(this: *PipeReader) void
+    /// 对应 Bun: pub fn watch(`this`: *PipeReader) void
     public func watch() {
         if (!this.reader.isDone()) {
             this.reader.watch()
@@ -1059,19 +1060,19 @@ public class PipeReader {
     }
 
     /// 更新引用
-    /// 对应 Bun: pub fn updateRef(this: *PipeReader, add: bool) void
+    /// 对应 Bun: pub fn updateRef(`this`: *PipeReader, add: bool) void
     public func updateRef(add: Boolean) {
         this.reader.updateRef(add)
     }
 
     /// 获取事件循环
-    /// 对应 Bun: pub fn eventLoop(this: *PipeReader) jsc.EventLoopHandle
+    /// 对应 Bun: pub fn eventLoop(`this`: *PipeReader) jsc.EventLoopHandle
     public func eventLoop(): EventLoopHandle {
         return this.eventLoop
     }
 
     /// 获取异步循环
-    /// 对应 Bun: pub fn loop(this: *PipeReader) *bun.Async.Loop
+    /// 对应 Bun: pub fn loop(`this`: *PipeReader) *bun.Async.Loop
     public func loop(): AsyncLoop {
         return this.eventLoop.loop()
     }
@@ -1090,9 +1091,9 @@ public class PipeReader {
     }
 
     /// 去初始化
-    /// 对应 Bun: fn deinit(this: *PipeReader) void
+    /// 对应 Bun: fn deinit(`this`: *PipeReader) void
     public func deinit() {
-        if (this.state == .done(let data)) {
+        if (this.state == done(let data)) {
             // 释放内存
         }
 
@@ -1100,8 +1101,8 @@ public class PipeReader {
             this.capturedWriter.deinit()
         }
 
-        if (this.state == .err(let e)) {
-            if (e != None) {
+        if (this.state == err(let e)) {
+            if (e.isSome()) {
                 this.state = PipeReaderState.err(None)
             }
         }
@@ -1114,15 +1115,15 @@ public class PipeReader {
 /// 输出类型枚举
 /// 对应 Bun: pub const OutKind = util.OutKind
 public enum OutKind {
-    case stdout
-    case stderr
+    | stdout
+    | stderr
 
     /// 转换为文件描述符
     public func toFd(): FD {
-        switch (this) {
-            case .stdout =>
+        match (this) {
+            case stdout =>
                 return FD.stdout()
-            case .stderr =>
+            case stderr =>
                 return FD.stderr()
         }
     }
@@ -1132,7 +1133,7 @@ public enum OutKind {
 /// 对应 Bun: pub inline fn assertStdioResult(result: StdioResult) void
 public func assertStdioResult(result: StdioResult) {
     // 在POSIX上验证fd不是invalid
-    if (result != None) {
+    if (result.isSome()) {
         let fd = result.getOrThrow()
         Debug.assert(fd != FD.invalid)
     }

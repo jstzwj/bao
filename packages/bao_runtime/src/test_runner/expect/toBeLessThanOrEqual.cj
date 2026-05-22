@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toBeLessThanOrEqual() - 检查值是否小于等于期望值
 /// 用法: expect(received).toBeLessThanOrEqual(expected)
-public func toBeLessThanOrEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeLessThanOrEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toBeLessThanOrEqual() requires 1 argument")
     }
 
@@ -23,7 +23,7 @@ public func toBeLessThanOrEqual(`this`: Expect, globalThis: JSGlobalObject, call
     let expected = arguments[0]
     expected.ensureStillAlive()
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeLessThanOrEqual", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeLessThanOrEqual", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = false
@@ -35,7 +35,7 @@ public func toBeLessThanOrEqual(`this`: Expect, globalThis: JSGlobalObject, call
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

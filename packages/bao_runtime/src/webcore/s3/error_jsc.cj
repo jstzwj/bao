@@ -96,11 +96,11 @@ public class JSS3Error {
 
     // ========================================================================
     // deinit - 释放资源
-    // 严格翻译自: pub fn deinit(this: *const @This()) void
+    // 严格翻译自: pub fn deinit(`this`: *const @This()) void
     // ========================================================================
 
     /// 释放资源
-    /// 对应 Bun: pub fn deinit(this: *const @This()) void
+    /// 对应 Bun: pub fn deinit(`this`: *const @This()) void
     /// 对 path, code, message 调用 deref
     public func deinit(): Unit {
         path.deref()
@@ -110,11 +110,11 @@ public class JSS3Error {
 
     // ========================================================================
     // toErrorInstance - 转为 JS Error 实例
-    // 严格翻译自: pub fn toErrorInstance(this: *const @This(), global: *jsc.JSGlobalObject) jsc.JSValue
+    // 严格翻译自: pub fn toErrorInstance(`this`: *const @This(), global: *jsc.JSGlobalObject) jsc.JsValue
     // ========================================================================
 
     /// 转为 JS Error 实例
-    /// 对应 Bun: pub fn toErrorInstance(this: *const @This(), global: *jsc.JSGlobalObject) jsc.JSValue
+    /// 对应 Bun: pub fn toErrorInstance(`this`: *const @This(), global: *jsc.JSGlobalObject) jsc.JsValue
     /// 调用 C 端 S3Error__toErrorInstance 后 deinit
     public func toErrorInstance(global: JsGlobalObject): JsValue {
         defer { deinit() }
@@ -124,8 +124,8 @@ public class JSS3Error {
 
 // ============================================================================
 // getJSSignError - 获取 JS 签名错误
-// 严格翻译自: pub fn getJSSignError(err: anyerror, globalThis: *jsc.JSGlobalObject) jsc.JSValue
-// Bun: pub fn getJSSignError(err: anyerror, globalThis: *jsc.JSGlobalObject) jsc.JSValue
+// 严格翻译自: pub fn getJSSignError(err: anyerror, globalThis: *jsc.JSGlobalObject) jsc.JsValue
+// Bun: pub fn getJSSignError(err: anyerror, globalThis: *jsc.JSGlobalObject) jsc.JsValue
 // ============================================================================
 
 /// 获取 JS 签名错误值
@@ -133,24 +133,18 @@ public class JSS3Error {
 /// 将 S3 签名错误转换为 JS Error 实例
 public func getJSSignError(err: S3ErrorCode, globalThis: JsGlobalObject): JsValue {
     match (err) {
-        case S3ErrorCode.MissingCredentials => {
+        case S3ErrorCode.MissingCredentials =>
             return globalThis.createError("S3_MISSING_CREDENTIALS", err.getMessage())
-        }
-        case S3ErrorCode.InvalidMethod => {
+        case S3ErrorCode.InvalidMethod =>
             return globalThis.createError("S3_INVALID_METHOD", err.getMessage())
-        }
-        case S3ErrorCode.InvalidPath => {
+        case S3ErrorCode.InvalidPath =>
             return globalThis.createError("S3_INVALID_PATH", err.getMessage())
-        }
-        case S3ErrorCode.InvalidEndpoint => {
+        case S3ErrorCode.InvalidEndpoint =>
             return globalThis.createError("S3_INVALID_ENDPOINT", err.getMessage())
-        }
-        case S3ErrorCode.InvalidSessionToken => {
+        case S3ErrorCode.InvalidSessionToken =>
             return globalThis.createError("S3_INVALID_SESSION_TOKEN", err.getMessage())
-        }
-        case S3ErrorCode.SignError => {
+        case S3ErrorCode.SignError =>
             return globalThis.createError("S3_INVALID_SIGNATURE", err.getMessage())
-        }
     }
 }
 
@@ -169,8 +163,8 @@ public func throwSignError(err: S3ErrorCode, globalThis: JsGlobalObject): JsValu
 
 // ============================================================================
 // s3ErrorToJS - 将 S3Error 转为 JS 值
-// 严格翻译自: pub fn s3ErrorToJS(err: *const S3Error, globalObject, path) jsc.JSValue
-// Bun: pub fn s3ErrorToJS(err: *const S3Error, globalObject: *jsc.JSGlobalObject, path: ?[]const u8) jsc.JSValue
+// 严格翻译自: pub fn s3ErrorToJS(err: *const S3Error, globalObject, path) jsc.JsValue
+// Bun: pub fn s3ErrorToJS(err: *const S3Error, globalObject: *jsc.JSGlobalObject, path: ?[]const u8) jsc.JsValue
 // ============================================================================
 
 /// 将 S3Error 转为 JS 值
@@ -184,7 +178,7 @@ public func s3ErrorToJS(err: S3Error, globalObject: JsGlobalObject, path: ?Strin
 
 // ============================================================================
 // s3ErrorToJSWithAsyncStack - 将 S3Error 转为 JS 值 (带异步堆栈)
-// 严格翻译自: pub fn s3ErrorToJSWithAsyncStack(err, globalObject, path, promise) jsc.JSValue
+// 严格翻译自: pub fn s3ErrorToJSWithAsyncStack(err, globalObject, path, promise) jsc.JsValue
 // Bun: Like `toJS` but populates the error's stack trace with async frames from
 // the given promise's await chain. Use when rejecting from an HTTP callback at
 // the top of the event loop.
@@ -206,7 +200,7 @@ public func s3ErrorToJSWithAsyncStack(err: S3Error, globalObject: JsGlobalObject
 // ============================================================================
 
 /// S3 错误原生接口
-/// 对应 Bun: extern fn S3Error__toErrorInstance(this: *const @This(), global: *jsc.JSGlobalObject) callconv(jsc.conv) jsc.JSValue
+/// 对应 Bun: extern fn S3Error__toErrorInstance(`this`: *const @This(), global: *jsc.JSGlobalObject) callconv(jsc.conv) jsc.JsValue
 public class S3ErrorNative {
     /// 转为 Error 实例 (C 端实现)
     public static func toErrorInstance(err: JSS3Error, global: JsGlobalObject): JsValue {

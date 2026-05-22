@@ -129,7 +129,7 @@ public class TokenList {
         if (v.isEmpty()) {
             return ""
         }
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         for (item in v) {
             sb.append(item.toCss())
         }
@@ -791,7 +791,7 @@ public class UnparsedProperty {
     }
 
     public func toCss(): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         sb.append(propertyId.name())
         sb.append(": ")
         sb.append(value.toCss())

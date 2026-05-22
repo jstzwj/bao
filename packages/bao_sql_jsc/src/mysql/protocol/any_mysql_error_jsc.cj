@@ -5,6 +5,7 @@ package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.mysql.*
 
 /// MySQL 错误类型
 /// 对应 Bun: AnyMySQLError

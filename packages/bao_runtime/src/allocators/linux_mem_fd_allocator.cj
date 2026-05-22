@@ -89,13 +89,13 @@ public class LinuxMemFdAllocator {
     }
 
     /// 获取分配器接口
-    /// 对应 Bun: pub unsafe fn allocator(this: *mut Self) -> StdAllocator
+    /// 对应 Bun: pub unsafe fn allocator(`this`: *Self) -> StdAllocator
     public func allocator(): Allocator {
         return Allocator.fromContext(CPointer<UInt8>(), LinuxMemFdAllocatorStdVtable.get())
     }
 
     /// 从 StdAllocator 检查是否为本类型实例
-    /// 对应 Bun: pub fn from(alloc: StdAllocator) -> Option<*mut Self>
+    /// 对应 Bun: pub fn from(alloc: StdAllocator) -> Option<*Self>
     public static func from(alloc: Allocator): ?LinuxMemFdAllocator {
         return None
     }
@@ -160,11 +160,11 @@ public class LinuxMemFdAllocator {
 
     // ========================================================================
     // deinit - 释放资源
-    // 对应 Bun: unsafe fn deinit(this: *mut Self)
+    // 对应 Bun: unsafe fn deinit(`this`: *Self)
     // ========================================================================
 
     /// 关闭 fd 并释放资源
-    /// 对应 Bun: unsafe fn deinit(this: *mut Self) { (*this).fd.close(); drop(heap::take(this)); }
+    /// 对应 Bun: unsafe fn deinit(`this`: *Self) { (*this).fd.close(); drop(heap::take(this)); }
     public func deinit(): Unit {
         // SAFETY: sole owner — close fd
         if (fd >= 0) {

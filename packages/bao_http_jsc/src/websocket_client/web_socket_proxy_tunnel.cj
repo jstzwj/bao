@@ -19,9 +19,9 @@ import bao_core.*
 ///       none: void,
 ///   };
 public enum UpgradeClientUnion {
-    case http(HTTPUpgradeClient)
-    case https(HTTPUpgradeClient)
-    case none
+    | http(HTTPUpgradeClient)
+    | https(HTTPUpgradeClient)
+    | none
 
     /// 处理解密数据 - 严格对应 Bun handleDecryptedData
     /// Zig:
@@ -34,26 +34,26 @@ public enum UpgradeClientUnion {
     ///   }
     public func handleDecryptedData(data: Array<UInt8>): Unit {
         match (this) {
-            case .http(let client) => client.handleDecryptedData(data)
-            case .https(let client) => client.handleDecryptedData(data)
-            case .none => ()
+            case http(client) => client.handleDecryptedData(data)
+            case https(client) => client.handleDecryptedData(data)
+            case none => ()
         }
     }
 
     /// 终止连接 - 严格对应 Bun terminate
     /// Zig:
-    ///   pub fn terminate(self: UpgradeClientUnion, code: ErrorCode) void {
+    ///   pub fn terminate(self: UpgradeClientUnion, code: WsErrorCode) void {
     ///       switch (self) {
     ///           .http => |client| client.terminate(code),
     ///           .https => |client| client.terminate(code),
     ///           .none => {},
     ///       }
     ///   }
-    public func terminate(code: ErrorCode): Unit {
+    public func terminate(code: WsErrorCode): Unit {
         match (this) {
-            case .http(let client) => client.terminate(code)
-            case .https(let client) => client.terminate(code)
-            case .none => ()
+            case http(client) => client.terminate(code)
+            case https(client) => client.terminate(code)
+            case none => ()
         }
     }
 
@@ -68,9 +68,9 @@ public enum UpgradeClientUnion {
     ///   }
     public func onProxyTLSHandshakeComplete(): Unit {
         match (this) {
-            case .http(let client) => client.onProxyTLSHandshakeComplete()
-            case .https(let client) => client.onProxyTLSHandshakeComplete()
-            case .none => ()
+            case http(client) => client.onProxyTLSHandshakeComplete()
+            case https(client) => client.onProxyTLSHandshakeComplete()
+            case none => ()
         }
     }
 
@@ -81,7 +81,7 @@ public enum UpgradeClientUnion {
     ///   }
     public func isNone(): Bool {
         match (this) {
-            case .none => return true
+            case none => return true
             case _ => return false
         }
     }
@@ -95,9 +95,9 @@ public enum UpgradeClientUnion {
 ///       none: void,
 ///   };
 public enum SocketUnion {
-    case tcp(UWSSocket)
-    case ssl(UWSSocket)
-    case none
+    | tcp(UWSSocket)
+    | ssl(UWSSocket)
+    | none
 
     /// 写入数据 - 严格对应 Bun SocketUnion.write
     /// Zig:
@@ -110,9 +110,9 @@ public enum SocketUnion {
     ///   }
     public func write(data: Array<UInt8>): Int32 {
         match (this) {
-            case .tcp(let s) => return s.write(data)
-            case .ssl(let s) => return s.write(data)
-            case .none => return 0
+            case tcp(s) => return s.write(data)
+            case ssl(s) => return s.write(data)
+            case none => return 0
         }
     }
 
@@ -127,9 +127,9 @@ public enum SocketUnion {
     ///   }
     public func isClosed(): Bool {
         match (this) {
-            case .tcp(let s) => return s.isClosed()
-            case .ssl(let s) => return s.isClosed()
-            case .none => return true
+            case tcp(s) => return s.isClosed()
+            case ssl(s) => return s.isClosed()
+            case none => return true
         }
     }
 }
@@ -230,7 +230,7 @@ public class WebSocketProxyTunnel {
     ///       bun.destroy(this);
     ///   }
     private func internalDeinit(): Unit {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             wrapper = None
         }
         writeBuffer = StreamBuffer()
@@ -268,7 +268,7 @@ public class WebSocketProxyTunnel {
     ///   }
     public func onOpen(): Unit {
         ref()
-        if (let hostname = sniHostname) {
+        if (let Some(hostname) <- sniHostname) {
             if (!Strings.isIPAddress(hostname)) {
                 // 配置 SNI 主机名
             }
@@ -296,7 +296,7 @@ public class WebSocketProxyTunnel {
         }
 
         // 如果有已连接的 WebSocket 客户端，转发数据
-        if (let ws = connectedWebsocket) {
+        if (let Some(ws) <- connectedWebsocket) {
             ws.handleTunnelData(decryptedData)
             deref()
             return
@@ -319,7 +319,7 @@ public class WebSocketProxyTunnel {
         }
 
         if (!success) {
-            upgradeClient.terminate(ErrorCode.tls_handshake_failed)
+            upgradeClient.terminate(WsErrorCode.tls_handshake_failed)
             deref()
             return
         }
@@ -327,13 +327,13 @@ public class WebSocketProxyTunnel {
         // 如果需要，检查 SSL 错误
         if (rejectUnauthorized) {
             if (sslError.errorNo != 0) {
-                upgradeClient.terminate(ErrorCode.tls_handshake_failed)
+                upgradeClient.terminate(WsErrorCode.tls_handshake_failed)
                 deref()
                 return
             }
 
             // 验证服务器身份
-            if (let hostname = sniHostname) {
+            if (let Some(hostname) <- sniHostname) {
                 // 检查服务器证书身份
             }
         }
@@ -350,8 +350,8 @@ public class WebSocketProxyTunnel {
         ref()
 
         // 如果有已连接的 WebSocket 客户端，通知关闭
-        if (let ws = connectedWebsocket) {
-            ws.fail(ErrorCode.ended)
+        if (let Some(ws) <- connectedWebsocket) {
+            ws.fail(WsErrorCode.ended)
             deref()
             return
         }
@@ -363,7 +363,7 @@ public class WebSocketProxyTunnel {
         }
 
         // 通知升级客户端
-        upgradeClient.terminate(ErrorCode.ended)
+        upgradeClient.terminate(WsErrorCode.ended)
         deref()
     }
 
@@ -428,7 +428,7 @@ public class WebSocketProxyTunnel {
         ref()
 
         // 刷新 SSL 状态机
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             // wrapper.flush()
         }
 
@@ -452,7 +452,7 @@ public class WebSocketProxyTunnel {
         }
 
         // 隧道已排空 - 让已连接的 WebSocket 刷新其发送缓冲区
-        if (let ws = connectedWebsocket) {
+        if (let Some(ws) <- connectedWebsocket) {
             ws.handleTunnelWritable()
         }
 
@@ -484,7 +484,7 @@ public class WebSocketProxyTunnel {
     ///       }
     ///   }
     public func shutdown(): Unit {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             // wrapper.shutdown(true) - 快速关闭
             wrapper = None
         }
@@ -504,18 +504,14 @@ public class WebSocketProxyTunnel {
 // 辅助类型声明
 // ============================================================================
 
-/// HTTP 升级客户端 - 严格对应 Bun NewHTTPUpgradeClient
-public class HTTPUpgradeClient {
-    public func handleDecryptedData(data: Array<UInt8>): Unit {}
-    public func terminate(code: ErrorCode): Unit {}
-    public func onProxyTLSHandshakeComplete(): Unit {}
-}
+/// HTTP 升级客户端 - 在 web_socket_upgrade_client.cj 中定义
+// HTTPUpgradeClient removed to avoid redefinition
 
 /// WebSocket 客户端引用 - 严格对应 Bun WebSocketClient
 public class WebSocketClientRef {
     public func handleTunnelData(data: Array<UInt8>): Unit {}
     public func handleTunnelWritable(): Unit {}
-    public func fail(code: ErrorCode): Unit {}
+    public func fail(code: WsErrorCode): Unit {}
 }
 
 /// uWS Socket 包装
@@ -572,5 +568,56 @@ public class Strings {
     public static func isIPAddress(s: String): Bool {
         // 简单的 IP 地址检测
         return false
+    }
+
+    /// 大小写不敏感 ASCII 比较
+    public static func eqlCaseInsensitiveASCII(a: String, b: String, _: Bool): Bool {
+        if (a.size != b.size) {
+            return false
+        }
+        for (i in 0..a.size) {
+            let ca = Int32(a[Int64(i)])
+            let cb = Int32(b[Int64(i)])
+            if (ca != cb) {
+                // 简单的大小写转换比较 (A=65, Z=90, a=97)
+                let la = if (ca >= 65 && ca <= 90) { ca + 32 } else { ca }
+                let lb = if (cb >= 65 && cb <= 90) { cb + 32 } else { cb }
+                if (la != lb) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    /// 前缀检查 (字节数组 vs 字符串)
+    public static func hasPrefix(data: Array<UInt8>, prefix: String): Bool {
+        if (data.size < prefix.size) {
+            return false
+        }
+        for (i in 0..prefix.size) {
+            if (data[Int64(i)] != UInt8(prefix[Int64(i)])) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// 忽略长度的编译时比较
+    public static func eqlComptimeIgnoreLen(a: String, b: String): Bool {
+        return a == b
+    }
+
+    /// 字节比较
+    public static func eqlBytes(a: String, b: Array<UInt8>): Bool {
+        if (a.size != b.size) {
+            return false
+        }
+        for (i in 0..a.size) {
+            if (UInt8(a[Int64(i)]) != b[Int64(i)]) {
+                return false
+            }
+        }
+        return true
     }
 }

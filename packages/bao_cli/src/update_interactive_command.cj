@@ -300,14 +300,12 @@ public class UpdateInteractiveCommand {
         // 严格翻译自: std.fs.cwd().createFile(package_json_path, .{})
         let writeFileResult = BaoFile.writeAllText(packageJsonPath, newContent)
         match (writeFileResult) {
-            case Some(_) => {
+            case Some(_) =>
                 // 更新缓存以使 installWithManager 看到新的 package.json
                 // 严格翻译自: package_json.*.source.contents = new_package_json_source
                 packageJsonAst.source = newContent
-            }
-            case None => {
+            case None =>
                 Output.errGeneric("Failed to write package.json at ${packageJsonPath}")
-            }
         }
     }
 
@@ -329,9 +327,9 @@ public class UpdateInteractiveCommand {
             var list = workspaceGroups.get(update.workspacePath)
             if (list == None) {
                 list = ArrayList<PackageUpdate>()
-                workspaceGroups.put(update.workspacePath, list!!)
+                workspaceGroups.put(update.workspacePath, list.getOrThrow())
             }
-            list!!.append(update)
+            list.getOrThrow().append(update)
         }
 
         // 处理每个工作区
@@ -357,13 +355,13 @@ public class UpdateInteractiveCommand {
             // 在此工作区的 package.json 中更新每个包
             for (update in workspaceUpdates) {
                 // 在正确的依赖节中查找包
-                if (packageJson!!.root.isObject()) {
-                    let section = packageJson!!.root.asProperty(update.depType)
-                    if (section != None && section!!.isObject()) {
-                        let versionQuery = section!!.asProperty(update.name)
-                        if (versionQuery != None && version!!.isString()) {
+                if (packageJson.getOrThrow().root.isObject()) {
+                    let section = packageJson.getOrThrow().root.asProperty(update.depType)
+                    if (section != None && section.getOrThrow().isObject()) {
+                        let versionQuery = section.getOrThrow().asProperty(update.name)
+                        if (versionQuery != None && version.getOrThrow().isString()) {
                             // 获取原始版本以保留前缀
-                            let originalVersion = versionQuery!!.asString()
+                            let originalVersion = versionQuery.getOrThrow().asString()
 
                             // 保留版本前缀
                             let versionWithPrefix = preserveVersionPrefix(
@@ -371,7 +369,7 @@ public class UpdateInteractiveCommand {
                             )
 
                             // 使用 put 更新版本
-                            section!!.put(update.name, versionWithPrefix)
+                            section.getOrThrow().put(update.name, versionWithPrefix)
                             modified = true
                         }
                     }
@@ -380,7 +378,7 @@ public class UpdateInteractiveCommand {
 
             // 如果修改了则写入更新的 package.json
             if (modified) {
-                savePackageJson(manager, packageJson!!, packageJsonPath)
+                savePackageJson(manager, packageJson.getOrThrow(), packageJsonPath)
             }
         }
     }
@@ -401,7 +399,7 @@ public class UpdateInteractiveCommand {
             var list = workspaceCatalogUpdates.get(update.workspacePath)
             if (list == None) {
                 list = ArrayList<CatalogUpdateRequest>()
-                workspaceCatalogUpdates.put(update.workspacePath, list!!)
+                workspaceCatalogUpdates.put(update.workspacePath, list.getOrThrow())
             }
 
             // 解析 catalog_key (格式: "package_name" 或 "package_name:catalog_name")
@@ -409,17 +407,15 @@ public class UpdateInteractiveCommand {
             let packageName: String
             let catalogName: ?String
             match (colonIndex) {
-                case Some(idx) => {
+                case Some(idx) =>
                     packageName = catalogKey.substring(0, idx)
                     catalogName = Some(catalogKey.substring(idx + 1))
-                }
-                case None => {
+                case None =>
                     packageName = catalogKey
                     catalogName = None
-                }
             }
 
-            list!!.append(CatalogUpdateRequest(packageName, update.version, catalogName))
+            list.getOrThrow().append(CatalogUpdateRequest(packageName, update.version, catalogName))
         }
 
         // 更新每个工作区的 catalog 定义
@@ -437,10 +433,10 @@ public class UpdateInteractiveCommand {
             }
 
             // 使用 PackageJSONEditor 更新 catalog
-            editCatalogDefinitions(manager, updatesForWorkspace, packageJson!!.root)
+            editCatalogDefinitions(manager, updatesForWorkspace, packageJson.getOrThrow().root)
 
             // 保存更新的 package.json
-            savePackageJson(manager, packageJson!!, packageJsonPath)
+            savePackageJson(manager, packageJson.getOrThrow(), packageJsonPath)
         }
     }
 
@@ -449,12 +445,10 @@ public class UpdateInteractiveCommand {
     public static func editCatalogDefinitions(manager: PackageManager, updates: ArrayList<CatalogUpdateRequest>, currentPackageJson: JsonExpr): Unit {
         for (update in updates) {
             match (update.catalogName) {
-                case Some(catalogName) => {
+                case Some(catalogName) =>
                     updateNamedCatalog(currentPackageJson, catalogName, update.packageName, update.newVersion)
-                }
-                case None => {
+                case None =>
                     updateDefaultCatalog(currentPackageJson, update.packageName, update.newVersion)
-                }
             }
         }
     }
@@ -467,18 +461,18 @@ public class UpdateInteractiveCommand {
         var catalogObj: JsonExpr = JsonExpr.Null
 
         let workspaces = packageJson.asProperty("workspaces")
-        if (workspaces != None && workspaces!!.isObject()) {
-            let catalog = workspaces!!.asProperty("catalog")
-            if (catalog != None && catalog!!.isObject()) {
-                catalogObj = catalog!!
+        if (workspaces != None && workspaces.getOrThrow().isObject()) {
+            let catalog = workspaces.getOrThrow().asProperty("catalog")
+            if (catalog != None && catalog.getOrThrow().isObject()) {
+                catalogObj = catalog.getOrThrow()
             }
         }
 
         // 回退到根级别的 catalog
         if (!catalogObj.isObject()) {
             let rootCatalog = packageJson.asProperty("catalog")
-            if (rootCatalog != None && rootCatalog!!.isObject()) {
-                catalogObj = rootCatalog!!
+            if (rootCatalog != None && rootCatalog.getOrThrow().isObject()) {
+                catalogObj = rootCatalog.getOrThrow()
             }
         }
 
@@ -489,8 +483,8 @@ public class UpdateInteractiveCommand {
         // 获取原始版本以保留前缀
         var versionWithPrefix = newVersion
         let existingProp = catalogObj.asProperty(packageName)
-        if (existingProp != None && existingProp!!.isString()) {
-            let originalVersion = existingProp!!.asString()
+        if (existingProp != None && existingProp.getOrThrow().isString()) {
+            let originalVersion = existingProp.getOrThrow().asString()
             versionWithPrefix = preserveVersionPrefix(originalVersion, newVersion)
         }
 
@@ -498,10 +492,10 @@ public class UpdateInteractiveCommand {
         catalogObj.put(packageName, versionWithPrefix)
 
         // 检查是否需要在 workspaces.catalog 或根级别 catalog 下更新
-        if (workspaces != None && workspaces!!.isObject()) {
-            if (workspaces!!.asProperty("catalog") != None) {
+        if (workspaces != None && workspaces.getOrThrow().isObject()) {
+            if (workspaces.getOrThrow().asProperty("catalog") != None) {
                 // 在 workspaces.catalog 下更新
-                workspaces!!.put("catalog", catalogObj)
+                workspaces.getOrThrow().put("catalog", catalogObj)
                 return
             }
         }
@@ -517,18 +511,18 @@ public class UpdateInteractiveCommand {
         var catalogsObj: JsonExpr = JsonExpr.Null
 
         let workspaces = packageJson.asProperty("workspaces")
-        if (workspaces != None && workspaces!!.isObject()) {
-            let catalogs = workspaces!!.asProperty("catalogs")
-            if (catalogs != None && catalogs!!.isObject()) {
-                catalogsObj = catalogs!!
+        if (workspaces != None && workspaces.getOrThrow().isObject()) {
+            let catalogs = workspaces.getOrThrow().asProperty("catalogs")
+            if (catalogs != None && catalogs.getOrThrow().isObject()) {
+                catalogsObj = catalogs.getOrThrow()
             }
         }
 
         // 回退到根级别的 catalogs
         if (!catalogsObj.isObject()) {
             let rootCatalogs = packageJson.asProperty("catalogs")
-            if (rootCatalogs != None && rootCatalogs!!.isObject()) {
-                catalogsObj = rootCatalogs!!
+            if (rootCatalogs != None && rootCatalogs.getOrThrow().isObject()) {
+                catalogsObj = rootCatalogs.getOrThrow()
             }
         }
 
@@ -545,8 +539,8 @@ public class UpdateInteractiveCommand {
         // 获取原始版本以保留前缀
         var versionWithPrefix = newVersion
         let existingProp = catalogObj.asProperty(packageName)
-        if (existingProp != None && existingProp!!.isString()) {
-            let originalVersion = existingProp!!.asString()
+        if (existingProp != None && existingProp.getOrThrow().isString()) {
+            let originalVersion = existingProp.getOrThrow().asString()
             versionWithPrefix = preserveVersionPrefix(originalVersion, newVersion)
         }
 
@@ -557,9 +551,9 @@ public class UpdateInteractiveCommand {
         catalogsObj.put(catalogName, catalogObj)
 
         // 检查是否需要在 workspaces.catalogs 或根级别 catalogs 下更新
-        if (workspaces != None && workspaces!!.isObject()) {
-            if (workspaces!!.asProperty("catalogs") != None) {
-                workspaces!!.put("catalogs", catalogsObj)
+        if (workspaces != None && workspaces.getOrThrow().isObject()) {
+            if (workspaces.getOrThrow().asProperty("catalogs") != None) {
+                workspaces.getOrThrow().put("catalogs", catalogsObj)
                 return
             }
         }
@@ -582,15 +576,13 @@ public class UpdateInteractiveCommand {
                 let afterNpm = originalVersion.substring("npm:".length)
                 let atIndex = afterNpm.lastIndexOf('@')
                 match (atIndex) {
-                    case Some(i) => {
+                    case Some(i) =>
                         alias = afterNpm.substring(0, i)
                         if (i + 2 < afterNpm.length) {
                             origVersion = afterNpm.substring(i + 1)
                         }
-                    }
-                    case None => {
+                    case None =>
                         alias = afterNpm
-                    }
                 }
             }
 
@@ -623,14 +615,13 @@ public class UpdateInteractiveCommand {
         Output.prettyLn("<r><b>bao update --interactive <r><d>v${Global.packageJsonVersionWithSha}<r>")
 
         let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.update)
-        val (manager, cwd) = match (PackageManager.init(ctx, cli, Subcommand.update)) {
+        let (manager, cwd) = match (PackageManager.`init`(ctx, cli, Subcommand.update)) {
             case Some((pm, dir)) => (pm, dir)
-            case None => {
+            case None =>
                 if (!cli.silent) {
                     Output.errGeneric("Failed to initialize bao install")
                 }
                 Global.exit(1)
-            }
         }
 
         updateInteractive(ctx, cwd, manager)
@@ -654,13 +645,12 @@ public class UpdateInteractiveCommand {
         let loadLockfileResult = manager.lockfile.loadFromCwd(manager, ctx.allocator, ctx.log, true)
 
         match (loadLockfileResult) {
-            case LoadResult.notFound => {
+            case LoadResult.notFound =>
                 if (manager.options.logLevel != LogLevel.silent) {
                     Output.errGeneric("missing lockfile, nothing outdated")
                 }
                 Global.exit(1)
-            }
-            case LoadResult.err(cause) => {
+            case LoadResult.err(cause) =>
                 if (manager.options.logLevel != LogLevel.silent) {
                     match (cause.step) {
                         case LoadStep.openFile => Output.errGeneric("failed to open lockfile: ${cause.value}")
@@ -673,10 +663,8 @@ public class UpdateInteractiveCommand {
                     }
                 }
                 Global.exit(1)
-            }
-            case LoadResult.ok(ok) => {
+            case LoadResult.ok(ok) =>
                 manager.lockfile = ok.lockfile
-            }
         }
 
         // 获取工作区包 ID 列表
@@ -858,7 +846,7 @@ public class UpdateInteractiveCommand {
         // 将 filter 模式转换为 WorkspaceFilter
         let convertedFilters = ArrayList<WorkspaceFilter>()
         for (filter in filters) {
-            convertedFilters.append(WorkspaceFilter.init(filter, originalCwd))
+            convertedFilters.append(WorkspaceFilter.`init`(filter, originalCwd))
         }
 
         // 将所有匹配的工作区移到数组前面
@@ -890,25 +878,22 @@ public class UpdateInteractiveCommand {
 
         for (filter in filters) {
             match (filter.kind) {
-                case WorkspaceFilterKind.path(pattern) => {
+                case WorkspaceFilterKind.path(pattern) =>
                     let resPath = match (resolution.tag) {
                         case ResolutionTag.workspace => resolution.workspace.slice(stringBuf)
                         case ResolutionTag.root => manager.fileSystem.topLevelDir
                         case _ => ""
                     }
-                    if (!Glob.match(pattern, Path.withoutTrailingSlash(resPath)).matches()) {
+                    if (!Glob.`match`(pattern, Path.withoutTrailingSlash(resPath)).matches()) {
                         return false
                     }
-                }
-                case WorkspaceFilterKind.name(pattern) => {
+                case WorkspaceFilterKind.name(pattern) =>
                     let name = pkgNames[workspacePkgId].slice(stringBuf)
-                    if (!Glob.match(pattern, name).matches()) {
+                    if (!Glob.`match`(pattern, name).matches()) {
                         return false
                     }
-                }
-                case WorkspaceFilterKind.all => {
+                case WorkspaceFilterKind.all =>
                     // 匹配所有
-                }
             }
         }
         return true
@@ -930,9 +915,9 @@ public class UpdateInteractiveCommand {
                 var list = catalogMap.get(pkg.name)
                 if (list == None) {
                     list = ArrayList<OutdatedPackage>()
-                    catalogMap.put(pkg.name, list!!)
+                    catalogMap.put(pkg.name, list.getOrThrow())
                 }
-                list!!.append(pkg)
+                list.getOrThrow().append(pkg)
             } else {
                 result.append(pkg)
             }
@@ -946,12 +931,10 @@ public class UpdateInteractiveCommand {
                 // 构建合并的工作区名称
                 var workspaceNames = ""
                 match (first.catalogName) {
-                    case Some(catalogName) => {
+                    case Some(catalogName) =>
                         workspaceNames = "catalog:${catalogName} ("
-                    }
-                    case None => {
+                    case None =>
                         workspaceNames = "catalog ("
-                    }
                 }
 
                 for (j in 0..catalogPackages.size) {
@@ -1002,7 +985,7 @@ public class UpdateInteractiveCommand {
                 if (resolvedVersion == None) {
                     continue
                 }
-                if (resolvedVersion!!.tag != ResolutionTag.npm && resolvedVersion!!.tag != ResolutionTag.distTag) {
+                if (resolvedVersion.getOrThrow().tag != ResolutionTag.npm && resolvedVersion.getOrThrow().tag != ResolutionTag.distTag) {
                     continue
                 }
                 let resolution = pkgResolutions[packageId]
@@ -1023,7 +1006,7 @@ public class UpdateInteractiveCommand {
                     continue
                 }
 
-                let latest = manifest!!.findByDistTagWithFilter(
+                let latest = manifest.getOrThrow().findByDistTagWithFilter(
                     "latest", manager.options.minimumReleaseAgeMs,
                     manager.options.minimumReleaseAgeExcludes
                 )
@@ -1033,24 +1016,24 @@ public class UpdateInteractiveCommand {
 
                 // 在交互模式下, 将约束更新版本显示为 "Target"
                 // 但始终包含包 (不过滤掉破坏性变更)
-                let updateVersion = if (resolvedVersion!!.tag == ResolutionTag.npm) {
-                    manifest!!.findBestVersionWithFilter(
-                        resolvedVersion!!.value.npm.version, stringBuf,
+                let updateVersion = if (resolvedVersion.getOrThrow().tag == ResolutionTag.npm) {
+                    manifest.getOrThrow().findBestVersionWithFilter(
+                        resolvedVersion.getOrThrow().value.npm.version, stringBuf,
                         manager.options.minimumReleaseAgeMs,
                         manager.options.minimumReleaseAgeExcludes
-                    ) ?? latest!!
+                    ) ?? latest.getOrThrow()
                 } else {
-                    manifest!!.findByDistTagWithFilter(
-                        resolvedVersion!!.value.distTag.tag.slice(stringBuf),
+                    manifest.getOrThrow().findByDistTagWithFilter(
+                        resolvedVersion.getOrThrow().value.distTag.tag.slice(stringBuf),
                         manager.options.minimumReleaseAgeMs,
                         manager.options.minimumReleaseAgeExcludes
-                    ) ?? latest!!
+                    ) ?? latest.getOrThrow()
                 }
 
                 // 只有当约束更新和最新版本都与当前版本相同时才跳过
                 let currentVer = resolution.value.npm.version
                 let updateVer = updateVersion.version
-                let latestVer = latest!!.version
+                let latestVer = latest.getOrThrow().version
 
                 let updateIsSame = (currentVer.major == updateVer.major &&
                     currentVer.minor == updateVer.minor &&
@@ -1067,8 +1050,8 @@ public class UpdateInteractiveCommand {
                 }
 
                 let currentVersionStr = resolution.value.npm.version.fmt(stringBuf)
-                let updateVersionStr = updateVersion.version.fmt(manifest!!.stringBuf)
-                let latestVersionStr = latest!!.version.fmt(manifest!!.stringBuf)
+                let updateVersionStr = updateVersion.version.fmt(manifest.getOrThrow().stringBuf)
+                let latestVersionStr = latest.getOrThrow().version.fmt(manifest.getOrThrow().stringBuf)
 
                 // 确定依赖类型
                 let depType = if (dep.behavior.dev) {
@@ -1240,12 +1223,12 @@ public class UpdateInteractiveCommand {
         let size = Terminal.getTerminalSize()
         if (size != None) {
             // 保留空间: 提示 (1行) + 滚动指示器 (2行) + 缓冲区
-            let usableHeight = if (size!!.height > 6) {
-                size!!.height - 4
+            let usableHeight = if (size.getOrThrow().height > 6) {
+                size.getOrThrow().height - 4
             } else {
                 20
             }
-            return TerminalSize(usableHeight, size!!.width)
+            return TerminalSize(usableHeight, size.getOrThrow().width)
         }
         return TerminalSize(20, 80) // 默认回退
     }
@@ -1483,7 +1466,7 @@ public class UpdateInteractiveCommand {
                     let sel = state.selected[i.toInt()]
 
                     // 检查是否需要标题头
-                    let needsHeader = currentDepType == None || currentDepType!! != pkg.dependencyType
+                    let needsHeader = currentDepType == None || currentDepType.getOrThrow() != pkg.dependencyType
 
                     // 打印依赖类型标题及列头
                     if (needsHeader) {
@@ -1743,7 +1726,7 @@ public class UpdateInteractiveCommand {
             let input = Terminal.readByte()
 
             match (input) {
-                case '\n' | '\r' => {
+                case '\n' | '\r' =>
                     // 确认选择, 恢复终端并返回
                     if (colors) {
                         Output.print("[?25h")    // 显示光标
@@ -1766,8 +1749,7 @@ public class UpdateInteractiveCommand {
                     Output.flush()
 
                     return state.selected
-                }
-                case 3 | 4 => {
+                case 3 | 4 =>
                     // Ctrl+C, Ctrl+D - 取消
                     if (colors) {
                         Output.print("[?25h")
@@ -1777,8 +1759,7 @@ public class UpdateInteractiveCommand {
                     Output.flush()
                     Output.prettyLn("\n<r><red>x<r> Cancelled")
                     Global.exit(0)
-                }
-                case ' ' => {
+                case ' ' =>
                     // 切换当前包的选择状态
                     let idx = state.cursor.toInt()
                     state.selected[idx] = !state.selected[idx]
@@ -1787,8 +1768,7 @@ public class UpdateInteractiveCommand {
                         state.packages[idx].useLatest = true
                     }
                     state.toggleAll = false
-                }
-                case 'a' | 'A' => {
+                case 'a' | 'A' =>
                     // 选择所有
                     for (i in 0..state.selected.length) {
                         state.selected[i] = true
@@ -1800,22 +1780,19 @@ public class UpdateInteractiveCommand {
                         }
                     }
                     state.toggleAll = true
-                }
-                case 'n' | 'N' => {
+                case 'n' | 'N' =>
                     // 取消选择所有
                     for (i in 0..state.selected.length) {
                         state.selected[i] = false
                     }
                     state.toggleAll = false
-                }
-                case 'i' | 'I' => {
+                case 'i' | 'I' =>
                     // 反选
                     for (i in 0..state.selected.length) {
                         state.selected[i] = !state.selected[i]
                     }
                     state.toggleAll = false
-                }
-                case 'l' | 'L' => {
+                case 'l' | 'L' =>
                     // 切换 latest 模式
                     if (state.toggleAll) {
                         // 所有包用 'a' 选中, 切换所有选中包的 latest 状态
@@ -1832,8 +1809,7 @@ public class UpdateInteractiveCommand {
                         state.packages[idx].useLatest = !state.packages[idx].useLatest
                         state.selected[idx] = true
                     }
-                }
-                case 'j' => {
+                case 'j' =>
                     // 下移
                     if (state.cursor < state.packages.size - 1) {
                         state.cursor += 1
@@ -1842,8 +1818,7 @@ public class UpdateInteractiveCommand {
                     }
                     updateViewport(state)
                     state.toggleAll = false
-                }
-                case 'k' => {
+                case 'k' =>
                     // 上移
                     if (state.cursor > 0) {
                         state.cursor -= 1
@@ -1852,14 +1827,13 @@ public class UpdateInteractiveCommand {
                     }
                     updateViewport(state)
                     state.toggleAll = false
-                }
-                case 27 => {
+                case 27 =>
                     // 转义序列
                     let seq = Terminal.readByte()
                     if (seq == '[') {
                         let arrow = Terminal.readByte()
                         match (arrow) {
-                            case 'A' => {
+                            case 'A' =>
                                 // 上箭头
                                 if (state.cursor > 0) {
                                     state.cursor -= 1
@@ -1867,8 +1841,7 @@ public class UpdateInteractiveCommand {
                                     state.cursor = state.packages.size - 1
                                 }
                                 updateViewport(state)
-                            }
-                            case 'B' => {
+                            case 'B' =>
                                 // 下箭头
                                 if (state.cursor < state.packages.size - 1) {
                                     state.cursor += 1
@@ -1876,20 +1849,17 @@ public class UpdateInteractiveCommand {
                                     state.cursor = 0
                                 }
                                 updateViewport(state)
-                            }
-                            case 'C' => {
+                            case 'C' =>
                                 // 右箭头 - 切换到 Latest 版本并选中
                                 let idx = state.cursor.toInt()
                                 state.packages[idx].useLatest = true
                                 state.selected[idx] = true
-                            }
-                            case 'D' => {
+                            case 'D' =>
                                 // 左箭头 - 切换到 Target 版本并选中
                                 let idx = state.cursor.toInt()
                                 state.packages[idx].useLatest = false
                                 state.selected[idx] = true
-                            }
-                            case '5' => {
+                            case '5' =>
                                 // Page Up
                                 let tilde = Terminal.readByte()
                                 if (tilde == '~') {
@@ -1900,8 +1870,7 @@ public class UpdateInteractiveCommand {
                                     }
                                     updateViewport(state)
                                 }
-                            }
-                            case '6' => {
+                            case '6' =>
                                 // Page Down
                                 let tilde = Terminal.readByte()
                                 if (tilde == '~') {
@@ -1912,8 +1881,7 @@ public class UpdateInteractiveCommand {
                                     }
                                     updateViewport(state)
                                 }
-                            }
-                            case '<' => {
+                            case '<' =>
                                 // SGR 扩展鼠标模式
                                 // 读取直到 'M' 或 'm' 表示按钮按下/释放
                                 var buffer = ""
@@ -1949,15 +1917,12 @@ public class UpdateInteractiveCommand {
                                     buffer += String.fromChar(c)
                                     bufLen += 1
                                 }
-                            }
                             case _ => ()
                         }
                     }
                     state.toggleAll = false
-                }
-                case _ => {
+                case _ =>
                     state.toggleAll = false
-                }
             }
         }
     }
@@ -1984,18 +1949,16 @@ public class UpdateInteractiveCommand {
             let diff = whichVersionIsDifferent(currentVerParsed, updateVerParsed)
             match (diff) {
                 case VersionDiffType.major => return "red"
-                case VersionDiffType.minor => {
+                case VersionDiffType.minor =>
                     if (currentMajor == 0) {
                         return "red" // 0.x.y minor 变更是破坏性的
                     }
                     return "yellow"
-                }
-                case VersionDiffType.patch => {
+                case VersionDiffType.patch =>
                     if (currentMajor == 0 && currentMinor == 0) {
                         return "red" // 0.0.x patch 变更是破坏性的
                     }
                     return "green"
-                }
                 case VersionDiffType.other => return "green"
             }
         }
@@ -2082,8 +2045,8 @@ public class VersionDiffFmt {
         }
 
         // tag 部分 (pre-release)
-        if (targetParsed.tag != None && targetParsed.tag!!.length > 0) {
-            result += "-${targetParsed.tag!!}"
+        if (targetParsed.tag != None && targetParsed.tag.getOrThrow().length > 0) {
+            result += "-${targetParsed.tag.getOrThrow()}"
         }
 
         return result

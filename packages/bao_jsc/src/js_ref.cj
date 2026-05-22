@@ -99,19 +99,17 @@ public class JSRef {
     //   }
     public func tryGet(): ?JsValue {
         match (_tag) {
-            case JSRefTag.Weak => {
+            case JSRefTag.Weak=>
                 if (_weakValue.isEmptyOrUndefinedOrNull()) {
                     return None
                 }
                 Some(_weakValue)
-            }
-            case JSRefTag.Strong => {
+            case JSRefTag.Strong=>
                 // FFI: strong.get()
-                if (_strongHandle == CPointer<UInt8>()) {
+                if (!_strongHandle.isNull()) {
                     return None
                 }
                 strongGetFFI(_strongHandle)
-            }
             case JSRefTag.Finalized => None
         }
     }
@@ -133,10 +131,9 @@ public class JSRef {
     public func setWeak(value: JsValue) {
         match (_tag) {
             case JSRefTag.Weak => ()
-            case JSRefTag.Strong => {
+            case JSRefTag.Strong=>
                 strongDeinitFFI(_strongHandle)
                 _strongHandle = CPointer<UInt8>()
-            }
             case JSRefTag.Finalized => return
         }
         _tag = JSRefTag.Weak
@@ -185,14 +182,12 @@ public class JSRef {
     //   }
     public func upgrade(globalThis: JsObject) {
         match (_tag) {
-            case JSRefTag.Weak => {
+            case JSRefTag.Weak=>
                 _tag = JSRefTag.Strong
                 _strongHandle = strongCreateFFI(_weakValue, globalThis)
-            }
             case JSRefTag.Strong => ()
-            case JSRefTag.Finalized => {
-                // debugAssert(false) - 在调试模式下会崩溃
-            }
+            case JSRefTag.Finalized=>
+                ()
         }
     }
 
@@ -216,7 +211,7 @@ public class JSRef {
     public func downgrade() {
         match (_tag) {
             case JSRefTag.Weak => ()
-            case JSRefTag.Strong => {
+            case JSRefTag.Strong=>
                 // FFI: strong.trySwap() -> JSValue
                 let value = strongTrySwapFFI(_strongHandle)
                 // value.ensureStillAlive()
@@ -225,7 +220,6 @@ public class JSRef {
                 _strongHandle = CPointer<UInt8>()
                 _tag = JSRefTag.Weak
                 _weakValue = value
-            }
             case JSRefTag.Finalized => ()
         }
     }
@@ -235,7 +229,7 @@ public class JSRef {
     public func isEmpty(): Bool {
         match (_tag) {
             case JSRefTag.Weak => _weakValue.isEmptyOrUndefinedOrNull()
-            case JSRefTag.Strong => _strongHandle == CPointer<UInt8>()
+            case JSRefTag.Strong => !_strongHandle.isNull()
             case JSRefTag.Finalized => true
         }
     }
@@ -267,13 +261,11 @@ public class JSRef {
     //   }
     public func deinit() {
         match (_tag) {
-            case JSRefTag.Weak => {
+            case JSRefTag.Weak=>
                 _weakValue = JsValue.undefined()
-            }
-            case JSRefTag.Strong => {
+            case JSRefTag.Strong=>
                 strongDeinitFFI(_strongHandle)
                 _strongHandle = CPointer<UInt8>()
-            }
             case JSRefTag.Finalized => ()
         }
     }
@@ -307,18 +299,15 @@ public class JSRef {
     //   }
     public func update(globalThis: JsObject, value: JsValue) {
         match (_tag) {
-            case JSRefTag.Weak => {
+            case JSRefTag.Weak=>
                 _weakValue = value
-            }
-            case JSRefTag.Strong => {
+            case JSRefTag.Strong=>
                 let current = strongGetFFI(_strongHandle)
-                if (current == None || current.getOrThrow() != value) {
+                if (current.isNone() || current.getOrThrow() != value) {
                     strongSetFFI(_strongHandle, globalThis, value)
                 }
-            }
-            case JSRefTag.Finalized => {
+            case JSRefTag.Finalized=> ()
                 // debugAssert(false)
-            }
         }
     }
 
@@ -333,7 +322,7 @@ public class JSRef {
     // FFI: jsc.Strong.Optional.get(): ?JSValue
     private static func strongGetFFI(handle: CPointer<UInt8>): ?JsValue {
         // 真实实现: @CFFI 调用 JSC Strong get
-        if (handle == CPointer<UInt8>()) {
+        if (handle.isNull()) {
             return None
         }
         None
@@ -362,4 +351,16 @@ public enum JSRefTag {
     | Weak       // 弱引用 - 不阻止 GC
     | Strong     // 强引用 - 阻止 GC
     | Finalized  // 已终结 - JSValue 不再有效
+
+    public operator func ==(right: JSRefTag): Bool {
+        match (this) {
+            case Weak => match(right) { case Weak => true case _ => false }
+            case Strong => match(right) { case Strong => true case _ => false }
+            case Finalized => match(right) { case Finalized => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: JSRefTag): Bool {
+        !(this == right)
+    }
 }

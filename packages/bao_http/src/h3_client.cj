@@ -35,19 +35,19 @@ import bao_http.h3_client.*
 //   pub const AltSvc = @import("./h3_client/AltSvc.zig");
 //
 // 活跃对象计数器:
-//   pub var live_sessions = std.atomic.Value(u32).init(0);
-//   pub var live_streams = std.atomic.Value(u32).init(0);
+//   pub var live_sessions = std.atomic.Value(u32).`init`(0);
+//   pub var live_streams = std.atomic.Value(u32).`init`(0);
 // ============================================================================
 
 /// HTTP/3 客户端模块 — 常量和入口
 /// 严格翻译自: bun/src/http/H3Client.zig
 public class H3Client {
     /// 活跃会话计数 (泄漏测试用)
-    /// 严格翻译自: pub var live_sessions = std.atomic.Value(u32).init(0)
+    /// 严格翻译自: pub var live_sessions = std.atomic.Value(u32).`init`(0)
     public static var liveSessions: Int64 = 0
 
     /// 活跃流计数 (泄漏测试用)
-    /// 严格翻译自: pub var live_streams = std.atomic.Value(u32).init(0)
+    /// 严格翻译自: pub var live_streams = std.atomic.Value(u32).`init`(0)
     public static var liveStreams: Int64 = 0
 
     /// 获取或创建 HTTP/3 客户端上下文

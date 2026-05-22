@@ -36,9 +36,10 @@ public class GetterSetter {
     //
     // FFI: JSC__GetterSetter__isGetterNull(this: *GetterSetter) bool
     public func isGetterNull(): Bool {
-        // 原始 Zig:
-        //   return JSC__GetterSetter__isGetterNull(this);
-        getterValue == None
+        match (getterValue) {
+            case None => true
+            case _ => false
+        }
     }
 
     // ========== isSetterNull ==========
@@ -47,9 +48,10 @@ public class GetterSetter {
     //
     // FFI: JSC__GetterSetter__isSetterNull(this: *GetterSetter) bool
     public func isSetterNull(): Bool {
-        // 原始 Zig:
-        //   return JSC__GetterSetter__isSetterNull(this);
-        setterValue == None
+        match (setterValue) {
+            case None => true
+            case _ => false
+        }
     }
 
     // ========== FFI 绑定 ==========

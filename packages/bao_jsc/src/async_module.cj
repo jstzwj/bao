@@ -8,15 +8,15 @@ package bao_jsc
 // 用于打印模块的解析结果等状态
 public class AsyncModule {
     public var parseResult: ParseResult = ParseResult()
-    public var promise: StrongOptional = StrongOptional()
+    public var promise: StrongOptional<JsInternalPromise> = StrongOptional<JsInternalPromise>()
     public var path: FsPath = FsPath()
     public var specifier: String = ""
     public var referrer: String = ""
     public var stringBuf: Array<Byte> = []
     public var fd: ?FileDescriptor = None
     public var packageJson: ?PackageJSON = None
-    public var loader: Loader = Loader.js
-    public var hash: UInt32 = UInt32.maxValue
+    public var loader: Loader = Loader.Js
+    public var hash: UInt32 = 4294967295
     public var globalThis: JsObject = JsObject()
     public var arena: ArenaAllocator = ArenaAllocator()
     public var pollRef: KeepAlive = KeepAlive()
@@ -38,17 +38,17 @@ public class AsyncModule {
 
     // 严格翻译自 AsyncModule.done
     public func done(jscVm: BunVirtualMachine) {
-        jscVm.modulesScheduled += 1
+        // TODO: modulesScheduled not yet in BunVirtualMachine
+        // jscVm.modulesScheduled += 1
         // Enqueue task for onDone
     }
 
     // 严格翻译自 AsyncModule.onDone
     public func onDone() {
-        let jscVm = globalThis.bunVM()
-        jscVm.modulesScheduled -= 1
-        if (jscVm.modulesScheduled == 0) {
-            // End progress bar
-        }
+        let jscVm = VirtualMachineExports.getVM()
+        // TODO: modulesScheduled not yet in BunVirtualMachine
+        // jscVm.modulesScheduled -= 1
+        // if (jscVm.modulesScheduled == 0) { }
         // Resume loading module
         deinit()
     }
@@ -67,7 +67,7 @@ public class AsyncModule {
 
     // 严格翻译自 AsyncModule.resolveError
     public func resolveError(vm: BunVirtualMachine, importRecordId: UInt32, result: PackageResolveError) {
-        let globalThis = self.globalThis
+        let globalThis_ = this.globalThis
         let msg = result.description
         // Create error instance and reject promise
         deinit()
@@ -75,7 +75,7 @@ public class AsyncModule {
 
     // 严格翻译自 AsyncModule.downloadError
     public func downloadError(vm: BunVirtualMachine, importRecordId: UInt32, result: PackageDownloadError) {
-        let globalThis = self.globalThis
+        let globalThis_ = this.globalThis
         let msg = result.description
         // Create error instance and reject promise
         deinit()
@@ -107,7 +107,7 @@ public class AsyncModuleQueue {
     // 严格翻译自 Queue.enqueue
     public func enqueue(globalObject: JsObject, opts: AsyncModuleOpts) {
         let module = AsyncModule.init_(opts, globalObject)
-        map.append(module)
+        map = map.concat([module])
     }
 
     // 严格翻译自 Queue.onPoll
@@ -134,14 +134,14 @@ public class AsyncModuleQueue {
 
 // ========== 支撑类型 ==========
 public class ParseResult { public init() {} }
-public class FsPath { public var text: String = ""; public init() {} }
-public class StrongOptional { public func deinit() {} public init() {} }
+// 注意: FsPath 已移至 resolve_message.cj
+// 注意: StrongOptional 已移至 strong.cj (generic version)
 public class PackageJSON { public init() {} }
-public class KeepAlive { public func ref(vm: BunVirtualMachine) {} public func unref(vm: BunVirtualMachine) {} public init() {} }
+// 注意: KeepAlive 已移至 work_task.cj
 public class AnyTask { public init() {} }
-public class ArenaAllocator { public init() {} public func deinit() {} }
+public class ArenaAllocator { public init() {}; public func deinit() {} }
 public class FileDescriptor { public init() {} }
-public class AsyncModuleOpts { public var specifier: String = ""; public var referrer: String = ""; public var path: FsPath = FsPath(); public var fd: ?FileDescriptor = None; public var packageJson: ?PackageJSON = None; public var loader: Loader = Loader.js; public var parseResult: ParseResult = ParseResult(); public var arena: ArenaAllocator = ArenaAllocator(); public var promisePtr: JsValue = JsValue.undefined(); public init() {} }
-public class PackageResolveError { public var name: String = ""; public var err: String = ""; public var url: String = ""; public var description: String { name + ": " + err }; public init() {} }
-public class PackageDownloadError { public var name: String = ""; public var resolution: String = ""; public var err: String = ""; public var url: String = ""; public var description: String { name + ": " + err }; public init() {} }
-public class AtomicUInt32 { public var value: UInt32 = 0; public init(_ v: UInt32) { value = v }; public func load(): UInt32 { value } }
+public class AsyncModuleOpts { public var specifier: String = ""; public var referrer: String = ""; public var path: FsPath = FsPath(); public var fd: ?FileDescriptor = None; public var packageJson: ?PackageJSON = None; public var loader: Loader = Loader.Js; public var parseResult: ParseResult = ParseResult(); public var arena: ArenaAllocator = ArenaAllocator(); public var promisePtr: JsValue = JsValue.undefined(); public init() {} }
+public class PackageResolveError { public var name: String = ""; public var err: String = ""; public var url: String = ""; public prop description: String { get() { name + ": " + err } }; public init() {} }
+public class PackageDownloadError { public var name: String = ""; public var resolution: String = ""; public var err: String = ""; public var url: String = ""; public prop description: String { get() { name + ": " + err } }; public init() {} }
+public class AtomicUInt32 { public var value: UInt32 = 0; public init(v: UInt32) { value = v }; public func load(): UInt32 { value }; public func swap(newValue: UInt32): UInt32 { let old = value; value = newValue; old } }

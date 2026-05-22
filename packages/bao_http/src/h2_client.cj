@@ -4,6 +4,7 @@ package bao_http
 
 import bao_core.*
 import bao_collections.*
+import bao_http.h2_client.*
 
 // ============================================================================
 // H2Client - HTTP/2 fetch() 客户端模块
@@ -76,11 +77,11 @@ public class H2Client {
     public static let MAX_WINDOW_SIZE: Int64 = 9223372036854775807 >> 1
 
     /// 活跃会话计数 (泄漏测试用)
-    /// 严格翻译自: pub var live_sessions = std.atomic.Value(i32).init(0)
+    /// 严格翻译自: pub var live_sessions = std.atomic.Value(i32).`init`(0)
     public static var liveSessions: Int64 = 0
 
     /// 活跃流计数 (泄漏测试用)
-    /// 严格翻译自: pub var live_streams = std.atomic.Value(i32).init(0)
+    /// 严格翻译自: pub var live_streams = std.atomic.Value(i32).`init`(0)
     public static var liveStreams: Int64 = 0
 
     /// 创建新的 HTTP/2 客户端会话

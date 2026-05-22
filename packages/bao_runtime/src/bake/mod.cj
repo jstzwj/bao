@@ -12,4 +12,3 @@ package bao_runtime.bake
 // 对应 Bun: pub const FrameworkRouter = @import("./FrameworkRouter.zig")
 
 /// export default { app: ... };
-public const api_name: String = "app"

@@ -169,7 +169,7 @@ public class ConcurrentQueue<T> {
 //   guarded.zig Guarded(HashMap) 模式
 //
 // Bun 使用 Mutex 保护 HashMap 访问:
-//   var map = Guarded(HashMap).init(.{})
+//   var map = Guarded(HashMap).`init`(.{})
 //   map.lock(); defer map.unlock(); map.value.put(key, val)
 // ============================================================================
 
@@ -459,7 +459,7 @@ public class ConcurrentChannel<T> {
 // 严格翻译自: src/threading/WaitGroup.zig
 //
 // Bun 的 WaitGroup:
-//   raw_count: Atomic(usize) = .init(0)
+//   raw_count: Atomic(usize) = .`init`(0)
 //   mutex: Mutex = .{}
 //   cond: Condvar = .{}
 //

@@ -16,7 +16,7 @@ public class Framework {
     public var cached_client_bundle_url: Strong.Optional
     /// 缓存的 CSS 文件数组
     public var cached_css_file_array: Strong.Optional
-    /// 当 state == .evaluation_failure 时填充
+    /// 当 state == evaluation_failure 时填充
     public var evaluate_failure: ?SerializedFailure = None
 }
 
@@ -97,7 +97,7 @@ public class RouteBundle {
 
     /// 获取 source map ID
     public func sourceMapId(): SourceMapStore.Key {
-        return SourceMapStore.Key.`init`(UInt64(client_script_generation) << 32)
+        return SourceMapStore.Key(UInt64(client_script_generation) << 32)
     }
 
     /// 使客户端 bundle 失效
@@ -127,7 +127,7 @@ public class RouteBundle {
         match (data) {
             case html(html) =>
                 if (let Some(text) <- html.bundled_html_text) {
-                    cost += text.length
+                    cost += text.size
                 }
                 if (let Some(cached_response) <- html.cached_response) {
                     cost += cached_response.memoryCost()

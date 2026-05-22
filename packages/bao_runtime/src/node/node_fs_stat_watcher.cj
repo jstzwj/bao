@@ -68,7 +68,7 @@ public class StatWatcherScheduler {
     private static var globalScheduler: ?StatWatcherScheduler = None
 
     public static func get(vm: UIntNative): StatWatcherScheduler {
-        if (globalScheduler == None) {
+        if (globalScheduler.isNone()) {
             globalScheduler = StatWatcherScheduler()
             globalScheduler.getOrThrow().vm = vm
         }
@@ -92,7 +92,7 @@ public class StatWatcherScheduler {
         mutex.lock()
         var idx: Int64 = -1
         for (i in 0..watchers.size) {
-            if (watchers[i] === watcher) {
+            if (watchers[i] == watcher) {
                 idx = i
                 break
             }
@@ -237,7 +237,7 @@ public class StatWatcher {
 
     // 初始化
     // 对应 Bun: node_fs_stat_watcher.zig - StatWatcher.init
-    public func init(vm: UIntNative, global: UIntNative, path: String,
+    public func `init`(vm: UIntNative, global: UIntNative, path: String,
                      interval: Int32, persistent: Bool, bigint: Bool): Unit {
         this.vm = vm
         this.globalThis = global
@@ -274,7 +274,7 @@ public class StatWatcher {
         closed = true
 
         // 从调度器移除
-        if (scheduler != None) {
+        if (scheduler.isSome()) {
             scheduler.getOrThrow().remove(this)
         }
 
@@ -292,9 +292,9 @@ public class StatWatcher {
         }
 
         let currentStats = System.stat(path)
-        if (currentStats == None) {
+        if (currentStats.isNone()) {
             // 文件不存在
-            if (lastStats != None) {
+            if (lastStats.isSome()) {
                 // 文件被删除，发射变化事件
                 emitChange(Stats(), lastStats.getOrThrow())
                 lastStats = None
@@ -303,7 +303,7 @@ public class StatWatcher {
         }
 
         let prev = lastStats
-        if (prev == None) {
+        if (prev.isNone()) {
             lastStats = currentStats
             return
         }

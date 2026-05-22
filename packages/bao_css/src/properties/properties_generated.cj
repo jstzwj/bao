@@ -244,6 +244,18 @@ public enum PropertyIdTag {
     | TransitionDelay
     | TransitionTimingFunction
     | Transition
+    | Animation
+    | AnimationName
+    | AnimationDuration
+    | AnimationTimingFunction
+    | AnimationDelay
+    | AnimationIterationCount
+    | AnimationDirection
+    | AnimationFillMode
+    | AnimationPlayState
+    | AnimationComposition
+    | AnimationTimeline
+    | AnimationAttachmentRange
     | Transform
     | TransformOrigin
     | TransformStyle
@@ -298,6 +310,50 @@ public enum PropertyIdTag {
     | All
     | Unparsed
     | Custom
+    | Inherit | Initial | Unset | RevertLayer
+    // === Additional properties used in properties_impl.cj ===
+    | Appearance | BackdropFilter | BorderCollapse | BoxDecorationBreak
+    | CaptionSide | Caret | CaretColor | CaretShape | Clear | ClipPath
+    | ColumnCount | ColumnFill | ColumnRule | ColumnRuleColor | ColumnRuleStyle
+    | ColumnRuleWidth | Columns | ColumnSpan | ColumnWidth
+    | Contain | Container | ContainerName | ContainerType
+    | Content | ContentVisibility
+    | CounterIncrement | CounterReset | CounterSet
+    | Cursor | EmptyCells | `Float`
+    | FontFeatureSettings | FontKerning | FontLanguageOverride
+    | FontOpticalSizing | FontPalette | FontSizeAdjust | FontSynthesis
+    | FontVariant | FontVariantAlternates | FontVariantEastAsian
+    | FontVariantLigatures | FontVariantNumeric | FontVariantPosition
+    | FontVariationSettings | ForcedColorAdjust
+    | Grid | GridArea | GridAutoColumns | GridAutoFlow | GridAutoRows
+    | GridColumn | GridColumnEnd | GridColumnStart
+    | GridRow | GridRowEnd | GridRowStart
+    | GridTemplate | GridTemplateAreas | GridTemplateColumns | GridTemplateRows
+    | Hyphens | ImageRendering | Isolation
+    | LetterSpacing | LineBreak
+    | ListStyle | ListStyleImage | ListStylePosition | ListStyleType
+    | MixBlendMode | ObjectFit | ObjectPosition
+    | Offset | OffsetAnchor | OffsetDistance | OffsetPath
+    | OffsetPosition | OffsetRotate
+    | Orphans | OutlineOffset
+    | OverflowAnchor | OverflowClipMargin | OverflowWrap
+    | OverscrollBehavior | OverscrollBehaviorBlock | OverscrollBehaviorInline
+    | OverscrollBehaviorX | OverscrollBehaviorY
+    | PageBreakAfter | PageBreakBefore | PageBreakInside
+    | PointerEvents | Quotes | Resize
+    | ScrollbarColor | ScrollbarGutter | ScrollbarWidth
+    | ScrollBehavior | ScrollSnapAlign | ScrollSnapStop | ScrollSnapType
+    | TableLayout | TextAlign | TextAlignLast
+    | TextDecoration | TextDecorationLine
+    | TextDecorationSkipInk | TextDecorationStyle | TextDecorationThickness
+    | TextEmphasis | TextEmphasisPosition | TextEmphasisStyle
+    | TextIndent | TextJustify | TextOrientation
+    | TextSizeAdjust | TextTransform
+    | TextUnderlineOffset | TextUnderlinePosition
+    | TouchAction | UnicodeBidi | UserSelect
+    | VerticalAlign | WhiteSpace | Widows
+    | WordBreak | WordSpacing | WordWrap | WritingMode
+    | ZIndex | Zoom
 
     public operator func ==(right: PropertyIdTag): Bool {
         return this.toCssName() == right.toCssName()
@@ -358,6 +414,18 @@ public enum PropertyIdTag {
             case TransitionDelay => true
             case TransitionTimingFunction => true
             case Transition => true
+            case Animation => true
+            case AnimationName => true
+            case AnimationDuration => true
+            case AnimationTimingFunction => true
+            case AnimationDelay => true
+            case AnimationIterationCount => true
+            case AnimationDirection => true
+            case AnimationFillMode => true
+            case AnimationPlayState => true
+            case AnimationComposition => true
+            case AnimationTimeline => true
+            case AnimationAttachmentRange => true
             case Transform => true
             case TransformOrigin => true
             case TransformStyle => true
@@ -591,6 +659,18 @@ public enum PropertyIdTag {
             case TransitionDelay => "transition-delay"
             case TransitionTimingFunction => "transition-timing-function"
             case Transition => "transition"
+            case Animation => "animation"
+            case AnimationName => "animation-name"
+            case AnimationDuration => "animation-duration"
+            case AnimationTimingFunction => "animation-timing-function"
+            case AnimationDelay => "animation-delay"
+            case AnimationIterationCount => "animation-iteration-count"
+            case AnimationDirection => "animation-direction"
+            case AnimationFillMode => "animation-fill-mode"
+            case AnimationPlayState => "animation-play-state"
+            case AnimationComposition => "animation-composition"
+            case AnimationTimeline => "animation-timeline"
+            case AnimationAttachmentRange => "animation-attachment-range"
             case Transform => "transform"
             case TransformOrigin => "transform-origin"
             case TransformStyle => "transform-style"
@@ -637,6 +717,140 @@ public enum PropertyIdTag {
             case All => "all"
             case Unparsed => "unparsed"
             case Custom => "custom"
+            case Appearance => "appearance"
+            case BackdropFilter => "backdrop-filter"
+            case BorderCollapse => "border-collapse"
+            case BoxDecorationBreak => "box-decoration-break"
+            case CaptionSide => "caption-side"
+            case Caret => "caret"
+            case CaretColor => "caret-color"
+            case CaretShape => "caret-shape"
+            case Clear => "clear"
+            case ClipPath => "clip-path"
+            case ColumnCount => "column-count"
+            case ColumnFill => "column-fill"
+            case ColumnRule => "column-rule"
+            case ColumnRuleColor => "column-rule-color"
+            case ColumnRuleStyle => "column-rule-style"
+            case ColumnRuleWidth => "column-rule-width"
+            case Columns => "columns"
+            case ColumnSpan => "column-span"
+            case ColumnWidth => "column-width"
+            case Contain => "contain"
+            case Container => "container"
+            case ContainerName => "container-name"
+            case ContainerType => "container-type"
+            case Content => "content"
+            case ContentVisibility => "content-visibility"
+            case CounterIncrement => "counter-increment"
+            case CounterReset => "counter-reset"
+            case CounterSet => "counter-set"
+            case Cursor => "cursor"
+            case EmptyCells => "empty-cells"
+            case FontFeatureSettings => "font-feature-settings"
+            case FontKerning => "font-kerning"
+            case FontLanguageOverride => "font-language-override"
+            case FontOpticalSizing => "font-optical-sizing"
+            case FontPalette => "font-palette"
+            case FontSizeAdjust => "font-size-adjust"
+            case FontSynthesis => "font-synthesis"
+            case FontVariant => "font-variant"
+            case FontVariantAlternates => "font-variant-alternates"
+            case FontVariantEastAsian => "font-variant-east-asian"
+            case FontVariantLigatures => "font-variant-ligatures"
+            case FontVariantNumeric => "font-variant-numeric"
+            case FontVariantPosition => "font-variant-position"
+            case FontVariationSettings => "font-variation-settings"
+            case ForcedColorAdjust => "forced-color-adjust"
+            case Grid => "grid"
+            case GridArea => "grid-area"
+            case GridAutoColumns => "grid-auto-columns"
+            case GridAutoFlow => "grid-auto-flow"
+            case GridAutoRows => "grid-auto-rows"
+            case GridColumn => "grid-column"
+            case GridColumnEnd => "grid-column-end"
+            case GridColumnStart => "grid-column-start"
+            case GridRow => "grid-row"
+            case GridRowEnd => "grid-row-end"
+            case GridRowStart => "grid-row-start"
+            case GridTemplate => "grid-template"
+            case GridTemplateAreas => "grid-template-areas"
+            case GridTemplateColumns => "grid-template-columns"
+            case GridTemplateRows => "grid-template-rows"
+            case Hyphens => "hyphens"
+            case ImageRendering => "image-rendering"
+            case LetterSpacing => "letter-spacing"
+            case LineBreak => "line-break"
+            case ListStyle => "list-style"
+            case ListStyleImage => "list-style-image"
+            case ListStylePosition => "list-style-position"
+            case ListStyleType => "list-style-type"
+            case MixBlendMode => "mix-blend-mode"
+            case ObjectFit => "object-fit"
+            case ObjectPosition => "object-position"
+            case Offset => "offset"
+            case OffsetAnchor => "offset-anchor"
+            case OffsetDistance => "offset-distance"
+            case OffsetPath => "offset-path"
+            case OffsetPosition => "offset-position"
+            case OffsetRotate => "offset-rotate"
+            case Orphans => "orphans"
+            case OverflowAnchor => "overflow-anchor"
+            case OverflowClipMargin => "overflow-clip-margin"
+            case OverscrollBehavior => "overscroll-behavior"
+            case OverscrollBehaviorBlock => "overscroll-behavior-block"
+            case OverscrollBehaviorInline => "overscroll-behavior-inline"
+            case OverscrollBehaviorX => "overscroll-behavior-x"
+            case OverscrollBehaviorY => "overscroll-behavior-y"
+            case PageBreakAfter => "page-break-after"
+            case PageBreakBefore => "page-break-before"
+            case PageBreakInside => "page-break-inside"
+            case PointerEvents => "pointer-events"
+            case Quotes => "quotes"
+            case Resize => "resize"
+            case ScrollbarColor => "scrollbar-color"
+            case ScrollbarGutter => "scrollbar-gutter"
+            case ScrollbarWidth => "scrollbar-width"
+            case ScrollBehavior => "scroll-behavior"
+            case ScrollSnapAlign => "scroll-snap-align"
+            case ScrollSnapStop => "scroll-snap-stop"
+            case ScrollSnapType => "scroll-snap-type"
+            case TableLayout => "table-layout"
+            case TextAlign => "text-align"
+            case TextAlignLast => "text-align-last"
+            case TextDecoration => "text-decoration"
+            case TextDecorationLine => "text-decoration-line"
+            case TextDecorationSkipInk => "text-decoration-skip-ink"
+            case TextDecorationStyle => "text-decoration-style"
+            case TextDecorationThickness => "text-decoration-thickness"
+            case TextEmphasis => "text-emphasis"
+            case TextEmphasisPosition => "text-emphasis-position"
+            case TextEmphasisStyle => "text-emphasis-style"
+            case TextIndent => "text-indent"
+            case TextJustify => "text-justify"
+            case TextOrientation => "text-orientation"
+            case TextSizeAdjust => "text-size-adjust"
+            case TextTransform => "text-transform"
+            case TextUnderlineOffset => "text-underline-offset"
+            case TextUnderlinePosition => "text-underline-position"
+            case TouchAction => "touch-action"
+            case UnicodeBidi => "unicode-bidi"
+            case UserSelect => "user-select"
+            case VerticalAlign => "vertical-align"
+            case WhiteSpace => "white-space"
+            case Widows => "widows"
+            case WordBreak => "word-break"
+            case WordSpacing => "word-spacing"
+            case WordWrap => "word-wrap"
+            case WritingMode => "writing-mode"
+            case ZIndex => "z-index"
+            case Zoom => "zoom"
+            case Composes => "composes"
+            case Direction => "direction"
+            case `Float` => "float"
+            case TextDecorationColor => "text-decoration-color"
+            case TextEmphasisColor => "text-emphasis-color"
+            case _ => "unknown"
         }
     }
 
@@ -847,6 +1061,18 @@ public enum PropertyIdTag {
             case TransitionDelay => "SmallList<Time>"
             case TransitionTimingFunction => "SmallList<EasingFunction>"
             case Transition => "SmallList<Transition>"
+            case Animation => "Animation"
+            case AnimationName => "AnimationName"
+            case AnimationDuration => "Time"
+            case AnimationTimingFunction => "EasingFunction"
+            case AnimationDelay => "Time"
+            case AnimationIterationCount => "AnimationIterationCount"
+            case AnimationDirection => "AnimationDirection"
+            case AnimationFillMode => "AnimationFillMode"
+            case AnimationPlayState => "AnimationPlayState"
+            case AnimationComposition => "AnimationComposition"
+            case AnimationTimeline => "AnimationTimeline"
+            case AnimationAttachmentRange => "AnimationAttachmentRange"
             case Transform => "TransformList"
             case TransformOrigin => "Position"
             case TransformStyle => "TransformStyle"
@@ -893,6 +1119,7 @@ public enum PropertyIdTag {
             case All => "CSSWideKeyword"
             case Unparsed => "UnparsedProperty"
             case Custom => "CustomProperty"
+            case _ => "unknown"
         }
     }
 }
@@ -908,19 +1135,19 @@ public enum PropertyIdTag {
 public class Property {
     public var tag: PropertyIdTag
     // 用 Any 存储值; 在实际使用中根据 tag 进行类型转换
-    public var value: Any
+    public var `value`: Any
     // 带 VendorPrefix 的属性额外存储前缀
     public var vendorPrefix: VendorPrefix
 
-    public init(tag: PropertyIdTag, value: Any) {
+    public init(tag: PropertyIdTag, `value`: Any) {
         this.tag = tag
-        this.value = value
+        this.value = `value`
         this.vendorPrefix = VendorPrefix()
     }
 
-    public init(tag: PropertyIdTag, value: Any, vendorPrefix: VendorPrefix) {
+    public init(tag: PropertyIdTag, `value`: Any, vendorPrefix: VendorPrefix) {
         this.tag = tag
-        this.value = value
+        this.value = `value`
         this.vendorPrefix = vendorPrefix
     }
 
@@ -1069,6 +1296,12 @@ public class Property {
                | FontStyle | FontVariantCaps | LineHeight | Font
                | TransitionProperty | TransitionDuration | TransitionDelay
                | TransitionTimingFunction | Transition
+               | Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange
                | Transform | TransformOrigin | TransformStyle | TransformBox
                | BackfaceVisibility | Perspective | PerspectiveOrigin
                | Translate | Rotate | Scale
@@ -1083,9 +1316,9 @@ public class Property {
                | MaskSourceType | MaskBoxImage | MaskBoxImageSource
                | MaskBoxImageSlice | MaskBoxImageWidth | MaskBoxImageOutset | MaskBoxImageRepeat
                | ColorScheme
-               | All | Unparsed | Custom => {
+               | All | Unparsed | Custom => ()
                 // arena allocator - 不需要单独释放
-            }
+            case _ => ()
         }
     }
 
@@ -1247,6 +1480,14 @@ public class PropertyId {
                | ScrollPaddingBlock | ScrollPaddingInline | ScrollPadding
                | FontWeight | FontSize | FontStretch | FontFamily
                | FontStyle | FontVariantCaps | LineHeight | Font
+               | TransitionProperty | TransitionDuration | TransitionDelay
+               | TransitionTimingFunction | Transition
+               | Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange
                | TransformBox | Translate | Rotate | Scale | TextShadow
                | Direction | Composes
                | MaskMode | MaskPositionX | MaskPositionY
@@ -1254,139 +1495,95 @@ public class PropertyId {
                | MaskBorderSource | MaskBorderMode | MaskBorderSlice
                | MaskBorderWidth | MaskBorderOutset | MaskBorderRepeat | MaskBorder
                | WebKitMaskComposite
-               | ColorScheme => {
+               | ColorScheme => ()
                 // 无前缀属性 - 不需要设置
-            }
             // === 带前缀的属性 - 通过 targets.prefixes() 设置 ===
-            case BackgroundClip => {
+            case BackgroundClip =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BackgroundClip)
-            }
-            case BoxShadow => {
+            case BoxShadow =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BoxShadow)
-            }
-            case BoxSizing => {
+            case BoxSizing =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BoxSizing)
-            }
-            case TextOverflow => {
+            case TextOverflow =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TextOverflow)
-            }
-            case BorderTopLeftRadius => {
+            case BorderTopLeftRadius =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BorderTopLeftRadius)
-            }
-            case BorderTopRightRadius => {
+            case BorderTopRightRadius =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BorderTopRightRadius)
-            }
-            case BorderBottomLeftRadius => {
+            case BorderBottomLeftRadius =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BorderBottomLeftRadius)
-            }
-            case BorderBottomRightRadius => {
+            case BorderBottomRightRadius =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BorderBottomRightRadius)
-            }
-            case BorderRadius => {
+            case BorderRadius =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BorderRadius)
-            }
-            case BorderImage => {
+            case BorderImage =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BorderImage)
-            }
-            case FlexDirection => {
+            case FlexDirection =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.FlexDirection)
-            }
-            case FlexWrap => {
+            case FlexWrap =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.FlexWrap)
-            }
-            case FlexFlow => {
+            case FlexFlow =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.FlexFlow)
-            }
-            case FlexGrow => {
+            case FlexGrow =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.FlexGrow)
-            }
-            case FlexShrink => {
+            case FlexShrink =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.FlexShrink)
-            }
-            case FlexBasis => {
+            case FlexBasis =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.FlexBasis)
-            }
-            case Flex => {
+            case Flex =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.Flex)
-            }
-            case Order => {
+            case Order =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.Order)
-            }
-            case AlignContent => {
+            case AlignContent =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.AlignContent)
-            }
-            case JustifyContent => {
+            case JustifyContent =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.JustifyContent)
-            }
-            case AlignSelf => {
+            case AlignSelf =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.AlignSelf)
-            }
-            case AlignItems => {
+            case AlignItems =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.AlignItems)
-            }
-            case TransitionProperty => {
+            case TransitionProperty =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TransitionProperty)
-            }
-            case TransitionDuration => {
+            case TransitionDuration =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TransitionDuration)
-            }
-            case TransitionDelay => {
+            case TransitionDelay =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TransitionDelay)
-            }
-            case TransitionTimingFunction => {
+            case TransitionTimingFunction =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TransitionTimingFunction)
-            }
-            case Transition => {
+            case Transition =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.Transition)
-            }
-            case Transform => {
+            case Transform =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.Transform)
-            }
-            case TransformOrigin => {
+            case TransformOrigin =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TransformOrigin)
-            }
-            case TransformStyle => {
+            case TransformStyle =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TransformStyle)
-            }
-            case BackfaceVisibility => {
+            case BackfaceVisibility =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.BackfaceVisibility)
-            }
-            case Perspective => {
+            case Perspective =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.Perspective)
-            }
-            case PerspectiveOrigin => {
+            case PerspectiveOrigin =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.PerspectiveOrigin)
-            }
-            case TextDecorationColor => {
+            case TextDecorationColor =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TextDecorationColor)
-            }
-            case TextEmphasisColor => {
+            case TextEmphasisColor =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.TextEmphasisColor)
-            }
-            case MaskImage => {
+            case MaskImage =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.MaskImage)
-            }
-            case MaskRepeat => {
+            case MaskRepeat =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.MaskRepeat)
-            }
-            case MaskPosition => {
+            case MaskPosition =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.MaskPosition)
-            }
-            case MaskClip => {
+            case MaskClip =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.MaskClip)
-            }
-            case MaskOrigin => {
+            case MaskOrigin =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.MaskOrigin)
-            }
-            case MaskSize => {
+            case MaskSize =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.MaskSize)
-            }
-            case Mask => {
+            case Mask =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.Mask)
-            }
-            case MaskBorder => {
+            case MaskBorder =>
                 this.vendorPrefix = targets.prefixes(this.vendorPrefix, Feature.MaskBorder)
-            }
             // === 旧版 box- 属性和 ms-flex 属性 - 不需要 targets 处理 ===
             case BoxOrient | BoxDirection | BoxOrdinalGroup | BoxAlign
                | BoxFlex | BoxFlexGroup | BoxPack | BoxLines
@@ -1394,13 +1591,12 @@ public class PropertyId {
                | FlexLinePack | FlexPositive | FlexNegative | FlexPreferredSize
                | MaskSourceType | MaskBoxImage | MaskBoxImageSource
                | MaskBoxImageSlice | MaskBoxImageWidth | MaskBoxImageOutset
-               | MaskBoxImageRepeat => {
+               | MaskBoxImageRepeat => ()
                 // 旧版属性 - 不设置 targets 前缀
-            }
             // === 特殊属性 ===
-            case All | Unparsed | Custom => {
+            case All | Unparsed | Custom => ()
                 // 不需要设置前缀
-            }
+            case _ => ()
         }
     }
 
@@ -1488,710 +1684,527 @@ public class PropertyParser {
         let pre = propertyId.vendorPrefix
         match (tag) {
             // 背景
-            case BackgroundColor => {
+            case BackgroundColor => ()
                 // 严格翻译自: .@"background-color" => CssColor parse
                 return Some(Property(tag, CssParserHelper.parseCssColor(input, options), VendorPrefix()))
-            }
-            case BackgroundImage => {
+            case BackgroundImage => ()
                 // 严格翻译自: .@"background-image" => SmallList(Image, 1)
                 return Some(Property(tag, CssParserHelper.parseImageList(input, options), VendorPrefix()))
-            }
-            case BackgroundPositionX => {
+            case BackgroundPositionX => ()
                 // 严格翻译自: .@"background-position-x"
                 return Some(Property(tag, CssParserHelper.parseHorizontalPositionList(input, options), VendorPrefix()))
-            }
-            case BackgroundPositionY => {
+            case BackgroundPositionY => ()
                 // 严格翻译自: .@"background-position-y"
                 return Some(Property(tag, CssParserHelper.parseVerticalPositionList(input, options), VendorPrefix()))
-            }
-            case BackgroundPosition => {
+            case BackgroundPosition => ()
                 // 严格翻译自: .@"background-position" => SmallList(BackgroundPosition, 1)
                 return Some(Property(tag, CssParserHelper.parseBackgroundPositionList(input, options), VendorPrefix()))
-            }
-            case BackgroundSize => {
+            case BackgroundSize => ()
                 // 严格翻译自: .@"background-size" => SmallList(BackgroundSize, 1)
                 return Some(Property(tag, CssParserHelper.parseBackgroundSizeList(input, options), VendorPrefix()))
-            }
-            case BackgroundRepeat => {
+            case BackgroundRepeat => ()
                 // 严格翻译自: .@"background-repeat"
                 return Some(Property(tag, CssParserHelper.parseBackgroundRepeatList(input, options), VendorPrefix()))
-            }
-            case BackgroundAttachment => {
+            case BackgroundAttachment => ()
                 // 严格翻译自: .@"background-attachment"
                 return Some(Property(tag, CssParserHelper.parseBackgroundAttachmentList(input, options), VendorPrefix()))
-            }
-            case BackgroundClip => {
+            case BackgroundClip => ()
                 // 严格翻译自: .@"background-clip" => |pre| SmallList(BackgroundClip, 1), pre
                 return Some(Property(tag, CssParserHelper.parseBackgroundClipList(input, options), pre))
-            }
-            case BackgroundOrigin => {
+            case BackgroundOrigin => ()
                 // 严格翻译自: .@"background-origin"
                 return Some(Property(tag, CssParserHelper.parseBackgroundOriginList(input, options), VendorPrefix()))
-            }
-            case Background => {
+            case Background => ()
                 // 严格翻译自: .background => SmallList(Background, 1)
                 return Some(Property(tag, CssParserHelper.parseBackgroundList(input, options), VendorPrefix()))
-            }
             // 阴影 & 颜色
-            case BoxShadow => {
+            case BoxShadow => ()
                 // 严格翻译自: .@"box-shadow" => |pre| SmallList(BoxShadow, 1), pre
                 return Some(Property(tag, CssParserHelper.parseBoxShadowList(input, options), pre))
-            }
-            case Opacity => {
+            case Opacity => ()
                 // 严格翻译自: .opacity => AlphaValue
                 return Some(Property(tag, CssParserHelper.parseAlphaValue(input, options), VendorPrefix()))
-            }
-            case Color => {
+            case Color => ()
                 // 严格翻译自: .color => CssColor
                 return Some(Property(tag, CssParserHelper.parseCssColor(input, options), VendorPrefix()))
-            }
             // 显示
-            case Display => {
+            case Display => ()
                 // 严格翻译自: .display => Display
                 return Some(Property(tag, CssParserHelper.parseDisplay(input, options), VendorPrefix()))
-            }
-            case Visibility => {
+            case Visibility => ()
                 // 严格翻译自: .visibility => Visibility
                 return Some(Property(tag, CssParserHelper.parseVisibility(input, options), VendorPrefix()))
-            }
             // 尺寸
-            case Width => {
+            case Width => ()
                 // 严格翻译自: .width => Size
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case Height => {
+            case Height =>
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case MinWidth => {
+            case MinWidth =>
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case MinHeight => {
+            case MinHeight =>
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case MaxWidth => {
+            case MaxWidth => ()
                 // 严格翻译自: .@"max-width" => MaxSize
                 return Some(Property(tag, CssParserHelper.parseMaxSize(input, options), VendorPrefix()))
-            }
-            case MaxHeight => {
+            case MaxHeight =>
                 return Some(Property(tag, CssParserHelper.parseMaxSize(input, options), VendorPrefix()))
-            }
-            case BlockSize => {
+            case BlockSize =>
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case InlineSize => {
+            case InlineSize =>
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case MinBlockSize => {
+            case MinBlockSize =>
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case MinInlineSize => {
+            case MinInlineSize =>
                 return Some(Property(tag, CssParserHelper.parseSize(input, options), VendorPrefix()))
-            }
-            case MaxBlockSize => {
+            case MaxBlockSize =>
                 return Some(Property(tag, CssParserHelper.parseMaxSize(input, options), VendorPrefix()))
-            }
-            case MaxInlineSize => {
+            case MaxInlineSize =>
                 return Some(Property(tag, CssParserHelper.parseMaxSize(input, options), VendorPrefix()))
-            }
-            case BoxSizing => {
+            case BoxSizing => ()
                 // 严格翻译自: .@"box-sizing" => |pre| BoxSizing, pre
                 return Some(Property(tag, CssParserHelper.parseBoxSizing(input, options), pre))
-            }
-            case AspectRatio => {
+            case AspectRatio => ()
                 // 严格翻译自: .@"aspect-ratio" => AspectRatio
                 return Some(Property(tag, CssParserHelper.parseAspectRatio(input, options), VendorPrefix()))
-            }
             // 溢出
-            case Overflow => {
+            case Overflow => ()
                 // 严格翻译自: .overflow => Overflow
                 return Some(Property(tag, CssParserHelper.parseOverflow(input, options), VendorPrefix()))
-            }
-            case OverflowX => {
+            case OverflowX => ()
                 // 严格翻译自: .@"overflow-x" => OverflowKeyword
                 return Some(Property(tag, CssParserHelper.parseOverflowKeyword(input, options), VendorPrefix()))
-            }
-            case OverflowY => {
+            case OverflowY =>
                 return Some(Property(tag, CssParserHelper.parseOverflowKeyword(input, options), VendorPrefix()))
-            }
-            case TextOverflow => {
+            case TextOverflow => ()
                 // 严格翻译自: .@"text-overflow" => |pre| TextOverflow, pre
                 return Some(Property(tag, CssParserHelper.parseTextOverflow(input, options), pre))
-            }
             // 定位
-            case Position => {
+            case Position => ()
                 // 严格翻译自: .position => Position
                 return Some(Property(tag, CssParserHelper.parsePosition(input, options), VendorPrefix()))
-            }
-            case Top => {
+            case Top =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case Bottom => {
+            case Bottom =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case Left => {
+            case Left =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case Right => {
+            case Right =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case InsetBlockStart => {
+            case InsetBlockStart =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case InsetBlockEnd => {
+            case InsetBlockEnd =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case InsetInlineStart => {
+            case InsetInlineStart =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case InsetInlineEnd => {
+            case InsetInlineEnd =>
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case InsetBlock => {
+            case InsetBlock => ()
                 // 严格翻译自: .@"inset-block" => InsetBlock
                 return Some(Property(tag, CssParserHelper.parseInsetBlock(input, options), VendorPrefix()))
-            }
-            case InsetInline => {
+            case InsetInline => ()
                 // 严格翻译自: .@"inset-inline" => InsetInline
                 return Some(Property(tag, CssParserHelper.parseInsetInline(input, options), VendorPrefix()))
-            }
-            case Inset => {
+            case Inset => ()
                 // 严格翻译自: .inset => Inset
                 return Some(Property(tag, CssParserHelper.parseInset(input, options), VendorPrefix()))
-            }
             // 边框
-            case BorderSpacing => {
+            case BorderSpacing => ()
                 // 严格翻译自: .@"border-spacing" => Size2D(Length)
                 return Some(Property(tag, CssParserHelper.parseSize2DLength(input, options), VendorPrefix()))
-            }
             case BorderTopColor | BorderBottomColor | BorderLeftColor | BorderRightColor
-               | BorderBlockStartColor | BorderBlockEndColor | BorderInlineStartColor | BorderInlineEndColor => {
+               | BorderBlockStartColor | BorderBlockEndColor | BorderInlineStartColor | BorderInlineEndColor => ()
                 // 所有 border-*-color 解析为 CssColor
                 return Some(Property(tag, CssParserHelper.parseCssColor(input, options), VendorPrefix()))
-            }
             case BorderTopStyle | BorderBottomStyle | BorderLeftStyle | BorderRightStyle
-               | BorderBlockStartStyle | BorderBlockEndStyle | BorderInlineStartStyle | BorderInlineEndStyle => {
+               | BorderBlockStartStyle | BorderBlockEndStyle | BorderInlineStartStyle | BorderInlineEndStyle => ()
                 // 所有 border-*-style 解析为 LineStyle
                 return Some(Property(tag, CssParserHelper.parseLineStyle(input, options), VendorPrefix()))
-            }
             case BorderTopWidth | BorderBottomWidth | BorderLeftWidth | BorderRightWidth
-               | BorderBlockStartWidth | BorderBlockEndWidth | BorderInlineStartWidth | BorderInlineEndWidth => {
+               | BorderBlockStartWidth | BorderBlockEndWidth | BorderInlineStartWidth | BorderInlineEndWidth => ()
                 // 所有 border-*-width 解析为 BorderSideWidth
                 return Some(Property(tag, CssParserHelper.parseBorderSideWidth(input, options), VendorPrefix()))
-            }
-            case BorderTopLeftRadius => {
+            case BorderTopLeftRadius => ()
                 // 严格翻译自: .@"border-top-left-radius" => |pre| Size2D(LengthPercentage), pre
                 return Some(Property(tag, CssParserHelper.parseSize2DLengthPercentage(input, options), pre))
-            }
-            case BorderTopRightRadius => {
+            case BorderTopRightRadius =>
                 return Some(Property(tag, CssParserHelper.parseSize2DLengthPercentage(input, options), pre))
-            }
-            case BorderBottomLeftRadius => {
+            case BorderBottomLeftRadius =>
                 return Some(Property(tag, CssParserHelper.parseSize2DLengthPercentage(input, options), pre))
-            }
-            case BorderBottomRightRadius => {
+            case BorderBottomRightRadius =>
                 return Some(Property(tag, CssParserHelper.parseSize2DLengthPercentage(input, options), pre))
-            }
-            case BorderStartStartRadius | BorderStartEndRadius | BorderEndStartRadius | BorderEndEndRadius => {
+            case BorderStartStartRadius | BorderStartEndRadius | BorderEndStartRadius | BorderEndEndRadius => ()
                 // 严格翻译自: 逻辑角半径，无前缀
                 return Some(Property(tag, CssParserHelper.parseSize2DLengthPercentage(input, options), VendorPrefix()))
-            }
-            case BorderRadius => {
+            case BorderRadius => ()
                 // 严格翻译自: .@"border-radius" => |pre| BorderRadius, pre
                 return Some(Property(tag, CssParserHelper.parseBorderRadius(input, options), pre))
-            }
-            case BorderImageSource => {
+            case BorderImageSource => ()
                 // 严格翻译自: .@"border-image-source" => Image
                 return Some(Property(tag, CssParserHelper.parseImage(input, options), VendorPrefix()))
-            }
-            case BorderImageOutset => {
+            case BorderImageOutset => ()
                 // 严格翻译自: .@"border-image-outset" => Rect(LengthOrNumber)
                 return Some(Property(tag, CssParserHelper.parseRectLengthOrNumber(input, options), VendorPrefix()))
-            }
-            case BorderImageRepeat => {
+            case BorderImageRepeat => ()
                 // 严格翻译自: .@"border-image-repeat"
                 return Some(Property(tag, CssParserHelper.parseBorderImageRepeat(input, options), VendorPrefix()))
-            }
-            case BorderImageWidth => {
+            case BorderImageWidth => ()
                 // 严格翻译自: .@"border-image-width" => Rect(BorderImageSideWidth)
                 return Some(Property(tag, CssParserHelper.parseRectBorderImageSideWidth(input, options), VendorPrefix()))
-            }
-            case BorderImageSlice => {
+            case BorderImageSlice => ()
                 // 严格翻译自: .@"border-image-slice"
                 return Some(Property(tag, CssParserHelper.parseBorderImageSlice(input, options), VendorPrefix()))
-            }
-            case BorderImage => {
+            case BorderImage => ()
                 // 严格翻译自: .@"border-image" => |pre| BorderImage, pre
                 return Some(Property(tag, CssParserHelper.parseBorderImage(input, options), pre))
-            }
-            case BorderColor => {
+            case BorderColor =>
                 return Some(Property(tag, CssParserHelper.parseBorderColor(input, options), VendorPrefix()))
-            }
-            case BorderStyle => {
+            case BorderStyle =>
                 return Some(Property(tag, CssParserHelper.parseBorderStyle(input, options), VendorPrefix()))
-            }
-            case BorderWidth => {
+            case BorderWidth =>
                 return Some(Property(tag, CssParserHelper.parseBorderWidth(input, options), VendorPrefix()))
-            }
-            case BorderBlockColor => {
+            case BorderBlockColor =>
                 return Some(Property(tag, CssParserHelper.parseBorderBlockColor(input, options), VendorPrefix()))
-            }
-            case BorderBlockStyle => {
+            case BorderBlockStyle =>
                 return Some(Property(tag, CssParserHelper.parseBorderBlockStyle(input, options), VendorPrefix()))
-            }
-            case BorderBlockWidth => {
+            case BorderBlockWidth =>
                 return Some(Property(tag, CssParserHelper.parseBorderBlockWidth(input, options), VendorPrefix()))
-            }
-            case BorderInlineColor => {
+            case BorderInlineColor =>
                 return Some(Property(tag, CssParserHelper.parseBorderInlineColor(input, options), VendorPrefix()))
-            }
-            case BorderInlineStyle => {
+            case BorderInlineStyle =>
                 return Some(Property(tag, CssParserHelper.parseBorderInlineStyle(input, options), VendorPrefix()))
-            }
-            case BorderInlineWidth => {
+            case BorderInlineWidth =>
                 return Some(Property(tag, CssParserHelper.parseBorderInlineWidth(input, options), VendorPrefix()))
-            }
-            case Border => {
+            case Border =>
                 return Some(Property(tag, CssParserHelper.parseBorder(input, options), VendorPrefix()))
-            }
-            case BorderTop => {
+            case BorderTop =>
                 return Some(Property(tag, CssParserHelper.parseBorderTop(input, options), VendorPrefix()))
-            }
-            case BorderBottom => {
+            case BorderBottom =>
                 return Some(Property(tag, CssParserHelper.parseBorderBottom(input, options), VendorPrefix()))
-            }
-            case BorderLeft => {
+            case BorderLeft =>
                 return Some(Property(tag, CssParserHelper.parseBorderLeft(input, options), VendorPrefix()))
-            }
-            case BorderRight => {
+            case BorderRight =>
                 return Some(Property(tag, CssParserHelper.parseBorderRight(input, options), VendorPrefix()))
-            }
-            case BorderBlock => {
+            case BorderBlock =>
                 return Some(Property(tag, CssParserHelper.parseBorderBlock(input, options), VendorPrefix()))
-            }
-            case BorderBlockStart => {
+            case BorderBlockStart =>
                 return Some(Property(tag, CssParserHelper.parseBorderBlockStart(input, options), VendorPrefix()))
-            }
-            case BorderBlockEnd => {
+            case BorderBlockEnd =>
                 return Some(Property(tag, CssParserHelper.parseBorderBlockEnd(input, options), VendorPrefix()))
-            }
-            case BorderInline => {
+            case BorderInline =>
                 return Some(Property(tag, CssParserHelper.parseBorderInline(input, options), VendorPrefix()))
-            }
-            case BorderInlineStart => {
+            case BorderInlineStart =>
                 return Some(Property(tag, CssParserHelper.parseBorderInlineStart(input, options), VendorPrefix()))
-            }
-            case BorderInlineEnd => {
+            case BorderInlineEnd =>
                 return Some(Property(tag, CssParserHelper.parseBorderInlineEnd(input, options), VendorPrefix()))
-            }
             // Outline
-            case Outline => {
+            case Outline =>
                 return Some(Property(tag, CssParserHelper.parseOutline(input, options), VendorPrefix()))
-            }
-            case OutlineColor => {
+            case OutlineColor =>
                 return Some(Property(tag, CssParserHelper.parseCssColor(input, options), VendorPrefix()))
-            }
-            case OutlineStyle => {
+            case OutlineStyle =>
                 return Some(Property(tag, CssParserHelper.parseOutlineStyle(input, options), VendorPrefix()))
-            }
-            case OutlineWidth => {
+            case OutlineWidth =>
                 return Some(Property(tag, CssParserHelper.parseBorderSideWidth(input, options), VendorPrefix()))
-            }
             // Flex (含前缀属性)
-            case FlexDirection => {
+            case FlexDirection => ()
                 // 严格翻译自: .@"flex-direction" => |pre| FlexDirection, pre
                 return Some(Property(tag, CssParserHelper.parseFlexDirection(input, options), pre))
-            }
-            case FlexWrap => {
+            case FlexWrap =>
                 return Some(Property(tag, CssParserHelper.parseFlexWrap(input, options), pre))
-            }
-            case FlexFlow => {
+            case FlexFlow =>
                 return Some(Property(tag, CssParserHelper.parseFlexFlow(input, options), pre))
-            }
-            case FlexGrow => {
+            case FlexGrow => ()
                 // 严格翻译自: .@"flex-grow" => |pre| CSSNumber, pre
                 return Some(Property(tag, CssParserHelper.parseCSSNumber(input, options), pre))
-            }
-            case FlexShrink => {
+            case FlexShrink =>
                 return Some(Property(tag, CssParserHelper.parseCSSNumber(input, options), pre))
-            }
-            case FlexBasis => {
+            case FlexBasis => ()
                 // 严格翻译自: .@"flex-basis" => |pre| LengthPercentageOrAuto, pre
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), pre))
-            }
-            case Flex => {
+            case Flex => ()
                 // 严格翻译自: .flex => |pre| Flex, pre
                 return Some(Property(tag, CssParserHelper.parseFlex(input, options), pre))
-            }
-            case Order => {
+            case Order => ()
                 // 严格翻译自: .order => |pre| CSSInteger, pre
                 return Some(Property(tag, CssParserHelper.parseCSSInteger(input, options), pre))
-            }
-            case AlignContent => {
+            case AlignContent =>
                 return Some(Property(tag, CssParserHelper.parseAlignContent(input, options), pre))
-            }
-            case JustifyContent => {
+            case JustifyContent =>
                 return Some(Property(tag, CssParserHelper.parseJustifyContent(input, options), pre))
-            }
-            case PlaceContent => {
+            case PlaceContent => ()
                 // 严格翻译自: .@"place-content" => PlaceContent (无前缀)
                 return Some(Property(tag, CssParserHelper.parsePlaceContent(input, options), VendorPrefix()))
-            }
-            case AlignSelf => {
+            case AlignSelf =>
                 return Some(Property(tag, CssParserHelper.parseAlignSelf(input, options), pre))
-            }
-            case JustifySelf => {
+            case JustifySelf => ()
                 // 严格翻译自: .@"justify-self" (无前缀)
                 return Some(Property(tag, CssParserHelper.parseJustifySelf(input, options), VendorPrefix()))
-            }
-            case PlaceSelf => {
+            case PlaceSelf =>
                 return Some(Property(tag, CssParserHelper.parsePlaceSelf(input, options), VendorPrefix()))
-            }
-            case AlignItems => {
+            case AlignItems =>
                 return Some(Property(tag, CssParserHelper.parseAlignItems(input, options), pre))
-            }
-            case JustifyItems => {
+            case JustifyItems =>
                 return Some(Property(tag, CssParserHelper.parseJustifyItems(input, options), VendorPrefix()))
-            }
-            case PlaceItems => {
+            case PlaceItems =>
                 return Some(Property(tag, CssParserHelper.parsePlaceItems(input, options), VendorPrefix()))
-            }
-            case RowGap => {
+            case RowGap => ()
                 // 严格翻译自: .@"row-gap" => GapValue
                 return Some(Property(tag, CssParserHelper.parseGapValue(input, options), VendorPrefix()))
-            }
-            case ColumnGap => {
+            case ColumnGap =>
                 return Some(Property(tag, CssParserHelper.parseGapValue(input, options), VendorPrefix()))
-            }
-            case Gap => {
+            case Gap => ()
                 // 严格翻译自: .gap => Gap
                 return Some(Property(tag, CssParserHelper.parseGap(input, options), VendorPrefix()))
-            }
             // 旧版 flex 前缀属性
-            case BoxOrient => {
+            case BoxOrient => ()
                 // 严格翻译自: .@"box-orient" => |pre| BoxOrient, pre
                 return Some(Property(tag, CssParserHelper.parseBoxOrient(input, options), pre))
-            }
-            case BoxDirection => {
+            case BoxDirection =>
                 return Some(Property(tag, CssParserHelper.parseBoxDirection(input, options), pre))
-            }
-            case BoxOrdinalGroup => {
+            case BoxOrdinalGroup => ()
                 // 严格翻译自: .@"box-ordinal-group" => |pre| CSSInteger, pre
                 return Some(Property(tag, CssParserHelper.parseCSSInteger(input, options), pre))
-            }
-            case BoxAlign => {
+            case BoxAlign =>
                 return Some(Property(tag, CssParserHelper.parseBoxAlign(input, options), pre))
-            }
-            case BoxFlex => {
+            case BoxFlex => ()
                 // 严格翻译自: .@"box-flex" => |pre| CSSNumber, pre
                 return Some(Property(tag, CssParserHelper.parseCSSNumber(input, options), pre))
-            }
-            case BoxFlexGroup => {
+            case BoxFlexGroup =>
                 return Some(Property(tag, CssParserHelper.parseCSSInteger(input, options), pre))
-            }
-            case BoxPack => {
+            case BoxPack =>
                 return Some(Property(tag, CssParserHelper.parseBoxPack(input, options), pre))
-            }
-            case BoxLines => {
+            case BoxLines =>
                 return Some(Property(tag, CssParserHelper.parseBoxLines(input, options), pre))
-            }
-            case FlexPack => {
+            case FlexPack => ()
                 // 严格翻译自: .@"flex-pack" => |pre| FlexPack, pre
                 return Some(Property(tag, CssParserHelper.parseFlexPack(input, options), pre))
-            }
-            case FlexOrder => {
+            case FlexOrder =>
                 return Some(Property(tag, CssParserHelper.parseCSSInteger(input, options), pre))
-            }
-            case FlexAlign => {
+            case FlexAlign => ()
                 // 严格翻译自: .@"flex-align" => |pre| BoxAlign, pre
                 return Some(Property(tag, CssParserHelper.parseBoxAlign(input, options), pre))
-            }
-            case FlexItemAlign => {
+            case FlexItemAlign =>
                 return Some(Property(tag, CssParserHelper.parseFlexItemAlign(input, options), pre))
-            }
-            case FlexLinePack => {
+            case FlexLinePack =>
                 return Some(Property(tag, CssParserHelper.parseFlexLinePack(input, options), pre))
-            }
-            case FlexPositive => {
+            case FlexPositive =>
                 return Some(Property(tag, CssParserHelper.parseCSSNumber(input, options), pre))
-            }
-            case FlexNegative => {
+            case FlexNegative =>
                 return Some(Property(tag, CssParserHelper.parseCSSNumber(input, options), pre))
-            }
-            case FlexPreferredSize => {
+            case FlexPreferredSize => ()
                 // 严格翻译自: .@"flex-preferred-size" => |pre| LengthPercentageOrAuto, pre
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), pre))
-            }
             // 外边距 & 内边距
             case MarginTop | MarginBottom | MarginLeft | MarginRight
-               | MarginBlockStart | MarginBlockEnd | MarginInlineStart | MarginInlineEnd => {
+               | MarginBlockStart | MarginBlockEnd | MarginInlineStart | MarginInlineEnd => ()
                 // 所有 margin-*-side 解析为 LengthPercentageOrAuto
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case MarginBlock => {
+            case MarginBlock => ()
                 // 严格翻译自: .@"margin-block" => MarginBlock
                 return Some(Property(tag, CssParserHelper.parseMarginBlock(input, options), VendorPrefix()))
-            }
-            case MarginInline => {
+            case MarginInline =>
                 return Some(Property(tag, CssParserHelper.parseMarginInline(input, options), VendorPrefix()))
-            }
-            case Margin => {
+            case Margin => ()
                 // 严格翻译自: .margin => Margin
                 return Some(Property(tag, CssParserHelper.parseMargin(input, options), VendorPrefix()))
-            }
             case PaddingTop | PaddingBottom | PaddingLeft | PaddingRight
-               | PaddingBlockStart | PaddingBlockEnd | PaddingInlineStart | PaddingInlineEnd => {
+               | PaddingBlockStart | PaddingBlockEnd | PaddingInlineStart | PaddingInlineEnd => ()
                 // 所有 padding-*-side 解析为 LengthPercentageOrAuto
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case PaddingBlock => {
+            case PaddingBlock =>
                 return Some(Property(tag, CssParserHelper.parsePaddingBlock(input, options), VendorPrefix()))
-            }
-            case PaddingInline => {
+            case PaddingInline =>
                 return Some(Property(tag, CssParserHelper.parsePaddingInline(input, options), VendorPrefix()))
-            }
-            case Padding => {
+            case Padding =>
                 return Some(Property(tag, CssParserHelper.parsePadding(input, options), VendorPrefix()))
-            }
             // Scroll margin & padding
             case ScrollMarginTop | ScrollMarginBottom | ScrollMarginLeft | ScrollMarginRight
-               | ScrollMarginBlockStart | ScrollMarginBlockEnd | ScrollMarginInlineStart | ScrollMarginInlineEnd => {
+               | ScrollMarginBlockStart | ScrollMarginBlockEnd | ScrollMarginInlineStart | ScrollMarginInlineEnd => ()
                 // 严格翻译自: scroll-margin-*-side => LengthPercentageOrAuto
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case ScrollMarginBlock => {
+            case ScrollMarginBlock =>
                 return Some(Property(tag, CssParserHelper.parseScrollMarginBlock(input, options), VendorPrefix()))
-            }
-            case ScrollMarginInline => {
+            case ScrollMarginInline =>
                 return Some(Property(tag, CssParserHelper.parseScrollMarginInline(input, options), VendorPrefix()))
-            }
-            case ScrollMargin => {
+            case ScrollMargin =>
                 return Some(Property(tag, CssParserHelper.parseScrollMargin(input, options), VendorPrefix()))
-            }
             case ScrollPaddingTop | ScrollPaddingBottom | ScrollPaddingLeft | ScrollPaddingRight
-               | ScrollPaddingBlockStart | ScrollPaddingBlockEnd | ScrollPaddingInlineStart | ScrollPaddingInlineEnd => {
+               | ScrollPaddingBlockStart | ScrollPaddingBlockEnd | ScrollPaddingInlineStart | ScrollPaddingInlineEnd => ()
                 // 严格翻译自: scroll-padding-*-side => LengthPercentageOrAuto
                 return Some(Property(tag, CssParserHelper.parseLengthPercentageOrAuto(input, options), VendorPrefix()))
-            }
-            case ScrollPaddingBlock => {
+            case ScrollPaddingBlock =>
                 return Some(Property(tag, CssParserHelper.parseScrollPaddingBlock(input, options), VendorPrefix()))
-            }
-            case ScrollPaddingInline => {
+            case ScrollPaddingInline =>
                 return Some(Property(tag, CssParserHelper.parseScrollPaddingInline(input, options), VendorPrefix()))
-            }
-            case ScrollPadding => {
+            case ScrollPadding =>
                 return Some(Property(tag, CssParserHelper.parseScrollPadding(input, options), VendorPrefix()))
-            }
             // 字体
-            case FontWeight => {
+            case FontWeight => ()
                 // 严格翻译自: .@"font-weight" => FontWeight
                 return Some(Property(tag, CssParserHelper.parseFontWeight(input, options), VendorPrefix()))
-            }
-            case FontSize => {
+            case FontSize =>
                 return Some(Property(tag, CssParserHelper.parseFontSize(input, options), VendorPrefix()))
-            }
-            case FontStretch => {
+            case FontStretch =>
                 return Some(Property(tag, CssParserHelper.parseFontStretch(input, options), VendorPrefix()))
-            }
-            case FontFamily => {
+            case FontFamily => ()
                 // 严格翻译自: .@"font-family" => BabyList(FontFamily)
                 return Some(Property(tag, CssParserHelper.parseFontFamilyList(input, options), VendorPrefix()))
-            }
-            case FontStyle => {
+            case FontStyle =>
                 return Some(Property(tag, CssParserHelper.parseFontStyle(input, options), VendorPrefix()))
-            }
-            case FontVariantCaps => {
+            case FontVariantCaps =>
                 return Some(Property(tag, CssParserHelper.parseFontVariantCaps(input, options), VendorPrefix()))
-            }
-            case LineHeight => {
+            case LineHeight =>
                 return Some(Property(tag, CssParserHelper.parseLineHeight(input, options), VendorPrefix()))
-            }
-            case Font => {
+            case Font => ()
                 // 严格翻译自: .font => Font
                 return Some(Property(tag, CssParserHelper.parseFont(input, options), VendorPrefix()))
-            }
             // 变换 & 过渡
-            case TransitionProperty => {
+            case TransitionProperty => ()
                 // 严格翻译自: .@"transition-property" => |pre| SmallList(PropertyId, 1), pre
                 return Some(Property(tag, CssParserHelper.parsePropertyIdList(input, options), pre))
-            }
-            case TransitionDuration => {
+            case TransitionDuration => ()
                 // 严格翻译自: .@"transition-duration" => |pre| SmallList(Time, 1), pre
                 return Some(Property(tag, CssParserHelper.parseTimeList(input, options), pre))
-            }
-            case TransitionDelay => {
+            case TransitionDelay =>
                 return Some(Property(tag, CssParserHelper.parseTimeList(input, options), pre))
-            }
-            case TransitionTimingFunction => {
+            case TransitionTimingFunction => ()
                 // 严格翻译自: .@"transition-timing-function" => |pre| SmallList(EasingFunction, 1), pre
                 return Some(Property(tag, CssParserHelper.parseEasingFunctionList(input, options), pre))
-            }
-            case Transition => {
+            case Transition => None
+            case Animation => None
+            case AnimationName => None
+            case AnimationDuration => None
+            case AnimationTimingFunction => None
+            case AnimationDelay => None
+            case AnimationIterationCount => None
+            case AnimationDirection => None
+            case AnimationFillMode => None
+            case AnimationPlayState => None
+            case AnimationComposition => None
+            case AnimationTimeline => None
+            case AnimationAttachmentRange =>
                 // 严格翻译自: .transition => |pre| SmallList(Transition, 1), pre
                 return Some(Property(tag, CssParserHelper.parseTransitionList(input, options), pre))
-            }
-            case Transform => {
+            case Transform => ()
                 // 严格翻译自: .transform => |pre| TransformList, pre
                 return Some(Property(tag, CssParserHelper.parseTransformList(input, options), pre))
-            }
-            case TransformOrigin => {
+            case TransformOrigin => ()
                 // 严格翻译自: .@"transform-origin" => |pre| Position, pre
                 return Some(Property(tag, CssParserHelper.parsePosition(input, options), pre))
-            }
-            case TransformStyle => {
+            case TransformStyle =>
                 return Some(Property(tag, CssParserHelper.parseTransformStyle(input, options), pre))
-            }
-            case TransformBox => {
+            case TransformBox => ()
                 // 严格翻译自: .@"transform-box" => TransformBox (无前缀)
                 return Some(Property(tag, CssParserHelper.parseTransformBox(input, options), VendorPrefix()))
-            }
-            case BackfaceVisibility => {
+            case BackfaceVisibility => ()
                 // 严格翻译自: .@"backface-visibility" => |pre|
                 return Some(Property(tag, CssParserHelper.parseBackfaceVisibility(input, options), pre))
-            }
-            case Perspective => {
+            case Perspective =>
                 return Some(Property(tag, CssParserHelper.parsePerspective(input, options), pre))
-            }
-            case PerspectiveOrigin => {
+            case PerspectiveOrigin =>
                 return Some(Property(tag, CssParserHelper.parsePosition(input, options), pre))
-            }
-            case Translate => {
+            case Translate => ()
                 // 严格翻译自: .translate => Translate (无前缀)
                 return Some(Property(tag, CssParserHelper.parseTranslate(input, options), VendorPrefix()))
-            }
-            case Rotate => {
+            case Rotate =>
                 return Some(Property(tag, CssParserHelper.parseRotate(input, options), VendorPrefix()))
-            }
-            case Scale => {
+            case Scale =>
                 return Some(Property(tag, CssParserHelper.parseScale(input, options), VendorPrefix()))
-            }
             // 文本
-            case TextDecorationColor => {
+            case TextDecorationColor => ()
                 // 严格翻译自: .@"text-decoration-color" => |pre| CssColor, pre
                 return Some(Property(tag, CssParserHelper.parseCssColor(input, options), pre))
-            }
-            case TextEmphasisColor => {
+            case TextEmphasisColor =>
                 return Some(Property(tag, CssParserHelper.parseCssColor(input, options), pre))
-            }
-            case TextShadow => {
+            case TextShadow => ()
                 // 严格翻译自: .@"text-shadow" => SmallList(TextShadow, 1)
                 return Some(Property(tag, CssParserHelper.parseTextShadowList(input, options), VendorPrefix()))
-            }
-            case Direction => {
+            case Direction => ()
                 // 严格翻译自: .direction => Direction
                 return Some(Property(tag, CssParserHelper.parseDirection(input, options), VendorPrefix()))
-            }
-            case Composes => {
+            case Composes => ()
                 // 严格翻译自: .composes => Composes (直接返回)
                 return Some(Property(tag, CssParserHelper.parseComposes(input, options), VendorPrefix()))
-            }
             // 遮罩
-            case MaskImage => {
+            case MaskImage => ()
                 // 严格翻译自: .@"mask-image" => |pre| SmallList(Image, 1), pre
                 return Some(Property(tag, CssParserHelper.parseImageList(input, options), pre))
-            }
-            case MaskMode => {
+            case MaskMode => ()
                 // 严格翻译自: .@"mask-mode" => SmallList(MaskMode, 1)
                 return Some(Property(tag, CssParserHelper.parseMaskModeList(input, options), VendorPrefix()))
-            }
-            case MaskRepeat => {
+            case MaskRepeat => ()
                 // 严格翻译自: .@"mask-repeat" => |pre| SmallList(BackgroundRepeat, 1), pre
                 return Some(Property(tag, CssParserHelper.parseBackgroundRepeatList(input, options), pre))
-            }
-            case MaskPositionX => {
+            case MaskPositionX =>
                 return Some(Property(tag, CssParserHelper.parseHorizontalPositionList(input, options), VendorPrefix()))
-            }
-            case MaskPositionY => {
+            case MaskPositionY =>
                 return Some(Property(tag, CssParserHelper.parseVerticalPositionList(input, options), VendorPrefix()))
-            }
-            case MaskPosition => {
+            case MaskPosition => ()
                 // 严格翻译自: .@"mask-position" => |pre| SmallList(Position, 1), pre
                 return Some(Property(tag, CssParserHelper.parsePositionList(input, options), pre))
-            }
-            case MaskClip => {
+            case MaskClip => ()
                 // 严格翻译自: .@"mask-clip" => |pre| SmallList(MaskClip, 1), pre
                 return Some(Property(tag, CssParserHelper.parseMaskClipList(input, options), pre))
-            }
-            case MaskOrigin => {
+            case MaskOrigin => ()
                 // 严格翻译自: .@"mask-origin" => |pre| SmallList(GeometryBox, 1), pre
                 return Some(Property(tag, CssParserHelper.parseGeometryBoxList(input, options), pre))
-            }
-            case MaskSize => {
+            case MaskSize => ()
                 // 严格翻译自: .@"mask-size" => |pre| SmallList(BackgroundSize, 1), pre
                 return Some(Property(tag, CssParserHelper.parseBackgroundSizeList(input, options), pre))
-            }
-            case MaskComposite => {
+            case MaskComposite => ()
                 // 严格翻译自: .@"mask-composite" => SmallList(MaskComposite, 1)
                 return Some(Property(tag, CssParserHelper.parseMaskCompositeList(input, options), VendorPrefix()))
-            }
-            case MaskType => {
+            case MaskType =>
                 return Some(Property(tag, CssParserHelper.parseMaskType(input, options), VendorPrefix()))
-            }
-            case Mask => {
+            case Mask => ()
                 // 严格翻译自: .mask => |pre| SmallList(Mask, 1), pre
                 return Some(Property(tag, CssParserHelper.parseMaskList(input, options), pre))
-            }
-            case MaskBorderSource => {
+            case MaskBorderSource =>
                 return Some(Property(tag, CssParserHelper.parseImage(input, options), VendorPrefix()))
-            }
-            case MaskBorderMode => {
+            case MaskBorderMode =>
                 return Some(Property(tag, CssParserHelper.parseMaskBorderMode(input, options), VendorPrefix()))
-            }
-            case MaskBorderSlice => {
+            case MaskBorderSlice =>
                 return Some(Property(tag, CssParserHelper.parseBorderImageSlice(input, options), VendorPrefix()))
-            }
-            case MaskBorderWidth => {
+            case MaskBorderWidth =>
                 return Some(Property(tag, CssParserHelper.parseRectBorderImageSideWidth(input, options), VendorPrefix()))
-            }
-            case MaskBorderOutset => {
+            case MaskBorderOutset =>
                 return Some(Property(tag, CssParserHelper.parseRectLengthOrNumber(input, options), VendorPrefix()))
-            }
-            case MaskBorderRepeat => {
+            case MaskBorderRepeat =>
                 return Some(Property(tag, CssParserHelper.parseBorderImageRepeat(input, options), VendorPrefix()))
-            }
-            case MaskBorder => {
+            case MaskBorder =>
                 return Some(Property(tag, CssParserHelper.parseMaskBorder(input, options), VendorPrefix()))
-            }
-            case WebKitMaskComposite => {
+            case WebKitMaskComposite => ()
                 // 严格翻译自: .@"-webkit-mask-composite" => SmallList(WebKitMaskComposite, 1)
                 return Some(Property(tag, CssParserHelper.parseWebKitMaskCompositeList(input, options), VendorPrefix()))
-            }
-            case MaskSourceType => {
+            case MaskSourceType => ()
                 // 严格翻译自: .@"mask-source-type" => |pre| SmallList(WebKitMaskSourceType, 1), pre
                 return Some(Property(tag, CssParserHelper.parseWebKitMaskSourceTypeList(input, options), pre))
-            }
-            case MaskBoxImage => {
+            case MaskBoxImage => ()
                 // 严格翻译自: .@"mask-box-image" => |pre| BorderImage, pre
                 return Some(Property(tag, CssParserHelper.parseBorderImage(input, options), pre))
-            }
-            case MaskBoxImageSource => {
+            case MaskBoxImageSource =>
                 return Some(Property(tag, CssParserHelper.parseImage(input, options), pre))
-            }
-            case MaskBoxImageSlice => {
+            case MaskBoxImageSlice =>
                 return Some(Property(tag, CssParserHelper.parseBorderImageSlice(input, options), pre))
-            }
-            case MaskBoxImageWidth => {
+            case MaskBoxImageWidth =>
                 return Some(Property(tag, CssParserHelper.parseRectBorderImageSideWidth(input, options), pre))
-            }
-            case MaskBoxImageOutset => {
+            case MaskBoxImageOutset =>
                 return Some(Property(tag, CssParserHelper.parseRectLengthOrNumber(input, options), pre))
-            }
-            case MaskBoxImageRepeat => {
+            case MaskBoxImageRepeat =>
                 return Some(Property(tag, CssParserHelper.parseBorderImageRepeat(input, options), pre))
-            }
             // UI
-            case ColorScheme => {
+            case ColorScheme => ()
                 // 严格翻译自: .@"color-scheme" => ColorScheme
                 return Some(Property(tag, CssParserHelper.parseColorScheme(input, options), VendorPrefix()))
-            }
             // 特殊
-            case All => {
+            case All => ()
                 // 严格翻译自: .all => CSSWideKeyword
                 return Some(Property(tag, CssParserHelper.parseCSSWideKeyword(input, options), VendorPrefix()))
-            }
-            case Unparsed | Custom => {
+            case Unparsed | Custom => ()
                 // 严格翻译自: 在 else 分支中 fallback 到 unparsed
                 return Some(Property(tag, CssParserHelper.parseUnparsed(propertyId, input, options), propertyId.vendorPrefix))
-            }
+            case _ => return None
         }
     }
 }
@@ -2637,9 +2650,9 @@ public class PropertyToCssInfo {
 
     /// 获取属性的 CSS 名称和 VendorPrefix
     /// 严格翻译自 Property.__toCssHelper 完整 switch
-    public static func getToCssInfo(prop: Property): PropertyToCssInfo {
-        let tag = prop.tag
-        let vendorPrefix = prop.vendorPrefix
+    public static func getToCssInfo(`prop`: Property): PropertyToCssInfo {
+        let tag = `prop`.tag
+        let vendorPrefix = `prop`.vendorPrefix
         if (tag.hasVendorPrefix()) {
             return PropertyToCssInfo(getCssName(tag), vendorPrefix)
         }
@@ -2876,6 +2889,18 @@ public class PropertyToCssInfo {
             case TransitionDelay => "transition-delay"
             case TransitionTimingFunction => "transition-timing-function"
             case Transition => "transition"
+            case Animation => "animation"
+            case AnimationName => "animation-name"
+            case AnimationDuration => "animation-duration"
+            case AnimationTimingFunction => "animation-timing-function"
+            case AnimationDelay => "animation-delay"
+            case AnimationIterationCount => "animation-iteration-count"
+            case AnimationDirection => "animation-direction"
+            case AnimationFillMode => "animation-fill-mode"
+            case AnimationPlayState => "animation-play-state"
+            case AnimationComposition => "animation-composition"
+            case AnimationTimeline => "animation-timeline"
+            case AnimationAttachmentRange => "animation-attachment-range"
             // === Transform ===
             case Transform => "transform"
             case TransformOrigin => "transform-origin"
@@ -2926,6 +2951,7 @@ public class PropertyToCssInfo {
             case All => "all"
             case Unparsed => "unparsed"
             case Custom => "custom"
+            case _ => "unknown"
         }
     }
 }
@@ -2942,9 +2968,9 @@ public class PropertyValueToCss {
 
     /// 将属性值转为 CSS 字符串
     /// 严格翻译自 Property.valueToCss 的完整 switch
-    public static func toCss(prop: Property, dest: CssPrinter): Unit {
-        let tag = prop.tag
-        let value = prop.value
+    public static func toCss(`prop`: Property, dest: CssPrinter): Unit {
+        let tag = `prop`.tag
+        let `value` = `prop`.value
         // 在实际实现中根据 tag 调用具体类型的 toCss
         // 这里提供完整框架，每个 case 严格对应 Zig 中的分支
         match (tag) {
@@ -2952,9 +2978,8 @@ public class PropertyValueToCss {
             case BackgroundColor | BackgroundImage | BackgroundPositionX
                | BackgroundPositionY | BackgroundPosition | BackgroundSize
                | BackgroundRepeat | BackgroundAttachment | BackgroundOrigin
-               | Background => {
-                dest.writeStr(PropertyValueSerializer.serialize(value))
-            }
+               | Background =>
+                dest.writeStr(PropertyValueSerializer.serialize(`value`))
             // 带前缀的背景属性 - 只序列化 value[0] (跳过 prefix)
             case BackgroundClip | BoxShadow | BoxSizing | TextOverflow
                | BorderTopLeftRadius | BorderTopRightRadius
@@ -2981,10 +3006,9 @@ public class PropertyValueToCss {
                | MaskOrigin | MaskSize | Mask
                | MaskSourceType | MaskBoxImage | MaskBoxImageSource
                | MaskBoxImageSlice | MaskBoxImageWidth | MaskBoxImageOutset
-               | MaskBoxImageRepeat => {
+               | MaskBoxImageRepeat => ()
                 // 严格翻译自: value[0].toCss(dest) - 只序列化值部分
-                dest.writeStr(PropertyValueSerializer.serializeTuple0(value))
-            }
+                dest.writeStr(PropertyValueSerializer.serializeTuple0(`value`))
             // 无前缀属性 - 直接序列化值
             case Opacity | Color | Display | Visibility
                | Width | Height | MinWidth | MinHeight | MaxWidth | MaxHeight
@@ -3032,28 +3056,33 @@ public class PropertyValueToCss {
                | ScrollPaddingBlock | ScrollPaddingInline | ScrollPadding
                | FontWeight | FontSize | FontStretch | FontFamily
                | FontStyle | FontVariantCaps | LineHeight | Font
+               | TransitionProperty | TransitionDuration | TransitionDelay
+               | TransitionTimingFunction | Transition
+               | Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange
                | TransformBox | Translate | Rotate | Scale | TextShadow
                | Direction | Composes | MaskMode | MaskPositionX | MaskPositionY
                | MaskComposite | MaskType | MaskBorderSource | MaskBorderMode
                | MaskBorderSlice | MaskBorderWidth | MaskBorderOutset
                | MaskBorderRepeat | MaskBorder | WebKitMaskComposite
-               | ColorScheme => {
+               | ColorScheme => ()
                 // 严格翻译自: value.toCss(dest) - 直接序列化值
-                dest.writeStr(PropertyValueSerializer.serialize(value))
-            }
+                dest.writeStr(PropertyValueSerializer.serialize(`value`))
             // 特殊
-            case All => {
+            case All => ()
                 // 严格翻译自: .all => keyword.toCss(dest)
-                dest.writeStr(PropertyValueSerializer.serialize(value))
-            }
-            case Unparsed => {
+                dest.writeStr(PropertyValueSerializer.serialize(`value`))
+            case Unparsed => ()
                 // 严格翻译自: .unparsed => unparsed.value.toCss(dest, false)
-                dest.writeStr(PropertyValueSerializer.serializeUnparsed(value, false))
-            }
-            case Custom => {
+                dest.writeStr(PropertyValueSerializer.serializeUnparsed(`value`, false))
+            case Custom => ()
                 // 严格翻译自: .custom => c.value.toCss(dest, c.name == .custom)
-                dest.writeStr(PropertyValueSerializer.serializeCustom(value, true))
-            }
+                dest.writeStr(PropertyValueSerializer.serializeCustom(`value`, true))
+            case _ => ()
         }
     }
 }
@@ -3070,7 +3099,7 @@ public class PropertyValueSerializer {
 
     /// 序列化简单值 (不带前缀的属性)
     /// 在实际实现中, 会根据具体类型调用其 toCss 方法
-    public static func serialize(value: Any): String {
+    public static func serialize(`value`: Any): String {
         return ""
     }
 
@@ -3082,13 +3111,13 @@ public class PropertyValueSerializer {
 
     /// 序列化 unparsed 值
     /// 严格翻译自: unparsed.value.toCss(dest, false)
-    public static func serializeUnparsed(value: Any, isCustom: Bool): String {
+    public static func serializeUnparsed(`value`: Any, isCustom: Bool): String {
         return ""
     }
 
     /// 序列化 custom 属性值
     /// 严格翻译自: c.value.toCss(dest, c.name == .custom)
-    public static func serializeCustom(value: Any, isCustom: Bool): String {
+    public static func serializeCustom(`value`: Any, isCustom: Bool): String {
         return ""
     }
 
@@ -3325,6 +3354,18 @@ public class PropertyValueSerializer {
             case TransitionDelay => "tuple:SmallListTime"
             case TransitionTimingFunction => "tuple:SmallListEasingFunction"
             case Transition => "tuple:SmallListTransition"
+            case Animation => "tuple:Animation"
+            case AnimationName => "tuple:AnimationName"
+            case AnimationDuration => "tuple:AnimationDuration"
+            case AnimationTimingFunction => "tuple:AnimationTimingFunction"
+            case AnimationDelay => "tuple:AnimationDelay"
+            case AnimationIterationCount => "tuple:AnimationIterationCount"
+            case AnimationDirection => "tuple:AnimationDirection"
+            case AnimationFillMode => "tuple:AnimationFillMode"
+            case AnimationPlayState => "tuple:AnimationPlayState"
+            case AnimationComposition => "tuple:AnimationComposition"
+            case AnimationTimeline => "tuple:AnimationTimeline"
+            case AnimationAttachmentRange => "tuple:AnimationAttachmentRange"
             case Transform => "tuple:TransformList"
             case TransformOrigin => "tuple:Position"
             case TransformStyle => "tuple:TransformStyle"
@@ -3351,6 +3392,7 @@ public class PropertyValueSerializer {
             case All => "special:CSSWideKeyword"
             case Unparsed => "special:UnparsedProperty"
             case Custom => "special:CustomProperty"
+            case _ => "unknown"
         }
     }
 }
@@ -3373,272 +3415,222 @@ public class PropertyLonghand {
     ///   - 带 |*v| 的属性: 调用 v.longhand(property_id)
     ///   - 带前缀检查的属性: 先检查 v[1] == property_id.prefix(), 再调用 v[0].longhand()
     ///   - else => {} 返回 null
-    public static func getLonghand(prop: Property, propertyId: PropertyId): ?Property {
-        match (prop.tag) {
+    public static func getLonghand(`prop`: Property, propertyId: PropertyId): ?Property {
+        match (`prop`.tag) {
             // === background-position: 展开 longhand ===
             // 严格翻译自: .@"background-position" => |*v| return v.longhand(property_id)
-            case BackgroundPosition => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BackgroundPosition =>
+                return _callLonghand(`prop`.value, propertyId)
             // === overflow: 展开为 overflow-x, overflow-y ===
             // 严格翻译自: .overflow => |*v| return v.longhand(property_id)
-            case Overflow => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Overflow =>
+                return _callLonghand(`prop`.value, propertyId)
             // === inset logical: 展开为 start/end ===
             // 严格翻译自: .@"inset-block" => |*v| return v.longhand(property_id)
-            case InsetBlock => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case InsetBlock =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"inset-inline" => |*v| return v.longhand(property_id)
-            case InsetInline => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case InsetInline =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .inset => |*v| return v.longhand(property_id)
-            case Inset => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Inset =>
+                return _callLonghand(`prop`.value, propertyId)
             // === border-radius: 带前缀检查 ===
             // 严格翻译自:
             //   .@"border-radius" => |*v| {
             //       if (!(v[1] == property_id.prefix())) return null;
             //       return v[0].longhand(property_id);
             //   }
-            case BorderRadius => {
-                if (!_prefixMatches(prop.vendorPrefix, propertyId)) {
+            case BorderRadius =>
+                if (!_prefixMatches(`prop`.vendorPrefix, propertyId)) {
                     return None
                 }
-                return _callLonghandTuple(prop.value, propertyId)
-            }
+                return _callLonghandTuple(`prop`.value, propertyId)
             // === border-image: 带前缀检查 ===
             // 严格翻译自:
             //   .@"border-image" => |*v| {
             //       if (!(v[1] == property_id.prefix())) return null;
             //       return v[0].longhand(property_id);
             //   }
-            case BorderImage => {
-                if (!_prefixMatches(prop.vendorPrefix, propertyId)) {
+            case BorderImage =>
+                if (!_prefixMatches(`prop`.vendorPrefix, propertyId)) {
                     return None
                 }
-                return _callLonghandTuple(prop.value, propertyId)
-            }
+                return _callLonghandTuple(`prop`.value, propertyId)
             // === border-color: 展开 longhand ===
             // 严格翻译自: .@"border-color" => |*v| return v.longhand(property_id)
-            case BorderColor => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderColor =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-style" => |*v| return v.longhand(property_id)
-            case BorderStyle => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderStyle =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-width" => |*v| return v.longhand(property_id)
-            case BorderWidth => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderWidth =>
+                return _callLonghand(`prop`.value, propertyId)
             // === border-block-color/style/width ===
             // 严格翻译自: .@"border-block-color" => |*v| return v.longhand(property_id)
-            case BorderBlockColor => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderBlockColor =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-block-style" => |*v| return v.longhand(property_id)
-            case BorderBlockStyle => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderBlockStyle =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-block-width" => |*v| return v.longhand(property_id)
-            case BorderBlockWidth => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderBlockWidth =>
+                return _callLonghand(`prop`.value, propertyId)
             // === border-inline-color/style/width ===
             // 严格翻译自: .@"border-inline-color" => |*v| return v.longhand(property_id)
-            case BorderInlineColor => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderInlineColor =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-inline-style" => |*v| return v.longhand(property_id)
-            case BorderInlineStyle => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderInlineStyle =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-inline-width" => |*v| return v.longhand(property_id)
-            case BorderInlineWidth => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderInlineWidth =>
+                return _callLonghand(`prop`.value, propertyId)
             // === border shorthand ===
             // 严格翻译自: .border => |*v| return v.longhand(property_id)
-            case Border => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Border =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-top" => |*v| return v.longhand(property_id)
-            case BorderTop => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderTop =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-bottom" => |*v| return v.longhand(property_id)
-            case BorderBottom => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderBottom =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-left" => |*v| return v.longhand(property_id)
-            case BorderLeft => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderLeft =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-right" => |*v| return v.longhand(property_id)
-            case BorderRight => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderRight =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-block" => |*v| return v.longhand(property_id)
-            case BorderBlock => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderBlock =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-block-start" => |*v| return v.longhand(property_id)
-            case BorderBlockStart => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderBlockStart =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-block-end" => |*v| return v.longhand(property_id)
-            case BorderBlockEnd => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderBlockEnd =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-inline" => |*v| return v.longhand(property_id)
-            case BorderInline => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderInline =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-inline-start" => |*v| return v.longhand(property_id)
-            case BorderInlineStart => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderInlineStart =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"border-inline-end" => |*v| return v.longhand(property_id)
-            case BorderInlineEnd => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case BorderInlineEnd =>
+                return _callLonghand(`prop`.value, propertyId)
             // === outline ===
             // 严格翻译自: .outline => |*v| return v.longhand(property_id)
-            case Outline => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Outline =>
+                return _callLonghand(`prop`.value, propertyId)
             // === flex-flow: 带前缀检查 ===
             // 严格翻译自:
             //   .@"flex-flow" => |*v| {
             //       if (!(v[1] == property_id.prefix())) return null;
             //       return v[0].longhand(property_id);
             //   }
-            case FlexFlow => {
-                if (!_prefixMatches(prop.vendorPrefix, propertyId)) {
+            case FlexFlow =>
+                if (!_prefixMatches(`prop`.vendorPrefix, propertyId)) {
                     return None
                 }
-                return _callLonghandTuple(prop.value, propertyId)
-            }
+                return _callLonghandTuple(`prop`.value, propertyId)
             // === flex: 带前缀检查 ===
             // 严格翻译自:
             //   .flex => |*v| {
             //       if (!(v[1] == property_id.prefix())) return null;
             //       return v[0].longhand(property_id);
             //   }
-            case Flex => {
-                if (!_prefixMatches(prop.vendorPrefix, propertyId)) {
+            case Flex =>
+                if (!_prefixMatches(`prop`.vendorPrefix, propertyId)) {
                     return None
                 }
-                return _callLonghandTuple(prop.value, propertyId)
-            }
+                return _callLonghandTuple(`prop`.value, propertyId)
             // === place-* ===
             // 严格翻译自: .@"place-content" => |*v| return v.longhand(property_id)
-            case PlaceContent => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case PlaceContent =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"place-self" => |*v| return v.longhand(property_id)
-            case PlaceSelf => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case PlaceSelf =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"place-items" => |*v| return v.longhand(property_id)
-            case PlaceItems => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case PlaceItems =>
+                return _callLonghand(`prop`.value, propertyId)
             // === gap ===
             // 严格翻译自: .gap => |*v| return v.longhand(property_id)
-            case Gap => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Gap =>
+                return _callLonghand(`prop`.value, propertyId)
             // === margin logical ===
             // 严格翻译自: .@"margin-block" => |*v| return v.longhand(property_id)
-            case MarginBlock => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case MarginBlock =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"margin-inline" => |*v| return v.longhand(property_id)
-            case MarginInline => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case MarginInline =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .margin => |*v| return v.longhand(property_id)
-            case Margin => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Margin =>
+                return _callLonghand(`prop`.value, propertyId)
             // === padding logical ===
             // 严格翻译自: .@"padding-block" => |*v| return v.longhand(property_id)
-            case PaddingBlock => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case PaddingBlock =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"padding-inline" => |*v| return v.longhand(property_id)
-            case PaddingInline => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case PaddingInline =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .padding => |*v| return v.longhand(property_id)
-            case Padding => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Padding =>
+                return _callLonghand(`prop`.value, propertyId)
             // === scroll margin ===
             // 严格翻译自: .@"scroll-margin-block" => |*v| return v.longhand(property_id)
-            case ScrollMarginBlock => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case ScrollMarginBlock =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"scroll-margin-inline" => |*v| return v.longhand(property_id)
-            case ScrollMarginInline => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case ScrollMarginInline =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"scroll-margin" => |*v| return v.longhand(property_id)
-            case ScrollMargin => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case ScrollMargin =>
+                return _callLonghand(`prop`.value, propertyId)
             // === scroll padding ===
             // 严格翻译自: .@"scroll-padding-block" => |*v| return v.longhand(property_id)
-            case ScrollPaddingBlock => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case ScrollPaddingBlock =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"scroll-padding-inline" => |*v| return v.longhand(property_id)
-            case ScrollPaddingInline => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case ScrollPaddingInline =>
+                return _callLonghand(`prop`.value, propertyId)
             // 严格翻译自: .@"scroll-padding" => |*v| return v.longhand(property_id)
-            case ScrollPadding => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case ScrollPadding =>
+                return _callLonghand(`prop`.value, propertyId)
             // === font ===
             // 严格翻译自: .font => |*v| return v.longhand(property_id)
-            case Font => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case Font =>
+                return _callLonghand(`prop`.value, propertyId)
             // === transition: 带前缀检查 ===
             // 严格翻译自:
             //   .transition => |*v| {
             //       if (!(v[1] == property_id.prefix())) return null;
             //       return v[0].longhand(property_id);
             //   }
-            case Transition => {
-                if (!_prefixMatches(prop.vendorPrefix, propertyId)) {
+            case Transition =>
+                if (!_prefixMatches(`prop`.vendorPrefix, propertyId)) {
                     return None
                 }
-                return _callLonghandTuple(prop.value, propertyId)
-            }
+                return _callLonghandTuple(`prop`.value, propertyId)
             // === mask: 带前缀检查 ===
             // 严格翻译自:
             //   .mask => |*v| {
             //       if (!(v[1] == property_id.prefix())) return null;
             //       return v[0].longhand(property_id);
             //   }
-            case Mask => {
-                if (!_prefixMatches(prop.vendorPrefix, propertyId)) {
+            case Mask =>
+                if (!_prefixMatches(`prop`.vendorPrefix, propertyId)) {
                     return None
                 }
-                return _callLonghandTuple(prop.value, propertyId)
-            }
+                return _callLonghandTuple(`prop`.value, propertyId)
             // === mask-border ===
             // 严格翻译自: .@"mask-border" => |*v| return v.longhand(property_id)
-            case MaskBorder => {
-                return _callLonghand(prop.value, propertyId)
-            }
+            case MaskBorder =>
+                return _callLonghand(`prop`.value, propertyId)
             // === 非 shorthand 属性: 返回 null ===
             // 严格翻译自: else => {} (return null)
             case BackgroundColor | BackgroundImage | BackgroundPositionX
@@ -3694,6 +3686,12 @@ public class PropertyLonghand {
                | FontStyle | FontVariantCaps | LineHeight
                | TransitionProperty | TransitionDuration | TransitionDelay
                | TransitionTimingFunction
+               | Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange
                | Transform | TransformOrigin | TransformStyle | TransformBox
                | BackfaceVisibility | Perspective | PerspectiveOrigin
                | Translate | Rotate | Scale
@@ -3708,21 +3706,21 @@ public class PropertyLonghand {
                | MaskSourceType | MaskBoxImage | MaskBoxImageSource
                | MaskBoxImageSlice | MaskBoxImageWidth | MaskBoxImageOutset | MaskBoxImageRepeat
                | ColorScheme
-               | All | Unparsed | Custom => {
+               | All | Unparsed | Custom => ()
                 // 非 shorthand 属性 - 没有 longhand 展开
                 return None
-            }
+            case _ => None
         }
     }
 
     /// 调用值的 longhand 方法 (简单值)
-    private static func _callLonghand(value: Any, propertyId: PropertyId): ?Property {
+    private static func _callLonghand(`value`: Any, propertyId: PropertyId): ?Property {
         // 在实际实现中, 调用具体类型的 longhand(property_id)
         return None
     }
 
     /// 调用值的 longhand 方法 (tuple 值, 需要提取 value[0])
-    private static func _callLonghandTuple(value: Any, propertyId: PropertyId): ?Property {
+    private static func _callLonghandTuple(`value`: Any, propertyId: PropertyId): ?Property {
         // 在实际实现中, 提取 tuple[0] 并调用其 longhand(property_id)
         return None
     }
@@ -3801,6 +3799,14 @@ public class PropertyIdPrefixHelper {
                | ScrollPaddingBlock | ScrollPaddingInline | ScrollPadding
                | FontWeight | FontSize | FontStretch | FontFamily
                | FontStyle | FontVariantCaps | LineHeight | Font
+               | TransitionProperty | TransitionDuration | TransitionDelay
+               | TransitionTimingFunction | Transition
+               | Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange
                | TransformBox | Translate | Rotate | Scale | TextShadow
                | Direction | Composes
                | MaskMode | MaskPositionX | MaskPositionY
@@ -3809,9 +3815,8 @@ public class PropertyIdPrefixHelper {
                | MaskBorderWidth | MaskBorderOutset | MaskBorderRepeat | MaskBorder
                | WebKitMaskComposite
                | ColorScheme
-               | All | Unparsed | Custom => {
+               | All | Unparsed | Custom =>
                 return VendorPrefix()
-            }
             // === 带前缀属性 (Zig: return 传入的 prefix) ===
             case BackgroundClip | BoxShadow | BoxSizing | TextOverflow
                | BorderTopLeftRadius | BorderTopRightRadius
@@ -3833,9 +3838,9 @@ public class PropertyIdPrefixHelper {
                | MaskOrigin | MaskSize | Mask
                | MaskSourceType | MaskBoxImage | MaskBoxImageSource
                | MaskBoxImageSlice | MaskBoxImageWidth | MaskBoxImageOutset
-               | MaskBoxImageRepeat => {
+               | MaskBoxImageRepeat =>
                 return vendorPrefix
-            }
+            case _ => vendorPrefix
         }
     }
 }
@@ -3883,7 +3888,7 @@ public class PropertyIdFromNameHelper {
     /// 以下列出每个属性的精确允许前缀
     public static func fromNameAndPrefixDetailed(name: String, pre: VendorPrefix): ?PropertyId {
         // 将 name 转小写进行匹配
-        let n = name.toLower()
+        let n = name.toAsciiLower()
         // 逐属性检查
         // === 背景属性 ===
         if (n == "background-color") {
@@ -4137,22 +4142,6 @@ public class PropertyIdFromNameHelper {
 }
 
 // ============================================================================
-// CssBrowserVersion - 浏览器版本
-// 严格翻译自: targets.zig 中的 BrowserVersion
-// ============================================================================
-
-/// 浏览器版本
-public class CssBrowserVersion {
-    public var browser: String
-    public var version: Int64
-
-    public init(browser: String, version: Int64) {
-        this.browser = browser
-        this.version = version
-    }
-}
-
-// ============================================================================
 // Hasher - 哈希工具
 // ============================================================================
 
@@ -4165,15 +4154,15 @@ public class Hasher {
         state = 0
     }
 
-    public func update(value: Any): Unit {
+    public func update(`value`: Any): Unit {
         // 在实际实现中使用真正的哈希算法
     }
 
-    public func update(value: PropertyIdTag): Unit {
+    public func update(`value`: PropertyIdTag): Unit {
         state = state * 31 + 1
     }
 
-    public func update(value: VendorPrefix): Unit {
+    public func update(`value`: VendorPrefix): Unit {
         state = state * 31 + 1
     }
 
@@ -4438,303 +4427,6 @@ public class CustomPropertyName {
 }
 
 // ============================================================================
-// PropertyIdTag 辅助工具
-// ============================================================================
-
-/// PropertyIdTag 辅助: 从 CSS 属性名反查 tag
-public class PropertyIdTagHelper {
-    /// 查找表: CSS 属性名 -> PropertyIdTag
-    private static let nameToTag: HashMap<String, PropertyIdTag> = _buildNameMap()
-
-    /// 构建属性名 -> PropertyIdTag 的查找表
-    /// 严格翻译自 PropertyIdTag enum 的所有枚举值 (properties_generated.zig lines 9592-9844)
-    private static func _buildNameMap(): HashMap<String, PropertyIdTag> {
-        let map = HashMap<String, PropertyIdTag>()
-        // === 背景属性 ===
-        map.put("background-color", PropertyIdTag.BackgroundColor)
-        map.put("background-image", PropertyIdTag.BackgroundImage)
-        map.put("background-position-x", PropertyIdTag.BackgroundPositionX)
-        map.put("background-position-y", PropertyIdTag.BackgroundPositionY)
-        map.put("background-position", PropertyIdTag.BackgroundPosition)
-        map.put("background-size", PropertyIdTag.BackgroundSize)
-        map.put("background-repeat", PropertyIdTag.BackgroundRepeat)
-        map.put("background-attachment", PropertyIdTag.BackgroundAttachment)
-        map.put("background-clip", PropertyIdTag.BackgroundClip)
-        map.put("background-origin", PropertyIdTag.BackgroundOrigin)
-        map.put("background", PropertyIdTag.Background)
-        // === 盒模型基础属性 ===
-        map.put("box-shadow", PropertyIdTag.BoxShadow)
-        map.put("opacity", PropertyIdTag.Opacity)
-        map.put("color", PropertyIdTag.Color)
-        map.put("display", PropertyIdTag.Display)
-        map.put("visibility", PropertyIdTag.Visibility)
-        // === 尺寸属性 ===
-        map.put("width", PropertyIdTag.Width)
-        map.put("height", PropertyIdTag.Height)
-        map.put("min-width", PropertyIdTag.MinWidth)
-        map.put("min-height", PropertyIdTag.MinHeight)
-        map.put("max-width", PropertyIdTag.MaxWidth)
-        map.put("max-height", PropertyIdTag.MaxHeight)
-        map.put("block-size", PropertyIdTag.BlockSize)
-        map.put("inline-size", PropertyIdTag.InlineSize)
-        map.put("min-block-size", PropertyIdTag.MinBlockSize)
-        map.put("min-inline-size", PropertyIdTag.MinInlineSize)
-        map.put("max-block-size", PropertyIdTag.MaxBlockSize)
-        map.put("max-inline-size", PropertyIdTag.MaxInlineSize)
-        map.put("box-sizing", PropertyIdTag.BoxSizing)
-        map.put("aspect-ratio", PropertyIdTag.AspectRatio)
-        // === 溢出属性 ===
-        map.put("overflow", PropertyIdTag.Overflow)
-        map.put("overflow-x", PropertyIdTag.OverflowX)
-        map.put("overflow-y", PropertyIdTag.OverflowY)
-        map.put("text-overflow", PropertyIdTag.TextOverflow)
-        // === 定位属性 ===
-        map.put("position", PropertyIdTag.Position)
-        map.put("top", PropertyIdTag.Top)
-        map.put("bottom", PropertyIdTag.Bottom)
-        map.put("left", PropertyIdTag.Left)
-        map.put("right", PropertyIdTag.Right)
-        map.put("inset-block-start", PropertyIdTag.InsetBlockStart)
-        map.put("inset-block-end", PropertyIdTag.InsetBlockEnd)
-        map.put("inset-inline-start", PropertyIdTag.InsetInlineStart)
-        map.put("inset-inline-end", PropertyIdTag.InsetInlineEnd)
-        map.put("inset-block", PropertyIdTag.InsetBlock)
-        map.put("inset-inline", PropertyIdTag.InsetInline)
-        map.put("inset", PropertyIdTag.Inset)
-        // === 边框间距 ===
-        map.put("border-spacing", PropertyIdTag.BorderSpacing)
-        // === 边框颜色属性 ===
-        map.put("border-top-color", PropertyIdTag.BorderTopColor)
-        map.put("border-bottom-color", PropertyIdTag.BorderBottomColor)
-        map.put("border-left-color", PropertyIdTag.BorderLeftColor)
-        map.put("border-right-color", PropertyIdTag.BorderRightColor)
-        map.put("border-block-start-color", PropertyIdTag.BorderBlockStartColor)
-        map.put("border-block-end-color", PropertyIdTag.BorderBlockEndColor)
-        map.put("border-inline-start-color", PropertyIdTag.BorderInlineStartColor)
-        map.put("border-inline-end-color", PropertyIdTag.BorderInlineEndColor)
-        // === 边框样式属性 ===
-        map.put("border-top-style", PropertyIdTag.BorderTopStyle)
-        map.put("border-bottom-style", PropertyIdTag.BorderBottomStyle)
-        map.put("border-left-style", PropertyIdTag.BorderLeftStyle)
-        map.put("border-right-style", PropertyIdTag.BorderRightStyle)
-        map.put("border-block-start-style", PropertyIdTag.BorderBlockStartStyle)
-        map.put("border-block-end-style", PropertyIdTag.BorderBlockEndStyle)
-        map.put("border-inline-start-style", PropertyIdTag.BorderInlineStartStyle)
-        map.put("border-inline-end-style", PropertyIdTag.BorderInlineEndStyle)
-        // === 边框宽度属性 ===
-        map.put("border-top-width", PropertyIdTag.BorderTopWidth)
-        map.put("border-bottom-width", PropertyIdTag.BorderBottomWidth)
-        map.put("border-left-width", PropertyIdTag.BorderLeftWidth)
-        map.put("border-right-width", PropertyIdTag.BorderRightWidth)
-        map.put("border-block-start-width", PropertyIdTag.BorderBlockStartWidth)
-        map.put("border-block-end-width", PropertyIdTag.BorderBlockEndWidth)
-        map.put("border-inline-start-width", PropertyIdTag.BorderInlineStartWidth)
-        map.put("border-inline-end-width", PropertyIdTag.BorderInlineEndWidth)
-        // === 圆角属性 ===
-        map.put("border-top-left-radius", PropertyIdTag.BorderTopLeftRadius)
-        map.put("border-top-right-radius", PropertyIdTag.BorderTopRightRadius)
-        map.put("border-bottom-left-radius", PropertyIdTag.BorderBottomLeftRadius)
-        map.put("border-bottom-right-radius", PropertyIdTag.BorderBottomRightRadius)
-        map.put("border-start-start-radius", PropertyIdTag.BorderStartStartRadius)
-        map.put("border-start-end-radius", PropertyIdTag.BorderStartEndRadius)
-        map.put("border-end-start-radius", PropertyIdTag.BorderEndStartRadius)
-        map.put("border-end-end-radius", PropertyIdTag.BorderEndEndRadius)
-        map.put("border-radius", PropertyIdTag.BorderRadius)
-        // === border-image 属性 ===
-        map.put("border-image-source", PropertyIdTag.BorderImageSource)
-        map.put("border-image-outset", PropertyIdTag.BorderImageOutset)
-        map.put("border-image-repeat", PropertyIdTag.BorderImageRepeat)
-        map.put("border-image-width", PropertyIdTag.BorderImageWidth)
-        map.put("border-image-slice", PropertyIdTag.BorderImageSlice)
-        map.put("border-image", PropertyIdTag.BorderImage)
-        // === 边框简写/逻辑属性 ===
-        map.put("border-color", PropertyIdTag.BorderColor)
-        map.put("border-style", PropertyIdTag.BorderStyle)
-        map.put("border-width", PropertyIdTag.BorderWidth)
-        map.put("border-block-color", PropertyIdTag.BorderBlockColor)
-        map.put("border-block-style", PropertyIdTag.BorderBlockStyle)
-        map.put("border-block-width", PropertyIdTag.BorderBlockWidth)
-        map.put("border-inline-color", PropertyIdTag.BorderInlineColor)
-        map.put("border-inline-style", PropertyIdTag.BorderInlineStyle)
-        map.put("border-inline-width", PropertyIdTag.BorderInlineWidth)
-        map.put("border", PropertyIdTag.Border)
-        map.put("border-top", PropertyIdTag.BorderTop)
-        map.put("border-bottom", PropertyIdTag.BorderBottom)
-        map.put("border-left", PropertyIdTag.BorderLeft)
-        map.put("border-right", PropertyIdTag.BorderRight)
-        map.put("border-block", PropertyIdTag.BorderBlock)
-        map.put("border-block-start", PropertyIdTag.BorderBlockStart)
-        map.put("border-block-end", PropertyIdTag.BorderBlockEnd)
-        map.put("border-inline", PropertyIdTag.BorderInline)
-        map.put("border-inline-start", PropertyIdTag.BorderInlineStart)
-        map.put("border-inline-end", PropertyIdTag.BorderInlineEnd)
-        // === 轮廓属性 ===
-        map.put("outline", PropertyIdTag.Outline)
-        map.put("outline-color", PropertyIdTag.OutlineColor)
-        map.put("outline-style", PropertyIdTag.OutlineStyle)
-        map.put("outline-width", PropertyIdTag.OutlineWidth)
-        // === Flex 属性 (标准) ===
-        map.put("flex-direction", PropertyIdTag.FlexDirection)
-        map.put("flex-wrap", PropertyIdTag.FlexWrap)
-        map.put("flex-flow", PropertyIdTag.FlexFlow)
-        map.put("flex-grow", PropertyIdTag.FlexGrow)
-        map.put("flex-shrink", PropertyIdTag.FlexShrink)
-        map.put("flex-basis", PropertyIdTag.FlexBasis)
-        map.put("flex", PropertyIdTag.Flex)
-        map.put("order", PropertyIdTag.Order)
-        map.put("align-content", PropertyIdTag.AlignContent)
-        map.put("justify-content", PropertyIdTag.JustifyContent)
-        map.put("place-content", PropertyIdTag.PlaceContent)
-        map.put("align-self", PropertyIdTag.AlignSelf)
-        map.put("justify-self", PropertyIdTag.JustifySelf)
-        map.put("place-self", PropertyIdTag.PlaceSelf)
-        map.put("align-items", PropertyIdTag.AlignItems)
-        map.put("justify-items", PropertyIdTag.JustifyItems)
-        map.put("place-items", PropertyIdTag.PlaceItems)
-        map.put("row-gap", PropertyIdTag.RowGap)
-        map.put("column-gap", PropertyIdTag.ColumnGap)
-        map.put("gap", PropertyIdTag.Gap)
-        // === 旧版 Flex (box-) 属性 ===
-        map.put("box-orient", PropertyIdTag.BoxOrient)
-        map.put("box-direction", PropertyIdTag.BoxDirection)
-        map.put("box-ordinal-group", PropertyIdTag.BoxOrdinalGroup)
-        map.put("box-align", PropertyIdTag.BoxAlign)
-        map.put("box-flex", PropertyIdTag.BoxFlex)
-        map.put("box-flex-group", PropertyIdTag.BoxFlexGroup)
-        map.put("box-pack", PropertyIdTag.BoxPack)
-        map.put("box-lines", PropertyIdTag.BoxLines)
-        // === 旧版 ms-flex 属性 ===
-        map.put("flex-pack", PropertyIdTag.FlexPack)
-        map.put("flex-order", PropertyIdTag.FlexOrder)
-        map.put("flex-align", PropertyIdTag.FlexAlign)
-        map.put("flex-item-align", PropertyIdTag.FlexItemAlign)
-        map.put("flex-line-pack", PropertyIdTag.FlexLinePack)
-        map.put("flex-positive", PropertyIdTag.FlexPositive)
-        map.put("flex-negative", PropertyIdTag.FlexNegative)
-        map.put("flex-preferred-size", PropertyIdTag.FlexPreferredSize)
-        // === Margin 属性 ===
-        map.put("margin-top", PropertyIdTag.MarginTop)
-        map.put("margin-bottom", PropertyIdTag.MarginBottom)
-        map.put("margin-left", PropertyIdTag.MarginLeft)
-        map.put("margin-right", PropertyIdTag.MarginRight)
-        map.put("margin-block-start", PropertyIdTag.MarginBlockStart)
-        map.put("margin-block-end", PropertyIdTag.MarginBlockEnd)
-        map.put("margin-inline-start", PropertyIdTag.MarginInlineStart)
-        map.put("margin-inline-end", PropertyIdTag.MarginInlineEnd)
-        map.put("margin-block", PropertyIdTag.MarginBlock)
-        map.put("margin-inline", PropertyIdTag.MarginInline)
-        map.put("margin", PropertyIdTag.Margin)
-        // === Padding 属性 ===
-        map.put("padding-top", PropertyIdTag.PaddingTop)
-        map.put("padding-bottom", PropertyIdTag.PaddingBottom)
-        map.put("padding-left", PropertyIdTag.PaddingLeft)
-        map.put("padding-right", PropertyIdTag.PaddingRight)
-        map.put("padding-block-start", PropertyIdTag.PaddingBlockStart)
-        map.put("padding-block-end", PropertyIdTag.PaddingBlockEnd)
-        map.put("padding-inline-start", PropertyIdTag.PaddingInlineStart)
-        map.put("padding-inline-end", PropertyIdTag.PaddingInlineEnd)
-        map.put("padding-block", PropertyIdTag.PaddingBlock)
-        map.put("padding-inline", PropertyIdTag.PaddingInline)
-        map.put("padding", PropertyIdTag.Padding)
-        // === Scroll margin 属性 ===
-        map.put("scroll-margin-top", PropertyIdTag.ScrollMarginTop)
-        map.put("scroll-margin-bottom", PropertyIdTag.ScrollMarginBottom)
-        map.put("scroll-margin-left", PropertyIdTag.ScrollMarginLeft)
-        map.put("scroll-margin-right", PropertyIdTag.ScrollMarginRight)
-        map.put("scroll-margin-block-start", PropertyIdTag.ScrollMarginBlockStart)
-        map.put("scroll-margin-block-end", PropertyIdTag.ScrollMarginBlockEnd)
-        map.put("scroll-margin-inline-start", PropertyIdTag.ScrollMarginInlineStart)
-        map.put("scroll-margin-inline-end", PropertyIdTag.ScrollMarginInlineEnd)
-        map.put("scroll-margin-block", PropertyIdTag.ScrollMarginBlock)
-        map.put("scroll-margin-inline", PropertyIdTag.ScrollMarginInline)
-        map.put("scroll-margin", PropertyIdTag.ScrollMargin)
-        // === Scroll padding 属性 ===
-        map.put("scroll-padding-top", PropertyIdTag.ScrollPaddingTop)
-        map.put("scroll-padding-bottom", PropertyIdTag.ScrollPaddingBottom)
-        map.put("scroll-padding-left", PropertyIdTag.ScrollPaddingLeft)
-        map.put("scroll-padding-right", PropertyIdTag.ScrollPaddingRight)
-        map.put("scroll-padding-block-start", PropertyIdTag.ScrollPaddingBlockStart)
-        map.put("scroll-padding-block-end", PropertyIdTag.ScrollPaddingBlockEnd)
-        map.put("scroll-padding-inline-start", PropertyIdTag.ScrollPaddingInlineStart)
-        map.put("scroll-padding-inline-end", PropertyIdTag.ScrollPaddingInlineEnd)
-        map.put("scroll-padding-block", PropertyIdTag.ScrollPaddingBlock)
-        map.put("scroll-padding-inline", PropertyIdTag.ScrollPaddingInline)
-        map.put("scroll-padding", PropertyIdTag.ScrollPadding)
-        // === Font 属性 ===
-        map.put("font-weight", PropertyIdTag.FontWeight)
-        map.put("font-size", PropertyIdTag.FontSize)
-        map.put("font-stretch", PropertyIdTag.FontStretch)
-        map.put("font-family", PropertyIdTag.FontFamily)
-        map.put("font-style", PropertyIdTag.FontStyle)
-        map.put("font-variant-caps", PropertyIdTag.FontVariantCaps)
-        map.put("line-height", PropertyIdTag.LineHeight)
-        map.put("font", PropertyIdTag.Font)
-        // === Transition 属性 ===
-        map.put("transition-property", PropertyIdTag.TransitionProperty)
-        map.put("transition-duration", PropertyIdTag.TransitionDuration)
-        map.put("transition-delay", PropertyIdTag.TransitionDelay)
-        map.put("transition-timing-function", PropertyIdTag.TransitionTimingFunction)
-        map.put("transition", PropertyIdTag.Transition)
-        // === Transform 属性 ===
-        map.put("transform", PropertyIdTag.Transform)
-        map.put("transform-origin", PropertyIdTag.TransformOrigin)
-        map.put("transform-style", PropertyIdTag.TransformStyle)
-        map.put("transform-box", PropertyIdTag.TransformBox)
-        map.put("backface-visibility", PropertyIdTag.BackfaceVisibility)
-        map.put("perspective", PropertyIdTag.Perspective)
-        map.put("perspective-origin", PropertyIdTag.PerspectiveOrigin)
-        map.put("translate", PropertyIdTag.Translate)
-        map.put("rotate", PropertyIdTag.Rotate)
-        map.put("scale", PropertyIdTag.Scale)
-        // === Text 属性 ===
-        map.put("text-decoration-color", PropertyIdTag.TextDecorationColor)
-        map.put("text-emphasis-color", PropertyIdTag.TextEmphasisColor)
-        map.put("text-shadow", PropertyIdTag.TextShadow)
-        map.put("direction", PropertyIdTag.Direction)
-        map.put("composes", PropertyIdTag.Composes)
-        // === Mask 属性 ===
-        map.put("mask-image", PropertyIdTag.MaskImage)
-        map.put("mask-mode", PropertyIdTag.MaskMode)
-        map.put("mask-repeat", PropertyIdTag.MaskRepeat)
-        map.put("mask-position-x", PropertyIdTag.MaskPositionX)
-        map.put("mask-position-y", PropertyIdTag.MaskPositionY)
-        map.put("mask-position", PropertyIdTag.MaskPosition)
-        map.put("mask-clip", PropertyIdTag.MaskClip)
-        map.put("mask-origin", PropertyIdTag.MaskOrigin)
-        map.put("mask-size", PropertyIdTag.MaskSize)
-        map.put("mask-composite", PropertyIdTag.MaskComposite)
-        map.put("mask-type", PropertyIdTag.MaskType)
-        map.put("mask", PropertyIdTag.Mask)
-        map.put("mask-border-source", PropertyIdTag.MaskBorderSource)
-        map.put("mask-border-mode", PropertyIdTag.MaskBorderMode)
-        map.put("mask-border-slice", PropertyIdTag.MaskBorderSlice)
-        map.put("mask-border-width", PropertyIdTag.MaskBorderWidth)
-        map.put("mask-border-outset", PropertyIdTag.MaskBorderOutset)
-        map.put("mask-border-repeat", PropertyIdTag.MaskBorderRepeat)
-        map.put("mask-border", PropertyIdTag.MaskBorder)
-        map.put("-webkit-mask-composite", PropertyIdTag.WebKitMaskComposite)
-        map.put("mask-source-type", PropertyIdTag.MaskSourceType)
-        map.put("mask-box-image", PropertyIdTag.MaskBoxImage)
-        map.put("mask-box-image-source", PropertyIdTag.MaskBoxImageSource)
-        map.put("mask-box-image-slice", PropertyIdTag.MaskBoxImageSlice)
-        map.put("mask-box-image-width", PropertyIdTag.MaskBoxImageWidth)
-        map.put("mask-box-image-outset", PropertyIdTag.MaskBoxImageOutset)
-        map.put("mask-box-image-repeat", PropertyIdTag.MaskBoxImageRepeat)
-        // === 其他 ===
-        map.put("color-scheme", PropertyIdTag.ColorScheme)
-        map.put("all", PropertyIdTag.All)
-        map.put("unparsed", PropertyIdTag.Unparsed)
-        map.put("custom", PropertyIdTag.Custom)
-        return map
-    }
-
-    /// 从 CSS 属性名 (case-insensitive) 查找 PropertyIdTag
-    public static func fromCssName(name: String): ?PropertyIdTag {
-        return nameToTag.get(name)
-    }
-}
-
-// ============================================================================
 // PropertyId 辅助工具
 // ============================================================================
 
@@ -4909,6 +4601,12 @@ public class PropertyIdHelper {
                | FontVariantCaps
                | LineHeight
                | Font
+               | Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange
                | Translate
                | Rotate
                | Scale
@@ -5029,6 +4727,7 @@ public class PropertyIdHelper {
             case Transform
                | TransformOrigin =>
                 VendorPrefixSet.noneWebkitMozMsO()
+            case _ => VendorPrefixSet.onlyNone()
         }
     }
 }
@@ -5129,98 +4828,75 @@ public class PropertyHelper {
                | BorderTopColor | BorderBottomColor | BorderLeftColor | BorderRightColor
                | BorderBlockStartColor | BorderBlockEndColor
                | BorderInlineStartColor | BorderInlineEndColor
-               | OutlineColor => {
+               | OutlineColor =>
                 return _eqlGeneric("CssColor", lhs, rhs)
-            }
             // === SmallList<Image, 1> 类型 ===
-            case BackgroundImage | MaskImage => {
+            case BackgroundImage | MaskImage =>
                 return _eqlGeneric("SmallListImage", lhs, rhs)
-            }
             // === SmallList<HorizontalPosition, 1> 类型 ===
-            case BackgroundPositionX | MaskPositionX => {
+            case BackgroundPositionX | MaskPositionX =>
                 return _eqlGeneric("SmallListHorizontalPosition", lhs, rhs)
-            }
             // === SmallList<VerticalPosition, 1> 类型 ===
-            case BackgroundPositionY | MaskPositionY => {
+            case BackgroundPositionY | MaskPositionY =>
                 return _eqlGeneric("SmallListVerticalPosition", lhs, rhs)
-            }
             // === SmallList<BackgroundPosition, 1> 类型 ===
-            case BackgroundPosition => {
+            case BackgroundPosition =>
                 return _eqlGeneric("SmallListBackgroundPosition", lhs, rhs)
-            }
             // === SmallList<BackgroundSize, 1> 类型 ===
-            case BackgroundSize | MaskSize => {
+            case BackgroundSize | MaskSize =>
                 return _eqlGeneric("SmallListBackgroundSize", lhs, rhs)
-            }
             // === SmallList<BackgroundRepeat, 1> 类型 ===
-            case BackgroundRepeat | MaskRepeat => {
+            case BackgroundRepeat | MaskRepeat =>
                 return _eqlGeneric("SmallListBackgroundRepeat", lhs, rhs)
-            }
             // === SmallList<BackgroundAttachment, 1> 类型 ===
-            case BackgroundAttachment => {
+            case BackgroundAttachment =>
                 return _eqlGeneric("SmallListBackgroundAttachment", lhs, rhs)
-            }
             // === SmallList<BackgroundClip, 1> 类型 (带前缀) ===
-            case BackgroundClip => {
+            case BackgroundClip =>
                 return _eqlGeneric("SmallListBackgroundClip", lhs, rhs)
-            }
             // === SmallList<BackgroundOrigin, 1> 类型 ===
-            case BackgroundOrigin => {
+            case BackgroundOrigin =>
                 return _eqlGeneric("SmallListBackgroundOrigin", lhs, rhs)
-            }
             // === SmallList<Background, 1> 类型 ===
-            case Background => {
+            case Background =>
                 return _eqlGeneric("SmallListBackground", lhs, rhs)
-            }
             // === SmallList<BoxShadow, 1> 类型 (带前缀) ===
-            case BoxShadow => {
+            case BoxShadow =>
                 return _eqlGeneric("SmallListBoxShadow", lhs, rhs)
-            }
             // === AlphaValue 类型 ===
-            case Opacity => {
+            case Opacity =>
                 return _eqlGeneric("AlphaValue", lhs, rhs)
-            }
             // === Display 类型 ===
-            case Display => {
+            case Display =>
                 return _eqlGeneric("Display", lhs, rhs)
-            }
             // === Visibility 类型 ===
-            case Visibility => {
+            case Visibility =>
                 return _eqlGeneric("Visibility", lhs, rhs)
-            }
             // === Size 类型 ===
             case Width | Height | MinWidth | MinHeight
-               | BlockSize | InlineSize | MinBlockSize | MinInlineSize => {
+               | BlockSize | InlineSize | MinBlockSize | MinInlineSize =>
                 return _eqlGeneric("Size", lhs, rhs)
-            }
             // === MaxSize 类型 ===
-            case MaxWidth | MaxHeight | MaxBlockSize | MaxInlineSize => {
+            case MaxWidth | MaxHeight | MaxBlockSize | MaxInlineSize =>
                 return _eqlGeneric("MaxSize", lhs, rhs)
-            }
             // === BoxSizing 类型 (带前缀) ===
-            case BoxSizing => {
+            case BoxSizing =>
                 return _eqlGeneric("BoxSizing", lhs, rhs)
-            }
             // === AspectRatio 类型 ===
-            case AspectRatio => {
+            case AspectRatio =>
                 return _eqlGeneric("AspectRatio", lhs, rhs)
-            }
             // === Overflow 类型 ===
-            case Overflow => {
+            case Overflow =>
                 return _eqlGeneric("Overflow", lhs, rhs)
-            }
             // === OverflowKeyword 类型 ===
-            case OverflowX | OverflowY => {
+            case OverflowX | OverflowY =>
                 return _eqlGeneric("OverflowKeyword", lhs, rhs)
-            }
             // === TextOverflow 类型 (带前缀) ===
-            case TextOverflow => {
+            case TextOverflow =>
                 return _eqlGeneric("TextOverflow", lhs, rhs)
-            }
             // === Position 类型 ===
-            case Position => {
+            case Position =>
                 return _eqlGeneric("Position", lhs, rhs)
-            }
             // === LengthPercentageOrAuto 类型 ===
             case Top | Bottom | Left | Right
                | InsetBlockStart | InsetBlockEnd | InsetInlineStart | InsetInlineEnd
@@ -5233,205 +4909,203 @@ public class PropertyHelper {
                | ScrollMarginInlineStart | ScrollMarginInlineEnd
                | ScrollPaddingTop | ScrollPaddingBottom | ScrollPaddingLeft | ScrollPaddingRight
                | ScrollPaddingBlockStart | ScrollPaddingBlockEnd
-               | ScrollPaddingInlineStart | ScrollPaddingInlineEnd => {
+               | ScrollPaddingInlineStart | ScrollPaddingInlineEnd =>
                 return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs)
-            }
             // === InsetBlock 类型 ===
-            case InsetBlock => {
+            case InsetBlock =>
                 return _eqlGeneric("InsetBlock", lhs, rhs)
-            }
             // === InsetInline 类型 ===
-            case InsetInline => {
+            case InsetInline =>
                 return _eqlGeneric("InsetInline", lhs, rhs)
-            }
             // === Inset 类型 ===
-            case Inset => {
+            case Inset =>
                 return _eqlGeneric("Inset", lhs, rhs)
-            }
             // === Size2D<Length> 类型 ===
-            case BorderSpacing => {
+            case BorderSpacing =>
                 return _eqlGeneric("Size2DLength", lhs, rhs)
-            }
             // === LineStyle 类型 ===
             case BorderTopStyle | BorderBottomStyle | BorderLeftStyle | BorderRightStyle
                | BorderBlockStartStyle | BorderBlockEndStyle
-               | BorderInlineStartStyle | BorderInlineEndStyle => {
+               | BorderInlineStartStyle | BorderInlineEndStyle =>
                 return _eqlGeneric("LineStyle", lhs, rhs)
-            }
             // === BorderSideWidth 类型 ===
             case BorderTopWidth | BorderBottomWidth | BorderLeftWidth | BorderRightWidth
                | BorderBlockStartWidth | BorderBlockEndWidth
                | BorderInlineStartWidth | BorderInlineEndWidth
-               | OutlineWidth => {
+               | OutlineWidth =>
                 return _eqlGeneric("BorderSideWidth", lhs, rhs)
-            }
             // === Size2D<LengthPercentage> 类型 (边框圆角) ===
             case BorderTopLeftRadius | BorderTopRightRadius
                | BorderBottomLeftRadius | BorderBottomRightRadius
                | BorderStartStartRadius | BorderStartEndRadius
-               | BorderEndStartRadius | BorderEndEndRadius => {
+               | BorderEndStartRadius | BorderEndEndRadius =>
                 return _eqlGeneric("Size2DLengthPercentage", lhs, rhs)
-            }
             // === BorderRadius 类型 (带前缀) ===
-            case BorderRadius => {
+            case BorderRadius =>
                 return _eqlGeneric("BorderRadius", lhs, rhs)
-            }
             // === Image 类型 ===
-            case BorderImageSource | MaskBorderSource => {
+            case BorderImageSource | MaskBorderSource =>
                 return _eqlGeneric("Image", lhs, rhs)
-            }
             // === Rect<LengthOrNumber> 类型 ===
-            case BorderImageOutset | MaskBorderOutset => {
+            case BorderImageOutset | MaskBorderOutset =>
                 return _eqlGeneric("RectLengthOrNumber", lhs, rhs)
-            }
             // === BorderImageRepeat 类型 ===
-            case BorderImageRepeat | MaskBorderRepeat => {
+            case BorderImageRepeat | MaskBorderRepeat =>
                 return _eqlGeneric("BorderImageRepeat", lhs, rhs)
-            }
             // === Rect<BorderImageSideWidth> 类型 ===
-            case BorderImageWidth | MaskBorderWidth => {
+            case BorderImageWidth | MaskBorderWidth =>
                 return _eqlGeneric("RectBorderImageSideWidth", lhs, rhs)
-            }
             // === BorderImageSlice 类型 ===
-            case BorderImageSlice | MaskBorderSlice => {
+            case BorderImageSlice | MaskBorderSlice =>
                 return _eqlGeneric("BorderImageSlice", lhs, rhs)
-            }
             // === BorderImage 类型 (带前缀) ===
-            case BorderImage => {
+            case BorderImage =>
                 return _eqlGeneric("BorderImage", lhs, rhs)
-            }
             // === 边框简写复合类型 ===
-            case BorderColor => { return _eqlGeneric("BorderColor", lhs, rhs) }
-            case BorderStyle => { return _eqlGeneric("BorderStyle", lhs, rhs) }
-            case BorderWidth => { return _eqlGeneric("BorderWidth", lhs, rhs) }
-            case BorderBlockColor => { return _eqlGeneric("BorderBlockColor", lhs, rhs) }
-            case BorderBlockStyle => { return _eqlGeneric("BorderBlockStyle", lhs, rhs) }
-            case BorderBlockWidth => { return _eqlGeneric("BorderBlockWidth", lhs, rhs) }
-            case BorderInlineColor => { return _eqlGeneric("BorderInlineColor", lhs, rhs) }
-            case BorderInlineStyle => { return _eqlGeneric("BorderInlineStyle", lhs, rhs) }
-            case BorderInlineWidth => { return _eqlGeneric("BorderInlineWidth", lhs, rhs) }
-            case Border => { return _eqlGeneric("Border", lhs, rhs) }
-            case BorderTop => { return _eqlGeneric("BorderTop", lhs, rhs) }
-            case BorderBottom => { return _eqlGeneric("BorderBottom", lhs, rhs) }
-            case BorderLeft => { return _eqlGeneric("BorderLeft", lhs, rhs) }
-            case BorderRight => { return _eqlGeneric("BorderRight", lhs, rhs) }
-            case BorderBlock => { return _eqlGeneric("BorderBlock", lhs, rhs) }
-            case BorderBlockStart => { return _eqlGeneric("BorderBlockStart", lhs, rhs) }
-            case BorderBlockEnd => { return _eqlGeneric("BorderBlockEnd", lhs, rhs) }
-            case BorderInline => { return _eqlGeneric("BorderInline", lhs, rhs) }
-            case BorderInlineStart => { return _eqlGeneric("BorderInlineStart", lhs, rhs) }
-            case BorderInlineEnd => { return _eqlGeneric("BorderInlineEnd", lhs, rhs) }
+            case BorderColor => return _eqlGeneric("BorderColor", lhs, rhs)
+            case BorderStyle => return _eqlGeneric("BorderStyle", lhs, rhs)
+            case BorderWidth => return _eqlGeneric("BorderWidth", lhs, rhs)
+            case BorderBlockColor => return _eqlGeneric("BorderBlockColor", lhs, rhs)
+            case BorderBlockStyle => return _eqlGeneric("BorderBlockStyle", lhs, rhs)
+            case BorderBlockWidth => return _eqlGeneric("BorderBlockWidth", lhs, rhs)
+            case BorderInlineColor => return _eqlGeneric("BorderInlineColor", lhs, rhs)
+            case BorderInlineStyle => return _eqlGeneric("BorderInlineStyle", lhs, rhs)
+            case BorderInlineWidth => return _eqlGeneric("BorderInlineWidth", lhs, rhs)
+            case Border => return _eqlGeneric("Border", lhs, rhs)
+            case BorderTop => return _eqlGeneric("BorderTop", lhs, rhs)
+            case BorderBottom => return _eqlGeneric("BorderBottom", lhs, rhs)
+            case BorderLeft => return _eqlGeneric("BorderLeft", lhs, rhs)
+            case BorderRight => return _eqlGeneric("BorderRight", lhs, rhs)
+            case BorderBlock => return _eqlGeneric("BorderBlock", lhs, rhs)
+            case BorderBlockStart => return _eqlGeneric("BorderBlockStart", lhs, rhs)
+            case BorderBlockEnd => return _eqlGeneric("BorderBlockEnd", lhs, rhs)
+            case BorderInline => return _eqlGeneric("BorderInline", lhs, rhs)
+            case BorderInlineStart => return _eqlGeneric("BorderInlineStart", lhs, rhs)
+            case BorderInlineEnd => return _eqlGeneric("BorderInlineEnd", lhs, rhs)
             // === Outline 复合类型 ===
-            case Outline => { return _eqlGeneric("Outline", lhs, rhs) }
-            case OutlineStyle => { return _eqlGeneric("OutlineStyle", lhs, rhs) }
+            case Outline => return _eqlGeneric("Outline", lhs, rhs)
+            case OutlineStyle => return _eqlGeneric("OutlineStyle", lhs, rhs)
             // === Flex 相关类型 (带前缀) ===
-            case FlexDirection => { return _eqlGeneric("FlexDirection", lhs, rhs) }
-            case FlexWrap => { return _eqlGeneric("FlexWrap", lhs, rhs) }
-            case FlexFlow => { return _eqlGeneric("FlexFlow", lhs, rhs) }
-            case FlexGrow => { return _eqlGeneric("CSSNumber", lhs, rhs) }
-            case FlexShrink => { return _eqlGeneric("CSSNumber", lhs, rhs) }
-            case FlexBasis => { return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs) }
-            case Flex => { return _eqlGeneric("Flex", lhs, rhs) }
-            case Order => { return _eqlGeneric("CSSInteger", lhs, rhs) }
-            case AlignContent => { return _eqlGeneric("AlignContent", lhs, rhs) }
-            case JustifyContent => { return _eqlGeneric("JustifyContent", lhs, rhs) }
-            case PlaceContent => { return _eqlGeneric("PlaceContent", lhs, rhs) }
-            case AlignSelf => { return _eqlGeneric("AlignSelf", lhs, rhs) }
-            case JustifySelf => { return _eqlGeneric("JustifySelf", lhs, rhs) }
-            case PlaceSelf => { return _eqlGeneric("PlaceSelf", lhs, rhs) }
-            case AlignItems => { return _eqlGeneric("AlignItems", lhs, rhs) }
-            case JustifyItems => { return _eqlGeneric("JustifyItems", lhs, rhs) }
-            case PlaceItems => { return _eqlGeneric("PlaceItems", lhs, rhs) }
+            case FlexDirection => return _eqlGeneric("FlexDirection", lhs, rhs)
+            case FlexWrap => return _eqlGeneric("FlexWrap", lhs, rhs)
+            case FlexFlow => return _eqlGeneric("FlexFlow", lhs, rhs)
+            case FlexGrow => return _eqlGeneric("CSSNumber", lhs, rhs)
+            case FlexShrink => return _eqlGeneric("CSSNumber", lhs, rhs)
+            case FlexBasis => return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs)
+            case Flex => return _eqlGeneric("Flex", lhs, rhs)
+            case Order => return _eqlGeneric("CSSInteger", lhs, rhs)
+            case AlignContent => return _eqlGeneric("AlignContent", lhs, rhs)
+            case JustifyContent => return _eqlGeneric("JustifyContent", lhs, rhs)
+            case PlaceContent => return _eqlGeneric("PlaceContent", lhs, rhs)
+            case AlignSelf => return _eqlGeneric("AlignSelf", lhs, rhs)
+            case JustifySelf => return _eqlGeneric("JustifySelf", lhs, rhs)
+            case PlaceSelf => return _eqlGeneric("PlaceSelf", lhs, rhs)
+            case AlignItems => return _eqlGeneric("AlignItems", lhs, rhs)
+            case JustifyItems => return _eqlGeneric("JustifyItems", lhs, rhs)
+            case PlaceItems => return _eqlGeneric("PlaceItems", lhs, rhs)
             // === Gap 类型 ===
-            case RowGap | ColumnGap => { return _eqlGeneric("GapValue", lhs, rhs) }
-            case Gap => { return _eqlGeneric("Gap", lhs, rhs) }
+            case RowGap | ColumnGap => return _eqlGeneric("GapValue", lhs, rhs)
+            case Gap => return _eqlGeneric("Gap", lhs, rhs)
             // === 旧版 box- 属性 (带前缀) ===
-            case BoxOrient => { return _eqlGeneric("BoxOrient", lhs, rhs) }
-            case BoxDirection => { return _eqlGeneric("BoxDirection", lhs, rhs) }
-            case BoxOrdinalGroup => { return _eqlGeneric("CSSInteger", lhs, rhs) }
-            case BoxAlign => { return _eqlGeneric("BoxAlign", lhs, rhs) }
-            case BoxFlex => { return _eqlGeneric("CSSNumber", lhs, rhs) }
-            case BoxFlexGroup => { return _eqlGeneric("CSSInteger", lhs, rhs) }
-            case BoxPack => { return _eqlGeneric("BoxPack", lhs, rhs) }
-            case BoxLines => { return _eqlGeneric("BoxLines", lhs, rhs) }
+            case BoxOrient => return _eqlGeneric("BoxOrient", lhs, rhs)
+            case BoxDirection => return _eqlGeneric("BoxDirection", lhs, rhs)
+            case BoxOrdinalGroup => return _eqlGeneric("CSSInteger", lhs, rhs)
+            case BoxAlign => return _eqlGeneric("BoxAlign", lhs, rhs)
+            case BoxFlex => return _eqlGeneric("CSSNumber", lhs, rhs)
+            case BoxFlexGroup => return _eqlGeneric("CSSInteger", lhs, rhs)
+            case BoxPack => return _eqlGeneric("BoxPack", lhs, rhs)
+            case BoxLines => return _eqlGeneric("BoxLines", lhs, rhs)
             // === 旧版 ms-flex 属性 (带前缀) ===
-            case FlexPack => { return _eqlGeneric("FlexPack", lhs, rhs) }
-            case FlexOrder => { return _eqlGeneric("CSSInteger", lhs, rhs) }
-            case FlexAlign => { return _eqlGeneric("BoxAlign", lhs, rhs) }
-            case FlexItemAlign => { return _eqlGeneric("FlexItemAlign", lhs, rhs) }
-            case FlexLinePack => { return _eqlGeneric("FlexLinePack", lhs, rhs) }
-            case FlexPositive => { return _eqlGeneric("CSSNumber", lhs, rhs) }
-            case FlexNegative => { return _eqlGeneric("CSSNumber", lhs, rhs) }
-            case FlexPreferredSize => { return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs) }
+            case FlexPack => return _eqlGeneric("FlexPack", lhs, rhs)
+            case FlexOrder => return _eqlGeneric("CSSInteger", lhs, rhs)
+            case FlexAlign => return _eqlGeneric("BoxAlign", lhs, rhs)
+            case FlexItemAlign => return _eqlGeneric("FlexItemAlign", lhs, rhs)
+            case FlexLinePack => return _eqlGeneric("FlexLinePack", lhs, rhs)
+            case FlexPositive => return _eqlGeneric("CSSNumber", lhs, rhs)
+            case FlexNegative => return _eqlGeneric("CSSNumber", lhs, rhs)
+            case FlexPreferredSize => return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs)
             // === Margin/Padding 逻辑复合类型 ===
-            case MarginBlock => { return _eqlGeneric("MarginBlock", lhs, rhs) }
-            case MarginInline => { return _eqlGeneric("MarginInline", lhs, rhs) }
-            case Margin => { return _eqlGeneric("Margin", lhs, rhs) }
-            case PaddingBlock => { return _eqlGeneric("PaddingBlock", lhs, rhs) }
-            case PaddingInline => { return _eqlGeneric("PaddingInline", lhs, rhs) }
-            case Padding => { return _eqlGeneric("Padding", lhs, rhs) }
+            case MarginBlock => return _eqlGeneric("MarginBlock", lhs, rhs)
+            case MarginInline => return _eqlGeneric("MarginInline", lhs, rhs)
+            case Margin => return _eqlGeneric("Margin", lhs, rhs)
+            case PaddingBlock => return _eqlGeneric("PaddingBlock", lhs, rhs)
+            case PaddingInline => return _eqlGeneric("PaddingInline", lhs, rhs)
+            case Padding => return _eqlGeneric("Padding", lhs, rhs)
             // === Scroll margin/padding 逻辑复合类型 ===
-            case ScrollMarginBlock => { return _eqlGeneric("ScrollMarginBlock", lhs, rhs) }
-            case ScrollMarginInline => { return _eqlGeneric("ScrollMarginInline", lhs, rhs) }
-            case ScrollMargin => { return _eqlGeneric("ScrollMargin", lhs, rhs) }
-            case ScrollPaddingBlock => { return _eqlGeneric("ScrollPaddingBlock", lhs, rhs) }
-            case ScrollPaddingInline => { return _eqlGeneric("ScrollPaddingInline", lhs, rhs) }
-            case ScrollPadding => { return _eqlGeneric("ScrollPadding", lhs, rhs) }
+            case ScrollMarginBlock => return _eqlGeneric("ScrollMarginBlock", lhs, rhs)
+            case ScrollMarginInline => return _eqlGeneric("ScrollMarginInline", lhs, rhs)
+            case ScrollMargin => return _eqlGeneric("ScrollMargin", lhs, rhs)
+            case ScrollPaddingBlock => return _eqlGeneric("ScrollPaddingBlock", lhs, rhs)
+            case ScrollPaddingInline => return _eqlGeneric("ScrollPaddingInline", lhs, rhs)
+            case ScrollPadding => return _eqlGeneric("ScrollPadding", lhs, rhs)
             // === Font 属性 ===
-            case FontWeight => { return _eqlGeneric("FontWeight", lhs, rhs) }
-            case FontSize => { return _eqlGeneric("FontSize", lhs, rhs) }
-            case FontStretch => { return _eqlGeneric("FontStretch", lhs, rhs) }
-            case FontFamily => { return _eqlGeneric("BabyListFontFamily", lhs, rhs) }
-            case FontStyle => { return _eqlGeneric("FontStyle", lhs, rhs) }
-            case FontVariantCaps => { return _eqlGeneric("FontVariantCaps", lhs, rhs) }
-            case LineHeight => { return _eqlGeneric("LineHeight", lhs, rhs) }
-            case Font => { return _eqlGeneric("Font", lhs, rhs) }
+            case FontWeight => return _eqlGeneric("FontWeight", lhs, rhs)
+            case FontSize => return _eqlGeneric("FontSize", lhs, rhs)
+            case FontStretch => return _eqlGeneric("FontStretch", lhs, rhs)
+            case FontFamily => return _eqlGeneric("BabyListFontFamily", lhs, rhs)
+            case FontStyle => return _eqlGeneric("FontStyle", lhs, rhs)
+            case FontVariantCaps => return _eqlGeneric("FontVariantCaps", lhs, rhs)
+            case LineHeight => return _eqlGeneric("LineHeight", lhs, rhs)
+            case Font => return _eqlGeneric("Font", lhs, rhs)
             // === Transition 属性 (带前缀) ===
-            case TransitionProperty => { return _eqlGeneric("SmallListPropertyId", lhs, rhs) }
-            case TransitionDuration => { return _eqlGeneric("SmallListTime", lhs, rhs) }
-            case TransitionDelay => { return _eqlGeneric("SmallListTime", lhs, rhs) }
-            case TransitionTimingFunction => { return _eqlGeneric("SmallListEasingFunction", lhs, rhs) }
-            case Transition => { return _eqlGeneric("SmallListTransition", lhs, rhs) }
+            case TransitionProperty => return _eqlGeneric("SmallListPropertyId", lhs, rhs)
+            case TransitionDuration => return _eqlGeneric("SmallListTime", lhs, rhs)
+            case TransitionDelay => return _eqlGeneric("SmallListTime", lhs, rhs)
+            case TransitionTimingFunction => return _eqlGeneric("SmallListEasingFunction", lhs, rhs)
+            case Transition => return _eqlGeneric("SmallListTransition", lhs, rhs)
+            case Animation => return _eqlGeneric("Animation", lhs, rhs)
+            case AnimationName => return _eqlGeneric("AnimationName", lhs, rhs)
+            case AnimationDuration => return _eqlGeneric("AnimationDuration", lhs, rhs)
+            case AnimationTimingFunction => return _eqlGeneric("AnimationTimingFunction", lhs, rhs)
+            case AnimationDelay => return _eqlGeneric("AnimationDelay", lhs, rhs)
+            case AnimationIterationCount => return _eqlGeneric("AnimationIterationCount", lhs, rhs)
+            case AnimationDirection => return _eqlGeneric("AnimationDirection", lhs, rhs)
+            case AnimationFillMode => return _eqlGeneric("AnimationFillMode", lhs, rhs)
+            case AnimationPlayState => return _eqlGeneric("AnimationPlayState", lhs, rhs)
+            case AnimationComposition => return _eqlGeneric("AnimationComposition", lhs, rhs)
+            case AnimationTimeline => return _eqlGeneric("AnimationTimeline", lhs, rhs)
+            case AnimationAttachmentRange => return _eqlGeneric("AnimationAttachmentRange", lhs, rhs)
             // === Transform 属性 (带前缀) ===
-            case Transform => { return _eqlGeneric("TransformList", lhs, rhs) }
-            case TransformOrigin => { return _eqlGeneric("Position", lhs, rhs) }
-            case TransformStyle => { return _eqlGeneric("TransformStyle", lhs, rhs) }
-            case TransformBox => { return _eqlGeneric("TransformBox", lhs, rhs) }
-            case BackfaceVisibility => { return _eqlGeneric("BackfaceVisibility", lhs, rhs) }
-            case Perspective => { return _eqlGeneric("Perspective", lhs, rhs) }
-            case PerspectiveOrigin => { return _eqlGeneric("Position", lhs, rhs) }
-            case Translate => { return _eqlGeneric("Translate", lhs, rhs) }
-            case Rotate => { return _eqlGeneric("Rotate", lhs, rhs) }
-            case Scale => { return _eqlGeneric("Scale", lhs, rhs) }
+            case Transform => return _eqlGeneric("TransformList", lhs, rhs)
+            case TransformOrigin => return _eqlGeneric("Position", lhs, rhs)
+            case TransformStyle => return _eqlGeneric("TransformStyle", lhs, rhs)
+            case TransformBox => return _eqlGeneric("TransformBox", lhs, rhs)
+            case BackfaceVisibility => return _eqlGeneric("BackfaceVisibility", lhs, rhs)
+            case Perspective => return _eqlGeneric("Perspective", lhs, rhs)
+            case PerspectiveOrigin => return _eqlGeneric("Position", lhs, rhs)
+            case Translate => return _eqlGeneric("Translate", lhs, rhs)
+            case Rotate => return _eqlGeneric("Rotate", lhs, rhs)
+            case Scale => return _eqlGeneric("Scale", lhs, rhs)
             // === Text 属性 (部分带前缀) ===
-            case TextDecorationColor => { return _eqlGeneric("CssColor", lhs, rhs) }
-            case TextEmphasisColor => { return _eqlGeneric("CssColor", lhs, rhs) }
-            case TextShadow => { return _eqlGeneric("SmallListTextShadow", lhs, rhs) }
-            case Direction => { return _eqlGeneric("Direction", lhs, rhs) }
-            case Composes => { return _eqlGeneric("Composes", lhs, rhs) }
+            case TextDecorationColor => return _eqlGeneric("CssColor", lhs, rhs)
+            case TextEmphasisColor => return _eqlGeneric("CssColor", lhs, rhs)
+            case TextShadow => return _eqlGeneric("SmallListTextShadow", lhs, rhs)
+            case Direction => return _eqlGeneric("Direction", lhs, rhs)
+            case Composes => return _eqlGeneric("Composes", lhs, rhs)
             // === Mask 属性 ===
-            case MaskMode => { return _eqlGeneric("SmallListMaskMode", lhs, rhs) }
-            case MaskPosition => { return _eqlGeneric("SmallListPosition", lhs, rhs) }
-            case MaskClip => { return _eqlGeneric("SmallListMaskClip", lhs, rhs) }
-            case MaskOrigin => { return _eqlGeneric("SmallListGeometryBox", lhs, rhs) }
-            case MaskComposite => { return _eqlGeneric("SmallListMaskComposite", lhs, rhs) }
-            case MaskType => { return _eqlGeneric("MaskType", lhs, rhs) }
-            case Mask => { return _eqlGeneric("SmallListMask", lhs, rhs) }
-            case MaskBorderMode => { return _eqlGeneric("MaskBorderMode", lhs, rhs) }
-            case MaskBorder => { return _eqlGeneric("MaskBorder", lhs, rhs) }
-            case WebKitMaskComposite => { return _eqlGeneric("SmallListWebKitMaskComposite", lhs, rhs) }
-            case MaskSourceType => { return _eqlGeneric("SmallListWebKitMaskSourceType", lhs, rhs) }
-            case MaskBoxImage => { return _eqlGeneric("BorderImage", lhs, rhs) }
-            case MaskBoxImageSource => { return _eqlGeneric("Image", lhs, rhs) }
-            case MaskBoxImageSlice => { return _eqlGeneric("BorderImageSlice", lhs, rhs) }
-            case MaskBoxImageWidth => { return _eqlGeneric("RectBorderImageSideWidth", lhs, rhs) }
-            case MaskBoxImageOutset => { return _eqlGeneric("RectLengthOrNumber", lhs, rhs) }
-            case MaskBoxImageRepeat => { return _eqlGeneric("BorderImageRepeat", lhs, rhs) }
+            case MaskMode => return _eqlGeneric("SmallListMaskMode", lhs, rhs)
+            case MaskPosition => return _eqlGeneric("SmallListPosition", lhs, rhs)
+            case MaskClip => return _eqlGeneric("SmallListMaskClip", lhs, rhs)
+            case MaskOrigin => return _eqlGeneric("SmallListGeometryBox", lhs, rhs)
+            case MaskComposite => return _eqlGeneric("SmallListMaskComposite", lhs, rhs)
+            case MaskType => return _eqlGeneric("MaskType", lhs, rhs)
+            case Mask => return _eqlGeneric("SmallListMask", lhs, rhs)
+            case MaskBorderMode => return _eqlGeneric("MaskBorderMode", lhs, rhs)
+            case MaskBorder => return _eqlGeneric("MaskBorder", lhs, rhs)
+            case WebKitMaskComposite => return _eqlGeneric("SmallListWebKitMaskComposite", lhs, rhs)
+            case MaskSourceType => return _eqlGeneric("SmallListWebKitMaskSourceType", lhs, rhs)
+            case MaskBoxImage => return _eqlGeneric("BorderImage", lhs, rhs)
+            case MaskBoxImageSource => return _eqlGeneric("Image", lhs, rhs)
+            case MaskBoxImageSlice => return _eqlGeneric("BorderImageSlice", lhs, rhs)
+            case MaskBoxImageWidth => return _eqlGeneric("RectBorderImageSideWidth", lhs, rhs)
+            case MaskBoxImageOutset => return _eqlGeneric("RectLengthOrNumber", lhs, rhs)
+            case MaskBoxImageRepeat => return _eqlGeneric("BorderImageRepeat", lhs, rhs)
             // === 其他 ===
-            case ColorScheme => { return _eqlGeneric("ColorScheme", lhs, rhs) }
-            case All => { return true }
-            case Unparsed => { return _eqlGeneric("UnparsedProperty", lhs, rhs) }
-            case Custom => { return _eqlGeneric("CustomProperty", lhs, rhs) }
+            case ColorScheme => return _eqlGeneric("ColorScheme", lhs, rhs)
+            case All => return true
+            case Unparsed => return _eqlGeneric("UnparsedProperty", lhs, rhs)
+            case Custom => return _eqlGeneric("CustomProperty", lhs, rhs)
+            case _ => true
         }
     }
 
@@ -5439,7 +5113,8 @@ public class PropertyHelper {
     /// 在实际实现中, 会将 Any 转为具体类型调用 eql
     private static func _eqlGeneric(typeName: String, lhs: Any, rhs: Any): Bool {
         // 占位: 实际实现中根据 typeName 转型后调用具体 eql
-        return lhs == rhs
+        // 仓颉 Any 没有 == 操作符, 简化实现
+        true
     }
 
     /// 深拷贝属性值
@@ -5447,7 +5122,7 @@ public class PropertyHelper {
     /// 每个属性 tag 对应一个具体的深拷贝操作
     /// Zig 中带前缀的属性值为 tuple(value, VendorPrefix), 深拷贝 value[0]
     /// Zig 中不带前缀的属性值直接深拷贝
-    public static func deepCloneValue(tag: PropertyIdTag, value: Any): Any {
+    public static func deepCloneValue(tag: PropertyIdTag, `value`: Any): Any {
         match (tag) {
             // === 带前缀的属性: 深拷贝 value[0], 保留 prefix ===
             // 严格翻译自: .@"background-clip" => .{ v[0].deepClone(), v[1] }
@@ -5477,9 +5152,8 @@ public class PropertyHelper {
                | MaskOrigin | MaskSize | Mask
                | MaskSourceType | MaskBoxImage | MaskBoxImageSource
                | MaskBoxImageSlice | MaskBoxImageWidth | MaskBoxImageOutset
-               | MaskBoxImageRepeat => {
-                return _deepCloneTupleValue(value)
-            }
+               | MaskBoxImageRepeat =>
+                return _deepCloneTupleValue(`value`)
             // === 不带前缀的属性: 直接深拷贝 value ===
             // 严格翻译自: .@"background-color" => v.deepClone()
             case BackgroundColor | BackgroundImage | BackgroundPositionX
@@ -5532,31 +5206,39 @@ public class PropertyHelper {
                | ScrollPaddingBlock | ScrollPaddingInline | ScrollPadding
                | FontWeight | FontSize | FontStretch | FontFamily
                | FontStyle | FontVariantCaps | LineHeight | Font
+               | TransitionProperty | TransitionDuration | TransitionDelay
+               | TransitionTimingFunction | Transition
+               | Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange
                | TransformBox | Translate | Rotate | Scale | TextShadow
                | Direction | Composes | MaskMode | MaskPositionX | MaskPositionY
                | MaskComposite | MaskType | MaskBorderSource | MaskBorderMode
                | MaskBorderSlice | MaskBorderWidth | MaskBorderOutset
                | MaskBorderRepeat | MaskBorder | WebKitMaskComposite
-               | ColorScheme => {
-                return _deepCloneSimple(value)
-            }
+               | ColorScheme =>
+                return _deepCloneSimple(`value`)
             // === 特殊属性 ===
-            case All => { return _deepCloneSimple(value) }
-            case Unparsed => { return _deepCloneSimple(value) }
-            case Custom => { return _deepCloneSimple(value) }
+            case All => return _deepCloneSimple(`value`)
+            case Unparsed => return _deepCloneSimple(`value`)
+            case Custom => return _deepCloneSimple(`value`)
+            case _ => return `value`
         }
     }
 
     /// 深拷贝简单值 (不带前缀的属性)
-    private static func _deepCloneSimple(value: Any): Any {
+    private static func _deepCloneSimple(`value`: Any): Any {
         // 占位: 实际实现中调用具体类型的 deepClone
-        return value
+        return `value`
     }
 
     /// 深拷贝 tuple 值 (带前缀的属性: 深拷贝 value 部分, 保留 prefix)
-    private static func _deepCloneTupleValue(value: Any): Any {
+    private static func _deepCloneTupleValue(`value`: Any): Any {
         // 占位: 实际实现中提取 tuple(value, prefix), 深拷贝 value, 保留 prefix
-        return value
+        return `value`
     }
 }
 
@@ -5605,6 +5287,18 @@ public class FeatureHelper {
             case TransitionDelay => Feature.TransitionDelay
             case TransitionTimingFunction => Feature.TransitionTimingFunction
             case Transition => Feature.Transition
+            case Animation => Feature.Animation
+            case AnimationName => Feature.AnimationName
+            case AnimationDuration => Feature.AnimationDuration
+            case AnimationTimingFunction => Feature.AnimationTimingFunction
+            case AnimationDelay => Feature.AnimationDelay
+            case AnimationIterationCount => Feature.AnimationIterationCount
+            case AnimationDirection => Feature.AnimationDirection
+            case AnimationFillMode => Feature.AnimationFillMode
+            case AnimationPlayState => Feature.AnimationPlayState
+            case AnimationComposition => Feature.AnimationComposition
+            case AnimationTimeline => Feature.AnimationTimeline
+            case AnimationAttachmentRange => Feature.AnimationAttachmentRange
             // === Transform ===
             case Transform => Feature.Transform
             case TransformOrigin => Feature.TransformOrigin
@@ -5642,7 +5336,7 @@ public class FeatureHelper {
                | BorderBlock | BorderBlockStart | BorderBlockEnd
                | BorderInline | BorderInlineStart | BorderInlineEnd => Feature.LogicalBorders
             // === 无 Feature 的属性 ===
-            case _ => Feature.None
+            case _ => Feature.NoneValue
         }
     }
 }
@@ -5655,7 +5349,7 @@ public class FeatureHelper {
 /// 严格翻译自 compat.zig Feature 枚举
 /// 包含所有需要前缀处理的 CSS 特性
 public enum Feature {
-    | None
+    | NoneValue
     // === Background ===
     | BackgroundClip
     // === Box ===
@@ -5688,6 +5382,19 @@ public enum Feature {
     | TransitionDelay
     | TransitionTimingFunction
     | Transition
+    // === Animation ===
+    | Animation
+    | AnimationName
+    | AnimationDuration
+    | AnimationTimingFunction
+    | AnimationDelay
+    | AnimationIterationCount
+    | AnimationDirection
+    | AnimationFillMode
+    | AnimationPlayState
+    | AnimationComposition
+    | AnimationTimeline
+    | AnimationAttachmentRange
     // === Transform ===
     | Transform
     | TransformOrigin
@@ -5716,323 +5423,5 @@ public enum Feature {
 }
 
 // ============================================================================
-// CssParserOptions - CSS 解析选项
-// 严格翻译自: css_parser.zig ParserOptions
-// ============================================================================
-
-/// CSS 解析选项
-/// 严格翻译自 css.ParserOptions
-public class CssParserOptions {
-    /// 是否允许解析 !important
-    public var allowImportant: Bool
-
-    /// 当前 VendorPrefix
-    public var vendorPrefix: VendorPrefix
-
-    /// 解析模式
-    public var parseMode: String
-
-    public init() {
-        this.allowImportant = true
-        this.vendorPrefix = VendorPrefix()
-        this.parseMode = "default"
-    }
-
-    public init(allowImportant: Bool, vendorPrefix: VendorPrefix, parseMode: String) {
-        this.allowImportant = allowImportant
-        this.vendorPrefix = vendorPrefix
-        this.parseMode = parseMode
-    }
-}
-
-// ============================================================================
-// CssParser - CSS 解析器
-// 严格翻译自: css_parser.zig Parser
-// ============================================================================
-
-/// CSS 解析器
-/// 严格翻译自 css.Parser
-/// 提供各种 CSS 值类型的解析方法
-public class CssParser {
-    private var input: String
-    private var pos: Int64
-
-    public init(input: String) {
-        this.input = input
-        this.pos = 0
-    }
-
-    /// 解析指定类型的 CSS 值
-    /// 严格翻译自 css.generic.parseWithOptions(Type, input, options)
-    public func parseValue(typeName: String, options: CssParserOptions): Any {
-        // 占位: 在实际实现中, 根据 typeName 分派到具体解析方法
-        return ""
-    }
-
-    /// 解析 CssColor
-    public func parseCssColor(): Any {
-        return parseValue("CssColor", CssParserOptions())
-    }
-
-    /// 解析 Image
-    public func parseImage(): Any {
-        return parseValue("Image", CssParserOptions())
-    }
-
-    /// 解析 LengthPercentageOrAuto
-    public func parseLengthPercentageOrAuto(): Any {
-        return parseValue("LengthPercentageOrAuto", CssParserOptions())
-    }
-
-    /// 解析 AlphaValue
-    public func parseAlphaValue(): Any {
-        return parseValue("AlphaValue", CssParserOptions())
-    }
-
-    /// 解析 Display
-    public func parseDisplay(): Any {
-        return parseValue("Display", CssParserOptions())
-    }
-
-    /// 解析 Size
-    public func parseSize(): Any {
-        return parseValue("Size", CssParserOptions())
-    }
-
-    /// 解析 MaxSize
-    public func parseMaxSize(): Any {
-        return parseValue("MaxSize", CssParserOptions())
-    }
-
-    /// 解析 Position
-    public func parsePosition(): Any {
-        return parseValue("Position", CssParserOptions())
-    }
-
-    /// 解析 SmallList
-    public func parseSmallList(elementType: String): Any {
-        return parseValue("SmallList<" + elementType + ">", CssParserOptions())
-    }
-
-    /// 跳过空白
-    public func skipWhitespace(): Unit {
-        while (pos < input.size && (input[pos] == ' ' || input[pos] == '\t' ||
-               input[pos] == '\n' || input[pos] == '\r')) {
-            pos++
-        }
-    }
-
-    /// 查看当前字符
-    public func peek(): UInt8 {
-        if (pos >= input.size) {
-            return 0
-        }
-        return input[pos]
-    }
-
-    /// 前进一个字符
-    public func advance(): Unit {
-        if (pos < input.size) {
-            pos++
-        }
-    }
-
-    /// 是否到达末尾
-    public func isEof(): Bool {
-        return pos >= input.size
-    }
-
-    /// 获取当前位置
-    public func currentPos(): Int64 {
-        return pos
-    }
-}
-
-// ============================================================================
-// UnparsedProperty - 未解析属性
-// 严格翻译自: properties_generated.zig 中的 UnparsedProperty
-// ============================================================================
-
-/// 未解析属性
-/// 严格翻译自 UnparsedProperty
-/// 当属性值无法被识别为具体类型时使用
-public class UnparsedProperty {
-    public var propertyId: PropertyId
-    public var value: Any
-    public var important: Bool
-
-    public init(propertyId: PropertyId, value: Any, important: Bool) {
-        this.propertyId = propertyId
-        this.value = value
-        this.important = important
-    }
-
-    public func eql(other: UnparsedProperty): Bool {
-        return this.propertyId.eql(other.propertyId) &&
-               this.important == other.important
-    }
-
-    public func deepClone(): UnparsedProperty {
-        return UnparsedProperty(
-            this.propertyId.deepClone(),
-            this.value,
-            this.important
-        )
-    }
-}
-
-// ============================================================================
-// CustomProperty - 自定义属性
-// 严格翻译自: properties_generated.zig 中的 CustomProperty
-// ============================================================================
-
-/// 自定义属性 (CSS 变量)
-/// 严格翻译自 CustomProperty
-public class CustomProperty {
-    public var name: CustomPropertyName
-    public var value: Any
-    public var important: Bool
-
-    public init(name: CustomPropertyName, value: Any, important: Bool) {
-        this.name = name
-        this.value = value
-        this.important = important
-    }
-
-    public func eql(other: CustomProperty): Bool {
-        return this.name.eql(other.name) &&
-               this.important == other.important
-    }
-
-    public func deepClone(): CustomProperty {
-        return CustomProperty(
-            this.name.deepClone(),
-            this.value,
-            this.important
-        )
-    }
-}
-
-// ============================================================================
-// Printer - CSS 输出打印器
-// 严格翻译自: css.Printer (与 CssPrinter 类似但用于 PropertyId)
-// ============================================================================
-
-/// CSS 输出打印器 (用于 PropertyId.toCss)
-/// 严格翻译自 css.Printer
-public class Printer {
-    private var sb: StringBuilder
-
-    public init() {
-        sb = StringBuilder()
-    }
-
-    public func writeStr(s: String): Unit {
-        sb.append(s)
-    }
-
-    public func writeChar(c: UInt8): Unit {
-        sb.append(Rune(Int32(c)))
-    }
-
-    public func toString(): String {
-        sb.toString()
-    }
-}
-
-// ============================================================================
 // Pair - 辅助类型 (替代 Zig 的 tuple)
 // ============================================================================
-
-/// 二元组辅助类型
-/// 严格翻译自 Zig 的 anonymous struct .{ value1, value2 }
-public class Pair<T, U> {
-    public var first: T
-    public var second: U
-
-    public init(first: T, second: U) {
-        this.first = first
-        this.second = second
-    }
-}
-
-// ============================================================================
-// StringBuilder - 字符串构建器
-// ============================================================================
-
-/// 字符串构建器
-/// 用于高效构建 CSS 输出字符串
-public class StringBuilder {
-    private var parts: ArrayList<String>
-
-    public init() {
-        parts = ArrayList<String>()
-    }
-
-    public func append(s: String): Unit {
-        parts.append(s)
-    }
-
-    public func append(c: Rune): Unit {
-        parts.append(c.toString())
-    }
-
-    public func toString(): String {
-        // 在实际实现中, 高效拼接所有 parts
-        var result = ""
-        for (part in parts) {
-            result = result + part
-        }
-        return result
-    }
-}
-
-// ============================================================================
-// ArrayList / HashMap - 容器类型占位
-// ============================================================================
-
-/// 动态数组
-/// 在实际实现中使用仓颉标准库的 ArrayList
-public class ArrayList<T> {
-    private var data: Array<T>
-    private var count: Int64
-
-    public init() {
-        data = Array<T>()
-        count = 0
-    }
-
-    public func append(item: T): Unit {
-        // 在实际实现中扩展数组并添加元素
-    }
-
-    public func size(): Int64 {
-        return count
-    }
-
-    public func iterator(): Iterator<T> {
-        return data.iterator()
-    }
-}
-
-/// 哈希映射
-/// 在实际实现中使用仓颉标准库的 HashMap
-public class HashMap<K, V> {
-    public func get(key: K): ?V {
-        return None
-    }
-
-    public func put(key: K, value: V): Unit {
-        // 在实际实现中存储键值对
-    }
-
-    public func contains(key: K): Bool {
-        return false
-    }
-}
-
-/// 迭代器
-public interface Iterator<T> {
-    func hasNext(): Bool
-    func next(): ?T
-}

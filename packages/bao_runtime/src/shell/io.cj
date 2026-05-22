@@ -11,15 +11,155 @@ import bao_jsc.*
 // IO - 状态节点的标准输入/输出/错误信息载体
 // ============================================================================
 
+/// 输入类型联合体 - extracted from IO struct
+public enum IOInKind {
+    /// 文件描述符读取器
+    | fd(IOReader)
+    /// 忽略输入
+    | ignore
+
+    /// 增加引用
+    public func ref(): IOInKind {
+        match (this) {
+            case fd(reader) =>
+                reader.ref()
+            case ignore =>
+                () // 无操作
+        }
+        return this
+    }
+
+    /// 减少引用
+    public func deref() {
+        match (this) {
+            case fd(reader) =>
+                reader.deref()
+            case ignore =>
+                () // 无操作
+        }
+    }
+
+    /// 关闭
+    public func close() {
+        match (this) {
+            case fd(reader) =>
+                reader.deref()
+            case ignore =>
+                () // 无操作
+        }
+    }
+
+    /// 转换为子进程stdio
+    public func toSubprocStdio(stdio: Stdio) {
+        match (this) {
+            case fd(reader) =>
+                () // stdio = Stdio.fd(reader.fd)
+            case ignore =>
+                () // stdio = Stdio.ignore
+        }
+    }
+
+    /// 内存开销
+    public func memoryCost(): UInt64 {
+        match (this) {
+            case fd(reader) =>
+                return reader.memoryCost()
+            case ignore =>
+                return 0
+        }
+    }
+}
+
+/// 输出类型联合体 - extracted from IO struct
+public enum IOOutKind {
+    /// 文件描述符写入器
+    /// captured非null时，同时写入到缓冲区
+    | fd(IOWriter, ?ByteList)
+    /// 管道输出（在quiet模式下设置）
+    | pipe
+    /// 丢弃输出
+    | ignore
+
+    /// 内存开销
+    public func memoryCost(): UInt64 {
+        match (this) {
+            case fd(writer, captured) =>
+                var cost: UInt64 = writer.memoryCost()
+                if (let cap <- captured) {
+                    cost += cap.memoryCost()
+                }
+                return cost
+            case pipe =>
+                return 0
+            case ignore =>
+                return 0
+        }
+    }
+
+    /// 增加引用
+    public func ref(): IOOutKind {
+        match (this) {
+            case fd(writer, _) =>
+                writer.ref()
+            case pipe => ()
+            case ignore => ()
+        }
+        return this
+    }
+
+    /// 减少引用
+    public func deref() {
+        this.close()
+    }
+
+    /// 将格式化错误信息入队
+    public func enqueueFmtBltn(ptr: Any, kind: ?BuiltinKind, fmt: String, args: Array<Any>): Yield {
+        match (this) {
+            case fd(writer, captured) =>
+                writer.enqueueFmtBltn(ptr, captured, kind, fmt, args)
+            case pipe =>
+                return Yield.done
+            case ignore =>
+                return Yield.done
+        }
+    }
+
+    /// 关闭
+    func close() {
+        match (this) {
+            case fd(writer, _) =>
+                writer.deref()
+            case pipe => ()
+            case ignore => ()
+        }
+    }
+
+    /// 转换为子进程stdio
+    public func toSubprocStdio(shellio: ?IOWriter): Stdio {
+        match (this) {
+            case fd(val, captured) =>
+                // 根据是否有captured和fd状态返回对应的stdio
+                if (let cap <- captured) {
+                    return Stdio.capture(cap)
+                }
+                return Stdio.fd(val.fd)
+            case pipe =>
+                return Stdio.pipe
+            case ignore =>
+                return Stdio.ignore
+        }
+    }
+}
+
 /// IO结构体
 /// 携带状态节点的stdin/stdout/stderr信息
 public struct IO {
     /// 标准输入
-    public var stdin: InKind
+    public var stdin: IOInKind
     /// 标准输出
-    public var stdout: OutKind
+    public var stdout: IOOutKind
     /// 标准错误
-    public var stderr: OutKind
+    public var stderr: IOOutKind
 
     /// 内存开销
     public func memoryCost(): UInt64 {
@@ -56,152 +196,6 @@ public struct IO {
         this.stdin.deref()
         this.stdout.deref()
         this.stderr.deref()
-    }
-
-    // ========================================================================
-    // InKind - 输入类型
-    // ========================================================================
-
-    /// 输入类型联合体
-    public enum InKind {
-        /// 文件描述符读取器
-        case fd(IOReader)
-        /// 忽略输入
-        case ignore
-
-        /// 增加引用
-        public func ref(): InKind {
-            switch (this) {
-                case .fd(let reader) =>
-                    reader.ref()
-                case .ignore =>
-                    // 无操作
-            }
-            return this
-        }
-
-        /// 减少引用
-        public func deref() {
-            switch (this) {
-                case .fd(let reader) =>
-                    reader.deref()
-                case .ignore =>
-                    // 无操作
-            }
-        }
-
-        /// 关闭
-        public func close() {
-            switch (this) {
-                case .fd(let reader) =>
-                    reader.deref()
-                case .ignore =>
-                    // 无操作
-            }
-        }
-
-        /// 转换为子进程stdio
-        public func toSubprocStdio(stdio: Stdio) {
-            switch (this) {
-                case .fd(let reader) =>
-                    // stdio = Stdio.fd(reader.fd)
-                case .ignore =>
-                    // stdio = Stdio.ignore
-            }
-        }
-
-        /// 内存开销
-        public func memoryCost(): UInt64 {
-            switch (this) {
-                case .fd(let reader) =>
-                    return reader.memoryCost()
-                case .ignore =>
-                    return 0
-            }
-        }
-    }
-
-    // ========================================================================
-    // OutKind - 输出类型
-    // ========================================================================
-
-    /// 输出类型联合体
-    public enum OutKind {
-        /// 文件描述符写入器
-        /// captured非null时，同时写入到缓冲区
-        case fd(writer: IOWriter, captured: ?ByteList)
-        /// 管道输出（在quiet模式下设置）
-        case pipe
-        /// 丢弃输出
-        case ignore
-
-        /// 内存开销
-        public func memoryCost(): UInt64 {
-            switch (this) {
-                case .fd(let writer, let captured) =>
-                    var cost: UInt64 = writer.memoryCost()
-                    if (let cap = captured) {
-                        cost += cap.memoryCost()
-                    }
-                    return cost
-                case .pipe =>
-                    return 0
-                case .ignore =>
-                    return 0
-            }
-        }
-
-        /// 增加引用
-        public func ref(): OutKind {
-            switch (this) {
-                case .fd(let writer, _) =>
-                    writer.ref()
-                case .pipe, .ignore =>
-                    // 无操作
-            }
-            return this
-        }
-
-        /// 减少引用
-        public func deref() {
-            this.close()
-        }
-
-        /// 将格式化错误信息入队
-        public func enqueueFmtBltn(ptr: Any, kind: ?BuiltinKind, fmt: String, args: Array<Any>): Yield {
-            switch (this) {
-                case .fd(let writer, let captured) =>
-                    writer.enqueueFmtBltn(ptr, captured, kind, fmt, args)
-                case .pipe, .ignore =>
-                    return Yield.done
-            }
-        }
-
-        /// 关闭
-        func close() {
-            switch (this) {
-                case .fd(let writer, _) =>
-                    writer.deref()
-                case .pipe, .ignore =>
-                    // 无操作
-            }
-        }
-
-        /// 转换为子进程stdio
-        public func toSubprocStdio(shellio: ?IOWriter): Stdio {
-            switch (this) {
-                case .fd(let val, let captured) =>
-                    // 根据是否有captured和fd状态返回对应的stdio
-                    if (let cap = captured) {
-                        return Stdio.capture(buf: cap)
-                    }
-                    return Stdio.fd(val.fd)
-                case .pipe =>
-                    return Stdio.pipe
-                case .ignore =>
-                    return Stdio.ignore
-            }
-        }
     }
 
     /// 转换为子进程stdio数组

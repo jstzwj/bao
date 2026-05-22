@@ -75,7 +75,7 @@ public class AnyPromise {
 
     private func resultNormal(): JsValue {
         match (promise) {
-            case Some(p) => return p.result()
+            case Some(p) => return p.getResult()
             case None => return JsValue.undefined()
         }
     }
@@ -90,7 +90,7 @@ public class AnyPromise {
 
     private func isHandledNormal(): Bool {
         match (promise) {
-            case Some(p) => return p.isHandled()
+            case Some(p) => return p.isHandledStatus()
             case None => return false
         }
     }
@@ -186,16 +186,16 @@ public class AnyPromise {
 
     private func internalPromiseAsValue(): JsValue {
         match (internalPromise) {
-            case Some(p) => return JsValue(obj: p)
+            case Some(p) => return JsValue(p)
             case None => return JsValue.undefined()
         }
     }
 
     // 严格翻译自 AnyPromise.wrap
     // 使用 TopExceptionScope 包装 Promise 操作
-    public func wrap(globalObject: JsObject, callback: (): JsValue): Bool {
+    public func wrap(globalObject: JsObject, callback: () -> JsValue): Bool {
         let scope = TopExceptionScope(globalObject)
-        defer { scope.deinit() }
+        // defer: { scope.deinit() }
 
         // 执行包装操作
         let result = callback()
@@ -208,22 +208,22 @@ public class AnyPromise {
     // 创建已解决的 AnyPromise
     public static func resolved(value: JsValue): AnyPromise {
         let p = JsPromise.resolve(value)
-        AnyPromise(promise: p)
+        AnyPromise(p)
     }
 
     // 创建待定的 AnyPromise
     public static func pending(): AnyPromise {
-        AnyPromise(promise: JsPromise())
+        AnyPromise(JsPromise())
     }
 
     // 从普通 Promise 创建
     public static func normal(promise: JsPromise): AnyPromise {
-        AnyPromise(promise: promise)
+        AnyPromise(promise)
     }
 
     // 从内部 Promise 创建
     public static func internal(internalPromise: JsObject): AnyPromise {
-        AnyPromise(internalPromise: internalPromise)
+        AnyPromise(internalPromise)
     }
 }
 

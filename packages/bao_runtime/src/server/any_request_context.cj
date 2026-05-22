@@ -65,7 +65,7 @@ public class AnyRequestContext {
     /// 是否为 Null
     /// 对应 Bun: if (self.tagged_pointer.isNull()) return default
     public func isNull(): Bool {
-        return context == None
+        return context.isNone()
     }
 
     // ========================================================================

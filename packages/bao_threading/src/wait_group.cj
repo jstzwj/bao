@@ -3,7 +3,7 @@
 //   src/threading/WaitGroup.zig - WaitGroup (atomic count + mutex + cond)
 //
 // Bun WaitGroup 实现:
-//   raw_count: Atomic(usize) = .init(0)
+//   raw_count: Atomic(usize) = .`init`(0)
 //   mutex: Mutex = .{}
 //   cond: Condvar = .{}
 //
@@ -57,7 +57,7 @@ import std.sync.*
 ///   这确保 wait() 中在读取计数和调用 cond.wait 之间的竞态条件不会丢失 signal
 public class WaitGroup {
     /// 原子计数器 - 对应 Bun raw_count: Atomic(usize)
-    /// 严格翻译自: WaitGroup.zig:13 raw_count: std.atomic.Value(usize) = .init(0)
+    /// 严格翻译自: WaitGroup.zig:13 raw_count: std.atomic.Value(usize) = .`init`(0)
     private let count: AtomicInt64
 
     /// 互斥锁 - 对应 Bun WaitGroup.mutex
@@ -68,7 +68,7 @@ public class WaitGroup {
     /// 严格翻译自: WaitGroup.zig:15 cond: Condvar = .{}
     private let cond: Condvar
 
-    /// 默认初始化，计数为 0 - 对应 Bun WaitGroup.init()
+    /// 默认初始化，计数为 0 - 对应 Bun WaitGroup()
     /// 严格翻译自: WaitGroup.zig:17-19
     ///   return .{}
     public init() {
@@ -79,7 +79,7 @@ public class WaitGroup {
 
     /// 指定初始计数的初始化 - 对应 Bun WaitGroup.initWithCount(count)
     /// 严格翻译自: WaitGroup.zig:21-23
-    ///   return .{ .raw_count = .init(count) }
+    ///   return .{ .raw_count = .`init`(count) }
     public init(initialCount: Int64) {
         count = AtomicInt64(initialCount)
         mutex = Mutex()

@@ -713,6 +713,11 @@ public class CssParser {
         }
         return None
     }
+
+    /// 解析值 (存根)
+    public func parseValue(typeName: String, options: CssParserOptions): ?Any {
+        None
+    }
 }
 
 /// CSS 解析选项 (存根)
@@ -782,16 +787,16 @@ public enum CssParseResult<T> {
 /// 与 bao_css.CssPrinter 不同, 这是属性序列化的简化版本
 /// 严格翻译自: Printer (property serialization)
 public class Printer {
-    private var sb: StringBuilder
+    private var sb: CssStringBuilder
     public var minify: Bool
 
     public init() {
-        this.sb = StringBuilder()
+        this.sb = CssStringBuilder()
         this.minify = false
     }
 
     public init(minify: Bool) {
-        this.sb = StringBuilder()
+        this.sb = CssStringBuilder()
         this.minify = minify
     }
 

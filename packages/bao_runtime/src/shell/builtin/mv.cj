@@ -135,7 +135,7 @@ public class MvCmd {
         }
         match (this.state) {
             case waitingWriteErr =>
-                if (e != None) {
+                if (e.isSome()) {
                     this.state = MvState.err
                     return this.next()
                 }

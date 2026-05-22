@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toMatchSnapshot() - 快照匹配
 /// 用法: expect(received).toMatchSnapshot() / expect(received).toMatchSnapshot(hint) / expect(received).toMatchSnapshot(properties, hint)
-public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -24,7 +24,7 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
     }
 
     var buntestStrong = this.bunTest()
-    if (buntestStrong == None) {
+    if (buntestStrong.isNone()) {
         let signature = Expect.getSignature(matcherName: "toMatchSnapshot", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used outside of a test\n", args: [])
@@ -32,10 +32,10 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
     defer { buntestStrong.deinit() }
 
     var hintString = ZigString.Empty
-    var propertyMatchers: ?JSValue = None
-    if (arguments.length == 0) {
+    var propertyMatchers: ?JsValue = None
+    if (arguments.size == 0) {
         // 无参数
-    } else if (arguments.length == 1 ){
+    } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
             hintString = arguments[0].toZigString(globalThis: globalThis)
         } else if (arguments[0].isObject()) {
@@ -64,7 +64,7 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
     var hint = hintString.toSlice(allocator: default_allocator)
     defer { hint.deinit() }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
 
     return this.snapshot(globalThis: globalThis, value: value, propertyMatchers: propertyMatchers, hint: hint.slice(), matcherName: "toMatchSnapshot")
 }

@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toContain() - 检查值是否包含期望值
 /// 用法: expect(received).toContain(expected)
-public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toContain() takes 1 argument")
     }
 
@@ -22,7 +22,7 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
 
     let expected = arguments[0]
     expected.ensureStillAlive()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContain", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContain", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = false
@@ -41,11 +41,11 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         let expectedString = expected.toSlice(globalThis: globalThis, allocator: default_allocator)
         defer { expectedString.deinit() }
 
-        if (expectedString.length == 0) { // 空字符串边界情况
+        if (expectedString.size == 0) { // 空字符串边界情况
             pass = true
         } else if (strings.contains(valueString.slice(), expectedString.slice()) ){
             pass = true
-        } else if (valueString.length == 0 && expectedString.length == 0) { // 两个空字符串
+        } else if (valueString.size == 0 && expectedString.size == 0) { // 两个空字符串
             pass = true
         }
     } else if (value.isIterable(globalThis: globalThis)) {
@@ -61,7 +61,7 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
@@ -84,6 +84,6 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
 // 用于 forEach 回调的上下文
 private class ExpectedEntry {
     var globalThis: JSGlobalObject
-    var expected: JSValue
+    var expected: JsValue
     var pass: Bool
 }

@@ -457,7 +457,7 @@ public enum HostProvider {
                 protos.append(WellDefinedProtocol.Ssh)
                 protos.append(WellDefinedProtocol.Https)
                 return HostProviderConfig(protos, "gist.github.com", "gist:",
-                    None, None, Some("edit"))
+                    Option<String>.None, Option<String>.None, Some("edit"))
             case Github =>
                 let protos = ArrayList<WellDefinedProtocol>()
                 protos.append(WellDefinedProtocol.Git)
@@ -481,7 +481,7 @@ public enum HostProvider {
                 protos.append(WellDefinedProtocol.GitPlusSsh)
                 protos.append(WellDefinedProtocol.Https)
                 return HostProviderConfig(protos, "git.sr.ht", "sourcehut:",
-                    Some("tree"), Some("tree"), None)
+                    Some("tree"), Some("tree"), Option<String>.None)
         }
     }
 
@@ -759,7 +759,7 @@ public enum HostProvider {
                     case None => return None
                     case Some(pp) =>
                         let project = trimGitSuffix(pp)
-                        if (userPart.unwrap().size == 0 || project.size == 0) { return None }
+                        if (userPart.getOrThrow().size == 0 || project.size == 0) { return None }
 
                         // type_part 为 "tree" 时 committish 在 URL 中
                         var committish: ?String = None
@@ -776,7 +776,7 @@ public enum HostProvider {
                         }
 
                         return GitExtractResult(
-                            Some(decodePercent(userPart.unwrap())),
+                            Some(decodePercent(userPart.getOrThrow())),
                             decodePercent(project),
                             match (committish) {
                                 case Some(c) => Some(decodePercent(c))
@@ -818,7 +818,7 @@ public enum HostProvider {
                     case None => return None
                     case Some(pp) =>
                         let project = trimGitSuffix(pp)
-                        if (userPart.unwrap().size == 0 || project.size == 0) { return None }
+                        if (userPart.getOrThrow().size == 0 || project.size == 0) { return None }
 
                         var committish: ?String = None
                         if (u.fragment.size > 0) {
@@ -826,7 +826,7 @@ public enum HostProvider {
                         }
 
                         return GitExtractResult(
-                            Some(decodePercent(userPart.unwrap())),
+                            Some(decodePercent(userPart.getOrThrow())),
                             decodePercent(project),
                             committish
                         )
@@ -911,10 +911,10 @@ public enum HostProvider {
                         userPart = None
                 }
 
-                let project = trimGitSuffix(projectPart.unwrap())
+                let project = trimGitSuffix(projectPart.getOrThrow())
                 let user = match (userPart) {
-                    case Some(up) => if (up.size > 0) { Some(decodePercent(up)) } else { None }
-                    case None => None
+                    case Some(up) => if (up.size > 0) { Some(decodePercent(up)) } else { Option<String>.None }
+                    case None => Option<String>.None
                 }
 
                 if (project.size == 0) { return None }
@@ -958,7 +958,7 @@ public enum HostProvider {
                     case None => return None
                     case Some(pp) =>
                         let project = trimGitSuffix(pp)
-                        if (userPart.unwrap().size == 0 || project.size == 0) { return None }
+                        if (userPart.getOrThrow().size == 0 || project.size == 0) { return None }
 
                         var committish: ?String = None
                         if (u.fragment.size > 0) {
@@ -966,7 +966,7 @@ public enum HostProvider {
                         }
 
                         return GitExtractResult(
-                            Some(decodePercent(userPart.unwrap())),
+                            Some(decodePercent(userPart.getOrThrow())),
                             decodePercent(project),
                             committish
                         )
@@ -1121,7 +1121,7 @@ public class HostedGitInfo {
                             case None => HostProvider.fromUrlDomain(pair.urlSlice())
                         }
                     case UrlProtocol.Unknown => HostProvider.fromUrlDomain(pair.urlSlice())
-                    case UrlProtocol.Custom(_) => HostProvider.fromUrl(pair.urlSlice())
+                    case UrlProtocol.Custom(_) => HostProvider.fromUrlDomain(pair.urlSlice())
                 }
 
                 match (provider) {
@@ -1207,10 +1207,10 @@ public class HostedGitInfo {
         match (representation) {
             case GitRepresentation.SshUrl => hostProvider.formatSshUrl(user, project, committish)
             case GitRepresentation.Ssh => hostProvider.formatSsh(user, project, committish)
-            case GitRepresentation.Https => hostProvider.formatHttps(None, user, project, committish)
+            case GitRepresentation.Https => hostProvider.formatHttps(Option<String>.None, user, project, committish)
             case GitRepresentation.Shortcut => hostProvider.formatShortcut(user, project, committish)
             case GitRepresentation.Git =>
-                hostProvider.formatGit(None, user, project, committish)
+                hostProvider.formatGit(Option<String>.None, user, project, committish)
             case GitRepresentation.Http =>
                 let cmsh = match (committish) {
                     case Some(c) => "#${c}"
@@ -1273,7 +1273,7 @@ public class HostedGitInfo {
             case Some(u) => u
             case None => ""
         }
-        let cmsh = match (if (committishOverride != None) { committishOverride } else { committish }) {
+        let cmsh = match (if (committishOverride .isSome()) { committishOverride } else { committish }) {
             case Some(c) => "/tree/${c}"
             case None => ""
         }
@@ -1302,12 +1302,12 @@ public class HostedGitInfo {
 
     /// 获取文件浏览 URL (简化版)
     public func browse(path: ?String): String {
-        return browse(path, None)
+        return browse(path, Option<String>.None)
     }
 
     /// 获取文件浏览 URL (无参数)
     public func browse(): String {
-        return browse(None, None)
+        return browse(Option<String>.None, Option<String>.None)
     }
 
     /// 获取 blob/文件 URL
@@ -1318,7 +1318,7 @@ public class HostedGitInfo {
             case Some(u) => u
             case None => ""
         }
-        let cmsh = match (if (committishOverride != None) { committishOverride } else { committish }) {
+        let cmsh = match (if (committishOverride .isSome()) { committishOverride } else { committish }) {
             case Some(c) => c
             case None => ""
         }
@@ -1537,16 +1537,16 @@ public func correctUrl(protoPair: UrlProtocolPair): ?UrlProtocolPair {
     // 查找 # 之前的最后一个 :
     let colIdx = lastIndexBeforeChar(urlSlice, UInt8(58), UInt8(35))  // ':', '#'
 
-    if (colIdx != None && atIdx != None && colIdx.unwrap() > atIdx.unwrap()) {
+    if (colIdx .isSome() && atIdx .isSome() && colIdx.getOrThrow() > atIdx.getOrThrow()) {
         // user@host:path -> user@host/path
-        let col = colIdx.unwrap()
+        let col = colIdx.getOrThrow()
         var corrected = urlSlice
         // 将 : 替换为 /
         corrected = urlSlice[..col] + "/" + urlSlice[Int64(col) + 1..]
         return UrlProtocolPair(corrected, UrlProtocol.WellFormed(WellDefinedProtocol.GitPlusSsh), true)
     }
 
-    if (colIdx == None && match (protoPair.protocol) {
+    if (colIdx.isNone() && match (protoPair.protocol) {
         case UrlProtocol.Unknown => true
         case _ => false
     }) {

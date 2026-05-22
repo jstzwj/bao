@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeSymbol() - 检查值是否为Symbol类型
 /// 用法: expect(received).toBeSymbol()
-public func toBeSymbol(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeSymbol(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeSymbol", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeSymbol", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
     let pass = value.isSymbol() != not
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

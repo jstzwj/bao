@@ -106,7 +106,7 @@ public enum AuditLevel {
 /// 对应 Bun: PatchOpts
 /// 翻译自: Zig line 279
 public enum PatchOpts {
-    | Nothing
+    | `Nothing`
     | Patch
     | Commit(String) // patches_dir
 
@@ -1108,7 +1108,7 @@ public class CommandLineArguments {
         omit = None
         exact = false
         concurrentScripts = None
-        patch = PatchOpts.Nothing
+        patch = PatchOpts.`Nothing`
         registry = ""
         publishConfig = PublishConfig()
         tolerateRepublish = false
@@ -1619,16 +1619,14 @@ public class CommandLineArguments {
         // 翻译自: Zig line 813-818
         let linker = args.option("--linker")
         match (linker) {
-            case Some(linkerStr) => {
+            case Some(linkerStr) =>
                 let parsed = NodeLinker.fromStr(linkerStr)
                 match (parsed) {
                     case Some(nodeLinker) => cli.nodeLinker = Some(nodeLinker)
-                    case None => {
+                    case None =>
                         Output.errGeneric("Expected --linker to be one of 'isolated' or 'hoisted'")
                         Global.crash()
-                    }
                 }
-            }
             case None => ()
         }
 
@@ -1642,23 +1640,21 @@ public class CommandLineArguments {
         // 翻译自: Zig line 824-826
         let cafileName = args.option("--cafile")
         match (cafileName) {
-            Some(fileName) => cli.caFileName = fileName
-            None => ()
+            case Some(fileName) => cli.caFileName = fileName
+            case None => ()
         }
 
         // 翻译自: Zig line 828-833
         let networkConcurrency = args.option("--network-concurrency")
         match (networkConcurrency) {
-            case Some(ncStr) => {
+            case Some(ncStr) =>
                 let parsedNC = parseUInt32(ncStr)
                 match (parsedNC) {
                     case Some(val) => cli.networkConcurrency = Some(val)
-                    case None => {
+                    case None =>
                         Output.errGeneric("Expected --network-concurrency to be a number between 0 and 65535: " + ncStr)
                         Global.crash()
-                    }
                 }
-            }
             case None => ()
         }
 
@@ -1670,22 +1666,19 @@ public class CommandLineArguments {
         // 翻译自: Zig line 839-849
         let minAgeSecs = args.option("--minimum-release-age")
         match (minAgeSecs) {
-            case Some(secsStr) => {
+            case Some(secsStr) =>
                 let secs = parseFloat64(secsStr)
                 match (secs) {
-                    case Some(secsVal) => {
+                    case Some(secsVal) =>
                         if (secsVal < 0.0) {
                             Output.errGeneric("Expected --minimum-release-age to be a positive number: " + secsStr)
                             Global.crash()
                         }
                         cli.minimumReleaseAgeMs = Some(secsVal * 1000.0)
-                    }
-                    case None => {
+                    case None =>
                         Output.errGeneric("Expected --minimum-release-age to be a positive number: " + secsStr)
                         Global.crash()
-                    }
                 }
-            }
             case None => ()
         }
 
@@ -1695,7 +1688,7 @@ public class CommandLineArguments {
             let parsedOmit = Omit.fromValues(omitValues)
             match (parsedOmit) {
                 case Some(omitObj) => cli.omit = Some(omitObj)
-                case None => {
+                case None =>
                     // 找到无效的 omit 值
                     for (omitValue in omitValues) {
                         if (omitValue != "dev" && omitValue != "optional" && omitValue != "peer") {
@@ -1703,7 +1696,6 @@ public class CommandLineArguments {
                             Global.crash()
                         }
                     }
-                }
             }
         }
 
@@ -1757,16 +1749,14 @@ public class CommandLineArguments {
 
             let access = args.option("--access")
             match (access) {
-                case Some(a) => {
+                case Some(a) =>
                     let parsedAccess = Access.fromStr(a)
                     match (parsedAccess) {
                         case Some(accessVal) => cli.publishConfig.access = Some(accessVal)
-                        case None => {
+                        case None =>
                             Output.errGeneric("invalid `access` value: '" + a + "'")
                             Global.crash()
-                        }
                     }
-                }
                 case None => ()
             }
 
@@ -1778,16 +1768,14 @@ public class CommandLineArguments {
 
             let authType = args.option("--auth-type")
             match (authType) {
-                case Some(at) => {
+                case Some(at) =>
                     let parsedAT = AuthType.fromStr(at)
                     match (parsedAT) {
                         case Some(authTypeVal) => cli.publishConfig.authType = Some(authTypeVal)
-                        case None => {
+                        case None =>
                             Output.errGeneric("invalid `auth-type` value: '" + at + "'")
                             Global.crash()
-                        }
                     }
-                }
                 case None => ()
             }
 
@@ -1829,16 +1817,14 @@ public class CommandLineArguments {
         if (subcommand == Subcommand.Audit) {
             let level = args.option("--audit-level")
             match (level) {
-                case Some(levelStr) => {
+                case Some(levelStr) =>
                     let parsedLevel = AuditLevel.fromString(levelStr)
                     match (parsedLevel) {
                         case Some(auditLvl) => cli.auditLevel = Some(auditLvl)
-                        case None => {
+                        case None =>
                             Output.errGeneric("invalid `--audit-level` value: '" + levelStr + "'. Valid values are: low, moderate, high, critical")
                             Global.crash()
-                        }
                     }
-                }
                 case None => ()
             }
 
@@ -1913,16 +1899,15 @@ public class CommandLineArguments {
         // 翻译自: Zig line 1029-1031
         let concurrency = args.option("--concurrent-scripts")
         match (concurrency) {
-            case Some(cStr) => {
+            case Some(cStr) =>
                 cli.concurrentScripts = parseInt64(cStr)
-            }
             case None => ()
         }
 
         // 翻译自: Zig line 1033-1052
         let cwdArg = args.option("--cwd")
         match (cwdArg) {
-            case Some(cwd_) => {
+            case Some(cwd_) =>
                 var finalPath: String = cwd_
                 if (cwd_.size > 0 && cwd_[0] == '.') {
                     let cwd = BaoFile.getcwd()
@@ -1932,7 +1917,6 @@ public class CommandLineArguments {
                     Output.errGeneric("failed to change directory to \"" + finalPath + "\"")
                     Global.crash()
                 }
-            }
             case None => ()
         }
 
@@ -1946,30 +1930,27 @@ public class CommandLineArguments {
         // 翻译自: Zig line 1060-1071
         let backendOpt = args.option("--backend")
         match (backendOpt) {
-            case Some(backendStr) => {
+            case Some(backendStr) =>
                 let parsedBackend = PackageInstallMethod.fromStr(backendStr)
                 match (parsedBackend) {
-                    case Some(backend) => {
+                    case Some(backend) =>
                         if (backend.isSupported()) {
                             cli.backend = Some(backend)
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
         // 翻译自: Zig line 1073-1079
         let registryOpt = args.option("--registry")
         match (registryOpt) {
-            case Some(registry) => {
+            case Some(registry) =>
                 if (!registry.startsWith("https://") && !registry.startsWith("http://")) {
                     Output.errGeneric("Registry URL must start with 'https://' or 'http://': " + registry)
                     Global.crash()
                 }
                 cli.registry = registry
-            }
             case None => ()
         }
 
@@ -2008,20 +1989,18 @@ public class CommandLineArguments {
         if (subcommand == Subcommand.Pm) {
             let gitTagVersionOpt = args.option("--git-tag-version")
             match (gitTagVersionOpt) {
-                case Some(gtv) => {
+                case Some(gtv) =>
                     if (gtv == "true") {
                         cli.gitTagVersion = true
                     } else if (gtv == "false") {
                         cli.gitTagVersion = false
                     }
-                }
-                case None => {
+                case None =>
                     if (args.flag("--no-git-tag-version")) {
                         cli.gitTagVersion = false
                     } else {
                         cli.gitTagVersion = true
                     }
-                }
             }
             cli.allowSameVersion = args.flag("--allow-same-version")
             let preidOpt = args.option("--preid")
@@ -2042,16 +2021,14 @@ public class CommandLineArguments {
             cli.topOnly = args.flag("--top")
             let depthOpt = args.option("--depth")
             match (depthOpt) {
-                case Some(depthStr) => {
+                case Some(depthStr) =>
                     let parsedDepth = parseInt64(depthStr)
                     match (parsedDepth) {
                         case Some(d) => cli.depth = Some(d)
-                        case None => {
+                        case None =>
                             Output.errGeneric("invalid depth value: '" + depthStr + "', must be a positive integer")
                             Global.exit(1)
-                        }
                     }
-                }
                 case None => ()
             }
         }
@@ -2136,10 +2113,6 @@ public enum ArgValue {
 /// 对应 Bun: Output
 public class Output {
     public static var isVerbose: Bool = false
-
-    public static func isVerbose(): Bool {
-        return isVerbose
-    }
 
     public static func pretty(text: String): Unit {
         BaoConsole.print(text)

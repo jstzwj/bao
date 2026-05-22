@@ -1200,7 +1200,7 @@ public class Tuple2<T> {
 // ============================================================================
 // ExprFactory - 表达式工厂和工具方法
 // 严格翻译自: src/ast/expr.zig:1-1455 (顶层函数)
-//   Expr.init(), Expr.allocate(), Expr.clone(), Expr.deepClone(),
+//   Expr(), Expr.allocate(), Expr.clone(), Expr.deepClone(),
 //   Expr.isAnonymousNamed(), Expr.canBeInlinedFromPropertyAccess(),
 //   Expr.isEmpty(), Expr.isMissing(), Expr.isArray(), Expr.isObject(),
 //   Expr.get(), Expr.set(), Expr.getByIndex(), Expr.getPathMayBeIndex(),
@@ -1218,7 +1218,7 @@ public class Tuple2<T> {
 //   Expr.initIdentifier(), Expr.toEmpty(), Expr.at()
 // ============================================================================
 
-/// Expr 工厂 - 对应 Bun Expr.init() / Expr.allocate()
+/// Expr 工厂 - 对应 Bun Expr() / Expr.allocate()
 /// 创建各种类型的表达式节点, 提供表达式工具方法
 public class ExprFactory {
     // ---- 工厂方法 ----

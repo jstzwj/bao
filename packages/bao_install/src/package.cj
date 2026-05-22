@@ -244,7 +244,7 @@ public enum JsonValue {
 }
 
 /// 简易 JSON 解析器 -- 仅用于 package.json
-public class JsonParser {
+public class PkgJsonParser {
     private var src: String
     private var pos: Int64
 
@@ -383,7 +383,7 @@ public class JsonParser {
 }
 
 /// JsonValue 工具方法
-public class JsonHelper {
+public class PkgJsonHelper {
     /// 获取对象字段
     public static func getField(obj: JsonValue, key: String): ?JsonValue {
         match (obj) {
@@ -400,6 +400,14 @@ public class JsonHelper {
         }
     }
 
+    /// 获取字符串字段, 不存在时返回空字符串
+    public static func getStringOrEmpty(obj: JsonValue, key: String): String {
+        match (getField(obj, key)) {
+            case Some(JsonValue.Str(s)) => return s
+            case _ => return ""
+        }
+    }
+
     /// 获取对象字段中的字符串映射
     public static func getStringMap(obj: JsonValue, key: String): HashMap<String, String> {
         let result = HashMap<String, String>()
@@ -412,6 +420,118 @@ public class JsonHelper {
                     }
                 }
             case _ => ()
+        }
+        return result
+    }
+
+    /// 获取对象字段 (返回 JsonValue)
+    public static func getObject(obj: JsonValue, key: String): ?JsonValue {
+        match (getField(obj, key)) {
+            case Some(JsonValue.Object(m)) => return Some(JsonValue.Object(m))
+            case _ => return None
+        }
+    }
+
+    /// 获取对象的键列表
+    public static func getKeys(obj: JsonValue): ArrayList<String> {
+        let result = ArrayList<String>()
+        match (obj) {
+            case JsonValue.Object(m) =>
+                for (k in m.keys()) {
+                    result.append(k)
+                }
+            case _ => ()
+        }
+        return result
+    }
+
+    /// 获取对象的键列表 (from HashMap)
+    public static func getKeys(m: HashMap<String, JsonValue>): ArrayList<String> {
+        let result = ArrayList<String>()
+        for (k in m.keys()) {
+            result.append(k)
+        }
+        return result
+    }
+
+    /// 获取任意字段值
+    public static func getValue(obj: JsonValue, key: String): ?JsonValue {
+        return getField(obj, key)
+    }
+
+    /// 获取嵌套字符串 (obj.key1.key2)
+    public static func getNestedString(obj: JsonValue, key1: String, key2: String): ?String {
+        match (getField(obj, key1)) {
+            case Some(inner) => return getString(inner, key2)
+            case None => return None
+        }
+    }
+
+    /// 获取数组的值列表
+    public static func getValues(obj: JsonValue): ArrayList<JsonValue> {
+        let result = ArrayList<JsonValue>()
+        match (obj) {
+            case JsonValue.Object(m) =>
+                for (k in m.keys()) {
+                    match (m.get(k)) {
+                        case Some(v) => result.append(v)
+                        case None => ()
+                    }
+                }
+            case JsonValue.Array(arr) =>
+                for (item in arr) {
+                    result.append(item)
+                }
+            case _ => ()
+        }
+        return result
+    }
+
+    /// 获取数组字段 (返回 ?JsonValue)
+    public static func getArray(obj: JsonValue, key: String): ?JsonValue {
+        match (getField(obj, key)) {
+            case Some(JsonValue.Array(a)) => return Some(JsonValue.Array(a))
+            case _ => return None
+        }
+    }
+
+    /// 获取整数字段
+    public static func getInt(obj: JsonValue, key: String): ?Int64 {
+        let field = getField(obj, key)
+        match (field) {
+            case Some(v) =>
+                match (v) {
+                    case JsonValue.Number(n) => return Some(Int64(n))
+                    case _ => return None
+                }
+            case None => return None
+        }
+    }
+
+    /// 将 JsonValue 转为字符串数组
+    public static func toStringArray(val: JsonValue): ArrayList<String> {
+        let result = ArrayList<String>()
+        match (val) {
+            case JsonValue.Array(arr) =>
+                for (item in arr) {
+                    match (item) {
+                        case JsonValue.Str(s) => result.append(s)
+                        case _ => ()
+                    }
+                }
+            case _ => ()
+        }
+        return result
+    }
+
+    /// 将 JsonValue 数组转为字符串列表
+    public static func jsonArrayToStrings(arr: ArrayList<JsonValue>): ArrayList<String> {
+        let result = ArrayList<String>()
+        for (item in arr) {
+            match (item) {
+                case JsonValue.Str(s) => result.append(s)
+                case _ => ()
+            }
         }
         return result
     }
@@ -451,10 +571,14 @@ public class InstallOptions {
     public var production: Bool
     public var frozen: Bool
     public var verbose: Bool
+    public var force: Bool
+    public var registry: ?String
 
     public init() {
         production = false
         frozen = false
         verbose = false
+        force = false
+        registry = None
     }
 }

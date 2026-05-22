@@ -153,7 +153,7 @@ public class AbsPathBuilder {
     private var separator: PathSeparator
     private let pool: PathBufferPool
 
-    /// 初始化 - 对应 Bun Path.init()
+    /// 初始化 - 对应 Bun Path()
     ///   pub fn init() @This() {
     ///       return .{ ._buf = .{ .pooled = bun.path_buffer_pool.get(), .len = 0 } };
     ///   }

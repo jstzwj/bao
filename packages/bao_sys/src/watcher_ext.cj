@@ -174,7 +174,7 @@ public class RecursiveWatcher {
     }
 
     /// 初始化监视器
-    /// 对应 Bun Watcher.init()
+    /// 对应 Bun Watcher()
     public func initFunc(): SysMaybe<Unit> {
         unsafe {
             let fd = inotify_init1(Int32(InotifyMask.IN_NONBLOCK | InotifyMask.IN_CLOEXEC))

@@ -7,12 +7,12 @@ import bao_jsc.*
 
 /// toHaveBeenLastCalledWith() - 检查mock函数最后一次调用的参数
 /// 用法: expect(mockFn).toHaveBeenLastCalledWith(...expected)
-public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.arguments()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenLastCalledWith", matcherParamsFmt: "<green>...expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenLastCalledWith", matcherParamsFmt: "<green>...expected<r>")
 
     this.incrementExpectCallCounter()
 
@@ -27,7 +27,7 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
     }
 
     let totalCalls: UInt32 = calls.getLength(globalThis: globalThis)
-    var lastCallValue: JSValue = JSValue.zero
+    var lastCallValue: JsValue = JsValue.zero
 
     var pass = totalCalls > 0
 
@@ -40,7 +40,7 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
             return globalThis.throw_("Expected value must be a mock function with calls: {f}", args: [value.toFmt(formatter)])
         }
 
-        if (lastCallValue.getLength(globalThis: globalThis) != arguments.length) {
+        if (lastCallValue.getLength(globalThis: globalThis) != arguments.size) {
             pass = false
         } else {
             var itr = lastCallValue.arrayIterator(globalThis: globalThis)
@@ -54,14 +54,14 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
     }
 
     if (pass != this.flags.not) {
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
 
-    let expectedArgsJsArray = JSValue.createEmptyArray(globalThis: globalThis, length: arguments.length)
+    let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: arguments.size)
     for ((arg, i) in arguments) {
         expectedArgsJsArray.putIndex(globalThis: globalThis, index: UInt32(i), value: arg)
     }

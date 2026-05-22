@@ -15,7 +15,7 @@ public class CachedStructure {
     public init() {}
 
     public func has(): Bool {
-        return structure != None || fields != None
+        return structure.isSome() || fields.isSome()
     }
 
     public func jsValue(): ?JscValue {
@@ -23,7 +23,7 @@ public class CachedStructure {
     }
 
     public func set(globalObject: JscJSGlobalObject, value: ?JscValue, fields: ?Array<ExternColumnIdentifier>): Unit {
-        if (value != None) {
+        if (value.isSome()) {
             structure = value
         }
         this.fields = fields

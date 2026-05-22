@@ -244,48 +244,14 @@ public enum ResultStatus {
 //   pub struct DebugMeta { notes, suggestion_text, suggestion_message, ... }
 // ============================================================================
 
-/// 建议范围 - 对应 Bun SuggestionRange
-public enum SuggestionRange {
-    | Full
-    | End
-}
-
-/// 调试元数据 - 对应 Bun DebugMeta
-public class DebugMeta {
-    public var notes: ArrayList<String>
-    public var suggestionText: String
-    public var suggestionMessage: String
-    public var suggestionRange: SuggestionRange
-
-    public init() {
-        notes = ArrayList<String>()
-        suggestionText = ""
-        suggestionMessage = ""
-        suggestionRange = SuggestionRange.Full
-    }
-}
+// SuggestionRange 和 DebugMeta 定义在 resolver_core.cj 中
 
 // ============================================================================
 // DirEntryResolveQueueItem - 目录解析队列项
 // 严格翻译自: result.rs:373-416
 // ============================================================================
 
-/// 目录解析队列项 - 对应 Bun DirEntryResolveQueueItem
-public class DirEntryResolveQueueItem {
-    public var hash: UInt64
-    public var index: Int64
-    public var unsafePath: String
-    public var safePath: String
-    public var fd: Int64
-
-    public init() {
-        hash = 0
-        index = -1
-        unsafePath = ""
-        safePath = ""
-        fd = -1
-    }
-}
+// DirEntryResolveQueueItem 定义在 resolver_core.cj 中
 
 /// 刷新模式 - 对应 Bun FlushMode
 public enum FlushMode {
@@ -339,20 +305,5 @@ public class PendingResolutionList {
 //   pub struct LoadResult { path, diff_case, dirname_fd, file_fd, dir_info }
 // ============================================================================
 
-/// 加载结果 - 对应 Bun LoadResult
-public class LoadResult {
-    public var path: String
-    public var diffCase: ?String
-    public var dirnameFd: Int64
-    public var fileFd: Int64
-    public var dirInfo: ?DirInfo
-
-    public init() {
-        path = ""
-        diffCase = None
-        dirnameFd = -1
-        fileFd = -1
-        dirInfo = None
-    }
-}
+// LoadResult 定义在 resolver_core.cj 中
 

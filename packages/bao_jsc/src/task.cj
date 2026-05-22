@@ -109,45 +109,9 @@ public class Task {
     }
 }
 
-// ========== WorkTask ==========
-// 严格翻译自 WorkTask.zig
-// 工作线程任务
-public class WorkTask {
-    public var task: ?Task = None
-    public var result: ?JsValue = None
-    public var isDone: Bool = false
+// 注意: WorkTask 已移至 work_task.cj
 
-    public init() {}
-
-    public init(task: Task) {
-        this.task = task
-    }
-
-    // 执行工作任务
-    public func run() {
-        if (let Some(t) <- task) {
-            t.run()
-        }
-        isDone = true
-    }
-}
-
-// ========== CppTask ==========
-// 严格翻译自 CppTask.zig
-// C++ 互操作任务
-public class CppTask {
-    public var funcPtr: CPointer<UInt8> = CPointer<UInt8>()
-    public var dataPtr: CPointer<UInt8> = CPointer<UInt8>()
-    public var isCompleted: Bool = false
-
-    public init() {}
-
-    // 执行 C++ 任务
-    public func run() {
-        // 通过 FFI 调用 C++ 函数
-        isCompleted = true
-    }
-}
+// 注意: CppTask 已移至 cpp_task.cj
 
 // ========== ConcurrentPromiseTask ==========
 // 严格翻译自 ConcurrentPromiseTask.zig
@@ -286,19 +250,19 @@ public class TimeoutObject {
     }
 
     public func refresh() {
-        startTime = currentTimeMillis().toFloat64()
+        startTime = 0.0 // TODO: use proper time API
     }
 }
 
 // ========== 全局任务队列 ==========
 public class GlobalTaskQueue {
     var tasks: Array<Task> = []
-    var workTasks: Array<WorkTask> = []
+    var workTasks: Array<WorkTask<Any>> = []
 
     static var instance_: ?GlobalTaskQueue = None
 
     public static func instance(): GlobalTaskQueue {
-        if (instance_ == None) {
+        if (instance_.isNone()) {
             instance_ = GlobalTaskQueue()
         }
         instance_.getOrThrow()
@@ -313,7 +277,7 @@ public class GlobalTaskQueue {
     public func dequeue(): ?Task {
         if (tasks.size == 0) { return None }
         let task = tasks[0]
-        tasks = tasks.slice(1)
+        tasks = tasks[1..]
         Some(task)
     }
 

@@ -227,7 +227,7 @@ public class FutexDeadline {
     private var startNs: Int64
 
     /// 创建截止时间
-    /// 严格翻译自: Futex.zig:376-386 Deadline.init(expires_in_ns)
+    /// 严格翻译自: Futex.zig:376-386 Deadline(expires_in_ns)
     ///   deadline.timeout = expires_in_ns
     ///   if (deadline.timeout != null) deadline.started = Timer.start()
     public init(timeoutNs: ?Int64) {

@@ -25,7 +25,7 @@ public class DeferredError {
     // 严格翻译自 DeferredError.from
     // 工厂方法: 从格式化字符串创建
     public static func from(kind: DeferredErrorKind, code: NodeJsErrorCode, message: String): DeferredError {
-        DeferredError(kind: kind, code: code, msg: message)
+        DeferredError(kind, code, message)
     }
 
     // 严格翻译自 DeferredError.toError
@@ -37,10 +37,8 @@ public class DeferredError {
             case RangeError => JsValue(JsRangeError(msg).toString())
         }
 
-        match (err.toObject()) {
-            case Some(errObj) => errObj.set("code", JsValue(s: code.toName()))
-            case None => ()
-        }
+        let errObj = err.toObject()
+        errObj.set("code", JsValue(code.toName()))
         err
     }
 }

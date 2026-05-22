@@ -225,15 +225,27 @@ public class Ast {
 }
 
 /// Part - AST 部分
+public enum PartTag {
+    | None
+    | DeadDueToInlining
+    | Normal
+}
+
 public class Part {
     public var stmts: ArrayList<Stmt>
     public var symbolUses: HashMap<Ref, Int64>
     public var declaredSymbols: ArrayList<Ref>
+    public var importRecordIndices: ArrayList<UInt32>
+    public var tag: PartTag
+    public var dependencies: ArrayList<PartDependency>
 
     public init() {
         stmts = ArrayList<Stmt>()
         symbolUses = HashMap<Ref, Int64>()
         declaredSymbols = ArrayList<Ref>()
+        importRecordIndices = ArrayList<UInt32>()
+        tag = PartTag.None
+        dependencies = ArrayList<PartDependency>()
     }
 }
 

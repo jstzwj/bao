@@ -20,11 +20,10 @@ private var cachedIsPR: ?Bool = None
 public func isCI(): Bool {
     match (cachedIsCI) {
         case Some(v) => return v
-        case None => {
+        case None =>
             let result = isCIUncached()
             cachedIsCI = Some(result)
             return result
-        }
     }
 }
 
@@ -34,11 +33,10 @@ public func isCI(): Bool {
 public func detectCIName(): ?String {
     match (cachedCIName) {
         case Some(v) => return v
-        case None => {
+        case None =>
             let result = detectUncached()
             cachedCIName = Some(result)
             return result
-        }
     }
 }
 
@@ -48,11 +46,10 @@ public func detectCIName(): ?String {
 public func isPR(): Bool {
     match (cachedIsPR) {
         case Some(v) => return v
-        case None => {
+        case None =>
             let result = false
             cachedIsPR = Some(result)
             return result
-        }
     }
 }
 

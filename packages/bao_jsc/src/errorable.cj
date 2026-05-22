@@ -38,7 +38,7 @@ public class Errorable<T> {
     }
 
     // 严格翻译自 Errorable.err
-    public static func err(code: ErrorCode_, errValue: JsValue): Errorable<T> {
+    public static func err(code: ErrorCode, errValue: JsValue): Errorable<T> {
         let e = Errorable<T>()
         e.result = ErrorableResult<T>.fromError(errValue)
         e.success = false
@@ -49,7 +49,7 @@ public class Errorable<T> {
 // ========== ErrorableResult<T> ==========
 public class ErrorableResult<T> {
     public var value: ?T = None
-    public var errorValue: JsValue = JsValue.zero
+    public var errorValue: JsValue = JsValue()
 
     public init() {}
 
@@ -66,9 +66,8 @@ public class ErrorableResult<T> {
     }
 }
 
-// ========== ErrorableResolvedSource ==========
-// 严格翻译自 Errorable(ResolvedSource)
-public type ErrorableResolvedSource = Errorable<ResolvedSource_>
+// 注意: ErrorableResolvedSource 已移至 module_loader.cj (非泛型具体类)
+// 注意: ErrorableString 已移至 module_loader.cj (非泛型具体类)
 
 // ========== ErrorableZigString ==========
 // 严格翻译自 Errorable(ZigString)
@@ -77,7 +76,3 @@ public type ErrorableZigString = Errorable<ZigString>
 // ========== ErrorableJSValue ==========
 // 严格翻译自 Errorable(JSValue)
 public type ErrorableJSValue = Errorable<JsValue>
-
-// ========== ErrorableString ==========
-// 严格翻译自 Errorable(bun.String)
-public type ErrorableString = Errorable<String>

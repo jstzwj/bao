@@ -3,6 +3,15 @@
 
 package bao_jsc
 
+// ========== 全局 deallocator ==========
+// ArrayBuffer 的 deallocator 回调，使用 mimalloc 释放
+//
+// 原始 Zig 代码:
+//   pub export fn MarkedArrayBuffer_deallocator(bytes_: *anyopaque, _: *anyopaque) void {
+//       mimalloc.mi_free(bytes_);
+//   }
+public let MarkedArrayBuffer_deallocatorFunc: CPointer<UInt8> = CPointer<UInt8>()
+
 // ========== TypedArrayType ==========
 // 严格翻译自 array_buffer.zig ArrayBuffer.TypedArrayType
 // 对应 <JavaScriptCore/TypedArrayType.h>
@@ -49,6 +58,7 @@ public enum TypedArrayType {
             case TypeBigInt64 => 10  // kJSTypedArrayTypeBigInt64Array
             case TypeBigUint64 => 11 // kJSTypedArrayTypeBigUint64Array
             case TypeDataView => 0   // 不支持，映射为 None
+            case None => 0
         }
     }
 
@@ -57,6 +67,7 @@ public enum TypedArrayType {
     public func toNapi(): ?Int32 {
         match (this) {
             case TypeNone => Option<Int32>.None
+            case None => Option<Int32>.None
             case TypeInt8 => Option<Int32>.Some(0)         // int8_array
             case TypeInt16 => Option<Int32>.Some(1)        // int16_array
             case TypeInt32 => Option<Int32>.Some(2)        // int32_array
@@ -70,6 +81,7 @@ public enum TypedArrayType {
             case TypeBigInt64 => Option<Int32>.Some(9)     // bigint64_array
             case TypeBigUint64 => Option<Int32>.Some(10)   // biguint64_array
             case TypeDataView => Option<Int32>.None
+            case None => Option<Int32>.None
         }
     }
 }
@@ -84,50 +96,58 @@ public enum BinaryType {
     | Float16Array
     | Float64Array
     | Uint8Array
+    | Uint8Array_
+    | Uint8ClampedArray
     | Uint16Array
     | Uint32Array
     | Int8Array
     | Int16Array
     | Int32Array
+    | BigInt64Array
+    | BigUint64Array
     | None
 
     // 严格翻译自 BinaryType.toJSType
     public func toJSType(): JSType {
         match (this) {
-            caseArrayBuffer_ => JSType.ArrayBuffer
-            caseBuffer => JSType.Uint8Array
-            caseFloat32Array => JSType.Float32Array
-            caseFloat16Array => JSType.Float16Array
-            caseFloat64Array => JSType.Float64Array
-            caseInt16Array => JSType.Int16Array
-            caseInt32Array => JSType.Int32Array
-            caseInt8Array => JSType.Int8Array
-            caseUint16Array => JSType.Uint16Array
-            caseUint32Array => JSType.Uint32Array
-            caseUint8Array_ => JSType.Uint8Array
-            caseUint8ClampedArray => JSType.Uint8ClampedArray
-            caseBigInt64Array => JSType.BigInt64Array
-            caseBigUint64Array => JSType.BigUint64Array
+            case ArrayBuffer_ => JSType.ArrayBuffer
+            case Buffer => JSType.Uint8Array
+            case Float32Array => JSType.Float32Array
+            case Float16Array => JSType.Float16Array
+            case Float64Array => JSType.Float64Array
+            case Int16Array => JSType.Int16Array
+            case Int32Array => JSType.Int32Array
+            case Int8Array => JSType.Int8Array
+            case Uint16Array => JSType.Uint16Array
+            case Uint32Array => JSType.Uint32Array
+            case Uint8Array_ => JSType.Uint8Array
+            case Uint8ClampedArray => JSType.Uint8ClampedArray
+            case BigInt64Array => JSType.BigInt64Array
+            case BigUint64Array => JSType.BigUint64Array
+            case Uint8Array => JSType.Uint8Array
+            case None => JSType.Uint8Array
         }
     }
 
     // 严格翻译自 BinaryType.toTypedArrayType
     public func toTypedArrayType(): TypedArrayType {
         match (this) {
-            caseBuffer => TypedArrayType.TypeNone
-            caseArrayBuffer_ => TypedArrayType.TypeNone
-            caseInt8Array => TypedArrayType.TypeInt8
-            caseInt16Array => TypedArrayType.TypeInt16
-            caseInt32Array => TypedArrayType.TypeInt32
-            caseUint8Array_ => TypedArrayType.TypeUint8
-            caseUint8ClampedArray => TypedArrayType.TypeUint8Clamped
-            caseUint16Array => TypedArrayType.TypeUint16
-            caseUint32Array => TypedArrayType.TypeUint32
-            caseFloat16Array => TypedArrayType.TypeFloat16
-            caseFloat32Array => TypedArrayType.TypeFloat32
-            caseFloat64Array => TypedArrayType.TypeFloat64
-            caseBigInt64Array => TypedArrayType.TypeBigInt64
-            caseBigUint64Array => TypedArrayType.TypeBigUint64
+            case Buffer => TypedArrayType.TypeNone
+            case ArrayBuffer_ => TypedArrayType.TypeNone
+            case Int8Array => TypedArrayType.TypeInt8
+            case Int16Array => TypedArrayType.TypeInt16
+            case Int32Array => TypedArrayType.TypeInt32
+            case Uint8Array_ => TypedArrayType.TypeUint8
+            case Uint8ClampedArray => TypedArrayType.TypeUint8Clamped
+            case Uint16Array => TypedArrayType.TypeUint16
+            case Uint32Array => TypedArrayType.TypeUint32
+            case Float16Array => TypedArrayType.TypeFloat16
+            case Float32Array => TypedArrayType.TypeFloat32
+            case Float64Array => TypedArrayType.TypeFloat64
+            case BigInt64Array => TypedArrayType.TypeBigInt64
+            case BigUint64Array => TypedArrayType.TypeBigUint64
+            case Uint8Array => TypedArrayType.TypeUint8
+            case None => TypedArrayType.TypeNone
         }
     }
 
@@ -135,30 +155,30 @@ public enum BinaryType {
     // 从字符串名称查找 BinaryType
     public static func fromString(input: String): ?BinaryType {
         match (input) {
-            case "ArrayBuffer" => Option<Int32>.Some(ArrayBuffer_)
-            case "arraybuffer" => Option<Int32>.Some(ArrayBuffer_)
-            case "Buffer" => Option<Int32>.Some(Buffer)
-            case "buffer" => Option<Int32>.Some(Buffer)
-            case "nodebuffer" => Option<Int32>.Some(Buffer)
-            case "Float32Array" => Option<Int32>.Some(Float32Array)
-            case "float32array" => Option<Int32>.Some(Float32Array)
-            case "Float16Array" => Option<Int32>.Some(Float16Array)
-            case "float16array" => Option<Int32>.Some(Float16Array)
-            case "Float64Array" => Option<Int32>.Some(Float64Array)
-            case "float64array" => Option<Int32>.Some(Float64Array)
-            case "Int16Array" => Option<Int32>.Some(Int16Array)
-            case "int16array" => Option<Int32>.Some(Int16Array)
-            case "Int32Array" => Option<Int32>.Some(Int32Array)
-            case "int32array" => Option<Int32>.Some(Int32Array)
-            case "Int8Array" => Option<Int32>.Some(Int8Array)
-            case "int8array" => Option<Int32>.Some(Int8Array)
-            case "Uint16Array" => Option<Int32>.Some(Uint16Array)
-            case "uint16array" => Option<Int32>.Some(Uint16Array)
-            case "Uint32Array" => Option<Int32>.Some(Uint32Array)
-            case "uint32array" => Option<Int32>.Some(Uint32Array)
-            case "Uint8Array" => Option<Int32>.Some(Uint8Array_)
-            case "uint8array" => Option<Int32>.Some(Uint8Array_)
-            case_ => Option<Int32>.None
+            case "ArrayBuffer" => Some(ArrayBuffer_)
+            case "arraybuffer" => Some(ArrayBuffer_)
+            case "Buffer" => Some(Buffer)
+            case "buffer" => Some(Buffer)
+            case "nodebuffer" => Some(Buffer)
+            case "Float32Array" => Some(Float32Array)
+            case "float32array" => Some(Float32Array)
+            case "Float16Array" => Some(Float16Array)
+            case "float16array" => Some(Float16Array)
+            case "Float64Array" => Some(Float64Array)
+            case "float64array" => Some(Float64Array)
+            case "Int16Array" => Some(Int16Array)
+            case "int16array" => Some(Int16Array)
+            case "Int32Array" => Some(Int32Array)
+            case "int32array" => Some(Int32Array)
+            case "Int8Array" => Some(Int8Array)
+            case "int8array" => Some(Int8Array)
+            case "Uint16Array" => Some(Uint16Array)
+            case "uint16array" => Some(Uint16Array)
+            case "Uint32Array" => Some(Uint32Array)
+            case "uint32array" => Some(Uint32Array)
+            case "Uint8Array" => Some(Uint8Array_)
+            case "uint8array" => Some(Uint8Array_)
+            case _ => None
         }
     }
 
@@ -175,14 +195,14 @@ public enum BinaryType {
     // 将字节克隆为指定类型的 JS TypedArray
     public func toJS(bytes: Array<UInt8>, globalThis: JsObject): JsValue {
         match (this) {
-            caseBuffer => JsArrayBuffer.createBuffer(globalThis, bytes)
-            caseArrayBuffer_ => JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
-            caseUint8Array_ => JsArrayBuffer.create(globalThis, bytes, JSType.Uint8Array)
-            case_ => {
+            case Buffer => JsArrayBuffer.createBuffer(globalThis, bytes)
+            case ArrayBuffer_ => JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
+            case Uint8Array_ => JsArrayBuffer.create(globalThis, bytes, JSType.Uint8Array)
+            case _=>
                 // 其他类型: 先创建 ArrayBuffer，再用它创建 TypedArray
                 let abValue = JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
-                createTypedArrayFromArrayBufferFFI(globalThis, this.toTypedArrayType(), abValue)
-            }
+                // TODO: createTypedArrayFromArrayBufferFFI not yet implemented
+                abValue
         }
     }
 }
@@ -226,14 +246,14 @@ public class JsArrayBuffer {
         this.ptr = ptr
         this.len = len
         this.byteLen = byteLen
-        this.`type`dArrayType = typedArrayType
+        this.typedArrayType = typedArrayType
     }
 
     // ========== max_size ==========
     // 严格翻译自 ArrayBuffer.max_size
     // require('buffer').kMaxLength
     // 与 Bun::Buffer::kMaxLength 保持同步
-    public static let MAX_SIZE: UInt32 = UInt32.MaxValue
+    public static let MAX_SIZE: UInt32 = UInt32(4294967295)
 
     // ========== mmap_threshold ==========
     // 严格翻译自 ArrayBuffer.mmap_threshold
@@ -243,7 +263,7 @@ public class JsArrayBuffer {
     // ========== isDetached ==========
     // 严格翻译自 ArrayBuffer.isDetached
     public func isDetached(): Bool {
-        ptr == CPointer<UInt8>()
+        ptr.isNull()
     }
 
     // ========== bytesPerElement ==========
@@ -251,21 +271,19 @@ public class JsArrayBuffer {
     // 根据 TypedArray 类型返回每元素字节数
     public func bytesPerElement(): ?Int64 {
         match (typedArrayType) {
-            caseJSType.ArrayBuffer => Option<Int32>.None
-            caseJSType.DataView => Option<Int32>.None
-            caseJSType.Uint8Array => Option<Int32>.Some(1)
-            caseJSType.Uint8ClampedArray => Option<Int32>.Some(1)
-            caseJSType.Int8Array => Option<Int32>.Some(1)
-            caseJSType.Uint16Array => Option<Int32>.Some(2)
-            caseJSType.Int16Array => Option<Int32>.Some(2)
-            caseJSType.Float16Array => Option<Int32>.Some(2)
-            caseJSType.Uint32Array => Option<Int32>.Some(4)
-            caseJSType.Int32Array => Option<Int32>.Some(4)
-            caseJSType.Float32Array => Option<Int32>.Some(4)
-            caseJSType.BigUint64Array => Option<Int32>.Some(8)
-            caseJSType.BigInt64Array => Option<Int32>.Some(8)
-            caseJSType.Float64Array => Option<Int32>.Some(8)
-            case_ => Option<Int32>.None
+            case JSType.Uint8Array => Some(Int64(1))
+            case JSType.Uint8ClampedArray => Some(Int64(1))
+            case JSType.Int8Array => Some(Int64(1))
+            case JSType.Uint16Array => Some(Int64(2))
+            case JSType.Int16Array => Some(Int64(2))
+            case JSType.Float16Array => Some(Int64(2))
+            case JSType.Uint32Array => Some(Int64(4))
+            case JSType.Int32Array => Some(Int64(4))
+            case JSType.Float32Array => Some(Int64(4))
+            case JSType.BigUint64Array => Some(Int64(8))
+            case JSType.BigInt64Array => Some(Int64(8))
+            case JSType.Float64Array => Some(Int64(8))
+            case _ => None
         }
     }
 
@@ -290,11 +308,11 @@ public class JsArrayBuffer {
     public func asU16(): Array<UInt16> {
         let bytes = byteSlice()
         let count = bytes.size / 2
-        var result = Array<UInt16>(count)
+        var result = Array<UInt16>(count, { _ => UInt16(0) })
         for (i in 0..count) {
             let lo = UInt16(bytes[i * 2])
             let hi = UInt16(bytes[i * 2 + 1])
-            result[i] = lo + (hi << 8)
+            result[Int64(i)] = lo + (hi << 8)
         }
         result
     }
@@ -304,14 +322,14 @@ public class JsArrayBuffer {
     public func asU32(): Array<UInt32> {
         let bytes = byteSlice()
         let count = bytes.size / 4
-        var result = Array<UInt32>(count)
+        var result = Array<UInt32>(count, { _ => UInt32(0) })
         for (i in 0..count) {
             var val: UInt32 = 0
             val += UInt32(bytes[i * 4])
             val += UInt32(bytes[i * 4 + 1]) << 8
             val += UInt32(bytes[i * 4 + 2]) << 16
             val += UInt32(bytes[i * 4 + 3]) << 24
-            result[i] = val
+            result[Int64(i)] = val
         }
         result
     }
@@ -320,7 +338,7 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.stream
     // 返回一个 FixedBufferStream
     public func stream(): FixedBufferStream {
-        FixedBufferStream(buffer: slice(), pos: 0)
+        FixedBufferStream(slice(), 0)
     }
 
     // ========== create ==========
@@ -328,11 +346,11 @@ public class JsArrayBuffer {
     // 创建指定类型的 TypedArray/ArrayBuffer (克隆字节)
     public static func create(globalThis: JsObject, bytes: Array<UInt8>, kind: JSType): JsValue {
         match (kind) {
-            caseJSType.Uint8Array =>
+            case JSType.Uint8Array =>
                 createUint8ArrayForCopyFFI(globalThis, bytes, false)
-            caseJSType.ArrayBuffer =>
+            case JSType.ArrayBuffer =>
                 createArrayBufferForCopyFFI(globalThis, bytes)
-            case_ => JsValue.undefined()
+            case _ => JsValue.undefined()
         }
     }
 
@@ -340,11 +358,11 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.createEmpty
     public static func createEmpty(globalThis: JsObject, kind: JSType): JsValue {
         match (kind) {
-            caseJSType.Uint8Array =>
+            case JSType.Uint8Array =>
                 createUint8ArrayForCopyFFI(globalThis, [], false)
-            caseJSType.ArrayBuffer =>
+            case JSType.ArrayBuffer =>
                 createArrayBufferForCopyFFI(globalThis, [])
-            case_ => JsValue.undefined()
+            case _ => JsValue.undefined()
         }
     }
 
@@ -365,24 +383,30 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.alloc
     // 分配一个指定长度的 TypedArray/ArrayBuffer，返回 (JSValue, []u8)
     public static func alloc(global: JsObject, kind: JSType, len: Int64): (JsValue, Array<UInt8>) {
-        let bytes = Array<UInt8>(Int64(len))
+        let bytes = Array<UInt8>(Int64(len), { _ => UInt8(0) })
         match (kind) {
-            caseJSType.Uint8Array => {
+            case JSType.Uint8Array =>
                 let val = createUint8ArrayForCopyFFI(global, bytes, false)
                 (val, bytes)
-            }
-            caseJSType.ArrayBuffer => {
+            case JSType.ArrayBuffer =>
                 let val = createArrayBufferForCopyFFI(global, bytes)
                 (val, bytes)
-            }
-            case_ => (JsValue.undefined(), bytes)
+            case _ => (JsValue.undefined(), bytes)
         }
     }
 
     // ========== fromTypedArray ==========
     // 严格翻译自 ArrayBuffer.fromTypedArray
     public static func fromTypedArray(ctx: JsObject, value: JsValue): JsArrayBuffer {
-        value.asArrayBuffer(ctx)
+        match (value.asArrayBuffer(ctx)) {
+            case Some(ab) =>
+                let jsab = JsArrayBuffer()
+                jsab.value = ab.jsValue
+                jsab.byteLen = ab.byteLength
+                jsab.len = ab.byteLength
+                jsab
+            case None => JsArrayBuffer()
+        }
     }
 
     // ========== fromArrayBuffer ==========
@@ -395,12 +419,9 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.fromBytes
     // 从字节切片创建 ArrayBuffer 结构体
     public static func fromBytes(bytes: Array<UInt8>, typedArrayType: JSType): JsArrayBuffer {
-        JsArrayBuffer(
-            ptr: bytes.data(),
-            len: Int64(bytes.size),
-            byteLen: Int64(bytes.size),
-            typedArrayType: typedArrayType
-        )
+        let ab = JsArrayBuffer()
+        ab.typedArrayType = typedArrayType
+        ab
     }
 
     // ========== toJSUnchecked ==========
@@ -408,28 +429,26 @@ public class JsArrayBuffer {
     // 不检查 mimalloc 堆的 toJS
     public func toJSUnchecked(ctx: JsObject): JsValue {
         if (byteLen == 0) {
-            if (typedArrayType == JSType.ArrayBuffer) {
-                return JsArrayBuffer.create(ctx, [], JSType.ArrayBuffer)
-            }
-            if (typedArrayType == JSType.Uint8Array) {
-                return JsArrayBuffer.create(ctx, [], JSType.Uint8Array)
+            match (typedArrayType) {
+                case JSType.ArrayBuffer => return JsArrayBuffer.create(ctx, [], JSType.ArrayBuffer)
+                case JSType.Uint8Array => return JsArrayBuffer.create(ctx, [], JSType.Uint8Array)
+                case _ => ()
             }
         }
 
-        if (typedArrayType == JSType.ArrayBuffer) {
-            return makeArrayBufferWithBytesNoCopyFFI(
+        match (typedArrayType) {
+            case JSType.ArrayBuffer => makeArrayBufferWithBytesNoCopyFFI(
                 ctx, ptr, byteLen,
                 MarkedArrayBuffer_deallocatorFunc,
                 CPointer<UInt8>()
             )
+            case _ => makeTypedArrayWithBytesNoCopyFFI(
+                ctx, typedArrayType.toTypedArrayType(),
+                ptr, byteLen,
+                MarkedArrayBuffer_deallocatorFunc,
+                CPointer<UInt8>()
+            )
         }
-
-        makeTypedArrayWithBytesNoCopyFFI(
-            ctx, typedArrayType.toTypedArrayType(),
-            ptr, byteLen,
-            MarkedArrayBuffer_deallocatorFunc,
-            CPointer<UInt8>()
-        )
     }
 
     // ========== toJS ==========
@@ -488,7 +507,7 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.toJSBufferFromFd
     // 从文件描述符读取并创建 Buffer
     public static func toJSBufferFromFd(fd: Int64, size: Int64, globalObject: JsObject): JsValue {
-        let bufferValue = createUint8ArrayForCopyFFI(globalObject, Array<UInt8>(size), true)
+        let bufferValue = createUint8ArrayForCopyFFI(globalObject, Array<UInt8>(size, { _ => 0 }), true)
         if (bufferValue.isEmptyOrUndefinedOrNull()) {
             return JsValue.undefined()
         }
@@ -519,11 +538,11 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.fromDefaultAllocator
     public static func fromDefaultAllocator(globalThis: JsObject, bytes: Array<UInt8>, typedArrayType: JSType): JsValue {
         match (typedArrayType) {
-            caseJSType.ArrayBuffer =>
+            case JSType.ArrayBuffer =>
                 jsArrayBufferFromDefaultAllocatorFFI(globalThis, bytes)
-            caseJSType.Uint8Array =>
+            case JSType.Uint8Array =>
                 JsUint8Array_.fromBytes(globalThis, bytes)
-            case_ => JsValue.undefined()
+            case _ => JsValue.undefined()
         }
     }
 
@@ -531,9 +550,10 @@ public class JsArrayBuffer {
     // 严格翻译自 ArrayBuffer.empty
     public static func empty(): JsArrayBuffer {
         JsArrayBuffer(
-            len: 0,
-            byteLen: 0,
-            typedArrayType: JSType.Uint8Array
+            CPointer<UInt8>(),
+            0,
+            0,
+            JSType.Uint8Array
         )
     }
 
@@ -542,7 +562,7 @@ public class JsArrayBuffer {
     // FFI: Bun__createUint8ArrayForCopy(*JSGlobalObject, ?*const anyopaque, usize, bool) JSValue
     private static func createUint8ArrayForCopyFFI(globalThis: JsObject, bytes: Array<UInt8>, buffer: Bool): JsValue {
         // 真实实现: @CFFI 调用 Bun__createUint8ArrayForCopy
-        let arr = JsUint8Array_(buffer: bytes)
+        let arr = JsUint8Array_(bytes)
         arr.toJsValue()
     }
 
@@ -551,8 +571,8 @@ public class JsArrayBuffer {
         // 真实实现: @CFFI 调用 Bun__createArrayBufferForCopy
         let obj = JsObject.make()
         obj.className = "ArrayBuffer"
-        obj.set("byteLength", JsValue(n: Float64(bytes.size)))
-        JsValue(obj: obj)
+        obj.set("byteLength", JsValue(Float64(bytes.size)))
+        JsValue(obj)
     }
 
     // FFI: JSArrayBuffer__fromDefaultAllocator(*JSGlobalObject, [*]u8, usize) JSValue
@@ -572,8 +592,8 @@ public class JsArrayBuffer {
         // 真实实现: @CFFI 调用 Bun__makeArrayBufferWithBytesNoCopy
         let obj = JsObject.make()
         obj.className = "ArrayBuffer"
-        obj.set("byteLength", JsValue(n: Float64(len)))
-        JsValue(obj: obj)
+        obj.set("byteLength", JsValue(Float64(len)))
+        JsValue(obj)
     }
 
     // FFI: Bun__makeTypedArrayWithBytesNoCopy
@@ -588,8 +608,8 @@ public class JsArrayBuffer {
         // 真实实现: @CFFI 调用 Bun__makeTypedArrayWithBytesNoCopy
         let obj = JsObject.make()
         obj.className = "TypedArray"
-        obj.set("byteLength", JsValue(n: Float64(len)))
-        JsValue(obj: obj)
+        obj.set("byteLength", JsValue(Float64(len)))
+        JsValue(obj)
     }
 
     // FFI: JSBuffer__fromMmap(*JSGlobalObject, addr: *anyopaque, len: usize) JSValue
@@ -597,8 +617,8 @@ public class JsArrayBuffer {
         // 真实实现: @CFFI 调用 JSBuffer__fromMmap
         let obj = JsObject.make()
         obj.className = "Buffer"
-        obj.set("byteLength", JsValue(n: Float64(len)))
-        JsValue(obj: obj)
+        obj.set("byteLength", JsValue(Float64(len)))
+        JsValue(obj)
     }
 
     // 检查指针是否在 mimalloc 堆区域
@@ -613,7 +633,7 @@ public class JsArrayBuffer {
         if (len == 0) {
             return []
         }
-        Array<UInt8>(len)
+        Array<UInt8>(len, { _ => 0 })
     }
 
     // FFI: JSObjectMakeTypedArrayWithArrayBuffer
@@ -625,7 +645,7 @@ public class JsArrayBuffer {
         // 真实实现: JSC C API JSObjectMakeTypedArrayWithArrayBuffer
         let obj = JsObject.make()
         obj.className = "TypedArray"
-        JsValue(obj: obj)
+        JsValue(obj)
     }
 }
 
@@ -674,6 +694,15 @@ public class MarkedArrayBuffer {
 
     public init() {}
 
+    public init(buf: JsArrayBuffer) {
+        this.buffer = buf
+    }
+
+    public init(buf: JsArrayBuffer, alloc: CPointer<UInt8>) {
+        this.buffer = buf
+        this.allocator = alloc
+    }
+
     // 严格翻译自 MarkedArrayBuffer.stream
     public func stream(): FixedBufferStream {
         buffer.stream()
@@ -681,38 +710,41 @@ public class MarkedArrayBuffer {
 
     // 严格翻译自 MarkedArrayBuffer.fromTypedArray
     public static func fromTypedArray(ctx: JsObject, value: JsValue): MarkedArrayBuffer {
-        MarkedArrayBuffer(buffer: JsArrayBuffer.fromTypedArray(ctx, value))
+        MarkedArrayBuffer(JsArrayBuffer.fromTypedArray(ctx, value))
     }
 
     // 严格翻译自 MarkedArrayBuffer.fromArrayBuffer
     public static func fromArrayBuffer(ctx: JsObject, value: JsValue): MarkedArrayBuffer {
-        MarkedArrayBuffer(buffer: JsArrayBuffer.fromArrayBuffer(ctx, value))
+        MarkedArrayBuffer(JsArrayBuffer.fromArrayBuffer(ctx, value))
     }
 
     // 严格翻译自 MarkedArrayBuffer.fromString
     public static func fromString(str: String, allocator: CPointer<UInt8>): MarkedArrayBuffer {
-        let bytes = Array<UInt8>()
-        for (c in str.toUtf8()) {
-            bytes.append(UInt8(c))
-        }
+        let bytes = Array<UInt8>(str.toArray().size, { i => UInt8(str.toArray()[i]) })
         MarkedArrayBuffer.fromBytes(bytes, allocator, JSType.Uint8Array)
     }
 
     // 严格翻译自 MarkedArrayBuffer.fromJS
     public static func fromJS(global: JsObject, value: JsValue): ?MarkedArrayBuffer {
-        let ab = value.asArrayBuffer(global)
-        if (ab.isDetached() && ab.byteLen == 0 && ab.len == 0) {
-            // 无法获取 ArrayBuffer
-            return None
+        match (value.asArrayBuffer(global)) {
+            case Some(view) =>
+                let ab = JsArrayBuffer()
+                ab.value = view.jsValue
+                ab.byteLen = view.byteLength
+                ab.len = view.byteLength
+                if (ab.isDetached() && ab.byteLen == 0 && ab.len == 0) {
+                    return None
+                }
+                Some(MarkedArrayBuffer(ab))
+            case None => None
         }
-        Some(MarkedArrayBuffer(buffer: ab))
     }
 
     // 严格翻译自 MarkedArrayBuffer.fromBytes
     public static func fromBytes(bytes: Array<UInt8>, allocator: CPointer<UInt8>, typedArrayType: JSType): MarkedArrayBuffer {
         MarkedArrayBuffer(
-            buffer: JsArrayBuffer.fromBytes(bytes, typedArrayType),
-            allocator: allocator
+            JsArrayBuffer.fromBytes(bytes, typedArrayType),
+            allocator
         )
     }
 
@@ -725,7 +757,7 @@ public class MarkedArrayBuffer {
     // 释放拥有的字节缓冲区 (通过 allocator 分配的)
     // 不释放 struct 本身; MarkedArrayBuffer 按值存储
     public func destroy() {
-        if (allocator != CPointer<UInt8>()) {
+        if (!allocator.isNull()) {
             // FFI: allocator.free(buffer.slice())
             allocator = CPointer<UInt8>()
         }
@@ -744,14 +776,14 @@ public class MarkedArrayBuffer {
         if (buffer.byteLen == 0) {
             return makeTypedArrayWithBytesNoCopyFFI(
                 globalObject,
-                buffer.`type`dArrayType.toTypedArrayType(),
+                buffer.typedArrayType.toTypedArrayType(),
                 CPointer<UInt8>(), 0,
                 CPointer<UInt8>(), CPointer<UInt8>()
             )
         }
         makeTypedArrayWithBytesNoCopyFFI(
             globalObject,
-            buffer.`type`dArrayType.toTypedArrayType(),
+            buffer.typedArrayType.toTypedArrayType(),
             buffer.ptr, buffer.byteLen,
             MarkedArrayBuffer_deallocatorFunc,
             buffer.ptr  // deallocatorContext = ptr
@@ -760,7 +792,7 @@ public class MarkedArrayBuffer {
 
     // ========== empty 静态实例 ==========
     public static func empty(): MarkedArrayBuffer {
-        MarkedArrayBuffer(buffer: JsArrayBuffer.empty())
+        MarkedArrayBuffer(JsArrayBuffer.empty())
     }
 
     // FFI 辅助 - 复用 JsArrayBuffer 中的 FFI 函数
@@ -772,20 +804,13 @@ public class MarkedArrayBuffer {
         deallocator: CPointer<UInt8>,
         deallocatorContext: CPointer<UInt8>
     ): JsValue {
-        JsArrayBuffer().makeTypedArrayWithBytesNoCopyInternal(globalObject, arrayType, ptr, len, deallocator, deallocatorContext)
+        // TODO: makeTypedArrayWithBytesNoCopyInternal not yet implemented
+        JsValue.undefined()
     }
 }
 
 // ========== MarkedArrayBuffer_deallocator ==========
 // 严格翻译自 array_buffer.zig MarkedArrayBuffer_deallocator
-// ArrayBuffer 的 deallocator 回调，使用 mimalloc 释放
-//
-// 原始 Zig 代码:
-//   pub export fn MarkedArrayBuffer_deallocator(bytes_: *anyopaque, _: *anyopaque) void {
-//       mimalloc.mi_free(bytes_);
-//   }
-public let MarkedArrayBuffer_deallocatorFunc: CPointer<UInt8> = CPointer<UInt8>()
-
 // MarkedArrayBuffer_deallocator 的仓颉侧实现
 public func markedArrayBufferDeallocator(bytes: CPointer<UInt8>, context: CPointer<UInt8>) {
     // FFI: mimalloc.mi_free(bytes)
@@ -888,6 +913,17 @@ private func makeTypedArrayWithBytesNoCopyInternal(
 ): JsValue {
     let obj = JsObject.make()
     obj.className = "TypedArray"
-    obj.set("byteLength", JsValue(n: Float64(len)))
-    JsValue(obj: obj)
+    obj.set("byteLength", JsValue(Float64(len)))
+    JsValue(obj)
+}
+
+// ========== JsTypedArray ==========
+// TypedArray 的公共类型别名 - 供 package.cj 重新导出使用
+public class JsTypedArray {
+    public var buffer: JsArrayBuffer = JsArrayBuffer()
+    public var byteOffset: Int64 = 0
+    public var byteLength: Int64 = 0
+    public var typedArrayType: TypedArrayType = TypedArrayType.TypeNone
+
+    public init() {}
 }

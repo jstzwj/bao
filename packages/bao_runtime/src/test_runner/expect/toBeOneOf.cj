@@ -7,21 +7,21 @@ import bao_jsc.*
 
 /// toBeOneOf() - 检查值是否在给定集合中
 /// 用法: expect(received).toBeOneOf(list)
-public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toBeOneOf() takes 1 argument")
     }
 
     this.incrementExpectCallCounter()
 
     let expected = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeOneOf", matcherParamsFmt: "<green>expected<r>")
-    let listValue: JSValue = arguments[0]
+    let listValue: JsValue = arguments[0]
 
     let not = this.flags.not
     var pass = false
@@ -48,7 +48,7 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
@@ -71,10 +71,10 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
 // 用于 forEach 回调的上下文
 private class ExpectedEntry {
     var globalThis: JSGlobalObject
-    var expected: JSValue
+    var expected: JsValue
     var pass: Bool = false
 
-    init(globalThis: JSGlobalObject, expected: JSValue) {
+    init(globalThis: JSGlobalObject, expected: JsValue) {
         this.globalThis = globalThis
         this.expected = expected
     }

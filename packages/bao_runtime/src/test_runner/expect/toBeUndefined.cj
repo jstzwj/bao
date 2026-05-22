@@ -7,11 +7,11 @@ import bao_jsc.*
 
 /// toBeUndefined() - 检查值是否为undefined
 /// 用法: expect(received).toBeUndefined()
-public func toBeUndefined(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeUndefined(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeUndefined", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeUndefined", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
@@ -20,7 +20,7 @@ public func toBeUndefined(`this`: Expect, globalThis: JSGlobalObject, callFrame:
     if (value.isUndefined()) { pass = true }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)

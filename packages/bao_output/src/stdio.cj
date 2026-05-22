@@ -65,7 +65,7 @@ public class Stdio {
         return stdioNull[0]
     }
 
-    /// 初始化 - 对应 Bun Stdio.init()
+    /// 初始化 - 对应 Bun Stdio()
     /// pub fn init() void {
     ///     bun_initialize_process();
     ///     const stdout = bun.sys.File.from(std.fs.File.stdout());

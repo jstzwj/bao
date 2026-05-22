@@ -72,7 +72,7 @@ public class Assets {
             var contents_mut = contents
             contents_mut.detach()
         }
-        gop.value_ptr = EntryIndex.`init`(file_index_gop.index)
+        gop.value_ptr = EntryIndex(file_index_gop.index)
         return gop.value_ptr
     }
 
@@ -91,7 +91,7 @@ public class Assets {
     /// 按哈希取消引用
     public func unrefByHash(content_hash: UInt64, dec_count: UInt32): Unit {
         let index = files.getIndex(content_hash) ?? panic("Asset double unref")
-        unrefByIndex(EntryIndex.`init`(index), dec_count)
+        unrefByIndex(EntryIndex(index), dec_count)
     }
 
     /// 按索引取消引用

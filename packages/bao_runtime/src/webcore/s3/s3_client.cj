@@ -2,7 +2,7 @@
 // 严格翻译自: src/runtime/webcore/S3Client.rs (741 lines)
 //   Bun 的 S3Client 模块:
 //   - S3CredentialsExt trait: guessRegion, guessBucket, getCredentialsWithOptions
-//   - optJs: JSValue -> Option<JSValue> 辅助
+//   - optJs: JsValue -> Option<JsValue> 辅助
 //   - writeFormatCredentials: 格式化凭证输出
 //   - S3Client struct: credentials, options, acl, storageClass, requestPayer
 //   - Drop: credentials.deref()
@@ -60,7 +60,7 @@ public class S3CredentialsExt {
     /// 对应 Bun: fn get_credentials_with_options(
     ///     this: &S3Credentials,
     ///     default_options: MultiPartUploadOptions,
-    ///     options: Option<JSValue>,
+    ///     options: Option<JsValue>,
     ///     default_acl: Option<ACL>,
     ///     default_storage_class: Option<StorageClass>,
     ///     default_request_payer: bool,
@@ -74,7 +74,7 @@ public class S3CredentialsExt {
     public static func getCredentialsWithOptions(
         defaultCredentials: S3Credentials,
         defaultOptions: MultiPartUploadOptions,
-        options: ?JSValue,
+        options: ?JsValue,
         defaultAcl: ?S3Acl,
         defaultStorageClass: ?S3StorageClass,
         defaultRequestPayer: Bool,
@@ -93,14 +93,14 @@ public class S3CredentialsExt {
 }
 
 // ============================================================================
-// optJs - JSValue -> Option<JSValue> 辅助
+// optJs - JsValue -> Option<JsValue> 辅助
 // 严格翻译自: S3Client.rs opt_js (lines 85-92)
-//   Bun: #[inline] fn opt_js(v: JSValue) -> Option<JSValue>
+//   Bun: #[inline] fn opt_js(v: JsValue) -> Option<JsValue>
 // ============================================================================
 
-/// 辅助: 检查 JSValue 是否为空/undefined/null
-/// 对应 Bun: fn opt_js(v: JSValue) -> Option<JSValue>
-public func optJs(v: JSValue): ?JSValue {
+/// 辅助: 检查 JsValue 是否为空/undefined/null
+/// 对应 Bun: fn opt_js(v: JsValue) -> Option<JsValue>
+public func optJs(v: JsValue): ?JsValue {
     if (v.isEmptyOrUndefinedOrNull()) {
         return None
     }
@@ -114,8 +114,8 @@ public func optJs(v: JSValue): ?JSValue {
 //       credentials: &S3Credentials,
 //       options: MultiPartUploadOptions,
 //       acl: Option<ACL>,
-//       formatter: &mut F,
-//       writer: &mut W,
+//       formatter: &F,
+//       writer: &W,
 //   ) -> core::fmt::Result
 // ============================================================================
 
@@ -203,14 +203,13 @@ public func writeFormatCredentials(
 
     // acl
     match (acl) {
-        case Some(aclValue) => {
+        case Some(aclValue) =>
             indented.writeIndent(writer)
             writer.append("acl: \"")
             writer.append(aclValue.toString())
             writer.append("\"")
             indented.printComma(writer, enableAnsiColors)
             writer.append("\n")
-        }
         case None => ()
     }
 
@@ -301,7 +300,7 @@ public class S3Client {
 
     /// 释放资源
     /// 对应 Bun: impl Drop for S3Client {
-    ///     fn drop(&mut self) { self.credentials.deref() }
+    ///     fn drop(&self) { self.credentials.deref() }
     /// }
     ///
     /// `IntrusiveRc<T>` is `bun_ptr::RefPtr<T>`, which has no `Drop` impl
@@ -333,7 +332,7 @@ public class S3Client {
 
         // Get credentials from env — Transpiler::env_mut is the safe accessor
         // for the process-singleton dotenv loader (set during init).
-        // get_s3_credentials takes &mut self only to lazily memoize —
+        // get_s3_credentials takes &self only to lazily memoize —
         // single-threaded JS event-loop discipline applies.
         let envCreds = FetchModule.s3CredentialsFromEnv(global)
 
@@ -349,7 +348,7 @@ public class S3Client {
         )
 
         match (awsOptions) {
-            case Ok(opts) => {
+            case Ok(opts) =>
                 let client = S3Client(
                     credentials: opts.credentials.dupe(),
                     options: opts.options,
@@ -358,7 +357,6 @@ public class S3Client {
                     requestPayer: opts.requestPayer
                 )
                 return Result<S3Client>.Ok(client)
-            }
             case Err(e) => return Result<S3Client>.Err(e)
         }
     }
@@ -403,7 +401,7 @@ public class S3Client {
     // file - 创建 S3File 引用
     // 严格翻译自: S3Client::file (lines 344-383)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn file(ptr: &Self, global, callframe) -> JsResult<JSValue>
+    //   pub fn file(ptr: &Self, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 创建 S3File 引用
@@ -416,12 +414,12 @@ public class S3Client {
     ///   1. Parse path from JS args
     ///   2. Construct S3 blob with credentials and options
     ///   3. Heap-promote and wrap in JSS3File
-    ///   4. Return as JSValue
-    public func file(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    ///   4. Return as JsValue
+    public func file(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(2)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
+            case Some(path) =>
                 let options = args.next()
                 // Zig: `Blob.new(try ...)` — heap-promote and mark `ref_count = 1` so
                 // the JSS3File wrapper's `finalize` knows to `bun.destroy(blob)`.
@@ -430,25 +428,22 @@ public class S3Client {
                     credentials, options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
-                    case Ok(blob) => {
+                    case Ok(blob) =>
                         // Zig: `blob.toJS(globalThis)` — runs `calculateEstimatedByteSize()`
                         // before wrapping the heap Blob in a JSS3File so JSC sees the correct
                         // GC pressure.
-                        return Result<JSValue>.Ok(blob.toJs(global))
-                    }
-                    case Err(e) => return Result<JSValue>.Err(e)
+                        return Result<JsValue>.Ok(blob.toJs(global))
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
-            }
-            case None => {
+            case None =>
                 if (args.size() == 0) {
-                    return Result<JSValue>.Err(
+                    return Result<JsValue>.Err(
                         BaoError(ErrorCode.MissingArgs, "Expected a path")
                     )
                 }
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a path")
                 )
-            }
         }
     }
 
@@ -456,38 +451,35 @@ public class S3Client {
     // presign - 生成预签名 URL
     // 严格翻译自: S3Client::presign (lines 385-426)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn presign(ptr, global, callframe) -> JsResult<JSValue>
+    //   pub fn presign(ptr, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 生成预签名 URL
     /// 对应 Bun: presign
-    public func presign(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public func presign(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(2)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
+            case Some(path) =>
                 let options = args.next()
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
                     credentials, options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
-                    case Ok(mut blob) => {
+                    case Ok(blob) =>
                         return S3FileModule.getPresignUrlFrom(blob, global, options)
-                    }
-                    case Err(e) => return Result<JSValue>.Err(e)
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
-            }
-            case None => {
+            case None =>
                 if (args.size() == 0) {
-                    return Result<JSValue>.Err(
+                    return Result<JsValue>.Err(
                         BaoError(ErrorCode.MissingArgs, "Expected a path to presign")
                     )
                 }
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a path to presign")
                 )
-            }
         }
     }
 
@@ -495,38 +487,35 @@ public class S3Client {
     // exists - 检查对象是否存在
     // 严格翻译自: S3Client::exists (lines 428-463)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn exists(ptr, global, callframe) -> JsResult<JSValue>
+    //   pub fn exists(ptr, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 检查对象是否存在
     /// 对应 Bun: exists
-    public func exists(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public func exists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(2)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
+            case Some(path) =>
                 let options = args.next()
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
                     credentials, options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
-                    case Ok(mut blob) => {
+                    case Ok(blob) =>
                         return S3BlobStatTask.exists(global, blob)
-                    }
-                    case Err(e) => return Result<JSValue>.Err(e)
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
-            }
-            case None => {
+            case None =>
                 if (args.size() == 0) {
-                    return Result<JSValue>.Err(
+                    return Result<JsValue>.Err(
                         BaoError(ErrorCode.MissingArgs, "Expected a path to check if it exists")
                     )
                 }
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a path to check if it exists")
                 )
-            }
         }
     }
 
@@ -534,38 +523,35 @@ public class S3Client {
     // size - 获取对象大小
     // 严格翻译自: S3Client::size (lines 465-500)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn size(ptr, global, callframe) -> JsResult<JSValue>
+    //   pub fn size(ptr, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 获取对象大小
     /// 对应 Bun: size
-    public func size(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public func size(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(2)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
+            case Some(path) =>
                 let options = args.next()
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
                     credentials, options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
-                    case Ok(mut blob) => {
+                    case Ok(blob) =>
                         return S3BlobStatTask.size(global, blob)
-                    }
-                    case Err(e) => return Result<JSValue>.Err(e)
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
-            }
-            case None => {
+            case None =>
                 if (args.size() == 0) {
-                    return Result<JSValue>.Err(
+                    return Result<JsValue>.Err(
                         BaoError(ErrorCode.MissingArgs, "Expected a path to check the size of")
                     )
                 }
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a path to check the size of")
                 )
-            }
         }
     }
 
@@ -573,38 +559,35 @@ public class S3Client {
     // stat - 获取对象元数据
     // 严格翻译自: S3Client::stat (lines 502-537)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn stat(ptr, global, callframe) -> JsResult<JSValue>
+    //   pub fn stat(ptr, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 获取对象元数据
     /// 对应 Bun: stat
-    public func stat(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public func stat(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(2)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
+            case Some(path) =>
                 let options = args.next()
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
                     credentials, options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
-                    case Ok(mut blob) => {
+                    case Ok(blob) =>
                         return S3BlobStatTask.stat(global, blob)
-                    }
-                    case Err(e) => return Result<JSValue>.Err(e)
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
-            }
-            case None => {
+            case None =>
                 if (args.size() == 0) {
-                    return Result<JSValue>.Err(
+                    return Result<JsValue>.Err(
                         BaoError(ErrorCode.MissingArgs, "Expected a path to check the stat of")
                     )
                 }
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a path to check the stat of")
                 )
-            }
         }
     }
 
@@ -612,7 +595,7 @@ public class S3Client {
     // write - 写入对象
     // 严格翻译自: S3Client::write (lines 539-591)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn write(ptr, global, callframe) -> JsResult<JSValue>
+    //   pub fn write(ptr, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 写入对象
@@ -620,47 +603,43 @@ public class S3Client {
     ///
     /// 将 Blob 数据写入 S3 路径。
     /// 支持分片上传 (multipart upload) 和单次上传 (putObject)。
-    public func write(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(3)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
-                // continue
-            }
-            case None => {
-                return Result<JSValue>.Err(
+            case Some(path) =>
+                () // continue
+            case None =>
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.MissingArgs, "Expected a path to write to")
                 )
-            }
         }
 
         let data = args.next()
         match (data) {
-            case Some(d) => {
-                // continue
-            }
-            case None => {
-                return Result<JSValue>.Err(
+            case Some(d) =>
+                () // continue
+            case None =>
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.MissingArgs, "Expected a Blob-y thing to write")
                 )
-            }
         }
 
         let writeOptions = args.next()
         let path = PathLike.fromJs(global, callframe.arguments(3))
         match (path) {
-            case Some(p) => {
+            case Some(p) =>
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, p, writeOptions,
                     credentials, options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
-                    case Ok(blob) => {
+                    case Ok(blob) =>
                         // PORT NOTE: reshaped for borrowck — Zig copied `blob` into `blob_internal`
                         // by value while `defer blob.detach()` was still armed on the original.
                         // Here we move into `PathOrBlob` directly; cleanup of the moved-out
                         // value is handled by Drop.
-                        let mut blobInternal = PathOrBlob.fromBlob(blob)
+                        let blobInternal = PathOrBlob.fromBlob(blob)
                         return WriteFileModule.writeFileInternal(
                             global,
                             blobInternal,
@@ -671,15 +650,12 @@ public class S3Client {
                                 mode: None
                             )
                         )
-                    }
-                    case Err(e) => return Result<JSValue>.Err(e)
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
-            }
-            case None => {
-                return Result<JSValue>.Err(
+            case None =>
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.MissingArgs, "Expected a path to write to")
                 )
-            }
         }
     }
 
@@ -687,12 +663,12 @@ public class S3Client {
     // listObjects - 列出对象
     // 严格翻译自: S3Client::list_objects (lines 593-622)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn list_objects(ptr, global, callframe) -> JsResult<JSValue>
+    //   pub fn list_objects(ptr, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 列出对象
     /// 对应 Bun: list_objects
-    public func listObjects(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public func listObjects(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.argumentsAsArray(2)
 
         let objectKeys = args[0]
@@ -703,11 +679,10 @@ public class S3Client {
             credentials, options, None, None, requestPayer
         )
         match (blobResult) {
-            case Ok(blob) => {
+            case Ok(blob) =>
                 let store = blob.store.getOrThrow()
                 return store.data.asS3().listObjects(store, global, objectKeys, options)
-            }
-            case Err(e) => return Result<JSValue>.Err(e)
+            case Err(e) => return Result<JsValue>.Err(e)
         }
     }
 
@@ -715,34 +690,31 @@ public class S3Client {
     // unlink - 删除对象
     // 严格翻译自: S3Client::unlink (lines 624-656)
     //   Bun: #[bun_jsc::host_fn(method)]
-    //   pub fn unlink(ptr, global, callframe) -> JsResult<JSValue>
+    //   pub fn unlink(ptr, global, callframe) -> JsResult<JsValue>
     // ========================================================================
 
     /// 删除对象
     /// 对应 Bun: unlink
-    public func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(2)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
+            case Some(path) =>
                 let options = args.next()
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
                     credentials, options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
-                    case Ok(blob) => {
+                    case Ok(blob) =>
                         let store = blob.store.getOrThrow()
                         return store.data.asS3().unlink(store, global, options)
-                    }
-                    case Err(e) => return Result<JSValue>.Err(e)
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
-            }
-            case None => {
-                return Result<JSValue>.Err(
+            case None =>
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.MissingArgs, "Expected a path to unlink")
                 )
-            }
         }
     }
 
@@ -756,66 +728,64 @@ public class S3Client {
     // ========================================================================
 
     /// 静态 write
-    /// 对应 Bun: pub fn static_write(global, callframe) -> JsResult<JSValue>
-    public static func staticWrite(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    /// 对应 Bun: pub fn static_write(global, callframe) -> JsResult<JsValue>
+    public static func staticWrite(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         return S3FileModule.write(global, callframe)
     }
 
     /// 静态 presign
-    /// 对应 Bun: pub fn static_presign(global, callframe) -> JsResult<JSValue>
-    public static func staticPresign(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    /// 对应 Bun: pub fn static_presign(global, callframe) -> JsResult<JsValue>
+    public static func staticPresign(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         return S3FileModule.presign(global, callframe)
     }
 
     /// 静态 exists
-    /// 对应 Bun: pub fn static_exists(global, callframe) -> JsResult<JSValue>
-    public static func staticExists(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    /// 对应 Bun: pub fn static_exists(global, callframe) -> JsResult<JsValue>
+    public static func staticExists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         return S3FileModule.exists(global, callframe)
     }
 
     /// 静态 size
-    /// 对应 Bun: pub fn static_size(global, callframe) -> JsResult<JSValue>
-    public static func staticSize(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    /// 对应 Bun: pub fn static_size(global, callframe) -> JsResult<JsValue>
+    public static func staticSize(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         return S3FileModule.size(global, callframe)
     }
 
     /// 静态 unlink
-    /// 对应 Bun: pub fn static_unlink(global, callframe) -> JsResult<JSValue>
-    public static func staticUnlink(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    /// 对应 Bun: pub fn static_unlink(global, callframe) -> JsResult<JsValue>
+    public static func staticUnlink(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         return S3FileModule.unlink(global, callframe)
     }
 
     /// 静态 file
-    /// 对应 Bun: pub fn static_file(global, callframe) -> JsResult<JSValue>
-    public static func staticFile(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    /// 对应 Bun: pub fn static_file(global, callframe) -> JsResult<JsValue>
+    public static func staticFile(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.arguments(2)
 
         match (PathLike.fromJs(global, args)) {
-            case Some(path) => {
+            case Some(path) =>
                 return S3FileModule.constructInternalJs(global, path, args.next())
-            }
-            case None => {
-                return Result<JSValue>.Err(
+            case None =>
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected file path string")
                 )
-            }
         }
     }
 
     /// 静态 stat
-    /// 对应 Bun: pub fn static_stat(global, callframe) -> JsResult<JSValue>
-    public static func staticStat(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    /// 对应 Bun: pub fn static_stat(global, callframe) -> JsResult<JsValue>
+    public static func staticStat(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         return S3FileModule.stat(global, callframe)
     }
 
     /// 静态 listObjects
-    /// 对应 Bun: pub fn static_list_objects(global, callframe) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn static_list_objects(global, callframe) -> JsResult<JsValue>
     ///
     /// Steps:
     ///   1. Get credentials from env
     ///   2. Construct S3 blob with default path
     ///   3. Call listObjects on the S3 store
-    public static func staticListObjects(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+    public static func staticListObjects(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
         let args = callframe.argumentsAsArray(2)
         let objectKeys = args[0]
         let options = optJs(args[1])
@@ -828,11 +798,10 @@ public class S3Client {
             global, PathLike.default(), options, existingCredentials
         )
         match (blobResult) {
-            case Ok(blob) => {
+            case Ok(blob) =>
                 let store = blob.store.getOrThrow()
                 return store.data.asS3().listObjects(store, global, objectKeys, options)
-            }
-            case Err(e) => return Result<JSValue>.Err(e)
+            case Err(e) => return Result<JsValue>.Err(e)
         }
     }
 
@@ -885,7 +854,7 @@ public class CredentialsJsc {
     public static func getCredentialsWithOptions(
         defaultCredentials: S3Credentials,
         defaultOptions: MultiPartUploadOptions,
-        options: ?JSValue,
+        options: ?JsValue,
         defaultAcl: ?S3Acl,
         defaultStorageClass: ?S3StorageClass,
         defaultRequestPayer: Bool,
@@ -919,9 +888,9 @@ public class S3FileModule {
     public static func constructS3FileWithS3CredentialsAndOptions(
         global: JSGlobalObject,
         path: String,
-        options: ?JSValue,
+        options: ?JsValue,
         defaultCredentials: S3Credentials,
-        defaultOptions: ?JSValue,
+        defaultOptions: ?JsValue,
         defaultAcl: ?S3Acl,
         defaultStorageClass: ?S3StorageClass,
         defaultRequestPayer: Bool
@@ -933,56 +902,56 @@ public class S3FileModule {
     public static func constructS3FileWithS3Credentials(
         global: JSGlobalObject,
         path: String,
-        options: ?JSValue,
+        options: ?JsValue,
         existingCredentials: S3Credentials
     ): Result<BlobRef> {
         return Result<BlobRef>.Ok(BlobRef())
     }
 
-    public static func constructInternalJs(global: JSGlobalObject, path: String, options: ?JSValue): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func constructInternalJs(global: JSGlobalObject, path: String, options: ?JsValue): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public static func getPresignUrlFrom(blob: BlobRef, global: JSGlobalObject, options: ?JSValue): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func getPresignUrlFrom(blob: BlobRef, global: JSGlobalObject, options: ?JsValue): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public static func presign(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func presign(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public static func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public static func write(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public static func size(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func size(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public static func exists(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func exists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public static func stat(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public static func stat(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 }
 
 /// Arguments (对应 Bun: call_frame::ArgumentsSlice)
 public class Arguments {
-    public var values: Array<JSValue>
+    public var values: Array<JsValue>
     public var pos: Int64
 
     public init() {
-        values = Array<JSValue>()
+        values = Array<JsValue>()
         pos = 0
     }
 
-    public func next(): ?JSValue {
+    public func next(): ?JsValue {
         if (pos < values.size) {
             let v = values[pos]
             pos = pos + 1
@@ -996,7 +965,7 @@ public class Arguments {
     }
 }
 
-/// BlobRef (对应 Bun: *mut Blob)
+/// BlobRef (对应 Bun: *Blob)
 public class BlobRef {
     public var store: ?BlobStoreRef
 
@@ -1004,8 +973,8 @@ public class BlobRef {
         store = None
     }
 
-    public func toJs(global: JSGlobalObject): JSValue {
-        return JSValue.ZERO
+    public func toJs(global: JSGlobalObject): JsValue {
+        return JsValue.ZERO
     }
 
     public func isS3(): Bool {
@@ -1083,51 +1052,13 @@ public class S3Store {
         return ""
     }
 
-    public func listObjects(store: BlobStoreRef, global: JSGlobalObject, objectKeys: JSValue, options: ?JSValue): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public func listObjects(store: BlobStoreRef, global: JSGlobalObject, objectKeys: JsValue, options: ?JsValue): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public func unlink(store: BlobStoreRef, global: JSGlobalObject, options: ?JSValue): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public func unlink(store: BlobStoreRef, global: JSGlobalObject, options: ?JsValue): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
-}
-
-/// S3Acl (对应 Bun: ACL)
-public enum S3Acl {
-    | Private
-    | PublicRead
-    | PublicReadWrite
-    | AwsExecRead
-    | AuthenticatedRead
-    | BucketOwnerRead
-    | BucketOwnerFullControl
-    | LogDeliveryWrite
-
-    public func toString(): String {
-        match (this) {
-            case Private => "private"
-            case PublicRead => "public-read"
-            case PublicReadWrite => "public-read-write"
-            case AwsExecRead => "aws-exec-read"
-            case AuthenticatedRead => "authenticated-read"
-            case BucketOwnerRead => "bucket-owner-read"
-            case BucketOwnerFullControl => "bucket-owner-full-control"
-            case LogDeliveryWrite => "log-delivery-write"
-        }
-    }
-}
-
-/// S3StorageClass (对应 Bun: StorageClass)
-public enum S3StorageClass {
-    | Standard
-    | ReducedRedundancy
-    | StandardIa
-    | OnezoneIa
-    | IntelligentTiering
-    | Glacier
-    | DeepArchive
-    | Outposts
-    | GlacierIr
 }
 
 /// PathOrBlob (对应 Bun: PathOrBlob)
@@ -1156,7 +1087,7 @@ public class PathOrBlob {
 /// WriteFileOptions (对应 Bun: blob::WriteFileOptions)
 public class WriteFileOptions {
     public var mkdirpIfExists: ?Bool
-    public var extraOptions: ?JSValue
+    public var extraOptions: ?JsValue
     public var mode: ?Int64
 
     public init() {
@@ -1165,7 +1096,7 @@ public class WriteFileOptions {
         mode = None
     }
 
-    public init(mkdirpIfExists: ?Bool, extraOptions: ?JSValue, mode: ?Int64) {
+    public init(mkdirpIfExists: ?Bool, extraOptions: ?JsValue, mode: ?Int64) {
         this.mkdirpIfExists = mkdirpIfExists
         this.extraOptions = extraOptions
         this.mode = mode
@@ -1177,10 +1108,10 @@ public class WriteFileModule {
     public static func writeFileInternal(
         global: JSGlobalObject,
         pathOrBlob: PathOrBlob,
-        data: JSValue,
+        data: JsValue,
         options: WriteFileOptions
-    ): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    ): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 }
 

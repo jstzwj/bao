@@ -110,8 +110,25 @@ public class LockfileScripts {
         return "unknown"
     }
 
+    /// 脚本总数
+    public static func scriptCount(): Int64 {
+        return SCRIPT_NAMES.size
+    }
+
     public static func namesCount(): Int64 {
         return SCRIPT_NAMES.size
+    }
+
+    public var filled: Bool = false
+    public var firstIndex: Int64 = Int64(0)
+    public var scripts: ArrayList<Option<String>> = ArrayList<Option<String>>()
+
+    public func getScriptItems(): ArrayList<Option<String>> {
+        return scripts
+    }
+
+    public func getInstallScriptCount(): Int64 {
+        return Int64(0)
     }
 }
 
@@ -124,12 +141,12 @@ public class LockfileScripts {
 /// 翻译自: Lockfile.Package.Scripts.List
 public class LifecycleScriptList {
     /// 脚本项 (null 表示跳过)
-    public var items: ArrayList<?String>
+    public var items: ArrayList<Option<String>>
     /// 工作目录
     public var cwd: String
 
     public init(cwd: String) {
-        items = ArrayList<?String>()
+        items = ArrayList<Option<String>>()
         this.cwd = cwd
     }
 
@@ -142,6 +159,17 @@ public class LifecycleScriptList {
             }
         }
         return false
+    }
+
+    public func total(): Int64 {
+        var count: Int64 = 0
+        for (item in items) {
+            match (item) {
+                case Some(_) => count += 1
+                case None => ()
+            }
+        }
+        return count
     }
 }
 

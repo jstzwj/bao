@@ -1023,10 +1023,10 @@ public class ModuleResolver {
     /// 加载 package.json
     private func loadPackageJson(dir: String): ?PackageJsonInfo {
         let pkgPath = Path.join([dir, "package.json"])
-        let content = try {
-            BaoFile.readAllText(pkgPath)
-        } catch (_: Exception) {
-            return None
+        let contentResult = BaoFile.readAllText(pkgPath)
+        let content = match (contentResult) {
+            case Ok(data) => data
+            case Err(_) => return None
         }
         let pkg = PackageJsonInfo(pkgPath)
         // 简易 JSON 解析: 提取关键字段
@@ -1037,10 +1037,10 @@ public class ModuleResolver {
     /// 加载 tsconfig.json
     private func loadTsconfig(dir: String): ?TsConfigPaths {
         let tsPath = Path.join([dir, "tsconfig.json"])
-        let content = try {
-            BaoFile.readAllText(tsPath)
-        } catch (_: Exception) {
-            return None
+        let contentResult = BaoFile.readAllText(tsPath)
+        let content = match (contentResult) {
+            case Ok(data) => data
+            case Err(_) => return None
         }
         let ts = TsConfigPaths()
         ts.basePath = dir

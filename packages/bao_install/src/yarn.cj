@@ -594,7 +594,7 @@ public class YarnLock {
         var currentDepType: ?YarnDependencyType = None
 
         for (line_ in lines) {
-            let line = line_.trimRight(" \r\t")
+            let line = line_.trimEnd()
             if (line.size == 0 || line[0] == UInt8(35)) { continue } // skip empty / comments
 
             var indent: Int64 = 0
@@ -602,20 +602,29 @@ public class YarnLock {
                 indent = indent + 1
             }
 
-            let trimmed = line[indent..].trim(" \r\t")
+            // Trim leading/trailing whitespace (\r, \t, space)
+            var _trimmedStart: Int64 = indent
+            var _trimmedEnd: Int64 = line.size
+            while (_trimmedStart < _trimmedEnd && (line[_trimmedStart] == UInt8(32) || line[_trimmedStart] == UInt8(9) || line[_trimmedStart] == UInt8(13))) {
+                _trimmedStart += 1
+            }
+            while (_trimmedEnd > _trimmedStart && (line[_trimmedEnd - 1] == UInt8(32) || line[_trimmedEnd - 1] == UInt8(9) || line[_trimmedEnd - 1] == UInt8(13))) {
+                _trimmedEnd -= 1
+            }
+            let trimmed = line[_trimmedStart.._trimmedEnd]
             if (trimmed.size == 0) { continue }
 
             // Top-level line ending with ":" starts a new entry's specs
             // 翻译自: if (indent == 0 and strings.endsWithComptime(trimmed, ":"))
             if (indent == 0 && trimmed.endsWith(":")) {
                 // Flush previous entry
-                if (currentEntry != None) {
+                if (currentEntry .isSome()) {
                     let entry = currentEntry.getOrThrow()
                     entry.dependencies = currentDeps
                     entry.optionalDependencies = currentOptionalDeps
                     entry.peerDependencies = currentPeerDeps
                     entry.devDependencies = currentDevDeps
-                    consolidateAndAppend(newEntry: entry)
+                    consolidateAndAppend(entry)
                 }
 
                 // Parse specs from "spec1, spec2, spec3:" line
@@ -623,7 +632,7 @@ public class YarnLock {
                 let specsStr = trimmed[0..trimmed.size - 1]
                 let specParts = specsStr.split(",")
                 for (spec in specParts) {
-                    let trimmedSpec = spec.trim(" \"")
+                    let trimmedSpec = spec.trimStart().trimEnd()
                     currentSpecs.append(trimmedSpec)
                 }
 
@@ -652,7 +661,7 @@ public class YarnLock {
                 continue
             }
 
-            if (currentEntry == None) { continue }
+            if (currentEntry .isNone()) { continue }
 
             if (indent > 0) {
                 // Dependency block headers
@@ -680,11 +689,11 @@ public class YarnLock {
 
                 // Inside a dependency block, parse "key value" pairs
                 // 翻译自: if (current_dep_type) |dep_type| { ... try map.put(key, value) }
-                if (currentDepType != None) {
+                if (currentDepType .isSome()) {
                     match (trimmed.indexOf(" ")) {
                         case Some(spaceIdx) =>
-                            let key = trimmed[0..spaceIdx].trim(" \"")
-                            let value = trimmed[spaceIdx + 1..].trim(" \"")
+                            let key = trimmed[0..spaceIdx].trimStart().trimEnd()
+                            let value = trimmed[spaceIdx + 1..].trimStart().trimEnd()
                             match (currentDepType.getOrThrow()) {
                                 case YarnDependencyType.Production =>
                                     currentDeps.getOrThrow().put(key, value)
@@ -704,8 +713,8 @@ public class YarnLock {
                 // 翻译自: if (strings.indexOf(trimmed, " ")) |space_idx| { ... }
                 match (trimmed.indexOf(" ")) {
                     case Some(spaceIdx) =>
-                        let key = trimmed[0..spaceIdx].trim(" ")
-                        let value = trimmed[spaceIdx + 1..].trim(" \"")
+                        let key = trimmed[0..spaceIdx].trimStart().trimEnd()
+                        let value = trimmed[spaceIdx + 1..].trimStart().trimEnd()
 
                         let entry = currentEntry.getOrThrow()
 
@@ -733,7 +742,7 @@ public class YarnLock {
                                 let gitInfo = YarnLockEntry.parseGitUrl(value)
                                 entry.resolved = gitInfo.url
                                 entry.commit = gitInfo.commit
-                                if (gitInfo.repo != None) {
+                                if (gitInfo.repo .isSome()) {
                                     entry.gitRepoName = gitInfo.repo.getOrThrow()
                                 }
                             } else if (YarnLockEntry.isNpmAlias(value)) {
@@ -753,7 +762,7 @@ public class YarnLock {
                                 let gitInfo = YarnLockEntry.parseGitUrl(value)
                                 entry.resolved = gitInfo.url
                                 entry.commit = gitInfo.commit
-                                if (gitInfo.repo != None) {
+                                if (gitInfo.repo .isSome()) {
                                     entry.gitRepoName = gitInfo.repo.getOrThrow()
                                 }
                             }
@@ -768,7 +777,7 @@ public class YarnLock {
                                 let inner = value[1..value.size - 1]
                                 let parts = inner.split(",")
                                 for (part in parts) {
-                                    let trimmedPart = part.trim(" \"")
+                                    let trimmedPart = part.trimStart().trimEnd()
                                     osList.append(trimmedPart)
                                 }
                             }
@@ -780,7 +789,7 @@ public class YarnLock {
                                 let inner = value[1..value.size - 1]
                                 let parts = inner.split(",")
                                 for (part in parts) {
-                                    let trimmedPart = part.trim(" \"")
+                                    let trimmedPart = part.trimStart().trimEnd()
                                     cpuList.append(trimmedPart)
                                 }
                             }
@@ -793,16 +802,15 @@ public class YarnLock {
 
         // Flush the last entry
         // 翻译自: if (current_entry) |*entry| { entry.dependencies = ...; try self.consolidateAndAppendEntry(entry.*) }
-        if (currentEntry != None) {
+        if (currentEntry .isSome()) {
             let entry = currentEntry.getOrThrow()
             entry.dependencies = currentDeps
             entry.optionalDependencies = currentOptionalDeps
             entry.peerDependencies = currentPeerDeps
             entry.devDependencies = currentDevDeps
-            consolidateAndAppend(newEntry: entry)
+            consolidateAndAppend(entry)
         }
     }
-
     /// 通过 spec 查找条目
     /// 翻译自: YarnLock.findEntryBySpec
     ///   fn findEntryBySpec(self: *YarnLock, spec: []const u8) ?*Entry {
@@ -891,15 +899,15 @@ public class YarnMigrator {
     ///   12. 处理 scoped packages (同名不同版本)
     ///   13. 处理 npm alias 的包名映射
     ///   14. resolve + fetchNecessaryPackageMetadataAfterYarnOrPnpmMigration
-    public static func migrate(content: String): ?MigrationResult {
+    public static func migrate(content: String): ?YarnMigrationResult {
         if (!content.contains("# yarn lockfile v1")) {
-            return Option<MigrationResult>.None
+            return Option<YarnMigrationResult>.None
         }
 
         let yarnLock = YarnLock()
         yarnLock.parse(content)
 
-        let result = MigrationResult()
+        let result = YarnMigrationResult()
         result.migratedFrom = "yarn"
 
         // Build package ID mapping for all entries
@@ -929,14 +937,14 @@ public class YarnMigrator {
             //   else if (is_direct_url) YarnLock.Entry.getNameFromSpec(entry.specs[0])
             //   else if (entry.git_repo_name) |repo_name| repo_name
             //   else YarnLock.Entry.getNameFromSpec(entry.specs[0]);
-            let name: String = if (isNpmAlias && entry.resolved != None) {
+            let name: String = if (isNpmAlias && entry.resolved .isSome()) {
                 match (YarnLockEntry.getPackageNameFromResolvedUrl(entry.resolved.getOrThrow())) {
                     case Some(pkgName) => pkgName
                     case None => YarnLockEntry.getNameFromSpec(entry.specs[0])
                 }
             } else if (isDirectUrl) {
                 YarnLockEntry.getNameFromSpec(entry.specs[0])
-            } else if (entry.gitRepoName != None) {
+            } else if (entry.gitRepoName .isSome()) {
                 entry.gitRepoName.getOrThrow()
             } else {
                 YarnLockEntry.getNameFromSpec(entry.specs[0])
@@ -1018,7 +1026,7 @@ public class YarnMigrator {
                 }
             }
 
-            let baseName: String = if (isNpmAlias && entry.resolved != None) {
+            let baseName: String = if (isNpmAlias && entry.resolved .isSome()) {
                 match (YarnLockEntry.getPackageNameFromResolvedUrl(entry.resolved.getOrThrow())) {
                     case Some(pkgName) => pkgName
                     case None => YarnLockEntry.getNameFromSpec(entry.specs[0])
@@ -1040,9 +1048,9 @@ public class YarnMigrator {
 
             // Determine name to use
             // 翻译自: const name_to_use = blk: { ... }
-            let nameToUse: String = if (entry.commit != None && entry.gitRepoName != None) {
+            let nameToUse: String = if (entry.commit .isSome() && entry.gitRepoName .isSome()) {
                 entry.gitRepoName.getOrThrow()
-            } else if (entry.resolved != None) {
+            } else if (entry.resolved .isSome()) {
                 let resolved = entry.resolved.getOrThrow()
                 if (isDirectUrlDep || YarnLockEntry.isRemoteTarball(resolved) || resolved.endsWith(".tgz")) {
                     // Try extracting name from registry URL
@@ -1085,16 +1093,16 @@ public class YarnMigrator {
 
             // Integrity
             // 翻译自: .integrity = if (entry.integrity) |integrity| Integrity.parse(integrity) else Integrity{}
-            if (entry.integrity != None) {
+            if (entry.integrity .isSome()) {
                 pkg.integrity = entry.integrity.getOrThrow()
             }
 
             // OS/CPU
             // 翻译自: .os = if (entry.os) |os_list| ... else .all, .arch = if (entry.cpu) |cpu_list| ... else .all
-            if (entry.os != None) {
+            if (entry.os .isSome()) {
                 pkg.os = entry.os.getOrThrow()
             }
-            if (entry.cpu != None) {
+            if (entry.cpu .isSome()) {
                 pkg.cpu = entry.cpu.getOrThrow()
             }
 
@@ -1103,7 +1111,7 @@ public class YarnMigrator {
         }
 
         // Build spec_to_package_id mapping
-        // 翻译自: var spec_to_package_id = bun.StringHashMap(Install.PackageID).init(allocator);
+        // 翻译自: var spec_to_package_id = bun.StringHashMap(Install.PackageID).`init`(allocator);
         //   for entries/specs: spec_to_package_id.put(spec, package_id)
         var specToPackageId = HashMap<String, UInt32>()
         var idx: Int64 = 0
@@ -1148,86 +1156,77 @@ public class YarnMigrator {
         let res = LockfileResolution()
 
         if (entry.isWorkspace) {
-            // 翻译自: break :blk Resolution.init(.{ .workspace = ... });
-            res.tag = "workspace"
-            res.value = baseName
-        } else if (entry.file != None) {
+            // 翻译自: break :blk Resolution(.{ .workspace = ... });
+            res.tag = DependencyTag.Workspace
+            res.workspacePath = baseName
+        } else if (entry.file .isSome()) {
             let file = entry.file.getOrThrow()
             // 翻译自: if endsWithComptime(file, ".tgz") or endsWithComptime(file, ".tar.gz") => local_tarball
             //   else => folder
             if (file.endsWith(".tgz") || file.endsWith(".tar.gz")) {
-                res.tag = "local_tarball"
-                res.value = file
+                res.tag = DependencyTag.Tarball
+                res.tarballUrl = file
             } else {
-                res.tag = "folder"
-                res.value = file
+                res.tag = DependencyTag.Folder
+                res.folderPath = file
             }
-        } else if (entry.commit != None) {
+        } else if (entry.commit .isSome()) {
             let commit = entry.commit.getOrThrow()
-            if (entry.resolved != None) {
+            if (entry.resolved .isSome()) {
                 let resolved = entry.resolved.getOrThrow()
                 var ownerStr = ""
                 var repoStr = resolved
 
                 // 翻译自: if (strings.contains(resolved, "github.com/"))
                 if (resolved.contains("github.com/")) {
-                    match (resolved.indexOf("github.com/")) {
-                        case Some(idx) =>
-                            let afterGithub = resolved[idx + 11..]
-                            match (afterGithub.indexOf("/")) {
-                                case Some(slashIdx) =>
-                                    ownerStr = afterGithub[0..slashIdx]
-                                    repoStr = afterGithub[slashIdx + 1..]
-                                    if (repoStr.endsWith(".git")) {
-                                        repoStr = repoStr[0..repoStr.size - 4]
-                                    }
-                                case None => ()
+                    let ghIdx = resolved.indexOf("github.com/")
+                    if (ghIdx.isSome()) {
+                        let idx = ghIdx.getOrThrow()
+                        let afterGithub = resolved[idx + 11..]
+                        let slashIdxOpt = afterGithub.indexOf("/")
+                        if (slashIdxOpt.isSome()) {
+                            let slashIdx = slashIdxOpt.getOrThrow()
+                            ownerStr = afterGithub[0..slashIdx]
+                            repoStr = afterGithub[slashIdx + 1..]
+                            if (repoStr.endsWith(".git")) {
+                                repoStr = repoStr[0..repoStr.size - 4]
                             }
-                        case None => ()
+                        }
                     }
                 }
 
-                let actualName: String = if (entry.gitRepoName != None) {
-                    entry.gitRepoName.getOrThrow()
-                } else {
-                    repoStr
-                }
-
                 if (ownerStr.size > 0 && repoStr.size > 0) {
-                    // 翻译自: Resolution.init(.{ .github = .{ .owner, .repo, .committish, .package_name } })
-                    res.tag = "github"
-                    res.value = "https://github.com/" + ownerStr + "/" + repoStr
-                    res.commit = commit
-                    res.packageName = actualName
-                    res.owner = ownerStr
-                    res.repo = repoStr
+                    // 翻译自: Resolution(.{ .github = .{ .owner, .repo, .committish, .package_name } })
+                    res.tag = DependencyTag.Github
+                    res.githubUser = ownerStr
+                    res.githubRepo = repoStr
+                    res.githubCommittish = commit
                 } else {
-                    // 翻译自: Resolution.init(.{ .git = .{ .repo, .committish, .package_name } })
-                    res.tag = "git"
-                    res.value = repoStr
-                    res.commit = commit
-                    res.packageName = actualName
+                    // 翻译自: Resolution(.{ .git = .{ .repo, .committish, .package_name } })
+                    res.tag = DependencyTag.Git
+                    res.gitRepo = repoStr
+                    res.gitRef = commit
                 }
             }
-        } else if (entry.resolved != None) {
+        } else if (entry.resolved .isSome()) {
             let resolved = entry.resolved.getOrThrow()
 
             if (isDirectUrlDep) {
-                // 翻译自: Resolution.init(.{ .remote_tarball = resolved })
-                res.tag = "remote_tarball"
-                res.value = resolved
+                // 翻译自: Resolution(.{ .remote_tarball = resolved })
+                res.tag = DependencyTag.Tarball
+                res.tarballUrl = resolved
             } else if (YarnLockEntry.isRemoteTarball(resolved) || resolved.endsWith(".tgz")) {
-                res.tag = "remote_tarball"
-                res.value = resolved
+                res.tag = DependencyTag.Tarball
+                res.tarballUrl = resolved
             } else {
-                // 翻译自: Resolution.init(.{ .npm = .{ .url, .version } })
+                // 翻译自: Resolution(.{ .npm = .{ .url, .version } })
                 //   Parse semver version, check default registry
-                res.tag = "npm"
-                res.value = entry.version
+                res.tag = DependencyTag.Npm
+                res.npmVersion = entry.version
                 let isDefaultRegistry = resolved.startsWith("https://registry.yarnpkg.com/") ||
                     resolved.startsWith("https://registry.npmjs.org/")
                 if (!isDefaultRegistry) {
-                    res.url = resolved
+                    res.npmUrl = resolved
                 }
             }
         }
@@ -1243,10 +1242,10 @@ public class YarnMigrator {
         yarnLock: YarnLock,
         specToPackageId: HashMap<String, UInt32>,
         yarnEntryToPackageId: ArrayList<UInt32>,
-        result: MigrationResult
+        result: YarnMigrationResult
     ): Unit {
         // Process each dependency type
-        let depMaps: ArrayList<Tuple2<?HashMap<String, String>, YarnDependencyType>> = ArrayList<Tuple2<?HashMap<String, String>, YarnDependencyType>>()
+        let depMaps: ArrayList<Tuple2<Option<HashMap<String, String>>, YarnDependencyType>> = ArrayList<Tuple2<Option<HashMap<String, String>>, YarnDependencyType>>()
         depMaps.append(Tuple2(entry.dependencies, YarnDependencyType.Production))
         depMaps.append(Tuple2(entry.optionalDependencies, YarnDependencyType.Optional))
         depMaps.append(Tuple2(entry.peerDependencies, YarnDependencyType.Peer))
@@ -1256,21 +1255,20 @@ public class YarnMigrator {
             let maybeDeps = depTuple.first
             let depType = depTuple.second
 
-            if (maybeDeps == None) { continue }
+            if (maybeDeps .isNone()) { continue }
             let deps = maybeDeps.getOrThrow()
 
-            var depIter = deps.iterator()
-            while (depIter.hasNext()) {
-                let depEntry = depIter.next()
-                let depName = depEntry.key
-                let depVersion = depEntry.value
+            let depKeys = deps.keys()
+            for (depName in depKeys) {
+                let depVersionOpt = deps.get(depName)
+                if (depVersionOpt.isNone()) { continue }
+                let depVersion = depVersionOpt.getOrThrow()
                 let depSpec = depName + "@" + depVersion
 
                 // Look up by spec to find resolved package ID
                 // 翻译自: if (spec_to_package_id.get(dep_spec)) |res_pkg_id|
-                match (specToPackageId.get(depSpec)) {
-                    case Some(pkgId) => ()
-                    case None => ()
+                if (specToPackageId.get(depSpec).isSome()) {
+                    let pkgId = specToPackageId.get(depSpec).getOrThrow()
                 }
             }
         }
@@ -1296,8 +1294,8 @@ public class YarnVersionInfo {
     }
 }
 
-/// 迁移结果
-public class MigrationResult {
+/// Yarn 迁移结果 (重命名避免与 pnpm.cj YarnMigrationResult 冲突)
+public class YarnMigrationResult {
     public var format: TextLockfileVersion
     public var packages: ArrayList<LockfilePkg>
     public var warnings: ArrayList<String>
@@ -1312,66 +1310,6 @@ public class MigrationResult {
     }
 }
 
-/// 锁文件包
-/// 翻译自: Lockfile.Package
-public class LockfilePkg {
-    public var name: String
-    public var version: String
-    public var resolution: LockfileResolution
-    public var integrity: String
-    public var os: ArrayList<String>
-    public var cpu: ArrayList<String>
-    public var dependencies: HashMap<String, String>
-    public var optionalDependencies: HashMap<String, String>
-    public var peerDependencies: HashMap<String, String>
-    public var devDependencies: HashMap<String, String>
-
-    public init() {
-        name = ""
-        version = ""
-        resolution = LockfileResolution()
-        integrity = ""
-        os = ArrayList<String>()
-        cpu = ArrayList<String>()
-        dependencies = HashMap<String, String>()
-        optionalDependencies = HashMap<String, String>()
-        peerDependencies = HashMap<String, String>()
-        devDependencies = HashMap<String, String>()
-    }
-}
-
-/// 锁文件 Resolution
-/// 翻译自: Resolution
-public class LockfileResolution {
-    public var tag: String // "npm", "git", "github", "workspace", "folder", "local_tarball", "remote_tarball", "root", "symlink"
-    public var value: String
-    public var url: String
-    public var commit: ?String
-    public var owner: ?String
-    public var repo: ?String
-    public var packageName: ?String
-
-    public init() {
-        tag = ""
-        value = ""
-        url = ""
-        commit = None
-        owner = None
-        repo = None
-        packageName = None
-    }
-}
-
-/// TextLockfileVersion
-/// 翻译自: Lockfile.TextLockfileVersion
-public class TextLockfileVersion {
-    public var value: Int64
-
-    public init() {
-        value = 1
-    }
-
-    public static func current(): TextLockfileVersion {
-        return TextLockfileVersion()
-    }
-}
+// NOTE: LockfilePkg defined in lockfile_package.cj (canonical)
+// NOTE: LockfileResolution defined in lockfile_package.cj (canonical)
+// NOTE: TextLockfileVersion defined in lockfile_bun.cj (canonical)

@@ -348,14 +348,14 @@ public class StoreNode {
 /// 脚本列表
 /// 对应 Bun: Package.Scripts.List
 public class ScriptsList {
-    public var items: ArrayList<?String>
+    public var items: ArrayList<Option<String>>
     public var firstIndex: UInt8
     public var total: UInt8
     public var cwd: String
     public var packageName: String
 
     public init() {
-        items = ArrayList<?String>()
+        items = ArrayList<Option<String>>()
         firstIndex = 0
         total = 0
         cwd = ""

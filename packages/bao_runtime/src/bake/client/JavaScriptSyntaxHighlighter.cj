@@ -93,7 +93,7 @@ const keywordColorMap = new Map<string, TokenClass>([
   ["await", TokenClass.Keyword],
 
   // Special keywords
-  ["new", TokenClass.KeywordNew],
+  ["new", TokenClass.KeywordNew]
 ]);
 
 // Add TypeScript modifiers
@@ -209,7 +209,7 @@ const htmlTags = new Set([
   "ul",
   "var",
   "video",
-  "wbr",
+  "wbr"
 ]);
 
 const sensitivePatterns = new Set(["_auth", "_authToken", "token", "_password", "email"]);
@@ -317,14 +317,14 @@ export class DraculaSyntaxHighlighter {
       type,
       value,
       line: this.line,
-      column: this.column - value.length,
+      column: this.column - value.size,
       tokenClass,
     };
   }
 
   private lexWhitespace(): Token | null {
     let value = "";
-    while (this.pos < this.text.length && this.isWhitespace(this.peek()) && this.peek() !== "\n") {
+    while (this.pos < this.text.size && this.isWhitespace(this.peek()) && this.peek() !== "\n") {
       value += this.consume();
     }
     return value ? this.createToken(TokenType.Whitespace, value) : null;
@@ -417,7 +417,7 @@ export class DraculaSyntaxHighlighter {
     const tokens: Token[] = [];
     let str = this.consume(); // Initial backtick
 
-    while (this.pos < this.text.length) {
+    while (this.pos < this.text.size) {
       const char = this.peek();
       const prevChar = this.peek(-1);
 
@@ -437,7 +437,7 @@ export class DraculaSyntaxHighlighter {
         tokens.push(this.createToken(TokenType.TemplateInterpolation, interpStart, TokenClass.Operator));
 
         let braceCount = 1;
-        while (this.pos < this.text.length && braceCount > 0) {
+        while (this.pos < this.text.size && braceCount > 0) {
           const c = this.peek();
           if (c === "{") braceCount++;
           if (c === "}") braceCount--;
@@ -501,7 +501,7 @@ export class DraculaSyntaxHighlighter {
   }
 
   private nextToken(): Token | null {
-    if (this.pos >= this.text.length) return null;
+    if (this.pos >= this.text.size) return null;
 
     const token =
       this.lexWhitespace() ||
@@ -523,7 +523,7 @@ export class DraculaSyntaxHighlighter {
   }
 
   private *tokenize(): Generator<Token> {
-    while (this.pos < this.text.length) {
+    while (this.pos < this.text.size) {
       const token = this.nextToken();
       if (token) yield token;
     }
@@ -640,7 +640,7 @@ export class DraculaSyntaxHighlighter {
 
   private consumeIdentifier(): string {
     let identifier = this.consume();
-    while (this.pos < this.text.length && this.isIdentifierPart(this.peek())) {
+    while (this.pos < this.text.size && this.isIdentifierPart(this.peek())) {
       identifier += this.consume();
     }
     return identifier;
@@ -654,7 +654,7 @@ export class DraculaSyntaxHighlighter {
     // Consume initial quote
     str += this.consume();
 
-    while (this.pos < this.text.length) {
+    while (this.pos < this.text.size) {
       const char = this.peek();
 
       if (isEscaped) {
@@ -688,7 +688,7 @@ export class DraculaSyntaxHighlighter {
     // Consume initial backtick
     str += this.consume();
 
-    while (this.pos < this.text.length) {
+    while (this.pos < this.text.size) {
       const char = this.peek();
 
       if (isEscaped) {
@@ -725,7 +725,7 @@ export class DraculaSyntaxHighlighter {
       const next = this.peek(1);
       if (next === "x" || next === "X") {
         num = this.consume(2);
-        while (this.pos < this.text.length && this.isHexDigit(this.peek())) {
+        while (this.pos < this.text.size && this.isHexDigit(this.peek())) {
           num += this.consume();
         }
         return num;
@@ -733,7 +733,7 @@ export class DraculaSyntaxHighlighter {
     }
 
     // Regular number
-    while (this.pos < this.text.length) {
+    while (this.pos < this.text.size) {
       const char = this.peek();
       if (this.isDigit(char) || char === "." || char === "e" || char === "E") {
         num += this.consume();
@@ -751,7 +751,7 @@ export class DraculaSyntaxHighlighter {
 
     if (isLineComment) {
       // Consume until newline or end of file
-      while (this.pos < this.text.length) {
+      while (this.pos < this.text.size) {
         const char = this.peek();
         if (char === "\n") {
           // Don't consume the newline as part of the comment
@@ -762,7 +762,7 @@ export class DraculaSyntaxHighlighter {
     } else {
       // Handle block comments
       let foundEnd = false;
-      while (this.pos < this.text.length && !foundEnd) {
+      while (this.pos < this.text.size && !foundEnd) {
         if (this.peek() === "*" && this.peek(1) === "/") {
           comment += this.consume(2);
           foundEnd = true;
@@ -799,7 +799,7 @@ export class DraculaSyntaxHighlighter {
   private shouldRedactSensitive(str: string): boolean {
     // Simple string matching without regex
     // Check for UUID-like pattern
-    if (str.length === 36 && str[8] === "-" && str[13] === "-" && str[18] === "-" && str[23] === "-") {
+    if (str.size === 36 && str[8] === "-" && str[13] === "-" && str[18] === "-" && str[23] === "-") {
       const isValidChar = (c: string) => this.isHexDigit(c) || c === "-";
       return [...str].every(isValidChar);
     }
@@ -810,7 +810,7 @@ export class DraculaSyntaxHighlighter {
     }
 
     // Check for NPM token
-    if (str.startsWith("npm_") && str.length === 68) {
+    if (str.startsWith("npm_") && str.size === 68) {
       const isValidTokenChar = (c: string) => this.isIdentifierPart(c);
       return str.slice(4).every(isValidTokenChar);
     }

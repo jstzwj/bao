@@ -21,7 +21,7 @@ import bao_collections.*
 /// <line-style> 值
 /// 严格翻译自 LineStyle
 public enum LineStyle {
-    | None      // 无边框
+    | NoneValue // 无边框
     | Hidden    // 隐藏
     | Inset     // 凹陷
     | Groove    // 凹槽
@@ -34,7 +34,7 @@ public enum LineStyle {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Hidden => "hidden"
             case Inset => "inset"
             case Groove => "groove"
@@ -56,7 +56,7 @@ public enum LineStyle {
     }
 
     public static func default(): LineStyle {
-        LineStyle.None
+        LineStyle.NoneValue
     }
 
     /// 严格翻译自 LineStyle.isCompatible - 始终兼容
@@ -136,7 +136,7 @@ public class GenericBorder {
     public static func default(): GenericBorder {
         GenericBorder(
             width: BorderSideWidth.Medium,
-            style: LineStyle.None,
+            style: LineStyle.NoneValue,
             color: "currentcolor"
         )
     }
@@ -157,7 +157,7 @@ public class GenericBorder {
 
     /// 严格翻译自 GenericBorder.toCss
     public func toCss(): String {
-        let defaultStyle = LineStyle.None
+        let defaultStyle = LineStyle.NoneValue
         if (width == BorderSideWidth.Medium &&
             style == defaultStyle &&
             color == "currentcolor") {
@@ -526,14 +526,14 @@ public class BorderProperty {
     /// 按位或
     public func or(other: BorderProperty): BorderProperty {
         let result = BorderProperty()
-        for (f in flags) { result.flags.put(f) }
-        for (f in other.flags) { result.flags.put(f) }
+        flags.forEach({ f => result.flags.put(f) })
+        other.flags.forEach({ f => result.flags.put(f) })
         return result
     }
 
     /// 插入 (合并另一个标志集)
     public func insert(other: BorderProperty): Unit {
-        for (f in other.flags) { flags.put(f) }
+        other.flags.forEach({ f => flags.put(f) })
     }
 
     // ========================================================================
@@ -974,7 +974,7 @@ public class BorderShorthand {
     public func toBorder(): GenericBorder {
         GenericBorder(
             width: match (width) { case Some(w) => w case None => BorderSideWidth.Medium },
-            style: match (style) { case Some(s) => s case None => LineStyle.None },
+            style: match (style) { case Some(s) => s case None => LineStyle.NoneValue },
             color: match (color) { case Some(c) => c case None => "currentcolor" }
         )
     }
@@ -1042,15 +1042,18 @@ public class BorderHandler {
     // ========================================================================
 
     /// 设置指定方向和子属性
-    private func propertyHelper(key: String, prop: String, val: Any, cat: PropertyCategory): Unit {
+    private func propertyHelper(key: String, `prop`: String, `val`: Any, cat: PropertyCategory): Unit {
         let border = getBorder(key)
-        match (prop) {
-            case "color" => border.color = Some(val.toString())
-            case "width" => match (val) {
+        match (`prop`) {
+            case "color" => match (`val`) {
+                case s: String => border.color = Some(s)
+                case _ => ()
+            }
+            case "width" => match (`val`) {
                 case w: BorderSideWidth => border.width = Some(w.deepClone())
                 case _ => ()
             }
-            case "style" => match (val) {
+            case "style" => match (`val`) {
                 case s: LineStyle => border.style = Some(s)
                 case _ => ()
             }
@@ -1061,9 +1064,9 @@ public class BorderHandler {
     }
 
     /// 设置整个边框
-    private func setBorderHelper(key: String, val: GenericBorder, cat: PropertyCategory): Unit {
+    private func setBorderHelper(key: String, `val`: GenericBorder, cat: PropertyCategory): Unit {
         let border = getBorder(key)
-        border.setBorder(val)
+        border.setBorder(`val`)
         this.category = cat
         this.hasAny = true
     }
@@ -1366,11 +1369,11 @@ public class BorderHandler {
     /// 严格翻译自 FlushContext.State.side
     private func flushSide(
         dest: ArrayList<String>,
-        prop: String, widthProp: String, styleProp: String, colorProp: String,
+        `prop`: String, widthProp: String, styleProp: String, colorProp: String,
         side: BorderShorthand
     ): Unit {
         if (side.isValid()) {
-            dest.append("${prop}: ${side.toBorder().toCss()}")
+            dest.append("${`prop`}: ${side.toBorder().toCss()}")
         } else {
             match (side.style) {
                 case Some(s) => dest.append("${styleProp}: ${s.toCss()}")

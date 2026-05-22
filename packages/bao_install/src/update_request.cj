@@ -88,7 +88,7 @@ public class UpdateRequestFull {
 
     /// 获取锁文件中的名称
     /// 翻译自: UpdateRequest.getNameInLockfile
-    public func getNameInLockfile(lockfileData: LockfileData): ?String {
+    public func getNameInLockfile(lockfileData: UpdateRequestLockfileData): ?String {
         if (packageId == INVALID_PACKAGE_ID) {
             return None
         }
@@ -98,7 +98,7 @@ public class UpdateRequestFull {
 
     /// 获取解析后的名称
     /// 翻译自: UpdateRequest.getResolvedName
-    public func getResolvedName(lockfileData: LockfileData): String {
+    public func getResolvedName(lockfileData: UpdateRequestLockfileData): String {
         if (isAliased) {
             return name
         }
@@ -121,8 +121,8 @@ public class UpdateRequestFull {
     }
 }
 
-/// 锁文件数据 (轻量引用, 避免循环依赖)
-public class LockfileData {
+/// 锁文件数据 (update_request 本地版本, 避免循环依赖)
+public class UpdateRequestLockfileData {
     public var trees: ArrayList<TreeEntry>
     public var resolutions: ArrayList<UInt32>
 

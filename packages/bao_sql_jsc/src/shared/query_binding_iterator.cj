@@ -6,6 +6,12 @@ package bao_sql_jsc.shared
 import bao_core.*
 import bao_jsc.*
 
+/// 查询绑定迭代器模式
+public enum IteratorMode {
+    | Array
+    | Objects
+}
+
 /// 查询绑定迭代器
 /// 对应 Bun: QueryBindingIterator
 /// 根据是否有 columns 参数决定使用数组迭代还是对象迭代
@@ -14,41 +20,30 @@ public class QueryBindingIterator {
     var arrayIter: ?JsArrayIterator = None
     var objectIter: ?ObjectIterator = None
 
-    enum IteratorMode {
-        | Array
-        | Objects
-    }
-
     /// 初始化迭代器
     /// 对应 Bun: QueryBindingIterator.init
     public static func initFunc(array: JscValue, columns: JscValue,
                             globalObject: JscJSGlobalObject): ?QueryBindingIterator {
         if (columns.isEmptyOrUndefinedOrNull()) {
-            let arrayIter = JsArrayIterator.init(array, globalObject)
-            if (arrayIter == None) {
-                return None
-            }
-            return QueryBindingIterator(Array, arrayIter, None)
+            let arrayIter = JsArrayIterator(array, globalObject.globalThis)
+            return QueryBindingIterator(IteratorMode.Array, arrayIter, None)
         }
 
-        let columnsCount = columns.getLength(globalObject)
-        let arrayLength = array.getLength(globalObject)
-        if (columnsCount == None || arrayLength == None) {
-            return None
-        }
+        let columnsCount = Int64(columns.getLength(globalObject.globalThis))
+        let arrayLength = Int64(array.getLength(globalObject.globalThis))
 
         let objIter = ObjectIterator(
-            array: array,
-            columns: columns,
-            globalObject: globalObject,
-            columnsCount: columnsCount.getOrThrow(),
-            arrayLength: arrayLength.getOrThrow()
+            array,
+            columns,
+            globalObject,
+            columnsCount,
+            arrayLength
         )
-        return QueryBindingIterator(Objects, None, objIter)
+        return QueryBindingIterator(IteratorMode.Objects, None, objIter)
     }
 
-    private init(_ mode: IteratorMode, _ arrayIter: ?JsArrayIterator,
-                 _ objectIter: ?ObjectIterator) {
+    private init(mode: IteratorMode, arrayIter: ?JsArrayIterator,
+                 objectIter: ?ObjectIterator) {
         this.mode = mode
         this.arrayIter = arrayIter
         this.objectIter = objectIter
@@ -58,14 +53,14 @@ public class QueryBindingIterator {
     /// 对应 Bun: QueryBindingIterator.next
     public func next(): ?JscValue {
         match (mode) {
-            case Array =>
-                if (arrayIter != None) {
-                    return arrayIter.next()
+            case IteratorMode.Array =>
+                if (arrayIter.isSome()) {
+                    return arrayIter.getOrThrow().next()
                 }
                 return None
-            case Objects =>
-                if (objectIter != None) {
-                    return objectIter.next()
+            case IteratorMode.Objects =>
+                if (objectIter.isSome()) {
+                    return objectIter.getOrThrow().next()
                 }
                 return None
         }
@@ -75,10 +70,10 @@ public class QueryBindingIterator {
     /// 对应 Bun: QueryBindingIterator.anyFailed
     public func anyFailed(): Bool {
         match (mode) {
-            case Array => false
-            case Objects =>
-                if (objectIter != None) {
-                    return objectIter.anyFailed
+            case IteratorMode.Array => false
+            case IteratorMode.Objects =>
+                if (objectIter.isSome()) {
+                    return objectIter.getOrThrow().anyFailed
                 }
                 return false
         }
@@ -88,15 +83,15 @@ public class QueryBindingIterator {
     /// 对应 Bun: QueryBindingIterator.to
     public func to(index: UInt32): Unit {
         match (mode) {
-            case Array =>
-                if (arrayIter != None) {
-                    arrayIter.setIndex(index)
+            case IteratorMode.Array =>
+                if (arrayIter.isSome()) {
+                    arrayIter.getOrThrow().i = Int64(index)
                 }
-            case Objects =>
-                if (objectIter != None) {
-                    objectIter.cellI = Int64(index) % objectIter.columnsCount
-                    objectIter.rowI = Int64(index) / objectIter.columnsCount
-                    objectIter.currentRow = JscValue.undefined()
+            case IteratorMode.Objects =>
+                if (objectIter.isSome()) {
+                    objectIter.getOrThrow().cellI = Int64(index) % objectIter.getOrThrow().columnsCount
+                    objectIter.getOrThrow().rowI = Int64(index) / objectIter.getOrThrow().columnsCount
+                    objectIter.getOrThrow().currentRow = JscValue.undefined()
                 }
         }
     }
@@ -105,15 +100,15 @@ public class QueryBindingIterator {
     /// 对应 Bun: QueryBindingIterator.reset
     public func reset(): Unit {
         match (mode) {
-            case Array =>
-                if (arrayIter != None) {
-                    arrayIter.reset()
+            case IteratorMode.Array =>
+                if (arrayIter.isSome()) {
+                    arrayIter.getOrThrow().i = 0
                 }
-            case Objects =>
-                if (objectIter != None) {
-                    objectIter.cellI = 0
-                    objectIter.rowI = 0
-                    objectIter.currentRow = JscValue.undefined()
+            case IteratorMode.Objects =>
+                if (objectIter.isSome()) {
+                    objectIter.getOrThrow().cellI = 0
+                    objectIter.getOrThrow().rowI = 0
+                    objectIter.getOrThrow().currentRow = JscValue.undefined()
                 }
         }
     }

@@ -737,6 +737,27 @@ public class EnvConfig {
         files = ArrayList<String>()
         disableDefaultEnvFiles = false
     }
+
+    /// 从前缀设置行为
+    public func setBehaviorFromPrefix(prefix: String): Unit {
+        if (prefix.size > 0) {
+            this.prefix = prefix
+            behavior = DotEnvBehavior.Prefix
+        }
+    }
+
+    /// 转换为 API 表示
+    public func toAPI(): HashMap<String, String> {
+        let result = HashMap<String, String>()
+        match (behavior) {
+            case DotEnvBehavior.Disable => result.put("behavior", "disable")
+            case DotEnvBehavior.Prefix => result.put("behavior", "prefix")
+            case DotEnvBehavior.LoadAll => result.put("behavior", "load_all")
+            case DotEnvBehavior.LoadAllWithoutInlining => result.put("behavior", "load_all_without_inlining")
+        }
+        result.put("prefix", prefix)
+        return result
+    }
 }
 
 /// 环境变量条目
@@ -804,6 +825,16 @@ public enum EntryPointKind {
 
     public operator func !=(other: EntryPointKind): Bool {
         return !(this == other)
+    }
+
+    /// 转换为 API 表示
+    public func toAPI(): String {
+        match (this) {
+            case Client => "client"
+            case Server => "server"
+            case Fallback => "fallback"
+            case Disabled => "disabled"
+        }
     }
 }
 

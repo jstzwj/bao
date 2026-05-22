@@ -41,7 +41,7 @@ public class NativeZlib {
 
     /// constructor - JS 构造函数
     /// 严格翻译自: zlib.classes.ts construct: true
-    public static func constructor(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?NativeZlib {
+    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?NativeZlib {
         return NativeZlib()
     }
 
@@ -53,7 +53,7 @@ public class NativeZlib {
     /// init - 初始化 zlib 流
     /// 严格翻译自: NativeZlib::init
     /// 参数取决于具体算法 (windowBits, level, memLevel, strategy 等)
-    public func init(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func `init`(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 初始化 z_stream 结构体
         // 根据 windowBits 确定算法:
@@ -72,9 +72,9 @@ public class NativeZlib {
     /// write - 写入数据到压缩/解压缩流
     /// 严格翻译自: NativeZlib::write
     /// 参数: (data: Uint8Array | ArrayBuffer, isLast?: boolean)
-    public func write(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func write(JsGlobalObject, callframe: JsCallFrame): JsValue {
         if (!initialized) {
-            if (let Some(cb) = errorCallback) {
+            if (let Some(cb) <- errorCallback) {
                 // 调用错误回调
             }
             return JsValue.jsBoolean(false)
@@ -95,7 +95,7 @@ public class NativeZlib {
     /// writeSync - 同步写入数据到压缩/解压缩流
     /// 严格翻译自: NativeZlib::writeSync
     /// 参数: (data: Uint8Array | ArrayBuffer, isLast?: boolean)
-    public func writeSync(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func writeSync(JsGlobalObject, callframe: JsCallFrame): JsValue {
         if (!initialized) {
             return JsValue.jsBoolean(false)
         }
@@ -113,7 +113,7 @@ public class NativeZlib {
     /// params - 动态更新压缩参数
     /// 严格翻译自: NativeZlib::params
     /// 参数: (level: number, strategy: number)
-    public func params(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func params(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
         // 调用 deflateParams 更新压缩级别和策略
         return JsValue.jsUndefined()
@@ -126,7 +126,7 @@ public class NativeZlib {
 
     /// reset - 重置压缩/解压缩流
     /// 严格翻译自: NativeZlib::reset
-    public func reset(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func reset(JsGlobalObject, callframe: JsCallFrame): JsValue {
         // 调用 deflateReset / inflateReset
         return JsValue.jsUndefined()
     }
@@ -138,7 +138,7 @@ public class NativeZlib {
 
     /// close - 关闭压缩/解压缩流并释放资源
     /// 严格翻译自: NativeZlib::close
-    public func close(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func close(JsGlobalObject, callframe: JsCallFrame): JsValue {
         if (initialized) {
             // 调用 deflateEnd / inflateEnd
             initialized = false
@@ -148,19 +148,19 @@ public class NativeZlib {
 
     // ========================================================================
     // onerror getter/setter
-    // 严格翻译自: zlib.classes.ts onerror { setter: "setOnError", this: true, getter: "getOnError" }
+    // 严格翻译自: zlib.classes.ts onerror { setter: "setOnError", `this`: true, getter: "getOnError" }
     // ========================================================================
 
     /// getOnError - 获取错误回调
-    public func getOnError(globalObject: JsGlobalObject): JsValue {
-        if (let Some(cb) = errorCallback) {
+    public func getOnError(JsGlobalObject): JsValue {
+        if (let Some(cb) <- errorCallback) {
             return cb
         }
         return JsValue.jsUndefined()
     }
 
     /// setOnError - 设置错误回调
-    public func setOnError(globalObject: JsGlobalObject, value: JsValue): JsValue {
+    public func setOnError(JsGlobalObject, value: JsValue): JsValue {
         errorCallback = value
         return JsValue.jsBoolean(true)
     }
@@ -221,7 +221,7 @@ public class NativeBrotli {
     // 构造函数
     // ========================================================================
 
-    public static func constructor(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?NativeBrotli {
+    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?NativeBrotli {
         return NativeBrotli()
     }
 
@@ -230,7 +230,7 @@ public class NativeBrotli {
     // ========================================================================
 
     /// init - 初始化 Brotli 编码器/解码器
-    public func init(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func `init`(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         initialized = true
         return JsValue.jsBoolean(true)
@@ -241,7 +241,7 @@ public class NativeBrotli {
     // ========================================================================
 
     /// write - 写入数据
-    public func write(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func write(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
         return JsValue.jsBoolean(true)
     }
@@ -251,7 +251,7 @@ public class NativeBrotli {
     // ========================================================================
 
     /// writeSync - 同步写入数据
-    public func writeSync(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func writeSync(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
         return JsValue.jsBoolean(true)
     }
@@ -261,7 +261,7 @@ public class NativeBrotli {
     // ========================================================================
 
     /// params - 动态更新压缩参数
-    public func params(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func params(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
         return JsValue.jsUndefined()
     }
@@ -271,7 +271,7 @@ public class NativeBrotli {
     // ========================================================================
 
     /// reset - 重置 Brotli 编码器/解码器
-    public func reset(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func reset(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -280,7 +280,7 @@ public class NativeBrotli {
     // ========================================================================
 
     /// close - 关闭并释放资源
-    public func close(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func close(JsGlobalObject, callframe: JsCallFrame): JsValue {
         initialized = false
         return JsValue.jsUndefined()
     }
@@ -290,13 +290,13 @@ public class NativeBrotli {
     // ========================================================================
 
     /// getOnError - 获取错误回调
-    public func getOnError(globalObject: JsGlobalObject): JsValue {
-        if (let Some(cb) = errorCallback) { return cb }
+    public func getOnError(JsGlobalObject): JsValue {
+        if (let Some(cb) <- errorCallback) { return cb }
         return JsValue.jsUndefined()
     }
 
     /// setOnError - 设置错误回调
-    public func setOnError(globalObject: JsGlobalObject, value: JsValue): JsValue {
+    public func setOnError(JsGlobalObject, value: JsValue): JsValue {
         errorCallback = value
         return JsValue.jsBoolean(true)
     }
@@ -352,7 +352,7 @@ public class NativeZstd {
     // 构造函数
     // ========================================================================
 
-    public static func constructor(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?NativeZstd {
+    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?NativeZstd {
         return NativeZstd()
     }
 
@@ -361,7 +361,7 @@ public class NativeZstd {
     // ========================================================================
 
     /// init - 初始化 Zstandard 编码器/解码器
-    public func init(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func `init`(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         initialized = true
         return JsValue.jsBoolean(true)
@@ -372,7 +372,7 @@ public class NativeZstd {
     // ========================================================================
 
     /// write - 写入数据
-    public func write(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func write(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
         return JsValue.jsBoolean(true)
     }
@@ -382,7 +382,7 @@ public class NativeZstd {
     // ========================================================================
 
     /// writeSync - 同步写入数据
-    public func writeSync(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func writeSync(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
         return JsValue.jsBoolean(true)
     }
@@ -392,7 +392,7 @@ public class NativeZstd {
     // ========================================================================
 
     /// params - 动态更新压缩参数
-    public func params(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func params(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
         return JsValue.jsUndefined()
     }
@@ -402,7 +402,7 @@ public class NativeZstd {
     // ========================================================================
 
     /// reset - 重置 Zstandard 编码器/解码器
-    public func reset(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func reset(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -411,7 +411,7 @@ public class NativeZstd {
     // ========================================================================
 
     /// close - 关闭并释放资源
-    public func close(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func close(JsGlobalObject, callframe: JsCallFrame): JsValue {
         initialized = false
         return JsValue.jsUndefined()
     }
@@ -421,13 +421,13 @@ public class NativeZstd {
     // ========================================================================
 
     /// getOnError - 获取错误回调
-    public func getOnError(globalObject: JsGlobalObject): JsValue {
-        if (let Some(cb) = errorCallback) { return cb }
+    public func getOnError(JsGlobalObject): JsValue {
+        if (let Some(cb) <- errorCallback) { return cb }
         return JsValue.jsUndefined()
     }
 
     /// setOnError - 设置错误回调
-    public func setOnError(globalObject: JsGlobalObject, value: JsValue): JsValue {
+    public func setOnError(JsGlobalObject, value: JsValue): JsValue {
         errorCallback = value
         return JsValue.jsBoolean(true)
     }

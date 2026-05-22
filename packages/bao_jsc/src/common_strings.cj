@@ -19,7 +19,31 @@ public enum CommonStringsForZig {
     | Buffer
     | BinaryTypeArrayBuffer
     | BinaryTypeNodeBuffer
+    | BinaryTypeUint8Array
     | None
+
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        JsValue(this.toString())
+    }
+
+    public func toString(): String {
+        match (this) {
+            case IPv4 => "IPv4"
+            case IPv6 => "IPv6"
+            case IN4Loopback => "127.0.0.1"
+            case IN6Any => "::"
+            case IPv4Lower => "ipv4"
+            case IPv6Lower => "ipv6"
+            case FetchDefault => "default"
+            case FetchError => "error"
+            case FetchInclude => "include"
+            case Buffer => "buffer"
+            case BinaryTypeArrayBuffer => "arraybuffer"
+            case BinaryTypeNodeBuffer => "nodebuffer"
+            case BinaryTypeUint8Array => "uint8array"
+            case None => ""
+        }
+    }
 }
 
 // ========== CommonStrings ==========

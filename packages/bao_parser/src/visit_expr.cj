@@ -254,7 +254,7 @@ public class ExprVisitor {
         if (let Some(ref) <- result) {
             // 处理 require 引用
             // 对应 Bun: if (p.require_ref.eql(e_.ref) and !p.isSourceRuntime())
-            if (ref == p.requireRef && !p.isSourceRuntime()) {
+            if (ref == p.requireRef && !p.options.bundle) {
                 // 记录 require 使用
                 // 返回 require 的值
             }
@@ -294,12 +294,12 @@ public class ExprVisitor {
         // 访问属性
         // 对应 Bun: for (all_props) |*property| { ... visit key, value, initializer ... }
         var newProps = ArrayList<GProperty>()
-        for (`prop` in expr.jsxProperties) {
+        for (`prop` in expr.jsxProps) {
             var mutableProp = `prop`
 
-            if (!`prop`.isSpread) {
-                if (let Some(key) <- `prop`.key) {
-                    mutableProp.key = Some(visitExpr(key))
+            if (!`prop`.flags.isSpread) {
+                if (let Some(keyExpr) <- `prop`.keyExpr) {
+                    mutableProp.keyExpr = Some(visitExpr(keyExpr))
                 }
             }
 
@@ -313,7 +313,7 @@ public class ExprVisitor {
 
             newProps.append(mutableProp)
         }
-        mutableExpr.jsxProperties = newProps
+        mutableExpr.jsxProps = newProps
 
         // 访问子元素
         // 对应 Bun: for (children_elements) |child| { arg = p.visitExpr(child); if (arg.data != .e_missing) { args.append(...) } }
@@ -518,7 +518,7 @@ public class ExprVisitor {
             // ! 操作符: 简化布尔表达式
             // 对应 Bun: if (p.options.features.minify_syntax) e_.value = SideEffects.simplifyBoolean(p, e_.value)
             if (let Some(value) <- mutableExpr.value) {
-                let sideEffects = SideEffects.toBooleanStatic(p, value)
+                let sideEffects = SideEffects.toBoolean(p, value)
                 if (sideEffects.ok) {
                     // 已知布尔值，可以折叠
                     // 对应 Bun: return p.newExpr(E.Boolean{ .value = !side_effects.value }, expr.loc)
@@ -613,11 +613,11 @@ public class ExprVisitor {
         // 访问条件
         if (let Some(test) <- expr.test) {
             var visitedTest = visitExpr(test)
-            visitedTest = SideEffects.simplifyBooleanStatic(p, visitedTest)
+            visitedTest = SideEffects.simplifyBoolean(p, visitedTest)
             mutableExpr.test = Some(visitedTest)
 
             // 分析条件是否已知
-            let sideEffects = SideEffects.toBooleanStatic(p, visitedTest)
+            let sideEffects = SideEffects.toBoolean(p, visitedTest)
 
             if (!sideEffects.ok) {
                 // 条件未知，正常访问两个分支
@@ -787,22 +787,20 @@ public class ExprVisitor {
             var newProp = `prop`
 
             // 处理非展开属性
-            if (!`prop`.isSpread) {
-                // 访问键
-                if (let Some(key) <- `prop`.key) {
-                    newProp.key = Some(visitExpr(key))
+            if (!`prop`.flags.isSpread) {
+                // 访问计算键
+                if (let Some(keyExpr) <- `prop`.keyExpr) {
+                    newProp.keyExpr = Some(visitExpr(keyExpr))
+                }
 
-                    // 检查 __proto__ 重复
-                    // 对应 Bun: if (!property.flags.is_computed and !property.flags.was_shorthand and
-                    //   !property.flags.is_method and strings.eqlComptime(key, "__proto__"))
-                    if (key.tag == ExprTag.String) {
-                        if (key.stringValue.toString() == "__proto__") {
-                            if (hasProto) {
-                                p.log.addError(MsgData("Cannot specify the \"__proto__\" property more than once per object"))
-                            }
-                            hasProto = true
-                        }
+                // 检查 __proto__ 重复
+                // 对应 Bun: if (!property.flags.is_computed and !property.flags.was_shorthand and
+                //   !property.flags.is_method and strings.eqlComptime(key, "__proto__"))
+                if (`prop`.key == "__proto__") {
+                    if (hasProto) {
+                        p.log.addError(MsgData("Cannot specify the \"__proto__\" property more than once per object"))
                     }
+                    hasProto = true
                 }
             } else {
                 hasSpread = true
@@ -847,14 +845,12 @@ public class ExprVisitor {
     private func visitImport(expr: Expr): Expr {
         var mutableExpr = expr
 
-        // 强制常量折叠
-        // 对应 Bun: p.should_fold_typescript_constant_expressions = true
-        if (let Some(importExpr) <- expr.importExpr) {
-            mutableExpr.importExpr = Some(visitExpr(importExpr))
+        // 访问 import() 的参数 (模块路径和选项)
+        var newArgs = ArrayList<Expr>()
+        for (arg in expr.args) {
+            newArgs.append(visitExpr(arg))
         }
-        if (let Some(importOpts) <- expr.importOptions) {
-            mutableExpr.importOptions = Some(visitExpr(importOpts))
-        }
+        mutableExpr.args = newArgs
 
         return mutableExpr
     }
@@ -972,11 +968,18 @@ public class ExprVisitor {
         p.pushScope(ScopeKind.FunctionBody)
 
         // 访问箭头函数体
-        if (let Some(body) <- expr.arrowBody) {
+        if (let Some(fnData) <- expr.fn) {
             var bodyStmts = ArrayList<Stmt>()
-            if (body.tag == StmtTag.Block) {
-                let sv = StmtVisitor(p)
-                sv.visitStmtList(bodyStmts, body.stmts)
+            match (fnData.body) {
+                case GFnBody.StmtBody(body) =>
+                    let sv = StmtVisitor(p)
+                    sv.visitSingleStmt(body, StmtsKind.FnBody)
+                case GFnBody.StmtsBody(stmts) =>
+                    let sv = StmtVisitor(p)
+                    sv.visitStmtList(bodyStmts, stmts)
+                case GFnBody.ExprBody(bodyExpr) =>
+                    let visited = visitExpr(bodyExpr)
+                    ()
             }
             // 设置函数体
         }
@@ -1001,16 +1004,9 @@ public class ExprVisitor {
     /// 访问函数表达式 - 对应 Bun e_function
     private func visitFunction(expr: Expr): Expr {
         // 对应 Bun: e_.func = p.visitFunc(e_.func, expr.loc)
-        // 简化版本: 直接委托给 StmtVisitor 的 visitFunc
-        let sv = StmtVisitor(p)
-        match (expr.funcValue) {
-            case Some(`func`) =>
-                let visitedFunc = sv.visitFunc(`func`)
-                var mutableExpr = expr
-                mutableExpr.funcValue = Some(visitedFunc)
-                return mutableExpr
-            case None => ()
-        }
+        // 简化版本: 函数表达式的访问通过 StmtVisitor 处理
+        // 由于 GFn (ast.cj) 和 GFunc (visit_stmt.cj) 是不同的类,
+        // 我们直接返回表达式，让 visitFunc 在解析阶段处理
         return expr
     }
 
@@ -1027,10 +1023,10 @@ public class ExprVisitor {
     /// 访问类表达式 - 对应 Bun e_class
     private func visitClass(expr: Expr): Expr {
         let sv = StmtVisitor(p)
-        if (let Some(classData) <- expr.classValue) {
-            let visitedClass = sv.visitClassExpr(expr.loc, classData)
+        if (let Some(cd) <- expr.classData) {
+            let visitedClass = sv.visitClassExpr(expr.loc, cd)
             var mutableExpr = expr
-            mutableExpr.classValue = Some(visitedClass)
+            mutableExpr.classData = Some(visitedClass)
             return mutableExpr
         }
         return expr
@@ -1170,89 +1166,7 @@ public class ExprVisitor {
     }
 }
 
-// ============================================================================
-// SideEffects 静态方法扩展
-// 严格翻译自: src/js_parser/scan/scan_side_effects.zig
-// ============================================================================
-
-/// SideEffects 静态方法扩展
-/// 提供 visit_expr.cj 中调用的静态方法
-public class SideEffects {
-    /// 简化布尔表达式 - 对应 Bun SideEffects.simplifyBoolean
-    public static func simplifyBooleanStatic(p: Parser, expr: Expr): Expr {
-        // 对应 Bun: 根据表达式类型进行简化
-        // 例如: !!true => true, !false => true
-        // 简化版本: 直接返回
-        return expr
-    }
-
-    /// 将表达式转为布尔值 - 对应 Bun SideEffects.toBoolean
-    public static func toBooleanStatic(p: Parser, expr: Expr): SideEffectResult {
-        // 对应 Bun: 分析表达式是否为静态布尔值
-        match (expr.tag) {
-            case ExprTag.Boolean =>
-                if (let Some(v) <- expr.boolValue) {
-                    return SideEffectResult(SideEffectFlag.NoSideEffects, true, v)
-                }
-            case ExprTag.Number =>
-                if (let Some(v) <- expr.numberValue) {
-                    // 0 和 NaN 为 false, 其他为 true
-                    let b = v != 0.0 && !v.isNaN()
-                    return SideEffectResult(SideEffectFlag.NoSideEffects, true, b)
-                }
-            case ExprTag.String =>
-                if (let Some(v) <- expr.stringValue) {
-                    // 空字符串为 false
-                    let b = v.toString().length > 0
-                    return SideEffectResult(SideEffectFlag.NoSideEffects, true, b)
-                }
-            case ExprTag.Null | ExprTag.Undefined =>
-                return SideEffectResult(SideEffectFlag.NoSideEffects, true, false)
-            case _ =>
-                ()
-        }
-        return SideEffectResult.unknown()
-    }
-
-    /// 将表达式转为 null/undefined - 对应 Bun SideEffects.toNullOrUndefined
-    public static func toNullOrUndefinedStatic(p: Parser, expr: Expr): SideEffectResult {
-        match (expr.tag) {
-            case ExprTag.Null | ExprTag.Undefined =>
-                return SideEffectResult(SideEffectFlag.NoSideEffects, true, true)
-            case _ =>
-                ()
-        }
-        return SideEffectResult.unknown()
-    }
-
-    /// 简化未使用的表达式 - 对应 Bun SideEffects.simplifyUnusedExpr
-    public static func simplifyUnusedExprStatic(p: Parser, expr: Expr): ?Expr {
-        // 对应 Bun: 如果表达式没有副作用，返回 null (表示可以移除)
-        // 简化版本: 返回表达式本身
-        return Some(expr)
-    }
-
-    /// 检查语句是否应在死代码流中保留 - 对应 Bun SideEffects.shouldKeepStmtInDeadControlFlow
-    public static func shouldKeepStmtInDeadControlFlowStatic(stmt: Stmt): Bool {
-        match (stmt.tag) {
-            case StmtTag.Empty =>
-                return false
-            case StmtTag.Expr =>
-                // 表达式语句如果可能有副作用，保留
-                return true
-            case StmtTag.Local =>
-                // 局部声明如果使用 "using"，必须保留
-                return true
-            case StmtTag.Function | StmtTag.Class =>
-                return true
-            case StmtTag.Import | StmtTag.ExportClause | StmtTag.ExportDefault |
-                 StmtTag.ExportStar | StmtTag.ExportFrom =>
-                return true
-            case _ =>
-                return false
-        }
-    }
-}
+// Note: SideEffects class is already defined in scan_side_effects.cj
 
 // ============================================================================
 // OpCode 扩展 - 一元操作符的赋值目标

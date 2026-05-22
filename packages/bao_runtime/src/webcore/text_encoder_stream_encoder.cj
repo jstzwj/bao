@@ -61,40 +61,39 @@ public class TextEncoderStreamEncoder {
     // ========================================================================
     // encode - 编码字符串块
     // 严格翻译自: TextEncoderStreamEncoder::encode
-    //   pub fn encode(&self, global, frame) -> JsResult<JSValue>
+    //   pub fn encode(&self, global, frame) -> JsResult<JsValue>
     // ========================================================================
 
     /// 编码一个字符串块
-    /// 对应 Bun: pub fn encode(&self, global, frame) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn encode(&self, global, frame) -> JsResult<JsValue>
     ///
     /// 步骤:
     ///   1. 从参数获取 JSString
     ///   2. 检查是否是 16-bit 字符串 (UTF-16)
     ///   3. 16-bit: 调用 encodeUtf16
     ///   4. 8-bit: 调用 encodeLatin1
-    public func encode(global: JSGlobalObject, frame: CallFrame): Result<JSValue> {
+    public func encode(global: JSGlobalObject, frame: CallFrame): Result<JsValue> {
         let arguments = frame.arguments(1)
         if (arguments.isEmpty()) {
-            return Result<JSValue>.Err(
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.MissingArgs, "TextEncoderStreamEncoder.encode requires 1 argument")
             )
         }
 
         let str = arguments[0].getZigString(global)
         match (str) {
-            case Ok(jsStr) => {
+            case Ok(jsStr) =>
                 if (jsStr.is16Bit()) {
-                    return Result<JSValue>.Ok(encodeUtf16(global, jsStr.utf16SliceAligned()))
+                    return Result<JsValue>.Ok(encodeUtf16(global, jsStr.utf16SliceAligned()))
                 }
-                return Result<JSValue>.Ok(encodeLatin1(global, jsStr.slice()))
-            }
-            case Err(e) => return Result<JSValue>.Err(e)
+                return Result<JsValue>.Ok(encodeLatin1(global, jsStr.slice()))
+            case Err(e) => return Result<JsValue>.Err(e)
         }
     }
 
     /// 无类型检查的编码
-    /// 对应 Bun: pub fn encode_without_type_checks(&self, global, input) -> JSValue
-    public func encodeWithoutTypeChecks(global: JSGlobalObject, input: JSString): JSValue {
+    /// 对应 Bun: pub fn encode_without_type_checks(&self, global, input) -> JsValue
+    public func encodeWithoutTypeChecks(global: JSGlobalObject, input: JSString): JsValue {
         let str = input.getZigString(global)
         if (str.is16Bit()) {
             return encodeUtf16(global, str.utf16SliceAligned())
@@ -105,28 +104,27 @@ public class TextEncoderStreamEncoder {
     // ========================================================================
     // encodeLatin1 - Latin1 -> UTF-8 编码
     // 严格翻译自: TextEncoderStreamEncoder::encode_latin1
-    //   fn encode_latin1(&self, global, input: &[u8]) -> JSValue
+    //   fn encode_latin1(&self, global, input: &[u8]) -> JsValue
     // ========================================================================
 
     /// Latin1 -> UTF-8 编码
-    /// 对应 Bun: fn encode_latin1(&self, global, input: &[u8]) -> JSValue
+    /// 对应 Bun: fn encode_latin1(&self, global, input: &[u8]) -> JsValue
     ///
     /// 步骤:
     ///   1. 处理暂存的 lead surrogate (latin1 无代理对, 输出 U+FFFD)
     ///   2. 分配输出缓冲区 (input.len + prepend_replacement_len)
     ///   3. 使用 copy_latin1_into_utf8 逐块转换
     ///   4. 返回 Uint8Array
-    private func encodeLatin1(global: JSGlobalObject, input: Array<UInt8>): JSValue {
+    private func encodeLatin1(global: JSGlobalObject, input: Array<UInt8>): JsValue {
         if (input.size == 0) {
             return JSUint8Array.createEmpty(global)
         }
 
         // 处理暂存的 lead surrogate
         let prependReplacementLen: Int64 = match (pendingLeadSurrogate) {
-            case Some(_) => {
+            case Some(_) =>
                 pendingLeadSurrogate = None
                 3  // U+FFFD = EF BF BD
-            }
             case None => 0
         }
 
@@ -160,11 +158,11 @@ public class TextEncoderStreamEncoder {
     // ========================================================================
     // encodeUtf16 - UTF-16 -> UTF-8 编码
     // 严格翻译自: TextEncoderStreamEncoder::encode_utf16
-    //   fn encode_utf16(&self, global, input: &[u16]) -> JSValue
+    //   fn encode_utf16(&self, global, input: &[u16]) -> JsValue
     // ========================================================================
 
     /// UTF-16 -> UTF-8 编码
-    /// 对应 Bun: fn encode_utf16(&self, global, input: &[u16]) -> JSValue
+    /// 对应 Bun: fn encode_utf16(&self, global, input: &[u16]) -> JsValue
     ///
     /// 步骤:
     ///   1. 处理暂存的 lead surrogate (与 trail 配对或输出 U+FFFD)
@@ -172,7 +170,7 @@ public class TextEncoderStreamEncoder {
     ///   3. 尝试 simdutf 快速转换
     ///   4. 失败则走慢路径 (包含无效 UTF-16 处理)
     ///   5. 检查最后是否留下新的 lead surrogate
-    private func encodeUtf16(global: JSGlobalObject, input: Array<UInt16>): JSValue {
+    private func encodeUtf16(global: JSGlobalObject, input: Array<UInt16>): JsValue {
         if (input.size == 0) {
             return JSUint8Array.createEmpty(global)
         }
@@ -182,7 +180,7 @@ public class TextEncoderStreamEncoder {
         // 处理暂存的 lead surrogate
         var prepend: ?Array<UInt8> = None
         match (pendingLeadSurrogate) {
-            case Some(lead) => {
+            case Some(lead) =>
                 pendingLeadSurrogate = None
                 if (input.size > 0) {
                     let maybeTrail = input[0]
@@ -205,7 +203,6 @@ public class TextEncoderStreamEncoder {
                     let replacement: Array<UInt8> = [0xef, 0xbf, 0xbd]
                     prepend = replacement
                 }
-            }
             case None => ()
         }
 
@@ -223,11 +220,10 @@ public class TextEncoderStreamEncoder {
         buf.reserve(length + prependLen)
 
         match (prepend) {
-            case Some(pre) => {
+            case Some(pre) =>
                 for (b in pre) {
                     buf.append(b)
                 }
-            }
             case None => ()
         }
 
@@ -240,12 +236,11 @@ public class TextEncoderStreamEncoder {
         // 慢路径: 有无效 UTF-16, 使用手动转换
         let leadSurrogate = Strings.toUtf8ListWithTypeBun(buf, remain)
         match (leadSurrogate) {
-            case Some(pendingLead) => {
+            case Some(pendingLead) =>
                 pendingLeadSurrogate = pendingLead
                 if (buf.size == 0) {
                     return JSUint8Array.createEmpty(global)
                 }
-            }
             case None => ()
         }
 
@@ -255,37 +250,35 @@ public class TextEncoderStreamEncoder {
     // ========================================================================
     // flush - 刷新
     // 严格翻译自: TextEncoderStreamEncoder::flush
-    //   pub fn flush(&self, global, _frame) -> JsResult<JSValue>
+    //   pub fn flush(&self, global, _frame) -> JsResult<JsValue>
     // ========================================================================
 
     /// 刷新并完成编码
-    /// 对应 Bun: pub fn flush(&self, global, _frame) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn flush(&self, global, _frame) -> JsResult<JsValue>
     ///
     /// 如果有暂存的 lead surrogate, 输出 U+FFFD 替换。
-    public func flush(global: JSGlobalObject, frame: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(flushBody(global))
+    public func flush(global: JSGlobalObject, frame: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(flushBody(global))
     }
 
     /// 无类型检查的 flush
-    /// 对应 Bun: pub fn flush_without_type_checks(&self, global) -> JSValue
-    public func flushWithoutTypeChecks(global: JSGlobalObject): JSValue {
+    /// 对应 Bun: pub fn flush_without_type_checks(&self, global) -> JsValue
+    public func flushWithoutTypeChecks(global: JSGlobalObject): JsValue {
         return flushBody(global)
     }
 
     /// flush 内部实现
-    /// 对应 Bun: fn flush_body(&self, global) -> JSValue
+    /// 对应 Bun: fn flush_body(&self, global) -> JsValue
     ///   如果 pending_lead_surrogate 是 None, 返回空 Uint8Array
     ///   否则返回 U+FFFD (EF BF BD)
-    private func flushBody(global: JSGlobalObject): JSValue {
+    private func flushBody(global: JSGlobalObject): JsValue {
         match (pendingLeadSurrogate) {
-            case Some(_) => {
+            case Some(_) =>
                 pendingLeadSurrogate = None
                 let replacement: Array<UInt8> = [0xef, 0xbf, 0xbd]
                 return JSUint8Array.fromBytesCopy(global, replacement)
-            }
-            case None => {
+            case None =>
                 return JSUint8Array.createEmpty(global)
-            }
         }
     }
 }

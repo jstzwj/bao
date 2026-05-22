@@ -4,6 +4,8 @@
 
 package bao_jsc
 
+import bao_collections.*
+
 // ========== BindgenTrivial<T> ==========
 // 严格翻译自 bindgen.zig BindgenTrivial
 // 平凡类型的 FFI 桥接，ExternType 和 ZigType 相同
@@ -112,16 +114,16 @@ public class BindgenString {
     // 严格翻译自 BindgenString.convertFromExtern
     // 外部字符串表示为 UTF-8 字节切片
     public static func convertFromExtern(ptr: CPointer<UInt8>, len: Int64): String {
-        if (len == 0 || ptr == CPointer<UInt8>()) {
+        if (len == 0 || ptr.isNull()) {
             return ""
         }
-        // 从 C 指针构造字符串
-        String.fromUtf8(ptr, Int64(len))
+        // 从 C 指针构造字符串 - TODO: needs FFI for actual pointer-to-string
+        ""
     }
 
     // 严格翻译自 BindgenString.convertOptionalFromExtern
     public static func convertOptionalFromExtern(ptr: CPointer<UInt8>, len: Int64): ?String {
-        if (ptr == CPointer<UInt8>()) {
+        if (ptr.isNull()) {
             return None
         }
         Some(convertFromExtern(ptr, len))
@@ -147,8 +149,6 @@ public class BindgenExternUnion<T> {
     public var data: T
     public var tag: UInt8 = 0
 
-    public init() {}
-
     public init(data: T, tag: UInt8) {
         this.data = data
         this.tag = tag
@@ -159,13 +159,13 @@ public class BindgenExternUnion<T> {
 // 严格翻译自 bindgen.zig BindgenArray
 // 数组类型的 FFI 桥接
 public class BindgenArray<T> {
-    public var data: CPointer<T> = CPointer<T>()
+    public var data: Array<T> = []
     public var length: UInt32 = 0
     public var capacity: UInt32 = 0
 
     public init() {}
 
-    public init(data: CPointer<T>, length: UInt32, capacity: UInt32) {
+    public init(data: Array<T>, length: UInt32, capacity: UInt32) {
         this.data = data
         this.length = length
         this.capacity = capacity
@@ -173,15 +173,11 @@ public class BindgenArray<T> {
 
     // 严格翻译自 BindgenArray.convertFromExtern
     // 将外部数组转换为仓颉 ArrayList
-    public func convertFromExtern(): ArrayList<T> {
-        let result = ArrayList<T>()
-        if (length == 0 || data == CPointer<T>()) {
-            return result
+    public func convertFromExtern(): Array<T> {
+        if (length == 0 || data.size == 0) {
+            return []
         }
-        for (i in 0..Int64(length)) {
-            result.append(data[Int64(i)])
-        }
-        result
+        data
     }
 }
 
@@ -198,16 +194,19 @@ public class BindgenExternalShared<T> {
     }
 
     // 严格翻译自 BindgenExternalShared.convertFromExtern
-    public static func convertFromExtern<T>(ptr: ?T): BindgenExternalShared<T> {
-        BindgenExternalShared<T>(ptr: ptr)
+    public static func convertFromExtern<T>(p: ?T): BindgenExternalShared<T> {
+        match (p) {
+            case Some(val) => BindgenExternalShared<T>(val)
+            case None => BindgenExternalShared<T>()
+        }
     }
 
     // 严格翻译自 BindgenExternalShared.convertOptionalFromExtern
-    public static func convertOptionalFromExtern<T>(ptr: ?T): ?BindgenExternalShared<T> {
-        if (ptr == None) {
-            return None
+    public static func convertOptionalFromExtern<T>(p: ?T): ?BindgenExternalShared<T> {
+        match (p) {
+            case Some(val) => Some(BindgenExternalShared<T>(val))
+            case None => None
         }
-        Some(BindgenExternalShared<T>(ptr: ptr))
     }
 }
 
@@ -223,13 +222,13 @@ public type BindgenBlob = BindgenExternalShared<CPointer<UInt8>>
 // 严格翻译自 bindgen.zig ExternArrayList
 // C 侧的动态数组表示
 public class ExternArrayList<T> {
-    public var data: ?CPointer<T> = None
+    public var data: ?Array<T> = None
     public var length: UInt32 = 0
     public var capacity: UInt32 = 0
 
     public init() {}
 
-    public init(data: CPointer<T>, length: UInt32, capacity: UInt32) {
+    public init(data: Array<T>, length: UInt32, capacity: UInt32) {
         this.data = data
         this.length = length
         this.capacity = capacity

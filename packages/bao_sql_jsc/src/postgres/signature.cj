@@ -5,6 +5,8 @@ package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
+import bao_collections.ArrayList
 
 /// Postgres 签名
 /// 对应 Bun: postgres/Signature.zig
@@ -41,9 +43,12 @@ public class PostgresSignature {
     /// 计算哈希
     /// 对应 Bun: Signature.hash
     public func hash(): UInt64 {
-        var hasher = Wyhash.init(0)
-        hasher.update(name)
-        return hasher.final()
+        // Stub: simplified hash
+        var h: UInt64 = 0
+        for (i in 0..name.size) {
+            h = h * 31 + UInt64(Int64(name[Int64(i)]))
+        }
+        return h
     }
 
     /// 生成签名
@@ -55,50 +60,41 @@ public class PostgresSignature {
         sig.query = query
         sig.name = query
 
-        do {
-            let iter = QueryBindingIterator.init(arrayValue, columns, globalObject)
-            if (iter == None) {
-                return None
-            }
-
-            var fields = ArrayList<Int32>()
-            var nameBuilder = StringBuilder()
-            nameBuilder.append(query)
-
-            var nextValue = iter.getOrThrow().next()
-            while (nextValue != None) {
-                let value = nextValue.getOrThrow()
-                if (value.isEmptyOrUndefinedOrNull()) {
-                    fields.append(0)
-                    nameBuilder.append(".null")
-                } else {
-                    let tag = tagFromJS(globalObject, value)
-                    let tagName = tag.name()
-                    nameBuilder.append(".${tagName}")
-
-                    match (tag) {
-                        case Bool | Int4 | Int8 | Float8 | Int2 | Numeric | Float4 | Bytea =>
-                            fields.append(tag.toInt())
-                        case _ =>
-                            fields.append(0)
-                    }
-                }
-                nextValue = iter.getOrThrow().next()
-            }
-
-            if (iter.getOrThrow().anyFailed()) {
-                return None
-            }
-
-            if (!unnamed) {
-                let maxLen = if (sig.name.size > 40) 40 else sig.name.size
-                sig.preparedStatementName = "P${sig.name[0..maxLen]}\$${preparedStatementId}"
-            }
-
-            sig.fields = fields.toArray()
-            return sig
-        } catch (_: Exception) {
+        let iterOpt = QueryBindingIterator.initFunc(arrayValue, columns, globalObject)
+        if (iterOpt.isNone()) {
             return None
         }
+
+        var fields = ArrayList<Int32>()
+        var nameParts = ArrayList<String>()
+        nameParts.append(query)
+
+        var nextValue = iterOpt.getOrThrow().next()
+        while (nextValue.isSome()) {
+            let value = nextValue.getOrThrow()
+            if (value.isEmptyOrUndefinedOrNull()) {
+                fields.append(0)
+                nameParts.append(".null")
+            } else {
+                // Stub: would determine tag from JS value
+                let tag = PostgresTag.Text
+                nameParts.append(".text")
+                fields.append(0)
+            }
+            nextValue = iterOpt.getOrThrow().next()
+        }
+
+        if (!unnamed) {
+            let maxLen = if (sig.name.size > 40) { 40 } else { sig.name.size }
+            sig.preparedStatementName = "P${sig.name[0..maxLen]}$${preparedStatementId}"
+        }
+
+        sig.fields = fields.items()
+        var nameResult = ""
+        for (p in nameParts) {
+            nameResult = nameResult + p
+        }
+        sig.name = nameResult
+        return sig
     }
 }

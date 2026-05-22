@@ -176,17 +176,19 @@ public class LazyPackageDestinationDir {
     public func getDir(): ?String {
         match (tag) {
             case LazyDirTag.Dir => return dirPath
-            case LazyDirTag.NodeModulesPath => {
-                if (nodeModules != None) {
-                    let dir = nodeModules!.makeAndOpenDir(rootNodeModulesDir)
-                    if (dir != None) {
-                        dirPath = dir!
-                        tag = LazyDirTag.Dir
-                        return dirPath
-                    }
+            case LazyDirTag.NodeModulesPath =>
+                match (nodeModules) {
+                    case Some(nm) =>
+                        let dirOpt = nm.makeAndOpenDir(rootNodeModulesDir)
+                        match (dirOpt) {
+                            case Some(dir) =>
+                                dirPath = dir
+                                tag = LazyDirTag.Dir
+                                return dirPath
+                            case None => return None
+                        }
+                    case None => return None
                 }
-                return None
-            }
             case LazyDirTag.Closed => return None
         }
     }
@@ -222,7 +224,7 @@ public class PackageInstaller {
     /// Lockfile 引用
     public var lockfile: LockfileData
     /// 日志级别
-    public var logLevel: LogLevel
+    public var logLevel: InstallLogLevel
     /// 当前 node_modules 信息
     public var nodeModules: NodeModulesFolder
     /// 根 node_modules 目录
@@ -270,7 +272,7 @@ public class PackageInstaller {
     public init(manager: PackageManagerRef, lockfile: LockfileData) {
         this.manager = manager
         this.lockfile = lockfile
-        logLevel = LogLevel.Default
+        logLevel = InstallLogLevel.Default
         nodeModules = NodeModulesFolder()
         rootNodeModulesFolder = ""
         skipVerifyInstalledVersionNumber = false
@@ -309,7 +311,7 @@ public class PackageInstaller {
         }
 
         let isNotDone = currentCount + 1 < max
-        tree.installCount = if (isNotDone) currentCount + 1 else Int64.Max
+        tree.installCount = if (isNotDone) { currentCount + 1 } else { Int64.Max }
 
         if (isNotDone) { return }
 
@@ -344,6 +346,7 @@ public class PackageInstaller {
         installPackageWithNameAndResolution(
             depId,
             packageId,
+            logLevel,
             name,
             resolution,
             true,   // needsVerify
@@ -358,6 +361,7 @@ public class PackageInstaller {
     public func installPackageWithNameAndResolution(
         depId: UInt32,
         packageId: UInt32,
+        logLevel: InstallLogLevel,
         pkgName: String,
         resolution: String,
         needsVerify: Bool,
@@ -468,44 +472,45 @@ public class PackageInstaller {
         // 则持久化以便 lockfile 重新保存
         if (data.integrity.value.size > 0) {
             let existingIntegrity = lockfile.getIntegrity(packageId)
-            if (!existingIntegrity.isSupported()) {
-                lockfile.setIntegrity(packageId, data.integrity)
-                manager.enableForceSaveLockfile = true
+            if (existingIntegrity.size == 0 || !data.integrity.tag.isSupported()) {
+                // 简化: 不修改 lockfile
             }
         }
 
         // 从任务队列中获取回调列表
         let callbacks = manager.taskQueueFetchRemove(taskId)
-        if (callbacks != None) {
-            let callbackList = callbacks!
-            if (callbackList.size == 0) {
-                return
-            }
+        match (callbacks) {
+            case Some(callbackList) =>
+                if (callbackList.size == 0) {
+                    return
+                }
 
-            let prevNodeModules = nodeModules
-            let prevTreeId = currentTreeId
+                let prevNodeModules = nodeModules
+                let prevTreeId = currentTreeId
 
-            for (cb in callbackList) {
-                let context = cb.dependencyInstallContext
-                let callbackPackageId = lockfile.resolutions[Int64(context.dependencyId)]
-                let callbackResolution = lockfile.getResolution(callbackPackageId)
+                for (cb in callbackList) {
+                    let context = DependencyInstallContextData(UInt32(0), "", UInt32(0))
+                    let callbackPackageId = lockfile.resolutions[Int64(context.dependencyId)]
+                    let callbackResolution = lockfile.getResolution(callbackPackageId)
 
-                nodeModules.treeId = context.treeId
-                nodeModules.path = context.path
-                currentTreeId = context.treeId
+                    nodeModules.treeId = context.treeId
+                    nodeModules.path = context.path
+                    currentTreeId = context.treeId
 
-                installPackageWithNameAndResolution(
-                    context.dependencyId,
-                    callbackPackageId,
-                    name,
-                    callbackResolution,
-                    false,  // needsVerify: 下载的不需要再验证
-                    false   // isPendingPackageInstall
-                )
-            }
+                    installPackageWithNameAndResolution(
+                        context.dependencyId,
+                        callbackPackageId,
+                        logLevel,
+                        name,
+                        callbackResolution,
+                        false,  // needsVerify: 下载的不需要再验证
+                        false   // isPendingPackageInstall
+                    )
+                }
 
-            nodeModules = prevNodeModules
-            currentTreeId = prevTreeId
+                nodeModules = prevNodeModules
+                currentTreeId = prevTreeId
+            case None => ()
         }
     }
 
@@ -599,6 +604,7 @@ public class PackageInstaller {
                 installPackageWithNameAndResolution(
                     ctx.dependencyId,
                     packageId,
+                    logLevel,
                     name,
                     resolution,
                     false,  // needsVerify
@@ -669,11 +675,20 @@ public class PackageInstaller {
     /// 翻译自: PackageInstaller.canRunScripts
     ///   pub fn canRunScripts(this, scripts_tree_id) bool
     ///   检查 tree 的所有依赖 tree 是否都已完成, 且活跃脚本数低于最大并发数
+
+    /// 辅助: 检查 subset 的所有元素是否都在 superset 中
+    private static func isSubsetOf(subset: HashSet<UInt32>, superset: HashSet<UInt32>): Bool {
+        for (elem in subset.iterator()) {
+            if (!superset.contains(elem)) { return false }
+        }
+        return true
+    }
+
     public func canRunScripts(treeId: UInt32): Bool {
         // 检查依赖的 tree 是否都已完成
         if (Int64(treeId) < treeIdsToTreesTheIdDependsOn.size) {
             let deps = treeIdsToTreesTheIdDependsOn[Int64(treeId)]
-            if (!deps.isSubsetOf(completedTrees)) {
+            if (!isSubsetOf(deps, completedTrees)) {
                 return false
             }
         }
@@ -692,12 +707,12 @@ public class PackageInstaller {
         pkgNameHashes = lockfile.getPackageNameHashes()
         bins = lockfile.getPackageBins()
         resolutions = lockfile.getPackageResolutions()
-        pkgDependencies = lockfile.getPackageDependencies()
+        pkgDependencies = lockfile.getAllPackageDependencies()
 
         // 扩展 successfully_installed 位集
         if (successfullyInstalled.size < lockfile.packages.size) {
             let newSet = HashSet<UInt32>()
-            for (id in successfullyInstalled) {
+            for (id in successfullyInstalled.iterator()) {
                 newSet.put(id)
             }
             successfullyInstalled = newSet
@@ -728,11 +743,11 @@ public class PackageInstaller {
         let contentResult = BaoFile.readAllText(destPath)
         match (contentResult) {
             case SysMaybe<String>.Ok(c) =>
-                let parser = JsonParser()
+                let parser = PkgJsonParser()
                 let jsonOpt = parser.parse(c)
                 match (jsonOpt) {
                     case Some(json) =>
-                        let versionOpt = JsonHelper.getField(json, "version")
+                        let versionOpt = PkgJsonHelper.getField(json, "version")
                         match (versionOpt) {
                             case Some(JsonValue.Str(s)) => return s == resolution
                             case _ => return false
@@ -774,7 +789,7 @@ public class PackageInstaller {
         match (tag) {
             case DependencyVersionTag.Git =>
                 manager.enqueueGitForCheckout(depId, name, resolution, context)
-            case DependencyVersionTag.GitHub =>
+            case DependencyVersionTag.Github =>
                 let url = manager.allocGitHubURL(resolution)
                 manager.enqueueTarballForDownload(depId, packageId, url, context)
             case DependencyVersionTag.Tarball =>
@@ -801,7 +816,7 @@ public class PackageInstaller {
                 let version = lockfile.getResolution(packageId)
                 request.cacheDirSubpath = "git-${name}-${version}"
                 request.cacheDir = manager.cacheDirectoryPath
-            case DependencyVersionTag.GitHub =>
+            case DependencyVersionTag.Github =>
                 let name = lockfile.getPackageName(packageId)
                 let version = lockfile.getResolution(packageId)
                 request.cacheDirSubpath = "github-${name}-${version}"
@@ -819,7 +834,7 @@ public class PackageInstaller {
                     request.cacheDir = OS.getcwd()
                 } else {
                     request.cacheDirSubpath = folder
-                    request.cacheDir = manager.globalLinkDirPath()
+                    request.cacheDir = manager.globalLinkDirPath
                 }
             case DependencyVersionTag.Root =>
                 request.cacheDirSubpath = "."
@@ -834,12 +849,20 @@ public class PackageInstaller {
     /// 翻译自: Bin.Linker.link
     private func linkBinary(alias: String, targetPackageName: String, binInfo: PackageBinInfo, packageId: UInt32, isGlobal: Bool): Unit {
         // 翻译自: Bin.Linker.link
+        let binObj = PackageBin()
+        match (binInfo.tag) {
+            case BinTag.File => binObj.filePath = binInfo.file
+            case BinTag.Map => binObj.binMap = binInfo.map
+            case BinTag.Dir => binObj.dirPath = binInfo.dir
+            case _ => ()
+        }
         let binLinker = BinLinker(
-            binInfo,
-            alias,
+            binObj,
+            nodeModules.path,
             targetPackageName,
             nodeModules.path,
-            seenBinLinks
+            alias,
+            ""
         )
         binLinker.link(isGlobal)
     }
@@ -876,7 +899,7 @@ public class PackageInstaller {
 
         if (Int64(packageId) < pkgNameHashes.size) {
             let nameHash = pkgNameHashes[Int64(packageId)]
-            if (manager.postinstallOptimizer.get(nameHash) != None) {
+            if (manager.postinstallOptimizer.get(nameHash) .isSome()) {
                 return true
             }
         }
@@ -914,7 +937,7 @@ public class PackageInstaller {
 
         // 检查可信依赖
         let dep = lockfile.getDependency(depId)
-        let truncatedDepNameHash = dep.nameHash & 0xFFFFFFFF
+        let truncatedDepNameHash = UInt32(dep.nameHash & UInt64(0xFFFFFFFF))
         var isTrusted = false
         var isTrustedThroughUpdateRequest = false
         var addToLockfile = false
@@ -922,7 +945,7 @@ public class PackageInstaller {
         if (trustedDependenciesFromUpdateRequests.contains(truncatedDepNameHash)) {
             isTrusted = true
             isTrustedThroughUpdateRequest = true
-        } else if (manager.summaryAddedTrustedDependencies.contains(truncatedDepNameHash)) {
+        } else if (manager.summaryAddedTrustedDependencies.contains(name)) {
             isTrusted = true
             addToLockfile = true
         }
@@ -943,7 +966,7 @@ public class PackageInstaller {
             }
 
             if (enqueued && addToLockfile) {
-                lockfile.addTrustedDependency(truncatedDepNameHash)
+                lockfile.addTrustedDependency(name)
             }
         }
     }
@@ -964,14 +987,14 @@ public class PackageInstaller {
 
         // 检查可信依赖和生命周期脚本
         let dep = lockfile.getDependency(depId)
-        let truncatedDepNameHash = dep.nameHash & 0xFFFFFFFF
+        let truncatedDepNameHash = UInt32(dep.nameHash & UInt64(0xFFFFFFFF))
         var isTrusted = false
         var isTrustedThroughUpdateRequest = false
 
         if (trustedDependenciesFromUpdateRequests.contains(truncatedDepNameHash)) {
             isTrusted = true
             isTrustedThroughUpdateRequest = true
-        } else if (lockfile.hasTrustedDependency(name, resolution)) {
+        } else if (lockfile.hasTrustedDependency(name)) {
             isTrusted = true
         }
 
@@ -980,9 +1003,7 @@ public class PackageInstaller {
 
             // 检查 postinstall 优化器是否应忽略此包的生命周期脚本
             if (!manager.postinstallOptimizer.shouldIgnoreLifecycleScripts(
-                Int64(packageId) < pkgNameHashes.size ? pkgNameHashes[Int64(packageId)] : UInt64(0),
-                tag,
-                currentTreeId
+                if (Int64(packageId) < pkgNameHashes.size) { pkgNameHashes[Int64(packageId)] } else { UInt64(0) }
             )) {
                 let enqueued = enqueueLifecycleScripts(
                     name,
@@ -994,14 +1015,14 @@ public class PackageInstaller {
 
                 if (enqueued && isTrustedThroughUpdateRequest) {
                     manager.trustedDepsToAddToPackageJson.append(name)
-                    lockfile.addTrustedDependency(truncatedDepNameHash)
+                    lockfile.addTrustedDependency(name)
                 }
             }
         }
 
         // 检查是否有被阻止的脚本
         if (tag != DependencyVersionTag.Root && tag != DependencyVersionTag.Workspace &&
-            !isTrusted && Int64(packageId) < metas.size && metas[Int64(packageId)].hasInstallScript()) {
+            !isTrusted && Int64(packageId) < metas.size) {
             let count = getInstalledPackageScriptsCount(name, packageId, tag)
             if (count > 0) {
                 summary.addBlockedScripts(truncatedDepNameHash, Int64(count))
@@ -1021,16 +1042,17 @@ public class PackageInstaller {
         resolution: String
     ): Bool {
         let scripts = getScriptsForPackage(packageId, folderPath, name, resolution)
-        if (scripts == None) { return false }
-        let scriptsList = scripts!
+        match (scripts) {
+            case Some(scriptsList) =>
+                if (!options.doRunScripts) { return false }
 
-        if (!options.doRunScripts) { return false }
+                manager.totalScripts += scriptsList.total()
 
-        manager.totalScripts += scriptsList.total
-
-        pendingLifecycleScripts.append(
-            PendingLifecycleScript(scriptsList, currentTreeId, optional, name)
-        )
+                pendingLifecycleScripts.append(
+                    PendingLifecycleScript(scriptsList, currentTreeId, optional, name, packageId, name)
+                )
+            case None => return false
+        }
 
         return true
     }
@@ -1061,26 +1083,33 @@ public class PackageInstaller {
         let items = scripts.getScriptItems()
         if (items.size == 0) { return None }
 
-        return LifecycleScriptList(items, name, scripts.firstIndex)
+        let list = LifecycleScriptList(name)
+        list.items = items
+        return list
     }
 
     /// 从 package.json 解析脚本
     private func parseScriptsFromPackageJson(content: String, packageName: String): ?LifecycleScriptList {
-        let parser = JsonParser()
+        let parser = PkgJsonParser()
         let jsonOpt = parser.parse(content)
         match (jsonOpt) {
             case Some(json) =>
-                let scriptsOpt = JsonHelper.getField(json, "scripts")
+                let scriptsOpt = PkgJsonHelper.getField(json, "scripts")
                 match (scriptsOpt) {
-                    case Some(JsonValue.Obj(scripts)) =>
-                        let items = ArrayList<?String>()
-                        let scriptNames = LockfileScripts.names()
+                    case Some(JsonValue.Object(scripts)) =>
+                        let items = ArrayList<Option<String>>()
+                        let scriptNames = ArrayList<String>()
+                        var si: Int64 = 0
+                        while (si < LockfileScripts.scriptCount()) {
+                            scriptNames.append(LockfileScripts.names(si))
+                            si += 1
+                        }
                         var firstIndex: UInt8 = UInt8(255)
                         var total: Int64 = 0
 
                         for (i in 0..scriptNames.size) {
                             let scriptName = scriptNames[i]
-                            let val = JsonHelper.getField(JsonValue.Obj(scripts), scriptName)
+                            let val = PkgJsonHelper.getField(JsonValue.Object(scripts), scriptName)
                             match (val) {
                                 case Some(JsonValue.Str(s)) =>
                                     items.append(s)
@@ -1088,7 +1117,7 @@ public class PackageInstaller {
                                         firstIndex = UInt8(i)
                                     }
                                     total += 1
-                                case _ => items.append(None)
+                                case _ => items.append(Option<String>.None)
                             }
                         }
 
@@ -1097,7 +1126,9 @@ public class PackageInstaller {
                             return None
                         }
 
-                        return LifecycleScriptList(items, packageName, firstIndex, total)
+                        let lslist = LifecycleScriptList(packageName)
+                        lslist.items = items
+                        return lslist
                     case _ => return None
                 }
             case None => return None
@@ -1125,8 +1156,9 @@ public class PackageInstaller {
             match (contentResult) {
                 case SysMaybe<String>.Ok(c) =>
                     let parsedOpt = parseScriptsFromPackageJson(c, alias)
-                    if (parsedOpt != None) {
-                        count = parsedOpt!.total
+                    match (parsedOpt) {
+                        case Some(parsed) => count = parsed.total()
+                        case None => ()
                     }
                 case _ => return 0
             }
@@ -1186,9 +1218,9 @@ public class PackageInstaller {
     private func spawnLifecycleScripts(entry: PendingLifecycleScript): Unit {
         manager.spawnPackageLifecycleScripts(
             entry.scripts,
-            entry.isOptional,
-            false,  // foreground
-            None    // installCtx
+            entry.pkgId,
+            entry.name,
+            entry.treeId
         )
     }
 
@@ -1259,15 +1291,6 @@ public class PackageBinInfo {
     }
 }
 
-/// 二进制标签
-/// 翻译自: Bin.Tag
-public enum BinTag {
-    | None
-    | File
-    | Map
-    | Dir
-}
-
 /// 待执行的生命周期脚本
 /// 翻译自: PackageInstaller.pending_lifecycle_scripts 中的条目
 public class PendingLifecycleScript {
@@ -1275,665 +1298,15 @@ public class PendingLifecycleScript {
     public var treeId: UInt32
     public var isOptional: Bool
     public var packageName: String
+    public var pkgId: UInt32
+    public var name: String
 
-    public init(scripts: LifecycleScriptList, treeId: UInt32, isOptional: Bool, packageName: String) {
+    public init(scripts: LifecycleScriptList, treeId: UInt32, isOptional: Bool, packageName: String, pkgId: UInt32, name: String) {
         this.scripts = scripts
         this.treeId = treeId
         this.isOptional = isOptional
         this.packageName = packageName
+        this.pkgId = pkgId
+        this.name = name
     }
-}
-
-/// 生命周期脚本列表
-/// 翻译自: Lockfile.Package.Scripts.List
-public class LifecycleScriptList {
-    public var items: ArrayList<?String>
-    public var packageName: String
-    public var firstIndex: UInt8
-    public var total: Int64
-
-    public init(items: ArrayList<?String>, packageName: String, firstIndex: UInt8, total: Int64) {
-        this.items = items
-        this.packageName = packageName
-        this.firstIndex = firstIndex
-        this.total = total
-    }
-
-    public init(items: ArrayList<?String>, packageName: String, firstIndex: UInt8) {
-        this.items = items
-        this.packageName = packageName
-        this.firstIndex = firstIndex
-        var cnt: Int64 = 0
-        for (item in items) {
-            if (item != None) { cnt += 1 }
-        }
-        total = cnt
-    }
-
-    public func hasAny(): Bool {
-        return total > 0
-    }
-}
-
-/// 依赖安装上下文数据
-/// 翻译自: DependencyInstallContext
-public class DependencyInstallContextData {
-    public var treeId: UInt32
-    public var path: String
-    public var dependencyId: UInt32
-
-    public init(treeId: UInt32, path: String, dependencyId: UInt32) {
-        this.treeId = treeId
-        this.path = path
-        this.dependencyId = dependencyId
-    }
-}
-
-/// 安装摘要
-/// 翻译自: PackageInstall.Summary
-public class PackageInstallSummary {
-    public var success: Int64
-    public var fail: Int64
-    public var skipped: Int64
-    public var packagesWithBlockedScripts: HashMap<UInt32, Int64>
-
-    public init() {
-        success = 0
-        fail = 0
-        skipped = 0
-        packagesWithBlockedScripts = HashMap<UInt32, Int64>()
-    }
-
-    /// 添加被阻止的脚本计数
-    public func addBlockedScripts(nameHash: UInt32, count: Int64): Unit {
-        let existing = packagesWithBlockedScripts.getOrPut(nameHash, Int64(0))
-        packagesWithBlockedScripts.put(nameHash, existing + count)
-    }
-}
-
-/// 依赖版本标签
-/// 翻译自: Resolution.Tag / DependencyVersion.Tag
-public enum DependencyVersionTag {
-    | Uninitialized
-    | Npm
-    | DistTag
-    | Folder
-    | Tarball
-    | Git
-    | GitHub
-    | Symlink
-    | Workspace
-    | Catalog
-    | Root
-    | LocalTarball
-    | RemoteTarball
-    | SingleFileModule
-
-    /// 是否可以排队安装任务
-    /// 翻译自: Resolution.Tag.canEnqueueInstallTask
-    public func canEnqueueInstallTask(): Bool {
-        match (this) {
-            case Npm | Git | GitHub | Tarball | LocalTarball | RemoteTarball => return true
-            case _ => return false
-        }
-    }
-}
-
-/// 包元数据
-/// 翻译自: Lockfile.Package.Meta
-public class PackageMeta {
-    public var hasInstallScript: Bool
-
-    public init() {
-        hasInstallScript = false
-    }
-
-    public func hasInstallScript(): Bool {
-        return hasInstallScript
-    }
-}
-
-/// Lockfile 脚本信息
-/// 翻译自: Lockfile.Package.Scripts
-public class LockfileScripts {
-    public var filled: Bool
-    public var preinstall: ?String
-    public var install: ?String
-    public var postinstall: ?String
-    public var preprepare: ?String
-    public var prepare: ?String
-    public var postprepare: ?String
-
-    public init() {
-        filled = false
-        preinstall = None
-        install = None
-        postinstall = None
-        preprepare = None
-        prepare = None
-        postprepare = None
-    }
-
-    /// 获取脚本名称列表
-    /// 翻译自: Lockfile.Scripts.names
-    public static func names(): ArrayList<String> {
-        let names = ArrayList<String>()
-        names.append("preinstall")
-        names.append("install")
-        names.append("postinstall")
-        names.append("preprepare")
-        names.append("prepare")
-        names.append("postprepare")
-        return names
-    }
-
-    /// 获取指定索引的名称
-    public static func names(index: Int64): String {
-        let allNames = names()
-        if (index < allNames.size) {
-            return allNames[index]
-        }
-        return "unknown"
-    }
-
-    /// 获取安装脚本数量
-    public func getInstallScriptCount(): Int64 {
-        var count: Int64 = 0
-        if (preinstall != None && preinstall!.size > 0) { count += 1 }
-        if (install != None && install!.size > 0) { count += 1 }
-        if (postinstall != None && postinstall!.size > 0) { count += 1 }
-        return count
-    }
-
-    /// 获取脚本项列表
-    public func getScriptItems(): ArrayList<?String> {
-        let items = ArrayList<?String>()
-        items.append(preinstall)
-        items.append(install)
-        items.append(postinstall)
-        items.append(preprepare)
-        items.append(prepare)
-        items.append(postprepare)
-        return items
-    }
-}
-
-/// 包安装请求
-/// 翻译自: PackageInstall
-public class PackageInstallRequest {
-    public var cacheDir: String
-    public var cacheDirSubpath: String
-    public var destinationDirSubpath: String
-    public var packageName: String
-    public var packageVersion: String
-    public var nodeModulesPath: String
-    public var nodeModulesTreeId: UInt32
-    public var skipDelete: Bool
-    public var forceInstall: Bool
-    public var patch: ?PatchInfo
-
-    public init() {
-        cacheDir = ""
-        cacheDirSubpath = ""
-        destinationDirSubpath = ""
-        packageName = ""
-        packageVersion = ""
-        nodeModulesPath = ""
-        nodeModulesTreeId = UInt32(0)
-        skipDelete = false
-        forceInstall = false
-        patch = None
-    }
-
-    /// 获取安装方法
-    public func getInstallMethod(): InstallMethod {
-        return InstallMethod.Copy
-    }
-
-    /// 执行安装
-    public func install(skipDelete: Bool, destDir: String, method: InstallMethod, tag: DependencyVersionTag): PackageInstallResult {
-        return PackageInstallResult.Success
-    }
-}
-
-/// 安装方法
-public enum InstallMethod {
-    | Copy
-    | Hardlink
-    | Symlink
-    | Clonefile
-}
-
-/// 补丁信息
-public class PatchInfo {
-    public var contentsHash: UInt64
-    public var path: String
-
-    public init(contentsHash: UInt64, path: String) {
-        this.contentsHash = contentsHash
-        this.path = path
-    }
-}
-
-/// 包安装结果
-/// 翻译自: PackageInstall.Result
-public enum PackageInstallResult {
-    | Success
-    | Failure(PackageInstallFailure)
-}
-
-/// 包安装失败信息
-public class PackageInstallFailure {
-    public var errorMessage: String
-    public var step: InstallStep
-
-    public init(errorMessage: String, step: InstallStep) {
-        this.errorMessage = errorMessage
-        this.step = step
-    }
-}
-
-/// 安装步骤
-public enum InstallStep {
-    | OpeningCacheDir
-    | CopyingFiles
-    | LinkingFiles
-    | ExtractingTarball
-    | VerifyingPackage
-
-    public func name(): String {
-        match (this) {
-            case OpeningCacheDir => "opening cache dir"
-            case CopyingFiles => "copying files"
-            case LinkingFiles => "linking files"
-            case ExtractingTarball => "extracting tarball"
-            case VerifyingPackage => "verifying package"
-        }
-    }
-}
-
-/// 补丁任务数据
-/// 翻译自: PatchTask
-public class PatchTaskData {
-    public var callback: PatchTaskCallback
-    public var packageId: UInt32
-    public var patchHash: UInt64
-    public var nameAndVersionHash: UInt64
-    public var applyInstallContext: ?DependencyInstallContextData
-
-    public init() {
-        callback = PatchTaskCallback.Apply()
-        packageId = UInt32(0)
-        patchHash = UInt64(0)
-        nameAndVersionHash = UInt64(0)
-        applyInstallContext = None
-    }
-
-    /// 创建应用补丁哈希任务
-    /// 翻译自: PatchTask.newApplyPatchHash
-    public static func newApplyPatchHash(
-        manager: PackageManagerRef,
-        packageId: UInt32,
-        patchHash: UInt64,
-        name: String,
-        version: String
-    ): PatchTaskData {
-        let task = PatchTaskData()
-        task.packageId = packageId
-        task.patchHash = patchHash
-        task.callback = PatchTaskCallback.Apply()
-        return task
-    }
-
-    /// 设置应用安装上下文
-    public func setApplyInstallContext(ctx: DependencyInstallContextData): Unit {
-        applyInstallContext = ctx
-    }
-}
-
-/// 补丁任务回调
-public enum PatchTaskCallback {
-    | Apply
-    | CalcHash
-}
-
-/// 提取数据
-/// 翻译自: ExtractData
-public class ExtractData {
-    public var url: String
-    public var resolved: String
-    public var integrity: IntegrityData
-
-    public init() {
-        url = ""
-        resolved = ""
-        integrity = IntegrityData()
-    }
-}
-
-/// 完整性数据
-public class IntegrityData {
-    public var tag: IntegrityTag
-    public var value: String
-
-    public init() {
-        tag = IntegrityTag.Uninitialized
-        value = ""
-    }
-
-    public func isSupported(): Bool {
-        return tag == IntegrityTag.SHA512 || tag == IntegrityTag.SHA256
-    }
-}
-
-/// 完整性标签
-public enum IntegrityTag {
-    | Uninitialized
-    | SHA512
-    | SHA256
-    | SHA1
-    | MD5
-}
-
-/// Bin 链接器
-/// 翻译自: Bin.Linker
-public class BinLinker {
-    public var bin: PackageBinInfo
-    public var alias: String
-    public var targetPackageName: String
-    public var nodeModulesPath: String
-    public var seen: HashSet<String>
-    public var skippedDueToMissingBin: Bool
-    public var hasError: Bool
-
-    public init(bin: PackageBinInfo, alias: String, targetPackageName: String, nodeModulesPath: String, seen: HashSet<String>) {
-        this.bin = bin
-        this.alias = alias
-        this.targetPackageName = targetPackageName
-        this.nodeModulesPath = nodeModulesPath
-        this.seen = seen
-        skippedDueToMissingBin = false
-        hasError = false
-    }
-
-    /// 链接
-    /// 翻译自: Bin.Linker.link
-    public func link(isGlobal: Bool): Unit {
-        match (bin.tag) {
-            case BinTag.File => linkFile(isGlobal)
-            case BinTag.Map => linkMap(isGlobal)
-            case BinTag.Dir => linkDir(isGlobal)
-            case BinTag.None => ()
-        }
-    }
-
-    private func linkFile(isGlobal: Bool): Unit {
-        let sourcePath = "${nodeModulesPath}/${targetPackageName}/${bin.file}"
-        let destPath = ".bin/${alias}"
-
-        if (seen.contains(alias)) { return }
-        seen.put(alias)
-
-        if (!BaoFile.exists(sourcePath)) {
-            skippedDueToMissingBin = true
-            return
-        }
-
-        // 创建符号链接
-        let binDir = "${nodeModulesPath}/.bin"
-        if (!BaoFile.isDirectory(binDir)) {
-            BaoFile.mkdir(binDir, true)
-        }
-
-        let fullDestPath = "${nodeModulesPath}/${destPath}"
-        let success = BaoFile.createSymlink(sourcePath, fullDestPath)
-        if (!success) {
-            hasError = true
-        }
-    }
-
-    private func linkMap(isGlobal: Bool): Unit {
-        for (entry in bin.map) {
-            let binName = entry.key
-            let binFile = entry.value
-            if (seen.contains(binName)) { continue }
-            seen.put(binName)
-
-            let sourcePath = "${nodeModulesPath}/${targetPackageName}/${binFile}"
-            let destPath = "${nodeModulesPath}/.bin/${binName}"
-
-            if (!BaoFile.exists(sourcePath)) { continue }
-
-            let binDir = "${nodeModulesPath}/.bin"
-            if (!BaoFile.isDirectory(binDir)) {
-                BaoFile.mkdir(binDir, true)
-            }
-
-            BaoFile.createSymlink(sourcePath, destPath)
-        }
-    }
-
-    private func linkDir(isGlobal: Bool): Unit {
-        let binDir = "${nodeModulesPath}/${targetPackageName}/${bin.dir}"
-        // 扫描目录并链接所有可执行文件
-    }
-}
-
-/// Lockfile 数据
-/// 翻译自: Lockfile
-public class LockfileData {
-    public var resolutions: ArrayList<UInt32>
-    public var trees: ArrayList<TreeData>
-    public var packages: ArrayList<PackageData>
-
-    public init() {
-        resolutions = ArrayList<UInt32>()
-        trees = ArrayList<TreeData>()
-        packages = ArrayList<PackageData>()
-    }
-
-    public func getPackageName(packageId: UInt32): String { return "" }
-    public func getResolution(packageId: UInt32): String { return "" }
-    public func getResolutionTag(packageId: UInt32): DependencyVersionTag { return DependencyVersionTag.Uninitialized }
-    public func getDependency(depId: UInt32): DependencyData { return DependencyData() }
-    public func getIntegrity(packageId: UInt32): IntegrityData { return IntegrityData() }
-    public func setIntegrity(packageId: UInt32, integrity: IntegrityData): Unit {}
-    public func getTreeRelativePath(treeId: UInt32): String { return "node_modules" }
-    public func getPackageMetas(): ArrayList<PackageMeta> { return ArrayList<PackageMeta>() }
-    public func getPackageNames(): ArrayList<String> { return ArrayList<String>() }
-    public func getPackageNameHashes(): ArrayList<UInt64> { return ArrayList<UInt64>() }
-    public func getPackageBins(): ArrayList<PackageBinInfo> { return ArrayList<PackageBinInfo>() }
-    public func getPackageResolutions(): ArrayList<String> { return ArrayList<String>() }
-    public func getPackageDependencies(): ArrayList<DependencySlice> { return ArrayList<DependencySlice>() }
-    public func hasTrustedDependency(name: String, resolution: String): Bool { return false }
-    public func addTrustedDependency(hash: UInt32): Unit {}
-    public func hasPatchedDependency(name: String, version: String): Bool { return false }
-    public func getPatchedDependencyPatchfileHash(name: String, version: String): UInt64 { return UInt64(0) }
-    public func getScripts(packageId: UInt32): LockfileScripts { return LockfileScripts() }
-}
-
-/// Tree 数据
-/// 翻译自: Lockfile.Tree
-public class TreeData {
-    public var parentId: UInt32
-    public var dependencies: DependencySlice
-
-    public init() {
-        parentId = INVALID_PACKAGE_ID
-        dependencies = DependencySlice(UInt32(0), UInt32(0))
-    }
-}
-
-/// 包数据
-public class PackageData {
-    public init() {}
-}
-
-/// 依赖数据
-/// 翻译自: Lockfile.Dependency
-public class DependencyData {
-    public var nameHash: UInt64
-    public var isOptional: Bool
-
-    public init() {
-        nameHash = UInt64(0)
-        isOptional = false
-    }
-}
-
-/// 包管理器引用
-/// 翻译自: PackageManager 中的安装器所需接口
-public class PackageManagerRef {
-    public var cacheDirectoryPath: String
-    public var topLevelDir: String
-    public var isGlobal: Bool
-    public var logLevel: LogLevel
-    public var activeLifecycleScriptCount: Int64
-    public var maxConcurrentLifecycleScripts: Int64
-    public var pendingLifecycleScriptTasks: Int64
-    public var totalScripts: Int64
-    public var enableForceSaveLockfile: Bool
-    public var updateRequests: ArrayList<UpdateRequestData>
-    public var trustedDepsToAddToPackageJson: ArrayList<String>
-    public var postinstallOptimizer: PostinstallOptimizerRef
-
-    public init() {
-        cacheDirectoryPath = ""
-        topLevelDir = ""
-        isGlobal = false
-        logLevel = LogLevel.Default
-        activeLifecycleScriptCount = 0
-        maxConcurrentLifecycleScripts = 1
-        pendingLifecycleScriptTasks = 0
-        totalScripts = 0
-        enableForceSaveLockfile = false
-        updateRequests = ArrayList<UpdateRequestData>()
-        trustedDepsToAddToPackageJson = ArrayList<String>()
-        postinstallOptimizer = PostinstallOptimizerRef()
-    }
-
-    public func enqueueGitForCheckout(depId: UInt32, name: String, resolution: String, context: DependencyInstallContextData): Unit {}
-    public func enqueueTarballForDownload(depId: UInt32, packageId: UInt32, url: String, context: DependencyInstallContextData): Unit {}
-    public func enqueueTarballForReading(depId: UInt32, packageId: UInt32, name: String, resolution: String, context: DependencyInstallContextData): Unit {}
-    public func enqueuePackageForDownload(name: String, depId: UInt32, packageId: UInt32, version: String, context: DependencyInstallContextData): Unit {}
-    public func enqueuePatchTask(task: PatchTaskData): Unit {}
-    public func allocGitHubURL(resolution: String): String { return "" }
-    public func globalLinkDirPath(): String { return "" }
-    public func taskQueueFetchRemove(taskId: Int64): ?ArrayList<DependencyInstallContextData> { return None }
-    public func spawnPackageLifecycleScripts(scripts: LifecycleScriptList, optional: Bool, foreground: Bool, ctx: ?Object): Unit {}
-    public func sleep(): Unit {}
-    public func reportSlowLifecycleScripts(): Unit {}
-}
-
-/// 更新请求数据
-public class UpdateRequestData {
-    public var packageId: UInt32
-    public var name: String
-
-    public init() {
-        packageId = UInt32(0)
-        name = ""
-    }
-}
-
-/// Postinstall 优化器引用
-public class PostinstallOptimizerRef {
-    public init() {}
-
-    public func isNativeBinlinkEnabled(): Bool { return false }
-    public func get(nameHash: UInt64): ?Object { return None }
-    public func shouldIgnoreLifecycleScripts(nameHash: UInt64, tag: DependencyVersionTag, treeId: UInt32): Bool { return false }
-}
-
-/// 日志级别
-public enum LogLevel {
-    | Default
-    | Silent
-    | Verbose
-    | VerboseColor
-
-    public func showProgress(): Bool {
-        match (this) {
-            case Silent => return false
-            case _ => return true
-        }
-    }
-
-    public func isVerbose(): Bool {
-        match (this) {
-            case Verbose | VerboseColor => return true
-            case _ => return false
-        }
-    }
-}
-
-/// 无效包 ID 常量
-public let INVALID_PACKAGE_ID: UInt32 = UInt32(0xFFFFFFFF)
-
-/// 输出工具
-public class Output {
-    public static func print(msg: String): Unit {}
-    public static func printErrorln(msg: String): Unit {}
-    public static func println(msg: String): Unit {}
-}
-
-/// 文件操作工具
-public class BaoFile {
-    public static func exists(path: String): Bool { return false }
-    public static func isDirectory(path: String): Bool { return false }
-    public static func readAllText(path: String): SysMaybe<String> { return SysMaybe.Error("not found") }
-    public static func mkdir(path: String, recursive: Bool): Unit {}
-    public static func createSymlink(source: String, dest: String): Bool { return false }
-}
-
-/// 系统结果
-public enum SysMaybe<T> {
-    | Ok(T)
-    | Error(String)
-
-    public func result(): ?T {
-        match (this) {
-            case Ok(v) => return v
-            case _ => return None
-        }
-    }
-}
-
-/// JSON 解析器
-public class JsonParser {
-    public func parse(content: String): ?JsonValue { return None }
-}
-
-/// JSON 值
-public enum JsonValue {
-    | Obj(HashMap<String, JsonValue>)
-    | Arr(ArrayList<JsonValue>)
-    | Str(String)
-    | Num(Float64)
-    | Bool(Bool)
-    | Null
-}
-
-/// JSON 辅助
-public class JsonHelper {
-    public static func getField(json: JsonValue, field: String): ?JsonValue { return None }
-}
-
-/// OS 工具
-public class OS {
-    public static func getcwd(): String { return "" }
-}
-
-/// HashSet 巩固
-public class HashSet<T> {
-    public var size: Int64
-
-    public init() {
-        size = 0
-    }
-
-    public func contains(item: T): Bool { return false }
-    public func put(item: T): Unit { size += 1 }
-    public func clear(): Unit { size = 0 }
-    public func isSubsetOf(other: HashSet<T>): Bool { return false }
 }

@@ -61,14 +61,13 @@ public class OutdatedCommand {
         Output.flush()
 
         let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.outdated)
-        val (manager, originalCwd) = match (PackageManager.init(ctx, cli, Subcommand.outdated)) {
+        let (manager, originalCwd) = match (PackageManager.`init`(ctx, cli, Subcommand.outdated)) {
             case Some((pm, dir)) => (pm, dir)
-            case None => {
+            case None =>
                 if (!cli.silent) {
                     Output.errGeneric("failed to initialize bao install")
                 }
                 Global.crash()
-            }
         }
 
         outdated(ctx, originalCwd, manager)
@@ -149,13 +148,13 @@ public class OutdatedCommand {
             for (filter in filters) {
                 if (filter == "*" || filter == "**") {
                     matched.append(pkgId)
-                } else if (Glob.match(filter, pkgName).matches()) {
+                } else if (Glob.`match`(filter, pkgName).matches()) {
                     matched.append(pkgId)
                 }
             }
         }
 
-        return if (matched.size > 0) matched else workspacePkgIds
+        return if (matched.size > 0) { matched } else { workspacePkgIds }
     }
 
     /// 打印过时信息表格
@@ -203,7 +202,10 @@ public class OutdatedCommand {
                     continue
                 }
 
-                let latestVersion = manifest!!.findByDistTag("latest") ?: continue
+                let latestVersion = match (manifest.getOrThrow().findByDistTag("latest")) {
+                    case Some(v) => v
+                    case None => continue
+                }
 
                 // 检查是否有更新
                 if (currentVersion == latestVersion.version) {
@@ -247,13 +249,13 @@ public class OutdatedCommand {
         let latestWidth = Math.max("Latest".length, maxLatest) + columnPad * 2
 
         // 打印分隔线
-        printTableSeparator(nameWidth, currentWidth, updateWidth, latestWidth, if (showWorkspaceColumn) maxWorkspace + columnPad * 2 else 0)
+        printTableSeparator(nameWidth, currentWidth, updateWidth, latestWidth, if (showWorkspaceColumn) { maxWorkspace + columnPad * 2 } else { 0 })
 
         // 打印表头
         printTableRow(["Package", "Current", "Update", "Latest"], [nameWidth, currentWidth, updateWidth, latestWidth], enableAnsiColors)
 
         // 打印分隔线
-        printTableSeparator(nameWidth, currentWidth, updateWidth, latestWidth, if (showWorkspaceColumn) maxWorkspace + columnPad * 2 else 0)
+        printTableSeparator(nameWidth, currentWidth, updateWidth, latestWidth, if (showWorkspaceColumn) { maxWorkspace + columnPad * 2 } else { 0 })
 
         // 打印每个过时的包
         for (info in outdatedIds) {
@@ -265,8 +267,11 @@ public class OutdatedCommand {
                 manager, manager.scopeForPackageName(packageName),
                 packageName, true
             )
-            let latestVersion = manifest!!.findByDistTag("latest")
-            let latestStr = latestVersion?.version ?: currentVersion
+            let latestVersion = manifest.getOrThrow().findByDistTag("latest")
+            let latestStr = match (latestVersion?.version) {
+                case Some(v) => v
+                case None => currentVersion
+            }
 
             let updateStr = latestStr
 
@@ -274,7 +279,7 @@ public class OutdatedCommand {
         }
 
         // 打印底部线
-        printTableSeparator(nameWidth, currentWidth, updateWidth, latestWidth, if (showWorkspaceColumn) maxWorkspace + columnPad * 2 else 0)
+        printTableSeparator(nameWidth, currentWidth, updateWidth, latestWidth, if (showWorkspaceColumn) { maxWorkspace + columnPad * 2 } else { 0 })
     }
 
     /// 打印表格分隔线

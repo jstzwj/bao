@@ -14,7 +14,7 @@ public class Frame {
     }
 }
 
-let chromeIeStackRegexp = Regex("^\\s*at .*(\\S+:\\d+|\\(native\\))", multiline: true)
+let chromeIeStackRegexp = Regex("^\\s*at .*(\\S+:\\d+|\${native\\})", multiline: true)
 let locationRegexp = Regex("(.+?)(?::(\\d+))?(?::(\\d+))?$")
 
 public class SourceMapURL {
@@ -35,7 +35,7 @@ let gcBlobs: Array<SourceMapURL> = []
 var gcSize: Int64 = 1024 * 1024 * 2
 
 public func parseStackTrace(error: Any): ?Array<Frame> {
-    if (let Some(stack) = error.stack as? String) {
+    if (let Some(stack) <- error.stack as? String) {
         if (chromeIeStackRegexp.matches(stack)) { return Some(parseV8OrIE(stack)) }
         return Some(parseFFOrSafari(stack))
     }
@@ -47,7 +47,7 @@ func parseV8OrIE(stack: String): Array<Frame> {
         .filter({ (line) => chromeIeStackRegexp.matches(line) && !line.contains("Bun HMR Runtime") })
         .map({ (line) =>
             var sanitizedLine = line.trimStart().replace(Regex("\\(eval code"), "(").replace(Regex("^.*?\\s+"), "")
-            let loc = sanitizedLine.match(Regex(" (\\(.+\\)$)"))
+            let loc = sanitizedLine.match(Regex(" (\${.+\\}$)"))
             if (loc.isSome()) { sanitizedLine = sanitizedLine.replace(loc.get()[0], "") }
             let locationParts = extractLocation(if (loc.isSome()) { loc.get()[1] } else { sanitizedLine })
             let functionName = if (loc.isSome() && !sanitizedLine.isEmpty()) { Some(sanitizedLine) } else { None }
@@ -60,13 +60,13 @@ func parseFFOrSafari(stack: String): Array<Frame> {
     return stack.split(Regex("\n")).map({ (source) =>
         var fn = ""; var file: ?String = None; var line: ?Int64 = None; var col: ?Int64 = None
         if (source.endsWith("@")) {
-            fn = source.slice(0, source.length - 1)
+            fn = source.slice(0, source.size - 1)
         } else if (!source.contains("@") && !source.contains(":")) {
-            fn = if (source.endsWith("@")) { source.slice(0, source.length - 1) } else { source }
+            fn = if (source.endsWith("@")) { source.slice(0, source.size - 1) } else { source }
         } else {
             let functionNameRegex = Regex("((.*\".+\"[^@]*)?[^@]*)(?:@)")
             let matches = source.match(functionNameRegex)
-            let functionName = if (matches.isSome() && matches.get()[1].length > 0) { matches.get()[1] } else { "" }
+            let functionName = if (matches.isSome() && matches.get()[1].size > 0) { matches.get()[1] } else { "" }
             let locationParts = extractLocation(source.replace(functionNameRegex, ""))
             fn = functionName
             file = Some(locationParts[0])
@@ -86,7 +86,7 @@ func extractLocation(urlLike: String): Array<String> {
 
 func remapFileName(fileName: String): String {
     if (fileName.startsWith("blob:")) {
-        if (let Some(sourceMapURL) = blobToSourceMap.get(fileName)) {
+        if (let Some(sourceMapURL) <- blobToSourceMap.get(fileName)) {
             return location.origin + "/_bun/client/hmr-" + sourceMapURL.id + ".js"
         }
     }

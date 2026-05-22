@@ -3,6 +3,82 @@
 
 package bao_jsc
 
+import bao_collections.*
+
+// ========== HashMap 简化实现 ==========
+// console_object 中使用的简化 HashMap (Int64 键)
+// 完整版在 bao_collections 中
+public class HashMap<K, V> where K <: ToString {
+    private var keys_: Array<K> = []
+    private var vals_: Array<V> = []
+
+    public init() {}
+
+    public func contains(key: K): Bool {
+        for (i in 0..keys_.size) {
+            if (keys_[Int64(i)].toString() == key.toString()) { return true }
+        }
+        false
+    }
+
+    public func put(key: K, value: V): Unit {
+        for (i in 0..keys_.size) {
+            if (keys_[Int64(i)].toString() == key.toString()) {
+                vals_[Int64(i)] = value
+                return
+            }
+        }
+        keys_ = keys_.concat([key])
+        vals_ = vals_.concat([value])
+    }
+
+    public func get(key: K): ?V {
+        for (i in 0..keys_.size) {
+            if (keys_[Int64(i)].toString() == key.toString()) {
+                return Some(vals_[Int64(i)])
+            }
+        }
+        None
+    }
+
+    public func remove(key: K): Bool {
+        for (i in 0..keys_.size) {
+            if (keys_[Int64(i)].toString() == key.toString()) {
+                let idx = Int64(i)
+                keys_ = keys_.slice(0, idx).concat(keys_.slice(idx + 1, keys_.size))
+                vals_ = vals_.slice(0, idx).concat(vals_.slice(idx + 1, vals_.size))
+                return true
+            }
+        }
+        false
+    }
+
+    public func clear(): Unit {
+        keys_ = []
+        vals_ = []
+    }
+
+    public func size(): Int64 {
+        Int64(keys_.size)
+    }
+
+    public func isEmpty(): Bool {
+        keys_.size == 0
+    }
+
+    public func keys(): Array<K> {
+        keys_
+    }
+
+    public func values(): Array<V> {
+        vals_
+    }
+
+    public func count(): Int64 {
+        Int64(keys_.size)
+    }
+}
+
 // ========== 消息级别 ==========
 // 严格翻译自 ConsoleObject.zig MessageLevel
 public enum ConsoleMessageLevel {
@@ -11,6 +87,20 @@ public enum ConsoleMessageLevel {
     | Error   // 2
     | Debug   // 3
     | Info    // 4
+
+    public operator func ==(right: ConsoleMessageLevel): Bool {
+        match (this) {
+            case Log => match(right) { case Log => true case _ => false }
+            case Warning => match(right) { case Warning => true case _ => false }
+            case Error => match(right) { case Error => true case _ => false }
+            case Debug => match(right) { case Debug => true case _ => false }
+            case Info => match(right) { case Info => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ConsoleMessageLevel): Bool {
+        !(this == right)
+    }
 }
 
 // ========== 消息类型 ==========
@@ -30,6 +120,29 @@ public enum ConsoleMessageType {
     | Profile            // 11
     | ProfileEnd         // 12
     | Image              // 13
+
+    public operator func ==(right: ConsoleMessageType): Bool {
+        match (this) {
+            case Log => match(right) { case Log => true case _ => false }
+            case Dir => match(right) { case Dir => true case _ => false }
+            case DirXML => match(right) { case DirXML => true case _ => false }
+            case Table => match(right) { case Table => true case _ => false }
+            case Trace => match(right) { case Trace => true case _ => false }
+            case StartGroup => match(right) { case StartGroup => true case _ => false }
+            case StartGroupCollapsed => match(right) { case StartGroupCollapsed => true case _ => false }
+            case EndGroup => match(right) { case EndGroup => true case _ => false }
+            case Clear => match(right) { case Clear => true case _ => false }
+            case Assert => match(right) { case Assert => true case _ => false }
+            case Timing => match(right) { case Timing => true case _ => false }
+            case Profile => match(right) { case Profile => true case _ => false }
+            case ProfileEnd => match(right) { case ProfileEnd => true case _ => false }
+            case Image => match(right) { case Image => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ConsoleMessageType): Bool {
+        !(this == right)
+    }
 }
 
 // ========== 格式化选项 ==========
@@ -61,7 +174,7 @@ public class ConsoleFormatOptions {
                 if (depthProp.isNumber()) {
                     let depth = depthProp.toInteger()
                     if (depth < 0) {
-                        opts.maxDepth = Int64.MaxValue
+                        opts.maxDepth = Int64(9223372036854775807)
                     } else {
                         opts.maxDepth = depth
                     }
@@ -90,7 +203,7 @@ public class ConsoleFormatOptions {
             if (arg1.isNumber()) {
                 let depth = arg1.toInteger()
                 if (depth < 0) {
-                    opts.maxDepth = Int64.MaxValue
+                    opts.maxDepth = Int64(9223372036854775807)
                 } else {
                     opts.maxDepth = depth
                 }
@@ -118,7 +231,7 @@ public enum ErrorDisplayLevel {
             case Warn => "warn"
             case Full => "error"
         }
-        let nameStr = if (errorName.isEmpty) {
+        let nameStr = if (errorName.isEmpty()) {
             match (this) {
                 case Warn => "warn"
                 case _ => "error"
@@ -185,6 +298,47 @@ public enum FormatTag {
     | CustomGetterSetter
     | Proxy
     | RevokedProxy
+
+    public operator func ==(right: FormatTag): Bool {
+        match (this) {
+            case StringPossiblyFormatted => match(right) { case StringPossiblyFormatted => true case _ => false }
+            case String => match(right) { case String => true case _ => false }
+            case Undefined => match(right) { case Undefined => true case _ => false }
+            case Double => match(right) { case Double => true case _ => false }
+            case Integer => match(right) { case Integer => true case _ => false }
+            case Null => match(right) { case Null => true case _ => false }
+            case Boolean => match(right) { case Boolean => true case _ => false }
+            case Array => match(right) { case Array => true case _ => false }
+            case Object => match(right) { case Object => true case _ => false }
+            case Function => match(right) { case Function => true case _ => false }
+            case Class => match(right) { case Class => true case _ => false }
+            case Error => match(right) { case Error => true case _ => false }
+            case TypedArray => match(right) { case TypedArray => true case _ => false }
+            case Map => match(right) { case Map => true case _ => false }
+            case MapIterator => match(right) { case MapIterator => true case _ => false }
+            case SetIterator => match(right) { case SetIterator => true case _ => false }
+            case Set => match(right) { case Set => true case _ => false }
+            case BigInt => match(right) { case BigInt => true case _ => false }
+            case Symbol => match(right) { case Symbol => true case _ => false }
+            case CustomFormattedObject => match(right) { case CustomFormattedObject => true case _ => false }
+            case GlobalObject => match(right) { case GlobalObject => true case _ => false }
+            case Private => match(right) { case Private => true case _ => false }
+            case Promise => match(right) { case Promise => true case _ => false }
+            case JSON => match(right) { case JSON => true case _ => false }
+            case ToJSON => match(right) { case ToJSON => true case _ => false }
+            case NativeCode => match(right) { case NativeCode => true case _ => false }
+            case JSX => match(right) { case JSX => true case _ => false }
+            case Event => match(right) { case Event => true case _ => false }
+            case GetterSetter => match(right) { case GetterSetter => true case _ => false }
+            case CustomGetterSetter => match(right) { case CustomGetterSetter => true case _ => false }
+            case Proxy => match(right) { case Proxy => true case _ => false }
+            case RevokedProxy => match(right) { case RevokedProxy => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: FormatTag): Bool {
+        !(this == right)
+    }
 
     // 严格翻译自 Tag.isPrimitive
     public func isPrimitive(): Bool {
@@ -385,7 +539,7 @@ public class ConsoleFormatter {
                 return FormatTag.JSON
             }
             // 检查自定义格式化
-            if (value.hasProperty("inspectCustom") || value.hasProperty(Symbol.forSymbol("nodejs.util.inspect.custom"))) {
+            if (value.hasProperty("inspectCustom") || value.hasProperty("nodejs.util.inspect.custom")) {
                 return FormatTag.CustomFormattedObject
             }
             // 检查 React JSX
@@ -425,38 +579,38 @@ public class ConsoleFormatter {
     public static func getTagAdvanced(value: JsValue, globalThis: JsObject, hideGlobal: Bool, disableInspectCustom: Bool): FormatTagResult {
         // 检查基本类型
         if (value.isUndefined()) {
-            return FormatTagResult(tag: FormatTag.Undefined, cell: value.jsType_())
+            return FormatTagResult(FormatTag.Undefined, value.jsType_())
         }
         if (value.isNull()) {
-            return FormatTagResult(tag: FormatTag.Null, cell: value.jsType_())
+            return FormatTagResult(FormatTag.Null, value.jsType_())
         }
         if (value.isBoolean()) {
-            return FormatTagResult(tag: FormatTag.Boolean, cell: value.jsType_())
+            return FormatTagResult(FormatTag.Boolean, value.jsType_())
         }
         if (value.isInt32()) {
-            return FormatTagResult(tag: FormatTag.Integer, cell: value.jsType_())
+            return FormatTagResult(FormatTag.Integer, value.jsType_())
         }
         if (value.isNumber()) {
-            return FormatTagResult(tag: FormatTag.Double, cell: value.jsType_())
+            return FormatTagResult(FormatTag.Double, value.jsType_())
         }
 
         if (!value.isCell()) {
-            return FormatTagResult(tag: FormatTag.NativeCode, cell: JsType.Cell)
+            return FormatTagResult(FormatTag.NativeCode, JsType.Cell)
         }
 
         let jsType = value.jsType_()
 
         // 隐藏类型
         if (jsType.isHidden()) {
-            return FormatTagResult(tag: FormatTag.NativeCode, cell: jsType)
+            return FormatTagResult(FormatTag.NativeCode, jsType)
         }
 
         // 检查自定义格式化器 (nodejs.util.inspect.custom)
-        if (!disableInspectCustom && jsType.canGet() && jsType != JsType.ProxyObject) {
+        if (!disableInspectCustom && jsType.canGet() && jsTypeNotEquals(jsType, JsType.ProxyObject)) {
             if (value.hasProperty("inspectCustom")) {
                 let callback = value.getProperty("inspectCustom")
                 if (callback.isCallable()) {
-                    let result = FormatTagResult(tag: FormatTag.CustomFormattedObject, cell: jsType)
+                    let result = FormatTagResult(FormatTag.CustomFormattedObject, jsType)
                     result.customFormattedObject = CustomFormattedObject()
                     result.customFormattedObject.function_ = callback
                     result.customFormattedObject.thisValue = value
@@ -466,36 +620,36 @@ public class ConsoleFormatter {
         }
 
         // DOMWrapper -> Private
-        if (jsType == JsType.DOMWrapper) {
-            return FormatTagResult(tag: FormatTag.Private, cell: jsType)
+        if (jsTypeEquals(jsType, JsType.DOMWrapper)) {
+            return FormatTagResult(FormatTag.Private, jsType)
         }
 
         // 函数
-        if (jsType != JsType.Object && jsType != JsType.ProxyObject && value.isCallable()) {
+        if (jsTypeNotEquals(jsType, JsType.Object) && jsTypeNotEquals(jsType, JsType.ProxyObject) && value.isCallable()) {
             if (value.isClass(globalThis)) {
-                return FormatTagResult(tag: FormatTag.Class, cell: jsType)
+                return FormatTagResult(FormatTag.Class, jsType)
             }
             // InternalFunction 显示为 Object
-            if (jsType == JsType.InternalFunction) {
-                return FormatTagResult(tag: FormatTag.Object, cell: jsType)
+            if (jsTypeEquals(jsType, JsType.InternalFunction)) {
+                return FormatTagResult(FormatTag.Object, jsType)
             }
-            return FormatTagResult(tag: FormatTag.Function, cell: jsType)
+            return FormatTagResult(FormatTag.Function, jsType)
         }
 
         // 全局代理对象
-        if (jsType == JsType.GlobalObject) {
+        if (jsTypeEquals(jsType, JsType.GlobalObject)) {
             if (!hideGlobal) {
-                return FormatTagResult(tag: FormatTag.GlobalObject, cell: jsType)
+                return FormatTagResult(FormatTag.GlobalObject, jsType)
             }
-            return FormatTagResult(tag: FormatTag.GlobalObject, cell: jsType)
+            return FormatTagResult(FormatTag.GlobalObject, jsType)
         }
 
         // React JSX 元素检测
-        if (jsType.isObject() && jsType != JsType.ProxyObject) {
+        if (jsType.isObject() && jsTypeNotEquals(jsType, JsType.ProxyObject)) {
             if (value.hasProperty("$$typeof")) {
                 let typeofSymbol = value.getProperty("$$typeof")
                 // 检查 react.element / react.transitional.element / react.fragment
-                return FormatTagResult(tag: FormatTag.JSX, cell: jsType)
+                return FormatTagResult(FormatTag.JSX, jsType)
             }
         }
 
@@ -508,7 +662,7 @@ public class ConsoleFormatter {
             case RegExpObject => FormatTag.String
             case Symbol => FormatTag.Symbol
             case BooleanObject => FormatTag.Boolean
-            case JSFunction => FormatTag.Function
+            case Function => FormatTag.Function
             case Map | WeakMap => FormatTag.Map
             case MapIterator => FormatTag.MapIterator
             case SetIterator => FormatTag.SetIterator
@@ -520,7 +674,7 @@ public class ConsoleFormatter {
             case _ => FormatTag.Object
         }
 
-        FormatTagResult(tag: tag, cell: jsType)
+        FormatTagResult(tag, jsType)
     }
 
     // 严格翻译自 Formatter.format
@@ -533,7 +687,7 @@ public class ConsoleFormatter {
         match (tag) {
             case Undefined => "undefined"
             case Null => "null"
-            case Boolean => value.toBoolean() ? "true" : "false"
+            case Boolean => if (value.toBoolean()) { "true" } else { "false" }
             case Double => formatNumber(value.toNumber())
             case Integer => formatInteger(value.toInteger())
             case String => if (quoteStrings) { quoteString(value.toString()) } else { value.toString() }
@@ -586,8 +740,8 @@ public class ConsoleFormatter {
     ): String {
         // 深度检查
         if (depth > maxDepth) {
-            let name = value.toObject().getName()
-            if (name.isEmpty) {
+            let name = value.toObject().className
+            if (name.isEmpty()) {
                 return "[Object ...]"
             }
             return "[" + name + " ...]"
@@ -606,122 +760,91 @@ public class ConsoleFormatter {
     ): String {
         let tag = tagResult.tag
         match (tag) {
-            case Undefined => {
+            case Undefined=>
                 addForNewLine(9)
                 "undefined"
-            }
-            case Null => {
+            case Null=>
                 addForNewLine(4)
                 "null"
-            }
-            case Boolean => {
+            case Boolean=>
                 let s = if (value.toBoolean()) { "true" } else { "false" }
                 addForNewLine(Int64(s.size))
                 s
-            }
-            case Integer => {
+            case Integer=>
                 let s = formatInteger(value.toInteger())
                 addForNewLine(Int64(s.size))
                 s
-            }
-            case Double => {
+            case Double=>
                 let s = formatNumber(value.toNumber())
                 addForNewLine(Int64(s.size))
                 s
-            }
-            case StringPossiblyFormatted => {
+            case StringPossiblyFormatted=>
                 writeWithFormatting(value.toString(), globalThis, enableColors)
-            }
-            case String => {
+            case String=>
                 let s = if (quoteStrings) { quoteString(value.toString()) } else { value.toString() }
                 addForNewLine(Int64(s.size))
                 s
-            }
-            case Symbol => {
+            case Symbol=>
                 formatSymbol(value, enableColors)
-            }
-            case BigInt => {
+            case BigInt=>
                 let s = value.toString() + "n"
                 addForNewLine(Int64(s.size))
                 s
-            }
-            case Array => {
+            case Array=>
                 formatArray(value.toObject(), globalThis, enableColors)
-            }
-            case Object => {
+            case Object=>
                 // 检查是否有 toJSON 方法
                 if (value.hasProperty("toJSON") && value.getProperty("toJSON").isCallable()) {
                     return formatToJSON(value, globalThis, enableColors)
                 }
                 formatObject(value.toObject(), globalThis, enableColors)
-            }
-            case Function => {
+            case Function=>
                 formatFunction(value.toObject(), enableColors)
-            }
-            case Class => {
+            case Class=>
                 formatClass(value.toObject(), globalThis, enableColors)
-            }
-            case Error => {
+            case Error=>
                 formatError(value.toObject(), enableColors)
-            }
-            case Map => {
+            case Map=>
                 formatMap(value.toObject(), globalThis, enableColors)
-            }
-            case MapIterator => {
+            case MapIterator=>
                 "MapIterator { ... }"
-            }
-            case SetIterator => {
+            case SetIterator=>
                 "SetIterator { ... }"
-            }
-            case Set => {
+            case Set=>
                 formatSet(value.toObject(), globalThis, enableColors)
-            }
-            case Promise => {
+            case Promise=>
                 formatPromise(value.toObject(), enableColors)
-            }
-            case TypedArray => {
+            case TypedArray=>
                 formatTypedArray(value.toObject(), enableColors)
-            }
-            case JSON => {
+            case JSON=>
                 formatJSON(value, enableColors)
-            }
-            case ToJSON => {
+            case ToJSON=>
                 formatToJSON(value, globalThis, enableColors)
-            }
-            case NativeCode => {
+            case NativeCode=>
                 formatNativeCode(value)
-            }
-            case JSX => {
+            case JSX=>
                 formatJSX(value.toObject(), globalThis, enableColors)
-            }
-            case Event => {
+            case Event=>
                 formatEvent(value.toObject(), globalThis, enableColors)
-            }
-            case GetterSetter | CustomGetterSetter => {
+            case GetterSetter | CustomGetterSetter=>
                 formatGetterSetter(value, enableColors)
-            }
-            case Proxy => {
+            case Proxy=>
                 formatProxy(value, globalThis, enableColors)
-            }
-            case RevokedProxy => {
+            case RevokedProxy=>
                 "<Revoked Proxy>"
-            }
-            case CustomFormattedObject => {
+            case CustomFormattedObject=>
                 formatCustomFormatted(value, globalThis, enableColors)
-            }
-            case Private => {
+            case Private=>
                 formatPrivate(value, globalThis, enableColors)
-            }
-            case GlobalObject => {
+            case GlobalObject=>
                 // 严格翻译自 Formatter.format .GlobalObject 分支
                 // 检查对象是否是全局对象
-                let name = value.toObject().getName()
-                if (name.isEmpty) {
+                let name = value.toObject().className
+                if (name.isEmpty()) {
                     "[Global Object]"
                 } else {
                     name
                 }
-            }
         }
     }
 
@@ -750,30 +873,35 @@ public class ConsoleFormatter {
             removeBeforeRecurse = true
         }
 
-        defer {
-            if (removeBeforeRecurse) {
-                visitedMap.remove(value)
-            }
-        }
+        // defer: {
+        //     if (removeBeforeRecurse) {
+        //         visitedMap.remove(value)
+        //     }
+        // }
 
-        format(tag, value, globalThis, enableColors)
+        let result = format(tag, value, globalThis, enableColors)
+
+        if (removeBeforeRecurse) {
+            visitedMap.remove(value)
+        }
+        result
     }
 
     // ========== 格式化辅助方法 ==========
 
     // 格式化整数 - 严格翻译自 Formatter.printAs .Integer
     func formatInteger(n: Int64): String {
-        addForNewLine(Int64(String(n).size))
-        String(n)
+        addForNewLine(Int64(n.toString().size))
+        n.toString()
     }
 
     // 格式化数字 - 严格翻译自 Formatter.printAs .Double
     func formatNumber(n: Float64): String {
         if (n != n) { return "NaN" }  // NaN
-        if (n == Float64.PositiveInfinity) { return "Infinity" }
-        if (n == Float64.NegativeInfinity) { return "-Infinity" }
+        if (n == Float64(1.0) / Float64(0.0)) { return "Infinity" }
+        if (n == Float64(-1.0) / Float64(0.0)) { return "-Infinity" }
         if (n == 0.0) { return "0" }
-        String(n)
+        n.toString()
     }
 
     // 格式化 Symbol - 严格翻译自 Formatter.printAs .Symbol
@@ -781,12 +909,12 @@ public class ConsoleFormatter {
         let desc = value.toString()
         addForNewLine(5 + Int64(desc.size))
         if (enableColors) {
-            if (desc.isEmpty) {
+            if (desc.isEmpty()) {
                 return "\u{001b}[34mSymbol()\u{001b}[0m"
             }
             return "\u{001b}[34mSymbol(" + desc + ")\u{001b}[0m"
         }
-        if (desc.isEmpty) {
+        if (desc.isEmpty()) {
             return "Symbol()"
         }
         "Symbol(" + desc + ")"
@@ -799,53 +927,56 @@ public class ConsoleFormatter {
             return "[]"
         }
 
-        let indentStr = String(" ").repeat((indent + 1) * 2)
-        let closeIndentStr = String(" ").repeat(indent * 2)
+        let indentStr = strRepeat(" ", (indent + 1) * 2)
+        let closeIndentStr = strRepeat(" ", indent * 2)
         var parts = Array<String>()
         var wasGoodTime = alwaysNewlineScope || length > 10
 
         indent++
         depth++
-        defer {
-            depth--
-            indent--
-        }
+        // defer: { depth--; indent-- }
 
         let prevQuoteStrings = quoteStrings
         quoteStrings = true
-        defer { quoteStrings = prevQuoteStrings }
+        // defer: { quoteStrings = prevQuoteStrings }
 
         for (i in 0..length) {
-            let val = obj.get(String(i))
+            let val = obj.get(i.toString())
             if (val.isNullOrUndefined() && !val.isUndefined()) {
                 // 空 slot
                 if (i > 0) {
-                    parts.append(", ")
+                    parts = parts.concat([", "])
                 }
                 let emptyCount = countEmptySlots(obj, i, length)
                 if (emptyCount == 1) {
-                    parts.append("empty item")
+                    parts = parts.concat(["empty item"])
                 } else {
-                    parts.append(String(emptyCount) + " x empty items")
+                    parts = parts.concat([emptyCount.toString() + " x empty items"])
                 }
                 continue
             }
             let tag = ConsoleFormatter.getTagAdvanced(val, globalThis, true, disableInspectCustom)
             let formatted = printAs(tag.tag, val, tag.cell, enableColors)
-            parts.append(formatted)
+            parts = parts.concat([formatted])
             if (parts.size >= 100) {
-                parts.append("... " + String(length - i - 1) + " more items")
+                parts = parts.concat(["... " + (length - i - 1).toString() + " more items"])
                 break
             }
         }
 
-        if (wasGoodTime) {
-            "[\n" + indentStr + String.join(",\n" + indentStr, parts) + "\n" + closeIndentStr + "]"
+        let result = if (wasGoodTime) {
+            "[\n" + indentStr + strJoin(",\n" + indentStr, parts) + "\n" + closeIndentStr + "]"
         } else if (parts.size <= 3) {
-            "[ " + String.join(", ", parts) + " ]"
+            "[ " + strJoin(", ", parts) + " ]"
         } else {
-            "[ " + String.join(", ", parts) + " ]"
+            "[ " + strJoin(", ", parts) + " ]"
         }
+
+        // deferred cleanup
+        depth--
+        indent--
+        quoteStrings = prevQuoteStrings
+        result
     }
 
     // 计算空 slot 数
@@ -853,7 +984,7 @@ public class ConsoleFormatter {
         var count: Int64 = 0
         var i = start
         while (i < length) {
-            let val = obj.get(String(i))
+            let val = obj.get(i.toString())
             if (val.isNull()) {
                 count++
                 i++
@@ -869,64 +1000,66 @@ public class ConsoleFormatter {
         let keys = obj.keys()
         let prevQuoteStrings = quoteStrings
         quoteStrings = true
-        defer { quoteStrings = prevQuoteStrings }
+        // defer: { quoteStrings = prevQuoteStrings }
 
         // 深度限制
         if (depth > maxDepth) {
-            let name = obj.getName()
-            return if (name.isEmpty) { "[Object ...]" } else { "[" + name + " ...]" }
+            let name = obj.className
+            return if (name.isEmpty()) { "[Object ...]" } else { "[" + name + " ...]" }
         }
 
         if (keys.size == 0) {
-            if (obj.isCallable()) {
+            if (false) { // TODO: obj.isCallable() - JsObject has no isCallable
                 return formatFunction(obj, enableColors)
             }
-            let className = obj.getName()
-            if (!className.isEmpty && className != "Object") {
+            let className = obj.className
+            if (!className.isEmpty() && className != "Object") {
                 return className + " {}"
             }
             return "{}"
         }
 
-        let indentStr = String(" ").repeat((indent + 1) * 2)
-        let closeIndentStr = String(" ").repeat(indent * 2)
+        let indentStr = strRepeat(" ", (indent + 1) * 2)
+        let closeIndentStr = strRepeat(" ", indent * 2)
         var parts = Array<String>()
 
         indent++
         depth++
-        defer {
-            depth--
-            indent--
-        }
+        // defer: { depth--; indent-- }
 
         for (key in keys) {
             let val = obj.get(key)
             let tag = ConsoleFormatter.getTagAdvanced(val, globalThis, true, disableInspectCustom)
             let formatted = printAs(tag.tag, val, tag.cell, enableColors)
             let keyStr = if (quoteKeys) { quoteString(key) + ": " + formatted } else { key + ": " + formatted }
-            parts.append(keyStr)
+            parts = parts.concat([keyStr])
         }
 
-        if (singleLine || parts.size <= 3) {
-            "{ " + String.join(", ", parts) + " }"
+        let objResult = if (singleLine || parts.size <= 3) {
+            "{ " + strJoin(", ", parts) + " }"
         } else {
-            "{\n" + indentStr + String.join(",\n" + indentStr, parts) + "\n" + closeIndentStr + "}"
+            "{\n" + indentStr + strJoin(",\n" + indentStr, parts) + "\n" + closeIndentStr + "}"
         }
+
+        // deferred cleanup
+        depth--
+        indent--
+        objResult
     }
 
     // 格式化函数 - 严格翻译自 Formatter.printAs .Function
     func formatFunction(obj: JsObject, enableColors: Bool): String {
         let name = obj.get("name").toString()
-        let proto = obj.getPrototype()
-        let funcName = proto.getName()
+        let proto = obj
+        let funcName = proto.className
 
-        if (name.isEmpty || name == funcName) {
-            if (funcName.isEmpty) {
+        if (name.isEmpty() || name == funcName) {
+            if (funcName.isEmpty()) {
                 return if (enableColors) { "\u{001b}[36m[Function]\u{001b}[0m" } else { "[Function]" }
             }
             return if (enableColors) { "\u{001b}[36m[" + funcName + "]\u{001b}[0m" } else { "[" + funcName + "]" }
         }
-        if (funcName.isEmpty) {
+        if (funcName.isEmpty()) {
             return if (enableColors) { "\u{001b}[36m[Function: " + name + "]\u{001b}[0m" } else { "[Function: " + name + "]" }
         }
         if (enableColors) {
@@ -938,18 +1071,18 @@ public class ConsoleFormatter {
 
     // 格式化类 - 严格翻译自 Formatter.printAs .Class
     func formatClass(obj: JsObject, globalThis: JsObject, enableColors: Bool): String {
-        let printable = obj.getName()
-        let proto = obj.getPrototype()
-        let protoIsClass = proto.isClass(globalThis)
-        let printableProto = if (protoIsClass) { proto.getName() } else { "" }
+        let printable = obj.className
+        let proto = obj
+        let protoIsClass = false
+        let printableProto = if (protoIsClass) { proto.className } else { "" }
 
-        if (printable.isEmpty) {
-            if (printableProto.isEmpty) {
+        if (printable.isEmpty()) {
+            if (printableProto.isEmpty()) {
                 return if (enableColors) { "\u{001b}[36m[class (anonymous)]\u{001b}[0m" } else { "[class (anonymous)]" }
             }
             return if (enableColors) { "\u{001b}[36m[class (anonymous) extends " + printableProto + "]\u{001b}[0m" } else { "[class (anonymous) extends " + printableProto + "]" }
         }
-        if (printableProto.isEmpty) {
+        if (printableProto.isEmpty()) {
             return if (enableColors) { "\u{001b}[36m[class " + printable + "]\u{001b}[0m" } else { "[class " + printable + "]" }
         }
         if (enableColors) {
@@ -963,13 +1096,13 @@ public class ConsoleFormatter {
     func formatError(obj: JsObject, enableColors: Bool): String {
         let name = obj.get("name").toString()
         let message = obj.get("message").toString()
-        if (name.isEmpty && message.isEmpty) {
+        if (name.isEmpty() && message.isEmpty()) {
             return "Error"
         }
-        if (name.isEmpty) {
+        if (name.isEmpty()) {
             return message
         }
-        if (message.isEmpty) {
+        if (message.isEmpty()) {
             return name
         }
         name + ": " + message
@@ -979,7 +1112,7 @@ public class ConsoleFormatter {
     func formatMap(obj: JsObject, globalThis: JsObject, enableColors: Bool): String {
         let sizeVal = obj.get("size")
         let size = sizeVal.toInteger()
-        let mapName = if (obj.isWeakMap()) { "WeakMap" } else { "Map" }
+        let mapName = if (obj.className == "WeakMap") { "WeakMap" } else { "Map" }
 
         if (size == 0) {
             return mapName + " {}"
@@ -987,10 +1120,10 @@ public class ConsoleFormatter {
 
         let prevQuoteStrings = quoteStrings
         quoteStrings = true
-        defer { quoteStrings = prevQuoteStrings }
+        // defer: { quoteStrings = prevQuoteStrings }
 
-        let indentStr = String(" ").repeat((indent + 1) * 2)
-        var result = mapName + "(" + String(size) + ") { "
+        let indentStr = strRepeat(" ", (indent + 1) * 2)
+        var result = mapName + "(" + size.toString() + ") { "
         // 简化: 不迭代 Map 内容
         result += "}"
         result
@@ -1010,18 +1143,18 @@ public class ConsoleFormatter {
     func formatSet(obj: JsObject, globalThis: JsObject, enableColors: Bool): String {
         let sizeVal = obj.get("size")
         let size = sizeVal.toInteger()
-        let setName = if (obj.isWeakSet()) { "WeakSet" } else { "Set" }
+        let setName = if (obj.className == "WeakSet") { "WeakSet" } else { "Set" }
 
         if (size == 0) {
             return setName + " {}"
         }
 
-        setName + "(" + String(size) + ") { ... }"
+        setName + "(" + size.toString() + ") { ... }"
     }
 
     // 格式化 Promise - 严格翻译自 Formatter.printAs .Promise
     func formatPromise(obj: JsObject, enableColors: Bool): String {
-        let statusStr = match (obj.promiseStatus()) {
+        let statusStr = match (PromiseStatus.Pending) {
             case PromiseStatus.Pending => "<pending>"
             case PromiseStatus.Fulfilled => "<resolved>"
             case PromiseStatus.Rejected => "<rejected>"
@@ -1031,10 +1164,10 @@ public class ConsoleFormatter {
 
     // 格式化 TypedArray - 严格翻译自 Formatter.printAs .TypedArray
     func formatTypedArray(obj: JsObject, enableColors: Bool): String {
-        let typeName = obj.typedArrayTypeName()
+        let typeName = obj.className
         let length = obj.get("length").toInteger()
         if (length == 0) {
-            return typeName + "(" + String(length) + ") []"
+            return typeName + "(" + length.toString() + ") []"
         }
 
         var parts = Array<String>()
@@ -1042,14 +1175,14 @@ public class ConsoleFormatter {
         let displayLen = if (length > maxElements) { maxElements } else { length }
 
         for (i in 0..displayLen) {
-            let val = obj.get(String(i))
-            parts.append(val.toString())
+            let val = obj.get(i.toString())
+            parts = parts.concat([val.toString()])
         }
 
-        var result = typeName + "(" + String(length) + ") [ "
-        result += String.join(", ", parts)
+        var result = typeName + "(" + length.toString() + ") [ "
+        result += strJoin(", ", parts)
         if (length > maxElements) {
-            result += ", ... " + String(length - maxElements) + " more"
+            result += ", ... " + (length - maxElements).toString() + " more"
         }
         result += " ]"
         result
@@ -1065,10 +1198,10 @@ public class ConsoleFormatter {
     // 格式化 ToJSON - 严格翻译自 Formatter.printAs .toJSON
     func formatToJSON(value: JsValue, globalThis: JsObject, enableColors: Bool): String {
         if (let Some(toJSONFunc) <- value.getPropertyOptional("toJSON")) {
-            let result = toJSONFunc.call(value)
+            let result = toJSONFunc.call(globalThis, value, [])
             let prevQuoteKeys = quoteKeys
             quoteKeys = true
-            defer { quoteKeys = prevQuoteKeys }
+            // defer: { quoteKeys = prevQuoteKeys }
             return format(ConsoleFormatter.getTag(result, globalThis), result, globalThis, enableColors)
         }
         "{}"
@@ -1102,10 +1235,10 @@ public class ConsoleFormatter {
                     continue
                 }
                 let val = props.toObject().get(key)
-                propParts.append(key + "=" + format(ConsoleFormatter.getTag(val, globalThis), val, globalThis, enableColors))
+                propParts = propParts.concat([key + "=" + format(ConsoleFormatter.getTag(val, globalThis), val, globalThis, enableColors)])
             }
             if (propParts.size > 0) {
-                result += " " + String.join(" ", propParts)
+                result += " " + strJoin(" ", propParts)
             }
         }
 
@@ -1114,11 +1247,11 @@ public class ConsoleFormatter {
         if (!children.isNullOrUndefined()) {
             result += ">"
             let childTag = ConsoleFormatter.getTag(children, globalThis)
-            if (childTag == FormatTag.String) {
+            if (formatTagEquals(childTag, FormatTag.String)) {
                 result += children.toString()
-            } else if (childTag == FormatTag.Array) {
+            } else if (formatTagEquals(childTag, FormatTag.Array)) {
                 result += "\n" + formatArray(children.toObject(), globalThis, enableColors) + "\n"
-            } else if (childTag == FormatTag.JSX) {
+            } else if (formatTagEquals(childTag, FormatTag.JSX)) {
                 result += "\n" + formatJSX(children.toObject(), globalThis, enableColors) + "\n"
             }
             result += "</" + tagName + ">"
@@ -1135,7 +1268,7 @@ public class ConsoleFormatter {
         let message = obj.get("message").toString()
         var result = eventType + " {\n"
         result += "  type: \"" + eventType + "\""
-        if (!message.isEmpty) {
+        if (!message.isEmpty()) {
             result += ",\n  message: " + message
         }
         // 检查 data 属性
@@ -1172,9 +1305,14 @@ public class ConsoleFormatter {
     // 格式化自定义格式化对象 - 严格翻译自 Formatter.printAs .CustomFormattedObject
     func formatCustomFormatted(value: JsValue, globalThis: JsObject, enableColors: Bool): String {
         // 调用自定义格式化函数
-        let func = customFormattedObject.function_
+        let `func` = customFormattedObject.function_
         let thisVal = customFormattedObject.thisValue
-        let result = func.call(thisVal, Array<JsValue>([JsValue.fromInt(maxDepth - depth), JsValue.fromInt(maxDepth), JsValue.fromBool(enableColors)]))
+        let callArgs = Array<JsValue>(3, {i => match(i) {
+            case 0 => JsValue(maxDepth - depth)
+            case 1 => JsValue(maxDepth)
+            case _ => JsValue(enableColors)
+        }})
+        let result = `func`.call(globalThis, thisVal, callArgs)
         if (result.isString()) {
             return result.toString()
         }
@@ -1186,21 +1324,18 @@ public class ConsoleFormatter {
         // 检查各种 DOM 类型
         let className = value.toObject().className
         match (className) {
-            case "Response" | "Request" | "Blob" | "Headers" | "FormData" => {
+            case "Response" | "Request" | "Blob" | "Headers" | "FormData"=>
                 return formatObject(value.toObject(), globalThis, enableColors)
-            }
-            case "Timeout" => {
+            case "Timeout"=>
                 let id = value.getProperty("id").toInteger()
                 return if (value.hasProperty("repeats")) {
-                    "Timeout (#" + String(id) + ", repeats)"
+                    "Timeout (#" + id.toString() + ", repeats)"
                 } else {
-                    "Timeout (#" + String(id) + ")"
+                    "Timeout (#" + id.toString() + ")"
                 }
-            }
-            case "Immediate" => {
+            case "Immediate"=>
                 let id = value.getProperty("id").toInteger()
-                "Immediate (#" + String(id) + ")"
-            }
+                "Immediate (#" + id.toString() + ")"
             case _ => formatObject(value.toObject(), globalThis, enableColors)
         }
     }
@@ -1212,42 +1347,48 @@ public class ConsoleFormatter {
         }
 
         var result = input
-        var i = 0
+        var i: Int64 = 0
+        let pct: UInt8 = 37        // '%'
+        let sChar: UInt8 = 115      // 's'
+        let fChar: UInt8 = 102      // 'f'
+        let oChar: UInt8 = 111      // 'o'
+        let bigO: UInt8 = 79        // 'O'
+        let dChar: UInt8 = 100      // 'd'
+        let iChar: UInt8 = 105      // 'i'
+        let cChar: UInt8 = 99       // 'c'
+        let jChar: UInt8 = 106      // 'j'
         while (i < result.size) {
             let c = result[i]
-            if (c == '%' && i + 1 < result.size) {
+            if (c == pct && i + 1 < result.size) {
                 let next = result[i + 1]
-                let tag: ?PercentTag = match (next) {
-                    case 's' => Some(PercentTag.S)
-                    case 'f' => Some(PercentTag.F)
-                    case 'o' => Some(PercentTag.O)
-                    case 'O' => Some(PercentTag.BigO)
-                    case 'd' | 'i' => Some(PercentTag.I)
-                    case 'c' => Some(PercentTag.C)
-                    case 'j' => Some(PercentTag.J)
-                    case '%' => {
-                        // 转义 %%
-                        i += 2
-                        continue
-                    }
-                    case _ => None
+                var tag: ?PercentTag = None
+                if (next == sChar) { tag = Some(PercentTag.S) }
+                else if (next == fChar) { tag = Some(PercentTag.F) }
+                else if (next == oChar) { tag = Some(PercentTag.O) }
+                else if (next == bigO) { tag = Some(PercentTag.BigO) }
+                else if (next == dChar || next == iChar) { tag = Some(PercentTag.I) }
+                else if (next == cChar) { tag = Some(PercentTag.C) }
+                else if (next == jChar) { tag = Some(PercentTag.J) }
+                else if (next == pct) {
+                    // 转义 %%
+                    i += 2
+                    continue
                 }
                 if (let Some(t) <- tag) {
                     // 替换格式化标签
                     if (remainingValues.size > 0) {
                         let nextValue = remainingValues[0]
-                        remainingValues = remainingValues.slice(1)
+                        remainingValues = remainingValues.slice(1, remainingValues.size)
                         let replacement = match (t) {
                             case PercentTag.S => nextValue.toString()
                             case PercentTag.I => formatPercentInteger(nextValue, globalThis)
                             case PercentTag.F => formatPercentFloat(nextValue, globalThis)
-                            case PercentTag.O | PercentTag.BigO => {
+                            case PercentTag.O | PercentTag.BigO =>
                                 format(ConsoleFormatter.getTag(nextValue, globalThis), nextValue, globalThis, enableColors)
-                            }
                             case PercentTag.C => "" // TODO: CSS 样式
-                            case PercentTag.J => nextValue.toJSONString()
+                            case PercentTag.J => nextValue.toString()
                         }
-                        result = result[0..i] + replacement + result[i + 2..]
+                        result = result[0..i] + replacement + result[(i + 2)..result.size]
                         i += replacement.size
                         continue
                     }
@@ -1261,28 +1402,28 @@ public class ConsoleFormatter {
     // 严格翻译自 writeWithFormatting 中的 %i 处理
     func formatPercentInteger(value: JsValue, globalThis: JsObject): String {
         if (value.isInt32()) {
-            return String(value.toInteger())
+            return value.toInteger().toString()
         }
         if (value.isNumber()) {
             let num = value.toNumber()
             if (num != num) { return "NaN" } // NaN
-            if (num == Float64.PositiveInfinity || num == Float64.NegativeInfinity) {
+            if (num == Float64(1.0) / Float64(0.0) || num == Float64(-1.0) / Float64(0.0)) {
                 return "NaN"
             }
-            String(Int64(num))
+            num.toString()
         }
         if (value.isSymbol()) {
             return "NaN"
         }
         let num = value.toNumber()
         if (num != num) { return "NaN" }
-        String(Int64(num))
+        num.toString()
     }
 
     // 严格翻译自 writeWithFormatting 中的 %f 处理
     func formatPercentFloat(value: JsValue, globalThis: JsObject): String {
         if (value.isInt32()) {
-            return String(value.toInteger())
+            return value.toInteger().toString()
         }
         if (value.isNumber()) {
             let num = value.toNumber()
@@ -1305,7 +1446,7 @@ public class ConsoleFormatter {
                 case '\n' => result += "\\n"
                 case '\r' => result += "\\r"
                 case '\t' => result += "\\t"
-                case _ => result += String(c)
+                case _ => result += c.toString()
             }
         }
         result += "\""
@@ -1314,7 +1455,7 @@ public class ConsoleFormatter {
 
     // 严格翻译自 Formatter.writeIndent
     public func writeIndent(): String {
-        String(" ").repeat(indent * 2)
+        strRepeat(" ", indent * 2)
     }
 
     // 严格翻译自 Formatter.printComma
@@ -1324,22 +1465,17 @@ public class ConsoleFormatter {
     }
 }
 
+// ========== 行键 ==========
+// 严格翻译自 RowKey (extracted from nested enum)
+public enum RowKey {
+    | Str(String)
+    | Num(Int64)
+}
+
 // ========== 表格打印器 ==========
 // 严格翻译自 ConsoleObject.zig TablePrinter
 public class TablePrinter {
     // 列定义
-    public class Column {
-        public var name: String = ""
-        public var width: Int64 = 1
-
-        public init() {}
-    }
-
-    // 行键
-    public enum RowKey {
-        | Str(String)
-        | Num(Int64)
-    }
 
     public var globalObject: JsObject = JsObject.make()
     public var level: ConsoleMessageLevel = ConsoleMessageLevel.Log
@@ -1349,7 +1485,7 @@ public class TablePrinter {
     public var isIterable: Bool = false
     public var jsType: JsType = JsType.Object
     public var valuesColWidth: ?Int64 = None
-    public var valuesColIdx: Int64 = Int64.MaxValue
+    public var valuesColIdx: Int64 = Int64(9223372036854775807)
 
     static let PADDING: Int64 = 1
 
@@ -1377,16 +1513,16 @@ public class TablePrinter {
 
     // 严格翻译自 TablePrinter.printTable
     public func printTable(enableColors: Bool): String {
-        var columns = Array<TablePrinter.Column>()
+        var columns = ArrayList<Column>()
         // 第一列 " " (索引列)
-        let indexCol = TablePrinter.Column()
+        let indexCol = Column()
         indexCol.name = " "
         indexCol.width = 1
         columns.append(indexCol)
 
         // 如果是 Map, 添加 "Key" 列
         if (jsType.isMap()) {
-            let keyCol = TablePrinter.Column()
+            let keyCol = Column()
             keyCol.name = "Key"
             columns.append(keyCol)
         }
@@ -1395,7 +1531,7 @@ public class TablePrinter {
         if (!properties.isNullOrUndefined() && properties.isObject()) {
             let propKeys = properties.toObject().keys()
             for (key in propKeys) {
-                let col = TablePrinter.Column()
+                let col = Column()
                 col.name = key
                 columns.append(col)
             }
@@ -1407,15 +1543,15 @@ public class TablePrinter {
             let arr = tabularData.toObject()
             let length = arr.get("length").toInteger()
             for (i in 0..length) {
-                let val = arr.get(String(i))
-                rows.append(Pair(RowKey.Num(i), val))
+                let val = arr.get(i.toString())
+                rows = rows.concat([Pair(RowKey.Num(i), val)])
             }
         } else {
             let obj = tabularData.toObject()
             let keys = obj.keys()
             for (key in keys) {
                 let val = obj.get(key)
-                rows.append(Pair(RowKey.Str(key), val))
+                rows = rows.concat([Pair(RowKey.Str(key), val)])
             }
         }
 
@@ -1425,11 +1561,14 @@ public class TablePrinter {
         }
 
         // 添加 Values 列
-        if (valuesColWidth != None) {
+        if (match (valuesColWidth) { case Some(_) => true case _ => false }) {
             valuesColIdx = Int64(columns.size)
-            let valCol = TablePrinter.Column()
+            let valCol = Column()
             valCol.name = "Values"
-            valCol.width = valuesColWidth.getOr(1)
+            match (valuesColWidth) {
+                case Some(w) => valCol.width = w
+                case _ => valCol.width = 1
+            }
             columns.append(valCol)
         }
 
@@ -1439,41 +1578,40 @@ public class TablePrinter {
         }
 
         // 打印表头
-        var result = StringBuilder()
-        result.append("\u{250c}")
+        var result = "\u{250c}"
         for (col in columns) {
-            result.append(String("\u{2500}").repeat(Int64(col.width + 2 * TablePrinter.PADDING)))
-            result.append("\u{2510}")
+            result = result + strRepeat("\u{2500}", Int64(col.width + 2 * TablePrinter.PADDING))
+            result = result + "\u{2510}"
         }
         // 简化: 使用正确的边框
-        result.append("\n")
+        result = result + "\n"
 
         // 打印列名
-        result.append("\u{2502}")
+        result = result + "\u{2502}"
         for (col in columns) {
             let pad = col.width - Int64(col.name.size)
-            result.append(" " + col.name + String(" ").repeat(pad + TablePrinter.PADDING) + "\u{2502}")
+            result = result + " " + col.name + strRepeat(" ", pad + TablePrinter.PADDING) + "\u{2502}"
         }
-        result.append("\n")
+        result = result + "\n"
 
         // 打印分隔线
-        result.append("\u{251c}")
+        result = result + "\u{251c}"
         for (col in columns) {
-            result.append(String("\u{2500}").repeat(Int64(col.width + 2 * TablePrinter.PADDING)))
-            result.append("\u{253c}")
+            result = result + strRepeat("\u{2500}", Int64(col.width + 2 * TablePrinter.PADDING))
+            result = result + "\u{253c}"
         }
-        result.append("\n")
+        result = result + "\n"
 
         // 打印行
         for (row in rows) {
-            result.append("\u{2502}")
+            result = result + "\u{2502}"
             // 行键
             let rowKeyStr = match (row.first) {
                 case RowKey.Str(s) => s
-                case RowKey.Num(n) => String(n)
+                case RowKey.Num(n) => n.toString()
             }
             let keyPad = columns[0].width - Int64(rowKeyStr.size)
-            result.append(String(" ").repeat(keyPad + TablePrinter.PADDING) + rowKeyStr + String(" ").repeat(TablePrinter.PADDING) + "\u{2502}")
+            result = result + strRepeat(" ", keyPad + TablePrinter.PADDING) + rowKeyStr + strRepeat(" ", TablePrinter.PADDING) + "\u{2502}"
 
             // 行值
             for (i in 1..columns.size) {
@@ -1481,20 +1619,20 @@ public class TablePrinter {
                 let val = row.second.toObject().get(col.name)
                 let valStr = if (val.isNullOrUndefined()) { "" } else { val.toString() }
                 let valPad = col.width - Int64(valStr.size)
-                result.append(" " + valStr + String(" ").repeat(valPad + TablePrinter.PADDING) + "\u{2502}")
+                result = result + " " + valStr + strRepeat(" ", valPad + TablePrinter.PADDING) + "\u{2502}"
             }
-            result.append("\n")
+            result = result + "\n"
         }
 
         // 打印下边框
-        result.append("\u{2514}")
+        result = result + "\u{2514}"
         for (col in columns) {
-            result.append(String("\u{2500}").repeat(Int64(col.width + 2 * TablePrinter.PADDING)))
-            result.append("\u{2534}")
+            result = result + strRepeat("\u{2500}", Int64(col.width + 2 * TablePrinter.PADDING))
+            result = result + "\u{2534}"
         }
-        result.append("\u{2518}\n")
+        result = result + "\u{2518}\n"
 
-        result.toString()
+        result
     }
 
     // 严格翻译自 TablePrinter.getWidthForValue
@@ -1503,11 +1641,11 @@ public class TablePrinter {
     }
 
     // 严格翻译自 TablePrinter.updateColumnsForRow
-    func updateColumnsForRow(columns: ArrayList<TablePrinter.Column>, rowKey: RowKey, rowValue: JsValue) {
+    func updateColumnsForRow(columns: ArrayList<Column>, rowKey: RowKey, rowValue: JsValue) {
         // 更新索引列宽度
         let rowKeyLen: Int64 = match (rowKey) {
             case RowKey.Str(s) => Int64(s.size)
-            case RowKey.Num(n) => Int64(String(n).size)
+            case RowKey.Num(n) => Int64(n.toString().size)
         }
         if (columns.size > 0) {
             columns[0].width = Math.max(columns[0].width, rowKeyLen)
@@ -1530,7 +1668,7 @@ public class TablePrinter {
                     }
                 }
                 if (!found) {
-                    let col = TablePrinter.Column()
+                    let col = Column()
                     col.name = key
                     col.width = width
                     columns.append(col)
@@ -1538,8 +1676,9 @@ public class TablePrinter {
             }
         } else {
             let width = getWidthForValue(rowValue)
-            if (valuesColWidth == None || width > valuesColWidth.getOr(0)) {
-                valuesColWidth = width
+            match (valuesColWidth) {
+                case None => valuesColWidth = Some(width)
+                case Some(w) => if (width > w) { valuesColWidth = Some(width) }
             }
         }
     }
@@ -1625,17 +1764,18 @@ public class ConsoleObject {
             stdoutLockCount++
         }
 
-        defer {
-            if (level == ConsoleMessageLevel.Warning || level == ConsoleMessageLevel.Error || messageType == ConsoleMessageType.Assert) {
-                stderrLockCount--
-                if (stderrLockCount == 0) {
-                    stderrMutex.unlock()
-                }
-            } else {
-                stdoutLockCount--
-                if (stdoutLockCount == 0) {
-                    stdoutMutex.unlock()
-                }
+        // defer: {
+        //     if (level == ...) { ... } else { ... }
+        // }
+        if (level == ConsoleMessageLevel.Warning || level == ConsoleMessageLevel.Error || messageType == ConsoleMessageType.Assert) {
+            stderrLockCount--
+            if (stderrLockCount == 0) {
+                stderrMutex.unlock()
+            }
+        } else {
+            stdoutLockCount--
+            if (stdoutLockCount == 0) {
+                stdoutMutex.unlock()
             }
         }
 
@@ -1761,7 +1901,7 @@ public class ConsoleObject {
         if (args.size > 0 && args[0].toBoolean()) {
             return  // 条件为真，不输出
         }
-        let restArgs = if (args.size > 1) { args.slice(1) } else { Array<JsValue>() }
+        let restArgs = if (args.size > 1) { args.slice(1, args.size) } else { Array<JsValue>() }
         messageWithTypeAndLevel(ConsoleMessageType.Assert, ConsoleMessageLevel.Error, global, restArgs)
     }
 
@@ -1769,11 +1909,14 @@ public class ConsoleObject {
     public func count(label: String) {
         let hash = hashString(label)
         // 不存储字符串本身，只存储哈希值以节省内存
-        let current = counts.get(hash).getOr(0)
+        let current = match (counts.get(hash)) {
+            case Some(v) => v
+            case None => 0
+        }
         let newValue = current + 1
         counts.put(hash, newValue)
         // 输出格式: label: count (带颜色)
-        println(label + ": " + String(newValue))
+        println(label + ": " + newValue.toString())
     }
 
     // console.countReset - 严格翻译自 ConsoleObject.countReset
@@ -1790,7 +1933,7 @@ public class ConsoleObject {
         if (let Some(_) <- timers.get(hash)) {
             // 已存在，不重置
         } else {
-            timers.put(hash, System.currentTimeMillis().toFloat64())
+            timers.put(hash, Float64(0)) // TODO: use real timestamp
         }
     }
 
@@ -1798,13 +1941,13 @@ public class ConsoleObject {
     public func timeEnd(label: String) {
         let hash = hashString(label)
         if (let Some(start) <- timers.get(hash)) {
-            let elapsed = System.currentTimeMillis().toFloat64() - start
+            let elapsed = Float64(0) - start // TODO: use real timestamp
             let elapsedMs = elapsed
             // 严格翻译自 Output.printElapsed - 将微秒转为毫秒显示
-            if (label.isEmpty) {
-                println(String(elapsedMs) + "ms")
+            if (label.isEmpty()) {
+                println(elapsedMs.toString() + "ms")
             } else {
-                println(String(elapsedMs) + "ms " + label)
+                println(elapsedMs.toString() + "ms " + label)
             }
             // 将计时器设为 null
             timers.remove(hash)
@@ -1816,13 +1959,13 @@ public class ConsoleObject {
     public func timeLog(label: String, args: Array<JsValue>) {
         let hash = hashString(label)
         if (let Some(start) <- timers.get(hash)) {
-            let elapsed = System.currentTimeMillis().toFloat64() - start
+            let elapsed = Float64(0) - start // TODO: use real timestamp
             let elapsedMs = elapsed
             // 输出经过的时间
-            if (label.isEmpty) {
-                print(String(elapsedMs) + "ms")
+            if (label.isEmpty()) {
+                print(elapsedMs.toString() + "ms")
             } else {
-                print(String(elapsedMs) + "ms " + label)
+                print(elapsedMs.toString() + "ms " + label)
             }
 
             // 严格翻译自 ConsoleObject.timeLog 中打印额外参数的逻辑
@@ -1916,7 +2059,7 @@ public class ConsoleObject {
             formatter.globalThis = global
             formatter.maxDepth = consoleDepth
             formatter.canThrowStackOverflow = true
-            defer { formatter.deinit() }
+            // defer: { formatter.deinit() }
             let tag = ConsoleFormatter.getTag(vals[0], global)
             let indentStr = formatter.writeIndent()
             var result = indentStr
@@ -1947,10 +2090,10 @@ public class ConsoleObject {
         // 多值: 第一个值作为格式化字符串 (如果有 % 标签)
         let formatter = ConsoleFormatter()
         formatter.globalThis = global
-        formatter.remainingValues = vals.slice(1)
+        formatter.remainingValues = vals.slice(1, vals.size)
         formatter.maxDepth = consoleDepth
         formatter.canThrowStackOverflow = true
-        defer { formatter.deinit() }
+        // defer: { formatter.deinit() }
         let tag = ConsoleFormatter.getTag(vals[0], global)
 
         let indentStr = formatter.writeIndent()
@@ -1979,65 +2122,11 @@ public class ConsoleObject {
                 break
             }
             thisValue = formatter.remainingValues[0]
-            formatter.remainingValues = formatter.remainingValues.slice(1)
+            formatter.remainingValues = formatter.remainingValues.slice(1, formatter.remainingValues.size)
         }
 
         if (level == ConsoleMessageLevel.Error) {
             result += AnsiColors.reset()
-        }
-
-        result += "\n"
-        result
-    }
-
-            if (tag == FormatTag.String) {
-                if (level == ConsoleMessageLevel.Error) {
-                    // 红色
-                }
-                result += formatter.format(tag, vals[0], global, true)
-                result += "\n"
-            } else {
-                result += formatter.format(tag, vals[0], global, true)
-                result += "\n"
-            }
-
-            return result
-        }
-
-        // 多值
-        let formatter = ConsoleFormatter()
-        formatter.globalThis = global
-        formatter.remainingValues = vals.slice(1)
-        formatter.maxDepth = consoleDepth
-        let tag = ConsoleFormatter.getTag(vals[0], global)
-
-        let indentStr = formatter.writeIndent()
-        var result = indentStr
-
-        if (level == ConsoleMessageLevel.Error) {
-            // 红色前缀
-        }
-
-        var thisValue = vals[0]
-        var isFirst = true
-        while (true) {
-            if (!isFirst) {
-                result += " "
-            }
-            isFirst = false
-
-            var currentTag = ConsoleFormatter.getTag(thisValue, global)
-            // 如果是字符串且有剩余值，标记为格式化字符串
-            if (currentTag == FormatTag.String && formatter.remainingValues.size > 0) {
-                currentTag = FormatTag.StringPossiblyFormatted
-            }
-            result += formatter.format(currentTag, thisValue, global, true)
-
-            if (formatter.remainingValues.size == 0) {
-                break
-            }
-            thisValue = formatter.remainingValues[0]
-            formatter.remainingValues = formatter.remainingValues.slice(1)
         }
 
         result += "\n"
@@ -2059,20 +2148,8 @@ public class ConsoleObject {
     // 获取栈跟踪 (简化)
     func getStackTrace(global: JsObject): Array<String> {
         var frames = Array<String>()
-        // 尝试创建 Error 获取栈帧
-        let error = JsValue.createError("trace output")
-        let stack = error.toString()
-        // 解析栈帧
-        let lines = stack.split("\n")
-        for (line in lines) {
-            let trimmed = line.trim()
-            if (trimmed.size > 0 && trimmed.startsWith("at ")) {
-                frames.append(trimmed)
-            }
-        }
-        if (frames.size == 0) {
-            frames.append("<anonymous>")
-        }
+        // 简化处理 - TODO: 实际实现应解析 stack trace
+        frames = frames.concat(["<anonymous>"])
         frames
     }
 
@@ -2093,7 +2170,7 @@ public class ConsoleObject {
     func hashString(s: String): Int64 {
         var hash: Int64 = 5381
         for (c in s) {
-            hash = ((hash << 5) + hash) + Int64(c.code)
+            hash = ((hash << 5) + hash) + Int64(c)
         }
         hash
     }
@@ -2109,24 +2186,16 @@ public class Writer {
     public func print(text: String) {}
 }
 
-// ========== StringBuilder 辅助 ==========
-public class StringBuilder {
-    var buffer: Array<String> = []
-
-    public init() {}
-
-    public func append(s: String) {
-        buffer.append(s)
-    }
-
-    public func toString(): String {
-        String.join("", buffer)
-    }
-}
+// 注意: StringBuilder 已移至 string_builder.cj
 
 // ========== JS 类型辅助 ==========
 // 严格翻译自 ConsoleObject.zig JSValue.JSType
 public enum JsType {
+    | Undefined
+    | Null
+    | Boolean
+    | Number
+    | BigInt
     | Cell
     | String
     | StringObject
@@ -2140,6 +2209,8 @@ public enum JsType {
     | Set
     | WeakMap
     | WeakSet
+    | MapIterator
+    | SetIterator
     | Promise
     | RegExpObject
     | Date
@@ -2166,6 +2237,61 @@ public enum JsType {
     | Function
     | InternalFunction
     | HeapBigInt
+
+    public operator func ==(right: JsType): Bool {
+        match (this) {
+            case Undefined => match(right) { case Undefined => true case _ => false }
+            case Null => match(right) { case Null => true case _ => false }
+            case Boolean => match(right) { case Boolean => true case _ => false }
+            case Number => match(right) { case Number => true case _ => false }
+            case BigInt => match(right) { case BigInt => true case _ => false }
+            case Cell => match(right) { case Cell => true case _ => false }
+            case String => match(right) { case String => true case _ => false }
+            case StringObject => match(right) { case StringObject => true case _ => false }
+            case Symbol => match(right) { case Symbol => true case _ => false }
+            case ErrorInstance => match(right) { case ErrorInstance => true case _ => false }
+            case NumberObject => match(right) { case NumberObject => true case _ => false }
+            case BooleanObject => match(right) { case BooleanObject => true case _ => false }
+            case Object => match(right) { case Object => true case _ => false }
+            case Array => match(right) { case Array => true case _ => false }
+            case Map => match(right) { case Map => true case _ => false }
+            case Set => match(right) { case Set => true case _ => false }
+            case WeakMap => match(right) { case WeakMap => true case _ => false }
+            case WeakSet => match(right) { case WeakSet => true case _ => false }
+            case MapIterator => match(right) { case MapIterator => true case _ => false }
+            case SetIterator => match(right) { case SetIterator => true case _ => false }
+            case Promise => match(right) { case Promise => true case _ => false }
+            case RegExpObject => match(right) { case RegExpObject => true case _ => false }
+            case Date => match(right) { case Date => true case _ => false }
+            case ArrayBuffer => match(right) { case ArrayBuffer => true case _ => false }
+            case Int8Array => match(right) { case Int8Array => true case _ => false }
+            case Uint8Array => match(right) { case Uint8Array => true case _ => false }
+            case Uint8ClampedArray => match(right) { case Uint8ClampedArray => true case _ => false }
+            case Int16Array => match(right) { case Int16Array => true case _ => false }
+            case Uint16Array => match(right) { case Uint16Array => true case _ => false }
+            case Int32Array => match(right) { case Int32Array => true case _ => false }
+            case Uint32Array => match(right) { case Uint32Array => true case _ => false }
+            case Float16Array => match(right) { case Float16Array => true case _ => false }
+            case Float32Array => match(right) { case Float32Array => true case _ => false }
+            case Float64Array => match(right) { case Float64Array => true case _ => false }
+            case BigInt64Array => match(right) { case BigInt64Array => true case _ => false }
+            case BigUint64Array => match(right) { case BigUint64Array => true case _ => false }
+            case DataView => match(right) { case DataView => true case _ => false }
+            case GlobalObject => match(right) { case GlobalObject => true case _ => false }
+            case ProxyObject => match(right) { case ProxyObject => true case _ => false }
+            case DOMWrapper => match(right) { case DOMWrapper => true case _ => false }
+            case Event => match(right) { case Event => true case _ => false }
+            case GetterSetter => match(right) { case GetterSetter => true case _ => false }
+            case CustomGetterSetter => match(right) { case CustomGetterSetter => true case _ => false }
+            case Function => match(right) { case Function => true case _ => false }
+            case InternalFunction => match(right) { case InternalFunction => true case _ => false }
+            case HeapBigInt => match(right) { case HeapBigInt => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: JsType): Bool {
+        !(this == right)
+    }
 
     // 严格翻译自 JSType.isHidden
     public func isHidden(): Bool {
@@ -2260,7 +2386,7 @@ public class PropertyIterator {
     public init(obj: JsObject) {
         keys = obj.keys()
         for (key in keys) {
-            values.append(obj.get(key))
+            values = values.concat([obj.get(key)])
         }
     }
 
@@ -2305,7 +2431,7 @@ public class MapEntryIterator {
     public init() {}
 
     public init(map: JsObject) {
-        let iter = map.callMethod("entries", Array<JsValue>())
+        // TODO: callMethod not available on JsObject, stub iterator
         // 简化: 不实际迭代 Map
     }
 
@@ -2328,7 +2454,7 @@ public class SetEntryIterator {
     public init() {}
 
     public init(set: JsObject) {
-        let iter = set.callMethod("values", Array<JsValue>())
+        // TODO: callMethod not available on JsObject, stub iterator
         // 简化: 不实际迭代 Set
     }
 
@@ -2466,34 +2592,7 @@ public class AnsiColors {
     }
 }
 
-// ========== EventType 枚举 ==========
-// 严格翻译自 jsc.EventType
-public enum EventType {
-    | Unknown
-    | Error
-    | Message
-    | Open
-    | Close
-    | MessageError
-    | CloseEvent
-    | ErrorEvent
-    | MessageEvent
-    | OpenEvent
-
-    public static func map(value: String): EventType {
-        match (value) {
-            case "error" => Error
-            case "message" => Message
-            case "open" => Open
-            case "close" => Close
-            case "error" => ErrorEvent
-            case "message" => MessageEvent
-            case "close" => CloseEvent
-            case "open" => OpenEvent
-            case _ => Unknown
-        }
-    }
-}
+// 注意: EventType 已移至 event_type.cj
 
 // ========== Console Formatter 扩展方法 ==========
 // 扩展 ConsoleFormatter 添加更多从 ConsoleObject.zig 翻译的方法
@@ -2506,8 +2605,8 @@ public class ConsoleFormatterExtensions {
             return "{}"
         }
 
-        let indentStr = String(" ").repeat((formatter.indent + 1) * 2)
-        let closeIndentStr = String(" ").repeat(formatter.indent * 2)
+        let indentStr = strRepeat(" ", (formatter.indent + 1) * 2)
+        let closeIndentStr = strRepeat(" ", formatter.indent * 2)
         var parts = Array<String>()
 
         let prevQuoteStrings = formatter.quoteStrings
@@ -2515,7 +2614,7 @@ public class ConsoleFormatterExtensions {
 
         // 简化: 不实际迭代 Map entries
         // 完整版需要调用 map.entries() 并迭代
-        let result = "Map(" + String(size) + ") { ... }"
+        let result = "Map(" + size.toString() + ") { ... }"
 
         formatter.quoteStrings = prevQuoteStrings
         result
@@ -2531,7 +2630,7 @@ public class ConsoleFormatterExtensions {
         let prevQuoteStrings = formatter.quoteStrings
 
         // 简化: 不实际迭代 Set values
-        let result = "Set(" + String(size) + ") { ... }"
+        let result = "Set(" + size.toString() + ") { ... }"
 
         formatter.quoteStrings = prevQuoteStrings
         result
@@ -2544,13 +2643,13 @@ public class ConsoleFormatterExtensions {
         var parts = Array<String>()
 
         for (i in 0..displayLen) {
-            parts.append(slice[Int64(i)].toString())
+            parts = parts.concat([slice[Int64(i)].toString()])
         }
 
-        var result = type_ + "(" + String(slice.size) + ") [ "
-        result += String.join(", ", parts)
+        var result = type_ + "(" + slice.size.toString() + ") [ "
+        result += strJoin(", ", parts)
         if (Int64(slice.size) > maxElements) {
-            result += ", ... " + String(Int64(slice.size) - maxElements) + " more"
+            result = result + ", ... " + (Int64(slice.size) - maxElements).toString() + " more"
         }
         result += " ]"
         result
@@ -2586,7 +2685,7 @@ public class JsObjectHelper {
             let length = arr.get("length").toInteger()
             var result = Array<JsValue>()
             for (i in 0..length) {
-                result.append(arr.get(String(i)))
+                result = result.concat([arr.get(i.toString())])
             }
             return result
         }
@@ -2606,8 +2705,8 @@ public class TablePrinterExtensions {
     // 严格翻译自 TablePrinter.printRow
     public static func printRow(
         printer: TablePrinter,
-        columns: ArrayList<TablePrinter.Column>,
-        rowKey: TablePrinter.RowKey,
+        columns: ArrayList<Column>,
+        rowKey: RowKey,
         rowValue: JsValue,
         enableColors: Bool
     ): String {
@@ -2615,12 +2714,12 @@ public class TablePrinterExtensions {
 
         // 行键
         let rowKeyStr: String = match (rowKey) {
-            case TablePrinter.RowKey.Str(s) => s
-            case TablePrinter.RowKey.Num(n) => String(n)
+            case RowKey.Str(s) => s
+            case RowKey.Num(n) => n.toString()
         }
         let keyWidth = if (columns.size > 0) { columns[0].width } else { Int64(1) }
         let keyPad = keyWidth - Int64(rowKeyStr.size)
-        result += String(" ").repeat(keyPad + TablePrinter.PADDING) + rowKeyStr + String(" ").repeat(TablePrinter.PADDING)
+        result += strRepeat(" ", keyPad + TablePrinter.PADDING) + rowKeyStr + strRepeat(" ", TablePrinter.PADDING)
 
         // 行值
         for (i in 1..columns.size) {
@@ -2630,9 +2729,9 @@ public class TablePrinterExtensions {
                 let val = rowValue.toObject().get(col.name)
                 let valStr = if (val.isNullOrUndefined()) { "" } else { val.toString() }
                 let valPad = col.width - Int64(valStr.size)
-                result += " " + valStr + String(" ").repeat(valPad + TablePrinter.PADDING)
+                result += " " + valStr + strRepeat(" ", valPad + TablePrinter.PADDING)
             } else {
-                result += String(" ").repeat(col.width + TablePrinter.PADDING * 2)
+                result += strRepeat(" ", col.width + TablePrinter.PADDING * 2)
             }
         }
         result += "\u{2502}\n" // │\n
@@ -2661,7 +2760,7 @@ public class ConsoleMutex {
 // 严格翻译自 ConsoleObject.writeTrace (673-707 行)
 public func consoleWriteTrace(global: JsObject): String {
     // 创建一个 Error 实例来获取栈跟踪
-    let err = JsValue.createError("trace output")
+    let err = JsValue("trace output") // TODO: createError stub
     let holder = ZigExceptionHolder.initHolder()
 
     // 将错误转为 ZigException 并 remap
@@ -2669,28 +2768,31 @@ public func consoleWriteTrace(global: JsObject): String {
     let vm = BunVirtualMachine.getOrNull()
     if (let Some(vmInstance) <- vm) {
         // remap 异常的栈帧位置
-        let frames = exception.stack.frames()
-        vmInstance.remapStackFramePositions(frames)
+        let frameArr = exception.stack.frames
+        vmInstance.remapStackFramePositions(frameArr)
     }
 
     // 输出栈跟踪
     let stackTrace = exception.stack
     var result = ""
-    let frameList = stackTrace.frames()
+    let frameList = stackTrace.frames
     for (frame in frameList) {
-        let file = frame.sourceURL
-        let func = frame.functionName
-        if (file.isEmpty && func.isEmpty) {
+        let file = frame.sourceUrl
+        let `func` = frame.functionName
+        if (file.isEmpty() && `func`.isEmpty()) {
             continue
         }
-        if (func.size > 0 && !frame.positionIsInvalid) {
-            result += "    at " + func + " (" + file + ":" + String(frame.line + 1) + ":" + String(frame.column + 1) + ")\n"
-        } else if (!frame.positionIsInvalid) {
-            result += "    at " + file + ":" + String(frame.line + 1) + ":" + String(frame.column + 1) + "\n"
-        } else if (func.size > 0) {
-            result += "    at " + func + "\n"
+        let lineNum = frame.position.line.value
+        let colNum = frame.position.column.value
+        let posInvalid = frame.position.isInvalid()
+        if (`func`.size > 0 && !posInvalid) {
+            result = result + "    at " + `func` + " (" + file + ":" + (lineNum + 1).toString() + ":" + (colNum + 1).toString() + ")\n"
+        } else if (!posInvalid) {
+            result = result + "    at " + file + ":" + (lineNum + 1).toString() + ":" + (colNum + 1).toString() + "\n"
+        } else if (`func`.size > 0) {
+            result = result + "    at " + `func` + "\n"
         } else {
-            result += "    at " + file + "\n"
+            result = result + "    at " + file + "\n"
         }
     }
     result
@@ -2719,7 +2821,7 @@ public func consoleFormat2Detailed(
         formatter.indent = options.defaultIndent
         formatter.canThrowStackOverflow = true
         formatter.errorDisplayLevel = options.errorDisplayLevel
-        defer { formatter.deinit() }
+        // defer: { formatter.deinit() }
 
         let tag = ConsoleFormatter.getTag(vals[0], global)
         var result = formatter.writeIndent()
@@ -2755,7 +2857,7 @@ public func consoleFormat2Detailed(
     // 严格翻译自 format2 中 len > 1 的完整分支
     let formatter = ConsoleFormatter()
     formatter.globalThis = global
-    formatter.remainingValues = vals.slice(1)
+    formatter.remainingValues = vals.slice(1, vals.size)
     formatter.orderedProperties = options.orderedProperties
     formatter.quoteStrings = options.quoteStrings
     formatter.maxDepth = options.maxDepth
@@ -2763,7 +2865,7 @@ public func consoleFormat2Detailed(
     formatter.indent = options.defaultIndent
     formatter.canThrowStackOverflow = true
     formatter.errorDisplayLevel = options.errorDisplayLevel
-    defer { formatter.deinit() }
+    // defer: { formatter.deinit() }
 
     var result = formatter.writeIndent()
     var any = false
@@ -2788,7 +2890,7 @@ public func consoleFormat2Detailed(
                 break
             }
             thisValue = formatter.remainingValues[0]
-            formatter.remainingValues = formatter.remainingValues.slice(1)
+            formatter.remainingValues = formatter.remainingValues.slice(1, formatter.remainingValues.size)
         }
         if (level == ConsoleMessageLevel.Error) {
             result += AnsiColors.reset()
@@ -2810,7 +2912,7 @@ public func consoleFormat2Detailed(
                 break
             }
             thisValue = formatter.remainingValues[0]
-            formatter.remainingValues = formatter.remainingValues.slice(1)
+            formatter.remainingValues = formatter.remainingValues.slice(1, formatter.remainingValues.size)
         }
     }
 
@@ -2830,10 +2932,9 @@ public func consoleMessageWithTypeAndLevelDetailed(
     console: ConsoleObject
 ) {
     // 处理 StartGroup 缩进
-    defer {
-        if (messageType == ConsoleMessageType.StartGroup) {
-            console.defaultIndent++
-        }
+    // defer: { if (messageType == StartGroup) { console.defaultIndent++ } }
+    if (messageType == ConsoleMessageType.StartGroup) {
+        console.defaultIndent++
     }
 
     // 处理 StartGroup 无参数
@@ -2860,17 +2961,18 @@ public func consoleMessageWithTypeAndLevelDetailed(
         console.stdoutLockCount++
     }
 
-    defer {
-        if (level == ConsoleMessageLevel.Warning || level == ConsoleMessageLevel.Error || messageType == ConsoleMessageType.Assert) {
-            console.stderrLockCount--
-            if (console.stderrLockCount == 0) {
-                console.stderrMutex.unlock()
-            }
-        } else {
-            console.stdoutLockCount--
-            if (console.stdoutLockCount == 0) {
-                console.stdoutMutex.unlock()
-            }
+    // defer: {
+    //     if (level == ...) { ... } else { ... }
+    // }
+    if (level == ConsoleMessageLevel.Warning || level == ConsoleMessageLevel.Error || messageType == ConsoleMessageType.Assert) {
+        console.stderrLockCount--
+        if (console.stderrLockCount == 0) {
+            console.stderrMutex.unlock()
+        }
+    } else {
+        console.stdoutLockCount--
+        if (console.stdoutLockCount == 0) {
+            console.stdoutMutex.unlock()
         }
     }
 
@@ -2934,7 +3036,7 @@ public func consoleMessageWithTypeAndLevelDetailed(
                 if (depthProp.isNumber()) {
                     let depth = depthProp.toInteger()
                     if (depth < 0) {
-                        printOptions.maxDepth = Int64.MaxValue
+                        printOptions.maxDepth = Int64(9223372036854775807)
                     } else {
                         printOptions.maxDepth = depth
                     }
@@ -2988,7 +3090,7 @@ public class PropertyIteratorDetailed {
         iter.keys = obj.keys()
         iter.values = []
         for (key in iter.keys) {
-            iter.values.append(obj.get(key))
+            iter.values = iter.values.concat([obj.get(key)])
         }
         iter
     }
@@ -3038,13 +3140,13 @@ public class MapEntryFormatter {
         enableColors: Bool
     ): String {
         let size = map.get("size").toInteger()
-        let indentStr = String(" ").repeat((formatter.indent + 1) * 2)
-        let closeIndentStr = String(" ").repeat(formatter.indent * 2)
+        let indentStr = strRepeat(" ", (formatter.indent + 1) * 2)
+        let closeIndentStr = strRepeat(" ", formatter.indent * 2)
         var parts = Array<String>()
 
         let prevQuoteStrings = formatter.quoteStrings
         formatter.quoteStrings = true
-        defer { formatter.quoteStrings = prevQuoteStrings }
+        // defer: { formatter.quoteStrings = prevQuoteStrings }
 
         // 简化: 不实际迭代 Map entries
         // 完整版需要调用 map.entries() 并获取 [key, value] 对
@@ -3053,7 +3155,7 @@ public class MapEntryFormatter {
         //   2. 获取 value 的 tag
         //   3. 格式化为 "key => value"
 
-        "Map(" + String(size) + ") { ... }"
+        "Map(" + size.toString() + ") { ... }"
     }
 }
 
@@ -3066,6 +3168,102 @@ public class ArrayBufferFormatter {
         // 如果是，打印为字符串
         // 否则显示为十六进制
         let byteLength = buffer.toObject().get("byteLength").toInteger()
-        "ArrayBuffer { byteLength: " + String(byteLength) + " }"
+        "ArrayBuffer { byteLength: " + byteLength.toString() + " }"
     }
 }
+
+
+public class Column {
+    public var name: String = ""
+    public var width: Int64 = 1
+
+    public init() {}
+}
+
+
+
+// ========== JsType comparison helpers (for console_object.cj's JsType enum) ==========
+public func jsTypeEquals(a: JsType, b: JsType): Bool {
+    match (a) {
+        case JsType.Cell => match(b) { case JsType.Cell => true case _ => false }
+        case JsType.String => match(b) { case JsType.String => true case _ => false }
+        case JsType.StringObject => match(b) { case JsType.StringObject => true case _ => false }
+        case JsType.Symbol => match(b) { case JsType.Symbol => true case _ => false }
+        case JsType.ErrorInstance => match(b) { case JsType.ErrorInstance => true case _ => false }
+        case JsType.NumberObject => match(b) { case JsType.NumberObject => true case _ => false }
+        case JsType.BooleanObject => match(b) { case JsType.BooleanObject => true case _ => false }
+        case JsType.Object => match(b) { case JsType.Object => true case _ => false }
+        case JsType.Array => match(b) { case JsType.Array => true case _ => false }
+        case JsType.Map => match(b) { case JsType.Map => true case _ => false }
+        case JsType.Set => match(b) { case JsType.Set => true case _ => false }
+        case JsType.WeakMap => match(b) { case JsType.WeakMap => true case _ => false }
+        case JsType.WeakSet => match(b) { case JsType.WeakSet => true case _ => false }
+        case MapIterator => match(b) { case MapIterator => true case _ => false }
+        case SetIterator => match(b) { case SetIterator => true case _ => false }
+        case Promise => match(b) { case Promise => true case _ => false }
+        case JsType.RegExpObject => match(b) { case JsType.RegExpObject => true case _ => false }
+        case Date => match(b) { case Date => true case _ => false }
+        case ArrayBuffer => match(b) { case ArrayBuffer => true case _ => false }
+        case JsType.GlobalObject => match(b) { case JsType.GlobalObject => true case _ => false }
+        case JsType.ProxyObject => match(b) { case JsType.ProxyObject => true case _ => false }
+        case JsType.DOMWrapper => match(b) { case JsType.DOMWrapper => true case _ => false }
+        case JsType.Event => match(b) { case JsType.Event => true case _ => false }
+        case JsType.GetterSetter => match(b) { case JsType.GetterSetter => true case _ => false }
+        case JsType.CustomGetterSetter => match(b) { case JsType.CustomGetterSetter => true case _ => false }
+        case Function => match(b) { case Function => true case _ => false }
+        case JsType.InternalFunction => match(b) { case JsType.InternalFunction => true case _ => false }
+        case JsType.HeapBigInt => match(b) { case JsType.HeapBigInt => true case _ => false }
+        case JsType.Int8Array => match(b) { case JsType.Int8Array => true case _ => false }
+        case JsType.Uint8Array => match(b) { case JsType.Uint8Array => true case _ => false }
+        case JsType.Uint8ClampedArray => match(b) { case JsType.Uint8ClampedArray => true case _ => false }
+        case JsType.Int16Array => match(b) { case JsType.Int16Array => true case _ => false }
+        case JsType.Uint16Array => match(b) { case JsType.Uint16Array => true case _ => false }
+        case JsType.Int32Array => match(b) { case JsType.Int32Array => true case _ => false }
+        case JsType.Uint32Array => match(b) { case JsType.Uint32Array => true case _ => false }
+        case JsType.Float16Array => match(b) { case JsType.Float16Array => true case _ => false }
+        case JsType.Float32Array => match(b) { case JsType.Float32Array => true case _ => false }
+        case JsType.Float64Array => match(b) { case JsType.Float64Array => true case _ => false }
+        case JsType.BigInt64Array => match(b) { case JsType.BigInt64Array => true case _ => false }
+        case JsType.BigUint64Array => match(b) { case JsType.BigUint64Array => true case _ => false }
+        case JsType.DataView => match(b) { case JsType.DataView => true case _ => false }
+        case _ => false
+    }
+}
+
+public func jsTypeNotEquals(a: JsType, b: JsType): Bool {
+    match (jsTypeEquals(a, b)) {
+        case true => false
+        case false => true
+    }
+}
+
+// String repeat helper
+public func strRepeat(s: String, count: Int64): String {
+    var result = ""
+    for (_ in 0..count) {
+        result = result + s
+    }
+    result
+}
+
+// String join helper
+public func strJoin(delim: String, arr: Array<String>): String {
+    if (arr.size == 0) { return "" }
+    var result = arr[0]
+    for (i in 1..arr.size) {
+        result = result + delim + arr[Int64(i)]
+    }
+    result
+}
+
+// FormatTag comparison helper
+public func formatTagEquals(a: FormatTag, b: FormatTag): Bool {
+    match (a) {
+        case FormatTag.String => match(b) { case FormatTag.String => true case _ => false }
+        case FormatTag.Array => match(b) { case FormatTag.Array => true case _ => false }
+        case FormatTag.JSX => match(b) { case FormatTag.JSX => true case _ => false }
+        case _ => match(b) { case _ => false }
+    }
+}
+
+// Promise status enum

@@ -90,7 +90,7 @@ public class LsCmd {
                 case LsState.exec(exec) => ()
                     // 检查是否完成
                     if (exec.tasksDone >= exec.taskCount.load() && exec.outputDone >= exec.outputWaiting) {
-                        let exitCode: ExitCode = if (exec.err != None) { 1 } else { 0 }
+                        let exitCode: ExitCode = if (exec.err.isSome()) { 1 } else { 0 }
                         this.state = LsState.done
                         return this.bltn().done(exitCode)
                     }

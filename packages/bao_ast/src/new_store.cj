@@ -41,7 +41,7 @@ public class NewStore {
         allocCount = Int64(0)
     }
 
-    /// 初始化 - 对应 Bun NewStore.init()
+    /// 初始化 - 对应 Bun NewStore()
     /// Bun: pub fn init() *Store
     public static func initFunc(): NewStore {
         let store = NewStore()

@@ -23,7 +23,7 @@ public class SecureContext {
     /// 构造函数 - 从 JS 参数创建
     public static func constructor(global: JsGlobalObject, callframe: JsCallFrame): SecureContext {
         let args = callframe.arguments()
-        let opts = args.len > 0 ? args[0] : JsValue.jsUndefined
+        let opts = args.len > 0 ? args[0] : JsValue.jsUndefined()
 
         var config = try SSLConfig.fromJS(global.bunVM(), global, opts) ?? SSLConfig.zero
         defer config.deinit()
@@ -41,13 +41,13 @@ public class SecureContext {
     public static func createWithDigest(global: JsGlobalObject, ctxOpts: BunSocketContextOptions, d: Array<UInt8>): SecureContext {
         var err: CreateBunSocketError = .none
         let ctx = global.bunVM().rareData().sslCtxCache().getOrCreateDigest(ctxOpts, d, &err) ?? {
-            if (err == .none) {
+            if (err == none) {
                 let code = BoringSSL.ERR_get_error()
                 if (code != 0) {
                     global.throwValue(BoringSSL.ERR_toJS(global, code))
                     return SecureContext()
                 }
-                global.throw("Failed to create SSL context")
+                global.`throw`("Failed to create SSL context")
                 return SecureContext()
             }
             global.throwValue(err.toJS(global))
@@ -69,7 +69,7 @@ public class SecureContext {
     /// 通过配置摘要进行 WeakGCMap 记忆化
     public static func intern(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.arguments()
-        let opts = args.len > 0 ? args[0] : JsValue.jsUndefined
+        let opts = args.len > 0 ? args[0] : JsValue.jsUndefined()
 
         var config = try SSLConfig.fromJS(global.bunVM(), global, opts) ?? SSLConfig.zero
         defer config.deinit()
@@ -80,8 +80,8 @@ public class SecureContext {
 
         // 检查缓存
         let cached = Bun__SecureContextCache__get(global, key)
-        if (cached != JsValue.zero) {
-            if (let existing = fromJS(cached)) {
+        if (cached != JsValue.jsUndefined()) {
+            if (let existing <- fromJS(cached)) {
                 if (existing.digest.eqlLong(d)) {
                     return cached
                 }

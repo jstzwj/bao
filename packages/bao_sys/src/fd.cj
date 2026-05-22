@@ -7,6 +7,7 @@
 package bao_sys
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ErrorCase - close 行为枚举
@@ -105,7 +106,7 @@ public class MovableFd {
         this.inner = fd
     }
 
-    /// 初始化 - 对应 Bun MovableIfWindowsFd.init(fd)
+    /// 初始化 - 对应 Bun MovableIfWindowsFd(fd)
     public static func initFd(fd: Int64): MovableFd {
         return MovableFd(fd)
     }
@@ -183,6 +184,37 @@ public class PrehashedFd {
 
     public func eql(a: Int64, b: Int64): Bool {
         return a == b
+    }
+}
+
+// ============================================================================
+// Fd - 文件描述符名义类型
+// 对应 Bun bun.sys.Fd / bun.Fd
+// 用于跨包传递 FD 的强类型包装
+// ============================================================================
+public class Fd {
+    public var value: Int64
+
+    public init(v: Int64) {
+        this.value = v
+    }
+
+    public static let INVALID: Fd = Fd(-1)
+
+    public func toBytes(): Array<UInt8> {
+        let b0 = UInt8(value & 0xFF)
+        let b1 = UInt8((value >> 8) & 0xFF)
+        let b2 = UInt8((value >> 16) & 0xFF)
+        let b3 = UInt8((value >> 24) & 0xFF)
+        let b4 = UInt8((value >> 32) & 0xFF)
+        let b5 = UInt8((value >> 40) & 0xFF)
+        let b6 = UInt8((value >> 48) & 0xFF)
+        let b7 = UInt8((value >> 56) & 0xFF)
+        return [b0, b1, b2, b3, b4, b5, b6, b7]
+    }
+
+    public func isValid(): Bool {
+        value >= 0
     }
 }
 

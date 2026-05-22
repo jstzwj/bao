@@ -11,6 +11,8 @@ package bao_css.values
 import bao_core.*
 import bao_collections.*
 import bao_css.*
+import std.math.*
+import std.convert.*
 
 // ============================================================================
 // calc() 函数单位/类型
@@ -513,7 +515,7 @@ public class CssCalc {
     /// 严格翻译自 Calc.parse(input) -> Result(This)
     /// 不带自定义标识符解析的简化入口
     public static func parse(input: CssParser): ?CssCalc {
-        parseWith(input, None)
+        parseWith(input, Option<(String) -> ?CssCalc>.None)
     }
 
     /// 解析 calc 表达式 (带自定义标识符回调)
@@ -988,67 +990,67 @@ public func isMathFunctionCompatible(fn: CssCalcUnit, browsers: CssBrowserTarget
 /// 正弦函数
 /// 严格翻译自 std.math.sin
 public func cssSin(x: Float64): Float64 {
-    Math.sin(x)
+    sin(x)
 }
 
 /// 余弦函数
 /// 严格翻译自 std.math.cos
 public func cssCos(x: Float64): Float64 {
-    Math.cos(x)
+    cos(x)
 }
 
 /// 正切函数
 /// 严格翻译自 std.math.tan
 public func cssTan(x: Float64): Float64 {
-    Math.tan(x)
+    tan(x)
 }
 
 /// 反正弦函数
 /// 严格翻译自 std.math.asin
 public func cssAsin(x: Float64): Float64 {
-    Math.asin(x)
+    asin(x)
 }
 
 /// 反余弦函数
 /// 严格翻译自 std.math.acos
 public func cssAcos(x: Float64): Float64 {
-    Math.acos(x)
+    acos(x)
 }
 
 /// 反正切函数
 /// 严格翻译自 std.math.atan
 public func cssAtan(x: Float64): Float64 {
-    Math.atan(x)
+    atan(x)
 }
 
 /// 二参数反正切函数
 /// 严格翻译自 std.math.atan2
 public func cssAtan2(y: Float64, x: Float64): Float64 {
-    Math.atan2(y, x)
+    atan2(y, x)
 }
 
 /// 指数函数 (e^x)
 /// 严格翻译自 std.math.exp
 public func cssExp(x: Float64): Float64 {
-    Math.exp(x)
+    exp(x)
 }
 
 /// 幂函数
 /// 严格翻译自 bun.powf
 public func cssPow(base: Float64, exp: Float64): Float64 {
-    Math.pow(base, exp)
+    pow(base, exp)
 }
 
 /// 自然对数
 /// 严格翻译自 std.math.log(e, value)
 public func cssLn(x: Float64): Float64 {
-    Math.log(x)
+    log(x)
 }
 
 /// 对数 (任意底数)
 /// 严格翻译自 std.math.log(base, value)
 public func cssLog(base: Float64, value: Float64): Float64 {
-    Math.log(value) / Math.log(base)
+    log(value) / log(base)
 }
 
 /// 符号函数
@@ -1175,7 +1177,7 @@ public class CssParser {
                 case "infinity" => pos += 1; return Some(CssConstant.Infinity)
                 case "-infinity" => pos += 1; return Some(CssConstant.NegInfinity)
                 case "nan" => pos += 1; return Some(CssConstant.Nan)
-                case _ => {}
+                case _ => ()
             }
         }
         None
@@ -1186,7 +1188,7 @@ public class CssParser {
     public func tryParseIdent(): ?String {
         if (pos < tokens.size) {
             let t = tokens[pos]
-            if (t.size > 0 && t[0].isAlpha()) {
+            if (t.size > 0 && t[0].isAsciiLetter()) {
                 pos += 1
                 return t
             }
@@ -1214,7 +1216,7 @@ public class CssParser {
                 case "up" => pos += 1; return Some(CssRoundingStrategy.Up)
                 case "down" => pos += 1; return Some(CssRoundingStrategy.Down)
                 case "to-zero" => pos += 1; return Some(CssRoundingStrategy.ToZero)
-                case _ => {}
+                case _ => ()
             }
         }
         None
@@ -1222,6 +1224,86 @@ public class CssParser {
 
     /// 当前源位置 (简化)
     public func currentSourceLocation(): Int64 { pos }
+
+    /// 期望数字
+    public func expectNumber(): ?Float64 {
+        if (pos < tokens.size) {
+            let t = tokens[pos]
+            let parsed = Float64.parse(t)
+            if (!parsed.isNaN()) {
+                pos += 1
+                return parsed
+            }
+        }
+        Option<Float64>.None
+    }
+
+    /// 期望字符串
+    public func expectString(): ?String {
+        if (pos < tokens.size) {
+            let t = tokens[pos]
+            pos += 1
+            return t
+        }
+        Option<String>.None
+    }
+
+    /// 期望整数
+    public func expectInteger(): ?Int64 {
+        if (pos < tokens.size) {
+            let t = tokens[pos]
+            try {
+                let parsed = Int64.parse(t)
+                pos += 1
+                return parsed
+            } catch (_: Exception) {
+                return Option<Int64>.None
+            }
+        }
+        Option<Int64>.None
+    }
+
+    /// 期望百分比
+    public func expectPercentage(): ?Float64 {
+        if (pos < tokens.size) {
+            let t = tokens[pos]
+            if (t.endsWith("%")) {
+                let numStr = t[0..Int64(t.size) - 1]
+                let parsed = Float64.parse(numStr)
+                if (!parsed.isNaN()) {
+                    pos += 1
+                    return parsed / 100.0
+                }
+            }
+        }
+        Option<Float64>.None
+    }
+
+    /// 期望标识符
+    public func expectIdent(): ?String {
+        if (pos < tokens.size) {
+            let t = tokens[pos]
+            if (t.size > 0 && t[0].isAsciiLetter()) {
+                pos += 1
+                return t
+            }
+        }
+        Option<String>.None
+    }
+
+    /// 期望分隔符
+    public func expectDelim(): ?Rune {
+        Option<Rune>.None
+    }
+
+    public func expectDelim(delim: Rune): ?Rune {
+        Option<Rune>.None
+    }
+
+    /// 尝试解析
+    public func tryParse<T>(parser: (CssParser) -> T): ?T {
+        Some(parser(this))
+    }
 }
 
 // ============================================================================
@@ -1540,7 +1622,7 @@ public class CssMathFunction {
     // ========================================================================
 
     private func joinParts(parts: ArrayList<String>): String {
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         for (i in 0..parts.size) {
             if (i > 0) { sb.append(", ") }
             sb.append(parts[i])

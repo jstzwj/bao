@@ -52,8 +52,8 @@ public class UnsupportedPackages {
     /// 从依赖列表更新不支持的包标记
     // 严格翻译自: create_command.zig 中 UnsupportedPackages.update
     public func update(properties: ArrayList<JsonProperty>): Unit {
-        for (prop in properties) {
-            let key = prop.key
+        for (`prop` in properties) {
+            let key = `prop`.key
             if (key == "styled-jsx") {
                 styledJsx = true
             }
@@ -88,7 +88,7 @@ public class ProgressBuf {
     // 严格翻译自: create_command.zig 中 ProgressBuf.print
     public func print(fmt: String, args: ArrayList<String>): String {
         bufIndex = bufIndex + 1
-        val result = String.format(fmt, args)
+        let result = String.format(fmt, args)
         bufs.set(bufIndex % 2, result)
         return result
     }
@@ -131,32 +131,30 @@ public class CreateOptions {
     /// 解析命令行参数
     // 严格翻译自: create_command.zig 中 CreateOptions.parse
     public static func parse(args: ArrayList<String>): CreateOptions {
-        val opts = CreateOptions()
+        let opts = CreateOptions()
         var positionalIndex = 0
 
         for (arg in args) {
             match (arg) {
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     // 帮助已在外层处理
-                }
                 case "--force" => opts.overwrite = true
                 case "--no-install" => opts.skipInstall = true
                 case "--no-git" => opts.skipGit = true
                 case "--verbose" => opts.verbose = true
                 case "--no-package-json" => opts.skipPackageJson = true
                 case "--open" => opts.open = true
-                case _ => {
+                case _ =>
                     if (!arg.startsWith("-")) {
                         opts.positionals.append(arg)
                     }
-                }
             }
         }
 
         // 如果第一个位置参数是 "c" 或 "create"，跳过它
         // 严格翻译自: create_command.zig 中 positionals[0] 检查
         if (opts.positionals.size > 0) {
-            val first = opts.positionals[0]
+            let first = opts.positionals[0]
             if (first == "c" || first == "create") {
                 if (opts.positionals.size > 1) {
                     opts.positionals = opts.positionals.substring(1)
@@ -215,29 +213,28 @@ public func initializeStore(): Unit {
 // ============================================================================
 // 严格翻译自: create_command.zig 中 execTask function
 public func execTask(task_: String, cwd: String, npmClient: ?NPMClient): Unit {
-    val task = task_.trim()
+    let task = task_.trim()
     if (task.length == 0) {
         return
     }
 
     // 计算参数数量
     var count = 0
-    val parts = task.split(" ")
+    let parts = task.split(" ")
     for (_ in parts) {
         count = count + 1
     }
 
     // 构建参数列表
-    val npmArgsCount = if (npmClient != None) { 2 } else { 0 }
+    let npmArgsCount = if (npmClient != None) { 2 } else { 0 }
     var argv = ArrayList<String>()
 
     // 如果有 npm client，前两个参数是 npm_client + "run"
     // 严格翻译自: create_command.zig 中 npm_client 参数构建
     match (npmClient) {
-        case Some(client) => {
+        case Some(client) =>
             argv.append(client.bin)
             argv.append(npmTaskArgs[0])
-        }
         case None => ()
     }
 
@@ -312,7 +309,7 @@ public class Example {
     // 严格翻译自: create_command.zig 中 Example.print
     public static func print(examples: ArrayList<Example>, defaultAppName: ?String): Unit {
         for (example in examples) {
-            val appName = match (defaultAppName) {
+            let appName = match (defaultAppName) {
                 case Some(name) => name
                 case None => "./${example.name.substring(0, Math.min(example.name.length, 492))}-app"
             }
@@ -335,7 +332,7 @@ public class Example {
 
         // 获取远程模板
         // 严格翻译自: create_command.zig 中 remote_examples = try Example.fetchAll
-        val remoteExamples = fetchAll()
+        let remoteExamples = fetchAll()
         for (ex in remoteExamples) {
             examples.append(ex)
         }
@@ -345,7 +342,7 @@ public class Example {
         var localDirs = ArrayList<String>()
 
         // BUN_CREATE_DIR 环境变量
-        val createDir = Sys.getEnv("BUN_CREATE_DIR")
+        let createDir = Sys.getEnv("BUN_CREATE_DIR")
         match (createDir) {
             case Some(d) => localDirs.append(d)
             case None => ()
@@ -355,7 +352,7 @@ public class Example {
         localDirs.append(Path.join([Sys.getcwd(), bunCreateDir]))
 
         // $HOME/.bun-create/
-        val homeDir = Sys.getHomeDir()
+        let homeDir = Sys.getHomeDir()
         localDirs.append(Path.join([homeDir, bunCreateDir]))
 
         // 遍历每个本地模板目录
@@ -365,7 +362,7 @@ public class Example {
                 continue
             }
 
-            val entries = BaoFile.readdir(dir)
+            let entries = BaoFile.readdir(dir)
             for (entry in entries) {
                 // 跳过 skip_dirs 中的目录
                 var shouldSkip = false
@@ -379,9 +376,9 @@ public class Example {
                 }
 
                 // 检查是否是目录且包含 package.json
-                val entryPath = Path.join([dir, entry])
+                let entryPath = Path.join([dir, entry])
                 if (BaoFile.isDirectory(entryPath)) {
-                    val pkgJsonPath = Path.join([entryPath, "package.json"])
+                    let pkgJsonPath = Path.join([entryPath, "package.json"])
                     if (BaoFile.exists(pkgJsonPath)) {
                         examples.append(Example(entry, "", "", true))
                     }
@@ -395,12 +392,12 @@ public class Example {
     /// 从 GitHub 下载模板
     // 严格翻译自: create_command.zig 中 Example.fetchFromGitHub
     public static func fetchFromGitHub(name: String): HttpResponse {
-        val ownerIdx = name.indexOf("/")
-        val owner = name.substring(0, ownerIdx.get())
+        let ownerIdx = name.indexOf("/")
+        let owner = name.substring(0, ownerIdx.get())
         var repository = name.substring(ownerIdx.get() + 1)
 
         // 截断子路径
-        val repoSlash = repository.indexOf("/")
+        let repoSlash = repository.indexOf("/")
         match (repoSlash) {
             case Some(idx) => repository = repository.substring(0, idx)
             case None => ()
@@ -410,48 +407,44 @@ public class Example {
 
         // 获取 GitHub API 域名
         var githubApiDomain = "api.github.com"
-        val apiDomain = Sys.getEnv("GITHUB_API_DOMAIN")
+        let apiDomain = Sys.getEnv("GITHUB_API_DOMAIN")
         match (apiDomain) {
-            case Some(d) => {
+            case Some(d) =>
                 if (d.length > 0) {
                     githubApiDomain = d
                 }
-            }
             case None => ()
         }
 
-        val apiUrl = "https://${githubApiDomain}/repos/${owner}/${repository}/tarball"
+        let apiUrl = "https://${githubApiDomain}/repos/${owner}/${repository}/tarball"
 
         // 设置认证 header
         // 严格翻译自: create_command.zig 中 GITHUB_TOKEN/GITHUB_ACCESS_TOKEN
         var headers = ArrayList<Tuple<String, String>>()
-        val token = Sys.getEnv("GITHUB_TOKEN")
+        let token = Sys.getEnv("GITHUB_TOKEN")
         match (token) {
-            case Some(t) => {
+            case Some(t) =>
                 if (t.length > 0) {
                     headers.append(Tuple("Authorization", "Bearer ${t}"))
                 }
-            }
-            case None => {
-                val accessToken = Sys.getEnv("GITHUB_ACCESS_TOKEN")
+            case None =>
+                let accessToken = Sys.getEnv("GITHUB_ACCESS_TOKEN")
                 match (accessToken) {
-                    case Some(at) => {
+                    case Some(at) =>
                         if (at.length > 0) {
                             headers.append(Tuple("Authorization", "Bearer ${at}"))
                         }
-                    }
                     case None => ()
                 }
-            }
         }
 
-        val client = HttpClient()
-        val response = client.getWithHeaders(apiUrl, headers)
+        let client = HttpClient()
+        let response = client.getWithHeaders(apiUrl, headers)
 
         // 检查状态码
         // 严格翻译自: create_command.zig 中 switch (response.status_code)
         match (response) {
-            case Some(resp) => {
+            case Some(resp) =>
                 if (resp.statusCode == 404) {
                     println("error: '${name}' was not found on GitHub.")
                     Sys.exit(1)
@@ -508,27 +501,25 @@ public class Example {
                 }
 
                 return resp
-            }
-            case None => {
+            case None =>
                 println("error: Could not connect to GitHub")
                 Sys.exit(1)
-            }
         }
     }
 
     /// 从 npm registry 获取官方模板的 tarball
     // 严格翻译自: create_command.zig 中 Example.fetch
     public static func fetch(name: String): HttpResponse {
-        val client = HttpClient()
+        let client = HttpClient()
 
         // 获取 package.json
         // 严格翻译自: create_command.zig 中 url_buf + registry URL
-        val pkgUrl = "https://registry.npmjs.org/@bun-examples/${name}/latest"
+        let pkgUrl = "https://registry.npmjs.org/@bun-examples/${name}/latest"
         println("Fetching package.json")
 
-        val pkgResponse = client.get(pkgUrl)
+        let pkgResponse = client.get(pkgUrl)
         match (pkgResponse) {
-            case Some(resp) => {
+            case Some(resp) =>
                 if (resp.statusCode == 404) {
                     return resp
                 }
@@ -554,69 +545,61 @@ public class Example {
                 println("Parsing package.json")
                 initializeStore()
 
-                val parser = JsonParser()
+                let parser = JsonParser()
                 match (parser.parse(resp.body)) {
-                    case Some(root) => {
+                    case Some(root) =>
                         // 提取 dist.tarball
-                        val dist = JsonHelper.getObject(root, "dist")
+                        let dist = JsonHelper.getObject(root, "dist")
                         match (dist) {
-                            case Some(distObj) => {
-                                val tarballUrl = JsonHelper.getString(distObj, "tarball")
+                            case Some(distObj) =>
+                                let tarballUrl = JsonHelper.getString(distObj, "tarball")
                                 match (tarballUrl) {
-                                    case Some(url) => {
+                                    case Some(url) =>
                                         if (url.length > 0 &&
                                             (url.startsWith("https://") || url.startsWith("http://"))) {
                                             // 下载 tarball
                                             // 严格翻译自: create_command.zig 中 "Downloading tarball" 部分
                                             println("Downloading tarball")
-                                            val tarResp = client.get(url)
+                                            let tarResp = client.get(url)
                                             match (tarResp) {
-                                                case Some(tarResponse) => {
+                                                case Some(tarResponse) =>
                                                     if (tarResponse.statusCode != 200) {
                                                         println("error: Failed to download tarball: ${tarResponse.statusCode}")
                                                         Sys.exit(1)
                                                     }
                                                     return tarResponse
-                                                }
-                                                case None => {
+                                                case None =>
                                                     println("error: Could not download tarball")
                                                     Sys.exit(1)
-                                                }
                                             }
                                         }
-                                    }
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
-                    }
-                    case None => {
+                    case None =>
                         println("error: Failed to parse package.json from registry")
                         Sys.exit(1)
-                    }
                 }
 
                 println("error: package.json is missing tarball url. This is an internal error!")
                 Sys.exit(1)
-            }
-            case None => {
+            case None =>
                 println("error: Could not fetch from npm registry")
                 Sys.exit(1)
-            }
         }
     }
 
     /// 从远程获取所有模板列表
     // 严格翻译自: create_command.zig 中 Example.fetchAll
     public static func fetchAll(): ArrayList<Example> {
-        val client = HttpClient()
+        let client = HttpClient()
 
         println("Fetching manifest")
 
-        val response = client.get(examplesUrl)
+        let response = client.get(examplesUrl)
         match (response) {
-            case Some(resp) => {
+            case Some(resp) =>
                 if (resp.statusCode != 200) {
                     println("error: ${resp.statusCode} fetching examples")
                     Sys.exit(1)
@@ -624,56 +607,49 @@ public class Example {
 
                 initializeStore()
 
-                val parser = JsonParser()
+                let parser = JsonParser()
                 match (parser.parse(resp.body)) {
-                    case Some(root) => {
+                    case Some(root) =>
                         // 解析 examples 对象
                         // 严格翻译自: create_command.zig 中 examples_object.asProperty("examples")
-                        val examplesProp = JsonHelper.getObject(root, "examples")
+                        let examplesProp = JsonHelper.getObject(root, "examples")
                         match (examplesProp) {
-                            case Some(examplesObj) => {
-                                val keys = examplesObj.keys()
+                            case Some(examplesObj) =>
+                                let keys = examplesObj.keys()
                                 var list = ArrayList<Example>()
 
                                 for (key in keys) {
                                     // 去掉 scoped prefix: @bun-examples/react → react
                                     // 严格翻译自: create_command.zig 中 name 处理
-                                    val exampleName = match (key.indexOf("/")) {
+                                    let exampleName = match (key.indexOf("/")) {
                                         case Some(slash) => key.substring(slash + 1)
                                         case None => key
                                     }
 
-                                    val exampleObj = examplesObj.getObject(key)
+                                    let exampleObj = examplesObj.getObject(key)
                                     var version = ""
                                     var description = ""
                                     match (exampleObj) {
-                                        case Some(obj) => {
+                                        case Some(obj) =>
                                             version = JsonHelper.getString(obj, "version") ?? ""
                                             description = JsonHelper.getString(obj, "description") ?? ""
-                                        }
                                         case None => ()
                                     }
 
                                     list.append(Example(exampleName, version, description, false))
                                 }
                                 return list
-                            }
-                            case None => {
+                            case None =>
                                 println("error: Corrupt examples data: expected object")
                                 Sys.exit(1)
-                            }
                         }
-                    }
-                    case None => {
+                    case None =>
                         println("error: Failed to parse examples list")
                         Sys.exit(1)
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 println("error: Request timed out while trying to fetch examples list. Please try again")
                 Sys.exit(1)
-            }
         }
 
         return ArrayList<Example>()
@@ -705,35 +681,35 @@ public class SourceFileProjectGenerator {
     /// 从入口文件生成项目
     // 严格翻译自: create_command.zig 中 SourceFileProjectGenerator.generate
     public static func generate(entryPoint: String, destDir: String): Unit {
-        val entryBasename = Path.basename(entryPoint)
-        val entryName = Path.basenameWithoutExtension(entryPoint)
+        let entryBasename = Path.basename(entryPoint)
+        let entryName = Path.basenameWithoutExtension(entryPoint)
 
         // 创建目标目录
         BaoFile.mkdir(destDir, true)
 
         // 生成 package.json
         // 严格翻译自: SourceFileProjectGenerator 中 package.json 生成
-        val packageJson = JsonObject()
+        let packageJson = JsonObject()
         packageJson.setString("name", entryName)
         packageJson.setString("version", "1.0.0")
         packageJson.setString("type", "module")
 
-        val scripts = JsonObject()
+        let scripts = JsonObject()
         scripts.setString("dev", "bao dev ${entryBasename}")
         scripts.setString("start", "bao run ${entryBasename}")
         packageJson.setObject("scripts", scripts)
 
-        val pkgJsonPath = Path.join([destDir, "package.json"])
+        let pkgJsonPath = Path.join([destDir, "package.json"])
         BaoFile.writeAllText(pkgJsonPath, packageJson.serialize())
 
         // 复制入口文件
-        val destEntryPath = Path.join([destDir, entryBasename])
+        let destEntryPath = Path.join([destDir, entryBasename])
         BaoFile.copy(entryPoint, destEntryPath)
 
         // 创建 tsconfig.json (如果需要)
         if (entryPoint.endsWith(".tsx") || entryPoint.endsWith(".ts")) {
-            val tsconfig = JsonObject()
-            val compilerOptions = JsonObject()
+            let tsconfig = JsonObject()
+            let compilerOptions = JsonObject()
             compilerOptions.setString("target", "ESNext")
             compilerOptions.setString("module", "ESNext")
             compilerOptions.setBool("moduleResolution", true)
@@ -742,7 +718,7 @@ public class SourceFileProjectGenerator {
             compilerOptions.setBool("jsx", true)
             compilerOptions.setString("jsxFactory", "react-jsx")
             tsconfig.setObject("compilerOptions", compilerOptions)
-            val tsconfigPath = Path.join([destDir, "tsconfig.json"])
+            let tsconfigPath = Path.join([destDir, "tsconfig.json"])
             BaoFile.writeAllText(tsconfigPath, tsconfig.serialize())
         }
     }
@@ -768,7 +744,7 @@ public class GitHandler {
     public func spawn(destination: String, path: String, verbose: Bool): Unit {
         // 严格翻译自: create_command.zig 中 std.Thread.spawn
         successValue = 0
-        val self = this
+        let self = this
         backgroundThread = Some(Thread.spawn({
             self.spawnThread(destination, path, verbose)
         }))
@@ -777,7 +753,7 @@ public class GitHandler {
     /// 后台线程函数
     // 严格翻译自: create_command.zig 中 GitHandler.spawnThread
     private func spawnThread(destination: String, path: String, verbose: Bool): Unit {
-        val outcome = run(destination, path, verbose)
+        let outcome = run(destination, path, verbose)
         if (outcome) {
             successValue = 1
         } else {
@@ -789,12 +765,11 @@ public class GitHandler {
     // 严格翻译自: create_command.zig 中 GitHandler.wait
     public func wait(): Bool {
         match (backgroundThread) {
-            case Some(thread) => {
+            case Some(thread) =>
                 thread.join()
-                val outcome = successValue == 1
+                let outcome = successValue == 1
                 backgroundThread = None
                 return outcome
-            }
             case None => return false
         }
     }
@@ -802,18 +777,18 @@ public class GitHandler {
     /// 同步执行 git 初始化
     // 严格翻译自: create_command.zig 中 GitHandler.run
     public func run(destination: String, path: String, verbose: Bool): Bool {
-        val gitStart = Time.nowNanos()
+        let gitStart = Time.nowNanos()
 
         // 查找 git 可执行文件
         // 严格翻译自: create_command.zig 中 which(&bun_path_buf, PATH, destination, "git")
-        val gitPath = Process.which("git")
+        let gitPath = Process.which("git")
         match (gitPath) {
-            case Some(git) => {
+            case Some(git) =>
                 // 严格翻译自: create_command.zig 中 git_commands tuple
                 // git init --quiet
                 // git add <destination> --ignore-errors
                 // git commit -am "Initial commit (via bun create)" --quiet
-                val commands = [
+                let commands = [
                     [git, "init", "--quiet"],
                     [git, "add", destination, "--ignore-errors"],
                     [git, "commit", "-am", "Initial commit (via bao create)", "--quiet"]
@@ -829,13 +804,12 @@ public class GitHandler {
                     Process.spawn(command, destination)
                 }
 
-                val gitEnd = Time.nowNanos()
-                val elapsed = (gitEnd - gitStart) / 1000000
+                let gitEnd = Time.nowNanos()
+                let elapsed = (gitEnd - gitStart) / 1000000
                 println("")
                 Time.printStartEnd(gitStart, gitEnd)
                 println(" git")
                 return true
-            }
             case None => return false
         }
     }
@@ -907,7 +881,7 @@ public class PrunePackages {
     public func prune(properties: ArrayList<JsonProperty>): ArrayList<JsonProperty> {
         var result = ArrayList<JsonProperty>()
         for (prop in properties) {
-            val key = prop.key
+            let key = prop.key
             var doPrune = false
             for (pkg in PrunePackages.packages) {
                 if (key == pkg) {
@@ -967,7 +941,7 @@ public class CreateListExamplesCommand {
 
         // 获取所有本地和远程模板
         // 严格翻译自: create_command.zig 中 Example.fetchAllLocalAndRemote
-        val examples = Example.fetchAllLocalAndRemote()
+        let examples = Example.fetchAllLocalAndRemote()
 
         println("Welcome to bao! Create a new project by pasting any of the following:")
         println("")
@@ -981,7 +955,7 @@ public class CreateListExamplesCommand {
 
         // 提示本地模板路径
         // 严格翻译自: create_command.zig 中 homedir 提示
-        val homeDir = Sys.getHomeDir()
+        let homeDir = Sys.getHomeDir()
         if (homeDir.length > 0) {
             println("This command is completely optional. To add a new local template, create a folder in ${homeDir}/.bun-create/. To publish a new template, git clone https://github.com/oven-sh/bun, add a new folder to the \"examples\" folder, and submit a PR.")
         } else {
@@ -1015,8 +989,8 @@ public class CreateCommand {
     public func execute(args: ArrayList<String>): Unit {
         // 解析参数
         // 严格翻译自: create_command.zig 中 CreateOptions.parse
-        val createOptions = CreateOptions.parse(args)
-        val positionals = createOptions.positionals
+        let createOptions = CreateOptions.parse(args)
+        let positionals = createOptions.positionals
 
         // 无参数: 列出可用模板
         // 严格翻译自: create_command.zig 中 positionals.len == 0 → CreateListExamplesCommand
@@ -1027,17 +1001,17 @@ public class CreateCommand {
 
         // 提取模板信息
         // 严格翻译自: create_command.zig 中 CreateCommand.extractInfo
-        val (exampleTag, template) = extractInfo(positionals, createOptions)
+        let (exampleTag, template) = extractInfo(positionals, createOptions)
 
         // 确定目标目录名
         // 严格翻译自: create_command.zig 中 dirname 计算
-        val dirname = if (positionals.size == 1) {
+        let dirname = if (positionals.size == 1) {
             Path.basename(template)
         } else {
             positionals[1]
         }
 
-        val destination = Path.resolve(dirname)
+        let destination = Path.resolve(dirname)
 
         // 进度条
         // 严格翻译自: create_command.zig 中 progress/node
@@ -1062,21 +1036,20 @@ public class CreateCommand {
         // 严格翻译自: create_command.zig 中 switch (example_tag)
         // ====================================================================
         match (exampleTag) {
-            case JsLikeFile => {
+            case JsLikeFile =>
                 // .jsx/.tsx 文件 → 分析依赖生成项目
                 // 严格翻译自: create_command.zig 中 runOnEntryPoint
                 runOnEntryPoint(template, destination)
                 return
-            }
-            case GitHub | Official => {
+            case GitHub | Official =>
                 // 获取 tarball 字节
                 // 严格翻译自: create_command.zig 中 tarball_bytes 获取
-                val tarballResponse = if (exampleTag == CreateTemplateSource.Official) {
-                    val resp = Example.fetch(template)
+                let tarballResponse = if (exampleTag == CreateTemplateSource.Official) {
+                    let resp = Example.fetch(template)
                     if (resp.statusCode == 404) {
                         println("error: \"${template}\" was not found. Here are templates you can use:")
                         println("")
-                        val examples = Example.fetchAllLocalAndRemote()
+                        let examples = Example.fetchAllLocalAndRemote()
                         Example.print(examples, Some(dirname))
                         Sys.exit(1)
                     }
@@ -1095,7 +1068,7 @@ public class CreateCommand {
                 // 检查文件冲突
                 // 严格翻译自: create_command.zig 中 Archiver.getOverwritingFileList
                 if (!createOptions.overwrite) {
-                    val overwriteList = getOverwritingFileList(fileBuf, destination)
+                    let overwriteList = getOverwritingFileList(fileBuf, destination)
                     // 移除 never_conflict 中的项
                     // 严格翻译自: create_command.zig 中 never_conflict swapRemove
                     var filteredList = ArrayList<String>()
@@ -1151,8 +1124,7 @@ public class CreateCommand {
                     packageJsonFile = Some(pkgJsonPath)
                     packageJsonContents = BaoFile.readAllText(pkgJsonPath) ?? ""
                 }
-            }
-            case LocalFolder => {
+            case LocalFolder =>
                 // 本地文件夹复制
                 // 严格翻译自: create_command.zig 中 local_folder 分支
                 println("Copying files")
@@ -1216,11 +1188,9 @@ public class CreateCommand {
                         packageJsonContents = BaoFile.readAllText(pkgJsonPath) ?? ""
                     }
                 }
-            }
-            case Unknown => {
+            case Unknown =>
                 logger.error("Unknown template: ${template}")
                 Sys.exit(1)
-            }
         }
 
         // ====================================================================
@@ -1268,33 +1238,32 @@ public class CreateCommand {
             }
 
             match (packageJsonFile) {
-                case Some(pkgJsonPath) => {
+                case Some(pkgJsonPath) =>
                     initializeStore()
 
-                    val parser = JsonParser()
-                    val packageJsonExpr = parser.parse(packageJsonContents)
+                    let parser = JsonParser()
+                    let packageJsonExpr = parser.parse(packageJsonContents)
                     match (packageJsonExpr) {
-                        case Some(root) => {
+                        case Some(root) =>
                             if (!root.isObject()) {
                                 packageJsonFile = None
                             } else {
                                 // 更新 name 字段为项目目录名
                                 // 严格翻译自: create_command.zig 中 name_expr 更新
-                                val basename = Path.basename(destination)
+                                let basename = Path.basename(destination)
                                 JsonHelper.setString(root, "name", basename)
 
                                 // 检查 devDependencies
                                 // 严格翻译自: create_command.zig 中 devDependencies 处理
                                 var devDependencies: ?JsonValue = None
                                 match (JsonHelper.getObject(root, "devDependencies")) {
-                                    case Some(depsObj) => {
+                                    case Some(depsObj) =>
                                         if (depsObj.keys().size > 0) {
                                             // 更新不支持的包
                                             unsupportedPackages.update(depsObj.properties())
                                             hasDependencies = true
                                             devDependencies = Some(depsObj)
                                         }
-                                    }
                                     case None => ()
                                 }
 
@@ -1302,7 +1271,7 @@ public class CreateCommand {
                                 // 严格翻译自: create_command.zig 中 dependencies 处理
                                 var dependencies: ?JsonValue = None
                                 match (JsonHelper.getObject(root, "dependencies")) {
-                                    case Some(depsObj) => {
+                                    case Some(depsObj) =>
                                         if (depsObj.keys().size > 0) {
                                             unsupportedPackages.update(depsObj.properties())
                                             hasDependencies = true
@@ -1310,15 +1279,13 @@ public class CreateCommand {
 
                                             // 检查 Next.js
                                             // 严格翻译自: create_command.zig 中 next 版本检查
-                                            val nextVer = JsonHelper.getString(depsObj, "next")
+                                            let nextVer = JsonHelper.getString(depsObj, "next")
                                             match (nextVer) {
-                                                case Some(_) => {
+                                                case Some(_) =>
                                                     isNextjs = true
-                                                }
                                                 case None => ()
                                             }
                                         }
-                                    }
                                     case None => ()
                                 }
 
@@ -1328,22 +1295,22 @@ public class CreateCommand {
 
                                 // 处理 scripts 和 bun-create
                                 // 严格翻译自: create_command.zig 中 scripts + bun-create 处理循环
-                                val properties = root.properties()
+                                let properties = root.properties()
                                 var propertiesOut = ArrayList<JsonProperty>()
 
                                 for (prop in properties) {
-                                    val key = prop.key
+                                    let key = prop.key
 
                                     // 处理 scripts
                                     // 严格翻译自: create_command.zig 中 scripts pruning
                                     if (key == "scripts") {
                                         match (prop.value.getObject()) {
-                                            case Some(scriptsObj) => {
-                                                val scriptKeys = scriptsObj.keys()
+                                            case Some(scriptsObj) =>
+                                                let scriptKeys = scriptsObj.keys()
                                                 var scriptsOut = ArrayList<JsonProperty>()
 
                                                 for (scriptKey in scriptKeys) {
-                                                    val scriptValue = scriptsObj.getString(scriptKey) ?? ""
+                                                    let scriptValue = scriptsObj.getString(scriptKey) ?? ""
 
                                                     // 移除 react-scripts start / next dev / react-scripts eject
                                                     // 严格翻译自: create_command.zig 中 scripts 过滤
@@ -1368,12 +1335,11 @@ public class CreateCommand {
 
                                                 // 更新 scripts 对象
                                                 // 严格翻译自: create_command.zig 中 properties shrinkRetainingCapacity
-                                                val newScripts = JsonObject()
+                                                let newScripts = JsonObject()
                                                 for (sp in scriptsOut) {
                                                     newScripts.setString(sp.key, sp.stringValue())
                                                 }
                                                 propertiesOut.append(JsonProperty("scripts", newScripts))
-                                            }
                                             case None => propertiesOut.append(prop)
                                         }
                                         continue
@@ -1382,59 +1348,52 @@ public class CreateCommand {
                                     // 处理 "bun-create" 属性
                                     // 严格翻译自: create_command.zig 中 bun-create 处理
                                     if (key == "bun-create") {
-                                        val value = prop.value
+                                        let value = prop.value
 
                                         // postinstall 任务
                                         // 严格翻译自: create_command.zig 中 postinstall 处理
                                         match (value.getString("postinstall")) {
-                                            case Some(task) => {
+                                            case Some(task) =>
                                                 postinstallTasks.append(task)
-                                            }
-                                            case None => {
+                                            case None =>
                                                 // 检查数组格式
                                                 match (value.getArray("postinstall")) {
-                                                    case Some(tasks) => {
+                                                    case Some(tasks) =>
                                                         for (task in tasks) {
                                                             match (task.asString()) {
                                                                 case Some(t) => postinstallTasks.append(t)
                                                                 case None => ()
                                                             }
                                                         }
-                                                    }
                                                     case None => ()
                                                 }
-                                            }
                                         }
 
                                         // preinstall 任务
                                         // 严格翻译自: create_command.zig 中 preinstall 处理
                                         match (value.getString("preinstall")) {
-                                            case Some(task) => {
+                                            case Some(task) =>
                                                 preinstallTasks.append(task)
-                                            }
-                                            case None => {
+                                            case None =>
                                                 match (value.getArray("preinstall")) {
-                                                    case Some(tasks) => {
+                                                    case Some(tasks) =>
                                                         for (task in tasks) {
                                                             match (task.asString()) {
                                                                 case Some(t) => preinstallTasks.append(t)
                                                                 case None => ()
                                                             }
                                                         }
-                                                    }
                                                     case None => ()
                                                 }
-                                            }
                                         }
 
                                         // start 命令
                                         // 严格翻译自: create_command.zig 中 start 处理
                                         match (value.getString("start")) {
-                                            case Some(startStr) => {
+                                            case Some(startStr) =>
                                                 if (startStr.length > 0) {
                                                     startCommand = startStr
                                                 }
-                                            }
                                             case None => ()
                                         }
 
@@ -1451,15 +1410,12 @@ public class CreateCommand {
 
                                 // 写回 package.json
                                 // 严格翻译自: create_command.zig 中 JSPrinter.printJSON + File.writeAll
-                                val newContent = JsonHelper.serialize(root)
+                                let newContent = JsonHelper.serialize(root)
                                 BaoFile.writeAllText(pkgJsonPath, newContent)
                             }
-                        }
-                        case None => {
+                        case None =>
                             packageJsonFile = None
-                        }
                     }
-                }
                 case None => ()
             }
         }
@@ -1476,7 +1432,7 @@ public class CreateCommand {
         // Git 初始化
         // 严格翻译自: create_command.zig 中 GitHandler 部分
         // ====================================================================
-        val pathEnv = Sys.getEnv("PATH") ?? ""
+        let pathEnv = Sys.getEnv("PATH") ?? ""
         var skipGit = createOptions.skipGit
         var gitHandler = GitHandler()
 
@@ -1505,13 +1461,12 @@ public class CreateCommand {
         // 严格翻译自: create_command.zig 中 preinstall_tasks 执行
         // ====================================================================
         match (npmClient_) {
-            case Some(client) => {
+            case Some(client) =>
                 if (preinstallTasks.size > 0) {
                     for (task in preinstallTasks) {
                         execTask(task, destination, Some(client))
                     }
                 }
-            }
             case None => ()
         }
 
@@ -1520,23 +1475,22 @@ public class CreateCommand {
         // 严格翻译自: create_command.zig 中 npm_client install section
         // ====================================================================
         match (npmClient_) {
-            case Some(npmClient) => {
-                val startTime = Time.nowNanos()
-                val installArgs = [npmClient.bin, "install"]
+            case Some(npmClient) =>
+                let startTime = Time.nowNanos()
+                let installArgs = [npmClient.bin, "install"]
                 print("\n$ ")
                 print(npmClient.bin)
                 println(" install")
 
                 // 执行安装
                 // 严格翻译自: create_command.zig 中 bun.spawnSync install
-                val result = Process.spawn(installArgs, destination)
+                let result = Process.spawn(installArgs, destination)
 
-                val endTime = Time.nowNanos()
+                let endTime = Time.nowNanos()
                 println("")
                 Time.printStartEnd(startTime, endTime)
                 println(" ${npmClient.bin} install")
                 println("")
-            }
             case None => ()
         }
 
@@ -1586,14 +1540,13 @@ public class CreateCommand {
             var displayName = template
             let firstSlash = displayName.indexOf("/")
             match (firstSlash) {
-                case Some(fs) => {
+                case Some(fs) =>
                     let afterFirst = displayName.substring(fs + 1)
                     let secondSlash = afterFirst.indexOf("/")
                     match (secondSlash) {
                         case Some(ss) => displayName = template.substring(0, fs + 1 + ss)
                         case None => ()
                     }
-                }
                 case None => ()
             }
             println("Success! ${displayName} loaded into ${Path.basename(destination)}")
@@ -1613,8 +1566,8 @@ public class CreateCommand {
 
         // 提示启动命令
         // 严格翻译自: create_command.zig 中 rel_destination 输出
-        val relDestination = Path.relative(Sys.getcwd(), destination)
-        val isEmptyDestination = relDestination.length == 0
+        let relDestination = Path.relative(Sys.getcwd(), destination)
+        let isEmptyDestination = relDestination.length == 0
 
         if (isEmptyDestination) {
             println("# To get started, run:")
@@ -1631,9 +1584,9 @@ public class CreateCommand {
         // 严格翻译自: create_command.zig 中 create_options.open 分支
         // ====================================================================
         if (createOptions.open) {
-            val baoBin = Sys.getExecutablePath()
+            let baoBin = Sys.getExecutablePath()
             // 启动 dev server
-            val child = Process.spawnAsync([baoBin], destination)
+            let child = Process.spawnAsync([baoBin], destination)
             // 打开浏览器
             // 严格翻译自: create_command.zig 中 open.openURL("http://localhost:3000/")
             println("Opening http://localhost:3000/")
@@ -1657,28 +1610,26 @@ public class CreateCommand {
     ///   6. 官方模板 (npm registry)
     private func extractInfo(positionals: ArrayList<String>, opts: CreateOptions): (CreateTemplateSource, String) {
         var exampleTag = CreateTemplateSource.Unknown
-        val positional = positionals[0]
+        let positional = positionals[0]
 
         // ====================================================================
         // 检查本地文件 (.jsx/.tsx)
         // 严格翻译自: create_command.zig 中 existsAtType == .file 检查
         // ====================================================================
         {
-            val absPath = Path.resolve(positional)
+            let absPath = Path.resolve(positional)
             if (BaoFile.exists(absPath) && !BaoFile.isDirectory(absPath)) {
-                val extension = Path.extension(positional)
-                val tag = Example.fromFileExtension(extension)
+                let extension = Path.extension(positional)
+                let tag = Example.fromFileExtension(extension)
                 match (tag) {
-                    case Some(t) => {
+                    case Some(t) =>
                         return (t, absPath)
-                    }
-                    case None => {
+                    case None =>
                         // 不是 .jsx/.tsx 文件但存在本地文件
                         // 严格翻译自: create_command.zig 中扩展名警告
                         if (extension.length > 0 && extension != ".js") {
                             println("warn: bao create [local file] only supports .jsx and .tsx files currently")
                         }
-                    }
                 }
             }
         }
@@ -1691,12 +1642,11 @@ public class CreateCommand {
             // BUN_CREATE_DIR 环境变量
             // 严格翻译自: create_command.zig 中 BUN_CREATE_DIR 检查
             match (Sys.getEnv("BUN_CREATE_DIR")) {
-                case Some(homeDir) => {
-                    val dirPath = Path.join([homeDir, positional])
+                case Some(homeDir) =>
+                    let dirPath = Path.join([homeDir, positional])
                     if (BaoFile.isDirectory(dirPath)) {
                         return (CreateTemplateSource.LocalFolder, dirPath)
                     }
-                }
                 case None => ()
             }
 
@@ -1710,12 +1660,11 @@ public class CreateCommand {
             // $HOME/.bun-create/
             // 严格翻译自: create_command.zig 中 HOME 检查
             match (Sys.getEnv("HOME")) {
-                case Some(homeDir) => {
-                    val dirPath = Path.join([homeDir, bunCreateDir, positional])
+                case Some(homeDir) =>
+                    let dirPath = Path.join([homeDir, bunCreateDir, positional])
                     if (BaoFile.isDirectory(dirPath)) {
                         return (CreateTemplateSource.LocalFolder, dirPath)
                     }
-                }
                 case None => ()
             }
 
@@ -1745,19 +1694,16 @@ public class CreateCommand {
             // 严格翻译自: create_command.zig 中 first_slash_index / last_slash_index 检查
             if (repoBegin == Int64.MAX_VALUE && !positional.startsWith("/")) {
                 match (positional.indexOf("/")) {
-                    case Some(firstSlashIndex) => {
+                    case Some(firstSlashIndex) =>
                         match (positional.indexOfFrom(firstSlashIndex + 1, '/')) {
-                            case Some(secondSlashIndex) => {
+                            case Some(secondSlashIndex) =>
                                 // 包含两个斜杠 — 不确定是否是 GitHub
-                            }
-                            case None => {
+                            case None =>
                                 // 只有一个斜杠, 且两边都有内容
                                 if (firstSlashIndex > 0 && positional.length > firstSlashIndex + 1) {
                                     repoBegin = 0
                                 }
-                            }
                         }
-                    }
                     case None => ()
                 }
             }
@@ -1765,28 +1711,25 @@ public class CreateCommand {
             // 解析 GitHub 仓库路径
             // 严格翻译自: create_command.zig 中 repo_begin 解析
             if (repoBegin != Int64.MAX_VALUE) {
-                val remainder = positional.substring(repoBegin)
+                let remainder = positional.substring(repoBegin)
                 match (remainder.indexOf("/")) {
-                    case Some(i) => {
+                    case Some(i) =>
                         if (i > 0 && remainder.length > i + 1) {
                             // 检查第二个斜杠
                             let afterFirst = remainder.substring(i + 1)
                             match (afterFirst.indexOf("/")) {
-                                case Some(lastSlash) => {
+                                case Some(lastSlash) =>
                                     // user/repo/subpath → 取 user/repo
                                     exampleTag = CreateTemplateSource.GitHub
-                                    val result = remainder.substring(0, i + 1 + lastSlash).trim("# \r\t")
+                                    let result = remainder.substring(0, i + 1 + lastSlash).trim("# \r\t")
                                     return (exampleTag, result)
-                                }
-                                case None => {
+                                case None =>
                                     // user/repo
                                     exampleTag = CreateTemplateSource.GitHub
-                                    val result = remainder.trim("# \r\t")
+                                    let result = remainder.trim("# \r\t")
                                     return (exampleTag, result)
-                                }
                             }
                         }
-                    }
                     case None => ()
                 }
             }
@@ -1815,7 +1758,7 @@ public class CreateCommand {
     /// 获取 tarball 中会覆盖的文件列表
     // 严格翻译自: create_command.zig 中 Archiver.getOverwritingFileList
     private func getOverwritingFileList(tarballBytes: Array<Byte>, destination: String): ArrayList<String> {
-        val result = ArrayList<String>()
+        let result = ArrayList<String>()
         if (!BaoFile.isDirectory(destination)) {
             return result
         }
@@ -1827,32 +1770,30 @@ public class CreateCommand {
         BaoFile.writeAllBytes(tarPath, tarballBytes)
 
         // tar tzf 列出文件名 (strip 1 层级)
-        val output = Process.spawnWithOutput(["tar", "tzf", tarPath], tmpDir)
+        let output = Process.spawnWithOutput(["tar", "tzf", tarPath], tmpDir)
         match (output) {
-            case Some(listing) => {
-                val lines = listing.split("\n")
+            case Some(listing) =>
+                let lines = listing.split("\n")
                 for (line in lines) {
                     // 去掉第一层目录前缀 (strip-components=1)
-                    val trimmed = line.trim()
+                    let trimmed = line.trim()
                     if (trimmed.length == 0) {
                         continue
                     }
                     // tarball 中的路径格式: package/file → file
-                    val slashIdx = trimmed.indexOf("/")
+                    let slashIdx = trimmed.indexOf("/")
                     match (slashIdx) {
-                        case Some(idx) => {
-                            val relativePath = trimmed.substring(idx + 1)
+                        case Some(idx) =>
+                            let relativePath = trimmed.substring(idx + 1)
                             if (relativePath.length > 0) {
                                 let targetPath = Path.join([destination, relativePath])
                                 if (BaoFile.exists(targetPath)) {
                                     result.append(relativePath)
                                 }
                             }
-                        }
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
 
@@ -1862,7 +1803,7 @@ public class CreateCommand {
     /// 检查文件冲突 (本地文件夹模式)
     // 严格翻译自: create_command.zig 中 Archiver.getOverwritingFileList 用于 local folder
     private func checkFileConflicts(templateDir: String, dest: String): CreateConflictResult {
-        val result = CreateConflictResult()
+        let result = CreateConflictResult()
         if (!BaoFile.isDirectory(dest)) {
             return result
         }
@@ -1926,12 +1867,12 @@ public class CreateCommand {
         opts: CreateOptions
     ): (String, Bool) {
         let pkgPath = Path.join([dest, "package.json"])
-        val content = BaoFile.readAllText(pkgPath)
+        let content = BaoFile.readAllText(pkgPath)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 let parser = JsonParser()
                 match (parser.parse(text)) {
-                    case Some(root) => {
+                    case Some(root) =>
                         var startCommand = "bao dev"
                         var hasDependencies = false
                         var preinstallTasks = ArrayList<String>()
@@ -1942,25 +1883,22 @@ public class CreateCommand {
 
                         // 检查依赖
                         match (JsonHelper.getObject(root, "devDependencies")) {
-                            case Some(deps) => {
+                            case Some(deps) =>
                                 if (deps.keys().size > 0) { hasDependencies = true }
-                            }
                             case None => ()
                         }
                         match (JsonHelper.getObject(root, "dependencies")) {
-                            case Some(deps) => {
+                            case Some(deps) =>
                                 if (deps.keys().size > 0) { hasDependencies = true }
-                            }
                             case None => ()
                         }
 
                         // 读取 bun-create.start
                         match (JsonHelper.getObject(root, "bun-create")) {
-                            case Some(createConfig) => {
+                            case Some(createConfig) =>
                                 match (JsonHelper.getString(createConfig, "start")) {
-                                    case Some(sc) => {
+                                    case Some(sc) =>
                                         if (sc.length > 0) { startCommand = sc }
-                                    }
                                     case None => ()
                                 }
 
@@ -1975,7 +1913,6 @@ public class CreateCommand {
                                     case Some(task) => preinstallTasks.append(task)
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
 
@@ -1990,10 +1927,8 @@ public class CreateCommand {
                         BaoFile.writeAllText(pkgPath, newContent)
 
                         return (startCommand, hasDependencies)
-                    }
                     case None => return ("bao dev", false)
                 }
-            }
             case None => return ("bao dev", false)
         }
     }
@@ -2002,11 +1937,11 @@ public class CreateCommand {
     // 严格翻译自: create_command.zig 中 scripts pruning
     private func cleanPackageJsonScripts(root: JsonValue, verbose: Bool): Unit {
         match (JsonHelper.getObject(root, "scripts")) {
-            case Some(scripts) => {
+            case Some(scripts) =>
                 let keysToRemove = ArrayList<String>()
                 for (key in scripts.keys()) {
                     match (scripts.getString(key)) {
-                        case Some(value) => {
+                        case Some(value) =>
                             if (value.contains("react-scripts start") ||
                                 value.contains("next dev") ||
                                 value.contains("react-scripts eject")) {
@@ -2019,14 +1954,12 @@ public class CreateCommand {
                             if (value.contains("react-scripts build")) {
                                 JsonHelper.setStringInObject(scripts, key, InjectionPrefill.npxReactScriptsBuild)
                             }
-                        }
                         case None => ()
                     }
                 }
                 for (key in keysToRemove) {
                     scripts.remove(key)
                 }
-            }
             case None => ()
         }
     }
@@ -2216,7 +2149,7 @@ public class Thread {
 
     /// 启动后台线程
     public static func spawn(runnable: () -> Unit): Thread {
-        val t = Thread(runnable)
+        let t = Thread(runnable)
         t.start()
         return t
     }
@@ -2252,7 +2185,7 @@ public class Time {
     /// 打印开始到结束的时间差
     // 严格翻译自: create_command.zig 中 Output.printStartEnd
     public static func printStartEnd(start: Int64, end: Int64): Unit {
-        val elapsed = (end - start) / 1000000
+        let elapsed = (end - start) / 1000000
         print(" [${elapsed}ms]")
     }
 }

@@ -34,8 +34,8 @@ public class CachedBytecode {
     // 根据格式生成缓存字节码
     public static func generate(format: Format, input: Array<Byte>, sourceProviderURL: String): ?CachedBytecodeResult {
         match (format) {
-            case esm => generateForESM(sourceProviderURL: sourceProviderURL, input: input)
-            case cjs => generateForCJS(sourceProviderURL: sourceProviderURL, input: input)
+            case esm => generateForESM(sourceProviderURL, input)
+            case cjs => generateForCJS(sourceProviderURL, input)
             case _ => None
         }
     }
@@ -43,7 +43,7 @@ public class CachedBytecode {
     // 严格翻译自 CachedBytecode.allocator
     // 返回一个使用 CachedBytecode 作为底层释放器的分配器
     public func allocator(): CachedBytecodeAllocator {
-        CachedBytecodeAllocator(cachedBytecode: this)
+        CachedBytecodeAllocator(this)
     }
 
     // 严格翻译自 CachedBytecode.isInstance

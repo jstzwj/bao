@@ -138,7 +138,7 @@ public class WorkspacePackageJsonCache {
             case SysMaybe.Err(_) => return PackageJsonGetResult.ReadError("failed to read package.json")
         }
 
-        let json = match (JsonParser().parse(source)) {
+        let json = match (PkgJsonParser().parse(source)) {
             case Some(value) => value
             case None => return PackageJsonGetResult.ParseError("failed to parse package.json")
         }
@@ -169,7 +169,7 @@ public class WorkspacePackageJsonCache {
             case None => ()
         }
 
-        let json = match (JsonParser().parse(source)) {
+        let json = match (PkgJsonParser().parse(source)) {
             case Some(value) => value
             case None => return PackageJsonGetResult.ParseError("failed to parse package.json")
         }

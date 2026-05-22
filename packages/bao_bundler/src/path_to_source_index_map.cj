@@ -130,7 +130,7 @@ public class FsPath {
         this.text = ""
     }
 
-    /// 从字符串创建 - 对应 Bun Fs.Path.init()
+    /// 从字符串创建 - 对应 Bun Fs.Path()
     public static func initFunc(text: String): FsPath {
         return FsPath(text)
     }

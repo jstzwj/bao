@@ -42,9 +42,9 @@ public class WasmStreaming {
     /// 从 Response 中提取 wasm 字节流或字节数据
     /// 对应 Bun: pub fn get_body_stream_or_bytes_for_wasm_streaming(
     ///     this: &JSGlobalObject,
-    ///     response_value: JSValue,
-    ///     streaming_compiler: *mut c_void,
-    /// ) -> JsResult<JSValue>
+    ///     response_value: JsValue,
+    ///     streaming_compiler: *c_void,
+    /// ) -> JsResult<JsValue>
     ///
     /// 步骤:
     ///   1. 验证 response_value 是 Response 实例
@@ -58,46 +58,44 @@ public class WasmStreaming {
     ///      - File/S3: 创建 ReadableStream (异步读取)
     public static func getBodyStreamOrBytesForWasmStreaming(
         global: JSGlobalObject,
-        responseValue: JSValue,
+        responseValue: JsValue,
         streamingCompiler: CPointer<Unit>
-    ): Result<JSValue> {
-        // 1. 从 JSValue 中提取 Response
+    ): Result<JsValue> {
+        // 1. 从 JsValue 中提取 Response
         let responseOpt = Response.fromJs(responseValue)
         match (responseOpt) {
-            case Some(respRef) => {
+            case Some(respRef) =>
                 let response = respRef
                 return processResponse(global, response, streamingCompiler)
-            }
-            case None => {
-                return Result<JSValue>.Err(
+            case None =>
+                return Result<JsValue>.Err(
                     BaoError(
                         ErrorCode.TypeError,
                         "source is not an instance of Response or a Promise resolving to Response"
                     )
                 )
-            }
         }
     }
 
     /// C ABI 入口函数
     /// 对应 Bun: #[unsafe(no_mangle)]
     ///   pub extern "C" fn Zig__GlobalObject__getBodyStreamOrBytesForWasmStreaming(
-    ///     this: *mut JSGlobalObject,
-    ///     response_value: JSValue,
-    ///     streaming_compiler: *mut c_void,
-    ///   ) -> JSValue
+    ///     this: *JSGlobalObject,
+    ///     response_value: JsValue,
+    ///     streaming_compiler: *c_void,
+    ///   ) -> JsValue
     ///
     /// jsc.host_fn.wrap3(getBodyStreamOrBytesForWasmStreaming) — plain C ABI
     /// shim: returns .zero on thrown exception (matches wrapN semantics).
     public static func zigEntryPoint(
         global: JSGlobalObject,
-        responseValue: JSValue,
+        responseValue: JsValue,
         streamingCompiler: CPointer<Unit>
-    ): JSValue {
+    ): JsValue {
         let result = getBodyStreamOrBytesForWasmStreaming(global, responseValue, streamingCompiler)
         match (result) {
             case Ok(v) => v
-            case Err(_) => JSValue.zero
+            case Err(_) => JsValue.zero
         }
     }
 
@@ -106,7 +104,7 @@ public class WasmStreaming {
         global: JSGlobalObject,
         response: Response,
         streamingCompiler: CPointer<Unit>
-    ): Result<JSValue> {
+    ): Result<JsValue> {
         // 2. 验证 content-type
         let contentTypeSlice = response.getContentType()
         let contentType: Array<UInt8> = match (contentTypeSlice) {
@@ -117,7 +115,7 @@ public class WasmStreaming {
         let wasmMime = stringToBytes("application/wasm")
         if (!bytesEqual(contentType, wasmMime)) {
             let ctStr = bytesToString(contentType)
-            return Result<JSValue>.Err(
+            return Result<JsValue>.Err(
                 BaoError(
                     ErrorCode.WebAssemblyResponse,
                     "WebAssembly response has unsupported MIME type '${ctStr}'"
@@ -128,7 +126,7 @@ public class WasmStreaming {
         // 3. 验证 status code
         if (!response.isOk()) {
             let statusCode = response.statusCode()
-            return Result<JSValue>.Err(
+            return Result<JsValue>.Err(
                 BaoError(
                     ErrorCode.WebAssemblyResponse,
                     "WebAssembly response has status code ${statusCode}"
@@ -138,7 +136,7 @@ public class WasmStreaming {
 
         // 4. 验证 body 未被使用
         if (response.getBodyUsed().toBoolean()) {
-            return Result<JSValue>.Err(
+            return Result<JsValue>.Err(
                 BaoError(
                     ErrorCode.WebAssemblyResponse,
                     "WebAssembly response body has already been used"
@@ -151,7 +149,7 @@ public class WasmStreaming {
 
         // 检查是否是 Error body
         if (body.isError()) {
-            return Result<JSValue>.Err(
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.WebAssemblyResponse, "Response body is an error")
             )
         }
@@ -163,7 +161,7 @@ public class WasmStreaming {
         if (body.isLocked()) {
             let streamOpt = response.getBodyReadableStream(global)
             match (streamOpt) {
-                case Some(stream) => return Result<JSValue>.Ok(stream.value)
+                case Some(stream) => return Result<JsValue>.Ok(stream.value)
                 case None => ()
             }
         }
@@ -172,27 +170,25 @@ public class WasmStreaming {
         let bodyValue = response.getBodyValue()
         let anyBlob = match (bodyValue.tryUseAsAnyBlob()) {
             case Some(b) => b
-            case None => {
+            case None =>
                 // Body 无法转换为 AnyBlob, 尝试转 ReadableStream
                 return bodyValue.toReadableStream(global)
-            }
         }
 
         // 检查是否是文件/S3 存储 (需要异步读取)
         let storeOpt = anyBlob.getStore()
         match (storeOpt) {
-            case Some(store) => {
+            case Some(store) =>
                 if (!store.isBytesData()) {
                     // 这是文件或 S3 对象, 不能同步读取
                     // 创建 ReadableStream (使用 blob copy)
                     let blob = anyBlob.getBlob()
                     blob.resolveSize()
                     let size = blob.getSize()
-                    return Result<JSValue>.Ok(
+                    return Result<JsValue>.Ok(
                         ReadableStream.fromBlobCopyRef(global, blob, size)
                     )
                 }
-            }
             case None => ()
         }
 
@@ -210,7 +206,7 @@ public class WasmStreaming {
         anyBlob.detach()
 
         // 返回 null (表示已推送到 StreamingCompiler)
-        return Result<JSValue>.Ok(JSValue.null)
+        return Result<JsValue>.Ok(JsValue.null)
     }
 
     // ========================================================================

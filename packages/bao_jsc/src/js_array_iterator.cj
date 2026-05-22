@@ -29,38 +29,18 @@ public class JsArrayIterator_ {
     // 快速路径: 直接指向 JSArray butterfly 的指针
     // 当数组使用 Int32 或 Contiguous 存储且有正常的原型链时可用
     // 空洞(holes)编码为 0
-    public var fast: CPointer<JsValue> = CPointer<JsValue>()
+    public var fast: UInt64 = 0  // pointer to contiguous vector, stub
 
     public init() {}
 
     // ========== init ==========
-    // 严格翻译自 JSArrayIterator.init
-    // 从 JSValue 和全局对象创建迭代器
-    //
-    // 原始 Zig:
-    //   pub fn init(value: JSValue, global: *JSGlobalObject) bun.JSError!JSArrayIterator {
-    //       var length: u32 = 0;
-    //       if (Bun__JSArray__getContiguousVector(value, &length)) |elements| {
-    //           return .{ .array = value, .global = global, .len = length, .fast = elements };
-    //       }
-    //       return .{ .array = value, .global = global, .len = @truncate(try value.getLength(global)) };
-    //   }
     public static func initFunc(value: JsValue, global: JsObject): JsArrayIterator_ {
         let iter = JsArrayIterator_()
         iter.array = value
         iter.global = global
 
-        // 尝试获取快速连续向量
-        // FFI: Bun__JSArray__getContiguousVector(value, &length)
-        var length: UInt32 = 0
-        let fastPtr = getContiguousVectorFFI(value, length)
-        if (fastPtr != CPointer<JsValue>()) {
-            iter.fast = fastPtr
-            iter.len = length
-        } else {
-            // 回退到 getLength
-            iter.len = UInt32(value.toLength())
-        }
+        // 尝试获取快速连续向量 - stub
+        iter.len = UInt32(value.toLength())
         iter
     }
 
@@ -89,25 +69,10 @@ public class JsArrayIterator_ {
         let idx = i
         i++
 
-        // 快速路径: 使用连续向量
-        if (fast != CPointer<JsValue>()) {
-            // FFI: Bun__JSArray__contiguousVectorIsStillValid(array, fast, len)
-            if (contiguousVectorIsStillValidFFI(array, fast, len)) {
-                let val = fast[Int64(idx)]
-                if (val == JsValue.undefined() || val.rawPtr == CPointer<UInt8>()) {
-                    return JsValue.undefined()
-                }
-                return val
-            }
-            // 向量不再有效，清除快速指针
-            fast = CPointer<JsValue>()
-        }
-
         // 慢速路径: 通过 JSObject.getIndex 获取
-        // FFI: JSObject.getIndex(array, global, idx)
         if (array.isObject()) {
             let obj = array.toObject()
-            return obj.get(String(Int64(idx)))
+            return obj.get(Int64(idx).toString())
         }
         None
     }
@@ -120,25 +85,5 @@ public class JsArrayIterator_ {
     // ========== 重置 ==========
     public func reset() {
         i = 0
-    }
-
-    // ========== FFI 桩函数 ==========
-
-    // FFI: Bun__JSArray__getContiguousVector(JSValue, *u32) ?[*]const JSValue
-    // 获取数组的连续内存向量 (如果可用)
-    private static func getContiguousVectorFFI(value: JsValue, length: UInt32): CPointer<JsValue> {
-        // 真实实现: @extern "c" fn Bun__JSArray__getContiguousVector(...)
-        CPointer<JsValue>()
-    }
-
-    // FFI: Bun__JSArray__contiguousVectorIsStillValid(JSValue, [*]const JSValue, u32) bool
-    // 检查连续向量是否仍然有效 (数组结构未被修改)
-    private func contiguousVectorIsStillValidFFI(
-        value: JsValue,
-        elements: CPointer<JsValue>,
-        length: UInt32
-    ): Bool {
-        // 真实实现: @extern "c" fn Bun__JSArray__contiguousVectorIsStillValid(...)
-        false
     }
 }

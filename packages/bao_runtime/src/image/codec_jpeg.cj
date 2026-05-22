@@ -204,8 +204,8 @@ public class CodecJpeg {
         if (hint.targetW != 0 && hint.targetH != 0 &&
             (hint.targetW < srcW || hint.targetH < srcH)) {
             var n: Int32 = 0
-            let sfsOpt = tj3GetScalingFactors(CPointer<Int32>.addrOf(n))
-            if (sfsOpt != None && n > 0) {
+            let sfsOpt = tj3GetScalingFactors(CPointer<Int32>())
+            if (sfsOpt.isSome() && n > 0) {
                 var best = ScalingFactor(1, 1)
                 var i: Int32 = 0
                 while (i < n) {
@@ -248,7 +248,7 @@ public class CodecJpeg {
 
         // 8. 分配输出缓冲区
         let outSize = UInt64(w) * UInt64(ht) * 4
-        var out = Array<UInt8>(Int64(outSize), item: 0)
+        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
 
         // 9. 解压缩
         if (tj3Decompress8(h, bytes.ptr(), UInt64(bytes.size), out.ptr(), Int32(w * 4), TJPF_RGBA) != 0) {
@@ -321,7 +321,7 @@ public class CodecJpeg {
         //    库会复制字节，因此调用者可以在调用返回后立即释放 iccProfile。
         //    非零返回表示配置文件格式错误 — 丢弃而不是使编码失败;
         //    没有 ICC 配置文件的 JPEG 仍然是有效的 JPEG（隐式 sRGB）。参见 #30197。
-        if (iccProfile != None) {
+        if (iccProfile.isSome()) {
             let p = iccProfile.getOrThrow()
             if (p.size > 0) {
                 tj3SetICCProfile(h, p.ptr(), UInt64(p.size))

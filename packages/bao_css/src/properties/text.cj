@@ -30,17 +30,17 @@ public class TextTransform {
     }
 
     public static func default(): TextTransform {
-        TextTransform(TextTransformCase.None, TextTransformOther.None)
+        TextTransform(TextTransformCase.NoneValue, TextTransformOther.NoneValue)
     }
 
     public func toCss(): String {
         var parts = ArrayList<String>()
         match (case_) {
-            case TextTransformCase.None => ()
+            case TextTransformCase.NoneValue => ()
             case _ => parts.append(case_.toCss())
         }
         match (other) {
-            case TextTransformOther.None => ()
+            case TextTransformOther.NoneValue => ()
             case _ => parts.append(other.toCss())
         }
         if (parts.isEmpty()) {
@@ -63,14 +63,14 @@ public class TextTransform {
 /// text-transform 大小写转换
 /// 严格翻译自 TextTransformCase
 public enum TextTransformCase {
-    | None
+    | NoneValue
     | Uppercase
     | Lowercase
     | Capitalize
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Uppercase => "uppercase"
             case Lowercase => "lowercase"
             case Capitalize => "capitalize"
@@ -86,14 +86,14 @@ public enum TextTransformCase {
 /// text-transform 附加转换
 /// 严格翻译自 TextTransformOther
 public enum TextTransformOther {
-    | None
+    | NoneValue
     | FullWidth
     | FullSizeKana
     | FullWidthAndFullSizeKana
 
     public func toCss(): String {
         match (this) {
-            case None => ""
+            case NoneValue => ""
             case FullWidth => "full-width"
             case FullSizeKana => "full-size-kana"
             case FullWidthAndFullSizeKana => "full-width full-size-kana"
@@ -165,7 +165,7 @@ public class TextIndent {
 /// text-decoration-line 属性值
 /// 严格翻译自 TextDecorationLine
 public enum TextDecorationLine {
-    | None
+    | NoneValue
     | Underline
     | Overline
     | LineThrough
@@ -179,7 +179,7 @@ public enum TextDecorationLine {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Underline => "underline"
             case Overline => "overline"
             case LineThrough => "line-through"
@@ -268,13 +268,13 @@ public class TextShadow {
 /// 严格翻译自 TextSizeAdjust
 public enum TextSizeAdjust {
     | Auto             // 使用默认大小调整
-    | None             // 不进行大小调整
+    | NoneValue             // 不进行大小调整
     | Percentage(String) // 百分比调整
 
     public func toCss(): String {
         match (this) {
             case Auto => "auto"
-            case None => "none"
+            case NoneValue => "none"
             case Percentage(p) => p
         }
     }
@@ -362,13 +362,13 @@ public enum LineBreak {
 
 /// hyphens 属性值（占位）
 public enum Hyphens {
-    | None
+    | NoneValue
     | Manual
     | Auto
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Manual => "manual"
             case Auto => "auto"
         }
@@ -441,14 +441,14 @@ public enum TextAlignLast {
 /// text-justify 属性值（占位）
 public enum TextJustify {
     | Auto
-    | None
+    | NoneValue
     | InterWord
     | InterCharacter
 
     public func toCss(): String {
         match (this) {
             case Auto => "auto"
-            case None => "none"
+            case NoneValue => "none"
             case InterWord => "inter-word"
             case InterCharacter => "inter-character"
         }

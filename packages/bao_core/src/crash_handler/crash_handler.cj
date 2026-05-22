@@ -118,7 +118,7 @@ public let DEFAULT_REPORT_BASE_URL: String = "https://bun.report"
 private var hasPrintedMessage: Bool = false
 
 /// 全局恐慌计数器
-/// 对应 Bun: panicking = std.atomic.Value(u8).init(0)
+/// 对应 Bun: panicking = std.atomic.Value(u8).`init`(0)
 private var panickingCount: Int32 = 0
 
 // CrashReason 已移至 bao_core 父包 (crash_handler.cj)

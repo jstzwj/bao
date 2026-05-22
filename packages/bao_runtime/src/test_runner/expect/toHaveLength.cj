@@ -7,21 +7,21 @@ import bao_jsc.*
 
 /// toHaveLength() - 检查值是否具有指定长度
 /// 用法: expect(received).toHaveLength(expected)
-public func toHaveLength(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveLength(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toHaveLength() takes 1 argument")
     }
 
     this.incrementExpectCallCounter()
 
-    let expected: JSValue = arguments[0]
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveLength", matcherParamsFmt: "<green>expected<r>")
+    let expected: JsValue = arguments[0]
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveLength", matcherParamsFmt: "<green>expected<r>")
 
     if (!value.isObject() && !value.isString()) {
         let fmt = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
@@ -56,7 +56,7 @@ public func toHaveLength(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     if (not) {

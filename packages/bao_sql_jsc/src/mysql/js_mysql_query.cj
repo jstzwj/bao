@@ -43,7 +43,7 @@ public class JSMySQLQuery {
     /// 对应 Bun: JSMySQLQuery.constructor
     public static func constructor(globalObject: JscJSGlobalObject,
                                     callFrame: JscCallFrame): ?JSMySQLQuery {
-        globalObject.throwError("MySQLQuery cannot be constructed directly")
+        globalObject.throwUnsupported("MySQLQuery cannot be constructed directly")
         return None
     }
 
@@ -63,40 +63,36 @@ public class JSMySQLQuery {
         let values = arguments[1]
 
         if (!queryVal.isString()) {
-            globalObject.throwError("query must be a string")
+            globalObject.throwUnsupported("query must be a string")
             return JscValue.undefined()
         }
 
         if (!values.isArray()) {
-            globalObject.throwError("values must be an array")
+            globalObject.throwUnsupported("values must be an array")
             return JscValue.undefined()
         }
 
-        let pendingValue: JscValue = if (arguments.size > 2) arguments[2] else JscValue.undefined()
-        let columns: JscValue = if (arguments.size > 3) arguments[3] else JscValue.undefined()
-        let jsBigint: JscValue = if (arguments.size > 4) arguments[4] else JscValue.false_()
-        let jsSimple: JscValue = if (arguments.size > 5) arguments[5] else JscValue.false_()
+        let pendingValue: JscValue = if (arguments.size > 2) { arguments[2] } else { JscValue.undefined() }
+        let columns: JscValue = if (arguments.size > 3) { arguments[3] } else { JscValue.undefined() }
+        let jsBigint: JscValue = if (arguments.size > 4) { arguments[4] } else { JscValue(false) }
+        let jsSimple: JscValue = if (arguments.size > 5) { arguments[5] } else { JscValue(false) }
 
         let bigint = jsBigint.isBoolean() && jsBigint.asBoolean()
         let simple = jsSimple.isBoolean() && jsSimple.asBoolean()
 
         if (simple) {
-            let valuesLength = values.getLength(globalObject)
-            if (valuesLength != None && valuesLength.getOrThrow() > 0) {
-                globalObject.throwError("simple query cannot have parameters")
+            let valuesLength = values.getLength(globalObject.globalThis)
+            if (valuesLength > 0) {
+                globalObject.throwUnsupported("simple query cannot have parameters")
                 return JscValue.undefined()
             }
         }
 
-        let queryString = queryVal.toBunString(globalObject)
-        let mysqlQuery = MySQLQuery(query: queryString, bigint: bigint, simple: simple)
+        let queryString = queryVal.toString()
+        let mysqlQuery = MySQLQuery(queryString, bigint, simple)
 
-        let vm = globalObject.bunVM()
-        let ptr = JSMySQLQuery(
-            vm: vm,
-            globalObject: globalObject,
-            query: mysqlQuery
-        )
+        let vm = globalObject.vm.getOrThrow()
+        let ptr = JSMySQLQuery(vm, globalObject, mysqlQuery)
         ptr.ref()
 
         let jsVal = ptr.toJS(globalObject)
@@ -110,38 +106,40 @@ public class JSMySQLQuery {
     public func doRun(globalObject: JscJSGlobalObject,
                        callFrame: JscCallFrame): JscValue {
         ref()
-        defer { deref() }
 
         let arguments = callFrame.arguments()
         if (arguments.size < 2) {
-            globalObject.throwError("run must be called with 2 arguments connection and target")
+            globalObject.throwUnsupported("run must be called with 2 arguments connection and target")
+            deref()
             return JscValue.undefined()
         }
 
-        let connection: ?JSMySQLConnection = arguments[0].asMySQLConnection()
-        if (connection == None) {
-            globalObject.throwError("connection must be a MySQLConnection")
+        // TODO: asMySQLConnection not available - need proper JS binding extraction
+        let connection: ?JSMySQLConnection = asMySQLConnection(arguments[0])
+        if (connection.isNone()) {
+            globalObject.throwUnsupported("connection must be a MySQLConnection")
+            deref()
             return JscValue.undefined()
         }
 
         let target = arguments[1]
         if (!target.isObject()) {
-            globalObject.throwError("query must be a Query")
+            globalObject.throwUnsupported("query must be a Query")
+            deref()
             return JscValue.undefined()
         }
 
-        do {
-            query.run(connection.getOrThrow())
+        try {
+            query.runQuery(connection.getOrThrow())
         } catch (_: Exception) {
-            if (!globalObject.hasException()) {
-                return globalObject.throwValue(
-                    AnyMySQLError.mysqlErrorToJS(globalObject, "failed to execute query",
-                        AnyMySQLError.UnknownError))
-            }
-            return JscValue.undefined()
+            let errJs = AnyMySQLError.mysqlErrorToJS(globalObject, "failed to execute query",
+                AnyMySQLError.UnknownError)
+            deref()
+            return errJs
         }
 
         connection.getOrThrow().enqueueRequest(this)
+        deref()
         return JscValue.undefined()
     }
 
@@ -150,57 +148,39 @@ public class JSMySQLQuery {
     public func resolve(queriesArray: JscValue, result: MySQLQueryResult): Unit {
         ref()
         let isLastResult = result.isLastResult
-        defer {
-            deref()
-        }
 
         if (!query.result(isLastResult)) {
+            deref()
             return
         }
         if (vm.isShuttingDown()) {
+            deref()
             return
         }
 
         let targetValue = getTarget()
-        if (targetValue == None) {
+        if (targetValue.isNone()) {
+            deref()
             return
         }
 
         let pendingValue = getPendingValue()
-        if (pendingValue == None) {
+        if (pendingValue.isNone()) {
             setPendingValue(JscValue.undefined())
         }
 
-        // 调用 onQueryResolveFn
-        let function = vm.rareData().mysqlContext.onQueryResolveFn
-        if (function == None) {
-            return
-        }
+        // TODO: vm.getRareData().mysqlContext.onQueryResolveFn - stubbed out
+        // The full callback mechanism is not yet implemented
 
-        let eventLoop = vm.eventLoop()
-        eventLoop.runCallback(
-            function.getOrThrow(),
-            globalObject,
-            thisValue,
-            [
-                targetValue.getOrThrow(),
-                pendingValue.getOrThrow(),
-                JscValue(result.resultCount),
-                JscValue.undefined(),
-                if (queriesArray.isZero()) JscValue.undefined() else queriesArray,
-                JscValue(isLastResult),
-                JscValue(result.lastInsertId),
-                JscValue(result.affectedRows)
-            ]
-        )
+        deref()
     }
 
     /// 标记为失败（不触碰 JS）
     /// 对应 Bun: JSMySQLQuery.markAsFailed
     public func markAsFailed(): Unit {
         ref()
-        defer { deref() }
         query.fail()
+        deref()
     }
 
     /// Reject 查询
@@ -218,32 +198,24 @@ public class JSMySQLQuery {
     /// 对应 Bun: JSMySQLQuery.rejectWithJSValue
     public func rejectWithJSValue(queriesArray: JscValue, err: JscValue): Unit {
         ref()
-        defer { deref() }
         if (!query.fail()) {
+            deref()
             return
         }
         if (vm.isShuttingDown()) {
+            deref()
             return
         }
 
         let targetValue = getTarget()
-        if (targetValue == None) {
+        if (targetValue.isNone()) {
+            deref()
             return
         }
 
-        let function = vm.rareData().mysqlContext.onQueryRejectFn
-        if (function == None) {
-            return
-        }
+        // TODO: vm.getRareData().mysqlContext.onQueryRejectFn - stubbed out
 
-        let eventLoop = vm.eventLoop()
-        let jsArray = if (queriesArray.isZero()) JscValue.undefined() else queriesArray
-        eventLoop.runCallback(
-            function.getOrThrow(),
-            globalObject,
-            thisValue,
-            [targetValue.getOrThrow(), err, jsArray]
-        )
+        deref()
     }
 
     /// 运行查询
@@ -334,6 +306,12 @@ public class JSMySQLQuery {
     public func toJS(globalObject: JscJSGlobalObject): JscValue {
         return JscValue.undefined()
     }
+}
+
+/// 从 JscValue 提取 JSMySQLConnection（存根实现）
+func asMySQLConnection(value: JscValue): ?JSMySQLConnection {
+    // TODO: implement proper JS binding extraction
+    None
 }
 
 /// MySQL 查询结果

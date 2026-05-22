@@ -12,8 +12,8 @@
 //   - constructS3FileWithS3Credentials: 带 credentials 构造 S3 Blob
 //   - constructS3FileInternalStore: 从 env 构造 S3 Blob
 //   - constructS3FileInternal: 堆分配的 Blob
-//   - constructInternalJs: JS 构造 (返回 JSValue)
-//   - constructInternal: 从 callframe 构造 *mut Blob
+//   - constructInternalJs: JS 构造 (返回 JsValue)
+//   - constructInternal: 从 callframe 构造 *Blob
 //   - construct: JS 构造函数 (处理 JsError)
 //   - hasInstance: instanceof 检查
 //   - S3BlobStatTask: 异步 stat 任务 (exists/size/stat)
@@ -113,7 +113,7 @@ public func writeFormat(
 // presign - 生成预签名 URL
 // 严格翻译自: S3File.presign (lines 122-156)
 //   Bun: #[bun_jsc::host_fn]
-//   pub fn presign(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JSValue>
+//   pub fn presign(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JsValue>
 // ============================================================================
 
 /// 生成预签名 URL (host_fn)
@@ -121,55 +121,50 @@ public func writeFormat(
 ///
 /// 接受 path 或 blob 参数, 生成预签名 URL。
 /// 支持 S3 路径格式: s3://bucket/key 或已有的 S3 Blob 对象。
-public func presign(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+public func presign(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = callframe.arguments(3)
 
     // accept a path or a blob
     let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let blob = pathOrBlob.blob
             if (blob.store.isNone()) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to presign")
                 )
             }
             let storeData = blob.store.getOrThrow().data()
             if (storeData.tag != StoreDataTagForBlob.S3) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to presign")
                 )
             }
-        }
         case _ => ()
     }
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Path => {
+        case PathOrBlobTag.Path =>
             if (pathOrBlob.path.tag == PathOrFileDescriptorTag.Fd) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to presign")
                 )
             }
             let options = args.next()
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, options)
             match (blobResult) {
-                case Ok(mut blob) => {
+                case Ok(blob) =>
                     return getPresignUrlFrom(blob, global, options)
-                }
-                case Err(e) => return Result<JSValue>.Err(e)
+                case Err(e) => return Result<JsValue>.Err(e)
             }
-        }
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let options = args.next()
             return getPresignUrlFrom(pathOrBlob.blob, global, options)
-        }
-        case _ => {
-            return Result<JSValue>.Err(
+        case _ =>
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to presign")
             )
-        }
     }
 }
 
@@ -177,64 +172,59 @@ public func presign(global: JSGlobalObject, callframe: CallFrame): Result<JSValu
 // unlink - 删除 S3 对象
 // 严格翻译自: S3File.unlink (lines 158-197)
 //   Bun: #[bun_jsc::host_fn]
-//   pub fn unlink(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JSValue>
+//   pub fn unlink(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JsValue>
 // ============================================================================
 
 /// 删除 S3 对象 (host_fn)
 /// 对应 Bun: unlink
 ///
 /// 接受 path 或 blob 参数, 删除 S3 对象。
-public func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+public func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = callframe.arguments(3)
 
     // accept a path or a blob
     let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let blob = pathOrBlob.blob
             if (blob.store.isNone()) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to delete")
                 )
             }
             let storeData = blob.store.getOrThrow().data()
             if (storeData.tag != StoreDataTagForBlob.S3) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to delete")
                 )
             }
-        }
         case _ => ()
     }
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Path => {
+        case PathOrBlobTag.Path =>
             if (pathOrBlob.path.tag == PathOrFileDescriptorTag.Fd) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to delete")
                 )
             }
             let options = args.next()
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, options)
             match (blobResult) {
-                case Ok(blob) => {
+                case Ok(blob) =>
                     let store = blob.store.getOrThrow()
                     return store.data.asS3().unlink(store, global, options)
-                }
-                case Err(e) => return Result<JSValue>.Err(e)
+                case Err(e) => return Result<JsValue>.Err(e)
             }
-        }
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let options = args.next()
             let store = pathOrBlob.blob.store.getOrThrow()
             return store.data.asS3().unlink(store, global, options)
-        }
-        case _ => {
-            return Result<JSValue>.Err(
+        case _ =>
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to delete")
             )
-        }
     }
 }
 
@@ -242,7 +232,7 @@ public func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JSValue
 // write - 写入 S3 对象
 // 严格翻译自: S3File.write (lines 199-267)
 //   Bun: #[bun_jsc::host_fn]
-//   pub fn write(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JSValue>
+//   pub fn write(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JsValue>
 // ============================================================================
 
 /// 写入 S3 对象 (host_fn)
@@ -250,56 +240,53 @@ public func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JSValue
 ///
 /// 接受 path 或 blob + data 参数, 写入 S3。
 /// 支持分片上传 (multipart upload) 和单次上传 (putObject)。
-public func write(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+public func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = callframe.arguments(3)
 
     // accept a path or a blob
     let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let blob = pathOrBlob.blob
             if (blob.store.isNone()) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to upload")
                 )
             }
             let storeData = blob.store.getOrThrow().data()
             if (storeData.tag != StoreDataTagForBlob.S3) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to upload")
                 )
             }
-        }
         case _ => ()
     }
 
     let data = args.next()
     match (data) {
-        case Some(d) => {
-            // continue
-        }
-        case None => {
-            return Result<JSValue>.Err(
+        case Some(d) =>
+            () // continue
+        case None =>
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.MissingArgs, "Expected a Blob-y thing to upload")
             )
-        }
     }
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Path => {
+        case PathOrBlobTag.Path =>
             let writeOptions = args.next()
             if (pathOrBlob.path.tag == PathOrFileDescriptorTag.Fd) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to upload")
                 )
             }
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, writeOptions)
             match (blobResult) {
-                case Ok(blob) => {
+                case Ok(blob) =>
                     // PORT NOTE: reshaped for borrowck — match consumes pathOrBlob;
                     // rebuild to pass PathOrBlob
-                    let mut blobInternal = PathOrBlob.fromBlob(blob)
+                    let blobInternal = PathOrBlob.fromBlob(blob)
                     return WriteFileModule.writeFileInternal(
                         global,
                         blobInternal,
@@ -310,13 +297,11 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JSValue>
                             mode: None
                         )
                     )
-                }
-                case Err(e) => return Result<JSValue>.Err(e)
+                case Err(e) => return Result<JsValue>.Err(e)
             }
-        }
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             // PORT NOTE: reshaped for borrowck
-            let mut pob = pathOrBlob
+            let pob = pathOrBlob
             return WriteFileModule.writeFileInternal(
                 global,
                 pob,
@@ -327,12 +312,10 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JSValue>
                     mode: None
                 )
             )
-        }
-        case _ => {
-            return Result<JSValue>.Err(
+        case _ =>
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to upload")
             )
-        }
     }
 }
 
@@ -340,58 +323,53 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JSValue>
 // size - 获取对象大小
 // 严格翻译自: S3File.size (lines 269-304)
 //   Bun: #[bun_jsc::host_fn]
-//   pub fn size(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JSValue>
+//   pub fn size(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JsValue>
 // ============================================================================
 
 /// 获取对象大小 (host_fn)
 /// 对应 Bun: size
-public func size(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+public func size(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = callframe.arguments(3)
 
     let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let blob = pathOrBlob.blob
             if (blob.store.isNone()) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
                 )
             }
             let storeData = blob.store.getOrThrow().data()
             if (storeData.tag != StoreDataTagForBlob.S3) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
                 )
             }
-        }
         case _ => ()
     }
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Path => {
+        case PathOrBlobTag.Path =>
             let options = args.next()
             if (pathOrBlob.path.tag == PathOrFileDescriptorTag.Fd) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
                 )
             }
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, options)
             match (blobResult) {
-                case Ok(mut blob) => {
+                case Ok(blob) =>
                     return S3BlobStatTask.size(global, blob)
-                }
-                case Err(e) => return Result<JSValue>.Err(e)
+                case Err(e) => return Result<JsValue>.Err(e)
             }
-        }
-        case PathOrBlobTag.Blob => {
-            return Result<JSValue>.Ok(pathOrBlob.blob.getSize(global))
-        }
-        case _ => {
-            return Result<JSValue>.Err(
+        case PathOrBlobTag.Blob =>
+            return Result<JsValue>.Ok(pathOrBlob.blob.getSize(global))
+        case _ =>
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
             )
-        }
     }
 }
 
@@ -399,58 +377,53 @@ public func size(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> 
 // exists - 检查对象是否存在
 // 严格翻译自: S3File.exists (lines 306-342)
 //   Bun: #[bun_jsc::host_fn]
-//   pub fn exists(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JSValue>
+//   pub fn exists(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JsValue>
 // ============================================================================
 
 /// 检查对象是否存在 (host_fn)
 /// 对应 Bun: exists
-public func exists(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+public func exists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = callframe.arguments(3)
 
     let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let blob = pathOrBlob.blob
             if (blob.store.isNone()) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to check if it exists")
                 )
             }
             let storeData = blob.store.getOrThrow().data()
             if (storeData.tag != StoreDataTagForBlob.S3) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to check if it exists")
                 )
             }
-        }
         case _ => ()
     }
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Path => {
+        case PathOrBlobTag.Path =>
             let options = args.next()
             if (pathOrBlob.path.tag == PathOrFileDescriptorTag.Fd) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to check if it exists")
                 )
             }
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, options)
             match (blobResult) {
-                case Ok(mut blob) => {
+                case Ok(blob) =>
                     return S3BlobStatTask.exists(global, blob)
-                }
-                case Err(e) => return Result<JSValue>.Err(e)
+                case Err(e) => return Result<JsValue>.Err(e)
             }
-        }
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             return pathOrBlob.blob.getExists(global, callframe)
-        }
-        case _ => {
-            return Result<JSValue>.Err(
+        case _ =>
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to check if it exists")
             )
-        }
     }
 }
 
@@ -469,7 +442,7 @@ public func exists(global: JSGlobalObject, callframe: CallFrame): Result<JSValue
 public func constructS3FileInternalStore(
     global: JSGlobalObject,
     path: String,
-    options: ?JSValue
+    options: ?JsValue
 ): Result<BlobRef> {
     // Get credentials from env — Transpiler::env_mut is the safe accessor
     // for the process-singleton dotenv loader (set during init).
@@ -499,7 +472,7 @@ public func constructS3FileInternalStore(
 public func constructS3FileWithS3CredentialsAndOptions(
     global: JSGlobalObject,
     path: String,
-    options: ?JSValue,
+    options: ?JsValue,
     defaultCredentials: S3Credentials,
     defaultOptions: MultiPartUploadOptions,
     defaultAcl: ?S3Acl,
@@ -518,7 +491,7 @@ public func constructS3FileWithS3CredentialsAndOptions(
 
     match (awsOptions) {
         case Err(e) => return Result<BlobRef>.Err(e)
-        case Ok(awsOpts) => {
+        case Ok(awsOpts) =>
             let store: BlobStoreRef
             if (awsOpts.changedCredentials) {
                 store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
@@ -539,38 +512,33 @@ public func constructS3FileWithS3CredentialsAndOptions(
 
             // Handle content-type option
             match (options) {
-                case Some(opts) => {
+                case Some(opts) =>
                     if (opts.isObject()) {
                         match (opts.getTruthy(global, "type")) {
-                            case Some(fileType) => {
+                            case Some(fileType) =>
                                 if (fileType.isString()) {
                                     let str = fileType.toSlice(global)
                                     if (Strings.isAllAscii(str)) {
                                         blob.setContentTypeWasSet(true)
                                         // Look up MIME type
                                         match (global.mimeType(str)) {
-                                            case Some(entry) => {
+                                            case Some(entry) =>
                                                 blob.setContentType(entry.value)
-                                            }
-                                            case None => {
+                                            case None =>
                                                 // Lowercase the content type
                                                 let contentBuf = Strings.copyLowercase(str)
                                                 blob.setContentType(contentBuf)
                                                 blob.setContentTypeAllocated(true)
-                                            }
                                         }
                                     }
                                 }
-                            }
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
 
             return Result<BlobRef>.Ok(blob)
-        }
     }
 }
 
@@ -593,7 +561,7 @@ public func constructS3FileWithS3CredentialsAndOptions(
 public func constructS3FileWithS3Credentials(
     global: JSGlobalObject,
     path: String,
-    options: ?JSValue,
+    options: ?JsValue,
     existingCredentials: S3Credentials
 ): Result<BlobRef> {
     let awsOptions = S3CredentialsExt.getCredentialsWithOptions(
@@ -608,7 +576,7 @@ public func constructS3FileWithS3Credentials(
 
     match (awsOptions) {
         case Err(e) => return Result<BlobRef>.Err(e)
-        case Ok(awsOpts) => {
+        case Ok(awsOpts) =>
             let store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
 
             // Set S3 options on the store
@@ -621,43 +589,38 @@ public func constructS3FileWithS3Credentials(
 
             // Handle content-type option
             match (options) {
-                case Some(opts) => {
+                case Some(opts) =>
                     if (opts.isObject()) {
                         match (opts.getTruthy(global, "type")) {
-                            case Some(fileType) => {
+                            case Some(fileType) =>
                                 if (fileType.isString()) {
                                     let str = fileType.toSlice(global)
                                     if (Strings.isAllAscii(str)) {
                                         blob.setContentTypeWasSet(true)
                                         match (global.mimeType(str)) {
-                                            case Some(entry) => {
+                                            case Some(entry) =>
                                                 blob.setContentType(entry.value)
-                                            }
-                                            case None => {
+                                            case None =>
                                                 let contentBuf = Strings.copyLowercase(str)
                                                 blob.setContentType(contentBuf)
                                                 blob.setContentTypeAllocated(true)
-                                            }
                                         }
                                     }
                                 }
-                            }
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
 
             return Result<BlobRef>.Ok(blob)
-        }
     }
 }
 
 // ============================================================================
 // constructS3FileInternal - 堆分配的 Blob
 // 严格翻译自: S3File.construct_s3_file_internal (lines 515-523)
-//   Bun: fn construct_s3_file_internal(global, path, options) -> JsResult<*mut Blob>
+//   Bun: fn construct_s3_file_internal(global, path, options) -> JsResult<*Blob>
 // ============================================================================
 
 /// 堆分配的 Blob 构造
@@ -667,7 +630,7 @@ public func constructS3FileWithS3Credentials(
 public func constructS3FileInternal(
     global: JSGlobalObject,
     path: String,
-    options: ?JSValue
+    options: ?JsValue
 ): Result<BlobRef> {
     return constructS3FileInternalStore(global, path, options)
 }
@@ -704,7 +667,7 @@ public class S3BlobStatTask {
 
     /// Safe JSGlobalObject accessor
     /// 对应 Bun: pub fn global(&self) -> &JSGlobalObject { self.global.get() }
-    public func global(): JSGlobalObject {
+    public func getGlobal(): JSGlobalObject {
         return global.get()
     }
 
@@ -712,7 +675,7 @@ public class S3BlobStatTask {
     // onS3ExistsResolved - exists 回调
     // 严格翻译自: S3BlobStatTask::on_s3_exists_resolved (lines 544-576)
     //   Bun: pub fn on_s3_exists_resolved(
-    //       result: s3::S3StatResult, this: *mut c_void
+    //       result: s3::S3StatResult, `this`: *c_void
     //   ) -> Result<(), JsTerminated>
     // ========================================================================
 
@@ -722,14 +685,12 @@ public class S3BlobStatTask {
         let global = task.global()
 
         match (result.tag) {
-            case S3StatResultTag.NotFound => {
-                task.promise.resolve(global, JSValue.FALSE)
-            }
-            case S3StatResultTag.Success => {
+            case S3StatResultTag.NotFound =>
+                task.promise.resolve(global, JsValue.FALSE)
+            case S3StatResultTag.Success =>
                 // calling .exists() should not prevent it to download a bigger file
-                task.promise.resolve(global, JSValue.TRUE)
-            }
-            case S3StatResultTag.Failure => {
+                task.promise.resolve(global, JsValue.TRUE)
+            case S3StatResultTag.Failure =>
                 let value = s3ErrorToJSWithAsyncStack(
                     result.err,
                     global,
@@ -737,7 +698,6 @@ public class S3BlobStatTask {
                     task.promise.get()
                 )
                 task.promise.reject(global, value)
-            }
         }
         return Result<Unit>.Ok(())
     }
@@ -746,7 +706,7 @@ public class S3BlobStatTask {
     // onS3SizeResolved - size 回调
     // 严格翻译自: S3BlobStatTask::on_s3_size_resolved (lines 578-605)
     //   Bun: pub fn on_s3_size_resolved(
-    //       result: s3::S3StatResult, this: *mut c_void
+    //       result: s3::S3StatResult, `this`: *c_void
     //   ) -> Result<(), JsTerminated>
     // ========================================================================
 
@@ -756,13 +716,12 @@ public class S3BlobStatTask {
         let global = task.global()
 
         match (result.tag) {
-            case S3StatResultTag.Success => {
+            case S3StatResultTag.Success =>
                 task.promise.resolve(
                     global,
-                    JSValue.jsNumber(Float64(result.size))
+                    JsValue.jsNumber(Float64(result.size))
                 )
-            }
-            case S3StatResultTag.NotFound | S3StatResultTag.Failure => {
+            case S3StatResultTag.NotFound | S3StatResultTag.Failure =>
                 let value = s3ErrorToJSWithAsyncStack(
                     result.err,
                     global,
@@ -770,7 +729,6 @@ public class S3BlobStatTask {
                     task.promise.get()
                 )
                 task.promise.reject(global, value)
-            }
         }
         return Result<Unit>.Ok(())
     }
@@ -779,7 +737,7 @@ public class S3BlobStatTask {
     // onS3StatResolved - stat 回调
     // 严格翻译自: S3BlobStatTask::on_s3_stat_resolved (lines 607-643)
     //   Bun: pub fn on_s3_stat_resolved(
-    //       result: s3::S3StatResult, this: *mut c_void
+    //       result: s3::S3StatResult, `this`: *c_void
     //   ) -> Result<(), JsTerminated>
     // ========================================================================
 
@@ -789,8 +747,8 @@ public class S3BlobStatTask {
         let global = task.global()
 
         match (result.tag) {
-            case S3StatResultTag.Success => {
-                let s3StatResult = S3Stat.init(
+            case S3StatResultTag.Success =>
+                let s3StatResult = S3Stat(
                     result.size,
                     result.etag,
                     result.contentType,
@@ -798,15 +756,12 @@ public class S3BlobStatTask {
                     global
                 )
                 match (s3StatResult) {
-                    case Ok(stat) => {
+                    case Ok(stat) =>
                         task.promise.resolve(global, stat.toJs(global))
-                    }
-                    case Err(_) => {
-                        task.promise.reject(global, JSValue.ZERO)
-                    }
+                    case Err(_) =>
+                        task.promise.reject(global, JsValue.ZERO)
                 }
-            }
-            case S3StatResultTag.NotFound | S3StatResultTag.Failure => {
+            case S3StatResultTag.NotFound | S3StatResultTag.Failure =>
                 let value = s3ErrorToJSWithAsyncStack(
                     result.err,
                     global,
@@ -814,7 +769,6 @@ public class S3BlobStatTask {
                     task.promise.get()
                 )
                 task.promise.reject(global, value)
-            }
         }
         return Result<Unit>.Ok(())
     }
@@ -822,17 +776,17 @@ public class S3BlobStatTask {
     // ========================================================================
     // exists - 发起 exists 请求
     // 严格翻译自: S3BlobStatTask::exists (lines 645-671)
-    //   Bun: pub fn exists(global: &JSGlobalObject, blob: &Blob) -> JsResult<JSValue>
+    //   Bun: pub fn exists(global: &JSGlobalObject, blob: &Blob) -> JsResult<JsValue>
     // ========================================================================
 
     /// 发起 exists 请求
     /// 对应 Bun: S3BlobStatTask::exists
     ///
     /// 创建 promise, 发送 HEAD 请求, resolve true/false
-    public static func exists(global: JSGlobalObject, blob: BlobRef): Result<JSValue> {
+    public static func exists(global: JSGlobalObject, blob: BlobRef): Result<JsValue> {
         let store = blob.store.getOrThrow()
         let task = S3BlobStatTask(
-            promise: JSPromiseStrong.init(global),
+            promise: JSPromiseStrong(global),
             global: BackRef.new(global),
             store: store
         )
@@ -844,27 +798,27 @@ public class S3BlobStatTask {
         S3Client.stat(
             credentials,
             path,
-            S3BlobStatTask::onS3ExistsResolved,
+            S3BlobStatTask.onS3ExistsResolved,
             task,
             global.getHttpProxy(),
             s3Store.requestPayer
         )
 
-        return Result<JSValue>.Ok(promise)
+        return Result<JsValue>.Ok(promise)
     }
 
     // ========================================================================
     // stat - 发起 stat 请求
     // 严格翻译自: S3BlobStatTask::stat (lines 673-698)
-    //   Bun: pub fn stat(global: &JSGlobalObject, blob: &Blob) -> JsResult<JSValue>
+    //   Bun: pub fn stat(global: &JSGlobalObject, blob: &Blob) -> JsResult<JsValue>
     // ========================================================================
 
     /// 发起 stat 请求
     /// 对应 Bun: S3BlobStatTask::stat
-    public static func stat(global: JSGlobalObject, blob: BlobRef): Result<JSValue> {
+    public static func stat(global: JSGlobalObject, blob: BlobRef): Result<JsValue> {
         let store = blob.store.getOrThrow()
         let task = S3BlobStatTask(
-            promise: JSPromiseStrong.init(global),
+            promise: JSPromiseStrong(global),
             global: BackRef.new(global),
             store: store
         )
@@ -876,27 +830,27 @@ public class S3BlobStatTask {
         S3Client.stat(
             credentials,
             path,
-            S3BlobStatTask::onS3StatResolved,
+            S3BlobStatTask.onS3StatResolved,
             task,
             global.getHttpProxy(),
             s3Store.requestPayer
         )
 
-        return Result<JSValue>.Ok(promise)
+        return Result<JsValue>.Ok(promise)
     }
 
     // ========================================================================
     // size - 发起 size 请求
     // 严格翻译自: S3BlobStatTask::size (lines 700-725)
-    //   Bun: pub fn size(global: &JSGlobalObject, blob: &mut Blob) -> JsResult<JSValue>
+    //   Bun: pub fn size(global: &JSGlobalObject, blob: &Blob) -> JsResult<JsValue>
     // ========================================================================
 
     /// 发起 size 请求
     /// 对应 Bun: S3BlobStatTask::size
-    public static func size(global: JSGlobalObject, blob: BlobRef): Result<JSValue> {
+    public static func size(global: JSGlobalObject, blob: BlobRef): Result<JsValue> {
         let store = blob.store.getOrThrow()
         let task = S3BlobStatTask(
-            promise: JSPromiseStrong.init(global),
+            promise: JSPromiseStrong(global),
             global: BackRef.new(global),
             store: store
         )
@@ -908,13 +862,13 @@ public class S3BlobStatTask {
         S3Client.stat(
             credentials,
             path,
-            S3BlobStatTask::onS3SizeResolved,
+            S3BlobStatTask.onS3SizeResolved,
             task,
             global.getHttpProxy(),
             s3Store.requestPayer
         )
 
-        return Result<JSValue>.Ok(promise)
+        return Result<JsValue>.Ok(promise)
     }
 
     // deinit: store.deref() + promise.deinit() + bun.destroy(this) —
@@ -925,8 +879,8 @@ public class S3BlobStatTask {
 // getPresignUrlFrom - 从 Blob 获取预签名 URL
 // 严格翻译自: S3File.get_presign_url_from (lines 738-817)
 //   Bun: pub fn get_presign_url_from(
-//       this: &mut Blob, global: &JSGlobalObject, extra_options: Option<JSValue>
-//   ) -> JsResult<JSValue>
+//       this: &Blob, global: &JSGlobalObject, extra_options: Option<JsValue>
+//   ) -> JsResult<JsValue>
 // ============================================================================
 
 /// 从 Blob 获取预签名 URL
@@ -941,10 +895,10 @@ public class S3BlobStatTask {
 public func getPresignUrlFrom(
     blob: BlobRef,
     global: JSGlobalObject,
-    extraOptions: ?JSValue
-): Result<JSValue> {
+    extraOptions: ?JsValue
+): Result<JsValue> {
     if (!blob.isS3()) {
-        return Result<JSValue>.Err(
+        return Result<JsValue>.Err(
             BaoError(ErrorCode.InvalidThis, "presign is only possible for s3:// files")
         )
     }
@@ -962,42 +916,38 @@ public func getPresignUrlFrom(
     )
 
     match (extraOptions) {
-        case Some(options) => {
+        case Some(options) =>
             if (options.isObject()) {
                 match (options.getTruthy(global, "method")) {
-                    case Some(methodVal) => {
+                    case Some(methodVal) =>
                         match (methodFromJs(global, methodVal)) {
                             case Ok(Some(m)) => method = m
-                            case Ok(None) => {
-                                return Result<JSValue>.Err(
+                            case Ok(None) =>
+                                return Result<JsValue>.Err(
                                     BaoError(ErrorCode.InvalidArgument, "method must be GET, PUT, DELETE or HEAD when using s3 protocol")
                                 )
-                            }
-                            case Err(e) => return Result<JSValue>.Err(e)
+                            case Err(e) => return Result<JsValue>.Err(e)
                         }
-                    }
                     case None => ()
                 }
 
                 match (options.getOptionalInt(global, "expiresIn")) {
-                    case Ok(Some(expiresVal)) => {
+                    case Ok(Some(expiresVal)) =>
                         if (expiresVal <= 0) {
-                            return Result<JSValue>.Err(
+                            return Result<JsValue>.Err(
                                 BaoError(ErrorCode.InvalidArgument, "expiresIn must be greater than 0")
                             )
                         }
                         expires = expiresVal
-                    }
                     case Ok(None) => ()
-                    case Err(e) => return Result<JSValue>.Err(e)
+                    case Err(e) => return Result<JsValue>.Err(e)
                 }
             }
             let newCreds = s3.getCredentialsWithOptions(Some(options), global)
             match (newCreds) {
                 case Ok(creds) => credentialsWithOptions = creds
-                case Err(e) => return Result<JSValue>.Err(e)
+                case Err(e) => return Result<JsValue>.Err(e)
             }
-        }
         case None => ()
     }
 
@@ -1021,14 +971,12 @@ public func getPresignUrlFrom(
     )
 
     match (signResult) {
-        case Ok(r) => {
-            return Result<JSValue>.Ok(
+        case Ok(r) =>
+            return Result<JsValue>.Ok(
                 BunStringJsc.createUtf8ForJs(blob.globalThis(), r.url)
             )
-        }
-        case Err(signErr) => {
-            return Result<JSValue>.Err(throwSignError(signErr, global))
-        }
+        case Err(signErr) =>
+            return Result<JsValue>.Err(throwSignError(signErr, global))
     }
 }
 
@@ -1038,19 +986,19 @@ public func getPresignUrlFrom(
 // ============================================================================
 
 /// 获取 bucket 名称
-/// 对应 Bun: pub fn get_bucket_name(this: &Blob) -> Option<&[u8]>
+/// 对应 Bun: pub fn get_bucket_name(`this`: &Blob) -> Option<&[u8]>
 ///
 /// If the store is not S3, returns None.
 /// If credentials.bucket is empty, extracts the bucket from the path.
 public func getBucketName(blob: BlobRef): ?String {
     let store = blob.store
     match (store) {
-        case Some(s) => {
+        case Some(s) =>
             match (s.data().tag) {
-                case StoreDataTagForBlob.S3 => {
+                case StoreDataTagForBlob.S3 =>
                     let credentials = s.data().asS3().getCredentials()
                     var fullPath = s.data().asS3().path()
-                    if (fullFull startsWith "/") {
+                    if (fullPath.startsWith("/")) {
                         fullPath = fullPath[1..]
                     }
                     let bucket = credentials.bucket
@@ -1058,39 +1006,35 @@ public func getBucketName(blob: BlobRef): ?String {
                     if (bucket.size == 0) {
                         let slashIdx = fullPath.indexOf("/")
                         match (slashIdx) {
-                            case Some(end) => {
+                            case Some(end) =>
                                 let b = fullPath[0..end]
                                 if (b.size > 0) {
                                     return Some(b)
                                 }
-                            }
                             case None => ()
                         }
                         return None
                     }
                     return Some(bucket)
-                }
                 case _ => return None
             }
-        }
         case None => return None
     }
 }
 
 /// 获取 bucket (JS getter)
-/// 对应 Bun: pub fn get_bucket(this: &Blob, global: &JSGlobalObject) -> JsResult<JSValue>
-public func getBucket(blob: BlobRef, global: JSGlobalObject): Result<JSValue> {
+/// 对应 Bun: pub fn get_bucket(`this`: &Blob, global: &JSGlobalObject) -> JsResult<JsValue>
+public func getBucket(blob: BlobRef, global: JSGlobalObject): Result<JsValue> {
     match (getBucketName(blob)) {
-        case Some(name) => {
-            return Result<JSValue>.Ok(BunStringJsc.createUtf8ForJs(global, name))
-        }
-        case None => return Result<JSValue>.Ok(JSValue.UNDEFINED)
+        case Some(name) =>
+            return Result<JsValue>.Ok(BunStringJsc.createUtf8ForJs(global, name))
+        case None => return Result<JsValue>.Ok(JsValue.UNDEFINED)
     }
 }
 
 /// 获取预签名 URL (JS getter)
-/// 对应 Bun: pub fn get_presign_url(this: &mut Blob, global, callframe) -> JsResult<JSValue>
-public func getPresignUrl(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+/// 对应 Bun: pub fn get_presign_url(`this`: &Blob, global, callframe) -> JsResult<JsValue>
+public func getPresignUrl(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = callframe.arguments(1)
     let options = if (args.size > 0) {
         Some(args[0])
@@ -1101,8 +1045,8 @@ public func getPresignUrl(blob: BlobRef, global: JSGlobalObject, callframe: Call
 }
 
 /// 获取 stat (JS getter)
-/// 对应 Bun: pub fn get_stat(this: &Blob, global, _callframe) -> JsResult<JSValue>
-public func getStat(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+/// 对应 Bun: pub fn get_stat(`this`: &Blob, global, _callframe) -> JsResult<JsValue>
+public func getStat(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     return S3BlobStatTask.stat(global, blob)
 }
 
@@ -1110,83 +1054,78 @@ public func getStat(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame)
 // stat - 获取对象元数据 (host_fn)
 // 严格翻译自: S3File.stat (lines 876-910)
 //   Bun: #[bun_jsc::host_fn]
-//   pub fn stat(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JSValue>
+//   pub fn stat(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<JsValue>
 // ============================================================================
 
 /// 获取对象元数据 (host_fn)
 /// 对应 Bun: stat
-public func stat(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
+public func stat(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = callframe.arguments(3)
 
     let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             let blob = pathOrBlob.blob
             if (blob.store.isNone()) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
                 )
             }
             let storeData = blob.store.getOrThrow().data()
             if (storeData.tag != StoreDataTagForBlob.S3) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
                 )
             }
-        }
         case _ => ()
     }
 
     match (pathOrBlob.tag) {
-        case PathOrBlobTag.Path => {
+        case PathOrBlobTag.Path =>
             let options = args.next()
             if (pathOrBlob.path.tag == PathOrFileDescriptorTag.Fd) {
-                return Result<JSValue>.Err(
+                return Result<JsValue>.Err(
                     BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
                 )
             }
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, options)
             match (blobResult) {
-                case Ok(mut blob) => {
+                case Ok(blob) =>
                     return S3BlobStatTask.stat(global, blob)
-                }
-                case Err(e) => return Result<JSValue>.Err(e)
+                case Err(e) => return Result<JsValue>.Err(e)
             }
-        }
-        case PathOrBlobTag.Blob => {
+        case PathOrBlobTag.Blob =>
             return S3BlobStatTask.stat(global, pathOrBlob.blob)
-        }
-        case _ => {
-            return Result<JSValue>.Err(
+        case _ =>
+            return Result<JsValue>.Err(
                 BaoError(ErrorCode.InvalidArgument, "Expected a S3 or path to get size")
             )
-        }
     }
 }
 
 // ============================================================================
-// constructInternalJs - JS 构造 (返回 JSValue)
+// constructInternalJs - JS 构造 (返回 JsValue)
 // 严格翻译自: S3File.construct_internal_js (lines 912-923)
-//   Bun: pub fn construct_internal_js(global, path, options) -> JsResult<JSValue>
+//   Bun: pub fn construct_internal_js(global, path, options) -> JsResult<JsValue>
 // ============================================================================
 
-/// JS 构造 (返回 JSValue)
+/// JS 构造 (返回 JsValue)
 /// 对应 Bun: construct_internal_js
 ///
 /// Calls construct_s3_file_internal then converts to JS value.
-public func constructInternalJs(global: JSGlobalObject, path: String, options: ?JSValue): Result<JSValue> {
+public func constructInternalJs(global: JSGlobalObject, path: String, options: ?JsValue): Result<JsValue> {
     let blobResult = constructS3FileInternal(global, path, options)
     match (blobResult) {
-        case Ok(blob) => return Result<JSValue>.Ok(blob.toJs(global))
-        case Err(e) => return Result<JSValue>.Err(e)
+        case Ok(blob) => return Result<JsValue>.Ok(blob.toJs(global))
+        case Err(e) => return Result<JsValue>.Err(e)
     }
 }
 
 // ============================================================================
 // toJsUnchecked - 无检查的 JS 转换
 // 严格翻译自: S3File.to_js_unchecked (lines 925-929)
-//   Bun: pub fn to_js_unchecked(global, this: *mut Blob) -> JSValue
+//   Bun: pub fn to_js_unchecked(global, `this`: *Blob) -> JsValue
 // ============================================================================
 
 /// 无检查的 JS 转换
@@ -1194,7 +1133,7 @@ public func constructInternalJs(global: JSGlobalObject, path: String, options: ?
 ///
 /// C++ adopts `this` opaquely (stored as `void* m_ctx` in the JS wrapper);
 /// ownership-transfer contract lives on callers.
-public func toJsUnchecked(global: JSGlobalObject, blob: BlobRef): JSValue {
+public func toJsUnchecked(global: JSGlobalObject, blob: BlobRef): JsValue {
     // In Bun this calls BUN__createJSS3FileUnsafely(global, this.cast())
     return createJSS3FileUnsafely(global, blob)
 }
@@ -1202,7 +1141,7 @@ public func toJsUnchecked(global: JSGlobalObject, blob: BlobRef): JSValue {
 // ============================================================================
 // constructInternal - 从 callframe 构造 Blob
 // 严格翻译自: S3File.construct_internal (lines 931-941)
-//   Bun: pub fn construct_internal(global, callframe) -> JsResult<*mut Blob>
+//   Bun: pub fn construct_internal(global, callframe) -> JsResult<*Blob>
 // ============================================================================
 
 /// 从 callframe 构造 Blob
@@ -1211,21 +1150,19 @@ public func constructInternal(global: JSGlobalObject, callframe: CallFrame): Res
     let args = callframe.arguments(2)
 
     match (PathLike.fromJs(global, args)) {
-        case Some(path) => {
+        case Some(path) =>
             return constructS3FileInternal(global, path, args.next())
-        }
-        case None => {
+        case None =>
             return Result<BlobRef>.Err(
                 BaoError(ErrorCode.InvalidArgument, "Expected file path string")
             )
-        }
     }
 }
 
 // ============================================================================
 // construct - JS 构造函数
 // 严格翻译自: S3File.construct (lines 944-954)
-//   Bun: pub fn construct(global, callframe) -> *mut Blob
+//   Bun: pub fn construct(global, callframe) -> *Blob
 // ============================================================================
 
 /// JS 构造函数
@@ -1238,25 +1175,24 @@ public func constructInternal(global: JSGlobalObject, callframe: CallFrame): Res
 public func construct(global: JSGlobalObject, callframe: CallFrame): ?BlobRef {
     match (constructInternal(global, callframe)) {
         case Ok(blob) => return Some(blob)
-        case Err(e) => {
+        case Err(e) =>
             // In Bun: match on JsError variant
             global.throwError(e)
             return None
-        }
     }
 }
 
 // ============================================================================
 // hasInstance - instanceof 检查
 // 严格翻译自: S3File.has_instance (lines 956-962)
-//   Bun: pub fn has_instance(_: JSValue, _global, value: JSValue) -> bool
+//   Bun: pub fn has_instance(_: JsValue, _global, value: JsValue) -> bool
 // ============================================================================
 
 /// instanceof 检查
 /// 对应 Bun: has_instance
 ///
 /// Returns true if the value is a Blob with S3 store.
-public func hasInstance(this: JSValue, global: JSGlobalObject, value: JSValue): Bool {
+public func hasInstance(`this`: JsValue, global: JSGlobalObject, value: JsValue): Bool {
     let blob = value.asClassRef(BlobRef)
     match (blob) {
         case Some(b) => return b.isS3()
@@ -1268,12 +1204,12 @@ public func hasInstance(this: JSValue, global: JSGlobalObject, value: JSValue): 
 // createJSS3File - host_fn 包装器
 // 严格翻译自: S3File.create_js_s3_file (lines 1043-1046)
 //   Bun: #[bun_jsc::host_fn]
-//   pub fn create_js_s3_file(global, callframe) -> JSValue
+//   pub fn create_js_s3_file(global, callframe) -> JsValue
 // ============================================================================
 
 /// 创建 JS S3 File (host_fn)
 /// 对应 Bun: create_js_s3_file
-public func createJsS3File(global: JSGlobalObject, callframe: CallFrame): JSValue {
+public func createJsS3File(global: JSGlobalObject, callframe: CallFrame): JsValue {
     return createJSS3File(global, callframe)
 }
 
@@ -1283,7 +1219,7 @@ public func createJsS3File(global: JSGlobalObject, callframe: CallFrame): JSValu
 
 /// method_from_js 的本地别名
 /// 对应 Bun: #[inline] fn method_from_js(global, value) -> JsResult<Option<Method>>
-private func methodFromJs(global: JSGlobalObject, value: JSValue): Result<?HttpMethod> {
+private func methodFromJs(global: JSGlobalObject, value: JsValue): Result<?HttpMethod> {
     return HttpMethodJsc.fromJs(global, value)
 }
 
@@ -1298,12 +1234,11 @@ public enum S3StatResultTag {
     | NotFound
     | Failure
 
-    public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (Success, Success) => true
-            case (NotFound, NotFound) => true
-            case (Failure, Failure) => true
-            case _ => false
+    public operator func ==(right: S3StatResultTag): Bool {
+        match (this) {
+            case Success => match (right) { case Success => true; case _ => false }
+            case NotFound => match (right) { case NotFound => true; case _ => false }
+            case Failure => match (right) { case Failure => true; case _ => false }
         }
     }
 }
@@ -1372,25 +1307,10 @@ public class S3Error {
 // 占位类型 — 来自其他模块的引用
 // ============================================================================
 
-/// PathOrBlob (path 或 blob 参数)
-/// 对应 Bun: PathOrBlob
-public enum PathOrBlobTag {
-    | Path
-    | Blob
-}
-
 /// PathOrFileDescriptor tag
 public enum PathOrFileDescriptorTag {
     | Fd
     | Path
-}
-
-/// StoreData tag for blob
-public enum StoreDataTagForBlob {
-    | None
-    | S3
-    | File
-    | Bytes
 }
 
 /// PathOrBlob 容器
@@ -1431,7 +1351,7 @@ public class PathLikeEntry {
     }
 }
 
-/// BlobRef (对应 Bun: *mut Blob)
+/// BlobRef (对应 Bun: *Blob)
 public class BlobRef {
     public var store: ?BlobStoreRef
     public var contentType: String
@@ -1454,17 +1374,17 @@ public class BlobRef {
         }
     }
 
-    public func toJs(global: JSGlobalObject): JSValue {
+    public func toJs(global: JSGlobalObject): JsValue {
         // In Bun: creates JSS3File wrapper
-        return JSValue.ZERO
+        return JsValue.ZERO
     }
 
-    public func getSize(global: JSGlobalObject): JSValue {
-        return JSValue.ZERO
+    public func getSize(global: JSGlobalObject): JsValue {
+        return JsValue.ZERO
     }
 
-    public func getExists(global: JSGlobalObject, callframe: CallFrame): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.TRUE)
+    public func getExists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.TRUE)
     }
 
     public func setContentTypeWasSet(v: Bool): Unit {
@@ -1493,15 +1413,15 @@ public class BlobRef {
 
 /// Arguments (对应 Bun: call_frame::ArgumentsSlice)
 public class Arguments {
-    public var values: Array<JSValue>
+    public var values: Array<JsValue>
     public var pos: Int64
 
     public init() {
-        values = Array<JSValue>()
+        values = Array<JsValue>()
         pos = 0
     }
 
-    public func next(): ?JSValue {
+    public func next(): ?JsValue {
         if (pos < values.size) {
             let v = values[pos]
             pos = pos + 1
@@ -1593,28 +1513,28 @@ public class S3CredentialsWithOptions {
 public class JSPromiseStrong {
     public init() {}
 
-    public static func init(global: JSGlobalObject): JSPromiseStrong {
+    public static func `init`(global: JSGlobalObject): JSPromiseStrong {
         return JSPromiseStrong()
     }
 
-    public func value(): JSValue {
-        return JSValue.ZERO
+    public func value(): JsValue {
+        return JsValue.ZERO
     }
 
     public func get(): JSPromise {
         return JSPromise()
     }
 
-    public func resolve(global: JSGlobalObject, value: JSValue): Result<Unit> {
+    public func resolve(global: JSGlobalObject, value: JsValue): Result<Unit> {
         return Result<Unit>.Ok(())
     }
 
-    public func reject(global: JSGlobalObject, value: JSValue): Result<Unit> {
+    public func reject(global: JSGlobalObject, value: JsValue): Result<Unit> {
         return Result<Unit>.Ok(())
     }
 }
 
-/// JSPromise (对应 Bun: JSValue promise)
+/// JSPromise (对应 Bun: JsValue promise)
 public class JSPromise {}
 
 /// BackRef (对应 Bun: bun_ptr::BackRef<T>)
@@ -1639,7 +1559,7 @@ public class BackRef {
 /// WriteFileOptions (对应 Bun: blob::WriteFileOptions)
 public class WriteFileOptions {
     public var mkdirpIfExists: ?Bool
-    public var extraOptions: ?JSValue
+    public var extraOptions: ?JsValue
     public var mode: ?Int64
 
     public init() {
@@ -1648,7 +1568,7 @@ public class WriteFileOptions {
         mode = None
     }
 
-    public init(mkdirpIfExists: ?Bool, extraOptions: ?JSValue, mode: ?Int64) {
+    public init(mkdirpIfExists: ?Bool, extraOptions: ?JsValue, mode: ?Int64) {
         this.mkdirpIfExists = mkdirpIfExists
         this.extraOptions = extraOptions
         this.mode = mode
@@ -1660,10 +1580,10 @@ public class WriteFileModule {
     public static func writeFileInternal(
         global: JSGlobalObject,
         pathOrBlob: PathOrBlob,
-        data: JSValue,
+        data: JsValue,
         options: WriteFileOptions
-    ): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    ): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 }
 
@@ -1693,42 +1613,17 @@ public class S3Store {
         return pathStr
     }
 
-    public func getCredentialsWithOptions(options: ?JSValue, global: JSGlobalObject): Result<S3CredentialsWithOptions> {
+    public func getCredentialsWithOptions(options: ?JsValue, global: JSGlobalObject): Result<S3CredentialsWithOptions> {
         return Result<S3CredentialsWithOptions>.Ok(S3CredentialsWithOptions())
     }
 
-    public func listObjects(store: BlobStoreRef, global: JSGlobalObject, objectKeys: JSValue, options: ?JSValue): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public func listObjects(store: BlobStoreRef, global: JSGlobalObject, objectKeys: JsValue, options: ?JsValue): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
 
-    public func unlink(store: BlobStoreRef, global: JSGlobalObject, options: ?JSValue): Result<JSValue> {
-        return Result<JSValue>.Ok(JSValue.ZERO)
+    public func unlink(store: BlobStoreRef, global: JSGlobalObject, options: ?JsValue): Result<JsValue> {
+        return Result<JsValue>.Ok(JsValue.ZERO)
     }
-}
-
-/// S3Acl (对应 Bun: ACL)
-public enum S3Acl {
-    | Private
-    | PublicRead
-    | PublicReadWrite
-    | AwsExecRead
-    | AuthenticatedRead
-    | BucketOwnerRead
-    | BucketOwnerFullControl
-    | LogDeliveryWrite
-}
-
-/// S3StorageClass (对应 Bun: StorageClass)
-public enum S3StorageClass {
-    | Standard
-    | ReducedRedundancy
-    | StandardIa
-    | OnezoneIa
-    | IntelligentTiering
-    | Glacier
-    | DeepArchive
-    | Outposts
-    | GlacierIr
 }
 
 /// HttpMethod (对应 Bun: bun_http::Method)
@@ -1770,15 +1665,15 @@ public class Strings {
 
 /// HttpMethodJsc (对应 Bun: bun_http_jsc::method_jsc)
 public class HttpMethodJsc {
-    public static func fromJs(global: JSGlobalObject, value: JSValue): Result<?HttpMethod> {
+    public static func fromJs(global: JSGlobalObject, value: JsValue): Result<?HttpMethod> {
         return Result<?HttpMethod>.Ok(None)
     }
 }
 
 /// BunStringJsc (对应 Bun: bun_jsc::bun_string_jsc)
 public class BunStringJsc {
-    public static func createUtf8ForJs(global: JSGlobalObject, s: String): JSValue {
-        return JSValue.ZERO
+    public static func createUtf8ForJs(global: JSGlobalObject, s: String): JsValue {
+        return JsValue.ZERO
     }
 }
 
@@ -1801,15 +1696,15 @@ public class FetchModule {
 }
 
 /// FFI: createJSS3File
-/// 对应 Bun: BUN__createJSS3File(global, callframe) -> JSValue
-public func createJSS3File(global: JSGlobalObject, callframe: CallFrame): JSValue {
-    return JSValue.ZERO
+/// 对应 Bun: BUN__createJSS3File(global, callframe) -> JsValue
+public func createJSS3File(global: JSGlobalObject, callframe: CallFrame): JsValue {
+    return JsValue.ZERO
 }
 
 /// FFI: createJSS3FileUnsafely
-/// 对应 Bun: BUN__createJSS3FileUnsafely(global, blob) -> JSValue
-public func createJSS3FileUnsafely(global: JSGlobalObject, blob: BlobRef): JSValue {
-    return JSValue.ZERO
+/// 对应 Bun: BUN__createJSS3FileUnsafely(global, blob) -> JsValue
+public func createJSS3FileUnsafely(global: JSGlobalObject, blob: BlobRef): JsValue {
+    return JsValue.ZERO
 }
 
 // ported from: src/runtime/webcore/S3File.rs

@@ -1,6 +1,6 @@
 // 严格翻译自: src/runtime/webcore/s3/credentials_jsc.zig
 // S3Credentials.getCredentialsWithOptions - 从 JS 选项对象解析为 S3CredentialsWithOptions
-// 因为它需要访问 jsc.JSValue，所以放在 runtime/webcore/s3/ 而非 s3_signing/
+// 因为它需要访问 jsc.JsValue，所以放在 runtime/webcore/s3/ 而非 s3_signing/
 package bao_runtime.webcore.s3
 
 import bao_core.*
@@ -216,7 +216,7 @@ public func containsNewlineOrCR(value: String): Bool {
 // getCredentialsWithOptions - 从 JS 选项对象解析凭证
 // 严格翻译自: pub fn getCredentialsWithOptions(
 //   this: S3Credentials, default_options: MultiPartUploadOptions,
-//   options: ?jsc.JSValue, default_acl: ?ACL, default_storage_class: ?StorageClass,
+//   options: ?jsc.JsValue, default_acl: ?ACL, default_storage_class: ?StorageClass,
 //   default_request_payer: bool, globalObject: *jsc.JSGlobalObject
 // ) bun.JSError!S3CredentialsWithOptions
 // ============================================================================
@@ -242,7 +242,7 @@ public func getCredentialsWithOptions(
     result.requestPayer = defaultRequestPayer
 
     match (options) {
-        case Some(opts) => {
+        case Some(opts) =>
             if (opts.isObject()) {
                 // ----------------------------------------------------------------
                 // accessKeyId
@@ -250,18 +250,17 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let accessKeyIdVal = opts.getTruthy("accessKeyId")
                 match (accessKeyIdVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     result._accessKeyIdSlice = str
                                     result.credentials.accessKeyId = str
                                     result.changedCredentials = true
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -271,18 +270,17 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let secretAccessKeyVal = opts.getTruthy("secretAccessKey")
                 match (secretAccessKeyVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     result._secretAccessKeySlice = str
                                     result.credentials.secretAccessKey = str
                                     result.changedCredentials = true
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -292,18 +290,17 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let regionVal = opts.getTruthy("region")
                 match (regionVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     result._regionSlice = str
                                     result.credentials.region = str
                                     result.changedCredentials = true
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -313,15 +310,15 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let endpointVal = opts.getTruthy("endpoint")
                 match (endpointVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     result._endpointSlice = str
                                     // 解析 URL，获取 hostWithPath
                                     let normalizedEndpoint = UrlParser.hostWithPath(str)
-                                    if (normalizedEndpoint.length > 0) {
+                                    if (normalizedEndpoint.size > 0) {
                                         result.credentials.endpoint = normalizedEndpoint
                                         // 默认 https，只有明确以 http:// 开头时使用 http
                                         result.changedCredentials = true
@@ -329,7 +326,6 @@ public func getCredentialsWithOptions(
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -339,17 +335,16 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let bucketVal = opts.getTruthy("bucket")
                 match (bucketVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     result._bucketSlice = str
                                     result.changedCredentials = true
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -359,9 +354,8 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let virtualHostedStyleVal = opts.getBooleanStrict("virtualHostedStyle")
                 match (virtualHostedStyleVal) {
-                    case Some(val) => {
+                    case Some(val) =>
                         result.changedCredentials = true
-                    }
                     case None => ()
                 }
 
@@ -371,18 +365,17 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let sessionTokenVal = opts.getTruthy("sessionToken")
                 match (sessionTokenVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     result._sessionTokenSlice = str
                                     result.credentials.sessionToken = str
                                     result.changedCredentials = true
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -392,14 +385,13 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let pageSizeVal = opts.getOptionalInt64("pageSize")
                 match (pageSizeVal) {
-                    case Some(pageSize) => {
+                    case Some(pageSize) =>
                         if (pageSize < MultiPartUploadOptions.MIN_SINGLE_UPLOAD_SIZE ||
                             pageSize > MultiPartUploadOptions.MAX_SINGLE_UPLOAD_SIZE) {
                             // throwRangeError
                         } else {
                             result.options.partSize = pageSize
                         }
-                    }
                     case None => ()
                 }
 
@@ -409,14 +401,13 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let partSizeVal = opts.getOptionalInt64("partSize")
                 match (partSizeVal) {
-                    case Some(partSize) => {
+                    case Some(partSize) =>
                         if (partSize < MultiPartUploadOptions.MIN_SINGLE_UPLOAD_SIZE ||
                             partSize > MultiPartUploadOptions.MAX_SINGLE_UPLOAD_SIZE) {
                             // throwRangeError
                         } else {
                             result.options.partSize = partSize
                         }
-                    }
                     case None => ()
                 }
 
@@ -426,13 +417,12 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let queueSizeVal = opts.getOptionalInt32("queueSize")
                 match (queueSizeVal) {
-                    case Some(queueSize) => {
+                    case Some(queueSize) =>
                         if (queueSize < 1) {
                             // throwRangeError
                         } else {
                             result.options.queueSize = Math.min8(queueSize)
                         }
-                    }
                     case None => ()
                 }
 
@@ -442,13 +432,12 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let retryVal = opts.getOptionalInt32("retry")
                 match (retryVal) {
-                    case Some(retry) => {
+                    case Some(retry) =>
                         if (retry < 0 || retry > 255) {
                             // throwRangeError
                         } else {
                             result.options.retry = UInt8(retry)
                         }
-                    }
                     case None => ()
                 }
 
@@ -458,10 +447,9 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let aclVal = opts.getOptionalString("acl")
                 match (aclVal) {
-                    case Some(aclStr) => {
+                    case Some(aclStr) =>
                         let acl = S3Acl.fromString(aclStr)
                         result.acl = acl
-                    }
                     case None => ()
                 }
 
@@ -471,10 +459,9 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let storageClassVal = opts.getOptionalString("storageClass")
                 match (storageClassVal) {
-                    case Some(scStr) => {
+                    case Some(scStr) =>
                         let sc = S3StorageClass.fromString(scStr)
                         result.storageClass = sc
-                    }
                     case None => ()
                 }
 
@@ -484,11 +471,11 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let cdVal = opts.getTruthy("contentDisposition")
                 match (cdVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     if (containsNewlineOrCR(str)) {
                                         // throwInvalidArguments
                                     } else {
@@ -498,7 +485,6 @@ public func getCredentialsWithOptions(
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -508,11 +494,11 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let typeVal = opts.getTruthy("type")
                 match (typeVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     if (containsNewlineOrCR(str)) {
                                         // throwInvalidArguments
                                     } else {
@@ -522,7 +508,6 @@ public func getCredentialsWithOptions(
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -532,11 +517,11 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let ceVal = opts.getTruthy("contentEncoding")
                 match (ceVal) {
-                    case Some(jsValue) => {
+                    case Some(jsValue) =>
                         if (!jsValue.isEmptyOrUndefinedOrNull()) {
                             if (jsValue.isString()) {
                                 let str = jsValue.toString()
-                                if (str.length > 0) {
+                                if (str.size > 0) {
                                     if (containsNewlineOrCR(str)) {
                                         // throwInvalidArguments
                                     } else {
@@ -546,7 +531,6 @@ public func getCredentialsWithOptions(
                                 }
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -556,13 +540,11 @@ public func getCredentialsWithOptions(
                 // ----------------------------------------------------------------
                 let rpVal = opts.getBooleanStrict("requestPayer")
                 match (rpVal) {
-                    case Some(val) => {
+                    case Some(val) =>
                         result.requestPayer = val
-                    }
                     case None => ()
                 }
             }
-        }
         case None => ()
     }
 

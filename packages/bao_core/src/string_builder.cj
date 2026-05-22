@@ -78,7 +78,7 @@ public class StringJoiner {
     /// pub fn push(this: *StringJoiner, data: []const u8, allocator: ?Allocator) void {
     ///     if (data.len == 0) return;
     ///     this.len += data.len;
-    ///     const new_tail = Node.init(joiner_alloc, data, allocator);
+    ///     const new_tail = Node(joiner_alloc, data, allocator);
     ///     ...
     /// }
     public func push(data: String, owned: Bool): Unit {

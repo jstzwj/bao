@@ -188,6 +188,9 @@ public class BundlerOutputFile {
             case OutputFileKind.Copy =>
                 copyToDisk(rootDirPath, value.operation.pathname, rootDir)
             case OutputFileKind.Pending => () /* 不应该在这里 */
+            case OutputFileKind.MetafileJson => ()
+            case OutputFileKind.EntryPoint => ()
+            case OutputFileKind.Chunk => ()
         }
     }
 
@@ -283,6 +286,9 @@ public enum OutputFileKind {
     | Buffer     // 内存缓冲区
     | Pending    // 等待解析
     | Saved      // 已保存
+    | MetafileJson  // Metafile JSON 输出
+    | EntryPoint    // 入口点输出
+    | Chunk         // Chunk 输出
 }
 
 /// 文件操作

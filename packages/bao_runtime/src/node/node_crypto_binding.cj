@@ -10,7 +10,7 @@ import bao_core.*
 // 对应 Bun: src/runtime/node/node_crypto_binding.zig - CryptoJob(Ctx)
 // ============================================================================
 public interface CryptoJobCtx {
-    func init(global: JsGlobalObject): Unit
+    func `init`(global: JsGlobalObject): Unit
     func runTask(): Unit
     func runFromJs(global: JsGlobalObject, callback: JsValue): Unit
     func deinit(): Unit
@@ -79,7 +79,7 @@ public class CryptoJob<C> where C <: CryptoJobCtx {
     // 在 JS 线程上完成
     public func then(global: JsGlobalObject): Unit {
         let cb = callback
-        if (cb == None) {
+        if (cb.isNone()) {
             return
         }
         ctx.runFromJs(global, cb.getOrThrow())
@@ -101,37 +101,6 @@ public class CryptoRandom {
     public static let MAX_POSSIBLE_LENGTH: Int64 = 2147483647  // i32::MAX
     // 最大随机范围
     public static let MAX_RANGE: Int64 = 281474976710655  // 0xFFFFFFFFFFFF
-
-    // 随机任务上下文
-    // 对应 Bun: random.JobCtx
-    public class RandomJobCtx <: CryptoJobCtx {
-        public var value: JsValue = JsValue()
-        public var bytes: UIntNative = 0
-        public var offset: UInt32 = 0
-        public var length: Int64 = 0
-
-        public init() {}
-
-        public func init(global: JsGlobalObject): Unit {
-            // 保护 JSValue
-        }
-
-        public func runTask(): Unit {
-            // 使用 CSPRNG 填充 bytes[offset..offset+length]
-            let slice = ByteArrayView(bytes, offset: Int64(offset), length: length)
-            CryptoRandom.csprngFill(slice)
-        }
-
-        public func runFromJs(global: JsGlobalObject, callback: JsValue): Unit {
-            // 调用 callback(null, value)
-            JsRuntime.runCallback(callback, global, thisObj: JsValue.undefined(),
-                args: Array<JsValue>([JsValue.null(), value]))
-        }
-
-        public func deinit(): Unit {
-            value = JsValue()
-        }
-    }
 
     // 安全随机整数
     // 对应 Bun: node_crypto_binding.zig - randomInt
@@ -181,7 +150,7 @@ public class CryptoRandom {
         bytes[8] = (bytes[8] & 0x3F) | 0x80  // variant RFC4122
         // 格式化为 UUID 字符串
         return String.format(
-            "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+            "%02x%02x%02x%02x-02x%02x-02x%02x-02x%02x-02x%02x%02x%02x%02x%02x",
             Array<Any>([
                 UInt64(bytes[0]), UInt64(bytes[1]), UInt64(bytes[2]), UInt64(bytes[3]),
                 UInt64(bytes[4]), UInt64(bytes[5]), UInt64(bytes[6]), UInt64(bytes[7]),
@@ -195,6 +164,37 @@ public class CryptoRandom {
     private static func csprngFill(buf: ByteArrayView): Unit {
         // 使用系统 CSPRNG（如 /dev/urandom 或 getrandom）
         System.csprngFill(buf)
+    }
+}
+
+// 随机任务上下文
+// 对应 Bun: random.JobCtx
+public class RandomJobCtx <: CryptoJobCtx {
+    public var value: JsValue = JsValue()
+    public var bytes: UIntNative = 0
+    public var offset: UInt32 = 0
+    public var length: Int64 = 0
+
+    public init() {}
+
+    public func `init`(global: JsGlobalObject): Unit {
+        // 保护 JsValue
+    }
+
+    public func runTask(): Unit {
+        // 使用 CSPRNG 填充 bytes[offset..offset+length]
+        let slice = ByteArrayView(bytes, Int64(offset), length)
+        CryptoRandom.csprngFill(slice)
+    }
+
+    public func runFromJs(global: JsGlobalObject, callback: JsValue): Unit {
+        // 调用 callback(null, value)
+        JsRuntime.runCallback(callback, global, JsValue.undefined(),
+            Array<JsValue>([JsValue.null(), value]))
+    }
+
+    public func deinit(): Unit {
+        value = JsValue()
     }
 }
 
@@ -230,7 +230,7 @@ public class ScryptCtx <: CryptoJobCtx {
         ctx.keylen = args.keylen
 
         // 应用选项
-        if (args.options != None) {
+        if (args.options.isSome()) {
             let opts = args.options.getOrThrow()
             if (opts.n > 0) { ctx.n = opts.n }
             if (opts.r > 0) { ctx.r = opts.r }
@@ -259,7 +259,7 @@ public class ScryptCtx <: CryptoJobCtx {
         return true
     }
 
-    public func init(global: JsGlobalObject): Unit {
+    public func `init`(global: JsGlobalObject): Unit {
         if (Int64(keylen) > CryptoRandom.MAX_POSSIBLE_LENGTH) {
             return
         }
@@ -268,7 +268,7 @@ public class ScryptCtx <: CryptoJobCtx {
 
     public func runTask(): Unit {
         let key = result
-        if (key == None) {
+        if (key.isNone()) {
             return
         }
         runTaskImpl(key.getOrThrow())
@@ -283,7 +283,7 @@ public class ScryptCtx <: CryptoJobCtx {
     }
 
     public func runFromJs(global: JsGlobalObject, callback: JsValue): Unit {
-        if (err != None) {
+        if (err.isSome()) {
             let errorMsg = "Scrypt failed"
             let exception = JsError.createCryptoError(errorMsg)
             JsRuntime.runCallback(callback, global, thisObj: JsValue.undefined(),
@@ -419,7 +419,7 @@ public class CryptoHashes {
     private static var cachedHashes: ?Array<String> = None
 
     public static func getHashes(): Array<String> {
-        if (cachedHashes != None) {
+        if (cachedHashes.isSome()) {
             return cachedHashes.getOrThrow()
         }
 
@@ -477,7 +477,7 @@ public class ScryptBinding {
     // 异步 scrypt
     public static func scrypt(global: JsGlobalObject, args: ScryptJsArgs): JsValue {
         let ctx = ScryptCtx.fromJs(global, args: args, isAsync: true)
-        if (ctx == None) {
+        if (ctx.isNone()) {
             return JsValue.undefined()
         }
         // 创建并调度任务
@@ -490,14 +490,14 @@ public class ScryptBinding {
     // 同步 scrypt
     public static func scryptSync(global: JsGlobalObject, args: ScryptJsArgs): Array<UInt8> {
         let ctx = ScryptCtx.fromJs(global, args: args, isAsync: false)
-        if (ctx == None) {
+        if (ctx.isNone()) {
             return Array<UInt8>()
         }
 
         let key = Array<UInt8>(Int64(ctx.getOrThrow().keylen), item: UInt8(0))
         ctx.getOrThrow().runTaskImpl(key)
 
-        if (ctx.getOrThrow().err != None) {
+        if (ctx.getOrThrow().err.isSome()) {
             return Array<UInt8>()
         }
         return key
@@ -545,19 +545,19 @@ public class ByteArrayView {
     public init(ptr: UIntNative, offset: Int64, length: Int64) {
         this.ptr = ptr
         this.offset = offset
-        this.length = length
+        this.size = length
     }
 
     public init(arr: Array<UInt8>) {
         self.ptr = UIntNative(0)  // 指向 arr 的内部指针
         self.offset = 0
-        self.length = Int64(arr.size)
+        self.size = Int64(arr.size)
     }
 
     public init(arr: Array<UInt8>, offset: Int64, length: Int64) {
         self.ptr = UIntNative(0)
         self.offset = offset
-        self.length = if (length >= 0) { length } else { Int64(arr.size) - offset }
+        self.size = if (length >= 0) { length } else { Int64(arr.size) - offset }
     }
 }
 

@@ -29,8 +29,8 @@ public class StaticPipeWriter<ProcessType> {
     /// 创建 StaticPipeWriter
     public static func create(eventLoop: EventLoop, subprocess: ProcessType, result: StdioResult, source: Source): StaticPipeWriter {
         let writer = StaticPipeWriter(
-            refCount: RefCount.init(),
-            eventLoop: EventLoopHandle.init(eventLoop),
+            refCount: RefCount(),
+            eventLoop: EventLoopHandle(eventLoop),
             process: subprocess,
             stdioResult: result,
             source: source,
@@ -47,8 +47,8 @@ public class StaticPipeWriter<ProcessType> {
             return writer.startWithCurrentPipe()
         }
         match (writer.start(stdioResult, true)) {
-            case .err(let err) => return Maybe<Unit>.err(err)
-            case .result =>
+            case err(err) => return Maybe<Unit>.err(err)
+            case result =>
                 if (Environment.isPosix) {
                     writer.handle.poll.flags.insert(.nonblocking)
                 }
@@ -63,7 +63,7 @@ public class StaticPipeWriter<ProcessType> {
     /// onWrite - 写入完成回调
     public func onWrite(amount: Int, status: WriteStatus): Unit {
         buffer = buffer.substring(min(amount, buffer.count))
-        if (status == .endOfFile || buffer.count == 0) {
+        if (status == endOfFile || buffer.count == 0) {
             writer.close()
         }
     }

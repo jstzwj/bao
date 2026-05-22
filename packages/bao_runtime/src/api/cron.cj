@@ -48,13 +48,13 @@ public interface CronJobBaseIsh<T> {
 
 /// CronRegisterJob 的状态
 public enum RegisterState {
-    case readingCrontab
-    case installingCrontab
-    case writingPlist
-    case bootingOut
-    case bootstrapping
-    case done
-    case failed
+    | readingCrontab
+    | installingCrontab
+    | writingPlist
+    | bootingOut
+    | bootstrapping
+    | done
+    | failed
 }
 
 // ============================================================================
@@ -63,11 +63,11 @@ public enum RegisterState {
 
 /// CronRemoveJob 的状态
 public enum RemoveState {
-    case readingCrontab
-    case installingCrontab
-    case bootingOut
-    case done
-    case failed
+    | readingCrontab
+    | installingCrontab
+    | bootingOut
+    | done
+    | failed
 }
 
 // ============================================================================
@@ -228,7 +228,7 @@ public class CronRegisterJob {
         }
 
         // 释放进程引用
-        if (let proc = process) {
+        if (let proc <- process) {
             proc.detach()
             process = none
         }
@@ -241,7 +241,7 @@ public class CronRegisterJob {
         let status = exitStatus ?? return
 
         match (status) {
-            case .exited(code) =>
+            case exited(code) =>
                 if (code != 0
                     && !(state == RegisterState.readingCrontab && code == 1)
                     && state != RegisterState.bootingOut) {
@@ -250,17 +250,17 @@ public class CronRegisterJob {
                     finish()
                     return
                 }
-            case .signaled(sig) =>
+            case signaled(sig) =>
                 if (state != RegisterState.bootingOut) {
                     setErr("Process killed by signal ".append(sig.toString()))
                     finish()
                     return
                 }
-            case .err(err) =>
+            case err(err) =>
                 setErr("Process error: ".append(err.strerror()))
                 finish()
                 return
-            case .running =>
+            case running =>
                 return
         }
 
@@ -271,17 +271,17 @@ public class CronRegisterJob {
     public func advanceState(): Unit {
         // macOS 和 Linux/Windows 有不同的状态流
         match (state) {
-            case .writingPlist =>
+            case writingPlist =>
                 spawnBootout()
-            case .bootingOut =>
+            case bootingOut =>
                 spawnBootstrap()
-            case .bootstrapping =>
+            case bootstrapping =>
                 finish()
-            case .readingCrontab =>
+            case readingCrontab =>
                 processCrontabAndInstall()
-            case .installingCrontab =>
+            case installingCrontab =>
                 finish()
-            default =>
+            case _ =>
                 setErr("Unexpected state")
                 finish()
         }
@@ -294,10 +294,10 @@ public class CronRegisterJob {
         let ev = VirtualMachine.get().eventLoop()
         ev.enter()
         defer ev.exit()
-        if (let msg = errMsg) {
+        if (let msg <- errMsg) {
             promise.rejectWithAsyncStack(global, global.createErrorInstance(String.fromUtf8(msg)))
         } else {
-            try promise.resolve(global, JsValue.jsUndefined)
+            try promise.resolve(global, JsValue.jsUndefined())
         }
         deinit()
     }
@@ -521,7 +521,7 @@ public class CronRegisterJob {
             "/tn",
             taskName,
             "/np",
-            "/f",
+            "/f"
         ]
         spawnCmd(argv, SpawnStdio.ignore, SpawnStdio.ignore)
     }
@@ -543,7 +543,7 @@ public class CronRegisterJob {
 
         let result = SpawnProcess.spawn(argv, spawnOpts)
         match (result) {
-            case .ok(proc) =>
+            case ok(proc) =>
                 process = proc
                 proc.setExitHandler(this)
                 // 设置 stdout reader
@@ -553,7 +553,7 @@ public class CronRegisterJob {
                     stdoutReader.start(proc)
                 }
                 proc.watchOrReap()
-            case .err(err) =>
+            case err(err) =>
                 setErr("Failed to spawn process: ".append(err.toString()))
                 finish()
         }
@@ -566,11 +566,11 @@ public class CronRegisterJob {
     public func deinit(): Unit {
         stdoutReader.deinit()
         stderrReader.deinit()
-        if (let p = tmpPath) {
+        if (let p <- tmpPath) {
             Syscall.unlink(p)
             tmpPath = none
         }
-        if (let proc = process) {
+        if (let proc <- process) {
             proc.detach()
             process = none
         }
@@ -657,7 +657,7 @@ public class CronRemoveJob {
     public func maybeFinished(): Unit {
         if (!hasCalledProcessExit || remainingFds != 0) { return }
 
-        if (let proc = process) {
+        if (let proc <- process) {
             proc.detach()
             process = none
         }
@@ -670,7 +670,7 @@ public class CronRemoveJob {
         let status = exitStatus ?? return
 
         match (status) {
-            case .exited(code) =>
+            case exited(code) =>
                 let isAcceptableNonzero = (state == RemoveState.readingCrontab && code == 1)
                     || state == RemoveState.bootingOut
                 if (code != 0 && !isAcceptableNonzero) {
@@ -678,17 +678,17 @@ public class CronRemoveJob {
                     finish()
                     return
                 }
-            case .signaled(sig) =>
+            case signaled(sig) =>
                 if (state != RemoveState.bootingOut) {
                     setErr("Process killed by signal ".append(sig.toString()))
                     finish()
                     return
                 }
-            case .err(err) =>
+            case err(err) =>
                 setErr("Process error: ".append(err.strerror()))
                 finish()
                 return
-            case .running =>
+            case running =>
                 return
         }
 
@@ -698,7 +698,7 @@ public class CronRemoveJob {
     /// 推进状态机
     public func advanceState(): Unit {
         match (state) {
-            case .bootingOut =>
+            case bootingOut =>
                 // macOS: bootout 后删除 plist
                 let home = EnvVar.HOME.get()
                 if (home != none) {
@@ -709,11 +709,11 @@ public class CronRemoveJob {
                     Syscall.unlink(plistPath)
                 }
                 finish()
-            case .readingCrontab =>
+            case readingCrontab =>
                 removeCrontabEntry()
-            case .installingCrontab =>
+            case installingCrontab =>
                 finish()
-            default =>
+            case _ =>
                 setErr("Unexpected state")
                 finish()
         }
@@ -726,10 +726,10 @@ public class CronRemoveJob {
         let ev = VirtualMachine.get().eventLoop()
         ev.enter()
         defer ev.exit()
-        if (let msg = errMsg) {
+        if (let msg <- errMsg) {
             promise.rejectWithAsyncStack(global, global.createErrorInstance(String.fromUtf8(msg)))
         } else {
-            try promise.resolve(global, JsValue.jsUndefined)
+            try promise.resolve(global, JsValue.jsUndefined())
         }
         deinit()
     }
@@ -829,7 +829,7 @@ public class CronRemoveJob {
 
         let result = SpawnProcess.spawn(argv, spawnOpts)
         match (result) {
-            case .ok(proc) =>
+            case ok(proc) =>
                 process = proc
                 proc.setExitHandler(this)
                 if (stdoutOpt == SpawnStdio.buffer) {
@@ -838,7 +838,7 @@ public class CronRemoveJob {
                     stdoutReader.start(proc)
                 }
                 proc.watchOrReap()
-            case .err(err) =>
+            case err(err) =>
                 setErr("Failed to spawn process: ".append(err.toString()))
                 finish()
         }
@@ -851,11 +851,11 @@ public class CronRemoveJob {
     public func deinit(): Unit {
         stdoutReader.deinit()
         stderrReader.deinit()
-        if (let p = tmpPath) {
+        if (let p <- tmpPath) {
             Syscall.unlink(p)
             tmpPath = none
         }
-        if (let proc = process) {
+        if (let proc <- process) {
             proc.detach()
             process = none
         }
@@ -922,21 +922,21 @@ public class CronJob {
     // ========================================================================
 
     /// JS 入口: CronJob 构造函数 (不可直接构造)
-    public static func constructor(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public static func constructor(JsGlobalObject, callframe: JsCallFrame): JsValue {
         globalObject.throwInvalidArguments("CronJob cannot be constructed directly; use Bun.cron(schedule, handler)")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     /// 注册进程内 cron 任务
-    public static func register(globalObject: JsGlobalObject, scheduleArg: JsValue, callbackArg: JsValue): JsValue {
+    public static func register(JsGlobalObject, scheduleArg: JsValue, callbackArg: JsValue): JsValue {
         if (!scheduleArg.isString()) {
             globalObject.throwInvalidArguments("Bun.cron() expects a string cron expression")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         let scheduleStr = scheduleArg.toString(globalObject)
         if (scheduleStr == none) {
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         let parsed: CronExpression
@@ -944,7 +944,7 @@ public class CronJob {
             parsed = CronExpression.parse(scheduleStr.get())
         } catch (e: CronExpression.Error) {
             globalObject.throwInvalidArguments(CronExpression.Error.errorMessage(e))
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         let vm = globalObject.bunVM()
@@ -966,7 +966,7 @@ public class CronJob {
             // 无法计算下次触发时间 - 表达式没有未来的匹配项
             job.deref()
             globalObject.throwInvalidArguments("Cron expression '".append(scheduleStr.get()).append("' has no future occurrences"))
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         // 如果是 hot reload 或 worker, 加入 cron_jobs 列表
@@ -1060,7 +1060,7 @@ public class CronJob {
 
         if (result == none) {
             // 调用抛出异常
-            if (let err = job.global.tryTakeException()) {
+            if (let err <- job.global.tryTakeException()) {
                 if (err.isTerminationException()) {
                     selfStop(job, vm)
                     job.deref()
@@ -1081,9 +1081,9 @@ public class CronJob {
             return
         }
 
-        if (let promise = result.get().asAnyPromise()) {
+        if (let promise <- result.get().asAnyPromise()) {
             match (promise.status()) {
-                case .pending =>
+                case pending =>
                     job.ref()
                     job.pendingRef = true
                     JSCronJob.pendingPromiseSetCached(jsThis.get(), job.global, result.get())
@@ -1092,15 +1092,15 @@ public class CronJob {
                         CronJob.onPromiseReject)
                     // 检查 VM 状态 - then() 可能在终止时失败
                     if (vm.scriptExecutionStatus != ScriptExecutionStatus.running) {
-                        JSCronJob.pendingPromiseSetCached(jsThis.get(), job.global, JsValue.jsUndefined)
+                        JSCronJob.pendingPromiseSetCached(jsThis.get(), job.global, JsValue.jsUndefined())
                         releasePendingRef(job)
                         scheduleNext(job, vm)
                     }
                     job.deref()
                     return
-                case .fulfilled =>
+                case fulfilled =>
                     () // 继续调度下次
-                case .rejected =>
+                case rejected =>
                     promise.setHandled(job.global.vm())
                     let reason = promise.result(job.global.vm())
                     let globalRef = vm.global()
@@ -1121,13 +1121,13 @@ public class CronJob {
 
         let jsThis = job.thisValue.tryGet()
         if (jsThis != none) {
-            JSCronJob.pendingPromiseSetCached(jsThis.get(), job.global, JsValue.jsUndefined)
+            JSCronJob.pendingPromiseSetCached(jsThis.get(), job.global, JsValue.jsUndefined())
         }
 
         let vm = job.global.bunVM()
         scheduleNext(job, vm)
 
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// Promise reject 回调
@@ -1139,12 +1139,12 @@ public class CronJob {
 
         let vm = job.global.bunVM()
         let err = args[0]
-        var promiseValue = JsValue.jsUndefined
+        var promiseValue = JsValue.jsUndefined()
 
         let jsThis = job.thisValue.tryGet()
         if (jsThis != none) {
-            promiseValue = JSCronJob.pendingPromiseGetCached(jsThis.get()) ?? JsValue.jsUndefined
-            JSCronJob.pendingPromiseSetCached(jsThis.get(), job.global, JsValue.jsUndefined)
+            promiseValue = JSCronJob.pendingPromiseGetCached(jsThis.get()) ?? JsValue.jsUndefined()
+            JSCronJob.pendingPromiseSetCached(jsThis.get(), job.global, JsValue.jsUndefined())
         }
 
         let globalRef = vm.global()
@@ -1152,7 +1152,7 @@ public class CronJob {
 
         scheduleNext(job, vm)
 
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // ========================================================================
@@ -1179,7 +1179,7 @@ public class CronJob {
 
     /// 获取 cron 表达式 (JS getter: job.cron)
     public func getCron(): JsValue {
-        return JsValue.jsUndefined // 不可达 - register() 已通过 cronSetCached 预填充缓存
+        return JsValue.jsUndefined() // 不可达 - register() 已通过 cronSetCached 预填充缓存
     }
 
     /// 内部停止
@@ -1212,7 +1212,7 @@ public class CronJob {
 
     /// 从 VM 列表中移除
     public static func removeFromList(job: CronJob, vm: VirtualMachine): Unit {
-        if (let rare = vm.rareData) {
+        if (let rare <- vm.rareData) {
             let idx = rare.cronJobs.indexOf(job)
             if (idx != none) {
                 rare.cronJobs.swapRemove(idx.get())
@@ -1262,8 +1262,8 @@ public class CronJob {
     // ========================================================================
 
     public enum ClearMode {
-        case reload
-        case teardown
+        | reload
+        | teardown
     }
 
     // ========================================================================
@@ -1324,8 +1324,8 @@ public func getCronObject(globalThis: JsGlobalObject, _: JsObject): JsValue {
     let cronFn = JsFunction.create(globalThis, "cron", CronRegisterJob.cronRegister, 3)
     let removeFn = JsFunction.create(globalThis, "remove", CronRemoveJob.cronRemove, 1)
     let parseFn = JsFunction.create(globalThis, "parse", cronParse, 1)
-    cronFn.put(globalThis, BunString.static("remove"), removeFn)
-    cronFn.put(globalThis, BunString.static("parse"), parseFn)
+    cronFn.put(globalThis, BunString.`static`("remove"), removeFn)
+    cronFn.put(globalThis, BunString.`static`("parse"), parseFn)
     return cronFn
 }
 
@@ -1336,7 +1336,7 @@ public func getCronObject(globalThis: JsGlobalObject, _: JsObject): JsValue {
 /// cronRegister - JS 入口
 /// Bun.cron(schedule, handler)       - 进程内回调 cron (返回 CronJob)
 /// Bun.cron(path, schedule, title)   - 注册 OS 级任务 (返回 Promise)
-public func cronRegister(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func cronRegister(JsGlobalObject, callframe: JsCallFrame): JsValue {
     let args = callframe.argumentsAsArray3()
 
     // 进程内回调 cron: Bun.cron(schedule, handler)
@@ -1346,20 +1346,20 @@ public func cronRegister(globalObject: JsGlobalObject, callframe: JsCallFrame): 
 
     if (args[0].isString() && args[2].isUndefined()) {
         globalObject.throwInvalidArguments("Bun.cron(schedule, handler) expects a function handler as the second argument")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     if (!args[0].isString()) {
         globalObject.throwInvalidArguments("Bun.cron() expects a string path as the first argument")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
     if (!args[1].isString()) {
         globalObject.throwInvalidArguments("Bun.cron() expects a string schedule as the second argument")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
     if (!args[2].isString()) {
         globalObject.throwInvalidArguments("Bun.cron() expects a string title as the third argument")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let pathStr = args[0].toString(globalObject) ?? ""
@@ -1369,7 +1369,7 @@ public func cronRegister(globalObject: JsGlobalObject, callframe: JsCallFrame): 
     // 验证标题: 只允许 [a-zA-Z0-9_-]
     if (!validateTitle(titleStr)) {
         globalObject.throwInvalidArguments("Cron title must contain only alphanumeric characters, hyphens, and underscores")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     // 解析并规范化 cron 调度为数字形式
@@ -1378,48 +1378,48 @@ public func cronRegister(globalObject: JsGlobalObject, callframe: JsCallFrame): 
         parsed = CronExpression.parse(scheduleStr)
     } catch (e: CronExpression.Error) {
         globalObject.throwInvalidArguments(CronExpression.Error.errorMessage(e))
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
     let normalizedSchedule = parsed.formatNumericString()
 
     let absPathVal = resolvePath(globalObject, callframe, pathStr)
     if (absPathVal == none) {
         globalObject.throwInvalidArguments("Failed to resolve path")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     // 验证路径不包含单引号或百分号
     for (c in absPathVal.get()) {
         if (c == '\'') {
             globalObject.throwInvalidArguments("Path must not contain single quotes")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
         if (c == '%') {
             globalObject.throwInvalidArguments("Path must not contain percent signs (cron interprets % as newline)")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
         if (c == '\n' || c == '\r') {
             globalObject.throwInvalidArguments("Path must not contain line breaks")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
     }
 
     let bunExe = getSelfExePath()
     if (bunExe == none) {
         globalObject.throwInvalidArguments("Failed to get bun executable path")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     // 检查 bun 可执行路径中的特殊字符
     for (c in bunExe.get()) {
         if (c == '\'' || c == '%') {
             globalObject.throwInvalidArguments("Bun executable path '".append(bunExe.get()).append("' contains characters (' or %) that cannot be safely embedded in a crontab entry"))
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
     }
 
     let job = CronRegisterJob()
-    job.promise = JSPromiseStrong.init(globalObject)
+    job.promise = JSPromiseStrong(globalObject)
     job.global = globalObject
     job.poll = AsyncKeepAlive()
     job.bunExe = bunExe.get()
@@ -1436,7 +1436,7 @@ public func cronRegister(globalObject: JsGlobalObject, callframe: JsCallFrame): 
     job.exitStatus = none
     job.errMsg = none
     job.tmpPath = none
-    job.eventLoopHandle = EventLoopHandle.init(VirtualMachine.get().eventLoop())
+    job.eventLoopHandle = EventLoopHandle(VirtualMachine.get().eventLoop())
 
     job.poll.ref(VirtualMachine.get())
     let promiseValue = job.promise.value()
@@ -1458,22 +1458,22 @@ public func cronRegister(globalObject: JsGlobalObject, callframe: JsCallFrame): 
 // ============================================================================
 
 /// cronRemove - JS 入口: 移除 OS 级 cron 任务
-public func cronRemove(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func cronRemove(JsGlobalObject, callframe: JsCallFrame): JsValue {
     let args = callframe.argumentsAsArray1()
     if (!args[0].isString()) {
         globalObject.throwInvalidArguments("Bun.cron.remove() expects a string title")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let titleStr = args[0].toString(globalObject) ?? ""
 
     if (!validateTitle(titleStr)) {
         globalObject.throwInvalidArguments("Cron title must contain only alphanumeric characters, hyphens, and underscores")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let job = CronRemoveJob()
-    job.promise = JSPromiseStrong.init(globalObject)
+    job.promise = JSPromiseStrong(globalObject)
     job.global = globalObject
     job.poll = AsyncKeepAlive()
     job.title = titleStr
@@ -1486,7 +1486,7 @@ public func cronRemove(globalObject: JsGlobalObject, callframe: JsCallFrame): Js
     job.exitStatus = none
     job.errMsg = none
     job.tmpPath = none
-    job.eventLoopHandle = EventLoopHandle.init(VirtualMachine.get().eventLoop())
+    job.eventLoopHandle = EventLoopHandle(VirtualMachine.get().eventLoop())
 
     job.poll.ref(VirtualMachine.get())
     let promiseValue = job.promise.value()
@@ -1509,12 +1509,12 @@ public func cronRemove(globalObject: JsGlobalObject, callframe: JsCallFrame): Js
 
 /// cronParse - JS 入口: 下次触发时间计算器
 /// Bun.cron.parse(expr, from?) 返回 Date | null
-public func cronParse(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func cronParse(JsGlobalObject, callframe: JsCallFrame): JsValue {
     let args = callframe.argumentsAsArray2()
 
     if (!args[0].isString()) {
         globalObject.throwInvalidArguments("Bun.cron.parse() expects a string cron expression as the first argument")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let exprStr = args[0].toString(globalObject) ?? ""
@@ -1524,7 +1524,7 @@ public func cronParse(globalObject: JsGlobalObject, callframe: JsCallFrame): JsV
         parsed = CronExpression.parse(exprStr)
     } catch (e: CronExpression.Error) {
         globalObject.throwInvalidArguments(CronExpression.Error.errorMessage(e))
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     var fromMs: Float64 = Float64(Time.milliTimestamp())
@@ -1535,18 +1535,18 @@ public func cronParse(globalObject: JsGlobalObject, callframe: JsCallFrame): JsV
             fromMs = args[1].toNumber(globalObject) ?? fromMs
         } else {
             globalObject.throwInvalidArguments("Bun.cron.parse() expects the second argument to be a Date or number (ms since epoch)")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
     }
 
     if (fromMs.isNaN() || fromMs.isInfinite()) {
         globalObject.throwInvalidArguments("Invalid date value")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let nextMs = try parsed.next(globalObject, fromMs)
     if (nextMs == none) {
-        return JsValue.null
+        return JsValue.jsNull()
     }
     return JsValue.fromDateNumber(globalObject, nextMs.get())
 }
@@ -1649,7 +1649,7 @@ public func xmlEscape(input: String): String {
             case '>' => result.append("&gt;")
             case '"' => result.append("&quot;")
             case '\'' => result.append("&apos;")
-            default => result.append(c)
+            case _ => result.append(c)
         }
     }
     return result.toString()
@@ -1679,7 +1679,7 @@ public func xmlEscapeBytes(input: Array<UInt8>): ?Array<UInt8> {
                 result.appendAll("&quot;".toUtf8().toArray())
             case UInt8('\'') =>
                 result.appendAll("&apos;".toUtf8().toArray())
-            default =>
+            case _ =>
                 result.append(c)
         }
     }
@@ -1704,7 +1704,7 @@ public func getSelfExePath(): ?String {
 }
 
 /// 解析模块路径
-public func resolvePath(globalObject: JsGlobalObject, callframe: JsCallFrame, pathStr: String): ?String {
+public func resolvePath(JsGlobalObject, callframe: JsCallFrame, pathStr: String): ?String {
     let vm = globalObject.bunVM()
     let srcloc = callframe.getCallerSrcLoc(globalObject)
     let callerDir = PathUtils.dirname(srcloc.str)
@@ -1739,8 +1739,8 @@ public func makeDirAll(path: String): Bool {
 
 /// CalendarError
 public enum CalendarError {
-    case invalidCron
-    case outOfMemory
+    | invalidCron
+    | outOfMemory
 }
 
 /// 将 cron 表达式转换为 launchd StartCalendarInterval XML
@@ -1801,7 +1801,7 @@ public func cronToCalendarInterval(schedule: String): ?String {
 
     // 确定是否需要 <array> 包装器
     let needsProduct = fieldValues.any({ fv =>
-        if (let v = fv) { v.size > 1 } else { false }
+        if (let v <- fv) { v.size > 1 } else { false }
     })
     let needsArray = needsProduct || needsOrSplit
 
@@ -1813,7 +1813,7 @@ public func cronToCalendarInterval(schedule: String): ?String {
         let plistKeys: Array<String> = ["Minute", "Hour", "Day", "Month", "Weekday"]
         var result = "    <dict>\n"
         for (i in 0..5) {
-            if (let vals = fvSlices[i]) {
+            if (let vals <- fvSlices[i]) {
                 if (vals.size == 1) {
                     result = result.append("        <key>").append(plistKeys[i]).append("</key>\n")
                     result = result.append("        <integer>").append(vals[0].toString()).append("</integer>\n")
@@ -1855,9 +1855,9 @@ public func parseUnsigned32(s: Array<UInt8>): ?Int32 {
 
 /// EmitMode - 日历字典的发射模式
 public enum EmitMode {
-    case includeAll
-    case excludeWeekday
-    case excludeDay
+    | includeAll
+    | excludeWeekday
+    | excludeDay
 }
 
 /// 发射笛卡尔积 <dict> 条目
@@ -1867,9 +1867,9 @@ public func emitCalendarDicts(fieldValues: Array<?Array<Int32>>, mode: EmitMode)
     // 根据模式构建有效字段值
     var effective: Array<?Array<Int32>> = fieldValues.toArray()
     match (mode) {
-        case .excludeWeekday => effective[4] = none
-        case .excludeDay => effective[2] = none
-        case .includeAll => ()
+        case excludeWeekday => effective[4] = none
+        case excludeDay => effective[2] = none
+        case includeAll => ()
     }
 
     let zeroArr: Array<Int32> = [0]
@@ -1923,9 +1923,9 @@ public func emitCalendarDicts(fieldValues: Array<?Array<Int32>>, mode: EmitMode)
 
 /// TaskXmlError
 public enum TaskXmlError {
-    case invalidCron
-    case tooManyTriggers
-    case outOfMemory
+    | invalidCron
+    | tooManyTriggers
+    | outOfMemory
 }
 
 /// 构建从已解析 cron 表达式的 Windows Task Scheduler XML 定义
@@ -2078,7 +2078,7 @@ public func cronToTaskXml(
 
 /// ScheduleType - 计划类型
 public enum ScheduleType {
-    case byDay
+    | byDay
     case byWeek(UInt8)           // weekdays 位掩码
     case byMonth(CronExpression, Bool)  // cron, months_is_wild
     case byMonthDow(CronExpression, Bool) // cron, months_is_wild
@@ -2093,25 +2093,25 @@ public func appendCalendarTriggerWithSchedule(xml: Array<UInt8>, startBoundary: 
     xml.appendAll("</StartBoundary>\n".toUtf8().toArray())
 
     match (sched) {
-        case .byDay =>
+        case byDay =>
             xml.appendAll("      <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>\n".toUtf8().toArray())
-        case .byWeek(weekdays) =>
+        case byWeek(weekdays) =>
             xml.appendAll("      <ScheduleByWeek>\n".toUtf8().toArray())
             xml.appendAll("        <WeeksInterval>1</WeeksInterval>\n".toUtf8().toArray())
             appendDaysOfWeekXml(xml, weekdays)
             xml.appendAll("      </ScheduleByWeek>\n".toUtf8().toArray())
-        case .byMonth(cron, _) =>
+        case byMonth(cron, _) =>
             xml.appendAll("      <ScheduleByMonth>\n".toUtf8().toArray())
             appendDaysOfMonthXml(xml, cron.days)
             appendMonthsXml(xml, cron.months)
             xml.appendAll("      </ScheduleByMonth>\n".toUtf8().toArray())
-        case .byMonthDow(cron, _) =>
+        case byMonthDow(cron, _) =>
             xml.appendAll("      <ScheduleByMonthDayOfWeek>\n".toUtf8().toArray())
             xml.appendAll("        <Weeks><Week>1</Week><Week>2</Week><Week>3</Week><Week>4</Week><Week>Last</Week></Weeks>\n".toUtf8().toArray())
             appendDaysOfWeekXml(xml, cron.weekdays)
             appendMonthsXml(xml, cron.months)
             xml.appendAll("      </ScheduleByMonthDayOfWeek>\n".toUtf8().toArray())
-        case .byMonthAllDays(months) =>
+        case byMonthAllDays(months) =>
             xml.appendAll("      <ScheduleByMonth>\n".toUtf8().toArray())
             appendDaysOfMonthXml(xml, 0xFFFFFFFE)
             appendMonthsXml(xml, months)
@@ -2137,7 +2137,7 @@ public func appendDaysOfMonthXml(xml: Array<UInt8>, days: UInt32): Unit {
 /// 月份名称
 public let monthNames: Array<String> = [
     "", "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "July", "August", "September", "October", "November", "December"
 ]
 
 /// 追加 months XML
@@ -2155,7 +2155,7 @@ public func appendMonthsXml(xml: Array<UInt8>, months: UInt16): Unit {
 
 /// 星期名称
 public let dayNames: Array<String> = [
-    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 ]
 
 /// 追加 days-of-week XML

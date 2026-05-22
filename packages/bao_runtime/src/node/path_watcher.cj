@@ -85,9 +85,9 @@ public class PathWatcherManager {
     // 获取全局单例
     // 对应 Bun: path_watcher.zig - PathWatcherManager.get
     public static func get(): PathWatcherManager {
-        if (defaultManager == None) {
+        if (defaultManager.isNone()) {
             defaultManagerMutex.lock()
-            if (defaultManager == None) {
+            if (defaultManager.isNone()) {
                 defaultManager = PathWatcherManager()
                 defaultManager.getOrThrow().initPlatform()
             }
@@ -116,7 +116,7 @@ public class PathWatcherManager {
         let dedupKey = path + if (recursive) { "\0R" } else { "\0N" }
 
         var watcher = watchers.get(dedupKey)
-        if (watcher == None) {
+        if (watcher.isNone()) {
             watcher = PathWatcher(path: path, recursive: recursive)
             watchers.put(dedupKey, watcher.getOrThrow())
 
@@ -135,7 +135,7 @@ public class PathWatcherManager {
         let dedupKey = path + if (recursive) { "\0R" } else { "\0N" }
 
         let watcher = watchers.get(dedupKey)
-        if (watcher != None) {
+        if (watcher.isSome()) {
             watcher.getOrThrow().removeHandler(handler)
             if (watcher.getOrThrow().handlerCount() == 0) {
                 // 注销平台监视
@@ -266,7 +266,7 @@ public class PathWatcher {
     public func detach(): Unit {
         closed = true
         handlers = Array<PathWatchHandler>()
-        if (fsEventsWatcher != None) {
+        if (fsEventsWatcher.isSome()) {
             fsEventsWatcher.getOrThrow().close()
             fsEventsWatcher = None
         }

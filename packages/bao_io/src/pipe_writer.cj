@@ -322,7 +322,7 @@ public class FilePollRef {
     }
 
     public func registerWithFd(): SysMaybe<Unit> {
-        let poll = FilePoll.`init`(Int32(fd), FilePollFlags(), FilePollOwnerTag.PipeReader, 0)
+        let poll = FilePoll(Int32(fd), FilePollFlags(), FilePollOwner(FilePollOwnerTag.PipeReader, 0))
         let result = poll.registerWithFd(UwsLoop(), FilePollFlag.Readable, FilePollOneShotFlag.None, Int32(fd))
         match (result) {
             case Ok(_) => isRegistered = true

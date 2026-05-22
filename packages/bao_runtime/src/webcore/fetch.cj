@@ -93,7 +93,7 @@ public enum HTTPRequestBody {
     /// 对应 Bun: HTTPRequestBody.has_body()
     public func hasBody(): Bool {
         match (this) {
-            case AnyBlob(b) => !b.isDefinitelyEmpty()
+            | AnyBlob(b) => !b.isDefinitelyEmpty()
             case ReadableStream(_) => true
             case Sendfile(_) => true
             case None => false
@@ -337,7 +337,7 @@ public class AnyBlob {
 
     /// 获取 content-type
     public func contentType(): ?Array<UInt8> {
-        if (blob.contentType.length > 0) {
+        if (blob.contentType.size > 0) {
             Some(Utf8Codec.encode(blob.contentType))
         } else {
             None
@@ -496,23 +496,21 @@ public class SSLConfig {
         // rejectUnauthorized
         let rejectVal = value.get("rejectUnauthorized")
         match (rejectVal) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isBoolean()) {
                     config.rejectUnauthorized = v.toBoolean()
                 } else if (v.isNumber()) {
                     config.rejectUnauthorized = v.toInt32() != 0
                 }
-            }
             case None => ()
         }
         // serverName
         let snVal = value.get("serverName")
         match (snVal) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isString()) {
                     config.serverName = v.toString()
                 }
-            }
             case None => ()
         }
         return Some(config)
@@ -594,17 +592,16 @@ public class StringOrURL {
         // 尝试从 URL 对象提取 href
         let href = value.get("href")
         match (href) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isString()) {
                     return Some(v.toString())
                 }
-            }
             case None => ()
         }
         // 尝试 toString
         if (value.isObject()) {
             let str = value.toString()
-            if (str.length > 0) {
+            if (str.size > 0) {
                 return Some(str)
             }
         }
@@ -645,10 +642,9 @@ public class SignalRef {
     /// 对应 Bun: SignalRef Drop impl
     public func deinit(): Unit {
         match (signal) {
-            case Some(sig) => {
+            case Some(sig) =>
                 // 对应 Bun: sig.unref() 释放 +1 引用
                 sig.unref()
-            }
             case None => ()
         }
     }
@@ -678,9 +674,8 @@ public class FetchHeadersRef {
     /// 对应 Bun: FetchHeadersRef Drop impl
     public func deinit(): Unit {
         match (headers) {
-            case Some(h) => {
-                // 对应 Bun: fh.deref() 释放 +1 引用
-            }
+            case Some(h) =>
+                () // 对应 Bun: fh.deref() 释放 +1 引用
             case None => ()
         }
     }
@@ -738,11 +733,11 @@ public class DataURL {
         // 解析 MIME 类型和编码
         if (metaPart.endsWith(";base64")) {
             dataUrl.isBase64 = true
-            dataUrl.mimeType = metaPart.substring(0, metaPart.length - 7)
-        } else if (metaPart.length > 0) {
+            dataUrl.mimeType = metaPart.substring(0, metaPart.size - 7)
+        } else if (metaPart.size > 0) {
             dataUrl.mimeType = metaPart
         }
-        if (dataUrl.mimeType.length == 0) {
+        if (dataUrl.mimeType.size == 0) {
             dataUrl.mimeType = "text/plain"
         }
         return Result.Ok(dataUrl)
@@ -778,15 +773,14 @@ public class S3StreamWrapper {
     /// 对应 Bun: S3StreamWrapper::resolve()
     public func resolve(result: S3UploadResult): Unit {
         match (result) {
-            case S3UploadResult.Success => {
+            case S3UploadResult.Success =>
                 let response = Response()
                 response.init.statusCode = 200
                 response.init.statusText = "OK"
                 response.init.method = HttpMethod.PUT
                 response.url = url.href
                 promise.resolve(global, response.toJsValue())
-            }
-            case S3UploadResult.Failure(errCode, errMsg) => {
+            case S3UploadResult.Failure(errCode, errMsg) =>
                 let response = Response()
                 response.init.statusCode = 500
                 response.init.statusText = errMsg
@@ -797,7 +791,6 @@ public class S3StreamWrapper {
                 bodyValue.wasString = true
                 response.body = Body(value: bodyValue)
                 promise.resolve(global, response.toJsValue())
-            }
         }
     }
 }
@@ -968,10 +961,9 @@ public class S3EnvCredentials {
 public func dataUrlResponse(dataUrl: DataURL, globalThis: JsGlobalObject): JsValue {
     let decoded = dataUrl.decodeData()
     match (decoded) {
-        case Result.Err(_) => {
+        case Result.Err(_) =>
             return JsPromise.rejected(globalThis, JsValue(BaoString("failed to fetch the data URL")))
-        }
-        case Result.Ok(data) => {
+        case Result.Ok(data) =>
             let blob = Blob.initFromBytes(data, dataUrl.mimeType)
 
             let response = Response()
@@ -981,7 +973,6 @@ public func dataUrlResponse(dataUrl: DataURL, globalThis: JsGlobalObject): JsVal
             response.url = dataUrl.url
 
             return JsPromise.resolved(globalThis, response.toJsValue())
-        }
     }
 }
 
@@ -992,7 +983,7 @@ public func dataUrlResponse(dataUrl: DataURL, globalThis: JsGlobalObject): JsVal
 
 /// 预连接到指定 URL
 /// 对应 Bun: Bun__fetchPreconnect / bun_fetch_preconnect()
-public func fetchPreconnect(globalObject: JsGlobalObject, callFrame: CallFrame): JsResult<JsValue> {
+public func fetchPreconnect(JsGlobalObject, callFrame: CallFrame): JsResult<JsValue> {
     let arguments = callFrame.argumentsOld(1)
     if (arguments.size < 1) {
         return JsResult.Err("fetch.preconnect expects 1 argument, got 0")
@@ -1000,7 +991,7 @@ public func fetchPreconnect(globalObject: JsGlobalObject, callFrame: CallFrame):
 
     let urlStr = arguments[0].toString()
 
-    if (urlStr.length == 0) {
+    if (urlStr.size == 0) {
         return JsResult.Err(FETCH_ERROR_BLANK_URL)
     }
 
@@ -1014,7 +1005,7 @@ public func fetchPreconnect(globalObject: JsGlobalObject, callFrame: CallFrame):
     }
 
     // 验证主机名
-    if (url.hostname.length == 0) {
+    if (url.hostname.size == 0) {
         return JsResult.Err(FETCH_ERROR_BLANK_URL)
     }
 
@@ -1139,13 +1130,13 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
 
     // 如果第一个参数不是 Request，当作 URL 处理
     var urlStrOptional: ?String = None
-    if (request == None) {
+    if (request.isNone()) {
         urlStrOptional = StringOrURL.fromJs(firstArg, globalThis)
     }
 
     // ── 提取 request init 对象 ────────────────────────────────────────
     var requestInitObject: ?JsValue = None
-    if (request == None && urlStrOptional == None) {
+    if (request.isNone() && urlStrOptional.isNone()) {
         if (firstArg.isObject()) {
             requestInitObject = Some(firstArg)
         }
@@ -1153,24 +1144,23 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
 
     // ── 提取 URL 字符串 ────────────────────────────────────────────────
     var urlStr: String = ""
-    if (urlStrOptional != None) {
+    if (urlStrOptional.isSome()) {
         urlStr = urlStrOptional.getOrThrow()
-    } else if (request != None) {
+    } else if (request.isSome()) {
         let req = request.getOrThrow()
-        if (req.url.length == 0) {
+        if (req.url.size == 0) {
             urlStr = ""
         } else {
             urlStr = req.url
         }
-    } else if (requestInitObject != None) {
+    } else if (requestInitObject.isSome()) {
         let initObj = requestInitObject.getOrThrow()
         let urlVal = initObj.get("url")
         match (urlVal) {
-            case Some(v) => {
+            case Some(v) =>
                 if (!v.isUndefined()) {
                     urlStr = v.toString()
                 }
-            }
             case None => ()
         }
     }
@@ -1181,7 +1171,7 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
     }
 
     // URL 为空错误
-    if (urlStr.length == 0) {
+    if (urlStr.size == 0) {
         let err = JsValue(BaoString(FETCH_ERROR_BLANK_URL))
         return JsResult.Ok(JsPromise.rejected(globalThis, err))
     }
@@ -1190,13 +1180,11 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
     if (urlStr.startsWith("data:")) {
         let dataUrlResult = DataURL.parseWithoutCheck(urlStr)
         match (dataUrlResult) {
-            case Result.Ok(dataUrl) => {
+            case Result.Ok(dataUrl) =>
                 return JsResult.Ok(dataUrlResponse(dataUrl, globalThis))
-            }
-            case Result.Err(_) => {
+            case Result.Err(_) =>
                 let err = JsValue(BaoString("failed to fetch the data URL"))
                 return JsResult.Ok(JsPromise.rejected(globalThis, err))
-            }
         }
     }
 
@@ -1314,7 +1302,7 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
 
     // ── 验证 proxy + unix 互斥 ────────────────────────────────────────
     // 对应 Bun: fetch.rs L1383-L1395
-    if (proxy != None && unixSocketPath.length > 0) {
+    if (proxy.isSome() && unixSocketPath.size > 0) {
         let err = JsValue(BaoString(FETCH_ERROR_PROXY_UNIX))
         return JsResult.Ok(JsPromise.rejected(globalThis, err))
     }
@@ -1338,18 +1326,16 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
             let registry = ObjectURLRegistry.singleton()
             let resolved = registry.resolveAndDupe(urlPathDecoded)
             match (resolved) {
-                case Some(blob) => {
+                case Some(blob) =>
                     urlString = "blob:${urlPathDecoded}"
                     let response = Response()
                     response.init.statusCode = 200
                     response.body = Body(value: BodyValue(blob))
                     response.url = urlString
                     return JsResult.Ok(JsPromise.resolved(globalThis, response.toJsValue()))
-                }
-                case None => {
+                case None =>
                     let err = JsValue(BaoString("Failed to resolve blob:${urlPathDecoded}"))
                     return JsResult.Ok(JsPromise.rejected(globalThis, err))
-                }
             }
         }
 
@@ -1372,7 +1358,7 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
     // ════════════════════════════════════════════════════════════════════
 
     let protocol = url.protocol
-    if (protocol.length > 0) {
+    if (protocol.size > 0) {
         if (protocol != "http:" && protocol != "https:" && !url.isS3()) {
             let err = JsValue(BaoString("protocol must be http:, https: or s3:"))
             return JsResult.Ok(JsPromise.rejected(globalThis, err))
@@ -1391,7 +1377,7 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
 
     // ── 如果无 headers 但 body 有 content-type，创建 headers ─────────
     // 对应 Bun: fetch.rs L1591-L1596
-    if (headers == None && body.hasBody() && body.hasContentTypeFromUser()) {
+    if (headers.isNone() && body.hasBody() && body.hasContentTypeFromUser()) {
         headers = Some(Headers())
     }
 
@@ -1409,16 +1395,14 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
             MultiPartUploadOptions.DEFAULT_PART_SIZE
         )
         match (readable) {
-            case Some(stream) => {
+            case Some(stream) =>
                 let oldBody = body
                 body = HTTPRequestBody.ReadableStream(ReadableStreamRef(stream, globalThis))
                 // 旧 body detach
-            }
-            case None => {
+            case None =>
                 let err = JsValue(BaoString("Failed to start s3 stream"))
                 body.detach()
                 return JsResult.Ok(JsPromise.rejected(globalThis, err))
-            }
         }
     }
 
@@ -1441,10 +1425,10 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
 
         // 从选项对象提取 S3 选项
         match (optionsObject) {
-            case Some(options) => {
+            case Some(options) =>
                 let s3Opts = options.getTruthy("s3")
                 match (s3Opts) {
-                    case Some(s3OptsVal) => {
+                    case Some(s3OptsVal) =>
                         if (s3OptsVal.isObject()) {
                             credentialsWithOptions = getCredentialsWithOptions(
                                 creds,
@@ -1456,23 +1440,21 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
                                 globalThis
                             )
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
         // ReadableStream 上传到 S3
         match (body) {
-            case HTTPRequestBody.ReadableStream(readableStream) => {
+            case HTTPRequestBody.ReadableStream(readableStream) =>
                 // S3 流式上传: 仅支持 PUT/POST
                 if (method != HttpMethod.PUT && method != HttpMethod.POST) {
                     let err = JsValue(BaoString("Only POST and PUT do support body when using S3"))
                     return JsResult.Ok(JsPromise.rejected(globalThis, err))
                 }
 
-                let promise = JsPromiseStrong.init(globalThis)
+                let promise = JsPromiseStrong(globalThis)
                 let promiseValue = promise.value()
 
                 // 创建 S3StreamWrapper
@@ -1485,7 +1467,6 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
 
                 // 在实际实现中会调用 s3::upload_stream()
                 return JsResult.Ok(promiseValue)
-            }
             case _ => ()
         }
 
@@ -1500,41 +1481,35 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
 
         // 替换 URL 和 headers
         match (proxy) {
-            case Some(proxyUrl) => {
+            case Some(proxyUrl) =>
                 // 合并签名 URL 和代理 URL
                 urlProxyBuffer = Utf8Codec.encode(signedUrl)
                 url = BaoUrl.parse(signedUrl)
-            }
-            case None => {
+            case None =>
                 urlProxyBuffer = Utf8Codec.encode(signedUrl)
                 url = BaoUrl.parse(signedUrl)
-            }
         }
 
         // 设置签名头
         let contentType = headers.flatMap({ h => h.get("content-type") })
         match (range) {
-            case Some(rangeVal) => {
+            case Some(rangeVal) =>
                 let newHeaders = ArrayList<HttpHeader>()
                 newHeaders.append(HttpHeader("range", rangeVal))
                 headers = Some(Headers.fromHttpHeaders(newHeaders.toArray()))
-            }
-            case None => {
+            case None =>
                 match (contentType) {
-                    case Some(ct) => {
-                        if (ct.length > 0) {
+                    case Some(ct) =>
+                        if (ct.size > 0) {
                             let newHeaders = ArrayList<HttpHeader>()
                             newHeaders.append(HttpHeader("Content-Type", ct))
                             headers = Some(Headers.fromHttpHeaders(newHeaders.toArray()))
                         } else {
                             headers = Some(Headers.fromHttpHeaders(signResult.getHeaders()))
                         }
-                    }
-                    case None => {
+                    case None =>
                         headers = Some(Headers.fromHttpHeaders(signResult.getHeaders()))
-                    }
                 }
-            }
         }
     }
 
@@ -1543,7 +1518,7 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
     // 对应 Bun: fetch.rs L1966-L2042
     // ════════════════════════════════════════════════════════════════════
 
-    let promise = JsPromiseStrong.init(globalThis)
+    let promise = JsPromiseStrong(globalThis)
     let promiseVal = promise.value()
 
     // 构建 FetchOptions
@@ -1612,21 +1587,19 @@ public func fetch(url: String, method: String): Response {
 private func fetchWithRequest(request: Request): Response {
     // 检查 abort signal
     match (request.signal) {
-        case Some(signal) => {
+        case Some(signal) =>
             if (signal.aborted) {
                 return Response.error()
             }
-        }
         case None => ()
     }
 
     // 验证 GET/HEAD/OPTIONS 不带 body
     match (request.method) {
-        case HttpMethod.GET | HttpMethod.HEAD | HttpMethod.OPTIONS => {
+        case HttpMethod.GET | HttpMethod.HEAD | HttpMethod.OPTIONS =>
             if (!request.body.value.isDefinitelyEmpty()) {
                 // 允许但不推荐
             }
-        }
         case _ => ()
     }
 
@@ -1648,16 +1621,14 @@ private func fetchWithRequest(request: Request): Response {
     let maxRedirects = 20
     while (response.statusCode() >= 300 && response.statusCode() < 400 && redirectCount < maxRedirects) {
         match (request.flags.redirect) {
-            case RequestRedirect.Error => {
+            case RequestRedirect.Error =>
                 return Response.error()
-            }
-            case RequestRedirect.Manual => {
+            case RequestRedirect.Manual =>
                 return response
-            }
-            case RequestRedirect.Follow => {
+            case RequestRedirect.Follow =>
                 let location = response.redirectLocation()
                 match (location) {
-                    case Some(loc) => {
+                    case Some(loc) =>
                         redirectCount++
                         response.redirected = true
                         let redirectUrl = if (loc.startsWith("http://") || loc.startsWith("https://")) {
@@ -1668,10 +1639,8 @@ private func fetchWithRequest(request: Request): Response {
                         let redirectRequest = Request(redirectUrl)
                         response = HttpClient.sendRequest(BaoUrl(redirectUrl), redirectRequest)
                         response.url = redirectUrl
-                    }
                     case None => return response
                 }
-            }
         }
     }
 
@@ -1692,17 +1661,15 @@ private func extractMethod(
 ): HttpMethod {
     // 从 options 对象提取
     match (optionsObject) {
-        case Some(options) => {
+        case Some(options) =>
             let methodVal = options.getTruthy("method")
             match (methodVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isString()) {
                         return HttpMethod.fromString(v.toString())
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
@@ -1714,17 +1681,15 @@ private func extractMethod(
 
     // 从 request init 对象提取
     match (requestInitObject) {
-        case Some(init) => {
+        case Some(init) =>
             let methodVal = init.getTruthy("method")
             match (methodVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isString()) {
                         return HttpMethod.fromString(v.toString())
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
@@ -1753,13 +1718,12 @@ private func extractDisableDecompression(
         if (!obj.isEmpty()) {
             let decompressionVal = obj.get("decompress")
             match (decompressionVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isBoolean()) {
                         return !v.toBoolean()
                     } else if (v.isNumber()) {
                         return v.toInt32() == 0
                     }
-                }
                 case None => ()
             }
         }
@@ -1797,42 +1761,38 @@ private func extractSslConfig(
         if (!obj.isEmpty()) {
             let tlsVal = obj.get("tls")
             match (tlsVal) {
-                case Some(tls) => {
+                case Some(tls) =>
                     if (tls.isObject()) {
                         // rejectUnauthorized
                         let rejectVal = tls.get("rejectUnauthorized")
                         match (rejectVal) {
-                            case Some(v) => {
+                            case Some(v) =>
                                 if (v.isBoolean()) {
                                     rejectUnauthorized = v.toBoolean()
                                 } else if (v.isNumber()) {
                                     rejectUnauthorized = v.toInt32() != 0
                                 }
-                            }
                             case None => ()
                         }
 
                         // checkServerIdentity
                         let checkVal = tls.get("checkServerIdentity")
                         match (checkVal) {
-                            case Some(v) => {
+                            case Some(v) =>
                                 if (v.isCell() && v.isCallable()) {
                                     checkServerIdentity = v
                                 }
-                            }
                             case None => ()
                         }
 
                         // SSLConfig
                         let config = SSLConfig.fromJs(vm, globalThis, tls)
                         match (config) {
-                            case Some(c) => {
+                            case Some(c) =>
                                 sslConfig = Some(c)
-                            }
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -1863,14 +1823,13 @@ private func extractUnixSocketPath(
         if (!obj.isEmpty()) {
             let socketVal = obj.get("unix")
             match (socketVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isString()) {
                         let str = v.toString()
-                        if (str.length > 0) {
+                        if (str.size > 0) {
                             return str
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -1905,7 +1864,7 @@ private func extractProtocol(
         if (!obj.isEmpty()) {
             let protocolVal = obj.get("protocol")
             match (protocolVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isString()) {
                         let str = v.toString()
                         if (str == "http2" || str == "h2") {
@@ -1918,7 +1877,6 @@ private func extractProtocol(
                             errResult = true
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -1949,13 +1907,12 @@ private func extractDisableTimeout(
         if (!obj.isEmpty()) {
             let timeoutVal = obj.get("timeout")
             match (timeoutVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isBoolean()) {
                         return !v.toBoolean()
                     } else if (v.isNumber()) {
                         return v.toInt32() == 0
                     }
-                }
                 case None => ()
             }
         }
@@ -1977,9 +1934,8 @@ private func extractRedirectType(
 
     // 从 Request 对象提取
     match (request) {
-        case Some(req) => {
+        case Some(req) =>
             redirectType = req.flags.redirect
-        }
         case None => ()
     }
 
@@ -1998,7 +1954,7 @@ private func extractRedirectType(
         if (!obj.isEmpty()) {
             let redirectVal = obj.get("redirect")
             match (redirectVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isString()) {
                         let parsed = RequestRedirect.fromString(v.toString())
                         match (parsed) {
@@ -2006,7 +1962,6 @@ private func extractRedirectType(
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -2037,13 +1992,12 @@ private func extractDisableKeepalive(
         if (!obj.isEmpty()) {
             let keepaliveVal = obj.get("keepalive")
             match (keepaliveVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isBoolean()) {
                         return !v.toBoolean()
                     } else if (v.isNumber()) {
                         return v.toInt32() == 0
                     }
-                }
                 case None => ()
             }
         }
@@ -2076,7 +2030,7 @@ private func extractVerbose(
         if (!obj.isEmpty()) {
             let verboseVal = obj.get("verbose")
             match (verboseVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isString()) {
                         let str = v.toString()
                         if (str == "curl") {
@@ -2089,7 +2043,6 @@ private func extractVerbose(
                             HTTPVerboseLevel.None
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -2130,11 +2083,11 @@ private func extractProxy(
         if (!obj.isEmpty()) {
             let proxyArg = obj.get("proxy")
             match (proxyArg) {
-                case Some(proxyVal) => {
+                case Some(proxyVal) =>
                     // 字符串格式: proxy: "http://proxy.example.com:8080"
                     if (proxyVal.isString()) {
                         let href = proxyVal.toString()
-                        if (href.length > 0) {
+                        if (href.size > 0) {
                             let parsedProxy = BaoUrl.parse(href)
                             if (!parsedProxy.isValid()) {
                                 return ProxyResult(url, urlType, urlProxyBuffer, proxy)
@@ -2152,10 +2105,10 @@ private func extractProxy(
                     if (proxyVal.isObject()) {
                         let proxyUrlVal = proxyVal.get("url")
                         match (proxyUrlVal) {
-                            case Some(urlVal) => {
+                            case Some(urlVal) =>
                                 if (!urlVal.isUndefinedOrNull() && urlVal.isString()) {
                                     let href = urlVal.toString()
-                                    if (href.length > 0) {
+                                    if (href.size > 0) {
                                         let parsedProxy = BaoUrl.parse(href)
                                         if (!parsedProxy.isValid()) {
                                             return ProxyResult(url, urlType, urlProxyBuffer, proxy)
@@ -2169,7 +2122,7 @@ private func extractProxy(
                                         // 提取代理头
                                         let headersVal = proxyVal.get("headers")
                                         match (headersVal) {
-                                            case Some(hVal) => {
+                                            case Some(hVal) =>
                                                 if (!hVal.isUndefinedOrNull()) {
                                                     let hdrs = Headers()
                                                     if (hVal.isObject()) {
@@ -2184,16 +2137,13 @@ private func extractProxy(
                                                     }
                                                     proxyHeaders = Some(hdrs)
                                                 }
-                                            }
                                             case None => ()
                                         }
                                     }
                                 }
-                            }
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -2212,50 +2162,45 @@ private func extractSignal(
 ): SignalRef {
     // 从 options 对象提取
     match (optionsObject) {
-        case Some(options) => {
+        case Some(options) =>
             let signalVal = options.get("signal")
             match (signalVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (!v.isUndefined()) {
                         // 尝试从 JS 值创建 AbortSignal
                         if (v.isAbortSignal()) {
                             return SignalRef(signal: Some(AbortSignal.fromJs(v)))
                         }
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
     // 从 Request 对象提取
     match (request) {
-        case Some(req) => {
+        case Some(req) =>
             match (req.signal) {
                 case Some(sig) => return SignalRef(signal: Some(sig))
                 case None => return SignalRef()
             }
-        }
         case None => ()
     }
 
     // 从 requestInit 对象提取
     match (requestInitObject) {
-        case Some(init) => {
+        case Some(init) =>
             let signalVal = init.get("signal")
             match (signalVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isUndefined()) {
                         return SignalRef()
                     }
                     if (v.isAbortSignal()) {
                         return SignalRef(signal: Some(AbortSignal.fromJs(v)))
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
@@ -2274,10 +2219,10 @@ private func extractBody(
 ): HTTPRequestBody {
     // 从 options 对象提取
     match (optionsObject) {
-        case Some(options) => {
+        case Some(options) =>
             let bodyVal = options.get("body")
             match (bodyVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (!v.isUndefined()) {
                         let result = HTTPRequestBody.fromJs(ctx, v)
                         match (result) {
@@ -2285,16 +2230,14 @@ private func extractBody(
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
     // 从 Request 对象提取
     match (request) {
-        case Some(req) => {
+        case Some(req) =>
             let bodyValue = req.body.value
             let alreadyUsed = match (bodyValue.tag) {
                 case BodyValueTag.Used => true
@@ -2308,33 +2251,29 @@ private func extractBody(
 
             // 使用 AnyBlob
             match (bodyValue.tag) {
-                case BodyValueTag.Blob => {
+                case BodyValueTag.Blob =>
                     match (bodyValue.blob) {
                         case Some(b) => return HTTPRequestBody.AnyBlob(AnyBlob.fromBlob(b))
                         case None => ()
                     }
-                }
-                case BodyValueTag.InternalBlob => {
+                case BodyValueTag.InternalBlob =>
                     let blob = Blob.initFromBytes(bodyValue.bytes, "")
                     return HTTPRequestBody.AnyBlob(AnyBlob.fromBlob(blob))
-                }
-                case BodyValueTag.WTFStringImpl => {
+                case BodyValueTag.WTFStringImpl =>
                     let bytes = Utf8Codec.encode(bodyValue.stringValue)
                     let blob = Blob.initFromBytes(bytes, "text/plain")
                     return HTTPRequestBody.AnyBlob(AnyBlob.fromBlob(blob))
-                }
                 case _ => ()
             }
-        }
         case None => ()
     }
 
     // 从 requestInit 对象提取
     match (requestInitObject) {
-        case Some(init) => {
+        case Some(init) =>
             let bodyVal = init.get("body")
             match (bodyVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (!v.isUndefined()) {
                         let result = HTTPRequestBody.fromJs(ctx, v)
                         match (result) {
@@ -2342,10 +2281,8 @@ private func extractBody(
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
@@ -2375,7 +2312,7 @@ private func extractHeaders(
     )
 
     match (fetchHeaders) {
-        case Some(h) => {
+        case Some(h) =>
             // 提取 Host 头
             let hostVal = h.get("host")
             match (hostVal) {
@@ -2395,16 +2332,14 @@ private func extractHeaders(
             // Upgrade 头检测
             let upgradeVal = h.get("upgrade")
             match (upgradeVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v != "h2" && v != "h2c") {
                         upgradedConnection = true
                     }
-                }
                 case None => ()
             }
 
             headers = Some(h)
-        }
         case None => ()
     }
 
@@ -2422,44 +2357,39 @@ private func extractHeadersFromObjects(
 ): ?Headers {
     // 从 options 对象提取
     match (optionsObject) {
-        case Some(options) => {
+        case Some(options) =>
             let headersVal = options.get("headers")
             match (headersVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (!v.isUndefined()) {
                         return headersFromJsValue(v, globalThis)
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
     // 从 Request 对象提取
     match (request) {
-        case Some(req) => {
+        case Some(req) =>
             if (req.hasFetchHeaders()) {
                 return Some(req.headers)
             }
             return None
-        }
         case None => ()
     }
 
     // 从 requestInit 对象提取
     match (requestInitObject) {
-        case Some(init) => {
+        case Some(init) =>
             let headersVal = init.get("headers")
             match (headersVal) {
-                case Some(v) => {
+                case Some(v) =>
                     if (!v.isUndefined()) {
                         return headersFromJsValue(v, globalThis)
                     }
-                }
                 case None => ()
             }
-        }
         case None => ()
     }
 
@@ -2498,21 +2428,20 @@ private func prepareFileBody(
 ): HTTPRequestBody {
     let store = body.store()
     match (store) {
-        case Some(s) => {
+        case Some(s) =>
             let filePath = s.filePath
-            if (filePath.length > 0) {
+            if (filePath.size > 0) {
                 // 打开文件
                 let fdResult = SysCompat.open(filePath, SysCompat.O_RDONLY, 0)
                 match (fdResult) {
-                    case Result.Err(_) => {
+                    case Result.Err(_) =>
                         return body // 保持原样，后续会处理错误
-                    }
-                    case Result.Ok(fd) => {
+                    case Result.Ok(fd) =>
                         // 检查是否支持 sendfile
-                        if (proxy == None && SendFile.isEligible(url)) {
+                        if (proxy.isNone() && SendFile.isEligible(url)) {
                             let statResult = SysCompat.fstat(fd)
                             match (statResult) {
-                                case Result.Ok(stat) => {
+                                case Result.Ok(stat) =>
                                     let fileSize = stat.fileSize
                                     // 小于 32KB 不值得 sendfile
                                     if (fileSize >= 32 * 1024) {
@@ -2524,7 +2453,6 @@ private func prepareFileBody(
                                         )
                                         return HTTPRequestBody.Sendfile(sf)
                                     }
-                                }
                                 case Result.Err(_) => ()
                             }
                         }
@@ -2532,19 +2460,15 @@ private func prepareFileBody(
                         // 读取文件到内存
                         let readResult = SysCompat.readFile(fd)
                         match (readResult) {
-                            case Result.Ok(bytes) => {
+                            case Result.Ok(bytes) =>
                                 SysCompat.close(fd)
                                 return HTTPRequestBody.AnyBlob(AnyBlob.fromOwnedSlice(bytes))
-                            }
-                            case Result.Err(_) => {
+                            case Result.Err(_) =>
                                 SysCompat.close(fd)
                                 return body
-                            }
                         }
-                    }
                 }
             }
-        }
         case None => ()
     }
     return body
@@ -2659,7 +2583,7 @@ public class HttpClient {
         // 解析主机和端口
         let host = url.hostname
         let portStr = url.port
-        let port = if (portStr.length > 0) {
+        let port = if (portStr.size > 0) {
             UInt16(Int64.parse(portStr))
         } else {
             DEFAULT_HTTP_PORT
@@ -2670,23 +2594,21 @@ public class HttpClient {
         let socketResult = TcpSocket.create(AddressFamily.Inet)
         let sock = match (socketResult) {
             case Ok(s) => s
-            case Err(_) => {
+            case Err(_) =>
                 return Response.error()
-            }
         }
 
         // 连接服务器
         let connectResult = sock.connect(SocketAddr.V4(addr))
         match (connectResult) {
-            case Err(_) => {
+            case Err(_) =>
                 sock.close()
                 return Response.error()
-            }
             case Ok(_) => ()
         }
 
         // 构建 HTTP/1.1 请求报文
-        let path = if (url.pathname.length > 0) { url.pathname } else { "/" }
+        let path = if (url.pathname.size > 0) { url.pathname } else { "/" }
         let fullPath = path + url.search
         let requestLine = "${request.method.toString()} ${fullPath} HTTP/1.1\r\n"
         let hostHeader = "Host: ${host}\r\n"
@@ -2704,7 +2626,7 @@ public class HttpClient {
 
         // 添加 body (如果有)
         match (request.body.value.tag) {
-            case BodyValueTag.Blob | BodyValueTag.InternalBlob | BodyValueTag.WTFStringImpl => {
+            case BodyValueTag.Blob | BodyValueTag.InternalBlob | BodyValueTag.WTFStringImpl =>
                 let bodyBytes = request.body.arrayBuffer()
                 httpReq.append("Content-Length: ${bodyBytes.size}\r\n")
                 httpReq.append("\r\n")
@@ -2713,12 +2635,10 @@ public class HttpClient {
                 sock.send(headerBytes)
                 // 发送 body
                 sock.send(bodyBytes)
-            }
-            case _ => {
+            case _ =>
                 httpReq.append("\r\n")
                 let headerBytes = Utf8Codec.encode(httpReq.toString())
                 sock.send(headerBytes)
-            }
         }
 
         // 接收响应
@@ -2728,7 +2648,7 @@ public class HttpClient {
         while (!done) {
             let recvResult = sock.recv(recvBuf)
             match (recvResult) {
-                case Ok(bytesRead) => {
+                case Ok(bytesRead) =>
                     if (bytesRead == 0) {
                         done = true
                     } else {
@@ -2736,7 +2656,6 @@ public class HttpClient {
                             totalData.append(recvBuf[Int64(i)])
                         }
                     }
-                }
                 case Err(_) => done = true
             }
         }
@@ -2799,7 +2718,7 @@ public class HttpClient {
         }
 
         // 提取 body
-        if (bodyStart < text.length) {
+        if (bodyStart < text.size) {
             let bodyText = text.substring(bodyStart)
             let bodyBytes = Utf8Codec.encode(bodyText)
             let bodyValue = BodyValue(bodyBytes)
@@ -2869,7 +2788,7 @@ public class BaoUrl {
 
     /// 是否有效
     public func isValid(): Bool {
-        href.length > 0
+        href.size > 0
     }
 
     /// 是否为 http://
@@ -2899,7 +2818,7 @@ public class BaoUrl {
 
     /// 是否有有效端口
     public func hasValidPort(): Bool {
-        if (port.length == 0) {
+        if (port.size == 0) {
             return true
         }
         let portNum = Int64.parse(port)
@@ -2924,7 +2843,7 @@ public class BaoUrl {
             let queryStart = rest.indexOf("?")
             let hashStart = rest.indexOf("#")
 
-            var hostEnd = rest.length
+            var hostEnd = rest.size
             if (pathStart >= 0 && pathStart < hostEnd) { hostEnd = pathStart }
             if (queryStart >= 0 && queryStart < hostEnd) { hostEnd = queryStart }
             if (hashStart >= 0 && hashStart < hostEnd) { hostEnd = hashStart }
@@ -2942,14 +2861,14 @@ public class BaoUrl {
 
             // 解析路径/查询/哈希
             if (pathStart >= 0) {
-                let pathEnd = if (queryStart >= 0) { queryStart } else if (hashStart >= 0) { hashStart } else { rest.length }
+                let pathEnd = if (queryStart >= 0) { queryStart } else if (hashStart >= 0) { hashStart } else { rest.size }
                 pathname = rest.substring(pathStart, pathEnd)
             } else {
                 pathname = "/"
             }
 
             if (queryStart >= 0) {
-                let queryEnd = if (hashStart >= 0) { hashStart } else { rest.length }
+                let queryEnd = if (hashStart >= 0) { hashStart } else { rest.size }
                 search = rest.substring(queryStart, queryEnd)
             } else {
                 search = ""
@@ -3029,13 +2948,12 @@ public class SysCompat {
     public static func readFile(fd: Int32): Result<Array<UInt8>, String> {
         let buf = Array<UInt8>(8192, item: 0)
         match (SysFs.read(Int64(fd), buf)) {
-            case Ok(count) => {
+            case Ok(count) =>
                 let result = Array<UInt8>(count, item: 0)
                 for (i in 0..count) {
                     result[i] = buf[i]
                 }
                 return Result.Ok(result)
-            }
             case Err(e) => Result.Err(e.toString())
         }
     }
@@ -3073,8 +2991,8 @@ public class UrlParser {
     public static func percentDecode(input: String): String {
         var result = StringBuilder()
         var i = 0
-        while (i < input.length) {
-            if (input[Int64(i)] == '%' && i + 2 < input.length) {
+        while (i < input.size) {
+            if (input[Int64(i)] == '%' && i + 2 < input.size) {
                 let hexStr = input.substring(i + 1, i + 3)
                 let byteVal = Int64.parse(hexStr, 16)
                 result.append(String.fromCharCode(byteVal))
@@ -3095,7 +3013,7 @@ public class UrlParser {
         let parsed = BaoUrl(url)
         let host = parsed.hostname
         let path = parsed.pathname
-        if (path.length > 0) {
+        if (path.size > 0) {
             return "${host}${path}"
         }
         return host
@@ -3310,7 +3228,7 @@ public class JsPromiseStrong {
     }
 
     /// 初始化
-    public static func init(globalThis: JsGlobalObject): JsPromiseStrong {
+    public static func `init`(globalThis: JsGlobalObject): JsPromiseStrong {
         JsPromiseStrong()
     }
 
@@ -3327,11 +3245,11 @@ public class JsPromiseStrong {
 
 // ════════════════════════════════════════════════════════════════════════
 // JsResult — JS 结果类型
-// 对应 Bun: JsResult<JSValue>
+// 对应 Bun: JsResult<JsValue>
 // ════════════════════════════════════════════════════════════════════════
 
 /// JS 结果类型
-/// 对应 Bun: JsResult<JSValue>
+/// 对应 Bun: JsResult<JsValue>
 public enum JsResult<T> {
     | Ok(T)
     | Err(String)
@@ -3368,7 +3286,7 @@ public extension JsValue {
     public func getTruthy(key: String): ?JsValue {
         let val = get(key)
         match (val) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isUndefinedOrNull()) {
                     return None
                 }
@@ -3376,7 +3294,6 @@ public extension JsValue {
                     return None
                 }
                 return Some(v)
-            }
             case None => None
         }
     }
@@ -3385,12 +3302,11 @@ public extension JsValue {
     public func getBooleanStrict(key: String): ?Bool {
         let val = get(key)
         match (val) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isBoolean()) {
                     return Some(v.toBoolean())
                 }
                 return None
-            }
             case None => None
         }
     }
@@ -3399,12 +3315,11 @@ public extension JsValue {
     public func getOptionalInt64(key: String): ?Int64 {
         let val = get(key)
         match (val) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isNumber()) {
                     return Some(v.toInt64())
                 }
                 return None
-            }
             case None => None
         }
     }
@@ -3413,12 +3328,11 @@ public extension JsValue {
     public func getOptionalInt32(key: String): ?Int32 {
         let val = get(key)
         match (val) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isNumber()) {
                     return Some(v.toInt32())
                 }
                 return None
-            }
             case None => None
         }
     }
@@ -3427,12 +3341,11 @@ public extension JsValue {
     public func getOptionalString(key: String): ?String {
         let val = get(key)
         match (val) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isString()) {
                     return Some(v.toString())
                 }
                 return None
-            }
             case None => None
         }
     }
@@ -3570,7 +3483,7 @@ public class FetchModule {
             let response = if (args.size >= 2) {
                 let init = RequestInit()
                 match (args[1].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         // method
                         let method = obj.get("method")
                         if (method.valueType == JsValueType.String) {
@@ -3580,12 +3493,11 @@ public class FetchModule {
                         let headers = obj.get("headers")
                         if (headers.valueType == JsValueType.Object) {
                             match (headers.objectData) {
-                                case Some(hObj) => {
+                                case Some(hObj) =>
                                     for (key in hObj.keys()) {
                                         let val = hObj.get(key)
                                         init.headers.set(key, val.toString())
                                     }
-                                }
                                 case None => ()
                             }
                         }
@@ -3610,124 +3522,112 @@ public class FetchModule {
                         // signal
                         let signalVal = obj.get("signal")
                         match (signalVal) {
-                            case Some(sv) => {
+                            case Some(sv) =>
                                 if (sv.isAbortSignal()) {
                                     init.signal = Some(AbortSignal.fromJs(sv))
                                 }
-                            }
                             case None => ()
                         }
                         // timeout
                         let timeoutVal = obj.get("timeout")
                         match (timeoutVal) {
-                            case Some(tv) => {
+                            case Some(tv) =>
                                 if (tv.isBoolean()) {
                                     // disableTimeout = !tv.toBoolean()
                                 } else if (tv.isNumber()) {
                                     // 处理数字超时值
                                 }
-                            }
                             case None => ()
                         }
                         // keepalive
                         let keepaliveVal = obj.get("keepalive")
                         match (keepaliveVal) {
-                            case Some(kv) => {
+                            case Some(kv) =>
                                 if (kv.isBoolean()) {
                                     // 处理 keepalive
                                 }
-                            }
                             case None => ()
                         }
                         // verbose
                         let verboseVal = obj.get("verbose")
                         match (verboseVal) {
-                            case Some(vv) => {
+                            case Some(vv) =>
                                 if (vv.isString()) {
                                     let str = vv.toString()
                                     // verbose = if (str == "curl") Curl else ...
                                 } else if (vv.isBoolean()) {
                                     // verbose = ...
                                 }
-                            }
                             case None => ()
                         }
                         // proxy
                         let proxyVal = obj.get("proxy")
                         match (proxyVal) {
-                            case Some(pv) => {
+                            case Some(pv) =>
                                 if (pv.isString()) {
                                     // proxy = Some(BaoUrl.parse(pv.toString()))
                                 } else if (pv.isObject()) {
                                     // proxy 对象格式处理
                                     let proxyUrlVal = pv.get("url")
                                     match (proxyUrlVal) {
-                                        case Some(puv) => {
+                                        case Some(puv) =>
                                             if (puv.isString()) {
                                                 // 处理 proxy URL
                                             }
-                                        }
                                         case None => ()
                                     }
                                 }
-                            }
                             case None => ()
                         }
                         // tls
                         let tlsVal = obj.get("tls")
                         match (tlsVal) {
-                            case Some(tv) => {
+                            case Some(tv) =>
                                 if (tv.isObject()) {
                                     // sslConfig = SSLConfig.fromJs(...)
                                 }
-                            }
                             case None => ()
                         }
                         // unix
                         let unixVal = obj.get("unix")
                         match (unixVal) {
-                            case Some(uv) => {
+                            case Some(uv) =>
                                 if (uv.isString()) {
                                     let str = uv.toString()
-                                    if (str.length > 0) {
+                                    if (str.size > 0) {
                                         // unixSocketPath = str
                                     }
                                 }
-                            }
                             case None => ()
                         }
                         // s3
                         let s3Val = obj.get("s3")
                         match (s3Val) {
-                            case Some(sv) => {
+                            case Some(sv) =>
                                 if (sv.isObject()) {
                                     // s3 选项处理
                                 }
-                            }
                             case None => ()
                         }
                         // protocol
                         let protocolVal = obj.get("protocol")
                         match (protocolVal) {
-                            case Some(pv) => {
+                            case Some(pv) =>
                                 if (pv.isString()) {
                                     let str = pv.toString()
                                     // forceHttp2/3/1 处理
                                 }
-                            }
                             case None => ()
                         }
                         // decompress
                         let decompressVal = obj.get("decompress")
                         match (decompressVal) {
-                            case Some(dv) => {
+                            case Some(dv) =>
                                 if (dv.isBoolean()) {
                                     // disableDecompression = !dv.toBoolean()
                                 }
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
                 fetch(url, init)
@@ -3744,7 +3644,7 @@ public class FetchModule {
                 if (args.size >= 2) {
                     let init = RequestInit()
                     match (args[1].objectData) {
-                        case Some(obj) => {
+                        case Some(obj) =>
                             let method = obj.get("method")
                             if (method.valueType == JsValueType.String) {
                                 init.method = method.stringValue.toString()
@@ -3752,12 +3652,11 @@ public class FetchModule {
                             let headers = obj.get("headers")
                             if (headers.valueType == JsValueType.Object) {
                                 match (headers.objectData) {
-                                    case Some(hObj) => {
+                                    case Some(hObj) =>
                                         for (key in hObj.keys()) {
                                             let val = hObj.get(key)
                                             init.headers.set(key, val.toString())
                                         }
-                                    }
                                     case None => ()
                                 }
                             }
@@ -3777,7 +3676,6 @@ public class FetchModule {
                                     case None => ()
                                 }
                             }
-                        }
                         case None => ()
                     }
                     let req = Request(url, init)
@@ -3844,12 +3742,11 @@ public class FetchModule {
             let headers = Headers()
             if (args.size >= 1) {
                 match (args[0].objectData) {
-                    case Some(obj) => {
+                    case Some(obj) =>
                         for (key in obj.keys()) {
                             let val = obj.get(key)
                             headers.set(key, val.toString())
                         }
-                    }
                     case None => ()
                 }
             }
@@ -3860,7 +3757,7 @@ public class FetchModule {
         env.define("fetch.preconnect", Interpreter.makeNativeFn("fetch.preconnect") { args =>
             if (args.size >= 1) {
                 let url = Interpreter.jsToString(args[0])
-                if (url.length == 0) {
+                if (url.size == 0) {
                     return JsPromise.rejected(
                         JsGlobalObject(),
                         JsValue(BaoString(FETCH_ERROR_BLANK_URL))
@@ -3875,7 +3772,7 @@ public class FetchModule {
                         JsValue(BaoString("URL must be HTTP or HTTPS"))
                     )
                 }
-                if (parsed.hostname.length == 0) {
+                if (parsed.hostname.size == 0) {
                     return JsPromise.rejected(
                         JsGlobalObject(),
                         JsValue(BaoString(FETCH_ERROR_BLANK_URL))

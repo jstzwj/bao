@@ -5,6 +5,8 @@ package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
+import bao_sql_jsc.mysql.*
 
 /// 二进制字符集 ID
 /// 对应 Bun: DecodeBinaryValue.binary_charset
@@ -64,27 +66,27 @@ public func decodeBinaryValue(globalObject: JscJSGlobalObject, fieldType: UInt8,
             }
             if (unsigned) {
                 let val = readUInt64LE(data, 0)
-                if (val <= UInt32.MaxValue) {
+                if (val <= 4294967295) {
                     cell.tag = DataCellTag.UInt4
                     cell.uint4Value = UInt32(val)
                 } else if (bigint) {
-                    cell.tag = DataCellTag.UInt8
+                    cell.tag = DataCellTag.`UInt8`
                     cell.uint8Value = val
                 } else {
-                    cell.tag = DataCellTag.String
+                    cell.tag = DataCellTag.`String`
                     cell.stringValue = val.toString()
                     cell.freeValue = 1
                 }
             } else {
                 let val = readInt64LE(data, 0)
-                if (val >= Int64(Int32.MinValue) && val <= Int64(Int32.MaxValue)) {
+                if (val >= -2147483648 && val <= 2147483647) {
                     cell.tag = DataCellTag.Int4
                     cell.int4Value = Int32(val)
                 } else if (bigint) {
-                    cell.tag = DataCellTag.Int8
+                    cell.tag = DataCellTag.`Int8`
                     cell.int8Value = val
                 } else {
-                    cell.tag = DataCellTag.String
+                    cell.tag = DataCellTag.`String`
                     cell.stringValue = val.toString()
                     cell.freeValue = 1
                 }
@@ -115,8 +117,8 @@ public func decodeBinaryValue(globalObject: JscJSGlobalObject, fieldType: UInt8,
             cell.freeValue = 1
         case 16 => // BIT
             if (columnLength == 1 && data.size > 0) {
-                cell.tag = DataCellTag.Bool
-                cell.boolValue = if (data[0] == 1) 1 else 0
+                cell.tag = DataCellTag.`Bool`
+                cell.boolValue = if (data[0] == 1) { 1 } else { 0 }
             } else {
                 return SQLDataCell.raw(0, UInt64(data.size))
             }
@@ -125,7 +127,7 @@ public func decodeBinaryValue(globalObject: JscJSGlobalObject, fieldType: UInt8,
             if (binary && characterSet == BINARY_CHARSET_ID) {
                 return SQLDataCell.raw(0, UInt64(data.size))
             } else {
-                cell.tag = DataCellTag.String
+                cell.tag = DataCellTag.`String`
                 cell.stringValue = String.fromUtf8(data)
                 cell.freeValue = 1
             }

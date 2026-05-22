@@ -690,7 +690,7 @@ public func spawnProcessPosix(
     // bun_analytics::features::spawn.fetch_add(1, Ordering::Relaxed)
 
     // 初始化 actions
-    let actionsResult = Actions.init()
+    let actionsResult = Actions()
     var actions = Actions()
     match (actionsResult) {
         case Ok(a) => actions = a
@@ -698,7 +698,7 @@ public func spawnProcessPosix(
     }
 
     // 初始化 attr
-    let attrResult = Attr.init()
+    let attrResult = Attr()
     var attr = Attr()
     match (attrResult) {
         case Ok(a) => attr = a
@@ -838,7 +838,7 @@ public func spawnProcessPosix(
                 }
 
             case PosixStdio.Ipc | PosixStdio.Ignore =>
-                let openResult = actions.openZ(fileno, "/dev/null\x00",
+                let openResult = actions.openZ(fileno, "/dev/null\0",
                     flag | OFlags.CREAT, Int32(0o664))
                 match (openResult) {
                     case Err(e) => return Result<SysMaybe<PosixSpawnResult>, BaoError>.Err(e)
@@ -996,7 +996,7 @@ public func spawnProcessPosix(
                     case Ok(_) => extraFds.append(ExtraPipe.Unavailable)
                 }
             case PosixStdio.Ignore =>
-                let openResult = actions.openZ(fileno, "/dev/null\x00",
+                let openResult = actions.openZ(fileno, "/dev/null\0",
                     OFlags.RDWR, Int32(0o664))
                 match (openResult) {
                     case Err(e) => return Result<SysMaybe<PosixSpawnResult>, BaoError>.Err(e)

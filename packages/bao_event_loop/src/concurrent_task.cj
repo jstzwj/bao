@@ -88,7 +88,7 @@ public class PackedNextPtr {
         this.autoDelete = autoDelete
     }
 
-    /// 初始化 - 对应 Bun PackedNextPtr.init(ptr, auto_del)
+    /// 初始化 - 对应 Bun PackedNextPtr(ptr, auto_del)
     /// Bun:
     ///   pub inline fn init(ptr: ?*ConcurrentTask, auto_del: bool) PackedNextPtr {
     ///       const ptr_bits = if (ptr) |p| @intFromPtr(p) else 0
@@ -171,16 +171,16 @@ public class PackedNextPtr {
 //   }
 //
 //   pub fn createFrom(task: anytype) -> *ConcurrentTask {
-//       return create(Task.init(task))
+//       return create(Task(task))
 //   }
 //
 //   pub fn fromCallback(ptr, callback) -> *ConcurrentTask {
-//       return create(ManagedTask.New(...).init(ptr))
+//       return create(ManagedTask.New(...).`init`(ptr))
 //   }
 //
 //   pub fn from(this, of, auto_deinit) -> *ConcurrentTask {
 //       this.* = .{
-//           .task = Task.init(of),
+//           .task = Task(of),
 //           .next = if (auto_deinit == .auto_deinit) .auto_delete else .none
 //       }
 //       return this
@@ -241,7 +241,7 @@ public class ConcurrentTaskV2 {
     /// 从回调创建 - 对应 Bun ConcurrentTask.createFrom(task)
     /// Bun:
     ///   pub fn createFrom(task: anytype) -> *ConcurrentTask {
-    ///       return create(Task.init(task))
+    ///       return create(Task(task))
     ///   }
     public static func createFrom(callback: () -> Unit): ConcurrentTaskV2 {
         return create(AnyTask(callback))
@@ -250,7 +250,7 @@ public class ConcurrentTaskV2 {
     /// 从 ManagedTask 回调创建 - 对应 Bun ConcurrentTask.fromCallback
     /// Bun:
     ///   pub fn fromCallback(ptr: anytype, comptime callback: anytype) -> *ConcurrentTask {
-    ///       return create(ManagedTask.New(std.meta.Child(@TypeOf(ptr)), callback).init(ptr))
+    ///       return create(ManagedTask.New(std.meta.Child(@TypeOf(ptr)), callback).`init`(ptr))
     ///   }
     public static func fromCallback(callback: () -> Unit): ConcurrentTaskV2 {
         let managed = ManagedTask(callback)
@@ -266,7 +266,7 @@ public class ConcurrentTaskV2 {
     //       *ConcurrentTask
     //   {
     //       this.* = .{
-    //           .task = Task.init(of),
+    //           .task = Task(of),
     //           .next = if (auto_deinit == .auto_deinit) .auto_delete else .none
     //       }
     //       return this

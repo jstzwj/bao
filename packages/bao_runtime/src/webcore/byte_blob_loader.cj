@@ -50,7 +50,7 @@ public class ByteBlobLoader {
     /// 对应 Bun: ByteBlobLoader.setup()
     public func setup(blob: Blob, userChunkSize: BlobSizeType): Unit {
         match (blob.store) {
-            case Some(s) => {
+            case Some(s) =>
                 s.ref()
                 store = Some(s)
                 offset = blob.offset
@@ -62,7 +62,6 @@ public class ByteBlobLoader {
                 remain = blobSize
                 done = false
                 contentType = blob.contentType
-            }
             case None => ()
         }
     }
@@ -78,7 +77,7 @@ public class ByteBlobLoader {
     public func onPull(buffer: Array<UInt8>): StreamResult {
         pulled = true
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 if (done) {
                     return StreamResult.Done(Array<UInt8>())
                 }
@@ -104,7 +103,6 @@ public class ByteBlobLoader {
                     return StreamResult.OwnedAndDone(result.toArray())
                 }
                 return StreamResult.Owned(result.toArray())
-            }
             case None => return StreamResult.Done(Array<UInt8>())
         }
     }
@@ -132,14 +130,13 @@ public class ByteBlobLoader {
         if (offset > 0 && match (store) { case Some(_) => true case None => false }) {
             let bytes = ArrayList<UInt8>()
             match (store) {
-                case Some(s) => {
+                case Some(s) =>
                     let view = s.sharedView()
                     for (i in offset..view.size) {
                         if (i < view.size) {
                             bytes.append(view[Int64(i)])
                         }
                     }
-                }
                 case None => ()
             }
             return Some(Blob(bytes.toArray(), contentType))

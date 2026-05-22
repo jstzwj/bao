@@ -22,7 +22,7 @@ public class InstallCompletionsCommand {
     /// 对应 Bun: InstallCompletionsCommand.exec()
     public static func exec(allocator: Allocator): Unit {
         // 静默失败于自动更新
-        let failExitCode: Int64 = if (!EnvVar.IS_BUN_AUTO_UPDATE.get()) 1 else 0
+        let failExitCode: Int64 = if (!EnvVar.IS_BUN_AUTO_UPDATE.get()) { 1 } else { 0 }
 
         var cwdBuf = PathBuffer()
         let stdout = Stdio.stdout()
@@ -30,8 +30,8 @@ public class InstallCompletionsCommand {
         // 检测当前 shell
         var shell = Shell.unknown
         let shellName = EnvVar.SHELL.platformGet()
-        if (shellName != None) {
-            shell = Shell.fromEnv(shellName!!)
+        if (shellName.isSome()) {
+            shell = Shell.fromEnv(shellName.getOrThrow())
         }
 
         // 获取当前工作目录
@@ -48,15 +48,14 @@ public class InstallCompletionsCommand {
         }
 
         // 安装 bunx 符号链接
-        installBunxSymlink(cwd!!)
+        installBunxSymlink(cwd.getOrThrow())
 
         // 根据 shell 类型安装补全
-        when (shell) {
-            case Shell.unknown => {
+        match (shell) {
+            case Shell.unknown =>
                 Output.errGeneric("Unknown or unsupported shell. Please set $SHELL to one of zsh, fish, or bash.")
                 Output.note("To manually output completions, run 'bao getcompletes'")
                 Global.exit(failExitCode)
-            }
             case _ => ()
         }
 
@@ -69,7 +68,7 @@ public class InstallCompletionsCommand {
 
         // 查找补全目录
         var completionsDir = ""
-        val (outputDir, foundDir) = findCompletionsDir(shell, cwd!!, failExitCode)
+        let (outputDir, foundDir) = findCompletionsDir(shell, cwd.getOrThrow(), failExitCode)
         if (outputDir == None) {
             Output.prettyErrorLn("<r><red>error:<r> Could not find a directory to install completions in.\n")
 
@@ -83,7 +82,7 @@ public class InstallCompletionsCommand {
 
         completionsDir = foundDir
 
-        let filename = when (shell) {
+        let filename = match (shell) {
             case Shell.fish => "bao.fish"
             case Shell.zsh => "_bao"
             case Shell.bash => "bao.completion.bash"
@@ -91,25 +90,25 @@ public class InstallCompletionsCommand {
         }
 
         // 写入补全文件
-        let outputDirHandle = outputDir!!
+        let outputDirHandle = outputDir.getOrThrow()
         let outputFile = outputDirHandle.createFileZ(filename, true)
         if (outputFile == None) {
             Output.prettyErrorLn("<r><red>error:<r> Could not open ${filename} for writing")
             Global.exit(failExitCode)
         }
 
-        let writeResult = outputFile!!.writeAll(shell.completions())
+        let writeResult = outputFile.getOrThrow().writeAll(shell.completions())
         if (writeResult.isErr) {
             Output.prettyErrorLn("<r><red>error:<r> Could not write to ${filename}")
             Global.exit(failExitCode)
         }
 
-        outputFile!!.close()
+        outputFile.getOrThrow().close()
         outputDirHandle.close()
 
         // zsh: 检查是否需要在 .zshrc 中加载补全文件
         if (shell == Shell.zsh) {
-            let completionsPath = outputFile!!.getFdPath()
+            let completionsPath = outputFile.getOrThrow().getFdPath()
             configureZshrc(completionsPath, failExitCode)
         }
 
@@ -122,12 +121,12 @@ public class InstallCompletionsCommand {
     private static func findCompletionsDir(shell: Shell, cwd: String, failExitCode: Int64): (?DirectoryHandle, String) {
         var completionsDir = ""
 
-        when (shell) {
-            case Shell.fish => {
+        match (shell) {
+            case Shell.fish =>
                 // 检查 XDG_CONFIG_HOME
                 let configDir = EnvVar.XDG_CONFIG_HOME.get()
                 if (configDir != None) {
-                    let dir = Path.joinAbsString(cwd, [configDir!!, "./fish/completions"])
+                    let dir = Path.joinAbsString(cwd, [configDir.getOrThrow(), "./fish/completions"])
                     let handle = DirectoryHandle.openDirAbsolute(dir)
                     if (handle != None) {
                         return (handle, dir)
@@ -137,7 +136,7 @@ public class InstallCompletionsCommand {
                 // 检查 XDG_DATA_HOME
                 let dataDir = EnvVar.XDG_DATA_HOME.get()
                 if (dataDir != None) {
-                    let dir = Path.joinAbsString(cwd, [dataDir!!, "./fish/completions"])
+                    let dir = Path.joinAbsString(cwd, [dataDir.getOrThrow(), "./fish/completions"])
                     let handle = DirectoryHandle.openDirAbsolute(dir)
                     if (handle != None) {
                         return (handle, dir)
@@ -147,7 +146,7 @@ public class InstallCompletionsCommand {
                 // 检查 HOME/.config/fish/completions
                 let homeDir = EnvVar.HOME.get()
                 if (homeDir != None) {
-                    let dir = Path.joinAbsString(cwd, [homeDir!!, "./.config/fish/completions"])
+                    let dir = Path.joinAbsString(cwd, [homeDir.getOrThrow(), "./.config/fish/completions"])
                     let handle = DirectoryHandle.openDirAbsolute(dir)
                     if (handle != None) {
                         return (handle, dir)
@@ -177,12 +176,11 @@ public class InstallCompletionsCommand {
                 if (etcHandle != None) {
                     return (etcHandle, completionsDir)
                 }
-            }
-            case Shell.zsh => {
+            case Shell.zsh =>
                 // 检查 fpath 环境变量
                 let fpath = EnvVar.fpath.get()
                 if (fpath != None) {
-                    let splitter = fpath!!.split(' ')
+                    let splitter = fpath.getOrThrow().split(' ')
                     for (dir in splitter) {
                         let handle = DirectoryHandle.openDirAbsolute(dir)
                         if (handle != None) {
@@ -194,7 +192,7 @@ public class InstallCompletionsCommand {
                 // 检查 XDG_DATA_HOME
                 let dataDir = EnvVar.XDG_DATA_HOME.get()
                 if (dataDir != None) {
-                    let dir = Path.joinAbsString(cwd, [dataDir!!, "./zsh-completions"])
+                    let dir = Path.joinAbsString(cwd, [dataDir.getOrThrow(), "./zsh-completions"])
                     let handle = DirectoryHandle.openDirAbsolute(dir)
                     if (handle != None) {
                         return (handle, dir)
@@ -204,9 +202,9 @@ public class InstallCompletionsCommand {
                 // 检查 BUN_INSTALL
                 let installDir = EnvVar.BUN_INSTALL.get()
                 if (installDir != None) {
-                    let handle = DirectoryHandle.openDirAbsolute(installDir!!)
+                    let handle = DirectoryHandle.openDirAbsolute(installDir.getOrThrow())
                     if (handle != None) {
-                        return (handle, installDir!!)
+                        return (handle, installDir.getOrThrow())
                     }
                 }
 
@@ -214,14 +212,14 @@ public class InstallCompletionsCommand {
                 let homeDir = EnvVar.HOME.get()
                 if (homeDir != None) {
                     // oh-my-zsh/completions
-                    let omzDir = Path.joinAbsString(cwd, [homeDir!!, "./.oh-my-zsh/completions"])
+                    let omzDir = Path.joinAbsString(cwd, [homeDir.getOrThrow(), "./.oh-my-zsh/completions"])
                     let omzHandle = DirectoryHandle.openDirAbsolute(omzDir)
                     if (omzHandle != None) {
                         return (omzHandle, omzDir)
                     }
 
                     // .bun
-                    let bunDir = Path.joinAbsString(cwd, [homeDir!!, "./.bun"])
+                    let bunDir = Path.joinAbsString(cwd, [homeDir.getOrThrow(), "./.bun"])
                     let bunHandle = DirectoryHandle.openDirAbsolute(bunDir)
                     if (bunHandle != None) {
                         return (bunHandle, bunDir)
@@ -241,12 +239,11 @@ public class InstallCompletionsCommand {
                         return (handle, dir)
                     }
                 }
-            }
-            case Shell.bash => {
+            case Shell.bash =>
                 // 检查 XDG_DATA_HOME
                 let dataDir = EnvVar.XDG_DATA_HOME.get()
                 if (dataDir != None) {
-                    let dir = Path.joinAbsString(cwd, [dataDir!!, "./bash-completion/completions"])
+                    let dir = Path.joinAbsString(cwd, [dataDir.getOrThrow(), "./bash-completion/completions"])
                     let handle = DirectoryHandle.openDirAbsolute(dir)
                     if (handle != None) {
                         return (handle, dir)
@@ -256,7 +253,7 @@ public class InstallCompletionsCommand {
                 // 检查 XDG_CONFIG_HOME
                 let configDir = EnvVar.XDG_CONFIG_HOME.get()
                 if (configDir != None) {
-                    let dir = Path.joinAbsString(cwd, [configDir!!, "./bash-completion/completions"])
+                    let dir = Path.joinAbsString(cwd, [configDir.getOrThrow(), "./bash-completion/completions"])
                     let handle = DirectoryHandle.openDirAbsolute(dir)
                     if (handle != None) {
                         return (handle, dir)
@@ -267,14 +264,14 @@ public class InstallCompletionsCommand {
                 let homeDir = EnvVar.HOME.get()
                 if (homeDir != None) {
                     // oh-my-bash
-                    let ombDir = Path.joinAbsString(cwd, [homeDir!!, "./.oh-my-bash/custom/completions"])
+                    let ombDir = Path.joinAbsString(cwd, [homeDir.getOrThrow(), "./.oh-my-bash/custom/completions"])
                     let ombHandle = DirectoryHandle.openDirAbsolute(ombDir)
                     if (ombHandle != None) {
                         return (ombHandle, ombDir)
                     }
 
                     // .bash_completion.d
-                    let bcdDir = Path.joinAbsString(cwd, [homeDir!!, "./.bash_completion.d"])
+                    let bcdDir = Path.joinAbsString(cwd, [homeDir.getOrThrow(), "./.bash_completion.d"])
                     let bcdHandle = DirectoryHandle.openDirAbsolute(bcdDir)
                     if (bcdHandle != None) {
                         return (bcdHandle, bcdDir)
@@ -292,7 +289,6 @@ public class InstallCompletionsCommand {
                         return (handle, dir)
                     }
                 }
-            }
             case _ => ()
         }
 
@@ -305,7 +301,10 @@ public class InstallCompletionsCommand {
         let buf = PathBuffer()
 
         // 如果 bunx 已经存在于 PATH 中则跳过
-        if (Which.which(buf, EnvVar.PATH.get() ?: cwd, cwd, bunxName) != None) {
+        match (if (Which.which(buf, EnvVar.PATH.get()) {
+            case Some(v) => v
+            case None => cwd, cwd, bunxName) != None) {
+        }
             return
         }
 
@@ -315,19 +314,19 @@ public class InstallCompletionsCommand {
             return
         }
 
-        let exeDir = Path.dirname(exe!!)
+        let exeDir = Path.dirname(exe.getOrThrow())
         let target = "${exeDir}/${bunxName}"
 
         // 尝试在同一目录下创建符号链接
-        if (Syscall.symlink(exe!!, target)) {
+        if (Syscall.symlink(exe.getOrThrow(), target)) {
             return
         }
 
         // 尝试 BUN_INSTALL/bin
         let installDir = EnvVar.BUN_INSTALL.get()
         if (installDir != None) {
-            let installTarget = "${installDir!!}/bin/${bunxName}"
-            if (Syscall.symlink(exe!!, installTarget)) {
+            let installTarget = "${installDir.getOrThrow()}/bin/${bunxName}"
+            if (Syscall.symlink(exe.getOrThrow(), installTarget)) {
                 return
             }
         }
@@ -335,16 +334,16 @@ public class InstallCompletionsCommand {
         // 尝试 $HOME/.bun/bin
         let homeDir = EnvVar.HOME.get()
         if (homeDir != None) {
-            let homeTarget = "${homeDir!!}/.bun/bin/${bunxName}"
-            if (Syscall.symlink(exe!!, homeTarget)) {
+            let homeTarget = "${homeDir.getOrThrow()}/.bun/bin/${bunxName}"
+            if (Syscall.symlink(exe.getOrThrow(), homeTarget)) {
                 return
             }
         }
 
         // 尝试 $HOME/.local/bin
         if (homeDir != None) {
-            let localTarget = "${homeDir!!}/.local/bin/${bunxName}"
-            if (Syscall.symlink(exe!!, localTarget)) {
+            let localTarget = "${homeDir.getOrThrow()}/.local/bin/${bunxName}"
+            if (Syscall.symlink(exe.getOrThrow(), localTarget)) {
                 return
             }
         }
@@ -364,26 +363,26 @@ public class InstallCompletionsCommand {
         }
 
         // 读取 .zshrc 内容
-        let inputSize = Math.max(dotZshrc!!.getEndPos(), 65536)
-        let buf = dotZshrc!!.preadAll(0, inputSize)
+        let inputSize = Math.max(dotZshrc.getOrThrow().getEndPos(), 65536)
+        let buf = dotZshrc.getOrThrow().preadAll(0, inputSize)
         if (buf == None) {
             Output.prettyErrorLn("<r>To enable completions, add this to your .zshrc:\n      <b>[ -s \"${completionsPath}\" ] && source \"${completionsPath}\"")
             return
         }
 
-        let contents = buf!!
+        let contents = buf.getOrThrow()
 
         // 检查是否已包含补全路径
         if (contents.contains(completionsPath) || contents.contains("# bao completions\n")) {
             // 已存在, 无需添加
-            dotZshrc!!.close()
+            dotZshrc.getOrThrow().close()
             return
         }
 
         // 追加补全加载行
         let extra = "\n# bao completions\n[ -s \"${completionsPath}\" ] && source \"${completionsPath}\"\n"
-        dotZshrc!!.pwriteAll(extra, contents.length)
-        dotZshrc!!.close()
+        dotZshrc.getOrThrow().pwriteAll(extra, contents.length)
+        dotZshrc.getOrThrow().close()
 
         Output.prettyErrorLn("<r><d>Enabled loading bao's completions in .zshrc<r>")
     }
@@ -394,7 +393,7 @@ public class InstallCompletionsCommand {
         // ZDOTDIR/.zshrc
         let zdotDir = EnvVar.ZDOTDIR.get()
         if (zdotDir != None) {
-            let path = "${zdotDir!!}/.zshrc"
+            let path = "${zdotDir.getOrThrow()}/.zshrc"
             let handle = FileHandle.openReadWrite(path)
             if (handle != None) {
                 outPath.append(path)
@@ -405,7 +404,7 @@ public class InstallCompletionsCommand {
         // HOME/.zshrc
         let homeDir = EnvVar.HOME.get()
         if (homeDir != None) {
-            let path = "${homeDir!!}/.zshrc"
+            let path = "${homeDir.getOrThrow()}/.zshrc"
             let handle = FileHandle.openReadWrite(path)
             if (handle != None) {
                 outPath.append(path)
@@ -415,7 +414,7 @@ public class InstallCompletionsCommand {
 
         // HOME/.zshenv
         if (homeDir != None) {
-            let path = "${homeDir!!}/.zshenv"
+            let path = "${homeDir.getOrThrow()}/.zshenv"
             let handle = FileHandle.openReadWrite(path)
             if (handle != None) {
                 outPath.append(path)

@@ -408,13 +408,6 @@ public class BoolRef {
     }
 }
 
-/// 仓库工具
-public class Repository {
-    public static func createDependencyName(manager: PdlPackageManagerRef, resolution: PdlResolutionInfo, depId: UInt32): String {
-        return "unknown"
-    }
-}
-
 /// 包管理器引用
 public class PdlPackageManagerRef {
     public var lockfile: PdlLockfileData

@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toContainEqual() - 检查数组是否深度包含期望值
 /// 用法: expect(received).toContainEqual(expected)
-public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toContainEqual() takes 1 argument")
     }
 
@@ -22,7 +22,7 @@ public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     let expected = arguments[0]
     expected.ensureStillAlive()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainEqual", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainEqual", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = false
@@ -49,14 +49,14 @@ public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
             // jest does not have a `typeof === "string"` check for `toContainEqual`.
             // it immediately spreads the value into an array.
-            let expectedIter = strings.CodepointIterator.`init`(expectedString.slice())
+            let expectedIter = strings.CodepointIterator(expectedString.slice())
             var expectedCursor = CodepointIterator.Cursor()
             _ = expectedIter.next(cursor: expectedCursor)
 
             pass = if (expectedIter.next(cursor: expectedCursor)) {
                 false
             } else {
-                strings.indexOf(valueString.slice(), expectedString.slice()) != None
+                strings.indexOf(valueString.slice(), expectedString.slice()).isSome()
             }
         }
     } else if (value.isIterable(globalThis: globalThis)) {
@@ -94,6 +94,6 @@ public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame
 // 用于 forEach 回调的上下文
 private class ExpectedEntry {
     var globalThis: JSGlobalObject
-    var expected: JSValue
+    var expected: JsValue
     var pass: Bool
 }

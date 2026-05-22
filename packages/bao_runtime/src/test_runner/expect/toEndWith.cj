@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toEndWith() - 检查字符串是否以指定后缀结尾
 /// 用法: expect(received).toEndWith(expected)
-public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toEndWith() requires 1 argument")
     }
 
@@ -25,7 +25,7 @@ public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         return globalThis.throw_("toEndWith() requires the first argument to be a string")
     }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEndWith", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEndWith", matcherParamsFmt: "<green>expected<r>")
 
     this.incrementExpectCallCounter()
 
@@ -35,13 +35,13 @@ public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         defer { valueString.deinit() }
         let expectedString = expected.toSliceOrNull(globalThis: globalThis)
         defer { expectedString.deinit() }
-        pass = strings.endsWith(valueString.slice(), expectedString.slice()) || expectedString.length == 0
+        pass = strings.endsWith(valueString.slice(), expectedString.slice()) || expectedString.size == 0
     }
 
     let not = this.flags.not
     if (not) { pass = !pass }
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

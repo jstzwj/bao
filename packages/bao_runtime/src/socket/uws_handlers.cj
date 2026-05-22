@@ -33,8 +33,8 @@ public class PtrHandler<T> {
 
     /// 连接打开
     public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         // 如果 T 有 onOpen 方法，调用它
@@ -43,8 +43,8 @@ public class PtrHandler<T> {
 
     /// 数据到达
     public func onData(s: UsSocket, data: Array<Byte>): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         swallow(this.onData(wrap(s), data))
@@ -52,8 +52,8 @@ public class PtrHandler<T> {
 
     /// 可写
     public func onWritable(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         swallow(this.onWritable(wrap(s)))
@@ -61,8 +61,8 @@ public class PtrHandler<T> {
 
     /// 关闭
     public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         swallow(this.onClose(wrap(s), code, reason))
@@ -70,8 +70,8 @@ public class PtrHandler<T> {
 
     /// 超时
     public func onTimeout(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         swallow(this.onTimeout(wrap(s)))
@@ -79,8 +79,8 @@ public class PtrHandler<T> {
 
     /// 长超时
     public func onLongTimeout(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         swallow(this.onLongTimeout(wrap(s)))
@@ -88,8 +88,8 @@ public class PtrHandler<T> {
 
     /// 结束
     public func onEnd(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         swallow(this.onEnd(wrap(s)))
@@ -98,17 +98,17 @@ public class PtrHandler<T> {
     /// 连接错误
     /// 先关闭，再通知 — 与 main 的 configure() 蹦床使用的顺序相同
     public func onConnectError(s: UsSocket, code: Int32): Unit {
-        let this = ext
+        let `this` = ext
         s.close(CloseMode.FAILURE)
-        if (this != None) {
+        if (this.isSome()) {
             swallow(this.onConnectError(wrap(s), code))
         }
     }
 
     /// 连接中错误
     public func onConnectingError(c: ConnectingSocket, code: Int32): Unit {
-        let this = c.ext<T>()
-        if (this == None) {
+        let `this` = c.ext<T>()
+        if (this.isNone()) {
             return
         }
         swallow(this.onConnectError(wrapConnecting(c), code))
@@ -116,27 +116,27 @@ public class PtrHandler<T> {
 
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
-        swallow(this.onHandshake(wrap(s), if (ok) 1 else 0, err))
+        swallow(this.onHandshake(wrap(s), if (ok) { 1 } else { 0 }, err))
     }
 
     /// 文件描述符
     public func onFd(s: UsSocket, fd: Int32): Unit {
-        let this = ext
-        if (this == None) {
+        let `this` = ext
+        if (this.isNone()) {
             return
         }
         swallow(this.onFd(wrap(s), fd))
     }
 
     /// 包装 socket
-    func wrap(s: UsSocket): NewSocketHandler { ... }
+    func wrap(s: UsSocket): NewSocketHandler { return NewSocketHandler() }
 
     /// 包装连接中 socket
-    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { ... }
+    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { return NewSocketHandler() }
 }
 
 /// Bun Socket 处理器 (Bun.connect / Bun.listen)
@@ -163,14 +163,14 @@ public class BunListenerHandler {
         let listener = s.group().owner(Listener)
         // onCreate 分配 NewSocket，存入 ext，并重新标记 kind → .bun_socket_*
         // 在返回前触发用户 open 处理器
-        let ns = Listener.onCreate(ssl, listener, NewSocketHandler.from(s))
+        let ns = UwsHandlersListener.onCreate(ssl, listener, NewSocketHandler.from(s))
         swallow(ns.onOpen(NewSocketHandler.from(s)))
     }
 
     /// 关闭
     public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
         let ns = s.ext<NewSocket>()
-        if (ns != None) {
+        if (ns.isSome()) {
             swallow(ns.onClose(NewSocketHandler.from(s), code, reason))
         }
     }
@@ -178,7 +178,7 @@ public class BunListenerHandler {
     /// 数据到达
     public func onData(s: UsSocket, data: Array<Byte>): Unit {
         let ns = s.ext<NewSocket>()
-        if (ns != None) {
+        if (ns.isSome()) {
             swallow(ns.onData(NewSocketHandler.from(s), data))
         }
     }
@@ -186,7 +186,7 @@ public class BunListenerHandler {
     /// 可写
     public func onWritable(s: UsSocket): Unit {
         let ns = s.ext<NewSocket>()
-        if (ns != None) {
+        if (ns.isSome()) {
             swallow(ns.onWritable(NewSocketHandler.from(s)))
         }
     }
@@ -194,7 +194,7 @@ public class BunListenerHandler {
     /// 结束
     public func onEnd(s: UsSocket): Unit {
         let ns = s.ext<NewSocket>()
-        if (ns != None) {
+        if (ns.isSome()) {
             swallow(ns.onEnd(NewSocketHandler.from(s)))
         }
     }
@@ -202,7 +202,7 @@ public class BunListenerHandler {
     /// 超时
     public func onTimeout(s: UsSocket): Unit {
         let ns = s.ext<NewSocket>()
-        if (ns != None) {
+        if (ns.isSome()) {
             swallow(ns.onTimeout(NewSocketHandler.from(s)))
         }
     }
@@ -210,8 +210,9 @@ public class BunListenerHandler {
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
         let ns = s.ext<NewSocket>()
-        if (ns != None) {
-            swallow(ns.onHandshake(NewSocketHandler.from(s), if (ok) 1 else 0, err))
+        if (ns.isSome()) {
+            let okVal = if (ok) { 1 } else { 0 }
+            swallow(ns.onHandshake(NewSocketHandler.from(s), okVal, err))
         }
     }
 }
@@ -229,78 +230,79 @@ public class NsHandler<Owner, H> {
 
     /// 连接打开
     public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         swallow(H.onOpen(this, wrap(s)))
     }
 
     /// 数据到达
     public func onData(s: UsSocket, data: Array<Byte>): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         swallow(H.onData(this, wrap(s), data))
     }
 
     /// 可写
     public func onWritable(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         swallow(H.onWritable(this, wrap(s)))
     }
 
     /// 关闭
     public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         swallow(H.onClose(this, wrap(s), code, reason))
     }
 
     /// 超时
     public func onTimeout(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         swallow(H.onTimeout(this, wrap(s)))
     }
 
     /// 长超时
     public func onLongTimeout(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         swallow(H.onLongTimeout(this, wrap(s)))
     }
 
     /// 结束
     public func onEnd(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         swallow(H.onEnd(this, wrap(s)))
     }
 
     /// 连接错误
     public func onConnectError(s: UsSocket, code: Int32): Unit {
-        let this = ext
+        let `this` = ext
         s.close(CloseMode.FAILURE)
-        if (this != None) {
+        if (this.isSome()) {
             swallow(H.onConnectError(this, wrap(s), code))
         }
     }
 
     /// 连接中错误
     public func onConnectingError(c: ConnectingSocket, code: Int32): Unit {
-        let this = c.ext<Owner>()
-        if (this == None) { return }
+        let `this` = c.ext<Owner>()
+        if (this.isNone()) { return }
         swallow(H.onConnectError(this, wrapConnecting(c), code))
     }
 
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
-        let this = ext
-        if (this == None) { return }
-        swallow(H.onHandshake(this, wrap(s), if (ok) 1 else 0, err))
+        let `this` = ext
+        if (this.isNone()) { return }
+        let okVal = if (ok) { 1 } else { 0 }
+        swallow(H.onHandshake(this, wrap(s), okVal, err))
     }
 
-    func wrap(s: UsSocket): NewSocketHandler { ... }
-    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { ... }
+    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
+    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler() }
 }
 
 /// HTTP 客户端处理器 (fetch)
@@ -315,7 +317,7 @@ public class HTTPClientHandler {
     }
 
     func fwd(name: String, s: UsSocket, args: Array<Any>): Unit {
-        if (ext == None) { return }
+        if (ext.isNone()) { return }
         // 将事件转发到 HTTP 处理器
         swallow(HTTPHandler.dispatch(name, ext, s, args))
     }
@@ -359,7 +361,7 @@ public class HTTPClientHandler {
     public func onConnectError(s: UsSocket, code: Int32): Unit {
         let owner = ext
         s.close(CloseMode.FAILURE)
-        if (owner != None) {
+        if (owner.isSome()) {
             swallow(HTTPHandler.onConnectError(owner, wrap(s), code))
         }
     }
@@ -367,17 +369,18 @@ public class HTTPClientHandler {
     /// 连接中错误
     public func onConnectingError(cs: ConnectingSocket, code: Int32): Unit {
         let owner = cs.ext<Any>()
-        if (owner == None) { return }
+        if (owner.isNone()) { return }
         swallow(HTTPHandler.onConnectError(owner, wrapConnecting(cs), code))
     }
 
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
-        fwd("onHandshake", s, [if (ok) 1 else 0, err])
+        let okVal = if (ok) { 1 } else { 0 }
+        fwd("onHandshake", s, [okVal, err])
     }
 
-    func wrap(s: UsSocket): NewSocketHandler { ... }
-    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { ... }
+    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
+    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler() }
 }
 
 /// WebSocket 客户端升级处理器
@@ -438,47 +441,47 @@ public class SpawnIPCHandler {
 
     /// 数据到达
     public func onData(s: UsSocket, data: Array<Byte>): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         IPCHandlers.posixSocketOnData(this, wrap(s), data)
     }
 
     /// 文件描述符
     public func onFd(s: UsSocket, fd: Int32): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         IPCHandlers.posixSocketOnFd(this, wrap(s), fd)
     }
 
     /// 可写
     public func onWritable(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         IPCHandlers.posixSocketOnWritable(this, wrap(s))
     }
 
     /// 关闭
     public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         IPCHandlers.posixSocketOnClose(this, wrap(s), code, reason)
     }
 
     /// 超时
     public func onTimeout(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         IPCHandlers.posixSocketOnTimeout(this, wrap(s))
     }
 
     /// 结束
     public func onEnd(s: UsSocket): Unit {
-        let this = ext
-        if (this == None) { return }
+        let `this` = ext
+        if (this.isNone()) { return }
         IPCHandlers.posixSocketOnEnd(this, wrap(s))
     }
 
-    func wrap(s: UsSocket): NewSocketHandler { ... }
+    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
 }
 
 /// 关闭模式
@@ -493,17 +496,17 @@ public enum CloseMode {
 
 /// NewSocketHandler 不透明类型
 public class NewSocketHandler {
-    public static func from(s: UsSocket): NewSocketHandler { ... }
-    public static func fromConnecting(c: ConnectingSocket): NewSocketHandler { ... }
+    public static func from(s: UsSocket): NewSocketHandler { NewSocketHandler() }
+    public static func fromConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler() }
 }
 
 /// Listener 不透明类型
-public class Listener {
-    public static func onCreate(ssl: Bool, listener: Listener, s: NewSocketHandler): NewSocket { ... }
+public class UwsHandlersListener {
+    public static func onCreate(ssl: Bool, listener: UwsHandlersListener, s: NewSocketHandler): UwsHandlersNewSocket { UwsHandlersNewSocket() }
 }
 
 /// NewSocket 不透明类型
-public class NewSocket {}
+public class UwsHandlersNewSocket {}
 
 /// HTTPUpgradeClient 不透明类型
 public class HTTPUpgradeClient {}
@@ -534,16 +537,16 @@ public class SendQueue {}
 
 /// IPCHandlers 命名空间
 public class IPCHandlers {
-    public static func posixSocketOnData(q: SendQueue, s: NewSocketHandler, data: Array<Byte>): Unit { ... }
-    public static func posixSocketOnFd(q: SendQueue, s: NewSocketHandler, fd: Int32): Unit { ... }
-    public static func posixSocketOnWritable(q: SendQueue, s: NewSocketHandler): Unit { ... }
-    public static func posixSocketOnClose(q: SendQueue, s: NewSocketHandler, code: Int32, reason: ?Any): Unit { ... }
-    public static func posixSocketOnTimeout(q: SendQueue, s: NewSocketHandler): Unit { ... }
-    public static func posixSocketOnEnd(q: SendQueue, s: NewSocketHandler): Unit { ... }
+    public static func posixSocketOnData(q: SendQueue, s: NewSocketHandler, data: Array<Byte>): Unit {}
+    public static func posixSocketOnFd(q: SendQueue, s: NewSocketHandler, fd: Int32): Unit {}
+    public static func posixSocketOnWritable(q: SendQueue, s: NewSocketHandler): Unit {}
+    public static func posixSocketOnClose(q: SendQueue, s: NewSocketHandler, code: Int32, reason: ?Any): Unit {}
+    public static func posixSocketOnTimeout(q: SendQueue, s: NewSocketHandler): Unit {}
+    public static func posixSocketOnEnd(q: SendQueue, s: NewSocketHandler): Unit {}
 }
 
 /// HTTPHandler 命名空间
 public class HTTPHandler {
-    public static func dispatch(name: String, owner: Any, s: UsSocket, args: Array<Any>): Unit { ... }
-    public static func onConnectError(owner: Any, s: NewSocketHandler, code: Int32): Unit { ... }
+    public static func dispatch(name: String, owner: Any, s: UsSocket, args: Array<Any>): Unit {}
+    public static func onConnectError(owner: Any, s: NewSocketHandler, code: Int32): Unit {}
 }

@@ -551,9 +551,3 @@ public func statementCaresAboutScope(stmt: Stmt): Bool {
             return false
     }
 }
-
-
-    public static func NONE(): Range {
-        return Range(Loc.EMPTY, 0)
-    }
-}

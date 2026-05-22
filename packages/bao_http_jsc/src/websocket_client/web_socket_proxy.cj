@@ -128,39 +128,10 @@ public class WebSocketProxy {
         if (websocketRequestBuf.size > 0) {
             websocketRequestBuf = []
         }
-        if (let t = tunnel) {
+        if (let Some(t) <- tunnel) {
             tunnel = None
             t.shutdown()
             t.deref()
         }
     }
-}
-
-/// WebSocket 代理隧道 - 前向声明
-/// 完整实现在 web_socket_proxy_tunnel.cj
-public class WebSocketProxyTunnel {
-    public var refCount: Int64
-
-    public init() {
-        refCount = 1
-    }
-
-    /// 增加引用计数
-    public func ref(): Unit {
-        refCount += 1
-    }
-
-    /// 减少引用计数
-    public func deref(): Unit {
-        refCount -= 1
-        if (refCount <= 0) {
-            internalDeinit()
-        }
-    }
-
-    /// 关闭隧道
-    public func shutdown(): Unit {}
-
-    /// 内部清理
-    private func internalDeinit(): Unit {}
 }

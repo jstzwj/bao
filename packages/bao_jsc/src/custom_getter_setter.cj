@@ -31,9 +31,10 @@ public class CustomGetterSetter {
     //
     // FFI: bun.cpp.JSC__CustomGetterSetter__isGetterNull(this) bool
     public func isGetterNull(): Bool {
-        // 原始 Zig:
-        //   return bun.cpp.JSC__CustomGetterSetter__isGetterNull(this);
-        getterValue == None
+        match (getterValue) {
+            case None => true
+            case _ => false
+        }
     }
 
     // ========== isSetterNull ==========
@@ -42,9 +43,10 @@ public class CustomGetterSetter {
     //
     // FFI: bun.cpp.JSC__CustomGetterSetter__isSetterNull(this) bool
     public func isSetterNull(): Bool {
-        // 原始 Zig:
-        //   return bun.cpp.JSC__CustomGetterSetter__isSetterNull(this);
-        setterValue == None
+        match (setterValue) {
+            case None => true
+            case _ => false
+        }
     }
 
     // ========== FFI 绑定 ==========

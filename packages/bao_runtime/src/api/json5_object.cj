@@ -16,8 +16,8 @@ public class JSON5Object {
     /// 创建 JSON5 对象, 挂载 parse 和 stringify 方法
     public static func create(globalThis: JsGlobalObject): JsValue {
         let object = JsValue.createEmptyObject(globalThis, 2)
-        object.put(globalThis, ZigString.static("parse"), JsFunction.create(globalThis, "parse", parse, 1))
-        object.put(globalThis, ZigString.static("stringify"), JsFunction.create(globalThis, "stringify", stringify, 3))
+        object.put(globalThis, ZigString.`static`("parse"), JsFunction.create(globalThis, "parse", parse, 1))
+        object.put(globalThis, ZigString.`static`("stringify"), JsFunction.create(globalThis, "stringify", stringify, 3))
         return object
     }
 
@@ -32,14 +32,14 @@ public class JSON5Object {
         value.ensureStillAlive()
 
         if (value.isUndefined() || value.isSymbol() || value.isFunction()) {
-            return JsValue.jsUndefined
+            return JsValue.jsUndefined()
         }
 
         if (!replacer.isUndefinedOrNull()) {
-            return global.throw("JSON5.stringify does not support the replacer argument")
+            return global.`throw`("JSON5.stringify does not support the replacer argument")
         }
 
-        var stringifier = try Stringifier.init(global, spaceValue)
+        var stringifier = try Stringifier(global, spaceValue)
         defer stringifier.deinit()
 
         try stringifier.stringifyValue(global, value)
@@ -57,7 +57,7 @@ public class JSON5Object {
 
         if (inputValue.isEmptyOrUndefinedOrNull()) {
             global.throwInvalidArguments("Expected a string to parse")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         // 获取输入字符串
@@ -67,7 +67,7 @@ public class JSON5Object {
         // 解析 JSON5
         let root = try JSON5Parser.parse(input.slice()) ?? {
             global.throwValue(global.createSyntaxErrorInstance("JSON5 Parse error: Unable to parse JSON5 string"))
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         return exprToJS(root, global)
@@ -80,18 +80,18 @@ public class JSON5Object {
     /// 将 JSON5 AST 表达式转换为 JS 值
     public static func exprToJS(expr: Expr, global: JsGlobalObject): JsValue {
         match (expr.data) {
-            case .e_null => return JsValue.null
-            case .e_boolean(let b) => return JsValue.jsBoolean(b.value)
-            case .e_number(let n) => return JsValue.jsNumber(n.value)
-            case .e_string(let s) => return s.toJS(default_allocator, global)
-            case .e_array(let arr) =>
+            case e_null => return JsValue.jsNull()
+            case e_boolean(b) => return JsValue.jsBoolean(b.value)
+            case e_number(n) => return JsValue.jsNumber(n.value)
+            case e_string(s) => return s.toJS(default_allocator, global)
+            case e_array(arr) =>
                 var jsArr = try JsValue.createEmptyArray(global, arr.items.count)
                 for ((item, i) in arr.slice().enumerated()) {
                     let value = try exprToJS(item, global)
                     try jsArr.putIndex(global, UInt32(i), value)
                 }
                 return jsArr
-            case .e_object(let obj) =>
+            case e_object(obj) =>
                 var jsObj = JsValue.createEmptyObject(global, obj.properties.count)
                 for (prop in obj.properties.slice()) {
                     let keyExpr = prop.key.getOrThrow()
@@ -102,7 +102,7 @@ public class JSON5Object {
                     try jsObj.putMayBeIndex(global, keyStr, value)
                 }
                 return jsObj
-            default => return JsValue.jsUndefined
+            case _ => return JsValue.jsUndefined()
         }
     }
 }
@@ -117,17 +117,17 @@ public class Stringifier {
 
     /// Space - 缩进方式
     public enum Space {
-        case minified
-        case number(UInt32)
-        case str(BunString)
+        | minified
+        | number(UInt32)
+        | str(BunString)
     }
 
     public static func initFunc(global: JsGlobalObject, spaceValue: JsValue): Stringifier {
         return Stringifier(
-            stackCheck: StackCheck.init(),
-            builder: StringBuilder.init(),
+            stackCheck: StackCheck(),
+            builder: StringBuilder(),
             indent: 0,
-            space: try Space.init(global, spaceValue),
+            space: try Space(global, spaceValue),
             visiting: HashMap<JsValue, Unit>(),
         )
     }
@@ -169,7 +169,7 @@ public class Stringifier {
         }
 
         if (unwrapped.isBigInt()) {
-            global.throw("JSON5.stringify cannot serialize BigInt")
+            global.`throw`("JSON5.stringify cannot serialize BigInt")
             return
         }
 
@@ -187,7 +187,7 @@ public class Stringifier {
 
         // 检查循环引用
         if (visiting.containsKey(unwrapped)) {
-            global.throw("Converting circular structure to JSON5")
+            global.`throw`("Converting circular structure to JSON5")
             return
         }
         visiting[unwrapped] = ()
@@ -216,7 +216,7 @@ public class Stringifier {
         match (space) {
             case Space.minified =>
                 var first: Bool = true
-                while (let item = try iter.next()) {
+                while (let item <- try iter.next()) {
                     if (!first) {
                         builder.append(",")
                     }
@@ -230,7 +230,7 @@ public class Stringifier {
             case Space.number(_) | Space.str(_) =>
                 indent += 1
                 var first: Bool = true
-                while (let item = try iter.next()) {
+                while (let item <- try iter.next()) {
                     if (!first) {
                         builder.append(",")
                     }
@@ -257,7 +257,7 @@ public class Stringifier {
         var iter = try JsPropertyIterator(
             skipEmptyName: false,
             includeValue: true,
-        ).init(global, try value.toObject(global))
+        ).`init`(global, try value.toObject(global))
         defer iter.deinit()
 
         if (iter.len == 0) {
@@ -270,7 +270,7 @@ public class Stringifier {
         match (space) {
             case Space.minified =>
                 var first: Bool = true
-                while (let propName = try iter.next()) {
+                while (let propName <- try iter.next()) {
                     if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) {
                         continue
                     }
@@ -285,7 +285,7 @@ public class Stringifier {
             case Space.number(_) | Space.str(_) =>
                 indent += 1
                 var first: Bool = true
-                while (let propName = try iter.next()) {
+                while (let propName <- try iter.next()) {
                     if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) {
                         continue
                     }
@@ -313,13 +313,13 @@ public class Stringifier {
     /// 对应 Bun: Stringifier.appendKey
     public func appendKey(name: BunString): Unit {
         var isIdentifier: Bool = true
-        if (name.length() == 0) {
+        if (name.size() == 0) {
             isIdentifier = false
         } else {
             if (!JsLexer.isIdentifierStart(name.charAt(0))) {
                 isIdentifier = false
             } else {
-                for (i in 1..name.length()) {
+                for (i in 1..name.size()) {
                     if (!JsLexer.isIdentifierContinue(name.charAt(i))) {
                         isIdentifier = false
                         break
@@ -338,7 +338,7 @@ public class Stringifier {
     /// 追加引号包裹的字符串
     public func appendQuotedString(str: BunString): Unit {
         builder.append("'")
-        for (i in 0..<str.length()) {
+        for (i in 0..<str.size()) {
             let c = str.charAt(i)
             match (c) {
                 case 0x00 => builder.append("\\0")
@@ -352,7 +352,7 @@ public class Stringifier {
                 case 0x5c => builder.append("\\\\")
                 case 0x2028 => builder.append("\\u2028")
                 case 0x2029 => builder.append("\\u2029")
-                default =>
+                case _ =>
                     if (c >= 0x01 && c <= 0x07) || (c >= 0x0e && c <= 0x1f) || c == 0x7f {
                         builder.append("\\x")
                         builder.append(hexDigit(c >> 4))
@@ -374,13 +374,13 @@ public class Stringifier {
     /// 换行和缩进
     public func newline(): Unit {
         match (space) {
-            case .minified => ()
-            case .number(let spaceNum) =>
+            case minified => ()
+            case number(spaceNum) =>
                 builder.appendChar('\n')
                 for (_ in 0..(indent * Int(spaceNum))) {
                     builder.appendChar(' ')
                 }
-            case .str(let spaceStr) =>
+            case str(spaceStr) =>
                 builder.appendChar('\n')
                 for (_ in 0..indent) {
                     builder.append(spaceStr.toString())

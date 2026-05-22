@@ -45,7 +45,7 @@ public class WindowsPathWatcherManager {
     // 对应 Bun: win_watcher.zig - getDefaultManager
     public static func get(): WindowsPathWatcherManager {
         managerMutex.lock()
-        if (defaultManager == None) {
+        if (defaultManager.isNone()) {
             defaultManager = WindowsPathWatcherManager()
         }
         managerMutex.unlock()
@@ -64,7 +64,7 @@ public class WindowsPathWatcherManager {
     // 对应 Bun: win_watcher.zig - PathWatcherManager.watch
     public func watch(path: String, handler: WinPathWatchHandler): Unit {
         var watcher = watchers.get(path)
-        if (watcher == None) {
+        if (watcher.isNone()) {
             watcher = WindowsPathWatcher(path: path, manager: this)
             watchers.put(path, watcher.getOrThrow())
 
@@ -78,7 +78,7 @@ public class WindowsPathWatcherManager {
     // 对应 Bun: win_watcher.zig - PathWatcherManager.unregister
     public func unwatch(path: String, handler: WinPathWatchHandler): Unit {
         let watcher = watchers.get(path)
-        if (watcher != None) {
+        if (watcher.isSome()) {
             watcher.getOrThrow().removeHandler(handler)
             if (watcher.getOrThrow().handlerCount() == 0) {
                 watcher.getOrThrow().close()
@@ -95,7 +95,7 @@ public class WindowsPathWatcherManager {
     // 分发事件
     public func dispatchEvent(path: String, eventType: WinWatcherEventType, filename: String): Unit {
         let watcher = watchers.get(path)
-        if (watcher != None) {
+        if (watcher.isSome()) {
             watcher.getOrThrow().emit(eventType: eventType, path: filename)
         }
     }

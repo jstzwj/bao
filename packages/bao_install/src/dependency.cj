@@ -328,6 +328,7 @@ public enum DependencyVersionTag {
     | Git            // 7 - git repository
     | Github         // 8 - github:owner/repo
     | Catalog        // 9 - catalog:
+    | Root           // 10 - root package
 
     public func toInt(): Int64 {
         match (this) {
@@ -341,6 +342,7 @@ public enum DependencyVersionTag {
             case Git => 7
             case Github => 8
             case Catalog => 9
+            case Root => 10
         }
     }
 
@@ -356,6 +358,7 @@ public enum DependencyVersionTag {
             case 7 => Git
             case 8 => Github
             case 9 => Catalog
+            case 10 => Root
             case _ => Uninitialized
         }
     }
@@ -372,6 +375,7 @@ public enum DependencyVersionTag {
             case Git => match (right) { case Git => true case _ => false }
             case Github => match (right) { case Github => true case _ => false }
             case Catalog => match (right) { case Catalog => true case _ => false }
+            case Root => match (right) { case Root => true case _ => false }
         }
     }
 

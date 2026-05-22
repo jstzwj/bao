@@ -70,12 +70,11 @@ public class ObjectURLRegistry {
         // 从路径名中提取 UUID
         let uuid = extractUUID(pathname)
         match (uuid) {
-            case Some(id) => {
+            case Some(id) =>
                 match (map.get(id)) {
                     case Some(entry) => Some(entry.blob.dupeWithContentType(true))
                     case None => None
                 }
-            }
             case None => None
         }
     }
@@ -85,15 +84,13 @@ public class ObjectURLRegistry {
     public func revoke(pathname: String): Unit {
         let uuid = extractUUID(pathname)
         match (uuid) {
-            case Some(id) => {
+            case Some(id) =>
                 match (map.get(id)) {
-                    case Some(entry) => {
+                    case Some(entry) =>
                         entry.deinit()
                         map.remove(id)
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -127,7 +124,7 @@ public class ObjectURLRegistry {
             return Some(pathname.substring(5))
         }
         // 直接 UUID
-        if (pathname.length == 36 && pathname.contains("-")) {
+        if (pathname.size == 36 && pathname.contains("-")) {
             return Some(pathname)
         }
         return None

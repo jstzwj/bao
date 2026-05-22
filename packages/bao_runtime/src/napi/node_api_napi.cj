@@ -13,31 +13,31 @@ package bao_runtime.napi
 // ============================================================================
 
 @C
-public struct NapiEnvOpaque { var _opaque: UInt64 }
+public struct NapiEnvOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiValueOpaque { var _opaque: UInt64 }
+public struct NapiValueOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiRefOpaque { var _opaque: UInt64 }
+public struct NapiRefOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiHandleScopeOpaque { var _opaque: UInt64 }
+public struct NapiHandleScopeOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiEscapableHandleScopeOpaque { var _opaque: UInt64 }
+public struct NapiEscapableHandleScopeOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiCallbackInfoOpaque { var _opaque: UInt64 }
+public struct NapiCallbackInfoOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiDeferredOpaque { var _opaque: UInt64 }
+public struct NapiDeferredOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiCallbackScopeOpaque { var _opaque: UInt64 }
+public struct NapiCallbackScopeOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiAsyncContextOpaque { var _opaque: UInt64 }
+public struct NapiAsyncContextOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiAsyncWorkOpaque { var _opaque: UInt64 }
+public struct NapiAsyncWorkOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiThreadsafeFunctionOpaque { var _opaque: UInt64 }
+public struct NapiThreadsafeFunctionOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct NapiAsyncCleanupHookHandleOpaque { var _opaque: UInt64 }
+public struct NapiAsyncCleanupHookHandleOpaque { var _opaque: UInt64 = UInt64(0) }
 @C
-public struct UvLoopOpaque { var _opaque: UInt64 }
+public struct UvLoopOpaque { var _opaque: UInt64 = UInt64(0) }
 
 public type napi_env = CPointer<NapiEnvOpaque>
 public type napi_value = CPointer<NapiValueOpaque>
@@ -81,7 +81,7 @@ public type napi_env_cleanup_hook = CPointer<Unit>
 
 public let NAPI_VERSION_EXPERIMENTAL_C: Int32 = 2147483647
 public let NAPI_VERSION_C: UInt32 = 10
-public let NAPI_AUTO_LENGTH_C: UIntNative = UIntNative(-1)
+public let NAPI_AUTO_LENGTH_C: UIntNative = 0xFFFFFFFFFFFFFFFF
 public let NAPI_MODULE_VERSION_C: Int32 = 1
 
 public let napi_default: UInt32 = 0
@@ -162,50 +162,50 @@ public let napi_tsfn_blocking: UInt32 = 1
 
 @C
 public struct napi_property_descriptor {
-    var utf8name: CPointer<Byte>
-    var name: napi_value
-    var method: napi_callback
-    var getter: napi_callback
-    var setter: napi_callback
-    var value: napi_value
-    var attributes: napi_property_attributes
-    var data: CPointer<Unit>
+    var utf8name: CPointer<Byte> = CPointer<Byte>()
+    var name: napi_value = CPointer<NapiValueOpaque>()
+    var method: napi_callback = CPointer<Unit>()
+    var getter: napi_callback = CPointer<Unit>()
+    var setter: napi_callback = CPointer<Unit>()
+    var value: napi_value = CPointer<NapiValueOpaque>()
+    var attributes: napi_property_attributes = UInt32(0)
+    var data: CPointer<Unit> = CPointer<Unit>()
 }
 
 @C
 public struct napi_extended_error_info {
-    var error_message: CPointer<Byte>
-    var engine_reserved: CPointer<Unit>
-    var engine_error_code: UInt32
-    var error_code: napi_status
+    var error_message: CPointer<Byte> = CPointer<Byte>()
+    var engine_reserved: CPointer<Unit> = CPointer<Unit>()
+    var engine_error_code: UInt32 = UInt32(0)
+    var error_code: napi_status = UInt32(0)
 }
 
 @C
 public struct napi_type_tag {
-    var lower: UInt64
-    var upper: UInt64
+    var lower: UInt64 = UInt64(0)
+    var upper: UInt64 = UInt64(0)
 }
 
 @C
 public struct napi_node_version {
-    var major: UInt32
-    var minor: UInt32
-    var patch: UInt32
-    var release: CPointer<Byte>
+    var major: UInt32 = UInt32(0)
+    var minor: UInt32 = UInt32(0)
+    var patch: UInt32 = UInt32(0)
+    var release: CPointer<Byte> = CPointer<Byte>()
 }
 
 @C
 public struct napi_module {
-    var nm_version: Int32
-    var nm_flags: UInt32
-    var nm_filename: CPointer<Byte>
-    var nm_register_func: napi_addon_register_func
-    var nm_modname: CPointer<Byte>
-    var nm_priv: CPointer<Unit>
-    var reserved0: CPointer<Unit>
-    var reserved1: CPointer<Unit>
-    var reserved2: CPointer<Unit>
-    var reserved3: CPointer<Unit>
+    var nm_version: Int32 = Int32(0)
+    var nm_flags: UInt32 = UInt32(0)
+    var nm_filename: CPointer<Byte> = CPointer<Byte>()
+    var nm_register_func: napi_addon_register_func = CPointer<Unit>()
+    var nm_modname: CPointer<Byte> = CPointer<Byte>()
+    var nm_priv: CPointer<Unit> = CPointer<Unit>()
+    var reserved0: CPointer<Unit> = CPointer<Unit>()
+    var reserved1: CPointer<Unit> = CPointer<Unit>()
+    var reserved2: CPointer<Unit> = CPointer<Unit>()
+    var reserved3: CPointer<Unit> = CPointer<Unit>()
 }
 
 // ============================================================================

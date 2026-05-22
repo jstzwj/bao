@@ -25,7 +25,7 @@ public func initErrorRuntime(error: Array<Byte>): Unit {
     while (reader.hasMoreData()) {
         try {
             decodeAndAppendServerError(reader)
-        } catch (e) {
+        } catch (e: Exception) {
             console.error(e.toString())
             break
         }
@@ -57,7 +57,7 @@ public func onErrorRuntimePayload(view: Array<Byte>): Unit {
     while (reader.hasMoreData()) {
         try {
             decodeAndAppendServerError(reader)
-        } catch (e) {
+        } catch (e: Exception) {
             console.error(e.toString())
             break
         }
@@ -174,7 +174,7 @@ public class BundlerMessageLocation {
     public init(line: UInt32, column: UInt32, length: UInt32, lineText: String) {
         this.line = line
         this.column = column
-        this.length = length
+        this.size = length
         this.lineText = lineText
     }
 }
@@ -203,4 +203,3 @@ public class DeserializedFailure {
 }
 
 /// DataViewReader 类型引用
-public type DataViewReader = hmr_runtime_client.DataViewReader

@@ -257,6 +257,8 @@ public class BundlerGraph {
 public class ServerComponentBoundary {
     /// 边界文件的源索引
     public var sourceIndex: Int32
+    /// SSR 源索引 (服务端渲染)
+    public var ssrSourceIndex: Int32
     /// "use client" 或 "use server" 指令
     public var directive: UseDirective
     /// 边界在源文件中的位置
@@ -264,6 +266,14 @@ public class ServerComponentBoundary {
 
     public init(sourceIndex: Int32, directive: UseDirective, loc: Int64) {
         this.sourceIndex = sourceIndex
+        this.ssrSourceIndex = sourceIndex
+        this.directive = directive
+        this.loc = loc
+    }
+
+    public init(sourceIndex: Int32, ssrSourceIndex: Int32, directive: UseDirective, loc: Int64) {
+        this.sourceIndex = sourceIndex
+        this.ssrSourceIndex = ssrSourceIndex
         this.directive = directive
         this.loc = loc
     }

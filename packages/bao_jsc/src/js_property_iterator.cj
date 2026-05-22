@@ -5,53 +5,9 @@
 
 package bao_jsc
 
-// ========== SourceType ==========
-// 严格翻译自 SourceType.zig
-public enum SourceType {
-    | Program     // 顶层脚本
-    | Module      // ES 模块
-    | Eval        // eval 代码
-    | Function    // 函数体
-    | Wasm        // WebAssembly
-}
+// 注意: SourceType 已移至 source_type.cj
 
-// ========== SourceProvider ==========
-// 严格翻译自 SourceProvider.zig
-// 源码提供器 - 提供脚本源码文本
-public class SourceProvider {
-    public var sourceCode: String = ""
-    public var sourceURL: String = ""
-    public var sourceType: SourceType = SourceType.Program
-    public var hash: Int64 = 0
-    public var isCached: Bool = false
-
-    public init() {}
-
-    public init(sourceCode: String, sourceURL: String) {
-        this.sourceCode = sourceCode
-        this.sourceURL = sourceURL
-        this.hash = computeHash(sourceCode)
-    }
-
-    // 计算源码哈希
-    func computeHash(s: String): Int64 {
-        var h: Int64 = 0
-        for (c in s) {
-            h = h * 31 + Int64(c.code)
-        }
-        h
-    }
-
-    // 获取源码
-    public func source(): String {
-        sourceCode
-    }
-
-    // 获取 URL
-    public func url(): String {
-        sourceURL
-    }
-}
+// 注意: SourceProvider 已移至 zig_stack_trace.cj
 
 // ========== JSSecrets ==========
 // 严格翻译自 JSSecrets.zig
@@ -74,18 +30,18 @@ public class JscScheduler {
 
     // 调度任务
     public func schedule(task: () -> Unit) {
-        pendingTasks.append(task)
+        pendingTasks = pendingTasks.concat([task])
     }
 
     // 排空所有任务
     public func drain() {
         if (isDraining) { return }
         isDraining = true
-        defer { isDraining = false }
+        // defer: { isDraining = false }
 
         while (pendingTasks.size > 0) {
             let task = pendingTasks[0]
-            pendingTasks = pendingTasks.slice(1)
+            pendingTasks = pendingTasks.slice(1, pendingTasks.size)
             task()
         }
     }
@@ -153,27 +109,27 @@ public class JsStringBuilder {
 
     // 追加字符串
     public func append(s: String) {
-        parts.append(s)
+        parts = parts.concat([s])
         estimatedLength += Int64(s.size)
     }
 
     // 追加字符
     public func append(c: UInt8) {
-        parts.append(String(c))
+        parts = parts.concat([String(Rune(c))])
         estimatedLength++
     }
 
     // 追加整数
     public func append(n: Int64) {
-        let s = String(n)
-        parts.append(s)
+        let s = n.toString()
+        parts = parts.concat([s])
         estimatedLength += Int64(s.size)
     }
 
     // 追加浮点数
     public func append(f: Float64) {
-        let s = String(f)
-        parts.append(s)
+        let s = f.toString()
+        parts = parts.concat([s])
         estimatedLength += Int64(s.size)
     }
 
@@ -184,7 +140,11 @@ public class JsStringBuilder {
 
     // 构建最终字符串
     public func toString(): String {
-        String.join("", parts)
+        var result = ""
+        for (p in parts) {
+            result = result + p
+        }
+        result
     }
 
     // 清除
@@ -194,87 +154,9 @@ public class JsStringBuilder {
     }
 }
 
-// ========== RefString ==========
-// 补充翻译 - RefString 已在 virtual_machine.cj 中部分定义
-// 这里提供完整版本
-public class RefString {
-    public var hash: Int64 = 0
-    public var ptr: String = ""
-    public var len: Int64 = 0
-    public var refCount: Int64 = 1
+// 注意: RefString 已移至 ref_string.cj
 
-    public init() {}
-
-    public init(ptr: String) {
-        this.ptr = ptr
-        this.len = Int64(ptr.size)
-        this.hash = computeHash(ptr)
-    }
-
-    public static func computeHash(input: String): Int64 {
-        var h: Int64 = 5381
-        for (c in input) {
-            h = ((h << 5) + h) + Int64(c.code)
-        }
-        h
-    }
-
-    public func ref() {
-        refCount++
-    }
-
-    public func deref() {
-        refCount--
-    }
-
-    public func slice(): String {
-        ptr
-    }
-
-    public func toString(): String {
-        ptr
-    }
-}
-
-// ========== GarbageCollectionController ==========
-// 严格翻译自 GarbageCollectionController.zig
-public class GCController {
-    public var level: GCLevel = GCLevel.None
-    public var lastCollectionTime: Float64 = 0.0
-    public var collectionCount: Int64 = 0
-    public var allocatedBytes: Int64 = 0
-    public var heapSize: Int64 = 0
-
-    public init() {}
-
-    // 执行 GC
-    public func collect(sync: Bool) {
-        collectionCount++
-        lastCollectionTime = currentTimeMillis().toFloat64()
-    }
-
-    // 自动 GC
-    public func autoCollect() {
-        if (level != GCLevel.None) {
-            collect(level == GCLevel.Aggressive)
-        }
-    }
-
-    // 报告额外内存
-    public func reportExtraMemory(bytes: Int64) {
-        allocatedBytes += bytes
-    }
-
-    // 获取统计信息
-    public func stats(): GCStats {
-        GCStats(
-            allocatedBytes: allocatedBytes,
-            heapSize: heapSize,
-            collectionCount: collectionCount,
-            lastCollectionTime: lastCollectionTime
-        )
-    }
-}
+// 注意: GCController 已移至 gc_controller.cj (or virtual_machine.cj)
 
 // GC 统计
 public class GCStats {
@@ -291,23 +173,7 @@ public class GCStats {
     }
 }
 
-// ========== Counters ==========
-// 严格翻译自 Counters.zig
-public class JscCounters {
-    public var transpileCount: Int64 = 0
-    public var resolveCount: Int64 = 0
-    public var evaluateCount: Int64 = 0
-    public var importCount: Int64 = 0
-    public var gcCount: Int64 = 0
-
-    public init() {}
-
-    public func incrementTranspile() { transpileCount++ }
-    public func incrementResolve() { resolveCount++ }
-    public func incrementEvaluate() { evaluateCount++ }
-    public func incrementImport() { importCount++ }
-    public func incrementGC() { gcCount++ }
-}
+// 注意: JscCounters 已移至 package.cj (type alias to Counters)
 
 // ========== EventType ==========
 // 严格翻译自 EventType.zig

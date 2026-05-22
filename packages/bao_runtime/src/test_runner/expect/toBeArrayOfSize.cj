@@ -7,18 +7,18 @@ import bao_jsc.*
 
 /// toBeArrayOfSize() - 检查值是否为指定大小的数组
 /// 用法: expect(received).toBeArrayOfSize(size)
-public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toBeArrayOfSize() requires 1 argument")
     }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeArrayOfSize", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeArrayOfSize", matcherParamsFmt: "")
 
     let size = arguments[0]
     size.ensureStillAlive()
@@ -33,7 +33,7 @@ public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFram
     var pass = value.jsType().isArray() && Int32(value.getLength(globalThis: globalThis)) == size.toInt32()
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

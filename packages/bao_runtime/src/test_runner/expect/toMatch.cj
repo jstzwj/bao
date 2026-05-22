@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toMatch() - 检查字符串是否匹配正则或包含子串
 /// 用法: expect(received).toMatch(expected)
-public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toMatch() requires 1 argument")
     }
 
@@ -29,7 +29,7 @@ public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     }
     expectedValue.ensureStillAlive()
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatch", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatch", matcherParamsFmt: "<green>expected<r>")
 
     if (!value.isString()) {
         return globalThis.throw_("Received value must be a string: {f}", args: [value.toFmt(formatter)])
@@ -44,7 +44,7 @@ public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let expectedFmt = expectedValue.toFmt(formatter)

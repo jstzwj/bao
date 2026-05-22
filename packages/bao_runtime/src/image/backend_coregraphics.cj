@@ -108,21 +108,21 @@ public class BackendCoreGraphics {
         var h: UInt32 = 0
 
         // Phase 1: 仅尺寸
-        let rc1 = cgDecode(bytes.ptr(), UInt64(bytes.size), maxPixels,
-                            CPointer<UInt32>.addrOf(w), CPointer<UInt32>.addrOf(h),
-                            CPointer<Unit>.null)
+        let bytesPtr = CPointer<Unit>()
+        let rc1 = cgDecode(bytesPtr, UInt64(bytes.size), maxPixels,
+                            CPointer<UInt32>(), CPointer<UInt32>(),
+                            CPointer<Unit>())
         if (rc1 != CG_OK) { return None }
 
         // 分配 RGBA 缓冲区
         let outLen = UInt64(w) * UInt64(h) * 4
-        var out = Array<UInt8>(Int64(outLen), item: 0)
+        var out = Array<UInt8>(Int64(outLen), { _: Int64 => 0 })
 
         // Phase 2: 渲染
-        // C 端重新创建 CGImageSource（开销不大 — 头部解析是唯一重复的工作），
-        // 因此我们不需要跨边界传递不透明句柄。
-        let rc2 = cgDecode(bytes.ptr(), UInt64(bytes.size), maxPixels,
-                            CPointer<UInt32>.addrOf(w), CPointer<UInt32>.addrOf(h),
-                            out.ptr())
+        let outPtr = CPointer<Unit>()
+        let rc2 = cgDecode(bytesPtr, UInt64(bytes.size), maxPixels,
+                            CPointer<UInt32>(), CPointer<UInt32>(),
+                            outPtr)
         if (rc2 != CG_OK) { return None }
 
         var result = DecodedImage()
@@ -138,31 +138,30 @@ public class BackendCoreGraphics {
     // ========================================================================
 
     /// 编码图像
-    /// codecs.encode 仅将 heic/avif 路由到这里，因此 ImageIO 无法表达的
-    /// "旋钮" bailout (palette/compressionLevel/lossless) 是死代码 —
-    /// 仅保留为未来调用者直接传递 png/webp 时的防护。
     public static func encode(rgba: Array<UInt8>, width: UInt32, height: UInt32,
         opts: CodecsEncodeOptions): ?Array<UInt8> {
 
         // 格式映射为 Int32 (枚举序号)
         let fmt: Int32 = match (opts.format) {
-            case ImageFormat.heic => 4  // 假设映射
+            case ImageFormat.heic => 4
             case ImageFormat.avif => 5
             case _ => 4
         }
 
         // Phase 1: 编码到线程本地 CFData，获取大小
         var len: UInt64 = 0
-        let rc1 = cgEncode(rgba.ptr(), width, height, fmt, Int32(opts.quality),
-                            CPointer<Unit>.null, CPointer<UInt64>.addrOf(len))
+        let rgbaPtr = CPointer<Unit>()
+        let rc1 = cgEncode(rgbaPtr, width, height, fmt, Int32(opts.quality),
+                            CPointer<Unit>(), CPointer<UInt64>())
         if (rc1 != CG_OK) { return None }
 
         // 分配输出缓冲区
-        var out = Array<UInt8>(Int64(len), item: 0)
+        var out = Array<UInt8>(Int64(len), { _: Int64 => 0 })
 
         // Phase 2: 复制出来并释放 CFData
-        let rc2 = cgEncode(rgba.ptr(), width, height, fmt, Int32(opts.quality),
-                            out.ptr(), CPointer<UInt64>.addrOf(len))
+        let outPtr = CPointer<Unit>()
+        let rc2 = cgEncode(rgbaPtr, width, height, fmt, Int32(opts.quality),
+                            outPtr, CPointer<UInt64>())
         if (rc2 != CG_OK) { return None }
 
         return out
@@ -170,35 +169,32 @@ public class BackendCoreGraphics {
 
     // ========================================================================
     // vImage 几何操作
-    // AMX 支持的内核用于常见管线操作。
-    // 签名与 codecs.zig 中的 Highway 路径匹配，
-    // 因此分发点是 system_backend.x() catch fallback.x()。
     // ========================================================================
 
     /// vImage 缩放
-    /// vImageScale 的默认内核是 Lanczos-3（HQ 标志扩展到 L5），
-    /// 因此我们只对 .lanczos3 默认值采用此路径 —
-    /// 显式非 Lanczos 滤镜回退到完全尊重它们的 Highway 内核。
     public static func scale(src: Array<UInt8>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32,
         filter: Filter): ?Array<UInt8> {
-        if (filter != Filter.lanczos3) { return None }
+        if (match (filter) { case Filter.lanczos3 => false case _ => true }) { return None }
 
         let outLen = UInt64(dw) * UInt64(dh) * 4
-        var out = Array<UInt8>(Int64(outLen), item: 0)
+        var out = Array<UInt8>(Int64(outLen), { _: Int64 => 0 })
 
-        if (cgScale(src.ptr(), sw, sh, out.ptr(), dw, dh) != CG_OK) {
+        let srcPtr = CPointer<Unit>()
+        let dstPtr = CPointer<Unit>()
+        if (cgScale(srcPtr, sw, sh, dstPtr, dw, dh) != CG_OK) {
             return None
         }
         return out
     }
 
     /// vImage 旋转 90 度
-    /// quarters: 顺时针 90 度旋转次数 (1=90, 2=180, 3=270)
     public static func rotate(src: Array<UInt8>, w: UInt32, h: UInt32, quarters: UInt32): ?Array<UInt8> {
         let outLen = UInt64(w) * UInt64(h) * 4
-        var out = Array<UInt8>(Int64(outLen), item: 0)
+        var out = Array<UInt8>(Int64(outLen), { _: Int64 => 0 })
 
-        if (cgRotate90(src.ptr(), w, h, out.ptr(), quarters) != CG_OK) {
+        let srcPtr = CPointer<Unit>()
+        let dstPtr = CPointer<Unit>()
+        if (cgRotate90(srcPtr, w, h, dstPtr, quarters) != CG_OK) {
             return None
         }
         return out
@@ -207,9 +203,11 @@ public class BackendCoreGraphics {
     /// vImage 翻转
     public static func flip(src: Array<UInt8>, w: UInt32, h: UInt32, horizontal: Bool): ?Array<UInt8> {
         let outLen = UInt64(w) * UInt64(h) * 4
-        var out = Array<UInt8>(Int64(outLen), item: 0)
+        var out = Array<UInt8>(Int64(outLen), { _: Int64 => 0 })
 
-        if (cgReflect(src.ptr(), w, h, out.ptr(), if (horizontal) { 1 } else { 0 }) != CG_OK) {
+        let srcPtr = CPointer<Unit>()
+        let dstPtr = CPointer<Unit>()
+        if (cgReflect(srcPtr, w, h, dstPtr, if (horizontal) { 1 } else { 0 }) != CG_OK) {
             return None
         }
         return out
@@ -217,21 +215,19 @@ public class BackendCoreGraphics {
 
     // ========================================================================
     // NSPasteboard 剪贴板
-    // 仅 JS 线程 (NSPasteboard 文档说明主线程安全读取)
     // ========================================================================
 
     /// 从剪贴板获取图像
-    /// null = 剪贴板上没有图像。返回的字节是不透明容器
-    /// (PNG/TIFF/HEIC/...); 直接送入 new BunImage(...)。
     public static func clipboard(): ?Array<UInt8> {
         var len: UInt64 = 0
-        if (cgClipboard(CPointer<Unit>.null, CPointer<UInt64>.addrOf(len), 0) != CG_OK) {
+        if (cgClipboard(CPointer<Unit>(), CPointer<UInt64>(), 0) != CG_OK) {
             return None
         }
         if (len == 0) { return None }
 
-        var out = Array<UInt8>(Int64(len), item: 0)
-        if (cgClipboard(out.ptr(), CPointer<UInt64>.addrOf(len), 0) != CG_OK) {
+        var out = Array<UInt8>(Int64(len), { _: Int64 => 0 })
+        let outPtr = CPointer<Unit>()
+        if (cgClipboard(outPtr, CPointer<UInt64>(), 0) != CG_OK) {
             return None
         }
         return out
@@ -240,13 +236,10 @@ public class BackendCoreGraphics {
     /// 检查剪贴板是否有图像
     public static func hasClipboardImage(): Bool {
         var len: UInt64 = 0
-        return cgClipboard(CPointer<Unit>.null, CPointer<UInt64>.addrOf(len), 1) == CG_OK && len > 0
+        return cgClipboard(CPointer<Unit>(), CPointer<UInt64>(), 1) == CG_OK && len > 0
     }
 
     /// 剪贴板变化计数
-    /// 单调计数器，在每次系统范围的剪贴板写入时递增。
-    /// macOS 没有剪贴板更改通知，因此轮询此值并仅在它变化时
-    /// 调用 hasClipboardImage() 是最便宜的提示-UI 模式。
     public static func clipboardChangeCount(): Int64 {
         return cgClipboardChangeCount()
     }
@@ -254,7 +247,6 @@ public class BackendCoreGraphics {
 
 // ============================================================================
 // CoreGraphics 后端错误
-// 对应 Bun: backend_coregraphics.BackendError
 // ============================================================================
 
 public enum CGBackendError {

@@ -293,90 +293,81 @@ public class Config {
         let parser = TomlParser()
         let toml = parser.parse(content)
         match (toml) {
-            case Some(root) => {
+            case Some(root) =>
                 // logLevel
                 match (TomlHelper.getString(root, "logLevel")) {
-                    case Some(level) => {
+                    case Some(level) =>
                         match (LogLevel.fromString(level)) {
                             case Some(l) => logLevel = l
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
 
                 // target
                 match (TomlHelper.getString(root, "target")) {
-                    case Some(t) => {
+                    case Some(t) =>
                         match (BuildTarget.fromString(t)) {
                             case Some(bt) => target = bt
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
 
                 // define
                 match (TomlHelper.getTable(root, "define")) {
-                    case Some(table) => {
+                    case Some(table) =>
                         for (key in table.keys()) {
                             match (table.get(key)) {
                                 case Some(v) => defines.set(key, v)
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
 
                 // loader
                 match (TomlHelper.getTable(root, "loader")) {
-                    case Some(table) => {
+                    case Some(table) =>
                         for (key in table.keys()) {
                             match (table.get(key)) {
-                                case Some(v) => {
+                                case Some(v) =>
                                     match (Loader.fromString(v)) {
                                         case Some(loader) => loaderMap.put(key, loader)
                                         case None => ()
                                     }
-                                }
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
 
                 // external
                 match (TomlHelper.getArray(root, "external")) {
-                    case Some(arr) => {
+                    case Some(arr) =>
                         for (item in arr) {
                             externals.append(item)
                         }
-                    }
                     case None => ()
                 }
 
                 // install.registry
                 match (TomlHelper.getString(root, "install.registry")) {
-                    case Some(url) => {
+                    case Some(url) =>
                         registry = Some(NpmRegistry(url))
-                    }
                     case None => ()
                 }
 
                 // install.token
                 match (TomlHelper.getString(root, "install.token")) {
-                    case Some(token) => {
+                    case Some(token) =>
                         match (registry) {
                             case Some(reg) => reg.token = Some(token)
-                            case None => {
+                            case None =>
                                 let reg = NpmRegistry("https://registry.npmjs.org/")
                                 reg.token = Some(token)
                                 registry = Some(reg)
-                            }
                         }
-                    }
                     case None => ()
                 }
 
@@ -410,21 +401,19 @@ public class Config {
                     case None => ()
                 }
                 match (TomlHelper.getArray(root, "preload")) {
-                    case Some(arr) => {
+                    case Some(arr) =>
                         for (item in arr) {
                             preloads.modules.append(item)
                         }
-                    }
                     case None => ()
                 }
 
                 // env
                 match (TomlHelper.getValue(root, "env")) {
-                    case Some(val) => {
-                        if (val == "null" || val == "false") {
+                    case Some(val_) =>
+                        if (val_ == "null" || val_ == "false") {
                             disableDefaultEnvFiles = true
                         }
-                    }
                     case None => ()
                 }
 
@@ -436,14 +425,13 @@ public class Config {
 
                 // macros
                 match (TomlHelper.getTable(root, "macros")) {
-                    case Some(table) => {
+                    case Some(table) =>
                         for (key in table.keys()) {
                             match (table.get(key)) {
                                 case Some(v) => macros.put(key, v)
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
 
@@ -464,7 +452,6 @@ public class Config {
                     case Some(b) => minify = b
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -474,11 +461,11 @@ public class Config {
     private func parsePackageJsonFile(path: String): PackageJsonInfo {
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
-                    case Some(root) => {
+                    case Some(root) =>
                         let info = PackageJsonInfo()
                         info.name = JsonHelper.getString(root, "name") ?? "unknown"
                         info.version = JsonHelper.getString(root, "version") ?? "0.0.0"
@@ -488,14 +475,13 @@ public class Config {
 
                         // scripts
                         match (JsonHelper.getField(root, "scripts")) {
-                            case Some(JsonValue.Object(scripts)) => {
+                            case Some(JsonValue.Object(scripts)) =>
                                 for (key in scripts.keys()) {
                                     match (scripts.get(key)) {
                                         case Some(JsonValue.Str(v)) => info.scripts.put(key, v)
                                         case _ => ()
                                     }
                                 }
-                            }
                             case _ => ()
                         }
 
@@ -506,10 +492,8 @@ public class Config {
                         info.optionalDependencies = JsonHelper.getStringMap(root, "optionalDependencies")
 
                         return info
-                    }
                     case None => return PackageJsonInfo()
                 }
-            }
             case None => return PackageJsonInfo()
         }
     }
@@ -519,39 +503,34 @@ public class Config {
     private func parseTsconfig(path: String): Unit {
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
-                    case Some(root) => {
+                    case Some(root) =>
                         // 读取 paths 映射
                         match (JsonHelper.getField(root, "compilerOptions")) {
-                            case Some(JsonValue.Object(opts)) => {
+                            case Some(JsonValue.Object(opts)) =>
                                 // paths
                                 match (JsonHelper.getField(opts, "paths")) {
-                                    case Some(JsonValue.Object(paths)) => {
+                                    case Some(JsonValue.Object(paths)) =>
                                         for (key in paths.keys()) {
                                             // 路径别名
                                             defines.set(key, key)
                                         }
-                                    }
                                     case _ => ()
                                 }
                                 // baseUrl
                                 match (JsonHelper.getString(opts, "baseUrl")) {
-                                    case Some(baseUrl) => {
+                                    case Some(baseUrl) =>
                                         // 解析路径
                                         defines.set("TS_CONFIG_BASEURL", baseUrl)
-                                    }
                                     case None => ()
                                 }
-                            }
                             case _ => ()
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -561,7 +540,7 @@ public class Config {
     private func applyEnvOverrides(): Unit {
         // BAO_CONFIG_PATH
         match (Sys.getEnv("BAO_CONFIG_PATH")) {
-            case Some(path) => {
+            case Some(path) =>
                 if (BaoFile.exists(path)) {
                     let content = BaoFile.readAllText(path)
                     match (content) {
@@ -569,20 +548,18 @@ public class Config {
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
 
         // BAO_INSTALL_REGISTRY
         match (Sys.getEnv("BAO_INSTALL_REGISTRY")) {
-            case Some(url) => {
+            case Some(url) =>
                 let reg = NpmRegistry(url)
                 match (Sys.getEnv("BAO_INSTALL_TOKEN")) {
                     case Some(token) => reg.token = Some(token)
                     case None => ()
                 }
                 registry = Some(reg)
-            }
             case None => ()
         }
 
@@ -594,9 +571,8 @@ public class Config {
 
         // NODE_ENV
         match (Sys.getEnv("NODE_ENV")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v == "production") { production = true }
-            }
             case None => ()
         }
     }
@@ -681,7 +657,7 @@ public class TomlParser {
             // key = value
             let eqIdx = trimmed.indexOf("=")
             match (eqIdx) {
-                case Some(idx) => {
+                case Some(idx) =>
                     let key = trimmed.substring(0, idx).trim()
                     var value = trimmed.substring(idx + 1).trim()
 
@@ -697,7 +673,6 @@ public class TomlParser {
                         "${currentSection}.${key}"
                     }
                     table.set(fullKey, value)
-                }
                 case None => ()
             }
         }
@@ -734,11 +709,10 @@ public class TomlHelper {
 
     public static func getBool(table: TomlTable, key: String): ?Bool {
         match (table.get(key)) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v == "true") { return Some(true) }
                 if (v == "false") { return Some(false) }
                 return None
-            }
             case None => return None
         }
     }
@@ -762,7 +736,7 @@ public class TomlHelper {
 
     public static func getArray(table: TomlTable, key: String): ?Array<String> {
         match (table.get(key)) {
-            case Some(v) => {
+            case Some(v) =>
                 // 简化的数组解析: ["a", "b", "c"]
                 if (v.startsWith("[") && v.endsWith("]")) {
                     let inner = v.substring(1, v.length - 1)
@@ -779,7 +753,6 @@ public class TomlHelper {
                     return Some(result.toArray())
                 }
                 return None
-            }
             case None => return None
         }
     }

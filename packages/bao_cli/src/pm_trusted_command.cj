@@ -70,7 +70,7 @@ public class UntrustedCommand {
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, logLevel)
 
         // 如果 lockfile 需要更新
-        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult!!.packagesNeedUpdate) {
+        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
             updateLockfileIfNeeded(pm, loadLockfile)
         }
 
@@ -105,7 +105,7 @@ public class UntrustedCommand {
         // 遍历 node_modules 树, 收集不受信任的包的脚本
         var untrustedDepsWithScripts = ArrayList<UntrustedDepInfo>()
 
-        let treeIterator = TreeIterator.init(lockfile)
+        let treeIterator = TreeIterator.`init`(lockfile)
         var nodeModulesPath = AutoAbsPath.initTopLevelDir()
 
         while (true) {
@@ -113,7 +113,7 @@ public class UntrustedCommand {
             if (nodeModules == None) {
                 break
             }
-            let nm = nodeModules!!
+            let nm = nodeModules.getOrThrow()
             let nmSaved = nodeModulesPath.length
             nodeModulesPath.append(nm.relativePath)
 
@@ -140,11 +140,11 @@ public class UntrustedCommand {
                 )
                 nodeModulesPath.setLength(folderSaved)
 
-                if (scriptsList != None && scriptsList!!.total > 0) {
+                if (scriptsList != None && scriptsList.getOrThrow().total > 0) {
                     untrustedDepsWithScripts.append(UntrustedDepInfo(
                         depId: depId,
                         packageId: packageId,
-                        scriptsList: scriptsList!!
+                        scriptsList: scriptsList.getOrThrow()
                     ))
                 }
             }
@@ -221,7 +221,7 @@ public class TrustCommand {
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, logLevel)
 
         // 如果 lockfile 需要更新 (meta.has_install_script)
-        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult!!.packagesNeedUpdate) {
+        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
             updateLockfileIfNeeded(pm, loadLockfile)
         }
 
@@ -273,7 +273,7 @@ public class TrustCommand {
         var packageNamesToAdd = HashSet<String>()
         var scriptsCount = 0
 
-        let treeIterator = TreeIterator.init(lockfile)
+        let treeIterator = TreeIterator.`init`(lockfile)
         var nodeModulesPath = AutoAbsPath.initTopLevelDir()
 
         while (true) {
@@ -281,7 +281,7 @@ public class TrustCommand {
             if (nodeModules == None) {
                 break
             }
-            let nm = nodeModules!!
+            let nm = nodeModules.getOrThrow()
             let nmSaved = nodeModulesPath.length
             nodeModulesPath.append(nm.relativePath)
 
@@ -308,7 +308,7 @@ public class TrustCommand {
                 )
                 nodeModulesPath.setLength(folderSaved)
 
-                if (scriptsList != None && scriptsList!!.total > 0) {
+                if (scriptsList != None && scriptsList.getOrThrow().total > 0) {
                     // 判断是否跳过
                     var skip = true
                     if (trustAll) {
@@ -325,15 +325,15 @@ public class TrustCommand {
                     if (!scriptsAtDepth.contains(depth)) {
                         scriptsAtDepth.put(depth, ArrayList<ScriptInfo>())
                     }
-                    scriptsAtDepth[depth]!!.append(ScriptInfo(
+                    scriptsAtDepth[depth].getOrThrow().append(ScriptInfo(
                         packageId: packageId,
-                        scriptsList: scriptsList!!,
+                        scriptsList: scriptsList.getOrThrow(),
                         skip: skip
                     ))
 
                     if (!skip) {
                         packageNamesToAdd.add(alias)
-                        scriptsCount += scriptsList!!.total
+                        scriptsCount += scriptsList.getOrThrow().total
                     }
                 }
             }
@@ -361,7 +361,7 @@ public class TrustCommand {
 
         for (depthIdx in sortedDepths.size - 1..0) {
             let depth = sortedDepths[depthIdx]
-            let infos = scriptsAtDepth[depth]!!
+            let infos = scriptsAtDepth[depth].getOrThrow()
 
             for (info in infos) {
                 let resolution = resolutions[info.packageId]
@@ -385,8 +385,10 @@ public class TrustCommand {
         // 更新 package.json 和 lockfile
         editTrustedDependenciesAndSave(ctx, pm, packageNamesToAdd, loadLockfile)
 
+        let scriptPlural = if (totalScriptsRan > 1) { "s" } else { "" }
+        let pkgPlural = if (totalPackagesWithScripts > 1) { "s" } else { "" }
         Output.pretty(
-            " <green>${totalScriptsRan}<r> script${if (totalScriptsRan > 1) "s" else ""} ran across ${totalPackagesWithScripts} package${if (totalPackagesWithScripts > 1) "s" else ""} "
+            " <green>${totalScriptsRan}<r> script${scriptPlural} ran across ${totalPackagesWithScripts} package${pkgPlural} "
         )
 
         Output.printStartEndStdout(Global.startTime, Time.nanoTimestamp())
@@ -394,8 +396,9 @@ public class TrustCommand {
 
         if (totalSkippedPackages > 0) {
             Output.print("\n")
+            let skipPlural = if (totalSkippedPackages > 1) { "s" } else { "" }
             Output.prettyLn(
-                " <yellow>${totalSkippedPackages}<r> package${if (totalSkippedPackages > 1) "s" else ""} with blocked scripts"
+                " <yellow>${totalSkippedPackages}<r> package${skipPlural} with blocked scripts" )
             )
         }
     }
@@ -423,8 +426,14 @@ public class TrustCommand {
         packageNamesToAdd: HashSet<String>, loadLockfile: LoadLockfileResult
     ): Unit {
         // 读取并解析 package.json
-        let pkgContent = BaoFile.readAllText("package.json") ?: return
-        var packageJson = JsonParser.parse(pkgContent) ?: return
+        let pkgContent = match (BaoFile.readAllText("package.json")) {
+            case Some(v) => v
+            case None => return
+        }
+        var packageJson = match (JsonParser.parse(pkgContent)) {
+            case Some(v) => v
+            case None => return
+        }
 
         // 添加 trustedDependencies 字段
         let editor = PackageJsonEditor(packageJson)
@@ -435,7 +444,7 @@ public class TrustCommand {
             pm.lockfile.trustedDependencies = HashMap<String, Unit>()
         }
         for (name in packageNamesToAdd) {
-            pm.lockfile.trustedDependencies!![name] = ()
+            pm.lockfile.trustedDependencies.getOrThrow()[name] = ()
         }
 
         // 保存 lockfile
@@ -525,6 +534,6 @@ public class PmTrustedCommand {
         if (trustFile == None) {
             return false
         }
-        return trustFile!!.contains(packageName)
+        return trustFile.getOrThrow().contains(packageName)
     }
 }

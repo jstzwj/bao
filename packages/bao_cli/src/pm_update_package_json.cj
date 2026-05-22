@@ -32,7 +32,7 @@ public func updatePackageJsonAndInstallCatchError(
 ): Result<Unit, Error> {
     match (updatePackageJsonAndInstall(ctx, subcommand)) {
         case Ok(_) => return Ok(())
-        case Err(e) => {
+        case Err(e) =>
             if (e.name == "InstallFailed" || e.name == "InvalidPackageJSON") {
                 // SAFETY: Cli.log_ 在 Cli.start() 中单线程初始化,
                 // 当前处于 CLI 线程的安装错误路径, 没有其他 &mut Log 存活
@@ -42,7 +42,6 @@ public func updatePackageJsonAndInstallCatchError(
                 return Ok(()) // 不可达
             }
             return Err(e)
-        }
     }
 }
 
@@ -148,10 +147,9 @@ public class Analyzer {
         let result = updatePackageJsonAndInstallWithCli(ctx, subcommand, cli)
         match (result) {
             case Ok(_) => Global.exit(0)
-            case Err(e) => {
+            case Err(e) =>
                 Output.prettyErrorLn("<r><red>error<r>: ${e.name}")
                 Global.exit(1)
-            }
         }
         return Ok(()) // 不可达
     }
@@ -290,7 +288,7 @@ public class CommandLineArguments {
                 case "--no-summary" => cli.noSummary = true
                 case "--no-install" => cli.noInstall = true
                 case "--dry-run" => cli.dryRun = true
-                case _ => {
+                case _ =>
                     if (!arg.startsWith("-")) {
                         // 追加位置参数
                         let newLen = cli.positionals.length + 1
@@ -301,7 +299,6 @@ public class CommandLineArguments {
                         newPos[newLen - 1] = arg
                         cli.positionals = newPos
                     }
-                }
             }
             i++
         }
@@ -358,8 +355,8 @@ public func updatePackageJsonAndInstallWithCli(
 /// 打印帮助信息
 /// 严格翻译自: bun_install::package_manager_real::CommandLineArguments::print_help
 public func printHelp(subcommand: Subcommand): Unit {
-    when (subcommand) {
-        case Subcommand.install => {
+    match (subcommand) {
+        case Subcommand.install =>
             Output.pretty("<b>Usage<r>: <b><green>bao install<r> <cyan>[flags]<r>\n")
             Output.pretty("  Install dependencies from package.json\n\n")
             Output.pretty("<b>Flags:<r>\n")
@@ -371,8 +368,7 @@ public func printHelp(subcommand: Subcommand): Unit {
             Output.pretty("  <cyan>--verbose<r>          Verbose output\n")
             Output.pretty("  <cyan>--silent<r>           Silent output\n")
             Output.pretty("  <cyan>-g, --global<r>       Install globally\n")
-        }
-        case Subcommand.add => {
+        case Subcommand.add =>
             Output.pretty("<b>Usage<r>: <b><green>bao add<r> <cyan>[flags]<r> <blue>\\<package\\><r>\n")
             Output.pretty("  Add a dependency to package.json\n\n")
             Output.pretty("<b>Flags:<r>\n")
@@ -382,47 +378,37 @@ public func printHelp(subcommand: Subcommand): Unit {
             Output.pretty("  <cyan>--trusted<r>          Add as trusted dependency\n")
             Output.pretty("  <cyan>--global<r> | <cyan>-g<r>  Add globally\n")
             Output.pretty("  <cyan>--force<r>            Force reinstall\n")
-        }
-        case Subcommand.remove => {
+        case Subcommand.remove =>
             Output.pretty("<b>Usage<r>: <b><green>bao remove<r> <cyan>[flags]<r> <blue>\\<package\\><r>\n")
             Output.pretty("  Remove a dependency from package.json\n\n")
             Output.pretty("<b>Flags:<r>\n")
             Output.pretty("  <cyan>-g, --global<r>       Remove globally\n")
-        }
-        case Subcommand.update => {
+        case Subcommand.update =>
             Output.pretty("<b>Usage<r>: <b><green>bao update<r> <cyan>[flags]<r> <blue>[\\<package\\>]<r>\n")
             Output.pretty("  Update outdated dependencies\n\n")
             Output.pretty("<b>Flags:<r>\n")
             Output.pretty("  <cyan>--global<r> | <cyan>-g<r>  Update globally\n")
             Output.pretty("  <cyan>--dry-run<r>        Don't actually install\n")
-        }
-        case Subcommand.patch => {
+        case Subcommand.patch =>
             Output.pretty("<b>Usage<r>: <b><green>bao patch<r> <blue>\\<package\\><r>\n")
             Output.pretty("  Prepare a package for patching\n")
-        }
-        case Subcommand.patchCommit => {
+        case Subcommand.patchCommit =>
             Output.pretty("<b>Usage<r>: <b><green>bao patch-commit<r> <blue>\\<package\\><r>\n")
             Output.pretty("  Commit a package patch\n")
-        }
-        case Subcommand.outdated => {
+        case Subcommand.outdated =>
             Output.pretty("<b>Usage<r>: <b><green>bao outdated<r> <cyan>[flags]<r>\n")
             Output.pretty("  Display latest versions of outdated dependencies\n")
-        }
-        case Subcommand.publish => {
+        case Subcommand.publish =>
             Output.pretty("<b>Usage<r>: <b><green>bao publish<r> <cyan>[flags]<r>\n")
             Output.pretty("  Publish a package to the npm registry\n")
-        }
-        case Subcommand.audit => {
+        case Subcommand.audit =>
             Output.pretty("<b>Usage<r>: <b><green>bao audit<r> <cyan>[flags]<r>\n")
             Output.pretty("  Check installed packages for vulnerabilities\n")
-        }
-        case Subcommand.info => {
+        case Subcommand.info =>
             Output.pretty("<b>Usage<r>: <b><green>bao info<r> <blue>\\<package\\><r> <cyan>[flags]<r>\n")
             Output.pretty("  Display package metadata from the registry\n")
-        }
-        case _ => {
+        case _ =>
             Output.pretty("<b>Usage<r>: <b><green>bao pm<r> <cyan>\\<subcommand\\><r>\n")
-        }
     }
     Output.flush()
 }

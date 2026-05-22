@@ -115,7 +115,7 @@ public class FSWatcher {
 
     // 初始化 FSWatcher
     // 对应 Bun: node_fs_watcher.zig - FSWatcher.init
-    public func init(global: JsGlobalObjectRef, path: String, encoding: Encoding,
+    public func `init`(global: JsGlobalObjectRef, path: String, encoding: Encoding,
                      recursive: Bool, persistent: Bool, signal: ?AbortSignalRef): Unit {
         this.path = path
         this.encoding = encoding
@@ -163,7 +163,7 @@ public class FSWatcher {
     // 分离 — 从 PathWatcher 移除此 handler
     // 对应 Bun: node_fs_watcher.zig - FSWatcher.detach
     public func detach(): Unit {
-        if (pathWatcher != None) {
+        if (pathWatcher.isSome()) {
             PathWatcherManagerRef.unwatch(path: path, recursive: recursive, handler: nil)
             pathWatcher = None
         }
@@ -174,7 +174,7 @@ public class FSWatcher {
         }
 
         // 清除信号
-        if (signal != None) {
+        if (signal.isSome()) {
             signal = None
         }
     }
@@ -235,15 +235,12 @@ public class FSWatcher {
     // 将路径编码为指定编码
     private func encodePath(path: String): String {
         match (encoding) {
-            case Encoding.utf8 | Encoding.ascii | Encoding.latin1 => {
+            case Encoding.utf8 | Encoding.ascii | Encoding.latin1 =>
                 return path
-            }
-            case Encoding.buffer => {
+            case Encoding.buffer =>
                 return path  // 实际返回 Buffer
-            }
-            case _ => {
+            case _ =>
                 return path
-            }
         }
     }
 
@@ -372,11 +369,11 @@ public class FsPathWatcherManager {
 
     // 添加监视
     public static func watch(path: String, recursive: Bool, callback: ?FsWatchCallback): Unit {
-        if (callback == None) {
+        if (callback.isNone()) {
             return
         }
         var list = watchers.get(path)
-        if (list == None) {
+        if (list.isNone()) {
             list = Array<FsWatchCallback>()
         }
         list.getOrThrow().append(callback.getOrThrow())

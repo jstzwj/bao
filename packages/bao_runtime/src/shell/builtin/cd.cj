@@ -94,7 +94,7 @@ public class CdCmd {
         let errno: UInt32 = err.errno
 
         if (errno == Syscall.E.NOTDIR) {
-            if (this.bltn().stderr.needsIO() == None) {
+            if (this.bltn().stderr.needsIO().isNone()) {
                 let buf = this.bltn().fmtErrorArena("cd", "not a directory: ${newCwd}\n", [])
                 this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
                 this.state = CdState.done
@@ -104,7 +104,7 @@ public class CdCmd {
         }
 
         if (errno == Syscall.E.NOENT) {
-            if (this.bltn().stderr.needsIO() == None) {
+            if (this.bltn().stderr.needsIO().isNone()) {
                 let buf = this.bltn().fmtErrorArena("cd", "not a directory: ${newCwd}\n", [])
                 this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
                 this.state = CdState.done
@@ -114,7 +114,7 @@ public class CdCmd {
         }
 
         if (errno == Syscall.E.NAMETOOLONG) {
-            if (this.bltn().stderr.needsIO() == None) {
+            if (this.bltn().stderr.needsIO().isNone()) {
                 let buf = this.bltn().fmtErrorArena("cd", "file name too long\n", [])
                 this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
                 this.state = CdState.done
@@ -125,7 +125,7 @@ public class CdCmd {
 
         // 其他错误
         let errmsg = err.msg() ?? err.name()
-        if (this.bltn().stderr.needsIO() == None) {
+        if (this.bltn().stderr.needsIO().isNone()) {
             let buf = this.bltn().fmtErrorArena("cd", "${errmsg}: ${newCwd}\n", [])
             this.bltn().writeNoIO(OutKind.stderr, buf.toByteArray())
             this.state = CdState.done

@@ -10,7 +10,7 @@ import bao_jsc.*
 /// 对应 Bun: MySQLRequestQueue
 /// 管理 MySQL 连接上的请求调度：流水线化、准备和执行
 public class MySQLRequestQueue {
-    var requests: ArrayList<JSMySQLQuery> = ArrayList<JSMySQLQuery>()
+    var requests: Array<JSMySQLQuery> = []
     var pipelinedRequests: Int64 = 0
     var nonpipelinableRequests: Int64 = 0
     var waitingToPrepare: Bool = false
@@ -56,7 +56,7 @@ public class MySQLRequestQueue {
     public func markAsPrepared(): Unit {
         waitingToPrepare = false
         let current = current()
-        if (current != None) {
+        if (current.isSome()) {
             current.getOrThrow().markAsPrepared()
         }
     }
@@ -85,7 +85,7 @@ public class MySQLRequestQueue {
         while (requests.size > 0) {
             let request = requests[0]
             if (request.isCompleted()) {
-                requests.removeAt(0)
+                requests = requests[1..]
                 request.deref()
                 continue
             }
@@ -100,7 +100,7 @@ public class MySQLRequestQueue {
                     offset += 1
                     continue
                 }
-                requests.removeAt(0)
+                requests = requests[1..]
                 request.deref()
                 continue
             }
@@ -112,16 +112,16 @@ public class MySQLRequestQueue {
 
             if (request.isRunning()) {
                 let totalRunning = pipelinedRequests + nonpipelinableRequests
-                offset = if (offset < totalRunning) totalRunning else offset + 1
+                offset = if (offset < totalRunning) { totalRunning } else { offset + 1 }
                 continue
             }
 
-            do {
+            try {
                 request.run(connection)
             } catch (_: Exception) {
                 connection.onError(request, AnyMySQLError.UnknownError)
                 if (offset == 0) {
-                    requests.removeAt(0)
+                    requests = requests[1..]
                     request.deref()
                 }
                 offset += 1
@@ -172,7 +172,7 @@ public class MySQLRequestQueue {
             }
         }
         request.ref()
-        requests.append(request)
+        requests = requests.concat([request])
     }
 
     /// 获取当前请求
@@ -188,21 +188,22 @@ public class MySQLRequestQueue {
     /// 对应 Bun: MySQLRequestQueue.clean
     public func clean(reason: ?JscValue, queriesArray: JscValue): Unit {
         let oldRequests = requests
-        requests = ArrayList<JSMySQLQuery>()
+        requests = []
         pipelinedRequests = 0
         nonpipelinableRequests = 0
         waitingToPrepare = false
 
         for (request in oldRequests) {
-            defer { request.deref() }
             if (request.isCompleted()) {
+                request.deref()
                 continue
             }
-            if (reason != None) {
+            if (reason.isSome()) {
                 request.rejectWithJSValue(queriesArray, reason.getOrThrow())
             } else {
                 request.reject(queriesArray, AnyMySQLError.ConnectionClosed)
             }
+            request.deref()
         }
     }
 
@@ -216,6 +217,6 @@ public class MySQLRequestQueue {
         pipelinedRequests = 0
         nonpipelinableRequests = 0
         waitingToPrepare = false
-        requests = ArrayList<JSMySQLQuery>()
+        requests = []
     }
 }

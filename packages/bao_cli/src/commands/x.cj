@@ -218,20 +218,18 @@ public class XCommand {
                     case "--silent" => silent = true
                     case "--bun" | "-b" => runInBao = true
                     case "--no-install" => noInstall = true
-                    case "--package" | "-p" => {
+                    case "--package" | "-p" =>
                         i++
                         if (i < args.size) {
                             specifiedPackage = Some(args[i])
                         }
-                    }
-                    case _ => {
+                    case _ =>
                         if (arg.startsWith("--package=")) {
                             specifiedPackage = Some(arg.substring("--package=".length))
                         } else if (!arg.startsWith("-")) {
                             foundPackageName = true
                             packageName = arg
                         }
-                    }
                 }
             } else {
                 // 所有后续参数传给命令
@@ -242,7 +240,7 @@ public class XCommand {
 
         // 如果有 --package, 包名是 --package 的值, 二进制名是位置参数
         match (specifiedPackage) {
-            case Some(pkg) => {
+            case Some(pkg) =>
                 packageName = pkg
                 // passthrough 的第一个是 binary name
                 if (passthrough.size > 0) {
@@ -255,7 +253,6 @@ public class XCommand {
                     passthrough.clear()
                     for (r in remaining) { passthrough.append(r) }
                 }
-            }
             case None => ()
         }
 
@@ -298,10 +295,9 @@ public class XCommand {
     private func isCacheStale(binPath: String): Bool {
         let modifiedTime = BaoFile.getModifiedTime(binPath)
         match (modifiedTime) {
-            case Some(mtime) => {
+            case Some(mtime) =>
                 let now = Sys.currentTimeMillis() / 1000
                 return (now - mtime) > CACHE_VALID_SECONDS
-            }
             case None => return true
         }
     }
@@ -321,32 +317,30 @@ public class XCommand {
         let pkgJsonPath = Path.join([dir, "node_modules", packageName, "package.json"])
         let content = BaoFile.readAllText(pkgJsonPath)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
-                    case Some(root) => {
+                    case Some(root) =>
                         // bin 可以是 string 或 object
                         match (JsonHelper.getField(root, "bin")) {
-                            case Some(JsonValue.Str(path)) => {
+                            case Some(JsonValue.Str(path)) =>
                                 // bin 是字符串, 用 name 字段
                                 return JsonHelper.getString(root, "name")
-                            }
-                            case Some(JsonValue.Object(binMap)) => {
+                            case Some(JsonValue.Object(binMap)) =>
                                 // bin 是 map, 取第一个 key
                                 let keys = binMap.keys()
                                 if (keys.size > 0) {
                                     return Some(keys[0])
                                 }
-                            }
                             case _ => ()
                         }
 
                         // 检查 directories.bin
                         match (JsonHelper.getField(root, "directories")) {
-                            case Some(JsonValue.Object(dirs)) => {
+                            case Some(JsonValue.Object(dirs)) =>
                                 match (dirs.get("bin")) {
-                                    case Some(_) => {
+                                    case Some(_) =>
                                         // 遍历目录
                                         let binDir = Path.join([dir, "node_modules", packageName,
                                             JsonHelper.getString(dirs, "bin") ?? "bin"])
@@ -356,16 +350,12 @@ public class XCommand {
                                                 return Some(entry)
                                             }
                                         }
-                                    }
                                     case _ => ()
                                 }
-                            }
                             case _ => ()
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
         return None
@@ -411,14 +401,12 @@ public class XCommand {
         if (input.startsWith("@")) {
             let slashIdx = input.indexOf("/")
             match (slashIdx) {
-                case Some(idx) => {
+                case Some(idx) =>
                     // @org/some -> @org/create-some
                     return input.substring(0, idx + 1) + "create-" + input.substring(idx + 1)
-                }
-                case None => {
+                case None =>
                     // @org -> @org/create
                     return input + "/create"
-                }
             }
         }
         return "create-" + input

@@ -6,6 +6,9 @@ package bao_sql_jsc.postgres
 import bao_core.*
 import bao_jsc.*
 import bao_sql.*
+import bao_sql_jsc.mysql.*
+import bao_sql_jsc.shared.*
+import bao_collections.ArrayList
 
 /// Postgres SQL 连接
 /// 对应 Bun: PostgresSQLConnection
@@ -57,8 +60,8 @@ public class PostgresSQLConnection {
     public init(globalObject: JscJSGlobalObject, vm: JscVirtualMachine) {
         this.globalObject = globalObject
         this.vm = vm
-        this.timer = EventLoopTimer(tag: TimerTag.PostgresSQLConnectionTimeout)
-        this.maxLifetimeTimer = EventLoopTimer(tag: TimerTag.PostgresSQLConnectionMaxLifetime)
+        this.timer = EventLoopTimer()
+        this.maxLifetimeTimer = EventLoopTimer()
     }
 
     public func ref(): Unit {
@@ -98,9 +101,15 @@ public class PostgresSQLConnection {
             case Pending => ()
             case SASL(sasl) => sasl.processAuth(data)
             case MD5 => processMD5Auth(data)
-            case None => ()
+            case AuthenticationState.None => ()
             case OK => ()
+            case _ => ()
         }
+    }
+
+    /// 处理 Postgres 消息
+    public func on(messageType: PostgresMessageType, reader: PostgresReader): Unit {
+        // Stub: dispatch message based on type
     }
 
     /// 处理查询结果行
@@ -117,10 +126,8 @@ public class PostgresSQLConnection {
 
     private func failWithJSValue(value: JscValue): Unit {
         ref()
-        defer {
-            deref()
-        }
         status = PostgresConnectionStatus.Failed
+        deref()
     }
 
     private func deinit_(): Unit {
@@ -149,16 +156,6 @@ public enum PostgresConnectionStatus {
     | Connected
     | Failed
     | Disconnected
-}
-
-/// 认证状态
-/// 对应 Bun: AuthenticationState
-public enum AuthenticationState {
-    | Pending
-    | None
-    | OK
-    | SASL(PostgresSASL)
-    | MD5
 }
 
 /// Postgres TLS 状态
@@ -195,7 +192,7 @@ public class PostgresPreparedStatementsMap {
     public init() {}
 
     public func getOrPut(key: UInt64): PostgresGetOrPutResult {
-        return PostgresGetOrPutResult(foundExisting: false)
+        return PostgresGetOrPutResult(false)
     }
 
     public func deinit(): Unit {

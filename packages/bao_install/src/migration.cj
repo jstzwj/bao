@@ -219,10 +219,10 @@ public class DependencyKeys {
 /// 锁文件迁移器
 /// 对应 Bun: migration.zig
 public class LockfileMigrator {
-    private var jsonParser: JsonParser
+    private var jsonParser: PkgJsonParser
 
     public init() {
-        jsonParser = JsonParser()
+        jsonParser = PkgJsonParser()
     }
 
     /// 检测并加载其他格式的锁文件
@@ -285,7 +285,7 @@ public class LockfileMigrator {
         }
 
         // 解析 JSON
-        let jsonParser = JsonParser()
+        let jsonParser = PkgJsonParser()
         let json = jsonParser.parse(data)
         match (json) {
             case Some(root) => validateLockfileJson(root, lockfilePath, log)
@@ -299,7 +299,7 @@ public class LockfileMigrator {
 
     private func validateLockfileJson(root: JsonValue, lockfilePath: String, log: ArrayList<String>): LoadResult {
         // 验证 lockfileVersion
-        match (JsonHelper.getField(root, "lockfileVersion")) {
+        match (PkgJsonHelper.getField(root, "lockfileVersion")) {
             case Some(JsonValue.Number(v)) =>
                 if (v < 2.0 || v > 3.0) {
                     return LoadResult.Err(MigrationError(
@@ -317,7 +317,7 @@ public class LockfileMigrator {
         }
 
         // 检查 packages 字段
-        match (JsonHelper.getField(root, "packages")) {
+        match (PkgJsonHelper.getField(root, "packages")) {
             case Some(JsonValue.Object(packages)) =>
                 if (packages.keys().size == 0) {
                     return LoadResult.Err(MigrationError(
@@ -367,15 +367,15 @@ public class LockfileMigrator {
                     }
 
                     let name = packageNameFromPath(pkgPath)
-                    let version = match (JsonHelper.getString(JsonValue.Object(pkg), "version")) {
+                    let version = match (PkgJsonHelper.getString(JsonValue.Object(pkg), "version")) {
                         case Some(v) => v
                         case None => ""
                     }
-                    let resolved = match (JsonHelper.getString(JsonValue.Object(pkg), "resolved")) {
+                    let resolved = match (PkgJsonHelper.getString(JsonValue.Object(pkg), "resolved")) {
                         case Some(v) => v
                         case None => ""
                     }
-                    let integrity = match (JsonHelper.getString(JsonValue.Object(pkg), "integrity")) {
+                    let integrity = match (PkgJsonHelper.getString(JsonValue.Object(pkg), "integrity")) {
                         case Some(v) => v
                         case None => ""
                     }
@@ -513,61 +513,6 @@ public class LockfileMigrator {
     //   - id_map (路径到包 ID 映射)
     // ========================================================================
 
-    /// 计数阶段结果
-    /// 翻译自: migrateNPMLockfile 计数阶段产生的统计信息
-    public class CountPhaseResult {
-        /// 总依赖数
-        public var numDeps: UInt32
-        /// 外部字符串数
-        public var numExternStrings: UInt32
-        /// 有效包数量
-        public var packageIdx: UInt32
-        /// ID 映射
-        public var idMap: HashMap<String, IdMapValue>
-        /// 构造的 resolved URL
-        public var resolvedUrls: ResolvedURLsMap
-        /// workspace 映射 (根包的 workspaces)
-        public var workspaceMap: ?NPMWorkspaceMap
-        /// 根包对象
-        public var rootPackage: ?JsonValue
-
-        public init() {
-            numDeps = UInt32(0)
-            numExternStrings = UInt32(0)
-            packageIdx = UInt32(0)
-            idMap = HashMap<String, IdMapValue>()
-            resolvedUrls = ResolvedURLsMap()
-            workspaceMap = None
-            rootPackage = None
-        }
-    }
-
-    /// NPM workspace 映射
-    /// 翻译自: Lockfile.Package.WorkspaceMap
-    public class NPMWorkspaceMap {
-        public var entries: ArrayList<NPMWorkspaceEntry>
-
-        public init() {
-            entries = ArrayList<NPMWorkspaceEntry>()
-        }
-    }
-
-    /// NPM workspace 条目
-    public class NPMWorkspaceEntry {
-        /// workspace 路径
-        public var path: String
-        /// workspace 包名
-        public var name: String
-        /// workspace 版本
-        public var version: ?String
-
-        public init(path: String, name: String) {
-            this.path = path
-            this.name = name
-            version = None
-        }
-    }
-
     /// 执行计数阶段
     /// 严格翻译自: migrateNPMLockfile 中的计数阶段
     ///   遍历 packages_properties, 构建 id_map, resolved_urls
@@ -666,7 +611,7 @@ public class LockfileMigrator {
         pkg: HashMap<String, JsonValue>,
         manager: PackageManager
     ): ?String {
-        let versionStr = match (JsonHelper.getString(JsonValue.Object(pkg), "version")) {
+        let versionStr = match (PkgJsonHelper.getString(JsonValue.Object(pkg), "version")) {
             case Some(v) => v
             case None => return None
         }
@@ -714,226 +659,12 @@ public class LockfileMigrator {
     //   处理: workspace 包, bin, integrity, OS/CPU 限制
     // ========================================================================
 
-    /// 构建阶段的包数据
-    /// 翻译自: migrateNPMLockfile 包构建阶段产生的包条目
-    public class NPMBuildPackage {
-        /// 包路径
-        public var pkgPath: String
-        /// 包名
-        public var name: String
-        /// 名称哈希
-        public var nameHash: UInt64
-        /// 包 ID
-        public var packageId: UInt32
-        /// 是否为 workspace
-        public var isWorkspace: Bool
-        /// 解析信息 (初始为 uninitialized)
-        public var resolution: NPMResolutionEntry
-        /// 包元信息
-        public var meta: NPMPackageMeta
-        /// bin 信息
-        public var bin: NPMBinEntry
-        /// 依赖列表偏移
-        public var dependenciesOff: UInt32
-        /// 依赖列表长度
-        public var dependenciesLen: UInt32
-        /// 解析列表偏移
-        public var resolutionsOff: UInt32
-        /// 解析列表长度
-        public var resolutionsLen: UInt32
-        /// 是否有安装脚本
-        public var hasInstallScript: Bool
-
-        public init() {
-            pkgPath = ""
-            name = ""
-            nameHash = UInt64(0)
-            packageId = INVALID_PACKAGE_ID
-            isWorkspace = false
-            resolution = NPMResolutionEntry()
-            meta = NPMPackageMeta()
-            bin = NPMBinEntry()
-            dependenciesOff = UInt32(0)
-            dependenciesLen = UInt32(0)
-            resolutionsOff = UInt32(0)
-            resolutionsLen = UInt32(0)
-            hasInstallScript = false
-        }
-    }
-
-    /// NPM 解析条目
-    /// 翻译自: Resolution
-    public class NPMResolutionEntry {
-        /// 解析标签
-        public var tag: NPMResolutionTag
-        /// npm 解析 URL
-        public var npmUrl: String
-        /// npm 版本
-        public var npmVersion: String
-        /// 文件夹路径
-        public var folderPath: String
-        /// workspace 路径
-        public var workspacePath: String
-        /// git 信息
-        public var gitOwner: String
-        public var gitRepo: String
-        public var gitCommittish: String
-        public var gitResolved: String
-        public var gitPackageName: String
-        /// tarball URL
-        public var tarballUrl: String
-        /// 本地 tarball 路径
-        public var localTarballPath: String
-
-        public init() {
-            tag = NPMResolutionTag.Uninitialized
-            npmUrl = ""
-            npmVersion = ""
-            folderPath = ""
-            workspacePath = ""
-            gitOwner = ""
-            gitRepo = ""
-            gitCommittish = ""
-            gitResolved = ""
-            gitPackageName = ""
-            tarballUrl = ""
-            localTarballPath = ""
-        }
-
-        public func isUninitialized(): Bool {
-            match (tag) {
-                case NPMResolutionTag.Uninitialized => true
-                case _ => false
-            }
-        }
-    }
-
-    /// NPM 解析标签
-    /// 翻译自: Resolution.Tag
-    public enum NPMResolutionTag {
-        | Uninitialized
-        | Npm
-        | Root
-        | Workspace
-        | Folder
-        | Git
-        | GitHub
-        | Tarball
-        | RemoteTarball
-        | LocalTarball
-    }
-
-    /// NPM 包元信息
-    /// 翻译自: Lockfile.Package.Meta
-    public class NPMPackageMeta {
-        /// 包 ID
-        public var id: UInt32
-        /// 来源 (local / npm / tarball)
-        public var origin: Origin
-        /// 架构限制
-        public var arch: String
-        /// OS 限制
-        public var os: String
-        /// man 目录
-        public var manDir: String
-        /// 是否有安装脚本
-        public var hasInstallScript: Bool
-        /// 完整性哈希
-        public var integrity: IntegrityInfo
-
-        public init() {
-            id = INVALID_PACKAGE_ID
-            origin = Origin.Npm
-            arch = "all"
-            os = "all"
-            manDir = ""
-            hasInstallScript = false
-            integrity = IntegrityInfo()
-        }
-    }
-
-    /// 完整性校验信息
-    /// 翻译自: Integrity
-    public class IntegrityInfo {
-        /// 哈希算法标签
-        public var tag: IntegrityTag
-        /// 哈希值 (base64)
-        public var hashValue: String
-
-        public init() {
-            tag = IntegrityTag.Unknown
-            hashValue = ""
-        }
-
-        /// 从 SRI 字符串解析
-        /// 翻译自: Integrity.parse
-        public static func parse(sriString: String): IntegrityInfo {
-            let info = IntegrityInfo()
-            if (sriString.size == 0) { return info }
-
-            let dashIdx = sriString.indexOf("-")
-            match (dashIdx) {
-                case Some(idx) =>
-                    let algo = sriString[0..idx]
-                    let hash = sriString[(idx + 1)..sriString.size]
-                    info.hashValue = hash
-                    if (algo == "sha1") { info.tag = IntegrityTag.SHA1 }
-                    else if (algo == "sha256") { info.tag = IntegrityTag.SHA256 }
-                    else if (algo == "sha384") { info.tag = IntegrityTag.SHA384 }
-                    else if (algo == "sha512") { info.tag = IntegrityTag.SHA512 }
-                    else { info.tag = IntegrityTag.Unknown }
-                case None => ()
-            }
-            return info
-        }
-    }
-
-    /// NPM bin 条目
-    /// 翻译自: Bin
-    public class NPMBinEntry {
-        /// bin 标签
-        public var tag: BinTag
-        /// 文件路径 (tag == File)
-        public var filePath: String
-        /// 名称 (tag == NamedFile)
-        public var name: String
-        /// 命名路径 (tag == NamedFile)
-        public var namedPath: String
-        /// bin 映射 (tag == Map)
-        public var binMap: HashMap<String, String>
-
-        public init() {
-            tag = BinTag.None
-            filePath = ""
-            name = ""
-            namedPath = ""
-            binMap = HashMap<String, String>()
-        }
-    }
-
     // ========================================================================
     // 依赖链接阶段
     // 严格翻译自: migrateNPMLockfile 依赖链接阶段
     //   解析依赖关系, 查找 id_map, 设置 resolutions
     //   处理: node_modules 层级查找, bundled 跳过, peer 可选依赖
     // ========================================================================
-
-    /// 依赖链接
-    /// 翻译自: migrateNPMLockfile 中依赖链接阶段的单条依赖解析
-    public class DependencyLinkResult {
-        /// 依赖信息
-        public var dependency: DependencyInfo
-        /// 解析到的包 ID
-        public var resolutionId: UInt32
-        /// 是否跳过 (bundled / not found)
-        public var skipped: Bool
-
-        public init() {
-            dependency = DependencyInfo()
-            resolutionId = INVALID_PACKAGE_ID
-            skipped = false
-        }
-    }
 
     /// 解析单条依赖
     /// 严格翻译自: migrateNPMLockfile 依赖链接阶段中的 dep_loop
@@ -1181,22 +912,9 @@ public class LockfileMigrator {
         }
 
         return NPMValidationResult(
-            isValid: !hasMissing,
-            missingNames: missingNames
+            !hasMissing,
+            missingNames
         )
-    }
-
-    /// 验证结果
-    public class NPMValidationResult {
-        /// 是否有效
-        public var isValid: Bool
-        /// 缺失解析的包名列表
-        public var missingNames: ArrayList<String>
-
-        public init(isValid: Bool, missingNames: ArrayList<String>) {
-            this.isValid = isValid
-            this.missingNames = missingNames
-        }
     }
 
     // ========================================================================
@@ -1363,6 +1081,260 @@ public class LockfileMigrator {
 }
 
 // ============================================================================
+// 迁移辅助类型 (从 LockfileMigrator 内部移出)
+// ============================================================================
+
+/// 构建阶段的包数据
+/// 翻译自: migrateNPMLockfile 包构建阶段产生的包条目
+public class NPMBuildPackage {
+    /// 包路径
+    public var pkgPath: String
+    /// 包名
+    public var name: String
+    /// 名称哈希
+    public var nameHash: UInt64
+    /// 包 ID
+    public var packageId: UInt32
+    /// 是否为 workspace
+    public var isWorkspace: Bool
+    /// 解析信息 (初始为 uninitialized)
+    public var resolution: NPMResolutionEntry
+    /// 包元信息
+    public var meta: NPMPackageMeta
+    /// bin 信息
+    public var bin: NPMBinEntry
+    /// 依赖列表偏移
+    public var dependenciesOff: UInt32
+    /// 依赖列表长度
+    public var dependenciesLen: UInt32
+    /// 解析列表偏移
+    public var resolutionsOff: UInt32
+    /// 解析列表长度
+    public var resolutionsLen: UInt32
+    /// 是否有安装脚本
+    public var hasInstallScript: Bool
+
+    public init() {
+        pkgPath = ""
+        name = ""
+        nameHash = UInt64(0)
+        packageId = INVALID_PACKAGE_ID
+        isWorkspace = false
+        resolution = NPMResolutionEntry()
+        meta = NPMPackageMeta()
+        bin = NPMBinEntry()
+        dependenciesOff = UInt32(0)
+        dependenciesLen = UInt32(0)
+        resolutionsOff = UInt32(0)
+        resolutionsLen = UInt32(0)
+        hasInstallScript = false
+    }
+}
+
+/// NPM 解析条目
+/// 翻译自: Resolution
+public class NPMResolutionEntry {
+    /// 解析标签
+    public var tag: NPMResolutionTag
+    /// npm 解析 URL
+    public var npmUrl: String
+    /// npm 版本
+    public var npmVersion: String
+    /// 文件夹路径
+    public var folderPath: String
+    /// workspace 路径
+    public var workspacePath: String
+    /// git 信息
+    public var gitOwner: String
+    public var gitRepo: String
+    public var gitCommittish: String
+    public var gitResolved: String
+    public var gitPackageName: String
+    /// tarball URL
+    public var tarballUrl: String
+    /// 本地 tarball 路径
+    public var localTarballPath: String
+
+    public init() {
+        tag = NPMResolutionTag.Uninitialized
+        npmUrl = ""
+        npmVersion = ""
+        folderPath = ""
+        workspacePath = ""
+        gitOwner = ""
+        gitRepo = ""
+        gitCommittish = ""
+        gitResolved = ""
+        gitPackageName = ""
+        tarballUrl = ""
+        localTarballPath = ""
+    }
+
+    public func isUninitialized(): Bool {
+        match (tag) {
+            case NPMResolutionTag.Uninitialized => true
+            case _ => false
+        }
+    }
+}
+
+/// NPM 解析标签
+/// 翻译自: Resolution.Tag
+public enum NPMResolutionTag {
+    | Uninitialized
+    | Npm
+    | Root
+    | Workspace
+    | Folder
+    | Git
+    | GitHub
+    | Tarball
+    | RemoteTarball
+    | LocalTarball
+}
+
+/// NPM 包元信息
+/// 翻译自: Lockfile.Package.Meta
+public class NPMPackageMeta {
+    /// 包 ID
+    public var id: UInt32
+    /// 来源 (local / npm / tarball)
+    public var origin: Origin
+    /// 架构限制
+    public var arch: String
+    /// OS 限制
+    public var os: String
+    /// man 目录
+    public var manDir: String
+    /// 是否有安装脚本
+    public var hasInstallScript: Bool
+    /// 完整性哈希
+    public var integrity: Integrity
+
+    public init() {
+        id = INVALID_PACKAGE_ID
+        origin = Origin.Npm
+        arch = "all"
+        os = "all"
+        manDir = ""
+        hasInstallScript = false
+        integrity = Integrity()
+    }
+}
+
+/// NPM bin 条目
+/// 翻译自: Bin
+public class NPMBinEntry {
+    /// bin 标签
+    public var tag: BinTag
+    /// 文件路径 (tag == File)
+    public var filePath: String
+    /// 名称 (tag == NamedFile)
+    public var name: String
+    /// 命名路径 (tag == NamedFile)
+    public var namedPath: String
+    /// bin 映射 (tag == Map)
+    public var binMap: HashMap<String, String>
+
+    public init() {
+        tag = BinTag.None
+        filePath = ""
+        name = ""
+        namedPath = ""
+        binMap = HashMap<String, String>()
+    }
+}
+
+/// 依赖链接
+/// 翻译自: migrateNPMLockfile 中依赖链接阶段的单条依赖解析
+public class DependencyLinkResult {
+    /// 依赖信息
+    public var dependency: DependencyInfo
+    /// 解析到的包 ID
+    public var resolutionId: UInt32
+    /// 是否跳过 (bundled / not found)
+    public var skipped: Bool
+
+    public init() {
+        dependency = DependencyInfo()
+        resolutionId = INVALID_PACKAGE_ID
+        skipped = false
+    }
+}
+
+/// 验证结果
+public class NPMValidationResult {
+    /// 是否有效
+    public var isValid: Bool
+    /// 缺失解析的包名列表
+    public var missingNames: ArrayList<String>
+
+    public init(isValid: Bool, missingNames: ArrayList<String>) {
+        this.isValid = isValid
+        this.missingNames = missingNames
+    }
+}
+
+// ============================================================================
+// 迁移辅助类型 (从 LockfileMigrator 内部移出)
+// ============================================================================
+
+/// 计数阶段结果
+/// 翻译自: migrateNPMLockfile 计数阶段产生的统计信息
+public class CountPhaseResult {
+    /// 总依赖数
+    public var numDeps: UInt32
+    /// 外部字符串数
+    public var numExternStrings: UInt32
+    /// 有效包数量
+    public var packageIdx: UInt32
+    /// ID 映射
+    public var idMap: HashMap<String, IdMapValue>
+    /// 构造的 resolved URL
+    public var resolvedUrls: ResolvedURLsMap
+    /// workspace 映射 (根包的 workspaces)
+    public var workspaceMap: ?NPMWorkspaceMap
+    /// 根包对象
+    public var rootPackage: ?JsonValue
+
+    public init() {
+        numDeps = UInt32(0)
+        numExternStrings = UInt32(0)
+        packageIdx = UInt32(0)
+        idMap = HashMap<String, IdMapValue>()
+        resolvedUrls = ResolvedURLsMap()
+        workspaceMap = None
+        rootPackage = None
+    }
+}
+
+/// NPM workspace 映射
+/// 翻译自: Lockfile.Package.WorkspaceMap
+public class NPMWorkspaceMap {
+    public var entries: ArrayList<NPMWorkspaceEntry>
+
+    public init() {
+        entries = ArrayList<NPMWorkspaceEntry>()
+    }
+}
+
+/// NPM workspace 条目
+public class NPMWorkspaceEntry {
+    /// workspace 路径
+    public var path: String
+    /// workspace 包名
+    public var name: String
+    /// workspace 版本
+    public var version: ?String
+
+    public init(path: String, name: String) {
+        this.path = path
+        this.name = name
+        version = None
+    }
+}
+
+// ============================================================================
 // JSON 属性辅助
 // ============================================================================
 
@@ -1428,13 +1400,3 @@ public class NPMPackageEntry {
 // ============================================================================
 // Semver 辅助引用 (使用 bao_install 包内的 SemverStringBuilder)
 // ============================================================================
-
-/// Semver 字符串构建器引用
-/// 翻译自: String.Builder.stringHash
-public class SemverStringBuilder {
-    /// 计算字符串哈希
-    /// 翻译自: String.Builder.stringHash
-    public static func stringHashStr(s: String): UInt64 {
-        return StringHash.compute(s)
-    }
-}

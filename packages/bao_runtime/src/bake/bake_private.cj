@@ -4,7 +4,15 @@
 
 package bao_runtime.bake
 
-import bao_jsc.JSValue
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
+import bao_jsc.JsObject
+import bao_jsc.JsFunction
+import bao_jsc.JsError
+import bao_jsc.Strong
+import bao_jsc.ZigStringSlice
+import bao_collections.*
+import bao_threading.*
 
 // ============================================================================
 // 全局类型声明
@@ -22,7 +30,7 @@ public type FileIndex = Int64
 /// 对应 Bun: bake.private.d.ts Config
 public class BakeConfig {
     /// 服务器 + 客户端共用的主入口 ID
-    public var main: Id
+    public var `main`: Id
     /// 生成编号
     public var generation: Int64
     /// 是否分离 SSR 图
@@ -38,8 +46,8 @@ public class BakeConfig {
     /// 如果为 true，客户端将从服务器接收控制台日志
     public var console: Bool = false
 
-    public init(main: Id, generation: Int64) {
-        this.main = main
+    public init(`main`: Id, generation: Int64) {
+        this.`main` = `main`
         this.generation = generation
     }
 }
@@ -48,7 +56,11 @@ public class BakeConfig {
 /// 在 release 中通过 --drop=ASSERT 移除。
 public class BakeDebug {
     /// 断言条件为真，否则报错
-    public static func ASSERT(condition: Bool, message: String = ""): Unit {
+    public static func ASSERT(condition: Bool): Unit {
+        ASSERT(condition, "")
+    }
+
+    public static func ASSERT(condition: Bool, message: String): Unit {
         if (!condition) {
             if (message.isEmpty()) {
                 Output.errGeneric("ASSERTION FAILED")
@@ -115,7 +127,7 @@ public class HMRModuleCjs {
 public type EncodedDependencyArray = Array<Any>
 
 /// 全局配置对象，由 DevServer 注入
-public let config: BakeConfig = BakeConfig(main: "", generation: 0)
+public let config: BakeConfig = BakeConfig("", 0)
 
 /// 运行时侧标识 — "client" 或 "server"
 /// 影响如何建立 HMR 连接以及是否有窗口来可视化显示错误
@@ -124,13 +136,9 @@ public let side: String = "server"
 /// 是否为 Bun 的 debug 构建
 /// 这些 debug 构建应为处理 bundler 本身的人提供有用信息。
 /// 面向最终用户的断言应始终启用。
-public let IS_BUN_DEVELOPMENT: Bool = true
 
 /// 是否为回退错误页面
 public let IS_ERROR_RUNTIME: Bool = false
 
-/// 类型别名
-public type HMRModule = hmr_module.HMRModule
-public type HashMap<K, V> = std.collection.HashMap<K, V>
-public type Promise<T> = std.concurrent.Promise<T>
-public type Any = std.Any
+/// 类型别名 — types available via imports above
+// HashMap, Promise are imported from bao_collections and bao_threading respectively

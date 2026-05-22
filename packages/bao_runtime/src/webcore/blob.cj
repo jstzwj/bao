@@ -9,6 +9,7 @@ package bao_runtime.webcore
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_sys.*
 import bao_io.*
 import bao_ptr.*
@@ -242,7 +243,7 @@ public class BlobStore {
     /// Corresponds to: Bun: Blob.Store.size()
     public func size(): BlobSizeType {
         match (kind) {
-            case BlobStoreKind.Memory => Int64(bytes.length)
+            case BlobStoreKind.Memory => Int64(bytes.size)
             case BlobStoreKind.File => maxFileSize  // unknown file size returns max
             case BlobStoreKind.S3 => BLOB_MAX_SIZE  // unknown S3 size returns max
         }
@@ -254,7 +255,7 @@ public class BlobStore {
         if (kind == BlobStoreKind.File && !isFd) {
             return Some(filePath)
         }
-        if (kind == BlobStoreKind.Memory && storedName.length > 0) {
+        if (kind == BlobStoreKind.Memory && storedName.size > 0) {
             return Some(storedName)
         }
         return None
@@ -265,16 +266,13 @@ public class BlobStore {
     public func memoryCost(): Int64 {
         var cost: Int64 = 0
         match (kind) {
-            case BlobStoreKind.Memory => {
-                cost += Int64(bytes.length)
-                cost += Int64(storedName.length)
-            }
-            case BlobStoreKind.File => {
-                cost += Int64(filePath.length)
-            }
-            case BlobStoreKind.S3 => {
-                cost += Int64(filePath.length)
-            }
+            case BlobStoreKind.Memory =>
+                cost += Int64(bytes.size)
+                cost += Int64(storedName.size)
+            case BlobStoreKind.File =>
+                cost += Int64(filePath.size)
+            case BlobStoreKind.S3 =>
+                cost += Int64(filePath.size)
         }
         return cost
     }
@@ -329,11 +327,11 @@ public enum FormDataEncoding {
             let boundaryIdx = contentType.indexOf("boundary=")
             if (boundaryIdx >= 0) {
                 let start = boundaryIdx + 9
-                if (start < contentType.length) {
+                if (start < contentType.size) {
                     let rest = contentType.substring(start)
                     let endIdx = rest.indexOf(";")
                     let boundary = if (endIdx >= 0) { rest.substring(0, endIdx) } else { rest }
-                    if (boundary.length > 0) {
+                    if (boundary.size > 0) {
                         return Some(FormDataEncoding.Multipart(boundary))
                     }
                 }
@@ -501,12 +499,12 @@ public class Blob {
 
     public init(bytes: Array<UInt8>, contentType: String) {
         let store = BlobStore(bytes)
-        this.size = Int64(bytes.length)
+        this.size = Int64(bytes.size)
         this.offset = 0
         this.store = Some(store)
         this.contentType = contentType
         this.contentTypeAllocated = false
-        this.contentTypeWasSet = contentType.length > 0
+        this.contentTypeWasSet = contentType.size > 0
         this.charset = CharsetKind.unknown
         this.isJsdomFile = false
         this.refCount = 0
@@ -558,10 +556,10 @@ public class Blob {
     }
 
     /// Create Blob from byte array
-    /// Corresponds to: Bun: Blob.init(bytes, allocator, global)
+    /// Corresponds to: Bun: Blob(bytes, allocator, global)
     public static func initFunc(bytes: Array<UInt8>, allocator: String, global: JsGlobalObject): Blob {
         let store = BlobStore(bytes)
-        let blob = Blob(store: store, 0, Int64(bytes.length))
+        let blob = Blob(store: store, 0, Int64(bytes.size))
         blob.globalThis = Some(global)
         return blob
     }
@@ -578,7 +576,7 @@ public class Blob {
     /// Initialize with all-ASCII flag
     /// Corresponds to: Bun: Blob.init_with_all_ascii
     public static func initWithAllAscii(bytes: Array<UInt8>, global: JsGlobalObject, isAllAscii: Bool): Blob {
-        if (bytes.length == 0) {
+        if (bytes.size == 0) {
             let blob = Blob()
             blob.globalThis = Some(global)
             blob.charset = CharsetKind.fromBool(Some(isAllAscii))
@@ -587,7 +585,7 @@ public class Blob {
         let store = BlobStore(bytes)
         store.isAllAscii = Some(isAllAscii)
         let blob = initWithStore(store, global: global)
-        blob.size = Int64(bytes.length)
+        blob.size = Int64(bytes.size)
         blob.charset = CharsetKind.fromBool(Some(isAllAscii))
         return blob
     }
@@ -596,9 +594,9 @@ public class Blob {
     /// Corresponds to: Bun: Blob.create_with_bytes_and_allocator
     public static func createWithBytesAndAllocator(bytes: Array<UInt8>, global: JsGlobalObject, wasString: Bool): Blob {
         var blob: Blob
-        if (bytes.length > 0) {
+        if (bytes.size > 0) {
             let store = BlobStore(bytes)
-            blob = Blob(store: store, 0, Int64(bytes.length))
+            blob = Blob(store: store, 0, Int64(bytes.size))
         } else {
             blob = Blob()
         }
@@ -648,16 +646,16 @@ public class Blob {
     /// Corresponds to: Bun: Blob.sharedView()
     public func sharedView(): Array<UInt8> {
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 if (s.kind == BlobStoreKind.Memory) {
                     let view = s.sharedView()
-                    if (offset > 0 || size < Int64(view.length)) {
+                    if (offset > 0 || size < Int64(view.size)) {
                         let start = Int64(offset)
-                        let end = if (size > 0) { offset + size } else { Int64(view.length) }
+                        let end = if (size > 0) { offset + size } else { Int64(view.size) }
                         let result = ArrayList<UInt8>()
                         var i = start
                         while (i < end) {
-                            if (i < Int64(view.length)) {
+                            if (i < Int64(view.size)) {
                                 result.append(view[Int64(i)])
                             }
                             i += 1
@@ -667,7 +665,6 @@ public class Blob {
                     return view
                 }
                 return Array<UInt8>()
-            }
             case None => return Array<UInt8>()
         }
     }
@@ -675,15 +672,14 @@ public class Blob {
     /// Get content type
     /// Corresponds to: Bun: Blob.getContentType()
     public func getContentType(): ?String {
-        if (contentType.length > 0) {
+        if (contentType.size > 0) {
             return Some(contentType)
         }
         match (store) {
-            case Some(s) => {
-                if (s.mimeType.length > 0) {
+            case Some(s) =>
+                if (s.mimeType.size > 0) {
                     return Some(s.mimeType)
                 }
-            }
             case None => ()
         }
         return None
@@ -692,25 +688,22 @@ public class Blob {
     /// Get content type or MIME type
     /// Corresponds to: Bun: Blob.contentTypeOrMimeType()
     public func contentTypeOrMimeType(): ?String {
-        if (contentType.length > 0) {
+        if (contentType.size > 0) {
             return contentType
         }
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.File => {
-                        if (s.mimeType.length > 0) {
+                    case BlobStoreKind.File =>
+                        if (s.mimeType.size > 0) {
                             return s.mimeType
                         }
-                    }
-                    case BlobStoreKind.S3 => {
-                        if (s.mimeType.length > 0) {
+                    case BlobStoreKind.S3 =>
+                        if (s.mimeType.size > 0) {
                             return s.mimeType
                         }
-                    }
                     case BlobStoreKind.Memory => ()
                 }
-            }
             case None => ()
         }
         return None
@@ -752,7 +745,7 @@ public class Blob {
     /// Whether Blob is detached
     /// Corresponds to: Bun: Blob.isDetached()
     public func isDetached(): Bool {
-        return store == None
+        return store.isNone()
     }
 
     /// Check if content type was set by user
@@ -771,21 +764,18 @@ public class Blob {
     /// Corresponds to: Bun: Blob.getFileName()
     public func getFileName(): ?String {
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.File => {
-                        if (!s.isFd && s.filePath.length > 0) {
+                    case BlobStoreKind.File =>
+                        if (!s.isFd && s.filePath.size > 0) {
                             return Some(s.filePath)
                         }
-                    }
-                    case BlobStoreKind.Memory => {
-                        if (s.storedName.length > 0) {
+                    case BlobStoreKind.Memory =>
+                        if (s.storedName.size > 0) {
                             return Some(s.storedName)
                         }
-                    }
                     case BlobStoreKind.S3 => ()
                 }
-            }
             case None => ()
         }
         return None
@@ -794,14 +784,13 @@ public class Blob {
     /// Get name as string
     /// Corresponds to: Bun: Blob.getNameString()
     public func getNameString(): ?String {
-        if (name.length > 0) {
+        if (name.size > 0) {
             return Some(name)
         }
         match (getFileName()) {
-            case Some(p) => {
+            case Some(p) =>
                 name = p
                 return Some(name)
-            }
             case None => return None
         }
     }
@@ -915,21 +904,20 @@ public class Blob {
     /// Corresponds to: Bun: Blob.resolveSize()
     public func resolveSize(): Unit {
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.Memory => {
+                    case BlobStoreKind.Memory =>
                         let offset_ = offset
                         let storeSize = s.size()
                         if (storeSize != BLOB_MAX_SIZE) {
                             offset = storeSize.min(offset_)
                             size = storeSize - offset_
                         }
-                    }
-                    case BlobStoreKind.File => {
-                        if (s.seekable == None) {
+                    case BlobStoreKind.File =>
+                        if (s.seekable.isNone()) {
                             resolveFileStat(s)
                         }
-                        if (s.seekable != None && s.maxFileSize != BLOB_MAX_SIZE) {
+                        if (s.seekable.isSome() && s.maxFileSize != BLOB_MAX_SIZE) {
                             let storeSize = s.maxFileSize
                             let offset_ = offset
                             offset = storeSize.min(offset_)
@@ -941,10 +929,8 @@ public class Blob {
                             return
                         }
                         size = 0
-                    }
                     case BlobStoreKind.S3 => size = 0
                 }
-            }
             case None => size = 0
         }
     }
@@ -953,21 +939,20 @@ public class Blob {
     /// Corresponds to: Bun: Blob.resolved_size()
     public func resolvedSize(): (BlobSizeType, BlobSizeType) {
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.Memory => {
+                    case BlobStoreKind.Memory =>
                         let offset_ = offset
                         let storeSize = s.size()
                         if (storeSize != BLOB_MAX_SIZE) {
                             return (storeSize.min(offset_), storeSize - offset_)
                         }
                         return (offset, size)
-                    }
-                    case BlobStoreKind.File => {
-                        if (s.seekable == None) {
+                    case BlobStoreKind.File =>
+                        if (s.seekable.isNone()) {
                             resolveFileStat(s)
                         }
-                        if (s.seekable != None && s.maxFileSize != BLOB_MAX_SIZE) {
+                        if (s.seekable.isSome() && s.maxFileSize != BLOB_MAX_SIZE) {
                             let storeSize = s.maxFileSize
                             let offset_ = offset
                             return (storeSize.min(offset_), storeSize - offset_)
@@ -976,10 +961,8 @@ public class Blob {
                             return (offset, size)
                         }
                         return (offset, 0)
-                    }
                     case BlobStoreKind.S3 => return (offset, 0)
                 }
-            }
             case None => return (offset, 0)
         }
     }
@@ -991,16 +974,14 @@ public class Blob {
             resolveSize()
         }
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.File => {
+                    case BlobStoreKind.File =>
                         if (s.seekable == Some(false)) {
                             return UInt64Max
                         }
-                    }
                     case _ => ()
                 }
-            }
             case None => ()
         }
         if (size == BLOB_MAX_SIZE) {
@@ -1009,7 +990,7 @@ public class Blob {
         return UInt64(size)
     }
 
-    /// Get size as JSValue
+    /// Get size as JsValue
     /// Corresponds to: Bun: Blob.getSize()
     public func getSize(global: JsGlobalObject): JsValue {
         if (size == BLOB_MAX_SIZE) {
@@ -1017,16 +998,15 @@ public class Blob {
                 return JsValue(Float64.NaN)
             }
             resolveSize()
-            if (size == BLOB_MAX_SIZE && store != None) {
+            if (size == BLOB_MAX_SIZE && store.isSome()) {
                 return JsValue(Float64.infinity)
             }
-            if (size == 0 && store != None) {
+            if (size == 0 && store.isSome()) {
                 match (store) {
-                    case Some(s) => {
+                    case Some(s) =>
                         if (s.kind == BlobStoreKind.File && s.seekable == Some(false) && s.maxFileSize == BLOB_MAX_SIZE) {
                             return JsValue(Float64.infinity)
                         }
-                    }
                     case None => ()
                 }
             }
@@ -1039,27 +1019,23 @@ public class Blob {
     public func calculateEstimatedByteSize(): Unit {
         var sz: Int64 = 0
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.Memory => {
-                        sz += Int64(s.storedName.length)
+                    case BlobStoreKind.Memory =>
+                        sz += Int64(s.storedName.size)
                         if (size != BLOB_MAX_SIZE) {
                             sz += size
                         } else {
-                            sz += Int64(s.bytes.length)
+                            sz += Int64(s.bytes.size)
                         }
-                    }
-                    case BlobStoreKind.File => {
-                        sz += Int64(s.filePath.length)
-                    }
-                    case BlobStoreKind.S3 => {
-                        sz += Int64(s.filePath.length)
-                    }
+                    case BlobStoreKind.File =>
+                        sz += Int64(s.filePath.size)
+                    case BlobStoreKind.S3 =>
+                        sz += Int64(s.filePath.size)
                 }
-            }
             case None => ()
         }
-        reportedEstimatedSize = sz + Int64(if (contentTypeAllocated) { contentType.length } else { 0 }) + Int64(name.length)
+        reportedEstimatedSize = sz + Int64(if (contentTypeAllocated) { contentType.size } else { 0 }) + Int64(name.size)
     }
 
     /// Get estimated size
@@ -1076,7 +1052,7 @@ public class Blob {
     /// Corresponds to: Bun: Blob.getFormDataEncoding()
     public func getFormDataEncoding(): ?FormDataEncoding {
         let ct = getContentType() ?? ""
-        if (ct.length == 0) {
+        if (ct.size == 0) {
             return None
         }
         return FormDataEncoding.fromContentType(ct)
@@ -1086,12 +1062,11 @@ public class Blob {
     /// Corresponds to: Bun: Blob.getMimeType()
     public func getMimeType(): ?String {
         match (store) {
-            case Some(s) => {
-                if (s.mimeType.length > 0) {
+            case Some(s) =>
+                if (s.mimeType.size > 0) {
                     return Some(s.mimeType)
                 }
                 return None
-            }
             case None => return None
         }
     }
@@ -1139,7 +1114,7 @@ public class Blob {
     /// Corresponds to: Bun: Blob.toFormData()
     public func toFormData(): JsValue {
         let encoding = getFormDataEncoding()
-        if (encoding == None) {
+        if (encoding.isNone()) {
             return JsValue()
         }
         return JsValue()
@@ -1158,11 +1133,10 @@ public class Blob {
         // If Blob represents entire binary data, update store's flag too
         if (size > 0 && offset == 0) {
             match (store) {
-                case Some(s) => {
+                case Some(s) =>
                     if (s.kind == BlobStoreKind.Memory) {
                         s.isAllAscii = Some(isAllAscii)
                     }
-                }
                 case None => ()
             }
         }
@@ -1186,7 +1160,7 @@ public class Blob {
         newBlob.offset = newOffset
         newBlob.store = store
         newBlob.contentType = contentType
-        newBlob.contentTypeWasSet = contentType.length > 0
+        newBlob.contentTypeWasSet = contentType.size > 0
         newBlob.globalThis = globalThis
         match (store) {
             case Some(st) => st.ref()
@@ -1206,7 +1180,7 @@ public class Blob {
         blob.size = len
 
         // infer content type if not specified
-        if (contentType.length == 0 && this.contentType.length > 0 && !this.contentTypeAllocated) {
+        if (contentType.size == 0 && this.contentType.size > 0 && !this.contentTypeAllocated) {
             blob.contentType = this.contentType
         } else {
             blob.contentType = contentType
@@ -1244,7 +1218,7 @@ public class Blob {
 
         let ct = contentType
         var ctAllocated = false
-        if (ct.length > 0 && isAllAsciiFunc(ct)) {
+        if (ct.size > 0 && isAllAsciiFunc(ct)) {
             ctAllocated = !ct.isEmpty()
         }
 
@@ -1285,16 +1259,14 @@ public class Blob {
         }
         match (store) {
             case None => return true  // empty Blob exists
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
                     case BlobStoreKind.Memory => return true
-                    case BlobStoreKind.File => {
+                    case BlobStoreKind.File =>
                         // Check if regular file or pipe
                         return (s.fileMode & 0xF000) == 0x8000 || (s.fileMode & 0xF000) == 0x1000
-                    }
                     case BlobStoreKind.S3 => return true
                 }
-            }
         }
     }
 
@@ -1493,7 +1465,7 @@ public class Blob {
             return getText(global)
         }
         let bytes = sharedView()
-        if (bytes.length == 0) {
+        if (bytes.size == 0) {
             return JsValue(BaoString(""))
         }
         let text = Utf8Codec.decode(bytes)
@@ -1529,7 +1501,7 @@ public class Blob {
             return getArrayBuffer(global)
         }
         let bytes = sharedView()
-        if (bytes.length == 0) {
+        if (bytes.size == 0) {
             return JsValue.fromArrayBuffer(global, Array<UInt8>())
         }
         if (lifetime == BlobLifetime.Transfer) {
@@ -1564,7 +1536,7 @@ public class Blob {
             return getFormData(global)
         }
         let bytes = sharedView()
-        if (bytes.length == 0) {
+        if (bytes.size == 0) {
             return JsValue()
         }
         return toFormData()
@@ -1578,7 +1550,7 @@ public class Blob {
     /// Corresponds to: Bun: Blob.doWrite()
     public func doWrite(global: JsGlobalObject, data: JsValue, options: JsValue): JsValue {
         let s = store
-        if (s == None) {
+        if (s.isNone()) {
             return JsPromise.reject(global, JsValue(BaoString("Cannot write to a detached Blob")))
         }
         if (s.getOrThrow().kind == BlobStoreKind.Memory) {
@@ -1588,25 +1560,25 @@ public class Blob {
     }
 
     /// doUnlink — delete file/blob
-    /// 对应 Bun: Blob.doUnlink() -> switch (store.data) { .file => file.unlink(globalThis), .s3 => s3.unlink(...) }
+    /// 对应 Bun: Blob.doUnlink() -> match (store.data) { .file => file.unlink(globalThis), .s3 => s3.unlink(...) }
     /// Bun: src/runtime/webcore/Blob.zig:2508 + src/runtime/webcore/blob/Store.zig:260
     public func doUnlink(global: JsGlobalObject, options: JsValue): JsValue {
         let s = store
-        if (s == None) {
+        if (s.isNone()) {
             return JsPromise.reject(global, JsValue(BaoString("Cannot unlink a detached Blob")))
         }
         if (s.getOrThrow().kind == BlobStoreKind.Memory) {
             return JsPromise.reject(global, JsValue(BaoString("Cannot unlink a Blob backed by bytes")))
         }
         match (s.getOrThrow().kind) {
-            case BlobStoreKind.File => {
+            case BlobStoreKind.File =>
                 let store = s.getOrThrow()
                 // Bun: Store.File.unlink — switch pathlike { .path => Async.unlink, .fd => resolved("Is not possible to unlink a file descriptor") }
                 if (store.isFd) {
                     // fd: cannot unlink a file descriptor — Bun: JSPromise.resolvedPromiseValue(globalThis, createInvalidArgs("Is not possible to unlink a file descriptor"))
                     return JsPromise.reject(global, JsValue(BaoString("Is not possible to unlink a file descriptor")))
                 }
-                if (store.filePath.length > 0) {
+                if (store.filePath.size > 0) {
                     // path: perform async unlink via SysFs
                     // Bun: jsc.Node.fs.Async.unlink.create(globalThis, ...)
                     let result = bao_sys.SysFs.unlink(store.filePath)
@@ -1616,11 +1588,9 @@ public class Blob {
                     }
                 }
                 return JsPromise.resolve(global, JsValue(Int64(0)))
-            }
-            case BlobStoreKind.S3 => {
+            case BlobStoreKind.S3 =>
                 // S3 unlink is handled separately — for now return success
                 return JsPromise.resolve(global, JsValue(Int64(0)))
-            }
             case BlobStoreKind.Memory => return JsValue()
         }
     }
@@ -1629,29 +1599,24 @@ public class Blob {
     /// Corresponds to: Bun: Blob.writeFile()
     public static func writeFile(global: JsGlobalObject, data: JsValue, destination: Blob, options: JsValue): JsValue {
         let bytes = data.toArrayBuffer()
-        if (bytes == None) {
+        if (bytes.isNone()) {
             return JsPromise.reject(global, JsValue(BaoString("Bun.write(pathOrFdOrBlob, blob) expects a Blob-y thing to write")))
         }
         match (destination.store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.File => {
+                    case BlobStoreKind.File =>
                         if (s.isFd) {
-                            return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().length)))
+                            return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().size)))
                         }
-                        return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().length)))
-                    }
-                    case BlobStoreKind.S3 => {
-                        return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().length)))
-                    }
-                    case BlobStoreKind.Memory => {
+                        return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().size)))
+                    case BlobStoreKind.S3 =>
+                        return JsPromise.resolve(global, JsValue(Int64(bytes.getOrThrow().size)))
+                    case BlobStoreKind.Memory =>
                         return JsPromise.reject(global, JsValue(BaoString("Cannot write to a Blob backed by bytes")))
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 return JsPromise.reject(global, JsValue(BaoString("Blob is detached")))
-            }
         }
     }
 
@@ -1677,52 +1642,42 @@ public class Blob {
     /// Corresponds to: Bun: write_file_with_source_destination
     public static func writeWithSourceDestination(global: JsGlobalObject, source: Blob, destination: Blob, options: WriteFileOptions): JsValue {
         match (destination.store) {
-            case Some(destStore) => {
+            case Some(destStore) =>
                 match (destStore.kind) {
-                    case BlobStoreKind.File => {
+                    case BlobStoreKind.File =>
                         match (source.store) {
-                            case Some(srcStore) => {
+                            case Some(srcStore) =>
                                 match (srcStore.kind) {
-                                    case BlobStoreKind.Memory => {
+                                    case BlobStoreKind.Memory =>
                                         // bytes -> file: write bytes
                                         return writeFileBytes(global, source: source, destination: destination, options: options)
-                                    }
-                                    case BlobStoreKind.File => {
+                                    case BlobStoreKind.File =>
                                         // file -> file: copy file
                                         return copyFile(global, source: source, destination: destination, options: options)
-                                    }
-                                    case BlobStoreKind.S3 => {
+                                    case BlobStoreKind.S3 =>
                                         // S3 -> file: stream
                                         return JsPromise.resolve(global, JsValue(Int64(0)))
-                                    }
                                 }
-                            }
-                            case None => {
+                            case None =>
                                 // empty source: truncate
                                 return JsPromise.resolve(global, JsValue(Int64(0)))
-                            }
                         }
-                    }
-                    case BlobStoreKind.S3 => {
+                    case BlobStoreKind.S3 =>
                         // upload to S3
                         return JsPromise.resolve(global, JsValue(Int64(0)))
-                    }
-                    case BlobStoreKind.Memory => {
+                    case BlobStoreKind.Memory =>
                         // bytes -> bytes: duplicate
                         return JsPromise.resolve(global, JsValue(Int64(0)))
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 return JsPromise.reject(global, JsValue(BaoString("Blob is detached")))
-            }
         }
     }
 
     /// writeFileBytes — write bytes to file
     public static func writeFileBytes(global: JsGlobalObject, source: Blob, destination: Blob, options: WriteFileOptions): JsValue {
         let bytes = source.sharedView()
-        return JsPromise.resolve(global, JsValue(Int64(bytes.length)))
+        return JsPromise.resolve(global, JsValue(Int64(bytes.size)))
     }
 
     /// copyFile — copy file to file
@@ -1734,14 +1689,12 @@ public class Blob {
     /// Corresponds to: Bun: Blob.getWriter()
     public func getWriter(global: JsGlobalObject, options: JsValue): JsValue {
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 if (s.kind == BlobStoreKind.Memory) {
                     return JsPromise.reject(global, JsValue(BaoString("Cannot write to a Blob backed by bytes, which are always read-only")))
                 }
-            }
-            case None => {
+            case None =>
                 return JsPromise.reject(global, JsValue(BaoString("Cannot write to a detached Blob")))
-            }
         }
         // Return a writable stream stub
         return JsValue()
@@ -1756,10 +1709,10 @@ public class Blob {
     /// Corresponds to: Bun: Blob.JSDOMFile__construct_
     public static func constructFile(global: JsGlobalObject, bits: Array<UInt8>, fileName: String, fileType: String, lastModified: Float64): Blob {
         let store = BlobStore(bytes: bits, storedName: fileName)
-        let blob = Blob(store: store, 0, Int64(bits.length))
+        let blob = Blob(store: store, 0, Int64(bits.size))
         blob.isJsdomFile = true
         blob.globalThis = Some(global)
-        if (fileType.length > 0) {
+        if (fileType.size > 0) {
             blob.contentType = fileType
             blob.contentTypeWasSet = true
         }
@@ -1779,7 +1732,7 @@ public class Blob {
         // Parse options
         if (!options.isNull() && !options.isUndefined()) {
             let typeVal = options.get("type")
-            if (typeVal != None && typeVal.getOrThrow().isString()) {
+            if (typeVal.isSome() && typeVal.getOrThrow().isString()) {
                 let typeStr = typeVal.getOrThrow().toString()
                 if (isAllAsciiFunc(typeStr)) {
                     blob.contentType = typeStr.toLowerAscii()
@@ -1787,7 +1740,7 @@ public class Blob {
                 }
             }
             let lmVal = options.get("lastModified")
-            if (lmVal != None && lmVal.getOrThrow().isNumber()) {
+            if (lmVal.isSome() && lmVal.getOrThrow().isNumber()) {
                 blob.lastModified = lmVal.getOrThrow().toFloat64()
             }
         }
@@ -1814,7 +1767,7 @@ public class Blob {
         // Parse options
         if (!options.isNull() && !options.isUndefined() && options.isObject()) {
             let typeVal = options.get("type")
-            if (typeVal != None && typeVal.getOrThrow().isString()) {
+            if (typeVal.isSome() && typeVal.getOrThrow().isString()) {
                 let typeStr = typeVal.getOrThrow().toString()
                 if (isAllAsciiFunc(typeStr)) {
                     blob.contentType = typeStr.toLowerAscii()
@@ -1823,7 +1776,7 @@ public class Blob {
             }
         }
 
-        if (blob.contentType.length == 0) {
+        if (blob.contentType.size == 0) {
             blob.contentType = ""
             blob.contentTypeWasSet = false
         }
@@ -1852,7 +1805,7 @@ public class Blob {
     /// Convert Blob to JsValue
     public func toJsValue(): JsValue {
         let global = globalThis
-        if (global == None) {
+        if (global.isNone()) {
             return JsValue()
         }
         return toJsValue(global.getOrThrow())
@@ -1869,9 +1822,9 @@ public class Blob {
 
         // slice method
         obj.set("slice", JsValue.nativeFunction(JsNativeFunction("slice") { args =>
-            let start = if (args.length > 0) { args[0].toInt64() } else { 0 }
-            let end = if (args.length > 1) { args[1].toInt64() } else { self.size }
-            let ct = if (args.length > 2) { args[2].toString() } else { "" }
+            let start = if (args.size > 0) { args[0].toInt64() } else { 0 }
+            let end = if (args.size > 1) { args[1].toInt64() } else { self.size }
+            let ct = if (args.size > 2) { args[2].toString() } else { "" }
             let sliced = self.slice(start, end: end, contentType: ct)
             sliced.globalThis = self.globalThis
             sliced.toJsValue(global)
@@ -1899,7 +1852,7 @@ public class Blob {
 
         // stream method
         obj.set("stream", JsValue.nativeFunction(JsNativeFunction("stream") { args =>
-            let chunkSize = if (args.length > 0) { args[0].toInt64() } else { 0 }
+            let chunkSize = if (args.size > 0) { args[0].toInt64() } else { 0 }
             self.getStream(global, chunkSize: chunkSize)
         }))
 
@@ -1918,10 +1871,10 @@ public class Blob {
         // write method (BunFile)
         if (self.isBunFile()) {
             obj.set("write", JsValue.nativeFunction(JsNativeFunction("write") { args =>
-                if (args.length < 1) {
+                if (args.size < 1) {
                     return JsPromise.reject(global, JsValue(BaoString("blob.write(data) expects data")))
                 }
-                let options = if (args.length > 1) { args[1] } else { JsValue() }
+                let options = if (args.size > 1) { args[1] } else { JsValue() }
                 self.doWrite(global, data: args[0], options: options)
             }))
         }
@@ -1936,7 +1889,7 @@ public class Blob {
         // writer method (BunFile)
         if (self.isBunFile()) {
             obj.set("writer", JsValue.nativeFunction(JsNativeFunction("writer") { args =>
-                let options = if (args.length > 0) { args[0] } else { JsValue() }
+                let options = if (args.size > 0) { args[0] } else { JsValue() }
                 self.getWriter(global, options: options)
             }))
         }
@@ -2060,17 +2013,15 @@ public class Blob {
 
     public func getLastModified(): Float64 {
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
-                    case BlobStoreKind.File => {
+                    case BlobStoreKind.File =>
                         if (s.fileLastModified == 0.0) {
                             resolveFileStat(s)
                         }
                         return s.fileLastModified
-                    }
                     case _ => ()
                 }
-            }
             case None => ()
         }
         if (isJsdomFile) {
@@ -2086,7 +2037,7 @@ public class Blob {
 
     public func getLoader(): String {
         let filename = getFileName()
-        if (filename != None) {
+        if (filename.isSome()) {
             // Determine loader from file extension
             let path = filename.getOrThrow()
             if (path.endsWith(".ts") || path.endsWith(".tsx")) {
@@ -2103,7 +2054,7 @@ public class Blob {
             }
         }
         let mime = getMimeTypeOrContentType()
-        if (mime != None) {
+        if (mime.isSome()) {
             let m = mime.getOrThrow()
             if (m.contains("javascript")) {
                 return "jsx"
@@ -2138,53 +2089,50 @@ public class Blob {
         writer.append(0)
         // Write content type
         let ctBytes = Utf8Codec.encode(contentType)
-        writer.append(UInt8(ctBytes.length & 0xFF))
-        writer.append(UInt8((ctBytes.length >> 8) & 0xFF))
-        writer.append(UInt8((ctBytes.length >> 16) & 0xFF))
-        writer.append(UInt8((ctBytes.length >> 24) & 0xFF))
+        writer.append(UInt8(ctBytes.size & 0xFF))
+        writer.append(UInt8((ctBytes.size >> 8) & 0xFF))
+        writer.append(UInt8((ctBytes.size >> 16) & 0xFF))
+        writer.append(UInt8((ctBytes.size >> 24) & 0xFF))
         for (b in ctBytes) {
             writer.append(b)
         }
         writer.append(if (contentTypeWasSet) { 1 } else { 0 })
         // Write store tag
         let storeTag: UInt8 = match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 match (s.kind) {
                     case BlobStoreKind.File => 1   // SerializeTag::File
                     case _ => 2                     // SerializeTag::Bytes
                 }
-            }
             case None => 0  // SerializeTag::Empty
         }
         writer.append(storeTag)
 
         resolveSize()
         match (store) {
-            case Some(s) => {
+            case Some(s) =>
                 // Serialize store bytes if Memory
                 match (s.kind) {
-                    case BlobStoreKind.Memory => {
+                    case BlobStoreKind.Memory =>
                         let view = sharedView()
-                        writer.append(UInt8(view.length & 0xFF))
-                        writer.append(UInt8((view.length >> 8) & 0xFF))
-                        writer.append(UInt8((view.length >> 16) & 0xFF))
-                        writer.append(UInt8((view.length >> 24) & 0xFF))
+                        writer.append(UInt8(view.size & 0xFF))
+                        writer.append(UInt8((view.size >> 8) & 0xFF))
+                        writer.append(UInt8((view.size >> 16) & 0xFF))
+                        writer.append(UInt8((view.size >> 24) & 0xFF))
                         for (b in view) {
                             writer.append(b)
                         }
                         // Stored name
                         let nameBytes = Utf8Codec.encode(s.storedName)
-                        writer.append(UInt8(nameBytes.length & 0xFF))
-                        writer.append(UInt8((nameBytes.length >> 8) & 0xFF))
-                        writer.append(UInt8((nameBytes.length >> 16) & 0xFF))
-                        writer.append(UInt8((nameBytes.length >> 24) & 0xFF))
+                        writer.append(UInt8(nameBytes.size & 0xFF))
+                        writer.append(UInt8((nameBytes.size >> 8) & 0xFF))
+                        writer.append(UInt8((nameBytes.size >> 16) & 0xFF))
+                        writer.append(UInt8((nameBytes.size >> 24) & 0xFF))
                         for (b in nameBytes) {
                             writer.append(b)
                         }
-                    }
                     case _ => ()
                 }
-            }
             case None => ()
         }
 
@@ -2198,12 +2146,12 @@ public class Blob {
         // Serialize File name if this is a File object
         if (isJsdomFile) {
             let nameStr = getNameString()
-            if (nameStr != None) {
+            if (nameStr.isSome()) {
                 let nameBytes = Utf8Codec.encode(nameStr.getOrThrow())
-                writer.append(UInt8(nameBytes.length & 0xFF))
-                writer.append(UInt8((nameBytes.length >> 8) & 0xFF))
-                writer.append(UInt8((nameBytes.length >> 16) & 0xFF))
-                writer.append(UInt8((nameBytes.length >> 24) & 0xFF))
+                writer.append(UInt8(nameBytes.size & 0xFF))
+                writer.append(UInt8((nameBytes.size >> 8) & 0xFF))
+                writer.append(UInt8((nameBytes.size >> 16) & 0xFF))
+                writer.append(UInt8((nameBytes.size >> 24) & 0xFF))
                 for (b in nameBytes) {
                     writer.append(b)
                 }
@@ -2221,14 +2169,14 @@ public class Blob {
     public static func onStructuredCloneDeserialize(global: JsGlobalObject, data: Array<UInt8>): ?JsValue {
         var pos = 0
 
-        if (data.length < 1) {
+        if (data.size < 1) {
             return None
         }
         let version = data[pos]
         pos += 1
 
         // Read offset (u64 LE)
-        if (pos + 8 > data.length) {
+        if (pos + 8 > data.size) {
             return None
         }
         var offset: BlobSizeType = 0
@@ -2236,26 +2184,26 @@ public class Blob {
         pos += 8
 
         // Read content type
-        if (pos + 4 > data.length) {
+        if (pos + 4 > data.size) {
             return None
         }
         let ctLen = Int32(data[pos]) | (Int32(data[pos + 1]) << 8) | (Int32(data[pos + 2]) << 16) | (Int32(data[pos + 3]) << 24)
         pos += 4
-        if (pos + ctLen > data.length) {
+        if (pos + ctLen > data.size) {
             return None
         }
         let ctBytes = data[pos..(pos + ctLen)]
         pos += ctLen
 
         // content_type_was_set
-        if (pos >= data.length) {
+        if (pos >= data.size) {
             return None
         }
         let ctWasSet = data[pos] != 0
         pos += 1
 
         // Store tag
-        if (pos >= data.length) {
+        if (pos >= data.size) {
             return None
         }
         let storeTag = data[pos]
@@ -2263,14 +2211,14 @@ public class Blob {
 
         var blob: Blob
         match (storeTag) {
-            case 2 => {
+            case 2 =>
                 // Bytes
-                if (pos + 4 > data.length) {
+                if (pos + 4 > data.size) {
                     return None
                 }
                 let bytesLen = Int32(data[pos]) | (Int32(data[pos + 1]) << 8) | (Int32(data[pos + 2]) << 16) | (Int32(data[pos + 3]) << 24)
                 pos += 4
-                if (pos + bytesLen > data.length) {
+                if (pos + bytesLen > data.size) {
                     return None
                 }
                 let bytes = data[pos..(pos + bytesLen)]
@@ -2279,47 +2227,44 @@ public class Blob {
 
                 // Read stored name if version >= 2
                 if (version >= 2) {
-                    if (pos + 4 > data.length) {
+                    if (pos + 4 > data.size) {
                         return None
                     }
                     let nameLen = Int32(data[pos]) | (Int32(data[pos + 1]) << 8) | (Int32(data[pos + 2]) << 16) | (Int32(data[pos + 3]) << 24)
                     pos += 4
                     if (nameLen > 0) {
-                        if (pos + nameLen > data.length) {
+                        if (pos + nameLen > data.size) {
                             return None
                         }
                         let nameBytes = data[pos..(pos + nameLen)]
                         pos += nameLen
                         match (blob.store) {
-                            case Some(s) => {
+                            case Some(s) =>
                                 s.storedName = Utf8Codec.decode(nameBytes)
-                            }
                             case None => ()
                         }
                     }
                 }
-            }
-            case 1 => {
+            case 1 =>
                 // File
-                if (pos >= data.length) {
+                if (pos >= data.size) {
                     return None
                 }
                 let pathlikeTag = data[pos]
                 pos += 1
                 match (pathlikeTag) {
-                    case 1 => {
+                    case 1 =>
                         // FD
                         blob = Blob()
                         blob.globalThis = Some(global)
-                    }
-                    case 0 => {
+                    case 0 =>
                         // Path
-                        if (pos + 4 > data.length) {
+                        if (pos + 4 > data.size) {
                             return None
                         }
                         let pathLen = Int32(data[pos]) | (Int32(data[pos + 1]) << 8) | (Int32(data[pos + 2]) << 16) | (Int32(data[pos + 3]) << 24)
                         pos += 4
-                        if (pos + pathLen > data.length) {
+                        if (pos + pathLen > data.size) {
                             return None
                         }
                         let pathBytes = data[pos..(pos + pathLen)]
@@ -2327,29 +2272,24 @@ public class Blob {
                         let pathStr = Utf8Codec.decode(pathBytes)
                         let pathOrFd = PathOrFileDescriptor(path: pathStr)
                         blob = findOrCreateFileFromPath(pathOrFd, global: global, checkS3: true)
-                    }
-                    case _ => {
+                    case _ =>
                         return None
-                    }
                 }
-            }
-            case 0 => {
+            case 0 =>
                 blob = initEmpty(global)
-            }
-            case _ => {
+            case _ =>
                 return None
-            }
         }
 
         // Read is_jsdom_file and last_modified if version >= 2
         if (version >= 2) {
-            if (pos >= data.length) {
+            if (pos >= data.size) {
                 return None
             }
             blob.isJsdomFile = data[pos] != 0
             pos += 1
             // Read last_modified as f64
-            if (pos + 8 > data.length) {
+            if (pos + 8 > data.size) {
                 return None
             }
             blob.lastModified = Float64.fromByteArray(data[pos..(pos + 8)])
@@ -2357,13 +2297,13 @@ public class Blob {
 
             // Version 3: File name
             if (version >= 3 && blob.isJsdomFile) {
-                if (pos + 4 > data.length) {
+                if (pos + 4 > data.size) {
                     return None
                 }
                 let nameLen = Int32(data[pos]) | (Int32(data[pos + 1]) << 8) | (Int32(data[pos + 2]) << 16) | (Int32(data[pos + 3]) << 24)
                 pos += 4
                 if (nameLen > 0) {
-                    if (pos + nameLen > data.length) {
+                    if (pos + nameLen > data.size) {
                         return None
                     }
                     let nameBytes = data[pos..(pos + nameLen)]
@@ -2376,13 +2316,12 @@ public class Blob {
         // Set offset, clamped
         blob.offset = offset
         match (blob.store) {
-            case Some(s) => {
+            case Some(s) =>
                 let storeSize = s.size()
                 if (storeSize != BLOB_MAX_SIZE) {
                     blob.offset = blob.offset.min(storeSize)
                     blob.size = blob.size.min(storeSize - blob.offset)
                 }
-            }
             case None => blob.offset = 0
         }
 
@@ -2403,10 +2342,9 @@ public class Blob {
 
     public func pipeReadableStreamToBlob(global: JsGlobalObject, readableStream: ReadableStream, extraOptions: ?JsValue): JsValue {
         match (store) {
-            case None => {
+            case None =>
                 return JsPromise.reject(global, JsValue(BaoString("Blob is detached")))
-            }
-            case Some(s) => {
+            case Some(s) =>
                 if (s.kind == BlobStoreKind.Memory) {
                     return JsPromise.reject(global, JsValue(BaoString("Blob is read-only")))
                 }
@@ -2415,11 +2353,10 @@ public class Blob {
                     case BlobStoreKind.File =>
                         return FileSink.writeFromStream(global, s, readableStream, extraOptions)
                     case BlobStoreKind.S3 =>
-                        return S3BlobDownloadTask.init(global, this, S3ReadHandler.default)
+                        return S3BlobDownloadTask(global, this, S3ReadHandler.default)
                     case _ =>
                         return JsPromise.resolve(global, JsValue(Int64(0)))
                 }
-            }
         }
     }
 }
@@ -2498,7 +2435,7 @@ public class JsPromise {
     public static func resolve(global: JsGlobalObject, value: JsValue): JsValue {
         let obj = JsObject(global)
         obj.set("then", JsValue.nativeFunction(JsNativeFunction("then") { args =>
-            if (args.length > 0 && args[0].isFunction()) {
+            if (args.size > 0 && args[0].isFunction()) {
                 args[0].call(Array<JsValue>([value]))
             }
             JsValue(obj)
@@ -2512,7 +2449,7 @@ public class JsPromise {
             JsValue(obj)
         }))
         obj.set("catch", JsValue.nativeFunction(JsNativeFunction("catch") { args =>
-            if (args.length > 0 && args[0].isFunction()) {
+            if (args.size > 0 && args[0].isFunction()) {
                 args[0].call(Array<JsValue>([error]))
             }
             JsValue(obj)
@@ -2541,8 +2478,8 @@ public class S3BlobDownloadTask {
     }
 
     /// Initialize S3 download
-    /// Corresponds to: Bun: S3BlobDownloadTask.init()
-    public static func init(global: JsGlobalObject, blob: Blob, handler: S3ReadHandler): JsValue {
+    /// Corresponds to: Bun: S3BlobDownloadTask()
+    public static func `init`(global: JsGlobalObject, blob: Blob, handler: S3ReadHandler): JsValue {
         let task = S3BlobDownloadTask(blob: blob.dupe(), global: global, handler: handler)
         // 对应 Bun S3BlobDownloadTask: initiate S3 download via http fetch
         // Falls back to sharedView for non-S3 blobs
@@ -2553,7 +2490,7 @@ public class S3BlobDownloadTask {
                         case BlobStoreKind.S3 =>
                             // S3 download: use HTTP client to fetch the object
                             let s3Url = s.s3Url ?? ""
-                            if (s3Url.length > 0) {
+                            if (s3Url.size > 0) {
                                 let result = HttpClient.getBytes(global, s3Url)
                                 task.callHandler(result)
                             } else {
@@ -2618,7 +2555,7 @@ public class InternalBlob {
     }
 
     public func memoryCost(): Int64 {
-        return Int64(bytes.length)
+        return Int64(bytes.size)
     }
 
     public func toString(): String {
@@ -2679,7 +2616,7 @@ public class InlineBlob {
         return InlineBlob(data: total.toArray(), wasString: false)
     }
 
-    public static func init(data: Array<UInt8>): InlineBlob {
+    public static func `init`(data: Array<UInt8>): InlineBlob {
         return InlineBlob(data: data, wasString: false)
     }
 
@@ -2688,7 +2625,7 @@ public class InlineBlob {
     }
 
     public func toStringOwned(global: JsGlobalObject): JsValue {
-        if (bytes.length == 0) {
+        if (bytes.size == 0) {
             return JsValue(BaoString(""))
         }
         let text = Utf8Codec.decode(bytes)
@@ -2754,12 +2691,11 @@ public class AnyBlob {
 
     public func memoryCost(): Int64 {
         match (kind) {
-            case AnyBlobKind.Blob => {
+            case AnyBlobKind.Blob =>
                 match (blob.store) {
                     case Some(s) => s.memoryCost()
                     case None => 0
                 }
-            }
             case AnyBlobKind.InternalBlob => internalBlob.memoryCost()
             case AnyBlobKind.WTFString => 0
         }
@@ -2767,12 +2703,11 @@ public class AnyBlob {
 
     public func hasOneRef(): Bool {
         match (kind) {
-            case AnyBlobKind.Blob => {
+            case AnyBlobKind.Blob =>
                 match (blob.store) {
                     case Some(s) => s.hasOneRef()
                     case None => false
                 }
-            }
             case _ => false
         }
     }
@@ -2787,7 +2722,7 @@ public class AnyBlob {
     public func fastSize(): BlobSizeType {
         match (kind) {
             case AnyBlobKind.Blob => blob.size
-            case AnyBlobKind.InternalBlob => Int64(internalBlob.bytes.length)
+            case AnyBlobKind.InternalBlob => Int64(internalBlob.bytes.size)
             case AnyBlobKind.WTFString => 0
         }
     }
@@ -2806,23 +2741,22 @@ public class AnyBlob {
     public func isDetached(): Bool {
         match (kind) {
             case AnyBlobKind.Blob => blob.isDetached()
-            case AnyBlobKind.InternalBlob => internalBlob.bytes.length == 0
+            case AnyBlobKind.InternalBlob => internalBlob.bytes.size == 0
             case AnyBlobKind.WTFString => true
         }
     }
 
     public func contentType(): String {
         match (kind) {
-            case AnyBlobKind.Blob => {
+            case AnyBlobKind.Blob =>
                 let ct = blob.contentType
-                if (ct.length > 0) {
+                if (ct.size > 0) {
                     return ct
                 }
                 match (blob.store) {
                     case Some(s) => s.mimeType
                     case None => ""
                 }
-            }
             case AnyBlobKind.InternalBlob => internalBlob.contentType()
             case AnyBlobKind.WTFString => "text/plain;charset=utf-8"
         }
@@ -2830,12 +2764,11 @@ public class AnyBlob {
 
     public func wasString(): Bool {
         match (kind) {
-            case AnyBlobKind.Blob => {
+            case AnyBlobKind.Blob =>
                 match (blob.charset) {
                     case CharsetKind.ascii => true
                     case _ => false
                 }
-            }
             case AnyBlobKind.WTFString => true
             case AnyBlobKind.InternalBlob => internalBlob.wasString
         }
@@ -2865,12 +2798,10 @@ public class AnyBlob {
 
     public func detach(): Unit {
         match (kind) {
-            case AnyBlobKind.Blob => {
+            case AnyBlobKind.Blob =>
                 blob.detach()
-            }
-            case AnyBlobKind.InternalBlob => {
+            case AnyBlobKind.InternalBlob =>
                 internalBlob.clear()
-            }
             case AnyBlobKind.WTFString => ()
         }
     }
@@ -2881,10 +2812,9 @@ public class AnyBlob {
         }
         match (kind) {
             case AnyBlobKind.Blob => return blob.dupe()
-            case AnyBlobKind.InternalBlob => {
+            case AnyBlobKind.InternalBlob =>
                 let b = Blob.create(internalBlob.toOwnedSlice(), global: global, wasString: internalBlob.wasString)
                 return b
-            }
             case AnyBlobKind.WTFString => return Blob.initEmpty(global)
         }
     }
@@ -2892,11 +2822,10 @@ public class AnyBlob {
     public func toString(global: JsGlobalObject, lifetime: BlobLifetime): JsValue {
         match (kind) {
             case AnyBlobKind.Blob => blob.toStringWithLifetime(global, lifetime: lifetime)
-            case AnyBlobKind.InternalBlob => {
+            case AnyBlobKind.InternalBlob =>
                 let text = internalBlob.toString()
                 internalBlob.clear()
                 JsValue(BaoString(text))
-            }
             case AnyBlobKind.WTFString => JsValue(BaoString(""))
         }
     }
@@ -2904,11 +2833,10 @@ public class AnyBlob {
     public func toArrayBuffer(global: JsGlobalObject, lifetime: BlobLifetime): JsValue {
         match (kind) {
             case AnyBlobKind.Blob => blob.toArrayBufferWithLifetime(global, lifetime: lifetime)
-            case AnyBlobKind.InternalBlob => {
+            case AnyBlobKind.InternalBlob =>
                 let bytes = internalBlob.toOwnedSlice()
                 internalBlob.clear()
                 JsValue.fromArrayBuffer(global, bytes)
-            }
             case AnyBlobKind.WTFString => JsValue.fromArrayBuffer(global, Array<UInt8>())
         }
     }
@@ -2916,11 +2844,10 @@ public class AnyBlob {
     public func toJSON(global: JsGlobalObject, lifetime: BlobLifetime): JsValue {
         match (kind) {
             case AnyBlobKind.Blob => blob.toJSONWithLifetime(global, lifetime: lifetime)
-            case AnyBlobKind.InternalBlob => {
+            case AnyBlobKind.InternalBlob =>
                 let text = internalBlob.toString()
                 internalBlob.clear()
                 JsValue(BaoString(text))
-            }
             case AnyBlobKind.WTFString => JsValue(BaoString("null"))
         }
     }
@@ -2931,10 +2858,9 @@ public class AnyBlob {
         match (action) {
             case BufferActionTag.Text => toString(global, lifetime: BlobLifetime.Clone)
             case BufferActionTag.Bytes => toArrayBuffer(global, lifetime: BlobLifetime.Transfer)
-            case BufferActionTag.Blob => {
+            case BufferActionTag.Blob =>
                 let b = toBlob(global)
                 return b.toJsValue(global)
-            }
             case BufferActionTag.ArrayBuffer => toArrayBuffer(global, lifetime: BlobLifetime.Transfer)
             case BufferActionTag.Json => toJSON(global, lifetime: BlobLifetime.Share)
         }
@@ -3088,14 +3014,12 @@ public func formatSize(bytes: Int64): String {
 /// Corresponds to: Bun: validate_writable_blob
 public func validateWritableBlob(global: JsGlobalObject, blob: Blob): ?JsValue {
     match (blob.store) {
-        case None => {
+        case None =>
             return JsPromise.reject(global, JsValue(BaoString("Cannot write to a detached Blob")))
-        }
-        case Some(s) => {
+        case Some(s) =>
             if (s.kind == BlobStoreKind.Memory) {
                 return JsPromise.reject(global, JsValue(BaoString("Cannot write to a Blob backed by bytes, which are always read-only")))
             }
-        }
     }
     return None
 }
@@ -3107,7 +3031,7 @@ func mkdirRecursive(path: String): SysMaybe<Unit> {
         case SysMaybe<Unit>.Ok(_) => SysMaybe<Unit>.Ok(())
         case SysMaybe<Unit>.Err(_) =>
             let parentDir = Path.dirname(path)
-            if (parentDir.length == 0 || parentDir == path) {
+            if (parentDir.size == 0 || parentDir == path) {
                 return SysMaybe<Unit>.Err(SysError(0, SysTag.Mkdir))
             }
             let parentResult = mkdirRecursive(parentDir)
@@ -3124,7 +3048,7 @@ public func mkdirIfNotExists(path: String, errno: Int64, mkdirp: Bool): Retry {
     // 对应 Bun mkdir_if_not_exists: ENOENT + mkdirp => recursive mkdir on parent
     if (errno == 2 && mkdirp) {  // ENOENT
         let parentDir = Path.dirname(path)
-        if (parentDir.length > 0) {
+        if (parentDir.size > 0) {
             let result = mkdirRecursive(parentDir)
             match (result) {
                 case SysMaybe<Unit>.Ok(_) => return Retry.Continue
@@ -3160,7 +3084,7 @@ func resolveFileStat(store: BlobStore): Unit {
         }
         return
     }
-    if (store.filePath.length == 0) {
+    if (store.filePath.size == 0) {
         return
     }
     // stat via FFI
@@ -3280,7 +3204,7 @@ public class ToUint8ArrayWithBytesFn <: ReadFileToJs {
 public class ToFormDataWithBytesFn <: ReadFileToJs {
     public func call(blob: Blob, global: JsGlobalObject, bytes: Array<UInt8>, lifetime: BlobLifetime): JsValue {
         let encoding = blob.getFormDataEncoding()
-        if (encoding == None) {
+        if (encoding.isNone()) {
             return JsValue()
         }
         return JsValue()
@@ -3329,52 +3253,46 @@ public class FormDataContext {
         appendBytes(Utf8Codec.encode(name))
 
         match (entry) {
-            case FormDataEntry.String(value) => {
+            case FormDataEntry.String(value) =>
                 appendStatic("\"\r\n\r\n")
                 appendBytes(Utf8Codec.encode(value))
-            }
-            case FormDataEntry.File(blob, filename) => {
+            case FormDataEntry.File(blob, filename) =>
                 appendStatic("\"; filename=\"")
                 appendBytes(Utf8Codec.encode(filename))
                 appendStatic("\"\r\n")
 
                 let ct = blob.contentType
-                let contentType = if (ct.length > 0) { ct } else { "application/octet-stream" }
+                let contentType = if (ct.size > 0) { ct } else { "application/octet-stream" }
                 appendStatic("Content-Type: ")
                 appendBytes(Utf8Codec.encode(contentType))
                 appendStatic("\r\n\r\n")
 
                 // Append blob data
                 match (blob.store) {
-                    case Some(s) => {
+                    case Some(s) =>
                         match (s.kind) {
-                            case BlobStoreKind.Memory => {
+                            case BlobStoreKind.Memory =>
                                 appendBytes(blob.sharedView())
-                            }
-                            case BlobStoreKind.File => {
+                            case BlobStoreKind.File =>
                                 // 对应 Bun FormData file read: read file bytes synchronously
                                 let view = blob.sharedView()
-                                if (view.length > 0) {
+                                if (view.size > 0) {
                                     appendBytes(view)
                                 } else {
                                     let fileBytes = blob.readFileBytes()
-                                    if (fileBytes.length > 0) {
+                                    if (fileBytes.size > 0) {
                                         appendBytes(fileBytes)
                                     }
                                 }
-                            }
-                            case BlobStoreKind.S3 => {
+                            case BlobStoreKind.S3 =>
                                 // 对应 Bun FormData S3: download and append bytes
                                 let view = blob.sharedView()
-                                if (view.length > 0) {
+                                if (view.size > 0) {
                                     appendBytes(view)
                                 }
-                            }
                         }
-                    }
                     case None => ()
                 }
-            }
         }
 
         appendStatic("\r\n")
@@ -3440,7 +3358,7 @@ public class StructuredCloneWriter {
         for (b in bytes) {
             buffer.append(b)
         }
-        return Int64(bytes.length)
+        return Int64(bytes.size)
     }
 
     /// Write all bytes
@@ -3484,7 +3402,7 @@ public class TemporaryBytes {
 // ============================================================================
 public func onFileStreamResolveRequestStream(global: JsGlobalObject, wrapper: FileStreamWrapper): JsValue {
     let stream = wrapper.readableStreamRef
-    if (stream != None) {
+    if (stream.isSome()) {
         stream.done(global)
     }
     wrapper.promise.resolve(global, JsValue(Float64(0.0)))
@@ -3498,7 +3416,7 @@ public func onFileStreamResolveRequestStream(global: JsGlobalObject, wrapper: Fi
 public func onFileStreamRejectRequestStream(global: JsGlobalObject, wrapper: FileStreamWrapper, err: JsValue): JsValue {
     wrapper.promise.reject(global, err)
     let stream = wrapper.readableStreamRef
-    if (stream != None) {
+    if (stream.isSome()) {
         stream.cancel(global)
     }
     return JsValue()
@@ -3514,7 +3432,7 @@ public func writeStringToFileFast(global: JsGlobalObject, pathlike: PathOrFileDe
     let writeResult = writePathOrFd(pathlike, bytes, needsOpen)
     match (writeResult) {
         case SysMaybe<Unit>.Ok(_) =>
-            return JsPromise.resolve(global, JsValue(Float64(Int64(bytes.length))))
+            return JsPromise.resolve(global, JsValue(Float64(Int64(bytes.size))))
         case SysMaybe<Unit>.Err(e) =>
             return JsPromise.reject(global, JsValue(BaoString("Failed to write file: ${e}")))
     }
@@ -3529,7 +3447,7 @@ public func writeBytesToFileFast(global: JsGlobalObject, pathlike: PathOrFileDes
     let writeResult = writePathOrFd(pathlike, bytes, needsOpen)
     match (writeResult) {
         case SysMaybe<Unit>.Ok(_) =>
-            return JsPromise.resolve(global, JsValue(Float64(Int64(bytes.length))))
+            return JsPromise.resolve(global, JsValue(Float64(Int64(bytes.size))))
         case SysMaybe<Unit>.Err(e) =>
             return JsPromise.reject(global, JsValue(BaoString("Failed to write file: ${e}")))
     }
@@ -3581,7 +3499,7 @@ public func blobDupe(blob: Blob): Blob {
 /// Corresponds to: Bun: Blob__dupeFromJS
 public func blobDupeFromJs(global: JsGlobalObject, value: JsValue): ?Blob {
     let blob = Blob.fromJs(global, arg: value)
-    if (blob == None) {
+    if (blob.isNone()) {
         return None
     }
     return Some(blobDupe(blob.getOrThrow()))
@@ -3592,11 +3510,10 @@ public func blobDupeFromJs(global: JsGlobalObject, value: JsValue): ?Blob {
 public func blobSetAsFile(blob: Blob, pathStr: String): Unit {
     blob.isJsdomFile = true
     match (blob.store) {
-        case Some(s) => {
-            if (s.kind == BlobStoreKind.Memory && s.storedName.length == 0) {
+        case Some(s) =>
+            if (s.kind == BlobStoreKind.Memory && s.storedName.size == 0) {
                 s.storedName = pathStr
             }
-        }
         case None => ()
     }
 }
@@ -3605,7 +3522,7 @@ public func blobSetAsFile(blob: Blob, pathStr: String): Unit {
 /// Corresponds to: Bun: Blob__getFileNameString
 public func blobGetFileNameString(blob: Blob): String {
     let name = blob.getFileName()
-    if (name != None) {
+    if (name.isSome()) {
         return name.getOrThrow()
     }
     return ""
@@ -3615,11 +3532,11 @@ public func blobGetFileNameString(blob: Blob): String {
 /// Corresponds to: Bun: Blob__getDataPtr
 public func blobGetDataPtr(global: JsGlobalObject, value: JsValue): ?Array<UInt8> {
     let blob = Blob.fromJs(global, arg: value)
-    if (blob == None) {
+    if (blob.isNone()) {
         return None
     }
     let data = blob.getOrThrow().sharedView()
-    if (data.length == 0) {
+    if (data.size == 0) {
         return None
     }
     return Some(data)
@@ -3629,16 +3546,16 @@ public func blobGetDataPtr(global: JsGlobalObject, value: JsValue): ?Array<UInt8
 /// Corresponds to: Bun: Blob__getSize
 public func blobGetSize(global: JsGlobalObject, value: JsValue): Int64 {
     let blob = Blob.fromJs(global, arg: value)
-    if (blob == None) {
+    if (blob.isNone()) {
         return 0
     }
-    return Int64(blob.getOrThrow().sharedView().length)
+    return Int64(blob.getOrThrow().sharedView().size)
 }
 
 /// Blob__fromBytes — create Blob from raw bytes
 /// Corresponds to: Bun: Blob__fromBytes
 public func blobFromBytes(global: JsGlobalObject, bytes: Array<UInt8>): Blob {
-    if (bytes.length == 0) {
+    if (bytes.size == 0) {
         return Blob.initEmpty(global)
     }
     let store = BlobStore(bytes)
@@ -3649,7 +3566,7 @@ public func blobFromBytes(global: JsGlobalObject, bytes: Array<UInt8>): Blob {
 /// Corresponds to: Bun: Blob__fromBytesWithType
 public func blobFromBytesWithType(global: JsGlobalObject, bytes: Array<UInt8>, mime: String): Blob {
     let blob = blobFromBytes(global, bytes: bytes)
-    if (mime.length > 0) {
+    if (mime.size > 0) {
         blob.contentType = mime
         blob.contentTypeWasSet = true
     }
@@ -3690,7 +3607,7 @@ public func writeFloatLE(value: Float64, writer: ArrayList<UInt8>): Unit {
 }
 
 public func readFloatLE(data: Array<UInt8>, offset: Int64): Float64 {
-    if (offset + 8 > Int64(data.length)) {
+    if (offset + 8 > Int64(data.size)) {
         return 0.0
     }
     return Float64.fromByteArray(data[offset..(offset + 8)])
@@ -3701,7 +3618,7 @@ public func readFloatLE(data: Array<UInt8>, offset: Int64): Float64 {
 // Corresponds to: Bun: read_slice
 // ============================================================================
 public func readSlice(data: Array<UInt8>, offset: Int64, len: Int64): ?Array<UInt8> {
-    if (offset + len > Int64(data.length)) {
+    if (offset + len > Int64(data.size)) {
         return None
     }
     return Some(data[offset..(offset + len)])
@@ -3712,21 +3629,21 @@ public func readSlice(data: Array<UInt8>, offset: Int64, len: Int64): ?Array<UIn
 // Corresponds to: Bun: read_int_le
 // ============================================================================
 public func readInt8(data: Array<UInt8>, offset: Int64): ?UInt8 {
-    if (offset >= Int64(data.length)) {
+    if (offset >= Int64(data.size)) {
         return None
     }
     return Some(data[offset])
 }
 
 public func readInt32LE(data: Array<UInt8>, offset: Int64): ?Int32 {
-    if (offset + 4 > Int64(data.length)) {
+    if (offset + 4 > Int64(data.size)) {
         return None
     }
     return Some(Int32(data[offset]) | (Int32(data[offset + 1]) << 8) | (Int32(data[offset + 2]) << 16) | (Int32(data[offset + 3]) << 24))
 }
 
 public func readInt64LE(data: Array<UInt8>, offset: Int64): ?Int64 {
-    if (offset + 8 > Int64(data.length)) {
+    if (offset + 8 > Int64(data.size)) {
         return None
     }
     return Some(Int64(data[offset]) | (Int64(data[offset + 1]) << 8) | (Int64(data[offset + 2]) << 16) | (Int64(data[offset + 3]) << 24) | (Int64(data[offset + 4]) << 32) | (Int64(data[offset + 5]) << 40) | (Int64(data[offset + 6]) << 48) | (Int64(data[offset + 7]) << 56))

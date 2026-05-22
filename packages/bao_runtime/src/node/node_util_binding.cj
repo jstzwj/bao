@@ -100,7 +100,7 @@ public class InternalErrorName {
         errorMap.put(-84, "ELIBMAX")
 
         let found = errorMap.get(errInt)
-        if (found != None) {
+        if (found.isSome()) {
             return found.getOrThrow()
         }
 
@@ -137,7 +137,7 @@ public class ParseEnv {
                 continue
             }
             let eqIdx = trimmed.indexOf('=')
-            if (eqIdx != None) {
+            if (eqIdx.isSome()) {
                 let idx = eqIdx.getOrThrow()
                 let key = trimmed.substring(0, idx).trimAscii()
                 var value = trimmed.substring(idx + 1, trimmed.size).trimAscii()

@@ -5,24 +5,47 @@
 
 package bao_runtime.bake
 
-import bao_bun_alloc.*
+import bao_bun_alloc.Allocator
+import bao_bundler.Define
+import bao_bundler.DefineData
+import bao_bundler.Log
+import bao_bundler.Source
+import bao_bundler.Transpiler
+import bao_bundler.Plugin
+import bao_bundler.BundleV2
+import bao_bundler.Arena
+import bao_bundler.Resolver
+import bao_bundler.SourceMapOption
 import bao_collections.*
-import bao_core.*
-import bao_jsc.*
-import bao_options as bun_schema
+import bao_core.Output
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
+import bao_jsc.JsObject
+import bao_jsc.JsString
+import bao_jsc.JsArray
+import bao_jsc.JsFunction
+import bao_jsc.JsError
+import bao_jsc.Strong
+import bao_jsc.ZigStringSlice
+import bao_jsc.CallFrame
+import bao_jsc.HostFunction
+import bao_jsc.JSFunction
+import bao_options.LoaderMap
+import bao_options.DotEnvBehavior
+import bao_options.SourceMapMode
 import bao_path.*
 
 // ============================================================================
-// 辅助函数 — JSValue 属性读取
+// 辅助函数 — JsValue 属性读取
 // 对应 Bun: bake_body.rs 中的 get_optional_slice / get_boolean_strict 等
 // ============================================================================
 
-/// JSValue.getOptional(ZigString.Slice, ..) — 本地 shim。
+/// JsValue.getOptional(ZigString.Slice, ..) — 本地 shim。
 /// 对于缺失/null/undefined 返回 None。
 public func getOptionalSlice(
-    target: JSValue,
+    target: JsValue,
     global: JSGlobalObject,
-    property: String,
+    property: String
 ): ?ZigStringSlice {
     let v = target.get(global, property)
     if (v.isUndefinedOrNull()) {
@@ -31,12 +54,12 @@ public func getOptionalSlice(
     return v.toSlice(global)
 }
 
-/// JSValue.getBooleanStrict — 本地 shim。
+/// JsValue.getBooleanStrict — 本地 shim。
 /// 仅当值是布尔类型时返回 Some。
 public func getBooleanStrict(
-    target: JSValue,
+    target: JsValue,
     global: JSGlobalObject,
-    property: String,
+    property: String
 ): ?Bool {
     let v = target.get(global, property)
     if (v.isBoolean()) {
@@ -45,12 +68,12 @@ public func getBooleanStrict(
     return None
 }
 
-/// JSValue.getBooleanLoose — 本地 shim。
+/// JsValue.getBooleanLoose — 本地 shim。
 /// 对于非 undefined/null 值进行宽松布尔转换。
 public func getBooleanLoose(
-    target: JSValue,
+    target: JsValue,
     global: JSGlobalObject,
-    property: String,
+    property: String
 ): ?Bool {
     let v = target.get(global, property)
     if (v.isUndefinedOrNull()) {
@@ -59,12 +82,12 @@ public func getBooleanLoose(
     return Some(v.toBoolean())
 }
 
-/// JSValue.getOptional(JSValue, ..) — 本地 shim: 过滤 undefined/null。
+/// JsValue.getOptional(JsValue, ..) — 本地 shim: 过滤 undefined/null。
 public func getOptionalValue(
-    target: JSValue,
+    target: JsValue,
     global: JSGlobalObject,
-    property: String,
-): ?JSValue {
+    property: String
+): ?JsValue {
     let v = target.get(global, property)
     if (v.isUndefinedOrNull()) {
         return None
@@ -72,13 +95,13 @@ public func getOptionalValue(
     return Some(v)
 }
 
-/// JSValue.getFunction — 本地 shim。
+/// JsValue.getFunction — 本地 shim。
 /// 仅当值是可调用函数时返回 Some。
 public func getFunction(
-    target: JSValue,
+    target: JsValue,
     global: JSGlobalObject,
-    property: String,
-): ?JSValue {
+    property: String
+): ?JsValue {
     let v = target.get(global, property)
     if (v.isCallable()) {
         return Some(v)
@@ -103,7 +126,7 @@ public func arenaErase<T>(r: T): T {
 /// arena.dupeZ(u8, bytes) — 将 bytes + 尾部 NUL 复制到 bump arena。
 /// 返回 arena 拥有的字符串。
 public func arenaDupeZ(arena: Arena, bytes: String): String {
-    return arena.dupe(bytes) + "\x00"
+    return arena.dupe(bytes) + "\0"
 }
 
 // ============================================================================
@@ -112,7 +135,7 @@ public func arenaDupeZ(arena: Arena, bytes: String): String {
 // ============================================================================
 
 /// UserOptions 的扩展方法 — 从 JS 值构建配置
-public func userOptionsFromJs(config: JSValue, global: JSGlobalObject): ?UserOptions {
+public func userOptionsFromJs(config: JsValue, global: JSGlobalObject): ?UserOptions {
     let arena = Arena.new()
 
     var allocations = StringRefList.empty
@@ -145,14 +168,14 @@ public func userOptionsFromJs(config: JSValue, global: JSGlobalObject): ?UserOpt
     }
 
     // 解析 bundlerOptions
-    if (let Some(jsOptions) = getOptionalValue(config, global, "bundlerOptions")) {
-        if (let Some(serverOptions) = getOptionalValue(jsOptions, global, "server")) {
+    if (let Some(jsOptions) <- getOptionalValue(config, global, "bundlerOptions")) {
+        if (let Some(serverOptions) <- getOptionalValue(jsOptions, global, "server")) {
             bundlerOptions.server = buildConfigSubsetFromJs(global, serverOptions)
         }
-        if (let Some(clientOptions) = getOptionalValue(jsOptions, global, "client")) {
+        if (let Some(clientOptions) <- getOptionalValue(jsOptions, global, "client")) {
             bundlerOptions.client = buildConfigSubsetFromJs(global, clientOptions)
         }
-        if (let Some(ssrOptions) = getOptionalValue(jsOptions, global, "ssr")) {
+        if (let Some(ssrOptions) <- getOptionalValue(jsOptions, global, "ssr")) {
             bundlerOptions.ssr = buildConfigSubsetFromJs(global, ssrOptions)
         }
     }
@@ -170,14 +193,14 @@ public func userOptionsFromJs(config: JSValue, global: JSGlobalObject): ?UserOpt
 
     // 解析 root
     var root: String = ""
-    if (let Some(slice) = getOptionalSlice(config, global, "root")) {
+    if (let Some(slice) <- getOptionalSlice(config, global, "root")) {
         root = allocations.track(slice)
     } else {
         root = arenaDupeZ(arena, getCwd())
     }
 
     // 解析 plugins
-    if (let Some(pluginArray) = config.get(global, "plugins")) {
+    if (let Some(pluginArray) <- config.get(global, "plugins")) {
         if (!pluginArray.isUndefinedOrNull()) {
             parsePluginArray(bundlerOptions, pluginArray, global)
         }
@@ -202,24 +225,24 @@ public func userOptionsFromJs(config: JSValue, global: JSGlobalObject): ?UserOpt
 /// 解析插件数组
 public func parsePluginArray(
     opts: SplitBundlerOptions,
-    pluginArray: JSValue,
-    global: JSGlobalObject,
+    pluginArray: JsValue,
+    global: JSGlobalObject
 ): Bool {
     // 创建 Plugin 并在遍历前分配
     if (opts.plugin.isNone()) {
         opts.plugin = Plugin.create(global, BunPluginTarget.bun)
     }
 
-    let emptyObject = JSValue.createEmptyObject(global, 0)
+    let emptyObject = JsValue.createEmptyObject(global, 0)
     var iter = pluginArray.arrayIterator(global)
 
-    while (let Some(pluginConfig) = iter.next()) {
+    while (let Some(pluginConfig) <- iter.next()) {
         if (!pluginConfig.isObject()) {
             return false
         }
 
         // 验证 name
-        if (let Some(slice) = getOptionalSlice(pluginConfig, global, "name")) {
+        if (let Some(slice) <- getOptionalSlice(pluginConfig, global, "name")) {
             if (slice.slice().isEmpty()) {
                 return false
             }
@@ -237,18 +260,18 @@ public func parsePluginArray(
         let pluginResult = opts.plugin.addPlugin(
             function,
             emptyObject,
-            JSValue.null,
+            JsValue.null,
             false,
             true,
         )
 
-        if (let Some(promise) = pluginResult.asAnyPromise()) {
+        if (let Some(promise) <- pluginResult.asAnyPromise()) {
             promise.setHandled(global.vm())
             global.bunVm().waitForPromise(promise)
             match (promise.unwrap(global.vm(), PromiseUnwrapMode.markHandled)) {
-                | pending => return false
-                | fulfilled(_) => ()
-                | rejected(err) => return false
+                case pending => return false
+                case fulfilled(_) => ()
+                case rejected(err) => return false
             }
         }
     }
@@ -261,30 +284,30 @@ public func parsePluginArray(
 // ============================================================================
 
 /// 从 JS 值构建 BuildConfigSubset
-public func buildConfigSubsetFromJs(global: JSGlobalObject, jsOptions: JSValue): BuildConfigSubset {
+public func buildConfigSubsetFromJs(global: JSGlobalObject, jsOptions: JsValue): BuildConfigSubset {
     var options = BuildConfigSubset()
 
     // 解析 sourcemap
-    if (let Some(val) = getOptionalValue(jsOptions, global, "sourcemap")) {
-        if (let Some(sourcemap) = sourceMapModeFromJs(global, val)) {
+    if (let Some(val) <- getOptionalValue(jsOptions, global, "sourcemap")) {
+        if (let Some(sourcemap) <- sourceMapModeFromJs(global, val)) {
             options.source_map = sourcemap
         }
     }
 
     // 解析 minify
-    if (let Some(minifyOptions) = getOptionalValue(jsOptions, global, "minify")) {
+    if (let Some(minifyOptions) <- getOptionalValue(jsOptions, global, "minify")) {
         if (minifyOptions.isBoolean() && minifyOptions.asBoolean()) {
             options.minify_syntax = Some(minifyOptions.asBoolean())
             options.minify_identifiers = Some(minifyOptions.asBoolean())
             options.minify_whitespace = Some(minifyOptions.asBoolean())
         } else {
-            if (let Some(value) = getBooleanLoose(minifyOptions, global, "whitespace")) {
+            if (let Some(value) <- getBooleanLoose(minifyOptions, global, "whitespace")) {
                 options.minify_whitespace = Some(value)
             }
-            if (let Some(value) = getBooleanLoose(minifyOptions, global, "syntax")) {
+            if (let Some(value) <- getBooleanLoose(minifyOptions, global, "syntax")) {
                 options.minify_syntax = Some(value)
             }
-            if (let Some(value) = getBooleanLoose(minifyOptions, global, "identifiers")) {
+            if (let Some(value) <- getBooleanLoose(minifyOptions, global, "identifiers")) {
                 options.minify_identifiers = Some(value)
             }
         }
@@ -314,7 +337,7 @@ public func frameworkReact(arena: Arena): Framework {
                 extensions: [".tsx", ".jsx"],
                 style: FrameworkRouterStyle.nextjsPages,
                 allow_layouts: true,
-            ),
+            )
         ],
         server_components: Some(ServerComponents(
             separate_ssr_graph: true,
@@ -324,7 +347,7 @@ public func frameworkReact(arena: Arena): Framework {
         built_in_modules: StringArrayHashMap<BuiltInModule>.fromEntries([
             ("bun-framework-react/client.tsx", BuiltInModule.code(bunFrameworkReactClientSource)),
             ("bun-framework-react/server.tsx", BuiltInModule.code(bunFrameworkReactServerSource)),
-            ("bun-framework-react/ssr.tsx", BuiltInModule.code(bunFrameworkReactSsrSource)),
+            ("bun-framework-react/ssr.tsx", BuiltInModule.code(bunFrameworkReactSsrSource))
         ]),
     )
 }
@@ -343,7 +366,7 @@ public func runtimeEmbedFileCodegen(path: String): String {
 public func frameworkAuto(
     arena: Arena,
     resolver: Resolver,
-    fileSystemRouterTypes: Array<FileSystemRouterType>,
+    fileSystemRouterTypes: Array<FileSystemRouterType>
 ): Framework {
     var fw = frameworkNone()
 
@@ -352,7 +375,7 @@ public func frameworkAuto(
         fw.file_system_router_types = fileSystemRouterTypes
     }
 
-    if (let Some(rfr) = resolveOrNull(resolver, "react-refresh/runtime")) {
+    if (let Some(rfr) <- resolveOrNull(resolver, "react-refresh/runtime")) {
         fw.react_fast_refresh = Some(ReactFastRefresh(import_source: rfr))
     } else if (resolveOrNull(resolver, "react").isSome()) {
         fw.react_fast_refresh = Some(ReactFastRefresh(
@@ -391,11 +414,11 @@ public func frameworkClone(self: Framework): Framework {
 
 /// 从 JS 值解析 Framework
 public func frameworkFromJs(
-    opts: JSValue,
+    opts: JsValue,
     global: JSGlobalObject,
     refs: StringRefList,
     bundlerOptions: SplitBundlerOptions,
-    arena: Arena,
+    arena: Arena
 ): ?Framework {
     // 字符串简写
     if (opts.isString()) {
@@ -417,13 +440,13 @@ public func frameworkFromJs(
 
     // 解析 reactFastRefresh
     var reactFastRefresh: ?ReactFastRefresh = None
-    if (let Some(rfr) = opts.get(global, "reactFastRefresh")) {
+    if (let Some(rfr) <- opts.get(global, "reactFastRefresh")) {
         if (!rfr.isUndefinedOrNull()) {
-            if (rfr == JSValue.true) {
+            if (rfr == JsValue.jsTrue()) {
                 reactFastRefresh = Some(ReactFastRefresh())
             } else if (rfr.isObject()) {
-                if (let Some(prop) = rfr.get(global, "importSource")) {
-                    let str = prop.toBunString(global)
+                if (let Some(propVal) <- rfr.get(global, "importSource")) {
+                    let str = propVal.toBunString(global)
                     reactFastRefresh = Some(ReactFastRefresh(
                         import_source: refs.track(str.toUtf8()),
                     ))
@@ -434,21 +457,21 @@ public func frameworkFromJs(
 
     // 解析 serverComponents
     var serverComponents: ?ServerComponents = None
-    if (let Some(sc) = opts.get(global, "serverComponents")) {
-        if (!sc.isUndefinedOrNull() && sc != JSValue.false) {
+    if (let Some(sc) <- opts.get(global, "serverComponents")) {
+        if (!sc.isUndefinedOrNull() && sc != JsValue.jsFalse()) {
             if (sc.isObject()) {
                 var separateSsrGraph: Bool = false
-                if (let Some(prop) = getOptionalValue(sc, global, "separateSSRGraph")) {
-                    separateSsrGraph = (prop == JSValue.true)
+                if (let Some(propVal) <- getOptionalValue(sc, global, "separateSSRGraph")) {
+                    separateSsrGraph = (propVal == JsValue.jsTrue())
                 }
 
                 var serverRuntimeImport: String = ""
-                if (let Some(slice) = getOptionalSlice(sc, global, "serverRuntimeImportSource")) {
+                if (let Some(slice) <- getOptionalSlice(sc, global, "serverRuntimeImportSource")) {
                     serverRuntimeImport = refs.track(slice)
                 }
 
                 var serverRegisterClientReference: String = "registerClientReference"
-                if (let Some(slice) = getOptionalSlice(sc, global, "serverRegisterClientReferenceExport")) {
+                if (let Some(slice) <- getOptionalSlice(sc, global, "serverRegisterClientReferenceExport")) {
                     serverRegisterClientReference = refs.track(slice)
                 }
 
@@ -463,11 +486,11 @@ public func frameworkFromJs(
 
     // 解析 builtInModules
     var builtInModules = StringArrayHashMap<BuiltInModule>()
-    if (let Some(array) = opts.getArray(global, "builtInModules")) {
+    if (let Some(array) <- opts.getArray(global, "builtInModules")) {
         let len = array.getLength(global)
         var it = array.arrayIterator(global)
         var i: Int64 = 0
-        while (let Some(file) = it.next()) {
+        while (let Some(file) <- it.next()) {
             if (!file.isObject()) {
                 return None
             }
@@ -477,9 +500,9 @@ public func frameworkFromJs(
                 return None
             }
 
-            if (let Some(str) = getOptionalString(file, global, "path", refs, arena)) {
+            if (let Some(str) <- getOptionalString(file, global, "path", refs, arena)) {
                 builtInModules.put(path, BuiltInModule.`import`(str))
-            } else if (let Some(str) = getOptionalString(file, global, "code", refs, arena)) {
+            } else if (let Some(str) <- getOptionalString(file, global, "code", refs, arena)) {
                 builtInModules.put(path, BuiltInModule.code(str))
             } else {
                 return None
@@ -490,7 +513,7 @@ public func frameworkFromJs(
 
     // 解析 fileSystemRouterTypes
     var fileSystemRouterTypes: Array<FileSystemRouterType> = []
-    if (let Some(array) = opts.getArray(global, "fileSystemRouterTypes")) {
+    if (let Some(array) <- opts.getArray(global, "fileSystemRouterTypes")) {
         let len = array.getLength(global)
         if (len > 256) {
             return None
@@ -498,7 +521,7 @@ public func frameworkFromJs(
 
         var it = array.arrayIterator(global)
         var i: Int64 = 0
-        while (let Some(fsrOpts) = it.next()) {
+        while (let Some(fsrOpts) <- it.next()) {
             let root = getOptionalString(fsrOpts, global, "root", refs, arena)
             if (root.isNone()) {
                 return None
@@ -521,7 +544,7 @@ public func frameworkFromJs(
 
             // 解析 extensions
             var extensions: Array<String> = [".jsx", ".tsx", ".js", ".ts", ".cjs", ".cts", ".mjs", ".mts"]
-            if (let Some(extsJs) = fsrOpts.get(global, "extensions")) {
+            if (let Some(extsJs) <- fsrOpts.get(global, "extensions")) {
                 if (extsJs.isString()) {
                     let slice = extsJs.toSlice(global)
                     if (slice == "*") {
@@ -530,7 +553,7 @@ public func frameworkFromJs(
                 } else if (extsJs.isArray()) {
                     extensions = []
                     var it2 = extsJs.arrayIterator(global)
-                    while (let Some(arrayItem) = it2.next()) {
+                    while (let Some(arrayItem) <- it2.next()) {
                         var ext = refs.track(arrayItem.toSlice(global))
                         if (ext == "*") {
                             return None
@@ -548,11 +571,11 @@ public func frameworkFromJs(
 
             // 解析 ignoreDirs
             var ignoreDirs: Array<String> = [".git", "node_modules"]
-            if (let Some(extsJs) = fsrOpts.get(global, "ignoreDirs")) {
+            if (let Some(extsJs) <- fsrOpts.get(global, "ignoreDirs")) {
                 if (extsJs.isArray()) {
                     ignoreDirs = []
                     var it2 = array.arrayIterator(global)
-                    while (let Some(arrayItem) = it2.next()) {
+                    while (let Some(arrayItem) <- it2.next()) {
                         ignoreDirs.append(refs.track(arrayItem.toSlice(global)))
                     }
                 }
@@ -574,7 +597,7 @@ public func frameworkFromJs(
     }
 
     // 解析 plugins
-    if (let Some(pluginArray) = getOptionalValue(opts, global, "plugins")) {
+    if (let Some(pluginArray) <- getOptionalValue(opts, global, "plugins")) {
         parsePluginArray(bundlerOptions, pluginArray, global)
     }
 
@@ -594,23 +617,23 @@ public func frameworkResolve(
     self: Framework,
     server: Resolver,
     client: Resolver,
-    arena: Arena,
+    arena: Arena
 ): ?Framework {
     var clone = frameworkClone(self)
     var hadErrors: Bool = false
 
-    if (let Some(rfr) = clone.react_fast_refresh) {
+    if (let Some(rfr) <- clone.react_fast_refresh) {
         resolveHelper(self, client, rfr.import_source, hadErrors, "react refresh runtime")
     }
 
-    if (let Some(sc) = clone.server_components) {
+    if (let Some(sc) <- clone.server_components) {
         resolveHelper(self, server, sc.server_runtime_import, hadErrors, "server components runtime")
     }
 
     for (fsr in clone.file_system_router_types) {
         let topLevelDir = FileSystem.get().topLevelDir
         fsr.root = paths.resolvePath.joinAbs(topLevelDir, fsr.root)
-        if (let Some(entryClient) = fsr.entry_client) {
+        if (let Some(entryClient) <- fsr.entry_client) {
             resolveHelper(self, client, entryClient, hadErrors, "client side entrypoint")
         }
         resolveHelper(self, client, fsr.entry_server, hadErrors, "server side entrypoint")
@@ -629,20 +652,20 @@ func resolveHelper(
     r: Resolver,
     path: String,
     hadErrors: Bool,
-    desc: String,
+    desc: String
 ): Unit {
-    if (let Some(module) = fw.built_in_modules.get(path)) {
+    if (let Some(module) <- fw.built_in_modules.get(path)) {
         match (module) {
-            | BuiltInModule.`import`(p) => path = p
-            | BuiltInModule.code(_) => ()
+            case BuiltInModule.`import`(p) => path = p
+            case BuiltInModule.code(_) => ()
         }
         return
     }
 
     let topLevelDir = FileSystem.get().topLevelDir
     match (r.resolve(topLevelDir, path, ImportKind.stmt)) {
-        | ok(res) => path = res.path.text
-        | err(err) =>
+        case ok(res) => path = res.path.text
+        case err(err) =>
             Output.err(err, "Failed to resolve '{}' for framework ({})", path, desc)
             hadErrors = true
     }
@@ -652,8 +675,8 @@ func resolveHelper(
 func resolveOrNull(r: Resolver, path: String): ?String {
     let topLevelDir = FileSystem.get().topLevelDir
     match (r.resolve(topLevelDir, path, ImportKind.stmt)) {
-        | ok(res) => Some(res.path.text)
-        | err(_) =>
+        case ok(res) => Some(res.path.text)
+        case err(_) =>
             r.log.reset()
             None
     }
@@ -661,11 +684,11 @@ func resolveOrNull(r: Resolver, path: String): ?String {
 
 /// 从 JS 值获取可选字符串
 func getOptionalString(
-    target: JSValue,
+    target: JsValue,
     global: JSGlobalObject,
     property: String,
     allocations: StringRefList,
-    arena: Arena,
+    arena: Arena
 ): ?String {
     let value = target.get(global, property)
     if (value.isUndefinedOrNull()) {
@@ -676,7 +699,7 @@ func getOptionalString(
 }
 
 /// 从 JS 值解析 FrameworkRouter.Style
-func styleFromJs(value: JSValue, global: JSGlobalObject): ?FrameworkRouterStyle {
+func styleFromJs(value: JsValue, global: JSGlobalObject): ?FrameworkRouterStyle {
     if (value.isUndefinedOrNull()) {
         return None
     }
@@ -696,11 +719,11 @@ public func frameworkInitTranspiler(
     log: Log,
     mode: Mode,
     renderer: Graph,
-    bundlerOptions: BuildConfigSubset,
+    bundlerOptions: BuildConfigSubset
 ): ?Transpiler {
     let sourceMap: SourceMapOption = match (mode) {
-        | development => SourceMapOption.external
-        | _ => SourceMapOption.none
+        case development => SourceMapOption.external
+        case _ => SourceMapOption.none
     }
 
     return frameworkInitTranspilerWithOptions(
@@ -721,9 +744,9 @@ public func frameworkInitTranspilerWithOptions(
     sourceMap: SourceMapOption,
     minifyWhitespace: ?Bool,
     minifySyntax: ?Bool,
-    minifyIdentifiers: ?Bool,
+    minifyIdentifiers: ?Bool
 ): ?Transpiler {
-    var out = Transpiler.init(arena, log, TransformOptions.default(), None)
+    var out = Transpiler(arena, log, TransformOptions.default(), None)
     if (out.isErr()) {
         return None
     }
@@ -731,14 +754,14 @@ public func frameworkInitTranspilerWithOptions(
 
     // 设置目标
     transpiler.options.target = match (renderer) {
-        | Graph.client => Target.browser
-        | Graph.server | Graph.ssr => Target.bun
+        case Graph.client => Target.browser
+        case Graph.server | Graph.ssr => Target.bun
     }
 
     // 设置 public_path
     transpiler.options.publicPath = match (renderer) {
-        | Graph.client => CLIENT_PREFIX
-        | Graph.server | Graph.ssr => ""
+        case Graph.client => CLIENT_PREFIX
+        case Graph.server | Graph.ssr => ""
     }
 
     transpiler.options.entryPoints = []
@@ -746,8 +769,8 @@ public func frameworkInitTranspilerWithOptions(
 
     // 设置输出格式
     transpiler.options.outputFormat = match (mode) {
-        | development => Format.internalBakeDev
-        | productionDynamic | productionStatic => Format.esm
+        case development => Format.internalBakeDev
+        case productionDynamic | productionStatic => Format.esm
     }
 
     transpiler.options.hotModuleReloading = (mode == Mode.development)
@@ -763,7 +786,7 @@ public func frameworkInitTranspilerWithOptions(
     transpiler.options.serverComponents = fw.server_components.isSome()
 
     // 条件
-    transpiler.options.conditions = ESMConditions.init(
+    transpiler.options.conditions = ESMConditions(
         transpiler.options.target.defaultConditions(),
         transpiler.options.target.isServerSide(),
         bundlerOptions.conditions.keys(),
@@ -789,7 +812,7 @@ public func frameworkInitTranspilerWithOptions(
     transpiler.options.cssChunking = true
     transpiler.options.inlineEntrypointImportMetaMain = true
 
-    if (let Some(ignore) = bundlerOptions.ignoreDCEAnnotations) {
+    if (let Some(ignore) <- bundlerOptions.ignoreDCEAnnotations) {
         transpiler.options.ignoreDCEAnnotations = ignore
     }
 
@@ -808,13 +831,13 @@ public func frameworkInitTranspilerWithOptions(
 
     // 添加 import.meta 定义
     let side = match (renderer) {
-        | Graph.client => Side.client
-        | Graph.server | Graph.ssr => Side.server
+        case Graph.client => Side.client
+        case Graph.server | Graph.ssr => Side.server
     }
     addImportMetaDefines(arena, transpiler.options.define, mode, side)
 
     // 自定义 define
-    if (bundlerOptions.define.keys.length + bundlerOptions.drop.count() > 0) {
+    if (bundlerOptions.define.keys.size + bundlerOptions.drop.count() > 0) {
         for ((k, v) in bundlerOptions.define.keys.zip(bundlerOptions.define.values)) {
             let parsed = DefineData.parse(k, v, false, false, log, arena)
             transpiler.options.define.insert(k, parsed)
@@ -850,7 +873,7 @@ public func serverVirtualSource(): Source {
             pretty: "bun:bake/server",
             text: "_bun/bake/server",
             namespace: "bun",
-            name: PathName.init("bake/server"),
+            name: PathName("bake/server"),
             isSymlink: true,
             isDisabled: false,
         ),
@@ -866,7 +889,7 @@ public func clientVirtualSource(): Source {
             pretty: "bun:bake/client",
             text: "_bun/bake/client",
             namespace: "bun",
-            name: PathName.init("bake/client"),
+            name: PathName("bake/client"),
             isSymlink: true,
             isDisabled: false,
         ),
@@ -884,8 +907,9 @@ public func clientVirtualSource(): Source {
 /// 保持 src/bundler_jsc/ 不包含 JSC 类型
 public func sourceMapModeFromJs(global: JSGlobalObject, value: JsValue): ?SourceMapMode {
     if (value.isString()) {
-        let str = try value.toSliceOrNull(global)
-        defer str.deinit()
+        let strOpt = value.toSliceOrNull(global)
+        if (strOpt.isNone()) { return None }
+        let str = strOpt.getOrThrow()
         let utf8 = str.slice()
         if (strings.eqlComptime(utf8, "none")) {
             return SourceMapMode.none
@@ -915,14 +939,14 @@ public func addImportMetaDefines(
     arena: Arena,
     define: Define,
     mode: Mode,
-    side: Side,
+    side: Side
 ): Unit {
     define.insert(arena, "import.meta.env.DEV", DefineData.initBoolean(mode == Mode.development))
     define.insert(arena, "import.meta.env.PROD", DefineData.initBoolean(mode != Mode.development))
     define.insert(arena, "import.meta.env.MODE", DefineData.initStaticString(
         match (mode) {
-            | Mode.development => "development"
-            | Mode.productionDynamic | Mode.productionStatic => "production"
+            case Mode.development => "development"
+            case Mode.productionDynamic | Mode.productionStatic => "production"
         }
     ))
     define.insert(arena, "import.meta.env.SSR", DefineData.initBoolean(side == Side.server))

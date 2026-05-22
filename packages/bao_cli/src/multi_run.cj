@@ -28,15 +28,16 @@ public class MultiScriptConfig {
 }
 
 /// ANSI 颜色序列
+private let ESC = "\u{001b}"
 private let COLORS: Array<String> = [
-    "\u001b[36m", // cyan
-    "\u001b[33m", // yellow
-    "\u001b[35m", // magenta
-    "\u001b[32m", // green
-    "\u001b[34m", // blue
-    "\u001b[31m", // red
+    ESC + "[36m", // cyan
+    ESC + "[33m", // yellow
+    ESC + "[35m", // magenta
+    ESC + "[32m", // green
+    ESC + "[34m", // blue
+    ESC + "[31m"  // red
 ]
-private let RESET = "\u001b[0m"
+private let RESET = ESC + "[0m"
 
 /// 管道读取器
 /// 对应 Bun: multi_run PipeReader
@@ -55,7 +56,7 @@ public class MultiRunPipeReader {
 
     /// 读取回调
     public func onReadChunk(chunk: String): Bool {
-        handle!!.state.readChunk(this, chunk)
+        handle.getOrThrow().state.readChunk(this, chunk)
         return true
     }
 
@@ -112,7 +113,10 @@ public class MultiRunProcessHandle {
         let argv = [state.shellBin, "-c", config.command]
         startTime = TimeInstant.now()
 
-        let originalPath = state.env.map.get("PATH") ?: ""
+        let originalPath = match (state.env.map.get("PATH")) {
+            case Some(v) => v
+            case None => ""
+        }
         state.env.map.put("PATH", config.PATH)
         let envp = state.env.map.toNullDelimitedEnvMap()
         state.env.map.put("PATH", originalPath)
@@ -165,7 +169,7 @@ public class MultiRunState {
         pipe.lineBuffer.append(chunk)
 
         // 路由到正确的父流
-        let writer = if (pipe.isStderr) Output.errorWriter() else Output.writer()
+        let writer = if (pipe.isStderr) { Output.errorWriter() } else { Output.writer() }
 
         // 处理完整行
         var buf = pipe.lineBuffer.toString()
@@ -175,7 +179,7 @@ public class MultiRunState {
                 break
             }
             let line = buf.substring(0, newlinePos + 1)
-            writeLineWithPrefix(pipe.handle!!, line, writer)
+            writeLineWithPrefix(pipe.handle.getOrThrow(), line, writer)
             buf = buf.substring(newlinePos + 1)
         }
         pipe.lineBuffer.clear()
@@ -212,7 +216,7 @@ public class MultiRunState {
         if (pipe.lineBuffer.length > 0) {
             let line = pipe.lineBuffer.toString()
             let needsNewline = line.length > 0 && line[line.length - 1] != '\n'
-            let writer = if (pipe.isStderr) Output.errorWriter() else Output.writer()
+            let writer = if (pipe.isStderr) { Output.errorWriter() } else { Output.writer() }
             writeLineWithPrefix(handle, line, writer)
             if (needsNewline) {
                 writer.writeAll("\n")
@@ -233,13 +237,13 @@ public class MultiRunState {
         let writer = Output.errorWriter()
         writePrefix(handle, writer)
 
-        when (handle.status) {
-            case ProcessStatus.exited(code) => {
+        match (handle.status) {
+            case ProcessStatus.exited(code) =>
                 if (code != 0) {
                     writer.println("Exited with code ${code}")
                 } else {
                     if (handle.startTime != None && handle.endTime != None) {
-                        let duration = handle.endTime!!.since(handle.startTime!!)
+                        let duration = handle.endTime.getOrThrow().since(handle.startTime.getOrThrow())
                         let ms = duration.toDouble() / 1_000_000.0
                         if (ms > 1000.0) {
                             writer.println("Done in ${ms / 1000.0} s")
@@ -250,20 +254,17 @@ public class MultiRunState {
                         writer.println("Done")
                     }
                 }
-            }
-            case ProcessStatus.signaled(sig) => {
+            case ProcessStatus.signaled(sig) =>
                 writer.println("Signaled: ${sig}")
-            }
-            else => {
+            case _ =>
                 writer.println("Error")
-            }
         }
 
         // 检查是否应中止
-        let failed = when (handle.status) {
+        let failed = match (handle.status) {
             case ProcessStatus.exited(code) => code != 0
             case ProcessStatus.signaled(_) => true
-            else => true
+            case _ => true
         }
 
         if (failed && !noExitOnError) {
@@ -316,7 +317,7 @@ public class MultiRunState {
         aborted = true
         for (handle in handles) {
             if (handle.process != None && handle.status == ProcessStatus.running) {
-                handle.process!!.kill()
+                handle.process.getOrThrow().kill()
             }
         }
     }
@@ -325,12 +326,11 @@ public class MultiRunState {
     public func finalize(): Int64 {
         for (handle in handles) {
             if (handle.process != None) {
-                when (handle.status) {
-                    case ProcessStatus.exited(code) => {
+                match (handle.status) {
+                    case ProcessStatus.exited(code) =>
                         if (code != 0) return code
-                    }
                     case ProcessStatus.signaled(_) => return 1
-                    else => return 1
+                    case _ => return 1
                 }
             }
         }
@@ -396,25 +396,25 @@ private func addScriptConfigs(
     let groupStart = configs.size
 
     let label = if (labelPrefix != None) {
-        "${labelPrefix!!}:${rawName}"
+        "${labelPrefix.getOrThrow()}:${rawName}"
     } else {
         rawName
     }
 
-    let scriptContent = if (scriptsMap != None) scriptsMap!!.get(rawName) else None
+    let scriptContent = if (scriptsMap != None) { scriptsMap.getOrThrow().get(rawName) } else { None }
 
     if (scriptContent != None) {
         // package.json 脚本 - 检查 pre/post
         let preName = "pre${rawName}"
         let postName = "post${rawName}"
 
-        let preContent = if (scriptsMap != None) scriptsMap!!.get(preName) else None
-        let postContent = if (scriptsMap != None) scriptsMap!!.get(postName) else None
+        let preContent = if (scriptsMap != None) { scriptsMap.getOrThrow().get(preName) } else { None }
+        let postContent = if (scriptsMap != None) { scriptsMap.getOrThrow().get(postName) } else { None }
 
         if (preContent != None) {
             let config = MultiScriptConfig()
             config.label = label
-            config.command = preContent!!
+            config.command = preContent.getOrThrow()
             config.cwd = cwd
             config.PATH = path
             configs.append(config)
@@ -423,7 +423,7 @@ private func addScriptConfigs(
         // 主脚本
         let mainConfig = MultiScriptConfig()
         mainConfig.label = label
-        mainConfig.command = scriptContent!!
+        mainConfig.command = scriptContent.getOrThrow()
         mainConfig.cwd = cwd
         mainConfig.PATH = path
         configs.append(mainConfig)
@@ -431,7 +431,7 @@ private func addScriptConfigs(
         if (postContent != None) {
             let config = MultiScriptConfig()
             config.label = label
-            config.command = postContent!!
+            config.command = postContent.getOrThrow()
             config.cwd = cwd
             config.PATH = path
             configs.append(config)
@@ -482,14 +482,22 @@ public func multiRun(ctx: CommandContext): Unit {
     }
 
     // 配置环境
-    let fsInstance = FileSystem.init()
+    let fsInstance = FileSystem.`init`()
     let thisTranspiler = Transpiler()
     RunCommand.configureEnvForRun(ctx, thisTranspiler, None, true, false)
     let cwd = fsInstance.topLevelDir
 
     let eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
-    let shellBin = RunCommand.findShell(thisTranspiler.env.get("PATH") ?: "", cwd)
-        ?: { Output.prettyErrorLn("error: Missing shell"); Global.exit(1) }()
+    let pathEnv = match (thisTranspiler.env.get("PATH")) {
+        case Some(v) => v
+        case None => ""
+    }
+    let shellBinOpt = RunCommand.findShell(pathEnv, cwd)
+    if (shellBinOpt == None) {
+        Output.prettyErrorLn("error: Missing shell")
+        Global.exit(1)
+    }
+    let shellBin = shellBinOpt.getOrThrow()
 
     // 构建配置
     let configs = ArrayList<MultiScriptConfig>()
@@ -504,7 +512,7 @@ public func multiRun(ctx: CommandContext): Unit {
         if (rawName.contains('*')) {
             if (scriptsMap != None) {
                 let matches = ArrayList<String>()
-                for (key in scriptsMap!!.keys()) {
+                for (key in scriptsMap.getOrThrow().keys()) {
                     if (matchesGlob(rawName, key)) {
                         matches.append(key)
                     }

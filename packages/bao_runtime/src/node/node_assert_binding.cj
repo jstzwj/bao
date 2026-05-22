@@ -21,9 +21,17 @@ package bao_runtime.node
 // ```
 // ============================================================================
 public enum DiffType {
-    | insert = 0
-    | delete = 1
-    | equal = 2
+    | insert
+    | delete
+    | equal
+
+    public func value(): Int32 {
+        match (this) {
+            case insert => 0
+            case delete => 1
+            case equal => 2
+        }
+    }
 }
 
 // ============================================================================
@@ -60,13 +68,20 @@ public class NodeAssertBinding {
     public static func myersDiff(
         actual: String,
         expected: String,
-        checkCommaDisparity: Bool = false,
-        lines: Bool = false
+        checkCommaDisparity: Bool,
+        lines: Bool
     ): Array<JsDiffItem> {
         if (lines) {
-            return myersDiffLines(actual, expected: expected, checkCommaDisparity: checkCommaDisparity)
+            return myersDiffLines(actual, expected, checkCommaDisparity)
         }
-        return myersDiffChars(actual, expected: expected)
+        return myersDiffChars(actual, expected)
+    }
+
+    public static func myersDiff(
+        actual: String,
+        expected: String
+    ): Array<JsDiffItem> {
+        myersDiff(actual, expected, false, false)
     }
 
     // 字符级别 diff
@@ -75,7 +90,7 @@ public class NodeAssertBinding {
         let diffResult = MyersDiff.diffChars(actual, expected: expected)
         var result = Array<JsDiffItem>()
         for (item in diffResult) {
-            let op = when (item.kind) {
+            let op = match (item.kind) {
                 case DiffKind.insert => DiffType.insert
                 case DiffKind.delete => DiffType.delete
                 case DiffKind.equal  => DiffType.equal
@@ -91,7 +106,7 @@ public class NodeAssertBinding {
         let diffResult = MyersDiff.diffLines(actual, expected: expected, checkCommaDisparity: checkCommaDisparity)
         var result = Array<JsDiffItem>()
         for (item in diffResult) {
-            let op = when (item.kind) {
+            let op = match (item.kind) {
                 case DiffKind.insert => DiffType.insert
                 case DiffKind.delete => DiffType.delete
                 case DiffKind.equal  => DiffType.equal

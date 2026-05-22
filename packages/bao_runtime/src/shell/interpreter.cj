@@ -11,6 +11,7 @@ import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
 import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // Shell解释器
@@ -28,29 +29,29 @@ import bao_jsc.*
 // ============================================================================
 
 /// 退出码类型
-public typealias ExitCode = UInt16
+public type ExitCode = UInt16
 
 /// 状态类型枚举
 public enum StateKind {
-    case script
-    case stmt
-    case assign
-    case cmd
-    case binary
-    case pipeline
-    case expansion
-    case ifClause
-    case condexpr
-    case async
-    case subshell
+    | script
+    | stmt
+    | assign
+    | cmd
+    | binary
+    | pipeline
+    | expansion
+    | ifClause
+    | condexpr
+    | async
+    | subshell
 }
 
 /// 协程结果
 public enum CoroutineResult {
     /// 调用者可以继续执行
-    case cont
+    | cont
     /// 挂起
-    case yield_
+    | yield_
 }
 
 /// 内存不足处理
@@ -61,19 +62,19 @@ public func oom(e: Exception) {
 /// IO安全保护类型
 /// 用于确保需要IO的函数不被错误调用
 public enum OutputNeedsIOSafeGuard {
-    case outputNeedsIo
+    | outputNeedsIo
 }
 
 /// 调用栈保护类型
 public enum CallstackGuard {
-    case iKnowWhatIAmDoing
+    | iKnowWhatIAmDoing
 }
 
 /// 管道类型 [0] => 读端 [1] => 写端
-public typealias Pipe = Array<FD>
+public type Pipe = Array<FD>
 
 /// 小列表类型
-public typealias SmolList<T, N> = ArrayList<T>
+public type SmolList<T, N> = ArrayList<T>
 
 /// 标准输入编号
 public const stdinNo: Int64 = 0
@@ -98,7 +99,7 @@ public class CowFd {
 
     /// 初始化
     public static func initFunc(fd: FD): CowFd {
-        let this = CowFd()
+        let `this` = CowFd()
         this.fd = fd
         return this
     }
@@ -170,7 +171,7 @@ public class Interpreter {
     public var args: ParsedShellScript.ShellArgs
 
     /// JS对象列表
-    public var jsobjs: Array<JSValue>
+    public var jsobjs: Array<JsValue>
 
     /// 根Shell执行环境
     public var rootShell: ShellExecEnv
@@ -197,7 +198,7 @@ public class Interpreter {
     /// 退出码
     public var exitCode: ?ExitCode = 0
     /// JS值
-    public var thisJsvalue: JSValue
+    public var thisJsvalue: JsValue
     /// GC估算大小
     public var estimatedSizeForGc: UInt64 = 0
 
@@ -220,9 +221,9 @@ public class Interpreter {
     /// 清理状态
     public enum CleanupState {
         /// 尚未清理 - 需要完整清理
-        case needsFullCleanup
+        | needsFullCleanup
         /// 运行时资源已通过finish()清理
-        case runtimeCleaned
+        | runtimeCleaned
     }
 
     // ========================================================================
@@ -230,42 +231,42 @@ public class Interpreter {
     // ========================================================================
 
     /// 状态基类
-    public typealias State = Base
+    public type State = Base
     /// 脚本状态
-    public typealias Script = ScriptState
+    public type Script = ScriptState
     /// 语句状态
-    public typealias Stmt = StmtState
+    public type Stmt = StmtState
     /// 管道状态
-    public typealias Pipeline = PipelineState
+    public type Pipeline = PipelineState
     /// 二元表达式状态
-    public typealias Binary = BinaryState
+    public type Binary = BinaryState
     /// 子shell状态
-    public typealias Subshell = SubshellState
+    public type Subshell = SubshellState
     /// 展开状态
-    public typealias Expansion = ExpansionState
+    public type Expansion = ExpansionState
     /// 赋值状态
-    public typealias Assigns = AssignsState
+    public type Assigns = AssignsState
     /// 异步状态
-    public typealias Async = AsyncState
+    public type Async = AsyncState
     /// 条件表达式状态
-    public typealias CondExpr = CondExprState
+    public type CondExpr = CondExprState
     /// if条件状态
-    public typealias If = IfState
+    public type If = IfState
     /// 命令状态
-    public typealias Cmd = CmdState
+    public type Cmd = CmdState
 
     /// 内置命令
-    public typealias Builtin = BuiltinImpl
+    public type Builtin = BuiltinImpl
 
     /// IO
-    public typealias IO = IO
+    public type IO = IO
     /// IO读取器
-    public typealias IOReader = IOReader
+    public type IOReader = IOReader
     /// IO写入器
-    public typealias IOWriter = IOWriter
+    public type IOWriter = IOWriter
 
     /// 分配作用域
-    public typealias AllocScope = AllocScopeImpl
+    public type AllocScope = AllocScopeImpl
 
     // ========================================================================
     // 初始化和运行
@@ -274,16 +275,16 @@ public class Interpreter {
     /// 从JS创建解释器
     public static func createShellInterpreter(
         globalThis: JSGlobalObject,
-        resolve: JSValue,
-        reject: JSValue,
+        resolve: JsValue,
+        reject: JsValue,
         parsedShellScript: ParsedShellScript
-    ): JSValue {
+    ): JsValue {
         // 提取参数
         let quiet = parsedShellScript.quiet
         let args = parsedShellScript.args.getOrThrow()
 
         // 初始化解释器
-        let interpreter = Interpreter.init(
+        let interpreter = Interpreter(
             eventLoop: EventLoopHandle.js(globalThis.bunVM().eventLoop),
             allocator: DefaultAllocator.instance,
             shargs: args,
@@ -295,7 +296,7 @@ public class Interpreter {
         interpreter.flags.quiet = quiet
         interpreter.globalThis = globalThis
 
-        return JSValue.jsUndefined()
+        return JsValue.jsUndefined()
     }
 
     /// 初始化解释器
@@ -303,7 +304,7 @@ public class Interpreter {
         eventLoop: EventLoopHandle,
         allocator: Allocator,
         shargs: ParsedShellScript.ShellArgs,
-        jsobjs: Array<JSValue>,
+        jsobjs: Array<JsValue>,
         exportEnv: ?EnvMap,
         cwd: ?String
     ): Interpreter {
@@ -318,7 +319,7 @@ public class Interpreter {
         interpreter.started = AtomicBool(false)
         interpreter.keepAlive = KeepAlive()
         interpreter.vmArgsUtf8 = ArrayList<ZigStringSlice>()
-        interpreter.thisJsvalue = JSValue.zero
+        interpreter.thisJsvalue = JsValue.zero
         interpreter.cleanupState = CleanupState.needsFullCleanup
         return interpreter
     }
@@ -329,11 +330,11 @@ public class Interpreter {
             return Maybe<Unit>.err()
         }
 
-        let root = ScriptState.init(
+        let root = ScriptState(
             interpreter: this,
             shellState: this.rootShell,
             node: this.args.scriptAst,
-            parent: ScriptState.ParentPtr.init(this),
+            parent: ScriptState.ParentPtr(this),
             io: this.rootIo.copy()
         )
         this.started.store(true)
@@ -343,22 +344,22 @@ public class Interpreter {
     }
 
     /// 从JS运行
-    public func runFromJS(globalThis: JSGlobalObject): JSValue {
+    public func runFromJS(globalThis: JSGlobalObject): JsValue {
         if (this.setupIOBeforeRun().isErr()) {
-            return JSValue.jsUndefined()
+            return JsValue.jsUndefined()
         }
 
-        let root = ScriptState.init(
+        let root = ScriptState(
             interpreter: this,
             shellState: this.rootShell,
             node: this.args.scriptAst,
-            parent: ScriptState.ParentPtr.init(this),
+            parent: ScriptState.ParentPtr(this),
             io: this.rootIo.copy()
         )
         this.started.store(true)
         root.start().run()
 
-        return JSValue.jsUndefined()
+        return JsValue.jsUndefined()
     }
 
     /// 设置运行前的IO
@@ -368,8 +369,8 @@ public class Interpreter {
             let stdoutFd = Syscall.dup(FD.stdout())
             let stderrFd = Syscall.dup(FD.stderr())
 
-            let stdoutWriter = IOWriter.init(stdoutFd, IOWriter.Flags(), this.eventLoop)
-            let stderrWriter = IOWriter.init(stderrFd, IOWriter.Flags(), this.eventLoop)
+            let stdoutWriter = IOWriter(stdoutFd, IOWriter.Flags(), this.eventLoop)
+            let stderrWriter = IOWriter(stderrFd, IOWriter.Flags(), this.eventLoop)
 
             this.rootIo = IO(
                 stdin: this.rootIo.stdin,
@@ -384,7 +385,7 @@ public class Interpreter {
     public func asyncCmdDone(async: AsyncState) {
         async.actuallyDeinit()
         this.asyncCommandsExecuting -= 1
-        if (this.asyncCommandsExecuting == 0 && this.exitCode != None) {
+        if (this.asyncCommandsExecuting == 0 && this.exitCode.isSome()) {
             this.finish(this.exitCode.getOrThrow()).run()
         }
     }
@@ -412,12 +413,12 @@ public class Interpreter {
 
     /// 从终结器去初始化
     func deinitFromFinalizer() {
-        switch (this.cleanupState) {
-            case .needsFullCleanup =>
+        match (this.cleanupState) {
+            case needsFullCleanup =>
                 this.rootIo.deref()
                 this.rootShell.deinit()
-            case .runtimeCleaned =>
-                // finish()已清理
+            case runtimeCleaned =>
+                () // finish()已清理
         }
         this.keepAlive.disable()
         this.args.deinit()
@@ -427,7 +428,7 @@ public class Interpreter {
     public static func parse(
         arenaAllocator: Allocator,
         script: String,
-        jsobjs: Array<JSValue>,
+        jsobjs: Array<JsValue>,
         jsstringsToEscape: Array<BunString>,
         outParser: ?Parser,
         outLexResult: ?LexResult
@@ -442,14 +443,14 @@ public class Interpreter {
 
     /// Shell错误类型
     public enum ShellErrorKind {
-        case OutOfMemory
-        case Syscall
+        | OutOfMemory
+        | Syscall
     }
 
     /// Shell错误上下文
     public enum ShellErrorCtx {
-        case syscall(SyscallError)
-        case other(ShellErrorKind)
+        | syscall(SyscallError)
+        | other(ShellErrorKind)
     }
 
     // ========================================================================
@@ -500,10 +501,10 @@ public class Interpreter {
 
     /// 向Shell错误抛出
     public func throwShellErr(e: ShellErr, eventLoop: EventLoopHandle) {
-        switch (eventLoop) {
-            case .mini =>
+        match (eventLoop) {
+            case mini =>
                 e.throwMini()
-            case .js =>
+            case js =>
                 e.throwJS(eventLoop.js.global)
         }
     }
@@ -552,41 +553,41 @@ public class Interpreter {
 
     /// 输出任务状态
     public enum OutputTaskState {
-        case waitingWriteErr
-        case waitingWriteOut
-        case done
+        | waitingWriteErr
+        | waitingWriteOut
+        | done
     }
 
     /// 输出源 - 所有内存使用bun.default_allocator分配
     public enum OutputSrc {
         /// 数组列表
-        case arrlist(ArrayList<Byte>)
+        | arrlist(ArrayList<Byte>)
         /// 拥有的缓冲区
-        case ownedBuf(Array<Byte>)
+        | ownedBuf(Array<Byte>)
         /// 借用的缓冲区
-        case borrowedBuf(Array<Byte>)
+        | borrowedBuf(Array<Byte>)
 
         /// 获取切片
         public func slice(): Array<Byte> {
-            switch (this) {
-                case .arrlist(let list) =>
+            match (this) {
+                case arrlist(list) =>
                     return list.toArray()
-                case .ownedBuf(let buf) =>
+                case ownedBuf(buf) =>
                     return buf
-                case .borrowedBuf(let buf) =>
+                case borrowedBuf(buf) =>
                     return buf
             }
         }
 
         /// 去初始化
         public func deinit() {
-            switch (this) {
-                case .arrlist(let list) =>
+            match (this) {
+                case arrlist(list) =>
                     list.clear()
-                case .ownedBuf(_) =>
-                    // 释放
-                case .borrowedBuf(_) =>
-                    // 不释放
+                case ownedBuf(_) =>
+                    () // 释放
+                case borrowedBuf(_) =>
+                    () // 不释放
             }
         }
     }
@@ -625,18 +626,18 @@ public class Interpreter {
 
         /// 类型枚举
         public enum Kind {
-            case normal
-            case cmdSubst
-            case subshell
-            case pipeline
+            | normal
+            | cmdSubst
+            | subshell
+            | pipeline
         }
 
         init() {
             this.bufferedStdout = ByteList()
             this.bufferedStderr = ByteList()
-            this.shellEnv = EnvMap.init(DefaultAllocator.instance)
-            this.cmdLocalEnv = EnvMap.init(DefaultAllocator.instance)
-            this.exportEnv = EnvMap.init(DefaultAllocator.instance)
+            this.shellEnv = EnvMap(DefaultAllocator.instance)
+            this.cmdLocalEnv = EnvMap(DefaultAllocator.instance)
+            this.exportEnv = EnvMap(DefaultAllocator.instance)
             this.prevCwd = ArrayList<Byte>()
             this.cwdArr = ArrayList<Byte>()
             this.asyncPids = ArrayList<Int32>()
@@ -648,15 +649,15 @@ public class Interpreter {
             size += this.shellEnv.memoryCost()
             size += this.cmdLocalEnv.memoryCost()
             size += this.exportEnv.memoryCost()
-            size += UInt64(this.cwdArr.length)
-            size += UInt64(this.prevCwd.length)
-            size += this.asyncPids.length * 4
+            size += UInt64(this.cwdArr.size)
+            size += UInt64(this.prevCwd.size)
+            size += this.asyncPids.size * 4
             return size
         }
 
         /// 获取当前工作目录
         public func cwd(): String {
-            if (this.cwdArr.length == 0) {
+            if (this.cwdArr.size == 0) {
                 return ""
             }
             return String.fromBytes(this.cwdArr.toArray())
@@ -664,7 +665,7 @@ public class Interpreter {
 
         /// 获取前一个工作目录
         public func prevCwdStr(): String {
-            if (this.prevCwd.length == 0) {
+            if (this.prevCwd.size == 0) {
                 return ""
             }
             return String.fromBytes(this.prevCwd.toArray())
@@ -685,7 +686,7 @@ public class Interpreter {
             let duped = ShellExecEnv()
             duped.kind = kind
             duped.shellEnv = this.shellEnv.clone()
-            duped.cmdLocalEnv = EnvMap.init(alloc)
+            duped.cmdLocalEnv = EnvMap(alloc)
             duped.exportEnv = this.exportEnv.clone()
             duped.prevCwd = ArrayList<Byte>(this.prevCwd.toArray().clone())
             duped.cwdArr = ArrayList<Byte>(this.cwdArr.toArray().clone())
@@ -695,12 +696,12 @@ public class Interpreter {
 
         /// 赋值变量
         public func assignVar(interp: Interpreter, label: EnvStr, value: EnvStr, assignCtx: AssignCtx) {
-            switch (assignCtx) {
-                case .cmd =>
+            match (assignCtx) {
+                case cmd =>
                     this.cmdLocalEnv.insert(label, value)
-                case .shell =>
+                case shell =>
                     this.shellEnv.insert(label, value)
-                case .exported =>
+                case exported =>
                     this.exportEnv.insert(label, value)
             }
         }
@@ -737,8 +738,8 @@ public class Interpreter {
 
     /// 赋值上下文
     public enum AssignCtx {
-        case cmd
-        case shell
-        case exported
+        | cmd
+        | shell
+        | exported
     }
 }

@@ -13,29 +13,29 @@ import bao_sys.*
 /// Stdio 表示子进程的标准输入/输出/错误配置
 public enum Stdio {
     /// 继承父进程的标准流
-    case inherit
+    | inherit
     /// 捕获到缓冲区
-    case capture(ByteList)
+    | capture(ByteList)
     /// 忽略
-    case ignore
+    | ignore
     /// 使用文件描述符
-    case fd(FD)
+    | fd(FD)
     /// dup2 重定向
-    case dup2(Dup2Config)
+    | dup2(Dup2Config)
     /// 使用文件路径
-    case path(PathLike)
+    | path(PathLike)
     /// 使用 Blob
-    case blob(BlobAny)
+    | blob(BlobAny)
     /// 使用 ArrayBuffer
-    case array_buffer(ArrayBufferStrong)
+    | array_buffer(ArrayBufferStrong)
     /// 使用内存文件描述符 (Linux)
-    case memfd(FD)
+    | memfd(FD)
     /// 使用管道
-    case pipe
+    | pipe
     /// IPC 通道
-    case ipc
+    | ipc
     /// 使用 ReadableStream
-    case readable_stream(ReadableStream)
+    | readable_stream(ReadableStream)
 
     // ========================================================================
     // Dup2 配置
@@ -51,23 +51,23 @@ public enum Stdio {
     // ========================================================================
 
     public enum ToSpawnOptsError {
-        case stdin_used_as_out
-        case out_used_as_stdin
-        case blob_used_as_out
-        case uv_pipe(SysError)
+        | stdin_used_as_out
+        | out_used_as_stdin
+        | blob_used_as_out
+        | uv_pipe(SysError)
 
         public func toStr(): String {
-            return switch (this) {
-                case .stdin_used_as_out => "Stdin cannot be used for stdout or stderr"
-                case .out_used_as_stdin => "Stdout and stderr cannot be used for stdin"
-                case .blob_used_as_out => "Blobs are immutable, and cannot be used for stdout/stderr"
+            return match (this) {
+                case stdin_used_as_out => "Stdin cannot be used for stdout or stderr"
+                case out_used_as_stdin => "Stdout and stderr cannot be used for stdin"
+                case blob_used_as_out => "Blobs are immutable, and cannot be used for stdout/stderr"
                 // 严格翻译自 Bun src/runtime/api/bun/spawn/stdio.zig ToSpawnOptsError.toStr: uv_pipe carries the sys error.
-                case .uv_pipe(let err) => err.toString()
+                case uv_pipe(err) => err.toString()
             }
         }
 
         public func throwJS(globalThis: JsGlobalObject): JsValue {
-            return globalThis.throw("\{this.toStr()}")
+            return globalThis.`throw`("\{this.toStr()}")
         }
     }
 
@@ -76,8 +76,8 @@ public enum Stdio {
     // ========================================================================
 
     public enum Result {
-        case result(SpawnOptionsStdio)
-        case err(ToSpawnOptsError)
+        | result(SpawnOptionsStdio)
+        | err(ToSpawnOptsError)
     }
 
     // ========================================================================
@@ -86,24 +86,23 @@ public enum Stdio {
 
     /// 获取字节切片
     public func byteSlice(): Array<UInt8> {
-        return switch (this) {
-            case .capture(let buf) => buf.slice()
-            case .array_buffer(let ab) => ab.array_buffer.byteSlice()
-            case .blob(let b) => b.slice()
+        return match (this) {
+            case capture(buf) => buf.slice()
+            case array_buffer(ab) => ab.array_buffer.byteSlice()
+            case blob(b) => b.slice()
             else => []
         }
     }
 
     /// 释放资源
     public func deinit() {
-        switch (this) {
-            case .array_buffer(let ab) => ab.deinit()
-            case .blob(let b) => b.detach()
-            case .memfd(let fd) => fd.close()
-            case .readable_stream => {
+        match (this) {
+            case array_buffer(ab) => ab.deinit()
+            case blob(b) => b.detach()
+            case memfd(fd) => fd.close()
+            case readable_stream =>
                 // ReadableStream 清理由子进程处理
-            }
-            else => {}
+            else => ()
         }
     }
 
@@ -111,10 +110,10 @@ public enum Stdio {
     public func canUseMemfd(isSync: Bool, hasMaxBuffer: Bool): Bool {
         if (!Environment.isLinux) { return false }
 
-        return switch (this) {
-            case .blob => !this.blob.needsToReadFile()
-            case .memfd, .array_buffer => true
-            case .pipe => isSync && !hasMaxBuffer
+        return match (this) {
+            case blob => !this.blob.needsToReadFile()
+            case memfd, .array_buffer => true
+            case pipe => isSync && !hasMaxBuffer
             else => false
         }
     }
@@ -124,7 +123,7 @@ public enum Stdio {
         if (!Environment.isLinux) { return false }
         if (!Sys.canUseMemfd()) { return false }
 
-        let label = switch (index) {
+        let label = match (index) {
             case 0 => "spawn_stdio_stdin"
             case 1 => "spawn_stdio_stdout"
             case 2 => "spawn_stdio_stderr"
@@ -142,14 +141,13 @@ public enum Stdio {
         // 将所有字节写入 memfd
         var written: Int64 = 0
         while (remain.len > 0) {
-            switch (Sys.pwrite(fd, remain, written)) {
-                case .err(let err) => {
-                    if (err.getErrno() == .AGAIN) { continue }
+            match (Sys.pwrite(fd, remain, written)) {
+                case err(err) =>
+                    if (err.getErrno() == AGAIN) { continue }
                     Output.debugWarn("Failed to write to memfd: \{err.getErrno()}")
                     fd.close()
                     return false
-                }
-                case .result(let result) => {
+                case result(result) =>
                     if (result == 0) {
                         Output.debugWarn("Failed to write to memfd: EOF")
                         fd.close()
@@ -157,14 +155,13 @@ public enum Stdio {
                     }
                     written += Int64(result)
                     remain = remain[result..]
-                }
             }
         }
 
-        switch (this) {
-            case .array_buffer => this.array_buffer.deinit()
-            case .blob => this.blob.detach()
-            else => {}
+        match (this) {
+            case array_buffer => this.array_buffer.deinit()
+            case blob => this.blob.detach()
+            else => ()
         }
 
         this = Stdio.memfd(fd)
@@ -174,27 +171,25 @@ public enum Stdio {
     /// 转换为 POSIX spawn 选项
     public func toPosix(i: Int32): Result {
         return Result.result(
-            switch (this) {
-                case .blob(let blob) => {
+            match (this) {
+                case blob(blob) =>
                     let fd = FD.Stdio.fromInt(i).fd()
                     if (blob.needsToReadFile()) {
-                        if (let store = blob.store()) {
-                            if (store.data.file.pathlike == .fd) {
+                        if (let store <- blob.store()) {
+                            if (store.data.file.pathlike == fd) {
                                 if (store.data.file.pathlike.fd == fd) {
                                     return SpawnOptionsStdio.inherit()
                                 }
-                                if (let tag = store.data.file.pathlike.fd.stdioTag()) {
-                                    switch (tag) {
-                                        case .std_in => {
+                                if (let tag <- store.data.file.pathlike.fd.stdioTag()) {
+                                    match (tag) {
+                                        case std_in =>
                                             if (i == 1 || i == 2) {
                                                 return Result.err(.stdin_used_as_out)
                                             }
-                                        }
-                                        case .std_out, .std_err => {
+                                        case std_out, .std_err =>
                                             if (i == 0) {
                                                 return Result.err(.out_used_as_stdin)
                                             }
-                                        }
                                     }
                                 }
                                 return SpawnOptionsStdio.pipe(store.data.file.pathlike.fd)
@@ -206,15 +201,14 @@ public enum Stdio {
                         return Result.err(.blob_used_as_out)
                     }
                     return SpawnOptionsStdio.buffer()
-                }
-                case .dup2(let dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
-                case .capture, .pipe, .array_buffer, .readable_stream => SpawnOptionsStdio.buffer()
-                case .ipc => SpawnOptionsStdio.ipc()
-                case .fd(let fd) => SpawnOptionsStdio.pipe(fd)
-                case .memfd(let fd) => SpawnOptionsStdio.pipe(fd)
-                case .path(let pathlike) => SpawnOptionsStdio.path(pathlike.slice())
-                case .inherit => SpawnOptionsStdio.inherit()
-                case .ignore => SpawnOptionsStdio.ignore()
+                case dup2(dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
+                case capture, .pipe, .array_buffer, .readable_stream => SpawnOptionsStdio.buffer()
+                case ipc => SpawnOptionsStdio.ipc()
+                case fd(fd) => SpawnOptionsStdio.pipe(fd)
+                case memfd(fd) => SpawnOptionsStdio.pipe(fd)
+                case path(pathlike) => SpawnOptionsStdio.path(pathlike.slice())
+                case inherit => SpawnOptionsStdio.inherit()
+                case ignore => SpawnOptionsStdio.ignore()
             }
         )
     }
@@ -222,27 +216,25 @@ public enum Stdio {
     /// 转换为 Windows spawn 选项
     public func toWindows(i: Int32): Result {
         return Result.result(
-            switch (this) {
-                case .blob(let blob) => {
+            match (this) {
+                case blob(blob) =>
                     let fd = FD.Stdio.fromInt(i).fd()
                     if (blob.needsToReadFile()) {
-                        if (let store = blob.store()) {
-                            if (store.data.file.pathlike == .fd) {
+                        if (let store <- blob.store()) {
+                            if (store.data.file.pathlike == fd) {
                                 if (store.data.file.pathlike.fd == fd) {
                                     return SpawnOptionsStdio.inherit()
                                 }
-                                if (let tag = store.data.file.pathlike.fd.stdioTag()) {
-                                    switch (tag) {
-                                        case .std_in => {
+                                if (let tag <- store.data.file.pathlike.fd.stdioTag()) {
+                                    match (tag) {
+                                        case std_in =>
                                             if (i == 1 || i == 2) {
                                                 return Result.err(.stdin_used_as_out)
                                             }
-                                        }
-                                        case .std_out, .std_err => {
+                                        case std_out, .std_err =>
                                             if (i == 0) {
                                                 return Result.err(.out_used_as_stdin)
                                             }
-                                        }
                                     }
                                 }
                                 return SpawnOptionsStdio.pipe(store.data.file.pathlike.fd)
@@ -254,15 +246,14 @@ public enum Stdio {
                         return Result.err(.blob_used_as_out)
                     }
                     return SpawnOptionsStdio.buffer(createZeroedPipe())
-                }
-                case .ipc => SpawnOptionsStdio.ipc(createZeroedPipe())
-                case .capture, .pipe, .array_buffer, .readable_stream => SpawnOptionsStdio.buffer(createZeroedPipe())
-                case .fd(let fd) => SpawnOptionsStdio.pipe(fd)
-                case .dup2(let dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
-                case .path(let pathlike) => SpawnOptionsStdio.path(pathlike.slice())
-                case .inherit => SpawnOptionsStdio.inherit()
-                case .ignore => SpawnOptionsStdio.ignore()
-                case .memfd => panic("This should never happen")
+                case ipc => SpawnOptionsStdio.ipc(createZeroedPipe())
+                case capture, .pipe, .array_buffer, .readable_stream => SpawnOptionsStdio.buffer(createZeroedPipe())
+                case fd(fd) => SpawnOptionsStdio.pipe(fd)
+                case dup2(dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
+                case path(pathlike) => SpawnOptionsStdio.path(pathlike.slice())
+                case inherit => SpawnOptionsStdio.inherit()
+                case ignore => SpawnOptionsStdio.ignore()
+                case memfd => panic("This should never happen")
             }
         )
     }
@@ -270,7 +261,7 @@ public enum Stdio {
     /// 同步模式下的转换
     public func toSync(i: UInt32) {
         // 空的 stdin 管道没有意义
-        if (i == 0 && this == .pipe) {
+        if (i == 0 && this == pipe) {
             this = Stdio.ignore()
         }
     }
@@ -286,9 +277,9 @@ public enum Stdio {
 
     /// 是否使用管道
     public func isPiped(): Bool {
-        return switch (this) {
-            case .capture, .array_buffer, .blob, .pipe, .readable_stream => true
-            case .ipc => Environment.isWindows
+        return match (this) {
+            case capture, .array_buffer, .blob, .pipe, .readable_stream => true
+            case ipc => Environment.isWindows
             else => false
         }
     }
@@ -299,7 +290,7 @@ public enum Stdio {
 
     /// 从 JS 值提取 Stdio 配置
     public static func extract(outStdio: Stdio, globalThis: JsGlobalObject, i: Int32, value: JsValue, isSync: Bool) {
-        if (value == JsValue.zero) { return }
+        if (value == JsValue.jsUndefined()) { return }
         if (value.isUndefined()) { return }
         if (value.isNull()) {
             outStdio = Stdio.ignore()
@@ -331,46 +322,44 @@ public enum Stdio {
                 return globalThis.throwInvalidArguments("file descriptor must be a valid integer, received: \{value}")
             }
 
-            if (let tag = fd.stdioTag()) {
-                switch (tag) {
-                    case .std_in => {
+            if (let tag <- fd.stdioTag()) {
+                match (tag) {
+                    case std_in =>
                         if (i == 1 || i == 2) {
                             return globalThis.throwInvalidArguments("stdin cannot be used for stdout or stderr")
                         }
                         outStdio = Stdio.inherit()
                         return
-                    }
-                    case .std_out, .std_err => {
+                    case std_out, .std_err =>
                         if (i == 0) {
                             return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
                         }
-                        if (i == 1 && tag == .std_out) {
+                        if (i == 1 && tag == std_out) {
                             outStdio = Stdio.inherit()
                             return
-                        } else if (i == 2 && tag == .std_err) {
+                        } else if (i == 2 && tag == std_err) {
                             outStdio = Stdio.inherit()
                             return
                         }
-                    }
                 }
             }
 
             outStdio = Stdio.fd(fd)
             return
-        } else if (let blob = value.as(Blob)) {
+        } else if (let blob <- value.as(Blob)) {
             return outStdio.extractBlob(globalThis, BlobAny.Blob(blob.dupe()), i)
-        } else if (let req = value.as(Request)) {
+        } else if (let req <- value.as(Request)) {
             return extractBodyValue(outStdio, globalThis, i, req.getBodyValue(), isSync)
-        } else if (let res = value.as(Response)) {
+        } else if (let res <- value.as(Response)) {
             return extractBodyValue(outStdio, globalThis, i, res.getBodyValue(), isSync)
         }
 
-        if (let stream = try ReadableStream.fromJS(value, globalThis)) {
-            if (let blob = stream.toAnyBlob(globalThis)) {
+        if (let stream <- try ReadableStream.fromJS(value, globalThis)) {
+            if (let blob <- stream.toAnyBlob(globalThis)) {
                 return outStdio.extractBlob(globalThis, blob, i)
             }
 
-            let name = switch (i) {
+            let name = match (i) {
                 case 0 => "stdin"
                 case 1 => "stdout"
                 case 2 => "stderr"
@@ -382,13 +371,13 @@ public enum Stdio {
             }
 
             if (stream.isDisturbed(globalThis)) {
-                return globalThis.ERR(.INVALID_STATE, "'\{name}' ReadableStream has already been used").throw()
+                return globalThis.ERR(.INVALID_STATE, "'\{name}' ReadableStream has already been used").`throw`()
             }
             outStdio = Stdio.readable_stream(stream)
             return
         }
 
-        if (let arrayBuffer = value.asArrayBuffer(globalThis)) {
+        if (let arrayBuffer <- value.asArrayBuffer(globalThis)) {
             if (arrayBuffer.byteSlice().len == 0) {
                 outStdio = Stdio.ignore()
                 return
@@ -409,23 +398,21 @@ public enum Stdio {
         let fd = FD.Stdio.fromInt(i).fd()
 
         if (blob.needsToReadFile()) {
-            if (let store = blob.store()) {
-                if (store.data.file.pathlike == .fd) {
+            if (let store <- blob.store()) {
+                if (store.data.file.pathlike == fd) {
                     if (store.data.file.pathlike.fd == fd) {
                         stdio = Stdio.inherit()
                     } else {
-                        if (let tag = FD.Stdio.fromInt(i)) {
-                            switch (tag) {
-                                case .std_in => {
+                        if (let tag <- FD.Stdio.fromInt(i)) {
+                            match (tag) {
+                                case std_in =>
                                     if (i == 1 || i == 2) {
                                         return globalThis.throwInvalidArguments("stdin cannot be used for stdout or stderr")
                                     }
-                                }
-                                case .std_out, .std_err => {
+                                case std_out, .std_err =>
                                     if (i == 0) {
                                         return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
                                     }
-                                }
                             }
                         }
                         stdio = Stdio.fd(store.data.file.pathlike.fd)
@@ -454,35 +441,30 @@ public enum Stdio {
     static func extractBodyValue(outStdio: Stdio, globalThis: JsGlobalObject, i: Int32, body: BodyValue, isSync: Bool) {
         body.toBlobIfPossible()
 
-        if (let blob = body.tryUseAsAnyBlob()) {
+        if (let blob <- body.tryUseAsAnyBlob()) {
             return outStdio.extractBlob(globalThis, blob, i)
         }
 
-        switch (body) {
-            case .Null, .Empty => {
+        match (body) {
+            case Null, .Empty =>
                 outStdio = Stdio.ignore()
                 return
-            }
-            case .Used => {
-                return globalThis.ERR(.BODY_ALREADY_USED, "Body already used").throw()
-            }
-            case .Error => {
+            case Used =>
+                return globalThis.ERR(.BODY_ALREADY_USED, "Body already used").`throw`()
+            case Error =>
                 return globalThis.throwValue(body.Error.toJS(globalThis))
-            }
-            case .Blob, .WTFStringImpl, .InternalBlob => unreachable // 上面已处理
-            case .Locked => {
+            case Blob, .WTFStringImpl, .InternalBlob => unreachable // 上面已处理
+            case Locked =>
                 if (isSync) {
                     return globalThis.throwInvalidArguments("ReadableStream cannot be used in sync mode")
                 }
 
-                switch (i) {
+                match (i) {
                     case 0 => ()
-                    case 1 => {
+                    case 1 =>
                         return globalThis.throwInvalidArguments("ReadableStream cannot be used for stdout yet. For now, do .stdout")
-                    }
-                    case 2 => {
+                    case 2 =>
                         return globalThis.throwInvalidArguments("ReadableStream cannot be used for stderr yet. For now, do .stderr")
-                    }
                     else => unreachable
                 }
 
@@ -492,11 +474,10 @@ public enum Stdio {
                 }
 
                 if (stream.isDisturbed(globalThis)) {
-                    return globalThis.ERR(.BODY_ALREADY_USED, "ReadableStream has already been used").throw()
+                    return globalThis.ERR(.BODY_ALREADY_USED, "ReadableStream has already been used").`throw`()
                 }
 
                 outStdio = Stdio.readable_stream(stream)
-            }
         }
         return
     }
@@ -511,9 +492,9 @@ func createZeroedPipe(): UvPipe {
 // 类型别名
 // ============================================================================
 
-public typealias StdioKind = StdioKind
-public typealias BlobAny = BlobAny
-public typealias ArrayBufferStrong = ArrayBufferStrong
-public typealias PathLike = PathLike
-public typealias ReadableStream = ReadableStream
-public typealias SysError = SysError
+public type StdioKind = StdioKind
+public type BlobAny = BlobAny
+public type ArrayBufferStrong = ArrayBufferStrong
+public type PathLike = PathLike
+public type ReadableStream = ReadableStream
+public type SysError = SysError

@@ -171,10 +171,10 @@ function mountModal() {
           (domNavBar.active = elem("code")),
           textNode(" of "),
           (domNavBar.total = elem("code")),
-          (domNavBar.label = textNode(" Errors")),
+          (domNavBar.label = textNode(" Errors"))
         ]),
         elem("div", { class: "flex" }),
-        (domNavBar.dismissAllBtn = elem("button", { class: "dismiss-all", "aria-label": "Dismiss all errors" })),
+        (domNavBar.dismissAllBtn = elem("button", { class: "dismiss-all", "aria-label": "Dismiss all errors" }))
       ])),
       // The active page's header
       elem("header", null, [(domModalTitle = elem("div", { class: "title" }))]),
@@ -183,9 +183,9 @@ function mountModal() {
       elem("footer", null, [
         (domFooterText = elemText("div", null, "")),
         elem("div", { class: "flex" }),
-        elemText("div", null, "Bun v" + config.bun),
-      ]),
-    ]),
+        elemText("div", null, "Bun v" + config.bun)
+      ])
+    ])
   ]);
   domNavBar.dismissAllBtn.addEventListener("click", onDismissAllErrors);
   domNavBar.prevBtn.addEventListener("click", onPrevError);
@@ -247,15 +247,15 @@ export async function onRuntimeError(err: any, fatal = false, async = false) {
     const browserUrl = location.href;
 
     // Serialize the request into a binary buffer. Pre-allocate a little above what it needs.
-    let bufferLength = 3 * 4 + (name.length + message.length + browserUrl.length) * 3;
+    let bufferLength = 3 * 4 + (name.size + message.size + browserUrl.size) * 3;
     for (const frame of parsed) {
-      bufferLength += 4 * 4 + ((frame.fn?.length ?? 0) + (frame.file?.length ?? 0)) * 3;
+      bufferLength += 4 * 4 + ((frame.fn?.size ?? 0) + (frame.file?.size ?? 0)) * 3;
     }
     const writer = DataViewWriter.initCapacity(bufferLength);
     writer.stringWithLength(name);
     writer.stringWithLength(message);
     writer.stringWithLength(browserUrl);
-    writer.u32(parsed.length);
+    writer.u32(parsed.size);
     for (const frame of parsed) {
       writer.i32(frame.line ?? 0);
       writer.i32(frame.col ?? 0);
@@ -352,15 +352,15 @@ function expandHighlight(line: string, col: number) {
   // expand backward from new
   const newText = prev.match(/new\s+$/)?.[0];
   if (newText) {
-    len += newText.length;
-    col -= newText.length;
-    prev = prev.slice(0, prev.length - newText.length);
+    len += newText.size;
+    col -= newText.size;
+    prev = prev.slice(0, prev.size - newText.size);
   }
   // expand backward from throw
   const throwText = prev.match(/throw\s+$/)?.[0];
   if (throwText) {
-    len += throwText.length;
-    col -= throwText.length;
+    len += throwText.size;
+    col -= throwText.size;
   }
   len += (rest.match(/.\b/)?.index ?? -1) + 1;
   if (len <= 0) len = 1;
@@ -391,7 +391,7 @@ export function decodeAndAppendServerError(r: DataViewReader) {
  */
 export function updateErrorOverlay() {
   // if there are no errors, hide the modal
-  const totalErrors = runtimeErrors.length + buildErrors.size;
+  const totalErrors = runtimeErrors.size + buildErrors.size;
   if (totalErrors === 0) {
     if (IS_ERROR_RUNTIME) {
       location.reload();
@@ -404,12 +404,12 @@ export function updateErrorOverlay() {
   if (activeErrorIndex === -1 && buildErrors.size === 0) {
     activeErrorIndex = 0; // there is a runtime error, else this modal will be hidden
     needUpdateNavbar = true;
-  } else if (activeErrorIndex >= runtimeErrors.length) {
+  } else if (activeErrorIndex >= runtimeErrors.size) {
     needUpdateNavbar = true;
     if (activeErrorIndex === 0) {
       activeErrorIndex = -1; // there must be a build error, else this modal will be hidden
     } else {
-      activeErrorIndex = runtimeErrors.length - 1;
+      activeErrorIndex = runtimeErrors.size - 1;
     }
   }
   mountModal();
@@ -430,7 +430,7 @@ export function updateErrorOverlay() {
     domNavBar.total.textContent = totalErrors.toString();
     domNavBar.label.textContent = totalErrors === 1 ? " Error" : " Errors";
 
-    domNavBar.nextBtn.disabled = activeErrorIndex >= runtimeErrors.length - 1;
+    domNavBar.nextBtn.disabled = activeErrorIndex >= runtimeErrors.size - 1;
     domNavBar.prevBtn.disabled = buildErrors.size > 0 ? activeErrorIndex < 0 : activeErrorIndex == 0;
   }
 
@@ -458,7 +458,7 @@ export function updateErrorOverlay() {
   }
   domNavBar.dismissAllBtn.style.display = buildErrors.size > 0 ? "none" : "block";
   // The navbar is only visible if there are runtime errors. It contains the dismiss button.
-  domNavBar.root.style.display = runtimeErrors.length > 0 ? "flex" : "none";
+  domNavBar.root.style.display = runtimeErrors.size > 0 ? "flex" : "none";
 
   setModalVisible(true);
 }
@@ -475,7 +475,7 @@ function updateRuntimeErrorOverlay(err: RuntimeError) {
     elem("div", { class: "message-desc error" }, [
       elemText("code", { class: "name" }, name),
       elemText("code", { class: "muted" }, ": "),
-      elemText("code", {}, err.message),
+      elemText("code", {}, err.message)
     ]),
   );
   const { code } = err;
@@ -499,7 +499,7 @@ function updateRuntimeErrorOverlay(err: RuntimeError) {
     const gutter = elem("div", { class: "gutter" }, [
       elemText("div", null, aboveRoi.map((_, i) => `${i + firstLineNumber}`).join("\n")),
       elem("div", { class: "highlight-gap" }),
-      elemText("div", null, belowRoi.map((_, i) => `${i + firstLineNumber + aboveRoi.length}`).join("\n")),
+      elemText("div", null, belowRoi.map((_, i) => `${i + firstLineNumber + aboveRoi.size}`).join("\n"))
     ]);
     domCode.appendChild(
       elem("div", { class: "code" }, [
@@ -508,10 +508,10 @@ function updateRuntimeErrorOverlay(err: RuntimeError) {
           ...aboveRoi.map(line => mapCodePreviewLine(line)),
           elem("div", { class: "highlight-wrap log-error" }, [
             elemText("span", { class: "space" }, "_".repeat(columnToHighlight - 1)),
-            elemText("span", { class: "line" }, "_".repeat(highlightLength)),
+            elemText("span", { class: "line" }, "_".repeat(highlightLength))
           ]),
-          ...belowRoi.map(line => mapCodePreviewLine(line)),
-        ]),
+          ...belowRoi.map(line => mapCodePreviewLine(line))
+        ])
       ]),
     );
     domCode.appendChild(renderTraceFrame(codeFrame, "trace-frame"));
@@ -545,13 +545,13 @@ function updateBuildErrorOverlay({ remountAll = false }) {
       continue;
     }
 
-    totalCount += data.messages.length;
+    totalCount += data.messages.size;
 
     // Create the element for the root if it does not yet exist.
     if (!dom || remountAll) {
       let fileName;
       const root = elem("div", { class: "b-group" }, [
-        elem("div", { class: "trace-frame" }, [elem("div", { class: "file-name" }, [(fileName = textNode())])]),
+        elem("div", { class: "trace-frame" }, [elem("div", { class: "file-name" }, [(fileName = textNode())])])
       ]);
       dom = { root, fileName, messages: [] };
       domErrorContent.appendChild(root);
@@ -588,7 +588,7 @@ function renderBundlerMessage(msg: BundlerMessage) {
     [
       renderErrorMessageLine(msg.level, msg.message),
       ...(msg.location ? renderCodeLine(msg.location, msg.level) : []),
-      ...msg.notes.map(renderNote),
+      ...msg.notes.map(renderNote)
     ].flat(1),
   );
 }
@@ -601,13 +601,13 @@ function renderTraceFrame(frame: Frame, className: string) {
       ? [
           //
           elemText("span", { class: "function-name" }, frame.fn),
-          elemText("span", { class: "muted" }, " in "),
+          elemText("span", { class: "muted" }, " in ")
         ]
       : []),
     elemText("span", { class: "file-name" }, frame.file!),
     ...(frame.line
       ? [elemText("code", { class: "muted" }, `:${frame.line}` + (frame.col ? `:${frame.col}` : ""))]
-      : []),
+      : [])
   ]);
 }
 
@@ -619,7 +619,7 @@ function renderErrorMessageLine(level: BundlerMessageLevel, text: string) {
   return elem("div", { class: "message-desc " + levelName }, [
     elemText("span", { class: "log-label log-" + levelName }, levelName),
     elemText("span", { class: "log-colon" }, ": "),
-    elemText("span", { class: "log-text" }, text),
+    elemText("span", { class: "log-text" }, text)
   ]);
 }
 
@@ -631,17 +631,17 @@ function renderCodeLine(location: BundlerMessageLocation, level: BundlerMessageL
         mapCodePreviewLine(syntaxHighlight(location.lineText)),
         elem("div", { class: "highlight-wrap log-" + bundleLogLevelToName[level] }, [
           elemText("span", { class: "space" }, "_".repeat(location.column - 1)),
-          elemText("span", { class: "line" }, "_".repeat(location.length)),
-        ]),
-      ]),
-    ]),
+          elemText("span", { class: "line" }, "_".repeat(location.size))
+        ])
+      ])
+    ])
   ];
 }
 
 function renderNote(note: BundlerNote) {
   return [
     renderErrorMessageLine(BundlerMessageLevel.note, note.message),
-    ...(note.location ? renderCodeLine(note.location, BundlerMessageLevel.note) : []),
+    ...(note.location ? renderCodeLine(note.location, BundlerMessageLevel.note) : [])
   ];
 }
 
@@ -664,7 +664,7 @@ function onPrevError() {
 }
 
 function onNextError() {
-  if (activeErrorIndex >= runtimeErrors.length - 1) return;
+  if (activeErrorIndex >= runtimeErrors.size - 1) return;
   activeErrorIndex++;
   needUpdateNavbar = true;
   updateErrorOverlay();

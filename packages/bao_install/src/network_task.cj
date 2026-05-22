@@ -440,12 +440,12 @@ public class PackageManifestData {
 
         // 解析 JSON body 提取 versions 和 dist-tags
         // 翻译自: PackageManifest.parse
-        let jsonParser = JsonParser()
+        let jsonParser = PkgJsonParser()
         let jsonResult = jsonParser.parse(body)
         match (jsonResult) {
             case Some(json) =>
                 // dist-tags
-                match (JsonHelper.getField(json, "dist-tags")) {
+                match (PkgJsonHelper.getField(json, "dist-tags")) {
                     case Some(JsonValue.Object(tagObj)) =>
                         for (key in tagObj.keys()) {
                             match (tagObj.get(key)) {
@@ -456,7 +456,7 @@ public class PackageManifestData {
                     case _ => ()
                 }
                 // versions
-                match (JsonHelper.getField(json, "versions")) {
+                match (PkgJsonHelper.getField(json, "versions")) {
                     case Some(JsonValue.Object(verObj)) =>
                         for (key in verObj.keys()) {
                             manifest.versions.append(key)

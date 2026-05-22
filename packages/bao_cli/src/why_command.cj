@@ -9,6 +9,159 @@ import bao_install.*
 // 严格翻译自: src/cli/why_command.zig - WhyCommand struct
 // ============================================================================
 
+/// 依赖类型
+public enum WhyDependencyType {
+    | dev
+    | prod
+    | peer
+    | optional
+    | optionalPeer
+}
+
+/// 版本信息
+public class WhyVersionInfo {
+    public var version: String
+    public var pkgId: Int64
+
+    public init(version: String, pkgId: Int64) {
+        this.version = version
+        this.pkgId = pkgId
+    }
+}
+
+/// 依赖者信息
+public class WhyDependentInfo {
+    public var name: String
+    public var version: String
+    public var spec: String
+    public var depType: WhyDependencyType
+    public var pkgId: Int64
+    public var workspace: Bool
+
+    public init() {
+        name = ""
+        version = ""
+        spec = ""
+        depType = WhyDependencyType.prod
+        pkgId = 0
+        workspace = false
+    }
+}
+
+/// Pattern 类型
+public enum WhyPatternType {
+    | exact
+    | prefix
+    | suffix
+    | middle
+    | contains
+    | invalid
+}
+
+/// 全局通配符模式
+public class WhyGlobPattern {
+    public var patternType: WhyPatternType
+    public var prefix: String
+    public var suffix: String
+    public var substring: String
+    public var versionPattern: String
+
+    public init(pattern: String) {
+        patternType = WhyPatternType.exact
+        prefix = ""
+        suffix = ""
+        substring = ""
+        versionPattern = ""
+
+        // 检查是否包含 @ 分隔的版本模式
+        let atPos = pattern.indexOf('@')
+        if (atPos > 0 && atPos < pattern.length - 1) {
+            let pkgPattern = pattern.substring(0, atPos)
+            versionPattern = pattern.substring(atPos + 1)
+            initForName(pkgPattern)
+            return
+        }
+
+        initForName(pattern)
+    }
+
+    private func initForName(pattern: String): Unit {
+        if (!pattern.contains('*')) {
+            patternType = WhyPatternType.exact
+            return
+        }
+
+        // **子串**
+        if (pattern.length >= 3 && pattern[0] == '*' && pattern[pattern.length - 1] == '*') {
+            let sub = pattern.substring(1, pattern.length - 1)
+            if (sub.length > 0 && !sub.contains('*')) {
+                patternType = WhyPatternType.contains
+                substring = sub
+                return
+            }
+        }
+
+        // 查找通配符位置
+        let wildcardPos = pattern.indexOf('*')
+        if (wildcardPos >= 0) {
+            if (wildcardPos == pattern.length - 1) {
+                // prefix*
+                patternType = WhyPatternType.prefix
+                prefix = pattern.substring(0, wildcardPos)
+            } else if (wildcardPos == 0) {
+                // *suffix
+                patternType = WhyPatternType.suffix
+                suffix = pattern.substring(1)
+            } else {
+                // prefix*suffix
+                let secondStar = pattern.indexOf('*', wildcardPos + 1)
+                if (secondStar >= 0) {
+                    patternType = WhyPatternType.invalid
+                } else {
+                    patternType = WhyPatternType.middle
+                    prefix = pattern.substring(0, wildcardPos)
+                    suffix = pattern.substring(wildcardPos + 1)
+                }
+            }
+        }
+    }
+
+    /// 匹配名称
+    public func matchesName(name: String, pattern: String): Bool {
+        match (patternType) {
+            case WhyPatternType.exact => name == pattern
+            case WhyPatternType.prefix => name.startsWith(prefix)
+            case WhyPatternType.suffix => name.endsWith(suffix)
+            case WhyPatternType.middle => name.startsWith(prefix) && name.endsWith(suffix)
+            case WhyPatternType.contains => name.contains(substring)
+            case WhyPatternType.invalid => false
+        }
+    }
+
+    /// 匹配版本
+    public func matchesVersion(version: String): Bool {
+        if (versionPattern.length == 0 || versionPattern == "latest") {
+            return true
+        }
+        // 简化版本匹配: 精确匹配或前缀匹配
+        if (version == versionPattern) {
+            return true
+        }
+        return version.startsWith(versionPattern)
+    }
+
+    /// 完整匹配
+    public func matches(name: String, version: String, pattern: String): Bool {
+        if (!matchesName(name, pattern)) {
+            return false
+        }
+        if (versionPattern.length > 0 && !matchesVersion(version)) {
+            return false
+        }
+        return true
+    }
+}
+
 /// WhyCommand: 解释包为什么被安装, 显示依赖树
 /// 对应 Bun: WhyCommand
 public class WhyCommand {
@@ -17,158 +170,6 @@ public class WhyCommand {
     private static let PREFIX_CONTINUE = "  │  "
     private static let PREFIX_SPACE = "     "
     private static var maxDepth: Int64 = 100
-
-    /// 依赖类型
-    public enum DependencyType {
-        | dev
-        | prod
-        | peer
-        | optional
-        | optionalPeer
-    }
-
-    /// 版本信息
-    public class VersionInfo {
-        public var version: String
-        public var pkgId: Int64
-
-        public init(version: String, pkgId: Int64) {
-            this.version = version
-            this.pkgId = pkgId
-        }
-    }
-
-    /// 依赖者信息
-    public class DependentInfo {
-        public var name: String
-        public var version: String
-        public var spec: String
-        public var depType: DependencyType
-        public var pkgId: Int64
-        public var workspace: Bool
-
-        public init() {
-            name = ""
-            version = ""
-            spec = ""
-            depType = DependencyType.prod
-            pkgId = 0
-            workspace = false
-        }
-    }
-
-    /// 全局通配符模式
-    public class GlobPattern {
-        public enum PatternType {
-            | exact
-            | prefix
-            | suffix
-            | middle
-            | contains
-            | invalid
-        }
-
-        public var patternType: PatternType
-        public var prefix: String
-        public var suffix: String
-        public var substring: String
-        public var versionPattern: String
-
-        public init(pattern: String) {
-            patternType = PatternType.exact
-            prefix = ""
-            suffix = ""
-            substring = ""
-            versionPattern = ""
-
-            // 检查是否包含 @ 分隔的版本模式
-            let atPos = pattern.indexOf('@')
-            if (atPos > 0 && atPos < pattern.length - 1) {
-                let pkgPattern = pattern.substring(0, atPos)
-                versionPattern = pattern.substring(atPos + 1)
-                initForName(pkgPattern)
-                return
-            }
-
-            initForName(pattern)
-        }
-
-        private func initForName(pattern: String): Unit {
-            if (!pattern.contains('*')) {
-                patternType = PatternType.exact
-                return
-            }
-
-            // **子串**
-            if (pattern.length >= 3 && pattern[0] == '*' && pattern[pattern.length - 1] == '*') {
-                let sub = pattern.substring(1, pattern.length - 1)
-                if (sub.length > 0 && !sub.contains('*')) {
-                    patternType = PatternType.contains
-                    substring = sub
-                    return
-                }
-            }
-
-            // 查找通配符位置
-            let wildcardPos = pattern.indexOf('*')
-            if (wildcardPos >= 0) {
-                if (wildcardPos == pattern.length - 1) {
-                    // prefix*
-                    patternType = PatternType.prefix
-                    prefix = pattern.substring(0, wildcardPos)
-                } else if (wildcardPos == 0) {
-                    // *suffix
-                    patternType = PatternType.suffix
-                    suffix = pattern.substring(1)
-                } else {
-                    // prefix*suffix
-                    let secondStar = pattern.indexOf('*', wildcardPos + 1)
-                    if (secondStar >= 0) {
-                        patternType = PatternType.invalid
-                    } else {
-                        patternType = PatternType.middle
-                        prefix = pattern.substring(0, wildcardPos)
-                        suffix = pattern.substring(wildcardPos + 1)
-                    }
-                }
-            }
-        }
-
-        /// 匹配名称
-        public func matchesName(name: String, pattern: String): Bool {
-            when (patternType) {
-                case PatternType.exact => name == pattern
-                case PatternType.prefix => name.startsWith(prefix)
-                case PatternType.suffix => name.endsWith(suffix)
-                case PatternType.middle => name.startsWith(prefix) && name.endsWith(suffix)
-                case PatternType.contains => name.contains(substring)
-                case PatternType.invalid => false
-            }
-        }
-
-        /// 匹配版本
-        public func matchesVersion(version: String): Bool {
-            if (versionPattern.length == 0 || versionPattern == "latest") {
-                return true
-            }
-            // 简化版本匹配: 精确匹配或前缀匹配
-            if (version == versionPattern) {
-                return true
-            }
-            return version.startsWith(versionPattern)
-        }
-
-        /// 完整匹配
-        public func matches(name: String, version: String, pattern: String): Bool {
-            if (!matchesName(name, pattern)) {
-                return false
-            }
-            if (versionPattern.length > 0 && !matchesVersion(version)) {
-                return false
-            }
-            return true
-        }
-    }
 
     /// 打印用法
     public static func printUsage(): Unit {
@@ -194,7 +195,7 @@ public class WhyCommand {
     /// 执行命令
     public static func exec(ctx: CommandContext): Unit {
         let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.why)
-        let pm = PackageManager.init(ctx, cli, Subcommand.why)
+        let pm = PackageManager.`init`(ctx, cli, Subcommand.why)
 
         if (cli.positionals.size < 1) {
             printUsage()
@@ -230,7 +231,7 @@ public class WhyCommand {
         if (topOnly) {
             maxDepth = 1
         } else if (pm.options.depth != None) {
-            maxDepth = pm.options.depth!!
+            maxDepth = pm.options.depth.getOrThrow()
         } else {
             maxDepth = 100
         }
@@ -240,11 +241,11 @@ public class WhyCommand {
         let packages = lockfile.packages
 
         // 目标版本列表
-        let targetVersions = ArrayList<VersionInfo>()
+        let targetVersions = ArrayList<WhyVersionInfo>()
         // 所有依赖者映射
-        let allDependents = HashMap<Int64, ArrayList<DependentInfo>>()
+        let allDependents = HashMap<Int64, ArrayList<WhyDependentInfo>>()
 
-        let glob = GlobPattern(packagePattern)
+        let glob = WhyGlobPattern(packagePattern)
 
         // 遍历所有包
         for (pkgIdx in 0..packages.length) {
@@ -266,11 +267,11 @@ public class WhyCommand {
 
                 var dependentsEntry = allDependents.get(targetId)
                 if (dependentsEntry == None) {
-                    dependentsEntry = ArrayList<DependentInfo>()
-                    allDependents.put(targetId, dependentsEntry!!)
+                    dependentsEntry = ArrayList<WhyDependentInfo>()
+                    allDependents.put(targetId, dependentsEntry.getOrThrow())
                 }
 
-                let dep = DependentInfo()
+                let dep = WhyDependentInfo()
                 dep.name = pkgName
                 dep.version = packages.getResolution(pkgIdx).format(stringBytes)
                 dep.spec = dependencies[depIdx].version.literal.slice(stringBytes)
@@ -279,18 +280,18 @@ public class WhyCommand {
 
                 // 确定依赖类型
                 if (dependencies[depIdx].behavior.dev) {
-                    dep.depType = DependencyType.dev
+                    dep.depType = WhyDependencyType.dev
                 } else if (dependencies[depIdx].behavior.optional && dependencies[depIdx].behavior.peer) {
-                    dep.depType = DependencyType.optionalPeer
+                    dep.depType = WhyWhyDependencyType.optionalPeer
                 } else if (dependencies[depIdx].behavior.optional) {
-                    dep.depType = DependencyType.optional
+                    dep.depType = WhyDependencyType.optional
                 } else if (dependencies[depIdx].behavior.peer) {
-                    dep.depType = DependencyType.peer
+                    dep.depType = WhyDependencyType.peer
                 } else {
-                    dep.depType = DependencyType.prod
+                    dep.depType = WhyDependencyType.prod
                 }
 
-                dependentsEntry!!.append(dep)
+                dependentsEntry.getOrThrow().append(dep)
             }
 
             // 检查是否匹配模式
@@ -320,7 +321,7 @@ public class WhyCommand {
 
             let dependents = allDependents.get(targetVersion.pkgId)
             if (dependents != None) {
-                let deps = dependents!!
+                let deps = dependents.getOrThrow()
                 if (deps.size == 0) {
                     Output.prettyLn("  └─ No dependents found")
                 } else if (maxDepth == 0) {
@@ -332,10 +333,10 @@ public class WhyCommand {
                     for (depIdx in 0..deps.size) {
                         let dep = deps[depIdx]
                         let isLast = depIdx == deps.size - 1
-                        let prefix = if (isLast) PREFIX_LAST else PREFIX_MIDDLE
+                        let prefix = if (isLast) { PREFIX_LAST } else { PREFIX_MIDDLE }
                         printPackageWithType(prefix, dep)
                         if (!topOnly) {
-                            let nextPrefix = if (isLast) PREFIX_SPACE else PREFIX_CONTINUE
+                            let nextPrefix = if (isLast) { PREFIX_SPACE } else { PREFIX_CONTINUE }
                             printDependencyTree(allDependents, dep.pkgId, nextPrefix, 1, isLast, dep.workspace)
                         }
                     }
@@ -353,12 +354,12 @@ public class WhyCommand {
     private static func printPackageWithType(prefix: String, pkg: DependentInfo): Unit {
         Output.pretty("${prefix}")
 
-        when (pkg.depType) {
-            case DependencyType.dev => Output.pretty("dev ")
-            case DependencyType.peer => Output.pretty("peer ")
-            case DependencyType.optional => Output.pretty("optional ")
-            case DependencyType.optionalPeer => Output.pretty("optional peer ")
-            case DependencyType.prod => ()
+        match (pkg.depType) {
+            case WhyDependencyType.dev => Output.pretty("dev ")
+            case WhyDependencyType.peer => Output.pretty("peer ")
+            case WhyDependencyType.optional => Output.pretty("optional ")
+            case WhyWhyDependencyType.optionalPeer => Output.pretty("optional peer ")
+            case WhyDependencyType.prod => ()
         }
 
         if (pkg.workspace) {
@@ -382,7 +383,7 @@ public class WhyCommand {
 
     /// 打印依赖树
     private static func printDependencyTree(
-        allDependents: HashMap<Int64, ArrayList<DependentInfo>>,
+        allDependents: HashMap<Int64, ArrayList<WhyDependentInfo>>,
         currentPkgId: Int64,
         prefix: String,
         depth: Int64,
@@ -397,8 +398,8 @@ public class WhyCommand {
             return
         }
 
-        let sortedDependents = ArrayList<DependentInfo>(dependents!!.size)
-        for (d in dependents!!) {
+        let sortedDependents = ArrayList<WhyDependentInfo>(dependents.getOrThrow().size)
+        for (d in dependents.getOrThrow()) {
             sortedDependents.append(d)
         }
         sortDependents(sortedDependents)
@@ -416,11 +417,11 @@ public class WhyCommand {
             }
 
             let isDepLast = depIdx == sortedDependents.size - 1
-            let prefixChar = if (isDepLast) "└─ " else "├─ "
+            let prefixChar = if (isDepLast) { "└─ " } else { "├─ " }
             let fullPrefix = prefix + prefixChar
             printPackageWithType(fullPrefix, dep)
 
-            let nextPrefix = prefix + if (isDepLast) "   " else "│  "
+            let nextPrefix = prefix + if (isDepLast) { "   " } else { "│  " }
             let printBreakLine = isDepLast && sortedDependents.size > 1 && !printedBreakLine
             printDependencyTree(allDependents, dep.pkgId, nextPrefix, depth + 1, printedBreakLine || printBreakLine, dep.workspace)
 
@@ -445,17 +446,17 @@ public class WhyCommand {
 
     /// 获取依赖类型优先级
     private static func getDependencyTypePriority(depType: DependencyType): Int64 {
-        when (depType) {
-            case DependencyType.prod => 4
-            case DependencyType.peer => 3
-            case DependencyType.optionalPeer => 2
-            case DependencyType.optional => 1
-            case DependencyType.dev => 0
+        match (depType) {
+            case WhyDependencyType.prod => 4
+            case WhyDependencyType.peer => 3
+            case WhyWhyDependencyType.optionalPeer => 2
+            case WhyDependencyType.optional => 1
+            case WhyDependencyType.dev => 0
         }
     }
 
     /// 排序依赖者列表
-    private static func sortDependents(dependents: ArrayList<DependentInfo>): Unit {
+    private static func sortDependents(dependents: ArrayList<WhyDependentInfo>): Unit {
         // 简化的插入排序
         for (i in 1..dependents.size) {
             let key = dependents[i]
@@ -473,13 +474,13 @@ public class WhyCommand {
         let aSpec = getSpecifierSpecificity(a.spec)
         let bSpec = getSpecifierSpecificity(b.spec)
         if (aSpec != bSpec) {
-            return if (aSpec > bSpec) -1 else 1
+            return if (aSpec > bSpec) { -1 } else { 1 }
         }
 
         let aType = getDependencyTypePriority(a.depType)
         let bType = getDependencyTypePriority(b.depType)
         if (aType != bType) {
-            return if (aType > bType) -1 else 1
+            return if (aType > bType) { -1 } else { 1 }
         }
 
         return a.name.compareTo(b.name)

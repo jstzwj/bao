@@ -682,3 +682,38 @@ public class PathString {
         return data.isEmpty()
     }
 }
+
+// ============================================================================
+// BunString - 轻量字符串类型别名
+// 对应 Bun bun_core::BunString (ZigString)
+// 在仓颉中作为 String 的公共类型别名使用
+// ============================================================================
+public type BunString = String
+
+// ============================================================================
+// OwnedString - 拥有所有权的字符串
+// 对应 Bun bun_core::OwnedString
+// ============================================================================
+public class OwnedString {
+    private var inner: String
+
+    public init() {
+        this.inner = ""
+    }
+
+    public init(value: String) {
+        this.inner = value
+    }
+
+    public func length(): Int64 {
+        Int64(inner.size)
+    }
+
+    public func eql(other: String): Bool {
+        inner == other
+    }
+
+    public func toString(): String {
+        inner
+    }
+}

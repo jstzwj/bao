@@ -51,10 +51,15 @@ public class TransformOptions {
 // 转换目标平台
 public enum TransformTarget {
     | None
+    | Bun
+    | Browser
+    | Node
 }
 
 // ========== ResolveMode ==========
 // 解析模式
 public enum ResolveMode {
     | None
+    | Lazy
+    | Dev
 }

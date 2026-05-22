@@ -8,12 +8,12 @@ import bao_jsc.*
 
 /// toBe() - Object.is()严格相等比较
 /// 用法: expect(received).toBe(expected)
-public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     this.incrementExpectCallCounter()
 
-    let right = callFrame.argument(0) ?? return JSValue.zero // 参数不足
+    let right = callFrame.argument(0) ?? return JsValue.zero // 参数不足
 
     let left = this.getValue(globalThis: globalThis, thisValue: callFrame.this_(), matcherName: "toBe", matcherParamsFmt: "<green>expected<r>")
 
@@ -21,7 +21,7 @@ public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFram
     var pass = right.isSameValue(left, globalThis: globalThis)
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败 - 输出差异信息
     if (not) {

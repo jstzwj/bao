@@ -482,7 +482,7 @@ public class CrashHandler {
     private static var lastReport: ?CrashReport = None
 
     /// 初始化崩溃处理器
-    /// 对应 Bun: crash_handler.init()
+    /// 对应 Bun: crash_handler.`init`()
     /// 注册 SIGSEGV, SIGILL, SIGBUS, SIGFPE 的处理函数
     public static func initFunc(): Unit {
         if (initialized) { return }

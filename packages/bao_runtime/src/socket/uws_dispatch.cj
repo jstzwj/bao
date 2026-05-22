@@ -153,7 +153,7 @@ func vtc(c: ConnectingSocket): VTable {
 /// 对应 Zig: export fn us_dispatch_open
 public func usDispatchOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int32): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onOpen != None) {
+    if (vtable.onOpen.isSome()) {
         return vtable.onOpen(s, isClient, ip, ipLen)
     }
     return s
@@ -163,7 +163,7 @@ public func usDispatchOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int3
 /// 对应 Zig: export fn us_dispatch_data
 public func usDispatchData(s: UsSocket, data: String, len: Int32): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onData != None) {
+    if (vtable.onData.isSome()) {
         return vtable.onData(s, data, len)
     }
     return s
@@ -173,7 +173,7 @@ public func usDispatchData(s: UsSocket, data: String, len: Int32): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_fd
 public func usDispatchFd(s: UsSocket, fd: Int32): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onFd != None) {
+    if (vtable.onFd.isSome()) {
         return vtable.onFd(s, fd)
     }
     return s
@@ -183,7 +183,7 @@ public func usDispatchFd(s: UsSocket, fd: Int32): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_writable
 public func usDispatchWritable(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onWritable != None) {
+    if (vtable.onWritable.isSome()) {
         return vtable.onWritable(s)
     }
     return s
@@ -193,7 +193,7 @@ public func usDispatchWritable(s: UsSocket): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_close
 public func usDispatchClose(s: UsSocket, code: Int32, reason: ?Any): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onClose != None) {
+    if (vtable.onClose.isSome()) {
         return vtable.onClose(s, code, reason)
     }
     return s
@@ -203,7 +203,7 @@ public func usDispatchClose(s: UsSocket, code: Int32, reason: ?Any): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_timeout
 public func usDispatchTimeout(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onTimeout != None) {
+    if (vtable.onTimeout.isSome()) {
         return vtable.onTimeout(s)
     }
     return s
@@ -213,7 +213,7 @@ public func usDispatchTimeout(s: UsSocket): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_long_timeout
 public func usDispatchLongTimeout(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onLongTimeout != None) {
+    if (vtable.onLongTimeout.isSome()) {
         return vtable.onLongTimeout(s)
     }
     return s
@@ -223,7 +223,7 @@ public func usDispatchLongTimeout(s: UsSocket): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_end
 public func usDispatchEnd(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onEnd != None) {
+    if (vtable.onEnd.isSome()) {
         return vtable.onEnd(s)
     }
     return s
@@ -233,7 +233,7 @@ public func usDispatchEnd(s: UsSocket): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_connect_error
 public func usDispatchConnectError(s: UsSocket, code: Int32): ?UsSocket {
     let vtable = vt(s)
-    if (vtable.onConnectError != None) {
+    if (vtable.onConnectError.isSome()) {
         return vtable.onConnectError(s, code)
     }
     return s
@@ -243,7 +243,7 @@ public func usDispatchConnectError(s: UsSocket, code: Int32): ?UsSocket {
 /// 对应 Zig: export fn us_dispatch_connecting_error
 public func usDispatchConnectingError(c: ConnectingSocket, code: Int32): ?ConnectingSocket {
     let vtable = vtc(c)
-    if (vtable.onConnectingError != None) {
+    if (vtable.onConnectingError.isSome()) {
         return vtable.onConnectingError(c, code)
     }
     return c
@@ -253,7 +253,7 @@ public func usDispatchConnectingError(c: ConnectingSocket, code: Int32): ?Connec
 /// 对应 Zig: export fn us_dispatch_handshake
 public func usDispatchHandshake(s: UsSocket, ok: Int32, err: UsBunVerifyError): Unit {
     let vtable = vt(s)
-    if (vtable.onHandshake != None) {
+    if (vtable.onHandshake.isSome()) {
         vtable.onHandshake(s, ok, err, None)
     }
 }
@@ -265,9 +265,9 @@ public func usDispatchSslRawTap(s: UsSocket, data: String, len: Int32): ?UsSocke
     // 仅 bun_socket_tls 设置 ssl_raw_tap 位
     assert(s.kind() == SocketKind.BUN_SOCKET_TLS)
     let tls = s.ext<TLSSocket>()
-    if (tls != None && tls.twin != None) {
+    if (tls.isSome() && tls.twin.isSome()) {
         let raw = tls.twin
-        raw.onData(TLSSocket.Socket.from(s), data[0:len])
+        raw.onData(TLSSocket.Socket.from(s), data[0..len])
     }
     return s
 }
@@ -278,34 +278,34 @@ public func usDispatchSslRawTap(s: UsSocket, data: String, len: Int32): ?UsSocke
 
 /// us_socket_t 的不透明类型
 public class UsSocket {
-    public func kind(): SocketKind { ... }
-    public func rawGroup(): SocketGroup { ... }
-    public func ext<T>(): ?T { ... }
+    public func kind(): SocketKind { SocketKind.bunSocketTcp }
+    public func rawGroup(): SocketGroup { SocketGroup() }
+    public func ext<T>(): ?T { None }
 }
 
 /// ConnectingSocket 的不透明类型
 public class ConnectingSocket {
-    public func kind(): SocketKind { ... }
-    public func rawGroup(): SocketGroup { ... }
-    public func ext<T>(): ?T { ... }
+    public func kind(): SocketKind { SocketKind.bunSocketTcp }
+    public func rawGroup(): SocketGroup { SocketGroup() }
+    public func ext<T>(): ?T { None }
 }
 
 /// SocketGroup 的不透明类型
 public class SocketGroup {
     public var vtable: VTable
-    public func owner<T>(): T { ... }
+    public func owner<T>(): T { panic("not implemented") }
 }
 
 /// VTable 工厂
 /// 对应 Zig 中各 handler 适配器
 public class VTableFactory {
-    public static func makeBunSocket(ssl: Bool): VTable { ... }
-    public static func makeBunListener(ssl: Bool): VTable { ... }
-    public static func makeHTTPClient(ssl: Bool): VTable { ... }
-    public static func makeWSUpgrade(ssl: Bool): VTable { ... }
-    public static func makeWSClient(ssl: Bool): VTable { ... }
-    public static func makePostgres(ssl: Bool): VTable { ... }
-    public static func makeMySQL(ssl: Bool): VTable { ... }
-    public static func makeValkey(ssl: Bool): VTable { ... }
-    public static func makeSpawnIPC(): VTable { ... }
+    public static func makeBunSocket(ssl: Bool): VTable { VTable() }
+    public static func makeBunListener(ssl: Bool): VTable { VTable() }
+    public static func makeHTTPClient(ssl: Bool): VTable { VTable() }
+    public static func makeWSUpgrade(ssl: Bool): VTable { VTable() }
+    public static func makeWSClient(ssl: Bool): VTable { VTable() }
+    public static func makePostgres(ssl: Bool): VTable { VTable() }
+    public static func makeMySQL(ssl: Bool): VTable { VTable() }
+    public static func makeValkey(ssl: Bool): VTable { VTable() }
+    public static func makeSpawnIPC(): VTable { VTable() }
 }

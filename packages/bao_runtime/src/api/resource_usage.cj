@@ -27,16 +27,16 @@ public class ResourceUsage {
     // ========================================================================
 
     /// getCPUTime - 获取 CPU 时间
-    public func getCPUTime(globalObject: JsGlobalObject): JsValue {
+    public func getCPUTime(JsGlobalObject): JsValue {
         var cpu = JsValue.createEmptyObjectWithNullPrototype(globalObject)
         let rusage = this.rusage
 
         let usrTime = try JsValue.fromTimevalNoTruncate(globalObject, rusage.utime.usec, rusage.utime.sec)
         let sysTime = try JsValue.fromTimevalNoTruncate(globalObject, rusage.stime.usec, rusage.stime.sec)
 
-        cpu.put(globalObject, ZigString.static("user"), usrTime)
-        cpu.put(globalObject, ZigString.static("system"), sysTime)
-        cpu.put(globalObject, ZigString.static("total"), JsValue.bigIntSum(globalObject, usrTime, sysTime))
+        cpu.put(globalObject, ZigString.`static`("user"), usrTime)
+        cpu.put(globalObject, ZigString.`static`("system"), sysTime)
+        cpu.put(globalObject, ZigString.`static`("total"), JsValue.bigIntSum(globalObject, usrTime, sysTime))
 
         return cpu
     }
@@ -57,18 +57,18 @@ public class ResourceUsage {
     }
 
     /// getOps - 获取 I/O 操作数
-    public func getOps(globalObject: JsGlobalObject): JsValue {
+    public func getOps(JsGlobalObject): JsValue {
         var ops = JsValue.createEmptyObjectWithNullPrototype(globalObject)
-        ops.put(globalObject, ZigString.static("in"), JsValue.jsNumber(rusage.inblock))
-        ops.put(globalObject, ZigString.static("out"), JsValue.jsNumber(rusage.oublock))
+        ops.put(globalObject, ZigString.`static`("in"), JsValue.jsNumber(rusage.inblock))
+        ops.put(globalObject, ZigString.`static`("out"), JsValue.jsNumber(rusage.oublock))
         return ops
     }
 
     /// getMessages - 获取消息统计
-    public func getMessages(globalObject: JsGlobalObject): JsValue {
+    public func getMessages(JsGlobalObject): JsValue {
         var msgs = JsValue.createEmptyObjectWithNullPrototype(globalObject)
-        msgs.put(globalObject, ZigString.static("sent"), JsValue.jsNumber(rusage.msgsnd))
-        msgs.put(globalObject, ZigString.static("received"), JsValue.jsNumber(rusage.msgrcv))
+        msgs.put(globalObject, ZigString.`static`("sent"), JsValue.jsNumber(rusage.msgsnd))
+        msgs.put(globalObject, ZigString.`static`("received"), JsValue.jsNumber(rusage.msgrcv))
         return msgs
     }
 
@@ -78,10 +78,10 @@ public class ResourceUsage {
     }
 
     /// getContextSwitches - 获取上下文切换数
-    public func getContextSwitches(globalObject: JsGlobalObject): JsValue {
+    public func getContextSwitches(JsGlobalObject): JsValue {
         var ctx = JsValue.createEmptyObjectWithNullPrototype(globalObject)
-        ctx.put(globalObject, ZigString.static("voluntary"), JsValue.jsNumber(rusage.nvcsw))
-        ctx.put(globalObject, ZigString.static("involuntary"), JsValue.jsNumber(rusage.nivcsw))
+        ctx.put(globalObject, ZigString.`static`("voluntary"), JsValue.jsNumber(rusage.nvcsw))
+        ctx.put(globalObject, ZigString.`static`("involuntary"), JsValue.jsNumber(rusage.nivcsw))
         return ctx
     }
 

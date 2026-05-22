@@ -73,7 +73,7 @@ public type JscArgumentsSlice = ArgumentsSlice
 // JS 类型系统
 public type JscType = JSType
 public type JscRuntimeType = JSRuntimeType
-public type JscErrorCode_ = JSErrorCode
+public type JscErrorCode_ = ErrorCode
 public type JscPromiseRejectionOp = JSPromiseRejectionOperation
 
 // 数组/集合
@@ -94,7 +94,7 @@ public type JscZigString = ZigString
 
 // 错误/异常
 public type JscException = JsException
-public type JscErrorable = Errorable
+public type JscErrorable<T> = Errorable<T>
 public type JscDeferredError = DeferredError
 public type JscGetterSetter = GetterSetter
 public type JscCustomGetterSetter = CustomGetterSetter
@@ -104,7 +104,7 @@ public type JscZigException = ZigException
 public type JscZigErrorType = ZigErrorType
 public type JscZigStackFrame = ZigStackFrame
 public type JscZigStackTrace = ZigStackTrace
-public type JscErrorCode_ = ErrorCode
+// 注意: JscErrorCode_ 已在上面定义为 ErrorCode
 public type JscJSErrorCode = JSErrorCode
 public type JscDOMExceptionCode = DOMExceptionCode
 public type JscTopExceptionScope = TopExceptionScope
@@ -117,7 +117,7 @@ public type JscLoggerMsg = LoggerMsg
 
 // Promise
 public type JscAnyPromise = AnyPromise
-public type JscConcurrentPromiseTask = ConcurrentPromiseTaskGeneric
+public type JscConcurrentPromiseTask = ConcurrentPromiseTask
 
 // 引用
 public type JscStrong<T> = Strong<T>
@@ -125,9 +125,9 @@ public type JscWeak<T> = Weak<T>
 
 // 任务
 public type JscTask = Task
-public type JscWorkTask = WorkTask
+public type JscWorkTask<Context> = WorkTask<Context>
 public type JscCppTask = CppTask
-public type JscConcurrentPromiseTask = ConcurrentPromiseTask
+// 注意: JscConcurrentPromiseTask 已在上面定义为 ConcurrentPromiseTask
 
 // 事件循环
 public type JscEventLoop = EventLoop
@@ -145,7 +145,8 @@ public type JscPosixSignalHandle = PosixSignalHandle
 public type JscRegularExpression = RegularExpression
 public type JscTextCodec = TextCodec
 public type JscAbortSignal = AbortSignal
-public type JscAbortController = AbortController
+// 注意: AbortController 在 bao_runtime 中定义，bao_jsc 无法直接引用
+// public type JscAbortController = AbortController
 
 // IPC
 public type JscHostFunction = HostFunction
@@ -217,7 +218,8 @@ public type JscHostFnEntry = HostFnEntry
 public type JscPathLike = PathLike
 public type JscPathOrFileDescriptor = PathOrFileDescriptor
 public type JscPathOrFileDescriptorSerializeTag = PathOrFileDescriptorSerializeTag
-public type JscThreadSafe = ThreadSafePathLike
+// 注意: ThreadSafePathLike 尚未定义
+// public type JscThreadSafe = ThreadSafePathLike
 
 // Webcore 数据类型
 public type JscBlob = Blob
@@ -254,22 +256,22 @@ public func null(): JsValue {
 
 // 从 Bool 创建 JsValue
 public func value(b: Bool): JsValue {
-    JsValue(b: b)
+    JsValue(b)
 }
 
 // 从 Number 创建 JsValue
 public func value(n: Float64): JsValue {
-    JsValue(n: n)
+    JsValue(n)
 }
 
 // 从 String 创建 JsValue
 public func value(s: String): JsValue {
-    JsValue(s: s)
+    JsValue(s)
 }
 
 // 从 Object 创建 JsValue
 public func value(obj: JsObject): JsValue {
-    JsValue(obj: obj)
+    JsValue(obj)
 }
 
 // 创建新 VM

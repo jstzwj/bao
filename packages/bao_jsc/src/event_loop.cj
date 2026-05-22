@@ -9,6 +9,18 @@ public enum EventLoopState {
     | Running
     | Paused
     | Stopped
+
+    public operator func ==(right: EventLoopState): Bool {
+        match (this) {
+            case Running => match(right) { case Running => true case _ => false }
+            case Paused => match(right) { case Paused => true case _ => false }
+            case Stopped => match(right) { case Stopped => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: EventLoopState): Bool {
+        !(this == right)
+    }
 }
 
 // ========== 事件循环标签 ==========
@@ -59,15 +71,19 @@ public class MicrotaskQueue {
     public init() {}
 
     public static func instance(): MicrotaskQueue {
-        if (instance_ == None) {
-            instance_ = MicrotaskQueue()
+        if (let Some(q) <- instance_) {
+            return q
         }
-        instance_.getOrThrow()
+        instance_ = MicrotaskQueue()
+        match (instance_) {
+            case Some(q) => q
+            case None => MicrotaskQueue()
+        }
     }
 
     // 入队微任务
     public func enqueue(task: () -> Unit) {
-        queue.append(task)
+        queue = queue.concat([task])
     }
 
     // 排空微任务队列
@@ -75,7 +91,7 @@ public class MicrotaskQueue {
         var count: Int64 = 0
         while (queue.size > 0) {
             let task = queue[0]
-            queue = queue.slice(1)
+            queue = queue.slice(1, queue.size)
             task()
             count++
         }
@@ -87,32 +103,7 @@ public class MicrotaskQueue {
     }
 }
 
-// ========== EventLoopHandle ==========
-// 严格翻译自 EventLoopHandle.zig
-// 事件循环句柄，用于管理事件循环的引用计数
-public class EventLoopHandle {
-    public var loop: ?EventLoop = None
-    public var refCount: Int64 = 0
-    public var hasExtraRef: Bool = false
-
-    public init() {}
-
-    public init(loop: EventLoop) {
-        this.loop = loop
-    }
-
-    public func ref() {
-        refCount++
-    }
-
-    public func unref() {
-        refCount--
-    }
-
-    public func isActive(): Bool {
-        refCount > 0
-    }
-}
+// 注意: EventLoopHandle 已移至 event_loop_handle.cj
 
 // ========== EventLoop ==========
 // 严格翻译自 event_loop.zig
@@ -134,6 +125,27 @@ public class EventLoop {
 
     // 绑定的 VM
     public var vm: ?BunVirtualMachine = None
+
+    // 全局对象 (stub)
+    public var global: JsObject = JsObject()
+
+    // 虚拟机快捷访问
+    public func virtualMachine(): BunVirtualMachine {
+        match (vm) {
+            case Some(v) => v
+            case None => BunVirtualMachine()
+        }
+    }
+
+    // 进入事件循环
+    public func enter() {
+        state = EventLoopState.Running
+    }
+
+    // 退出事件循环
+    public func exit() {
+        state = EventLoopState.Stopped
+    }
 
     public init() {}
 
@@ -190,16 +202,15 @@ public class EventLoop {
     // 入队任务
     public func enqueue(entry: EventLoopEntry) {
         match (entry.tag) {
-            case Timer => timerQueue.append(entry)
-            case Immediate => immediateQueue.append(entry)
-            case IO => ioQueue.append(entry)
-            case NextTick => nextTickQueue.append(entry)
-            case Microtask => {
+            case Timer => timerQueue = timerQueue.concat([entry])
+            case Immediate => immediateQueue = immediateQueue.concat([entry])
+            case IO => ioQueue = ioQueue.concat([entry])
+            case NextTick => nextTickQueue = nextTickQueue.concat([entry])
+            case Microtask=>
                 if (let Some(cb) <- entry.callback) {
                     microtaskQueue.enqueue(cb)
                 }
-            }
-            case _ => immediateQueue.append(entry)
+            case _ => immediateQueue = immediateQueue.concat([entry])
         }
     }
 
@@ -208,7 +219,7 @@ public class EventLoop {
     func processNextTicks() {
         while (nextTickQueue.size > 0) {
             let entry = nextTickQueue[0]
-            nextTickQueue = nextTickQueue.slice(1)
+            nextTickQueue = nextTickQueue.slice(1, nextTickQueue.size)
             entry.run()
         }
     }
@@ -220,7 +231,7 @@ public class EventLoop {
     func processTimers() {
         while (timerQueue.size > 0) {
             let entry = timerQueue[0]
-            timerQueue = timerQueue.slice(1)
+            timerQueue = timerQueue.slice(1, timerQueue.size)
             entry.run()
         }
     }
@@ -228,7 +239,7 @@ public class EventLoop {
     func processIO() {
         while (ioQueue.size > 0) {
             let entry = ioQueue[0]
-            ioQueue = ioQueue.slice(1)
+            ioQueue = ioQueue.slice(1, ioQueue.size)
             entry.run()
         }
     }
@@ -236,7 +247,7 @@ public class EventLoop {
     func processImmediate() {
         while (immediateQueue.size > 0) {
             let entry = immediateQueue[0]
-            immediateQueue = immediateQueue.slice(1)
+            immediateQueue = immediateQueue.slice(1, immediateQueue.size)
             entry.run()
         }
     }
@@ -267,20 +278,34 @@ public class EventLoop {
 
     public func setTimeout(callback: () -> Unit, delay: Float64): Int64 {
         let entry = EventLoopEntry(EventLoopTag.Timer, callback)
-        timerQueue.append(entry)
+        timerQueue = timerQueue.concat([entry])
         activeHandles++
         Int64(timerQueue.size)
     }
 
     public func setImmediate(callback: () -> Unit): Int64 {
         let entry = EventLoopEntry(EventLoopTag.Immediate, callback)
-        immediateQueue.append(entry)
+        immediateQueue = immediateQueue.concat([entry])
         activeHandles++
         Int64(immediateQueue.size)
     }
 
     public func setNextTick(callback: () -> Unit) {
         let entry = EventLoopEntry(EventLoopTag.NextTick, callback)
-        nextTickQueue.append(entry)
+        nextTickQueue = nextTickQueue.concat([entry])
+    }
+
+    // 入队通用任务
+    public func enqueueTask(task: Task) {
+        // stub: 入队到 immediate 队列
+        let entry = EventLoopEntry(EventLoopTag.Immediate, { => })
+        immediateQueue = immediateQueue.concat([entry])
+    }
+
+    // 入队并发任务
+    public func enqueueTaskConcurrent(task: ConcurrentTaskObj) {
+        // stub: 入队到 immediate 队列
+        let entry = EventLoopEntry(EventLoopTag.Immediate, { => })
+        immediateQueue = immediateQueue.concat([entry])
     }
 }

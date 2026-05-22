@@ -9,15 +9,20 @@ import bao_core.*
 /// 对应 Bun: SASL
 /// 实现 SCRAM-SHA-256 认证机制
 public class PostgresSASL {
-    public var nonceBase64Bytes: Array<UInt8> = Array<UInt8>(24, item: 0)
+    public var nonceBase64Bytes: Array<UInt8> = Array<UInt8>(24, {_ => 0})
     public var nonceLen: UInt8 = 0
-    public var serverSignatureBase64Bytes: Array<UInt8> = Array<UInt8>(44, item: 0)
+    public var serverSignatureBase64Bytes: Array<UInt8> = Array<UInt8>(44, {_ => 0})
     public var serverSignatureLen: UInt8 = 0
-    public var saltedPasswordBytes: Array<UInt8> = Array<UInt8>(32, item: 0)
+    public var saltedPasswordBytes: Array<UInt8> = Array<UInt8>(32, {_ => 0})
     public var saltedPasswordCreated: Bool = false
     public var status: SASLStatus = SASLStatus.Init
 
     public init() {}
+
+    /// 处理认证数据
+    public func processAuth(data: Array<UInt8>): Unit {
+        // Stub: process SASL authentication data
+    }
 
     /// 计算加盐密码
     /// 对应 Bun: SASL.computeSaltedPassword
@@ -49,7 +54,7 @@ public class PostgresSASL {
     /// 对应 Bun: SASL.clientKey
     public func clientKey(): Array<UInt8> {
         // HMAC-SHA256(saltedPassword, "Client Key")
-        return Array<UInt8>(32, item: 0)
+        return Array<UInt8>(32, {_ => 0})
     }
 
     /// 客户端密钥签名
@@ -57,7 +62,7 @@ public class PostgresSASL {
     public func clientKeySignature(clientKey: Array<UInt8>,
                                     authString: Array<UInt8>): Array<UInt8> {
         // SHA256(clientKey) XOR authString -> HMAC
-        return Array<UInt8>(32, item: 0)
+        return Array<UInt8>(32, {_ => 0})
     }
 
     /// 获取 nonce
@@ -65,7 +70,7 @@ public class PostgresSASL {
     public func nonce(): Array<UInt8> {
         if (nonceLen == 0) {
             // 生成 18 字节随机数并 base64 编码
-            var bytes = Array<UInt8>(18, item: 0)
+            var bytes = Array<UInt8>(18, {_ => 0})
             // CSPRNG 填充
             nonceLen = 24
             nonceBase64Bytes = Base64.encode(bytes)
@@ -94,7 +99,7 @@ public enum SASLStatus {
 public class Base64 {
     public static func encode(data: Array<UInt8>): Array<UInt8> {
         // 简化 Base64 编码实现
-        return Array<UInt8>(24, item: 0)
+        return Array<UInt8>(24, {_ => 0})
     }
 
     public static func encodeLenFromSize(size: Int64): Int64 {

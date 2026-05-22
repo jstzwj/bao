@@ -137,17 +137,15 @@ public class ServerWebSocket {
         flags.opened = false
 
         match (handler) {
-            case Some(h) => {
+            case Some(h) =>
                 h.activeConnections += 1
 
                 match (h.onOpen) {
-                    case Some(cb) => {
+                    case Some(cb) =>
                         cb(this)
                         flags.opened = true
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -156,18 +154,16 @@ public class ServerWebSocket {
     /// 对应 Bun: pub fn onMessage(this, ws, message, opcode) void
     public func onMessage(message: String, opcode: WebSocketOpcode): Unit {
         match (handler) {
-            case Some(h) => {
+            case Some(h) =>
                 match (h.onMessage) {
-                    case Some(cb) => {
+                    case Some(cb) =>
                         let isBinary = match (opcode) {
                             case WebSocketOpcode.Binary => true
                             case _ => false
                         }
                         cb(this, message, isBinary)
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -176,7 +172,7 @@ public class ServerWebSocket {
     /// 对应 Bun: pub fn onDrain(this, _: uws.AnyWebSocket) void
     public func onDrain(): Unit {
         match (handler) {
-            case Some(h) => {
+            case Some(h) =>
                 if (isClosed()) {
                     return
                 }
@@ -184,7 +180,6 @@ public class ServerWebSocket {
                     case Some(cb) => cb(this)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -193,12 +188,11 @@ public class ServerWebSocket {
     /// 对应 Bun: pub fn onPing(this, _: uws.AnyWebSocket, data: []const u8) void
     public func onPing(data: String): Unit {
         match (handler) {
-            case Some(h) => {
+            case Some(h) =>
                 match (h.onPing) {
                     case Some(cb) => cb(this, data, false)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -207,12 +201,11 @@ public class ServerWebSocket {
     /// 对应 Bun: pub fn onPong(this, _: uws.AnyWebSocket, data: []const u8) void
     public func onPong(data: String): Unit {
         match (handler) {
-            case Some(h) => {
+            case Some(h) =>
                 match (h.onPong) {
                     case Some(cb) => cb(this, data, false)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -224,17 +217,16 @@ public class ServerWebSocket {
         flags.closed = true
 
         match (handler) {
-            case Some(h) => {
+            case Some(h) =>
                 if (!wasClosed) {
                     h.activeConnections -= 1
                 }
 
                 // 信号中止
                 match (signal) {
-                    case Some(s) => {
+                    case Some(s) =>
                         s.abort(code)
                         signal = None
-                    }
                     case None => ()
                 }
 
@@ -242,7 +234,6 @@ public class ServerWebSocket {
                     case Some(cb) => cb(this, code, message)
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -253,7 +244,7 @@ public class ServerWebSocket {
     // ========================================================================
 
     /// 发送消息 (文本或二进制)
-    /// 对应 Bun: pub fn send(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn send(this, globalThis, callframe) bun.JSError!JsValue
     public func send(message: String, compress: Bool): WebSocketSendResult {
         if (isClosed()) {
             return WebSocketSendResult.Dropped
@@ -263,7 +254,7 @@ public class ServerWebSocket {
     }
 
     /// 发送二进制消息
-    /// 对应 Bun: pub fn sendBinary(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn sendBinary(this, globalThis, callframe) bun.JSError!JsValue
     public func sendBinary(data: Array<UInt8>, compress: Bool): WebSocketSendResult {
         if (isClosed()) {
             return WebSocketSendResult.Dropped
@@ -272,7 +263,7 @@ public class ServerWebSocket {
     }
 
     /// 发送文本消息
-    /// 对应 Bun: pub fn sendText(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn sendText(this, globalThis, callframe) bun.JSError!JsValue
     public func sendText(text: String, compress: Bool): WebSocketSendResult {
         if (isClosed()) {
             return WebSocketSendResult.Dropped
@@ -281,7 +272,7 @@ public class ServerWebSocket {
     }
 
     /// 发送 Ping
-    /// 对应 Bun: pub fn ping(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn ping(this, globalThis, callframe) bun.JSError!JsValue
     public func ping(data: String): WebSocketSendResult {
         if (isClosed()) {
             return WebSocketSendResult.Dropped
@@ -290,7 +281,7 @@ public class ServerWebSocket {
     }
 
     /// 发送 Pong
-    /// 对应 Bun: pub fn pong(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn pong(this, globalThis, callframe) bun.JSError!JsValue
     public func pong(data: String): WebSocketSendResult {
         if (isClosed()) {
             return WebSocketSendResult.Dropped
@@ -304,10 +295,10 @@ public class ServerWebSocket {
     // ========================================================================
 
     /// 发布消息到主题
-    /// 对应 Bun: pub fn publish(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn publish(this, globalThis, callframe) bun.JSError!JsValue
     public func publish(topic: String, message: String, compress: Bool): Int64 {
         match (handler) {
-            case Some(h) => {
+            case Some(h) =>
                 let publishToSelf = h.flags.publishToSelf
 
                 if (!publishToSelf && !isClosed()) {
@@ -317,7 +308,6 @@ public class ServerWebSocket {
 
                 // 通过 app 发布给所有订阅者
                 return message.size
-            }
             case None => Int64(0)
         }
     }
@@ -385,7 +375,7 @@ public class ServerWebSocket {
     // ========================================================================
 
     /// 关闭连接
-    /// 对应 Bun: pub fn close(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn close(this, globalThis, callframe) bun.JSError!JsValue
     public func close(code: Int64, reason: String): Unit {
         if (isClosed()) {
             return
@@ -395,7 +385,7 @@ public class ServerWebSocket {
     }
 
     /// 终止连接
-    /// 对应 Bun: pub fn terminate(this, ...) bun.JSError!JSValue
+    /// 对应 Bun: pub fn terminate(this, ...) bun.JSError!JsValue
     public func terminate(): Unit {
         if (isClosed()) {
             return
@@ -405,7 +395,7 @@ public class ServerWebSocket {
     }
 
     /// 获取就绪状态
-    /// 对应 Bun: pub fn getReadyState(this, _: *jsc.JSGlobalObject) JSValue
+    /// 对应 Bun: pub fn getReadyState(this, _: *jsc.JSGlobalObject) JsValue
     public func getReadyState(): Int64 {
         if (isClosed()) {
             return 3  // CLOSED
@@ -414,7 +404,7 @@ public class ServerWebSocket {
     }
 
     /// 获取缓冲数据量
-    /// 对应 Bun: pub fn getBufferedAmount(this, ...) bun.JSError!JSValue
+    /// 对应 Bun: pub fn getBufferedAmount(this, ...) bun.JSError!JsValue
     public func getBufferedAmount(): Int64 {
         if (isClosed()) {
             return 0
@@ -423,7 +413,7 @@ public class ServerWebSocket {
     }
 
     /// 获取二进制类型
-    /// 对应 Bun: pub fn getBinaryType(this, globalThis) bun.JSError!JSValue
+    /// 对应 Bun: pub fn getBinaryType(this, globalThis) bun.JSError!JsValue
     public func getBinaryType(): String {
         match (flags.binaryType) {
             case BinaryType.Buffer => "nodebuffer"
@@ -445,7 +435,7 @@ public class ServerWebSocket {
     }
 
     /// 获取远端地址
-    /// 对应 Bun: pub fn getRemoteAddress(this, globalThis) bun.JSError!JSValue
+    /// 对应 Bun: pub fn getRemoteAddress(this, globalThis) bun.JSError!JsValue
     public func getRemoteAddress(): ?String {
         if (isClosed()) {
             return None
@@ -455,7 +445,7 @@ public class ServerWebSocket {
     }
 
     /// 获取用户数据
-    /// 对应 Bun: pub fn getData(this, _: *jsc.JSGlobalObject) JSValue
+    /// 对应 Bun: pub fn getData(this, _: *jsc.JSGlobalObject) JsValue
     public func getData(): ?Object {
         return data
     }
@@ -467,7 +457,7 @@ public class ServerWebSocket {
     }
 
     /// Cork (批量写入)
-    /// 对应 Bun: pub fn cork(this, globalThis, callframe) bun.JSError!JSValue
+    /// 对应 Bun: pub fn cork(this, globalThis, callframe) bun.JSError!JsValue
     public func cork(callback: () -> Unit): Unit {
         if (isClosed()) {
             return
@@ -499,7 +489,7 @@ public class HashSet<T> {
     }
 
     public func remove(key: T): Bool {
-        return map.remove(key) != None
+        return map.remove(key).isSome()
     }
 
     public func toList(): ArrayList<T> {

@@ -7,17 +7,14 @@ import bao_core.*
 
 // ============================================================================
 // MethodJSC - Method 的 JSC 桥接
-// 严格翻译自: src/http_jsc/method_jsc.zig:3-9
-//   extern "c" fn Bun__HTTPMethod__toJS(method: Method, globalObject) jsc.JSValue
-//   pub const toJS = Bun__HTTPMethod__toJS
 // ============================================================================
 
-// 外部 C 函数声明 - 严格对应 Bun extern "c" 声明
-@Foreign("c")
-public func Bun__HTTPMethod__toJS(method: Method, globalObject: JSGlobalObject): JSValue
+// Stub: 原为 extern "c" 声明，仓颉中替换为 stub 实现
+public func Bun__HTTPMethod__toJS(method: UInt8, globalObject: JsObject): JsValue {
+    return JsValue.jsUndefined()
+}
 
 /// 将 HTTP Method 转换为 JS - 严格对应 Bun toJS
-/// Zig: pub const toJS = Bun__HTTPMethod__toJS
-public func methodToJS(method: Method, globalObject: JSGlobalObject): JSValue {
+public func methodToJS(method: UInt8, globalObject: JsObject): JsValue {
     return Bun__HTTPMethod__toJS(method, globalObject)
 }

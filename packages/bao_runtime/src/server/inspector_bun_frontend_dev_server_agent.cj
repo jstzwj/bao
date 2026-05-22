@@ -153,25 +153,25 @@ public class BunFrontendDevServerAgent {
 
     // ========================================================================
     // nextConnectionID - 获取下一个连接 ID
-    // 严格翻译自: pub fn nextConnectionID(this: *BunFrontendDevServerAgent) i32
+    // 严格翻译自: pub fn nextConnectionID(`this`: *BunFrontendDevServerAgent) i32
     // ========================================================================
 
     /// 获取下一个连接 ID
-    /// 对应 Bun: pub fn nextConnectionID(this: *BunFrontendDevServerAgent) i32
+    /// 对应 Bun: pub fn nextConnectionID(`this`: *BunFrontendDevServerAgent) i32
     /// Bun 使用 wrapping add (%+)
     public func nextConnectionID(): Int32 {
         let id = nextInspectorConnectionId
-        nextInspectorConnectionId = nextInspectorConnectionId &+ 1
+        nextInspectorConnectionId = nextInspectorConnectionId + 1
         return id
     }
 
     // ========================================================================
     // isEnabled - 检查代理是否启用
-    // 严格翻译自: pub fn isEnabled(this: *const BunFrontendDevServerAgent) bool
+    // 严格翻译自: pub fn isEnabled(`this`: *const BunFrontendDevServerAgent) bool
     // ========================================================================
 
     /// 检查代理是否已启用
-    /// 对应 Bun: pub fn isEnabled(this: *const BunFrontendDevServerAgent) bool
+    /// 对应 Bun: pub fn isEnabled(`this`: *const BunFrontendDevServerAgent) bool
     public func isEnabled(): Bool {
         match (handle) {
             case Some(_) => true
@@ -185,7 +185,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知客户端已连接
-    /// 对应 Bun: pub fn notifyClientConnected(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, connectionId: i32) void
+    /// 对应 Bun: pub fn notifyClientConnected(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, connectionId: i32) void
     public func notifyClientConnected(devServerId: Int32, connectionId: Int32): Unit {
         match (handle) {
             case Some(h) => h.notifyClientConnected(devServerId, connectionId)
@@ -199,7 +199,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知客户端已断开连接
-    /// 对应 Bun: pub fn notifyClientDisconnected(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, connectionId: i32) void
+    /// 对应 Bun: pub fn notifyClientDisconnected(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, connectionId: i32) void
     public func notifyClientDisconnected(devServerId: Int32, connectionId: Int32): Unit {
         match (handle) {
             case Some(h) => h.notifyClientDisconnected(devServerId, connectionId)
@@ -213,7 +213,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知打包开始
-    /// 对应 Bun: pub fn notifyBundleStart(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, triggerFiles: []bun.String) void
+    /// 对应 Bun: pub fn notifyBundleStart(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, triggerFiles: []bun.String) void
     public func notifyBundleStart(devServerId: Int32, triggerFiles: Array<BaoString>): Unit {
         match (handle) {
             case Some(h) => h.notifyBundleStart(devServerId, triggerFiles, triggerFiles.size)
@@ -227,7 +227,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知打包完成
-    /// 对应 Bun: pub fn notifyBundleComplete(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, durationMs: f64) void
+    /// 对应 Bun: pub fn notifyBundleComplete(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, durationMs: f64) void
     public func notifyBundleComplete(devServerId: Int32, durationMs: Float64): Unit {
         match (handle) {
             case Some(h) => h.notifyBundleComplete(devServerId, durationMs)
@@ -241,7 +241,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知打包失败
-    /// 对应 Bun: pub fn notifyBundleFailed(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, buildErrorsPayloadBase64: *bun.String) void
+    /// 对应 Bun: pub fn notifyBundleFailed(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, buildErrorsPayloadBase64: *bun.String) void
     public func notifyBundleFailed(devServerId: Int32, buildErrorsPayloadBase64: BaoString): Unit {
         match (handle) {
             case Some(h) => h.notifyBundleFailed(devServerId, buildErrorsPayloadBase64)
@@ -255,17 +255,16 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知客户端导航
-    /// 对应 Bun: pub fn notifyClientNavigated(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, connectionId: i32, url: *bun.String, routeBundleId: ?DevServer.RouteBundle.Index) void
+    /// 对应 Bun: pub fn notifyClientNavigated(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, connectionId: i32, url: *bun.String, routeBundleId: ?DevServer.RouteBundle.Index) void
     /// routeBundleId 为 null 时传 -1
     public func notifyClientNavigated(devServerId: Int32, connectionId: Int32, url: BaoString, routeBundleId: ?Int32): Unit {
         match (handle) {
-            case Some(h) => {
+            case Some(h) =>
                 let bundleId: Int32 = match (routeBundleId) {
                     case Some(id) => id
                     case None => -1
                 }
                 h.notifyClientNavigated(devServerId, connectionId, url, bundleId)
-            }
             case None => ()
         }
     }
@@ -276,7 +275,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知客户端错误已报告
-    /// 对应 Bun: pub fn notifyClientErrorReported(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, clientErrorPayloadBase64: *bun.String) void
+    /// 对应 Bun: pub fn notifyClientErrorReported(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, clientErrorPayloadBase64: *bun.String) void
     public func notifyClientErrorReported(devServerId: Int32, clientErrorPayloadBase64: BaoString): Unit {
         match (handle) {
             case Some(h) => h.notifyClientErrorReported(devServerId, clientErrorPayloadBase64)
@@ -290,7 +289,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知依赖图更新
-    /// 对应 Bun: pub fn notifyGraphUpdate(this: *const BunFrontendDevServerAgent, devServerId: DebuggerId, visualizerPayloadBase64: *bun.String) void
+    /// 对应 Bun: pub fn notifyGraphUpdate(`this`: *const BunFrontendDevServerAgent, devServerId: DebuggerId, visualizerPayloadBase64: *bun.String) void
     public func notifyGraphUpdate(devServerId: Int32, visualizerPayloadBase64: BaoString): Unit {
         match (handle) {
             case Some(h) => h.notifyGraphUpdate(devServerId, visualizerPayloadBase64)
@@ -304,7 +303,7 @@ public class BunFrontendDevServerAgent {
     // ========================================================================
 
     /// 通知控制台日志
-    /// 对应 Bun: pub fn notifyConsoleLog(this: BunFrontendDevServerAgent, devServerId: DebuggerId, kind: bun.bake.DevServer.ConsoleLogKind, data: *bun.String) void
+    /// 对应 Bun: pub fn notifyConsoleLog(`this`: BunFrontendDevServerAgent, devServerId: DebuggerId, kind: bun.bake.DevServer.ConsoleLogKind, data: *bun.String) void
     public func notifyConsoleLog(devServerId: Int32, kind: ConsoleLogKind, data: BaoString): Unit {
         match (handle) {
             case Some(h) => h.notifyConsoleLog(devServerId, kind.toUInt8(), data)
@@ -323,9 +322,8 @@ public class BunFrontendDevServerAgent {
     public static func setEnabled(agent: ?InspectorBunFrontendDevServerAgentHandle): Unit {
         let vm = VirtualMachine.get()
         match (vm.debugger) {
-            case Some(debugger) => {
+            case Some(debugger) =>
                 debugger.frontendDevServerAgent.handle = agent
-            }
             case None => ()
         }
     }

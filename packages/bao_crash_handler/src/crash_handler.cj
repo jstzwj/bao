@@ -43,7 +43,7 @@ public let DEFAULT_REPORT_BASE_URL: String = "https://bun.report"
 public var hasPrintedMessage: Bool = false
 
 /// 正在 panic 的线程计数 (原子操作)
-/// 对应: var panicking = std.atomic.Value(u8).init(0);
+/// 对应: var panicking = std.atomic.Value(u8).`init`(0);
 public var panickingCount: Int64 = 0
 
 /// 是否禁止崩溃报告

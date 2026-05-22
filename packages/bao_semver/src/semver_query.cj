@@ -122,7 +122,7 @@ public class SemverToken {
     ///       match self.tag {
     ///           TokenTag::Caret => { /* caret range */ }
     ///           TokenTag::Tilda => { /* tilde range */ }
-    ///           TokenTag::Version => { if wildcard != None => initWildcard; else => eql }
+    ///           TokenTag::Version => { if wildcard.isSome() => initWildcard; else => eql }
     ///           _ => { /* gt/gte/lt/lte with wildcards */ }
     ///       }
     ///   }

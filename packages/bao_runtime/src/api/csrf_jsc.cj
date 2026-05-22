@@ -17,7 +17,7 @@ public class CsrfJsc {
     // ========================================================================
 
     /// JS 绑定: 生成 CSRF 令牌
-    public static func csrfGenerate(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public static func csrfGenerate(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.arguments()
         var secret: ?ZigStringSlice = none
 
@@ -25,15 +25,15 @@ public class CsrfJsc {
             let jsSecret = args[0]
             if (jsSecret.isEmptyOrUndefinedOrNull()) {
                 globalObject.throwInvalidArguments("Secret is required")
-                return JsValue.zero
+                return JsValue.jsUndefined()
             }
             if (!jsSecret.isString() || try jsSecret.getLength(globalObject) == 0) {
                 globalObject.throwInvalidArguments("Secret must be a non-empty string")
-                return JsValue.zero
+                return JsValue.jsUndefined()
             }
             secret = try jsSecret.toSlice(globalObject, default_allocator)
         }
-        defer { if (let s = secret) { s.deinit() } }
+        defer { if (let s <- secret) { s.deinit() } }
 
         // 默认值
         var expiresIn: UInt64 = Csrf.DEFAULT_EXPIRATION_MS
@@ -45,24 +45,24 @@ public class CsrfJsc {
             let optionsValue = args[1]
 
             // 提取 expiresIn
-            if (let expiresInJs = try optionsValue.getOptionalInt(globalObject, "expiresIn")) {
+            if (let expiresInJs <- try optionsValue.getOptionalInt(globalObject, "expiresIn")) {
                 expiresIn = expiresInJs
             }
 
             // 提取 encoding
-            if (let encodingJs = try optionsValue.get(globalObject, "encoding")) {
+            if (let encodingJs <- try optionsValue.get(globalObject, "encoding")) {
                 // ... 解析编码
             }
 
             // 提取 algorithm
-            if (let algorithmJs = try optionsValue.get(globalObject, "algorithm")) {
+            if (let algorithmJs <- try optionsValue.get(globalObject, "algorithm")) {
                 if (!algorithmJs.isString()) {
                     globalObject.throwInvalidArgumentTypeValue("algorithm", "string", algorithmJs)
-                    return JsValue.zero
+                    return JsValue.jsUndefined()
                 }
                 algorithm = try EVPAlgorithm.map.fromJSCaseInsensitive(globalObject, algorithmJs) ?? {
                     globalObject.throwInvalidArguments("Algorithm not supported")
-                    return JsValue.zero
+                    return JsValue.jsUndefined()
                 }
             }
         }
@@ -85,21 +85,21 @@ public class CsrfJsc {
     // ========================================================================
 
     /// JS 绑定: 验证 CSRF 令牌
-    public static func csrfVerify(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public static func csrfVerify(JsGlobalObject, callFrame: JsCallFrame): JsValue {
         let args = callFrame.arguments()
         if (args.len < 1) {
             globalObject.throwInvalidArguments("Missing required token parameter")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         let jsToken = args[0]
         if (jsToken.isUndefinedOrNull()) {
             globalObject.throwInvalidArguments("Token is required")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
         if (!jsToken.isString() || try jsToken.getLength(globalObject) == 0) {
             globalObject.throwInvalidArguments("Token must be a non-empty string")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         let token = try jsToken.toSlice(globalObject, default_allocator)
@@ -107,7 +107,7 @@ public class CsrfJsc {
 
         // 默认值
         var secret: ?ZigStringSlice = none
-        defer { if (let s = secret) { s.deinit() } }
+        defer { if (let s <- secret) { s.deinit() } }
         var maxAge: UInt64 = Csrf.DEFAULT_EXPIRATION_MS
         var encoding: CsrfTokenFormat = .base64url
         var algorithm: EVPAlgorithm = Csrf.DEFAULT_ALGORITHM
@@ -116,15 +116,15 @@ public class CsrfJsc {
         if (args.len > 1 && args[1].isObject()) {
             let optionsValue = args[1]
 
-            if (let secretSlice = try optionsValue.getOptional(globalObject, "secret")) {
+            if (let secretSlice <- try optionsValue.getOptional(globalObject, "secret")) {
                 if (secretSlice.len == 0) {
                     globalObject.throwInvalidArguments("Secret must be a non-empty string")
-                    return JsValue.zero
+                    return JsValue.jsUndefined()
                 }
                 secret = secretSlice
             }
 
-            if (let maxAgeJs = try optionsValue.getOptionalInt(globalObject, "maxAge")) {
+            if (let maxAgeJs <- try optionsValue.getOptionalInt(globalObject, "maxAge")) {
                 maxAge = maxAgeJs
             }
 

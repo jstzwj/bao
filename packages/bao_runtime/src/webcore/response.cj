@@ -6,6 +6,7 @@ package bao_runtime.webcore
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_http_types.*
 import bao_http_jsc.*
 
@@ -151,7 +152,7 @@ public class ResponseInit {
 
     /// 从 JS 值初始化 ResponseInit
     /// 对应 Bun: Init::init (Response.rs:1387-1487)
-    public static func init(global: JsGlobalObject, responseInit: JsValue): ?ResponseInit {
+    public static func `init`(global: JsGlobalObject, responseInit: JsValue): ?ResponseInit {
         if (!responseInit.isCell()) {
             return None
         }
@@ -170,10 +171,10 @@ public class ResponseInit {
             // 如果是 Request 对象
             if (responseInit.isRequest()) {
                 let req = responseInit.toRequest()
-                if (req != None) {
+                if (req.isSome()) {
                     let r = req.getOrThrow()
                     let reqHeaders = r.getHeaders()
-                    if (reqHeaders != None) {
+                    if (reqHeaders.isSome()) {
                         result.headers = reqHeaders.getOrThrow().cloneThis(global)
                     }
                     result.method = r.method
@@ -184,7 +185,7 @@ public class ResponseInit {
             // 如果是 Response 对象
             if (responseInit.isResponse()) {
                 let resp = responseInit.toResponse()
-                if (resp != None) {
+                if (resp.isSome()) {
                     let r = resp.getOrThrow()
                     let clonedInit = r.`init`.clone(global)
                     return Some(clonedInit)
@@ -194,7 +195,7 @@ public class ResponseInit {
 
         // 检查 headers 属性
         let headersValue = responseInit.fastGet(global, BuiltinName.headers)
-        if (headersValue != None) {
+        if (headersValue.isSome()) {
             let hv = headersValue.getOrThrow()
             if (hv.isFetchHeaders()) {
                 result.headers = HeadersRef.createFromJS(global, hv)
@@ -205,7 +206,7 @@ public class ResponseInit {
 
         // 检查 status 属性
         let statusValue = responseInit.fastGet(global, BuiltinName.status)
-        if (statusValue != None) {
+        if (statusValue.isSome()) {
             let number = statusValue.getOrThrow().coerceToInt64(global)
             if ((200 <= number && number < 600) || number == 101) {
                 result.statusCode = UInt16(number)
@@ -216,13 +217,13 @@ public class ResponseInit {
 
         // 检查 statusText 属性
         let statusTextValue = responseInit.getTruthy("statusText")
-        if (statusTextValue != None) {
+        if (statusTextValue.isSome()) {
             result.statusText = statusTextValue.getOrThrow().toString()
         }
 
         // 检查 method 属性
         let methodValue = responseInit.getTruthy("method")
-        if (methodValue != None) {
+        if (methodValue.isSome()) {
             let m = MethodUtil.find(methodValue.getOrThrow().toString())
             if (m.isSome()) {
                 result.method = m.getOrThrow()
@@ -321,8 +322,8 @@ public class InternalJSEventCallback {
 /// HTTP Response — 对应 Web Response API
 /// 对应 Bun: src/runtime/webcore/Response.rs Response
 ///
-/// R-2: every JS-facing host-fn takes &Response (not &mut Response)
-/// so re-entrant JS calls cannot stack two &mut to the same instance.
+/// R-2: every JS-facing host-fn takes &Response (not &Response)
+/// so re-entrant JS calls cannot stack two &to the same instance.
 /// Fields mutated by host-fns use Cell (Copy scalars) or JsCell (non-Copy).
 public class Response {
     /// 响应体
@@ -522,12 +523,11 @@ public class Response {
 
         if (body.value.tag == BodyValueTag.Blob) {
             match (body.value.blob) {
-                case Some(b) => {
+                case Some(b) =>
                     let ct = b.getContentType()
-                    if (ct.isSome() && ct.getOrThrow().length > 0) {
+                    if (ct.isSome() && ct.getOrThrow().size > 0) {
                         return ct
                     }
-                }
                 case None => ()
             }
         }
@@ -555,7 +555,7 @@ public class Response {
     /// 对应 Bun: Response::get_form_data_encoding (Response.rs:425-436)
     public func getFormDataEncoding(): ?FormDataEncoding {
         let ct = getContentType()
-        if (ct == None) {
+        if (ct.isNone()) {
             return None
         }
         return FormDataEncoding.fromContentType(ct.getOrThrow())
@@ -585,7 +585,7 @@ public class Response {
     /// 计算估算字节大小
     /// 对应 Bun: Response::calculate_estimated_byte_size (Response.rs:438-445)
     public func calculateEstimatedByteSize(): Unit {
-        reportedEstimatedSize = body.value.size() + Int64(url.length) + Int64(`init`.statusText.length)
+        reportedEstimatedSize = body.value.size() + Int64(url.size) + Int64(`init`.statusText.size)
     }
 
     // ========================================================================
@@ -666,7 +666,7 @@ public class Response {
     /// 对应 Bun: Response::get_headers (Response.rs:677-679)
     public func getHeaders(global: JsGlobalObject): JsValue {
         let headersRef = getOrCreateHeaders(global)
-        if (headersRef != None) {
+        if (headersRef.isSome()) {
             return headersRef.getOrThrow().toJsValue(global)
         }
         return JsValue(BaoString(""))
@@ -675,17 +675,16 @@ public class Response {
     /// 获取或创建 headers — 如果不存在则创建空 headers.
     /// 对应 Bun: Response::get_or_create_headers (Response.rs:653-674)
     public func getOrCreateHeaders(global: JsGlobalObject): ?HeadersRef {
-        if (`init`.headers == None) {
+        if (`init`.headers.isNone()) {
             `init`.headers = Some(HeadersRef.createEmpty())
 
             if (body.value.tag == BodyValueTag.Blob) {
                 match (body.value.blob) {
-                    case Some(b) => {
+                    case Some(b) =>
                         let ct = b.getContentType()
-                        if (ct.isSome() && ct.getOrThrow().length > 0) {
+                        if (ct.isSome() && ct.getOrThrow().size > 0) {
                             // put Content-Type header
                         }
-                    }
                     case None => ()
                 }
             }
@@ -847,14 +846,13 @@ public class Response {
         result += "  redirected: ${redirected},\n"
 
         match (body.value.tag) {
-            case BodyValueTag.Blob => {
+            case BodyValueTag.Blob =>
                 match (body.value.blob) {
                     case Some(b) => result += "  body: ${b.writeFormat(false, b.getSizeForBindings())},\n"
                     case None => ()
                 }
-            }
             case BodyValueTag.InternalBlob => result += "  body: ${formatSize(Int64(body.value.bytes.size))},\n"
-            case BodyValueTag.WTFStringImpl => result += "  body: ${formatSize(Int64(body.value.stringValue.length))},\n"
+            case BodyValueTag.WTFStringImpl => result += "  body: ${formatSize(Int64(body.value.stringValue.size))},\n"
             case _ => ()
         }
 
@@ -875,7 +873,7 @@ public class Response {
         let response = Response()
         response.`init`.statusCode = 200
 
-        let jsonValue = if (args.length > 0) { args[0] } else { JsValue.zero() }
+        let jsonValue = if (args.size > 0) { args[0] } else { JsValue.jsUndefined()() }
 
         if (!jsonValue.isEmpty()) {
             // 验证顶层值是否 JSON 可序列化
@@ -888,7 +886,7 @@ public class Response {
             }
 
             let jsonStr = jsonValue.toString()
-            if (jsonStr.length > 0) {
+            if (jsonStr.size > 0) {
                 let bytes = Utf8Codec.encode(jsonStr)
                 response.body = Body(value: BodyValue(bytes))
                 response.body.value.wasString = true
@@ -896,7 +894,7 @@ public class Response {
         }
 
         // 处理第二个参数 (init options)
-        if (args.length > 1) {
+        if (args.size > 1) {
             let argInit = args[1]
             if (!argInit.isUndefinedOrNull()) {
                 if (argInit.isNumber()) {
@@ -905,7 +903,7 @@ public class Response {
                         response.`init`.statusCode = UInt16(num)
                     }
                 } else {
-                    let initResult = ResponseInit.init(global, argInit)
+                    let initResult = ResponseInit(global, argInit)
                     if (initResult.isSome()) {
                         response.`init` = initResult.getOrThrow()
                     }
@@ -940,7 +938,7 @@ public class Response {
         if (response.isSome()) {
             return response.getOrThrow().toJs(global)
         }
-        return JsValue.zero()
+        return JsValue.jsUndefined()()
     }
 
     /// 构建重定向的实现
@@ -951,7 +949,7 @@ public class Response {
         let response = Response()
         response.`init`.statusCode = 302
 
-        let urlStringValue = if (args.length > 0) { args[0] } else { JsValue.zero() }
+        let urlStringValue = if (args.size > 0) { args[0] } else { JsValue.jsUndefined()() }
         var urlStr = ""
 
         if (!urlStringValue.isEmpty()) {
@@ -959,7 +957,7 @@ public class Response {
         }
 
         // 处理第二个参数 (status code or init)
-        if (args.length > 1) {
+        if (args.size > 1) {
             let argInit = args[1]
             if (!argInit.isUndefinedOrNull()) {
                 if (argInit.isNumber()) {
@@ -968,7 +966,7 @@ public class Response {
                         response.`init`.statusCode = status.getOrThrow()
                     }
                 } else {
-                    let initResult = ResponseInit.init(global, argInit)
+                    let initResult = ResponseInit(global, argInit)
                     if (initResult.isSome()) {
                         response.`init` = initResult.getOrThrow()
                         let status = Int64(response.`init`.statusCode)
@@ -1011,7 +1009,7 @@ public class Response {
         if (!args[0].isUndefinedOrNull() && args[0].isObject()) {
             if (args[0].isBlob()) {
                 let blob = args[0].toBlob()
-                if (blob != None && blob.getOrThrow().isS3()) {
+                if (blob.isSome() && blob.getOrThrow().isS3()) {
                     if (!args[1].isUndefinedOrNull()) {
                         return None
                     }
@@ -1030,7 +1028,7 @@ public class Response {
 
         if (!args[1].isUndefinedOrNull()) {
             if (args[1].isObject()) {
-                let initResult = ResponseInit.init(global, args[1])
+                let initResult = ResponseInit(global, args[1])
                 if (initResult.isSome()) {
                     initVal = initResult.getOrThrow()
                 }
@@ -1046,14 +1044,13 @@ public class Response {
         // 如果 body 是 Blob 且有 Content-Type, 且 headers 存在且没有 Content-Type
         if (bodyVal.value.tag == BodyValueTag.Blob) {
             match (bodyVal.value.blob) {
-                case Some(b) => {
+                case Some(b) =>
                     if (initVal.headers.isSome()) {
                         let ct = b.getContentType()
-                        if (ct.isSome() && ct.getOrThrow().length > 0) {
+                        if (ct.isSome() && ct.getOrThrow().size > 0) {
                             // put Content-Type if not already present
                         }
                     }
-                }
                 case None => ()
             }
         }
@@ -1212,12 +1209,12 @@ public func jsFunctionRequestOrResponseHasBodyValue(global: JsGlobalObject, call
 
     if (thisValue.isResponse()) {
         let response = thisValue.toResponse()
-        if (response != None) {
+        if (response.isSome()) {
             return JsValue(!response.getOrThrow().body.value.isDefinitelyEmpty())
         }
     } else if (thisValue.isRequest()) {
         let request = thisValue.toRequest()
-        if (request != None) {
+        if (request.isSome()) {
             return JsValue(!request.getOrThrow().body.value.isDefinitelyEmpty())
         }
     }
@@ -1238,17 +1235,17 @@ public func jsFunctionGetCompleteRequestOrResponseBodyValueAsArrayBuffer(global:
 
     if (thisValue.isResponse()) {
         let response = thisValue.toResponse()
-        if (response != None) {
+        if (response.isSome()) {
             bodyValue = Some(response.getOrThrow().body.value)
         }
     } else if (thisValue.isRequest()) {
         let request = thisValue.toRequest()
-        if (request != None) {
+        if (request.isSome()) {
             bodyValue = Some(request.getOrThrow().body.value)
         }
     }
 
-    if (bodyValue == None) {
+    if (bodyValue.isNone()) {
         return JsValue.undefined()
     }
 
@@ -1258,29 +1255,25 @@ public func jsFunctionGetCompleteRequestOrResponseBodyValueAsArrayBuffer(global:
         case BodyValueTag.Used => return JsValue.undefined()
         case BodyValueTag.Empty => return JsValue.undefined()
         case BodyValueTag.Null => return JsValue.undefined()
-        case BodyValueTag.Blob => {
+        case BodyValueTag.Blob =>
             match (body.blob) {
-                case Some(b) => {
+                case Some(b) =>
                     if (b.isBunFile()) {
                         return JsValue.undefined()
                     }
                     let bytes = b.sharedView()
                     body.tag = BodyValueTag.Used
                     return JsValue.fromArrayBuffer(global, bytes)
-                }
-                case None => return JsValue.zero()
+                case None => return JsValue.jsUndefined()()
             }
-        }
-        case BodyValueTag.WTFStringImpl => {
+        case BodyValueTag.WTFStringImpl =>
             let bytes = Utf8Codec.encode(body.stringValue)
             body.tag = BodyValueTag.Used
             return JsValue.fromArrayBuffer(global, bytes)
-        }
-        case BodyValueTag.InternalBlob => {
+        case BodyValueTag.InternalBlob =>
             let bytes = body.bytes
             body.tag = BodyValueTag.Used
             return JsValue.fromArrayBuffer(global, bytes)
-        }
         case BodyValueTag.Error => return JsValue.undefined()
         case BodyValueTag.Locked => return JsValue.undefined()
     }

@@ -152,7 +152,7 @@ public class InotifyEvent {
 //   eventlist_bytes: &EventListBytes align(@alignOf(Event)) = undefined,
 //   eventlist_ptrs: [max_count]*align(1) Event = undefined,
 //   read_ptr: ?struct { i: u32, len: u32 } = null,
-//   watch_count: std.atomic.Value(u32) = std.atomic.Value(u32).init(0),
+//   watch_count: std.atomic.Value(u32) = std.atomic.Value(u32).`init`(0),
 //   coalesce_interval: isize = 100_000,
 // ============================================================================
 
@@ -183,7 +183,7 @@ public class InotifyWatcher <: PlatformWatcher {
 
     /// 监视计数 - 对应 INotifyWatcher.watch_count: std.atomic.Value(u32)
     /// 严格翻译自: INotifyWatcher.zig:32
-    ///   watch_count: std.atomic.Value(u32) = std.atomic.Value(u32).init(0)
+    ///   watch_count: std.atomic.Value(u32) = std.atomic.Value(u32).`init`(0)
     private var watchCount: AtomicInt64
 
     /// 合并间隔 (纳秒) - 对应 INotifyWatcher.coalesce_interval: isize = 100_000

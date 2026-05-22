@@ -12,15 +12,15 @@ import bao_core.*
 /// 输出类型枚举
 /// 对应 Bun: util.zig OutKind
 public enum OutKind {
-    case stdout
-    case stderr
+    | Stdout
+    | Stderr
 
     /// 转换为文件描述符
     public func toFd(): FD {
-        switch (this) {
-            case .stdout =>
+        match (this) {
+            case Stdout =>
                 return FD.stdout()
-            case .stderr =>
+            case Stderr =>
                 return FD.stderr()
         }
     }
@@ -28,12 +28,12 @@ public enum OutKind {
 
 /// 标准IO配置
 /// 对应 Bun: util.zig Stdio = bun.spawn.Stdio
-public typealias Stdio = bao_spawn.Stdio
+public type Stdio = bao_spawn.Stdio
 
 /// 监视文件描述符类型
 /// 对应 Bun: util.zig WatchFd
 /// 在 Linux 上是 posix.fd_t (i32)，其他平台是 i32
-public typealias WatchFd = Int32
+public type WatchFd = Int32
 
 // ============================================================================
 // Shell 辅助函数

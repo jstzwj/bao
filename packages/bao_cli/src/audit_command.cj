@@ -83,13 +83,12 @@ public class AuditCommand {
     /// 对应 Bun: AuditCommand.exec()
     public static func exec(ctx: CommandContext): Unit {
         let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.audit)
-        val (manager, _) = match (PackageManager.init(ctx, cli, Subcommand.audit)) {
+        let (manager, _) = match (PackageManager.`init`(ctx, cli, Subcommand.audit)) {
             case Some((pm, dir)) => (pm, dir)
-            case None => {
+            case None =>
                 Output.errGeneric("No package.json was found")
                 Output.note("Run \"bao init\" to initialize a project")
                 Global.exit(1)
-            }
         }
 
         let code = audit(ctx, manager, cli.jsonOutput, cli.auditLevel, cli.production, cli.auditIgnoreList)
@@ -123,7 +122,7 @@ public class AuditCommand {
             Output.write("\n")
             if (responseText.length > 0) {
                 let json = JsonParser.parse(responseText)
-                if (json != None && json!!.isObject() && json!!.asObject().size == 0) {
+                if (json != None && json.getOrThrow().isObject() && json.getOrThrow().asObject().size == 0) {
                     return 0
                 }
                 return 1
@@ -148,11 +147,12 @@ private func printSkippedPackages(skippedPackages: ArrayList<String>): Unit {
     if (skippedPackages.size > 0) {
         Output.pretty("Skipped ")
         for ((i, packageName) in skippedPackages.iterator().indexed()) {
-            if (i > 0) Output.pretty(", ")
+            if (i > 0) { Output.pretty(", ") }
             Output.pretty(packageName)
         }
-        let suffix = if (skippedPackages.size > 1) "s" else ""
-        Output.prettyLn(" because ${suffix} ${suffix == "" ? "it does" : "they do"} not come from the default registry")
+        let suffix = if (skippedPackages.size > 1) { "s" } else { "" }
+        let verb = if (suffix == "") { "it does" } else { "they do" }
+        Output.prettyLn(" because ${suffix} ${verb} not come from the default registry")
         Output.prettyLn("")
     }
 }
@@ -184,7 +184,7 @@ private func buildDependencyTree(allocator: Allocator, pm: PackageManager): Hash
             if (!dependencyTree.contains(resolvedName)) {
                 dependencyTree.put(resolvedName, ArrayList<String>())
             }
-            dependencyTree.get(resolvedName)!!.append(pkgName)
+            dependencyTree.get(resolvedName).getOrThrow().append(pkgName)
         }
     }
 
@@ -236,7 +236,10 @@ private func sendAuditRequest(allocator: Allocator, pm: PackageManager, body: St
     }
 
     let response = HttpClient.postSync(urlStr, headers, body)
-    return response ?: ""
+    return match (response) {
+        case Some(v) => v
+        case None => ""
+    }
 }
 
 /// 解析漏洞
@@ -250,7 +253,7 @@ private func parseVulnerability(allocator: Allocator, packageName: String, vuln:
         for ((fieldName, value) in props) {
             if (value.isString()) {
                 let fieldValue = value.asString()
-                when (fieldName) {
+                match (fieldName) {
                     case "severity" => vulnerability.severity = fieldValue
                     case "title" => vulnerability.title = fieldValue
                     case "url" => vulnerability.url = fieldValue
@@ -283,7 +286,7 @@ private func printEnhancedAuditReport(
         return 1
     }
 
-    if (json!!.isObject() && json!!.asObject().size == 0) {
+    if (json.getOrThrow().isObject() && json.getOrThrow().asObject().size == 0) {
         Output.prettyLn("No vulnerabilities found")
         return 0
     }
@@ -294,8 +297,8 @@ private func printEnhancedAuditReport(
     var highCount: Int64 = 0
     var criticalCount: Int64 = 0
 
-    if (json!!.isObject()) {
-        let properties = json!!.asObject()
+    if (json.getOrThrow().isObject()) {
+        let properties = json.getOrThrow().asObject()
 
         for ((packageName, value) in properties) {
             if (value.isArray()) {
@@ -303,7 +306,7 @@ private func printEnhancedAuditReport(
                     if (vuln.isObject()) {
                         let vulnerability = parseVulnerability(allocator, packageName, vuln)
 
-                        if (auditLevel != None && !auditLevel!!.shouldIncludeSeverity(vulnerability.severity)) {
+                        if (auditLevel != None && !auditLevel.getOrThrow().shouldIncludeSeverity(vulnerability.severity)) {
                             continue
                         }
 
@@ -318,12 +321,12 @@ private func printEnhancedAuditReport(
                             continue
                         }
 
-                        when (vulnerability.severity) {
+                        match (vulnerability.severity) {
                             case "low" => lowCount += 1
                             case "moderate" => moderateCount += 1
                             case "high" => highCount += 1
                             case "critical" => criticalCount += 1
-                            else => moderateCount += 1
+                            case _ => moderateCount += 1
                         }
 
                         auditResult.allVulnerabilities.append(vulnerability)
@@ -376,11 +379,11 @@ private func printEnhancedAuditReport(
 
                 for (vuln in packageInfo.vulnerabilities) {
                     if (vuln.title.length > 0) {
-                        when (vuln.severity) {
+                        match (vuln.severity) {
                             case "critical" => Output.prettyLn("  critical: ${vuln.title} - ${vuln.url}")
                             case "high" => Output.prettyLn("  high: ${vuln.title} - ${vuln.url}")
                             case "moderate" => Output.prettyLn("  moderate: ${vuln.title} - ${vuln.url}")
-                            else => Output.prettyLn("  low: ${vuln.title} - ${vuln.url}")
+                            case _ => Output.prettyLn("  low: ${vuln.title} - ${vuln.url}")
                         }
                     }
                 }
@@ -460,7 +463,7 @@ private func findDependencyPaths(
 
     // 通过依赖树查找间接路径
     if (dependencyTree.contains(targetPackage)) {
-        let dependents = dependencyTree.get(targetPackage)!!
+        let dependents = dependencyTree.get(targetPackage).getOrThrow()
         for (dependent in dependents) {
             let path = DependencyPath()
             path.path.append(dependent)

@@ -2,6 +2,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_core.*
 import bao_sys.*
 
@@ -15,61 +16,49 @@ public class ProcessExitHandler {
     var ptr: TaggedPointer = TaggedPointer.Null
 
     public static func initFunc(`this`: ProcessExitHandler, ptr: Any) {
-        this.ptr = TaggedPointer.init(ptr)
+        this.ptr = TaggedPointer(ptr)
     }
 
     public func call(process: Process, status: Status, rusage: Rusage) {
         if (this.ptr.isNull()) { return }
 
-        switch (this.ptr.tag()) {
-            case "Subprocess" => {
+        match (this.ptr.tag()) {
+            case "Subprocess" =>
                 let subprocess = this.ptr.as(Subprocess)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "LifecycleScriptSubprocess" => {
+            case "LifecycleScriptSubprocess" =>
                 let subprocess = this.ptr.as(LifecycleScriptSubprocess)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "ProcessHandle" => {
+            case "ProcessHandle" =>
                 let subprocess = this.ptr.as(ProcessHandle)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "MultiRunProcessHandle" => {
+            case "MultiRunProcessHandle" =>
                 let subprocess = this.ptr.as(MultiRunProcessHandle)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "TestWorkerHandle" => {
+            case "TestWorkerHandle" =>
                 let subprocess = this.ptr.as(TestWorkerHandle)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "ShellSubprocess" => {
+            case "ShellSubprocess" =>
                 let subprocess = this.ptr.as(ShellSubprocess)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "SecurityScanSubprocess" => {
+            case "SecurityScanSubprocess" =>
                 let subprocess = this.ptr.as(SecurityScanSubprocess)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "WebViewHostProcess" => {
+            case "WebViewHostProcess" =>
                 let subprocess = this.ptr.as(WebViewHostProcess)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "ChromeProcess" => {
+            case "ChromeProcess" =>
                 let subprocess = this.ptr.as(ChromeProcess)
                 subprocess.onProcessExit(process, status, rusage)
-            }
-            case "SyncProcess" => {
+            case "SyncProcess" =>
                 let subprocess = this.ptr.as(SyncProcess)
                 subprocess.onProcessExit(status, rusage)
-            }
-            case "CronRegisterJob" => {
+            case "CronRegisterJob" =>
                 let cronJob = this.ptr.as(CronRegisterJob)
                 cronJob.onProcessExit(process, status, rusage)
-            }
-            case "CronRemoveJob" => {
+            case "CronRemoveJob" =>
                 let cronJob = this.ptr.as(CronRemoveJob)
                 cronJob.onProcessExit(process, status, rusage)
-            }
             else => {
                 panic("Internal Bun error: ProcessExitHandler has an invalid tag. Please file a bug report.")
             }
@@ -78,7 +67,7 @@ public class ProcessExitHandler {
 }
 
 /// PidFD 类型 (Linux 使用 fd_t, 其他平台使用 u0)
-public typealias PidFDType = Int32
+public type PidFDType = Int32
 
 /// 进程状态
 public enum Status {
@@ -88,18 +77,18 @@ public enum Status {
 
     /// 获取信号码
     public func signalCode(): SignalCode {
-        return switch (this) {
-            case .signaled(let sig) => sig
-            case .exited(let exit) => exit.signal
+        return match (this) {
+            case signaled(sig) => sig
+            case exited(exit) => exit.signal
             else => null
         }
     }
 
     /// 从 waitpid 结果创建 Status
     public static func from(pid: PidT, waitpidResult: Maybe<WaitPidResult>): Status {
-        return switch (waitpidResult) {
-            case .err(let err) => Status.err(err)
-            case .result(let result) => {
+        return match (waitpidResult) {
+            case err(err) => Status.err(err)
+            case result(result) =>
                 if (Posix.W.IFEXITED(result.status)) {
                     return Status.exited(ExitStatus{
                         code = Int32(Posix.W.EXITSTATUS(result.status)),
@@ -110,7 +99,6 @@ public enum Status {
                     return Status.signaled(SignalCode(Posix.W.TERMSIG(result.status)))
                 }
                 return null
-            }
         }
     }
 }
@@ -139,23 +127,23 @@ public class Process {
 
     /// 设置退出处理器
     public func setExitHandler(handler: Any) {
-        this.exitHandler.init(handler)
+        this.exitHandler(handler)
     }
 
     /// 是否已退出
     public func hasExited(): Bool {
-        return switch (this.status) {
-            case .exited => true
-            case .signaled => true
-            case .err => true
+        return match (this.status) {
+            case exited => true
+            case signaled => true
+            case err => true
             else => false
         }
     }
 
     /// 是否已被杀死
     public func hasKilled(): Bool {
-        return switch (this.status) {
-            case .exited, .signaled => true
+        return match (this.status) {
+            case exited, .signaled => true
             else => false
         }
     }
@@ -198,16 +186,15 @@ public class Process {
         var rusageResult = rusage
 
         let status = Status.from(pid, waitpidResult) ?? {
-            switch (this.rewatchPosix()) {
-                case .result => ()
-                case .err(let err) => {
+            match (this.rewatchPosix()) {
+                case result => ()
+                case err(err) =>
                     if (Environment.isMac) {
-                        if (err.getErrno() == .SRCH) {
+                        if (err.getErrno() == SRCH) {
                             return Status.from(pid, PosixSpawn.wait4(pid, 0, rusageResult))
                         }
                     }
                     return Status.err(err)
-                }
             }
             return null
         } ?? return
@@ -222,17 +209,16 @@ public class Process {
             return Maybe<Bool>.result(true)
         }
 
-        switch (this.watch()) {
-            case .err(let err) => {
+        match (this.watch()) {
+            case err(err) =>
                 if (Environment.isPosix) {
-                    if (err.getErrno() == .SRCH) {
+                    if (err.getErrno() == SRCH) {
                         this.wait(true)
                         return Maybe<Bool>.result(this.hasExited())
                     }
                 }
                 return Maybe<Bool>.err(err)
-            }
-            case .result => return Maybe<Bool>.result(this.hasExited())
+            case result => return Maybe<Bool>.result(this.hasExited())
         }
     }
 
@@ -244,34 +230,32 @@ public class Process {
         }
 
         let watchfd = if (Environment.isLinux) this.pidfd else this.pid
-        let poll = if (this.poller == .fd) {
+        let poll = if (this.poller == fd) {
             this.poller.fd
         } else {
-            Async.FilePoll.init(this.eventLoop, FD.fromNative(watchfd), Process, this)
+            Async.FilePoll(this.eventLoop, FD.fromNative(watchfd), Process, this)
         }
 
         this.poller = Poller.fd(poll)
         this.poller.fd.enableKeepingProcessAlive(this.eventLoop)
 
-        switch (this.poller.fd.register(this.eventLoop.loop(), .process, !Environment.isLinux)) {
-            case .result => {
+        match (this.poller.fd.register(this.eventLoop.loop(), .process, !Environment.isLinux)) {
+            case result =>
                 this.ref()
                 return Maybe<Unit>.success
-            }
-            case .err(let err) => {
+            case err(err) =>
                 this.poller.fd.disableKeepingProcessAlive(this.eventLoop)
                 return Maybe<Unit>.err(err)
-            }
         }
     }
 
     /// 重新注册观察 (POSIX)
     public func rewatchPosix(): Maybe<Unit> {
-        if (this.poller == .fd) {
+        if (this.poller == fd) {
             let maybe = this.poller.fd.register(this.eventLoop.loop(), .process, !Environment.isLinux)
-            switch (maybe) {
-                case .err => ()
-                case .result => this.ref()
+            match (maybe) {
+                case err => ()
+                case result => this.ref()
             }
             return maybe
         } else {
@@ -282,7 +266,7 @@ public class Process {
     /// 关闭进程资源
     public func close() {
         if (Environment.isWindows) {
-            if (this.poller == .uv) {
+            if (this.poller == uv) {
                 this.poller.uv.close()
             }
         } else {
@@ -315,14 +299,14 @@ public class Process {
 // ============================================================================
 
 public enum Poller {
-    case detached
-    case fd(FilePoll)
-    case waiter_thread(WaiterThreadPoll)
-    case uv(UvProcessT)
+    | detached
+    | fd(FilePoll)
+    | waiter_thread(WaiterThreadPoll)
+    | uv(UvProcessT)
 }
 
 public class WaiterThreadPoll {
-    var refCount: AtomicUInt32 = AtomicUInt32.init(0)
+    var refCount: AtomicUInt32 = AtomicUInt32(0)
     var pollRef: KeepAlive = KeepAlive()
 }
 
@@ -387,5 +371,5 @@ public class SyncProcessOps {
 // 类型别名
 // ========================================================================
 
-public typealias PidT = PidT
-public typealias Rusage = Rusage
+public type PidT = PidT
+public type Rusage = Rusage

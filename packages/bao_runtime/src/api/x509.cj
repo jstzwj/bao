@@ -22,7 +22,7 @@ public class X509Jsc {
         for (c in name) {
             match (c) {
                 case '"', '\\', ',', '\'' => return false
-                default =>
+                case _ =>
                     if (utf8) {
                         if (c < ' ' || c == '\u{7f}') { return false }
                     } else {

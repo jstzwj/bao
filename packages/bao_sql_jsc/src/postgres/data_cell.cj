@@ -5,6 +5,7 @@ package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
 
 /// Postgres 数据单元格（复用共享 SQLDataCell）
 /// 对应 Bun: postgres/DataCell.zig SQLDataCell
@@ -34,12 +35,12 @@ public func postgresDataCellFromBytes(binary: Bool, bigint: Bool, oid: PostgresT
                 cell.tag = DataCellTag.Int4
                 cell.int4Value = parseInt32(bytes)
             }
-        case Int8 =>
+        case `Int8` =>
             if (bigint) {
-                cell.tag = DataCellTag.Int8
+                cell.tag = DataCellTag.`Int8`
                 cell.int8Value = parseInt64(bytes)
             } else {
-                cell.tag = DataCellTag.String
+                cell.tag = DataCellTag.`String`
                 cell.stringValue = String.fromUtf8(bytes)
                 cell.freeValue = 1
             }
@@ -67,19 +68,23 @@ public func postgresDataCellFromBytes(binary: Bool, bigint: Bool, oid: PostgresT
             cell.tag = DataCellTag.Json
             cell.jsonValue = String.fromUtf8(bytes)
             cell.freeValue = 1
-        case Bool =>
+        case `Bool` =>
             if (binary) {
-                cell.tag = DataCellTag.Bool
-                cell.boolValue = if (bytes.size > 0 && bytes[0] == 1) 1 else 0
+                cell.tag = DataCellTag.`Bool`
+                cell.boolValue = if (bytes.size > 0 && bytes[0] == 1) { 1 } else { 0 }
             } else {
-                cell.tag = DataCellTag.Bool
-                cell.boolValue = if (bytes.size > 0 && bytes[0] == 't') 1 else 0
+                cell.tag = DataCellTag.`Bool`
+                cell.boolValue = if (bytes.size > 0 && bytes[0] == UInt8(116)) { 1 } else { 0 }
             }
         case Date | Timestamp | Timestamptz =>
             if (bytes.size == 0) {
                 cell.tag = DataCellTag.Null
             } else if (binary && bytes.size == 8) {
-                if (oid == Timestamptz) {
+                let isTz = match (oid) {
+                    case Timestamptz => true
+                    case _ => false
+                }
+                if (isTz) {
                     cell.tag = DataCellTag.DateWithTimeZone
                     cell.dateWithTimeZoneValue = postgresDateFromBinary(bytes)
                 } else {
@@ -95,7 +100,7 @@ public func postgresDataCellFromBytes(binary: Bool, bigint: Bool, oid: PostgresT
                 cell.tag = DataCellTag.Bytea
                 cell.byteaLen = UInt64(bytes.size)
             } else {
-                if (bytes.size > 2 && bytes[0] == '\\' && bytes[1] == 'x') {
+                if (bytes.size > 2 && bytes[0] == UInt8(92) && bytes[1] == UInt8(120)) {
                     // hex 格式解析
                     cell.tag = DataCellTag.Bytea
                     cell.byteaLen = UInt64((bytes.size - 2) / 2)
@@ -130,7 +135,7 @@ public class DataCellPutter {
 
     public init(fields: Array<FieldDescription>, globalObject: JscJSGlobalObject) {
         this.fields = fields
-        this.list = Array<SQLDataCell>(fields.size, item: SQLDataCell())
+        this.list = Array<SQLDataCell>(fields.size, { _ => SQLDataCell() })
         this.globalObject = globalObject
     }
 
@@ -152,11 +157,11 @@ public class DataCellPutter {
                       structure: JscValue, flags: DataCellFlags,
                       resultMode: PostgresSQLQueryResultMode,
                       cachedStructure: ?CachedStructure): JscValue {
-        return JscObject.createEmptyObject(globalObject).toValue()
+        return JsValue.createEmptyObject(globalObject.globalThis)
     }
 
     private func putImpl(index: UInt32, data: ?Array<UInt8>, isRaw: Bool): Bool {
-        if (index >= fields.size || index >= list.size) {
+        if (Int64(index) >= fields.size || Int64(index) >= list.size) {
             return false
         }
 
@@ -164,7 +169,7 @@ public class DataCellPutter {
         let cell = list[Int64(index)]
 
         if (isRaw) {
-            if (data != None) {
+            if (data.isSome()) {
                 cell.tag = DataCellTag.Raw
                 cell.rawLen = UInt64(data.getOrThrow().size)
             } else {
@@ -172,11 +177,11 @@ public class DataCellPutter {
             }
         } else {
             let oid = PostgresTag.fromInt(field.typeOid)
-            if (data != None) {
+            if (data.isSome()) {
                 let result = postgresDataCellFromBytes(
                     field.binary || binary, bigint, oid,
                     data.getOrThrow(), globalObject)
-                if (result != None) {
+                if (result.isSome()) {
                     list[Int64(index)] = result.getOrThrow()
                 }
             } else {
@@ -255,25 +260,25 @@ func parseInt32(data: Array<UInt8>): Int32 {
     var result: Int32 = 0
     var negative = false
     var start: Int64 = 0
-    if (data.size > 0 && data[0] == '-') {
+    if (data.size > 0 && data[0] == UInt8(45)) {
         negative = true
         start = 1
     }
     for (i in start..data.size) {
         let c = data[i]
-        if (c >= '0' && c <= '9') {
-            result = result * 10 + Int32(c - '0')
+        if (c >= UInt8(48) && c <= UInt8(57)) {
+            result = result * 10 + (Int32(c) - 48)
         }
     }
-    return if (negative) -result else result
+    return if (negative) { -result } else { result }
 }
 
 func parseUInt32(data: Array<UInt8>): UInt32 {
     var result: UInt32 = 0
     for (i in 0..data.size) {
         let c = data[i]
-        if (c >= '0' && c <= '9') {
-            result = result * 10 + UInt32(c - '0')
+        if (c >= UInt8(48) && c <= UInt8(57)) {
+            result = result * 10 + (UInt32(c) - UInt32(48))
         }
     }
     return result
@@ -283,17 +288,17 @@ func parseInt64(data: Array<UInt8>): Int64 {
     var result: Int64 = 0
     var negative = false
     var start: Int64 = 0
-    if (data.size > 0 && data[0] == '-') {
+    if (data.size > 0 && data[0] == UInt8(45)) {
         negative = true
         start = 1
     }
     for (i in start..data.size) {
         let c = data[i]
-        if (c >= '0' && c <= '9') {
-            result = result * 10 + Int64(c - '0')
+        if (c >= UInt8(48) && c <= UInt8(57)) {
+            result = result * 10 + (Int64(c) - 48)
         }
     }
-    return if (negative) -result else result
+    return if (negative) { -result } else { result }
 }
 
 func parseFloat64(data: Array<UInt8>): Float64 {

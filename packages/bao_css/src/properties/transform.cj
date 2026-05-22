@@ -85,9 +85,9 @@ public enum Transform {
     | ScaleY(String)                   // scaleY(y)
     | ScaleZ(String)                   // scaleZ(z)
     | Scale3d(String, String, String)  // scale3d(x, y, z)
-    | Rotate(String)                   // rotate(angle)
-    | RotateX(String)                  // rotateX(angle)
-    | RotateY(String)                  // rotateY(angle)
+    | RotateVal(String)                // rotate(angle)
+    | RotateXVal(String)               // rotateX(angle)
+    | RotateYVal(String)               // rotateY(angle)
     | RotateZ(String)                  // rotateZ(angle)
     | Rotate3d(Float64, Float64, Float64, String) // rotate3d(x, y, z, angle)
     | Skew(String, String)             // skew(x, y)
@@ -121,14 +121,14 @@ public enum Transform {
             case ScaleY(y) => "scaleY(" + y + ")"
             case ScaleZ(z) => "scaleZ(" + z + ")"
             case Scale3d(x, y, z) => "scale3d(" + x + ", " + y + ", " + z + ")"
-            case Rotate(angle) => "rotate(" + angle + ")"
-            case RotateX(angle) => "rotateX(" + angle + ")"
-            case RotateY(angle) => "rotateY(" + angle + ")"
-            case RotateZ(angle) => "rotateZ(" + angle + ")"
-            case Rotate3d(x, y, z, angle) => "rotate3d(" + x.toString() + ", " + y.toString() + ", " + z.toString() + ", " + angle + ")"
+            case RotateVal(a) => "rotate(" + a + ")"
+            case RotateXVal(a) => "rotateX(" + a + ")"
+            case RotateYVal(a) => "rotateY(" + a + ")"
+            case RotateZ(a) => "rotateZ(" + a + ")"
+            case Rotate3d(x, y, z, a) => "rotate3d(" + x.toString() + ", " + y.toString() + ", " + z.toString() + ", " + a + ")"
             case Skew(x, y) => "skew(" + x + ", " + y + ")"
-            case SkewX(angle) => "skewX(" + angle + ")"
-            case SkewY(angle) => "skewY(" + angle + ")"
+            case SkewX(a) => "skewX(" + a + ")"
+            case SkewY(a) => "skewY(" + a + ")"
             case Perspective(len) => "perspective(" + len + ")"
             case Matrix(a, b, c, d, e, f) => "matrix(" + a.toString() + ", " + b.toString() + ", " + c.toString() + ", " + d.toString() + ", " + e.toString() + ", " + f.toString() + ")"
             case Matrix3d(m11, m12, m13, m14, m21, m22, m23, m24, m31, m32, m33, m34, m41, m42, m43, m44) => "matrix3d(" + m11.toString() + ", " + m12.toString() + ", " + m13.toString() + ", " + m14.toString() + ", " + m21.toString() + ", " + m22.toString() + ", " + m23.toString() + ", " + m24.toString() + ", " + m31.toString() + ", " + m32.toString() + ", " + m33.toString() + ", " + m34.toString() + ", " + m41.toString() + ", " + m42.toString() + ", " + m43.toString() + ", " + m44.toString() + ")"
@@ -168,7 +168,7 @@ public class CssMatrix {
 
     /// 严格翻译自 Matrix.deepClone
     public func deepClone(): CssMatrix {
-        CssMatrix(a, b, c, d, e, f)
+        CssMatrix(a: a, b: b, c: c, d: d, e: e, f: f)
     }
 
     public func toCss(): String {
@@ -222,10 +222,10 @@ public class CssMatrix3d {
     /// 严格翻译自 Matrix3d.deepClone
     public func deepClone(): CssMatrix3d {
         CssMatrix3d(
-            m11, m12, m13, m14,
-            m21, m22, m23, m24,
-            m31, m32, m33, m34,
-            m41, m42, m43, m44
+            m11: m11, m12: m12, m13: m13, m14: m14,
+            m21: m21, m22: m22, m23: m23, m24: m24,
+            m31: m31, m32: m32, m33: m33, m34: m34,
+            m41: m41, m42: m42, m43: m43, m44: m44
         )
     }
 
@@ -305,12 +305,12 @@ public enum BackfaceVisibility {
 /// perspective 属性值
 /// 严格翻译自 Perspective union(enum) { none, length }
 public enum Perspective {
-    | None         // 无透视
+    | NoneValue         // 无透视
     | Length(String) // 投影距离
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Length(l) => l
         }
     }
@@ -324,7 +324,7 @@ public enum Perspective {
 /// translate 属性值
 /// 严格翻译自 Translate union(enum) { none, xyz }
 public enum Translate {
-    | None                     // "none"
+    | NoneValue                     // "none"
     | Xyz(String, String, String) // x, y, z 平移
 
     private func xyzTranslateToCss(x: String, y: String, z: String): String {
@@ -339,7 +339,7 @@ public enum Translate {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Xyz(x, y, z) => xyzTranslateToCss(x, y, z)
         }
     }
@@ -348,7 +348,7 @@ public enum Translate {
     /// 将 translate 属性转为 Transform 函数
     public func toTransform(): Transform {
         match (this) {
-            case None => Transform.Translate3d("0", "0", "0")
+            case NoneValue => Transform.Translate3d("0", "0", "0")
             case Xyz(x, y, z) => Transform.Translate3d(x, y, z)
         }
     }
@@ -361,7 +361,7 @@ public enum Translate {
     /// 严格翻译自 Translate.deepClone
     public func deepClone(): Translate {
         match (this) {
-            case None => Translate.None
+            case NoneValue => Translate.NoneValue
             case Xyz(x, y, z) => Translate.Xyz(x, y, z)
         }
     }
@@ -438,7 +438,7 @@ public class Rotate {
 /// scale 属性值
 /// 严格翻译自 Scale union(enum) { none, xyz }
 public enum Scale {
-    | None                          // "none"
+    | NoneValue                          // "none"
     | Xyz(String, String, String)   // x, y, z 缩放
 
     private func xyzScaleToCss(x: String, y: String, z: String): String {
@@ -453,7 +453,7 @@ public enum Scale {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Xyz(x, y, z) => xyzScaleToCss(x, y, z)
         }
     }
@@ -462,7 +462,7 @@ public enum Scale {
     /// 将 scale 属性转为 Transform 函数
     public func toTransform(): Transform {
         match (this) {
-            case None => Transform.Scale3d("1", "1", "1")
+            case NoneValue => Transform.Scale3d("1", "1", "1")
             case Xyz(x, y, z) => Transform.Scale3d(x, y, z)
         }
     }
@@ -475,7 +475,7 @@ public enum Scale {
     /// 严格翻译自 Scale.deepClone
     public func deepClone(): Scale {
         match (this) {
-            case None => Scale.None
+            case NoneValue => Scale.NoneValue
             case Xyz(x, y, z) => Scale.Xyz(x, y, z)
         }
     }
@@ -564,18 +564,18 @@ public class TransformHandler {
 
     /// 处理单独的 translate/rotate/scale 属性
     /// 严格翻译自 TransformHandler 中的 individualProperty 闭包
-    private func individualProperty(field: String, val: Any): Unit {
+    private func individualProperty(field: String, `val`: Any): Unit {
         match (field) {
             case "translate" =>
                 match (transform) {
                     case Some(t) =>
                         // 如果有 transform，将 translate 转为 transform 函数追加到列表
-                        match (val) {
+                        match (`val`) {
                             case v: Translate => t.transform.v.append(v.toTransform())
                             case _ => ()
                         }
                     case None =>
-                        match (val) {
+                        match (`val`) {
                             case v: Translate => translate = Some(v)
                             case _ => ()
                         }
@@ -584,12 +584,12 @@ public class TransformHandler {
             case "rotate" =>
                 match (transform) {
                     case Some(t) =>
-                        match (val) {
+                        match (`val`) {
                             case v: Rotate => t.transform.v.append(v.toTransform())
                             case _ => ()
                         }
                     case None =>
-                        match (val) {
+                        match (`val`) {
                             case v: Rotate => rotate = Some(v)
                             case _ => ()
                         }
@@ -598,12 +598,12 @@ public class TransformHandler {
             case "scale" =>
                 match (transform) {
                     case Some(t) =>
-                        match (val) {
+                        match (`val`) {
                             case v: Scale => t.transform.v.append(v.toTransform())
                             case _ => ()
                         }
                     case None =>
-                        match (val) {
+                        match (`val`) {
                             case v: Scale => scale = Some(v)
                             case _ => ()
                         }

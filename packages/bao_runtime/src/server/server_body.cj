@@ -7,6 +7,7 @@ package bao_runtime.server
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_sys.*
 
 // ============================================================================
@@ -52,25 +53,25 @@ public interface RequestCtxIsh {
 public interface RequestCtxOpsIsh {
     func createIn(slot: RequestContext, server: ServerRef, req: RequestRef,
                    resp: ResponseRef, shouldDeinitContext: ?DeferDeinitFlag,
-                   method: ?HttpMethod)
-    func onResponse(server: ServerRef, requestValue: JsValue, responseValue: JsValue)
+                   method: ?HttpMethod): Unit
+    func onResponse(server: ServerRef, requestValue: JsValue, responseValue: JsValue): Unit
     func deinit(): Unit
     func shouldRenderMissing(): Bool
     func renderMissing(): Unit
-    func toAsync(req: RequestRef, requestObject: Request)
+    func toAsync(req: RequestRef, requestObject: Request): Unit
     func ctxMethod(): HttpMethod
-    func setUpgradeContext(ctx: ?WebSocketUpgradeContext)
+    func setUpgradeContext(ctx: ?WebSocketUpgradeContext): Unit
     func deferDeinitPtr(): ?DeferDeinitFlag
-    func setRequestBody(body: ?BodyValue)
+    func setRequestBody(body: ?BodyValue): Unit
     func requestBodyMut(): ?BodyValue
-    func setSignal(sig: AbortSignal)
-    func setRequestWeakref(req: Request)
+    func setSignal(sig: AbortSignal): Unit
+    func setRequestWeakref(req: Request): Unit
     func clearReq(): Unit
-    func setIsWebBrowserNavigation(v: Bool)
-    func setRequestBodyContentLen(len: Int64)
-    func setIsTransferEncoding(v: Bool)
-    func setIsWaitingForRequestBody(v: Bool)
-    func armOnData(resp: ResponseRef)
+    func setIsWebBrowserNavigation(v: Bool): Unit
+    func setRequestBodyContentLen(len: Int64): Unit
+    func setIsTransferEncoding(v: Bool): Unit
+    func setIsWaitingForRequestBody(v: Bool): Unit
+    func armOnData(resp: ResponseRef): Unit
 }
 
 // ============================================================================
@@ -218,7 +219,7 @@ public class ServerInitContext {
     public var frameworkRouterList: ArrayList<FileSystemRouterType>
 
     /// 用户路由
-    /// 对应 Bun: pub user_routes: &'a mut Vec<server_config::StaticRouteEntry>
+    /// 对应 Bun: pub user_routes: &'a Vec<server_config::StaticRouteEntry>
     public var userRoutes: ArrayList<StaticRouteEntry>
 
     public init(global: JsObject) {
@@ -248,8 +249,8 @@ public class ServePlugins {
     }
 
     /// 初始化
-    /// 对应 Bun: pub fn init(plugins) -> *mut ServePlugins
-    public static func init(plugins: ArrayList<Array<UInt8>>): ServePlugins {
+    /// 对应 Bun: pub fn init(plugins) -> *ServePlugins
+    public static func `init`(plugins: ArrayList<Array<UInt8>>): ServePlugins {
         return ServePlugins(ServePluginsState.Unqueued(plugins))
     }
 
@@ -260,7 +261,7 @@ public class ServePlugins {
     }
 
     /// 减少引用计数
-    /// 对应 Bun: pub unsafe fn deref_(this: *mut Self)
+    /// 对应 Bun: pub unsafe fn deref_(`this`: *Self)
     public func deref_(): Unit {
         refCount = refCount - 1
         if (refCount <= 0) {
@@ -269,7 +270,7 @@ public class ServePlugins {
     }
 
     /// 获取或开始加载
-    /// 对应 Bun: pub fn get_or_start_load(&mut self, global, cb) -> JsResult<GetOrStartLoadResult>
+    /// 对应 Bun: pub fn get_or_start_load(&self, global, cb) -> JsResult<GetOrStartLoadResult>
     public func getOrStartLoad(global: JsObject, cb: ServePluginsCallback): ?GetOrStartLoadResult {
         // 简化状态机: 检查当前状态
         match (state) {
@@ -471,13 +472,13 @@ public func serverSetMaxHttpHeaderSize(global: JsObject, args: ArrayList<JsValue
 }
 
 /// 解析回调
-/// 对应 Bun: pub fn on_resolve_impl(global, callframe) -> JsResult<JSValue>
+/// 对应 Bun: pub fn on_resolve_impl(global, callframe) -> JsResult<JsValue>
 public func onResolveImpl(global: JsObject, callframe: CallFrame): ?JsValue {
     return JsValue.UNDEFINED
 }
 
 /// 拒绝回调
-/// 对应 Bun: pub fn on_reject_impl(global, callframe) -> JsResult<JSValue>
+/// 对应 Bun: pub fn on_reject_impl(global, callframe) -> JsResult<JsValue>
 public func onRejectImpl(global: JsObject, callframe: CallFrame): ?JsValue {
     return JsValue.UNDEFINED
 }

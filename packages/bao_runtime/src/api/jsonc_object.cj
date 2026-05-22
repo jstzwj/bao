@@ -16,7 +16,7 @@ public class JSONCObject {
     /// 创建 JSONC 对象, 挂载 parse 方法
     public static func create(globalThis: JsGlobalObject): JsValue {
         let object = JsValue.createEmptyObject(globalThis, 1)
-        object.put(globalThis, ZigString.static("parse"), JsFunction.create(globalThis, "parse", parse, 1))
+        object.put(globalThis, ZigString.`static`("parse"), JsFunction.create(globalThis, "parse", parse, 1))
         return object
     }
 
@@ -26,7 +26,7 @@ public class JSONCObject {
 
     /// 解析 JSONC 字符串
     public static func parse(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        var arena = ArenaAllocator.init(globalThis.allocator())
+        var arena = ArenaAllocator(globalThis.allocator())
         let allocator = arena.allocator()
         defer arena.deinit()
 
@@ -38,7 +38,7 @@ public class JSONCObject {
         let inputValue = callframe.argument(0)
         if (inputValue.isEmptyOrUndefinedOrNull()) {
             globalThis.throwInvalidArguments("Expected a string to parse")
-            return JsValue.zero
+            return JsValue.jsUndefined()
         }
 
         var inputSlice = try inputValue.toSlice(globalThis, default_allocator)
@@ -46,15 +46,15 @@ public class JSONCObject {
 
         let source = Logger.Source.initPathString("input.jsonc", inputSlice.slice())
 
-        var log = Logger.Log.init(default_allocator)
+        var log = Logger.Log(default_allocator)
         defer log.deinit()
 
         let parseResult = try JSON.parseTSConfig(source, log, allocator, true) catch {
             err => match (err) {
                 case Error.StackOverflow =>
                     return globalThis.throwStackOverflow()
-                default =>
-                    if (log.msgs.items.length > 0) {
+                case _ =>
+                    if (log.msgs.items.size > 0) {
                         let firstMsg = log.msgs.items[0]
                         return globalThis.throwValue(
                             globalThis.createSyntaxErrorInstance("JSONC Parse error: " + firstMsg.data.text)
@@ -71,7 +71,7 @@ public class JSONCObject {
                 case Error.OutOfMemory => return Error.OutOfMemory
                 case Error.JsError => return Error.JsError
                 case Error.JsTerminated => return Error.JsTerminated
-                default => unreachable("JSONC parsing does not produce macros or identifiers")
+                case _ => unreachable("JSONC parsing does not produce macros or identifiers")
             }
         }
     }

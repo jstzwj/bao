@@ -12,8 +12,8 @@ import bao_collections.*  // std.collection.*
 public class DiffFormatter {
     public var receivedString: ?String = None
     public var expectedString: ?String = None
-    public var received: ?JSValue = None
-    public var expected: ?JSValue = None
+    public var received: ?JsValue = None
+    public var expected: ?JsValue = None
     public var globalThis: JSGlobalObject
     public var not: Bool = false
 
@@ -26,7 +26,7 @@ public class DiffFormatter {
         this.not = not
     }
 
-    public init(received: JSValue, expected: JSValue, globalThis: JSGlobalObject, not: Bool) {
+    public init(received: JsValue, expected: JsValue, globalThis: JSGlobalObject, not: Bool) {
         this.received = received
         this.expected = expected
         this.globalThis = globalThis
@@ -38,14 +38,14 @@ public class DiffFormatter {
         let diffConfig = DiffConfig.default(isAgent: Output.isAIAgent(), enableAnsiColors: Output.enableAnsiColorsStderr())
 
         // 如果已有字符串, 直接比较
-        if (expectedString != None && receivedString != None) {
+        if (expectedString.isSome() && receivedString.isSome()) {
             let received = receivedString ?? ""
             let expected = expectedString ?? ""
             printDiffMain(not: not, receivedSlice: received, expectedSlice: expected, writer: writer, config: diffConfig)
             return
         }
 
-        if (received == None || expected == None) { return }
+        if (received.isNone() || expected.isNone()) { return }
 
         // 将JS值转换为字符串进行比较
         let receivedValue = received.getOrThrow()
@@ -86,8 +86,8 @@ public class DiffFormatter {
         // 移除首尾换行
         if (receivedSlice.startsWith("\n")) { receivedSlice = receivedSlice[1..] }
         if (expectedSlice.startsWith("\n")) { expectedSlice = expectedSlice[1..] }
-        if (receivedSlice.endsWith("\n")) { receivedSlice = receivedSlice[0..receivedSlice.length - 1] }
-        if (expectedSlice.endsWith("\n")) { expectedSlice = expectedSlice[0..expectedSlice.length - 1] }
+        if (receivedSlice.endsWith("\n")) { receivedSlice = receivedSlice[0..receivedSlice.size - 1] }
+        if (expectedSlice.endsWith("\n")) { expectedSlice = expectedSlice[0..expectedSlice.size - 1] }
 
         printDiffMain(not: not, receivedSlice: receivedSlice, expectedSlice: expectedSlice, writer: writer, config: diffConfig)
     }

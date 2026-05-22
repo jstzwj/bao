@@ -108,9 +108,9 @@ public class PackageJSONEditor {
             case Some(obj) =>
                 // 复制现有 patchedDependencies
                 let existingProps = obj.properties()
-                for (prop in existingProps) {
-                    match (prop.value) {
-                        case JsonExprValue.Str(s) => patchedDeps.put(prop.key, s)
+                for (`prop` in existingProps) {
+                    match (`prop`.value) {
+                        case JsonExprValue.Str(s) => patchedDeps.put(`prop`.key, s)
                         case _ => ()
                     }
                 }
@@ -358,10 +358,10 @@ public class PackageJSONEditor {
     ): Unit {
         let props = root.properties()
 
-        for (prop in props) {
-            let key = prop.key
+        for (`prop` in props) {
+            let key = `prop`.key
             if (key.size == 0) { continue }
-            let value = prop.value
+            let value = `prop`.value
             if (!value.isString()) { continue }
 
             // 获取版本字面量
@@ -477,10 +477,10 @@ public class PackageJSONEditor {
 
         let props = root.properties()
 
-        for (prop in props) {
-            let key = prop.key
+        for (`prop` in props) {
+            let key = `prop`.key
             if (key.size == 0) { continue }
-            let value = prop.value
+            let value = `prop`.value
             if (!value.isString()) { continue }
 
             // 严格翻译自:
@@ -1145,8 +1145,8 @@ public class PackageJSONEditor {
     ///   }
     private static func findValueByUrl(obj: JsonExpr, url: String): ?String {
         let props = obj.properties()
-        for (prop in props) {
-            match (prop.value) {
+        for (`prop` in props) {
+            match (`prop`.value) {
                 case JsonExprValue.Str(s) =>
                     if (s == url) { return Some(s) }
                 case _ => ()
@@ -1309,24 +1309,6 @@ public enum PinnedVersion {
 }
 
 // ============================================================================
-// 解析标签
-// ============================================================================
-
-/// 解析标签 (用于 edit 中 resolution 匹配)
-public enum ResolutionTag {
-    | Uninitialized
-    | Npm
-    | Workspace
-    | Folder
-    | Git
-    | GitHub
-    | Tarball
-    | RemoteTarball
-    | LocalTarball
-    | Root
-}
-
-// ============================================================================
 // 解析条目
 // ============================================================================
 
@@ -1422,144 +1404,6 @@ public class PackageJsonUpdateRequest {
 
 /// 依赖版本信息
 /// 翻译自: Dependency.Version
-///   pub const Version = struct {
-///       tag: Tag = .uninitialized,
-///       literal: String = .{},
-///       value: Value = .{},
-///   }
-public class DependencyVersionInfo {
-    public var tag: DependencyVersionTag
-    public var literal: String
-
-    public init() {
-        tag = DependencyVersionTag.Uninitialized
-        literal = ""
-    }
-}
-
-/// 依赖版本标签
-/// 严格翻译自: Dependency.Version.Tag
-///   pub const Tag = enum(u8) {
-///       uninitialized, npm, dist_tag, tarball, folder, symlink, workspace, git, github, catalog
-///   }
-public enum DependencyVersionTag {
-    | Uninitialized
-    | NPM
-    | DistTag
-    | Folder
-    | Tarball
-    | Git
-    | GitHub
-    | Symlink
-    | Workspace
-    | Catalog
-
-    /// 从依赖字符串推断版本类型
-    /// 严格翻译自: Dependency.Version.Tag.infer
-    public static func infer(dependency: String): DependencyVersionTag {
-        if (dependency.size == 0) { return DistTag }
-
-        let c = dependency[0]
-
-        // ^, =, >, <, *, | -> npm semver range
-        if (c == UInt8(61) || c == UInt8(62) || c == UInt8(60) || c == UInt8(94) || c == UInt8(42) || c == UInt8(124)) {
-            return NPM
-        }
-
-        // ./path or ../path
-        if (c == UInt8(46)) {
-            return Folder
-        }
-
-        // ~1.2.3 or ~/path
-        if (c == UInt8(126)) {
-            if (dependency.size > 1 && dependency[1] == UInt8(47)) {
-                return Folder
-            }
-            return NPM
-        }
-
-        // /absolute/path
-        if (c == UInt8(47)) {
-            return Folder
-        }
-
-        // 0-9: version number
-        if (c >= UInt8(48) && c <= UInt8(57)) {
-            return NPM
-        }
-
-        // file: prefix
-        if (dependency.startsWith("file:")) {
-            return Folder
-        }
-
-        // catalog: prefix
-        if (dependency.startsWith("catalog:")) {
-            return Catalog
-        }
-
-        // git/github
-        if (dependency.startsWith("git")) {
-            if (dependency.startsWith("git+ssh:") || dependency.startsWith("git+file:")) {
-                return Git
-            }
-            if (dependency.startsWith("git+http")) {
-                return Git
-            }
-            if (dependency.startsWith("git://")) {
-                return Git
-            }
-        }
-
-        // github:user/repo
-        if (dependency.startsWith("github:")) {
-            return GitHub
-        }
-
-        // http/https
-        if (dependency.startsWith("http://") || dependency.startsWith("https://")) {
-            return Tarball
-        }
-
-        // ssh://
-        if (dependency.startsWith("ssh://")) {
-            return Git
-        }
-
-        // link: prefix
-        if (dependency.startsWith("link:")) {
-            return Symlink
-        }
-
-        // npm: alias
-        if (dependency.startsWith("npm:")) {
-            return NPM
-        }
-
-        // workspace: prefix
-        if (dependency.startsWith("workspace:")) {
-            return Workspace
-        }
-
-        // v1.2.3
-        if (c == UInt8(118) && dependency.size > 1) {
-            let next = dependency[1]
-            if (next >= UInt8(48) && next <= UInt8(57)) {
-                return NPM
-            }
-        }
-
-        // x or X (wildcard)
-        if (c == UInt8(120) || c == UInt8(88)) {
-            return NPM
-        }
-
-        // default: dist-tag
-        return DistTag
-    }
-}
-
 /// 包管理器引用
 /// 翻译自: *PackageManager (edit/editUpdateNoArgs 使用的字段子集)
 public class PackageJsonEditorManagerRef {
@@ -1730,8 +1574,8 @@ public class JsonExprData {
 public enum JsonExprValue {
     | Str(String)
     | Num(Float64)
-    | Bool(Bool)
-    | Null
+    | `Bool`(Bool)
+    | Null_
     | Obj(JsonExpr)
     | Arr(ArrayList<JsonExprValue>)
 }

@@ -59,7 +59,7 @@ public class ProxyEnvStorage {
     // 从父级克隆引用计数值
     public func cloneFrom(parent: ProxyEnvStorage) {
         lock.lock()
-        defer { lock.unlock() }
+        // defer: { lock.unlock() }
 
         if (let Some(val) <- parent.HTTP_PROXY) {
             val.ref()
@@ -91,7 +91,7 @@ public class ProxyEnvStorage {
     // 同步到目标
     public func syncInto(target: ProxyEnvStorage) {
         lock.lock()
-        defer { lock.unlock() }
+        // defer: { lock.unlock() }
 
         if (let Some(val) <- HTTP_PROXY) { target.HTTP_PROXY = val }
         if (let Some(val) <- http_proxy) { target.http_proxy = val }
@@ -136,20 +136,26 @@ public class PathBuf {
     // 严格翻译自 PathBuf.get
     public func get(minLen: Int64): String {
         if (minLen <= 2 * PathBuf.MAX_PATH_BYTES) {
-            if (small == None) {
-                small = String(" ").repeat(2 * PathBuf.MAX_PATH_BYTES)
+            if (small.isNone()) {
+                let spaces = Array<Rune>(2 * PathBuf.MAX_PATH_BYTES, { _: Int64 => Rune(32) })
+                small = String(spaces)
             }
-            return small.getOr("")
+            if (let Some(s) <- small) { return s }
+            return ""
         } else if (minLen <= 8 * PathBuf.MAX_PATH_BYTES) {
-            if (medium == None) {
-                medium = String(" ").repeat(8 * PathBuf.MAX_PATH_BYTES)
+            if (medium.isNone()) {
+                let spaces = Array<Rune>(8 * PathBuf.MAX_PATH_BYTES, { _: Int64 => Rune(32) })
+                medium = String(spaces)
             }
-            return medium.getOr("")
+            if (let Some(s) <- medium) { return s }
+            return ""
         } else {
-            if (large == None) {
-                large = String(" ").repeat(32 * PathBuf.MAX_PATH_BYTES)
+            if (large.isNone()) {
+                let spaces = Array<Rune>(32 * PathBuf.MAX_PATH_BYTES, { _: Int64 => Rune(32) })
+                large = String(spaces)
             }
-            return large.getOr("")
+            if (let Some(s) <- large) { return s }
+            return ""
         }
     }
 
@@ -203,7 +209,7 @@ public class ValkeyContext {
 // ========== 清理钩子 ==========
 // 严格翻译自 rare_data.zig CleanupHook
 public class CleanupHook {
-    public var func_: ((?BunVirtualMachine): Unit)? = None
+    public var func_: ?((?BunVirtualMachine) -> Unit) = None
     public var ctx: ?BunVirtualMachine = None
     public var globalThis: ?JsObject = None
 
@@ -232,21 +238,8 @@ public class PipeReadBuffer {
     public init() {}
 }
 
-// ========== 文件轮询存储 ==========
-// 严格翻译自 rare_data.zig FilePoll.Store
-public class FilePollStore {
-    public var polls: HashMap<Int64, FilePoll> = HashMap()
-
-    public init() {}
-}
-
-// ========== 文件轮询 ==========
-public class FilePoll {
-    public var fd: Int64 = 0
-    public var path: String = ""
-
-    public init() {}
-}
+// 注意: FilePollStore 已移至 event_loop_handle.cj
+// 注意: FilePoll 已移至 event_loop_handle.cj
 
 // ========== FS Watcher ==========
 public class FSWatcher {
@@ -396,8 +389,8 @@ public class RareData {
     // ========== 热映射 ==========
 
     // 严格翻译自 RareData.hotMap
-    public func hotMap(allocator: String): ?HotMap {
-        if (hotMap == None) {
+    public func getHotMap(allocator: String): ?HotMap {
+        if (hotMap .isNone()) {
             hotMap = HotMap()
         }
         hotMap
@@ -407,7 +400,7 @@ public class RareData {
 
     // 严格翻译自 RareData.mimeTypeFromString
     public func mimeTypeFromString(allocator: String, str: String): ?MimeType {
-        if (mimeTypes == None) {
+        if (mimeTypes .isNone()) {
             mimeTypes = MimeTypeMap()
         }
         mimeTypes.getOrThrow().lookup(str)
@@ -419,7 +412,7 @@ public class RareData {
     public func runCleanupHooks() {
         while (cleanupHooks.size > 0) {
             let hooks = cleanupHooks.toArray()
-            cleanupHooks.clear()
+            cleanupHooks = []
             for (hook in hooks) {
                 hook.execute()
             }
@@ -431,14 +424,14 @@ public class RareData {
     // 严格翻译自 RareData.addListeningSocketForWatchMode
     public func addListeningSocketForWatchMode(socket: Int64) {
         listeningSocketsForWatchModeLock.lock()
-        defer { listeningSocketsForWatchModeLock.unlock() }
+        // defer: { listeningSocketsForWatchModeLock.unlock() }
         listeningSocketsForWatchMode.append(socket)
     }
 
     // 严格翻译自 RareData.removeListeningSocketForWatchMode
     public func removeListeningSocketForWatchMode(socket: Int64) {
         listeningSocketsForWatchModeLock.lock()
-        defer { listeningSocketsForWatchModeLock.unlock() }
+        // defer: { listeningSocketsForWatchModeLock.unlock() }
         var idx = -1
         for (i in 0..listeningSocketsForWatchMode.size) {
             if (listeningSocketsForWatchMode[Int64(i)] == socket) {
@@ -447,7 +440,7 @@ public class RareData {
             }
         }
         if (idx >= 0) {
-            listeningSocketsForWatchMode.removeAt(idx)
+            listeningSocketsForWatchMode = listeningSocketsForWatchMode[0..idx].concat(listeningSocketsForWatchMode[idx + 1..])
         }
     }
 
@@ -458,12 +451,12 @@ public class RareData {
         for (watcher in fsWatchersForIsolation) {
             watcher.close()
         }
-        fsWatchersForIsolation.clear()
+        fsWatchersForIsolation = []
 
         for (watcher in statWatchersForIsolation) {
             watcher.close()
         }
-        statWatchersForIsolation.clear()
+        statWatchersForIsolation = []
     }
 
     // 严格翻译自 RareData.closeAllSocketGroups
@@ -490,11 +483,11 @@ public class RareData {
     public func deinit() {
         pathBuf.deinit()
         proxyEnvStorage.deinit()
-        cleanupHooks.clear()
-        cronJobs.clear()
-        listeningSocketsForWatchMode.clear()
-        fsWatchersForIsolation.clear()
-        statWatchersForIsolation.clear()
+        cleanupHooks = []
+        cronJobs = []
+        listeningSocketsForWatchMode = []
+        fsWatchersForIsolation = []
+        statWatchersForIsolation = []
     }
 }
 
@@ -505,12 +498,7 @@ public class WebSocketDeflateRareData {
     public init() {}
 }
 
-// Blob 存储
-public class BlobStore {
-    public var data: String = ""
-
-    public init() {}
-}
+// 注意: BlobStore 已移至 event_loop_handle.cj
 
 // Cron 任务
 public class CronJob {

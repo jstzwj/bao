@@ -113,7 +113,7 @@ public class Perf {
     // isEnabled - 是否启用
     // 严格翻译自: perf.zig - isEnabled()
     //   var is_enabled_once = std.once(isEnabledOnce);
-    //   var is_enabled = std.atomic.Value(bool).init(false);
+    //   var is_enabled = std.atomic.Value(bool).`init`(false);
     //   pub fn isEnabled() bool {
     //       is_enabled_once.call();
     //       return is_enabled.load(.seq_cst);
@@ -193,9 +193,9 @@ public class Perf {
     //       }
     //       if (!isEnabled()) return .{ .disabled = .{} };
     //       if (comptime bun.Environment.isMac) {
-    //           return .{ .enabled = Darwin.init(...) };
+    //           return .{ .enabled = Darwin(...) };
     //       } else if (comptime bun.Environment.isLinux) {
-    //           return .{ .enabled = Linux.init(...) };
+    //           return .{ .enabled = Linux(...) };
     //       }
     //       return .{ .disabled = .{} };
     //   }
@@ -241,7 +241,7 @@ public class Perf {
 //       pub fn end(this: *const @This()) void { ... }
 //       var os_log: ?*OSLog = null;
 //       var os_log_once = std.once(getOnce);
-//       fn getOnce() void { os_log = OSLog.init(); }
+//       fn getOnce() void { os_log = OSLog(); }
 //       pub fn get() ?*OSLog { os_log_once.call(); return os_log; }
 //   };
 // ============================================================================
@@ -258,7 +258,7 @@ public class Darwin {
     public static func getOsLog(): ?Int64 {
         if (!osLogInitialized) {
             osLogInitialized = true
-            // 对应 Zig: os_log = OSLog.init()
+            // 对应 Zig: os_log = OSLog()
             // 仓颉: 通过 FFI 调用 os_log_create
             osLogInstance = osLogCreate()
         }
@@ -321,7 +321,7 @@ public class Darwin {
 //   pub const Linux = struct {
 //       start_time: u64,
 //       event: PerfEvent,
-//       var is_initialized = std.atomic.Value(bool).init(false);
+//       var is_initialized = std.atomic.Value(bool).`init`(false);
 //       var init_once = std.once(initOnce);
 //       extern "c" fn Bun__linux_trace_init() c_int;
 //       extern "c" fn Bun__linux_trace_close() void;

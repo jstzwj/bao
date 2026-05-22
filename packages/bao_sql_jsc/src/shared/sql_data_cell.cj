@@ -9,6 +9,21 @@ import bao_jsc.*
 /// SQL 数据单元格标签
 /// 对应 Bun: SQLDataCell.Tag
 public enum DataCellTag {
+    | Null
+    | `Bool`
+    | Int4
+    | `Int8`
+    | Float8
+    | `String`
+    | Date
+    | DateWithTimeZone
+    | Bytea
+    | Json
+    | Array
+    | TypedArray
+    | Raw
+    | UInt4
+    | `UInt8`
     | None
 }
 
@@ -59,19 +74,19 @@ public class SQLDataCell {
             return
         }
         match (tag) {
-            | String =>
+            case `String` =>
                 // 释放字符串
                 stringValue = None
-            | Json =>
+            case Json =>
                 jsonValue = None
-            | Array =>
-                if (arrayValue != None) {
-                    for (cell in arrayValue.cells) {
+            case Array =>
+                if (arrayValue.isSome()) {
+                    for (cell in arrayValue.getOrThrow().cells) {
                         cell.deinit()
                     }
                     arrayValue = None
                 }
-            | _ => ()
+            case _ => ()
         }
     }
 }

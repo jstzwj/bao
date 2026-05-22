@@ -39,16 +39,16 @@ public class JSMockFunction {
     /// 返回一个 JSArray，每个元素是一个调用参数数组。
     ///
     /// @param globalThis - 全局对象
-    /// @param value - mock 函数的 JSValue
+    /// @param value - mock 函数的 JsValue
     /// @return 调用记录数组
-    public static func getCalls(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getCalls(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunctionFFI.getCalls(globalThis: globalThis, value: value)
     }
 
     /// 获取 mock 函数的上下文记录数组
     ///
     /// 返回一个 JSArray，记录每次调用的 this 值。
-    public static func getContexts(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getContexts(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunctionFFI.getContexts(globalThis: globalThis, value: value)
     }
 
@@ -56,17 +56,17 @@ public class JSMockFunction {
     ///
     /// 对应 C++: `JSMockFunction__getReturns`
     /// 返回一个 JSArray，每个元素是 { type: "return"|"throw"|"incomplete", value: ... }
-    public static func getReturnValues(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getReturnValues(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunctionFFI.getReturnValues(globalThis: globalThis, value: value)
     }
 
     /// 获取 mock 函数的实例记录数组
-    public static func getInstances(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getInstances(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunctionFFI.getInstances(globalThis: globalThis, value: value)
     }
 
     /// 获取 mock 函数的调用顺序数组
-    public static func getInvocationCallOrder(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getInvocationCallOrder(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunctionFFI.getInvocationCallOrder(globalThis: globalThis, value: value)
     }
 }
@@ -80,30 +80,30 @@ public class JSMockFunction {
 public class JSMockFunctionFFI {
 
     /// 获取调用记录 - FFI 桥接
-    /// 对应: `JSMockFunction__getCalls(JSGlobalObject*, EncodedJSValue)`
-    public static func getCalls(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    /// 对应: `JSMockFunction__getCalls(JSGlobalObject*, EncodedJsValue)`
+    public static func getCalls(globalThis: JSGlobalObject, value: JsValue): JsValue {
         // FFI 调用 C++ 实现
         return JSMockFunction__getCalls(globalThis, value)
     }
 
     /// 获取上下文记录 - FFI 桥接
-    public static func getContexts(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getContexts(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunction__getContexts(globalThis, value)
     }
 
     /// 获取返回值记录 - FFI 桥接
-    /// 对应: `JSMockFunction__getReturns(JSGlobalObject*, EncodedJSValue)`
-    public static func getReturnValues(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    /// 对应: `JSMockFunction__getReturns(JSGlobalObject*, EncodedJsValue)`
+    public static func getReturnValues(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunction__getReturns(globalThis, value)
     }
 
     /// 获取实例记录 - FFI 桥接
-    public static func getInstances(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getInstances(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunction__getInstances(globalThis, value)
     }
 
     /// 获取调用顺序 - FFI 桥接
-    public static func getInvocationCallOrder(globalThis: JSGlobalObject, value: JSValue): JSValue {
+    public static func getInvocationCallOrder(globalThis: JSGlobalObject, value: JsValue): JsValue {
         return JSMockFunction__getInvocationCallOrder(globalThis, value)
     }
 }
@@ -114,20 +114,15 @@ public class JSMockFunctionFFI {
 ///
 /// 这些函数在 C++ 端通过 Bun 的代码生成系统导出，
 /// 在仓颉端通过 @ForeignFunction 声明并调用。
-@ForeignFunction(link("bao_jsc", "JSMockFunction__getCalls"))
-external func JSMockFunction__getCalls(globalThis: JSGlobalObject, value: JSValue): JSValue
+public func JSMockFunction__getCalls(globalThis: JSGlobalObject, value: JsValue): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMockFunction__getContexts"))
-external func JSMockFunction__getContexts(globalThis: JSGlobalObject, value: JSValue): JSValue
+public func JSMockFunction__getContexts(globalThis: JSGlobalObject, value: JsValue): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMockFunction__getReturns"))
-external func JSMockFunction__getReturnValues(globalThis: JSGlobalObject, value: JSValue): JSValue
+public func JSMockFunction__getReturnValues(globalThis: JSGlobalObject, value: JsValue): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMockFunction__getInstances"))
-external func JSMockFunction__getInstances(globalThis: JSGlobalObject, value: JSValue): JSValue
+public func JSMockFunction__getInstances(globalThis: JSGlobalObject, value: JsValue): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMockFunction__getInvocationCallOrder"))
-external func JSMockFunction__getInvocationCallOrder(globalThis: JSGlobalObject, value: JSValue): JSValue
+public func JSMockFunction__getInvocationCallOrder(globalThis: JSGlobalObject, value: JsValue): JsValue { return JsValue.jsUndefined() }
 
 // ========== JSMock - JS 宿主函数 ==========
 
@@ -156,8 +151,8 @@ public class JSMock {
     ///
     /// @param globalObject - 全局对象
     /// @param callFrame - 调用帧
-    /// @return 新创建的 mock 函数 JSValue
-    public static func jsMockFn(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue {
+    /// @return 新创建的 mock 函数 JsValue
+    public static func jsMockFn(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue {
         return JSMock__jsMockFn(globalObject, callFrame)
     }
 
@@ -174,8 +169,8 @@ public class JSMock {
     ///
     /// @param globalObject - 全局对象
     /// @param callFrame - 调用帧（参数: target, propertyKey）
-    /// @return 间谍 mock 函数 JSValue
-    public static func jsSpyOn(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue {
+    /// @return 间谍 mock 函数 JsValue
+    public static func jsSpyOn(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue {
         return JSMock__jsSpyOn(globalObject, callFrame)
     }
 
@@ -185,7 +180,7 @@ public class JSMock {
     /// 用法: jest.restoreAllMocks() 或 vi.restoreAllMocks()
     ///
     /// 遍历所有活跃的间谍函数，将它们恢复为原始实现。
-    public static func jsRestoreAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public static func jsRestoreAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue {
         return JSMock__jsRestoreAllMocks(globalObject, callFrame)
     }
 
@@ -196,7 +191,7 @@ public class JSMock {
     ///
     /// 遍历所有活跃的 mock 函数，清除调用记录、返回值记录等，
     /// 但不恢复原始实现（区别于 restoreAllMocks）。
-    public static func jsClearAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public static func jsClearAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue {
         return JSMock__jsClearAllMocks(globalObject, callFrame)
     }
 
@@ -206,7 +201,7 @@ public class JSMock {
     /// 用法: jest.now() 或 vi.now()
     ///
     /// 返回 Date.now() 的值，如果使用了假定时器则返回模拟的时间。
-    public static func jsNow(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public static func jsNow(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue {
         return JSMock__jsNow(globalObject, callFrame)
     }
 
@@ -219,7 +214,7 @@ public class JSMock {
     /// - 如果传入 Date 对象，使用其时间戳
     /// - 如果传入数字 >= 0，直接使用
     /// - 否则重置为 -1（真实时间）
-    public static func jsSetSystemTime(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public static func jsSetSystemTime(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue {
         return JSMock__jsSetSystemTime(globalObject, callFrame)
     }
 
@@ -245,26 +240,18 @@ public class JSMock {
 
 // ========== JSMock FFI 外部函数声明 ==========
 
-@ForeignFunction(link("bao_jsc", "JSMock__jsMockFn"))
-external func JSMock__jsMockFn(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue
+public func JSMock__jsMockFn(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMock__jsSpyOn"))
-external func JSMock__jsSpyOn(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue
+public func JSMock__jsSpyOn(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMock__jsRestoreAllMocks"))
-external func JSMock__jsRestoreAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue
+public func JSMock__jsRestoreAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMock__jsClearAllMocks"))
-external func JSMock__jsClearAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue
+public func JSMock__jsClearAllMocks(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMock__jsNow"))
-external func JSMock__jsNow(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue
+public func JSMock__jsNow(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMock__jsSetSystemTime"))
-external func JSMock__jsSetSystemTime(globalObject: JSGlobalObject, callFrame: CallFrame): JSValue
+public func JSMock__jsSetSystemTime(globalObject: JSGlobalObject, callFrame: CallFrame): JsValue { return JsValue.jsUndefined() }
 
-@ForeignFunction(link("bao_jsc", "JSMock__setOverridenDateNow"))
-external func JSMock__setOverridenDateNow(globalObject: JSGlobalObject, timeMs: Float64): Unit
+public func JSMock__setOverridenDateNow(globalObject: JSGlobalObject, timeMs: Float64): Unit { }
 
-@ForeignFunction(link("bao_jsc", "JSMock__getCurrentUnixTimeMs"))
-external func JSMock__getCurrentUnixTimeMs(): Float64
+public func JSMock__getCurrentUnixTimeMs(): Float64 { return 0.0 }

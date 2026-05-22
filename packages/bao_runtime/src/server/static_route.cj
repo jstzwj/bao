@@ -69,11 +69,10 @@ public class StaticRoute {
 
         // 设置 Content-Type
         match (mimeType) {
-            case Some(mt) => {
+            case Some(mt) =>
                 if (mt.size > 0) {
                     route.headers.put("Content-Type", mt)
                 }
-            }
             case None => ()
         }
 
@@ -96,10 +95,9 @@ public class StaticRoute {
         match (method) {
             case HttpMethod.GET => onGet(resp)
             case HttpMethod.HEAD => onHead(resp)
-            case _ => {
+            case _ =>
                 // 其他方法直接处理
                 on(resp)
-            }
         }
     }
 
@@ -153,10 +151,9 @@ public class StaticRoute {
         match (method) {
             case HttpMethod.GET => on(resp)
             case HttpMethod.HEAD => onHead(resp)
-            case _ => {
+            case _ =>
                 doWriteStatus(405, resp)  // Method Not Allowed
                 resp.endWithoutBody(resp.shouldCloseConnection())
-            }
         }
     }
 

@@ -11,7 +11,7 @@ package bao_jsc
 // 使用模式:
 // ```
 // var scope = TopExceptionScope()
-// scope.init(global)
+// scope.`init`(global)
 // defer scope.deinit()
 //
 // let value = externalCall(vm, foo, bar, baz)
@@ -34,20 +34,20 @@ public class TopExceptionScope {
     public init(global: JsObject) {
         this.globalObject = global
         this.isInitialized = true
-        this.bytes = Array<UInt8>(56, item: 0)
+        this.bytes = Array<UInt8>(56, repeat: UInt8(0))
     }
 
     // 严格翻译自 TopExceptionScope.init
     public func init_(global: JsObject) {
         this.globalObject = global
         this.isInitialized = true
-        this.bytes = Array<UInt8>(56, item: 0)
+        this.bytes = Array<UInt8>(56, repeat: UInt8(0))
     }
 
     // 严格翻译自 TopExceptionScope.hasException
     public func hasException(): Bool {
         if (!isInitialized) { return false }
-        return exception() != None
+        return exception() .isSome()
     }
 
     // 严格翻译自 TopExceptionScope.exception
@@ -75,14 +75,14 @@ public class TopExceptionScope {
     // 严格翻译自 TopExceptionScope.returnIfException
     // 设计用于 try。如果已存在待处理的异常或陷阱导致异常被抛出则返回错误
     public func returnIfException(): Bool {
-        exceptionIncludingTraps() != None
+        exceptionIncludingTraps() .isSome()
     }
 
     // 严格翻译自 TopExceptionScope.assertNoException
     // 断言没有异常被抛出
     public func assertNoException() {
         // 在 debug 模式下会检查并 panic
-        if (exception() != None) {
+        if (exception() .isSome()) {
             // assertionFailure
         }
     }

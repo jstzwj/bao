@@ -158,6 +158,23 @@ public class CommandLineArguments {
         networkConcurrency = None
         concurrentScripts = None
     }
+
+    /// stub: parse for publish command
+    public static func parseForPublish(opts: Any): CommandLineArguments {
+        return CommandLineArguments()
+    }
+}
+
+/// publish 命令选项
+public class PublishOptions {
+    public var silent: Bool = false
+    public var tarballPath: ?String = None
+    public var access: String = ""
+    public var tag: String = ""
+    public var otp: String = ""
+    public var dryRun: Bool = false
+
+    public init() {}
 }
 
 // ============================================================================
@@ -173,7 +190,7 @@ public class PackageManagerOptions {
     /// 缓存目录路径
     public var cacheDirectory: String
     /// 日志级别
-    public var logLevel: LogLevel
+    public var logLevel: InstallLogLevel
     /// 最大并发生命周期脚本数
     public var maxConcurrentLifecycleScripts: Int64
     /// 注册表 scope 配置
@@ -205,7 +222,7 @@ public class PackageManagerOptions {
     public init() {
         global = false
         cacheDirectory = ""
-        logLevel = LogLevel.Default
+        logLevel = InstallLogLevel.Default
         maxConcurrentLifecycleScripts = DEFAULT_MAX_SIMULTANEOUS_REQUESTS
         scope = NpmRegistryScope()
         ca = ArrayList<String>()
@@ -304,6 +321,7 @@ public class ProgressStrings {
     public static func install(): String { "install" }
     public static func script(): String { "script" }
     public static func scriptEmoji(): String { ">" }
+    public static let downloadEmoji: String = "\u{2B07}"
 }
 
 // ============================================================================
@@ -531,6 +549,18 @@ public class PackageManager {
         ciMode = false
     }
 
+    /// 简化安装方法 - 对应 CLI 命令中的调用
+    public func install(opts: InstallOptions): ?InstallSummary {
+        // stub: perform install
+        return Some(InstallSummary())
+    }
+
+    /// stub: initialize for publish command
+    public static func initForPublish(cli: CommandLineArguments): ?Tuple<PackageManager, String> {
+        let pm = PackageManager()
+        return Some(Tuple<PackageManager, String>(pm, ""))
+    }
+
     // ===== 初始化方法 =====
 
     /// 初始化包管理器
@@ -618,7 +648,7 @@ public class PackageManager {
     /// 崩溃
     /// 翻译自: PackageManager.crash
     public func crash(): Unit {
-        if (options.logLevel != LogLevel.Silent) {
+        if (options.logLevel != InstallLogLevel.Silent) {
             log.print()
         }
         Output.printErrorln("Install failed")
@@ -1169,6 +1199,19 @@ public class FolderResolution {
 /// 锁文件差异摘要
 /// 翻译自: Lockfile.Package.Diff.Summary
 public class LockfileDiffSummary {
+    public var added: Int64
+    public var removed: Int64
+    public var changed: Int64
+
+    public init() {
+        added = 0
+        removed = 0
+        changed = 0
+    }
+}
+
+/// 安装摘要
+public class InstallSummary {
     public var added: Int64
     public var removed: Int64
     public var changed: Int64

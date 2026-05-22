@@ -462,12 +462,12 @@ public class LockfileFormat {
     /// 对应 Bun: TextLockfile.parseIntoBinaryLockfile
     public static func deserialize(text: String): ArrayList<LockfilePackage> {
         let result = ArrayList<LockfilePackage>()
-        let parser = JsonParser()
+        let parser = PkgJsonParser()
         let json = parser.parse(text)
 
         match (json) {
             case Some(root) =>
-                match (JsonHelper.getField(root, "packages")) {
+                match (PkgJsonHelper.getField(root, "packages")) {
                     case Some(JsonValue.Object(packages)) =>
                         for (pkgKey in packages.keys()) {
                             match (packages.get(pkgKey)) {
@@ -754,20 +754,20 @@ public class LockfileFormat {
             name = name[13..]
         }
 
-        let version = match (JsonHelper.getString(JsonValue.Object(pkgObj), "version")) {
+        let version = match (PkgJsonHelper.getString(JsonValue.Object(pkgObj), "version")) {
             case Some(v) => v
             case None => "0.0.0"
         }
 
         let entry = LockfilePackage(name, version)
-        entry.resolution = match (JsonHelper.getString(JsonValue.Object(pkgObj), "resolution")) {
+        entry.resolution = match (PkgJsonHelper.getString(JsonValue.Object(pkgObj), "resolution")) {
             case Some(v) => v
-            case None => match (JsonHelper.getString(JsonValue.Object(pkgObj), "resolved")) {
+            case None => match (PkgJsonHelper.getString(JsonValue.Object(pkgObj), "resolved")) {
                 case Some(v) => v
                 case None => ""
             }
         }
-        entry.integrity = match (JsonHelper.getString(JsonValue.Object(pkgObj), "integrity")) {
+        entry.integrity = match (PkgJsonHelper.getString(JsonValue.Object(pkgObj), "integrity")) {
             case Some(v) => v
             case None => ""
         }
@@ -873,10 +873,10 @@ public class LockfilePackageChange {
 /// 锁文件管理器
 /// 对应 Bun: Lockfile struct
 public class Lockfile {
-    private var jsonParser: JsonParser
+    private var jsonParser: PkgJsonParser
 
     public init() {
-        jsonParser = JsonParser()
+        jsonParser = PkgJsonParser()
     }
 
     /// 从文件路径读取锁文件

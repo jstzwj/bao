@@ -240,13 +240,13 @@ public class SecurityScanResults {
         }
 
         if (fatalCount > 0 && warnCount > 0) {
-            let warningSuffix = warnCount == 1 ? "" : "s"
+            let warningSuffix = if (warnCount == 1) { "" } else { "s" }
             return "${total} advisories (${fatalCount} fatal, ${warnCount} warning${warningSuffix})"
         }
         if (fatalCount > 0) {
             return "${total} advisories (${fatalCount} fatal)"
         }
-        let warningSuffix = warnCount == 1 ? "" : "s"
+        let warningSuffix = if (warnCount == 1) { "" } else { "s" }
         return "${total} advisories (${warnCount} warning${warningSuffix})"
     }
 }
@@ -366,7 +366,7 @@ public class ScannerFinder {
             for (depId in deps) {
                 let depName = lockfile.getDependencyName(depId)
                 if (depName == scannerName) {
-                    throw BaoError("SecurityScannerInWorkspace: scanner '${scannerName}' found in workspace package")
+                    throw BaoError(ErrorCode.InvalidArgument, "SecurityScannerInWorkspace: scanner '${scannerName}' found in workspace package")
                 }
             }
         }
@@ -577,13 +577,13 @@ public class PackageCollector {
         sb.append("[\n")
 
         var first = true
-        var iter = packagePaths.iterator()
-        while (iter.hasNext()) {
-            let entry = iter.next()
-            let pkgId = entry.key
-            let paths = entry.value
+        let pkgPathKeys = packagePaths.keys()
+        for (pkgId in pkgPathKeys) {
+            let pathsOpt = packagePaths.get(pkgId)
+            if (pathsOpt.isNone()) { continue }
+            let paths = pathsOpt.getOrThrow()
 
-            let depId = if (paths.depPath.size > 0) paths.depPath[paths.depPath.size - 1] else INVALID_PACKAGE_ID
+            let depId = if (paths.depPath.size > 0) { paths.depPath[paths.depPath.size - 1] } else { INVALID_PACKAGE_ID }
 
             let pkgName = lockfile.getPackageName(pkgId)
             let pkgRes = lockfile.getResolution(pkgId)
@@ -623,12 +623,16 @@ public class PackageCollector {
         result.append("\"")
         for (i in 0..s.size) {
             let c = s[i]
-            if (c == '"') { result.append("\\\"") }
-            else if (c == '\\') { result.append("\\\\") }
-            else if (c == '\n') { result.append("\\n") }
-            else if (c == '\r') { result.append("\\r") }
-            else if (c == '\t') { result.append("\\t") }
-            else { result.append(c) }
+            if (c == UInt8(34)) { result.append("\\\"") }       // '"'
+            else if (c == UInt8(92)) { result.append("\\\\") }   // '\'
+            else if (c == UInt8(10)) { result.append("\\n") }    // '\n'
+            else if (c == UInt8(13)) { result.append("\\r") }    // '\r'
+            else if (c == UInt8(9)) { result.append("\\t") }     // '\t'
+            else {
+                // Convert UInt8 to single-char string
+                var bytes = Array<Rune>(1, { _ => Rune(c) })
+                result.append(String(bytes))
+            }
         }
         result.append("\"")
         return result.toString()
@@ -759,7 +763,7 @@ public class SecurityScanSubprocess {
 
     /// 启动子进程
     /// 翻译自: SecurityScanSubprocess.spawn (第731-769行)
-    public func spawn(): Unit {
+    public func `spawn`(): Unit {
         // 启动子进程, 使用 fd 3 (IPC 输出) 和 fd 4 (JSON 输入)
         // 翻译自: spawnPosix / spawnWindows
         ipcData = ArrayList<UInt8>()
@@ -784,11 +788,11 @@ public class SecurityScanSubprocess {
         isRetry: Bool
     ): ScanAttemptResult {
         // 检查退出状态
-        if (exitStatus == None) {
+        if (exitStatus.isNone()) {
             return ScanAttemptResult.Error("SecurityScannerProcessFailedWithoutExitStatus")
         }
 
-        let status = exitStatus!
+        let status = exitStatus.getOrThrow()
 
         // 检查是否有 IPC 数据
         if (ipcData.size == 0) {
@@ -796,32 +800,33 @@ public class SecurityScanSubprocess {
         }
 
         // 解析 IPC JSON 响应
-        let ipcStr = String.fromBytes(ipcData)
-        let parser = JsonParser()
+        var ipcChars = Array<Rune>(ipcData.size, { i => Rune(ipcData[Int64(i)]) })
+        let ipcStr = String(ipcChars)
+        let parser = SecurityJsonParser()
         let jsonOpt = parser.parse(ipcStr)
         match (jsonOpt) {
             case None => return ScanAttemptResult.Error("InvalidIPCMessage")
             case Some(json) =>
                 // 获取 type 字段
-                let typeOpt = JsonHelper.getField(json, "type")
+                let typeOpt = SecurityJsonHelper.getField(json, "type")
                 match (typeOpt) {
                     case None => return ScanAttemptResult.Error("MissingIPCType")
                     case Some(typeVal) =>
-                        let typeStr = JsonHelper.asString(typeVal)
+                        let typeStr = SecurityJsonHelper.asString(typeVal)
                         match (typeStr) {
                             case None => return ScanAttemptResult.Error("InvalidIPCType")
-                            case Some(type) =>
-                                if (type == "error") {
+                            case Some(msgType) =>
+                                if (msgType == "error") {
                                     return handleErrorResponse(json, securityScanner, securityScannerPkgId, isRetry)
-                                } else if (type != "result") {
-                                    return ScanAttemptResult.Error("UnknownMessageType: ${type}")
+                                } else if (msgType != "result") {
+                                    return ScanAttemptResult.Error("UnknownMessageType: ${msgType}")
                                 }
 
                                 // 计算持续时间
                                 let duration = currentTimeMillis() - startTime
 
                                 // 解析 advisories
-                                let advisoriesOpt = JsonHelper.getField(json, "advisories")
+                                let advisoriesOpt = SecurityJsonHelper.getField(json, "advisories")
                                 match (advisoriesOpt) {
                                     case None => return ScanAttemptResult.Error("MissingAdvisoriesField")
                                     case Some(advisoriesVal) =>
@@ -847,14 +852,14 @@ public class SecurityScanSubprocess {
     /// 处理错误响应
     /// 翻译自: handleResults 中的 "error" 分支 (第1033-1104行)
     private func handleErrorResponse(
-        json: JsonValue,
+        json: SecurityJsonValue,
         securityScanner: String,
         securityScannerPkgId: ?UInt32,
         isRetry: Bool
     ): ScanAttemptResult {
-        let codeOpt = JsonHelper.getField(json, "code")
+        let codeOpt = SecurityJsonHelper.getField(json, "code")
         let codeStr = match (codeOpt) {
-            case Some(c) => JsonHelper.asString(c)
+            case Some(c) => SecurityJsonHelper.asString(c)
             case None => return ScanAttemptResult.Error("MissingErrorCode")
         }
         let code = codeStr ?? ""
@@ -863,8 +868,9 @@ public class SecurityScanSubprocess {
             if (isRetry) {
                 return ScanAttemptResult.Error("SecurityScannerNotFound: '${securityScanner}' could not be found after installation attempt")
             }
-            if (securityScannerPkgId != None) {
-                return ScanAttemptResult.NeedsInstall(securityScannerPkgId!)
+            match (securityScannerPkgId) {
+                case Some(pkgId) => return ScanAttemptResult.NeedsInstall(pkgId)
+                case None => ()
             }
             return ScanAttemptResult.Error("SecurityScannerNotInDependencies: '${securityScanner}'")
         } else if (code == "INVALID_VERSION") {
@@ -879,10 +885,10 @@ public class SecurityScanSubprocess {
     }
 
     /// 获取错误消息
-    private func getErrorMessage(json: JsonValue): String {
-        let msgOpt = JsonHelper.getField(json, "message")
+    private func getErrorMessage(json: SecurityJsonValue): String {
+        let msgOpt = SecurityJsonHelper.getField(json, "message")
         match (msgOpt) {
-            case Some(m) => return JsonHelper.asString(m) ?? ""
+            case Some(m) => return SecurityJsonHelper.asString(m) ?? ""
             case None => return ""
         }
     }
@@ -890,24 +896,24 @@ public class SecurityScanSubprocess {
     /// 解析安全告警列表
     /// 严格翻译自: parseSecurityAdvisoriesFromExpr (第1185-1283行)
     private func parseSecurityAdvisories(
-        advisoriesVal: JsonValue,
+        advisoriesVal: SecurityJsonValue,
         packagePaths: HashMap<UInt32, PackagePathInfo>
     ): ArrayList<SecurityAdvisory> {
         let advisories = ArrayList<SecurityAdvisory>()
 
-        let items = JsonHelper.asArray(advisoriesVal)
+        let items = SecurityJsonHelper.asArray(advisoriesVal)
         match (items) {
             case None => return advisories
             case Some(arr) =>
                 for (item in arr) {
-                    let nameStr = JsonHelper.getStringField(item, "package")
+                    let nameStr = SecurityJsonHelper.getStringField(item, "package")
                     if (nameStr.size == 0) { continue }
 
-                    let descStr = JsonHelper.getOptionalStringField(item, "description")
-                    let urlStr = JsonHelper.getOptionalStringField(item, "url")
-                    let levelStr = JsonHelper.getStringField(item, "level")
+                    let descStr = SecurityJsonHelper.getOptionalStringField(item, "description")
+                    let urlStr = SecurityJsonHelper.getOptionalStringField(item, "url")
+                    let levelStr = SecurityJsonHelper.getStringField(item, "level")
 
-                    let level = if (levelStr == "fatal") SecurityAdvisoryLevel.Fatal else SecurityAdvisoryLevel.Warn
+                    let level = if (levelStr == "fatal") { SecurityAdvisoryLevel.Fatal } else { SecurityAdvisoryLevel.Warn }
 
                     // 查找包路径
                     var pkgPath = ArrayList<UInt32>()
@@ -993,9 +999,9 @@ public class SecurityScanner {
                 match (retryResult) {
                     case ScanAttemptResult.Success(scanResults) => return scanResults
                     case ScanAttemptResult.NeedsInstall(_) => return None  // 重试失败
-                    case ScanAttemptResult.Error(err) => return None
+                    case ScanAttemptResult.Error(errMsg) => return None
                 }
-            case ScanAttemptResult.Error(err) => return None
+            case ScanAttemptResult.Error(errMsg) => return None
         }
     }
 
@@ -1043,9 +1049,8 @@ public class SecurityScanner {
 
         // 收集需要扫描的包
         let collector = PackageCollector(manager)
-        defer {
-            collector.deinit()
-        }
+        // Note: Cangjie has no defer; cleanup happens at end of scope
+        // defer { collector.deinit() }
 
         if (scanAll) {
             collector.collectAllPackages()
@@ -1060,12 +1065,12 @@ public class SecurityScanner {
 
         // 创建并运行扫描子进程
         let scanner = SecurityScanSubprocess(manager, securityScanner, jsonData)
-        scanner.spawn()
+        scanner.`spawn`()
 
         // 等待子进程完成 (简化版, 实际实现使用事件循环等待)
         let packagesScanned = collector.dedupe.size
 
-        return scanner.handleResults(
+        let result = scanner.handleResults(
             collector.packagePaths,
             startTime,
             packagesScanned,
@@ -1073,6 +1078,8 @@ public class SecurityScanner {
             securityScannerPkgId,
             isRetry
         )
+        collector.deinit()
+        return result
     }
 
     /// 执行安全扫描器的部分安装
@@ -1123,16 +1130,16 @@ public class SecurityScanner {
 
         // 读取用户输入
         let input = readStdinLine()
-        if (input == None) {
+        if (input .isNone()) {
             Output.printErrorln("Installation cancelled.")
             return false
         }
 
-        let firstChar = input!.size > 0 ? input![0] : '\n'
-        let shouldContinue = match (firstChar) {
-            case 'y' | 'Y' => true
-            case _ => false
+        let firstChar: UInt8 = match (input) {
+            case Some(inp) => if (inp.size > 0) { inp.toArray()[0] } else { UInt8(10) }
+            case None => UInt8(10)
         }
+        let shouldContinue = (firstChar == UInt8(121) || firstChar == UInt8(89))  // 'y' or 'Y'
 
         if (!shouldContinue) {
             Output.printErrorln("Installation cancelled.")
@@ -1146,25 +1153,25 @@ public class SecurityScanner {
     /// 解析安全告警
     /// 严格翻译自: parseSecurityAdvisoriesFromExpr (第1185-1283行)
     public static func parseSecurityAdvisories(
-        advisoriesVal: JsonValue,
+        advisoriesVal: SecurityJsonValue,
         packagePaths: HashMap<UInt32, PackagePathInfo>,
         lockfile: SecurityScannerLockfileRef
     ): ArrayList<SecurityAdvisory> {
         let advisories = ArrayList<SecurityAdvisory>()
 
-        let items = JsonHelper.asArray(advisoriesVal)
+        let items = SecurityJsonHelper.asArray(advisoriesVal)
         match (items) {
             case None => return advisories
             case Some(arr) =>
                 for (item in arr) {
-                    let nameStr = JsonHelper.getStringField(item, "package")
+                    let nameStr = SecurityJsonHelper.getStringField(item, "package")
                     if (nameStr.size == 0) { continue }
 
-                    let descStr = JsonHelper.getOptionalStringField(item, "description")
-                    let urlStr = JsonHelper.getOptionalStringField(item, "url")
-                    let levelStr = JsonHelper.getStringField(item, "level")
+                    let descStr = SecurityJsonHelper.getOptionalStringField(item, "description")
+                    let urlStr = SecurityJsonHelper.getOptionalStringField(item, "url")
+                    let levelStr = SecurityJsonHelper.getStringField(item, "level")
 
-                    let level = if (levelStr == "fatal") SecurityAdvisoryLevel.Fatal else SecurityAdvisoryLevel.Warn
+                    let level = if (levelStr == "fatal") { SecurityAdvisoryLevel.Fatal } else { SecurityAdvisoryLevel.Warn }
 
                     // 查找包路径
                     var pkgPath = ArrayList<UInt32>()
@@ -1215,14 +1222,14 @@ public class SecurityScannerManagerRef {
     public var updateRequests: ArrayList<SecurityUpdateRequest>
     public var isDryRun: Bool
     public var doInstallPackages: Bool
-    public var logLevel: LogLevel
+    public var logLevel: InstallLogLevel
 
     public init() {
         lockfile = SecurityScannerLockfileRef()
         updateRequests = ArrayList<SecurityUpdateRequest>()
         isDryRun = false
         doInstallPackages = true
-        logLevel = LogLevel.Default
+        logLevel = InstallLogLevel.Default
     }
 
     public func partialInstall(pkgId: UInt32): Unit {}
@@ -1299,83 +1306,54 @@ public class HashMapIterator<K, V> {
     }
 }
 
-/// 依赖版本标签
-/// 翻译自: Resolution.Tag
-public enum DependencyVersionTag {
-    | Uninitialized
-    | Npm
-    | DistTag
-    | Folder
-    | Tarball
-    | Git
-    | GitHub
-    | Symlink
-    | Workspace
-    | Catalog
-    | Root
-    | LocalTarball
-    | RemoteTarball
-    | SingleFileModule
+// NOTE: DependencyVersionTag defined in dependency.cj (canonical)
+// NOTE: InstallLogLevel defined in install.cj (canonical)
+// NOTE: INVALID_PACKAGE_ID defined in lockfile/package_meta.cj (canonical)
+// NOTE: Output defined in lifecycle_script_runner.cj (canonical)
+
+// NOTE: SecurityJsonParser, SecurityJsonValue, SecurityJsonHelper use local versions renamed to avoid redefinition
+public class SecuritySecurityJsonParser {
+    public func parse(content: String): ?SecurityJsonValue { return None }
 }
 
-/// 日志级别
-public enum LogLevel {
-    | Default
-    | Silent
-    | Verbose
-    | VerboseColor
-}
-
-/// 无效包 ID 常量
-public let INVALID_PACKAGE_ID: UInt32 = UInt32(0xFFFFFFFF)
-
-/// 输出工具
-public class Output {
-    public static func print(msg: String): Unit {}
-    public static func println(msg: String): Unit {}
-    public static func printErrorln(msg: String): Unit {}
-}
-
-/// JSON 解析器
-public class JsonParser {
-    public func parse(content: String): ?JsonValue { return None }
-}
-
-/// JSON 值
-public enum JsonValue {
-    | Obj(HashMap<String, JsonValue>)
-    | Arr(ArrayList<JsonValue>)
+public enum SecurityJsonValue {
+    | Obj(HashMap<String, SecurityJsonValue>)
+    | Arr(ArrayList<SecurityJsonValue>)
     | Str(String)
     | Num(Float64)
-    | Bool(Bool)
+    | JsonBool(Bool)
     | Null
 }
 
-/// JSON 辅助
-public class JsonHelper {
-    public static func getField(json: JsonValue, field: String): ?JsonValue { return None }
-    public static func asString(val: JsonValue): ?String { return None }
-    public static func asArray(val: JsonValue): ?ArrayList<JsonValue> { return None }
-    public static func getStringField(json: JsonValue, field: String): String { return "" }
-    public static func getOptionalStringField(json: JsonValue, field: String): ?String { return None }
+public class SecuritySecurityJsonHelper {
+    public static func getField(json: SecurityJsonValue, field: String): ?SecurityJsonValue { return None }
+    public static func asString(val: SecurityJsonValue): ?String { return None }
+    public static func asArray(val: SecurityJsonValue): ?ArrayList<SecurityJsonValue> { return None }
+    public static func getStringField(json: SecurityJsonValue, field: String): String { return "" }
+    public static func getOptionalStringField(json: SecurityJsonValue, field: String): ?String { return None }
 }
 
-/// 时间工具
-public class Time {
-    public static func now(): Int64 { return Int64(0) }
+public class SecurityJsonHelper {
+    public static func getField(json: SecurityJsonValue, field: String): ?SecurityJsonValue { return None }
+    public static func asString(val: SecurityJsonValue): ?String { return None }
+    public static func asArray(val: SecurityJsonValue): ?ArrayList<SecurityJsonValue> { return None }
+    public static func getStringField(json: SecurityJsonValue, field: String): String { return "" }
+    public static func getOptionalStringField(json: SecurityJsonValue, field: String): ?String { return None }
 }
 
-/// 子进程引用
-public class SubProcessRef {
-    public init() {}
+public class SecurityJsonParser {
+    public func parse(s: String): ?SecurityJsonValue { return None }
 }
+
+// NOTE: Time defined in lifecycle_script_runner.cj (canonical)
+// NOTE: SubProcessRef defined in lifecycle_script_runner.cj (canonical)
 
 /// JSON 值辅助
-public class JsonParserExt {
-    public static func getStringField(json: JsonValue, field: String): String {
-        let opt = JsonHelper.getField(json, field)
+public class SecurityJsonParserExt {
+    public static func getStringField(json: SecurityJsonValue, field: String): String {
+        let opt = SecuritySecurityJsonHelper.getField(json, field)
         match (opt) {
-            case Some(v) => return JsonHelper.asString(v) ?? ""
+            case Some(v) => return SecuritySecurityJsonHelper.asString(v) ?? ""
             case None => return ""
         }
     }

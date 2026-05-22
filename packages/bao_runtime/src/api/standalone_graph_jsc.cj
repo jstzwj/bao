@@ -17,13 +17,13 @@ public class StandaloneGraphJsc {
     /// 如果尚未缓存, 创建 Blob 并缓存
     public static func fileBlob(file: StandaloneModuleGraphFile, globalObject: JsGlobalObject): Blob {
         if (file.cachedBlob == null) {
-            let store = BlobStore.init(file.contents, default_allocator)
+            let store = BlobStore(file.contents, default_allocator)
             store.ref() // 永不释放
 
             let b = Blob.initWithStore(store, globalObject).new()
 
             // 设置 MIME 类型
-            if (let mime = MimeType.byExtensionNoDefault(file.name.extension().trimLeading('.'))) {
+            if (let mime <- MimeType.byExtensionNoDefault(file.name.extension().trimLeading('.'))) {
                 store.mimeType = mime
                 b.contentType = mime.value
                 b.contentTypeWasSet = true
@@ -31,7 +31,7 @@ public class StandaloneGraphJsc {
             }
 
             // 设置真实名称
-            store.data.bytes.storedName = PathString.init(file.name)
+            store.data.bytes.storedName = PathString(file.name)
 
             // 设置显示名称
             if (file.name.hasPrefix(StandaloneModuleGraph.basePublicPathWithDefaultSuffix)) {

@@ -32,7 +32,7 @@ public enum VersionBumpType {
     | fromGit      // 从 git tag 推导
 
     public static func parse(str: String): ?VersionBumpType {
-        when (str) {
+        match (str) {
             case "patch" => return Some(VersionBumpType.patch)
             case "minor" => return Some(VersionBumpType.minor)
             case "major" => return Some(VersionBumpType.major)
@@ -41,7 +41,7 @@ public enum VersionBumpType {
             case "premajor" => return Some(VersionBumpType.premajor)
             case "prerelease" => return Some(VersionBumpType.prerelease)
             case "from-git" => return Some(VersionBumpType.fromGit)
-            else => return None
+            case _ => return None
         }
     }
 }
@@ -78,7 +78,7 @@ public class PmVersionCommand {
             return
         }
 
-        let versionArg = opts.versionArg!!
+        let versionArg = opts.versionArg.getOrThrow()
 
         // from-git: 从 git tag 推导版本
         if (versionArg == "from-git") {
@@ -89,14 +89,14 @@ public class PmVersionCommand {
         // 尝试解析为版本变更类型
         let bumpType = VersionBumpType.parse(versionArg)
         if (bumpType != None) {
-            bumpVersion(bumpType!!, opts)
+            bumpVersion(bumpType.getOrThrow(), opts)
             return
         }
 
         // 尝试解析为显式版本号
         let version = SemVer.parse(versionArg)
         if (version != None) {
-            setVersion(version!!.format(), opts)
+            setVersion(version.getOrThrow().format(), opts)
             return
         }
 
@@ -107,12 +107,12 @@ public class PmVersionCommand {
     private static func parseOptions(positionals: ArrayList<String>): VersionOptions {
         let opts = VersionOptions()
         for (arg in positionals) {
-            when (arg) {
+            match (arg) {
                 case "--no-git-hooks" => opts.noGitHooks = true
                 case "--allow-same-version" => opts.allowSameVersion = true
                 case "--no-commit-hooks" => opts.commitHooks = false
                 case "--commit-hooks" => opts.commitHooks = true
-                else => {
+                case _ =>
                     // 检查 --message 或 -m
                     if (arg.startsWith("--message=")) {
                         opts.message = Some(arg.substring("--message=".length))
@@ -126,7 +126,6 @@ public class PmVersionCommand {
                             opts.versionArg = arg
                         }
                     }
-                }
             }
         }
         return opts
@@ -141,11 +140,11 @@ public class PmVersionCommand {
             return
         }
 
-        let json = JsonParser.parse(pkgContent!!)
-        if (json != None && json!!.isObject()) {
-            let version = json!!.asObject().get("version")
-            if (version != None && version!!.isString()) {
-                Output.println(version!!.asString())
+        let json = JsonParser.parse(pkgContent.getOrThrow())
+        if (json != None && json.getOrThrow().isObject()) {
+            let version = json.getOrThrow().asObject().get("version")
+            if (version != None && version.getOrThrow().isString()) {
+                Output.println(version.getOrThrow().asString())
                 return
             }
         }
@@ -154,12 +153,15 @@ public class PmVersionCommand {
 
     /// 获取当前版本
     private static func getCurrentVersion(): ?SemVer {
-        let pkgContent = BaoFile.readAllText("package.json") ?: return None
+        let pkgContent = match (BaoFile.readAllText("package.json")) {
+            case Some(v) => v
+            case None => return None
+        }
         let json = JsonParser.parse(pkgContent)
-        if (json != None && json!!.isObject()) {
-            let version = json!!.asObject().get("version")
-            if (version != None && version!!.isString()) {
-                return SemVer.parse(version!!.asString())
+        if (json != None && json.getOrThrow().isObject()) {
+            let version = json.getOrThrow().asObject().get("version")
+            if (version != None && version.getOrThrow().isString()) {
+                return SemVer.parse(version.getOrThrow().asString())
             }
         }
         return None
@@ -174,31 +176,30 @@ public class PmVersionCommand {
             return
         }
 
-        let newVersion = when (bumpType) {
+        let newVersion = match (bumpType) {
             case VersionBumpType.patch =>
-                SemVer(current!!.major, current!!.minor, current!!.patch + 1)
+                SemVer(current.getOrThrow().major, current.getOrThrow().minor, current.getOrThrow().patch + 1)
             case VersionBumpType.minor =>
-                SemVer(current!!.major, current!!.minor + 1, 0)
+                SemVer(current.getOrThrow().major, current.getOrThrow().minor + 1, 0)
             case VersionBumpType.major =>
-                SemVer(current!!.major + 1, 0, 0)
+                SemVer(current.getOrThrow().major + 1, 0, 0)
             case VersionBumpType.prepatch =>
-                SemVer(current!!.major, current!!.minor, current!!.patch + 1, opts.preid, 0)
+                SemVer(current.getOrThrow().major, current.getOrThrow().minor, current.getOrThrow().patch + 1, opts.preid, 0)
             case VersionBumpType.preminor =>
-                SemVer(current!!.major, current!!.minor + 1, 0, opts.preid, 0)
+                SemVer(current.getOrThrow().major, current.getOrThrow().minor + 1, 0, opts.preid, 0)
             case VersionBumpType.premajor =>
-                SemVer(current!!.major + 1, 0, 0, opts.preid, 0)
-            case VersionBumpType.prerelease => {
-                if (current!!.prerelease != None) {
-                    SemVer(current!!.major, current!!.minor, current!!.patch, current!!.prereleaseTag, current!!.prereleaseNum + 1)
+                SemVer(current.getOrThrow().major + 1, 0, 0, opts.preid, 0)
+            case VersionBumpType.prerelease =>
+                if (current.getOrThrow().prerelease != None) {
+                    SemVer(current.getOrThrow().major, current.getOrThrow().minor, current.getOrThrow().patch, current.getOrThrow().prereleaseTag, current.getOrThrow().prereleaseNum + 1)
                 } else {
-                    SemVer(current!!.major, current!!.minor, current!!.patch + 1, opts.preid, 0)
+                    SemVer(current.getOrThrow().major, current.getOrThrow().minor, current.getOrThrow().patch + 1, opts.preid, 0)
                 }
-            }
-            case _ => current!!
+            case _ => current.getOrThrow()
         }
 
         // 检查是否版本相同
-        if (newVersion.format() == current!!.format() && !opts.allowSameVersion) {
+        if (newVersion.format() == current.getOrThrow().format() && !opts.allowSameVersion) {
             Output.errGeneric("Version already is ${newVersion.format()}. Use --allow-same-version to bypass.")
             return
         }
@@ -215,7 +216,7 @@ public class PmVersionCommand {
                 let tagVersion = output.substring(1)
                 let version = SemVer.parse(tagVersion)
                 if (version != None) {
-                    setVersion(version!!.format(), opts)
+                    setVersion(version.getOrThrow().format(), opts)
                     return
                 }
             }
@@ -240,8 +241,8 @@ public class PmVersionCommand {
         }
 
         // 修改 version 字段 (保留缩进)
-        let indent = detectIndentation(pkgContent!!)
-        let modified = JsonHelper.setField(pkgContent!!, "version", version)
+        let indent = detectIndentation(pkgContent.getOrThrow())
+        let modified = JsonHelper.setField(pkgContent.getOrThrow(), "version", version)
         BaoFile.writeAllText("package.json", modified)
 
         Output.println("v${version}")
@@ -273,14 +274,14 @@ public class PmVersionCommand {
             return
         }
 
-        let json = JsonParser.parse(pkgContent!!)
-        if (json != None && json!!.isObject()) {
-            let scripts = json!!.asObject().get("scripts")
-            if (scripts != None && scripts!!.isObject()) {
-                let script = scripts!!.asObject().get(scriptName)
-                if (script != None && script!!.isString()) {
+        let json = JsonParser.parse(pkgContent.getOrThrow())
+        if (json != None && json.getOrThrow().isObject()) {
+            let scripts = json.getOrThrow().asObject().get("scripts")
+            if (scripts != None && scripts.getOrThrow().isObject()) {
+                let script = scripts.getOrThrow().asObject().get(scriptName)
+                if (script != None && script.getOrThrow().isString()) {
                     try {
-                        Sys.exec(script!!.asString())
+                        Sys.exec(script.getOrThrow().asString())
                     } catch (e: Exception) {
                         Output.println("Warning: ${scriptName} script failed: ${e.message}")
                     }
@@ -293,7 +294,7 @@ public class PmVersionCommand {
     /// 对应 Bun: git add + git commit + git tag
     private static func gitAddAndCommit(version: String, opts: VersionOptions): Unit {
         let commitMessage = if (opts.message != None) {
-            opts.message!!
+            opts.message.getOrThrow()
         } else {
             "v${version}"
         }
@@ -382,22 +383,37 @@ public class SemVer {
         if (parts.length < 3) {
             return None
         }
-        let major = Int64.parse(parts[0]) ?: return None
-        let minor = Int64.parse(parts[1]) ?: return None
+        let major = match (Int64.parse(parts[0])) {
+            case Some(v) => v
+            case None => return None
+        }
+        let minor = match (Int64.parse(parts[1])) {
+            case Some(v) => v
+            case None => return None
+        }
         let patchPart = parts[2]
         let dashIdx = patchPart.indexOf('-')
         if (dashIdx >= 0) {
-            let patch = Int64.parse(patchPart.substring(0, dashIdx)) ?: return None
+            let patch = match (Int64.parse(patchPart.substring(0, dashIdx))) {
+                case Some(v) => v
+                case None => return None
+            }
             let pre = patchPart.substring(dashIdx + 1)
             let dotIdx = pre.indexOf('.')
             if (dotIdx >= 0) {
                 let tag = pre.substring(0, dotIdx)
-                let num = Int64.parse(pre.substring(dotIdx + 1)) ?: 0
+                let num = match (Int64.parse(pre.substring(dotIdx + 1))) {
+                    case Some(v) => v
+                    case None => 0
+                }
                 return Some(SemVer(major, minor, patch, tag, num))
             }
             return Some(SemVer(major, minor, patch, pre, 0))
         }
-        let patch = Int64.parse(patchPart) ?: return None
+        let patch = match (Int64.parse(patchPart)) {
+            case Some(v) => v
+            case None => return None
+        }
         return Some(SemVer(major, minor, patch))
     }
 

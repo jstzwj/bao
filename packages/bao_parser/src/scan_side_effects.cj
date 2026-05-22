@@ -44,6 +44,17 @@ public enum SideEffectFlag {
             case _ => false
         }
     }
+
+    public operator func ==(right: SideEffectFlag): Bool {
+        match (this) {
+            case CouldHaveSideEffects => match (right) { case CouldHaveSideEffects => true case _ => false }
+            case NoSideEffects => match (right) { case NoSideEffects => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: SideEffectFlag): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -301,7 +312,7 @@ public class SideEffects {
                 if (expr.canBeRemovedIfUnused) {
                     return None
                 }
-                let symbol = parser.symbols.get(expr.ref.innerIndex())
+                let symbol = parser.symbols[expr.ref.innerIndex]
                 if (symbol.kind != SymbolKind.Unbound) {
                     return None
                 }
@@ -321,11 +332,11 @@ public class SideEffects {
             case ExprTag.Ternary =>
                 var yesVal = expr.yes
                 var noVal = expr.no
-                let simplifiedYes = if (let Some(y) <- yesVal) { simplifyUnusedExpr(parser, y) } else { None }
-                let simplifiedNo = if (let Some(n) <- noVal) { simplifyUnusedExpr(parser, n) } else { None }
+                let simplifiedYes = if (let Some(y) <- yesVal) { simplifyUnusedExpr(parser, y) } else { Option<Expr>.None }
+                let simplifiedNo = if (let Some(n) <- noVal) { simplifyUnusedExpr(parser, n) } else { Option<Expr>.None }
 
-                let emptyYes = simplifiedYes == None
-                let emptyNo = simplifiedNo == None
+                let emptyYes = simplifiedYes.isNone()
+                let emptyNo = simplifiedNo.isNone()
 
                 // "foo() ? 1 : 2" => "foo()"
                 if (emptyYes && emptyNo) {
@@ -399,16 +410,16 @@ public class SideEffects {
                         var joined: ?Expr = None
                         for (arg in expr.args) {
                             let simplified = simplifyUnusedExpr(parser, arg)
-                            if (simplified != None) {
+                            if (simplified.isSome()) {
                                 if (let Some(j) <- joined) {
-                                    joined = Some(joinWithComma(j, simplified.getOrElse(arg), parser))
+                                    joined = Some(joinWithComma(j, simplified.getOr(arg), parser))
                                 } else {
                                     joined = simplified
                                 }
                             }
                         }
                         // 对于 toString_safe, 检查安全性
-                        if (joined != None && expr.canBeUnwrappedIfUnused == CanBeUnwrapped.IfUnusedAndToStringSafe) {
+                        if (joined.isSome() && expr.canBeUnwrappedIfUnused == CanBeUnwrapped.IfUnusedAndToStringSafe) {
                             if (let Some(j) <- joined) {
                                 if (isSafeToString(j)) {
                                     return None
@@ -445,12 +456,12 @@ public class SideEffects {
                                 if (isPrimitiveWithSideEffects(left) && isPrimitiveWithSideEffects(right)) {
                                     let leftSimplified = simplifyUnusedExpr(parser, left)
                                     let rightSimplified = simplifyUnusedExpr(parser, right)
-                                    if (leftSimplified == None && rightSimplified == None) {
+                                    if (leftSimplified.isNone() && rightSimplified.isNone()) {
                                         return None
                                     }
                                     return Some(joinWithComma(
-                                        leftSimplified.getOrElse(left),
-                                        rightSimplified.getOrElse(right),
+                                        leftSimplified.getOr(left),
+                                        rightSimplified.getOr(right),
                                         parser
                                     ))
                                 }
@@ -474,7 +485,7 @@ public class SideEffects {
                         // 对应 Bun: 逻辑运算 - 保留短路行为
                         if (let Some(right) <- expr.right) {
                             let simplifiedRight = simplifyUnusedExpr(parser, right)
-                            if (simplifiedRight == None) {
+                            if (simplifiedRight.isNone()) {
                                 // 右侧可完全移除, 简化左侧
                                 if (let Some(left) <- expr.left) {
                                     return simplifyUnusedExpr(parser, left)
@@ -510,7 +521,7 @@ public class SideEffects {
                             // 非计算键属性: 简化值
                             if (let Some(v) <- `prop`.value) {
                                 let simplified = simplifyUnusedExpr(parser, v)
-                                if (simplified != None) {
+                                if (simplified .isSome()) {
                                     `prop`.value = simplified
                                 } else if (!`prop`.flags.isComputed) {
                                     continue // 跳过
@@ -538,8 +549,8 @@ public class SideEffects {
                     }
                     if (let Some(v) <- `prop`.value) {
                         let simplified = simplifyUnusedExpr(parser, v)
-                        if (simplified != None) {
-                            result = joinWithComma(result, simplified.getOrElse(v), parser)
+                        if (simplified .isSome()) {
+                            result = joinWithComma(result, simplified.getOr(v), parser)
                         }
                     }
                 }
@@ -575,7 +586,7 @@ public class SideEffects {
                 var anySideEffects = false
                 for (item in items) {
                     let simplified = simplifyUnusedExpr(parser, item)
-                    if (simplified != None) {
+                    if (simplified .isSome()) {
                         anySideEffects = true
                     }
                 }
@@ -618,7 +629,7 @@ public class SideEffects {
         //       }
         //   }
         var left = leftExpr
-        while (left != None) {
+        while (left .isSome()) {
             if (let Some(l) <- left) {
                 if (l.tag == ExprTag.Binary) {
                     if (l.op == OpCode.BinEqStrict || l.op == OpCode.BinNeStrict || l.op == OpCode.Comma) {
@@ -643,7 +654,7 @@ public class SideEffects {
         //   }
         //   return if (result.isMissing()) null else result;
         var result = if (let Some(l) <- left) {
-            simplifyUnusedExpr(parser, l).getOrElse(Expr())
+            simplifyUnusedExpr(parser, l).getOr(Expr())
         } else {
             Expr()
         }
@@ -654,7 +665,7 @@ public class SideEffects {
             let top = stack[Int64(i)]
             let topRight = top.right
             let visitedRight = if (let Some(r) <- topRight) {
-                simplifyUnusedExpr(parser, r).getOrElse(Expr())
+                simplifyUnusedExpr(parser, r).getOr(Expr())
             } else {
                 Expr()
             }
@@ -687,13 +698,15 @@ public class SideEffects {
         match (binding.tag) {
             case BindingTag.Identifier =>
                 decls.append(GDecl(binding))
-            case BindingTag.ArrayPattern =>
+            case BindingTag.Array =>
                 for (item in binding.arrayItems) {
-                    findIdentifiers(item.binding, decls)
+                    findIdentifiers(item, decls)
                 }
-            case BindingTag.ObjectPattern =>
+            case BindingTag.Object =>
                 for (item in binding.objectProperties) {
-                    findIdentifiers(item.value, decls)
+                    if (let Some(b) <- item.value) {
+                        findIdentifiers(b, decls)
+                    }
                 }
             case _ =>
                 ()
@@ -766,10 +779,7 @@ public class SideEffects {
 
             case StmtTag.Block =>
                 // 对应 Bun: .s_block => |block| return shouldKeepStmtsInDeadControlFlow(block.stmts, allocator)
-                if (let Some(body) <- stmt.blockBody) {
-                    return shouldKeepStmtsInDeadControlFlow(body)
-                }
-                return false
+                return shouldKeepStmtsInDeadControlFlow(stmt.stmts)
 
             case StmtTag.Try =>
                 // 对应 Bun: .s_try => |try_stmt| { ... }
@@ -777,16 +787,16 @@ public class SideEffects {
                 if (shouldKeepStmtsInDeadControlFlow(stmt.stmts)) {
                     return true
                 }
-                if (stmt.catchBody != None) {
+                if (stmt.catchBody .isSome()) {
                     if (let Some(catchBody) <- stmt.catchBody) {
-                        if (shouldKeepStmtsInDeadControlFlow(catchBody)) {
+                        if (shouldKeepStmtsInDeadControlFlow(catchBody.stmts)) {
                             return true
                         }
                     }
                 }
-                if (stmt.finallyBody != None) {
+                if (stmt.finallyBody .isSome()) {
                     if (let Some(finallyBody) <- stmt.finallyBody) {
-                        if (shouldKeepStmtsInDeadControlFlow(finallyBody)) {
+                        if (shouldKeepStmtsInDeadControlFlow(finallyBody.stmts)) {
                             return true
                         }
                     }
@@ -1267,7 +1277,7 @@ public class SideEffects {
         match (expr.tag) {
             case ExprTag.Number =>
                 let v = expr.numberValue
-                if (!v.isNaN() && v != Float64.INFINITY && v != Float64.NEGATIVE_INFINITY) {
+                if (!v.isNaN() && v != 1.0 / 0.0 && v != -1.0 / 0.0) {
                     return Some(v)
                 }
             case _ =>
@@ -1300,4 +1310,16 @@ public enum CanBeUnwrapped {
     | Never                            // 不能移除
     | Always                           // 总是可以移除 (__PURE__)
     | IfUnusedAndToStringSafe          // 只在 toString 安全时可移除
+
+    public operator func ==(right: CanBeUnwrapped): Bool {
+        match (this) {
+            case Never => match (right) { case Never => true case _ => false }
+            case Always => match (right) { case Always => true case _ => false }
+            case IfUnusedAndToStringSafe => match (right) { case IfUnusedAndToStringSafe => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: CanBeUnwrapped): Bool {
+        return !(this == right)
+    }
 }

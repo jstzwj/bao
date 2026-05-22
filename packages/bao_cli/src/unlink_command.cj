@@ -24,18 +24,24 @@ public class UnlinkCommand {
     /// 对应 Bun: unlink()
     private static func unlink(ctx: CommandContext): Unit {
         let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.unlink)
-        val (manager, originalCwd) = match (PackageManager.init(ctx, cli, Subcommand.unlink)) {
-            case Some((pm, dir)) => (pm, dir)
-            case None => {
+        var manager: PackageManager
+        var originalCwd: String
+        match (PackageManager.`init`(ctx, cli, Subcommand.unlink)) {
+            case Some((pm, dir)) =>
+                manager = pm
+                originalCwd = dir
+            case None =>
                 // 尝试创建 package.json
                 PackageManager.attemptToCreatePackageJSON()
-                let retry = PackageManager.init(ctx, cli, Subcommand.unlink)
-                if (retry == None) {
-                    Output.errGeneric("Failed to initialize package manager")
-                    Global.exit(1)
+                let retry = PackageManager.`init`(ctx, cli, Subcommand.unlink)
+                match (retry) {
+                    case Some((pm2, dir2)) =>
+                        manager = pm2
+                        originalCwd = dir2
+                    case None =>
+                        Output.errGeneric("Failed to initialize package manager")
+                        Global.exit(1)
                 }
-                (retry!!._0, retry!!._1)
-            }
         }
 
         if (manager.options.shouldPrintCommandName()) {
@@ -57,17 +63,17 @@ public class UnlinkCommand {
             }
 
             lockfile.initEmpty(ctx.allocator)
-            pkg.parse(lockfile, manager, ctx.allocator, manager.log, packageJsonSource!!, Features.folder)
+            pkg.parse(lockfile, manager, ctx.allocator, manager.log, packageJsonSource.getOrThrow(), Features.folder)
             name = lockfile.str(pkg.name)
 
             if (name.length == 0) {
                 if (manager.options.logLevel != LogLevel.silent) {
-                    Output.prettyErrorLn("<r><red>error:<r> package.json missing \"name\" <d>in \"${packageJsonSource!!.path.text}\"<r>")
+                    Output.prettyErrorLn("<r><red>error:<r> package.json missing \"name\" <d>in \"${packageJsonSource.getOrThrow().path.text}\"<r>")
                 }
                 Global.crash()
             } else if (!Strings.isNPMPackageName(name)) {
                 if (manager.options.logLevel != LogLevel.silent) {
-                    Output.prettyErrorLn("<r><red>error:<r> invalid package.json name \"${name}\" <d>in \"${packageJsonSource!!.path.text}\"<r>")
+                    Output.prettyErrorLn("<r><red>error:<r> invalid package.json name \"${name}\" <d>in \"${packageJsonSource.getOrThrow().path.text}\"<r>")
                 }
                 Global.crash()
             }
@@ -88,12 +94,15 @@ public class UnlinkCommand {
 
             var explicitGlobalDir = ""
             if (ctx.install != None) {
-                explicitGlobalDir = ctx.install!!.globalDir ?: explicitGlobalDir
+                explicitGlobalDir = match (ctx.install.getOrThrow().globalDir) {
+                    case Some(d) => d
+                    case None => explicitGlobalDir
+                }
             }
             manager.globalDir = Options.openGlobalDir(explicitGlobalDir)
             manager.setupGlobalDir(ctx)
 
-            let nodeModules = manager.globalDir!!.makeOpenPath("node_modules")
+            let nodeModules = manager.globalDir.getOrThrow().makeOpenPath("node_modules")
 
             // Step 3b. 取消链接全局 bins
             if (pkg.bin.tag != BinTag.none) {

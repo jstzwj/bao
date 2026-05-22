@@ -178,7 +178,7 @@ public class Which {
     /// 检查文件是否存在且具有执行权限
     static func isExecutableFilePath(path: String): Bool {
         let stat = Fs.stat(path)
-        if (stat == None) {
+        if (stat.isNone()) {
             return false
         }
         if (let Some(s) <- stat) {

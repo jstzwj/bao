@@ -12,15 +12,15 @@ import bao_jsc.*
 // 支持: utf8, ucs2, utf16le, latin1, ascii, base64, base64url, hex, buffer
 // ============================================================================
 public enum Encoding {
-    utf8,
-    ucs2,
-    utf16le,
-    latin1,
-    ascii,
-    base64,
-    base64url,
-    hex,
-    buffer
+    | utf8
+    | ucs2
+    | utf16le
+    | latin1
+    | ascii
+    | base64
+    | base64url
+    | hex
+    | buffer
 
     // 编码名称映射（用于从字符串解析编码类型）
     // 对应 Bun: Encoding.map (ComptimeStringMap)
@@ -75,7 +75,7 @@ public enum Encoding {
     // 对应 Bun: Encoding.assert
     public static func assert(value: JsValue, globalObject: JsGlobalObject, default: Encoding): Encoding {
         let enc = fromJS(value, globalObject: globalObject)
-        if (enc != None) {
+        if (enc.isSome()) {
             return enc.getOrThrow()
         }
         if (!value.isUndefined()) {
@@ -114,19 +114,15 @@ public enum Encoding {
     // 对应 Bun: Encoding.encodeWithSize / encodeWithMaxSize
     public func encodeToJS(globalObject: JsGlobalObject, input: Array<UInt8>): JsValue {
         match (this) {
-            case Encoding.hex => {
+            case Encoding.hex =>
                 return JsValue(BaoString(EncodingUtils.hexEncode(input)))
-            }
-            case Encoding.base64 => {
+            case Encoding.base64 =>
                 return JsValue(BaoString(Base64Codec.encode(input)))
-            }
-            case Encoding.base64url => {
+            case Encoding.base64url =>
                 let b64 = Base64Codec.encode(input)
                 return JsValue(BaoString(b64.replace("+", "-").replace("/", "_").replace("=", "")))
-            }
-            case _ => {
+            case _ =>
                 return JsValue(BaoString.fromUtf8(input))
-            }
         }
     }
 }
@@ -181,13 +177,13 @@ public class EncodingUtils {
 
     // 编码的 JS 断言函数
     // 对应 Bun: jsAssertEncodingValid
-    public static func jsAssertEncodingValid(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public static func jsAssertEncodingValid(JsGlobalObject, callFrame: JsCallFrame): JsValue {
         let args = callFrame.arguments(1)
         if (args.size < 1) {
             return JsValue()
         }
         let encoding = Encoding.fromJS(args[0], globalObject: globalObject)
-        if (encoding == None) {
+        if (encoding.isNone()) {
             throwEncodingError(globalObject)
         }
         return JsValue()
@@ -202,31 +198,31 @@ public class EncodingUtils {
 // ============================================================================
 public enum FileSystemFlags {
     // 打开文件用于读取。不存在则异常
-    r,
+    | r
     // 打开文件用于同步读取
-    rs,
+    | rs
     // 打开文件用于读写
-    rPlus,
+    | rPlus
     // 打开文件用于同步读写
-    rsPlus,
+    | rsPlus
     // 打开文件用于写入。不存在则创建，存在则截断
-    w,
+    | w
     // 类似 w 但路径存在则失败
-    wx,
+    | wx
     // 打开文件用于读写。不存在则创建，存在则截断
-    wPlus,
+    | wPlus
     // 类似 w+ 但路径存在则失败
-    wxPlus,
+    | wxPlus
     // 打开文件用于追加。不存在则创建
-    a,
+    | a
     // 类似 a 但路径存在则失败
-    ax,
+    | ax
     // 打开文件用于读写追加。不存在则创建
-    aPlus,
+    | aPlus
     // 类似 a+ 但路径存在则失败
-    axPlus,
+    | axPlus
     // 打开文件用于同步追加
-    as,
+    | as
     // 打开文件用于同步读写追加
     asPlus
 
@@ -270,7 +266,7 @@ public enum FileSystemFlags {
 
     // 从 JS 值解析文件系统标志
     // 对应 Bun: FileSystemFlags.fromJS
-    public static func fromJS(globalObject: JsGlobalObject, val: JsValue): ?FileSystemFlags {
+    public static func fromJS(JsGlobalObject, val: JsValue): ?FileSystemFlags {
         if (val.isNumber()) {
             let number = val.toInt32()
             let flags = if (number > 0) { number } else { 0 }
@@ -297,7 +293,7 @@ public enum FileSystemFlags {
 
     // 从 JS 值解析数字标志（用于 access/copyFile）
     // 对应 Bun: FileSystemFlags.fromJSNumberOnly
-    public static func fromJSNumberOnly(globalObject: JsGlobalObject, value: JsValue): ?FileSystemFlags {
+    public static func fromJSNumberOnly(JsGlobalObject, value: JsValue): ?FileSystemFlags {
         if (!value.isNumber()) {
             if (value.isUndefinedOrNull()) {
                 return r  // F_OK = 0
@@ -396,9 +392,9 @@ public class PathOrFileDescriptor {
 
     // 从 JS 值解析
     // 对应 Bun: PathOrFileDescriptor.fromJS
-    public static func fromJS(globalObject: JsGlobalObject, arguments: JsArgumentsSlice): ?PathOrFileDescriptor {
+    public static func fromJS(JsGlobalObject, arguments: JsArgumentsSlice): ?PathOrFileDescriptor {
         let first = arguments.next()
-        if (first == None) {
+        if (first.isNone()) {
             return None
         }
         let val = first.getOrThrow()
@@ -410,7 +406,7 @@ public class PathOrFileDescriptor {
             }
         }
         let pathLike = PathLike.fromJS(globalObject, arguments: arguments)
-        if (pathLike != None) {
+        if (pathLike.isSome()) {
             return PathOrFileDescriptor(path: pathLike.getOrThrow())
         }
         return None
@@ -476,9 +472,9 @@ public class PathLike {
 
     // 从 JS 值解析路径
     // 对应 Bun: PathLike.fromJS
-    public static func fromJS(globalObject: JsGlobalObject, arguments: JsArgumentsSlice): ?PathLike {
+    public static func fromJS(JsGlobalObject, arguments: JsArgumentsSlice): ?PathLike {
         let value = arguments.next()
-        if (value == None) {
+        if (value.isNone()) {
             return None
         }
         let val = value.getOrThrow()
@@ -497,7 +493,7 @@ public class PathLike {
 
     // 从 JS 值解析路径（带分配器）
     // 对应 Bun: PathLike.fromJSWithAllocator
-    public static func fromJSWithAllocator(globalObject: JsGlobalObject, arguments: JsArgumentsSlice): ?PathLike {
+    public static func fromJSWithAllocator(JsGlobalObject, arguments: JsArgumentsSlice): ?PathLike {
         return fromJS(globalObject, arguments: arguments)
     }
 
@@ -585,7 +581,7 @@ public class StringOrBuffer {
 
     // 转换为 JS 值
     // 对应 Bun: StringOrBuffer.toJS
-    public func toJS(globalObject: JsGlobalObject): JsValue {
+    public func toJS(JsGlobalObject): JsValue {
         if (isBuffer) {
             return JsValue.fromArrayBuffer(globalObject, bufferValue)
         }
@@ -594,7 +590,7 @@ public class StringOrBuffer {
 
     // 从 JS 值解析
     // 对应 Bun: StringOrBuffer.fromJS
-    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?StringOrBuffer {
+    public static func fromJS(JsGlobalObject, value: JsValue): ?StringOrBuffer {
         if (value.isUndefinedOrNull()) {
             return None
         }
@@ -610,7 +606,7 @@ public class StringOrBuffer {
 
     // 从 JS 值解析（带编码）
     // 对应 Bun: StringOrBuffer.fromJSWithEncoding
-    public static func fromJSWithEncoding(globalObject: JsGlobalObject, value: JsValue, encoding: Encoding): ?StringOrBuffer {
+    public static func fromJSWithEncoding(JsGlobalObject, value: JsValue, encoding: Encoding): ?StringOrBuffer {
         if (value.isUndefinedOrNull()) {
             return None
         }
@@ -626,15 +622,15 @@ public class StringOrBuffer {
 
     // 从 JS 值解析（带编码值）
     // 对应 Bun: StringOrBuffer.fromJSWithEncodingValue
-    public static func fromJSWithEncodingValue(globalObject: JsGlobalObject, value: JsValue, encodingValue: JsValue): ?StringOrBuffer {
+    public static func fromJSWithEncodingValue(JsGlobalObject, value: JsValue, encodingValue: JsValue): ?StringOrBuffer {
         let encoding = Encoding.fromJS(encodingValue, globalObject: globalObject)
-        let enc = if (encoding != None) { encoding.getOrThrow() } else { Encoding.utf8 }
+        let enc = if (encoding.isSome()) { encoding.getOrThrow() } else { Encoding.utf8 }
         return fromJSWithEncoding(globalObject, value: value, encoding: enc)
     }
 
     // 从 JS 值获取拥有的字节切片
     // 对应 Bun: StringOrBuffer.fromJSToOwnedSlice
-    public static func fromJSToOwnedSlice(globalObject: JsGlobalObject, value: JsValue): Array<UInt8> {
+    public static func fromJSToOwnedSlice(JsGlobalObject, value: JsValue): Array<UInt8> {
         if (value.isArrayBuffer() || value.isTypedArray()) {
             return value.toArrayBuffer()
         }
@@ -694,9 +690,9 @@ public class BlobOrStringOrBuffer {
 
     // 从 JS 值解析
     // 对应 Bun: BlobOrStringOrBuffer.fromJS
-    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?BlobOrStringOrBuffer {
+    public static func fromJS(JsGlobalObject, value: JsValue): ?BlobOrStringOrBuffer {
         let sob = StringOrBuffer.fromJS(globalObject, value: value)
-        if (sob != None) {
+        if (sob.isSome()) {
             let result = BlobOrStringOrBuffer()
             result.stringOrBuffer = sob.getOrThrow()
             return result
@@ -706,13 +702,13 @@ public class BlobOrStringOrBuffer {
 
     // 从 JS 值解析（允许文件）
     // 对应 Bun: BlobOrStringOrBuffer.fromJSMaybeFile
-    public static func fromJSMaybeFile(globalObject: JsGlobalObject, value: JsValue, allowFile: Bool): ?BlobOrStringOrBuffer {
+    public static func fromJSMaybeFile(JsGlobalObject, value: JsValue, allowFile: Bool): ?BlobOrStringOrBuffer {
         return fromJS(globalObject, value: value)
     }
 
     // 从 JS 值异步解析
     // 对应 Bun: BlobOrStringOrBuffer.fromJSAsync
-    public static func fromJSAsync(globalObject: JsGlobalObject, value: JsValue): ?BlobOrStringOrBuffer {
+    public static func fromJSAsync(JsGlobalObject, value: JsValue): ?BlobOrStringOrBuffer {
         return fromJS(globalObject, value: value)
     }
 }
@@ -796,7 +792,7 @@ public class Dirent {
 
     // 转换为 JS 值
     // 对应 Bun: Dirent.toJS
-    public func toJS(globalObject: JsGlobalObject): JsValue {
+    public func toJS(JsGlobalObject): JsValue {
         let obj = JsObject(globalObject)
         obj.set("name", JsValue(BaoString(name)))
         obj.set("path", JsValue(BaoString(path)))
@@ -805,7 +801,7 @@ public class Dirent {
 
     // 新创建后转换为 JS 值
     // 对应 Bun: Dirent.toJSNewlyCreated
-    public func toJSNewlyCreated(globalObject: JsGlobalObject): JsValue {
+    public func toJSNewlyCreated(JsGlobalObject): JsValue {
         return toJS(globalObject)
     }
 
@@ -821,16 +817,16 @@ public class Dirent {
 // 对应 Bun: src/runtime/node/types.zig - Dirent.Kind (std.fs.File.Kind)
 // ============================================================================
 public enum EntryKind {
-    file,
-    directory,
-    sym_link,
-    block_device,
-    character_device,
-    named_pipe,
-    unix_domain_socket,
-    event_port,
-    whiteout,
-    door,
+    | file
+    | directory
+    | sym_link
+    | block_device
+    | character_device
+    | named_pipe
+    | unix_domain_socket
+    | event_port
+    | whiteout
+    | door
     unknown
 }
 
@@ -908,10 +904,10 @@ public class ModeUtils {
 
     // 从通用值解析模式
     public static func fromValue(modeStr: ?String, modeNum: ?Int64): ?UInt32 {
-        if (modeStr != None) {
+        if (modeStr.isSome()) {
             return fromString(modeStr.getOrThrow())
         }
-        if (modeNum != None) {
+        if (modeNum.isSome()) {
             return fromNumber(modeNum.getOrThrow())
         }
         return None
@@ -919,7 +915,7 @@ public class ModeUtils {
 
     // 从 JS 值解析模式
     // 对应 Bun: modeFromJS
-    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?UInt32 {
+    public static func fromJS(JsGlobalObject, value: JsValue): ?UInt32 {
         if (value.isNumber()) {
             let num = value.toInt64()
             return UInt32(num) & 0o777
@@ -967,13 +963,13 @@ public class VectorArrayBuffer {
 
     // 转换为 JS 值
     // 对应 Bun: VectorArrayBuffer.toJS
-    public func toJS(globalObject: JsGlobalObject): JsValue {
+    public func toJS(JsGlobalObject): JsValue {
         return JsValue()
     }
 
     // 从 JS 值解析
     // 对应 Bun: VectorArrayBuffer.fromJS
-    public static func fromJS(globalObject: JsGlobalObject, val: JsValue): ?VectorArrayBuffer {
+    public static func fromJS(JsGlobalObject, val: JsValue): ?VectorArrayBuffer {
         if (!val.isArrayLike()) {
             globalObject.throwTypeError("Expected ArrayBufferView[]")
             return None
@@ -1019,9 +1015,9 @@ public class PathOrBlob {
 
     // 从 JS 值解析（不复制）
     // 对应 Bun: PathOrBlob.fromJSNoCopy
-    public static func fromJSNoCopy(globalObject: JsGlobalObject, args: JsArgumentsSlice): ?PathOrBlob {
+    public static func fromJSNoCopy(JsGlobalObject, args: JsArgumentsSlice): ?PathOrBlob {
         let path = PathOrFileDescriptor.fromJS(globalObject, arguments: args)
-        if (path != None) {
+        if (path.isSome()) {
             let result = PathOrBlob()
             result.path = path.getOrThrow()
             return result

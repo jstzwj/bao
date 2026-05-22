@@ -18,134 +18,134 @@ package bao_jsc
 // 由于实际内容在构建时通过 include!(concat!(env!("BUN_CODEGEN_DIR"), "/cpp.rs")) 生成,
 // 此处提供等效的仓颉语言接口骨架
 
-// ---------- JSC JSValue/JSGlobalObject 绑定 (来自 bindings/bindings.cpp) ----------
+// ---------- JSC JsValue/JSGlobalObject 绑定 (来自 bindings/bindings.cpp) ----------
 
 // C++ FFI 桥接函数的仓颉包装器
 // 所有这些函数最终通过 foreign 声明连接到 C++ 编译的绑定
 
 public class Cpp {
 
-    // ========== JSValue 操作 ==========
+    // ========== JsValue 操作 ==========
 
-    // 严格翻译自 JSC__JSValue__get
-    public static func jsValueGet(globalObject: CPointer<JSGlobalObject>, value: JSValue, propertyName: CPointer<UInt8>, propertyNameLength: Int64): JSValue {
-        // FFI: JSC__JSValue__get(globalObject, value, propertyName, propertyNameLength)
-        JSValue.zero
+    // 严格翻译自 JSC__JsValue__get
+    public static func jsValueGet(globalObject: UInt64, value: JsValue, propertyName: CPointer<UInt8>, propertyNameLength: Int64): JsValue {
+        // FFI: JSC__JsValue__get(globalObject, value, propertyName, propertyNameLength)
+        JsValue()
     }
 
-    // 严格翻译自 JSC__JSValue__put
-    public static func jsValuePut(globalObject: CPointer<JSGlobalObject>, value: JSValue, propertyName: CPointer<UInt8>, propertyNameLength: Int64, putValue: JSValue) {
-        // FFI: JSC__JSValue__put(globalObject, value, propertyName, propertyNameLength, putValue)
+    // 严格翻译自 JSC__JsValue__put
+    public static func jsValuePut(globalObject: UInt64, value: JsValue, propertyName: CPointer<UInt8>, propertyNameLength: Int64, putValue: JsValue) {
+        // FFI: JSC__JsValue__put(globalObject, value, propertyName, propertyNameLength, putValue)
     }
 
-    // 严格翻译自 JSC__JSValue__strictEquals
-    public static func jsValueStrictEquals(a: JSValue, b: JSValue): Bool {
-        // FFI: JSC__JSValue__strictEquals(a, b)
+    // 严格翻译自 JSC__JsValue__strictEquals
+    public static func jsValueStrictEquals(a: JsValue, b: JsValue): Bool {
+        // FFI: JSC__JsValue__strictEquals(a, b)
         false
     }
 
-    // 严格翻译自 JSC__JSValue__toNumber
-    public static func jsValueToNumber(globalObject: CPointer<JSGlobalObject>, value: JSValue): Float64 {
-        // FFI: JSC__JSValue__toNumber
+    // 严格翻译自 JSC__JsValue__toNumber
+    public static func jsValueToNumber(globalObject: UInt64, value: JsValue): Float64 {
+        // FFI: JSC__JsValue__toNumber
         0.0
     }
 
-    // 严格翻译自 JSC__JSValue__toString
-    public static func jsValueToString(globalObject: CPointer<JSGlobalObject>, value: JSValue): JSValue {
-        // FFI: JSC__JSValue__toString
-        JSValue.zero
+    // 严格翻译自 JSC__JsValue__toString
+    public static func jsValueToString(globalObject: UInt64, value: JsValue): JsValue {
+        // FFI: JSC__JsValue__toString
+        JsValue()
     }
 
-    // 严格翻译自 JSC__JSValue__toObject
-    public static func jsValueToObject(globalObject: CPointer<JSGlobalObject>, value: JSValue): JSValue {
-        // FFI: JSC__JSValue__toObject
-        JSValue.zero
+    // 严格翻译自 JSC__JsValue__toObject
+    public static func jsValueToObject(globalObject: UInt64, value: JsValue): JsValue {
+        // FFI: JSC__JsValue__toObject
+        JsValue()
     }
 
-    // 严格翻译自 JSC__JSValue__isCallable
-    public static func jsValueIsCallable(value: JSValue): Bool {
-        // FFI: JSC__JSValue__isCallable
+    // 严格翻译自 JSC__JsValue__isCallable
+    public static func jsValueIsCallable(value: JsValue): Bool {
+        // FFI: JSC__JsValue__isCallable
         false
     }
 
-    // 严格翻译自 JSC__JSValue__call
-    public static func jsValueCall(globalObject: CPointer<JSGlobalObject>, value: JSValue, thisValue: JSValue, args: CPointer<JSValue>, argCount: Int64): JSValue {
-        // FFI: JSC__JSValue__call
-        JSValue.zero
+    // 严格翻译自 JSC__JsValue__call
+    public static func jsValueCall(globalObject: UInt64, value: JsValue, thisValue: JsValue, args: UInt64, argCount: Int64): JsValue {
+        // FFI: JSC__JsValue__call
+        JsValue()
     }
 
     // ========== JSGlobalObject 操作 ==========
 
     // 严格翻译自 JSC__JSGlobalObject__createEmptyObject
-    public static func createEmptyObject(globalObject: CPointer<JSGlobalObject>, capacity: Int64): JSValue {
+    public static func createEmptyObject(globalObject: UInt64, capacity: Int64): JsValue {
         // FFI: JSC__JSGlobalObject__createEmptyObject
-        JSValue.zero
+        JsValue()
     }
 
     // 严格翻译自 JSC__JSGlobalObject__createArray
-    public static func createArray(globalObject: CPointer<JSGlobalObject>, argCount: Int64): JSValue {
+    public static func createArray(globalObject: UInt64, argCount: Int64): JsValue {
         // FFI: JSC__JSGlobalObject__createArray
-        JSValue.zero
+        JsValue()
     }
 
     // ========== 异常/错误 ==========
 
-    // 严格翻译自 JSC__JSValue__createTypeError
-    public static func createTypeError(globalObject: CPointer<JSGlobalObject>, message: CPointer<UInt8>, messageLength: Int64): JSValue {
-        // FFI: JSC__JSValue__createTypeError
-        JSValue.zero
+    // 严格翻译自 JSC__JsValue__createTypeError
+    public static func createTypeError(globalObject: UInt64, message: CPointer<UInt8>, messageLength: Int64): JsValue {
+        // FFI: JSC__JsValue__createTypeError
+        JsValue()
     }
 
-    // 严格翻译自 JSC__JSValue__createRangeError
-    public static func createRangeError(globalObject: CPointer<JSGlobalObject>, message: CPointer<UInt8>, messageLength: Int64): JSValue {
-        // FFI: JSC__JSValue__createRangeError
-        JSValue.zero
+    // 严格翻译自 JSC__JsValue__createRangeError
+    public static func createRangeError(globalObject: UInt64, message: CPointer<UInt8>, messageLength: Int64): JsValue {
+        // FFI: JSC__JsValue__createRangeError
+        JsValue()
     }
 
     // ========== Bun 特定绑定 ==========
 
     // 严格翻译自 Bun__createFFIFunctionValue
     public static func createFFIFunctionValue(
-        globalObject: CPointer<JSGlobalObject>,
+        globalObject: UInt64,
         symbolName: CPointer<UInt8>,
         symbolNameLen: Int64,
         argCount: Int64,
         functionPtr: UInt64,
         data: UInt64
-    ): JSValue {
+    ): JsValue {
         // FFI: Bun__createFFIFunctionValue
-        JSValue.zero
+        JsValue()
     }
 
     // 严格翻译自 Bun__FFIFunction_getDataPtr
-    public static func ffiFunctionGetDataPtr(functionValue: JSValue): UInt64 {
+    public static func ffiFunctionGetDataPtr(functionValue: JsValue): UInt64 {
         // FFI: Bun__FFIFunction_getDataPtr
         0
     }
 
     // 严格翻译自 Bun__FFIFunction_setDataPtr
-    public static func ffiFunctionSetDataPtr(functionValue: JSValue, data: UInt64) {
+    public static func ffiFunctionSetDataPtr(functionValue: JsValue, data: UInt64) {
         // FFI: Bun__FFIFunction_setDataPtr
     }
 
     // ========== 编码/解码 ==========
 
-    // 严格翻译自 Zig__GlobalObject__encodeJSValueToJSON
-    public static func encodeJSValueToJSON(globalObject: CPointer<JSGlobalObject>, value: JSValue, indent: Int64): JSValue {
+    // 严格翻译自 Zig__GlobalObject__encodeJsValueToJSON
+    public static func encodeJsValueToJSON(globalObject: UInt64, value: JsValue, indent: Int64): JsValue {
         // FFI
-        JSValue.zero
+        JsValue()
     }
 
     // ========== 调试/分析 ==========
 
     // 严格翻译自 Bun__startCPUProfiler
-    public static func startCPUProfiler(globalObject: CPointer<JSGlobalObject>): UInt64 {
+    public static func startCPUProfiler(globalObject: UInt64): UInt64 {
         // FFI
         0
     }
 
     // 严格翻译自 Bun__stopCPUProfiler
-    public static func stopCPUProfiler(globalObject: CPointer<JSGlobalObject>, profiler: UInt64) {
+    public static func stopCPUProfiler(globalObject: UInt64, profiler: UInt64) {
         // FFI
     }
 

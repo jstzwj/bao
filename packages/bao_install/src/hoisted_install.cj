@@ -5,7 +5,7 @@
 //       ctx: Command.Context,
 //       workspace_filters: []const WorkspaceFilter,
 //       install_root_dependencies: bool,
-//       log_level: PackageManager.Options.LogLevel,
+//       log_level: PackageManager.Options.InstallLogLevel,
 //       packages_to_install: ?[]const PackageID,
 //   ) !PackageInstall.Summary
 package bao_install
@@ -37,7 +37,7 @@ public class HoistedInstaller {
     /// 包管理器引用
     public var manager: PackageManagerRef
     /// 日志级别
-    public var logLevel: LogLevel
+    public var logLevel: InstallLogLevel
     /// 安装摘要
     public var summary: PackageInstallSummary
     /// 是否是新创建的 node_modules
@@ -65,7 +65,7 @@ public class HoistedInstaller {
 
     public init(manager: PackageManagerRef) {
         this.manager = manager
-        logLevel = LogLevel.Default
+        logLevel = InstallLogLevel.Default
         summary = PackageInstallSummary()
         isNewNodeModules = false
         skipDelete = false
@@ -241,10 +241,10 @@ public class HoistedInstaller {
 
         match (BaoFile.readAllText(destPath)) {
             case SysMaybe<String>.Ok(content) =>
-                let json = JsonParser().parse(content)
+                let json = PkgJsonParser().parse(content)
                 match (json) {
                     case Some(root) =>
-                        match (JsonHelper.getString(root, "version")) {
+                        match (PkgJsonHelper.getString(root, "version")) {
                             case Some(v) => return v == resolution
                             case None => return false
                         }
@@ -383,7 +383,7 @@ public class HoistedInstaller {
         let tree = treeContexts[Int64(treeId)]
         tree.installCount += 1
 
-        let maxCount = lockfile.trees[Int64(treeId)].dependencyCount
+        let maxCount = lockfile.trees[Int64(treeId)].dependencyCount()
         if (tree.installCount >= maxCount) {
             tree.completed = true
             // 安装此 tree 的待处理包

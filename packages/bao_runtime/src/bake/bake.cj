@@ -5,6 +5,17 @@
 
 package bao_runtime.bake
 
+import bao_bun_alloc.Allocator
+import bao_collections.*
+import bao_bundler.Define
+import bao_bundler.DefineData
+import bao_bundler.Plugin
+import bao_core.ArenaAllocator
+import bao_jsc.ZigStringSlice
+import bao_options.LoaderMap
+import bao_options.DotEnvBehavior
+import bao_options.SourceMapMode
+
 // 导入子模块
 // DevServer is in bao_runtime.bake.dev_server package
 
@@ -50,7 +61,7 @@ public class UserOptions {
     public func deinit() {
         arena.deinit()
         allocations.free()
-        if (let Some(p) = bundler_options.plugin) {
+        if (let Some(p) <- bundler_options.plugin) {
             p.deinit()
         }
     }
@@ -60,7 +71,7 @@ public class UserOptions {
 public class StringRefList {
     public var strings: ArrayList<ZigStringSlice>
 
-    public static let empty: StringRefList = StringRefList(strings: ArrayList<ZigStringSlice>())
+    public static let empty: StringRefList = StringRefList(ArrayList<ZigStringSlice>())
 
     public func track(str: ZigStringSlice): String {
         strings.append(str)
@@ -83,10 +94,10 @@ public class SplitBundlerOptions {
     public var ssr: BuildConfigSubset = BuildConfigSubset()
 
     public static let empty: SplitBundlerOptions = SplitBundlerOptions(
-        plugin: None,
-        client: BuildConfigSubset(),
-        server: BuildConfigSubset(),
-        ssr: BuildConfigSubset(),
+        None,
+        BuildConfigSubset(),
+        BuildConfigSubset(),
+        BuildConfigSubset()
     )
 }
 
@@ -98,7 +109,7 @@ public class BuildConfigSubset {
     public var drop: StringArrayHashMap<Unit> = StringArrayHashMap<Unit>()
     public var env: DotEnvBehavior = DotEnvBehavior.none
     public var env_prefix: ?String = None
-    public var define: StringMap = StringMap(keys: [], values: [])
+    public var define: StringMap = StringMap([], [])
     public var source_map: SourceMapMode = SourceMapMode.external
 
     public var minify_syntax: ?Bool = None
@@ -121,40 +132,40 @@ public class Framework {
         this.file_system_router_types = file_system_router_types
     }
 
-    /// 文件系统路由器类型
-    public class FileSystemRouterType {
-        public var root: String
-        public var prefix: String
-        public var entry_server: String
-        public var entry_client: ?String
-        public var ignore_underscores: Bool
-        public var ignore_dirs: Array<String>
-        public var extensions: Array<String>
-        public var style: FrameworkRouterStyle
-        public var allow_layouts: Bool
-    }
-
-    /// 内置模块
-    public enum BuiltInModule {
-        | `import`(String)
-        | code(String)
-    }
-
-    /// 服务器组件配置
-    public class ServerComponents {
-        public var separate_ssr_graph: Bool = false
-        public var server_runtime_import: String
-        public var server_register_client_reference: String = "registerClientReference"
-        public var server_register_server_reference: String = "registerServerReference"
-        public var client_register_server_reference: String = "registerServerReference"
-    }
-
-    /// React 快速刷新配置
-    public class ReactFastRefresh {
-        public var import_source: String = "react-refresh/runtime"
-    }
-
     public static let react_install_command: String = "bun i react@experimental react-dom@experimental react-server-dom-bun react-refresh@experimental"
+}
+
+/// 文件系统路由器类型
+public class FileSystemRouterType {
+    public var root: String
+    public var prefix: String
+    public var entry_server: String
+    public var entry_client: ?String
+    public var ignore_underscores: Bool
+    public var ignore_dirs: Array<String>
+    public var extensions: Array<String>
+    public var style: FrameworkRouterStyle
+    public var allow_layouts: Bool
+}
+
+/// 内置模块
+public enum BuiltInModule {
+    | `import`(String)
+    | code(String)
+}
+
+/// 服务器组件配置
+public class ServerComponents {
+    public var separate_ssr_graph: Bool = false
+    public var server_runtime_import: String
+    public var server_register_client_reference: String = "registerClientReference"
+    public var server_register_server_reference: String = "registerServerReference"
+    public var client_register_server_reference: String = "registerServerReference"
+}
+
+/// React 快速刷新配置
+public class ReactFastRefresh {
+    public var import_source: String = "react-refresh/runtime"
 }
 
 /// 运行时嵌入资源加载器。
@@ -165,7 +176,7 @@ public class RuntimeEmbedFile {
     }
 }
 
-extern func runtimeEmbedFileCodegenFFI(path: String): String
+public func runtimeEmbedFileCodegenFFI(path: String): String { return "" }
 
 /// HMR 运行时
 public class HmrRuntime {
@@ -183,8 +194,8 @@ public class HmrRuntime {
 public func getHmrRuntime(side: Side): HmrRuntime {
     // 对应 Bun bake.zig 中嵌入的 hmr-runtime-client.ts / hmr-runtime-server.ts。
     match (side) {
-        | client => HmrRuntime(code: hmrRuntimeClientSource)
-        | server => HmrRuntime(code: hmrRuntimeServerSource)
+        case client => HmrRuntime(hmrRuntimeClientSource)
+        case server => HmrRuntime(hmrRuntimeServerSource)
     }
 }
 
@@ -193,7 +204,7 @@ public func addImportMetaDefines(
     allocator: Allocator,
     define: Define,
     mode: Mode,
-    side: Side,
+    side: Side
 ): Unit {
     // import.meta.env.DEV
     define.insert("import.meta.env.DEV", DefineData.initBoolean(mode == Mode.development))
@@ -201,8 +212,8 @@ public func addImportMetaDefines(
     define.insert("import.meta.env.PROD", DefineData.initBoolean(mode != Mode.development))
     // import.meta.env.MODE
     let mode_str: String = match (mode) {
-        | development => "development"
-        | production_dynamic | production_static => "production"
+        case development => "development"
+        case production_dynamic | production_static => "production"
     }
     define.insert("import.meta.env.MODE", DefineData.initStaticString(mode_str))
     // import.meta.env.SSR
@@ -217,24 +228,24 @@ public class PatternBuffer {
     public var i: Int
 
     public static let empty: PatternBuffer = PatternBuffer(
-        bytes: PathBuffer(),
-        i: PathBuffer.size,
+        PathBuffer(),
+        PathBuffer.size
     )
 
     public func prepend(chunk: String): Unit {
-        i -= chunk.length
+        i -= chunk.size
         bytes.write(i, chunk)
     }
 
     public func prependPart(part: FrameworkRouterPart): Unit {
         match (part) {
-            | text(let text) =>
+            case text(text) =>
                 prepend(text)
                 prepend("/")
-            | param(let name) | catch_all(let name) | catch_all_optional(let name) =>
+            case param(name) | catch_all(name) | catch_all_optional(name) =>
                 prepend(name)
                 prepend("/:")
-            | group(_) => () // 分组不影响模式
+            case group(_) => () // 分组不影响模式
         }
     }
 
@@ -250,18 +261,15 @@ public func printWarning(): Unit {
 }
 
 // 以下为类型别名和前向声明，用于跨模块引用
-public type Allocator = std.mem.Allocator
-public type ArenaAllocator = std.heap.ArenaAllocator
-public type ArrayList<T> = std.ArrayList<T>
-public type StringArrayHashMap<V> = std.StringArrayHashMap<V>
-public type StringMap = std.StringMap
-public type Define = bun.options.Define
-public type DefineData = bun.options.DefineData
-public type LoaderMap = bun.schema.api.LoaderMap
-public type DotEnvBehavior = bun.schema.api.DotEnvBehavior
-public type SourceMapMode = bun.schema.api.SourceMapMode
-public type PathBuffer = bun.PathBuffer
-public type Plugin = jsc.API.JSBundler.Plugin
-public type ZigStringSlice = jsc.ZigString.Slice
-public type FrameworkRouterStyle = framework_router.Style
-public type FrameworkRouterPart = framework_router.Part
+// Types from imports: Define, DefineData, Plugin from bao_bundler
+// LoaderMap, DotEnvBehavior, SourceMapMode from bao_options (bun_schema)
+// ZigStringSlice from bao_jsc
+
+// Stubs for types not yet available in Cangjie:
+public type PathBuffer = Array<Byte>
+public class StringArrayHashMap<V> {
+    public init() {}
+    public func put(k: String, v: V): Unit {}
+    public func get(k: String): ?V { None }
+}
+public type Error = Exception

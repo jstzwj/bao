@@ -4,6 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_collections.*  // std.collection.*
 
 // ========== TestRunner 嵌套类型提取到顶层 ==========
@@ -90,12 +91,12 @@ public class TestRunner {
     /// 如果定时器未激活或时间为epoch（无超时），返回epoch。
     public func getActiveTimeout(): Timespec {
         let activeFile = bunTestRoot.activeFile
-        if (activeFile == None) {
+        if (activeFile.isNone()) {
             return Timespec.epoch
         }
         let activeFileVal = activeFile.getOrThrow()
         let fileOpt = activeFileVal.get()
-        if (fileOpt == None) { return Timespec.epoch }
+        if (fileOpt.isNone()) { return Timespec.epoch }
         let file = fileOpt.getOrThrow()
 
         if (file.timer.state != TimerState.active || file.timer.next == Timespec.epoch) {
@@ -109,11 +110,11 @@ public class TestRunner {
     /// 从事件循环中移除当前BunTest文件的定时器。
     public func removeActiveTimeout(vm: VirtualMachine) {
         let activeFile = bunTestRoot.activeFile
-        if (activeFile == None) {
+        if (activeFile.isNone()) {
             return
         }
         let file = activeFile.getOrThrow().get()
-        if (file == None) {
+        if (file.isNone()) {
             return
         }
         let fileVal = file.getOrThrow()
@@ -129,7 +130,7 @@ public class TestRunner {
 
     /// 是否有测试过滤器
     public func hasTestFilter(): Bool {
-        return filterRegex != None
+        return filterRegex.isSome()
     }
 
     /// 文件是否应该并发运行
@@ -140,7 +141,7 @@ public class TestRunner {
         if (concurrent) { return true }
 
         // 检查glob模式
-        if (concurrentTestGlob == None) { return false }
+        if (concurrentTestGlob.isNone()) { return false }
         let globPatterns = concurrentTestGlob.getOrThrow()
         if (fileId >= files.size) { return false }
 
@@ -161,7 +162,7 @@ public class TestRunner {
     public func getOrPutFile(filePath: String): FileIdResult {
         let hash = WyHash.hash(data: filePath)
         let existing = index.get(key: hash)
-        if (existing != None) {
+        if (existing.isSome()) {
             return FileIdResult(fileId: existing.getOrThrow())
         }
 
@@ -189,8 +190,8 @@ public class Jest {
     public static var runner: ?TestRunner = None
 
     /// 创建测试模块对象
-    public static func createTestModuleObject(globalObject: JSGlobalObject): JSValue {
-        return createTestModule(globalObject: globalObject) ?? JSValue.zero
+    public static func createTestModuleObject(globalObject: JSGlobalObject): JsValue {
+        return createTestModule(globalObject) ?? JsValue.zero
     }
 
     /// 创建测试模块
@@ -205,14 +206,14 @@ public class Jest {
     /// - expect/expectTypeOf: 断言函数
     /// - jest/vi: Mock工具
     /// - spyOn: 间谍函数
-    public static func createTestModule(globalObject: JSGlobalObject): ?JSValue {
-        let module = JSValue.createEmptyObject(global: globalObject, propertyCount: 23)
+    public static func createTestModule(globalObject: JSGlobalObject): ?JsValue {
+        let module = JsValue.createEmptyObject(global: globalObject, propertyCount: 23)
 
         // test/it - 测试函数
         let testScopeFunctions = ScopeFunctions.createBound(
             globalThis: globalObject,
             mode: ScopeFunctions.Mode.test_,
-            each: JSValue.zero,
+            each: JsValue.zero,
             cfg: BaseScopeCfg(),
             name: "test"
         )
@@ -223,7 +224,7 @@ public class Jest {
         let xtestScopeFunctions = ScopeFunctions.createBound(
             globalThis: globalObject,
             mode: ScopeFunctions.Mode.test_,
-            each: JSValue.zero,
+            each: JsValue.zero,
             cfg: BaseScopeCfg(selfMode: ScopeMode.skip),
             name: "xtest"
         )
@@ -234,7 +235,7 @@ public class Jest {
         let describeScopeFunctions = ScopeFunctions.createBound(
             globalThis: globalObject,
             mode: ScopeFunctions.Mode.describe,
-            each: JSValue.zero,
+            each: JsValue.zero,
             cfg: BaseScopeCfg(),
             name: "describe"
         )
@@ -244,7 +245,7 @@ public class Jest {
         let xdescribeScopeFunctions = ScopeFunctions.createBound(
             globalThis: globalObject,
             mode: ScopeFunctions.Mode.describe,
-            each: JSValue.zero,
+            each: JsValue.zero,
             cfg: BaseScopeCfg(selfMode: ScopeMode.skip),
             name: "xdescribe"
         )
@@ -277,7 +278,7 @@ public class Jest {
             value: ExpectTypeOf.getConstructor(global: globalObject))
 
         // 创建mock对象
-        createMockObjects(globalObject: globalObject, module: module)
+        createMockObjects(globalObject, module: module)
 
         return module
     }
@@ -291,7 +292,7 @@ public class Jest {
     /// - mock.module: 模块mock
     /// - setSystemTime/now: 假定时器相关
     /// - setTimeout: 设置默认超时
-    public static func createMockObjects(globalObject: JSGlobalObject, module: JSValue) {
+    public static func createMockObjects(globalObject: JSGlobalObject, module: JsValue) {
         let setSystemTime = JSFunction.create(global: globalObject, name: "setSystemTime",
             hostFn: JSMock.jsSetSystemTime, argCount: 0)
         let mockFn = JSFunction.create(global: globalObject, name: "fn",
@@ -311,7 +312,7 @@ public class Jest {
         mockFn.put(global: globalObject, name: "clearAllMocks", value: clearAllMocks)
 
         // jest对象
-        let jest = JSValue.createEmptyObject(global: globalObject, propertyCount: 9 + FakeTimers.timerFnsCount)
+        let jest = JsValue.createEmptyObject(global: globalObject, propertyCount: 9 + FakeTimers.timerFnsCount)
         jest.put(global: globalObject, name: "fn", value: mockFn)
         jest.put(global: globalObject, name: "mock", value: mockModuleFn)
         jest.put(global: globalObject, name: "spyOn", value: spyOn)
@@ -332,7 +333,7 @@ public class Jest {
             value: Expect.getConstructor(global: globalObject))
 
         // vi对象 (Vitest兼容)
-        let vi = JSValue.createEmptyObject(global: globalObject, propertyCount: 6 + FakeTimers.timerFnsCount)
+        let vi = JsValue.createEmptyObject(global: globalObject, propertyCount: 6 + FakeTimers.timerFnsCount)
         vi.put(global: globalObject, name: "fn", value: mockFn)
         vi.put(global: globalObject, name: "mock", value: mockModuleFn)
         vi.put(global: globalObject, name: "spyOn", value: spyOn)
@@ -342,17 +343,17 @@ public class Jest {
         module.put(global: globalObject, name: "vi", value: vi)
 
         // 添加假定时器函数到jest和vi对象
-        FakeTimers.putTimersFns(globalObject: globalObject, jest: jest, vi: vi)
+        FakeTimers.putTimersFns(globalObject, jest: jest, vi: vi)
     }
 
     /// Jest调用入口
     ///
     /// 处理Bun.jest()调用。在preload阶段不需要参数，
     /// 在执行阶段需要绝对文件路径作为第一个参数。
-    public static func call(globalObject: JSGlobalObject, callFrame: CallFrame): ?JSValue {
+    public static func call(globalObject: JSGlobalObject, callFrame: CallFrame): ?JsValue {
         let vm = globalObject.bunVM()
 
-        if (vm.isInPreload || runner == None) {
+        if (vm.isInPreload || runner.isNone()) {
             // 在preload阶段，不需要参数
         } else {
             let arguments = callFrame.arguments(max: 2)
@@ -369,14 +370,14 @@ public class Jest {
             }
         }
 
-        return createTestModuleObject(globalObject: globalObject)
+        return createTestModuleObject(globalObject)
     }
 
     /// 设置默认超时
     ///
     /// 处理setDefaultTimeout()/jest.setTimeout()调用。
     /// 参数为一个表示毫秒数的数字。
-    public static func jsSetDefaultTimeout(globalObject: JSGlobalObject, callFrame: CallFrame): ?JSValue {
+    public static func jsSetDefaultTimeout(globalObject: JSGlobalObject, callFrame: CallFrame): ?JsValue {
         let arguments = callFrame.arguments(max: 1)
         if (arguments.size < 1 || !arguments[0].isNumber()) {
             globalObject.`throw`(message: "setTimeout() expects a number (milliseconds)")
@@ -389,7 +390,7 @@ public class Jest {
             testRunner.defaultTimeoutOverride = timeoutMs
         }
 
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 }
 
@@ -422,7 +423,7 @@ public class CurrentFile {
     /// - dots/onlyFailures模式: 延迟打印
     /// - 其他模式: 立即打印
     public func set(title: String, prefix: String, repeatCount: UInt32, repeatIndex: UInt32, reporter: CommandLineReporter) {
-        if (reporter.workerIpcFileIdx != None) {
+        if (reporter.workerIpcFileIdx.isSome()) {
             // 协调器拥有终端，worker不应输出
             hasPrintedFilename = true
             return
@@ -477,10 +478,10 @@ public class CurrentFile {
 ///
 /// 如果有活跃的BunTest，将拒绝标记为当前测试的错误并继续运行。
 /// 否则，直接运行错误处理器。
-public func onUnhandledRejection(jscVm: VirtualMachine, globalObject: JSGlobalObject, rejection: JSValue) {
+public func onUnhandledRejection(jscVm: VirtualMachine, globalObject: JSGlobalObject, rejection: JsValue) {
     if (let Some(buntestStrong) <- cloneActiveStrong()) {
         let buntestOpt = buntestStrong.get()
-        if (buntestOpt == None) { return }
+        if (buntestOpt.isNone()) { return }
         let buntest = buntestOpt.getOrThrow()
 
         // 标记未处理错误属于当前活跃测试
@@ -527,16 +528,16 @@ public func onUnhandledRejection(jscVm: VirtualMachine, globalObject: JSGlobalOb
 /// 还支持$variablePath语法来从第一个参数（对象）中读取属性:
 /// - $name: 读取args[0].name
 /// - $user.email: 读取args[0].user.email
-public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs: Array<JSValue>, testIdx: UInt64, allocator: Allocator): String {
+public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs: Array<JsValue>, testIdx: UInt64, allocator: Allocator): String {
     var idx: UInt64 = 0
     var argsIdx: UInt64 = 0
     var result = StringBuilder()
 
-    while (idx < label.length) {
+    while (idx < label.size) {
         let char = label[idx]
 
         // $variablePath语法
-        if (char == '$' && idx + 1 < label.length && functionArgs.size > 0 && functionArgs[0].isObject()) {
+        if (char == '$' && idx + 1 < label.size && functionArgs.size > 0 && functionArgs[0].isObject()) {
             let varStart = idx + 1
             var varEnd = varStart
 
@@ -545,10 +546,10 @@ public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs:
                 varEnd += 1
 
                 // 读取标识符和点号路径
-                while (varEnd < label.length) {
+                while (varEnd < label.size) {
                     let c = label[varEnd]
                     if (c == '.') {
-                        if (varEnd + 1 < label.length && JSLexer.isIdentifierContinue(char: label[varEnd + 1])) {
+                        if (varEnd + 1 < label.size && JSLexer.isIdentifierContinue(char: label[varEnd + 1])) {
                             varEnd += 1
                         } else {
                             break
@@ -563,10 +564,10 @@ public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs:
                 let varPath = label[varStart..varEnd]
                 let value = functionArgs[0].getIfPropertyExistsFromPath(
                     global: globalThis,
-                    path: BunString.`init`(data: varPath).toJS(global: globalThis)
+                    path: BunString(data: varPath).toJS(global: globalThis)
                 )
 
-                if (value != None && !value.getOrThrow().isEmptyOrUndefinedOrNull()) {
+                if (value.isSome() && !value.getOrThrow().isEmptyOrUndefinedOrNull()) {
                     // 原始字符串直接输出，避免引号
                     if (value.getOrThrow().isString()) {
                         let slice = value.getOrThrow().toSlice(global: globalThis)
@@ -581,7 +582,7 @@ public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs:
                 }
             } else {
                 // 不是有效的标识符起始，跳过
-                while (varEnd < label.length && JSLexer.isIdentifierContinue(char: label[varEnd]) && label[varEnd] != '$') {
+                while (varEnd < label.size && JSLexer.isIdentifierContinue(char: label[varEnd]) && label[varEnd] != '$') {
                     varEnd += 1
                 }
             }
@@ -589,7 +590,7 @@ public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs:
             result.append('$')
             result.append(label[varStart..varEnd])
             idx = varEnd
-        } else if (char == '%' && (idx + 1 < label.length) && !(argsIdx >= functionArgs.size)) {
+        } else if (char == '%' && (idx + 1 < label.size) && !(argsIdx >= functionArgs.size)) {
             let currentArg = functionArgs[argsIdx]
 
             match (label[idx + 1]) {
@@ -671,10 +672,10 @@ public func captureTestLineNumber(callFrame: CallFrame, globalThis: JSGlobalObje
 /// CI环境中的错误
 ///
 /// 如果在CI环境中运行，抛出错误提示用户设置CI=false来覆盖。
-public func errorInCI(globalObject: JSGlobalObject, message: String): ?JSValue {
+public func errorInCI(globalObject: JSGlobalObject, message: String): ?JsValue {
     if (CIInfo.isCI()) {
         globalObject.`throw`(message: (message) + "\nTo override, set the environment variable CI=false.")
         return None
     }
-    return JSValue.jsUndefined
+    return JsValue.jsUndefined
 }

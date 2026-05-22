@@ -36,40 +36,35 @@ public enum BodyValueError {
     | SystemError(SyscallError)            // 系统错误
     | Message(String)                      // 错误消息
     | TypeError(String)                    // 类型错误
-    | JSValue(JsStrongOptional)            // JS 值 (强引用)
+    | JsValue(JsStrongOptional)            // JS 值 (强引用)
 
     /// 转为 JsValue
     public func toJsValue(): JsValue {
         match (this) {
-            case AbortReason(msg) => {
+            case AbortReason(msg) =>
                 let obj = JsObject()
                 obj.set("name", JsValue(BaoString("AbortError")))
                 obj.set("message", JsValue(BaoString(msg.reason)))
                 return JsValue(obj)
-            }
-            case SystemError(err) => {
+            case SystemError(err) =>
                 let obj = JsObject()
                 obj.set("name", JsValue(BaoString("SystemError")))
                 obj.set("message", JsValue(BaoString(err.message)))
                 return JsValue(obj)
-            }
-            case Message(msg) => {
+            case Message(msg) =>
                 let obj = JsObject()
                 obj.set("message", JsValue(BaoString(msg)))
                 return JsValue(obj)
-            }
-            case TypeError(msg) => {
+            case TypeError(msg) =>
                 let obj = JsObject()
                 obj.set("name", JsValue(BaoString("TypeError")))
                 obj.set("message", JsValue(BaoString(msg)))
                 return JsValue(obj)
-            }
-            case JSValue(jsRef) => {
+            case JsValue(jsRef) =>
                 match (jsRef.get()) {
                     case Some(v) => v
                     case None => JsValue.UNDEFINED
                 }
-            }
         }
     }
 
@@ -90,12 +85,11 @@ public enum BodyValueError {
             case SystemError(e) => BodyValueError.SystemError(e)
             case Message(m) => BodyValueError.Message(m)
             case TypeError(m) => BodyValueError.TypeError(m)
-            case JSValue(jsRef) => {
+            case JsValue(jsRef) =>
                 match (jsRef.get()) {
-                    case Some(v) => BodyValueError.JSValue(JsStrongOptional.create(v))
-                    case None => BodyValueError.JSValue(JsStrongOptional.empty())
+                    case Some(v) => BodyValueError.JsValue(JsStrongOptional.create(v))
+                    case None => BodyValueError.JsValue(JsStrongOptional.empty())
                 }
-            }
         }
     }
 
@@ -103,7 +97,7 @@ public enum BodyValueError {
     /// 对应 Bun: Body.Value.ValueError.reset()
     public func reset(): Unit {
         match (this) {
-            case JSValue(jsRef) => jsRef.deinit()
+            case JsValue(jsRef) => jsRef.deinit()
             case _ => ()
         }
     }
@@ -202,12 +196,11 @@ public class PendingBodyValue {
     /// 对应 Bun: Body.PendingValue.size_hint()
     public func getSizeHint(): BlobSizeType {
         match (readable.get()) {
-            case Some(stream) => {
+            case Some(stream) =>
                 match (stream.source.getTag()) {
                     case ReadableStreamSourceTag.Bytes => stream.source.sizeHint
                     case _ => sizeHint
                 }
-            }
             case None => sizeHint
         }
     }
@@ -226,16 +219,14 @@ public class PendingBodyValue {
     public func toAnyBlobAllowPromise(): ?AnyBlob {
         let stream = readable.get()
         match (stream) {
-            case Some(s) => {
+            case Some(s) =>
                 let blob = s.toAnyBlob()
                 match (blob) {
-                    case Some(b) => {
+                    case Some(b) =>
                         readable.deinit()
                         Some(b)
-                    }
                     case None => None
                 }
-            }
             case None => None
         }
     }
@@ -245,12 +236,11 @@ public class PendingBodyValue {
     public func isDisturbed(): Bool {
         match (promise) {
             case Some(_) => true
-            case None => {
+            case None =>
                 match (readable.get()) {
                     case Some(stream) => stream.isDisturbed()
                     case None => false
                 }
-            }
         }
     }
 
@@ -275,69 +265,59 @@ public class PendingBodyValue {
             case None => readable.get()
         }
         match (streamOpt) {
-            case Some(readable) => {
+            case Some(readable) =>
                 match (actionTag) {
-                    case GetText => {
+                    case GetText =>
                         readable.done()
                         readable.deinit()
                         let p = JsPromise.resolved(JsValue(BaoString("")))
                         p.toJsValue()
-                    }
-                    case GetJSON => {
+                    case GetJSON =>
                         readable.done()
                         readable.deinit()
                         let p = JsPromise.resolved(JsValue.UNDEFINED)
                         p.toJsValue()
-                    }
-                    case GetArrayBuffer => {
+                    case GetArrayBuffer =>
                         readable.done()
                         readable.deinit()
                         let p = JsPromise.resolved(JsValue.UNDEFINED)
                         p.toJsValue()
-                    }
-                    case GetBytes => {
+                    case GetBytes =>
                         readable.done()
                         readable.deinit()
                         let p = JsPromise.resolved(JsValue.UNDEFINED)
                         p.toJsValue()
-                    }
-                    case GetBlob => {
+                    case GetBlob =>
                         readable.done()
                         readable.deinit()
                         let p = JsPromise.resolved(JsValue.UNDEFINED)
                         p.toJsValue()
-                    }
-                    case GetFormData => {
+                    case GetFormData =>
                         readable.done()
                         readable.deinit()
                         let p = JsPromise.resolved(JsValue.UNDEFINED)
                         p.toJsValue()
-                    }
-                    case None => {
+                    case None =>
                         // 创建新的 Promise
                         let p = JsPromise.create()
                         let promiseValue = p.toJsValue()
                         promise = Some(promiseValue)
                         promiseValue
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 // 创建新的 Promise
                 let p = JsPromise.create()
                 let promiseValue = p.toJsValue()
                 promise = Some(promiseValue)
                 match (onStartBuffering) {
-                    case Some(cb) => {
+                    case Some(cb) =>
                         match (task) {
                             case Some(t) => cb(t)
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
                 promiseValue
-            }
         }
     }
 }
@@ -430,12 +410,11 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.was_string()
     public func wasString(): Bool {
         match (tag) {
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => b.wasString
                     case None => false
                 }
-            }
             case WTFStringImpl => true
             case _ => false
         }
@@ -445,30 +424,26 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.size()
     public func size(): BlobSizeType {
         match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => b.getSizeForBindings()
                     case None => 0
                 }
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => b.sliceConst().size
                     case None => 0
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
                     case Some(s) => s.utf8ByteLength()
                     case None => 0
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
                     case Some(p) => p.getSizeHint()
                     case None => 0
                 }
-            }
             case _ => 0
         }
     }
@@ -477,24 +452,21 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.fast_size()
     public func fastSize(): BlobSizeType {
         match (tag) {
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => b.sliceConst().size
                     case None => 0
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
                     case Some(s) => s.byteSlice().size
                     case None => 0
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
                     case Some(p) => p.getSizeHint()
                     case None => 0
                 }
-            }
             case _ => 0
         }
     }
@@ -503,24 +475,21 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.memory_cost()
     public func memoryCost(): Int64 {
         match (tag) {
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => b.memoryCost()
                     case None => 0
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
                     case Some(s) => s.memoryCost()
                     case None => 0
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
                     case Some(p) => p.getSizeHint()
                     case None => 0
                 }
-            }
             case _ => 0
         }
     }
@@ -529,24 +498,21 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.estimated_size()
     public func estimatedSize(): Int64 {
         match (tag) {
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => b.sliceConst().size
                     case None => 0
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
                     case Some(s) => s.byteSlice().size
                     case None => 0
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
                     case Some(p) => p.getSizeHint()
                     case None => 0
                 }
-            }
             case _ => 0
         }
     }
@@ -558,24 +524,21 @@ public class BodyValue {
             case Null => true
             case Used => true
             case Empty => true
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => b.sliceConst().size == 0
                     case None => true
                 }
-            }
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => b.size == 0
                     case None => true
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => s.length() == 0
+                    case Some(s) => s.size() == 0
                     case None => true
                 }
-            }
             case Error => false
             case Locked => false
         }
@@ -587,17 +550,15 @@ public class BodyValue {
         // WTFStringImpl → InternalBlob (如果需要 UTF8 转换)
         if (tag == BodyValueTag.WTFStringImpl) {
             match (wtfStringImpl) {
-                case Some(s) => {
+                case Some(s) =>
                     let utf8 = s.toUtf8IfNeeded()
                     match (utf8) {
-                        case Some(bytes) => {
+                        case Some(bytes) =>
                             tag = BodyValueTag.InternalBlob
                             internalBlob = Some(InternalBlob(bytes, true))
                             wtfStringImpl = None
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -605,32 +566,27 @@ public class BodyValue {
         // Locked → Blob (如果可以从 ReadableStream 转换)
         if (tag == BodyValueTag.Locked) {
             match (locked) {
-                case Some(pending) => {
+                case Some(pending) =>
                     let anyBlob = pending.toAnyBlob()
                     match (anyBlob) {
-                        case Some(b) => {
+                        case Some(b) =>
                             match (b.tag) {
-                                case AnyBlobTag.Blob => {
+                                case AnyBlobTag.Blob =>
                                     tag = BodyValueTag.Blob
                                     blob = Some(b.blob)
                                     locked = None
-                                }
-                                case AnyBlobTag.InternalBlob => {
+                                case AnyBlobTag.InternalBlob =>
                                     tag = BodyValueTag.InternalBlob
                                     internalBlob = Some(b.internalBlob)
                                     locked = None
-                                }
-                                case AnyBlobTag.WTFStringImpl => {
+                                case AnyBlobTag.WTFStringImpl =>
                                     tag = BodyValueTag.WTFStringImpl
                                     wtfStringImpl = Some(b.wtfStringImpl)
                                     locked = None
-                                }
                                 case _ => ()
                             }
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -642,34 +598,28 @@ public class BodyValue {
         toBlobIfPossible()
 
         match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
-                    case Some(b) => {
+                    case Some(b) =>
                         tag = BodyValueTag.Used
                         return b.dupe()
-                    }
-                    case None => {
+                    case None =>
                         tag = BodyValueTag.Used
                         return Blob.initEmpty()
-                    }
                 }
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
-                    case Some(ib) => {
+                    case Some(ib) =>
                         let resultBlob = Blob(ib.toOwnedSlice(), "")
                         tag = BodyValueTag.Used
                         return resultBlob
-                    }
-                    case None => {
+                    case None =>
                         tag = BodyValueTag.Used
                         return Blob.initEmpty()
-                    }
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(wtf) => {
+                    case Some(wtf) =>
                         let utf8 = wtf.toUtf8IfNeeded()
                         let resultBlob = match (utf8) {
                             case Some(bytes) => Blob(bytes, "text/plain")
@@ -677,16 +627,12 @@ public class BodyValue {
                         }
                         tag = BodyValueTag.Used
                         return resultBlob
-                    }
-                    case None => {
+                    case None =>
                         tag = BodyValueTag.Used
                         return Blob.initEmpty()
-                    }
                 }
-            }
-            case _ => {
+            case _ =>
                 return Blob.initEmpty()
-            }
         }
     }
 
@@ -694,29 +640,25 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.try_use_as_any_blob()
     public func tryUseAsAnyBlob(): ?AnyBlob {
         match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
-                    case Some(b) => {
+                    case Some(b) =>
                         let result = AnyBlob.fromBlob(b.dupe())
                         tag = BodyValueTag.Used
                         Some(result)
-                    }
                     case None => None
                 }
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
-                    case Some(b) => {
+                    case Some(b) =>
                         let result = AnyBlob.fromInternalBlob(b)
                         tag = BodyValueTag.Used
                         Some(result)
-                    }
                     case None => None
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => {
+                    case Some(s) =>
                         if (s.canUseAsUtf8()) {
                             let result = AnyBlob.fromWTFStringImpl(s)
                             tag = BodyValueTag.Used
@@ -724,25 +666,20 @@ public class BodyValue {
                         } else {
                             None
                         }
-                    }
                     case None => None
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(pending) => {
+                    case Some(pending) =>
                         let blob = pending.toAnyBlobAllowPromise()
                         match (blob) {
-                            case Some(b) => {
+                            case Some(b) =>
                                 tag = BodyValueTag.Used
                                 Some(b)
-                            }
                             case None => None
                         }
-                    }
                     case None => None
                 }
-            }
             case _ => None
         }
     }
@@ -753,46 +690,38 @@ public class BodyValue {
         let wasNull = (tag == BodyValueTag.Null)
 
         let result = match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => AnyBlob.fromBlob(b.dupe())
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => AnyBlob.fromInternalBlob(b)
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => {
+                    case Some(s) =>
                         let utf8 = s.toUtf8IfNeeded()
                         match (utf8) {
-                            case Some(bytes) => {
+                            case Some(bytes) =>
                                 AnyBlob.fromInternalBlob(InternalBlob(bytes, true))
-                            }
-                            case None => {
+                            case None =>
                                 AnyBlob.fromWTFStringImpl(s)
-                            }
                         }
-                    }
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(pending) => {
+                    case Some(pending) =>
                         let blob = pending.toAnyBlobAllowPromise()
                         match (blob) {
                             case Some(b) => b
                             case None => AnyBlob.fromBlob(Blob.initEmpty())
                         }
-                    }
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
             case _ => AnyBlob.fromBlob(Blob.initEmpty())
         }
 
@@ -806,38 +735,32 @@ public class BodyValue {
         let wasNull = (tag == BodyValueTag.Null)
 
         let result = match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => AnyBlob.fromBlob(b.dupe())
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => AnyBlob.fromInternalBlob(b)
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => {
+                    case Some(s) =>
                         AnyBlob.fromWTFStringImpl(s)
-                    }
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(pending) => {
+                    case Some(pending) =>
                         let blob = pending.toAnyBlobAllowPromise()
                         match (blob) {
                             case Some(b) => b
                             case None => AnyBlob.fromBlob(Blob.initEmpty())
                         }
-                    }
                     case None => AnyBlob.fromBlob(Blob.initEmpty())
                 }
-            }
             case _ => AnyBlob.fromBlob(Blob.initEmpty())
         }
 
@@ -849,30 +772,26 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.slice()
     public func slice(): Array<UInt8> {
         match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => b.sharedView()
                     case None => Array<UInt8>()
                 }
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => b.sliceConst()
                     case None => Array<UInt8>()
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => {
+                    case Some(s) =>
                         if (s.canUseAsUtf8()) {
                             s.latin1Slice()
                         } else {
                             Array<UInt8>()
                         }
-                    }
                     case None => Array<UInt8>()
                 }
-            }
             case _ => Array<UInt8>()
         }
     }
@@ -902,43 +821,35 @@ public class BodyValue {
         }
 
         match (tag) {
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
-                    case Some(ib) => {
+                    case Some(ib) =>
                         let owned = ib.toOwnedSlice()
                         let resultBlob = Blob(owned, "")
                         return BodyValue(resultBlob)
-                    }
-                    case None => {
+                    case None =>
                         let v = BodyValue()
                         v.tag = BodyValueTag.Empty
                         return v
-                    }
                 }
-            }
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => BodyValue(b.dupeWithContentType(false))
                     case None => BodyValue()
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => {
+                    case Some(s) =>
                         s.ref()
                         return BodyValue(wtfString: s)
-                    }
                     case None => BodyValue()
                 }
-            }
-            case Null => {
+            case Null =>
                 return BodyValue()
-            }
-            case _ => {
+            case _ =>
                 let v = BodyValue()
                 v.tag = BodyValueTag.Empty
                 return v
-            }
         }
     }
 
@@ -952,42 +863,36 @@ public class BodyValue {
         }
 
         match (tag) {
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
-                    case Some(ib) => {
+                    case Some(ib) =>
                         let owned = ib.toOwnedSlice()
                         let b = Blob(owned, "")
                         blob = Some(b)
                         tag = BodyValueTag.Blob
-                    }
                     case None => ()
                 }
-            }
             case _ => ()
         }
 
         match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => BodyValue(b.dupeWithContentType(false))
                     case None => BodyValue()
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
-                    case Some(s) => {
+                    case Some(s) =>
                         s.ref()
                         BodyValue(wtfString: s)
-                    }
                     case None => BodyValue()
                 }
-            }
             case Null => BodyValue()
-            case _ => {
+            case _ =>
                 let v = BodyValue()
                 v.tag = BodyValueTag.Empty
                 v
-            }
         }
     }
 
@@ -999,10 +904,10 @@ public class BodyValue {
         }
 
         match (locked) {
-            case Some(lockedValue) => {
+            case Some(lockedValue) =>
                 // 尝试用提供的 ReadableStream 分流
                 match (ownedReadable) {
-                    case Some(readable) => {
+                    case Some(readable) =>
                         if (readable.isDisturbed()) {
                             let v = BodyValue()
                             v.tag = BodyValueTag.Used
@@ -1015,7 +920,6 @@ public class BodyValue {
                         let newPending = PendingBodyValue()
                         newPending.readable.set(stream2)
                         return BodyValue(pendingValue: newPending)
-                    }
                     case None => ()
                 }
 
@@ -1028,23 +932,21 @@ public class BodyValue {
 
                 // 尝试从已持有的流分流
                 match (lockedValue.readable.get()) {
-                    case Some(readable) => {
+                    case Some(readable) =>
                         let (stream1, stream2) = readable.tee()
                         lockedValue.readable.set(stream1)
                         let newPending = PendingBodyValue()
                         newPending.readable.set(stream2)
                         return BodyValue(pendingValue: newPending)
-                    }
                     case None => ()
                 }
 
                 // 如果有 promise 或 action 或 readable，返回已使用
                 match (lockedValue.promise) {
-                    case Some(_) => {
+                    case Some(_) =>
                         let v = BodyValue()
                         v.tag = BodyValueTag.Used
                         return v
-                    }
                     case None => ()
                 }
 
@@ -1057,24 +959,21 @@ public class BodyValue {
                 // 启动流式传输
                 var drainResult = DrainResult.EstimatedSize(0)
                 match (lockedValue.onStartStreaming) {
-                    case Some(cb) => {
+                    case Some(cb) =>
                         match (lockedValue.task) {
                             case Some(t) => drainResult = cb(t)
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
 
                 match (drainResult) {
-                    case DrainResult.Empty => {
+                    case DrainResult.Empty =>
                         tag = BodyValueTag.Null
                         return BodyValue()
-                    }
-                    case DrainResult.Aborted => {
+                    case DrainResult.Aborted =>
                         tag = BodyValueTag.Null
                         return BodyValue()
-                    }
                     case _ => ()
                 }
 
@@ -1083,14 +982,12 @@ public class BodyValue {
                 byteStream.setup()
 
                 match (drainResult) {
-                    case DrainResult.EstimatedSize(estimatedSize) => {
+                    case DrainResult.EstimatedSize(estimatedSize) =>
                         byteStream.highWaterMark = estimatedSize
                         byteStream.sizeHint = estimatedSize
-                    }
-                    case DrainResult.Owned(list, sizeHint) => {
+                    case DrainResult.Owned(list, sizeHint) =>
                         byteStream.buffer = list
                         byteStream.sizeHint = sizeHint
-                    }
                     case _ => ()
                 }
 
@@ -1102,41 +999,35 @@ public class BodyValue {
 
                 // 调用 onReadableStreamAvailable 回调
                 match (lockedValue.onReadableStreamAvailable) {
-                    case Some(cb) => {
+                    case Some(cb) =>
                         match (lockedValue.task) {
-                            case Some(t) => {
+                            case Some(t) =>
                                 match (lockedValue.readable.get()) {
                                     case Some(rs) => cb(t, rs)
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
 
                 // tee 分流
                 match (lockedValue.readable.get()) {
-                    case Some(readable) => {
+                    case Some(readable) =>
                         let (stream1, stream2) = readable.tee()
                         lockedValue.readable.set(stream1)
                         let newPending = PendingBodyValue()
                         newPending.readable.set(stream2)
                         return BodyValue(pendingValue: newPending)
-                    }
-                    case None => {
+                    case None =>
                         let v = BodyValue()
                         v.tag = BodyValueTag.Used
                         return v
-                    }
                 }
-            }
-            case None => {
+            case None =>
                 let v = BodyValue()
                 v.tag = BodyValueTag.Used
                 v
-            }
         }
     }
 
@@ -1144,16 +1035,13 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.to_readable_stream()
     public func toReadableStream(): JsValue {
         match (tag) {
-            case Used => {
+            case Used =>
                 ReadableStream.used().toJsValue()
-            }
-            case Empty => {
+            case Empty =>
                 ReadableStream.empty().toJsValue()
-            }
-            case Null => {
+            case Null =>
                 JsValue.NULL
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 let usedBlob = use()
                 let stream = ReadableStream.fromBlobCopyRef(usedBlob)
                 let pendingValue = PendingBodyValue()
@@ -1161,8 +1049,7 @@ public class BodyValue {
                 tag = BodyValueTag.Locked
                 locked = Some(pendingValue)
                 stream.toJsValue()
-            }
-            case Blob => {
+            case Blob =>
                 let usedBlob = use()
                 let stream = ReadableStream.fromBlobCopyRef(usedBlob)
                 let pendingValue = PendingBodyValue()
@@ -1170,8 +1057,7 @@ public class BodyValue {
                 tag = BodyValueTag.Locked
                 locked = Some(pendingValue)
                 stream.toJsValue()
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 let usedBlob = use()
                 let stream = ReadableStream.fromBlobCopyRef(usedBlob)
                 let pendingValue = PendingBodyValue()
@@ -1179,48 +1065,41 @@ public class BodyValue {
                 tag = BodyValueTag.Locked
                 locked = Some(pendingValue)
                 stream.toJsValue()
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(lockedValue) => {
+                    case Some(lockedValue) =>
                         match (lockedValue.readable.get()) {
-                            case Some(readable) => {
+                            case Some(readable) =>
                                 return readable.toJsValue()
-                            }
                             case None => ()
                         }
 
                         match (lockedValue.promise) {
-                            case Some(_) => {
+                            case Some(_) =>
                                 return ReadableStream.used().toJsValue()
-                            }
-                            case None => {
+                            case None =>
                                 if (!lockedValue.action.isNone()) {
                                     return ReadableStream.used().toJsValue()
                                 }
-                            }
                         }
 
                         var drainResult = DrainResult.EstimatedSize(0)
                         match (lockedValue.onStartStreaming) {
-                            case Some(cb) => {
+                            case Some(cb) =>
                                 match (lockedValue.task) {
                                     case Some(t) => drainResult = cb(t)
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
 
                         match (drainResult) {
-                            case DrainResult.Empty => {
+                            case DrainResult.Empty =>
                                 tag = BodyValueTag.Null
                                 return ReadableStream.empty().toJsValue()
-                            }
-                            case DrainResult.Aborted => {
+                            case DrainResult.Aborted =>
                                 tag = BodyValueTag.Null
                                 return ReadableStream.empty().toJsValue()
-                            }
                             case _ => ()
                         }
 
@@ -1228,14 +1107,12 @@ public class BodyValue {
                         byteStream.setup()
 
                         match (drainResult) {
-                            case DrainResult.EstimatedSize(estimatedSize) => {
+                            case DrainResult.EstimatedSize(estimatedSize) =>
                                 byteStream.highWaterMark = estimatedSize
                                 byteStream.sizeHint = estimatedSize
-                            }
-                            case DrainResult.Owned(list, sizeHint) => {
+                            case DrainResult.Owned(list, sizeHint) =>
                                 byteStream.buffer = list
                                 byteStream.sizeHint = sizeHint
-                            }
                             case _ => ()
                         }
 
@@ -1246,27 +1123,24 @@ public class BodyValue {
                         lockedValue.readable.set(newStream)
 
                         match (lockedValue.onStreamCancelled) {
-                            case Some(cb) => {
+                            case Some(cb) =>
                                 match (lockedValue.task) {
                                     case Some(t) => source.cancelCallback = Some(cb)
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
 
                         match (lockedValue.onReadableStreamAvailable) {
-                            case Some(cb) => {
+                            case Some(cb) =>
                                 match (lockedValue.task) {
-                                    case Some(t) => {
+                                    case Some(t) =>
                                         match (lockedValue.readable.get()) {
                                             case Some(rs) => cb(t, rs)
                                             case None => ()
                                         }
-                                    }
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
 
@@ -1274,13 +1148,10 @@ public class BodyValue {
                             case Some(readable) => readable.toJsValue()
                             case None => JsValue.NULL
                         }
-                    }
                     case None => ReadableStream.empty().toJsValue()
                 }
-            }
-            case Error => {
+            case Error =>
                 ReadableStream.empty().toJsValue()
-            }
         }
     }
 
@@ -1288,106 +1159,89 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.resolve()
     public func resolve(newValue: BodyValue, headers: ?FetchHeaders): Unit {
         match (tag) {
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(lockedValue) => {
+                    case Some(lockedValue) =>
                         match (lockedValue.readable.get()) {
-                            case Some(readable) => {
+                            case Some(readable) =>
                                 readable.done()
                                 lockedValue.readable.deinit()
-                            }
                             case None => ()
                         }
 
                         match (lockedValue.onReceiveValue) {
-                            case Some(cb) => {
+                            case Some(cb) =>
                                 match (lockedValue.task) {
                                     case Some(t) => cb(t, newValue)
                                     case None => ()
                                 }
                                 return
-                            }
                             case None => ()
                         }
 
                         match (lockedValue.promise) {
-                            case Some(promiseValue) => {
+                            case Some(promiseValue) =>
                                 let promise = promiseValue.asAnyPromise()
                                 match (promise) {
-                                    case Some(p) => {
+                                    case Some(p) =>
                                         match (lockedValue.action.tag) {
-                                            case GetText => {
+                                            case GetText =>
                                                 let anyBlob = newValue.useAsAnyBlobAllowNonUtf8String()
                                                 p.resolve(JsValue(BaoString(anyBlob.slice().toString())))
-                                            }
-                                            case GetJSON => {
+                                            case GetJSON =>
                                                 let anyBlob = newValue.useAsAnyBlobAllowNonUtf8String()
                                                 p.resolve(JsValue.UNDEFINED)
-                                            }
-                                            case GetArrayBuffer => {
+                                            case GetArrayBuffer =>
                                                 let anyBlob = newValue.useAsAnyBlobAllowNonUtf8String()
                                                 p.resolve(JsValue.UNDEFINED)
-                                            }
-                                            case GetBytes => {
+                                            case GetBytes =>
                                                 let anyBlob = newValue.useAsAnyBlobAllowNonUtf8String()
                                                 p.resolve(JsValue.UNDEFINED)
-                                            }
-                                            case GetFormData => {
+                                            case GetFormData =>
                                                 p.resolve(JsValue.UNDEFINED)
-                                            }
-                                            case GetBlob => {
+                                            case GetBlob =>
                                                 let usedBlob = newValue.use()
                                                 let newBlob = Blob(usedBlob.sharedView(), "")
                                                 match (headers) {
-                                                    case Some(h) => {
+                                                    case Some(h) =>
                                                         let contentType = h.fastGet(HTTPHeaderName.ContentType)
                                                         match (contentType) {
-                                                            case Some(ct) => {
+                                                            case Some(ct) =>
                                                                 newBlob.setContentType(ct)
                                                                 newBlob.setContentTypeWasSet(true)
-                                                            }
                                                             case None => ()
                                                         }
-                                                    }
                                                     case None => ()
                                                 }
                                                 if (!newBlob.getContentTypeWasSet()) {
                                                                     newBlob.setContentType("text/plain")
                                                 }
                                                 p.resolve(newBlob.toJsValue())
-                                            }
-                                            case None => {
+                                            case None =>
                                                 let usedBlob = newValue.use()
                                                 let newBlob = Blob(usedBlob.sharedView(), "")
                                                 match (headers) {
-                                                    case Some(h) => {
+                                                    case Some(h) =>
                                                         let contentType = h.fastGet(HTTPHeaderName.ContentType)
                                                         match (contentType) {
-                                                            case Some(ct) => {
+                                                            case Some(ct) =>
                                                                 newBlob.setContentType(ct)
                                                                 newBlob.setContentTypeWasSet(true)
-                                                            }
                                                             case None => ()
                                                         }
-                                                    }
                                                     case None => ()
                                                 }
                                                 if (!newBlob.getContentTypeWasSet()) {
                                                                     newBlob.setContentType("text/plain")
                                                 }
                                                 p.resolve(newBlob.toJsValue())
-                                            }
                                         }
-                                    }
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
-            }
             case _ => ()
         }
     }
@@ -1396,43 +1250,37 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.to_error_instance()
     public func toErrorInstance(err: BodyValueError): Unit {
         match (tag) {
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(lockedValue) => {
+                    case Some(lockedValue) =>
                         tag = BodyValueTag.Error
                         error = Some(err)
 
                         match (lockedValue.readable.get()) {
-                            case Some(readable) => {
+                            case Some(readable) =>
                                 match (readable.source.getTag()) {
-                                    case ReadableStreamSourceTag.Bytes => {
+                                    case ReadableStreamSourceTag.Bytes =>
                                         match (readable.source.byteStream) {
-                                            case Some(bs) => {
+                                            case Some(bs) =>
                                                 bs.onData(StreamResult.err(err.toStreamError()))
-                                            }
                                             case None => readable.abort()
                                         }
-                                    }
                                     case _ => readable.abort()
                                 }
-                            }
                             case None => ()
                         }
 
                         match (lockedValue.onReceiveValue) {
-                            case Some(cb) => {
+                            case Some(cb) =>
                                 match (lockedValue.task) {
                                     case Some(t) => cb(t, this)
                                     case None => ()
                                 }
-                            }
                             case None => ()
                         }
                         return
-                    }
                     case None => ()
                 }
-            }
             case _ => ()
         }
         tag = BodyValueTag.Error
@@ -1449,37 +1297,32 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.reset()
     public func reset(): Unit {
         match (tag) {
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(lockedValue) => {
+                    case Some(lockedValue) =>
                         if (!lockedValue.deinit) {
                             lockedValue.deinit = true
                             lockedValue.readable.deinit()
                             lockedValue.readable = ReadableStreamStrong()
                         }
                         return
-                    }
                     case None => ()
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
                     case Some(s) => s.deref()
                     case None => ()
                 }
-            }
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => b.deinit()
                     case None => ()
                 }
-            }
-            case Error => {
+            case Error =>
                 match (error) {
                     case Some(e) => e.reset()
                     case None => ()
                 }
-            }
             case _ => ()
         }
         tag = BodyValueTag.Null
@@ -1489,38 +1332,32 @@ public class BodyValue {
     /// 对应 Bun: Body.Value.deinit() / Drop
     public func deinit(): Unit {
         match (tag) {
-            case InternalBlob => {
-                // 释放字节数组
-            }
-            case Blob => {
+            case InternalBlob =>
+                () // 释放字节数组
+            case Blob =>
                 match (blob) {
                     case Some(b) => b.deinit()
                     case None => ()
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
                     case Some(s) => s.deref()
                     case None => ()
                 }
-            }
-            case Locked => {
+            case Locked =>
                 match (locked) {
-                    case Some(pendingValue) => {
+                    case Some(pendingValue) =>
                         if (!pendingValue.deinit) {
                             pendingValue.deinit = true
                             pendingValue.readable.deinit()
                         }
-                    }
                     case None => ()
                 }
-            }
-            case Error => {
+            case Error =>
                 match (error) {
                     case Some(e) => e.reset()
                     case None => ()
                 }
-            }
             case _ => ()
         }
         tag = BodyValueTag.Null
@@ -1535,7 +1372,7 @@ public class BodyValue {
 
         if (value.isStringLike()) {
             let text = value.toString()
-            if (text.length == 0) {
+            if (text.size == 0) {
                 let v = BodyValue()
                 v.tag = BodyValueTag.Empty
                 return v
@@ -1546,14 +1383,13 @@ public class BodyValue {
         if (value.isTypedArrayOrArrayBuffer()) {
             let bytes = value.asArrayBuffer()
             match (bytes) {
-                case Some(b) => {
+                case Some(b) =>
                     if (b.size == 0) {
                         let v = BodyValue()
                         v.tag = BodyValueTag.Empty
                         return v
                     }
                     return BodyValue(internalBlob: InternalBlob(b, false))
-                }
                 case None => ()
             }
         }
@@ -1572,7 +1408,7 @@ public class BodyValue {
         // 尝试 ReadableStream
         let readable = ReadableStream.fromJsValue(value)
         match (readable) {
-            case Some(stream) => {
+            case Some(stream) =>
                 if (stream.isDisturbed()) {
                     // ReadableStream 已被使用
                     let v = BodyValue()
@@ -1582,10 +1418,10 @@ public class BodyValue {
 
                 // 尝试从 Source::Blob 提取
                 match (stream.source.getTag()) {
-                    case ReadableStreamSourceTag.Blob => {
+                    case ReadableStreamSourceTag.Blob =>
                         let anyBlob = stream.toAnyBlob()
                         match (anyBlob) {
-                            case Some(b) => {
+                            case Some(b) =>
                                 stream.forceDetach()
                                 match (b.tag) {
                                     case AnyBlobTag.Blob => return BodyValue(b.blob)
@@ -1593,15 +1429,12 @@ public class BodyValue {
                                     case AnyBlobTag.WTFStringImpl => return BodyValue(wtfString: b.wtfStringImpl)
                                     case _ => ()
                                 }
-                            }
                             case None => ()
                         }
-                    }
                     case _ => ()
                 }
 
                 return fromReadableStreamWithoutLockCheck(stream)
-            }
             case None => ()
         }
 
@@ -1664,24 +1497,21 @@ public class BodyValue {
     /// 转为 JsValue
     public func toJsValue(): JsValue {
         match (tag) {
-            case Blob => {
+            case Blob =>
                 match (blob) {
                     case Some(b) => b.toJsValue()
                     case None => JsValue.UNDEFINED
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 match (wtfStringImpl) {
                     case Some(s) => JsValue(BaoString(s.toString()))
                     case None => JsValue.UNDEFINED
                 }
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 match (internalBlob) {
                     case Some(b) => JsValue(BaoString(b.sliceConst().toString()))
                     case None => JsValue.UNDEFINED
                 }
-            }
             case _ => JsValue.UNDEFINED
         }
     }
@@ -1699,13 +1529,13 @@ public interface BodyOwnerJs {
     /// 获取 JS 引用
     func jsRef(): ?JsValue
     /// 获取缓存的 body
-    func bodyGetCached(this: JsValue): ?JsValue
+    func bodyGetCached(`this`: JsValue): ?JsValue
     /// 设置缓存的 body
-    func bodySetCached(this: JsValue, value: JsValue): Unit
+    func bodySetCached(`this`: JsValue, value: JsValue): Unit
     /// 获取缓存的 stream
-    func streamGetCached(this: JsValue): ?JsValue
+    func streamGetCached(`this`: JsValue): ?JsValue
     /// 设置缓存的 stream
-    func streamSetCached(this: JsValue, value: JsValue): Unit
+    func streamSetCached(`this`: JsValue, value: JsValue): Unit
 }
 
 // ============================================================================
@@ -1728,18 +1558,16 @@ public interface BodyMixin <: BodyOwnerJs {
     func getBodyReadableStream(): ?ReadableStream {
         // 优先从 JS 缓存获取
         match (jsRef()) {
-            case Some(jsRef) => {
+            case Some(jsRef) =>
                 match (streamGetCached(jsRef)) {
-                    case Some(streamValue) => {
+                    case Some(streamValue) =>
                         let rs = ReadableStream.fromJsValue(streamValue)
                         match (rs) {
                             case Some(r) => return Some(r)
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
@@ -1758,19 +1586,17 @@ public interface BodyMixin <: BodyOwnerJs {
     /// 对应 Bun: Body.BodyMixin.detach_readable_stream()
     func detachReadableStream(): Unit {
         match (jsRef()) {
-            case Some(jsRef) => {
+            case Some(jsRef) =>
                 streamSetCached(jsRef, JsValue.ZERO)
-            }
             case None => ()
         }
 
         let value = getBodyValue()
         if (value.tag == BodyValueTag.Locked) {
             match (value.locked) {
-                case Some(lockedValue) => {
+                case Some(lockedValue) =>
                     lockedValue.readable.deinit()
                     lockedValue.readable = ReadableStreamStrong()
-                }
                 case None => ()
             }
         }
@@ -1780,24 +1606,21 @@ public interface BodyMixin <: BodyOwnerJs {
     /// 对应 Bun: Body.BodyMixin.check_body_stream_ref()
     func checkBodyStreamRef(): Unit {
         match (jsRef()) {
-            case Some(jsValue) => {
+            case Some(jsValue) =>
                 let value = getBodyValue()
                 if (value.tag == BodyValueTag.Locked) {
                     match (value.locked) {
-                        case Some(lockedValue) => {
+                        case Some(lockedValue) =>
                             match (lockedValue.readable.get()) {
-                                case Some(stream) => {
+                                case Some(stream) =>
                                     streamSetCached(jsValue, stream.toJsValue())
                                     lockedValue.readable.deinit()
                                     lockedValue.readable = ReadableStreamStrong()
-                                }
                                 case None => ()
                             }
-                        }
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
     }
@@ -1807,9 +1630,8 @@ public interface BodyMixin <: BodyOwnerJs {
     func syncClonedBodyStreamCaches(thisValue: JsValue, jsWrapper: JsValue): Unit {
         if (!jsWrapper.isEmpty()) {
             match (streamGetCached(jsWrapper)) {
-                case Some(clonedStream) => {
+                case Some(clonedStream) =>
                     bodySetCached(jsWrapper, clonedStream)
-                }
                 case None => ()
             }
         }
@@ -1817,14 +1639,12 @@ public interface BodyMixin <: BodyOwnerJs {
         let value = getBodyValue()
         if (value.tag == BodyValueTag.Locked) {
             match (value.locked) {
-                case Some(lockedValue) => {
+                case Some(lockedValue) =>
                     match (lockedValue.readable.get()) {
-                        case Some(readable) => {
+                        case Some(readable) =>
                             bodySetCached(thisValue, readable.toJsValue())
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -1835,20 +1655,17 @@ public interface BodyMixin <: BodyOwnerJs {
     /// 对应 Bun: Body.BodyMixin.clone_body_value_via_cached_stream()
     func cloneBodyValueViaCachedStream(): BodyValue {
         match (jsRef()) {
-            case Some(jsRef) => {
+            case Some(jsRef) =>
                 match (streamGetCached(jsRef)) {
-                    case Some(streamValue) => {
+                    case Some(streamValue) =>
                         let readableOpt = ReadableStream.fromJsValue(streamValue)
                         match (readableOpt) {
-                            case Some(readable) => {
+                            case Some(readable) =>
                                 return getBodyValue().cloneWithReadableStream(Some(readable))
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
         getBodyValue().clone()
@@ -1866,7 +1683,7 @@ public interface BodyMixin <: BodyOwnerJs {
 
         if (value.tag == BodyValueTag.Locked) {
             match (getBodyReadableStream()) {
-                case Some(readable) => {
+                case Some(readable) =>
                     if (readable.isDisturbed()) {
                         return handleBodyAlreadyUsed()
                     }
@@ -1877,19 +1694,17 @@ public interface BodyMixin <: BodyOwnerJs {
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
 
             let v = getBodyValue()
             if (v.tag == BodyValueTag.Locked) {
                 match (v.locked) {
-                    case Some(locked) => {
+                    case Some(locked) =>
                         if (!locked.action.isNone() || locked.isDisturbed()) {
                             return handleBodyAlreadyUsed()
                         }
                         return locked.setPromise(BodyActionTag.GetText, None)
-                    }
                     case None => ()
                 }
             }
@@ -1913,7 +1728,7 @@ public interface BodyMixin <: BodyOwnerJs {
 
         if (value.tag == BodyValueTag.Locked) {
             match (getBodyReadableStream()) {
-                case Some(readable) => {
+                case Some(readable) =>
                     if (readable.isDisturbed()) {
                         return handleBodyAlreadyUsed()
                     }
@@ -1925,14 +1740,13 @@ public interface BodyMixin <: BodyOwnerJs {
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
 
             let v = getBodyValue()
             if (v.tag == BodyValueTag.Locked) {
                 match (v.locked) {
-                    case Some(locked) => {
+                    case Some(locked) =>
                         if (!locked.action.isNone() || locked.isDisturbed()) {
                             return handleBodyAlreadyUsed()
                         }
@@ -1943,7 +1757,6 @@ public interface BodyMixin <: BodyOwnerJs {
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
             }
@@ -1967,7 +1780,7 @@ public interface BodyMixin <: BodyOwnerJs {
 
         if (value.tag == BodyValueTag.Locked) {
             match (getBodyReadableStream()) {
-                case Some(readable) => {
+                case Some(readable) =>
                     if (readable.isDisturbed()) {
                         return handleBodyAlreadyUsed()
                     }
@@ -1979,14 +1792,13 @@ public interface BodyMixin <: BodyOwnerJs {
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
 
             let v = getBodyValue()
             if (v.tag == BodyValueTag.Locked) {
                 match (v.locked) {
-                    case Some(locked) => {
+                    case Some(locked) =>
                         if (!locked.action.isNone() || locked.isDisturbed()) {
                             return handleBodyAlreadyUsed()
                         }
@@ -1997,7 +1809,6 @@ public interface BodyMixin <: BodyOwnerJs {
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
             }
@@ -2019,7 +1830,7 @@ public interface BodyMixin <: BodyOwnerJs {
 
         if (value.tag == BodyValueTag.Locked) {
             match (getBodyReadableStream()) {
-                case Some(readable) => {
+                case Some(readable) =>
                     if (readable.isDisturbed()) {
                         return handleBodyAlreadyUsed()
                     }
@@ -2031,14 +1842,13 @@ public interface BodyMixin <: BodyOwnerJs {
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
 
             let v = getBodyValue()
             if (v.tag == BodyValueTag.Locked) {
                 match (v.locked) {
-                    case Some(locked) => {
+                    case Some(locked) =>
                         if (!locked.action.isNone() || locked.isDisturbed()) {
                             return handleBodyAlreadyUsed()
                         }
@@ -2049,7 +1859,6 @@ public interface BodyMixin <: BodyOwnerJs {
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
             }
@@ -2072,11 +1881,11 @@ public interface BodyMixin <: BodyOwnerJs {
 
         if (value.tag == BodyValueTag.Locked) {
             match (getBodyReadableStream()) {
-                case Some(readable) => {
+                case Some(readable) =>
                     let v = getBodyValue()
                     if (v.tag == BodyValueTag.Locked) {
                         match (v.locked) {
-                            case Some(locked) => {
+                            case Some(locked) =>
                                 if (!locked.action.isNone() || readable.isDisturbed()) {
                                     return handleBodyAlreadyUsed()
                                 }
@@ -2087,18 +1896,16 @@ public interface BodyMixin <: BodyOwnerJs {
                                         case None => ()
                                     }
                                 }
-                            }
                             case None => ()
                         }
                     }
-                }
                 case None => ()
             }
 
             let v = getBodyValue()
             if (v.tag == BodyValueTag.Locked) {
                 match (v.locked) {
-                    case Some(locked) => {
+                    case Some(locked) =>
                         if (!locked.action.isNone() || locked.isDisturbed()) {
                             return handleBodyAlreadyUsed()
                         }
@@ -2109,7 +1916,6 @@ public interface BodyMixin <: BodyOwnerJs {
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
             }
@@ -2120,16 +1926,14 @@ public interface BodyMixin <: BodyOwnerJs {
         let newBlob = Blob(usedBlob.sharedView(), "")
         if (newBlob.getContentType().isEmpty()) {
             match (getFetchHeaders()) {
-                case Some(headers) => {
+                case Some(headers) =>
                     let contentType = headers.fastGet(HTTPHeaderName.ContentType)
                     match (contentType) {
-                        case Some(ct) => {
+                        case Some(ct) =>
                             newBlob.setContentType(ct)
                             newBlob.setContentTypeWasSet(true)
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
             if (!newBlob.getContentTypeWasSet()) {
@@ -2151,50 +1955,46 @@ public interface BodyMixin <: BodyOwnerJs {
 
         if (value.tag == BodyValueTag.Locked) {
             match (getBodyReadableStream()) {
-                case Some(readable) => {
+                case Some(readable) =>
                     if (readable.isDisturbed()) {
                         return handleBodyAlreadyUsed()
                     }
                     let v = getBodyValue()
                     v.toBlobIfPossible()
-                }
                 case None => ()
             }
 
             let v = getBodyValue()
             if (v.tag == BodyValueTag.Locked) {
                 match (v.locked) {
-                    case Some(locked) => {
+                    case Some(locked) =>
                         if (!locked.action.isNone() || locked.isDisturbed()) {
                             return handleBodyAlreadyUsed()
                         }
                         v.toBlobIfPossible()
-                    }
                     case None => ()
                 }
             }
         }
 
         match (getFormDataEncoding()) {
-            case Some(encoding) => {
+            case Some(encoding) =>
                 let v = getBodyValue()
                 if (v.tag == BodyValueTag.Locked) {
                     match (v.locked) {
-                        case Some(locked) => {
+                        case Some(locked) =>
                             let ownedReadable = getBodyReadableStream()
                             let v2 = getBodyValue()
                             if (v2.tag == BodyValueTag.Locked) {
                                 match (v2.locked) {
-                                    case Some(locked2) => {
+                                    case Some(locked2) =>
                                         let action = BodyAction(BodyActionTag.GetFormData)
                                         action.formDataEncoding = Some(encoding)
                                         locked2.action = action
                                         return locked2.setPromise(BodyActionTag.GetFormData, ownedReadable)
-                                    }
                                     case None => ()
                                 }
                             }
-                        }
                         case None => ()
                     }
                 }
@@ -2204,10 +2004,8 @@ public interface BodyMixin <: BodyOwnerJs {
                 let jsValue = FormData.toJs(bytes, encoding)
                 anyBlob.detach()
                 return JsPromise.resolved(jsValue).toJsValue()
-            }
-            case None => {
+            case None =>
                 return JsPromise.rejected(JsValue(BaoString("Can't decode form data from body because of incorrect MIME type/boundary"))).toJsValue()
-            }
         }
     }
 
@@ -2236,31 +2034,27 @@ public interface BodyMixin <: BodyOwnerJs {
         let value = getBodyValue()
         let used = match (value.tag) {
             case Used => true
-            case Locked => {
+            case Locked =>
                 match (value.locked) {
-                    case Some(locked) => {
+                    case Some(locked) =>
                         if (!locked.action.isNone()) {
                             true
                         } else {
                             match (getBodyReadableStream()) {
                                 case Some(readable) => readable.isDisturbed()
-                                case None => {
+                                case None =>
                                     match (value.locked) {
-                                        case Some(locked2) => {
+                                        case Some(locked2) =>
                                             match (locked2.readable.get()) {
                                                 case Some(stream) => stream.isDisturbed()
                                                 case None => false
                                             }
-                                        }
                                         case None => false
                                     }
-                                }
                             }
                         }
-                    }
                     case None => false
                 }
-            }
             case _ => false
         }
         JsValue(used)
@@ -2327,42 +2121,33 @@ public class ValueBufferer {
         value.toBlobIfPossible()
 
         match (value.tag) {
-            case Used => {
-                // Body 已被使用
-            }
-            case Empty => {
+            case Used =>
+                () // Body 已被使用
+            case Empty =>
                 onFinishedBuffering(ctx, Array<UInt8>(), None, false)
-            }
-            case Null => {
+            case Null =>
                 onFinishedBuffering(ctx, Array<UInt8>(), None, false)
-            }
-            case Error => {
+            case Error =>
                 match (value.error) {
-                    case Some(err) => {
+                    case Some(err) =>
                         let errCopy = err.dupe()
                         onFinishedBuffering(ctx, Array<UInt8>(), Some(errCopy), false)
-                    }
                     case None => ()
                 }
-            }
-            case WTFStringImpl => {
+            case WTFStringImpl =>
                 let anyBlob = value.useAsAnyBlobAllowNonUtf8String()
                 let bytes = anyBlob.slice()
                 onFinishedBuffering(ctx, bytes, None, false)
-            }
-            case InternalBlob => {
+            case InternalBlob =>
                 let anyBlob = value.useAsAnyBlobAllowNonUtf8String()
                 let bytes = anyBlob.slice()
                 onFinishedBuffering(ctx, bytes, None, false)
-            }
-            case Blob => {
+            case Blob =>
                 let anyBlob = value.useAsAnyBlobAllowNonUtf8String()
                 let bytes = anyBlob.slice()
                 onFinishedBuffering(ctx, bytes, None, false)
-            }
-            case Locked => {
+            case Locked =>
                 bufferLockedBodyValue(value, ownedReadableStream)
-            }
         }
     }
 
@@ -2370,12 +2155,10 @@ public class ValueBufferer {
     /// 对应 Bun: Body.ValueBufferer.on_finished_loading_file()
     public func onFinishedLoadingFile(result: ReadFileResultType): Unit {
         match (result) {
-            case ReadFileResultType.Err(err) => {
+            case ReadFileResultType.Err(err) =>
                 onFinishedBuffering(ctx, Array<UInt8>(), Some(BodyValueError.SystemError(err)), true)
-            }
-            case ReadFileResultType.Result(data) => {
+            case ReadFileResultType.Result(data) =>
                 onFinishedBuffering(ctx, data, None, true)
-            }
         }
     }
 
@@ -2394,13 +2177,11 @@ public class ValueBufferer {
     /// 对应 Bun: Body.ValueBufferer.handle_resolve_stream()
     public func handleResolveStream(isAsync: Bool): Unit {
         match (jsSink) {
-            case Some(wrapper) => {
+            case Some(wrapper) =>
                 let bytes = wrapper.getBytes()
                 onFinishedBuffering(ctx, bytes, None, isAsync)
-            }
-            case None => {
+            case None =>
                 onFinishedBuffering(ctx, Array<UInt8>(), None, isAsync)
-            }
         }
     }
 
@@ -2408,35 +2189,31 @@ public class ValueBufferer {
     /// 对应 Bun: Body.ValueBufferer.handle_reject_stream()
     public func handleRejectStream(err: JsValue, isAsync: Bool): Unit {
         match (jsSink) {
-            case Some(wrapper) => {
+            case Some(wrapper) =>
                 wrapper.detach()
                 jsSink = None
-            }
             case None => ()
         }
         let jsRef = JsStrongOptional.create(err)
-        onFinishedBuffering(ctx, Array<UInt8>(), Some(BodyValueError.JSValue(jsRef)), isAsync)
+        onFinishedBuffering(ctx, Array<UInt8>(), Some(BodyValueError.JsValue(jsRef)), isAsync)
     }
 
     /// 接收值回调
     /// 对应 Bun: Body.ValueBufferer.on_receive_value()
     public func onReceiveValue(value: BodyValue): Unit {
         match (value.tag) {
-            case Error => {
+            case Error =>
                 match (value.error) {
-                    case Some(err) => {
+                    case Some(err) =>
                         let errCopy = err.dupe()
                         onFinishedBuffering(ctx, Array<UInt8>(), Some(errCopy), true)
-                    }
                     case None => ()
                 }
-            }
-            case _ => {
+            case _ =>
                 value.toBlobIfPossible()
                 let anyBlob = value.useAsAnyBlobAllowNonUtf8String()
                 let bytes = anyBlob.slice()
                 onFinishedBuffering(ctx, bytes, None, true)
-            }
         }
     }
 
@@ -2448,26 +2225,23 @@ public class ValueBufferer {
         }
 
         match (value.locked) {
-            case Some(locked) => {
+            case Some(locked) =>
                 // 获取 ReadableStream
                 let readableStream = match (locked.readable.get()) {
-                    case Some(stream) => {
+                    case Some(stream) =>
                         readableStreamRef.set(stream)
                         Some(stream)
-                    }
-                    case None => {
+                    case None =>
                         match (ownedReadableStream) {
-                            case Some(ownedStream) => {
+                            case Some(ownedStream) =>
                                 readableStreamRef.set(ownedStream)
                                 Some(ownedStream)
-                            }
                             case None => None
                         }
-                    }
                 }
 
                 match (readableStream) {
-                    case Some(stream) => {
+                    case Some(stream) =>
                         value.tag = BodyValueTag.Used
 
                         if (stream.isLocked()) {
@@ -2475,26 +2249,21 @@ public class ValueBufferer {
                         }
 
                         match (stream.source.getTag()) {
-                            case ReadableStreamSourceTag.Invalid => {
+                            case ReadableStreamSourceTag.Invalid =>
                                 return
-                            }
-                            case ReadableStreamSourceTag.Blob => {
+                            case ReadableStreamSourceTag.Blob =>
                                 // toBlobIfPossible 应该已经处理了
                                 return
-                            }
-                            case ReadableStreamSourceTag.File => {
+                            case ReadableStreamSourceTag.File =>
                                 // toBlobIfPossible 应该已经处理了
                                 return
-                            }
-                            case ReadableStreamSourceTag.JavaScript => {
+                            case ReadableStreamSourceTag.JavaScript =>
                                 return
-                            }
-                            case ReadableStreamSourceTag.Direct => {
+                            case ReadableStreamSourceTag.Direct =>
                                 return
-                            }
-                            case ReadableStreamSourceTag.Bytes => {
+                            case ReadableStreamSourceTag.Bytes =>
                                 match (stream.source.byteStream) {
-                                    case Some(bs) => {
+                                    case Some(bs) =>
                                         let bytes = bs.buffer.toArray()
                                         // 如果已经收到完整数据
                                         if (bs.hasReceivedLastChunk) {
@@ -2506,33 +2275,28 @@ public class ValueBufferer {
                                         bs.pipeCallback = Some(ByteStreamPipeCallback.wrap(this))
                                         streamBuffer.write(bytes)
                                         return
-                                    }
                                     case None => ()
                                 }
-                            }
                         }
-                    }
                     case None => ()
                 }
 
                 // 检查是否有其他等待者
                 match (value.locked) {
-                    case Some(locked2) => {
+                    case Some(locked2) =>
                         match (locked2.onReceiveValue) {
-                            case Some(_) => {
+                            case Some(_) =>
                                 // 有其他等待者，转为 ReadableStream
                                 let readable = value.toReadableStream()
                                 bufferLockedBodyValue(value, None)
                                 return
-                            }
                             case None => ()
                         }
                         match (locked2.task) {
-                            case Some(_) => {
+                            case Some(_) =>
                                 let readable = value.toReadableStream()
                                 bufferLockedBodyValue(value, None)
                                 return
-                            }
                             case None => ()
                         }
                         // 设置回调等待
@@ -2540,10 +2304,8 @@ public class ValueBufferer {
                         locked2.onReceiveValue = Some({ t, v =>
                             onReceiveValue(v)
                         })
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -2551,18 +2313,16 @@ public class ValueBufferer {
     /// 释放资源
     public func deinit(): Unit {
         match (byteStream) {
-            case Some(bs) => {
+            case Some(bs) =>
                 bs.unpipeWithoutDeref()
-            }
             case None => ()
         }
         readableStreamRef.deinit()
 
         match (jsSink) {
-            case Some(wrapper) => {
+            case Some(wrapper) =>
                 wrapper.detach()
                 jsSink = None
-            }
             case None => ()
         }
     }
@@ -2828,7 +2588,7 @@ public class ReadableStreamStrong {
     }
 
     /// 设置 ReadableStream
-    /// 对应 Bun: ReadableStream.Strong.init() / held.set()
+    /// 对应 Bun: ReadableStream.Strong() / held.set()
     public func set(s: ReadableStream): Unit {
         stream = Some(s)
     }
@@ -2846,11 +2606,10 @@ public class ReadableStreamStrong {
     /// 对应 Bun: ReadableStream.Strong.tee()
     public func tee(): ?ReadableStream {
         match (stream) {
-            case Some(s) => {
+            case Some(s) =>
                 let (stream1, stream2) = s.tee()
                 stream = Some(stream1)
                 Some(stream2)
-            }
             case None => None
         }
     }
@@ -2887,7 +2646,7 @@ public class WTFStringImpl {
     }
 
     public func length(): Int64 {
-        str.length
+        str.size
     }
 
     public func utf8ByteLength(): Int64 {
@@ -2920,7 +2679,7 @@ public class WTFStringImpl {
     }
 
     public func memoryCost(): Int64 {
-        str.length
+        str.size
     }
 
     public func ref(): Unit {

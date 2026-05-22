@@ -73,11 +73,11 @@ public class WatcherAtomics {
                 current_event = ev_index
                 pending_event = None
                 next_event.store(WatcherAtomics.nextEventWaiting, AtomicOrdering.monotonic)
-                ev.concurrent_task = ConcurrentTask(task: Task.`init`(ev))
+                ev.concurrent_task = ConcurrentTask(task: Task(ev))
                 ev.owner.vm.event_loop.enqueueTaskConcurrent(ev.concurrent_task)
 
             case WatcherAtomics.nextEventWaiting =>
-                if (pending_event != None) {
+                if (pending_event.isSome()) {
                     current_event = pending_event
                 }
                 pending_event = ev_index
@@ -100,7 +100,7 @@ public class WatcherAtomics {
             let next = next_event.swap(WatcherAtomics.nextEventWaiting, AtomicOrdering.acqRel)
             match (next) {
                 case WatcherAtomics.nextEventWaiting =>
-                    if (next_event.cmpxchgWeak(WatcherAtomics.nextEventWaiting, WatcherAtomics.nextEventDone, AtomicOrdering.release, AtomicOrdering.monotonic) != None) {
+                    if (next_event.cmpxchgWeak(WatcherAtomics.nextEventWaiting, WatcherAtomics.nextEventDone, AtomicOrdering.release, AtomicOrdering.monotonic).isSome()) {
                         continue  // 可能添加了另一个事件
                     }
                     return None  // 完成运行事件

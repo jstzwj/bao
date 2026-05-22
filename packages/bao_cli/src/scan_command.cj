@@ -17,16 +17,15 @@ public class ScanCommand {
     public static func exec(ctx: CommandContext): Unit {
         let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.scan)
 
-        val (manager, cwd) = match (PackageManager.init(ctx, cli, Subcommand.scan)) {
+        let (manager, cwd) = match (PackageManager.`init`(ctx, cli, Subcommand.scan)) {
             case Some((pm, dir)) => (pm, dir)
-            case None => {
+            case None =>
                 if (PackageManager.lastError == PackageManagerError.MissingPackageJSON) {
                     Output.errGeneric("No package.json found. 'bao pm scan' requires a lockfile to analyze dependencies.")
                     Output.note("Run \"bao install\" first to generate a lockfile")
                     Global.exit(1)
                 }
                 return
-            }
         }
 
         execWithManager(ctx, manager, cwd)
@@ -67,7 +66,7 @@ public class ScanCommand {
             Global.exit(1)
         }
 
-        let results = scanResults!!
+        let results = scanResults.getOrThrow()
         SecurityScanner.printSecurityAdvisories(manager, results)
 
         if (results.hasAdvisories()) {

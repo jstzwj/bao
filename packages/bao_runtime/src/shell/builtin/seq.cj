@@ -180,7 +180,7 @@ public class SeqCmd {
 
     /// 打印到缓冲区或直接输出
     func print(s: String) {
-        if (this.bltn().stdout.needsIO() != None) {
+        if (this.bltn().stdout.needsIO().isSome()) {
             this.buf.appendAll(s.toByteArray())
             return
         }

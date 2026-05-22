@@ -8,7 +8,11 @@ package bao_runtime.bake
 public class Debug {
     /// 断言条件为真，否则打印错误消息
     /// 对应 Bun: DEBUG.ASSERT(condition, message?)
-    public static func ASSERT(condition: Bool, message: String = ""): Unit {
+    public static func ASSERT(condition: Bool): Unit {
+        ASSERT(condition, "")
+    }
+
+    public static func ASSERT(condition: Bool, message: String): Unit {
         if (!condition) {
             let msg: String = if (message.isEmpty()) {
                 "ASSERTION FAILED"
@@ -20,7 +24,7 @@ public class Debug {
     }
 
     /// 断言条件为真，否则触发 panic
-    public static func ASSERT_STRICT(condition: Bool, message: String = ""): Unit {
+    public static func ASSERT_STRICT(condition: Bool, message: String): Unit {
         if (!condition) {
             let msg: String = if (message.isEmpty()) {
                 "ASSERTION FAILED"

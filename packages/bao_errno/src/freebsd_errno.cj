@@ -160,7 +160,7 @@ public enum FreeBSDSystemErrno {
     public static let max: Int64 = 98
 
     /// 从数值初始化
-    /// 对应: SystemErrno.init(code: anytype) ?SystemErrno
+    /// 对应: SystemErrno(code: anytype) ?SystemErrno
     public static func initFunc(code: Int64): ?FreeBSDSystemErrno {
         if (code < 0) {
             if (code <= -max) {

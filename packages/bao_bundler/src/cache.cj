@@ -96,10 +96,10 @@ public class FileSystemCache {
         }
 
         // 读取文件内容
-        let contents = try {
-            BaoFile.readAllText(path)
-        } catch (_: Exception) {
-            return FsEntry("", -1)
+        let contentsResult = BaoFile.readAllText(path)
+        let contents = match (contentsResult) {
+            case Ok(data) => data
+            case Err(_) => ""
         }
 
         let fsEntry = FsEntry(contents, -1)

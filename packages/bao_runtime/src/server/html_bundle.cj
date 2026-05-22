@@ -60,9 +60,9 @@ public class HTMLBundle {
     }
 
     /// 转换为 JS 值
-    /// 对应 Bun: pub fn to_js(this: *mut HTMLBundle, global: &JSGlobalObject) -> JSValue
-    public func toJS(global: JsGlobalObject): JSValue {
-        JSValue.createHTMLBundle(this, global)
+    /// 对应 Bun: pub fn to_js(`this`: *HTMLBundle, global: &JSGlobalObject) -> JsValue
+    public func toJS(global: JsGlobalObject): JsValue {
+        JsValue.createHTMLBundle(this, global)
     }
 
     /// 终结 (GC 回调)
@@ -72,9 +72,9 @@ public class HTMLBundle {
     }
 
     /// 获取路径索引
-    /// 对应 Bun: pub fn get_index(this: &Self, global: &JSGlobalObject) -> JsResult<JSValue>
-    public func getIndex(global: JsGlobalObject): JSValue {
-        JSValue.createUTF8ForJS(global, path)
+    /// 对应 Bun: pub fn get_index(`this`: &Self, global: &JSGlobalObject) -> JsResult<JsValue>
+    public func getIndex(global: JsGlobalObject): JsValue {
+        JsValue.createUTF8ForJS(global, path)
     }
 
     /// 增加引用
@@ -131,19 +131,19 @@ public enum HTMLBundleRouteState {
     | Html(?StaticRoute)
 
     /// 释放状态资源
-    /// 对应 Bun: pub fn deinit(&mut self)
-    public mutating func deinit(): Unit {
-        switch (this) {
-            case Pending => {}
-            case Building(let task) =>
+    /// 对应 Bun: pub fn deinit(&self)
+    public func deinit(): Unit {
+        match (this) {
+            case Pending => ()
+            case Building(task) =>
                 match (task) {
                     case Some(t) =>
                         t.cancelled = true
                         t.deref()
                     case None => ()
                 }
-            case Err(_) => {}
-            case Html(let html) =>
+            case Err(_) => ()
+            case Html(html) =>
                 match (html) {
                     case Some(h) => h.deref()
                     case None => ()
@@ -154,11 +154,11 @@ public enum HTMLBundleRouteState {
     /// 内存开销
     /// 对应 Bun: pub fn memory_cost(&self) -> usize
     public func memoryCost(): Int64 {
-        switch (this) {
+        match (this) {
             case Pending => Int64(0)
             case Building(_) => Int64(0)
-            case Err(let log) => log.memoryCost()
-            case Html(let html) =>
+            case Err(log) => log.memoryCost()
+            case Html(html) =>
                 match (html) {
                     case Some(h) => h.memoryCost()
                     case None => Int64(0)
@@ -190,7 +190,7 @@ public class HTMLBundleRoute {
     /// 开发服务器 ID - 对应 Bun: dev_server_id: Cell<Option<route_bundle::Index>>
     public var devServerId: ?Int64
 
-    /// 待处理响应列表 - 对应 Bun: pending_responses: JsCell<Vec<*mut PendingResponse>>
+    /// 待处理响应列表 - 对应 Bun: pending_responses: JsCell<Vec<*PendingResponse>>
     public var pendingResponses: ArrayList<PendingResponse>
 
     /// 路由方法 - 对应 Bun: method: RouteMethod
@@ -207,7 +207,7 @@ public class HTMLBundleRoute {
     }
 
     /// 初始化
-    /// 对应 Bun: pub fn init(html_bundle: *mut HTMLBundle) -> IntrusiveRc<Route>
+    /// 对应 Bun: pub fn init(html_bundle: *HTMLBundle) -> IntrusiveRc<Route>
     public static func initFunc(htmlBundle: HTMLBundle): HTMLBundleRoute {
         let route = HTMLBundleRoute()
         route.bundle = htmlBundle
@@ -229,25 +229,25 @@ public class HTMLBundleRoute {
     // ========================================================================
 
     /// 处理请求
-    /// 对应 Bun: pub fn on_request(this: *mut Self, req: AnyRequest, resp: AnyResponse)
+    /// 对应 Bun: pub fn on_request(`this`: *Self, req: AnyRequest, resp: AnyResponse)
     public func onRequest(req: AnyRequest, resp: AnyResponse): Unit {
         onAnyRequest(req, resp, false)
     }
 
     /// 处理 HEAD 请求
-    /// 对应 Bun: pub fn on_head_request(this: *mut Self, req: AnyRequest, resp: AnyResponse)
+    /// 对应 Bun: pub fn on_head_request(`this`: *Self, req: AnyRequest, resp: AnyResponse)
     public func onHeadRequest(req: AnyRequest, resp: AnyResponse): Unit {
         onAnyRequest(req, resp, true)
     }
 
     /// 处理任意请求
-    /// 对应 Bun: fn on_any_request(this: *mut Self, req, resp, is_head: bool)
+    /// 对应 Bun: fn on_any_request(`this`: *Self, req, resp, is_head: bool)
     public func onAnyRequest(req: AnyRequest, resp: AnyResponse, isHead: Bool): Unit {
         match (server) {
             case None =>
                 resp.endWithoutBody(true)
                 return
-            case Some(_) => {}
+            case Some(_) => ()
         }
 
         // 开发模式下的 DevServer 处理
@@ -262,11 +262,11 @@ public class HTMLBundleRoute {
                     }
 
                     // 开发模式：每次请求重新打包
-                    switch (state) {
+                    match (state) {
                         case HTMLBundleRouteState.Html(_) | HTMLBundleRouteState.Err(_) =>
                             state.deinit()
                             state = HTMLBundleRouteState.Pending
-                        else => {}
+                        case _ => ()
                     }
                 }
             case None => ()
@@ -275,16 +275,15 @@ public class HTMLBundleRoute {
         // 根据状态分发
         var done = false
         while (!done) {
-            switch (state) {
-                case HTMLBundleRouteState.Pending => {
+            match (state) {
+                case HTMLBundleRouteState.Pending =>
                     // 调度 bundle 构建
                     scheduleBundle()
                     // 重新检查状态
-                }
-                case HTMLBundleRouteState.Building(_) => {
+                case HTMLBundleRouteState.Building(_) =>
                     // 创建待处理响应
                     let httpMethod = HttpMethod.which(req.method())
-                    if (httpMethod == None) {
+                    if (httpMethod.isNone()) {
                         resp.writeStatus("405 Method Not Allowed")
                         resp.endWithoutBody(true)
                         return
@@ -302,12 +301,10 @@ public class HTMLBundleRoute {
                     resp.onAborted(PendingResponse.onAbortedCallback, pending)
                     req.setYield(false)
                     done = true
-                }
-                case HTMLBundleRouteState.Err(_) => {
+                case HTMLBundleRouteState.Err(_) =>
                     resp.endWithoutBody(true)
                     done = true
-                }
-                case HTMLBundleRouteState.Html(let htmlRoute) => {
+                case HTMLBundleRouteState.Html(htmlRoute) =>
                     match (htmlRoute) {
                         case Some(html) =>
                             if (isHead) {
@@ -318,7 +315,6 @@ public class HTMLBundleRoute {
                         case None => resp.endWithoutBody(true)
                     }
                     done = true
-                }
             }
         }
     }
@@ -335,12 +331,12 @@ public class HTMLBundleRoute {
                 let loadResult = srv.getOrLoadPlugins(
                     ServePluginCallback.htmlBundleRoute(this)
                 )
-                switch (loadResult) {
-                    case .err =>
+                match (loadResult) {
+                    case err =>
                         state = HTMLBundleRouteState.Err(BuildLog())
-                    case .ready(let plugins) =>
+                    case ready(plugins) =>
                         onPluginsResolved(plugins)
-                    case .pending =>
+                    case pending =>
                         state = HTMLBundleRouteState.Building(None)
                 }
             case None =>
@@ -377,15 +373,15 @@ public class HTMLBundleRoute {
     }
 
     /// 构建完成
-    /// 对应 Bun: pub fn on_complete(&self, completion_task: &mut JSBundleCompletionTask)
+    /// 对应 Bun: pub fn on_complete(&self, completion_task: &JSBundleCompletionTask)
     public func onComplete(completionTask: JSBundleCompletionTask): Unit {
         deref() // 匹配 on_plugins_resolved 中的 ref()
 
-        switch (completionTask.result) {
-            case .err(let err) =>
+        match (completionTask.result) {
+            case err(err) =>
                 let log = BuildLog()
                 state = HTMLBundleRouteState.Err(log)
-            case .value(let bundle) =>
+            case value(bundle) =>
                 // 为每个输出文件创建静态路由
                 match (server) {
                     case Some(srv) =>
@@ -402,7 +398,7 @@ public class HTMLBundleRoute {
                             if (outputFile.loader != Loader.HTML && outputFile.isBuffer) {
                                 let hashHex = outputFile.hash.toHexString()
                                 headers.append("ETag", hashHex)
-                                if (!srv.config.isDevelopment() && outputFile.outputKind == .chunk) {
+                                if (!srv.config.isDevelopment() && outputFile.outputKind == chunk) {
                                     headers.append("Cache-Control", "public, max-age=31536000")
                                 }
                             }
@@ -424,13 +420,13 @@ public class HTMLBundleRoute {
                             }
 
                             // 检查是否是 HTML 入口点
-                            if (thisHtmlRoute == None
-                                && outputFile.outputKind == .entryPoint
+                            if (thisHtmlRoute.isNone()
+                                && outputFile.outputKind == entryPoint
                                 && outputFile.loader == Loader.HTML) {
                                 thisHtmlRoute = staticRoute
                                 thisHtmlRoutePath = routePath
                             } else {
-                                srv.appendStaticRoute(routePath, AnyRoute.static(staticRoute), .any)
+                                srv.appendStaticRoute(routePath, AnyRoute.`static`(staticRoute), MethodOptional.Any)
                             }
                         }
 
@@ -438,7 +434,7 @@ public class HTMLBundleRoute {
                         match (thisHtmlRoute) {
                             case Some(htmlRoute) =>
                                 let htmlClone = htmlRoute.clone(srv.global)
-                                srv.appendStaticRoute(thisHtmlRoutePath, AnyRoute.static(htmlRoute), .any)
+                                srv.appendStaticRoute(thisHtmlRoutePath, AnyRoute.`static`(htmlRoute), MethodOptional.Any)
                                 state = HTMLBundleRouteState.Html(htmlClone)
                             case None =>
                                 state = HTMLBundleRouteState.Err(BuildLog())
@@ -447,9 +443,9 @@ public class HTMLBundleRoute {
                         srv.reloadStaticRoutes()
                     case None => ()
                 }
-            case .pending =>
+            case pending =>
                 // 不应该发生
-                {}
+                { => }
         }
 
         resumePendingResponses()
@@ -475,8 +471,8 @@ public class HTMLBundleRoute {
             pendingResponse.isResponsePending = false
             resp.clearAborted()
 
-            switch (state) {
-                case HTMLBundleRouteState.Html(let htmlRoute) =>
+            match (state) {
+                case HTMLBundleRouteState.Html(htmlRoute) =>
                     match (htmlRoute) {
                         case Some(html) =>
                             if (method == HttpMethod.HEAD) {
@@ -496,7 +492,7 @@ public class HTMLBundleRoute {
                     }
                     resp.writeStatus("500 Build Failed")
                     resp.endWithoutBody(false)
-                else =>
+                case _ =>
                     resp.endWithoutBody(false)
             }
         }
@@ -562,7 +558,7 @@ public class PendingResponse {
     }
 
     /// 中止回调
-    /// 对应 Bun: pub fn on_aborted(this: *mut PendingResponse, _resp: AnyResponse)
+    /// 对应 Bun: pub fn on_aborted(`this`: *PendingResponse, _resp: AnyResponse)
     public static func onAbortedCallback(pending: PendingResponse, resp: AnyResponse): Unit {
         pending.isResponsePending = false
 
@@ -744,13 +740,13 @@ public class HttpMethod {
     }
 
     public static func which(method: String): ?HttpMethod {
-        if (method == "GET") return GET
-        if (method == "HEAD") return HEAD
-        if (method == "POST") return POST
-        if (method == "PUT") return PUT
-        if (method == "DELETE") return DELETE
-        if (method == "PATCH") return PATCH
-        if (method == "OPTIONS") return HttpMethod("OPTIONS")
+        if (method == "GET") { return GET }
+        if (method == "HEAD") { return HEAD }
+        if (method == "POST") { return POST }
+        if (method == "PUT") { return PUT }
+        if (method == "DELETE") { return DELETE }
+        if (method == "PATCH") { return PATCH }
+        if (method == "OPTIONS") { return HttpMethod("OPTIONS") }
         return None
     }
 }
@@ -859,7 +855,7 @@ public enum AnyRoute {
     | Html(?AnyRef)
     | FrameworkRouter(Int32)
 
-    public static func static(route: StaticRoute): AnyRoute {
+    public static func `static`(route: StaticRoute): AnyRoute {
         AnyRoute.Static(route)
     }
 }
@@ -878,10 +874,10 @@ public class DevServerRef {
 /// JsGlobalObject (前向声明)
 public class JsGlobalObject {}
 
-/// JSValue (前向声明)
-public class JSValue {
-    public static func createHTMLBundle(bundle: HTMLBundle, global: JsGlobalObject): JSValue { JSValue() }
-    public static func createUTF8ForJS(global: JsGlobalObject, str: String): JSValue { JSValue() }
+/// JsValue (前向声明)
+public class JsValue {
+    public static func createHTMLBundle(bundle: HTMLBundle, global: JsGlobalObject): JsValue { JsValue() }
+    public static func createUTF8ForJS(global: JsGlobalObject, str: String): JsValue { JsValue() }
 }
 
 /// ServerConfig (前向声明)

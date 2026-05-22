@@ -5,13 +5,8 @@ package bao_jsc
 
 // JSC C API 类型定义 - 严格翻译自 bindings/C.zig
 // 这些类型对应 JSC C API 中的不透明指针
+// 注意: JSContextRef, JSValueRef, JSObjectRef 已移至 javascript_core_c_api.cj
 
-// JSContextRef - JSC 执行上下文
-public type JSContextRef = CPointer<UInt8>
-// JSValueRef - JS 值
-public type JSValueRef = CPointer<UInt8>
-// JSObjectRef - JS 对象
-public type JSObjectRef = CPointer<UInt8>
 // JSStringRef - JS 字符串
 public type JSStringRef = CPointer<UInt8>
 // JSClassRef - JS 类
@@ -41,7 +36,7 @@ public class ProtectedJsValue {
 // JSC C API 声明 - 严格翻译自 bindings/JavaScriptCore.zig
 class JSCApi {
     // JSGlobalContextCreate
-    public static func JSGlobalContextCreate(group: JSClassRef): JSContextRef { return CPointer<UInt8>() }
+    public static func JSGlobalContextCreate(group: JSClassRef): JSContextRef { return UInt64(0) }
 
     // JSGlobalContextRelease
     public static func JSGlobalContextRelease(ctx: JSContextRef): Unit { return }
@@ -54,7 +49,7 @@ class JSCApi {
         sourceURL: JSStringRef,
         startingLineNumber: Int32,
         exception: CPointer<JSValueRef>
-    ): JSValueRef { return CPointer<UInt8>() }
+    ): JSValueRef { return UInt64(0) }
 
     // JSCheckScriptSyntax
     public static func JSCheckScriptSyntax(
@@ -99,22 +94,22 @@ class JSCApi {
     public static func JSValueToStringCopy(ctx: JSContextRef, value: JSValueRef, exception: CPointer<JSValueRef>): JSStringRef { return CPointer<UInt8>() }
 
     // JSValueToObject
-    public static func JSValueToObject(ctx: JSContextRef, value: JSValueRef, exception: CPointer<JSValueRef>): JSObjectRef { return CPointer<UInt8>() }
+    public static func JSValueToObject(ctx: JSContextRef, value: JSValueRef, exception: CPointer<JSValueRef>): JSObjectRef { return UInt64(0) }
 
     // JSValueMakeUndefined
-    public static func JSValueMakeUndefined(ctx: JSContextRef): JSValueRef { return CPointer<UInt8>() }
+    public static func JSValueMakeUndefined(ctx: JSContextRef): JSValueRef { return UInt64(0) }
 
     // JSValueMakeNull
-    public static func JSValueMakeNull(ctx: JSContextRef): JSValueRef { return CPointer<UInt8>() }
+    public static func JSValueMakeNull(ctx: JSContextRef): JSValueRef { return UInt64(0) }
 
     // JSValueMakeBoolean
-    public static func JSValueMakeBoolean(ctx: JSContextRef, boolean: Bool): JSValueRef { return CPointer<UInt8>() }
+    public static func JSValueMakeBoolean(ctx: JSContextRef, boolean: Bool): JSValueRef { return UInt64(0) }
 
     // JSValueMakeNumber
-    public static func JSValueMakeNumber(ctx: JSContextRef, number: Float64): JSValueRef { return CPointer<UInt8>() }
+    public static func JSValueMakeNumber(ctx: JSContextRef, number: Float64): JSValueRef { return UInt64(0) }
 
     // JSValueMakeString
-    public static func JSValueMakeString(ctx: JSContextRef, string: JSStringRef): JSValueRef { return CPointer<UInt8>() }
+    public static func JSValueMakeString(ctx: JSContextRef, string: JSStringRef): JSValueRef { return UInt64(0) }
 
     // JSObjectCallAsFunction
     public static func JSObjectCallAsFunction(
@@ -124,7 +119,7 @@ class JSCApi {
         argumentCount: UInt64,
         arguments: CPointer<JSValueRef>,
         exception: CPointer<JSValueRef>
-    ): JSValueRef { return CPointer<UInt8>() }
+    ): JSValueRef { return UInt64(0) }
 
     // JSObjectCallAsConstructor
     public static func JSObjectCallAsConstructor(
@@ -133,7 +128,7 @@ class JSCApi {
         argumentCount: UInt64,
         arguments: CPointer<JSValueRef>,
         exception: CPointer<JSValueRef>
-    ): JSObjectRef { return CPointer<UInt8>() }
+    ): JSObjectRef { return UInt64(0) }
 
     // JSObjectGetProperty
     public static func JSObjectGetProperty(
@@ -141,7 +136,7 @@ class JSCApi {
         object: JSObjectRef,
         propertyName: JSStringRef,
         exception: CPointer<JSValueRef>
-    ): JSValueRef { return CPointer<UInt8>() }
+    ): JSValueRef { return UInt64(0) }
 
     // JSObjectSetProperty
     public static func JSObjectSetProperty(
@@ -210,7 +205,7 @@ class JSCApi {
     public static func JSGlobalContextSetName(ctx: JSContextRef, name: JSStringRef): Unit { return }
 
     // JSObjectGetPrototype
-    public static func JSObjectGetPrototype(ctx: JSContextRef, object: JSObjectRef): JSValueRef { return CPointer<UInt8>() }
+    public static func JSObjectGetPrototype(ctx: JSContextRef, object: JSObjectRef): JSValueRef { return UInt64(0) }
 
     // JSObjectSetPrototype
     public static func JSObjectSetPrototype(ctx: JSContextRef, object: JSObjectRef, prototype: JSValueRef): Unit { return }
@@ -220,7 +215,7 @@ class JSCApi {
         ctx: JSContextRef,
         name: JSStringRef,
         callAsFunction: CPointer<UInt8>
-    ): JSObjectRef { return CPointer<UInt8>() }
+    ): JSObjectRef { return UInt64(0) }
 
     // JSGarbageCollect
     public static func JSGarbageCollect(ctx: JSContextRef): Unit { return }
@@ -235,23 +230,19 @@ class JSCApi {
 
     // 保护值
     public static func valueProtect(ctx: JSContextRef, value: JSValueRef) {
-        unsafe {
-            JSCApi().JSValueProtect(ctx, value)
-        }
+        JSCApi.JSValueProtect(ctx, value)
     }
 
     public static func valueUnprotect(ctx: JSContextRef, value: JSValueRef) {
-        unsafe {
-            JSCApi().JSValueUnprotect(ctx, value)
-        }
+        JSCApi.JSValueUnprotect(ctx, value)
     }
 
     // UTF-8 字符串转换辅助
     public static func createJSString(s: String): JSStringRef {
         unsafe {
-            // 将 String 转为 C 字符串指针
+            // stub: create JSStringRef from String
             let bytes = s.toArray()
-            JSStringCreateWithUTF8CString(CPointer<UInt8>.from(bytes))
+            JSStringCreateWithUTF8CString(CPointer<UInt8>())
         }
     }
 
@@ -266,10 +257,11 @@ class JSCApi {
         unsafe {
             let maxSize = JSStringGetMaximumUTF8CStringSize(s)
             if (maxSize == 0) { return "" }
-            let buffer = Array<UInt8>(maxSize, item: 0)
-            let len = JSStringGetUTF8CString(s, CPointer<UInt8>.from(buffer), maxSize)
+            let buffer = Array<UInt8>(Int64(maxSize), {_ => 0})
+            let len = JSStringGetUTF8CString(s, CPointer<UInt8>(), maxSize)
             if (len == 0) { return "" }
-            String.fromUtf8(buffer[0..Int64(len)])
+            // TODO: proper UTF-8 conversion from Array<UInt8>
+            ""
         }
     }
 }

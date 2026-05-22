@@ -144,12 +144,11 @@ public class NodeFsImpl {
             case "realpath" => return realpath(args)
             case "truncate" => return truncate(args)
             case "appendFile" => return appendFile(args)
-            case _ => {
+            case _ =>
                 let r = FsResult()
                 r.success = false
                 r.error = NodeError(code: "ERR_UNKNOWN", message: "Unknown fs function: ${funcName}")
                 return r
-            }
         }
     }
 
@@ -174,7 +173,7 @@ public class NodeFsImpl {
     }
 
     private static func read(args: FsArgs): FsResult {
-        let data = System.read(args.fd, count: args.length)
+        let data = System.read(args.fd, count: args.size)
         return FsResult.withData(data)
     }
 
@@ -185,7 +184,7 @@ public class NodeFsImpl {
 
     private static func stat(args: FsArgs): FsResult {
         let statResult = System.stat(args.path)
-        if (statResult == None) {
+        if (statResult.isNone()) {
             return FsResult(error: NodeError(code: "ENOENT", message: "No such file: ${args.path}"))
         }
         return FsResult.withStats(statResult.getOrThrow())
@@ -193,7 +192,7 @@ public class NodeFsImpl {
 
     private static func fstat(args: FsArgs): FsResult {
         let statResult = System.fstat(args.fd)
-        if (statResult == None) {
+        if (statResult.isNone()) {
             return FsResult(error: NodeError(code: "EBADF", message: "Bad file descriptor"))
         }
         return FsResult.withStats(statResult.getOrThrow())
@@ -201,7 +200,7 @@ public class NodeFsImpl {
 
     private static func lstat(args: FsArgs): FsResult {
         let statResult = System.lstat(args.path)
-        if (statResult == None) {
+        if (statResult.isNone()) {
             return FsResult(error: NodeError(code: "ENOENT", message: "No such file: ${args.path}"))
         }
         return FsResult.withStats(statResult.getOrThrow())
@@ -281,7 +280,7 @@ public class NodeFsImpl {
 
     private static func readlink(args: FsArgs): FsResult {
         let target = System.readlink(args.path)
-        if (target == None) {
+        if (target.isNone()) {
             return FsResult(error: NodeError(code: "ENOENT", message: "Readlink failed"))
         }
         return FsResult.withString(target.getOrThrow())
@@ -297,14 +296,14 @@ public class NodeFsImpl {
 
     private static func realpath(args: FsArgs): FsResult {
         let resolved = System.realpath(args.path)
-        if (resolved == None) {
+        if (resolved.isNone()) {
             return FsResult(error: NodeError(code: "ENOENT", message: "Realpath failed"))
         }
         return FsResult.withString(resolved.getOrThrow())
     }
 
     private static func truncate(args: FsArgs): FsResult {
-        let ok = System.truncate(args.path, length: args.length)
+        let ok = System.truncate(args.path, length: args.size)
         if (!ok) {
             return FsResult(error: NodeError(code: "ENOENT", message: "Truncate failed"))
         }

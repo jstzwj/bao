@@ -16,6 +16,6 @@ public class PostgresByteaType {
     /// 对应 Bun: bytea.toJS
     public static func toJS(globalObject: JscJSGlobalObject,
                              data: Array<UInt8>): JscValue {
-        return JscValue.createBuffer(globalObject, data)
+        return JscValue.createBuffer(globalObject.globalThis, data)
     }
 }

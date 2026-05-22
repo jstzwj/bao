@@ -43,11 +43,11 @@ public var defaultArena: Any = ()
 /// 严格翻译自: pub var http_thread: HTTPThread = undefined
 
 /// 中止追踪器
-/// 严格翻译自: pub var socket_async_http_abort_tracker = std.AutoArrayHashMap(u32, uws.AnySocket).init(...)
+/// 严格翻译自: pub var socket_async_http_abort_tracker = std.AutoArrayHashMap(u32, uws.AnySocket).`init`(...)
 public var socketAsyncHttpAbortTracker: Any = ()
 
 /// 异步 HTTP ID 单调递增计数器
-/// 严格翻译自: pub var async_http_id_monotonic: std.atomic.Value(u32) = std.atomic.Value(u32).init(0)
+/// 严格翻译自: pub var async_http_id_monotonic: std.atomic.Value(u32) = std.atomic.Value(u32).`init`(0)
 public var asyncHttpIdMonotonic: UInt32 = UInt32(0)
 
 /// CLI 实验性 HTTP/2 fetch 标志
@@ -603,7 +603,7 @@ public class HTTPClient {
     // 严格翻译自:
     //   pub fn start(this: *HTTPClient, body: HTTPRequestBody, body_out_str: *MutableString) void {
     //       body_out_str.reset();
-    //       this.state = InternalState.init(body, body_out_str);
+    //       this.state = InternalState(body, body_out_str);
     //       if (this.isHTTPS()) { this.start_(true); } else { this.start_(false); }
     //   }
     // ========================================================================
@@ -1374,9 +1374,9 @@ public class HTTPClient {
                 }
             } else if (hash == httpHash("transfer-encoding")) {
                 if (header.value == "chunked") {
-                    state.transferEncoding = "chunked"
+                    state.transferEncoding = Encoding.chunked
                 } else if (header.value == "identity") {
-                    state.transferEncoding = "identity"
+                    state.transferEncoding = Encoding.identity
                 }
             } else if (hash == httpHash("location")) {
                 location = header.value
@@ -1398,12 +1398,12 @@ public class HTTPClient {
         }
 
         // 无 Content-Length 且非 chunked → 禁用 keep-alive
-        if (!state.contentLength.isSome() && state.transferEncoding != "chunked") {
+        if (!state.contentLength.isSome() && !state.isChunkedEncoding()) {
             state.flags.allowKeepalive = false
         }
 
         // 代理隧道处理
-        if (flags.proxyTunneling && proxyTunnel == None) {
+        if (flags.proxyTunneling && !proxyTunnel.isSome()) {
             if (response.statusCode == 200) {
                 return ShouldContinue.continueStreaming
             }
@@ -1440,7 +1440,7 @@ public class HTTPClient {
             }
         }
 
-        state.responseStage = if (state.transferEncoding == "chunked") {
+        state.responseStage = if (state.isChunkedEncoding()) {
             HTTPStage.bodyChunk
         } else {
             HTTPStage.body
@@ -1448,7 +1448,7 @@ public class HTTPClient {
 
         let contentLength = state.contentLength
         let hasBody = contentLength.isSome() && contentLength.getOrThrow() > 0
-        let isChunked = state.transferEncoding == "chunked"
+        let isChunked = state.isChunkedEncoding()
 
         if (hasBody || isChunked || !state.flags.allowKeepalive) {
             return ShouldContinue.continueStreaming
@@ -1467,7 +1467,7 @@ public class HTTPClient {
     public func handleResponseBody(incomingData: String, isOnlyBuffer: Bool): Bool {
         let contentLength = state.contentLength
         if (isOnlyBuffer && contentLength.isSome() && incomingData.size >= contentLength.getOrThrow()) {
-            handleResponseBodyFromSinglePacket(incomingData.substring(0, contentLength.getOrThrow()))
+            handleResponseBodyFromSinglePacket(incomingData[0..contentLength.getOrThrow()])
             return true
         } else {
             return handleResponseBodyFromMultiplePackets(incomingData)
@@ -1479,7 +1479,10 @@ public class HTTPClient {
     private func handleResponseBodyFromSinglePacket(incomingData: String): Unit {
         state.totalBodyReceived += incomingData.size
         if (state.flags.isRedirectPending) { return }
-        state.bodyOutStr.appendSlice(incomingData)
+        match (state.bodyOutStr) {
+            case Some(buf) => buf.appendSlice(incomingData)
+            case None => ()
+        }
     }
 
     /// 多包响应体处理
@@ -1490,11 +1493,14 @@ public class HTTPClient {
         if (contentLength.isSome()) {
             let remaining = contentLength.getOrThrow() - state.totalBodyReceived
             if (incomingData.size > remaining) {
-                remainder = incomingData.substring(0, remaining)
+                remainder = incomingData[0..remaining]
             }
         }
         if (!state.flags.isRedirectPending) {
-            state.bodyOutStr.appendSlice(remainder)
+            match (state.bodyOutStr) {
+                case Some(buf) => buf.appendSlice(remainder)
+                case None => ()
+            }
         }
         state.totalBodyReceived += remainder.size
         let isDone = contentLength.isSome() && state.totalBodyReceived >= contentLength.getOrThrow()
@@ -1515,10 +1521,13 @@ public class HTTPClient {
     /// 多包 chunked 编码处理
     /// 严格翻译自: HTTPClient.handleResponseBodyChunkedEncodingFromMultiplePackets
     private func handleResponseBodyChunkedEncodingFromMultiplePackets(incomingData: String): Bool {
-        state.bodyOutStr.appendSlice(incomingData)
+        match (state.bodyOutStr) {
+            case Some(buf) => buf.appendSlice(incomingData)
+            case None => ()
+        }
         state.totalBodyReceived += incomingData.size
         if (incomingData.size >= 5) {
-            let tail = incomingData.substring(incomingData.size - 5)
+            let tail = incomingData[incomingData.size - 5..]
             if (tail == "0\r\n\r\n") {
                 state.flags.receivedLastChunk = true
                 return true
@@ -1630,7 +1639,7 @@ public class HTTPClient {
     /// 多路复用重定向 (H2/H3)
     /// 严格翻译自: HTTPClient.doRedirectMultiplexed
     public func doRedirectMultiplexed(): Unit {
-        if (state.originalRequestBody == "stream") {
+        if (state.originalRequestBody.isStream()) {
             flags.isStreamingRequestBody = false
         }
         let requestBody = if (state.flags.resendRequestBodyOnRedirect) { state.requestBody } else { "" }
@@ -1678,10 +1687,11 @@ public class HTTPClient {
         let response = RawResponse()
         let httpIdx = data.indexOf("HTTP/")
         if (httpIdx.isSome()) {
-            let rest = data.substring(httpIdx.getOrThrow())
+            let idx = httpIdx.getOrThrow()
+            let rest = data[idx..]
             if (rest.size > 12) {
-                let codeStr = rest.substring(9, 12)
-                response.statusCode = parseInt64(codeStr.trim())
+                let codeStr = rest[9..12]
+                response.statusCode = parseInt64(codeStr)
             }
         }
         return response

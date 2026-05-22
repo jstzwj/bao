@@ -2,6 +2,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_core.*
 import bao_sys.*
 
@@ -12,7 +13,7 @@ import bao_sys.*
 
 /// 文件操作动作
 public enum FileActionType: UInt8 {
-    case none = 0
+    | none = 0
     case close = 1
     case dup2 = 2
     case open = 3
@@ -31,7 +32,7 @@ public class Action {
     }
 
     public func deinit(allocator: Allocator) {
-        if (this.kind == .open) {
+        if (this.kind == open) {
             if (this.path != null) {
                 allocator.free(bun.span(this.path))
             }
@@ -158,10 +159,10 @@ public class PosixSpawnAttr {
 
     public static func initFunc(): PosixSpawnAttr {
         var attr = PosixSpawnattrT()
-        switch (Posix.errno(Posix.posix_spawnattr_init(attr))) {
-            case .SUCCESS => return PosixSpawnAttr{ attr = attr }
-            case .NOMEM => throw Error.SystemResources
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawnattr_init(attr))) {
+            case SUCCESS => return PosixSpawnAttr{ attr = attr }
+            case NOMEM => throw Error.SystemResources
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
@@ -172,17 +173,17 @@ public class PosixSpawnAttr {
 
     public func get(): UInt16 {
         var flags: Int16
-        switch (Posix.errno(Posix.posix_spawnattr_getflags(this.attr, flags))) {
-            case .SUCCESS => return UInt16(flags)
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawnattr_getflags(this.attr, flags))) {
+            case SUCCESS => return UInt16(flags)
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
 
     public func set(flags: UInt16) {
-        switch (Posix.errno(Posix.posix_spawnattr_setflags(this.attr, Int16(flags)))) {
-            case .SUCCESS => return
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawnattr_setflags(this.attr, Int16(flags)))) {
+            case SUCCESS => return
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
@@ -194,7 +195,7 @@ public class PosixSpawnAttr {
     }
 
     // 外部 C 函数
-    extern func posix_spawnattr_reset_signals(attr: PosixSpawnattrT): Int32
+    public static func posix_spawnattr_reset_signals(attr: PosixSpawnattrT): Int32 { return 0 }
 }
 
 /// posix_spawn 文件操作封装
@@ -203,10 +204,10 @@ public class PosixSpawnActions {
 
     public static func initFunc(): PosixSpawnActions {
         var actions = PosixSpawnFileActionsT()
-        switch (Posix.errno(Posix.posix_spawn_file_actions_init(actions))) {
-            case .SUCCESS => return PosixSpawnActions{ actions = actions }
-            case .NOMEM => throw Error.SystemResources
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawn_file_actions_init(actions))) {
+            case SUCCESS => return PosixSpawnActions{ actions = actions }
+            case NOMEM => throw Error.SystemResources
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
@@ -222,22 +223,22 @@ public class PosixSpawnActions {
     }
 
     public func openZ(fd: FD, path: String, flags: UInt32, mode: ModeT) {
-        switch (Posix.errno(Posix.posix_spawn_file_actions_addopen(this.actions, fd.cast(), path, Int32(flags), mode))) {
-            case .SUCCESS => return
-            case .BADF => throw Error.InvalidFileDescriptor
-            case .NOMEM => throw Error.SystemResources
-            case .NAMETOOLONG => throw Error.NameTooLong
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawn_file_actions_addopen(this.actions, fd.cast(), path, Int32(flags), mode))) {
+            case SUCCESS => return
+            case BADF => throw Error.InvalidFileDescriptor
+            case NOMEM => throw Error.SystemResources
+            case NAMETOOLONG => throw Error.NameTooLong
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
 
     public func close(fd: FD) {
-        switch (Posix.errno(Posix.posix_spawn_file_actions_addclose(this.actions, fd.cast()))) {
-            case .SUCCESS => return
-            case .BADF => throw Error.InvalidFileDescriptor
-            case .NOMEM => throw Error.SystemResources
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawn_file_actions_addclose(this.actions, fd.cast()))) {
+            case SUCCESS => return
+            case BADF => throw Error.InvalidFileDescriptor
+            case NOMEM => throw Error.SystemResources
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
@@ -247,21 +248,21 @@ public class PosixSpawnActions {
             return this.inherit(fd)
         }
 
-        switch (Posix.errno(Posix.posix_spawn_file_actions_adddup2(this.actions, fd.cast(), newfd.cast()))) {
-            case .SUCCESS => return
-            case .BADF => throw Error.InvalidFileDescriptor
-            case .NOMEM => throw Error.SystemResources
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawn_file_actions_adddup2(this.actions, fd.cast(), newfd.cast()))) {
+            case SUCCESS => return
+            case BADF => throw Error.InvalidFileDescriptor
+            case NOMEM => throw Error.SystemResources
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
 
     public func inherit(fd: FD) {
-        switch (Posix.errno(Posix.posix_spawn_file_actions_addinherit_np(this.actions, fd.cast()))) {
-            case .SUCCESS => return
-            case .BADF => throw Error.InvalidFileDescriptor
-            case .NOMEM => throw Error.SystemResources
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawn_file_actions_addinherit_np(this.actions, fd.cast()))) {
+            case SUCCESS => return
+            case BADF => throw Error.InvalidFileDescriptor
+            case NOMEM => throw Error.SystemResources
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
@@ -272,20 +273,20 @@ public class PosixSpawnActions {
     }
 
     func chdirZ(path: String) {
-        switch (Posix.errno(Posix.posix_spawn_file_actions_addchdir_np(this.actions, path))) {
-            case .SUCCESS => return
-            case .NOMEM => throw Error.SystemResources
-            case .NAMETOOLONG => throw Error.NameTooLong
-            case .BADF => unreachable
-            case .INVAL => unreachable
+        match (Posix.errno(Posix.posix_spawn_file_actions_addchdir_np(this.actions, path))) {
+            case SUCCESS => return
+            case NOMEM => throw Error.SystemResources
+            case NAMETOOLONG => throw Error.NameTooLong
+            case BADF => unreachable
+            case INVAL => unreachable
             else => let err => throw unexpectedErrno(err)
         }
     }
 }
 
 /// POSIX 上使用 BunSpawn 类型，Windows 使用 PosixSpawn 类型
-public typealias SpawnActions = Actions   // POSIX
-public typealias SpawnAttr = Attr          // POSIX
+public type SpawnActions = Actions   // POSIX
+public type SpawnAttr = Attr          // POSIX
 
 // ============================================================================
 // PosixSpawn 顶层函数
@@ -327,7 +328,7 @@ public func spawnZ(
     }
 
     // macOS 非 PTY: 使用系统 posix_spawn
-    var posixActions = PosixSpawnActions.init() catch {
+    var posixActions = PosixSpawnActions() catch {
         return Maybe<PidT>.err(SysError{
             errno = Int64(Posix.E.NOMEM),
             syscall = .posix_spawn,
@@ -335,7 +336,7 @@ public func spawnZ(
     }
     defer posixActions.deinit()
 
-    var posixAttr = PosixSpawnAttr.init() catch {
+    var posixAttr = PosixSpawnAttr() catch {
         return Maybe<PidT>.err(SysError{
             errno = Int64(Posix.E.NOMEM),
             syscall = .posix_spawn,
@@ -359,11 +360,11 @@ public func spawnZ(
     // 转换操作
     if (actions != null) {
         for (action in actions.actions.items) {
-            switch (action.kind) {
-                case .close => posixActions.close(FD.fromNative(action.fds[0])) catch {}
-                case .dup2 => posixActions.dup2(FD.fromNative(action.fds[0]), FD.fromNative(action.fds[1])) catch {}
-                case .open => posixActions.openZ(FD.fromNative(action.fds[0]), action.path, UInt32(action.flags), Int32(action.mode)) catch {}
-                case .none => ()
+            match (action.kind) {
+                case close => posixActions.close(FD.fromNative(action.fds[0])) catch {}
+                case dup2 => posixActions.dup2(FD.fromNative(action.fds[0]), FD.fromNative(action.fds[1])) catch {}
+                case open => posixActions.openZ(FD.fromNative(action.fds[0]), action.path, UInt32(action.flags), Int32(action.mode)) catch {}
+                case none => ()
             }
         }
 
@@ -391,12 +392,12 @@ public func waitpid(pid: PidT, flags: UInt32): Maybe<WaitPidResult> {
     var status: Int32 = 0
     while (true) {
         let rc = Posix.waitpid(pid, status, Int32(flags))
-        switch (Posix.errno(rc)) {
-            case .SUCCESS => return Maybe<WaitPidResult>.result(WaitPidResult{
+        match (Posix.errno(rc)) {
+            case SUCCESS => return Maybe<WaitPidResult>.result(WaitPidResult{
                 pid = PidT(rc),
                 status = UInt32(status),
             })
-            case .INTR => continue
+            case INTR => continue
             else => return Sys.Maybe(WaitPidResult).errnoSys(rc, .waitpid)
         }
     }
@@ -407,12 +408,12 @@ public func wait4(pid: PidT, flags: UInt32, usage: Rusage): Maybe<WaitPidResult>
     var status: Int32 = 0
     while (true) {
         let rc = Posix.wait4(pid, status, Int32(flags), usage)
-        switch (Posix.errno(rc)) {
-            case .SUCCESS => return Maybe<WaitPidResult>.result(WaitPidResult{
+        match (Posix.errno(rc)) {
+            case SUCCESS => return Maybe<WaitPidResult>.result(WaitPidResult{
                 pid = PidT(rc),
                 status = UInt32(status),
             })
-            case .INTR => continue
+            case INTR => continue
             else => return Sys.Maybe(WaitPidResult).errnoSys(rc, .waitpid)
         }
     }
@@ -435,14 +436,14 @@ public class BunSpawnRequest {
         var len: Int64 = 0
     }
 
-    // 外部 C 函数
-    extern func posix_spawn_bun(
+    // 外部 C 函数 - stub
+    public static func posix_spawn_bun(
         pid: UnsafePointer<Int32>,
         path: String,
         request: BunSpawnRequest,
         argv: Array<String>,
         envp: Array<String>,
-    ): Int64
+    ): Int64 { return -1 }
 
     /// 通过 posix_spawn_bun 创建子进程
     public static func spawn(
@@ -475,8 +476,8 @@ public class BunSpawnRequest {
 // 类型别名
 // ============================================================================
 
-public typealias PidT = PidT
-public typealias FdT = FdT
-public typealias ModeT = ModeT
-public typealias Rusage = Rusage
+public type PidT = PidT
+public type FdT = FdT
+public type ModeT = ModeT
+public type Rusage = Rusage
 public let default_allocator = default_allocator

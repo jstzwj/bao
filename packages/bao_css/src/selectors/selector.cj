@@ -743,7 +743,7 @@ public class CssServoSerialize {
     }
 
     /// 找到第一个非命名空间组件的索引
-    func findFirstNonNamespace(comp: ArrayList<CssSelectorComponent>): Int64 {
+    public static func findFirstNonNamespace(comp: ArrayList<CssSelectorComponent>): Int64 {
         for (i in 0..comp.size) {
             match (comp[i].kind) {
                 case CssComponentKind.ExplicitAnyNamespace => continue

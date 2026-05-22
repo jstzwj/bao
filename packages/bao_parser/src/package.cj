@@ -12,6 +12,23 @@ import bao_core.*
 import bao_collections.*
 import bao_unicode.*
 
+/// Option getOr extension - provides default value extraction
+extend<T> Option<T> {
+    public func getOr(defaultValue: T): T {
+        match (this) {
+            case Some(v) => v
+            case None => defaultValue
+        }
+    }
+}
+
+/// String extension for import path helpers
+extend String {
+    public func isMacro(): Bool {
+        return startsWith("macro:")
+    }
+}
+
 // ============================================================================
 // Logger - 日志和源码位置
 // 严格翻译自: src/logger/logger.zig
@@ -203,6 +220,12 @@ public class Log {
         warnings += 1
     }
 
+    /// 添加范围错误 - 对应 Bun Log.addRangeError / addRangeErrorFmt
+    public func addRangeError(source: Source, r: Range, msg: String): Unit {
+        msgs.append(LogMsg(LogLevel.Error, MsgData(msg)))
+        errors += 1
+    }
+
     /// 重置 - 对应 Bun Log.reset()
     public func reset(): Unit {
         msgs.clear()
@@ -336,6 +359,11 @@ public class Ref <: ToString {
         return innerIndex == other.innerIndex && tag == other.tag && sourceIndex == other.sourceIndex
     }
 
+    /// 运算符 ==
+    public operator func ==(right: Ref): Bool {
+        return innerIndex == right.innerIndex && tag == right.tag && sourceIndex == right.sourceIndex
+    }
+
     public func toString(): String {
         return "Ref(${innerIndex},${sourceIndex})"
     }
@@ -376,6 +404,10 @@ public enum OpCode {
     | UnVoid         // void x
     | UnDelete       // delete x
     | Typeof         // typeof x
+    | UnPreDec       // --x
+    | UnPreInc       // ++x
+    | UnPostDec      // x--
+    | UnPostInc      // x++
 
     // 二元操作符
     | BinAdd         // +
@@ -447,6 +479,10 @@ public enum OpCode {
             case UnVoid => "void"
             case UnDelete => "delete"
             case Typeof => "typeof"
+            case UnPreDec => "--"
+            case UnPreInc => "++"
+            case UnPostDec => "--"
+            case UnPostInc => "++"
             case BinAdd => "+"
             case BinSub => "-"
             case BinMul => "*"
@@ -593,6 +629,20 @@ public enum DeclKind {
     | Const       // const
     | Using       // using
     | AwaitUsing  // await using
+
+    public operator func ==(right: DeclKind): Bool {
+        match (this) {
+            case Var => match (right) { case Var => true case _ => false }
+            case Let => match (right) { case Let => true case _ => false }
+            case Const => match (right) { case Const => true case _ => false }
+            case Using => match (right) { case Using => true case _ => false }
+            case AwaitUsing => match (right) { case AwaitUsing => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: DeclKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// 可选链 - 对应 Bun OptionalChain

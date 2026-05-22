@@ -5,6 +5,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // 二进制数据类型
@@ -114,6 +115,14 @@ public class Handlers {
         activeConnections += 1
     }
 
+    /// 调用 onOpen 回调
+    /// 对应 Zig: callOnOpen
+    public func callOnOpen(socket: Any): Unit {
+        if (onOpen.valueType == JsValueType.Function) {
+            // 通过 JS 引擎调用 onOpen 回调
+        }
+    }
+
     /// 标记为非活跃 (减少活跃连接计数)
     /// 对应 Zig: markInactive
     /// 返回 true 表示处理器已被销毁 (客户端模式, 最后一个引用)
@@ -121,14 +130,12 @@ public class Handlers {
         activeConnections -= 1
         if (activeConnections == 0) {
             match (mode) {
-                case Server => {
+                case Server =>
                     // 服务器模式: 不释放 Handlers (嵌入在 Listener 中)
                     return false
-                }
-                case Client | DuplexServer => {
+                case Client | DuplexServer =>
                     // 客户端模式: 释放分配的 Handlers
                     return true
-                }
             }
         }
         return false
@@ -174,24 +181,24 @@ public class Handlers {
 
         // 读取二进制类型
         var binaryType = BinaryType.Buffer
-        match (opts.objectData) {
-            case Some(obj) => {
+        match (opts.getObject()) {
+            case Some(obj) =>
                 let bt = obj.get("binaryType")
                 if (bt.valueType == JsValueType.String) {
                     binaryType = BinaryType.fromString(bt.toString())
                 }
-            }
             case None => ()
         }
 
         // 创建 Handlers
         let vm = VirtualMachine()
-        let handlers = Handlers(vm, globalObject, if (isServer) SocketMode.Server else SocketMode.Client)
+        let mode = if (isServer) { SocketMode.Server } else { SocketMode.Client }
+        let handlers = Handlers(vm, globalObject, mode)
         handlers.binaryType = binaryType
 
         // 读取回调函数
-        match (opts.objectData) {
-            case Some(obj) => {
+        match (opts.getObject()) {
+            case Some(obj) =>
                 let onOpen = obj.get("onOpen")
                 if (onOpen.valueType == JsValueType.Function) {
                     handlers.onOpen = onOpen
@@ -236,7 +243,6 @@ public class Handlers {
                 if (onHandshake.valueType == JsValueType.Function) {
                     handlers.onHandshake = onHandshake
                 }
-            }
             case None => ()
         }
 
@@ -307,6 +313,18 @@ public class SocketConfig {
         this.ipv6Only = false
     }
 
+    /// 获取连接信息
+    /// 根据配置字段构造 ConnectionTarget
+    public func connection(): ConnectionTarget {
+        if (fd >= 0) {
+            return ConnectionTarget.Fd(fd)
+        }
+        if (hostnameOrUnix.size > 0 && port == 0) {
+            return ConnectionTarget.Unix(hostnameOrUnix)
+        }
+        return ConnectionTarget.Host(hostnameOrUnix, port)
+    }
+
     /// 获取 Socket 标志位
     /// 对应 Zig: socketFlags
     public func socketFlags(): Int32 {
@@ -336,12 +354,12 @@ public class SocketConfig {
             return None
         }
 
-        match (opts.objectData) {
-            case Some(obj) => {
+        match (opts.getObject()) {
+            case Some(obj) =>
                 let socketObj = obj.get("socket")
                 let handlers = Handlers.fromJS(globalObject, socketObj, isServer)
                 match (handlers) {
-                    case Some(h) => {
+                    case Some(h) =>
                         let config = SocketConfig(h)
 
                         // 读取 hostname/unix
@@ -401,10 +419,8 @@ public class SocketConfig {
                         }
 
                         return config
-                    }
                     case None => return None
                 }
-            }
             case None => return None
         }
     }

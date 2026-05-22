@@ -68,7 +68,7 @@ public class Execution {
             case _ =>
                 // 确定活跃的序列和组
                 let result = getCurrentAndValidExecutionSequence(data: data)
-                if (result == None) {
+                if (result.isNone()) {
                     return StepResult.waiting(timeout: Timespec.epoch)
                 }
                 let (sequencePtr, groupPtr) = result.getOrThrow()
@@ -136,7 +136,7 @@ public class Execution {
         // 循环处理组
         while (true) {
             let group: ?ConcurrentGroup = activeGroup()
-            if (group == None) {
+            if (group.isNone()) {
                 return StepResult.complete
             }
             let groupPtr = group.getOrThrow()
@@ -237,7 +237,7 @@ public class Execution {
 
         if (sequence.executing) {
             let activeEntry = sequence.activeEntry
-            if (activeEntry == None) {
+            if (activeEntry.isNone()) {
                 // 序列正在执行但没有活跃条目
                 return AdvanceSequenceStatus.execute(timeout: Timespec.epoch)
             }
@@ -254,7 +254,7 @@ public class Execution {
 
         // 检查是否还有下一个条目
         let nextItem = sequence.activeEntry
-        if (nextItem == None) {
+        if (nextItem.isNone()) {
             // 序列已完成
             return AdvanceSequenceStatus.done
         }
@@ -288,7 +288,7 @@ public class Execution {
                 timeout: entry.timespec
             )
 
-            if (result != None) {
+            if (result.isSome()) {
                 // 同步完成
                 now = Timespec.nowForceRealTime()
                 let _ = entry.evaluateTimeout(sequence: sequence, now: now)
@@ -344,7 +344,7 @@ public class Execution {
             }
         }
 
-        if (sequence.activeEntry == None) {
+        if (sequence.activeEntry.isNone()) {
             // 序列刚完成
             let testFailed = sequence.result.isFail()
             let testPassed = sequence.result.isPass(pendingIs: PendingIs.pendingIsPass)
@@ -398,7 +398,7 @@ public class Execution {
     /// 序列开始回调 - 记录开始时间、报告测试开始
     public func onSequenceStarted(sequence: ExecutionSequence) {
         if (let Some(entry) <- sequence.testEntry) {
-            if (entry.callback == None) {
+            if (entry.callback.isNone()) {
                 return
             }
         }
@@ -415,7 +415,7 @@ public class Execution {
 
     /// 条目开始回调 - 设置超时时间
     public func onEntryStarted(entry: ExecutionEntry) {
-        if (entry.callback == None) {
+        if (entry.callback.isNone()) {
             return
         }
 
@@ -464,7 +464,7 @@ public class Execution {
 
         // 报告测试完成
         if (let Some(firstEntry) <- sequence.firstEntry) {
-            if (sequence.testEntry != None || sequence.result != Result.pass) {
+            if (sequence.testEntry.isSome() || sequence.result != Result.pass) {
                 // 调用reporter报告测试完成
             }
         }
@@ -525,7 +525,7 @@ public class Execution {
     public func getCurrentAndValidExecutionSequence(data: RefDataValue): ?(ExecutionSequence, ConcurrentGroup) {
         match (data) {
             case execution(groupIdx, entryData) =>
-                if (entryData == None) {
+                if (entryData.isNone()) {
                     return None
                 }
                 let ed = entryData.getOrThrow()
@@ -565,7 +565,7 @@ public class Execution {
     /// 处理未捕获异常
     public func handleUncaughtException(userData: RefDataValue): HandleUncaughtExceptionResult {
         let result = getCurrentAndValidExecutionSequence(data: userData)
-        if (result == None) {
+        if (result.isNone()) {
             return HandleUncaughtExceptionResult.showUnhandledErrorBetweenTests
         }
         let (sequence, _) = result.getOrThrow()

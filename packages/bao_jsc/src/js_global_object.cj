@@ -27,17 +27,10 @@ public class GregorianDateTime {
     }
 }
 
-// ========== 错误码类型 ==========
-// 严格翻译自 ErrorCode 枚举
-public enum ErrorCode {
-    | MissingArgs
-    | InvalidArgType
-    | InvalidArgValue
-    | IncompatibleOptionPair
-    | CryptoInvalidScryptParams
-    | UnhandledRejection
-    | Unknown
-}
+// 注意: ErrorCode 已移至 error_code.cj
+
+// 类型别名 - 兼容不同命名约定
+public type JsGlobalObject = JSGlobalObject
 
 // ========== 全局对象扩展 ==========
 // 严格翻译自 JSGlobalObject.zig
@@ -84,6 +77,19 @@ public class JSGlobalObject {
         JsError("Unsupported: " + msg)
     }
 
+    // 严格翻译自 JSGlobalObject.throwError
+    public func throwError(msg: String): Unit {
+        // stub: log error instead of throwing
+    }
+
+    // 严格翻译自 JSGlobalObject.bunVM
+    public func bunVM(): BunVirtualMachine {
+        if (let Some(vmInstance) <- vm) {
+            return vmInstance
+        }
+        BunVirtualMachine()
+    }
+
     // ========== 日期时间转换 ==========
 
     // 严格翻译自 JSGlobalObject.gregorianDateTimeToMS
@@ -93,13 +99,13 @@ public class JSGlobalObject {
         millisecond: Int64, isLocal: Bool
     ): Float64 {
         // 简化实现 - 完整版需要时区支持
-        let totalMs = (year * 365 * 24 * 3600 * 1000).toFloat64() +
-                      (month * 30 * 24 * 3600 * 1000).toFloat64() +
-                      (day * 24 * 3600 * 1000).toFloat64() +
-                      (hour * 3600 * 1000).toFloat64() +
-                      (minute * 60 * 1000).toFloat64() +
-                      (second * 1000).toFloat64() +
-                      millisecond.toFloat64()
+        let totalMs = Float64(year * 365 * 24 * 3600 * 1000) +
+                      Float64(month * 30 * 24 * 3600 * 1000) +
+                      Float64(day * 24 * 3600 * 1000) +
+                      Float64(hour * 3600 * 1000) +
+                      Float64(minute * 60 * 1000) +
+                      Float64(second * 1000) +
+                      Float64(millisecond)
         totalMs
     }
 
@@ -127,7 +133,13 @@ public class JSGlobalObject {
 
     // 严格翻译自 JSGlobalObject.throwMissingArgumentsValue
     public func throwMissingArgumentsValue(argNames: Array<String>): JsError {
-        let names = String.join(", ", argNames)
+        var names = ""
+        var first = true
+        for (n in argNames) {
+            if (!first) { names = names + ", " }
+            names = names + n
+            first = false
+        }
         if (argNames.size == 1) {
             return JsError("The \"" + names + "\" argument must be specified")
         } else if (argNames.size == 2) {
@@ -238,15 +250,7 @@ public class JSGlobalObject {
 
     // 严格翻译自 ERR 方法
     public func err(code: ErrorCode, message: String): JsValue {
-        let errorName = match (code) {
-            case ErrorCode.MissingArgs => "MISSING_ARGS"
-            case ErrorCode.InvalidArgType => "INVALID_ARG_TYPE"
-            case ErrorCode.InvalidArgValue => "INVALID_ARG_VALUE"
-            case ErrorCode.IncompatibleOptionPair => "INCOMPATIBLE_OPTION_PAIR"
-            case ErrorCode.CryptoInvalidScryptParams => "CRYPTO_INVALID_SCRYPT_PARAMS"
-            case ErrorCode.UnhandledRejection => "UNHANDLED_REJECTION"
-            case ErrorCode.Unknown => "UNKNOWN"
-        }
+        let errorName = code.toString()
         let err = JsError(errorName + ": " + message)
         JsValue(err.toString())
     }
@@ -263,8 +267,8 @@ public class JSGlobalObject {
         let obj = JsObject.make()
         obj.className = "AggregateError"
         obj.set("message", JsValue(message))
-        obj.set("errors", JsValue(obj: JsObject.make()))
-        JsValue(obj: obj)
+        obj.set("errors", JsValue(JsObject.make()))
+        JsValue(obj)
     }
 
     // ========== 请求终止 ==========
@@ -290,7 +294,7 @@ public class JSGlobalObject {
 
     // 严格翻译自 JSGlobalObject.toJSValue
     public func toJSValue(): JsValue {
-        JsValue(obj: globalThis)
+        JsValue(globalThis)
     }
 
     // ========== JS 值转换 ==========
@@ -314,89 +318,89 @@ public class JSGlobalObject {
         let global = JsObject.make()
 
         // 设置全局属性
-        global.set("globalThis", JsValue(obj: global))
+        global.set("globalThis", JsValue(global))
         global.set("undefined", JsValue.undefined())
-        global.set("NaN", JsValue(n: Float64.NaN))
-        global.set("Infinity", JsValue(n: Float64.PositiveInfinity))
+        global.set("NaN", JsValue(Float64.NaN))
+        global.set("Infinity", JsValue(1.0 / 0.0))
 
         // Console
         let consoleObj = JsObject.make()
         consoleObj.className = "Console"
-        global.set("console", JsValue(obj: consoleObj))
+        global.set("console", JsValue(consoleObj))
 
         // 内置构造函数
         let objectCtor = JsObject.make()
         objectCtor.className = "Function"
         objectCtor.set("name", JsValue("Object"))
-        global.set("Object", JsValue(obj: objectCtor))
+        global.set("Object", JsValue(objectCtor))
 
         let arrayCtor = JsObject.make()
         arrayCtor.className = "Function"
         arrayCtor.set("name", JsValue("Array"))
-        global.set("Array", JsValue(obj: arrayCtor))
+        global.set("Array", JsValue(arrayCtor))
 
         let functionCtor = JsObject.make()
         functionCtor.className = "Function"
         functionCtor.set("name", JsValue("Function"))
-        global.set("Function", JsValue(obj: functionCtor))
+        global.set("Function", JsValue(functionCtor))
 
         let stringCtor = JsObject.make()
         stringCtor.className = "Function"
         stringCtor.set("name", JsValue("String"))
-        global.set("String", JsValue(obj: stringCtor))
+        global.set("String", JsValue(stringCtor))
 
         let numberCtor = JsObject.make()
         numberCtor.className = "Function"
         numberCtor.set("name", JsValue("Number"))
-        global.set("Number", JsValue(obj: numberCtor))
+        global.set("Number", JsValue(numberCtor))
 
         let booleanCtor = JsObject.make()
         booleanCtor.className = "Function"
         booleanCtor.set("name", JsValue("Boolean"))
-        global.set("Boolean", JsValue(obj: booleanCtor))
+        global.set("Boolean", JsValue(booleanCtor))
 
         let promiseCtor = JsObject.make()
         promiseCtor.className = "Function"
         promiseCtor.set("name", JsValue("Promise"))
-        global.set("Promise", JsValue(obj: promiseCtor))
+        global.set("Promise", JsValue(promiseCtor))
 
         // Math
         let mathObj = JsObject.make()
         mathObj.className = "Math"
-        mathObj.set("PI", JsValue(n: 3.141592653589793))
-        mathObj.set("E", JsValue(n: 2.718281828459045))
-        mathObj.set("LN2", JsValue(n: 0.6931471805599453))
-        mathObj.set("LN10", JsValue(n: 2.302585092994046))
-        mathObj.set("SQRT2", JsValue(n: 1.4142135623730951))
-        global.set("Math", JsValue(obj: mathObj))
+        mathObj.set("PI", JsValue(3.141592653589793))
+        mathObj.set("E", JsValue(2.718281828459045))
+        mathObj.set("LN2", JsValue(0.6931471805599453))
+        mathObj.set("LN10", JsValue(2.302585092994046))
+        mathObj.set("SQRT2", JsValue(1.4142135623730951))
+        global.set("Math", JsValue(mathObj))
 
         // JSON
         let jsonObj = JsObject.make()
         jsonObj.className = "JSON"
-        global.set("JSON", JsValue(obj: jsonObj))
+        global.set("JSON", JsValue(jsonObj))
 
         // Date
         let dateCtor = JsObject.make()
         dateCtor.className = "Function"
         dateCtor.set("name", JsValue("Date"))
-        global.set("Date", JsValue(obj: dateCtor))
+        global.set("Date", JsValue(dateCtor))
 
         // RegExp
         let regexpCtor = JsObject.make()
         regexpCtor.className = "Function"
         regexpCtor.set("name", JsValue("RegExp"))
-        global.set("RegExp", JsValue(obj: regexpCtor))
+        global.set("RegExp", JsValue(regexpCtor))
 
         // Map, Set, WeakMap, WeakSet
         let mapCtor = JsObject.make()
         mapCtor.className = "Function"
         mapCtor.set("name", JsValue("Map"))
-        global.set("Map", JsValue(obj: mapCtor))
+        global.set("Map", JsValue(mapCtor))
 
         let setCtor = JsObject.make()
         setCtor.className = "Function"
         setCtor.set("name", JsValue("Set"))
-        global.set("Set", JsValue(obj: setCtor))
+        global.set("Set", JsValue(setCtor))
 
         // Error types
         let errorCtors = ["Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "URIError", "AggregateError"]
@@ -404,26 +408,26 @@ public class JSGlobalObject {
             let ctor = JsObject.make()
             ctor.className = "Function"
             ctor.set("name", JsValue(name))
-            global.set(name, JsValue(obj: ctor))
+            global.set(name, JsValue(ctor))
         }
 
         // Symbol
         let symbolCtor = JsObject.make()
         symbolCtor.className = "Function"
         symbolCtor.set("name", JsValue("Symbol"))
-        global.set("Symbol", JsValue(obj: symbolCtor))
+        global.set("Symbol", JsValue(symbolCtor))
 
         // BigInt
         let bigintCtor = JsObject.make()
         bigintCtor.className = "Function"
         bigintCtor.set("name", JsValue("BigInt"))
-        global.set("BigInt", JsValue(obj: bigintCtor))
+        global.set("BigInt", JsValue(bigintCtor))
 
         // Proxy
         let proxyCtor = JsObject.make()
         proxyCtor.className = "Function"
         proxyCtor.set("name", JsValue("Proxy"))
-        global.set("Proxy", JsValue(obj: proxyCtor))
+        global.set("Proxy", JsValue(proxyCtor))
 
         global
     }
@@ -445,89 +449,13 @@ public class JSGlobalObject {
     }
 
     // ========== vm() ==========
-    public func vm(): ?BunVirtualMachine {
+    public func getVm(): ?BunVirtualMachine {
         vm
     }
 }
 
-// ========== 栈追踪位置 ==========
-// 严格翻译自 jsc.ZigStackFrame
-public class ZigStackFrame {
-    public var sourceUrl: String = ""
-    public var functionName: String = ""
-    public var positionLine: Int64 = 0
-    public var positionColumn: Int64 = 0
-    public var remapped: Bool = false
-    public var isInvalid: Bool = false
+// 注意: ZigStackFrame 已移至 zig_stack_frame.cj
+// 注意: ZigStackTrace 已移至 zig_stack_trace.cj
+// 注意: ZigException 已移至 zig_exception.cj
 
-    public init() {}
-
-    // 严格翻译自 ZigStackFrame.position.isInvalid
-    public func isPositionInvalid(): Bool {
-        isInvalid || (positionLine == 0 && positionColumn == 0)
-    }
-}
-
-// ========== 栈追踪 ==========
-// 严格翻译自 jsc.ZigStackTrace
-public class ZigStackTrace {
-    public var frames: Array<ZigStackFrame> = []
-    public var sourceLines: Array<String> = []
-    public var sourceLineNumbers: Array<Int64> = []
-    public var sourceLinesLen: Int64 = 0
-
-    public init() {}
-
-    public func frames(): Array<ZigStackFrame> {
-        frames
-    }
-}
-
-// ========== Zig 异常 ==========
-// 严格翻译自 jsc.ZigException
-public class ZigException {
-    public var name: String = ""
-    public var message: String = ""
-    public var stack: ZigStackTrace = ZigStackTrace()
-    public var browserUrl: String = ""
-    public var remapped: Bool = false
-
-    public init() {}
-
-    // 严格翻译自 ZigException.addToErrorList
-    public func addToErrorList(list: ExceptionList, dir: String, origin: ?String) {
-        // 添加到错误列表
-    }
-
-    // 严格翻译自 ZigException.collectSourceLines
-    public func collectSourceLines(errorInstance: JsValue, global: JsObject) {
-        // 收集源码行
-    }
-}
-
-// ========== Zig 异常持有者 ==========
-// 严格翻译自 ZigException.Holder
-public class ZigExceptionHolder {
-    public var exception: ZigException = ZigException()
-    public var needToClearParserArenaOnDeinit: Bool = false
-
-    static let SOURCE_LINES_COUNT: Int64 = 3
-
-    public init() {}
-
-    // 严格翻译自 ZigException.Holder.init
-    public static func init_(): ZigExceptionHolder {
-        ZigExceptionHolder()
-    }
-
-    // 严格翻译自 ZigException.Holder.deinit
-    public func deinit(vm: BunVirtualMachine) {
-        if (needToClearParserArenaOnDeinit) {
-            vm.moduleLoader.resetArena(vm)
-        }
-    }
-
-    public func zigException(): ZigException {
-        exception
-    }
-}
+// 注意: ZigExceptionHolder 已移至 zig_exception.cj (or virtual_machine.cj)

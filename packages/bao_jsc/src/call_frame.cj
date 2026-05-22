@@ -74,15 +74,10 @@ public class CallFrame {
     // 严格翻译自 CallFrame.argumentsAsArray
     // 获取指定数量的参数，不足的填充 undefined
     public func argumentsAsArray(count: Int64): Array<JsValue> {
-        var result = Array<JsValue>()
         let n = if (count < Int64(args.size)) { count } else { Int64(args.size) }
-        for (i in 0..n) {
-            result.append(args[Int64(i)])
-        }
-        // 填充剩余为 undefined
-        while (Int64(result.size) < count) {
-            result.append(JsValue.undefined())
-        }
+        var result = Array<JsValue>(Int64(count), { i =>
+            if (i < n) { args[Int64(i)] } else { JsValue.undefined() }
+        })
         result
     }
 
@@ -103,7 +98,7 @@ public class CallFrame {
 
     // 严格翻译自 CallFrame.this
     // 获取 this 值
-    public func this(): JsValue {
+    public func `this`(): JsValue {
         thisValue
     }
 
@@ -116,7 +111,7 @@ public class CallFrame {
     // 严格翻译自 CallFrame.iterate
     // 返回参数迭代器
     public func iterate(): CallFrameIterator {
-        CallFrameIterator(args: args)
+        CallFrameIterator(args)
     }
 
     // 严格翻译自 CallFrame.isFromBunMain
@@ -147,11 +142,8 @@ public class CallFrame {
     public func argumentsOld(max: Int64): CallFrameArguments {
         let slice = args
         let count = if (Int64(slice.size) < max) { Int64(slice.size) } else { max }
-        var ptr = Array<JsValue>()
-        for (i in 0..count) {
-            ptr.append(slice[Int64(i)])
-        }
-        CallFrameArguments(ptr: ptr, len: count)
+        var ptr = Array<JsValue>(count, { i => slice[Int64(i)] })
+        CallFrameArguments(ptr, count)
     }
 
     // ========== argumentsUndef (已弃用) ==========
@@ -160,15 +152,10 @@ public class CallFrame {
     public func argumentsUndef(max: Int64): CallFrameArguments {
         let slice = args
         let count = if (Int64(slice.size) < max) { Int64(slice.size) } else { max }
-        var ptr = Array<JsValue>()
-        for (i in 0..max) {
-            if (i < count) {
-                ptr.append(slice[Int64(i)])
-            } else {
-                ptr.append(JsValue.undefined())
-            }
-        }
-        CallFrameArguments(ptr: ptr, len: count)
+        var ptr = Array<JsValue>(max, { i =>
+            if (i < count) { slice[Int64(i)] } else { JsValue.undefined() }
+        })
+        CallFrameArguments(ptr, count)
     }
 }
 
@@ -221,7 +208,7 @@ public class ArgumentsSlice {
         if (remaining.size == 0) {
             return
         }
-        remaining = remaining.slice(1)
+        remaining = remaining.slice(1, remaining.size)
     }
 
     // 严格翻译自 ArgumentsSlice.next
@@ -295,7 +282,7 @@ public class CallFrameArguments {
     }
 
     // 获取可变参数数组
-    public func mut(): Array<JsValue> {
+    public func `mut`(): Array<JsValue> {
         ptr
     }
 }
@@ -341,3 +328,5 @@ public class Register {
         payload
     }
 }
+
+// 注意: JsFunction 已移至 js_function.cj (class)

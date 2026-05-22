@@ -9,6 +9,7 @@ package bao_runtime.webcore
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_ptr.*
 
 // ============================================================================
@@ -66,32 +67,32 @@ public enum ResumableSinkBackpressure {
 /// 对应 Bun: ResumableSinkJs trait
 /// 模型化 Zig 的 comptime js: type 参数
 public interface ResumableSinkJs {
-    /// toJS — 将 this 转为 JSValue
-    func toJs(thisPtr: UIntNative, global: JSGlobalObject): JSValue
+    /// toJS — 将 this 转为 JsValue
+    func toJs(thisPtr: UIntNative, global: JSGlobalObject): JsValue
 
-    /// fromJS — 从 JSValue 恢复 this
-    func fromJs(value: JSValue): ?UIntNative
+    /// fromJS — 从 JsValue 恢复 this
+    func fromJs(value: JsValue): ?UIntNative
 
-    /// fromJSDirect — 从 JSValue 直接恢复 this
-    func fromJsDirect(value: JSValue): ?UIntNative
+    /// fromJSDirect — 从 JsValue 直接恢复 this
+    func fromJsDirect(value: JsValue): ?UIntNative
 
     /// oncancelSetCached — 设置 oncancel 缓存
-    func oncancelSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit
+    func oncancelSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit
 
     /// oncancelGetCached — 获取 oncancel 缓存
-    func oncancelGetCached(thisValue: JSValue): ?JSValue
+    func oncancelGetCached(thisValue: JsValue): ?JsValue
 
     /// ondrainSetCached — 设置 ondrain 缓存
-    func ondrainSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit
+    func ondrainSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit
 
     /// ondrainGetCached — 获取 ondrain 缓存
-    func ondrainGetCached(thisValue: JSValue): ?JSValue
+    func ondrainGetCached(thisValue: JsValue): ?JsValue
 
     /// streamSetCached — 设置 stream 缓存
-    func streamSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit
+    func streamSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit
 
     /// streamGetCached — 获取 stream 缓存
-    func streamGetCached(thisValue: JSValue): ?JSValue
+    func streamGetCached(thisValue: JsValue): ?JsValue
 }
 
 // ============================================================================
@@ -109,7 +110,7 @@ public interface ResumableSinkContext {
 
     /// writeEndRequest — 写入结束请求
     /// 对应 Bun: ResumableSinkContext::write_end_request()
-    func writeEndRequest(err: ?JSValue): Unit
+    func writeEndRequest(err: ?JsValue): Unit
 }
 
 // ============================================================================
@@ -146,7 +147,7 @@ public class ResumableSink<Js, Context>
     public var globalThis: BackRef<JSGlobalObject>
 
     /// 上下文指针 (FetchTasklet / S3UploadStreamWrapper)
-    /// 对应 Bun: context: *mut Context
+    /// 对应 Bun: context: *Context
     public var context: ?Context
 
     /// 高水位标记 (字节), 默认 16384
@@ -206,37 +207,37 @@ public class ResumableSink<Js, Context>
 
     /// 设置 oncancel 回调
     /// 对应 Bun: set_cancel()
-    public static func setCancel(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {
+    public static func setCancel(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
         Js.oncancelSetCached(thisValue, global, value)
     }
 
     /// 获取 oncancel 回调
     /// 对应 Bun: get_cancel()
-    public static func getCancel(thisValue: JSValue): ?JSValue {
+    public static func getCancel(thisValue: JsValue): ?JsValue {
         return Js.oncancelGetCached(thisValue)
     }
 
     /// 设置 ondrain 回调
     /// 对应 Bun: set_drain()
-    public static func setDrain(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {
+    public static func setDrain(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
         Js.ondrainSetCached(thisValue, global, value)
     }
 
     /// 获取 ondrain 回调
     /// 对应 Bun: get_drain()
-    public static func getDrain(thisValue: JSValue): ?JSValue {
+    public static func getDrain(thisValue: JsValue): ?JsValue {
         return Js.ondrainGetCached(thisValue)
     }
 
     /// 设置 stream 缓存
     /// 对应 Bun: set_stream()
-    public static func setStream(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {
+    public static func setStream(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
         Js.streamSetCached(thisValue, global, value)
     }
 
     /// 获取 stream 缓存
     /// 对应 Bun: get_stream()
-    public static func getStream(thisValue: JSValue): ?JSValue {
+    public static func getStream(thisValue: JsValue): ?JsValue {
         return Js.streamGetCached(thisValue)
     }
 
@@ -253,7 +254,7 @@ public class ResumableSink<Js, Context>
 
     /// onEnd — 调用上下文的 writeEndRequest
     /// 对应 Bun: on_end()
-    static func onEnd(ctx: Context, err: ?JSValue): Unit {
+    static func onEnd(ctx: Context, err: ?JsValue): Unit {
         ctx.writeEndRequest(err)
     }
 
@@ -263,7 +264,7 @@ public class ResumableSink<Js, Context>
     // ========================================================================
 
     /// 构造函数 — 总是抛出非法构造函数错误
-    public static func constructor(global: JSGlobalObject, frame: CallFrame): ?JSValue {
+    public static func constructor(global: JSGlobalObject, frame: CallFrame): ?JsValue {
         // throw "ResumableSink is not a constructor"
         return None
     }
@@ -275,7 +276,7 @@ public class ResumableSink<Js, Context>
 
     /// init — 初始化带默认引用计数
     /// 对应 Bun: init()
-    public static func init(
+    public static func `init`(
         globalThis: JSGlobalObject,
         stream: ReadableStream,
         context: Context
@@ -298,7 +299,7 @@ public class ResumableSink<Js, Context>
 
         if (stream.isLocked() || stream.isDisturbed()) {
             // 流已被使用 — 报错
-            let errInstance = JSValue.zero() // SystemError to error instance
+            let errInstance = JsValue.zero() // SystemError to error instance
             this_.status = ResumableSinkStatus.Done
             onEnd(context, Some(errInstance))
             // deref 释放
@@ -314,7 +315,7 @@ public class ResumableSink<Js, Context>
 
                     if (byteStream.hasReceivedLastChunk()) {
                         this_.status = ResumableSinkStatus.Done
-                        var err: ?JSValue = None
+                        var err: ?JsValue = None
                         let pending = byteStream.pendingResult()
                         match (pending) {
                             case Some(streamErr) =>
@@ -341,7 +342,7 @@ public class ResumableSink<Js, Context>
                     this_.ref() // 为管道增加一个引用
 
                     // 只需要流, 不需要触碰 JS 端
-                    this_.stream = ReadableStreamStrong.init(stream, globalThis)
+                    this_.stream = ReadableStreamStrong(stream, globalThis)
                     return this_
                 }
             case None => ()
@@ -371,8 +372,8 @@ public class ResumableSink<Js, Context>
     public func jsSetHandlers(
         globalThis: JSGlobalObject,
         callframe: CallFrame,
-        thisValue: JSValue
-    ): ?JSValue {
+        thisValue: JsValue
+    ): ?JsValue {
         let args = callframe.args
 
         if (args.size < 2) {
@@ -388,7 +389,7 @@ public class ResumableSink<Js, Context>
         if (oncancel.isCallable()) {
             setCancel(thisValue, globalThis, oncancel)
         }
-        return Some(JSValue.undefined())
+        return Some(JsValue.undefined())
     }
 
     // ========================================================================
@@ -397,7 +398,7 @@ public class ResumableSink<Js, Context>
     // ========================================================================
 
     /// jsStart — JS 端启动
-    public func jsStart(globalThis: JSGlobalObject, callframe: CallFrame): ?JSValue {
+    public func jsStart(globalThis: JSGlobalObject, callframe: CallFrame): ?JsValue {
         let args = callframe.args
         if (args.size > 0 && args[0].isObject()) {
             // 尝试获取 highWaterMark 参数
@@ -407,7 +408,7 @@ public class ResumableSink<Js, Context>
                 case None => ()
             }
         }
-        return Some(JSValue.undefined())
+        return Some(JsValue.undefined())
     }
 
     // ========================================================================
@@ -416,12 +417,12 @@ public class ResumableSink<Js, Context>
     // ========================================================================
 
     /// jsWrite — JS 端写入
-    public func jsWrite(globalThis: JSGlobalObject, callframe: CallFrame): ?JSValue {
+    public func jsWrite(globalThis: JSGlobalObject, callframe: CallFrame): ?JsValue {
         let args = callframe.args
 
         // 如果已分离, 忽略调用
         if (isDetached()) {
-            return Some(JSValue.undefined())
+            return Some(JsValue.undefined())
         }
 
         if (args.size < 1) {
@@ -448,7 +449,7 @@ public class ResumableSink<Js, Context>
                     case None => ()
                 }
                 let result = if (status != ResumableSinkStatus.Paused) { 1 } else { 0 }
-                return Some(JSValue.jsNumber(Float64(result)))
+                return Some(JsValue.jsNumber(Float64(result)))
         }
     }
 
@@ -458,12 +459,12 @@ public class ResumableSink<Js, Context>
     // ========================================================================
 
     /// jsEnd — JS 端结束
-    public func jsEnd(globalThis: JSGlobalObject, callframe: CallFrame): ?JSValue {
+    public func jsEnd(globalThis: JSGlobalObject, callframe: CallFrame): ?JsValue {
         let args = callframe.args
 
         // 如果已分离, 忽略调用
         if (isDetached()) {
-            return Some(JSValue.undefined())
+            return Some(JsValue.undefined())
         }
         detachJs()
         status = ResumableSinkStatus.Done
@@ -474,7 +475,7 @@ public class ResumableSink<Js, Context>
                 onEnd(ctx, err)
             case None => ()
         }
-        return Some(JSValue.undefined())
+        return Some(JsValue.undefined())
     }
 
     // ========================================================================
@@ -497,7 +498,7 @@ public class ResumableSink<Js, Context>
                             case Some(ondrain) =>
                                 status = ResumableSinkStatus.Started
                                 // 运行回调
-                                // eventLoop.runCallback(ondrain, global, JSValue.UNDEFINED, [...])
+                                // eventLoop.runCallback(ondrain, global, JsValue.UNDEFINED, [...])
                                 runDrainCallback(global, ondrain)
                             case None => ()
                         }
@@ -516,7 +517,7 @@ public class ResumableSink<Js, Context>
     /// 对应 Bun: cancel()
     /// onEnd 最多触发一次。第一次 cancel() 后, jsThis 被降级为 weak
     /// 所以此守卫是防止第二次 cancel() 重新调用 onEnd 的唯一手段
-    public func cancel(reason: JSValue): Unit {
+    public func cancel(reason: JsValue): Unit {
         if (status == ResumableSinkStatus.Done) {
             return
         }
@@ -547,7 +548,7 @@ public class ResumableSink<Js, Context>
                     case Some(callback) =>
                         match (globalObject) {
                             case Some(global) =>
-                                // eventLoop.runCallback(callback, global, JSValue.UNDEFINED, [...])
+                                // eventLoop.runCallback(callback, global, JsValue.UNDEFINED, [...])
                                 runCancelCallback(global, callback, reason)
                             case None => ()
                         }
@@ -583,9 +584,9 @@ public class ResumableSink<Js, Context>
                 let global = globalThis.get()
                 match (global) {
                     case Some(g) =>
-                        setDrain(jsThisVal, g, JSValue.zero())
-                        setCancel(jsThisVal, g, JSValue.zero())
-                        setStream(jsThisVal, g, JSValue.zero())
+                        setDrain(jsThisVal, g, JsValue.zero())
+                        setCancel(jsThisVal, g, JsValue.zero())
+                        setStream(jsThisVal, g, JsValue.zero())
                         jsThis.downgrade()
                     case None => ()
                 }
@@ -624,7 +625,7 @@ public class ResumableSink<Js, Context>
         let isDone = streamData.isDone()
 
         if (isDone) {
-            var err: ?JSValue = None
+            var err: ?JsValue = None
             // 检查流是否包含错误
             match (streamData.err) {
                 case Some(streamErr) =>
@@ -650,7 +651,7 @@ public class ResumableSink<Js, Context>
 
     /// endPipe — 结束管道连接
     /// 对应 Bun: end_pipe()
-    public func endPipe(err: ?JSValue): Unit {
+    public func endPipe(err: ?JsValue): Unit {
         if (status != ResumableSinkStatus.Piped) {
             return
         }
@@ -723,7 +724,7 @@ public class ResumableSink<Js, Context>
 
 /// 管道处理接口
 /// 对应 Bun: impl PipeHandler for ResumableSink
-/// 满足 Wrap<T: PipeHandler> 以便 Wrap::<Self>::init 可以擦除 *mut Self 为 Pipe
+/// 满足 Wrap<T: PipeHandler> 以便 Wrap::<Self>::init 可以擦除 *Self 为 Pipe
 public interface PipeHandler {
     /// onPipe — 管道数据回调
     func onPipe(stream: StreamResult): Unit
@@ -759,18 +760,18 @@ public class ResumableSinkPipeHandler<Js, Context>
 public class JSResumableFetchSink <: ResumableSinkJs {
     public init() {}
 
-    public func toJs(thisPtr: UIntNative, global: JSGlobalObject): JSValue {
+    public func toJs(thisPtr: UIntNative, global: JSGlobalObject): JsValue {
         // 委托到 generated::JSResumableFetchSink::to_js
-        return JSValue.zero()
+        return JsValue.zero()
     }
-    public func fromJs(value: JSValue): ?UIntNative { return None }
-    public func fromJsDirect(value: JSValue): ?UIntNative { return None }
-    public func oncancelSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {}
-    public func oncancelGetCached(thisValue: JSValue): ?JSValue { return None }
-    public func ondrainSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {}
-    public func ondrainGetCached(thisValue: JSValue): ?JSValue { return None }
-    public func streamSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {}
-    public func streamGetCached(thisValue: JSValue): ?JSValue { return None }
+    public func fromJs(value: JsValue): ?UIntNative { return None }
+    public func fromJsDirect(value: JsValue): ?UIntNative { return None }
+    public func oncancelSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {}
+    public func oncancelGetCached(thisValue: JsValue): ?JsValue { return None }
+    public func ondrainSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {}
+    public func ondrainGetCached(thisValue: JsValue): ?JsValue { return None }
+    public func streamSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {}
+    public func streamGetCached(thisValue: JsValue): ?JsValue { return None }
 }
 
 // ============================================================================
@@ -784,17 +785,17 @@ public class JSResumableFetchSink <: ResumableSinkJs {
 public class JSResumableS3UploadSink <: ResumableSinkJs {
     public init() {}
 
-    public func toJs(thisPtr: UIntNative, global: JSGlobalObject): JSValue {
-        return JSValue.zero()
+    public func toJs(thisPtr: UIntNative, global: JSGlobalObject): JsValue {
+        return JsValue.zero()
     }
-    public func fromJs(value: JSValue): ?UIntNative { return None }
-    public func fromJsDirect(value: JSValue): ?UIntNative { return None }
-    public func oncancelSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {}
-    public func oncancelGetCached(thisValue: JSValue): ?JSValue { return None }
-    public func ondrainSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {}
-    public func ondrainGetCached(thisValue: JSValue): ?JSValue { return None }
-    public func streamSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {}
-    public func streamGetCached(thisValue: JSValue): ?JSValue { return None }
+    public func fromJs(value: JsValue): ?UIntNative { return None }
+    public func fromJsDirect(value: JsValue): ?UIntNative { return None }
+    public func oncancelSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {}
+    public func oncancelGetCached(thisValue: JsValue): ?JsValue { return None }
+    public func ondrainSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {}
+    public func ondrainGetCached(thisValue: JsValue): ?JsValue { return None }
+    public func streamSetCached(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {}
+    public func streamGetCached(thisValue: JsValue): ?JsValue { return None }
 }
 
 // ============================================================================
@@ -812,7 +813,7 @@ public class FetchTaskletContext <: ResumableSinkContext {
         return ResumableSinkBackpressure.WantMore
     }
 
-    public func writeEndRequest(err: ?JSValue): Unit {
+    public func writeEndRequest(err: ?JsValue): Unit {
         // 委托到 FetchTasklet::write_end_request
     }
 }
@@ -838,24 +839,24 @@ public type ResumableS3UploadSinkAlias = ResumableSink<JSResumableS3UploadSink, 
 /// 对应 Bun: bun_jsc::JsRef
 public class JsRef {
     private var strong: Bool
-    private var value: ?JSValue
+    private var value: ?JsValue
 
     public init() {
         strong = false
         value = None
     }
 
-    public func setStrong(v: JSValue, global: JSGlobalObject): Unit {
+    public func setStrong(v: JsValue, global: JSGlobalObject): Unit {
         strong = true
         value = Some(v)
     }
 
-    public func tryGet(): ?JSValue {
+    public func tryGet(): ?JsValue {
         return value
     }
 
     public func isStrong(): Bool {
-        return strong && value != None
+        return strong && value.isSome()
     }
 
     public func downgrade(): Unit {
@@ -899,7 +900,7 @@ public class ReadableStream {
     public func isLocked(): Bool { return false }
     public func isDisturbed(): Bool { return false }
     public func bytes(): ?ByteStream { return None }
-    public func toJs(): JSValue { return JSValue.zero() }
+    public func toJs(): JsValue { return JsValue.zero() }
 }
 
 /// ReadableStreamStrong — 可读流强引用
@@ -907,7 +908,7 @@ public class ReadableStream {
 public class ReadableStreamStrong {
     public init() {}
 
-    public static func init(stream: ReadableStream, global: JSGlobalObject): ReadableStreamStrong {
+    public static func `init`(stream: ReadableStream, global: JSGlobalObject): ReadableStreamStrong {
         return ReadableStreamStrong()
     }
 
@@ -961,12 +962,12 @@ public class ByteStream {
 public class StreamError {
     public init() {}
 
-    public func toJsWeak(global: ?JSGlobalObject): JSValue {
-        return JSValue.zero()
+    public func toJsWeak(global: ?JSGlobalObject): JsValue {
+        return JsValue.zero()
     }
 
-    public func toJs(global: ?JSGlobalObject): JSValue {
-        return JSValue.zero()
+    public func toJs(global: ?JSGlobalObject): JsValue {
+        return JsValue.zero()
     }
 }
 
@@ -997,13 +998,13 @@ public type UIntNative = UInt64
 
 /// 将流分配到 ResumableSink
 /// 对应 Bun: Bun__assignStreamIntoResumableSink extern (ResumableSink.rs:672-678)
-func assignStreamIntoResumableSink(global: JSGlobalObject, stream: JSValue, sink: JSValue): JSValue {
+func assignStreamIntoResumableSink(global: JSGlobalObject, stream: JsValue, sink: JsValue): JsValue {
     // 在实际实现中调用 FFI extern
-    return JSValue.zero()
+    return JsValue.zero()
 }
 
 /// 从 JS 值解析 StringOrBuffer
-func stringOrBufferFromJs(global: JSGlobalObject, value: JSValue): ?Array<UInt8> {
+func stringOrBufferFromJs(global: JSGlobalObject, value: JsValue): ?Array<UInt8> {
     if (value.isArrayBuffer()) {
         return Some(value.arrayBufferSlice())
     }
@@ -1015,13 +1016,13 @@ func stringOrBufferFromJs(global: JSGlobalObject, value: JSValue): ?Array<UInt8>
 }
 
 /// 运行 drain 回调
-func runDrainCallback(global: JSGlobalObject, callback: JSValue): Unit {
-    // eventLoop.runCallback(ondrain, global, JSValue.UNDEFINED, [...])
+func runDrainCallback(global: JSGlobalObject, callback: JsValue): Unit {
+    // eventLoop.runCallback(ondrain, global, JsValue.UNDEFINED, [...])
 }
 
 /// 运行 cancel 回调
-func runCancelCallback(global: JSGlobalObject, callback: JSValue, reason: JSValue): Unit {
-    // eventLoop.runCallback(callback, global, JSValue.UNDEFINED, [...])
+func runCancelCallback(global: JSGlobalObject, callback: JsValue, reason: JsValue): Unit {
+    // eventLoop.runCallback(callback, global, JsValue.UNDEFINED, [...])
 }
 
 // ported from: src/runtime/webcore/ResumableSink.rs

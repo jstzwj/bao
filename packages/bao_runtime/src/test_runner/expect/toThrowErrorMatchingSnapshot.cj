@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toThrowErrorMatchingSnapshot() - 检查抛出的错误是否匹配快照
 /// 用法: expect(fn).toThrowErrorMatchingSnapshot(hint?)
-public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -24,7 +24,7 @@ public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObj
     }
 
     var buntestStrong = this.bunTest()
-    if (buntestStrong == None) {
+    if (buntestStrong.isNone()) {
         let signature = Expect.getSignature(matcherName: "toThrowErrorMatchingSnapshot", args: "", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used outside of a test\n", args: [])
@@ -32,9 +32,9 @@ public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObj
     defer { buntestStrong.deinit() }
 
     var hintString = ZigString.Empty
-    if (arguments.length == 0) {
+    if (arguments.size == 0) {
         // 无参数
-    } else if (arguments.length == 1 ){
+    } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
             hintString = arguments[0].toZigString(globalThis: globalThis)
         } else {
@@ -49,15 +49,15 @@ public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObj
     var hint = hintString.toSlice(allocator: default_allocator)
     defer { hint.deinit() }
 
-    let valueOrNull: ?JSValue = this.fnToErrStringOrUndefined(globalThis: globalThis,
+    let valueOrNull: ?JsValue = this.fnToErrStringOrUndefined(globalThis: globalThis,
         value: this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toThrowErrorMatchingSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
     )
-    if (valueOrNull == None) {
+    if (valueOrNull.isNone()) {
         let signature = Expect.getSignature(matcherName: "toThrowErrorMatchingSnapshot", args: "", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Received function did not throw\n", args: [])
     }
-    let value: JSValue = valueOrNull.getOrThrow()
+    let value: JsValue = valueOrNull.getOrThrow()
 
     return this.snapshot(globalThis: globalThis, value: value, propertyMatchers: None, hint: hint.slice(), matcherName: "toThrowErrorMatchingSnapshot")
 }

@@ -35,7 +35,7 @@ public class ResolveMessage {
     // 严格翻译自 ResolveMessage.getCode
     // 获取解析错误码
     public func getCode(globalObject: JsObject): JsValue {
-        if (msg.metadata.resolve != None) {
+        if (msg.metadata.resolve .isSome()) {
             let resolve = msg.metadata.resolve.getOrThrow()
             let specifier = resolve.specifier.slice(msg.data.text)
 
@@ -46,7 +46,7 @@ public class ResolveMessage {
                 case ImportKind_.Dynamic => resolveImportCode(specifier)
                 case _ => "RESOLVE_ERROR"
             }
-            return JsValue(s: code)
+            return JsValue(code)
         }
         JsValue.undefined()
     }
@@ -70,9 +70,9 @@ public class ResolveMessage {
     public func getColumn(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let col = location.column - 1
-            return JsValue(n: Float64(if (col < 0) { 0 } else { col }))
+            return JsValue(Float64(if (col < 0) { 0 } else { col }))
         }
-        JsValue(n: 0.0)
+        JsValue(0.0)
     }
 
     // 严格翻译自 ResolveMessage.getLine
@@ -80,9 +80,9 @@ public class ResolveMessage {
     public func getLine(): JsValue {
         if (let Some(location) <- msg.data.location) {
             let line = location.line - 1
-            return JsValue(n: Float64(if (line < 0) { 0 } else { line }))
+            return JsValue(Float64(if (line < 0) { 0 } else { line }))
         }
-        JsValue(n: 0.0)
+        JsValue(0.0)
     }
 
     // 严格翻译自 ResolveMessage.fmt
@@ -93,12 +93,12 @@ public class ResolveMessage {
         err: ResolveError,
         importKind: ImportKind_
     ): String {
-        if (importKind != ImportKind_.RequireResolve && specifier.startsWith("node:")) {
+        if (!(importKind == ImportKind_.RequireResolve) && specifier.startsWith("node:")) {
             // 完全匹配 Node.js 行为
             return "No such built-in module: " + specifier
         }
         match (err) {
-            case ModuleNotFound => {
+            case ModuleNotFound=>
                 if (referrer == "bun:main") {
                     "Module not found '" + specifier + "'"
                 } else if (isPackagePath(specifier) && !specifier.contains("/")) {
@@ -106,26 +106,22 @@ public class ResolveMessage {
                 } else {
                     "Cannot find module '" + specifier + "' from '" + referrer + "'"
                 }
-            }
-            case InvalidDataURL => {
+            case InvalidDataURL=>
                 "Cannot resolve invalid data URL '" + specifier + "' from '" + referrer + "'"
-            }
-            case InvalidURL => {
+            case InvalidURL=>
                 "Cannot resolve invalid URL '" + specifier + "' from '" + referrer + "'"
-            }
-            case _ => {
+            case _=>
                 if (isPackagePath(specifier)) {
                     err.name() + " while resolving package '" + specifier + "' from '" + referrer + "'"
                 } else {
                     err.name() + " while resolving '" + specifier + "' from '" + referrer + "'"
                 }
-            }
         }
     }
 
     // 严格翻译自 ResolveMessage.toStringFn
     public func toStringFn(globalThis: JsObject): JsValue {
-        JsValue(s: "ResolveMessage: " + msg.data.text)
+        JsValue("ResolveMessage: " + msg.data.text)
     }
 
     // 严格翻译自 ResolveMessage.toString
@@ -148,14 +144,14 @@ public class ResolveMessage {
     public func toJSON(globalThis: JsObject): JsValue {
         let obj = JsObject.make()
         obj.className = "ResolveMessage"
-        obj.set("name", JsValue(s: "ResolveMessage"))
+        obj.set("name", JsValue("ResolveMessage"))
         obj.set("position", getPosition(globalThis))
         obj.set("message", getMessage(globalThis))
         obj.set("level", getLevel(globalThis))
         obj.set("specifier", getSpecifier(globalThis))
         obj.set("importKind", getImportKind(globalThis))
         obj.set("referrer", getReferrer(globalThis))
-        JsValue(obj: obj)
+        JsValue(obj)
     }
 
     // 严格翻译自 ResolveMessage.create
@@ -164,7 +160,7 @@ public class ResolveMessage {
         msg: LoggerMsg,
         referrer: String
     ): ResolveMessage {
-        ResolveMessage(msg: msg.clone(), allocator: "", referrer: referrer)
+        ResolveMessage(msg.clone(), "", referrer)
     }
 
     // 严格翻译自 ResolveMessage.getPosition
@@ -174,28 +170,28 @@ public class ResolveMessage {
 
     // 严格翻译自 ResolveMessage.getMessage
     public func getMessage(globalThis: JsObject): JsValue {
-        JsValue(s: msg.data.text)
+        JsValue(msg.data.text)
     }
 
     // 严格翻译自 ResolveMessage.getLevel
     public func getLevel(globalThis: JsObject): JsValue {
-        JsValue(s: msg.kind.toString())
+        JsValue(msg.kind.toString())
     }
 
     // 严格翻译自 ResolveMessage.getSpecifier
     public func getSpecifier(globalThis: JsObject): JsValue {
-        if (msg.metadata.resolve != None) {
+        if (msg.metadata.resolve .isSome()) {
             let resolve = msg.metadata.resolve.getOrThrow()
-            return JsValue(s: resolve.specifier.slice(msg.data.text))
+            return JsValue(resolve.specifier.slice(msg.data.text))
         }
         JsValue.undefined()
     }
 
     // 严格翻译自 ResolveMessage.getImportKind
     public func getImportKind(globalThis: JsObject): JsValue {
-        if (msg.metadata.resolve != None) {
+        if (msg.metadata.resolve .isSome()) {
             let resolve = msg.metadata.resolve.getOrThrow()
-            return JsValue(s: resolve.importKind.label())
+            return JsValue(resolve.importKind.label())
         }
         JsValue.undefined()
     }
@@ -203,7 +199,7 @@ public class ResolveMessage {
     // 严格翻译自 ResolveMessage.getReferrer
     public func getReferrer(globalThis: JsObject): JsValue {
         if (let Some(ref) <- referrer) {
-            return JsValue(s: ref.text)
+            return JsValue(ref.text)
         }
         JsValue.null()
     }
@@ -235,6 +231,23 @@ public enum ImportKind_ {
     | Url
     | Internal
     | Composes
+
+    public operator func ==(other: ImportKind_): Bool {
+        match (this) {
+            case Stmt => match (other) { case Stmt => true case _ => false }
+            case Require => match (other) { case Require => true case _ => false }
+            case RequireResolve => match (other) { case RequireResolve => true case _ => false }
+            case Dynamic => match (other) { case Dynamic => true case _ => false }
+            case HtmlManifest => match (other) { case HtmlManifest => true case _ => false }
+            case EntryPointRun => match (other) { case EntryPointRun => true case _ => false }
+            case EntryPointBuild => match (other) { case EntryPointBuild => true case _ => false }
+            case At => match (other) { case At => true case _ => false }
+            case AtConditional => match (other) { case AtConditional => true case _ => false }
+            case Url => match (other) { case Url => true case _ => false }
+            case Internal => match (other) { case Internal => true case _ => false }
+            case Composes => match (other) { case Composes => true case _ => false }
+        }
+    }
 
     public func label(): String {
         match (this) {
@@ -324,5 +337,9 @@ public class FsPath {
 
     public init(text: String) {
         this.text = text
+    }
+
+    public func isFile(): Bool {
+        !text.isEmpty() && !text.endsWith("/")
     }
 }

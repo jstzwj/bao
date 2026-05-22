@@ -188,7 +188,7 @@ public class AllocatorIdentity {
 //           safety.alloc.assertEq(old_alloc, alloc)
 //         pub fn transferOwnership(self, new_allocator) void:
 //           if (!enabled) return
-//           defer self.* = .init(new_std)
+//           defer self.* = .`init`(new_std)
 //           old_allocator = self.#allocator.get() orelse return
 //           if (MimallocArena.isInstance(old_allocator)) return
 //           if (traces_enabled): dump trace

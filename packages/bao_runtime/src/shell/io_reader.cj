@@ -7,6 +7,7 @@ package bao_runtime.shell
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // IOReader - 非阻塞IO读取器
@@ -42,12 +43,6 @@ public class IOReader {
     /// 是否已开始
     public var started: Boolean = false
 
-    /// 子指针类型
-    public typealias ChildPtr = IOReaderChildPtr
-
-    /// 读取器实现
-    public typealias ReaderImpl = BufferedReader
-
     /// 复制引用
     public func dupeRef(): IOReader {
         this.ref()
@@ -57,7 +52,7 @@ public class IOReader {
     /// 内存开销
     public func memoryCost(): UInt64 {
         var size: UInt64 = 0
-        size += UInt64(this.buf.length)
+        size += UInt64(this.buf.size)
         size += this.readers.memoryCost()
         return size
     }
@@ -69,10 +64,10 @@ public class IOReader {
 
     /// 初始化
     public static func initFunc(fd: FD, evtloop: EventLoopHandle): IOReader {
-        let this = IOReader()
+        let `this` = IOReader()
         this.refCount = 1
         this.fd = fd
-        this.reader = BufferedReader.init()
+        this.reader = BufferedReader()
         this.evtloop = evtloop
         this.concurrentTask = EventLoopTask.fromEventLoop(evtloop)
         this.asyncDeinit = AsyncDeinitReader()
@@ -174,7 +169,7 @@ public class IOReader {
         if (this.fd.isValid()) {
             this.fd.close()
         }
-        if (let e = this.err) {
+        if (let e <- this.err) {
             e.deref()
         }
         this.readers.deinit()
@@ -196,7 +191,7 @@ public class IOReader {
         }
 
         func len(): UInt64 {
-            return UInt64(this.items.length)
+            return UInt64(this.items.size)
         }
 
         func append(reader: ChildPtr) {
@@ -220,7 +215,7 @@ public class IOReader {
         }
 
         func memoryCost(): UInt64 {
-            return UInt64(this.items.length) * 8
+            return UInt64(this.items.size) * 8
         }
     }
 

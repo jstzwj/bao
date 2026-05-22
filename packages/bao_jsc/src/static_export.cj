@@ -46,7 +46,8 @@ public class CallbackWrapper {
     // 获取回调函数并在全局对象上调用它
     public func call(globalObject: JsGlobalObject, args: Array<JsValue>): ?JsValue {
         if (let Some(callback) <- get()) {
-            return callback.callWithThis(globalObject, args)
+            // TODO: callWithThis requires JSC runtime binding
+            return None
         }
         None
     }

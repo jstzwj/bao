@@ -59,12 +59,16 @@ package bao_runtime.node
 
 public class ZlibImpl {
     // CRC32 校验和（完整实现）
-    public static func crc32(data: Array<UInt8>, value: UInt32 = 0): UInt32 {
+    public static func crc32(data: Array<UInt8>, value: UInt32): UInt32 {
         var crc: UInt32 = value
         for (byte in data) {
             crc = crc32Table[Int64((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
         }
         return crc
+    }
+
+    public static func crc32(data: Array<UInt8>): UInt32 {
+        crc32(data, 0)
     }
 
     // zlib 流式处理

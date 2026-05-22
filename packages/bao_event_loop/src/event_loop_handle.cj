@@ -409,7 +409,7 @@ public class EventLoopTask {
         miniTask = None
     }
 
-    /// 初始化任务 - 对应 Bun EventLoopTask.init(kind)
+    /// 初始化任务 - 对应 Bun EventLoopTask(kind)
     /// Bun:
     ///   pub fn init(kind: EventLoopKind) -> EventLoopTask {
     ///       match kind {

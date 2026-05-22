@@ -166,14 +166,14 @@ public class Stmt {
         return Stmt(StmtTag.Empty, ASTLoc(0))
     }
 
-    /// 创建块语句 - 对应 Bun Stmt.init(S.Block, ...)
+    /// 创建块语句 - 对应 Bun Stmt(S.Block, ...)
     public static func block(stmts: ArrayList<StmtNode>, loc: ASTLoc): Stmt {
         let s = Stmt(StmtTag.Block, loc)
         s.blockData = SBlock(stmts)
         return s
     }
 
-    /// 创建表达式语句 - 对应 Bun Stmt.init(S.SExpr, ...)
+    /// 创建表达式语句 - 对应 Bun Stmt(S.SExpr, ...)
     public static func exprStmt(expr: ASTNode, loc: ASTLoc): Stmt {
         let s = Stmt(StmtTag.Expr, loc)
         s.exprStmtData = SSExpr(expr, false)
@@ -201,7 +201,7 @@ public class Stmt {
         return s
     }
 
-    /// 创建变量声明 - 对应 Bun Stmt.init(S.Local, ...)
+    /// 创建变量声明 - 对应 Bun Stmt(S.Local, ...)
     public static func local(kind: LocalKind, decls: ArrayList<GDecl>, isExport: Bool, loc: ASTLoc): Stmt {
         let s = Stmt(StmtTag.Local, loc)
         s.localData = SLocal(kind, decls, isExport)

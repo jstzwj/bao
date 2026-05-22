@@ -195,7 +195,7 @@ public class DataURL {
     // 对应 Bun: DataURL.decodeMimeType()
     public func decodeMimeType(): String {
         // 简化实现: 返回原始 MIME 类型字符串
-        // Bun 中使用 bun.http.MimeType.init() 解析
+        // Bun 中使用 bun.http.MimeType() 解析
         return mimeType
     }
 

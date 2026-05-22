@@ -20,7 +20,7 @@ public class ShellInterpreterClasses {
     /// run fn
     /// 严格翻译自: proto.run { fn: "runFromJS", length: 0 }
     /// 启动 shell 脚本执行
-    public static func runFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func runFromJS(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         // 执行预解析的 shell 脚本
         // 返回 Promise<ShellOutput>
         return JsValue.jsUndefined()
@@ -28,14 +28,14 @@ public class ShellInterpreterClasses {
 
     /// isRunning fn
     /// 严格翻译自: proto.isRunning { fn: "isRunning", length: 0 }
-    public static func isRunning(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func isRunning(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         // 检查 shell 是否正在运行
         return JsValue.jsBoolean(false)
     }
 
     /// started fn
     /// 严格翻译自: proto.started { fn: "getStarted", length: 0 }
-    public static func getStarted(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getStarted(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         // 返回是否已开始执行
         return JsValue.jsBoolean(false)
     }

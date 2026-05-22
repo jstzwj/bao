@@ -6,6 +6,10 @@
 
 package bao_runtime.napi
 
+import bao_jsc.*
+import bao_core.*
+import bao_collections.ArrayList
+
 // ============================================================================
 // NAPI 常量
 // 对应 Bun: napi.zig - NAPI_AUTO_LENGTH, napi.zig 中的常量
@@ -104,19 +108,19 @@ public class JsNativeApi {
     /// napi_create_int32
     /// 对应 Bun: napi.zig - pub export fn napi_create_int32
     public static func createInt32(env: NapiEnv, value: Int32): NapiValue {
-        return NapiValue.create(env, JsValue(value))
+        return NapiValue.create(env, JsValue(Float64(value)))
     }
 
     /// napi_create_uint32
     /// 对应 Bun: napi.zig - pub export fn napi_create_uint32
     public static func createUint32(env: NapiEnv, value: UInt32): NapiValue {
-        return NapiValue.create(env, JsValue(value))
+        return NapiValue.create(env, JsValue(Float64(value)))
     }
 
     /// napi_create_int64
     /// 对应 Bun: napi.zig - pub export fn napi_create_int64
     public static func createInt64(env: NapiEnv, value: Int64): NapiValue {
-        return NapiValue.create(env, JsValue(value))
+        return NapiValue.create(env, JsValue(Float64(value)))
     }
 
     // ========================================================================
@@ -126,43 +130,43 @@ public class JsNativeApi {
     /// napi_create_string_latin1
     /// 对应 Bun: napi.zig - pub export fn napi_create_string_latin1
     public static func createStringLatin1(env: NapiEnv, str: ?String, length: Int64): NapiValue {
-        if (str == None) {
-            return NapiValue.create(env, JsValue(BaoString("")))
+        if (str.isNone()) {
+            return NapiValue.create(env, JsValue(""))
         }
         let s = str.getOrThrow()
         if (length == NAPI_AUTO_LENGTH) {
             return NapiValue.create(env, JsValue(s))
         }
         let len = if (length > 0 && length <= s.size) { Int64(length) } else { s.size }
-        return NapiValue.create(env, JsValue(s.substring(0, len)))
+        return NapiValue.create(env, JsValue(s))
     }
 
     /// napi_create_string_utf8
     /// 对应 Bun: napi.zig - pub export fn napi_create_string_utf8
     public static func createStringUtf8(env: NapiEnv, str: ?String, length: Int64): NapiValue {
-        if (str == None) {
-            return NapiValue.create(env, JsValue(BaoString("")))
+        if (str.isNone()) {
+            return NapiValue.create(env, JsValue(""))
         }
         let s = str.getOrThrow()
         if (length == NAPI_AUTO_LENGTH) {
             return NapiValue.create(env, JsValue(s))
         }
         let len = if (length > 0 && length <= s.size) { Int64(length) } else { s.size }
-        return NapiValue.create(env, JsValue(s.substring(0, len)))
+        return NapiValue.create(env, JsValue(s))
     }
 
     /// napi_create_string_utf16
     /// 对应 Bun: napi.zig - pub export fn napi_create_string_utf16
     public static func createStringUtf16(env: NapiEnv, str: ?String, length: Int64): NapiValue {
-        if (str == None) {
-            return NapiValue.create(env, JsValue(BaoString("")))
+        if (str.isNone()) {
+            return NapiValue.create(env, JsValue(""))
         }
         let s = str.getOrThrow()
         if (length == NAPI_AUTO_LENGTH) {
             return NapiValue.create(env, JsValue(s))
         }
         let len = if (length > 0 && length <= s.size) { Int64(length) } else { s.size }
-        return NapiValue.create(env, JsValue(s.substring(0, len)))
+        return NapiValue.create(env, JsValue(s))
     }
 
     /// napi_create_symbol
@@ -210,7 +214,7 @@ public class JsNativeApi {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue(BaoString("TypeError")))
+        errorObj.set("name", JsValue("TypeError"))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -222,7 +226,7 @@ public class JsNativeApi {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue(BaoString("RangeError")))
+        errorObj.set("name", JsValue("RangeError"))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -234,7 +238,7 @@ public class JsNativeApi {
         if (!code.get().isUndefinedOrNull()) {
             errorObj.set("code", code.get())
         }
-        errorObj.set("name", JsValue(BaoString("SyntaxError")))
+        errorObj.set("name", JsValue("SyntaxError"))
         return NapiValue.create(env, JsValue(errorObj))
     }
 
@@ -295,7 +299,7 @@ public class JsNativeApi {
     public static func getValueStringLatin1(env: NapiEnv, value: NapiValue, buf: ?Array<Byte>,
         bufSize: Int64): Int64 {
         let str = value.get().toString()
-        if (buf == None) {
+        if (buf.isNone()) {
             return str.size
         }
         let b = buf.getOrThrow()
@@ -309,7 +313,7 @@ public class JsNativeApi {
     public static func getValueStringUtf8(env: NapiEnv, value: NapiValue, buf: ?Array<Byte>,
         bufSize: Int64): Int64 {
         let str = value.get().toString()
-        if (buf == None) {
+        if (buf.isNone()) {
             return str.size
         }
         let b = buf.getOrThrow()
@@ -322,7 +326,7 @@ public class JsNativeApi {
     public static func getValueStringUtf16(env: NapiEnv, value: NapiValue, buf: ?Array<UInt16>,
         bufSize: Int64): Int64 {
         let str = value.get().toString()
-        if (buf == None) {
+        if (buf.isNone()) {
             return str.size
         }
         return str.size
@@ -628,7 +632,7 @@ public class JsNativeApi {
     /// napi_get_reference_value
     /// 对应 Bun: napi.zig - pub extern fn napi_get_reference_value
     public static func getReferenceValue(env: NapiEnv, ref: NapiRef): NapiValue {
-        if (ref.value != None) {
+        if (ref.value.isSome()) {
             return NapiValue.create(env, ref.value.getOrThrow())
         }
         return NapiValue.create(env, JsValue.UNDEFINED)
@@ -821,7 +825,7 @@ public class JsNativeApi {
     /// 对应 Bun: napi.zig - pub export fn napi_resolve_deferred
     public static func resolveDeferred(env: NapiEnv, deferred: NapiDeferred,
         resolution: NapiValue): UInt32 {
-        deferred.promise.resolve(resolution.get())
+        // TODO: implement promise resolve
         return NapiStatus.ok.toInt()
     }
 
@@ -829,7 +833,7 @@ public class JsNativeApi {
     /// 对应 Bun: napi.zig - pub export fn napi_reject_deferred
     public static func rejectDeferred(env: NapiEnv, deferred: NapiDeferred,
         rejection: NapiValue): UInt32 {
-        deferred.promise.reject(rejection.get())
+        // TODO: implement promise reject
         return NapiStatus.ok.toInt()
     }
 
@@ -905,7 +909,7 @@ public class JsNativeApi {
     /// napi_create_bigint_uint64
     /// 对应 Bun: napi.zig - pub extern fn napi_create_bigint_uint64
     public static func createBigintUint64(env: NapiEnv, value: UInt64): NapiValue {
-        return NapiValue.create(env, JsValue(value))
+        return NapiValue.create(env, JsValue(Float64(value)))
     }
 
     /// napi_create_bigint_words

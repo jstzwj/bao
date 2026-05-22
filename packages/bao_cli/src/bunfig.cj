@@ -58,23 +58,21 @@ public class Bunfig {
             // 对应 Bun: TOML::parse(source, log, &bump, true)
             match (BunfigTomlParser.parse(source, log)) {
                 case Ok(e) => e
-                case Err(err) => {
+                case Err(err) =>
                     if (log.errorCount + log.warningCount == logCount) {
                         log.addError("Failed to parse", source)
                     }
                     throw BaoError(ErrorCode.ParseError, "Failed to parse bunfig: ${err}")
-                }
             }
         } else {
             // 对应 Bun: json_parser::parse_ts_config::<true>(source, log, &bump)
             match (BunfigJsonParser.parse(source, log)) {
                 case Ok(e) => e
-                case Err(err) => {
+                case Err(err) =>
                     if (log.errorCount + log.warningCount == logCount) {
                         log.addError("Failed to parse", source)
                     }
                     throw BaoError(ErrorCode.ParseError, "Failed to parse bunfig: ${err}")
-                }
             }
         }
 
@@ -178,20 +176,18 @@ public class BunfigParser {
         // ── define ──
         // 对应 Bun: if let Some(expr) = json.get(b"define") { self.ctx.args.define = Some(self.parse_define_map(&expr)?) }
         match (json.get("define")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let defineMap = parseDefineMap(expr)
                 ctx.args.define = defineMap
-            }
             case None => ()
         }
 
         // ── origin ──
         // 对应 Bun: json.get(b"origin")
         match (json.get("origin")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expectString(expr)
                 ctx.args.origin = expr.asString()
-            }
             case None => ()
         }
 
@@ -206,16 +202,14 @@ public class BunfigParser {
         if (cmd == CommandTag.RunCommand || cmd == CommandTag.AutoCommand) {
             // ── serve.port ──
             match (json.get("serve")) {
-                case Some(serveExpr) => {
+                case Some(serveExpr) =>
                     match (serveExpr.get("port")) {
-                        case Some(portExpr) => {
+                        case Some(portExpr) =>
                             expect(portExpr, BunfigExprTag.Number)
                             let p = portExpr.asNumber().toInt()
                             ctx.args.port = if (p == 0) { 3000 } else { p }
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
 
@@ -227,11 +221,10 @@ public class BunfigParser {
 
             // ── telemetry ──
             match (json.get("telemetry")) {
-                case Some(expr) => {
+                case Some(expr) =>
                     expect(expr, BunfigExprTag.Boolean)
                     // 对应 Bun: bun_analytics::set_enabled(...)
                     // 仓颉: 暂跳过 analytics
-                }
                 case None => ()
             }
         }
@@ -239,10 +232,9 @@ public class BunfigParser {
         // ── smol ──
         if (cmd == CommandTag.RunCommand || cmd == CommandTag.AutoCommand) {
             match (json.get("smol")) {
-                case Some(expr) => {
+                case Some(expr) =>
                     expect(expr, BunfigExprTag.Boolean)
                     ctx.runtimeOptions.smol = expr.asBool()
-                }
                 case None => ()
             }
         }
@@ -281,12 +273,11 @@ public class BunfigParser {
 
         // ── serve.static 配置 ──
         match (json.getObject("serve")) {
-            case Some(serveObj) => {
+            case Some(serveObj) =>
                 match (serveObj.getObject("static")) {
                     case Some(staticObj) => parseServeStatic(staticObj)
                     case None => ()
                 }
-            }
             case None => ()
         }
 
@@ -301,31 +292,28 @@ public class BunfigParser {
 
         // ── debug 配置 ──
         match (json.get("debug")) {
-            case Some(debugExpr) => {
+            case Some(debugExpr) =>
                 match (debugExpr.get("editor")) {
-                    case Some(editorExpr) => {
+                    case Some(editorExpr) =>
                         let s = editorExpr.asString()
                         if (s != None) {
                             ctx.debug.editor = s!
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
         // ── macros 配置 ──
         // 对应 Bun: if let Some(expr) = json.get(b"macros")
         match (json.get("macros")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean() && !expr.asBool()) {
                     ctx.debug.macros = MacroOptions.Disable
                 } else {
                     // 解析宏映射 (parse_macros_json)
                     ctx.debug.macros = MacroOptions.Enable
                 }
-            }
             case None => ()
         }
 
@@ -398,7 +386,7 @@ public class BunfigParser {
             }
         } else if (expr.isObject()) {
             match (expr.get("file")) {
-                case Some(fileExpr) => {
+                case Some(fileExpr) =>
                     if (fileExpr.isNull()) {
                         ctx.args.disableDefaultEnvFiles = true
                     } else if (fileExpr.isBoolean() && !fileExpr.asBool()) {
@@ -406,7 +394,6 @@ public class BunfigParser {
                     } else if (!fileExpr.isNull() && !fileExpr.isBoolean()) {
                         addError("Expected 'file' to be a boolean or null")
                     }
-                }
                 case None => ()
             }
         } else {
@@ -443,12 +430,11 @@ public class BunfigParser {
         // ── test.root ──
         // 对应 Bun: if let Some(root) = test_.get(b"root") { ... }
         match (testExpr.get("root")) {
-            case Some(rootExpr) => {
+            case Some(rootExpr) =>
                 let s = rootExpr.asString()
                 if (s != None) {
                     ctx.debug.testDirectory = s!
                 }
-            }
             case None => ()
         }
 
@@ -460,30 +446,27 @@ public class BunfigParser {
 
         // ── test.smol ──
         match (testExpr.get("smol")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Boolean)
                 ctx.runtimeOptions.smol = expr.asBool()
-            }
             case None => ()
         }
 
         // ── test.coverage ──
         // 对应 Bun: if let Some(expr) = test_.get(b"coverage") { ... }
         match (testExpr.get("coverage")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Boolean)
                 ctx.testOptions.coverage.enabled = expr.asBool()
-            }
             case None => ()
         }
 
         // ── test.onlyFailures ──
         // 对应 Bun: if let Some(expr) = test_.get(b"onlyFailures") { ... }
         match (testExpr.get("onlyFailures")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Boolean)
                 ctx.testOptions.reporterOnlyFailures = expr.asBool()
-            }
             case None => ()
         }
 
@@ -491,18 +474,17 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"reporter") { ... }
         //   支持 junit (string -> outfile path), dots/dot (boolean)
         match (testExpr.get("reporter")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Object)
                 // junit
                 match (expr.get("junit")) {
-                    case Some(junitExpr) => {
+                    case Some(junitExpr) =>
                         expectString(junitExpr)
                         let s = junitExpr.asString()
                         if (!s.isEmpty()) {
                             ctx.testOptions.reporterJunit = true
                             ctx.testOptions.reporterOutfile = Some(s)
                         }
-                    }
                     case None => ()
                 }
                 // dots / dot
@@ -512,13 +494,11 @@ public class BunfigParser {
                     expr.get("dot")
                 }
                 match (dotsExpr) {
-                    case Some(de) => {
+                    case Some(de) =>
                         expect(de, BunfigExprTag.Boolean)
                         ctx.testOptions.reporterDots = de.asBool()
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
@@ -526,7 +506,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"coverageReporter") { ... }
         //   可以是字符串或字符串数组
         match (testExpr.get("coverageReporter")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 // 重置 reporter
                 ctx.testOptions.coverage.reporters = CoverageReporters(false, false)
                 if (expr.isString()) {
@@ -539,17 +519,15 @@ public class BunfigParser {
                         applyCoverageReporterItem(item)
                     }
                 }
-            }
             case None => ()
         }
 
         // ── test.coverageDir ──
         // 对应 Bun: if let Some(expr) = test_.get(b"coverageDir") { ... }
         match (testExpr.get("coverageDir")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expectString(expr)
                 ctx.testOptions.coverage.reportsDirectory = expr.asString()
-            }
             case None => ()
         }
 
@@ -557,52 +535,46 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"coverageThreshold") { ... }
         //   可以是一个数字 (应用于所有维度) 或一个对象 (functions, lines, statements)
         match (testExpr.get("coverageThreshold")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isNumber()) {
                     // 单个数字应用于所有覆盖率维度
                     // 仓颉: 将阈值存储在 define map 中
                 } else if (expr.isObject()) {
                     // 分别设置 functions, lines, statements
                     match (expr.get("functions")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             expect(v, BunfigExprTag.Number)
-                        }
                         case None => ()
                     }
                     match (expr.get("lines")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             expect(v, BunfigExprTag.Number)
-                        }
                         case None => ()
                     }
                     match (expr.get("statements")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             expect(v, BunfigExprTag.Number)
-                        }
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
 
         // ── test.coverageIgnoreSourcemaps ──
         // 对应 Bun: if let Some(expr) = test_.get(b"coverageIgnoreSourcemaps") { ... }
         match (testExpr.get("coverageIgnoreSourcemaps")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Boolean)
                 ctx.testOptions.coverage.ignoreSourcemap = expr.asBool()
-            }
             case None => ()
         }
 
         // ── test.coverageSkipTestFiles ──
         // 对应 Bun: if let Some(expr) = test_.get(b"coverageSkipTestFiles") { ... }
         match (testExpr.get("coverageSkipTestFiles")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Boolean)
                 ctx.testOptions.coverage.skipTestFiles = expr.asBool()
-            }
             case None => ()
         }
 
@@ -610,11 +582,10 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"randomize") { ... }
         var randomizeFromConfig: ?Bool = None
         match (testExpr.get("randomize")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Boolean)
                 randomizeFromConfig = Some(expr.asBool())
                 ctx.testOptions.randomize = expr.asBool()
-            }
             case None => ()
         }
 
@@ -622,7 +593,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"seed") { ... }
         //   seed 只能在 randomize 为 true 时使用
         match (testExpr.get("seed")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Number)
                 let seedValue = expr.asNumber().toInt()
 
@@ -636,7 +607,6 @@ public class BunfigParser {
                 }
 
                 ctx.testOptions.seed = Some(seedValue)
-            }
             case None => ()
         }
 
@@ -644,14 +614,13 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"rerunEach") { ... }
         //   不能与 retry 同时使用
         match (testExpr.get("rerunEach")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Number)
                 if (ctx.testOptions.retry != 0) {
                     addError("\"rerunEach\" cannot be used with \"retry\"")
                     return
                 }
                 ctx.testOptions.repeatCount = expr.asNumber().toInt()
-            }
             case None => ()
         }
 
@@ -659,14 +628,13 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"retry") { ... }
         //   不能与 rerunEach 同时使用
         match (testExpr.get("retry")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Number)
                 if (ctx.testOptions.repeatCount != 0) {
                     addError("\"retry\" cannot be used with \"rerunEach\"")
                     return
                 }
                 ctx.testOptions.retry = expr.asNumber().toInt()
-            }
             case None => ()
         }
 
@@ -674,7 +642,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"concurrentTestGlob") { ... }
         //   可以是字符串或字符串数组
         match (testExpr.get("concurrentTestGlob")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isString()) {
                     let s = expr.asString()
                     if (s.isEmpty()) {
@@ -708,7 +676,6 @@ public class BunfigParser {
                     addError("concurrentTestGlob must be a string or array of strings")
                     return
                 }
-            }
             case None => ()
         }
 
@@ -716,7 +683,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"coveragePathIgnorePatterns") { ... }
         //   可以是字符串或字符串数组
         match (testExpr.get("coveragePathIgnorePatterns")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isString()) {
                     let s = expr.asString()
                     let patterns = ArrayList<String>()
@@ -739,7 +706,6 @@ public class BunfigParser {
                     addError("coveragePathIgnorePatterns must be a string or array of strings")
                     return
                 }
-            }
             case None => ()
         }
 
@@ -747,7 +713,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(expr) = test_.get(b"pathIgnorePatterns") { ... }
         //   只在 CLI 没有显式传递时才生效
         match (testExpr.get("pathIgnorePatterns")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 // 只跳过如果 --path-ignore-patterns 已通过 CLI 显式传递
                 if (ctx.testOptions.pathIgnorePatternsFromCli) {
                     return
@@ -774,7 +740,6 @@ public class BunfigParser {
                     addError("pathIgnorePatterns must be a string or array of strings")
                     return
                 }
-            }
             case None => ()
         }
     }
@@ -808,7 +773,7 @@ public class BunfigParser {
         // ── install.auto ──
         // 对应 Bun: if let Some(auto_install_expr) = install_obj.get(b"auto") { ... }
         match (installObj.get("auto")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isString()) {
                     let key = expr.asString()
                     match (GlobalCache.fromString(key)) {
@@ -824,21 +789,19 @@ public class BunfigParser {
                 } else {
                     addError("Invalid auto install setting, must be one of true, false, or \"force\" \"fallback\" \"disable\"")
                 }
-            }
             case None => ()
         }
 
         // ── install.prefer ──
         // 对应 Bun: if let Some(prefer_expr) = install_obj.get(b"prefer") { ... }
         match (installObj.get("prefer")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expectString(expr)
                 let key = expr.asString()
                 match (OfflineMode.fromString(key)) {
                     case Some(v) => ctx.debug.offlineModeSetting = Some(v)
                     case None => addError("Invalid prefer setting, must be one of online or offline")
                 }
-            }
             case None => ()
         }
 
@@ -851,13 +814,12 @@ public class BunfigParser {
         // ── install.cafile ──
         // 对应 Bun: if let Some(cafile) = install_obj.get(b"cafile") { ... }
         match (installObj.get("cafile")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let s = expr.asString()
                 if (s == None || s!.isEmpty()) {
                     addError("Invalid cafile. Expected a string.")
                 }
                 // install.cafile = s
-            }
             case None => ()
         }
 
@@ -865,7 +827,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(ca) = install_obj.get(b"ca") { ... }
         //   可以是字符串或字符串数组
         match (installObj.get("ca")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isArray()) {
                     let items = expr.asArray()
                     for (item in items) {
@@ -879,17 +841,15 @@ public class BunfigParser {
                 } else {
                     addError("Invalid CA. Expected a string or an array of strings.")
                 }
-            }
             case None => ()
         }
 
         // ── install.exact ──
         match (installObj.get("exact")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.exact = expr.asBool()
                 }
-            }
             case None => ()
         }
 
@@ -897,16 +857,15 @@ public class BunfigParser {
         // 对应 Bun: if let Some(registry) = install_obj.get(b"registry") { ... }
         //   可以是 URL 字符串或对象 { url, username, password, token }
         match (installObj.get("registry")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 parseRegistry(expr)
-            }
             case None => ()
         }
 
         // ── install.scopes ──
         // 对应 Bun: if let Some(scopes) = install_obj.get(b"scopes") { ... }
         match (installObj.get("scopes")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expect(expr, BunfigExprTag.Object)
                 let props = expr.asProperties()
                 for (prop in props) {
@@ -922,92 +881,83 @@ public class BunfigParser {
                     }
                     parseRegistry(prop.value)
                 }
-            }
             case None => ()
         }
 
         // ── install.dryRun ──
         match (installObj.get("dryRun")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.dryRun = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.production ──
         match (installObj.get("production")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.production = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.frozenLockfile ──
         match (installObj.get("frozenLockfile")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.frozenLockfile = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.saveTextLockfile ──
         match (installObj.get("saveTextLockfile")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.saveTextLockfile = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.concurrentScripts ──
         // 对应 Bun: if let Some(jobs) = install_obj.get(b"concurrentScripts") { ... }
         match (installObj.get("concurrentScripts")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isNumber()) {
                     let n = expr.asNumber().toInt()
                     // install.concurrentScripts = if (n == 0) { None } else { Some(n) }
                 }
-            }
             case None => ()
         }
 
         // ── install.ignoreScripts ──
         match (installObj.get("ignoreScripts")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.ignoreScripts = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.linker ──
         // 对应 Bun: if let Some(node_linker_expr) = install_obj.get(b"linker") { ... }
         match (installObj.get("linker")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 expectString(expr)
                 let s = expr.asString()
                 if (s != "isolated" && s != "hoisted") {
                     addError("Expected one of \"isolated\" or \"hoisted\"")
                 }
-            }
             case None => ()
         }
 
         // ── install.globalStore ──
         match (installObj.get("globalStore")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.globalStore = expr.asBool()
                 }
-            }
             case None => ()
         }
 
@@ -1015,10 +965,10 @@ public class BunfigParser {
         // 对应 Bun: if let Some(lockfile_expr) = install_obj.get(b"lockfile") { ... }
         //   子项: print (string), save (bool), path (string), savePath (string)
         match (installObj.get("lockfile")) {
-            case Some(lockfileExpr) => {
+            case Some(lockfileExpr) =>
                 // lockfile.print
                 match (lockfileExpr.get("print")) {
-                    case Some(expr) => {
+                    case Some(expr) =>
                         expectString(expr)
                         let value = expr.asString()
                         if (value != "bun") {
@@ -1027,91 +977,81 @@ public class BunfigParser {
                             }
                             // install.saveYarnLockfile = true
                         }
-                    }
                     case None => ()
                 }
                 // lockfile.save
                 match (lockfileExpr.get("save")) {
-                    case Some(expr) => {
+                    case Some(expr) =>
                         if (expr.isBoolean()) {
                             // install.saveLockfile = expr.asBool()
                         }
-                    }
                     case None => ()
                 }
                 // lockfile.path
                 match (lockfileExpr.get("path")) {
-                    case Some(expr) => {
+                    case Some(expr) =>
                         let s = expr.asString()
                         if (s != None && !s!.isEmpty()) {
                             // install.lockfilePath = s
                         }
-                    }
                     case None => ()
                 }
                 // lockfile.savePath
                 match (lockfileExpr.get("savePath")) {
-                    case Some(expr) => {
+                    case Some(expr) =>
                         let s = expr.asString()
                         if (s != None && !s!.isEmpty()) {
                             // install.saveLockfilePath = s
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
         // ── install.optional ──
         match (installObj.get("optional")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.saveOptional = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.peer ──
         match (installObj.get("peer")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.savePeer = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.dev ──
         match (installObj.get("dev")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.saveDev = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.globalDir ──
         match (installObj.get("globalDir")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let s = expr.asString()
                 if (s != None && !s!.isEmpty()) {
                     // install.globalDir = s
                 }
-            }
             case None => ()
         }
 
         // ── install.globalBinDir ──
         match (installObj.get("globalBinDir")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let s = expr.asString()
                 if (s != None && !s!.isEmpty()) {
                     // install.globalBinDir = s
                 }
-            }
             case None => ()
         }
 
@@ -1119,7 +1059,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(cache) = install_obj.get(b"cache") { ... }
         //   可以是布尔 (禁用), 字符串 (目录), 或对象 { disable, disableManifest, dir }
         match (installObj.get("cache")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     if (!expr.asBool()) {
                         // install.disableCache = true
@@ -1129,71 +1069,64 @@ public class BunfigParser {
                     // install.cacheDirectory = expr.asString()
                 } else if (expr.isObject()) {
                     match (expr.get("disable")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             if (v.isBoolean()) {
                                 // install.disableCache = v.asBool()
                             }
-                        }
                         case None => ()
                     }
                     match (expr.get("disableManifest")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             if (v.isBoolean()) {
                                 // install.disableManifestCache = v.asBool()
                             }
-                        }
                         case None => ()
                     }
                     match (expr.get("dir")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             let s = v.asString()
                             if (s != None && !s!.isEmpty()) {
                                 // install.cacheDirectory = s
                             }
-                        }
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
 
         // ── install.linkWorkspacePackages ──
         match (installObj.get("linkWorkspacePackages")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     // install.linkWorkspacePackages = expr.asBool()
                 }
-            }
             case None => ()
         }
 
         // ── install.security ──
         // 对应 Bun: if let Some(security_obj) = install_obj.get(b"security") { ... }
         match (installObj.get("security")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isObject()) {
                     match (expr.get("scanner")) {
-                        case Some(scannerExpr) => {
+                        case Some(scannerExpr) =>
                             expectString(scannerExpr)
                             let s = scannerExpr.asString()
                             if (s != None) {
                                 // install.securityScanner = s
                             }
-                        }
                         case None => ()
                     }
                 } else {
                     addError("Invalid security config, expected an object")
                 }
-            }
             case None => ()
         }
 
         // ── install.minimumReleaseAge ──
         // 对应 Bun: if let Some(min_age) = install_obj.get(b"minimumReleaseAge") { ... }
         match (installObj.get("minimumReleaseAge")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isNumber()) {
                     let seconds = expr.asNumber()
                     if (seconds < 0.0) {
@@ -1203,14 +1136,13 @@ public class BunfigParser {
                 } else {
                     addError("Expected number of seconds for minimumReleaseAge")
                 }
-            }
             case None => ()
         }
 
         // ── install.minimumReleaseAgeExcludes ──
         // 对应 Bun: if let Some(exclusions) = install_obj.get(b"minimumReleaseAgeExcludes") { ... }
         match (installObj.get("minimumReleaseAgeExcludes")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isArray()) {
                     let items = expr.asArray()
                     if (items.size > 0) {
@@ -1221,25 +1153,22 @@ public class BunfigParser {
                 } else {
                     addError("Expected array for minimumReleaseAgeExcludes")
                 }
-            }
             case None => ()
         }
 
         // ── install.publicHoistPattern ──
         // 对应 Bun: if let Some(public_hoist_pattern_expr) = install_obj.get(b"publicHoistPattern") { ... }
         match (installObj.get("publicHoistPattern")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 // 解析 pnpm matcher 模式
-            }
             case None => ()
         }
 
         // ── install.hoistPattern ──
         // 对应 Bun: if let Some(hoist_pattern_expr) = install_obj.get(b"hoistPattern") { ... }
         match (installObj.get("hoistPattern")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 // 解析 pnpm matcher 模式
-            }
             case None => ()
         }
     }
@@ -1253,27 +1182,23 @@ public class BunfigParser {
         } else if (expr.isObject()) {
             // 对象形式: { url, username, password, token }
             match (expr.get("url")) {
-                case Some(urlExpr) => {
+                case Some(urlExpr) =>
                     expectString(urlExpr)
-                }
                 case None => ()
             }
             match (expr.get("username")) {
-                case Some(usernameExpr) => {
+                case Some(usernameExpr) =>
                     expectString(usernameExpr)
-                }
                 case None => ()
             }
             match (expr.get("password")) {
-                case Some(passwordExpr) => {
+                case Some(passwordExpr) =>
                     expectString(passwordExpr)
-                }
                 case None => ()
             }
             match (expr.get("token")) {
-                case Some(tokenExpr) => {
+                case Some(tokenExpr) =>
                     expectString(tokenExpr)
-                }
                 case None => ()
             }
         } else {
@@ -1287,34 +1212,32 @@ public class BunfigParser {
     private func parseRunConfig(runExpr: BunfigExpr): Unit {
         // ── run.silent ──
         match (runExpr.get("silent")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     ctx.debug.silent = expr.asBool()
                 } else {
                     addError("Expected boolean")
                 }
-            }
             case None => ()
         }
 
         // ── run.elide-lines ──
         // 对应 Bun: if let Some(elide_lines) = run_expr.get(b"elide-lines") { ... }
         match (runExpr.get("elide-lines")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isNumber()) {
                     let n = expr.asNumber()
                     ctx.bundlerOptions.elideLines = Some(n.toInt())
                 } else {
                     addError("Expected number")
                 }
-            }
             case None => ()
         }
 
         // ── run.shell ──
         // 对应 Bun: if let Some(shell) = run_expr.get(b"shell") { ... }
         match (runExpr.get("shell")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let s = expr.asString()
                 if (s != None) {
                     if (s! == "bun") {
@@ -1327,26 +1250,24 @@ public class BunfigParser {
                 } else {
                     addError("Expected string")
                 }
-            }
             case None => ()
         }
 
         // ── run.bun ──
         match (runExpr.get("bun")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     ctx.debug.runInBun = expr.asBool()
                 } else {
                     addError("Expected boolean")
                 }
-            }
             case None => ()
         }
 
         // ── run.noOrphans ──
         // 对应 Bun: if let Some(no_orphans) = run_expr.get(b"noOrphans") { ... }
         match (runExpr.get("noOrphans")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     if (expr.asBool()) {
                         // 对应 Bun: bun_io::ParentDeathWatchdog::enable()
@@ -1354,7 +1275,6 @@ public class BunfigParser {
                 } else {
                     addError("Expected boolean")
                 }
-            }
             case None => ()
         }
     }
@@ -1363,7 +1283,7 @@ public class BunfigParser {
     // 严格翻译自: bunfig.rs:836-851 - json.get(b"console") 解析块
     private func parseConsoleConfig(consoleExpr: BunfigExpr): Unit {
         match (consoleExpr.get("depth")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isNumber()) {
                     let n = expr.asNumber()
                     let depthValue = n.toInt()
@@ -1377,7 +1297,6 @@ public class BunfigParser {
                 } else {
                     addError("Expected number")
                 }
-            }
             case None => ()
         }
     }
@@ -1390,10 +1309,9 @@ public class BunfigParser {
             cmd == CommandTag.AutoCommand) {
             // ── bundle.outdir ──
             match (bundleExpr.get("outdir")) {
-                case Some(expr) => {
+                case Some(expr) =>
                     expectString(expr)
                     ctx.args.outputDir = Some(expr.asString())
-                }
                 case None => ()
             }
         }
@@ -1408,7 +1326,7 @@ public class BunfigParser {
             // ── bundle.entryPoints ──
             // 对应 Bun: if let Some(entry_points) = _bun.get(b"entryPoints") { ... }
             match (bundleExpr.get("entryPoints")) {
-                case Some(expr) => {
+                case Some(expr) =>
                     expect(expr, BunfigExprTag.Array)
                     let items = expr.asArray()
                     var names = ArrayList<String>()
@@ -1417,14 +1335,13 @@ public class BunfigParser {
                         names.append(item.asString())
                     }
                     ctx.args.entryPoints = names
-                }
                 case None => ()
             }
 
             // ── bundle.packages ──
             // 对应 Bun: if let Some(expr) = _bun.get(b"packages") { ... }
             match (bundleExpr.get("packages")) {
-                case Some(expr) => {
+                case Some(expr) =>
                     expect(expr, BunfigExprTag.Object)
                     let props = expr.asProperties()
                     for (prop in props) {
@@ -1438,7 +1355,6 @@ public class BunfigParser {
                         let value = prop.value.asBool()
                         // 对应 Bun: package_bundle_map.insert(path, ...)
                     }
-                }
                 case None => ()
             }
         }
@@ -1462,22 +1378,19 @@ public class BunfigParser {
 
         // ── jsx ──
         match (json.get("jsx")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let value = expr.asString()
                 match (value) {
                     case "react" => jsxRuntime = "classic"
                     case "solid" => jsxRuntime = "solid"
-                    case "react-jsx" => {
+                    case "react-jsx" =>
                         jsxRuntime = "automatic"
                         jsxDev = false
-                    }
-                    case "react-jsxDEV" => {
+                    case "react-jsxDEV" =>
                         jsxRuntime = "automatic"
                         jsxDev = true
-                    }
                     case _ => addError("Invalid jsx runtime, only 'react', 'solid', 'react-jsx', and 'react-jsxDEV' are supported")
                 }
-            }
             case None => ()
         }
 
@@ -1502,7 +1415,7 @@ public class BunfigParser {
         // 设置 JSX 配置
         // 对应 Bun: if self.ctx.args.jsx.is_none() { ... } else { ... }
         match (ctx.args.jsx) {
-            case None => {
+            case None =>
                 let jsx = JsxConfig()
                 jsx.factory = jsxFactory
                 jsx.fragment = jsxFragment
@@ -1510,14 +1423,12 @@ public class BunfigParser {
                 jsx.runtime = jsxRuntime
                 jsx.development = jsxDev
                 ctx.args.jsx = Some(jsx)
-            }
-            case Some(jsx) => {
+            case Some(jsx) =>
                 if (!jsxFactory.isEmpty()) { jsx.factory = jsxFactory }
                 if (!jsxFragment.isEmpty()) { jsx.fragment = jsxFragment }
                 if (!jsxImportSource.isEmpty()) { jsx.importSource = jsxImportSource }
                 jsx.runtime = jsxRuntime
                 jsx.development = jsxDev
-            }
         }
     }
 
@@ -1583,7 +1494,7 @@ public class BunfigParser {
         // ── plugins ──
         // 对应 Bun: if let Some(config_plugins) = serve_obj.get(b"plugins") { ... }
         match (serveObj.get("plugins")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let plugins = ArrayList<String>()
                 if (expr.isArray()) {
                     let items = expr.asArray()
@@ -1600,17 +1511,15 @@ public class BunfigParser {
                     plugins.append(expr.asString())
                     ctx.args.servePlugins = Some(plugins)
                 }
-            }
             case None => ()
         }
 
         // ── hmr ──
         match (serveObj.get("hmr")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     ctx.args.serveHmr = Some(expr.asBool())
                 }
-            }
             case None => ()
         }
 
@@ -1618,7 +1527,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(minify) = serve_obj.get(b"minify") { ... }
         //   可以是布尔值 (全局开关) 或对象 { syntax, whitespace, identifiers }
         match (serveObj.get("minify")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isBoolean()) {
                     let v = expr.asBool()
                     ctx.args.serveMinifySyntax = Some(v)
@@ -1626,41 +1535,36 @@ public class BunfigParser {
                     ctx.args.serveMinifyIdentifiers = Some(v)
                 } else if (expr.isObject()) {
                     match (expr.get("syntax")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             if (v.isBoolean()) {
                                 ctx.args.serveMinifySyntax = Some(v.asBool())
                             }
-                        }
                         case None => ()
                     }
                     match (expr.get("whitespace")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             if (v.isBoolean()) {
                                 ctx.args.serveMinifyWhitespace = Some(v.asBool())
                             }
-                        }
                         case None => ()
                     }
                     match (expr.get("identifiers")) {
-                        case Some(v) => {
+                        case Some(v) =>
                             if (v.isBoolean()) {
                                 ctx.args.serveMinifyIdentifiers = Some(v.asBool())
                             }
-                        }
                         case None => ()
                     }
                 } else {
                     addError("Expected minify to be boolean or object")
                 }
-            }
             case None => ()
         }
 
         // ── define ──
         match (serveObj.get("define")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 ctx.args.serveDefine = Some(parseDefineMap(expr))
-            }
             case None => ()
         }
 
@@ -1670,12 +1574,11 @@ public class BunfigParser {
 
         // ── publicPath ──
         match (serveObj.get("publicPath")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 let s = expr.asString()
                 if (s != None && !s!.isEmpty()) {
                     ctx.args.servePublicPath = Some(s!)
                 }
-            }
             case None => ()
         }
 
@@ -1683,7 +1586,7 @@ public class BunfigParser {
         // 对应 Bun: if let Some(env) = serve_obj.get(b"env") { ... }
         //   null -> disable, boolean -> enable/disable, string -> "inline"/"disable"/带 * 前缀
         match (serveObj.get("env")) {
-            case Some(expr) => {
+            case Some(expr) =>
                 if (expr.isNull()) {
                     ctx.args.serveEnvBehavior = "disable"
                 } else if (expr.isBoolean()) {
@@ -1693,7 +1596,7 @@ public class BunfigParser {
                     match (slice) {
                         case "inline" => ctx.args.serveEnvBehavior = "inline"
                         case "disable" => ctx.args.serveEnvBehavior = "disable"
-                        case _ => {
+                        case _ =>
                             // 检查是否包含 * 通配符
                             if (slice.contains("*")) {
                                 ctx.args.serveEnvBehavior = "prefix"
@@ -1701,12 +1604,10 @@ public class BunfigParser {
                             } else {
                                 addError("Invalid env behavior, must be 'inline', 'disable', or a string with a '*' character")
                             }
-                        }
                     }
                 } else {
                     addError("Invalid env behavior, must be 'inline', 'disable', or a string with a '*' character")
                 }
-            }
             case None => ()
         }
     }
@@ -1845,16 +1746,14 @@ public func loadConfigWithCmdArgs(cmd: CommandTag, args: ParsedArgs, ctx: Contex
 private func loadBunfig(cmd: CommandTag, autoLoaded: Bool, configPath: String, ctx: ContextData): Unit {
     let content = BaoFile.readAllText(configPath)
     match (content) {
-        case Some(text) => {
+        case Some(text) =>
             // 临时设置日志级别为 Warn 以减少解析时的噪音
             ctx.debug.loadedBunfig = true
             Bunfig.parse(cmd, text, ctx)
-        }
-        case None => {
+        case None =>
             if (!autoLoaded) {
                 throw BaoError(ErrorCode.FileNotFound, "Config file not found: ${configPath}")
             }
-        }
     }
 }
 
@@ -2261,11 +2160,10 @@ public class BunfigTomlParser {
         let keys = table.keys()
         for (key in keys) {
             match (table.get(key)) {
-                case Some(value) => {
+                case Some(value) =>
                     let valueExpr = BunfigExpr(BunfigExprData.String_(value))
                     // 处理嵌套路径 (如 install.registry)
                     setNestedKey(obj, key, valueExpr)
-                }
                 case None => ()
             }
         }
@@ -2279,17 +2177,15 @@ public class BunfigTomlParser {
             let prefix = key.substring(0, dotIdx)
             let suffix = key.substring(dotIdx + 1)
             match (obj.get(prefix)) {
-                case Some(existing) => {
+                case Some(existing) =>
                     match (existing.data) {
                         case BunfigExprData.Object(subObj) => setNestedKey(subObj, suffix, value)
                         case _ => ()
                     }
-                }
-                case None => {
+                case None =>
                     let subObj = BunfigExprObject()
                     setNestedKey(subObj, suffix, value)
                     obj.put(prefix, BunfigExpr(BunfigExprData.Object(subObj)))
-                }
             }
         } else {
             obj.put(key, value)

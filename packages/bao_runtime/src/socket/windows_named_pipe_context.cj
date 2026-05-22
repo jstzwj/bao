@@ -4,6 +4,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // WindowsNamedPipeContext
@@ -100,14 +101,12 @@ public class WindowsNamedPipeContext {
     func onOpen(): Unit {
         isOpen = true
         match (socket) {
-            case TLS(tls) => {
+            case TLS(tls) =>
                 let s = TLSSocket.Socket.fromNamedPipe(namedPipe)
                 tls.onOpen(s)
-            }
-            case TCP(tcp) => {
+            case TCP(tcp) =>
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onOpen(s)
-            }
             case NONE => ()
         }
     }
@@ -116,14 +115,12 @@ public class WindowsNamedPipeContext {
     /// 对应 Zig: fn onData
     func onData(decodedData: Array<Byte>): Unit {
         match (socket) {
-            case TLS(tls) => {
+            case TLS(tls) =>
                 let s = TLSSocket.Socket.fromNamedPipe(namedPipe)
                 tls.onData(s, decodedData)
-            }
-            case TCP(tcp) => {
+            case TCP(tcp) =>
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onData(s, decodedData)
-            }
             case NONE => ()
         }
     }
@@ -132,14 +129,12 @@ public class WindowsNamedPipeContext {
     /// 对应 Zig: fn onHandshake
     func onHandshake(success: Bool, sslError: UsBunVerifyError): Unit {
         match (socket) {
-            case TLS(tls) => {
+            case TLS(tls) =>
                 let s = TLSSocket.Socket.fromNamedPipe(namedPipe)
-                tls.onHandshake(s, if (success) 1 else 0, sslError)
-            }
-            case TCP(tcp) => {
+                tls.onHandshake(s, if (success) { 1 } else { 0 }, sslError)
+            case TCP(tcp) =>
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
-                tcp.onHandshake(s, if (success) 1 else 0, sslError)
-            }
+                tcp.onHandshake(s, if (success) { 1 } else { 0 }, sslError)
             case NONE => ()
         }
     }
@@ -148,14 +143,12 @@ public class WindowsNamedPipeContext {
     /// 对应 Zig: fn onEnd
     func onEnd(): Unit {
         match (socket) {
-            case TLS(tls) => {
+            case TLS(tls) =>
                 let s = TLSSocket.Socket.fromNamedPipe(namedPipe)
                 tls.onEnd(s)
-            }
-            case TCP(tcp) => {
+            case TCP(tcp) =>
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onEnd(s)
-            }
             case NONE => ()
         }
     }
@@ -164,14 +157,12 @@ public class WindowsNamedPipeContext {
     /// 对应 Zig: fn onWritable
     func onWritable(): Unit {
         match (socket) {
-            case TLS(tls) => {
+            case TLS(tls) =>
                 let s = TLSSocket.Socket.fromNamedPipe(namedPipe)
                 tls.onWritable(s)
-            }
-            case TCP(tcp) => {
+            case TCP(tcp) =>
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onWritable(s)
-            }
             case NONE => ()
         }
     }
@@ -181,22 +172,18 @@ public class WindowsNamedPipeContext {
     func onError(err: SysError): Unit {
         if (isOpen) {
             match (socket) {
-                case TLS(tls) => {
+                case TLS(tls) =>
                     tls.handleError(err.toJS(globalThis))
-                }
-                case TCP(tcp) => {
+                case TCP(tcp) =>
                     tcp.handleError(err.toJS(globalThis))
-                }
                 case NONE => ()
             }
         } else {
             match (socket) {
-                case TLS(tls) => {
+                case TLS(tls) =>
                     tls.handleConnectError(err.errno)
-                }
-                case TCP(tcp) => {
+                case TCP(tcp) =>
                     tcp.handleConnectError(err.errno)
-                }
                 case NONE => ()
             }
         }
@@ -206,14 +193,12 @@ public class WindowsNamedPipeContext {
     /// 对应 Zig: fn onTimeout
     func onTimeout(): Unit {
         match (socket) {
-            case TLS(tls) => {
+            case TLS(tls) =>
                 let s = TLSSocket.Socket.fromNamedPipe(namedPipe)
                 tls.onTimeout(s)
-            }
-            case TCP(tcp) => {
+            case TCP(tcp) =>
                 let s = TCPSocket.Socket.fromNamedPipe(namedPipe)
                 tcp.onTimeout(s)
-            }
             case NONE => ()
         }
     }
@@ -224,14 +209,12 @@ public class WindowsNamedPipeContext {
         let currentSocket = socket
         socket = SocketType.NONE
         match (currentSocket) {
-            case TLS(tls) => {
+            case TLS(tls) =>
                 tls.onClose(TLSSocket.Socket.fromNamedPipe(namedPipe), 0, None)
                 tls.deref()
-            }
-            case TCP(tcp) => {
+            case TCP(tcp) =>
                 tcp.onClose(TCPSocket.Socket.fromNamedPipe(namedPipe), 0, None)
                 tcp.deref()
-            }
             case NONE => ()
         }
 
@@ -245,9 +228,8 @@ public class WindowsNamedPipeContext {
     /// 运行事件
     func runEvent(): Unit {
         match (taskEvent) {
-            case DEINIT => {
+            case DEINIT =>
                 deinit()
-            }
             case NONE => panic("Invalid event state")
         }
     }
@@ -256,7 +238,7 @@ public class WindowsNamedPipeContext {
     func deinitInNextTick(): Unit {
         assert(taskEvent != EventState.DEINIT)
         taskEvent = EventState.DEINIT
-        vm.enqueueTask(Task.init(task))
+        vm.enqueueTask(Task(task))
     }
 
     // ========================================================================
@@ -267,7 +249,7 @@ public class WindowsNamedPipeContext {
     /// 对应 Zig: pub fn create
     public static func create(globalThis: JsGlobalObject, socket: SocketType): WindowsNamedPipeContext {
         let vm = globalThis.bunVM()
-        let this = WindowsNamedPipeContext()
+        let `this` = WindowsNamedPipeContext()
         this.refCount = RefCount()
         this.vm = vm
         this.globalThis = globalThis
@@ -278,20 +260,20 @@ public class WindowsNamedPipeContext {
         this.namedPipe = WindowsNamedPipe.from(
             UvPipe(),
             WindowsNamedPipeHandlers(
-                refCtx: (ctx: ?Any) => (ctx as WindowsNamedPipeContext).ref(),
-                derefCtx: (ctx: ?Any) => (ctx as WindowsNamedPipeContext).deref(),
-                onOpen: (ctx: ?Any) => (ctx as WindowsNamedPipeContext).onOpen(),
-                onData: (ctx: ?Any, data: Array<Byte>) => (ctx as WindowsNamedPipeContext).onData(data),
-                onHandshake: (ctx: ?Any, success: Bool, err: UsBunVerifyError) => (ctx as WindowsNamedPipeContext).onHandshake(success, err),
-                onEnd: (ctx: ?Any) => (ctx as WindowsNamedPipeContext).onEnd(),
-                onWritable: (ctx: ?Any) => (ctx as WindowsNamedPipeContext).onWritable(),
-                onError: (ctx: ?Any, err: SysError) => (ctx as WindowsNamedPipeContext).onError(err),
-                onTimeout: (ctx: ?Any) => (ctx as WindowsNamedPipeContext).onTimeout(),
-                onClose: (ctx: ?Any) => (ctx as WindowsNamedPipeContext).onClose()
+                { ctx: ?Any => (ctx as WindowsNamedPipeContext).ref() },
+                { ctx: ?Any => (ctx as WindowsNamedPipeContext).deref() },
+                { ctx: ?Any => (ctx as WindowsNamedPipeContext).onOpen() },
+                { ctx: ?Any, data: Array<Byte> => (ctx as WindowsNamedPipeContext).onData(data) },
+                { ctx: ?Any, success: Bool, err: UsBunVerifyError => (ctx as WindowsNamedPipeContext).onHandshake(success, err) },
+                { ctx: ?Any => (ctx as WindowsNamedPipeContext).onEnd() },
+                { ctx: ?Any => (ctx as WindowsNamedPipeContext).onWritable() },
+                { ctx: ?Any, err: SysError => (ctx as WindowsNamedPipeContext).onError(err) },
+                { ctx: ?Any => (ctx as WindowsNamedPipeContext).onTimeout() },
+                { ctx: ?Any => (ctx as WindowsNamedPipeContext).onClose() }
             ),
             vm
         )
-        this.task = AnyTask.new(WindowsNamedPipeContext, WindowsNamedPipeContext.runEvent).init(this)
+        this.task = AnyTask.new(WindowsNamedPipeContext, WindowsNamedPipeContext.runEvent).`init`(this)
 
         match (socket) {
             case TLS(tls) => tls.ref()
@@ -313,11 +295,11 @@ public class WindowsNamedPipeContext {
         ownedCtx: ?SslCtx,
         socket: SocketType
     ): ?WindowsNamedPipe {
-        let this = WindowsNamedPipeContext.create(globalThis, socket)
+        let `this` = WindowsNamedPipeContext.create(globalThis, socket)
 
         try {
             this.namedPipe.open(fd, sslConfig, ownedCtx).unwrap()
-        } catch _ {
+        } catch (_: Exception) {
             match (socket) {
                 case TLS(tls) => tls.handleConnectError(SysErrno.ENOENT)
                 case TCP(tcp) => tcp.handleConnectError(SysErrno.ENOENT)
@@ -339,19 +321,19 @@ public class WindowsNamedPipeContext {
         ownedCtx: ?SslCtx,
         socket: SocketType
     ): ?WindowsNamedPipe {
-        let this = WindowsNamedPipeContext.create(globalThis, socket)
+        let `this` = WindowsNamedPipeContext.create(globalThis, socket)
         try {
             // 需要确保路径以 null 结尾
             if (path[path.size - 1] == '\0') {
-                this.namedPipe.connect(path[0:path.size - 1], sslConfig, ownedCtx).unwrap()
+                this.namedPipe.connect(path[0..path.size - 1], sslConfig, ownedCtx).unwrap()
             } else {
                 // 需要添加 null 终止符
                 var pathBuf = Array<Byte>(path.size + 1)
                 path.copyTo(pathBuf, 0)
                 pathBuf[path.size] = '\0'
-                this.namedPipe.connect(pathBuf[0:path.size], sslConfig, ownedCtx).unwrap()
+                this.namedPipe.connect(pathBuf[0..path.size], sslConfig, ownedCtx).unwrap()
             }
-        } catch _ {
+        } catch (_: Exception) {
             match (socket) {
                 case TLS(tls) => tls.handleConnectError(SysErrno.ENOENT)
                 case TCP(tcp) => tcp.handleConnectError(SysErrno.ENOENT)
@@ -409,28 +391,28 @@ public class RefCount {
 
 /// AnyTask 不透明类型
 public class AnyTask {
-    public static func new(cls: Class, method: Func): AnyTask { ... }
-    public func initFunc(ctx: Any): AnyTask { ... }
+    public static func new(cls: Any, method: Any): AnyTask { AnyTask() }
+    public func initFunc(ctx: Any): AnyTask { AnyTask() }
 }
 
 /// Task 不透明类型
 public class Task {
-    public static func initFunc(task: AnyTask): Task { ... }
+    public static func initFunc(task: AnyTask): Task { Task() }
 }
 
 /// VirtualMachine 不透明类型
 public class VirtualMachine {
-    public func uvLoop(): AsyncLoop { ... }
-    public func enqueueTask(task: Task): Unit { ... }
-    public func scriptExecutionStatus(): ScriptExecutionStatus { ... }
-    public func isShuttingDown(): Bool { ... }
+    public func uvLoop(): AsyncLoop { AsyncLoop() }
+    public func enqueueTask(task: Task): Unit {}
+    public func scriptExecutionStatus(): ScriptExecutionStatus { ScriptExecutionStatus.running }
+    public func isShuttingDown(): Bool { false }
     public var timer: TimerManager
 }
 
 /// TimerManager 不透明类型
 public class TimerManager {
-    public func remove(timer: EventLoopTimer): Unit { ... }
-    public func insert(timer: EventLoopTimer): Unit { ... }
+    public func remove(timer: EventLoopTimer): Unit {}
+    public func insert(timer: EventLoopTimer): Unit {}
 }
 
 /// EventLoopTimer
@@ -450,47 +432,49 @@ public class EventLoopTimer {
 
 /// JsGlobalObject 不透明类型
 public class JsGlobalObject {
-    public func bunVM(): VirtualMachine { ... }
-    public func hasException(): Bool { ... }
-    public func throwInvalidArgumentTypeValue(name: String, expected: String, value: JsValue): JsValue { ... }
-    public func throw(message: String): JsValue { ... }
-    public func ERR(code: String, message: String): SystemError { ... }
+    public func bunVM(): VirtualMachine { VirtualMachine() }
+    public func hasException(): Bool { false }
+    public func throwInvalidArgumentTypeValue(name: String, expected: String, value: JsValue): JsValue { JsValue.jsUndefined() }
+    public func `throw`(message: String): JsValue { JsValue.jsUndefined() }
+    public func ERR(code: String, message: String): SystemError { SystemError(BunString(), BunString()) }
 }
 
 /// TLSSocket 不透明类型
 public class TLSSocket {
-    public func onOpen(s: Any): Unit { ... }
-    public func onData(s: Any, data: Array<Byte>): Unit { ... }
-    public func onHandshake(s: Any, ok: Int32, err: UsBunVerifyError): Unit { ... }
-    public func onEnd(s: Any): Unit { ... }
-    public func onWritable(s: Any): Unit { ... }
-    public func onTimeout(s: Any): Unit { ... }
-    public func onClose(s: Any, code: Int32, reason: ?Any): Unit { ... }
-    public func handleError(err: JsValue): Unit { ... }
-    public func handleConnectError(errno: Int32): Unit { ... }
-    public func ref(): Unit { ... }
-    public func deref(): Unit { ... }
+    public func onOpen(s: Any): Unit {}
+    public func onData(s: Any, data: Array<Byte>): Unit {}
+    public func onHandshake(s: Any, ok: Int32, err: UsBunVerifyError): Unit {}
+    public func onEnd(s: Any): Unit {}
+    public func onWritable(s: Any): Unit {}
+    public func onTimeout(s: Any): Unit {}
+    public func onClose(s: Any, code: Int32, reason: ?Any): Unit {}
+    public func handleError(err: JsValue): Unit {}
+    public func handleConnectError(errno: Int32): Unit {}
+    public func ref(): Unit {}
+    public func deref(): Unit {}
+}
 
-    public class Socket {
-        public static func fromNamedPipe(np: WindowsNamedPipe): Any { ... }
-    }
+/// TLSSocket.Socket 不透明类型
+public class TLSSocketSocket {
+    public static func fromNamedPipe(np: WindowsNamedPipe): Any { panic("stub") }
 }
 
 /// TCPSocket 不透明类型
 public class TCPSocket {
-    public func onOpen(s: Any): Unit { ... }
-    public func onData(s: Any, data: Array<Byte>): Unit { ... }
-    public func onHandshake(s: Any, ok: Int32, err: UsBunVerifyError): Unit { ... }
-    public func onEnd(s: Any): Unit { ... }
-    public func onWritable(s: Any): Unit { ... }
-    public func onTimeout(s: Any): Unit { ... }
-    public func onClose(s: Any, code: Int32, reason: ?Any): Unit { ... }
-    public func handleError(err: JsValue): Unit { ... }
-    public func handleConnectError(errno: Int32): Unit { ... }
-    public func ref(): Unit { ... }
-    public func deref(): Unit { ... }
+    public func onOpen(s: Any): Unit {}
+    public func onData(s: Any, data: Array<Byte>): Unit {}
+    public func onHandshake(s: Any, ok: Int32, err: UsBunVerifyError): Unit {}
+    public func onEnd(s: Any): Unit {}
+    public func onWritable(s: Any): Unit {}
+    public func onTimeout(s: Any): Unit {}
+    public func onClose(s: Any, code: Int32, reason: ?Any): Unit {}
+    public func handleError(err: JsValue): Unit {}
+    public func handleConnectError(errno: Int32): Unit {}
+    public func ref(): Unit {}
+    public func deref(): Unit {}
+}
 
-    public class Socket {
-        public static func fromNamedPipe(np: WindowsNamedPipe): Any { ... }
-    }
+/// TCPSocket.Socket 不透明类型
+public class TCPSocketSocket {
+    public static func fromNamedPipe(np: WindowsNamedPipe): Any { panic("stub") }
 }

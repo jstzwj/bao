@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toHaveProperty() - 检查对象是否具有指定属性
 /// 用法: expect(obj).toHaveProperty(path) / expect(obj).toHaveProperty(path, value)
-public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toHaveProperty() requires at least 1 argument")
     }
 
@@ -22,10 +22,10 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     let expectedPropertyPath = arguments[0]
     expectedPropertyPath.ensureStillAlive()
-    let expectedProperty: ?JSValue = if (arguments.length > 1 ){ arguments[1] } else { None }
+    let expectedProperty: ?JsValue = if (arguments.size > 1 ){ arguments[1] } else { None }
     if (let Some(ev) <- expectedProperty) { ev.ensureStillAlive() }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveProperty", matcherParamsFmt: "<green>path<r><d>, <r><green>value<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveProperty", matcherParamsFmt: "<green>path<r><d>, <r><green>value<r>")
 
     if (!expectedPropertyPath.isString() && !expectedPropertyPath.isIterable(globalThis: globalThis) ){
         return globalThis.throw_("Expected path must be a string or an array")
@@ -34,27 +34,27 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
     let not = this.flags.not
 
     var pass = !value.isUndefinedOrNull()
-    var receivedProperty: JSValue = JSValue.zero
+    var receivedProperty: JsValue = JsValue.zero
 
     if (pass) {
         receivedProperty = value.getIfPropertyExistsFromPath(globalThis: globalThis, path: expectedPropertyPath)
-        pass = receivedProperty != JSValue.zero
+        pass = receivedProperty != JsValue.zero
     }
 
-    if (pass && expectedProperty != None) {
+    if (pass && expectedProperty.isSome()) {
         pass = receivedProperty.jestDeepEquals(expectedProperty.getOrThrow(), globalThis: globalThis)
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
     if (not) {
-        if (expectedProperty != None) {
+        if (expectedProperty.isSome()) {
             let signature = Expect.getSignature(matcherName: "toHaveProperty", args: "<green>path<r><d>, <r><green>value<r>", not: true)
-            if (receivedProperty != JSValue.zero) {
+            if (receivedProperty != JsValue.zero) {
                 return this.throw_(globalThis: globalThis, signature: signature,
                     fmt: "\n\nExpected path: <green>{f}<r>\n\nExpected value: not <green>{f}<r>\n",
                     args: [expectedPropertyPath.toFmt(formatter), expectedProperty.getOrThrow().toFmt(formatter)])
@@ -67,9 +67,9 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
             args: [expectedPropertyPath.toFmt(formatter), receivedProperty.toFmt(formatter)])
     }
 
-    if (expectedProperty != None) {
+    if (expectedProperty.isSome()) {
         let signature = Expect.getSignature(matcherName: "toHaveProperty", args: "<green>path<r><d>, <r><green>value<r>", not: false)
-        if (receivedProperty != JSValue.zero) {
+        if (receivedProperty != JsValue.zero) {
             // deep equal case
             let diffFormat = DiffFormatter(received: receivedProperty, expected: expectedProperty.getOrThrow(), globalThis: globalThis)
             return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n{f}\n", args: [diffFormat])

@@ -48,7 +48,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
     let preScriptName = "pre${scriptName}"
     let postScriptName = "post${scriptName}"
 
-    let fsInstance = FileSystem.init()
+    let fsInstance = FileSystem.`init`()
 
     // 确定 filter
     var filtersToUse = ctx.filters
@@ -78,7 +78,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
             break
         }
 
-        let dirpath = Path.dirname(packageJsonPath!!)
+        let dirpath = Path.dirname(packageJsonPath.getOrThrow())
         let path = Strings.withoutTrailingSlash(dirpath)
 
         // 使用 --workspaces 时跳过根包
@@ -91,9 +91,12 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
             continue
         }
 
-        let pkgscripts = pkgjson!!.scripts ?: continue
+        let pkgscripts = match (pkgjson.getOrThrow().scripts) {
+            case Some(v) => v
+            case None => continue
+        }
 
-        if (!filterInstance.matches(path, pkgjson!!.name)) {
+        if (!filterInstance.matches(path, pkgjson.getOrThrow().name)) {
             continue
         }
 
@@ -112,7 +115,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
             }
 
             var copyScript = StringBuilder()
-            copyScript.append(RunCommand.replacePackageManagerRun(originalContent!!))
+            copyScript.append(RunCommand.replacePackageManagerRun(originalContent.getOrThrow()))
             let lenCommandOnly = copyScript.length
 
             for (part in ctx.passthrough) {
@@ -121,12 +124,12 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
             }
 
             let config = FilterScriptConfig()
-            config.packageJsonPath = packageJsonPath!!
-            config.packageName = pkgjson!!.name
+            config.packageJsonPath = packageJsonPath.getOrThrow()
+            config.packageName = pkgjson.getOrThrow().name
             config.scriptName = name
             config.scriptContent = copyScript.toString().substring(0, lenCommandOnly)
             config.combined = copyScript.toString()
-            config.deps = pkgjson!!.dependencies
+            config.deps = pkgjson.getOrThrow().dependencies
             config.PATH = pkgPATH
             config.elideCount = ctx.bundlerOptions.elideLines
 
@@ -147,8 +150,16 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
     }
 
     let eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
-    let shellBin = RunCommand.findShell(thisTranspiler.env.get("PATH") ?: "", fsInstance.topLevelDir)
-        ?: { Output.prettyErrorLn("error: Missing shell"); Global.exit(1) }()
+    let pathEnv = match (thisTranspiler.env.get("PATH")) {
+        case Some(v) => v
+        case None => ""
+    }
+    let shellBinOpt = RunCommand.findShell(pathEnv, fsInstance.topLevelDir)
+    if (shellBinOpt == None) {
+        Output.prettyErrorLn("error: Missing shell")
+        Global.exit(1)
+    }
+    let shellBin = shellBinOpt.getOrThrow()
 
     let state = FilterRunState()
     state.handles = ArrayList<FilterProcessHandle>()
@@ -171,7 +182,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         handle.options.stream = true
         state.handles.append(handle)
 
-        let res = map.getOrPut(script.packageName, { ArrayList<FilterProcessHandle>() })
+        let res = map.getOrPut(script.packageName, { => ArrayList<FilterProcessHandle>() })
         res.append(handle)
     }
 
@@ -180,7 +191,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         let deps = handle.config.deps
         for ((name, _) in deps) {
             if (map.contains(name)) {
-                let pkgs = map.get(name)!!
+                let pkgs = map.get(name).getOrThrow()
                 for (dep in pkgs) {
                     dep.dependents.append(handle)
                     handle.remainingDependencies += 1
@@ -320,13 +331,12 @@ public class FilterRunState {
                 handle.buffer.clear()
             }
             // 打印退出状态
-            when (handle.status) {
+            match (handle.status) {
                 case ProcessStatus.exited(code) =>
                     drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Exited with code ${code}\n")
                 case ProcessStatus.signaled(sig) =>
                     drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Signaled with code ${sig}\n")
-                else => {}
-            }
+                case _ => }
             flushDrawBuf()
         }
     }
@@ -338,7 +348,10 @@ public class FilterRunState {
         }
         drawBuf.clear()
         for (handle in handles) {
-            let elideLines = if (isAbort) None else handle.config.elideCount ?: 10
+            let elideLines = match (if (isAbort) { None } else { handle.config.elideCount } {
+                case Some(v) => v
+                case None => 10
+            }
             drawBuf.append("${handle.config.packageName} ${handle.config.scriptName} $ ${handle.config.scriptContent}\n")
             // 简化: 显示缓冲区内容
             if (handle.buffer.length > 0) {
@@ -346,15 +359,14 @@ public class FilterRunState {
             }
             drawBuf.append("+- ")
             if (handle.process != None) {
-                when (handle.status) {
+                match (handle.status) {
                     case ProcessStatus.running => drawBuf.append("Running...\n")
-                    case ProcessStatus.exited(code) => {
+                    case ProcessStatus.exited(code) =>
                         if (code == 0) {
                             drawBuf.append("Done\n")
                         } else {
                             drawBuf.append("Exited with code ${code}\n")
                         }
-                    }
                     case ProcessStatus.signaled(sig) => drawBuf.append("Signaled: ${sig}\n")
                     case ProcessStatus.err(e) => drawBuf.append("Error\n")
                 }
@@ -375,7 +387,7 @@ public class FilterRunState {
         aborted = true
         for (handle in handles) {
             if (handle.process != None) {
-                handle.process!!.kill()
+                handle.process.getOrThrow().kill()
             }
         }
     }
@@ -386,10 +398,10 @@ public class FilterRunState {
             redraw(true)
         }
         for (handle in handles) {
-            when (handle.status) {
+            match (handle.status) {
                 case ProcessStatus.exited(code) => if (code != 0) return code
                 case ProcessStatus.signaled(_) => return 1
-                else => return 1
+                case _ => return 1
             }
         }
         return 0

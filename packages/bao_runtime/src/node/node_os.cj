@@ -151,7 +151,7 @@ public class NodeOs {
     public static func homedir(): String {
         // 先检查 HOME 环境变量（POSIX 实现）
         let homeEnv = System.getenv("HOME")
-        if (homeEnv != None && homeEnv.getOrThrow().size > 0) {
+        if (homeEnv.isSome() && homeEnv.getOrThrow().size > 0) {
             return homeEnv.getOrThrow()
         }
         return System.homedir()
@@ -212,10 +212,10 @@ public class NodeOs {
         info.homedir = homedir()
 
         let userEnv = System.getenv("USER")
-        info.username = if (userEnv != None) { userEnv! } else { "unknown" }
+        info.username = if (userEnv.isSome()) { userEnv! } else { "unknown" }
 
         let shellEnv = System.getenv("SHELL")
-        info.shell = if (shellEnv != None) { shellEnv! } else { "unknown" }
+        info.shell = if (shellEnv.isSome()) { shellEnv! } else { "unknown" }
 
         info.uid = Int32(System.getuid())
         info.gid = Int32(System.getgid())

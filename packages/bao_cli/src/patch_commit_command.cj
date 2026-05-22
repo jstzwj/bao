@@ -21,10 +21,9 @@ public class PatchCommitCommand {
         // 委托给 pm_update_package_json 模块中的错误捕获包装器
         match (updatePackageJsonAndInstallCatchError(ctx, Subcommand.patchCommit)) {
             case Ok(_) => return
-            case Err(e) => {
+            case Err(e) =>
                 Output.prettyErrorLn("<r><red>error<r>: ${e.name}")
                 Global.exit(1)
-            }
         }
     }
 }

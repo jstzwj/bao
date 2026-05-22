@@ -47,6 +47,13 @@ public class ScriptInstallCtx {
         this.entryId = entryId
         this.installer = installer
     }
+
+    /// 安装器回调
+    public func installerCallback(): Unit {}
+    /// 安装器完成回调
+    public func installerComplete(): Unit {}
+    /// 安装器跳过回调
+    public func installerSkip(): Unit {}
 }
 
 // ============================================================================
@@ -161,8 +168,8 @@ public class LifecycleScriptSubprocessFull {
 
     /// 活跃脚本进程计数
     /// 翻译自: LifecycleScriptSubprocess.alive_count (第44行)
-    ///   pub var alive_count: std.atomic.Value(usize) = .init(0)
-    public static var aliveCount: Int64
+    ///   pub var alive_count: std.atomic.Value(usize) = .`init`(0)
+    public static var aliveCount: Int64 = Int64(0)
 
     public init(packageName: String, scripts: LifecycleScriptList, manager: PackageManagerRef) {
         this.packageName = packageName
@@ -278,7 +285,7 @@ public class LifecycleScriptSubprocessFull {
     }
 
     /// 缓存的进程状态
-    private var cachedStatus: ProcessStatus
+    private var cachedStatus: ProcessStatus = ProcessStatus.Unknown
 
     /// 根据缓存的状态处理退出
     /// 翻译自: handleExit (第331-481行)
@@ -299,10 +306,9 @@ public class LifecycleScriptSubprocessFull {
 
         match (status) {
             case ProcessStatus.Exited(exit) =>
-                let maybeDuration = if (timer != None) {
-                    timer!.elapsedNs()
-                } else {
-                    Int64(0)
+                let maybeDuration = match (timer) {
+                    case Some(t) => t.elapsedNs()
+                    case None => Int64(0)
                 }
 
                 if (exit.code > 0) {
@@ -329,17 +335,18 @@ public class LifecycleScriptSubprocessFull {
                 logSlowScript(maybeDuration)
 
                 // 处理 Store 安装器上下文 (preinstall 完成后)
-                if (ctx != None) {
-                    let installCtx = ctx!
-                    match (currentScriptIndex) {
-                        // preinstall (索引 0) 完成后, 启动下一个任务
-                        case UInt8(0) =>
-                            installCtx.installerCallback()
-                            decrementPendingScriptTasks()
-                            deinit()
-                            return
-                        case _ => ()
-                    }
+                match (ctx) {
+                    case Some(installCtx) =>
+                        match (currentScriptIndex) {
+                            // preinstall (索引 0) 完成后, 启动下一个任务
+                            case 0 =>
+                                installCtx.installerCallback()
+                                decrementPendingScriptTasks()
+                                deinit()
+                                return
+                            case _ => ()
+                        }
+                    case None => ()
                 }
 
                 // 查找下一个要执行的脚本
@@ -361,9 +368,9 @@ public class LifecycleScriptSubprocessFull {
 
                 // 所有脚本完成
                 // Store 安装器上下文: 标记完成
-                if (ctx != None) {
-                    let installCtx = ctx!
-                    installCtx.installerComplete()
+                match (ctx) {
+                    case Some(installCtx) => installCtx.installerComplete()
+                    case None => ()
                 }
 
                 decrementPendingScriptTasks()
@@ -375,14 +382,14 @@ public class LifecycleScriptSubprocessFull {
                 // 转发信号
                 // 翻译自: Global.raiseIgnoringPanicHandler(signal)
 
-            case ProcessStatus.Error(err) =>
+            case ProcessStatus.Error(e) =>
                 if (optional) {
                     handleOptionalFailure()
                     decrementPendingScriptTasks()
                     deinitAndDeletePackage()
                     return
                 }
-                Output.printErrorln("error: Failed to run ${scriptName()} script from \"${packageName}\" due to\n${err.message}")
+                Output.printErrorln("error: Failed to run ${scriptName()} script from \"${packageName}\" due to\n${e.message}")
                 deinit()
 
             case ProcessStatus.Unknown =>
@@ -452,7 +459,7 @@ public class LifecycleScriptSubprocessFull {
         let basename = pathBasename(cwd)
         if (dirname.size > 0 && basename.size > 0) {
             try {
-                BaoFile.deleteTree(dirname, basename)
+                BaoFile.removeRecursive("${dirname}/${basename}")
             } catch (_: Exception) {
                 // 忽略删除失败
             }
@@ -482,12 +489,12 @@ public class LifecycleScriptSubprocessFull {
     /// 翻译自: spawnNextScript 中的 spawn 逻辑 (第152-296行)
     private func runLifecycleScript(script: String, fg: Bool, mgr: PackageManagerRef): Unit {
         let combinedScript = replacePackageManagerRun(script)
-        if (fg && mgr.logLevel != LogLevel.Silent) {
+        if (fg && mgr.logLevel != InstallLogLevel.Silent) {
             Output.println(combinedScript)
         }
 
         // 设置 stdout/stderr
-        if (mgr.logLevel == LogLevel.Silent) {
+        if (mgr.logLevel == InstallLogLevel.Silent) {
             // 忽略输出
         } else if (mgr.logLevel.isVerbose() || fg) {
             // 继承输出
@@ -508,9 +515,9 @@ public class LifecycleScriptSubprocessFull {
 
         // 构建参数
         var argv: ArrayList<String>
-        if (shellBin != None) {
+        if (shellBin.isSome()) {
             argv = ArrayList<String>()
-            argv.append(shellBin!!)
+            argv.append(shellBin.getOrThrow())
             argv.append("-c")
             argv.append(script)
         } else {
@@ -541,16 +548,16 @@ public class LifecycleScriptSubprocessFull {
 
     /// 处理可选脚本失败
     private func handleOptionalFailure(): Unit {
-        if (ctx != None) {
-            let installCtx = ctx!
-            installCtx.installerSkip()
+        match (ctx) {
+            case Some(installCtx) => installCtx.installerSkip()
+            case None => ()
         }
     }
 
     /// 记录慢脚本日志
     private func logSlowScript(durationNs: Int64): Unit {
         if (durationNs > MIN_MS_TO_LOG * 1_000_000) {
-            manager.lifecycleScriptTimeLog.append(
+            manager.lifecycleScriptTimeLog(
                 LifecycleScriptTimeEntry(
                     packageName,
                     currentScriptIndex,
@@ -568,15 +575,19 @@ public class LifecycleScriptSubprocessFull {
     /// 路径工具: 获取目录名
     private static func pathDirname(path: String): String {
         let lastSep = path.lastIndexOf('/')
-        if (lastSep < 0) { return "" }
-        return path.substring(0, lastSep)
+        match (lastSep) {
+            case Some(idx) => if (idx <= 0) { return "" } else { return path[..Int64(idx)] }
+            case None => return ""
+        }
     }
 
     /// 路径工具: 获取基础名
     private static func pathBasename(path: String): String {
         let lastSep = path.lastIndexOf('/')
-        if (lastSep < 0) { return path }
-        return path.substring(lastSep + 1)
+        match (lastSep) {
+            case Some(idx) => return path[Int64(idx) + 1..]
+            case None => return path
+        }
     }
 
     /// 获取当前时间 (纳秒)
@@ -590,115 +601,7 @@ public class LifecycleScriptSubprocessFull {
     }
 }
 
-// ============================================================================
-// 生成包生命周期脚本
-// 严格翻译自: lifecycle_script_runner.zig 第540-576行
-//   pub fn spawnPackageScripts(manager, list, envp, shell_bin, optional,
-//       log_level, foreground, ctx) !void
-// ============================================================================
-
-/// 生命周期脚本运行器
-/// 提供静态方法用于生成包生命周期脚本
-public class LifecycleScriptRunner {
-
-    /// 生成包生命周期脚本
-    /// 严格翻译自: LifecycleScriptSubprocess.spawnPackageScripts (第540-576行)
-    ///   pub fn spawnPackageScripts(manager, list, envp, shell_bin, optional, log_level, foreground, ctx) !void
-    public static func spawnPackageScripts(
-        manager: PackageManagerRef,
-        list: LifecycleScriptList,
-        envp: HashMap<String, String>,
-        shellBin: ?String,
-        optional: Bool,
-        logLevel: LogLevel,
-        foreground: Bool,
-        ctx: ?ScriptInstallCtx
-    ): Unit {
-        var subprocess = LifecycleScriptSubprocessFull(
-            manager: manager,
-            scripts: list,
-            packageName: list.packageName,
-            foreground: foreground,
-            optional: optional,
-            ctx: ctx
-        )
-        subprocess.envp = envp
-        subprocess.shellBin = shellBin
-
-        if (logLevel.isVerbose()) {
-            Output.print("[Scripts] Starting scripts for \"${list.packageName}\"")
-        }
-
-        subprocess.incrementPendingScriptTasks()
-
-        try {
-            subprocess.spawnNextScript(list.firstIndex)
-        } catch (_: Exception) {
-            Output.printErrorln("Failed to run script ${LockfileScripts.names(Int64(list.firstIndex))}")
-        }
-    }
-
-    /// 生成包生命周期脚本 (简化版)
-    /// 翻译自: PackageManager.spawnPackageLifecycleScripts
-    ///   pub fn spawnPackageLifecycleScripts(this, ctx, list, optional, foreground, install_ctx) !void
-    public static func spawnPackageLifecycleScripts(
-        manager: PackageManagerRef,
-        list: LifecycleScriptList,
-        optional: Bool,
-        foreground: Bool,
-        installCtx: ?ScriptInstallCtx
-    ): Unit {
-        // 检查是否有脚本
-        if (!list.hasAny()) {
-            return
-        }
-
-        // 确保临时目录存在
-        // 设置环境变量 (PATH += node_modules/.bin)
-        let envp = HashMap<String, String>()
-        let pathOpt = OS.getenv("PATH")
-        match (pathOpt) {
-            case Some(pathValue) =>
-                let binPath = "${list.cwd}/node_modules/.bin"
-                envp.put("PATH", "${pathValue}:${binPath}")
-            case None => ()
-        }
-
-        // 查找 shell 二进制
-        let shellBin = findShellBinary()
-
-        spawnPackageScripts(
-            manager,
-            list,
-            envp,
-            shellBin,
-            optional,
-            manager.logLevel,
-            foreground,
-            installCtx
-        )
-    }
-
-    /// 查找 shell 二进制路径
-    private static func findShellBinary(): ?String {
-        // 优先使用 $SHELL 环境变量
-        let shellOpt = OS.getenv("SHELL")
-        match (shellOpt) {
-            case Some(shell) =>
-                if (shell.size > 0 && BaoFile.exists(shell)) {
-                    return shell
-                }
-            case None => ()
-        }
-
-        // 回退到 /bin/sh
-        if (BaoFile.exists("/bin/sh")) {
-            return "/bin/sh"
-        }
-
-        return None
-    }
-}
+// NOTE: LifecycleScriptRunner moved to package_manager_lifecycle.cj (canonical)
 
 // ============================================================================
 // 脚本计时器
@@ -760,7 +663,9 @@ public class OutputReader {
     /// 获取最终缓冲区内容
     /// 翻译自: BufferedReader.finalBuffer
     public func finalBuffer(): String {
-        return String.fromBytes(buffer)
+        let sb = StringBuilder()
+        for (b in buffer) { sb.append(String(Rune(UInt32(b)))) }
+        return sb.toString()
     }
 
     /// 清理
@@ -774,92 +679,8 @@ public class OutputReader {
     }
 }
 
-// ============================================================================
-// 生命周期脚本列表
-// 翻译自: Lockfile.Package.Scripts.List
-// ============================================================================
-
-/// 生命周期脚本列表
-/// 翻译自: Lockfile.Package.Scripts.List
-public class LifecycleScriptList {
-    /// 脚本项列表 (每个位置对应 preinstall, install, postinstall 等)
-    public var items: ArrayList<?String>
-    /// 包名
-    public var packageName: String
-    /// 工作目录
-    public var cwd: String
-    /// 第一个有脚本的索引
-    public var firstIndex: UInt8
-    /// 总脚本数
-    public var total: Int64
-
-    public init(items: ArrayList<?String>, packageName: String, firstIndex: UInt8, total: Int64) {
-        this.items = items
-        this.packageName = packageName
-        cwd = ""
-        this.firstIndex = firstIndex
-        this.total = total
-    }
-
-    public init(items: ArrayList<?String>, packageName: String, firstIndex: UInt8) {
-        this.items = items
-        this.packageName = packageName
-        cwd = ""
-        this.firstIndex = firstIndex
-        var cnt: Int64 = 0
-        for (item in items) {
-            if (item != None) { cnt += 1 }
-        }
-        total = cnt
-    }
-
-    public init(items: ArrayList<?String>, packageName: String, cwd: String, firstIndex: UInt8, total: Int64) {
-        this.items = items
-        this.packageName = packageName
-        this.cwd = cwd
-        this.firstIndex = firstIndex
-        this.total = total
-    }
-
-    public func hasAny(): Bool {
-        return total > 0
-    }
-}
-
-// ============================================================================
-// Lockfile 脚本
-// 翻译自: Lockfile.Scripts
-// ============================================================================
-
-/// Lockfile 脚本工具
-public class LockfileScripts {
-    /// 获取脚本名称列表
-    /// 翻译自: Lockfile.Scripts.names
-    public static func names(): ArrayList<String> {
-        let names = ArrayList<String>()
-        names.append("preinstall")
-        names.append("install")
-        names.append("postinstall")
-        names.append("preprepare")
-        names.append("prepare")
-        names.append("postprepare")
-        return names
-    }
-
-    /// 获取指定索引的脚本名称
-    public static func names(index: Int64): String {
-        let allNames = names()
-        if (index < allNames.size) {
-            return allNames[index]
-        }
-        return "unknown"
-    }
-
-    /// 获取脚本总数
-    public static func scriptCount(): Int64 {
-        return 6
-    }
-}
+// NOTE: LifecycleScriptList moved to package_manager_lifecycle.cj (canonical)
+// NOTE: LockfileScripts moved to package_manager_lifecycle.cj (canonical)
 
 // ============================================================================
 // 慢脚本日志条目
@@ -883,71 +704,21 @@ public class LifecycleScriptTimeEntry {
 // 辅助类型
 // ============================================================================
 
-/// 包管理器引用
-/// 翻译自: PackageManager 中的生命周期脚本所需接口
-public class PackageManagerRef {
-    public var logLevel: LogLevel
-    public var activeLifecycleScriptCount: Int64
-    public var maxConcurrentLifecycleScripts: Int64
-    public var pendingLifecycleScriptTasks: Int64
-    public var lifecycleScriptTimeLog: ArrayList<LifecycleScriptTimeEntry>
-
-    public init() {
-        logLevel = LogLevel.Default
-        activeLifecycleScriptCount = 0
-        maxConcurrentLifecycleScripts = 1
-        pendingLifecycleScriptTasks = 0
-        lifecycleScriptTimeLog = ArrayList<LifecycleScriptTimeEntry>()
-    }
-
-    public func sleep(): Unit {}
-}
-
-/// 日志级别
-public enum LogLevel {
-    | Default
-    | Silent
-    | Verbose
-    | VerboseColor
-
-    public func showProgress(): Bool {
-        match (this) {
-            case Silent => return false
-            case _ => return true
-        }
-    }
-
-    public func isVerbose(): Bool {
-        match (this) {
-            case Verbose | VerboseColor => return true
-            case _ => return false
-        }
-    }
-}
-
 /// 子进程引用
 public class SubProcessRef {
     public init() {}
 }
 
 /// 输出工具
-public class Output {
-    public static func print(msg: String): Unit {}
-    public static func println(msg: String): Unit {}
-    public static func printErrorln(msg: String): Unit {}
-}
-
-/// 文件操作工具
-public class BaoFile {
-    public static func exists(path: String): Bool { return false }
-    public static func isDirectory(path: String): Bool { return false }
-    public static func deleteTree(dir: String, name: String): Unit {}
-}
+// Output is provided by bao_core.Output (imported via bao_core.*)
 
 /// OS 工具
 public class OS {
     public static func getcwd(): String { return "" }
     public static func getenv(key: String): ?String { return None }
+    public static func getEnv(key: String): ?String { return None }
+    public static func getCurrentOSName(): String { return "linux" }
+    public static func getCurrentArchName(): String { return "x64" }
 }
 
 /// 时间工具

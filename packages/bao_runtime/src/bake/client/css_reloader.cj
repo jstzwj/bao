@@ -27,10 +27,10 @@ func validateCssId(id: String): Unit {
 func deactivateCss(css: CSS): Unit {
     if (css.active) {
         css.active = false
-        if (let Some(sheet) = css.sheet) {
+        if (let Some(sheet) <- css.sheet) {
             sheet.disabled = true
-        } else if (let Some(link) = css.link) {
-            if (let Some(linkSheet) = link.sheet) { linkSheet.disabled = true }
+        } else if (let Some(link) <- css.link) {
+            if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = true }
         }
     }
 }
@@ -38,10 +38,10 @@ func deactivateCss(css: CSS): Unit {
 func activateCss(css: CSS): Unit {
     if (!css.active) {
         css.active = true
-        if (let Some(sheet) = css.sheet) {
+        if (let Some(sheet) <- css.sheet) {
             sheet.disabled = false
-        } else if (let Some(link) = css.link) {
-            if (let Some(linkSheet) = link.sheet) { linkSheet.disabled = false }
+        } else if (let Some(link) <- css.link) {
+            if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = false }
         }
     }
 }
@@ -49,12 +49,12 @@ func activateCss(css: CSS): Unit {
 func maybeAddCssLink(link: HTMLLinkElement): Unit {
     let pathname = URL(link.href).pathname
     if (pathname.startsWith("/_bun/asset/")) {
-        let id = pathname.slice("/_bun/asset/".length).slice(0, 16)
+        let id = pathname.slice("/_bun/asset/".size).slice(0, 16)
         if (!Regex("^[a-f0-9]{16}$").matches(id)) { return }
-        if (let Some(existing) = cssStore.get(id)) {
-            if (let Some(sheet) = existing.sheet) {
+        if (let Some(existing) <- cssStore.get(id)) {
+            if (let Some(sheet) <- existing.sheet) {
                 sheet.disabled = false
-                if (let Some(linkSheet) = link.sheet) { linkSheet.disabled = true }
+                if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = true }
             }
             existing.link = Some(link)
         } else {
@@ -70,21 +70,21 @@ public func initCssReloader(document: Document): MutationObserver {
         for (mutation in list) {
             if (mutation.type == "childList") {
                 for (node in mutation.removedNodes) {
-                    if (let Some(link) = node.asHTMLLinkElement()) {
-                        if (let Some(id) = registeredLinkTags.get(link)) {
-                            if (let Some(existingSheet) = cssStore.get(id)) { deactivateCss(existingSheet) }
+                    if (let Some(link) <- node.asHTMLLinkElement()) {
+                        if (let Some(id) <- registeredLinkTags.get(link)) {
+                            if (let Some(existingSheet) <- cssStore.get(id)) { deactivateCss(existingSheet) }
                             registeredLinkTags.delete(link)
                         }
                     }
                 }
                 for (node in mutation.addedNodes) {
-                    if (let Some(link) = node.asHTMLLinkElement()) { maybeAddCssLink(link) }
+                    if (let Some(link) <- node.asHTMLLinkElement()) { maybeAddCssLink(link) }
                 }
             } else if (mutation.type == "attributes") {
-                if (let Some(target) = mutation.target.asHTMLLinkElement()) {
+                if (let Some(target) <- mutation.target.asHTMLLinkElement()) {
                     if (target.tagName == "LINK" && target.rel == "stylesheet") {
-                        if (let Some(id) = registeredLinkTags.get(target)) {
-                            if (let Some(existing) = cssStore.get(id)) {
+                        if (let Some(id) <- registeredLinkTags.get(target)) {
+                            if (let Some(existing) <- cssStore.get(id)) {
                                 if (target.disabled) { deactivateCss(existing) } else { activateCss(existing) }
                             }
                         }
@@ -102,7 +102,7 @@ public func editCssArray(array: Array<String>): Unit {
     var removedCssKeys = Set<String>(cssStore.keys())
     for (css in array) {
         if (IS_BUN_DEVELOPMENT) { validateCssId(css) }
-        if (let Some(existing) = cssStore.get(css)) {
+        if (let Some(existing) <- cssStore.get(css)) {
             removedCssKeys.delete(css)
             activateCss(existing)
         } else {
@@ -111,7 +111,7 @@ public func editCssArray(array: Array<String>): Unit {
         }
     }
     for (css in removedCssKeys) {
-        if (let Some(entry) = cssStore.get(css)) { deactivateCss(entry) }
+        if (let Some(entry) <- cssStore.get(css)) { deactivateCss(entry) }
     }
 }
 
@@ -122,8 +122,8 @@ public func editCssContent(id: String, newContent: String): Bool {
         entry.sheet = Some(sheet)
         sheet.replace(newContent)
         document.adoptedStyleSheets.push(sheet)
-        if (let Some(link) = entry.link) {
-            if (let Some(linkSheet) = link.sheet) { linkSheet.disabled = true }
+        if (let Some(link) <- entry.link) {
+            if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = true }
         }
         return false
     }

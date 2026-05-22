@@ -409,7 +409,7 @@ public enum WindowsSystemErrno {
     public static let max: Int64 = 138
 
     /// 从数值初始化
-    /// 对应: SystemErrno.init(code: anytype) ?SystemErrno
+    /// 对应: SystemErrno(code: anytype) ?SystemErrno
     ///   Windows 版本支持 Win32Error, WSAError 等多种输入类型
     public static func initFunc(code: Int64): ?WindowsSystemErrno {
         if (code < 0) {

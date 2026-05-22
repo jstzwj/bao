@@ -298,7 +298,7 @@ public class LoadResultOk {
 
     public init() {
         lockfile = UpdateInstallLockfileRef()
-        migrated = MigrationKind.None
+        migrated = MigrationKind.None_
         format = LockfileFormat.Binary
     }
 }
@@ -324,7 +324,7 @@ public enum LoadStep {
 
 /// 迁移类型
 public enum MigrationKind {
-    | None
+    | None_
     | Npm
     | Binary
 }

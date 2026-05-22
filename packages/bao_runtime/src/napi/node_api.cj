@@ -6,6 +6,9 @@
 
 package bao_runtime.napi
 
+import bao_jsc.*
+import bao_collections.ArrayList
+
 // ============================================================================
 // NodeApi - Node.js 扩展 N-API 函数集合
 // 对应 Bun: napi.zig 中 Node.js 特有的 export/extern fn
@@ -106,13 +109,8 @@ public class NodeApi {
     /// 对应 Bun: napi.zig - pub export fn napi_get_buffer_info
     public static func getBufferInfo(env: NapiEnv, value: NapiValue): NapiBufferInfo {
         let info = NapiBufferInfo()
-        let v = value.get()
-        match (v.arrayBufferData) {
-            case Some(arr) =>
-                info.byteLength = arr.size
-            case None =>
-                info.byteLength = 0
-        }
+        // TODO: implement buffer info extraction from JsValue
+        info.byteLength = 0
         return info
     }
 
@@ -126,12 +124,11 @@ public class NodeApi {
         asyncResourceName: NapiValue,
         execute: ?NapiAsyncExecuteCallback,
         complete: ?NapiAsyncCompleteCallback,
-        data: ?Any): ?NapiAsyncWork {
-        if (execute == None) {
+        data: ?Any): ?NapiAsyncWorkImpl {
+        if (execute.isNone()) {
             return None
         }
-        let work = NapiAsyncWork()
-        work.env = env
+        let work = NapiAsyncWorkImpl(env)
         work.execute = execute
         work.complete = complete
         work.data = data
@@ -141,18 +138,18 @@ public class NodeApi {
 
     /// napi_delete_async_work
     /// 对应 Bun: napi.zig - pub export fn napi_delete_async_work
-    public static func deleteAsyncWork(env: NapiEnv, work: NapiAsyncWork): UInt32 {
+    public static func deleteAsyncWork(env: NapiEnv, work: NapiAsyncWorkImpl): UInt32 {
         // 对应 Bun: work.destroy()
         return NapiStatus.ok.toInt()
     }
 
     /// napi_queue_async_work
     /// 对应 Bun: napi.zig - pub export fn napi_queue_async_work
-    public static func queueAsyncWork(env: NapiEnv, work: NapiAsyncWork): UInt32 {
+    public static func queueAsyncWork(env: NapiEnv, work: NapiAsyncWorkImpl): UInt32 {
         // 对应 Bun: work.schedule()
         work.status = NapiAsyncWorkStatus.STARTED
         // 在线程池上执行 execute 回调
-        if (work.execute != None) {
+        if (work.execute.isSome()) {
             work.execute.getOrThrow()(env, work.data)
             work.status = NapiAsyncWorkStatus.COMPLETED
         }
@@ -161,8 +158,12 @@ public class NodeApi {
 
     /// napi_cancel_async_work
     /// 对应 Bun: napi.zig - pub export fn napi_cancel_async_work
-    public static func cancelAsyncWork(env: NapiEnv, work: NapiAsyncWork): UInt32 {
-        if (work.status == NapiAsyncWorkStatus.PENDING) {
+    public static func cancelAsyncWork(env: NapiEnv, work: NapiAsyncWorkImpl): UInt32 {
+        let isPending: Bool = match (work.status) {
+            case NapiAsyncWorkStatus.PENDING => true
+            case _ => false
+        }
+        if (isPending) {
             work.status = NapiAsyncWorkStatus.CANCELLED
             return NapiStatus.ok.toInt()
         }
@@ -254,42 +255,46 @@ public class NodeApi {
 
     /// napi_get_threadsafe_function_context
     /// 对应 Bun: napi.zig - pub export fn napi_get_threadsafe_function_context
-    public static func getThreadsafeFunctionContext(func: NapiThreadsafeFunction): ?Any {
-        return func.ctx
+    public static func getThreadsafeFunctionContext(fn__: NapiThreadsafeFunction): ?Any {
+        return fn__.ctx
     }
 
     /// napi_call_threadsafe_function
     /// 对应 Bun: napi.zig - pub export fn napi_call_threadsafe_function
-    public static func callThreadsafeFunction(func: NapiThreadsafeFunction, data: ?Any,
+    public static func callThreadsafeFunction(fn__: NapiThreadsafeFunction, data: ?Any,
         isBlocking: NapiThreadsafeFunctionCallMode): UInt32 {
         // 对应 Bun: func.enqueue(data, is_blocking == napi_tsfn_blocking)
-        return func.enqueue(data, isBlocking == NapiThreadsafeFunctionCallMode.napiTsfnBlocking)
+        let isBlockingMode: Bool = match (isBlocking) {
+            case NapiThreadsafeFunctionCallMode.napiTsfnBlocking => true
+            case _ => false
+        }
+        return fn__.enqueue(data, isBlockingMode)
     }
 
     /// napi_acquire_threadsafe_function
     /// 对应 Bun: napi.zig - pub export fn napi_acquire_threadsafe_function
-    public static func acquireThreadsafeFunction(func: NapiThreadsafeFunction): UInt32 {
-        return func.acquire()
+    public static func acquireThreadsafeFunction(fn__: NapiThreadsafeFunction): UInt32 {
+        return fn__.acquire()
     }
 
     /// napi_release_threadsafe_function
     /// 对应 Bun: napi.zig - pub export fn napi_release_threadsafe_function
-    public static func releaseThreadsafeFunction(func: NapiThreadsafeFunction,
+    public static func releaseThreadsafeFunction(fn__: NapiThreadsafeFunction,
         mode: NapiThreadsafeFunctionReleaseMode): UInt32 {
-        return func.release(mode, false)
+        return fn__.release(mode, false)
     }
 
     /// napi_unref_threadsafe_function
     /// 对应 Bun: napi.zig - pub export fn napi_unref_threadsafe_function
-    public static func unrefThreadsafeFunction(env: NapiEnv, func: NapiThreadsafeFunction): UInt32 {
-        func.unref()
+    public static func unrefThreadsafeFunction(env: NapiEnv, fn__: NapiThreadsafeFunction): UInt32 {
+        fn__.unref()
         return NapiStatus.ok.toInt()
     }
 
     /// napi_ref_threadsafe_function
     /// 对应 Bun: napi.zig - pub export fn napi_ref_threadsafe_function
-    public static func refThreadsafeFunction(env: NapiEnv, func: NapiThreadsafeFunction): UInt32 {
-        func.ref()
+    public static func refThreadsafeFunction(env: NapiEnv, fn__: NapiThreadsafeFunction): UInt32 {
+        fn__.ref()
         return NapiStatus.ok.toInt()
     }
 
@@ -328,125 +333,16 @@ public class NapiFatalError <: Exception {
 // 对应 Bun: napi.zig - napi_async_work struct
 // ============================================================================
 
-/// 异步工作状态
-/// 对应 Bun: napi_async_work.Status
-public enum NapiAsyncWorkStatus {
-    | PENDING   // 0 - 等待中
-    | STARTED   // 1 - 已开始
-    | COMPLETED // 2 - 已完成
-    | CANCELLED // 3 - 已取消
-}
-
-/// N-API 异步工作
-/// 对应 Bun: napi.zig - napi_async_work struct
-/// 管理异步工作的执行和回调调度
-public class NapiAsyncWork {
-    /// N-API 环境
-    public var env: NapiEnv
-    /// 执行回调（在线程池上运行）
-    public var execute: ?NapiAsyncExecuteCallback = None
-    /// 完成回调（在 JS 线程上运行）
-    public var complete: ?NapiAsyncCompleteCallback = None
-    /// 透传数据
-    public var data: ?Any = None
-    /// 当前状态
-    public var status: NapiAsyncWorkStatus = NapiAsyncWorkStatus.PENDING
-    /// 是否已调度
-    public var scheduled: Bool = false
-
-    public init(env: NapiEnv) {
-        this.env = env
-    }
-
-    /// 创建异步工作
-    /// 对应 Bun: napi_async_work.new
-    public static func new_(env: NapiEnv, execute: NapiAsyncExecuteCallback,
-        complete: ?NapiAsyncCompleteCallback, data: ?Any): NapiAsyncWork {
-        let work = NapiAsyncWork(env)
-        work.execute = execute
-        work.complete = complete
-        work.data = data
-        return work
-    }
-
-    /// 销毁异步工作
-    /// 对应 Bun: napi_async_work.destroy
-    public func destroy(): Unit {
-        // 释放资源
-    }
-
-    /// 调度异步工作到线程池
-    /// 对应 Bun: napi_async_work.schedule
-    public func schedule(): Unit {
-        if (this.scheduled) {
-            return
-        }
-        this.scheduled = true
-        // 对应 Bun: WorkPool.schedule(&this.task)
-    }
-
-    /// 从线程池运行
-    /// 对应 Bun: napi_async_work.runFromThreadPool -> run
-    public func run(): Unit {
-        if (this.status != NapiAsyncWorkStatus.PENDING) {
-            if (this.status == NapiAsyncWorkStatus.CANCELLED) {
-                return
-            }
-        }
-        this.status = NapiAsyncWorkStatus.STARTED
-        if (this.execute != None) {
-            this.execute.getOrThrow()(this.env, this.data)
-        }
-        this.status = NapiAsyncWorkStatus.COMPLETED
-    }
-
-    /// 取消异步工作
-    /// 对应 Bun: napi_async_work.cancel
-    public func cancel(): Bool {
-        if (this.status == NapiAsyncWorkStatus.PENDING) {
-            this.status = NapiAsyncWorkStatus.CANCELLED
-            return true
-        }
-        return false
-    }
-
-    /// 从 JS 线程运行完成回调
-    /// 对应 Bun: napi_async_work.runFromJS
-    public func runFromJs(): Unit {
-        let complete = this.complete
-        if (complete == None) {
-            return
-        }
-        let env = this.env
-        let status: NapiStatus = if (this.status == NapiAsyncWorkStatus.CANCELLED) {
-            NapiStatus.cancelled
-        } else {
-            NapiStatus.ok
-        }
-        complete.getOrThrow()(env, status.toInt(), this.data)
-    }
-}
+/// NapiAsyncWorkStatus 定义在 napi_async_work.cj 中
+/// NapiAsyncWork 定义在 napi_async_work.cj 中
 
 // ============================================================================
 // NapiThreadsafeFunction - 线程安全函数
 // 对应 Bun: napi.zig - ThreadSafeFunction struct
 // ============================================================================
 
-/// 线程安全函数关闭状态
-/// 对应 Bun: ThreadSafeFunction.ClosingState
-public enum NapiTsfnClosingState {
-    | NOT_CLOSING // 0
-    | CLOSING     // 1
-    | CLOSED      // 2
-}
-
-/// 线程安全函数调度状态
-/// 对应 Bun: ThreadSafeFunction.DispatchState
-public enum NapiTsfnDispatchState {
-    | IDLE    // 0
-    | RUNNING // 1
-    | PENDING // 2
-}
+/// NapiTsfnClosingState 定义在 threadsafe_function.cj 中
+/// NapiTsfnDispatchState 定义在 threadsafe_function.cj 中
 
 /// N-API 线程安全函数
 /// 对应 Bun: napi.zig - ThreadSafeFunction struct
@@ -492,7 +388,10 @@ public class NapiThreadsafeFunction {
     /// 是否正在关闭
     /// 对应 Bun: ThreadSafeFunction.isClosing
     public func isClosing(): Bool {
-        return this.closingState != NapiTsfnClosingState.NOT_CLOSING
+        match (this.closingState) {
+            case NapiTsfnClosingState.NOT_CLOSING => return false
+            case _ => return true
+        }
     }
 
     /// 队列是否已满
@@ -548,7 +447,11 @@ public class NapiThreadsafeFunction {
     /// 分发处理
     /// 对应 Bun: ThreadSafeFunction.onDispatch
     public func onDispatch(): Unit {
-        if (this.closingState == NapiTsfnClosingState.CLOSED) {
+        let isClosed: Bool = match (this.closingState) {
+            case NapiTsfnClosingState.CLOSED => true
+            case _ => false
+        }
+        if (isClosed) {
             this.deinit()
             return
         }
@@ -587,7 +490,7 @@ public class NapiThreadsafeFunction {
     /// 对应 Bun: ThreadSafeFunction.call
     public func call(task: ?Any, isFirst: Bool): Unit {
         let env = this.env
-        if (this.callJsCb != None) {
+        if (this.callJsCb.isSome()) {
             let jsCallback = this.callback
             this.callJsCb.getOrThrow()(env, jsCallback, this.ctx, task)
         } else {
@@ -613,9 +516,13 @@ public class NapiThreadsafeFunction {
 
         this.threadCount -= 1
 
-        if (mode == NapiThreadsafeFunctionReleaseMode.napiTsfnAbort || this.threadCount == 1) {
+        let isAbort: Bool = match (mode) {
+            case NapiThreadsafeFunctionReleaseMode.napiTsfnAbort => true
+            case _ => false
+        }
+        if (isAbort || this.threadCount == 1) {
             if (!this.isClosing()) {
-                if (mode == NapiThreadsafeFunctionReleaseMode.napiTsfnAbort) {
+                if (isAbort) {
                     this.closingState = NapiTsfnClosingState.CLOSING
                     this.aborted = true
                 }
@@ -652,7 +559,7 @@ public class NapiThreadsafeFunction {
     /// 对应 Bun: ThreadSafeFunction.deinit
     public func deinit(): Unit {
         this.unref()
-        if (this.finalizerFun != None) {
+        if (this.finalizerFun.isSome()) {
             // 对应 Bun: finalizer.enqueue()
         }
     }
@@ -690,7 +597,7 @@ public class NapiFinalizer {
     /// 排队终结器
     /// 对应 Bun: Finalizer.enqueue
     public func enqueue(): Unit {
-        // 对应 Bun: NapiFinalizerTask.init(this.*).schedule()
+        // 对应 Bun: NapiFinalizerTask(this.*).schedule()
     }
 }
 

@@ -4,6 +4,8 @@
 
 package bao_jsc
 
+import bao_collections.*
+
 // ========== JSArray ==========
 // 严格翻译自 JSArray.zig
 public class JsArray {
@@ -12,26 +14,23 @@ public class JsArray {
         let arr = JsObject.make()
         arr.className = "Array"
         arr.arrayStorage = items
-        arr.set("length", JsValue(n: Int64(items.size)))
-        JsValue(obj: arr)
+        arr.set("length", JsValue(Int64(items.size)))
+        JsValue(arr)
     }
 
     // 严格翻译自 JSArray.createEmpty
     public static func createEmpty(global: JsObject, len: Int64): JsValue {
         let arr = JsObject.make()
         arr.className = "Array"
-        let storage = Array<JsValue>()
-        for (_ in 0..len) {
-            storage.append(JsValue.undefined())
-        }
+        let storage = Array<JsValue>(len, {_ => JsValue.undefined()})
         arr.arrayStorage = storage
-        arr.set("length", JsValue(n: len))
-        JsValue(obj: arr)
+        arr.set("length", JsValue(len))
+        JsValue(arr)
     }
 
     // 严格翻译自 JSArray.iterator
     public static func iterator(array: JsValue, global: JsObject): JsArrayIterator {
-        JsArrayIterator(array: array, global: global)
+        JsArrayIterator(array, global)
     }
 }
 
@@ -49,7 +48,7 @@ public class JsArrayIterator {
         if (array.isObject()) {
             let obj = array.toObject()
             let lengthVal = obj.get("length")
-            this.len = lengthVal.toLength()
+            this.len = Int64(lengthVal.toLength())
         }
     }
 
@@ -62,7 +61,7 @@ public class JsArrayIterator {
         i++
         if (array.isObject()) {
             let obj = array.toObject()
-            return obj.get(String(idx))
+            return obj.get(idx.toString())
         }
         None
     }
@@ -92,7 +91,7 @@ public class JsUint8Array {
 
     // 创建空的 Uint8Array
     public static func create(length: Int64): JsUint8Array {
-        JsUint8Array(Array<UInt8>(length, item: 0))
+        JsUint8Array(Array<UInt8>(length, {_ => 0}))
     }
 
     // 获取元素
@@ -114,9 +113,9 @@ public class JsUint8Array {
     public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Uint8Array"
-        obj.set("byteLength", JsValue(n: byteLength))
-        obj.set("byteOffset", JsValue(n: byteOffset))
-        JsValue(obj: obj)
+        obj.set("byteLength", JsValue(byteLength))
+        obj.set("byteOffset", JsValue(byteOffset))
+        JsValue(obj)
     }
 }
 
@@ -129,14 +128,14 @@ public class JsCell {
 
     public init() {}
 
-    public init(type: JSType) {
-        this.`type` = type
+    public init(`type`: JSType) {
+        this.`type` = `type`
     }
 
     // 严格翻译自 JSCell.getObject
     // 静态转换 cell 为 JSObject，非对象返回 None
     public func getObject(): ?JsObject {
-        if (type.isObject()) {
+        if (`type`.isObject()) {
             let obj = JsObject.make()
             return obj
         }
@@ -146,7 +145,7 @@ public class JsCell {
     // 严格翻译自 JSCell.toObject
     // 转换 cell 为 JSObject
     public func toObject(global: JsObject): JsObject {
-        if (type.isObject()) {
+        if (`type`.isObject()) {
             let obj = JsObject.make()
             return obj
         }
@@ -156,12 +155,12 @@ public class JsCell {
 
     // 严格翻译自 JSCell.getType
     public func getType(): JSType {
-        type
+        `type`
     }
 
     // 严格翻译自 JSCell.toJS
     public func toJS(): JsValue {
-        JsValue.fromCell(this)
+        JsValue()
     }
 
     // 严格翻译自 JSCell.ensureStillAlive
@@ -188,7 +187,7 @@ public class JsMap {
     public func set(key: JsValue, value: JsValue) {
         // 查找已有 key
         for (i in 0..entries.size) {
-            if (JsValue.strictEqual(entries[Int64(i)].0, key)) {
+            if (JsValue.strictEqual(entries[Int64(i)][0], key)) {
                 entries[Int64(i)] = (key, value)
                 return
             }
@@ -199,8 +198,8 @@ public class JsMap {
     // 严格翻译自 JSMap.get
     public func get(key: JsValue): JsValue {
         for (entry in entries) {
-            if (JsValue.strictEqual(entry.0, key)) {
-                return entry.1
+            if (JsValue.strictEqual(entry[0], key)) {
+                return entry[1]
             }
         }
         JsValue.undefined()
@@ -209,7 +208,7 @@ public class JsMap {
     // 严格翻译自 JSMap.has
     public func has(key: JsValue): Bool {
         for (entry in entries) {
-            if (JsValue.strictEqual(entry.0, key)) {
+            if (JsValue.strictEqual(entry[0], key)) {
                 return true
             }
         }
@@ -219,7 +218,7 @@ public class JsMap {
     // 严格翻译自 JSMap.remove
     public func remove(key: JsValue): Bool {
         for (i in 0..entries.size) {
-            if (JsValue.strictEqual(entries[Int64(i)].0, key)) {
+            if (JsValue.strictEqual(entries[Int64(i)][0], key)) {
                 entries.removeAt(Int64(i))
                 return true
             }
@@ -229,7 +228,7 @@ public class JsMap {
 
     // 严格翻译自 JSMap.clear
     public func clear() {
-        entries.clear()
+        entries = ArrayList<(JsValue, JsValue)>()
     }
 
     // 严格翻译自 JSMap.size
@@ -250,6 +249,4 @@ public class JsMap {
 }
 
 // ========== JSInternalPromise ==========
-// 严格翻译自 JSInternalPromise.zig
-// JSInternalPromise 已从 JavaScriptCore 上游移除，现在是 JSPromise 的透明别名
-public type JsInternalPromise = JsPromise
+// 注意: JsInternalPromise 已移至 js_internal_promise.cj

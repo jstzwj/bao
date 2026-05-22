@@ -9,6 +9,7 @@ import bao_runtime.*
 import bao_runtime.webcore.*
 import bao_http_types.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_boringssl.*
 
 // ============================================================================
@@ -65,16 +66,14 @@ public class HTTPRequestBody {
     public func detach(): Unit {
         match (tag) {
             case HTTPRequestBodyTag.AnyBlob => anyBlob.detach()
-            case HTTPRequestBodyTag.ReadableStream => {
+            case HTTPRequestBodyTag.ReadableStream =>
                 readableStream.deinit()
-            }
-            case HTTPRequestBodyTag.Sendfile => {
+            case HTTPRequestBodyTag.Sendfile =>
                 if (sendfile.offset > 0 || sendfile.remain > 0) {
                     sendfile.close()
                 }
                 sendfile.offset = 0
                 sendfile.remain = 0
-            }
         }
     }
 
@@ -83,17 +82,15 @@ public class HTTPRequestBody {
     public static func fromJS(globalThis: JsGlobalObject, value: JsValue): JSResult<HTTPRequestBody> {
         var bodyValue = BodyValue.fromJS(globalThis, value)
         match (bodyValue.tag) {
-            case BodyValueTag.Used => {
+            case BodyValueTag.Used =>
                 return JSResult.err(globalThis.err(JSErrorCode.BODY_ALREADY_USED, "body already used"))
-            }
-            case BodyValueTag.Locked => {
+            case BodyValueTag.Locked =>
                 if (bodyValue.lockedValue.readable.has()) {
                     let result = HTTPRequestBody()
                     result.tag = HTTPRequestBodyTag.ReadableStream
                     result.readableStream = bodyValue.lockedValue.readable
                     return JSResult.ok(result)
                 }
-            }
             case _ => ()
         }
 
@@ -330,7 +327,7 @@ public class FetchTasklet {
 
     /// 减少引用
     /// 严格翻译自 FetchTasklet.deref()
-    public static func deref(this: FetchTasklet): Unit {
+    public static func deref(`this`: FetchTasklet): Unit {
         this.refCount -= 1
         if (this.refCount <= 0) {
             FetchTasklet.deinit(this)
@@ -339,19 +336,18 @@ public class FetchTasklet {
 
     /// 从其他线程减少引用
     /// 严格翻译自 FetchTasklet.deref_from_thread()
-    public static func derefFromThread(this: FetchTasklet): Unit {
+    public static func derefFromThread(`this`: FetchTasklet): Unit {
         this.refCount -= 1
         if (this.refCount <= 0) {
             let vm = this.javascriptVm
             match (vm) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.isShuttingDown()) {
                         FetchTasklet.deinit(this)
                     } else {
                         // 在主线程上执行 deinit
                         FetchTasklet.enqueueConcurrent(v, ConcurrentTask.fromCallback(this, FetchTasklet.deinitCallback))
                     }
-                }
                 case None => FetchTasklet.deinit(this)
             }
         }
@@ -359,7 +355,7 @@ public class FetchTasklet {
 
     /// deinit 回调 (用于并发任务)
     /// 严格翻译自 FetchTasklet.deinit_callback()
-    public static func deinitCallback(this: FetchTasklet): Unit {
+    public static func deinitCallback(`this`: FetchTasklet): Unit {
         FetchTasklet.deinit(this)
     }
 
@@ -401,7 +397,7 @@ public class FetchTasklet {
         var url = fetchOptions.url
         var proxy: ?URL = fetchOptions.proxy
 
-        if (proxy != None) {
+        if (proxy.isSome()) {
             let proxyUrl = proxy.getOrThrow()
             if (!proxyUrl.isEmpty()) {
                 // 检查 NO_PROXY
@@ -419,7 +415,7 @@ public class FetchTasklet {
             let env = jscVm.getOrThrow().transpiler().envMut()
             let envProxy = env.getHttpProxyFor(url)
             match (envProxy) {
-                case Some(proxyUrl) => {
+                case Some(proxyUrl) =>
                     if (!proxyUrl.href.isEmpty()) {
                         let oldUrlLen = url.href.size
                         // 扩展 urlProxyBuffer
@@ -430,7 +426,6 @@ public class FetchTasklet {
                     } else {
                         proxy = Some(proxyUrl)
                     }
-                }
                 case None => ()
             }
         }
@@ -443,7 +438,7 @@ public class FetchTasklet {
         }
 
         // 创建 AsyncHTTP
-        let httpInstance = AsyncHTTP.init(
+        let httpInstance = AsyncHTTP(
             fetchOptions.method,
             url,
             tasklet.requestHeaders,
@@ -493,10 +488,9 @@ public class FetchTasklet {
 
         // AbortSignal 监听
         match (tasklet.signal) {
-            case Some(sig) => {
+            case Some(sig) =>
                 sig.pendingActivityRef()
                 sig.addListener(tasklet, FetchTasklet.abortListener)
-            }
             case None => ()
         }
 
@@ -509,14 +503,13 @@ public class FetchTasklet {
         HTTPThread.initDefault()
         let node = FetchTasklet.get(global, fetchOptions, promise)
         match (node) {
-            case Some(n) => {
+            case Some(n) =>
                 let httpInst = n.http.getOrThrow()
                 httpInst.schedule()
                 n.pollRef.ref()
                 n.ref()
                 HTTPThread.schedule(httpInst)
                 return n
-            }
             case None => return None
         }
     }
@@ -529,19 +522,17 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.clear_sink()
     public func clearSink(): Unit {
         match (sink) {
-            case Some(s) => {
+            case Some(s) =>
                 s.detachJs()
                 ResumableFetchSink.deref(s)
                 sink = None
-            }
             case None => ()
         }
         match (requestBodyStreamingBuffer) {
-            case Some(buffer) => {
+            case Some(buffer) =>
                 buffer.clearDrainCallback()
                 ThreadSafeStreamBuffer.deref(buffer)
                 requestBodyStreamingBuffer = None
-            }
             case None => ()
         }
     }
@@ -573,10 +564,9 @@ public class FetchTasklet {
         response.clear()
 
         match (nativeResponse) {
-            case Some(r) => {
+            case Some(r) =>
                 Response.unref(r)
                 nativeResponse = None
-            }
             case None => ()
         }
 
@@ -595,7 +585,7 @@ public class FetchTasklet {
 
     /// 释放资源
     /// 严格翻译自 FetchTasklet.deinit()
-    public static func deinit(this: FetchTasklet): Unit {
+    public static func deinit(`this`: FetchTasklet): Unit {
         this.clearData()
         // http 由 GC 回收
         this.http = None
@@ -616,13 +606,12 @@ public class FetchTasklet {
         // 检查弱引用
         let responseJs = response.get()
         match (responseJs) {
-            case Some(jsVal) => {
+            case Some(jsVal) =>
                 let resp = jsVal.asResponse()
                 match (resp) {
                     case Some(r) => return Some(r)
                     case None => ()
                 }
-            }
             case None => ()
         }
 
@@ -649,7 +638,7 @@ public class FetchTasklet {
 
         let streamRef = requestBody.readableStream
         match (streamRef.get(globalThis)) {
-            case Some(stream) => {
+            case Some(stream) =>
                 if (signalAborted()) {
                     stream.abort(globalThis)
                     return
@@ -658,7 +647,6 @@ public class FetchTasklet {
                 ref() // 在 sink 完成之前保持引用
                 let sinkInstance = ResumableFetchSink.initExactRefs(globalThis, stream, this, 2)
                 sink = Some(sinkInstance)
-            }
             case None => ()
         }
     }
@@ -676,7 +664,7 @@ public class FetchTasklet {
 
         let vm = javascriptVm
         match (vm) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.isShuttingDown()) {
                     mutex.unlock()
                     if (isDone) {
@@ -684,14 +672,13 @@ public class FetchTasklet {
                     }
                     return
                 }
-            }
             case None => ()
         }
 
         // 启动请求流
         if (isWaitingRequestStreamStart && result.canStream) {
             startRequestStream()
-            if (metadata != None && !isWaitingBody) {
+            if (metadata.isSome() && !isWaitingBody) {
                 match (vm) {
                     case Some(v) => v.jscVm().drainMicrotasks()
                     case None => ()
@@ -721,7 +708,7 @@ public class FetchTasklet {
         }
 
         // 没有元数据且成功
-        if (metadata == None && result.isSuccess()) {
+        if (metadata.isNone() && result.isSuccess()) {
             mutex.unlock()
             if (isDone) {
                 FetchTasklet.deref(this)
@@ -751,16 +738,15 @@ public class FetchTasklet {
 
         // 证书信息
         match (result.certificateInfo) {
-            case Some(certInfo) => {
+            case Some(certInfo) =>
                 if (rejectUnauthorized && !checkServerIdentityFn(certInfo)) {
                     // 中止请求
                     let prom = promiseValue.asAnyPromise()
                     match (prom) {
-                        case Some(p) => {
+                        case Some(p) =>
                             let rejectResult = onReject()
                             p.rejectWithAsyncStack(globalThis, rejectResult.toJS(globalThis))
                             rejectResult.reset()
-                        }
                         case None => ()
                     }
                     tracker.didDispatch(globalThis)
@@ -771,7 +757,6 @@ public class FetchTasklet {
                     }
                     return
                 }
-            }
             case None => ()
         }
 
@@ -779,16 +764,14 @@ public class FetchTasklet {
         if (result.isSuccess() && abortReason.has()) {
             let prom = promiseValue.asAnyPromise()
             match (prom) {
-                case Some(p) => {
+                case Some(p) =>
                     let err = getAbortError()
                     match (err) {
-                        case Some(e) => {
+                        case Some(e) =>
                             p.rejectWithAsyncStack(globalThis, e.toJS(globalThis))
                             e.reset()
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
             tracker.didDispatch(globalThis)
@@ -856,37 +839,33 @@ public class FetchTasklet {
 
             // 如果正在流式传输, 更新错误
             match (readableStreamRef.get(globalThis)) {
-                case Some(readable) => {
+                case Some(readable) =>
                     match (readable.ptr().bytes()) {
-                        case Some(bytes) => {
+                        case Some(bytes) =>
                             jsErr = err.toJS(globalThis)
                             jsErr.ensureStillAlive()
                             bytes.onData(StreamResult.err(StreamError.jsValue(jsErr)))
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
 
             match (sink) {
-                case Some(s) => {
+                case Some(s) =>
                     if (jsErr.isEmpty()) {
                         jsErr = err.toJS(globalThis)
                         jsErr.ensureStillAlive()
                     }
                     s.cancel(jsErr)
                     return
-                }
                 case None => ()
             }
 
             // 缓冲模式下 resolve Promise
             match (currentResponseMut()) {
-                case Some(response) => {
+                case Some(response) =>
                     let body = response.getBodyValue()
                     body.toErrorInstance(err, globalThis)
-                }
                 case None => ()
             }
             return
@@ -894,9 +873,9 @@ public class FetchTasklet {
 
         // 可读流
         match (readableStreamRef.get(globalThis)) {
-            case Some(readable) => {
+            case Some(readable) =>
                 match (readable.ptr().bytes()) {
-                    case Some(bytes) => {
+                    case Some(bytes) =>
                         bytes.sizeHint.set(getSizeHint())
                         if (result.hasMore) {
                             let chunk = scheduledResponseBuffer.list.asSlice()
@@ -909,24 +888,22 @@ public class FetchTasklet {
                             bytes.onData(FetchTasklet.temporaryChunk(chunk, true))
                         }
                         return
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
         // 当前响应
         match (currentResponseMut()) {
-            case Some(response) => {
+            case Some(response) =>
                 let sizeHint = getSizeHint()
                 response.setSizeHint(sizeHint)
 
                 // 可读流 body
                 match (response.getBodyReadableStream(globalThis)) {
-                    case Some(readable) => {
+                    case Some(readable) =>
                         match (readable.ptr().bytes()) {
-                            case Some(bytes) => {
+                            case Some(bytes) =>
                                 let chunk = scheduledResponseBuffer.list.asSlice()
                                 if (result.hasMore) {
                                     bytes.onData(FetchTasklet.temporaryChunk(chunk, false))
@@ -936,10 +913,8 @@ public class FetchTasklet {
                                     bytes.onData(FetchTasklet.temporaryChunk(chunk, true))
                                 }
                                 return
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
 
@@ -957,7 +932,6 @@ public class FetchTasklet {
                         body.resolve(globalThis, headers)
                     }
                 }
-            }
             case None => ()
         }
     }
@@ -994,7 +968,7 @@ public class FetchTasklet {
 
         let fail = result.fail
         match (fail) {
-            case Some(f) => {
+            case Some(f) =>
                 // 请求体不可重用
                 if (f == BUN_ERROR.REQUEST_BODY_NOT_REUSABLE) {
                     return BodyValueError.typeError("Request body is a ReadableStream and cannot be replayed for this redirect")
@@ -1026,7 +1000,6 @@ public class FetchTasklet {
                 )
 
                 return BodyValueError.systemError(fetchError)
-            }
             case None => ()
         }
 
@@ -1048,16 +1021,14 @@ public class FetchTasklet {
         }
 
         match (signal) {
-            case Some(sig) => {
+            case Some(sig) =>
                 match (sig.reasonIfAborted(globalThis)) {
-                    case Some(reason) => {
+                    case Some(reason) =>
                         let out = BodyValueError.fromAbortReason(reason)
                         clearAbortSignal()
                         return Some(out)
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
@@ -1068,12 +1039,11 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.clear_abort_signal()
     public func clearAbortSignal(): Unit {
         match (signal) {
-            case Some(sig) => {
+            case Some(sig) =>
                 sig.cleanNativeBindings(this)
                 sig.pendingActivityUnref()
                 sig.unref()
                 signal = None
-            }
             case None => ()
         }
     }
@@ -1095,10 +1065,9 @@ public class FetchTasklet {
         abortTask()
 
         match (sink) {
-            case Some(s) => {
+            case Some(s) =>
                 s.cancel(reason)
                 return
-            }
             case None => ()
         }
 
@@ -1122,17 +1091,17 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.check_server_identity()
     public func checkServerIdentityFn(certInfo: CertificateInfo): Bool {
         match (checkServerIdentity.get()) {
-            case Some(checkFn) => {
+            case Some(checkFn) =>
                 checkFn.ensureStillAlive()
                 if (!certInfo.cert.isEmpty()) {
                     let cert = certInfo.cert
                     // 解析 X509 证书
                     let x509 = d2iX509(cert)
-                    if (x509 != None) {
+                    if (x509.isSome()) {
                         let globalObject = globalThis
                         let jsCert = X509.toJS(x509, globalObject)
                         match (jsCert) {
-                            case Some(cert) => {
+                            case Some(cert) =>
                                 cert.ensureStillAlive()
                                 let hostname = OwnedString.cloneUtf8(certInfo.hostname)
                                 let jsHostname = hostname.toJS(globalObject)
@@ -1155,12 +1124,10 @@ public class FetchTasklet {
                                 }
                                 // 成功
                                 return true
-                            }
                             case None => ()
                         }
                     }
                 }
-            }
             case None => ()
         }
 
@@ -1195,23 +1162,21 @@ public class FetchTasklet {
         task.result.canStream = task.result.canStream || prevCanStream
 
         // 保留证书信息
-        if (task.result.certificateInfo == None) {
+        if (task.result.certificateInfo.isNone()) {
             task.result.certificateInfo = prevCertInfo
         }
 
         // 元数据只提供一次
         match (task.result.metadata) {
-            case Some(meta) => {
-                if (task.metadata == None) {
+            case Some(meta) =>
+                if (task.metadata.isNone()) {
                     task.metadata = Some(meta)
                 }
                 task.result.metadata = None
-            }
-            case None => {
-                if (task.metadata == None) {
+            case None =>
+                if (task.metadata.isNone()) {
                     task.metadata = prevMetadata
                 }
-            }
         }
 
         task.bodySize = task.result.bodySize
@@ -1251,7 +1216,7 @@ public class FetchTasklet {
 
         // VM 关闭中
         match (task.javascriptVm) {
-            case Some(vm) => {
+            case Some(vm) =>
                 if (vm.isShuttingDown()) {
                     task.mutex.unlock()
                     if (isDone) {
@@ -1259,7 +1224,6 @@ public class FetchTasklet {
                     }
                     return
                 }
-            }
             case None => ()
         }
 
@@ -1278,22 +1242,21 @@ public class FetchTasklet {
 
     /// 请求体数据排空回调 (从 HTTP 线程调用)
     /// 严格翻译自 FetchTasklet.on_write_request_data_drain()
-    public static func onWriteRequestDataDrain(this: FetchTasklet): Unit {
+    public static func onWriteRequestDataDrain(`this`: FetchTasklet): Unit {
         match (this.javascriptVm) {
-            case Some(vm) => {
+            case Some(vm) =>
                 if (vm.isShuttingDown()) {
                     return
                 }
                 this.ref()
                 FetchTasklet.enqueueConcurrent(vm, ConcurrentTask.fromCallback(this, FetchTasklet.resumeRequestDataStream))
-            }
             case None => ()
         }
     }
 
     /// 恢复请求数据流 (从主线程调用)
     /// 严格翻译自 FetchTasklet.resume_request_data_stream()
-    public static func resumeRequestDataStream(this: FetchTasklet): Unit {
+    public static func resumeRequestDataStream(`this`: FetchTasklet): Unit {
         if (!this.signalAborted()) {
             match (this.sink) {
                 case Some(s) => s.drain()
@@ -1320,7 +1283,7 @@ public class FetchTasklet {
         }
 
         match (requestBodyStreamingBuffer) {
-            case Some(buffer) => {
+            case Some(buffer) =>
                 var needsSchedule = buffer.isEmpty()
 
                 if (skipChunkedFraming()) {
@@ -1346,7 +1309,6 @@ public class FetchTasklet {
                 }
 
                 return result
-            }
             case None => return ResumableSinkBackpressure.Done
         }
     }
@@ -1355,7 +1317,7 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.write_end_request()
     public func writeEndRequest(err: ?JsValue): Unit {
         match (err) {
-            case Some(jsError) => {
+            case Some(jsError) =>
                 if (signalStore.aborted || abortReason.has()) {
                     FetchTasklet.deref(this)
                     return
@@ -1364,24 +1326,20 @@ public class FetchTasklet {
                     abortReason.set(globalThis, jsError)
                 }
                 abortTask()
-            }
-            case None => {
+            case None =>
                 if (!skipChunkedFraming()) {
                     match (requestBodyStreamingBuffer) {
-                        case Some(buffer) => {
+                        case Some(buffer) =>
                             buffer.lock().write(END_OF_CHUNKED_HTTP1_1_ENCODING_RESPONSE_BODY)
-                        }
-                        case None => {
+                        case None =>
                             FetchTasklet.deref(this)
                             return
-                        }
                     }
                 }
                 match (http) {
                     case Some(h) => HTTPThread.scheduleRequestWrite(h, WriteMessageType.End)
                     case None => ()
                 }
-            }
         }
         FetchTasklet.deref(this)
     }
@@ -1391,7 +1349,7 @@ public class FetchTasklet {
     public func skipChunkedFraming(): Bool {
         return upgradedConnection
             || result.isHttp2
-            || (requestHeaders.get("content-length") != None && requestHeaders.get("transfer-encoding") == None)
+            || (requestHeaders.get("content-length").isSome() && requestHeaders.get("transfer-encoding").isNone())
     }
 
     /// 中止任务
@@ -1413,7 +1371,7 @@ public class FetchTasklet {
     /// 可读流可用回调
     /// 严格翻译自 FetchTasklet.on_readable_stream_available()
     public func onReadableStreamAvailable(globalThis: JsGlobalObject, readable: ReadableStream): Unit {
-        readableStreamRef = ReadableStreamStrong.init(readable, globalThis)
+        readableStreamRef = ReadableStreamStrong(readable, globalThis)
     }
 
     /// 开始流式 HTTP 响应体回调
@@ -1424,10 +1382,9 @@ public class FetchTasklet {
         }
 
         match (http) {
-            case Some(h) => {
+            case Some(h) =>
                 h.enableResponseBodyStreaminging()
                 HTTPThread.scheduleResponseBodyDrain(h.asyncHttpId)
-            }
             case None => ()
         }
 
@@ -1453,16 +1410,14 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.clear_stream_cancel_handler()
     public func clearStreamCancelHandler(): Unit {
         match (readableStreamRef.get(globalThis)) {
-            case Some(readable) => {
+            case Some(readable) =>
                 match (readable.ptr().bytes()) {
-                    case Some(bytes) => {
+                    case Some(bytes) =>
                         let source = bytes.parentConst()
                         source.cancelHandler = None
                         source.cancelCtx = None
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }
@@ -1539,7 +1494,7 @@ public class FetchTasklet {
         let url = BunString.cloneUtf8(meta.url.slice())
         let redirected = result.redirected
 
-        return Response.init(
+        return Response(
             ResponseInit(
                 headers: HeadersRef.adopt(headers),
                 statusCode: statusCode,
@@ -1572,10 +1527,9 @@ public class FetchTasklet {
         response.clear()
 
         match (nativeResponse) {
-            case Some(r) => {
+            case Some(r) =>
                 Response.unref(r)
                 nativeResponse = None
-            }
             case None => ()
         }
 
@@ -1586,7 +1540,7 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.on_response_finalize()
     public func onResponseFinalize(): Unit {
         match (nativeResponse) {
-            case Some(response) => {
+            case Some(response) =>
                 let body = response.getBodyValue()
                 // 场景分析:
                 // 1. 正在流式传输 → 不忽略
@@ -1601,15 +1555,13 @@ public class FetchTasklet {
                 if (body.isLocked()) {
                     let locked = body.lockedValue
                     match (locked.promise) {
-                        case Some(promise) => {
+                        case Some(promise) =>
                             if (promise.isEmptyOrUndefinedOrNull()) {
                                 ignoreRemainingResponseBody()
                             }
-                        }
                         case None => ignoreRemainingResponseBody()
                     }
                 }
-            }
             case None => ()
         }
     }
@@ -1618,12 +1570,11 @@ public class FetchTasklet {
     private func getPathForError(): String {
         match (metadata) {
             case Some(meta) => meta.url.slice()
-            case None => {
+            case None =>
                 match (http) {
                     case Some(h) => h.url.href
                     case None => ""
                 }
-            }
         }
     }
 
@@ -2015,11 +1966,10 @@ public class PromiseHolder {
     public func resolve(): Unit {
         let prom = promise.valueOrEmpty().asAnyPromise()
         match (prom) {
-            case Some(p) => {
+            case Some(p) =>
                 let res = held.swap()
                 res.ensureStillAlive()
                 p.resolve(globalObject, res)
-            }
             case None => ()
         }
         held.deinit()
@@ -2031,11 +1981,10 @@ public class PromiseHolder {
     public func reject(): Unit {
         let prom = promise.valueOrEmpty().asAnyPromise()
         match (prom) {
-            case Some(p) => {
+            case Some(p) =>
                 let res = held.swap()
                 res.ensureStillAlive()
                 p.rejectWithAsyncStack(globalObject, res)
-            }
             case None => ()
         }
         held.deinit()

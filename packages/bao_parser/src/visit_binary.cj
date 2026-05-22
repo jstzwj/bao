@@ -94,13 +94,13 @@ public class BinaryExpressionVisitor {
                             flipComparison = false
                         }
                     }
-                    if (typeofExpr == None) {
+                    if (typeofExpr.isNone()) {
                         return None
                     }
                 }
 
                 // 尝试右侧为 typeof，左侧为字符串
-                if (typeofExpr == None) {
+                if (typeofExpr.isNone()) {
                     if (right.tag == ExprTag.Unary && right.op == OpCode.Typeof) {
                         if (left.tag == ExprTag.String) {
                             if (left.stringValue.toString() == "undefined") {
@@ -258,7 +258,7 @@ public class BinaryExpressionVisitor {
         if (mutableExpr.op == OpCode.BinLoOr) {
             // || 短路: 如果左侧已知为 true, 标记右侧为死代码
             if (let Some(left) <- mutableExpr.left) {
-                let sideEffects = SideEffects.toBooleanStatic(p, left)
+                let sideEffects = SideEffects.toBoolean(p, left)
                 if (sideEffects.ok && sideEffects.value) {
                     // "true || dead"
                     let old = p.isControlFlowDead
@@ -276,7 +276,7 @@ public class BinaryExpressionVisitor {
         } else if (mutableExpr.op == OpCode.BinLoAnd) {
             // && 短路: 如果左侧已知为 false, 标记右侧为死代码
             if (let Some(left) <- mutableExpr.left) {
-                let sideEffects = SideEffects.toBooleanStatic(p, left)
+                let sideEffects = SideEffects.toBoolean(p, left)
                 if (sideEffects.ok && !sideEffects.value) {
                     // "false && dead"
                     let old = p.isControlFlowDead
@@ -294,7 +294,7 @@ public class BinaryExpressionVisitor {
         } else if (mutableExpr.op == OpCode.BinNullish) {
             // ?? 短路: 如果左侧已知非 null/undefined, 标记右侧为死代码
             if (let Some(left) <- mutableExpr.left) {
-                let sideEffects = SideEffects.toNullOrUndefinedStatic(p, left)
+                let sideEffects = SideEffects.toNullOrUndefined(p, left)
                 if (sideEffects.ok && !sideEffects.value) {
                     // "notNullOrUndefined ?? dead"
                     let old = p.isControlFlowDead
@@ -387,7 +387,7 @@ public class BinaryExpressionVisitor {
         // 对应 Bun: .bin_nullish_coalescing
         if (op == OpCode.BinNullish) {
             if (let Some(left) <- mutableExpr.left) {
-                let nullOrUndefined = SideEffects.toNullOrUndefinedStatic(p, left)
+                let nullOrUndefined = SideEffects.toNullOrUndefined(p, left)
                 if (nullOrUndefined.ok) {
                     if (!nullOrUndefined.value) {
                         // 左侧非 null/undefined，直接返回左侧
@@ -406,7 +406,7 @@ public class BinaryExpressionVisitor {
         // 对应 Bun: .bin_logical_or
         if (op == OpCode.BinLoOr) {
             if (let Some(left) <- mutableExpr.left) {
-                let sideEffects = SideEffects.toBooleanStatic(p, left)
+                let sideEffects = SideEffects.toBoolean(p, left)
                 if (sideEffects.ok && sideEffects.value) {
                     // 左侧为 true，直接返回左侧
                     return left
@@ -423,7 +423,7 @@ public class BinaryExpressionVisitor {
         // 对应 Bun: .bin_logical_and
         if (op == OpCode.BinLoAnd) {
             if (let Some(left) <- mutableExpr.left) {
-                let sideEffects = SideEffects.toBooleanStatic(p, left)
+                let sideEffects = SideEffects.toBoolean(p, left)
                 if (sideEffects.ok) {
                     if (!sideEffects.value) {
                         // 左侧为 false，直接返回左侧
@@ -537,14 +537,10 @@ public class BinaryExpressionVisitor {
                 }
                 // 数字比较
                 if (left.tag == ExprTag.Number && right.tag == ExprTag.Number) {
-                    if (let Some(lv) <- left.numberValue) {
-                        if (let Some(rv) <- right.numberValue) {
-                            if (lv == rv) {
-                                return Some(Expr.bool_(expr.loc, isEquality))
-                            } else {
-                                return Some(Expr.bool_(expr.loc, !isEquality))
-                            }
-                        }
+                    if (left.numberValue == right.numberValue) {
+                        return Some(Expr.bool_(expr.loc, isEquality))
+                    } else {
+                        return Some(Expr.bool_(expr.loc, !isEquality))
                     }
                 }
                 // 字符串比较
@@ -567,32 +563,30 @@ public class BinaryExpressionVisitor {
             if (let Some(right) <- expr.right) {
                 // 提取数字值
                 if (left.tag == ExprTag.Number && right.tag == ExprTag.Number) {
-                    if (let Some(lv) <- left.numberValue) {
-                        if (let Some(rv) <- right.numberValue) {
-                            match (expr.op) {
-                                case OpCode.BinAdd =>
-                                    return Some(Expr.number(expr.loc, lv + rv))
-                                case OpCode.BinSub =>
-                                    return Some(Expr.number(expr.loc, lv - rv))
-                                case OpCode.BinMul =>
-                                    return Some(Expr.number(expr.loc, lv * rv))
-                                case OpCode.BinDiv =>
-                                    if (rv != 0.0) {
-                                        return Some(Expr.number(expr.loc, lv / rv))
-                                    }
-                                case OpCode.BinRem =>
-                                    // 对应 Bun: fmod(vals[0], vals[1])
-                                    if (rv != 0.0) {
-                                        let result = lv - rv * Float64(Int64(lv / rv))
-                                        return Some(Expr.number(expr.loc, result))
-                                    }
-                                case OpCode.BinPow =>
-                                    // 对应 Bun: jsc.math.pow(vals[0], vals[1])
-                                    return Some(Expr.number(expr.loc, pow(lv, rv)))
-                                case _ =>
-                                    return None
+                    let lv = left.numberValue
+                    let rv = right.numberValue
+                    match (expr.op) {
+                        case OpCode.BinAdd =>
+                            return Some(Expr.number(expr.loc, lv + rv))
+                        case OpCode.BinSub =>
+                            return Some(Expr.number(expr.loc, lv - rv))
+                        case OpCode.BinMul =>
+                            return Some(Expr.number(expr.loc, lv * rv))
+                        case OpCode.BinDiv =>
+                            if (rv != 0.0) {
+                                return Some(Expr.number(expr.loc, lv / rv))
                             }
-                        }
+                        case OpCode.BinRem =>
+                            // 对应 Bun: fmod(vals[0], vals[1])
+                            if (rv != 0.0) {
+                                let result = lv - rv * Float64(Int64(lv / rv))
+                                return Some(Expr.number(expr.loc, result))
+                            }
+                        case OpCode.BinPow =>
+                            // 对应 Bun: jsc.math.pow(vals[0], vals[1])
+                            return Some(Expr.number(expr.loc, BinaryExpressionVisitor.computePow(lv, rv)))
+                        case _ =>
+                            return None
                     }
                 }
             }
@@ -625,32 +619,30 @@ public class BinaryExpressionVisitor {
         if (let Some(left) <- expr.left) {
             if (let Some(right) <- expr.right) {
                 if (left.tag == ExprTag.Number && right.tag == ExprTag.Number) {
-                    if (let Some(lv) <- left.numberValue) {
-                        if (let Some(rv) <- right.numberValue) {
-                            let leftInt = floatToInt32(lv)
-                            let rightInt = floatToInt32(rv)
-                            // 对应 Bun: @intCast(@as(u32, @bitCast(floatToInt32(vals[1]))) % 32)
-                            let shift = rightInt % 32
+                    let lv = left.numberValue
+                    let rv = right.numberValue
+                    let leftInt = floatToInt32(lv)
+                    let rightInt = floatToInt32(rv)
+                    // 对应 Bun: @intCast(@as(u32, @bitCast(floatToInt32(vals[1]))) % 32)
+                    let shift = rightInt % 32
 
-                            match (expr.op) {
-                                case OpCode.BinShl =>
-                                    // <<
-                                    let result = leftInt << shift
-                                    return Some(Expr.number(expr.loc, Float64(result)))
-                                case OpCode.BinShr =>
-                                    // >> (算术右移)
-                                    let result = leftInt >> shift
-                                    return Some(Expr.number(expr.loc, Float64(result)))
-                                case OpCode.BinUShr =>
-                                    // >>> (无符号右移)
-                                    // 对应 Bun: std.math.shr(u32, left, right)
-                                    let leftU = UInt32(leftInt)
-                                    let result = leftU >> UInt32(shift)
-                                    return Some(Expr.number(expr.loc, Float64(Int64(result))))
-                                case _ =>
-                                    return None
-                            }
-                        }
+                    match (expr.op) {
+                        case OpCode.BinShl =>
+                            // <<
+                            let result = leftInt << shift
+                            return Some(Expr.number(expr.loc, Float64(result)))
+                        case OpCode.BinShr =>
+                            // >> (算术右移)
+                            let result = leftInt >> shift
+                            return Some(Expr.number(expr.loc, Float64(result)))
+                        case OpCode.BinUShr =>
+                            // >>> (无符号右移)
+                            // 对应 Bun: std.math.shr(u32, left, right)
+                            let leftU = UInt32(leftInt)
+                            let result = leftU >> UInt32(shift)
+                            return Some(Expr.number(expr.loc, Float64(Int64(result))))
+                        case _ =>
+                            return None
                     }
                 }
             }
@@ -664,28 +656,26 @@ public class BinaryExpressionVisitor {
         if (let Some(left) <- expr.left) {
             if (let Some(right) <- expr.right) {
                 if (left.tag == ExprTag.Number && right.tag == ExprTag.Number) {
-                    if (let Some(lv) <- left.numberValue) {
-                        if (let Some(rv) <- right.numberValue) {
-                            let leftInt = floatToInt32(lv)
-                            let rightInt = floatToInt32(rv)
+                    let lv = left.numberValue
+                    let rv = right.numberValue
+                    let leftInt = floatToInt32(lv)
+                    let rightInt = floatToInt32(rv)
 
-                            match (expr.op) {
-                                case OpCode.BinAnd =>
-                                    // &
-                                    let result = leftInt & rightInt
-                                    return Some(Expr.number(expr.loc, Float64(result)))
-                                case OpCode.BinOr =>
-                                    // |
-                                    let result = leftInt | rightInt
-                                    return Some(Expr.number(expr.loc, Float64(result)))
-                                case OpCode.BinXor =>
-                                    // ^
-                                    let result = leftInt ^ rightInt
-                                    return Some(Expr.number(expr.loc, Float64(result)))
-                                case _ =>
-                                    return None
-                            }
-                        }
+                    match (expr.op) {
+                        case OpCode.BinAnd =>
+                            // &
+                            let result = leftInt & rightInt
+                            return Some(Expr.number(expr.loc, Float64(result)))
+                        case OpCode.BinOr =>
+                            // |
+                            let result = leftInt | rightInt
+                            return Some(Expr.number(expr.loc, Float64(result)))
+                        case OpCode.BinXor =>
+                            // ^
+                            let result = leftInt ^ rightInt
+                            return Some(Expr.number(expr.loc, Float64(result)))
+                        case _ =>
+                            return None
                     }
                 }
             }
@@ -700,21 +690,19 @@ public class BinaryExpressionVisitor {
             if (let Some(right) <- expr.right) {
                 // 数字比较
                 if (left.tag == ExprTag.Number && right.tag == ExprTag.Number) {
-                    if (let Some(lv) <- left.numberValue) {
-                        if (let Some(rv) <- right.numberValue) {
-                            match (expr.op) {
-                                case OpCode.BinLt =>
-                                    return Some(Expr.bool_(expr.loc, lv < rv))
-                                case OpCode.BinGt =>
-                                    return Some(Expr.bool_(expr.loc, lv > rv))
-                                case OpCode.BinLe =>
-                                    return Some(Expr.bool_(expr.loc, lv <= rv))
-                                case OpCode.BinGe =>
-                                    return Some(Expr.bool_(expr.loc, lv >= rv))
-                                case _ =>
-                                    return None
-                            }
-                        }
+                    let lv = left.numberValue
+                    let rv = right.numberValue
+                    match (expr.op) {
+                        case OpCode.BinLt =>
+                            return Some(Expr.bool_(expr.loc, lv < rv))
+                        case OpCode.BinGt =>
+                            return Some(Expr.bool_(expr.loc, lv > rv))
+                        case OpCode.BinLe =>
+                            return Some(Expr.bool_(expr.loc, lv <= rv))
+                        case OpCode.BinGe =>
+                            return Some(Expr.bool_(expr.loc, lv >= rv))
+                        case _ =>
+                            return None
                     }
                 }
 
@@ -766,6 +754,44 @@ public class BinaryExpressionVisitor {
             }
         }
         return AssignTarget.None
+    }
+
+    /// 计算 pow - 对应 Bun jsc.math.pow
+    private static func computePow(base: Float64, exp: Float64): Float64 {
+        if (exp == 0.0) { return 1.0 }
+        if (exp == 1.0) { return base }
+        if (exp == 2.0) { return base * base }
+        if (exp == 0.5) { return sqrt(base) }
+        // 简单迭代实现
+        var result = 1.0
+        var b = base
+        var e = Int64(exp)
+        var neg = false
+        if (e < 0) {
+            neg = true
+            e = -e
+        }
+        while (e > 0) {
+            if (e % 2 == 1) {
+                result = result * b
+            }
+            b = b * b
+            e = e / 2
+        }
+        if (neg) { result = 1.0 / result }
+        return result
+    }
+
+    /// sqrt 辅助 - 牛顿迭代法
+    private static func sqrt(x: Float64): Float64 {
+        if (x <= 0.0) { return 0.0 }
+        var guess = x
+        var i = 0
+        while (i < 20) {
+            guess = (guess + x / guess) / 2.0
+            i += 1
+        }
+        return guess
     }
 }
 

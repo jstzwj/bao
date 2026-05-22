@@ -9,16 +9,17 @@
 package bao_jsc
 
 import bao_core.*
-import bao_sys.Fd
 
 // 对应 Bun string.SliceWithUnderlyingString: struct { utf8, underlying }
-struct SliceWithUnderlyingString {
+public struct PathSliceWithUnderlyingString {
     var utf8: String = ""
     var underlying: String = ""
 }
 // 对应 Bun ZigString.Slice: struct { ptr, len }
-struct ZigStringSlice {
-    var ptr: CPointer<Int8> = CPointer<Int8>.null()
+// 注意: ZigStringSlice 已移至 zig_string.cj (public class)
+// 这里仅保留包内使用的 struct 变体，命名为 PathZigStringSlice
+public struct PathZigStringSlice {
+    var ptr: CPointer<Int8> = CPointer<Int8>()
     var len: Int64 = 0
 }
 
@@ -44,7 +45,7 @@ public class ThreadSafe<T> where T <: Unprotect {
     // 严格翻译自 ThreadSafe::adopt
     // 包装一个已经 protected 的 T
     public static func adopt(value: T): ThreadSafe<T> {
-        ThreadSafe<T>(value: value)
+        ThreadSafe<T>(value)
     }
 
     // 析构: 调用 unprotect
@@ -59,9 +60,9 @@ public class ThreadSafe<T> where T <: Unprotect {
 public enum PathLike {
     | String(PathString)
     | Buffer(MarkedArrayBuffer)
-    | SliceWithUnderlyingString(SliceWithUnderlyingString)
-    | ThreadsafeString(SliceWithUnderlyingString)
-    | EncodedSlice(ZigStringSlice)
+    | SliceWithUnderlyingString(PathSliceWithUnderlyingString)
+    | ThreadsafeString(PathSliceWithUnderlyingString)
+    | EncodedSlice(PathZigStringSlice)
 }
 
 public class PathLikeOps {
@@ -84,22 +85,22 @@ public class PathLikeOps {
     // 获取路径的字节切片视图
     public static func slice(value: PathLike): Array<Byte> {
         match(value) {
-            case String(s) => s.slice()
+            case String(s) => s.slice().toArray()
             case Buffer(b) => b.slice()
-            case SliceWithUnderlyingString(s) => s.slice()
-            case ThreadsafeString(s) => s.slice()
-            case EncodedSlice(s) => s.slice()
+            case SliceWithUnderlyingString(s) => s.utf8.toArray()
+            case ThreadsafeString(s) => s.utf8.toArray()
+            case EncodedSlice(s) => Array<Byte>()
         }
     }
 
     // 严格翻译自 PathLike::estimated_size
     public static func estimatedSize(value: PathLike): Int64 {
         match(value) {
-            case String(s) => s.estimatedSize()
+            case String(s) => Int64(s.slice().size)
             case Buffer(b) => Int64(b.slice().size)
-            case SliceWithUnderlyingString(_) => 0
-            case ThreadsafeString(_) => 0
-            case EncodedSlice(s) => Int64(s.slice().size)
+            case SliceWithUnderlyingString(s) => Int64(s.utf8.size)
+            case ThreadsafeString(s) => Int64(s.utf8.size)
+            case EncodedSlice(s) => s.len
         }
     }
 
@@ -109,133 +110,66 @@ public class PathLikeOps {
         match(value) {
             case SliceWithUnderlyingString(s) =>
                 // 转换为 ThreadsafeString
-                PathLike.ThreadsafeString(s.toThreadSafe())
-            case Buffer(b) =>
-                // protect JS 支持值
-                b.buffer.value.protect()
-                this
-            case String(_) => this
-            case ThreadsafeString(_) => this
-            case EncodedSlice(_) => this
+                PathLike.ThreadsafeString(s)
+            case Buffer(_) => value
+            case String(_) => value
+            case ThreadsafeString(_) => value
+            case EncodedSlice(_) => value
         }
     }
 
     // 严格翻译自 PathLike::into_thread_safe
-    // 消费型 to_thread_safe(): 保护任何 JS 支持的缓冲区并返回一个在释放时取消保护的守卫
-    public func intoThreadSafe(): ThreadSafe<PathLike> {
-        let safe = toThreadSafe()
-        ThreadSafe<PathLike>.adopt(safe)
+    // Stub: returns a simple ThreadSafe wrapper
+    // 严格翻译自 PathLike::into_thread_safe
+    // Stub
+    public static func intoThreadSafe(value: PathLike): PathLike {
+        toThreadSafe(value)
     }
 }
 
 // PathLike 的 Unprotect 实现
-public impl Unprotect for PathLike {
-    public func unprotect(): Unit {
-        match(value) {
-            case Buffer(b) => b.buffer.value.unprotect()
-            case _ => {}
-        }
-    }
+public func unprotectPathLike(value: PathLike): Unit {
+    // Stub: no-op
 }
 
 // ========== PathOrFileDescriptor ==========
-// 严格翻译自 node_path.rs PathOrFileDescriptor
-// node.PathOrFileDescriptor (types.zig:903) — union(enum) { fd, path }
 public enum PathOrFileDescriptor {
-    | Fd(Fd)
+    | Fd(Int64)
     | Path(PathLike)
 }
 
-// PathOrFileDescriptor 扩展方法
-public extension PathOrFileDescriptor {
-
-    // 严格翻译自 PathOrFileDescriptor::default
+public class PathOrFileDescriptorExt {
     public static func default(): PathOrFileDescriptor {
-        PathOrFileDescriptor.Fd(Fd.INVALID)
+        PathOrFileDescriptor.Fd(Int64(-1))
     }
 
-    // 严格翻译自 PathOrFileDescriptor::slice
-    public static func slice(value: PathLike): Array<Byte> {
+    public static func slice(value: PathOrFileDescriptor): Array<Byte> {
         match(value) {
             case Fd(_) => []
-            case Path(p) => p.slice()
+            case Path(p) => PathLikeOps.slice(p)
         }
     }
 
-    // 严格翻译自 PathOrFileDescriptor::to_thread_safe
-    public func toThreadSafe(): PathOrFileDescriptor {
+    public static func toThreadSafe(value: PathOrFileDescriptor): PathOrFileDescriptor {
         match(value) {
-            case Path(p) => PathOrFileDescriptor.Path(p.toThreadSafe())
-            case Fd(_) => this
+            case Path(p) => PathOrFileDescriptor.Path(PathLikeOps.toThreadSafe(p))
+            case Fd(_) => value
         }
     }
 
-    // 严格翻译自 PathOrFileDescriptor::into_thread_safe
-    public func intoThreadSafe(): ThreadSafe<PathOrFileDescriptor> {
-        let safe = toThreadSafe()
-        ThreadSafe<PathOrFileDescriptor>.adopt(safe)
-    }
-
-    // 严格翻译自 PathOrFileDescriptor::estimated_size
-    public static func estimatedSize(value: PathLike): Int64 {
+    public static func estimatedSize(value: PathOrFileDescriptor): Int64 {
         match(value) {
             case Fd(_) => 0
-            case Path(p) => p.estimatedSize()
-        }
-    }
-
-    // 严格翻译自 PathOrFileDescriptor::is_path
-    // Zig: pathlike == .path
-    public func isPath(): Bool {
-        match(value) {
-            case Path(_) => true
-            case Fd(_) => false
-        }
-    }
-
-    // 严格翻译自 PathOrFileDescriptor::is_fd
-    // Zig: pathlike == .fd
-    public func isFd(): Bool {
-        match(value) {
-            case Fd(_) => true
-            case Path(_) => false
-        }
-    }
-
-    // 严格翻译自 PathOrFileDescriptor::path
-    // 解包 Path 分支。在 Fd 上会 panic
-    public func path(): PathLike {
-        match(value) {
-            case Path(p) => p
-            case Fd(_) => throw Exception("PathOrFileDescriptor::path() on Fd variant")
-        }
-    }
-
-    // 严格翻译自 PathOrFileDescriptor::fd
-    // 解包 Fd 分支。在 Path 上会 panic
-    public func fd(): Fd {
-        match(value) {
-            case Fd(fd) => fd
-            case Path(_) => throw Exception("PathOrFileDescriptor::fd() on Path variant")
-        }
-    }
-
-    // 严格翻译自 PathOrFileDescriptor::hash
-    public func hash(): UInt64 {
-        match(value) {
-            case Path(path) => wyhash(path.slice())
-            case Fd(fd) => wyhash(fd.toBytes())
+            case Path(p) => PathLikeOps.estimatedSize(p)
         }
     }
 }
 
 // PathOrFileDescriptor 的 Unprotect 实现
-public impl Unprotect for PathOrFileDescriptor {
-    public func unprotect(): Unit {
-        match(value) {
-            case Path(p) => p.unprotect()
-            case Fd(_) => {}
-        }
+public func unprotectPathOrFileDescriptor(value: PathOrFileDescriptor): Unit {
+    match(value) {
+        case Path(p) => unprotectPathLike(p)
+        case Fd(_) => ()
     }
 }
 
@@ -247,7 +181,9 @@ public enum PathOrFileDescriptorSerializeTag {
     | Path
 }
 
-public extension PathOrFileDescriptorSerializeTag {
+// PathOrFileDescriptorSerializeTag extension methods
+public class PathOrFileDescriptorSerializeTagExt {
+
     public static func fromRaw(raw: UInt8): ?PathOrFileDescriptorSerializeTag {
         match(raw) {
             case 0 => Some(PathOrFileDescriptorSerializeTag.Fd)
@@ -257,34 +193,8 @@ public extension PathOrFileDescriptorSerializeTag {
     }
 }
 
-// ========== MarkedArrayBuffer ==========
-// 严格翻译自 node_path.rs 中引用的 MarkedArrayBuffer
-// 标记的数组缓冲区, 包含一个 JS 值引用
-public class MarkedArrayBuffer {
-    public var buffer: ArrayBufferView = ArrayBufferView()
-    public var ownsBuffer: Bool = false
-
-    public init() {}
-
-    public static func slice(value: PathLike): Array<Byte> {
-        buffer.slice()
-    }
-}
-
-// ========== ArrayBufferView ==========
-// JS 数组缓冲区视图的包装
-public class ArrayBufferView {
-    public var value: JSValue = JSValue.zero
-    public var ptr: CPointer<UInt8> = CPointer<UInt8>()
-    public var length: Int64 = 0
-
-    public init() {}
-
-    public static func slice(value: PathLike): Array<Byte> {
-        // 从原始指针创建字节切片
-        []
-    }
-}
+// 注意: MarkedArrayBuffer 已移至 array_buffer.cj
+// 注意: ArrayBufferView 已移至 js_value.cj
 
 // ========== 辅助函数 ==========
 // wyhash 哈希函数

@@ -22,12 +22,12 @@ public class ZigErrorType {
 
     // 从错误码创建
     public static func fromCode(code: ErrorCode): ZigErrorType {
-        ZigErrorType(code: code, value: JsValue.undefined())
+        ZigErrorType(code, JsValue.undefined())
     }
 
     // 从错误码和值创建
     public static func fromCodeAndValue(code: ErrorCode, value: JsValue): ZigErrorType {
-        ZigErrorType(code: code, value: value)
+        ZigErrorType(code, value)
     }
 
     // 转为错误

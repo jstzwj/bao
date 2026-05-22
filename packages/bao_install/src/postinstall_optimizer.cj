@@ -141,6 +141,14 @@ public class PostinstallOptimizerList {
         disableDefaultIgnore = false
     }
 
+    public func get(nameHash: UInt64): ?PostinstallOptimizer {
+        return None
+    }
+
+    public func shouldIgnoreLifecycleScripts(nameHash: UInt64): Bool {
+        return false
+    }
+
     /// native binlink 是否启用
     /// 翻译自: List.isNativeBinlinkEnabled
     public func isNativeBinlinkEnabled(): Bool {

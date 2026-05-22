@@ -88,7 +88,7 @@ public class Crypto {
     /// 生成指定长度的随机字节
     public static func randomBytes(length: Int64): Array<UInt8> {
         let result = Array<UInt8>(length, item: UInt8(0))
-        for (i in 0..length) {
+        for (i in 0..size) {
             result[Int64(i)] = UInt8(randomByte())
         }
         return result
@@ -105,7 +105,7 @@ public class Crypto {
         let sb = StringBuilder()
         for (b in bytes) {
             let hex = Int64(b).toHexString()
-            if (hex.length < 2) {
+            if (hex.size < 2) {
                 sb.append("0")
             }
             sb.append(hex)

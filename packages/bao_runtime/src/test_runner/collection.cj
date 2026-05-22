@@ -4,6 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_collections.*  // std.collection.*
 
 // ========== Collection - 测试收集阶段 ==========
@@ -37,7 +38,7 @@ public class Collection {
     }
 
     /// 入队describe回调
-    public func enqueueDescribeCallback(newScope: DescribeScope, callback: ?JSValue) {
+    public func enqueueDescribeCallback(newScope: DescribeScope, callback: ?JsValue) {
         if (let Some(cb) <- callback) {
             currentScopeCallbackQueue.append(QueuedDescribe(
                 activeScope: activeScope,
@@ -130,11 +131,11 @@ public class Collection {
 
 /// 排队的describe回调
 public class QueuedDescribe {
-    public var callback: JSValue
+    public var callback: JsValue
     public var activeScope: DescribeScope
     public var newScope: DescribeScope
 
-    public init(callback: JSValue, activeScope: DescribeScope, newScope: DescribeScope) {
+    public init(callback: JsValue, activeScope: DescribeScope, newScope: DescribeScope) {
         this.callback = callback
         this.activeScope = activeScope
         this.newScope = newScope

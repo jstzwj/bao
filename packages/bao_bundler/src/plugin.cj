@@ -625,3 +625,22 @@ public class BuiltinPlugins {
         return sb.toString()
     }
 }
+
+// ============================================================================
+// BunPluginTarget - 插件目标平台
+// 对应 Bun bun_bundler::BunPluginTarget
+// ============================================================================
+public enum BunPluginTarget {
+    | Browser
+    | Node
+    | Bun
+}
+
+// ============================================================================
+// PluginResolver - 插件解析器接口
+// 对应 Bun bun_bundler::PluginResolver trait
+// ============================================================================
+public interface PluginResolver {
+    func onResolve(path: String, importer: String): ?PluginResolveResult
+    func onLoad(path: String, namespace: String): ?PluginLoadResult
+}

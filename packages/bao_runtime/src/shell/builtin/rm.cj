@@ -173,7 +173,7 @@ public class RmCmd {
             return Yield.suspended
         }
 
-        if (e != None) {
+        if (e.isSome()) {
             this.state = RmState.err(1)
             return this.bltn().done(1)
         }

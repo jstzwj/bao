@@ -38,7 +38,7 @@ public enum BigIntCompare {
     | greaterThan
     | undefined
 
-    /// 从 JSValue 的 ComparisonResult 转换
+    /// 从 JsValue 的 ComparisonResult 转换
     public static func fromComparisonResult(result: ComparisonResult): BigIntCompare {
         match (result) {
             case ComparisonResult.equal => BigIntCompare.equal
@@ -135,14 +135,14 @@ public enum OrderingRelation {
 /// 被 toBeGreaterThan/toBeGreaterThanOrEqual/toBeLessThan/toBeLessThanOrEqual 共享。
 /// 四个 Zig 匹配器仅区别于名称、操作符和 BigIntCompare 判断，
 /// 此函数将它们统一为一个参数化的实现。
-public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callFrame: CallFrame, name: String, rel: OrderingRelation): JSValue {
+public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callFrame: CallFrame, name: String, rel: OrderingRelation): JsValue {
     defer { expect.postMatch(globalThis: global) }
 
     let thisValue = callFrame.this_()
     let argsBuf = callFrame.argumentsOld(1)
     let arguments = argsBuf.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return global.throwInvalidArguments(name + "() requires 1 argument")
     }
 
@@ -151,7 +151,7 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
     let otherValue = arguments[0]
     otherValue.ensureStillAlive()
 
-    let value: JSValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: name, matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: name, matcherParamsFmt: "<green>expected<r>")
 
     if ((!value.isNumber() && !value.isBigInt()) || (!otherValue.isNumber() && !otherValue.isBigInt())) {
         return global.throw_("Expected and actual values must be numbers or bigints")
@@ -174,7 +174,7 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 失败路径
     let formatter1 = ConsoleObject.Formatter(globalThis: global, quote_strings: true)
@@ -207,13 +207,13 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
 /// @param global - 全局对象
 /// @param callFrame - 调用帧
 /// @param matcherName - 匹配器名称（如 "toBeTrue"）
-/// @param predicate - 谓词函数，接收 JSValue 返回是否通过
-/// @return JSValue
-public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame: CallFrame, matcherName: String, predicate: (JSValue) -> Bool): JSValue {
+/// @param predicate - 谓词函数，接收 JsValue 返回是否通过
+/// @return JsValue
+public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame: CallFrame, matcherName: String, predicate: (JsValue) -> Bool): JsValue {
     defer { expect.postMatch(globalThis: global) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: matcherName, matcherParamsFmt: "")
+    let value: JsValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: matcherName, matcherParamsFmt: "")
 
     expect.incrementExpectCallCounter()
 
@@ -221,7 +221,7 @@ public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame:
 
     let not = expect.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 失败路径
     let formatter = ConsoleObject.Formatter(globalThis: global, quote_strings: true)
@@ -272,13 +272,13 @@ public enum MockReturnType {
 /// 对应 Bun 中 expect.zig 中的 Mock 命名空间。
 public class MockHelpers {
     /// 获取 mock 函数的调用记录迭代器
-    public static func jestMockIterator(globalThis: JSGlobalObject, value: JSValue): MockResultIterator {
+    public static func jestMockIterator(globalThis: JSGlobalObject, value: JsValue): MockResultIterator {
         return MockResultIterator(globalThis: globalThis, returnValues: JSMockFunction.getReturnValues(globalThis: globalThis, value: value))
     }
 
     /// 获取 mock 返回对象的类型
-    public static func jestMockReturnObjectType(globalThis: JSGlobalObject, item: JSValue): MockReturnType {
-        let typeValue = item.get(globalThis, key: "type")
+    public static func jestMockReturnObjectType(globalThis: JSGlobalObject, item: JsValue): MockReturnType {
+        let typeValue = item.get(globalThis, "type")
         if (typeValue.isNone()) { return MockReturnType.incomplete }
         let typeStr = typeValue.toSliceOrNull(globalThis: globalThis) ?? ""
         match (typeStr) {
@@ -294,17 +294,17 @@ public class MockHelpers {
 /// 遍历 mock 函数的所有返回结果。
 public class MockResultIterator {
     private let globalThis: JSGlobalObject
-    private let returnValues: JSValue
+    private let returnValues: JsValue
     private var index: Int32 = 0
     private let length: Int32
 
-    public init(globalThis: JSGlobalObject, returnValues: JSValue) {
+    public init(globalThis: JSGlobalObject, returnValues: JsValue) {
         this.globalThis = globalThis
         this.returnValues = returnValues
-        this.length = returnValues.getLength(globalThis: globalThis)
+        this.size = returnValues.getLength(globalThis: globalThis)
     }
 
-    public func next(): ?JSValue {
+    public func next(): ?JsValue {
         if (index >= length) { return None }
         let item = returnValues.getIndex(globalThis: globalThis, index: index)
         index += 1

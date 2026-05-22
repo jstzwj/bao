@@ -267,7 +267,7 @@ public class Codecs {
     /// 对应 Bun: decode
     public static func decode(bytes: Array<UInt8>, maxPixels: UInt64, hint: DecodeHint): ?DecodedImage {
         let fmt = ImageFormat.sniff(bytes)
-        if (fmt == None) { return None }
+        if (fmt.isNone()) { return None }
 
         match (fmt.getOrThrow()) {
             case ImageFormat.jpeg =>
@@ -292,7 +292,7 @@ public class Codecs {
     /// 对应 Bun: probe
     public static func probe(bytes: Array<UInt8>, maxPixels: UInt64): ?ProbeResult {
         let fmt = ImageFormat.sniff(bytes)
-        if (fmt == None) { return None }
+        if (fmt.isNone()) { return None }
 
         match (fmt.getOrThrow()) {
             case ImageFormat.png =>
@@ -304,7 +304,7 @@ public class Codecs {
                 return ProbeResult(width: w, height: h, format: fmt.getOrThrow())
             case ImageFormat.bmp =>
                 let hOpt = CodecBmp.parseHeader(bytes)
-                if (hOpt == None) { return None }
+                if (hOpt.isNone()) { return None }
                 let h = hOpt.getOrThrow()
                 if (!guard(h.width, h.height, maxPixels)) { return None }
                 return ProbeResult(width: h.width, height: h.height, format: ImageFormat.bmp)
@@ -349,12 +349,12 @@ public class Codecs {
     public static func resize(src: Array<UInt8>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32, f: Filter): ?Array<UInt8> {
         if (backend == Backend.system) {
             let systemOut = BackendCoreGraphics.scale(src, sw, sh, dw, dh, f)
-            if (systemOut != None) { return systemOut }
+            if (systemOut.isSome()) { return systemOut }
         }
 
         let outSize = UInt64(dw) * UInt64(dh) * 4
         let scratchSize = bun_image_resize_scratch_size(Int32(sw), Int32(sh), Int32(dw), Int32(dh), f.toInt32())
-        var block = Array<UInt8>(Int64(outSize + scratchSize), item: 0)
+        var block = Array<UInt8>(Int64(outSize + scratchSize), { _: Int64 => UInt8(0) })
         let outPtr = block.ptr()
         let scratchPtr = CPointer<Unit>(CPointer<UInt8>(outPtr) + IntNative(outSize))
 
@@ -363,7 +363,7 @@ public class Codecs {
             return None
         }
 
-        var out = Array<UInt8>(Int64(outSize), item: 0)
+        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
         for (i in 0..Int64(outSize)) { out[i] = block[i] }
         return out
     }
@@ -377,7 +377,7 @@ public class Codecs {
         let dw: UInt32 = if (degrees == 90 || degrees == 270) { h } else { w }
         let dh: UInt32 = if (degrees == 90 || degrees == 270) { w } else { h }
         let outSize = UInt64(dw) * UInt64(dh) * 4
-        var out = Array<UInt8>(Int64(outSize), item: 0)
+        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
         bun_image_rotate_rgba8(src.ptr(), Int32(w), Int32(h), out.ptr(), Int32(degrees))
         return DecodedImage(rgba: out, width: dw, height: dh)
     }
@@ -388,8 +388,8 @@ public class Codecs {
     ///   调用 bun_image_flip_rgba8
     public static func flip(src: Array<UInt8>, w: UInt32, h: UInt32, horizontal: Bool): ?Array<UInt8> {
         let outSize = UInt64(w) * UInt64(h) * 4
-        var out = Array<UInt8>(Int64(outSize), item: 0)
-        bun_image_flip_rgba8(src.ptr(), Int32(w), Int32(h), out.ptr(), if (horizontal) Int32(1) else Int32(0))
+        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
+        bun_image_flip_rgba8(src.ptr(), Int32(w), Int32(h), out.ptr(), if (horizontal) { Int32(1) } else { Int32(0) })
         return out
     }
 

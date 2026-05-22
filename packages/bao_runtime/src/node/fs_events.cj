@@ -77,13 +77,13 @@ public class OSStatus {
 // CF 类型定义（Core Foundation 兼容类型）
 // 对应 Bun: src/runtime/node/fs_events.zig - CF 类型别名
 // ============================================================================
-public typealias CFAbsoluteTime = Float64
-public typealias CFTimeInterval = Float64
-public typealias CFIndex = Int64
-public typealias CFStringEncoding = UInt32
-public typealias FSEventStreamCreateFlags = UInt32
-public typealias FSEventStreamEventId = UInt64
-public typealias OSStatusType = Int32
+public type CFAbsoluteTime = Float64
+public type CFTimeInterval = Float64
+public type CFIndex = Int64
+public type CFStringEncoding = UInt32
+public type FSEventStreamCreateFlags = UInt32
+public type FSEventStreamEventId = UInt64
+public type OSStatusType = Int32
 
 // ============================================================================
 // CFRunLoopSourceContext — CF RunLoop 源上下文
@@ -99,7 +99,7 @@ public class CFRunLoopSourceContext {
     public var hash: ?(UIntNative) -> UIntNative = None
     public var schedule: ?(UIntNative, UIntNative, UIntNative) -> Unit = None
     public var cancel: ?(UIntNative, UIntNative, UIntNative) -> Unit = None
-    public var perform: () -> Unit = {}
+    public var perform: () -> Unit = { => }
 
     public init() {}
 }
@@ -261,7 +261,7 @@ public class FSEventsLoop {
     // 对应 Bun: fs_events.zig - FSEventsLoop.cfThreadLoop
     public func cfThreadLoop(): Unit {
         let cf = CoreFoundation.load()
-        if (cf == None) {
+        if (cf.isNone()) {
             return
         }
         let cfInst = cf.getOrThrow()
@@ -293,7 +293,7 @@ public class FSEventsLoop {
         tasks = Array<ConcurrentFsEventsTask>()
 
         for (task in batch) {
-            if (task.task != None) {
+            if (task.task.isSome()) {
                 task.task.getOrThrow().run()
             }
         }
@@ -311,7 +311,7 @@ public class FSEventsLoop {
         // 启动 CF 线程
         loop.sem = Semaphore()
         loop.thread = Thread()
-        if (loop.thread == None) {
+        if (loop.thread.isNone()) {
             return None
         }
 
@@ -331,7 +331,7 @@ public class FSEventsLoop {
 
         // 信号 CF 线程
         let cf = CoreFoundation.load()
-        if (cf != None) {
+        if (cf.isSome()) {
             let cfInst = cf.getOrThrow()
             if (signalSource != UIntNative(0)) {
                 cfInst.runLoopSourceSignal?.getOrThrow()(signalSource)
@@ -351,7 +351,7 @@ public class FSEventsLoop {
             watchers.append(watcher)
         } else {
             for (i in 0..watchers.size) {
-                if (watchers[i] == None) {
+                if (watchers[i].isNone()) {
                     watchers[i] = watcher
                     watcherCount = watcherCount + 1
                     break
@@ -378,7 +378,7 @@ public class FSEventsLoop {
         mutex.lock()
         let len = watchers.size
         for (i in 0..len) {
-            if (watchers[i] != None && watchers[i].getOrThrow() === watcher) {
+            if (watchers[i].isSome() && watchers[i].getOrThrow() === watcher) {
                 watchers[i] = None
                 if (i == len - 1) {
                     watchers.removeAt(i)
@@ -424,7 +424,7 @@ public class FSEventsLoop {
         // 重建 FSEventStream
         let cf = CoreFoundation.load()
         let cs = CoreServices.load()
-        if (cf == None || cs == None) {
+        if (cf.isNone() || cs.isNone()) {
             mutex.unlock()
             return
         }
@@ -452,7 +452,7 @@ public class FSEventsLoop {
     // 停止运行循环
     public func stop(): Unit {
         let cf = CoreFoundation.load()
-        if (cf != None && loop_ != UIntNative(0)) {
+        if (cf.isSome() && loop_ != UIntNative(0)) {
             cf.getOrThrow().runLoopStop?.getOrThrow()(loop_)
         }
     }
@@ -464,7 +464,7 @@ public class FSEventsLoop {
         enqueueTaskConcurrent(task)
 
         // 等待线程结束
-        if (thread != None) {
+        if (thread.isSome()) {
             thread.getOrThrow().join()
             thread = None
         }
@@ -472,7 +472,7 @@ public class FSEventsLoop {
         // 清除 watchers
         if (watcherCount > 0) {
             for (w in watchers) {
-                if (w != None) {
+                if (w.isSome()) {
                     w.getOrThrow().loop_ = None
                 }
             }
@@ -523,7 +523,7 @@ public class FSEventsWatcher {
 
     // 关闭 watcher
     public func close(): Unit {
-        if (loop_ != None) {
+        if (loop_.isSome()) {
             loop_.getOrThrow().unregisterWatcher(this)
         }
     }
@@ -571,7 +571,7 @@ public class FSEventsGlobal {
         ctx: UIntNative
     ): ?FSEventsWatcher {
         var loop_ = defaultLoop
-        if (loop_ != None) {
+        if (loop_.isSome()) {
             let watcher = FSEventsWatcher(
                 path: path,
                 recursive: recursive,
@@ -586,9 +586,9 @@ public class FSEventsGlobal {
 
         mutex.lock()
         loop_ = defaultLoop
-        if (loop_ == None) {
+        if (loop_.isNone()) {
             loop_ = FSEventsLoop.initLoop()
-            if (loop_ == None) {
+            if (loop_.isNone()) {
                 mutex.unlock()
                 return None
             }
@@ -612,7 +612,7 @@ public class FSEventsGlobal {
     // 对应 Bun: fs_events.zig - close_and_wait
     public static func closeAndWait(): Unit {
         mutex.lock()
-        if (defaultLoop != None) {
+        if (defaultLoop.isSome()) {
             defaultLoop.getOrThrow().close()
             defaultLoop = None
         }

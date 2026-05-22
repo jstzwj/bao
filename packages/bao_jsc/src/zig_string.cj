@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import std.sort.*
+
 // ========== ZigString ==========
 // 严格翻译自 ZigString.zig
 // ZigString 是 Bun 中用于在 Zig/仓颉 和 JavaScriptCore 之间传递字符串的核心类型
@@ -19,6 +21,10 @@ public class ZigString {
     public var isStatic: Bool = false
 
     public init() {}
+
+    public static func empty(): ZigString {
+        ZigString()
+    }
 
     public init(slice: String) {
         this.ptr = slice
@@ -152,7 +158,7 @@ public class ZigString {
 
     // 严格翻译自 ZigString.eqlCaseInsensitive
     public func eqlCaseInsensitive(other: ZigString): Bool {
-        ptr.toLowerAscii() == other.ptr.toLowerAscii()
+        ptr.toAsciiLower() == other.ptr.toAsciiLower()
     }
 
     // 严格翻译自 ZigString.eqlComptime
@@ -164,7 +170,7 @@ public class ZigString {
 
     // 严格翻译自 ZigString.toJS
     public func toJS(global: JsObject): JsValue {
-        JsValue(s: ptr)
+        JsValue(ptr)
     }
 
     // 严格翻译自 ZigString.toErrorInstance
@@ -242,12 +248,12 @@ public class ZigString {
 
     // 严格翻译自 ZigString.toOwnedSlice
     public func toOwnedSlice(): String {
-        String(ptr)
+        ptr
     }
 
     // 严格翻译自 ZigString.trimmedSlice
     public func trimmedSlice(): String {
-        ptr.trim()
+        ptr.trimAscii()
     }
 
     // ========== 静态常量 ==========
@@ -255,9 +261,9 @@ public class ZigString {
     public static let Empty = ZigString()
 
     // 检查字符串是否全为 ASCII
-    func isAllAscii(s: String): Bool {
+    static func isAllAscii(s: String): Bool {
         for (c in s) {
-            if (c.code > 127) {
+            if (!c.isAscii()) {
                 return false
             }
         }
@@ -268,12 +274,20 @@ public class ZigString {
     // 严格翻译自 ZigString.sortDesc
     public static func sortDesc(strings: Array<ZigString>) {
         // 降序排序
-        strings.sort({ a, b => b.ptr > a.ptr })
+        sort<ZigString>(strings, by: { a, b =>
+            if (b.ptr > a.ptr) { Ordering.GT }
+            else if (b.ptr < a.ptr) { Ordering.LT }
+            else { Ordering.EQ }
+        })
     }
 
     // 严格翻译自 ZigString.sortAsc
     public static func sortAsc(strings: Array<ZigString>) {
-        strings.sort({ a, b => a.ptr < b.ptr })
+        sort<ZigString>(strings, by: { a, b =>
+            if (a.ptr < b.ptr) { Ordering.LT }
+            else if (a.ptr > b.ptr) { Ordering.GT }
+            else { Ordering.EQ }
+        })
     }
 }
 

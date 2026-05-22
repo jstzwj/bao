@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toInclude() - 检查值是否包含期望子串
 /// 用法: expect(received).toInclude(expected)
-public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toInclude() requires 1 argument")
     }
 
@@ -25,7 +25,7 @@ public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         return globalThis.throw_("toInclude() requires the first argument to be a string")
     }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toInclude", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toInclude", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
@@ -35,13 +35,13 @@ public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         defer { valueString.deinit() }
         let expectedString = expected.toSliceOrNull(globalThis: globalThis)
         defer { expectedString.deinit() }
-        pass = strings.contains(valueString.slice(), expectedString.slice()) || expectedString.length == 0
+        pass = strings.contains(valueString.slice(), expectedString.slice()) || expectedString.size == 0
     }
 
     let not = this.flags.not
     if (not) { pass = !pass }
 
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

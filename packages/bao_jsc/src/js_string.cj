@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_collections.ArrayList
+
 // JsString - JS 字符串包装器
 public class JsString {
     public var value: String = ""
@@ -17,12 +19,12 @@ public class JsString {
 
     // 从 JsValue 创建
     public static func from(value: JsValue): JsString {
-        JsString(value: value.toString())
+        JsString(value.toString())
     }
 
     // 转为 JsValue
     public func toJsValue(): JsValue {
-        JsValue(s: value)
+        JsValue(value)
     }
 
     // valueOf - String.prototype.valueOf
@@ -40,7 +42,7 @@ public class JsString {
         if (index < 0 || index >= length) {
             return ""
         }
-        String(value[Int64(index)])
+        String(Rune(value[Int64(index)]))
     }
 
     // charCodeAt - String.prototype.charCodeAt
@@ -48,7 +50,7 @@ public class JsString {
         if (index < 0 || index >= length) {
             return Float64.NaN
         }
-        Float64(value[Int64(index)].code)
+        Float64(UInt32(value[Int64(index)]))
     }
 
     // codePointAt - String.prototype.codePointAt
@@ -57,7 +59,7 @@ public class JsString {
             return None
         }
         let c = value[Int64(index)]
-        Some(Int64(c.code))
+        Some(Int64(UInt32(c)))
     }
 
     // concat - String.prototype.concat
@@ -73,19 +75,20 @@ public class JsString {
     public func includes(search: String, position: Int64): Bool {
         let pos = if (position < 0) { 0 } else { position }
         let idx = value.indexOf(search, Int64(pos))
-        idx >= 0
+        idx.isSome()
     }
 
     // indexOf - String.prototype.indexOf
     public func indexOf(search: String, position: Int64): Int64 {
         let pos = if (position < 0) { 0 } else { position }
         let idx = value.indexOf(search, Int64(pos))
-        if (idx < 0) { Int64(-1) } else { Int64(idx) }
+        if (idx.isNone()) { Int64(-1) } else { idx.getOrThrow() }
     }
 
     // lastIndexOf - String.prototype.lastIndexOf
     public func lastIndexOf(search: String): Int64 {
-        Int64(value.lastIndexOf(search))
+        let idx = value.lastIndexOf(search)
+        if (idx.isNone()) { Int64(-1) } else { idx.getOrThrow() }
     }
 
     // slice - String.prototype.slice
@@ -110,11 +113,11 @@ public class JsString {
 
     // split - String.prototype.split
     public func split(separator: String, limit: Int64): Array<String> {
-        if (separator.isEmpty) {
+        if (separator.size == 0) {
             var result = Array<String>()
             let lim = if (limit <= 0) { length } else { limit }
             for (i in 0..Math.min(length, lim)) {
-                result.append(String(value[Int64(i)]))
+                result = result.append(String(Rune(value[Int64(i)])))
             }
             return result
         }
@@ -123,17 +126,36 @@ public class JsString {
 
     // toLowerCase - String.prototype.toLowerCase
     public func toLowerCase(): String {
-        value.toLowerAscii()
+        // Manual lowercase conversion
+        var result = Array<UInt8>()
+        for (i in 0..value.size) {
+            let b = value[Int64(i)]
+            if (b >= UInt8(65) && b <= UInt8(90)) {
+                result = result.append(b + UInt8(32))
+            } else {
+                result = result.append(b)
+            }
+        }
+        String.fromUtf8(result)
     }
 
     // toUpperCase - String.prototype.toUpperCase
     public func toUpperCase(): String {
-        value.toUpperAscii()
+        var result = Array<UInt8>()
+        for (i in 0..value.size) {
+            let b = value[Int64(i)]
+            if (b >= UInt8(97) && b <= UInt8(122)) {
+                result = result.append(b - UInt8(32))
+            } else {
+                result = result.append(b)
+            }
+        }
+        String.fromUtf8(result)
     }
 
     // trim - String.prototype.trim
     public func trim(): String {
-        value.trim()
+        trimStart().trimEnd()
     }
 
     // trimStart - String.prototype.trimStart
@@ -190,7 +212,7 @@ public class JsString {
 
     func pad(maxLen: Int64, fill: String, start: Bool): String {
         if (length >= maxLen) { return value }
-        let fillStr = if (fill.isEmpty) { " " } else { fill }
+        let fillStr = if (fill.size == 0) { " " } else { fill }
         let padLen = maxLen - length
         var padding = StringBuilder()
         while (padding.length < padLen) {
@@ -206,8 +228,9 @@ public class JsString {
 
     // replace - String.prototype.replace
     public func replace(search: String, replacement: String): String {
-        let idx = value.indexOf(search)
-        if (idx < 0) { return value }
+        let idxOpt = value.indexOf(search)
+        if (idxOpt.isNone()) { return value }
+        let idx = idxOpt.getOrThrow()
         value[0..idx] + replacement + value[idx + search.size..]
     }
 
@@ -217,10 +240,10 @@ public class JsString {
     }
 
     // match - String.prototype.match
-    public func match(pattern: String): ?Array<String> {
+    public func `match`(pattern: String): ?Array<String> {
         // 简化实现，完整版需要正则引擎
-        let idx = value.indexOf(pattern)
-        if (idx < 0) { return None }
+        let idxOpt = value.indexOf(pattern)
+        if (idxOpt.isNone()) { return None }
         Some([pattern])
     }
 
@@ -239,14 +262,14 @@ public class JsString {
     }
 
     func isWhitespace(c: UInt8): Bool {
-        c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\u{0b}' || c == '\u{0c}' || c == '\u{00a0}' || c == '\u{feff}'
+        c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13) || c == UInt8(11) || c == UInt8(12) || c == UInt8(160) || c == UInt8(239)
     }
 
     // 静态方法 - String.fromCharCode
     public static func fromCharCode(codes: Array<Int64>): String {
         var result = StringBuilder()
         for (code in codes) {
-            result.append(Char(code))
+            result.append(Rune(code))
         }
         result.toString()
     }
@@ -256,9 +279,9 @@ public class JsString {
         var result = StringBuilder()
         for (code in codes) {
             if (code < 0 || code > 0x10FFFF) {
-                throw JsRangeError("Invalid code point: " + String(code))
+                throw JsRangeError("Invalid code point: " + code.toString())
             }
-            result.append(Char(code))
+            result.append(Rune(code))
         }
         result.toString()
     }

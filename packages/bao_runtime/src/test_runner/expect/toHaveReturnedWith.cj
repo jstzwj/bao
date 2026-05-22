@@ -4,14 +4,15 @@ package bao_runtime.test_runner.expect
 
 import bao_runtime.test_runner
 import bao_jsc.*
+import bao_collections.ArrayList
 
 /// toHaveReturnedWith() - 检查mock函数是否以指定值返回
 /// 用法: expect(mockFn).toHaveReturnedWith(expected)
-public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveReturnedWith", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveReturnedWith", matcherParamsFmt: "<green>expected<r>")
 
     let expected = callFrame.argumentsAsArray(1)[0]
     this.incrementExpectCallCounter()
@@ -26,7 +27,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     let callsCount: UInt32 = returns.getLength(globalThis: globalThis)
     var pass = false
 
-    var successfulReturns = ArrayList<JSValue>(allocator: globalThis.bunVM().allocator)
+    var successfulReturns = ArrayList<JsValue>(allocator: globalThis.bunVM().allocator)
     defer { successfulReturns.deinit() }
 
     var hasErrors = false
@@ -37,13 +38,13 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
         let result = returns.getDirectIndex(globalThis: globalThis, index: i)
 
         if (result.isObject()) {
-            let resultType = result.get(globalThis: globalThis, key: "type") ?? JSValue.jsUndefined
+            let resultType = result.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
                 defer { typeStr.deref() }
 
                 if (typeStr.eqlComptime("return")) {
-                    let resultValue = result.get(globalThis: globalThis, key: "value") ?? JSValue.jsUndefined
+                    let resultValue = result.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
                     successfulReturns.append(resultValue)
 
                     // 只在还没 pass 时检查
@@ -61,7 +62,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     }
 
     if (pass != this.flags.not) {
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     // 处理失败
@@ -78,7 +79,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     }
 
     // 没找到匹配
-    let successfulReturnsCount = successfulReturns.length
+    let successfulReturnsCount = successfulReturns.size
 
     // 只有一次成功返回且无错误
     if (callsCount == 1 && successfulReturnsCount == 1) {

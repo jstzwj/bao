@@ -70,22 +70,22 @@ public class Debugger_ {
     // 添加断点
     public func addBreakpoint(url: String, line: Int64, column: Int64): Int64 {
         nextDebuggerId++
-        let bp = Breakpoint(id: nextDebuggerId, url: url, line: line, column: column)
-        breakpoints.append(bp)
-        nextDebuggerId
+        let bp = Breakpoint(Int64(nextDebuggerId), url, line, column)
+        breakpoints = breakpoints.concat([bp])
+        Int64(nextDebuggerId)
     }
 
     // 移除断点
     public func removeBreakpoint(id: Int64): Bool {
-        var idx = -1
+        var idx: Int64 = -1
         for (i in 0..breakpoints.size) {
-            if (breakpoints[Int64(i)].id == id) {
+            if (breakpoints[i].id == id) {
                 idx = Int64(i)
                 break
             }
         }
         if (idx >= 0) {
-            breakpoints.removeAt(idx)
+            breakpoints = breakpoints.slice(0, idx).concat(breakpoints.slice(idx + 1, breakpoints.size))
             return true
         }
         false
@@ -132,76 +132,7 @@ public enum InspectorKind {
     | VSCode
 }
 
-// ========== 热重载器 ==========
-// 严格翻译自 hot_reloader.zig
-public class HotReloader {
-    public var isEnabled: Bool = false
-    public var watchedPaths: Array<String> = []
-    public var ignoredPatterns: Array<String> = []
-    public var debounceMs: Int64 = 100
-    public var onReload: ?((String): Unit) = None
-    public var onError: ?((JsValue): Unit) = None
-
-    public init() {}
-
-    // 启用热重载
-    public func enable(path: String) {
-        isEnabled = true
-        watchedPaths.append(path)
-    }
-
-    // 禁用热重载
-    public func disable() {
-        isEnabled = false
-        watchedPaths = []
-    }
-
-    // 添加监听路径
-    public func addWatch(path: String) {
-        if (!watchedPaths.contains(path)) {
-            watchedPaths.append(path)
-        }
-    }
-
-    // 移除监听路径
-    public func removeWatch(path: String) {
-        var idx = -1
-        for (i in 0..watchedPaths.size) {
-            if (watchedPaths[Int64(i)] == path) {
-                idx = Int64(i)
-                break
-            }
-        }
-        if (idx >= 0) {
-            watchedPaths.removeAt(idx)
-        }
-    }
-
-    // 触发重载
-    public func triggerReload(path: String) {
-        if (!isEnabled) { return }
-        if (let Some(cb) <- onReload) {
-            cb(path)
-        }
-    }
-
-    // 触发错误
-    public func triggerError(error: JsValue) {
-        if (let Some(cb) <- onError) {
-            cb(error)
-        }
-    }
-
-    // 检查路径是否应该被忽略
-    public func shouldIgnore(path: String): Bool {
-        for (pattern in ignoredPatterns) {
-            if (path.startsWith(pattern)) {
-                return true
-            }
-        }
-        false
-    }
-}
+// 注意: HotReloader 已移至 hot_reloader.cj
 
 // ========== 异步模块 ==========
 // 严格翻译自 AsyncModule.zig
@@ -212,7 +143,7 @@ public class AsyncModule_ {
     public var error: ?JsValue = None
     public var result: ?JsValue = None
     public var dependencySpecifiers: Array<String> = []
-    public var evaluateCallback: ?((): JsValue) = None
+    public var evaluateCallback: ?(() -> JsValue) = None
 
     // 队列相关
     public var queue: ?AsyncModuleQueue_ = None
@@ -237,7 +168,7 @@ public class AsyncModule_ {
 
     // 添加依赖说明符
     public func addDependency(specifier: String) {
-        dependencySpecifiers.append(specifier)
+        dependencySpecifiers = dependencySpecifiers.concat([specifier])
     }
 
     // 是否已完成
@@ -255,140 +186,42 @@ public class AsyncModuleQueue_ {
 
     // 入队
     public func enqueue(module: AsyncModule_) {
-        queue.append(module)
+        queue = queue.concat([module])
     }
 
     // 处理所有挂起的模块
     public func processAll() {
         if (isProcessing) { return }
         isProcessing = true
-        defer { isProcessing = false }
+        // defer: { isProcessing = false }
 
         while (queue.size > 0) {
             let module = queue[0]
-            queue = queue.slice(1)
+            queue = queue.slice(1, queue.size)
             if (!module.isCompleted()) {
                 // 等待依赖
-                if (module.evaluateCallback != None) {
-                    let result = module.evaluateCallback.getOrThrow()()
-                    module.resolve(result)
+                match (module.evaluateCallback) {
+                    case Some(cb) =>
+                        let result = cb()
+                        module.resolve(result)
+                    case None => ()
                 }
             }
         }
     }
 }
 
-// ========== 保存的 SourceMap ==========
-// 严格翻译自 SavedSourceMap.zig
-public class SavedSourceMap {
-    public var file: String = ""
-    public var mappings: String = ""
-    public var sources: Array<String> = []
-    public var sourcesContent: Array<String> = []
-    public var names: Array<String> = []
-    public var sourceRoot: String = ""
+// 注意: SavedSourceMap 已移至 saved_source_map.cj
 
-    public init() {}
+// 注意: CachedBytecode 已移至 cached_bytecode.cj
+// 注意: BuildMessage 已移至 build_message.cj
+// 注意: SourceLocation 已移至 build_message.cj (MsgLocation)
+// 注意: BuildNote 已移至 build_message.cj (MsgData)
+// 注意: MessageSeverity 已移至 build_message.cj (MsgKind)
 
-    // 查找原始位置
-    public func lookup(line: Int64, column: Int64): ?SourceMapLookup {
-        // 简化实现
-        let lookup = SourceMapLookup()
-        lookup.originalLine = line
-        lookup.originalColumn = column
-        if (sources.size > 0) {
-            lookup.displaySourceURL = sources[0]
-        }
-        Some(lookup)
-    }
-}
+// 注意: RuntimeTranspilerCache 已移至 runtime_transpiler_cache.cj
 
-// ========== 缓存字节码 ==========
-// 严格翻译自 CachedBytecode.zig
-public class CachedBytecode {
-    public var hash: Int64 = 0
-    public var bytecode: Array<UInt8> = []
-    public var sourceURL: String = ""
-    public var isValid: Bool = false
-
-    public init() {}
-
-    public init(bytecode: Array<UInt8>, sourceURL: String) {
-        this.bytecode = bytecode
-        this.sourceURL = sourceURL
-        this.isValid = bytecode.size > 0
-    }
-}
-
-// ========== 构建消息 ==========
-// 严格翻译自 BuildMessage.zig
-public class BuildMessage {
-    public var text: String = ""
-    public var location: ?SourceLocation = None
-    public var severity: MessageSeverity = MessageSeverity.Error
-    public var notes: Array<BuildNote> = []
-
-    public init() {}
-
-    public init(text: String) {
-        this.text = text
-    }
-}
-
-public class SourceLocation {
-    public var file: String = ""
-    public var line: Int64 = 0
-    public var column: Int64 = 0
-    public var lineText: String = ""
-
-    public init() {}
-}
-
-public class BuildNote {
-    public var text: String = ""
-    public var location: ?SourceLocation = None
-
-    public init() {}
-}
-
-public enum MessageSeverity {
-    | Error
-    | Warning
-    | Info
-    | Debug
-}
-
-// ========== 运行时转译器缓存 ==========
-// 严格翻译自 RuntimeTranspilerCache.zig
-public class RuntimeTranspilerCache {
-    public var cache: HashMap<String, CachedBytecode> = HashMap()
-    public var isEnabled: Bool = true
-
-    public init() {}
-
-    public func get(key: String): ?CachedBytecode {
-        cache.get(key)
-    }
-
-    public func put(key: String, bytecode: CachedBytecode) {
-        cache.put(key, bytecode)
-    }
-
-    public func clear() {
-        cache.clear()
-    }
-}
-
-// ========== 解析消息 ==========
-// 严格翻译自 ResolveMessage.zig
-public class ResolveMessage {
-    public var specifier: String = ""
-    public var referrer: String = ""
-    public var isError: Bool = false
-    public var message: String = ""
-
-    public init() {}
-}
+// 注意: ResolveMessage 已移至 resolve_message.cj
 
 // ========== AsyncCallType ==========
 // 严格翻译自 Debugger.zig AsyncCallType
@@ -396,11 +229,8 @@ public class ResolveMessage {
 public enum AsyncCallType {
     | None
 }
-    }
-}
 
-// ========== AsyncTaskTracker ==========
-// 严格翻译自 Debugger.zig AsyncTaskTracker
+// 注意: AsyncTaskTracker 已移至 work_task.cj
 // 用于追踪异步任务的调试器辅助工具
 //
 // 原始 Zig:
@@ -412,52 +242,7 @@ public enum AsyncCallType {
 //       pub fn willDispatch(this: AsyncTaskTracker, globalObject: *JSGlobalObject) void { ... }
 //       pub fn didDispatch(this: AsyncTaskTracker, globalObject: *JSGlobalObject) void { ... }
 //   };
-public class AsyncTaskTracker {
-    public var id: UInt64 = 0
-
-    public init() {}
-
-    public init(id: UInt64) {
-        this.id = id
-    }
-
-    // 严格翻译自 AsyncTaskTracker.init
-    public static func initFunc(vm: BunVirtualMachine): AsyncTaskTracker {
-        AsyncTaskTracker(id: vm.nextAsyncTaskID())
-    }
-
-    // 严格翻译自 AsyncTaskTracker.didSchedule
-    // 通知调试器异步调用已调度
-    // FFI: Debugger__didScheduleAsyncCall(globalObject, callType, id, singleShot)
-    public func didSchedule(globalObject: JsObject) {
-        if (id == 0) { return }
-        didScheduleAsyncCall(globalObject, AsyncCallType.EventListener, id, true)
-    }
-
-    // 严格翻译自 AsyncTaskTracker.didCancel
-    // 通知调试器异步调用已取消
-    // FFI: Debugger__didCancelAsyncCall(globalObject, callType, id)
-    public func didCancel(globalObject: JsObject) {
-        if (id == 0) { return }
-        didCancelAsyncCall(globalObject, AsyncCallType.EventListener, id)
-    }
-
-    // 严格翻译自 AsyncTaskTracker.willDispatch
-    // 通知调试器异步调用即将分发
-    // FFI: Debugger__willDispatchAsyncCall(globalObject, callType, id)
-    public func willDispatch(globalObject: JsObject) {
-        if (id == 0) { return }
-        willDispatchAsyncCall(globalObject, AsyncCallType.EventListener, id)
-    }
-
-    // 严格翻译自 AsyncTaskTracker.didDispatch
-    // 通知调试器异步调用已完成分发
-    // FFI: Debugger__didDispatchAsyncCall(globalObject, callType, id)
-    public func didDispatch(globalObject: JsObject) {
-        if (id == 0) { return }
-        didDispatchAsyncCall(globalObject, AsyncCallType.EventListener, id)
-    }
-}
+// 注意: AsyncTaskTracker 已移至 work_task.cj
 
 // ========== 调试器 FFI 辅助函数 ==========
 // 严格翻译自 Debugger.zig 中的 extern 函数
@@ -504,7 +289,10 @@ public class TestReporterAgent {
 
     // 是否已启用
     public func isEnabled(): Bool {
-        handle != None
+        match (handle) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     // 报告发现测试
@@ -571,7 +359,10 @@ public class LifecycleAgent {
 
     // 是否已启用
     public func isEnabled(): Bool {
-        handle != None
+        match (handle) {
+            case Some(_) => true
+            case None => false
+        }
     }
 
     // 报告重载

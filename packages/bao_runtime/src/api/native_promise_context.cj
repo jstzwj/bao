@@ -23,13 +23,13 @@ public class NativePromiseContext {
     /// Tag - 每个具体原生类型对应一个标签
     /// 通过 CompactPointerTuple 打包到指针的高位
     public enum Tag: UInt8 {
-        case httpServerRequestContext
-        case httpsServerRequestContext
-        case debugHttpServerRequestContext
-        case debugHttpsServerRequestContext
-        case bodyValueBufferer
-        case httpsServerH3RequestContext
-        case debugHttpsServerH3RequestContext
+        | httpServerRequestContext
+        | httpsServerRequestContext
+        | debugHttpServerRequestContext
+        | debugHttpsServerRequestContext
+        | bodyValueBufferer
+        | httpsServerH3RequestContext
+        | debugHttpsServerH3RequestContext
 
         /// 从类型推断标签
         public static func fromType<T>(type: T.Type): Tag {
@@ -41,7 +41,7 @@ public class NativePromiseContext {
                 case H3RequestContext => .httpsServerH3RequestContext
                 case DebugH3RequestContext => .debugHttpsServerH3RequestContext
                 case ValueBufferer => .bodyValueBufferer
-                default => throw CompileError("NativePromiseContext.Tag: unsupported type")
+                case _ => throw CompileError("NativePromiseContext.Tag: unsupported type")
             }
         }
     }
@@ -86,7 +86,7 @@ public class NativePromiseContext {
             if (vm.isShuttingDown()) { return }
 
             let addr = Int.fromPtr(ctx)
-            var task = JsTask.init()
+            var task = JsTask()
             task.setUintptr(UInt64(addr) | UInt64(tag.rawValue))
             vm.eventLoop().enqueueTask(task)
         }
@@ -97,20 +97,20 @@ public class NativePromiseContext {
             let ctx: Any = UnsafeMutableRawPointer(bitPattern: UInt(packedPtr & ~tagMask))
 
             match (tag) {
-                case .httpServerRequestContext =>
+                case httpServerRequestContext =>
                     (ctx as! HTTPServerRequestContext).deref()
-                case .httpsServerRequestContext =>
+                case httpsServerRequestContext =>
                     (ctx as! HTTPSServerRequestContext).deref()
-                case .debugHttpServerRequestContext =>
+                case debugHttpServerRequestContext =>
                     (ctx as! DebugHTTPServerRequestContext).deref()
-                case .debugHttpsServerRequestContext =>
+                case debugHttpsServerRequestContext =>
                     (ctx as! DebugHTTPSServerRequestContext).deref()
-                case .bodyValueBufferer =>
+                case bodyValueBufferer =>
                     let bufferer = ctx as! ValueBufferer
                     (bufferer.ctx as! HTMLRewriterBufferOutputSink).deref()
-                case .httpsServerH3RequestContext =>
+                case httpsServerH3RequestContext =>
                     (ctx as! H3RequestContext).deref()
-                case .debugHttpsServerH3RequestContext =>
+                case debugHttpsServerH3RequestContext =>
                     (ctx as! DebugH3RequestContext).deref()
             }
         }

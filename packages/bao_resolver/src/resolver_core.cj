@@ -134,138 +134,9 @@ public func moduleTypeFromExtension(ext: String): ModuleType {
     }
 }
 
-// ============================================================================
-// ResolvedPath - 解析后的路径
-// 对应 Bun Fs.Path
-// ============================================================================
+// ResolverPath 定义在 resolver_fs.cj 中 (完整的 Fs.Path 翻译)
 
-/// 解析后的路径 - 对应 Bun Path
-public class ResolvedPath {
-    /// 路径文本
-    public var text: String
-    /// 命名空间
-    public var namespace: String
-    /// 是否被禁用 (如浏览器映射中标记为 false)
-    public var isDisabled: Bool
-    /// 目录部分
-    public var dir: String
-    /// 文件名部分
-    public var filename: String
-    /// 扩展名
-    public var ext: String
-    /// 真实路径 (解析符号链接后)
-    public var realPath: String
-    /// 美化路径 (用于显示)
-    public var pretty: String
-
-    public init(text: String) {
-        this.text = text
-        namespace = "file"
-        isDisabled = false
-        dir = ""
-        filename = ""
-        ext = ""
-        realPath = text
-        pretty = text
-        // 解析路径组成部分
-        parsePathComponents()
-    }
-
-    public init(text: String, namespace: String) {
-        this.text = text
-        this.namespace = namespace
-        isDisabled = false
-        dir = ""
-        filename = ""
-        ext = ""
-        realPath = text
-        pretty = text
-        parsePathComponents()
-    }
-
-    /// 空路径
-    public static func empty(): ResolvedPath {
-        ResolvedPath("", "file")
-    }
-
-    /// 解析路径组成部分
-    func parsePathComponents(): Unit {
-        if (text.size == 0) {
-            return
-        }
-        // 查找最后一个路径分隔符
-        var lastSep = -1
-        for (i in 0..text.size) {
-            if (text[i] == UInt8(47) || text[i] == UInt8(92)) {
-                lastSep = i
-            }
-        }
-        if (lastSep >= 0) {
-            dir = text[Int64(0)..lastSep]
-            filename = text[Int64(lastSep + 1)..text.size]
-        } else {
-            filename = text
-        }
-        // 查找扩展名
-        let dotIndexOpt = filename.lastIndexOf('.')
-        if (let Some(dotIndex) <- dotIndexOpt) {
-            ext = filename[dotIndex..filename.size]
-        }
-    }
-
-    /// 设置真实路径
-    public func setRealpath(path: String): Unit {
-        realPath = path
-    }
-}
-
-/// 类型别名
-public type ResolverPath = ResolvedPath
-
-// ============================================================================
-// PathPair - 路径对
-// 严格翻译自: resolver.zig - PathPair
-//   pub const PathPair = struct {
-//       primary: Path,
-//       secondary: ?Path = null,
-//       pub const Iter = struct { ... }
-//       pub fn iter(p: *PathPair) Iter
-//   };
-// ============================================================================
-
-/// 路径对 - 对应 Bun PathPair
-/// primary 为主路径，secondary 为备选路径 (如 module/main 回退)
-public class PathPair {
-    /// 主路径
-    public var primary: ResolverPath
-    /// 备选路径 (如 module -> main 回退)
-    public var secondary: ?ResolverPath
-
-    public init(primary: ResolverPath) {
-        this.primary = primary
-        secondary = None
-    }
-
-    public init(primary: ResolverPath, secondary: ResolverPath) {
-        this.primary = primary
-        this.secondary = Some(secondary)
-    }
-
-    /// 迭代所有非禁用路径
-    /// 对应 Bun PathPair.Iter
-    public func iterate(): ArrayList<ResolverPath> {
-        let result = ArrayList<ResolverPath>()
-        if (!primary.isDisabled) {
-            result.append(primary)
-        }
-        if (let Some(sec) <- secondary) {
-            if (!sec.isDisabled) {
-                result.append(sec)
-            }
-        }
-        result
-    }
-}
+// PathPair 定义在 resolver_fs.cj 中
 
 // ============================================================================
 // ResolveResultFlags - 解析结果标志
@@ -733,7 +604,7 @@ public class PendingResolution {
         rootDependencyId = -1
         importRecordId = -1
         stringBuffer = ""
-        tag = PendingDependencyToResolveTag.Done
+        tag = PendingTag.Done
     }
 
     public static let INVALID_PACKAGE_ID: Int64 = -1
@@ -1411,9 +1282,9 @@ public class Resolver {
     /// 释放资源 - 对应 Bun Resolver.deinit()
     public func deinit(): Unit {
         // 清空目录缓存
-        for ((_, di) in dirCache) {
+        dirCache.forEach({ _, di =>
             di.deinit()
-        }
+        })
         dirCache.clear()
         binFolders.clear()
     }
@@ -1488,7 +1359,7 @@ public class Resolver {
                     case FrameworkModule.Code =>
                         // 框架内建代码模块
                         let result = ResolveResult(
-                            PathPair(ResolverPath(importPath, "node"))
+                            PathPair(ResolverPath.initWithNamespace(importPath, "node"))
                         )
                         result.importKind = kind
                         result.moduleType = ModuleType.Esm
@@ -1584,7 +1455,7 @@ public class Resolver {
                 result.packageJson = res.packageJson
                 result.dirnameFd = res.dirnameFd
                 result.fileFd = res.fileFd
-                result.jsx = opts.jsx
+                result.jsx = JSXConfig()
                 return ResolveUnionResult.success(result)
             }
         }
@@ -1614,7 +1485,7 @@ public class Resolver {
         // 严格翻译自: DataURL.parse(import_path)
         if (importPath.startsWith("data:")) {
             let result = ResolveResult(
-                PathPair(ResolverPath(importPath, "dataurl"))
+                PathPair(ResolverPath.initWithNamespace(importPath, "dataurl"))
             )
             // 简化: 对于 JavaScript/CSS/JSON/text 数据为非外部
             // 对于图片/其他数据标记为外部
@@ -1815,7 +1686,7 @@ public class Resolver {
                     (importPathWithoutPrefix.size == 2 ||
                      importPathWithoutPrefix[Int64(2)] == UInt8(47))) {
                     let r = ResolveResult(
-                        PathPair(ResolverPath(importPathWithoutPrefix, "node"))
+                        PathPair(ResolverPath.initWithNamespace(importPathWithoutPrefix, "node"))
                     )
                     r.moduleType = ModuleType.Cjs
                     r.pathPair.primary.isDisabled = true
@@ -2056,7 +1927,7 @@ public class Resolver {
                         if (res.packageJson.isSome() && careAboutBrowserField) {
                             var baseDirInfo = res.dirInfo
                             if (baseDirInfo.isNone()) {
-                                baseDirInfo = dirInfoCached(res.pathPair.primary.dir)
+                                baseDirInfo = dirInfoCached(res.pathPair.primary.name.dir)
                             }
                             if (let Some(bdi) <- baseDirInfo) {
                                 if (let Some(browserScope) <- bdi.getEnclosingBrowserScope()) {
@@ -2377,7 +2248,7 @@ public class Resolver {
                 importPath
             )
             match (depResult.tag) {
-                case DependencyToResolve.DependencyToResolveTag.Resolution =>
+                case DependencyToResolveTag.Resolution =>
                     if (let Some(resPath) <- depResult.resolutionPath) {
                         if (let Some(res) <- loadAsFileOrDirectoryMatch(resPath, kind)) {
                             var resCopy = res
@@ -2385,11 +2256,11 @@ public class Resolver {
                             return MatchUnionResult.success(resCopy)
                         }
                     }
-                case DependencyToResolve.DependencyToResolveTag.Pending =>
+                case DependencyToResolveTag.Pending =>
                     if (let Some(p) <- depResult.pending) {
                         return MatchUnionResult.createPending(p)
                     }
-                case DependencyToResolve.DependencyToResolveTag.Failure =>
+                case DependencyToResolveTag.Failure =>
                     if (let Some(e) <- depResult.error) {
                         return MatchUnionResult.failure(e)
                     }
@@ -2434,9 +2305,11 @@ public class Resolver {
                               packageSubpath: String): ?MatchResult {
         // 检查解析状态
         var status = esmResolution.status
-        if (!((status == ESMResolutionStatus.Exact ||
-               status == ESMResolutionStatus.ExactEndsWithStar ||
-               status == ESMResolutionStatus.Inexact) &&
+        let isGoodStatus = match (status) {
+            case Exact | ExactEndsWithStar | Inexact => true
+            case _ => false
+        }
+        if (!(isGoodStatus &&
               esmResolution.path.size > 0 &&
               esmResolution.path[Int64(0)] == UInt8(47))) {
             return None
@@ -2469,7 +2342,7 @@ public class Resolver {
                     }
 
                     // 对于通配符匹配, 尝试添加扩展名
-                    if (status == ESMResolutionStatus.ExactEndsWithStar) {
+                    if (match (status) { case ExactEndsWithStar => true case _ => false }) {
                         for (ext in extensionOrder) {
                             let tryPath = "${absEsmPath}${ext}"
                             if (Fs.fileExists(tryPath)) {
@@ -3097,7 +2970,9 @@ public class Resolver {
 
             // 通配符匹配
             // 严格翻译自 ESM exports 规范的通配符展开
-            for ((pattern, target) in exportsMap) {
+            let exportEntries = exportsMap.allEntries()
+            for (entry in exportEntries) {
+                let (pattern, target) = entry
                 let starIdx = pattern.indexOf('*')
                 if (let Some(idx) <- starIdx) {
                     let prefix = pattern[Int64(0)..idx]
@@ -3159,7 +3034,9 @@ public class Resolver {
         //   while (iter.next()) |entry| {
         //       if (strings.eqlLong(key, path, true)) { ... }
         //   }
-        for ((pattern, targets) in tsconfig.paths) {
+        let pathsEntries = tsconfig.paths.allEntries()
+        for (entry in pathsEntries) {
+            let (pattern, targets) = entry
             if (pattern == importPath) {
                 for (target in targets) {
                     var absTarget = target
@@ -3181,7 +3058,9 @@ public class Resolver {
         var longestMatchPattern: ?String = None
         var longestMatchTargets: ?ArrayList<String> = None
 
-        for ((pattern, targets) in tsconfig.paths) {
+        let pathsEntries2 = tsconfig.paths.allEntries()
+        for (entry in pathsEntries2) {
+            let (pattern, targets) = entry
             let starIdxOpt = pattern.indexOf('*')
             if (let Some(starIdx) <- starIdxOpt) {
                 let prefix = pattern[Int64(0)..starIdx]
@@ -3276,7 +3155,7 @@ public class Resolver {
                     result.primarySideEffectsData = match (pkg.sideEffects) {
                         case SideEffectsKind.NoSideEffects => SideEffects.NoSideEffectsPackageJson
                         case SideEffectsKind.SideEffectsList =>
-                            if (pkg.hasSideEffects(path.text)) {
+                            if (pkg.sideEffects.hasSideEffects(path.text)) {
                                 SideEffects.HasSideEffects
                             } else {
                                 SideEffects.NoSideEffectsPackageJson
@@ -3296,7 +3175,7 @@ public class Resolver {
                         result.primarySideEffectsData = match (pkgJson.sideEffects) {
                             case SideEffectsKind.NoSideEffects => SideEffects.NoSideEffectsPackageJson
                             case SideEffectsKind.SideEffectsList =>
-                                if (pkgJson.hasSideEffects(path.text)) {
+                                if (pkgJson.sideEffects.hasSideEffects(path.text)) {
                                     SideEffects.HasSideEffects
                                 } else {
                                     SideEffects.NoSideEffectsPackageJson
@@ -3321,8 +3200,8 @@ public class Resolver {
                 //       module_type = ModuleTypeMap.getWithLength(path.name.ext, 4) orelse .unknown;
                 //   }
                 if (!kind.isFromCSS() && match (moduleType) { case ModuleType.Unknown => true case _ => false } &&
-                    path.ext.size == 4) {
-                    moduleType = moduleTypeFromExtension(path.ext)
+                    path.name.ext.size == 4) {
+                    moduleType = moduleTypeFromExtension(path.name.ext)
                 }
 
                 // 解析符号链接
@@ -3413,13 +3292,12 @@ public class Resolver {
             //   }
             if (isPackagePath(checker.inputPath)) {
                 match (kind) {
-                    case BrowserMapKind.AbsolutePath => {
+                    case BrowserMapKind.AbsolutePath =>
                         let relPath = "./${checker.inputPath}"
                         if (checker.checkPath(relPath)) {
                             return Some(checker.remapped)
                         }
-                    }
-                    case BrowserMapKind.PackagePath => {
+                    case BrowserMapKind.PackagePath =>
                         // 检查是否在同一包内
                         // 严格翻译自:
                         //   const isInSamePackage = brk: {
@@ -3438,7 +3316,6 @@ public class Resolver {
                                 return Some(checker.remapped)
                             }
                         }
-                    }
                 }
             }
         }
@@ -3454,7 +3331,7 @@ public class Resolver {
     /// 获取已解析模块的 package.json
     /// 对应 Bun Resolver.packageJSONForResolvedNodeModule()
     public func packageJSONForResolvedNodeModule(result: ResolveResult): ?PackageJsonInfo {
-        if (let Some(dirInfo) <- dirInfoCached(result.pathPair.primary.dir)) {
+        if (let Some(dirInfo) <- dirInfoCached(result.pathPair.primary.name.dir)) {
             var current: ?DirInfo = Some(dirInfo)
             while (true) {
                 if (let Some(di) <- current) {
@@ -3548,7 +3425,7 @@ public class Resolver {
     /// 清除目录缓存
     /// 对应 Bun Resolver.bustDirCache()
     public func bustDirCache(path: String): Bool {
-        dirCache.remove(path)
+        dirCache.remove(path).isSome()
     }
 
     // ========================================================================
@@ -3591,7 +3468,7 @@ public class Resolver {
     /// 获取 bin 目录列表
     /// 对应 Bun Resolver.binDirs()
     public func binDirs(): Array<String> {
-        binFolders.toArray()
+        binFolders.items()
     }
 
     // ========================================================================
@@ -3924,7 +3801,9 @@ func hashString(s: String): Int64 {
 func formatString(fmt: String, args: Array<String>): String {
     var result = fmt
     for (arg in args) {
-        result = result.replaceFirst("{}", arg)
+        if (let Some(idx) <- result.indexOf("{}")) {
+            result = result[Int64(0)..idx] + arg + result[Int64(idx + 2)..result.size]
+        }
     }
     result
 }

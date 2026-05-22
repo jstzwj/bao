@@ -15,12 +15,12 @@ import bao_http.*
 
 // ============================================================================
 // 日志级别
-// 严格翻译自: PackageManagerOptions.zig - LogLevel
-//   pub const LogLevel = enum { default, verbose, silent, quiet, default_no_progress, verbose_no_progress }
+// 严格翻译自: PackageManagerOptions.zig - InstallLogLevel
+//   pub const InstallLogLevel = enum { default, verbose, silent, quiet, default_no_progress, verbose_no_progress }
 // ============================================================================
 
 /// 日志级别 (完整版)
-/// 翻译自: PackageManager.Options.LogLevel
+/// 翻译自: PackageManager.Options.InstallLogLevel
 public enum LogLevelFull {
     | Default              // 默认输出
     | Verbose              // 详细日志
@@ -30,7 +30,7 @@ public enum LogLevelFull {
     | VerboseNoProgress    // 详细, 不显示进度条
 
     /// 是否是详细模式
-    /// 翻译自: LogLevel.isVerbose
+    /// 翻译自: InstallLogLevel.isVerbose
     public func isVerbose(): Bool {
         match (this) {
             case VerboseNoProgress => true
@@ -40,7 +40,7 @@ public enum LogLevelFull {
     }
 
     /// 是否显示进度条
-    /// 翻译自: LogLevel.showProgress
+    /// 翻译自: InstallLogLevel.showProgress
     public func showProgress(): Bool {
         match (this) {
             case Default => true

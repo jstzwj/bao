@@ -4,6 +4,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // UpgradedDuplex
@@ -96,23 +97,23 @@ public class UpgradedDuplex {
     /// SSL 包装器
     public var wrapper: ?SslWrapper<UpgradedDuplex>
     /// 原始双工流 (JS 引用)
-    public var origin: JsStrong
+    public var origin: StrongOptional<JsValue>
     /// 全局对象
     public var global: ?JsGlobalObject
     /// SSL 错误信息
-    public var sslError: CertError
+    public var `sslError`: UsBunVerifyError
     /// 虚拟机
     public var vm: VirtualMachine
     /// 事件处理器
     public var handlers: UpgradedDuplexHandlers
     /// onData JS 回调
-    public var onDataCallback: JsStrong
+    public var onDataCallback: StrongOptional<JsValue>
     /// onEnd JS 回调
-    public var onEndCallback: JsStrong
+    public var onEndCallback: StrongOptional<JsValue>
     /// onWritable JS 回调
-    public var onWritableCallback: JsStrong
+    public var onWritableCallback: StrongOptional<JsValue>
     /// onClose JS 回调
-    public var onCloseCallback: JsStrong
+    public var onCloseCallback: StrongOptional<JsValue>
     /// 事件循环定时器
     public var eventLoopTimer: EventLoopTimer
     /// 当前超时时间
@@ -120,29 +121,29 @@ public class UpgradedDuplex {
 
     public init(vm: VirtualMachine, handlers: UpgradedDuplexHandlers) {
         this.wrapper = None
-        this.origin = JsStrong.empty
+        this.origin = StrongOptional<JsValue>.empty()
         this.global = None
         this.sslError = CertError()
         this.vm = vm
         this.handlers = handlers
-        this.onDataCallback = JsStrong.empty
-        this.onEndCallback = JsStrong.empty
-        this.onWritableCallback = JsStrong.empty
-        this.onCloseCallback = JsStrong.empty
+        this.onDataCallback = StrongOptional<JsValue>.empty()
+        this.onEndCallback = StrongOptional<JsValue>.empty()
+        this.onWritableCallback = StrongOptional<JsValue>.empty()
+        this.onCloseCallback = StrongOptional<JsValue>.empty()
         this.eventLoopTimer = EventLoopTimer(tag: EventLoopTimerTag.UPGRADED_DUPLEX)
         this.currentTimeout = 0
     }
 
     /// 连接打开
     func onOpenInternal(): Unit {
-        if (handlers.ctx != None) {
+        if (handlers.ctx.isSome()) {
             handlers.onOpen(handlers.ctx)
         }
     }
 
     /// 数据到达
     func onDataInternal(decodedData: Array<Byte>): Unit {
-        if (handlers.ctx != None) {
+        if (handlers.ctx.isSome()) {
             handlers.onData(handlers.ctx, decodedData)
         }
     }
@@ -151,18 +152,18 @@ public class UpgradedDuplex {
     func onHandshakeInternal(handshakeSuccess: Bool, sslError: UsBunVerifyError): Unit {
         this.sslError = CertError(
             errorNo: sslError.errorNo,
-            code: if (sslError.code == None || sslError.errorNo == 0) { "" } else { sslError.code },
-            reason: if (sslError.reason == None || sslError.errorNo == 0) { "" } else { sslError.reason }
+            code: if (sslError.code.isNone() || sslError.errorNo == 0) { "" } else { sslError.code },
+            reason: if (sslError.reason.isNone() || sslError.errorNo == 0) { "" } else { sslError.reason }
         )
-        if (handlers.ctx != None) {
+        if (handlers.ctx.isSome()) {
             handlers.onHandshake(handlers.ctx, handshakeSuccess, sslError)
         }
     }
 
     /// 连接关闭
     func onCloseInternal(): Unit {
-        defer deinit()
-        if (handlers.ctx != None) {
+        // defer deinit() - cleanup will be done inline
+        if (handlers.ctx.isSome()) {
             handlers.onClose(handlers.ctx)
         }
         // 关闭底层双工流
@@ -175,10 +176,10 @@ public class UpgradedDuplex {
             return
         }
         let duplexOpt = origin.get()
-        if (duplexOpt != None) {
+        if (duplexOpt.isSome()) {
             let duplex = duplexOpt
             let globalThis = global
-            if (globalThis == None) {
+            if (globalThis.isNone()) {
                 return
             }
             let writeOrEnd = if (msgMore) {
@@ -186,26 +187,26 @@ public class UpgradedDuplex {
             } else {
                 duplex.getFunction(globalThis, "end")
             }
-            if (writeOrEnd == None) {
+            if (writeOrEnd.isNone()) {
                 return
             }
-            if (data != None) {
+            if (data.isSome()) {
                 let dataVal = data
                 let buffer = JsArrayBuffer.toJS(dataVal, globalThis)
                 buffer.ensureStillAlive()
 
                 try {
                     writeOrEnd.call(globalThis, duplex, buffer)
-                } catch err: JsError {
-                    if (handlers.ctx != None) {
+                } catch (err: JsError) {
+                    if (handlers.ctx.isSome()) {
                         handlers.onError(handlers.ctx, globalThis.takeException(err))
                     }
                 }
             } else {
                 try {
                     writeOrEnd.call(globalThis, duplex, JsValue.jsNull())
-                } catch err: JsError {
-                    if (handlers.ctx != None) {
+                } catch (err: JsError) {
+                    if (handlers.ctx.isSome()) {
                         handlers.onError(handlers.ctx, globalThis.takeException(err))
                     }
                 }
@@ -221,27 +222,27 @@ public class UpgradedDuplex {
 
     /// 刷新缓冲数据
     public func flush(): Unit {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             wrapper.flush()
         }
     }
 
     /// 内部接收数据
     func onInternalReceiveData(data: Array<Byte>): Unit {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             resetTimeout()
             wrapper.receiveData(data)
         }
     }
 
     /// JS 回调: 接收数据
-    static func onReceivedData(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    static func onReceivedData(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let function = callFrame.callee()
         let args = callFrame.argumentsOld(1)
 
         let selfOpt = HostFn.getFunctionData(function)
-        if (selfOpt != None) {
-            let this = selfOpt as UpgradedDuplex
+        if (selfOpt.isSome()) {
+            let `this` = selfOpt as UpgradedDuplex
             if (args.size >= 1) {
                 let dataArg = args[0]
                 if (this.origin.has()) {
@@ -249,14 +250,14 @@ public class UpgradedDuplex {
                         return JsValue.jsUndefined()
                     }
                     let arrayBuffer = dataArg.asArrayBuffer(globalObject)
-                    if (arrayBuffer != None) {
+                    if (arrayBuffer.isSome()) {
                         let payload = arrayBuffer.slice()
                         this.onInternalReceiveData(payload)
                     } else {
                         // node.js 在此情况下报相同的错误
                         let errorValue = globalObject.ERR("STREAM_WRAP", "Stream has StringDecoder set or is in objectMode").toJS()
                         errorValue.ensureStillAlive()
-                        if (this.handlers.ctx != None) {
+                        if (this.handlers.ctx.isSome()) {
                             this.handlers.onError(this.handlers.ctx, errorValue)
                         }
                     }
@@ -267,13 +268,13 @@ public class UpgradedDuplex {
     }
 
     /// JS 回调: 结束
-    static func onEnd(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    static func onEnd(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let function = callFrame.callee()
         let selfOpt = HostFn.getFunctionData(function)
-        if (selfOpt != None) {
-            let this = selfOpt as UpgradedDuplex
-            if (this.wrapper != None) {
-                if (this.handlers.ctx != None) {
+        if (selfOpt.isSome()) {
+            let `this` = selfOpt as UpgradedDuplex
+            if (this.wrapper.isSome()) {
+                if (this.handlers.ctx.isSome()) {
                     this.handlers.onEnd(this.handlers.ctx)
                 }
             }
@@ -282,17 +283,17 @@ public class UpgradedDuplex {
     }
 
     /// JS 回调: 可写
-    static func onWritable(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    static func onWritable(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let function = callFrame.callee()
         let selfOpt = HostFn.getFunctionData(function)
-        if (selfOpt != None) {
-            let this = selfOpt as UpgradedDuplex
+        if (selfOpt.isSome()) {
+            let `this` = selfOpt as UpgradedDuplex
             // 刷新待处理数据
-            if (this.wrapper != None) {
+            if (this.wrapper.isSome()) {
                 this.wrapper.flush()
             }
             // 调用 onWritable (按需刷新)
-            if (this.handlers.ctx != None) {
+            if (this.handlers.ctx.isSome()) {
                 this.handlers.onWritable(this.handlers.ctx)
             }
         }
@@ -300,13 +301,13 @@ public class UpgradedDuplex {
     }
 
     /// JS 回调: 关闭
-    static func onCloseJS(globalObject: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    static func onCloseJS(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
         let function = callFrame.callee()
         let selfOpt = HostFn.getFunctionData(function)
-        if (selfOpt != None) {
-            let this = selfOpt as UpgradedDuplex
+        if (selfOpt.isSome()) {
+            let `this` = selfOpt as UpgradedDuplex
             // 刷新待处理数据
-            if (this.wrapper != None) {
+            if (this.wrapper.isSome()) {
                 this.wrapper.shutdown(true)
             }
         }
@@ -325,7 +326,7 @@ public class UpgradedDuplex {
             return
         }
 
-        if (handlers.ctx != None) {
+        if (handlers.ctx.isSome()) {
             handlers.onTimeout(handlers.ctx)
         }
     }
@@ -337,7 +338,7 @@ public class UpgradedDuplex {
             vm: globalThis.bunVM(),
             handlers: handlers
         )
-        result.origin = JsStrong.create(origin, globalThis)
+        result.origin = StrongOptional<JsValue>.create(origin, globalThis)
         result.global = globalThis
         return result
     }
@@ -350,44 +351,44 @@ public class UpgradedDuplex {
 
         // onData 回调
         var callback = onDataCallback.get()
-        if (callback == None) {
+        if (callback.isNone()) {
             let dataCallback = HostFn.newFunctionWithData(globalThis, None, 0, UpgradedDuplex.onReceivedData, this)
             dataCallback.ensureStillAlive()
             HostFn.setFunctionData(dataCallback, this)
-            onDataCallback = JsStrong.create(dataCallback, globalThis)
+            onDataCallback = StrongOptional<JsValue>.create(dataCallback, globalThis)
             callback = dataCallback
         }
         array.putIndex(globalThis, 0, callback)
 
         // onEnd 回调
         callback = onEndCallback.get()
-        if (callback == None) {
+        if (callback.isNone()) {
             let endCallback = HostFn.newFunctionWithData(globalThis, None, 0, UpgradedDuplex.onEnd, this)
             endCallback.ensureStillAlive()
             HostFn.setFunctionData(endCallback, this)
-            onEndCallback = JsStrong.create(endCallback, globalThis)
+            onEndCallback = StrongOptional<JsValue>.create(endCallback, globalThis)
             callback = endCallback
         }
         array.putIndex(globalThis, 1, callback)
 
         // onWritable 回调
         callback = onWritableCallback.get()
-        if (callback == None) {
+        if (callback.isNone()) {
             let writableCallback = HostFn.newFunctionWithData(globalThis, None, 0, UpgradedDuplex.onWritable, this)
             writableCallback.ensureStillAlive()
             HostFn.setFunctionData(writableCallback, this)
-            onWritableCallback = JsStrong.create(writableCallback, globalThis)
+            onWritableCallback = StrongOptional<JsValue>.create(writableCallback, globalThis)
             callback = writableCallback
         }
         array.putIndex(globalThis, 2, callback)
 
         // onClose 回调
         callback = onCloseCallback.get()
-        if (callback == None) {
+        if (callback.isNone()) {
             let closeCallback = HostFn.newFunctionWithData(globalThis, None, 0, UpgradedDuplex.onCloseJS, this)
             closeCallback.ensureStillAlive()
             HostFn.setFunctionData(closeCallback, this)
-            onCloseCallback = JsStrong.create(closeCallback, globalThis)
+            onCloseCallback = StrongOptional<JsValue>.create(closeCallback, globalThis)
             callback = closeCallback
         }
         array.putIndex(globalThis, 3, callback)
@@ -399,13 +400,13 @@ public class UpgradedDuplex {
     /// 对应 Zig: pub fn startTLS
     public func startTLS(sslOptions: SSLConfig, isClient: Bool): Unit {
         let handlers = SslWrapperHandlers<UpgradedDuplex>(
-            onOpen: (ctx: UpgradedDuplex) => ctx.onOpenInternal(),
-            onHandshake: (ctx: UpgradedDuplex, success: Bool, err: UsBunVerifyError) => ctx.onHandshakeInternal(success, err),
-            write: (ctx: UpgradedDuplex, data: Array<Byte>) => ctx.internalWrite(data),
-            onData: (ctx: UpgradedDuplex, data: Array<Byte>) => ctx.onDataInternal(data),
-            onClose: (ctx: UpgradedDuplex) => ctx.onCloseInternal()
+            { ctx: UpgradedDuplex => ctx.onOpenInternal() },
+            { ctx: UpgradedDuplex, success: Bool, err: UsBunVerifyError => ctx.onHandshakeInternal(success, err) },
+            { ctx: UpgradedDuplex, data: Array<Byte> => ctx.internalWrite(data) },
+            { ctx: UpgradedDuplex, data: Array<Byte> => ctx.onDataInternal(data) },
+            { ctx: UpgradedDuplex => ctx.onCloseInternal() }
         )
-        wrapper = SslWrapper.init(sslOptions, isClient, this, handlers)
+        wrapper = SslWrapper(sslOptions, isClient, this, handlers)
         wrapper.start()
     }
 
@@ -415,15 +416,15 @@ public class UpgradedDuplex {
     public func startTLSWithCTX(ctx: SslCtx, isClient: Bool): Unit {
         try {
             let handlers = SslWrapperHandlers<UpgradedDuplex>(
-                onOpen: (ctx2: UpgradedDuplex) => ctx2.onOpenInternal(),
-                onHandshake: (ctx2: UpgradedDuplex, success: Bool, err: UsBunVerifyError) => ctx2.onHandshakeInternal(success, err),
-                write: (ctx2: UpgradedDuplex, data: Array<Byte>) => ctx2.internalWrite(data),
-                onData: (ctx2: UpgradedDuplex, data: Array<Byte>) => ctx2.onDataInternal(data),
-                onClose: (ctx2: UpgradedDuplex) => ctx2.onCloseInternal()
+                { ctx2: UpgradedDuplex => ctx2.onOpenInternal() },
+                { ctx2: UpgradedDuplex, success: Bool, err: UsBunVerifyError => ctx2.onHandshakeInternal(success, err) },
+                { ctx2: UpgradedDuplex, data: Array<Byte> => ctx2.internalWrite(data) },
+                { ctx2: UpgradedDuplex, data: Array<Byte> => ctx2.onDataInternal(data) },
+                { ctx2: UpgradedDuplex => ctx2.onCloseInternal() }
             )
             wrapper = SslWrapper.initWithCTX(ctx, isClient, this, handlers)
             wrapper.start()
-        } catch ex: SslError {
+        } catch (ex: SslError) {
             BoringSSL.sslCtxFree(ctx)
             throw ex
         }
@@ -432,7 +433,7 @@ public class UpgradedDuplex {
     /// 编码并写入数据
     /// 对应 Zig: pub fn encodeAndWrite
     public func encodeAndWrite(data: Array<Byte>): Int32 {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             return wrapper.writeData(data).toInt32()
         }
         return 0
@@ -448,7 +449,7 @@ public class UpgradedDuplex {
     /// 关闭连接
     /// 对应 Zig: pub fn close
     public func close(): Unit {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             wrapper.shutdown(true)
         }
     }
@@ -456,7 +457,7 @@ public class UpgradedDuplex {
     /// 优雅关闭
     /// 对应 Zig: pub fn shutdown
     public func shutdown(): Unit {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             wrapper.shutdown(false)
         }
     }
@@ -464,7 +465,7 @@ public class UpgradedDuplex {
     /// 关闭读取方向
     /// 对应 Zig: pub fn shutdownRead
     public func shutdownRead(): Unit {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             wrapper.shutdownRead()
         }
     }
@@ -472,7 +473,7 @@ public class UpgradedDuplex {
     /// 是否已关闭
     /// 对应 Zig: pub fn isShutdown
     public func isShutdown(): Bool {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             return wrapper.isShutdown()
         }
         return true
@@ -481,7 +482,7 @@ public class UpgradedDuplex {
     /// 是否完全关闭
     /// 对应 Zig: pub fn isClosed
     public func isClosed(): Bool {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             return wrapper.isClosed()
         }
         return true
@@ -496,7 +497,7 @@ public class UpgradedDuplex {
     /// 获取 SSL 对象
     /// 对应 Zig: pub fn ssl
     public func ssl(): ?Ssl {
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             return wrapper.ssl
         }
         return None
@@ -504,7 +505,7 @@ public class UpgradedDuplex {
 
     /// 获取 SSL 错误
     /// 对应 Zig: pub fn sslError
-    public func sslError(): UsBunVerifyError {
+    public func getSslError(): UsBunVerifyError {
         return UsBunVerifyError(
             errorNo: sslError.errorNo,
             code: sslError.code,
@@ -548,7 +549,7 @@ public class UpgradedDuplex {
         // 清除定时器
         setTimeout(0)
 
-        if (wrapper != None) {
+        if (wrapper.isSome()) {
             wrapper.deinit()
             wrapper = None
         }
@@ -556,22 +557,22 @@ public class UpgradedDuplex {
         origin.deinit()
 
         let onDataCb = onDataCallback.get()
-        if (onDataCb != None) {
+        if (onDataCb.isSome()) {
             HostFn.setFunctionData(onDataCb, None)
             onDataCallback.deinit()
         }
         let onEndCb = onEndCallback.get()
-        if (onEndCb != None) {
+        if (onEndCb.isSome()) {
             HostFn.setFunctionData(onEndCb, None)
             onEndCallback.deinit()
         }
         let onWritableCb = onWritableCallback.get()
-        if (onWritableCb != None) {
+        if (onWritableCb.isSome()) {
             HostFn.setFunctionData(onWritableCb, None)
             onWritableCallback.deinit()
         }
         let onCloseCb = onCloseCallback.get()
-        if (onCloseCb != None) {
+        if (onCloseCb.isSome()) {
             HostFn.setFunctionData(onCloseCb, None)
             onCloseCallback.deinit()
         }

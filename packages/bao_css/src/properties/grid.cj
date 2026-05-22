@@ -19,12 +19,12 @@ import bao_collections.*
 /// grid-template-rows/columns 属性值
 /// 严格翻译自 TrackSizing
 public enum TrackSizing {
-    | None               // 无显式轨道
+    | NoneValue               // 无显式轨道
     | Tracklist(TrackList) // 轨道列表
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Tracklist(tl) => tl.toCss()
         }
     }
@@ -280,7 +280,7 @@ public enum RepeatCount {
 /// grid-template-areas 属性值
 /// 严格翻译自 GridTemplateAreas
 public enum GridTemplateAreas {
-    | None                                    // 无命名区域
+    | NoneValue                                    // 无命名区域
     | Areas(UInt32, ArrayList<Option<String>>) // 列数 + 扁平化区域名称列表
 
     private func areasToCss(columns: UInt32, areas: ArrayList<Option<String>>): String {
@@ -315,7 +315,7 @@ public enum GridTemplateAreas {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Areas(columns, areas) => areasToCss(columns, areas)
         }
     }

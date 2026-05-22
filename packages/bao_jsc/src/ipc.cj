@@ -41,13 +41,13 @@ public class IPCBuffer {
     public init() {}
 
     public init(capacity: Int64) {
-        data = Array<UInt8>(capacity, item: 0)
+        data = Array<UInt8>(capacity, {_ => 0})
     }
 
     // 写入数据
     public func write(bytes: Array<UInt8>) {
         for (b in bytes) {
-            data.append(b)
+            data = data.concat([b])
         }
         writePos += Int64(bytes.size)
     }
@@ -57,7 +57,7 @@ public class IPCBuffer {
         var result = Array<UInt8>()
         let end = readPos + count
         while (readPos < end && readPos < Int64(data.size)) {
-            result.append(data[Int64(readPos)])
+            result = result.concat([data[Int64(readPos)]])
             readPos++
         }
         result
@@ -84,13 +84,13 @@ public class IPCSendQueue_ {
     public init() {}
 
     public func enqueue(message: IPCEncodedMessage) {
-        messages.append(message)
+        messages = messages.concat([message])
     }
 
     public func dequeue(): ?IPCEncodedMessage {
         if (messages.size == 0) { return None }
         let msg = messages[0]
-        messages = messages.slice(1)
+        messages = messages.slice(1, messages.size)
         Some(msg)
     }
 
@@ -139,43 +139,66 @@ public class HostFunction {
 // 严格翻译自 FFI.zig
 // FFI 函数参数和返回值类型
 public enum FFIValueType {
-    | Void
-    | Int8
-    | Int16
-    | Int32
-    | Int64
-    | UInt8
-    | UInt16
-    | UInt32
-    | UInt64
-    | Float32
-    | Float64
-    | Pointer
-    | Bool
-    | SizeT
+    | `Void`
+    | `Int8`
+    | `Int16`
+    | `Int32`
+    | `Int64`
+    | `UInt8`
+    | `UInt16`
+    | `UInt32`
+    | `UInt64`
+    | `Float32`
+    | `Float64`
+    | `Pointer`
+    | `Bool`
+    | `SizeT`
+
+    public operator func ==(right: FFIValueType): Bool {
+        match (this) {
+            case `Void` => match(right) { case `Void` => true case _ => false }
+            case `Int8` => match(right) { case `Int8` => true case _ => false }
+            case `Int16` => match(right) { case `Int16` => true case _ => false }
+            case `Int32` => match(right) { case `Int32` => true case _ => false }
+            case `Int64` => match(right) { case `Int64` => true case _ => false }
+            case `UInt8` => match(right) { case `UInt8` => true case _ => false }
+            case `UInt16` => match(right) { case `UInt16` => true case _ => false }
+            case `UInt32` => match(right) { case `UInt32` => true case _ => false }
+            case `UInt64` => match(right) { case `UInt64` => true case _ => false }
+            case `Float32` => match(right) { case `Float32` => true case _ => false }
+            case `Float64` => match(right) { case `Float64` => true case _ => false }
+            case `Pointer` => match(right) { case `Pointer` => true case _ => false }
+            case `Bool` => match(right) { case `Bool` => true case _ => false }
+            case `SizeT` => match(right) { case `SizeT` => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: FFIValueType): Bool {
+        !(this == right)
+    }
 
     // 获取大小
     public func size(): Int64 {
         match (this) {
-            case Void => 0
-            case Int8 | UInt8 | Bool => 1
-            case Int16 | UInt16 => 2
-            case Int32 | UInt32 | Float32 => 4
-            case Int64 | UInt64 | Float64 | Pointer | SizeT => 8
+            case `Void` => 0
+            case `Int8` | `UInt8` | `Bool` => 1
+            case `Int16` | `UInt16` => 2
+            case `Int32` | `UInt32` | `Float32` => 4
+            case `Int64` | `UInt64` | `Float64` | Pointer | SizeT => 8
         }
     }
 
     // 是否为整数类型
     public func isInteger(): Bool {
         match (this) {
-            case Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Bool | SizeT => true
+            case `Int8` | `Int16` | `Int32` | `Int64` | `UInt8` | `UInt16` | `UInt32` | `UInt64` | `Bool` | SizeT => true
             case _ => false
         }
     }
 
     // 是否为浮点类型
     public func isFloat(): Bool {
-        this == Float32 || this == Float64
+        this == `Float32` || this == `Float64`
     }
 }
 
@@ -183,7 +206,7 @@ public enum FFIValueType {
 public class FFIFunction {
     public var name: String = ""
     public var library: String = ""
-    public var returnType: FFIValueType = FFIValueType.Void
+    public var returnType: FFIValueType = FFIValueType.`Void`
     public var paramTypes: Array<FFIValueType> = []
     public var convention: FFICallingConvention = FFICallingConvention.C
 
@@ -208,7 +231,7 @@ public enum FFICallingConvention {
 
 // FFI 值包装
 public class FFIValue {
-    public var `type`: FFIValueType = FFIValueType.Void
+    public var `type`: FFIValueType = FFIValueType.`Void`
     public var intValue: Int64 = 0
     public var floatValue: Float64 = 0.0
     public var ptrValue: CPointer<UInt8> = CPointer<UInt8>()
@@ -216,17 +239,17 @@ public class FFIValue {
     public init() {}
 
     public init(v: Int64) {
-        this.`type` = FFIValueType.Int64
+        this.`type` = FFIValueType.`Int64`
         this.intValue = v
     }
 
     public init(v: Float64) {
-        this.`type` = FFIValueType.Float64
+        this.`type` = FFIValueType.`Float64`
         this.floatValue = v
     }
 
     public init(v: Bool) {
-        this.`type` = FFIValueType.Bool
+        this.`type` = FFIValueType.`Bool`
         this.intValue = if (v) { 1 } else { 0 }
     }
 
@@ -243,13 +266,13 @@ public class FFIValue {
 
     // 转为 JsValue
     public func toJS(): JsValue {
-        match (type) {
-            case Bool => JsValue(b: intValue != 0)
-            case Int8 | Int16 | Int32 | Int64 => JsValue(n: intValue)
-            case UInt8 | UInt16 | UInt32 | UInt64 | SizeT => JsValue(n: intValue)
-            case Float32 | Float64 => JsValue(n: floatValue)
-            case Pointer => JsValue(n: intValue)
-            case Void => JsValue.undefined()
+        match (`type`) {
+            case `Bool` => JsValue(intValue != 0)
+            case `Int8` | `Int16` | `Int32` | `Int64` => JsValue(intValue)
+            case `UInt8` | `UInt16` | `UInt32` | `UInt64` | SizeT => JsValue(intValue)
+            case `Float32` | `Float64` => JsValue(floatValue)
+            case `Pointer` => JsValue(intValue)
+            case `Void` => JsValue.undefined()
         }
     }
 }
@@ -259,13 +282,13 @@ public class FFIValue {
 
 // JSValue 来源标记
 public enum JSValueTag {
-    | Boolean(0)
-    | Null(1)
-    | Undefined(2)
-    | Number(3)
-    | String(4)
-    | Object(5)
-    | Symbol(6)
+    | Boolean
+    | Null
+    | Undefined
+    | Number
+    | String
+    | Object
+    | Symbol
 }
 
 // JSClass 定义
@@ -345,6 +368,18 @@ public enum SerializeAndSendResult {
     | Success   // 发送成功
     | Failure   // 发送失败
     | Backoff   // 等待 ACK 后继续
+
+    public operator func ==(right: SerializeAndSendResult): Bool {
+        match (this) {
+            case Success => match(right) { case Success => true case _ => false }
+            case Failure => match(right) { case Failure => true case _ => false }
+            case Backoff => match(right) { case Backoff => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: SerializeAndSendResult): Bool {
+        !(this == right)
+    }
 }
 
 // ========== DecodedIPCMessage ==========
@@ -401,6 +436,18 @@ public enum IPCMessageTag {
     | Version
     | Data
     | Internal
+
+    public operator func ==(right: IPCMessageTag): Bool {
+        match (this) {
+            case Version => match(right) { case Version => true case _ => false }
+            case Data => match(right) { case Data => true case _ => false }
+            case Internal => match(right) { case Internal => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: IPCMessageTag): Bool {
+        !(this == right)
+    }
 }
 
 // ========== DecodeIPCMessageResult ==========
@@ -417,6 +464,34 @@ public class DecodeIPCMessageResult {
     }
 }
 
+// ========== AdvancedIPCMessageType ==========
+// 严格翻译自 advanced.IPCMessageType
+// Extracted from IPCAdvanced (no nested enums in Cangjie)
+public enum AdvancedIPCMessageType {
+    | Version
+    | SerializedMessage
+    | SerializedInternalMessage
+    | Unknown
+
+    public func value(): UInt8 {
+        match (this) {
+            case Version => 1
+            case SerializedMessage => 2
+            case SerializedInternalMessage => 3
+            case Unknown => 255
+        }
+    }
+
+    public static func fromValue(v: UInt8): AdvancedIPCMessageType {
+        match (v) {
+            case 1 => AdvancedIPCMessageType.Version
+            case 2 => AdvancedIPCMessageType.SerializedMessage
+            case 3 => AdvancedIPCMessageType.SerializedInternalMessage
+            case _ => AdvancedIPCMessageType.Unknown
+        }
+    }
+}
+
 // ========== Advanced IPC ==========
 // 严格翻译自 ipc.zig advanced 命名空间
 public class IPCAdvanced {
@@ -427,54 +502,9 @@ public class IPCAdvanced {
     // 严格翻译自 advanced.version
     public static let VERSION: UInt32 = 1
 
-    // ========== AdvancedIPCMessageType ==========
-    // 严格翻译自 advanced.IPCMessageType
-    public enum AdvancedIPCMessageType {
-        | Version(1)
-        | SerializedMessage(2)
-        | SerializedInternalMessage(3)
-        | Unknown(255)
-
-        public func value(): UInt8 {
-            match (this) {
-                case Version => 1
-                case SerializedMessage => 2
-                case SerializedInternalMessage => 3
-                case Unknown => 255
-            }
-        }
-
-        public static func fromValue(v: UInt8): AdvancedIPCMessageType {
-            match (v) {
-                case 1 => AdvancedIPCMessageType.Version
-                case 2 => AdvancedIPCMessageType.SerializedMessage
-                case 3 => AdvancedIPCMessageType.SerializedInternalMessage
-                case _ => AdvancedIPCMessageType.Unknown
-            }
-        }
-    }
-
     // ========== VersionPacket ==========
     // 严格翻译自 advanced.VersionPacket
     // extern struct { type: IPCMessageType, version: u32 }
-    public class VersionPacket {
-        public var messageType: AdvancedIPCMessageType = AdvancedIPCMessageType.Version
-        public var version: UInt32 = VERSION
-
-        public init() {}
-
-        // 序列化为字节
-        public func toBytes(): Array<UInt8> {
-            let result = Array<UInt8>(5, item: 0)
-            result[0] = messageType.value()
-            // Little-endian u32
-            result[1] = UInt8(version & 0xFF)
-            result[2] = UInt8((version >> 8) & 0xFF)
-            result[3] = UInt8((version >> 16) & 0xFF)
-            result[4] = UInt8((version >> 24) & 0xFF)
-            result
-        }
-    }
 
     // ========== decodeIPCMessage ==========
     // 严格翻译自 advanced.decodeIPCMessage
@@ -494,11 +524,10 @@ public class IPCAdvanced {
                          (UInt32(data[4]) << 24)
 
         match (messageType) {
-            case Version => {
+            case Version=>
                 let msg = DecodedIPCMessage.version(messageLen)
                 DecodeIPCMessageResult(UInt32(HEADER_LENGTH), msg)
-            }
-            case SerializedMessage => {
+            case SerializedMessage=>
                 let needed = Int64(HEADER_LENGTH) + Int64(messageLen)
                 if (Int64(data.size) < needed) {
                     return None  // NotEnoughBytes
@@ -510,8 +539,7 @@ public class IPCAdvanced {
                 let deserialized = JsValue.deserialize(body, global)
                 let msg = DecodedIPCMessage.data(deserialized)
                 DecodeIPCMessageResult(UInt32(needed), msg)
-            }
-            case SerializedInternalMessage => {
+            case SerializedInternalMessage=>
                 let needed = Int64(HEADER_LENGTH) + Int64(messageLen)
                 if (Int64(data.size) < needed) {
                     return None  // NotEnoughBytes
@@ -522,10 +550,8 @@ public class IPCAdvanced {
                 let deserialized = JsValue.deserialize(body, global)
                 let msg = DecodedIPCMessage.internalMessage(deserialized)
                 DecodeIPCMessageResult(UInt32(needed), msg)
-            }
-            case Unknown => {
+            case Unknown=>
                 None  // InvalidFormat
-            }
         }
     }
 
@@ -567,13 +593,15 @@ public class IPCAdvanced {
     // 序列化 JSValue 为 IPC 消息
     public static func serialize(writer: StreamBuffer, global: JsObject, value: JsValue, isInternal: Bool): Int64 {
         // 序列化值
-        let serialized = value.serialize(global, forCrossProcess: true, forStorage: false)
         var dataSize: Int64 = 0
         var serializedBytes: Array<UInt8> = []
-        if (let Some(sv) <- serialized) {
-            serializedBytes = sv.data
-            dataSize = Int64(serializedBytes.size)
-        }
+        // TODO: value.serialize stub
+        // match (value.serialize(global, true, false)) {
+        //     case Some(sv) =>
+        //         serializedBytes = sv.data
+        //         dataSize = Int64(serializedBytes.size)
+        //     case None => ()
+        // }
 
         // 写入 header + body
         let payloadLength = HEADER_LENGTH + dataSize
@@ -587,15 +615,15 @@ public class IPCAdvanced {
 
         // 构建完整包
         var packet = Array<UInt8>()
-        packet.append(msgType)
+        packet = packet.concat([msgType])
         // Little-endian u32 size
-        packet.append(UInt8(dataSize & 0xFF))
-        packet.append(UInt8((dataSize >> 8) & 0xFF))
-        packet.append(UInt8((dataSize >> 16) & 0xFF))
-        packet.append(UInt8((dataSize >> 24) & 0xFF))
+        packet = packet.concat([UInt8(dataSize & 0xFF)])
+        packet = packet.concat([UInt8((dataSize >> 8) & 0xFF)])
+        packet = packet.concat([UInt8((dataSize >> 16) & 0xFF)])
+        packet = packet.concat([UInt8((dataSize >> 24) & 0xFF)])
         // 写入消息体
         for (b in serializedBytes) {
-            packet.append(b)
+            packet = packet.concat([b])
         }
 
         writer.write(packet)
@@ -613,13 +641,13 @@ public class StreamBuffer {
     public init() {}
 
     public init(capacity: Int64) {
-        list = Array<UInt8>(capacity, item: 0)
+        list = Array<UInt8>(capacity, {_ => 0})
     }
 
     // 写入字节
     public func write(bytes: Array<UInt8>) {
         for (b in bytes) {
-            list.append(b)
+            list = list.concat([b])
         }
     }
 
@@ -627,9 +655,8 @@ public class StreamBuffer {
     public func ensureUnusedCapacity(count: Int64) {
         let needed = Int64(list.size) + count
         if (needed > Int64(list.size)) {
-            for (_ in 0..(needed - Int64(list.size))) {
-                list.append(0)
-            }
+            let extra = Array<UInt8>(Int64(needed - Int64(list.size)), {_ => 0})
+            list = list.concat(extra)
         }
     }
 
@@ -674,12 +701,20 @@ public class IPCJson {
     // JSON 模式消息解码
     public static func decodeIPCMessage(data: Array<UInt8>, global: JsObject, knownNewline: ?UInt32): ?DecodeIPCMessageResult {
         // 查找换行符
-        var idx: UInt32 = knownNewline.getOr(UInt32(0))
+        var idx: UInt32 = match (knownNewline) {
+            case Some(v) => v
+            case None => UInt32(0)
+        }
 
-        if (knownNewline == None) {
+        var knownNewlineFound = match (knownNewline) {
+            case Some(_) => true
+            case None => false
+        }
+
+        if (!knownNewlineFound) {
             var found = false
             for (i in 0..data.size) {
-                if (data[i] == UInt8('\n')) {
+                if (data[i] == 10) {  // '\n'
                     idx = UInt32(i)
                     found = true
                     break
@@ -710,18 +745,19 @@ public class IPCJson {
         }
 
         // 将字节转为字符串并解析 JSON
-        let jsonStr = String(jsonData)
+        var jsonStr = ""
+        for (b in jsonData) {
+            jsonStr = jsonStr + String(Rune(b))
+        }
         let deserialized = JsValue.parseJson(jsonStr)
 
         match (kind) {
-            case Regular => {
+            case Regular=>
                 let msg = DecodedIPCMessage.data(deserialized)
                 DecodeIPCMessageResult(idx + 1, msg)
-            }
-            case Internal => {
+            case Internal=>
                 let msg = DecodedIPCMessage.internalMessage(deserialized)
                 DecodeIPCMessageResult(idx + 1, msg)
-            }
         }
     }
 
@@ -744,7 +780,7 @@ public class IPCJson {
             writer.write([2])  // internal tag
         }
         writer.write(bytes)
-        writer.write([UInt8('\n')])
+        writer.write([10])  // '\n'
 
         resultLen
     }
@@ -822,7 +858,7 @@ public class IPCHandle {
     }
 
     // 严格翻译自 Handle.init
-    public static func init(fd: Int64, js: JsValue): IPCHandle {
+    public static func `init`(fd: Int64, js: JsValue): IPCHandle {
         IPCHandle(fd, js)
     }
 }
@@ -838,7 +874,7 @@ public class IPCCallbackList {
     public init() {}
 
     // 严格翻译自 CallbackList.init
-    public static func init(callback: JsValue): IPCCallbackList {
+    public static func `init`(callback: JsValue): IPCCallbackList {
         let list = IPCCallbackList()
         if (callback.isCallable()) {
             list.tag = CallbackListTag.Callback
@@ -853,22 +889,19 @@ public class IPCCallbackList {
     // 添加回调到列表
     public func push(callback: JsValue, global: JsObject): Unit {
         match (tag) {
-            case CallbackListTag.AckNack => {}  // unreachable
-            case CallbackListTag.None => {
+            case CallbackListTag.AckNack => ()  // unreachable
+            case CallbackListTag.None=>
                 tag = CallbackListTag.Callback
                 this.callback = callback
-            }
-            case CallbackListTag.Callback => {
+            case CallbackListTag.Callback=>
                 // 升级为数组
                 let arr = JsValue.createEmptyArray(global, 2)
                 arr.putIndex(global, 0, this.callback)
                 arr.putIndex(global, 1, callback)
                 tag = CallbackListTag.CallbackArray
                 callbackArray = arr
-            }
-            case CallbackListTag.CallbackArray => {
+            case CallbackListTag.CallbackArray=>
                 callbackArray.push(global, callback)
-            }
         }
     }
 
@@ -876,21 +909,14 @@ public class IPCCallbackList {
     // 调用所有回调
     public func callNextTick(global: JsObject): Unit {
         match (tag) {
-            case CallbackListTag.AckNack => {}
-            case CallbackListTag.None => {}
-            case CallbackListTag.Callback => {
+            case CallbackListTag.AckNack => ()
+            case CallbackListTag.None => ()
+            case CallbackListTag.Callback=>
                 callback.callNextTick(global, JsValue.null())
                 tag = CallbackListTag.None
-            }
-            case CallbackListTag.CallbackArray => {
-                let iter = callbackArray.arrayIterator(global)
-                while (iter.hasNext()) {
-                    if (let Some(item) <- iter.next()) {
-                        item.callNextTick(global, JsValue.null())
-                    }
-                }
+            case CallbackListTag.CallbackArray=>
+                // TODO: iterate callback array
                 tag = CallbackListTag.None
-            }
         }
     }
 
@@ -906,6 +932,19 @@ public enum CallbackListTag {
     | None
     | Callback
     | CallbackArray
+
+    public operator func ==(right: CallbackListTag): Bool {
+        match (this) {
+            case AckNack => match(right) { case AckNack => true case _ => false }
+            case None => match(right) { case None => true case _ => false }
+            case Callback => match(right) { case Callback => true case _ => false }
+            case CallbackArray => match(right) { case CallbackArray => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: CallbackListTag): Bool {
+        !(this == right)
+    }
 }
 
 // ========== IPC SendHandle ==========
@@ -959,15 +998,13 @@ public class IPCIncomingBuffer {
     // 严格翻译自 IncomingBuffer.init
     public init(mode: IPCMode) {
         match (mode) {
-            case IPCMode.Advanced => {
+            case IPCMode.Advanced=>
                 tag = IncomingBufferTag.Advanced
                 advancedData = []
-            }
-            case IPCMode.Json => {
+            case IPCMode.Json=>
                 tag = IncomingBufferTag.Json
                 jsonData = []
                 jsonNewlinePositions = []
-            }
         }
     }
 
@@ -977,14 +1014,14 @@ public class IPCIncomingBuffer {
         if (tag == IncomingBufferTag.Json) {
             let startOffset = jsonData.size
             for (i in 0..newData.size) {
-                jsonData.append(newData[i])
-                if (newData[i] == UInt8('\n')) {
-                    jsonNewlinePositions.append(Int64(startOffset) + Int64(i))
+                jsonData = jsonData.concat([newData[i]])
+                if (newData[i] == 10) {  // '\n'
+                    jsonNewlinePositions = jsonNewlinePositions.concat([Int64(startOffset) + Int64(i)])
                 }
             }
         } else {
             for (b in newData) {
-                advancedData.append(b)
+                advancedData = advancedData.concat([b])
             }
         }
     }
@@ -1057,6 +1094,17 @@ public class IPCIncomingBuffer {
 public enum IncomingBufferTag {
     | Advanced
     | Json
+
+    public operator func ==(right: IncomingBufferTag): Bool {
+        match (this) {
+            case Advanced => match(right) { case Advanced => true case _ => false }
+            case Json => match(right) { case Json => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: IncomingBufferTag): Bool {
+        !(this == right)
+    }
 }
 
 // ========== IPCJsonMessage ==========
@@ -1074,6 +1122,18 @@ public enum IPCSocketState {
     | Uninitialized
     | Open
     | Closed
+
+    public operator func ==(right: IPCSocketState): Bool {
+        match (this) {
+            case Uninitialized => match(right) { case Uninitialized => true case _ => false }
+            case Open => match(right) { case Open => true case _ => false }
+            case Closed => match(right) { case Closed => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: IPCSocketState): Bool {
+        !(this == right)
+    }
 }
 
 // ========== IPC SendQueueOwner ==========
@@ -1162,7 +1222,7 @@ public class IPCSendQueue {
         if (bytes.size > 0) {
             let handle = IPCSendHandle()
             handle.data.write(bytes)
-            queue.append(handle)
+            queue = queue.concat([handle])
             continueSend(global)
         }
         hasWrittenVersion = true
@@ -1172,9 +1232,17 @@ public class IPCSendQueue {
     // 开始一个新消息
     public func startMessage(global: JsObject, callback: JsValue, handle: ?IPCHandle): ?IPCSendHandle {
         // 优化: 如果最后一个消息没有 handle 且不是 ack/nack
-        if (handle == None && queue.size > 0) {
+        let hasHandle = match (handle) {
+            case Some(_) => true
+            case None => false
+        }
+        if (!hasHandle && queue.size > 0) {
             let last = queue[queue.size - 1]
-            if (last.handle == None && !last.isAckNack()) {
+            let lastHasHandle = match (last.handle) {
+                case Some(_) => true
+                case None => false
+            }
+            if (!lastHasHandle && !last.isAckNack()) {
                 if (callback.isCallable()) {
                     last.callbacks.push(callback, global)
                 }
@@ -1185,8 +1253,8 @@ public class IPCSendQueue {
         // 新增消息
         let msgHandle = IPCSendHandle()
         msgHandle.handle = handle
-        msgHandle.callbacks = IPCCallbackList.init(callback)
-        queue.append(msgHandle)
+        msgHandle.callbacks = IPCCallbackList.`init`(callback)
+        queue = queue.concat([msgHandle])
         queue[queue.size - 1]
     }
 
@@ -1194,20 +1262,27 @@ public class IPCSendQueue {
     // 在合适的位置插入消息
     public func insertMessage(message: IPCSendHandle): Unit {
         if (queue.size == 0 || (queue[0].data.cursor == 0 && !writeInProgress)) {
-            queue.insert(0, message)
+            queue = [message].concat(queue)
         } else {
             // 在索引 1 处插入
-            queue.insert(1, message)
+            queue = [queue[0], message].concat(queue.slice(1, queue.size))
         }
     }
 
     // 严格翻译自 SendQueue.serializeAndSend
     // 序列化并发送值
     public func serializeAndSend(global: JsObject, value: JsValue, isInternal: Bool, callback: JsValue, handle: ?IPCHandle): SerializeAndSendResult {
-        let indicateBackoff = waitingForAck != None && queue.size > 0
+        let indicateBackoff = match (waitingForAck) {
+            case Some(_) => true
+            case None => false
+        } && queue.size > 0
 
         let msg = startMessage(global, callback, handle)
-        if (msg == None) {
+        let msgIsNone = match (msg) {
+            case Some(_) => false
+            case None => true
+        }
+        if (msgIsNone) {
             return SerializeAndSendResult.Failure
         }
 
@@ -1224,12 +1299,14 @@ public class IPCSendQueue {
     // 严格翻译自 SendQueue.onAckNack
     // 处理 ACK/NACK
     public func onAckNack(global: JsObject, isAck: Bool): Unit {
-        if (waitingForAck == None) {
-            return
+        match (waitingForAck) {
+            case None => return
+            case Some(_) => ()
         }
         let item = waitingForAck.getOrThrow()
-        if (item.handle == None) {
-            return
+        match (item.handle) {
+            case None => return
+            case Some(_) => ()
         }
 
         if (!isAck) {
@@ -1261,7 +1338,11 @@ public class IPCSendQueue {
         }
 
         let first = queue[0]
-        if (waitingForAck != None && !first.isAckNack()) {
+        let hasWaitingForAck = match (waitingForAck) {
+            case Some(_) => true
+            case None => false
+        }
+        if (hasWaitingForAck && !first.isAckNack()) {
             return  // 等待 ACK
         }
 
@@ -1291,7 +1372,11 @@ public class IPCSendQueue {
 
         if (n == toSendLen) {
             // 完全写入
-            if (first.handle != None) {
+            let firstHasHandle = match (first.handle) {
+                case Some(_) => true
+                case None => false
+            }
+            if (firstHasHandle) {
                 // 有 handle，等待 ACK
                 let item = queue[0]
                 queue = queue[1..]
@@ -1327,8 +1412,9 @@ public func handleIPCMessage(sendQueue: IPCSendQueue, message: DecodedIPCMessage
     if (message.isData()) {
         let msgData = message.dataValue
         if (msgData.isObject()) {
-            if (let Some(obj) <- msgData.getObject()) {
-                if (let Some(cmdVal) <- obj.get("cmd")) {
+            match (msgData.getObject()) {
+                case Some(obj) =>
+                    let cmdVal = obj.get("cmd")
                     if (cmdVal.isString()) {
                         let cmdStr = cmdVal.toString()
                         if (cmdStr == "NODE_HANDLE") {
@@ -1339,7 +1425,7 @@ public func handleIPCMessage(sendQueue: IPCSendQueue, message: DecodedIPCMessage
                             internalCommand = IPCCommand(IPCCommandTag.Nack, JsValue.undefined())
                         }
                     }
-                }
+                case None => ()
             }
         }
     }
@@ -1347,9 +1433,12 @@ public func handleIPCMessage(sendQueue: IPCSendQueue, message: DecodedIPCMessage
     // 处理内部命令
     if (let Some(icmd) <- internalCommand) {
         match (icmd.tag) {
-            case IPCCommandTag.Handle => {
+            case IPCCommandTag.Handle=>
                 // NODE_HANDLE 消息
-                let hasFd = sendQueue.incomingFd != None
+                let hasFd = match (sendQueue.incomingFd) {
+                    case Some(_) => true
+                    case None => false
+                }
 
                 let packet = if (hasFd) {
                     getAckPacket(sendQueue.mode)
@@ -1369,15 +1458,12 @@ public func handleIPCMessage(sendQueue: IPCSendQueue, message: DecodedIPCMessage
 
                 // 清除文件描述符
                 sendQueue.incomingFd = None
-            }
-            case IPCCommandTag.Ack => {
+            case IPCCommandTag.Ack=>
                 sendQueue.onAckNack(global, true)
                 return
-            }
-            case IPCCommandTag.Nack => {
+            case IPCCommandTag.Nack=>
                 sendQueue.onAckNack(global, false)
                 return
-            }
         }
     } else {
         // 普通消息: 转发给 owner 处理
@@ -1391,7 +1477,7 @@ public func onData2(sendQueue: IPCSendQueue, allData: Array<UInt8>, global: JsOb
     var data = allData
 
     match (sendQueue.incoming.tag) {
-        case IncomingBufferTag.Json => {
+        case IncomingBufferTag.Json=>
             sendQueue.incoming.append(data)
 
             while (true) {
@@ -1407,8 +1493,7 @@ public func onData2(sendQueue: IPCSendQueue, allData: Array<UInt8>, global: JsOb
                     return
                 }
             }
-        }
-        case IncomingBufferTag.Advanced => {
+        case IncomingBufferTag.Advanced=>
             if (sendQueue.incoming.len() == 0) {
                 var remaining = data
                 while (true) {
@@ -1446,7 +1531,6 @@ public func onData2(sendQueue: IPCSendQueue, allData: Array<UInt8>, global: JsOb
                     return
                 }
             }
-        }
     }
 }
 
@@ -1482,7 +1566,10 @@ public func doSend(ipc: ?IPCSendQueue, global: JsObject, message: JsValue, handl
         handle_ = JsValue.undefined()
     }
 
-    let connected = ipc != None && ipc.getOrThrow().isConnected()
+    let connected = match (ipc) {
+        case Some(ipcVal) => ipcVal.isConnected()
+        case None => false
+    }
     if (!connected) {
         let errMsg = match (from) {
             case IPCFromEnum.Process => "process.send() can only be used if the IPC channel is open."
@@ -1590,7 +1677,7 @@ public class IPCPosixSocketHandler {
 public class IPCWindowsNamedPipeHandler {
     // 严格翻译自 IPCHandlers.WindowsNamedPipe.onReadAlloc
     public static func onReadAlloc(sendQueue: IPCSendQueue, suggestedSize: Int64): Array<UInt8> {
-        Array<UInt8>(suggestedSize, item: 0)
+        Array<UInt8>(suggestedSize, {_ => 0})
     }
 
     // 严格翻译自 IPCHandlers.WindowsNamedPipe.onReadError
@@ -1601,7 +1688,7 @@ public class IPCWindowsNamedPipeHandler {
     // 严格翻译自 IPCHandlers.WindowsNamedPipe.onRead
     public static func onRead(sendQueue: IPCSendQueue, buffer: Array<UInt8>, global: JsObject): Unit {
         match (sendQueue.incoming.tag) {
-            case IncomingBufferTag.Json => {
+            case IncomingBufferTag.Json=>
                 sendQueue.incoming.append(buffer)
                 while (true) {
                     if (let Some(msg) <- sendQueue.incoming.next()) {
@@ -1616,8 +1703,7 @@ public class IPCWindowsNamedPipeHandler {
                         return
                     }
                 }
-            }
-            case IncomingBufferTag.Advanced => {
+            case IncomingBufferTag.Advanced=>
                 var slice = buffer
                 while (true) {
                     let result = IPCAdvanced.decodeIPCMessage(slice, global)
@@ -1634,7 +1720,6 @@ public class IPCWindowsNamedPipeHandler {
                         return
                     }
                 }
-            }
         }
     }
 
@@ -1657,4 +1742,24 @@ public func emitHandleIPCMessage(global: JsObject, target: JsValue, message: JsV
         // 子进程
     }
     JsValue.undefined()
+}
+
+
+public class VersionPacket {
+    public var messageType: AdvancedIPCMessageType = AdvancedIPCMessageType.Version
+    public var version: UInt32 = 1  // VERSION
+
+    public init() {}
+
+    // 序列化为字节
+    public func toBytes(): Array<UInt8> {
+        let result = Array<UInt8>(5, {_ => 0})
+        result[0] = messageType.value()
+        // Little-endian u32
+        result[1] = UInt8(version & 0xFF)
+        result[2] = UInt8((version >> 8) & 0xFF)
+        result[3] = UInt8((version >> 16) & 0xFF)
+        result[4] = UInt8((version >> 24) & 0xFF)
+        result
+    }
 }

@@ -16,7 +16,7 @@ public let MIN_SAFE_INTEGER: Int64 = -9007199254740991
 // 严格翻译自 jsc.init_timestamp / JSTimeType
 // 根据 MDN，JavaScript 中最大 Date 小于 Number.MAX_SAFE_INTEGER (u52)
 public type JSTimeType = UInt64
-public let INIT_TIMESTAMP: JSTimeType = JSTimeType.maxValue
+public let INIT_TIMESTAMP: JSTimeType = 18446744073709551615u64
 
 // ========== markBinding ==========
 // 严格翻译自 jsc.markBinding
@@ -83,7 +83,17 @@ public type OpaqueCallback = (UInt64) -> Unit
 public class JSCMath {
     // 严格翻译自 math.pow
     public static func pow(x: Float64, y: Float64): Float64 {
-        // FFI: Bun__JSC__operationMathPow
-        Math.pow(x, y)
+        // Stub: basic integer power implementation
+        if (y == 0.0) { return 1.0 }
+        if (y == 1.0) { return x }
+        var result: Float64 = 1.0
+        var base: Float64 = x
+        var exp: Int64 = Int64(y)
+        while (exp > 0) {
+            if (exp % 2 == 1) { result = result * base }
+            base = base * base
+            exp = exp / 2
+        }
+        result
     }
 }

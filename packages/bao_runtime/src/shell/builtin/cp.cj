@@ -61,7 +61,7 @@ public class CpCmd {
                 return this.writeFailingError(buf, 1)
         }
 
-        if (maybeFilepathArgs == None || maybeFilepathArgs.size <= 1) {
+        if (maybeFilepathArgs.isNone() || maybeFilepathArgs.size <= 1) {
             return this.writeFailingError(Builtin.Kind.usageString("cp"), 1)
         }
 
@@ -86,7 +86,7 @@ public class CpCmd {
                 case exec(exec) =>
                     if (exec.started) {
                         if (exec.tasksCount <= 0 && exec.outputDone >= exec.outputWaiting) {
-                            let exitCode: ExitCode = if (exec.err != None) { 1 } else { 0 }
+                            let exitCode: ExitCode = if (exec.err.isSome()) { 1 } else { 0 }
                             this.state = CpState.done
                             return this.bltn().done(exitCode)
                         }

@@ -90,7 +90,7 @@ public class ThreadSafeStreamBuffer {
     // 严格翻译自:
     //   pub fn setDrainCallback(this: *ThreadSafeStreamBuffer,
     //       comptime T: type, callback: *const fn (*T) void, context: *T) void {
-    //       this.callback = Callback.init(T, callback, context);
+    //       this.callback = Callback(T, callback, context);
     //   }
     //   pub fn clearDrainCallback(this: *ThreadSafeStreamBuffer) void {
     //       this.callback = null;

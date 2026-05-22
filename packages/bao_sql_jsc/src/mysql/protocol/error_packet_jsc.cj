@@ -5,6 +5,7 @@ package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.mysql.*
 
 /// MySQL 错误选项
 /// 对应 Bun: ErrorPacket.MySQLErrorOptions
@@ -21,16 +22,16 @@ public class MySQLErrorOptions {
 public func createMySQLErrorFromPacket(globalObject: JscJSGlobalObject,
                                         message: String,
                                         options: MySQLErrorOptions): JscValue {
-    let optsObj = JscObject.createEmptyObject(globalObject)
-    optsObj.put(globalObject, "code", JscValue(options.code))
-    if (options.errno != None) {
-        optsObj.put(globalObject, "errno", JscValue(options.errno.getOrThrow()))
+    let optsObj = JscValue.createEmptyObject(globalObject.globalThis)
+    optsObj.put(globalObject.globalThis, "code", JscValue(options.code))
+    if (options.errno.isSome()) {
+        optsObj.put(globalObject.globalThis, "errno", JscValue(Int64(options.errno.getOrThrow())))
     }
-    if (options.sqlState != None) {
-        optsObj.put(globalObject, "sqlState", JscValue(options.sqlState.getOrThrow()))
+    if (options.sqlState.isSome()) {
+        optsObj.put(globalObject.globalThis, "sqlState", JscValue(options.sqlState.getOrThrow()))
     }
-    optsObj.put(globalObject, "message", JscValue(message))
-    return optsObj.toValue()
+    optsObj.put(globalObject.globalThis, "message", JscValue(message))
+    return optsObj
 }
 
 /// ErrorPacket 转 JS 错误对象
@@ -42,13 +43,13 @@ public func errorPacketToJS(errorPacket: ErrorPacket,
         msg = "MySQL error occurred"
     }
 
-    let code = if (errorPacket.errorCode == 1064) "ERR_MYSQL_SYNTAX_ERROR"
-               else "ERR_MYSQL_SERVER_ERROR"
+    let code = if (errorPacket.errorCode == 1064) { "ERR_MYSQL_SYNTAX_ERROR" }
+               else { "ERR_MYSQL_SERVER_ERROR" }
 
     let options = MySQLErrorOptions()
     options.code = code
     options.errno = errorPacket.errorCode
-    options.sqlState = if (errorPacket.sqlState.size > 0) errorPacket.sqlState else None
+    options.sqlState = if (errorPacket.sqlState.size > 0) { errorPacket.sqlState } else { None }
 
     return createMySQLErrorFromPacket(globalObject, msg, options)
 }

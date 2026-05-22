@@ -20,22 +20,22 @@ public class URLComponents {
     // 获取完整 URL
     public func toString(): String {
         var result = scheme + "://"
-        if (!username.isEmpty) {
+        if (!username.size == 0) {
             result += username
-            if (!password.isEmpty) {
+            if (!password.size == 0) {
                 result += ":" + password
             }
             result += "@"
         }
         result += host
-        if (!port.isEmpty) {
+        if (!port.size == 0) {
             result += ":" + port
         }
         result += path
-        if (!query.isEmpty) {
+        if (!query.size == 0) {
             result += "?" + query
         }
-        if (!fragment.isEmpty) {
+        if (!fragment.size == 0) {
             result += "#" + fragment
         }
         result
@@ -43,7 +43,7 @@ public class URLComponents {
 
     // 获取 origin
     public func origin(): String {
-        scheme + "://" + host + (if (!port.isEmpty) { ":" + port } else { "" })
+        scheme + "://" + host + (if (!port.size == 0) { ":" + port } else { "" })
     }
 }
 
@@ -84,33 +84,38 @@ public class URL {
         var remaining = url
 
         // 协议
-        let schemeEnd = remaining.indexOf("://")
-        if (schemeEnd >= 0) {
+        let schemeEndOpt = remaining.indexOf("://")
+        if (schemeEndOpt.isSome()) {
+            let schemeEnd = Int64(schemeEndOpt.getOrThrow())
             protocol = remaining[0..schemeEnd]
             remaining = remaining[schemeEnd + 3..]
         }
 
         // hash
-        let hashIdx = remaining.indexOf("#")
-        if (hashIdx >= 0) {
+        let hashIdxOpt = remaining.indexOf("#")
+        if (hashIdxOpt.isSome()) {
+            let hashIdx = Int64(hashIdxOpt.getOrThrow())
             hash = remaining[hashIdx..]
             remaining = remaining[0..hashIdx]
         }
 
         // query
-        let queryIdx = remaining.indexOf("?")
-        if (queryIdx >= 0) {
+        let queryIdxOpt = remaining.indexOf("?")
+        if (queryIdxOpt.isSome()) {
+            let queryIdx = Int64(queryIdxOpt.getOrThrow())
             search = remaining[queryIdx..]
-            searchParams = URLSearchParams(remaining[queryIdx + 1..])
+            searchParams = URLSearchParams()
             remaining = remaining[0..queryIdx]
         }
 
         // auth
-        let atIdx = remaining.indexOf("@")
-        if (atIdx >= 0) {
+        let atIdxOpt = remaining.indexOf("@")
+        if (atIdxOpt.isSome()) {
+            let atIdx = Int64(atIdxOpt.getOrThrow())
             let auth = remaining[0..atIdx]
-            let colonIdx = auth.indexOf(":")
-            if (colonIdx >= 0) {
+            let colonIdxOpt = auth.indexOf(":")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = Int64(colonIdxOpt.getOrThrow())
                 username = auth[0..colonIdx]
                 password = auth[colonIdx + 1..]
             } else {
@@ -120,8 +125,9 @@ public class URL {
         }
 
         // host:port
-        let slashIdx = remaining.indexOf("/")
-        if (slashIdx >= 0) {
+        let slashIdxOpt = remaining.indexOf("/")
+        if (slashIdxOpt.isSome()) {
+            let slashIdx = Int64(slashIdxOpt.getOrThrow())
             let hostPart = remaining[0..slashIdx]
             pathname = remaining[slashIdx..]
             parseHostPort(hostPart)
@@ -130,20 +136,22 @@ public class URL {
             pathname = "/"
         }
 
-        origin = protocol + "://" + hostname + (if (!port.isEmpty) { ":" + port } else { "" })
+        origin = protocol + "://" + hostname + (if (port.size > 0) { ":" + port } else { "" })
     }
 
     func parseHostPort(hostPort: String) {
-        let bracketEnd = hostPort.indexOf("]")
-        if (bracketEnd >= 0) {
+        let bracketEndOpt = hostPort.indexOf("]")
+        if (bracketEndOpt.isSome()) {
+            let bracketEnd = Int64(bracketEndOpt.getOrThrow())
             // IPv6
             hostname = hostPort[0..bracketEnd + 1]
-            if (bracketEnd + 2 < hostPort.size && hostPort[bracketEnd + 1] == ':') {
+            if (bracketEnd + 2 < hostPort.size && hostPort[bracketEnd + 1] == UInt8(58)) {  // ':'
                 port = hostPort[bracketEnd + 2..]
             }
         } else {
-            let colonIdx = hostPort.lastIndexOf(":")
-            if (colonIdx >= 0) {
+            let colonIdxOpt = hostPort.lastIndexOf(":")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = Int64(colonIdxOpt.getOrThrow())
                 hostname = hostPort[0..colonIdx]
                 port = hostPort[colonIdx + 1..]
             } else {
@@ -154,254 +162,27 @@ public class URL {
 
     // URL.canParse
     public static func canParse(url: String): Bool {
-        url.indexOf("://") >= 0 || url.startsWith("/") || url.startsWith("./") || url.startsWith("../")
+        url.indexOf("://").isSome() || url.startsWith("/") || url.startsWith("./") || url.startsWith("../")
     }
 
     // 转为 JsValue
     public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "URL"
-        obj.set("href", JsValue(s: href))
-        obj.set("protocol", JsValue(s: protocol))
-        obj.set("username", JsValue(s: username))
-        obj.set("password", JsValue(s: password))
-        obj.set("hostname", JsValue(s: hostname))
-        obj.set("port", JsValue(s: port))
-        obj.set("pathname", JsValue(s: pathname))
-        obj.set("search", JsValue(s: search))
-        obj.set("hash", JsValue(s: hash))
-        obj.set("origin", JsValue(s: origin))
-        JsValue(obj: obj)
+        obj.set("href", JsValue(href))
+        obj.set("protocol", JsValue(protocol))
+        obj.set("username", JsValue(username))
+        obj.set("password", JsValue(password))
+        obj.set("hostname", JsValue(hostname))
+        obj.set("port", JsValue(port))
+        obj.set("pathname", JsValue(pathname))
+        obj.set("search", JsValue(search))
+        obj.set("hash", JsValue(hash))
+        obj.set("origin", JsValue(origin))
+        JsValue(obj)
     }
 }
 
-// ========== URLSearchParams ==========
-// 严格翻译自 URLSearchParams.zig
-public class URLSearchParams {
-    public var params: ArrayList<(String, String)> = ArrayList()
-
-    public init() {}
-
-    public init(search: String) {
-        parse(search)
-    }
-
-    // 解析查询字符串
-    func parse(search: String) {
-        if (search.isEmpty) { return }
-        let str = if (search.startsWith("?")) { search.slice(1) } else { search }
-        let pairs = str.split("&")
-        for (pair in pairs) {
-            let eqIdx = pair.indexOf("=")
-            if (eqIdx >= 0) {
-                let key = pair[0..eqIdx]
-                let value = pair[eqIdx + 1..]
-                params.append((decodeComponent(key), decodeComponent(value)))
-            } else {
-                params.append((decodeComponent(pair), ""))
-            }
-        }
-    }
-
-    // append
-    public func append(name: String, value: String) {
-        params.append((name, value))
-    }
-
-    // delete
-    public func delete(name: String) {
-        var i = 0
-        while (i < params.size) {
-            if (params[Int64(i)].0 == name) {
-                params.removeAt(Int64(i))
-            } else {
-                i++
-            }
-        }
-    }
-
-    // get
-    public func get(name: String): ?String {
-        for (pair in params) {
-            if (pair.0 == name) {
-                return pair.1
-            }
-        }
-        None
-    }
-
-    // getAll
-    public func getAll(name: String): Array<String> {
-        var result = Array<String>()
-        for (pair in params) {
-            if (pair.0 == name) {
-                result.append(pair.1)
-            }
-        }
-        result
-    }
-
-    // has
-    public func has(name: String): Bool {
-        for (pair in params) {
-            if (pair.0 == name) {
-                return true
-            }
-        }
-        false
-    }
-
-    // set
-    public func set(name: String, value: String) {
-        var found = false
-        var i = 0
-        while (i < params.size) {
-            if (params[Int64(i)].0 == name) {
-                if (!found) {
-                    params[Int64(i)] = (name, value)
-                    found = true
-                } else {
-                    params.removeAt(Int64(i))
-                    continue
-                }
-            }
-            i++
-        }
-        if (!found) {
-            params.append((name, value))
-        }
-    }
-
-    // sort
-    public func sort() {
-        params.sort({ a, b => a.0 < b.0 })
-    }
-
-    // toString
-    public func toString(): String {
-        var parts = Array<String>()
-        for (pair in params) {
-            parts.append(encodeComponent(pair.0) + "=" + encodeComponent(pair.1))
-        }
-        String.join("&", parts)
-    }
-
-    // URL 编码辅助
-    func encodeComponent(s: String): String {
-        s.replace(" ", "+")
-    }
-
-    func decodeComponent(s: String): String {
-        s.replace("+", " ")
-    }
-}
-
-// ========== DOMURL ==========
-// 严格翻译自 DOMURL.zig
-public class DOMURL {
-    public init() {}
-
-    public static func create(url: String, base: String): URL {
-        URL(url, base)
-    }
-
-    public static func canParse(url: String): Bool {
-        URL.canParse(url)
-    }
-}
-
-// ========== DOMFormData ==========
-// 严格翻译自 DOMFormData.zig
-public class DOMFormData {
-    public var entries: ArrayList<(String, FormDataValue)> = ArrayList()
-
-    public init() {}
-
-    // append
-    public func append(name: String, value: String) {
-        entries.append((name, FormDataValue.StringValue(value)))
-    }
-
-    public func append(name: String, value: String, filename: String) {
-        entries.append((name, FormDataValue.FileValue(value, filename)))
-    }
-
-    // delete
-    public func delete(name: String) {
-        var i = 0
-        while (i < entries.size) {
-            if (entries[Int64(i)].0 == name) {
-                entries.removeAt(Int64(i))
-            } else {
-                i++
-            }
-        }
-    }
-
-    // get
-    public func get(name: String): ?String {
-        for (entry in entries) {
-            if (entry.0 == name) {
-                return entry.1.stringValue()
-            }
-        }
-        None
-    }
-
-    // getAll
-    public func getAll(name: String): Array<String> {
-        var result = Array<String>()
-        for (entry in entries) {
-            if (entry.0 == name) {
-                if (let Some(s) <- entry.1.stringValue()) {
-                    result.append(s)
-                }
-            }
-        }
-        result
-    }
-
-    // has
-    public func has(name: String): Bool {
-        for (entry in entries) {
-            if (entry.0 == name) {
-                return true
-            }
-        }
-        false
-    }
-
-    // set
-    public func set(name: String, value: String) {
-        var found = false
-        var i = 0
-        while (i < entries.size) {
-            if (entries[Int64(i)].0 == name) {
-                if (!found) {
-                    entries[Int64(i)] = (name, FormDataValue.StringValue(value))
-                    found = true
-                } else {
-                    entries.removeAt(Int64(i))
-                    continue
-                }
-            }
-            i++
-        }
-        if (!found) {
-            entries.append((name, FormDataValue.StringValue(value)))
-        }
-    }
-}
-
-// FormData 值
-public enum FormDataValue {
-    | StringValue(String)
-    | FileValue(String, String)  // (data, filename)
-
-    public func stringValue(): ?String {
-        match (this) {
-            case StringValue(s) => s
-            case FileValue(data, _) => data
-        }
-    }
-}
+// 注意: URLSearchParams 已移至 url_search_params.cj
+// 注意: DOMURL 已移至 domurl.cj
+// 注意: DOMFormData 已移至 dom_form_data.cj

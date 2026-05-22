@@ -60,18 +60,18 @@ public class JsException {
         if (stackTrace.frames.size == 0) {
             return ""
         }
-        var result = StringBuilder()
+        var result = ""
         for (frame in stackTrace.frames) {
-            if (!frame.isPositionInvalid()) {
-                result.append("    at ")
-                if (!frame.functionName.isEmpty) {
-                    result.append(frame.functionName + " ")
+            if (!frame.position.isInvalid()) {
+                result = result + "    at "
+                if (!frame.functionName.isEmpty()) {
+                    result = result + frame.functionName + " "
                 }
-                result.append("(" + frame.sourceUrl + ":" +
-                    String(frame.positionLine) + ":" +
-                    String(frame.positionColumn) + ")\n")
+                result = result + "(" + frame.sourceUrl + ":" +
+                    frame.position.line.value.toString() + ":" +
+                    frame.position.column.value.toString() + ")\n"
             }
         }
-        result.toString()
+        result
     }
 }

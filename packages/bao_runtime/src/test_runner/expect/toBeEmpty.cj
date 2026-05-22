@@ -7,11 +7,11 @@ import bao_jsc.*
 
 /// toBeEmpty() - 检查值是否为空（空字符串、空数组、空对象等）
 /// 用法: expect(received).toBeEmpty()
-public func toBeEmpty(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeEmpty(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeEmpty", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeEmpty", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
@@ -21,7 +21,7 @@ public func toBeEmpty(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (value.isString()) {
         let s = value.toSliceOrNull(globalThis: globalThis)
         defer { s.deinit() }
-        pass = s.slice().length == 0
+        pass = s.slice().size == 0
     } else if (value.jsType().isArray()) {
         pass = value.getLength(globalThis: globalThis) == 0
     } else if (value.isObject()) {
@@ -31,7 +31,7 @@ public func toBeEmpty(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

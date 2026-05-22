@@ -218,8 +218,9 @@ public class PackageCache {
 
     public init() {
         var home = "/tmp"
-        if (let Some(h) <- OS.getEnv("HOME")) {
-            home = h
+        match (OS.getenv("HOME")) {
+            case Some(h) => home = h
+            case None => ()
         }
         cacheDir = Path.join([home, CACHE_SUBDIR])
         metadata = CacheMetadata()
@@ -592,18 +593,19 @@ public class PackageCache {
             case Err(_) => return
         }
 
-        let parser = JsonParser()
+        let parser = PkgJsonParser()
         let json = parser.parse(content)
-        if (let Some(JsonValue.Object(root)) <- json) {
-            // 翻译自: Store 元数据 JSON 解析
-            //   格式: {"entries": {"name@version": {name, version, integrity, ...}, ...}}
-            match (root.get("entries")) {
-                case Some(JsonValue.Object(entriesObj)) =>
-                    for (key in entriesObj.keys()) {
-                        match (entriesObj.get(key)) {
-                            case Some(JsonValue.Object(entryObj)) =>
-                                let entry = CacheEntry(
-                                    jsonStringField(entryObj, "name"),
+        match (json) {
+            case Some(JsonValue.Object(root)) =>
+                // 翻译自: Store 元数据 JSON 解析
+                //   格式: {"entries": {"name@version": {name, version, integrity, ...}, ...}}
+                match (PkgJsonHelper.getField(JsonValue.Object(root), "entries")) {
+                    case Some(JsonValue.Object(entriesObj)) =>
+                        for (key in entriesObj.keys()) {
+                            match (entriesObj.get(key)) {
+                                case Some(JsonValue.Object(entryObj)) =>
+                                    let entry = CacheEntry(
+                                        jsonStringField(entryObj, "name"),
                                     jsonStringField(entryObj, "version")
                                 )
                                 entry.integrity = jsonStringField(entryObj, "integrity")
@@ -618,11 +620,12 @@ public class PackageCache {
                                 // 直接放入 entries, 不更新 totalSize (会在 put 中更新)
                                 metadata.put(entry)
                             case _ => ()
+                            }
                         }
-                    }
-                case _ => ()
+                    case _ => ()
+                }
+            case _ => ()
             }
-        }
     }
 
     /// 保存元数据到磁盘

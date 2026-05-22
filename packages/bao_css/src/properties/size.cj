@@ -80,7 +80,7 @@ public enum Size {
 /// min-width/max-width 等 CSS 尺寸属性值
 /// 严格翻译自 MaxSize
 public enum MaxSize {
-    | None                          // none
+    | NoneValue                          // none
     | LengthPercentage(String)      // 显式长度/百分比
     | MinContent(String)            // min-content (带供应商前缀)
     | MaxContent(String)            // max-content (带供应商前缀)
@@ -103,7 +103,7 @@ public enum MaxSize {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Contain => "contain"
             case LengthPercentage(l) => l
             case MinContent(prefix) => prefix + "min-content"

@@ -123,22 +123,18 @@ public class PackageSpecifier {
                 // scoped package: @scope/name 或 @scope/name@version
                 let firstSlash = remaining.indexOf("/")
                 match (firstSlash) {
-                    case Some(slashIdx) => {
+                    case Some(slashIdx) =>
                         let afterSlash = remaining.substring(slashIdx + 1)
                         let atIdx = afterSlash.indexOf("@")
                         match (atIdx) {
-                            case Some(idx) => {
+                            case Some(idx) =>
                                 spec.name = remaining.substring(0, slashIdx + 1 + idx)
                                 spec.version = Some(afterSlash.substring(idx + 1))
-                            }
-                            case None => {
+                            case None =>
                                 spec.name = remaining
-                            }
                         }
-                    }
-                    case None => {
+                    case None =>
                         spec.name = remaining
-                    }
                 }
             } else {
                 // non-scoped: name@version
@@ -233,13 +229,12 @@ public class AddCommand {
         let pkgOpt = readPackageJson(".")
         var pkg = match (pkgOpt) {
             case Some(p) => p
-            case None => {
+            case None =>
                 // 没有找到 package.json, 创建新的
                 logger.info("No package.json found. Creating a new one.")
                 let newPkg = MutablePackageJson("untitled-project", "1.0.0")
                 newPkg.save(".")
                 newPkg
-            }
         }
 
         // 更新 package.json 中的依赖字段
@@ -283,12 +278,11 @@ public class AddCommand {
             logger.info("Installing dependencies...")
             let result = pm.install(installOpts)
             match (result) {
-                case Some(summary) => {
+                case Some(summary) =>
                     logger.success("Installed ${summary.added} packages")
                     if (summary.removed > 0) {
                         logger.info("Removed ${summary.removed} packages")
                     }
-                }
                 case None => logger.warn("Install completed with warnings")
             }
         } catch (e: Exception) {
@@ -315,32 +309,28 @@ public class AddCommand {
                 case "--global" | "-g" => opts.global = true
                 case "--force" => opts.force = true
                 case "--no-save" => opts.noSave = true
-                case "--registry" => {
+                case "--registry" =>
                     i++
                     if (i < args.size) {
                         opts.registry = Some(args[i])
                     }
-                }
                 case "--verbose" | "-v" => logger.setLevel(LogLevel.DEBUG)
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printAddHelp()
                     return opts
-                }
-                case _ => {
+                case _ =>
                     // 包名参数
                     let spec = PackageSpecifier.parse(arg)
                     match (spec) {
-                        case Some(s) => {
+                        case Some(s) =>
                             var sMut = s
                             sMut.dev = opts.dev
                             sMut.optional = opts.optional
                             sMut.peer = opts.peer
                             sMut.trusted = opts.trust
                             opts.packages.append(sMut)
-                        }
                         case None => logger.warn("Could not parse package specifier: ${arg}")
                     }
-                }
             }
             i++
         }
@@ -352,14 +342,13 @@ public class AddCommand {
     private func readPackageJson(dir: String): ?MutablePackageJson {
         let content = BaoFile.readAllText(Path.join([dir, "package.json"]))
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
                     case Some(root) => return MutablePackageJson.fromJson(root)
                     case None => return None
                 }
-            }
             case None => return None
         }
     }

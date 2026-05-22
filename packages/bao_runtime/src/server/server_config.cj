@@ -24,7 +24,7 @@ public enum DevelopmentOption {
     | DevelopmentWithoutHmr
 
     /// 是否启用 HMR (热模块替换)
-    /// 对应 Bun: pub fn isHMREnabled(this: DevelopmentOption) bool
+    /// 对应 Bun: pub fn isHMREnabled(`this`: DevelopmentOption) bool
     /// Rust: pub fn is_hmr_enabled(self) -> bool
     public func isHMREnabled(): Bool {
         match (this) {
@@ -35,7 +35,7 @@ public enum DevelopmentOption {
     }
 
     /// 是否为开发模式
-    /// 对应 Bun: pub fn isDevelopment(this: DevelopmentOption) bool
+    /// 对应 Bun: pub fn isDevelopment(`this`: DevelopmentOption) bool
     /// Rust: pub fn is_development(self) -> bool
     public func isDevelopment(): Bool {
         match (this) {
@@ -111,14 +111,14 @@ public class StaticRouteEntry {
         this.method = HttpMethodSet()
     }
 
-    /// 对应 Bun: pub fn memoryCost(this: *const StaticRouteEntry) usize
+    /// 对应 Bun: pub fn memoryCost(`this`: *const StaticRouteEntry) usize
     /// Rust: pub fn memory_cost(&self) -> usize
     public func memoryCost(): Int64 {
         return path.size
     }
 
     /// 对应 Bun: isLessThan — strict-weak ordering (descending by path)
-    /// Rust: pub fn is_less_than(_: (), this: &StaticRouteEntry, other: &StaticRouteEntry) -> bool
+    /// Rust: pub fn is_less_than(_: (), `this`: &StaticRouteEntry, other: &StaticRouteEntry) -> bool
     public func isLessThan(other: StaticRouteEntry): Bool {
         return stringsCmpDesc(path, other.path)
     }
@@ -477,7 +477,7 @@ public class ServerConfig {
     // ========================================================================
 
     /// 是否为开发模式
-    /// 对应 Bun: pub fn isDevelopment(this: *const ServerConfig) bool
+    /// 对应 Bun: pub fn isDevelopment(`this`: *const ServerConfig) bool
     /// Rust: pub fn is_development(&self) -> bool
     public func isDevelopment(): Bool {
         return development.isDevelopment()
@@ -491,7 +491,7 @@ public class ServerConfig {
     }
 
     /// 内存开销估算
-    /// 对应 Bun: pub fn memoryCost(this: *const ServerConfig) usize
+    /// 对应 Bun: pub fn memoryCost(`this`: *const ServerConfig) usize
     /// Rust: pub fn memory_cost(&self) -> usize
     public func memoryCost(): Int64 {
         var cost: Int64 = 0
@@ -508,7 +508,7 @@ public class ServerConfig {
 
     /// 添加静态路由
     /// 对应 Bun: pub fn appendStaticRoute(this, path, route, method)
-    /// Rust: pub fn append_static_route(&mut self, path, route, method)
+    /// Rust: pub fn append_static_route(&self, path, route, method)
     public func appendStaticRoute(path: String, route: ?AnyRoute, method: HttpMethodSet): Unit {
         let entry = StaticRouteEntry(path)
         entry.route = route
@@ -517,33 +517,29 @@ public class ServerConfig {
     }
 
     /// 生成服务器 ID
-    /// 对应 Bun: pub fn computeID(this: *const ServerConfig, allocator) []const u8
+    /// 对应 Bun: pub fn computeID(`this`: *const ServerConfig, allocator) []const u8
     /// Rust: pub fn compute_id(&self) -> Vec<u8>
     public func computeID(): String {
         let sb = StringBuilder()
         sb.append("[http]-")
 
         match (address) {
-            case AddressConfig.Tcp(let tcp) => {
+            case AddressConfig.Tcp(tcp) =>
                 match (tcp.hostname) {
-                    case Some(host) => {
+                    case Some(host) =>
                         sb.append("tcp:${host}:${tcp.port}")
-                    }
-                    case None => {
+                    case None =>
                         sb.append("tcp:localhost:${tcp.port}")
-                    }
                 }
-            }
-            case AddressConfig.Unix(let path) => {
+            case AddressConfig.Unix(path) =>
                 sb.append("unix:${path}")
-            }
         }
 
         return sb.toString()
     }
 
     /// 获取 socket 选项
-    /// 对应 Bun: pub fn getUsocketsOptions(this: *const ServerConfig) i32
+    /// 对应 Bun: pub fn getUsocketsOptions(`this`: *const ServerConfig) i32
     /// Rust: pub fn get_usockets_options(&self) -> i32
     public func getUsocketsOptions(): Int64 {
         // 对应 Bun: 端口复用则设置 REUSE_PORT | REUSE_ADDR，否则 EXCLUSIVE_PORT
@@ -601,7 +597,7 @@ public class ServerConfig {
 
     /// 克隆配置用于静态路由重载
     /// 对应 Bun: clone_for_reloading_static_routes
-    /// Rust: pub fn clone_for_reloading_static_routes(&mut self) -> Result<ServerConfig, Error>
+    /// Rust: pub fn clone_for_reloading_static_routes(&self) -> Result<ServerConfig, Error>
     public func cloneForReloadingStaticRoutes(): ServerConfig {
         // 对应 Rust: move every owning field into `that`
         let that = ServerConfig()
@@ -716,12 +712,11 @@ public class Response {
 
     public func readBodyChunk(size: Int64): ?Array<UInt8> {
         match (body) {
-            case Some(b) => {
+            case Some(b) =>
                 if (b.size == 0) {
                     return None
                 }
                 return Some(b)
-            }
             case None => None
         }
     }
@@ -778,7 +773,7 @@ public enum HttpMethod {
     }
 
     /// 是否有 body
-    /// 对应 Bun: pub fn hasBody(this: Method) bool
+    /// 对应 Bun: pub fn hasBody(`this`: Method) bool
     /// Rust: impl Method { pub fn has_body(self) -> bool }
     public func hasBody(): Bool {
         match (this) {

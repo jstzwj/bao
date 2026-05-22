@@ -12,6 +12,283 @@ package bao_runtime.shell
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
+
+// ============================================================================
+// 内置命令类型枚举 - extracted from BuiltinImpl
+// ============================================================================
+
+/// 内置命令类型
+public enum BuiltinKind {
+    | cat
+    | touch
+    | mkdir
+    | export
+    | cd
+    | echo
+    | pwd
+    | which
+    | rm
+    | mv
+    | ls
+    | exit
+    | true_
+    | false_
+    | yes
+    | seq
+    | dirname
+    | basename
+    | cp
+
+    /// POSIX上禁用的内置命令
+    public static func disabledOnPosix(): Array<BuiltinKind> {
+        [BuiltinKind.cat, BuiltinKind.cp]
+    }
+
+    /// 从字符串获取命令类型
+    public static func fromStr(str: String): ?BuiltinKind {
+        match (str) {
+            case "cat" => BuiltinKind.cat
+            case "touch" => BuiltinKind.touch
+            case "mkdir" => BuiltinKind.mkdir
+            case "export" => BuiltinKind.export
+            case "cd" => BuiltinKind.cd
+            case "echo" => BuiltinKind.echo
+            case "pwd" => BuiltinKind.pwd
+            case "which" => BuiltinKind.which
+            case "rm" => BuiltinKind.rm
+            case "mv" => BuiltinKind.mv
+            case "ls" => BuiltinKind.ls
+            case "exit" => BuiltinKind.exit
+            case "true" => BuiltinKind.true_
+            case "false" => BuiltinKind.false_
+            case "yes" => BuiltinKind.yes
+            case "seq" => BuiltinKind.seq
+            case "dirname" => BuiltinKind.dirname
+            case "basename" => BuiltinKind.basename
+            case "cp" => BuiltinKind.cp
+            case _ => None
+        }
+    }
+
+    /// 用法字符串
+    public func usageString(): String {
+        match (this) {
+            case cat => "usage: cat [-belnstuv] [file ...]\n"
+            case touch => "usage: touch [-A [-][[hh]mm]SS] [-achm] [-r file] [-t [[CC]YY]MMDDhhmm[.SS]]\n       [-d YYYY-MM-DDThh:mm:SS[.frac][tz]] file ...\n"
+            case mkdir => "usage: mkdir [-pv] [-m mode] directory_name ...\n"
+            case export => ""
+            case cd => ""
+            case echo => ""
+            case pwd => ""
+            case which => ""
+            case rm => "usage: rm [-f | -i] [-dIPRrvWx] file ...\n       unlink [--] file\n"
+            case mv => "usage: mv [-f | -i | -n] [-hv] source target\n       mv [-f | -i | -n] [-v] source ... directory\n"
+            case ls => "usage: ls [-@ABCFGHILOPRSTUWabcdefghiklmnopqrstuvwxy1%] [--color=when] [-D format] [file ...]\n"
+            case exit => "usage: exit [n]\n"
+            case true_ => ""
+            case false_ => ""
+            case yes => "usage: yes [expletive]\n"
+            case seq => "usage: seq [-w] [-f format] [-s string] [-t string] [first [incr]] last\n"
+            case dirname => "usage: dirname string\n"
+            case basename => "usage: basename string\n"
+            case cp => "usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpsvXx] source_file ... target_directory\n"
+        }
+    }
+}
+
+/// 内置命令实现联合体 - extracted from BuiltinImpl
+public enum BuiltinImplKind {
+    | cat(Cat)
+    | touch(Touch)
+    | mkdir(Mkdir)
+    | export(Export)
+    | cd(Cd)
+    | echo(Echo)
+    | pwd(Pwd)
+    | which(Which)
+    | rm(Rm)
+    | mv(Mv)
+    | ls(Ls)
+    | exit(Exit)
+    | true_(True)
+    | false_(False)
+    | yes(Yes)
+    | seq(Seq)
+    | dirname(Dirname)
+    | basename(Basename)
+    | cp(Cp)
+}
+
+// ============================================================================
+// 内置命令IO - extracted from BuiltinImpl
+// ============================================================================
+
+/// Blob引用计数包装
+public class BuiltinBlob {
+    public var refCount: UInt32 = 1
+    public var blob: WebCoreBlob
+
+    public init(blob: WebCoreBlob) {
+        this.blob = blob
+    }
+
+    /// 复制引用
+    public func dupeRef(): BuiltinBlob {
+        this.ref()
+        return this
+    }
+
+    /// 增加引用
+    public func ref() {
+        this.refCount += 1
+    }
+
+    /// 减少引用
+    public func deref() {
+        this.refCount -= 1
+        if (this.refCount == 0) {
+            this.deinit()
+        }
+    }
+
+    /// 去初始化
+    func deinit() {
+        this.blob.deinit()
+    }
+}
+
+/// 数组缓冲区
+public struct BuiltinArrayBuf {
+    public var buf: ArrayBuffer.Strong
+    public var i: UInt32 = 0
+}
+
+/// 输出类型 - extracted from BuiltinIO
+public enum BuiltinOutput {
+    | fd(IOWriter, ?ByteList)
+    | buf(ArrayList<Byte>)
+    | arraybuf(BuiltinArrayBuf)
+    | blob(BuiltinBlob)
+    | ignore
+
+    /// 增加引用
+    public func ref(): BuiltinOutput {
+        match (this) {
+            case fd(writer, _) =>
+                writer.ref()
+            case blob(blob) =>
+                blob.ref()
+            case buf(_) => ()
+            case arraybuf(_) => ()
+            case ignore => ()
+        }
+        return this
+    }
+
+    /// 减少引用
+    public func deref() {
+        match (this) {
+            case fd(writer, _) =>
+                writer.deref()
+            case blob(blob) =>
+                blob.deref()
+            case arraybuf(buf) =>
+                buf.deinit()
+            case buf(buf) =>
+                buf.clear()
+            case ignore =>
+                () // 无操作
+        }
+    }
+
+    /// 是否需要IO
+    public func needsIO(): ?OutputNeedsIOSafeGuard {
+        match (this) {
+            case fd =>
+                return OutputNeedsIOSafeGuard.outputNeedsIo
+            case buf(_) => return None
+            case arraybuf(_) => return None
+            case blob(_) => return None
+            case ignore => return None
+        }
+    }
+
+    /// 入队格式化输出（内置命令）
+    public func enqueueFmtBltn(ptr: Any, kind: ?BuiltinKind, fmt: String, args: Array<Any>): Yield {
+        match (this) {
+            case fd(writer, captured) =>
+                return writer.enqueueFmtBltn(ptr, captured, kind, fmt, args)
+            case buf(_) => return Yield.done
+            case arraybuf(_) => return Yield.done
+            case blob(_) => return Yield.done
+            case ignore => return Yield.done
+        }
+    }
+
+    /// 入队
+    public func enqueue(ptr: Any, buf: Array<Byte>): Yield {
+        match (this) {
+            case fd(writer, captured) =>
+                return writer.enqueue(ptr, captured, buf)
+            case buf(_) => return Yield.done
+            case arraybuf(_) => return Yield.done
+            case blob(_) => return Yield.done
+            case ignore => return Yield.done
+        }
+    }
+}
+
+/// 输入类型 - extracted from BuiltinIO
+public enum BuiltinInput {
+    | fd(IOReader)
+    | buf(ArrayList<Byte>)
+    | arraybuf(BuiltinArrayBuf)
+    | blob(BuiltinBlob)
+    | ignore
+
+    /// 增加引用
+    public func ref(): BuiltinInput {
+        match (this) {
+            case fd(reader) =>
+                reader.ref()
+            case blob(blob) =>
+                blob.ref()
+            case buf(_) => ()
+            case arraybuf(_) => ()
+            case ignore => ()
+        }
+        return this
+    }
+
+    /// 减少引用
+    public func deref() {
+        match (this) {
+            case fd(reader) =>
+                reader.deref()
+            case blob(blob) =>
+                blob.deref()
+            case buf(buf) =>
+                buf.clear()
+            case arraybuf(buf) =>
+                buf.deinit()
+            case ignore =>
+                () // 无操作
+        }
+    }
+
+    /// 是否需要IO
+    public func needsIO(): Bool {
+        match (this) {
+            case fd =>
+                return true
+            case buf(_) => return false
+            case arraybuf(_) => return false
+            case blob(_) => return false
+            case ignore => return false
+        }
+    }
+}
 
 // ============================================================================
 // 内置命令
@@ -20,13 +297,13 @@ import bao_jsc.*
 /// 内置命令
 public class BuiltinImpl {
     /// 命令类型
-    public var kind: Kind
+    public var kind: BuiltinKind
     /// 标准输入
-    public var stdin: BuiltinIO.Input
+    public var stdin: BuiltinInput
     /// 标准输出
-    public var stdout: BuiltinIO.Output
+    public var stdout: BuiltinOutput
     /// 标准错误
-    public var stderr: BuiltinIO.Output
+    public var stderr: BuiltinOutput
     /// 退出码
     public var exitCode: ?ExitCode = None
 
@@ -46,273 +323,19 @@ public class BuiltinImpl {
     public var argsSlice: ?Array<String> = None
 
     /// 实现
-    public var impl: Impl
+    public var impl: BuiltinImplKind
 
-    // ========================================================================
-    // 内置命令类型枚举
-    // ========================================================================
-
-    /// 内置命令类型
-    public enum Kind {
-        case cat
-        case touch
-        case mkdir
-        case export
-        case cd
-        case echo
-        case pwd
-        case which
-        case rm
-        case mv
-        case ls
-        case exit
-        case true_
-        case false_
-        case yes
-        case seq
-        case dirname
-        case basename
-        case cp
-
-        /// POSIX上禁用的内置命令
-        public static let disabledOnPosix: Array<Kind> = [Kind.cat, Kind.cp]
-
-        /// 从字符串获取命令类型
-        public static func fromStr(str: String): ?Kind {
-            switch (str) {
-                case "cat" => Kind.cat
-                case "touch" => Kind.touch
-                case "mkdir" => Kind.mkdir
-                case "export" => Kind.export
-                case "cd" => Kind.cd
-                case "echo" => Kind.echo
-                case "pwd" => Kind.pwd
-                case "which" => Kind.which
-                case "rm" => Kind.rm
-                case "mv" => Kind.mv
-                case "ls" => Kind.ls
-                case "exit" => Kind.exit
-                case "true" => Kind.true_
-                case "false" => Kind.false_
-                case "yes" => Kind.yes
-                case "seq" => Kind.seq
-                case "dirname" => Kind.dirname
-                case "basename" => Kind.basename
-                case "cp" => Kind.cp
-                case _ => None
-            }
-        }
-
-        /// 用法字符串
-        public func usageString(): String {
-            switch (this) {
-                case .cat => "usage: cat [-belnstuv] [file ...]\n"
-                case .touch => "usage: touch [-A [-][[hh]mm]SS] [-achm] [-r file] [-t [[CC]YY]MMDDhhmm[.SS]]\n       [-d YYYY-MM-DDThh:mm:SS[.frac][tz]] file ...\n"
-                case .mkdir => "usage: mkdir [-pv] [-m mode] directory_name ...\n"
-                case .export => ""
-                case .cd => ""
-                case .echo => ""
-                case .pwd => ""
-                case .which => ""
-                case .rm => "usage: rm [-f | -i] [-dIPRrvWx] file ...\n       unlink [--] file\n"
-                case .mv => "usage: mv [-f | -i | -n] [-hv] source target\n       mv [-f | -i | -n] [-v] source ... directory\n"
-                case .ls => "usage: ls [-@ABCFGHILOPRSTUWabcdefghiklmnopqrstuvwxy1%,] [--color=when] [-D format] [file ...]\n"
-                case .exit => "usage: exit [n]\n"
-                case .true_ => ""
-                case .false_ => ""
-                case .yes => "usage: yes [expletive]\n"
-                case .seq => "usage: seq [-w] [-f format] [-s string] [-t string] [first [incr]] last\n"
-                case .dirname => "usage: dirname string\n"
-                case .basename => "usage: basename string\n"
-                case .cp => "usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpsvXx] source_file ... target_directory\n"
-            }
-        }
-    }
-
-    // ========================================================================
-    // 实现
-    // ========================================================================
-
-    /// 内置命令实现联合体
-    public enum Impl {
-        case cat(Cat)
-        case touch(Touch)
-        case mkdir(Mkdir)
-        case export(Export)
-        case cd(Cd)
-        case echo(Echo)
-        case pwd(Pwd)
-        case which(Which)
-        case rm(Rm)
-        case mv(Mv)
-        case ls(Ls)
-        case exit(Exit)
-        case true_(True)
-        case false_(False)
-        case yes(Yes)
-        case seq(Seq)
-        case dirname(Dirname)
-        case basename(Basename)
-        case cp(Cp)
-    }
-
-    // ========================================================================
-    // 内置命令IO
-    // ========================================================================
-
-    /// 内置命令IO
-    public class BuiltinIO {
-        /// 输出类型
-        public enum Output {
-            case fd(writer: IOWriter, captured: ?ByteList)
-            case buf(ArrayList<Byte>)
-            case arraybuf(ArrayBuf)
-            case blob(Blob)
-            case ignore
-
-            /// 增加引用
-            public func ref(): Output {
-                switch (this) {
-                    case .fd(let writer, _) =>
-                        writer.ref()
-                    case .blob(let blob) =>
-                        blob.ref()
-                    case .buf, .arraybuf, .ignore =>
-                        // 无操作
-                }
-                return this
-            }
-
-            /// 减少引用
-            public func deref() {
-                switch (this) {
-                    case .fd(let writer, _) =>
-                        writer.deref()
-                    case .blob(let blob) =>
-                        blob.deref()
-                    case .arraybuf(let buf) =>
-                        buf.deinit()
-                    case .buf(let buf) =>
-                        buf.clear()
-                    case .ignore =>
-                        // 无操作
-                }
-            }
-
-            /// 是否需要IO
-            public func needsIO(): ?OutputNeedsIOSafeGuard {
-                switch (this) {
-                    case .fd =>
-                        return OutputNeedsIOSafeGuard.outputNeedsIo
-                    case .buf, .arraybuf, .blob, .ignore =>
-                        return None
-                }
-            }
-
-            /// 入队格式化输出（内置命令）
-            public func enqueueFmtBltn(ptr: Any, kind: ?Kind, fmt: String, args: Array<Any>): Yield {
-                switch (this) {
-                    case .fd(let writer, let captured) =>
-                        return writer.enqueueFmtBltn(ptr, captured, kind, fmt, args)
-                    case .buf, .arraybuf, .blob, .ignore =>
-                        return Yield.done
-                }
-            }
-
-            /// 入队
-            public func enqueue(ptr: Any, buf: Array<Byte>): Yield {
-                switch (this) {
-                    case .fd(let writer, let captured) =>
-                        return writer.enqueue(ptr, captured, buf)
-                    case .buf, .arraybuf, .blob, .ignore =>
-                        return Yield.done
-                }
-            }
-        }
-
-        /// 输入类型
-        public enum Input {
-            case fd(IOReader)
-            case buf(ArrayList<Byte>)
-            case arraybuf(ArrayBuf)
-            case blob(Blob)
-            case ignore
-
-            /// 增加引用
-            public func ref(): Input {
-                switch (this) {
-                    case .fd(let reader) =>
-                        reader.ref()
-                    case .blob(let blob) =>
-                        blob.ref()
-                    case .buf, .arraybuf, .ignore =>
-                        // 无操作
-                }
-                return this
-            }
-
-            /// 减少引用
-            public func deref() {
-                switch (this) {
-                    case .fd(let reader) =>
-                        reader.deref()
-                    case .blob(let blob) =>
-                        blob.deref()
-                    case .buf(let buf) =>
-                        buf.clear()
-                    case .arraybuf(let buf) =>
-                        buf.deinit()
-                    case .ignore =>
-                        // 无操作
-                }
-            }
-
-            /// 是否需要IO
-            public func needsIO(): Boolean {
-                switch (this) {
-                    case .fd =>
-                        return true
-                    case .buf, .arraybuf, .blob, .ignore =>
-                        return false
-                }
-            }
-        }
-
-        /// 数组缓冲区
-        public struct ArrayBuf {
-            public var buf: ArrayBuffer.Strong
-            public var i: UInt32 = 0
-        }
-
-        /// Blob引用计数包装
-        public class Blob {
-            public var refCount: UInt32 = 1
-            public var blob: WebCoreBlob
-
-            /// 复制引用
-            public func dupeRef(): Blob {
-                this.ref()
-                return this
-            }
-
-            /// 增加引用
-            public func ref() {
-                this.refCount += 1
-            }
-
-            /// 减少引用
-            public func deref() {
-                this.refCount -= 1
-                if (this.refCount == 0) {
-                    this.deinit()
-                }
-            }
-
-            /// 去初始化
-            func deinit() {
-                this.blob.deinit()
-            }
-        }
+    public init() {
+        this.kind = BuiltinKind.cat
+        this.stdin = BuiltinInput.ignore
+        this.stdout = BuiltinOutput.ignore
+        this.stderr = BuiltinOutput.ignore
+        this.exportEnv = EnvMap()
+        this.cmdLocalEnv = EnvMap()
+        this.arena = ArenaAllocator()
+        this.cwd = FD()
+        this.args = ArrayList<?String>()
+        this.impl = BuiltinImplKind.cat(Cat())
     }
 
     // ========================================================================
@@ -323,7 +346,7 @@ public class BuiltinImpl {
     public static func initFunc(
         cmd: CmdState,
         interpreter: Interpreter,
-        kind: Kind,
+        kind: BuiltinKind,
         arena: ArenaAllocator,
         node: CmdAst,
         args: ArrayList<?String>,
@@ -332,9 +355,9 @@ public class BuiltinImpl {
         cwd: FD,
         io: IO
     ): ?Yield {
-        let stdin = BuiltinIO.Input.ignore
-        let stdout = BuiltinIO.Output.ignore
-        let stderr = BuiltinIO.Output.ignore
+        let stdin = BuiltinInput.ignore
+        let stdout = BuiltinOutput.ignore
+        let stderr = BuiltinOutput.ignore
 
         let bltn = BuiltinImpl()
         bltn.kind = kind
@@ -347,7 +370,7 @@ public class BuiltinImpl {
         bltn.exportEnv = exportEnv
         bltn.cmdLocalEnv = cmdLocalEnv
         bltn.cwd = cwd
-        bltn.impl = Impl.cat(Cat())
+        bltn.impl = BuiltinImplKind.cat(Cat())
 
         return None
     }
@@ -388,40 +411,42 @@ public class BuiltinImpl {
 
     /// 无IO写入
     public func writeNoIO(ioKind: String, buf: Array<Byte>): Maybe<UInt64> {
-        if (buf.length == 0) {
+        if (buf.size == 0) {
             return Maybe<UInt64>.success(0)
         }
-        switch (this.stdout) {
-            case .buf(let bufList) =>
+        match (this.stdout) {
+            case buf(bufList) =>
                 bufList.appendAll(buf)
-                return Maybe<UInt64>.success(UInt64(buf.length))
-            case .arraybuf, .blob, .fd, .ignore =>
-                return Maybe<UInt64>.success(UInt64(buf.length))
+                return Maybe<UInt64>.success(UInt64(buf.size))
+            case arraybuf(_) => return Maybe<UInt64>.success(UInt64(buf.size))
+            case blob(_) => return Maybe<UInt64>.success(UInt64(buf.size))
+            case fd(_, _) => return Maybe<UInt64>.success(UInt64(buf.size))
+            case ignore => return Maybe<UInt64>.success(UInt64(buf.size))
         }
     }
 
     /// 读取无IO标准输入
     public func readStdinNoIO(): String {
-        switch (this.stdin) {
-            case .arraybuf(let buf) =>
-                return String.fromBytes(buf.buf.slice())
-            case .buf(let buf) =>
-                return String.fromBytes(buf.toArray())
-            case .blob(let blob) =>
-                return String.fromBytes(blob.blob.sharedView())
-            case .fd, .ignore =>
-                return ""
+        match (this.stdin) {
+            case arraybuf(buf) =>
+                return String.fromUtf8(buf.buf.slice())
+            case buf(buf) =>
+                return String.fromUtf8(buf.toArray())
+            case blob(blob) =>
+                return String.fromUtf8(blob.blob.sharedView())
+            case fd(_) => return ""
+            case ignore => return ""
         }
     }
 
     /// 格式化错误到Arena
-    public func fmtErrorArena(kind: ?Kind, fmt: String, args: Array<Any>): String {
-        let cmdStr = if (let k = kind) { "\(k): " } else { "" }
-        return "\(cmdStr)\(fmt)"
+    public func fmtErrorArena(kind: ?BuiltinKind, fmt: String, args: Array<Any>): String {
+        let cmdStr = if (let k <- kind) { "${k}: " } else { "" }
+        return "${cmdStr}${fmt}"
     }
 
     /// 错误字符串
-    public func taskErrorToString(kind: Kind, err: Any): String {
+    public func taskErrorToString(kind: BuiltinKind, err: Any): String {
         return "unknown error"
     }
 }

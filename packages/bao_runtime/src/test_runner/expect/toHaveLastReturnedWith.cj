@@ -7,11 +7,11 @@ import bao_jsc.*
 
 /// toHaveLastReturnedWith() - 检查mock函数最后一次返回的值
 /// 用法: expect(mockFn).toHaveLastReturnedWith(expected)
-public func toHaveLastReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveLastReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenLastReturnedWith", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenLastReturnedWith", matcherParamsFmt: "<green>expected<r>")
 
     let expected = callFrame.argumentsAsArray(1)[0]
     this.incrementExpectCallCounter()
@@ -25,35 +25,35 @@ public func toHaveLastReturnedWith(`this`: Expect, globalThis: JSGlobalObject, c
 
     let callsCount: UInt32 = returns.getLength(globalThis: globalThis)
     var pass = false
-    var lastReturnValue: JSValue = JSValue.jsUndefined
+    var lastReturnValue: JsValue = JsValue.jsUndefined
     var lastCallThrew = false
-    var lastErrorValue: JSValue = JSValue.jsUndefined
+    var lastErrorValue: JsValue = JsValue.jsUndefined
 
     if (callsCount > 0) {
         let lastResult = returns.getDirectIndex(globalThis: globalThis, index: callsCount - 1)
 
         if (lastResult.isObject()) {
-            let resultType = lastResult.get(globalThis: globalThis, key: "type") ?? JSValue.jsUndefined
+            let resultType = lastResult.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
                 defer { typeStr.deref() }
 
                 if (typeStr.eqlComptime("return")) {
-                    lastReturnValue = lastResult.get(globalThis: globalThis, key: "value") ?? JSValue.jsUndefined
+                    lastReturnValue = lastResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
 
                     if (lastReturnValue.jestDeepEquals(expected, globalThis: globalThis)) {
                         pass = true
                     }
                 } else if (typeStr.eqlComptime("throw")) {
                     lastCallThrew = true
-                    lastErrorValue = lastResult.get(globalThis: globalThis, key: "value") ?? JSValue.jsUndefined
+                    lastErrorValue = lastResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
                 }
             }
         }
     }
 
     if (pass != this.flags.not) {
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     // 处理失败

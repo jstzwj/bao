@@ -103,7 +103,7 @@ public class Global {
 
     /// 退出回调列表 - 对应 Bun var on_exit_callbacks = std.ArrayListUnmanaged(ExitFn){};
     private static var exitCallbacks: ArrayList<ExitCallback> = ArrayList<ExitCallback>()
-    /// 是否正在退出 - 对应 Bun var is_exiting = std.atomic.Value(bool).init(false);
+    /// 是否正在退出 - 对应 Bun var is_exiting = std.atomic.Value(bool).`init`(false);
     private static var isExitingFlag: Bool = false
 
     /// 获取启动时间 - 对应 Bun getStartTime()

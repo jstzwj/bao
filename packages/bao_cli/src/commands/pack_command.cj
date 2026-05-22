@@ -254,10 +254,9 @@ public class IgnorePatterns {
 
             let parsed = GlobPattern.fromUTF8(trimmed)
             match (parsed) {
-                case Some(pattern) => {
+                case Some(pattern) =>
                     patterns.append(pattern)
                     hasRelPath = hasRelPath || pattern.relPath
-                }
                 case None => ()
             }
         }
@@ -340,11 +339,10 @@ public class GlobPattern {
             // 检查中间斜杠
             let slashIndex = remain.indexOf('/')
             match (slashIndex) {
-                case Some(idx) => {
+                case Some(idx) =>
                     if (idx != remain.length - 1) {
                         hasLeadingOrMiddleSlash = true
                     }
-                }
                 case None => ()
             }
         }
@@ -470,13 +468,12 @@ public class PackFormatter {
         if (packageName.length > 0 && packageName[0] == '@') {
             let slashIndex = packageName.indexOf('/')
             match (slashIndex) {
-                case Some(slash) => {
+                case Some(slash) =>
                     if (slash > 1 && slash < packageName.length - 1) {
                         let scope = packageName.substring(1, slash)
                         let name = packageName.substring(slash + 1)
                         return "${scope}-${name}-${packageVersion}.tgz"
                     }
-                }
                 case None => ()
             }
             // @ 前缀但无斜杠
@@ -671,30 +668,26 @@ public class PackCommand {
         // 严格翻译自: PackCommand.pack → MissingPackageName/InvalidPackageName 检查
         let packageName = JsonHelper.getString(root, "name")
         match (packageName) {
-            case Some(name) => {
+            case Some(name) =>
                 if (name.isEmpty()) {
                     logger.error("package.json `name` field must be a non-empty string")
                     return 1
                 }
-            }
-            case None => {
+            case None =>
                 logger.error("package.json must have `name` and `version` fields")
                 return 1
-            }
         }
 
         let packageVersion = JsonHelper.getString(root, "version")
         match (packageVersion) {
-            case Some(ver) => {
+            case Some(ver) =>
                 if (ver.isEmpty()) {
                     logger.error("package.json `version` field must be a non-empty string")
                     return 1
                 }
-            }
-            case None => {
+            case None =>
                 logger.error("package.json must have `name` and `version` fields")
                 return 1
-            }
         }
 
         let name = packageName ?? ""
@@ -732,12 +725,11 @@ public class PackCommand {
         // 严格翻译自: PackCommand.pack → for (bins) |bin|
         for (bin in bins) {
             match (bin.binType) {
-                case BinInfoType.file => {
+                case BinInfoType.file =>
                     if (BaoFile.exists(bin.path)) {
                         packQueue.add(PackQueueItem(bin.path, true))
                     }
-                }
-                case BinInfoType.dir => {
+                case BinInfoType.dir =>
                     if (BaoFile.isDirectory(bin.path)) {
                         iterateProjectTree(
                             packQueue,
@@ -746,14 +738,13 @@ public class PackCommand {
                             opts
                         )
                     }
-                }
             }
         }
 
         // 根据 files 字段决定遍历策略
         let filesField = JsonHelper.getStringArray(root, "files")
         match (filesField) {
-            case Some(files) => {
+            case Some(files) =>
                 if (files.size > 0) {
                     // 白名单模式: files 字段存在
                     // 严格翻译自: iterateIncludedProjectTree
@@ -763,13 +754,12 @@ public class PackCommand {
                         let normalized = Path.normalizePosix(fileEntry)
                         let parsed = GlobPattern.fromUTF8(normalized)
                         match (parsed) {
-                            case Some(pattern) => {
+                            case Some(pattern) =>
                                 if (pattern.negated) {
                                     excludes.append(pattern)
                                 } else {
                                     includes.append(pattern)
                                 }
-                            }
                             case None => ()
                         }
                     }
@@ -786,8 +776,7 @@ public class PackCommand {
                     logger.error("expected `files` to be an array of string values")
                     return 1
                 }
-            }
-            case None => {
+            case None =>
                 // 黑名单模式: 无 files 字段, 遍历整个项目
                 iterateProjectTree(
                     packQueue,
@@ -795,7 +784,6 @@ public class PackCommand {
                     DirInfo(".", "", 1),
                     opts
                 )
-            }
         }
 
         // 处理 bundled 依赖
@@ -906,28 +894,25 @@ public class PackCommand {
     private func runLifecycleScripts(root: JsonValue, workspacePath: String, silent: Bool): ?String {
         let scriptsObj = JsonHelper.getField(root, "scripts")
         match (scriptsObj) {
-            case Some(JsonValue.Object(scripts)) => {
+            case Some(JsonValue.Object(scripts)) =>
                 // prepack
                 let prepack = JsonHelper.getString(JsonValue.Object(scripts), "prepack")
                 match (prepack) {
-                    case Some(script) => {
+                    case Some(script) =>
                         runScript(script, "prepack", workspacePath, silent)
-                    }
                     case None => ()
                 }
 
                 // prepare
                 let prepare = JsonHelper.getString(JsonValue.Object(scripts), "prepare")
                 match (prepare) {
-                    case Some(script) => {
+                    case Some(script) =>
                         runScript(script, "prepare", workspacePath, silent)
-                    }
                     case None => ()
                 }
 
                 // postpack (稍后运行)
                 return JsonHelper.getString(JsonValue.Object(scripts), "postpack")
-            }
             case _ => return None
         }
     }
@@ -936,10 +921,9 @@ public class PackCommand {
     // 严格翻译自: src/cli/pack_command.zig PackCommand.pack → postpack 脚本运行
     private func runPostpackScript(postpackScript: ?String, workspacePath: String, silent: Bool): Unit {
         match (postpackScript) {
-            case Some(script) => {
+            case Some(script) =>
                 println("")
                 runScript(script, "postpack", workspacePath, silent)
-            }
             case None => ()
         }
     }
@@ -1042,20 +1026,18 @@ public class PackCommand {
                 }
 
                 match (entryKind) {
-                    case "file" => {
+                    case "file" =>
                         // 检查是否为 bin 文件 (已在单独流程中处理)
                         if (isBinEntry(bins, entrySubpath, BinInfoType.file)) {
                             continue
                         }
                         packQueue.add(PackQueueItem(entrySubpath, false))
-                    }
-                    case "directory" => {
+                    case "directory" =>
                         if (isBinEntry(bins, entrySubpath, BinInfoType.dir)) {
                             continue
                         }
                         let subdir = openSubdir(dir, entryName, entrySubpath)
                         dirs.append(DirInfo(subdir, entrySubpath, dirDepth + 1))
-                    }
                     case _ => ()
                 }
             }
@@ -1171,14 +1153,13 @@ public class PackCommand {
                 }
 
                 match (entryKind) {
-                    case "directory" => {
+                    case "directory" =>
                         if (isBinEntry(bins, entrySubpath, BinInfoType.dir)) {
                             continue
                         }
                         let subdir = openSubdir(dir, entryName, entrySubpath)
                         includedDirs.append(DirInfo(subdir, entrySubpath, dirDepth + 1))
-                    }
-                    case "file" => {
+                    case "file" =>
                         if (subpathDedupe.contains(entrySubpath)) {
                             continue
                         }
@@ -1187,7 +1168,6 @@ public class PackCommand {
                             continue
                         }
                         packQueue.add(PackQueueItem(entrySubpath, false))
-                    }
                     case _ => ()
                 }
             }
@@ -1290,7 +1270,7 @@ public class PackCommand {
                 }
 
                 match (entryKind) {
-                    case "file" => {
+                    case "file" =>
                         if (dedupe.contains(entrySubpath)) {
                             continue
                         }
@@ -1299,14 +1279,12 @@ public class PackCommand {
                             continue
                         }
                         packQueue.add(PackQueueItem(entrySubpath, false))
-                    }
-                    case "directory" => {
+                    case "directory" =>
                         if (isBinEntry(bins, entrySubpath, BinInfoType.dir)) {
                             continue
                         }
                         let subdir = openSubdir(dir, entryName, entrySubpath)
                         dirs.append(DirInfo(subdir, entrySubpath, dirDepth + 1))
-                    }
                     case _ => ()
                 }
             }
@@ -1527,13 +1505,11 @@ public class PackCommand {
                 }
 
                 match (entryKind) {
-                    case "file" => {
+                    case "file" =>
                         bundledPackQueue.add(PackQueueItem(entrySubpath, false))
-                    }
-                    case "directory" => {
+                    case "directory" =>
                         let subdir = openSubdir(dir, entryName, entrySubpath)
                         dirs.append(DirInfo(subdir, entrySubpath, dirDepth + 1))
-                    }
                     case _ => ()
                 }
             }
@@ -1573,7 +1549,7 @@ public class PackCommand {
         for (groupName in dependencyGroups) {
             let deps = JsonHelper.getField(root, groupName)
             match (deps) {
-                case Some(JsonValue.Object(depsObj)) => {
+                case Some(JsonValue.Object(depsObj)) =>
                     let keys = depsObj.keys()
                     for (depNameStr in keys) {
                         // 查找依赖: 先在当前 bundled 依赖的 node_modules 中找
@@ -1597,7 +1573,6 @@ public class PackCommand {
                             )
                         }
                     }
-                }
                 case _ => ()
             }
         }
@@ -1750,42 +1725,37 @@ public class PackCommand {
         // 检查 bin 字段
         let binField = JsonHelper.getField(root, "bin")
         match (binField) {
-            case Some(JsonValue.Str(binStr)) => {
+            case Some(JsonValue.Str(binStr)) =>
                 let normalized = Path.normalizePosix(binStr)
                 bins.append(BinInfo(normalized, BinInfoType.file))
                 return bins
-            }
-            case Some(JsonValue.Object(binObj)) => {
+            case Some(JsonValue.Object(binObj)) =>
                 let values = binObj.values()
-                for (val in values) {
-                    match (val) {
-                        case JsonValue.Str(binStr) => {
+                for (`val` in values) {
+                    match (`val`) {
+                        case JsonValue.Str(binStr) =>
                             let normalized = Path.normalizePosix(binStr)
                             bins.append(BinInfo(normalized, BinInfoType.file))
-                        }
                         case _ => ()
                     }
                 }
                 if (bins.size > 0) {
                     return bins
                 }
-            }
             case _ => ()
         }
 
         // 检查 directories.bin
         let directoriesField = JsonHelper.getField(root, "directories")
         match (directoriesField) {
-            case Some(JsonValue.Object(dirsObj)) => {
+            case Some(JsonValue.Object(dirsObj)) =>
                 let binDir = JsonHelper.getString(JsonValue.Object(dirsObj), "bin")
                 match (binDir) {
-                    case Some(binStr) => {
+                    case Some(binStr) =>
                         let normalized = Path.normalizePosix(binStr)
                         bins.append(BinInfo(normalized, BinInfoType.dir))
-                    }
                     case None => ()
                 }
-            }
             case _ => ()
         }
 
@@ -1800,12 +1770,11 @@ public class PackCommand {
                 continue
             }
             match (bin.binType) {
-                case BinInfoType.file => {
+                case BinInfoType.file =>
                     if (bin.path == path) {
                         return true
                     }
-                }
-                case BinInfoType.dir => {
+                case BinInfoType.dir =>
                     let binWithoutTrailing = Path.withoutTrailingSlash(bin.path)
                     if (path.startsWith(binWithoutTrailing)) {
                         let remain = path.substring(binWithoutTrailing.length)
@@ -1813,7 +1782,6 @@ public class PackCommand {
                             return true
                         }
                     }
-                }
             }
         }
         return false
@@ -1884,34 +1852,29 @@ public class PackCommand {
 
         let bundledField = JsonHelper.getField(root, field)
         match (bundledField) {
-            case Some(JsonValue.Array(arr)) => {
+            case Some(JsonValue.Array(arr)) =>
                 for (item in arr) {
                     match (item) {
-                        case JsonValue.Str(name) => {
+                        case JsonValue.Str(name) =>
                             result.append(BundledDep(name, true))
-                        }
-                        case _ => {
+                        case _ =>
                             // 非字符串 → 无效
                             logger.error("expected `${field}` to be a boolean or an array of strings")
                             return result
-                        }
                     }
                 }
-            }
-            case Some(JsonValue.Bool(b)) => {
+            case Some(JsonValue.Bool(b)) =>
                 if (b) {
                     // true 意味着将所有 dependencies 打包
                     match (JsonHelper.getField(root, "dependencies")) {
-                        case Some(JsonValue.Object(deps)) => {
+                        case Some(JsonValue.Object(deps)) =>
                             let keys = deps.keys()
                             for (key in keys) {
                                 result.append(BundledDep(key, true))
                             }
-                        }
                         case _ => ()
                     }
                 }
-            }
             case _ => ()
         }
 
@@ -1951,7 +1914,7 @@ public class PackCommand {
         for (groupName in dependencyGroups) {
             let depsField = JsonHelper.getField(root, groupName)
             match (depsField) {
-                case Some(JsonValue.Object(deps)) => {
+                case Some(JsonValue.Object(deps)) =>
                     let keys = deps.keys()
                     let values = deps.values()
                     var i = 0
@@ -1959,7 +1922,7 @@ public class PackCommand {
                         let depName = keys[i]
                         let depValue = values[i]
                         match (depValue) {
-                            case JsonValue.Str(spec) => {
+                            case JsonValue.Str(spec) =>
                                 // 处理 workspace: 协议
                                 if (spec.startsWith("workspace:")) {
                                     let withoutWorkspace = spec.substring("workspace:".length)
@@ -1980,12 +1943,10 @@ public class PackCommand {
                                     )
                                     editedContent = editedContent.replace(spec, replacement)
                                 }
-                            }
                             case _ => ()
                         }
                         i += 1
                     }
-                }
                 case _ => ()
             }
         }
@@ -2003,7 +1964,7 @@ public class PackCommand {
                 // 尝试从 lockfile 解析 workspace 版本
                 let workspaceVersion = lookupWorkspaceVersion(depName)
                 match (workspaceVersion) {
-                    case Some(ver) => {
+                    case Some(ver) =>
                         let prefix = match (c) {
                             case '^' => "^"
                             case '~' => "~"
@@ -2011,11 +1972,9 @@ public class PackCommand {
                             case _ => ""
                         }
                         return "${prefix}${ver}"
-                    }
-                    case None => {
+                    case None =>
                         logger.error("Failed to resolve workspace version for \"${depName}\" in `${groupName}`. Run `bao install` and try again.")
                         return withoutWorkspace
-                    }
                 }
             }
         }
@@ -2030,10 +1989,9 @@ public class PackCommand {
         let catalogVersion = lookupCatalogVersion(depName, catalogName)
         match (catalogVersion) {
             case Some(ver) => return ver
-            case None => {
+            case None =>
                 logger.error("Failed to resolve catalog version for \"${depName}\" in `${groupName}` (catalogs require a lockfile).")
                 return "*"
-            }
         }
     }
 
@@ -2147,7 +2105,7 @@ public class PackCommand {
             while (true) {
                 let item = packQueue.removeOrNull()
                 match (item) {
-                    case Some(queueItem) => {
+                    case Some(queueItem) =>
                         let srcPath = queueItem.path
                         if (!BaoFile.exists(srcPath)) {
                             if (queueItem.optional) {
@@ -2170,7 +2128,6 @@ public class PackCommand {
                         let fileSize = BaoFile.getFileSize(srcPath) ?? 0
                         packList.append(PackEntry(srcPath, fileSize))
                         stats.unpackedSize += fileSize
-                    }
                     case None => break
                 }
             }
@@ -2179,7 +2136,7 @@ public class PackCommand {
             while (true) {
                 let item = bundledPackQueue.removeOrNull()
                 match (item) {
-                    case Some(queueItem) => {
+                    case Some(queueItem) =>
                         let srcPath = queueItem.path
                         if (!BaoFile.exists(srcPath)) {
                             if (queueItem.optional) {
@@ -2200,7 +2157,6 @@ public class PackCommand {
 
                         let fileSize = BaoFile.getFileSize(srcPath) ?? 0
                         stats.unpackedSize += fileSize
-                    }
                     case None => break
                 }
             }
@@ -2250,9 +2206,8 @@ public class PackCommand {
     private func computeShasum(filePath: String): ?String {
         let content = BaoFile.readAllBytes(filePath)
         match (content) {
-            case Some(bytes) => {
+            case Some(bytes) =>
                 return SHA1.hexDigest(bytes)
-            }
             case None => return None
         }
     }
@@ -2265,9 +2220,8 @@ public class PackCommand {
     private func computeIntegrity(filePath: String): ?String {
         let content = BaoFile.readAllBytes(filePath)
         match (content) {
-            case Some(bytes) => {
+            case Some(bytes) =>
                 return "sha512-${SHA512.base64Digest(bytes)}"
-            }
             case None => return None
         }
     }
@@ -2396,46 +2350,40 @@ public class PackCommand {
         while (i < args.size) {
             let arg = args[i]
             match (arg) {
-                case "--filename" | "--pack-filename" | "-f" => {
+                case "--filename" | "--pack-filename" | "-f" =>
                     i++
                     if (i < args.size) {
                         opts.filename = args[i]
                     }
-                }
-                case "--destination" | "--pack-destination" | "-d" => {
+                case "--destination" | "--pack-destination" | "-d" =>
                     i++
                     if (i < args.size) {
                         opts.destination = args[i]
                     }
-                }
                 case "--gzip" => opts.gzip = true
                 case "--no-gzip" => opts.gzip = false
-                case "--gzip-level" => {
+                case "--gzip-level" =>
                     i++
                     if (i < args.size) {
                         opts.gzipLevel = Some(args[i])
                     }
-                }
                 case "--dry-run" => opts.dryRun = true
                 case "--silent" | "--quiet" | "-q" => opts.silent = true
                 case "--verbose" => opts.verbose = true
-                case "--include" => {
+                case "--include" =>
                     i++
                     if (i < args.size) {
                         opts.includePatterns.append(args[i])
                     }
-                }
-                case "--exclude" => {
+                case "--exclude" =>
                     i++
                     if (i < args.size) {
                         opts.excludePatterns.append(args[i])
                     }
-                }
                 case "--ignore-scripts" => opts.runScripts = false
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printPackHelp()
                     return opts
-                }
                 case _ => logger.warn("Unknown option: ${arg}")
             }
             i++
@@ -2530,7 +2478,7 @@ public class PackBindings {
         // 读取文件内容
         let content = BaoFile.readAllBytes(tarballPath)
         match (content) {
-            case Some(bytes) => {
+            case Some(bytes) =>
                 result.size = bytes.length
 
                 // 计算 SHA1 shasum
@@ -2542,7 +2490,6 @@ public class PackBindings {
                 // 解析 tar 条目 (简化实现)
                 // 实际应使用 libarchive 读取
                 // 这里返回空条目列表
-            }
             case None => return None
         }
 

@@ -46,7 +46,7 @@ public class Prompt {
         Output.print(": ")
         Output.flush()
         let input = Console.readln().trimAscii()
-        if (input.length == 0) {
+        if (input.size == 0) {
             return None
         }
         return Some(input)
@@ -58,8 +58,8 @@ public class Prompt {
         Output.print(" [${defaultValue}]: ")
         Output.flush()
         let input = Console.readln().trimAscii()
-        if (input.length == 0) {
-            if (defaultValue.length == 0) {
+        if (input.size == 0) {
+            if (defaultValue.size == 0) {
                 return None
             }
             return Some(defaultValue)

@@ -5,6 +5,7 @@ package bao_sql_jsc.postgres.types
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.postgres.*
 
 /// Tag JS 转换辅助函数
 /// 对应 Bun: types/tag_jsc.zig
@@ -25,18 +26,29 @@ public func tagToJSTypedArrayType(tag: PostgresTag): ?Int64 {
 public func tagToJS(tag: PostgresTag, globalObject: JscJSGlobalObject,
                      value: JscValue): JscValue {
     return match (tag) {
-        case Numeric => JscValue(value.toNumber(globalObject))
-        case Float4 | Float8 => JscValue(value.toNumber(globalObject))
+        case Numeric => JscValue(value.toNumber())
+        case Float4 | Float8 => JscValue(value.toNumber())
         case Json | Jsonb =>
-            PostgresJsonType.toJS(globalObject, value.toArrayBuffer(globalObject).getOrThrow().byteSlice())
-        case Bool => JscValue(value.toBoolean())
+            let abOpt = value.asArrayBuffer(globalObject.globalThis)
+            if (let Some(ab) <- abOpt) {
+                PostgresJsonType.toJS(globalObject, ab.bytes())
+            } else {
+                JscValue(value.toString())
+            }
+        case `Bool` => JscValue(value.toBoolean())
         case Timestamp | Timestamptz =>
-            PostgresDateType.toJS(globalObject, Int64(value.getUnixTimestamp() * 1000))
+            let ts: Float64 = value.getUnixTimestamp() * 1000.0
+            PostgresDateType.toJS(globalObject, Int64(ts))
         case Bytea =>
-            PostgresByteaType.toJS(globalObject, value.toArrayBuffer(globalObject).getOrThrow().byteSlice())
-        case Int8 => JscValue.fromInt64NoTruncate(globalObject, value.toInt64())
-        case Int4 => JscValue(value.toInt32())
-        case _ => PostgresStringType.toJS(globalObject, value.toBunString(globalObject))
+            let abOpt2 = value.asArrayBuffer(globalObject.globalThis)
+            if (let Some(ab2) <- abOpt2) {
+                PostgresByteaType.toJS(globalObject, ab2.bytes())
+            } else {
+                JscValue(value.toString())
+            }
+        case `Int8` => JscValue.fromInt64NoTruncate(globalObject.globalThis, value.toInt64())
+        case Int4 => JscValue(Int64(value.toInt32()))
+        case _ => PostgresStringType.toJS(globalObject, value.toString())
     }
 }
 
@@ -53,7 +65,7 @@ public func tagFromJS(globalObject: JscJSGlobalObject, value: JscValue): Postgre
     if (value.isDate()) {
         return PostgresTag.Timestamptz
     }
-    if (value.isTypedArrayOrArrayBuffer()) {
+    if (value.isTypedArray()) {
         return PostgresTag.Bytea
     }
     if (value.isInt32()) {
@@ -61,16 +73,16 @@ public func tagFromJS(globalObject: JscJSGlobalObject, value: JscValue): Postgre
     }
     if (value.isAnyInt()) {
         let int_ = value.toInt64()
-        if (int_ >= Int64(Int32.MinValue) && int_ <= Int64(Int32.MaxValue)) {
+        if (int_ >= Int64(-2147483648) && int_ <= Int64(2147483647)) {
             return PostgresTag.Int4
         }
-        return PostgresTag.Int8
+        return PostgresTag.`Int8`
     }
     if (value.isNumber()) {
         return PostgresTag.Float8
     }
     if (value.isBoolean()) {
-        return PostgresTag.Bool
+        return PostgresTag.`Bool`
     }
 
     return PostgresTag.Numeric

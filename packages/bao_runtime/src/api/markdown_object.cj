@@ -3,6 +3,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_core.*
 import bao_collections.*
 import bao_sys.*
@@ -17,10 +18,10 @@ import bao_md.*
 /// 对应 Bun: MarkdownObject.create()
 public func markdownCreate(globalThis: JsGlobalObject): JsValue {
     let obj = JsValue.createEmptyObject(globalThis, 4)
-    obj.put(globalThis, ZigString.static("html"), JsFunction.create(globalThis, "html", markdownRenderToHtml, 1))
-    obj.put(globalThis, ZigString.static("ansi"), JsFunction.create(globalThis, "ansi", markdownRenderToAnsi, 2))
-    obj.put(globalThis, ZigString.static("render"), JsFunction.create(globalThis, "render", markdownRender, 3))
-    obj.put(globalThis, ZigString.static("react"), JsFunction.create(globalThis, "react", markdownRenderReact, 3))
+    obj.put(globalThis, ZigString.`static`("html"), JsFunction.create(globalThis, "html", markdownRenderToHtml, 1))
+    obj.put(globalThis, ZigString.`static`("ansi"), JsFunction.create(globalThis, "ansi", markdownRenderToAnsi, 2))
+    obj.put(globalThis, ZigString.`static`("render"), JsFunction.create(globalThis, "render", markdownRender, 3))
+    obj.put(globalThis, ZigString.`static`("react"), JsFunction.create(globalThis, "react", markdownRenderReact, 3))
     return obj
 }
 
@@ -54,12 +55,12 @@ public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFr
 
     if (inputValue.isEmptyOrUndefinedOrNull()) {
         globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let buffer = try StringOrBuffer.fromJS(globalThis, inputValue) ?? {
         globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let input = buffer.slice()
@@ -74,19 +75,19 @@ public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFr
 
     // 解析主题选项
     if (themeValue.isObject()) {
-        if (let v = try themeValue.getBooleanLoose(globalThis, "colors")) {
+        if (let v <- try themeValue.getBooleanLoose(globalThis, "colors")) {
             theme.colors = v
         }
-        if (let v = try themeValue.getBooleanLoose(globalThis, "hyperlinks")) {
+        if (let v <- try themeValue.getBooleanLoose(globalThis, "hyperlinks")) {
             theme.hyperlinks = v
         }
-        if (let v = try themeValue.getBooleanLoose(globalThis, "kittyGraphics")) {
+        if (let v <- try themeValue.getBooleanLoose(globalThis, "kittyGraphics")) {
             theme.kitty_graphics = v
         }
-        if (let v = try themeValue.getBooleanLoose(globalThis, "light")) {
+        if (let v <- try themeValue.getBooleanLoose(globalThis, "light")) {
             theme.light = v
         }
-        if (let cols = try themeValue.get(globalThis, "columns")) {
+        if (let cols <- try themeValue.get(globalThis, "columns")) {
             if (cols.isNumber()) {
                 let n = cols.toInt32()
                 if (n <= 0) {
@@ -101,7 +102,7 @@ public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFr
     // 渲染
     let result = try renderToAnsi(input, Options.terminal(), theme) ?? {
         globalThis.throwOutOfMemory()
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     return createUtf8ForJs(globalThis, result)
@@ -118,12 +119,12 @@ public func markdownRenderToHtml(globalThis: JsGlobalObject, callframe: JsCallFr
 
     if (inputValue.isEmptyOrUndefinedOrNull()) {
         globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let buffer = try StringOrBuffer.fromJS(globalThis, inputValue) ?? {
         globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let input = buffer.slice()
@@ -143,36 +144,36 @@ public func markdownParseOptions(globalThis: JsGlobalObject, optsValue: JsValue)
     var options = Options()
     if (optsValue.isObject()) {
         // 处理复合 autolinks: true | { url, www, email }
-        if (let autolinksVal = try optsValue.get(globalThis, "autolinks")) {
+        if (let autolinksVal <- try optsValue.get(globalThis, "autolinks")) {
             if (autolinksVal.isBoolean()) {
                 if (autolinksVal.toBoolean()) {
                     options.permissive_autolinks = true
                 }
             } else if (autolinksVal.isObject()) {
-                if (let v = try autolinksVal.getBooleanLoose(globalThis, "url")) {
+                if (let v <- try autolinksVal.getBooleanLoose(globalThis, "url")) {
                     options.permissive_url_autolinks = v
                 }
-                if (let v = try autolinksVal.getBooleanLoose(globalThis, "www")) {
+                if (let v <- try autolinksVal.getBooleanLoose(globalThis, "www")) {
                     options.permissive_www_autolinks = v
                 }
-                if (let v = try autolinksVal.getBooleanLoose(globalThis, "email")) {
+                if (let v <- try autolinksVal.getBooleanLoose(globalThis, "email")) {
                     options.permissive_email_autolinks = v
                 }
             }
         }
 
         // 处理复合 headings: true | { ids, autolink }
-        if (let headingsVal = try optsValue.get(globalThis, "headings")) {
+        if (let headingsVal <- try optsValue.get(globalThis, "headings")) {
             if (headingsVal.isBoolean()) {
                 if (headingsVal.toBoolean()) {
                     options.heading_ids = true
                     options.autolink_headings = true
                 }
             } else if (headingsVal.isObject()) {
-                if (let v = try headingsVal.getBooleanLoose(globalThis, "ids")) {
+                if (let v <- try headingsVal.getBooleanLoose(globalThis, "ids")) {
                     options.heading_ids = v
                 }
-                if (let v = try headingsVal.getBooleanLoose(globalThis, "autolink")) {
+                if (let v <- try headingsVal.getBooleanLoose(globalThis, "autolink")) {
                     options.autolink_headings = v
                 }
             }
@@ -180,46 +181,46 @@ public func markdownParseOptions(globalThis: JsGlobalObject, optsValue: JsValue)
 
         // 处理其余布尔选项
         // 对应 Bun: Options.BOOL_FIELD_SETTERS 反射循环
-        if (let v = try optsValue.getBooleanLoose(globalThis, "allowMath")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "allowMath")) {
             options.latex_math = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "parseSpan")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "parseSpan")) {
             options.collapse_whitespace = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "wikilinks")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "wikilinks")) {
             options.wiki_links = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "tasklist")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "tasklist")) {
             options.tasklists = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "tasklists")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "tasklists")) {
             options.tasklists = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "strikethrough")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "strikethrough")) {
             options.strikethrough = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "underline")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "underline")) {
             options.underline = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "tables")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "tables")) {
             options.tables = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "hardSoftBreaks")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "hardSoftBreaks")) {
             options.hard_soft_breaks = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "noIndentedCodeBlocks")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "noIndentedCodeBlocks")) {
             options.no_indented_code_blocks = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "noHtmlBlocks")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "noHtmlBlocks")) {
             options.no_html_blocks = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "noHtmlSpans")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "noHtmlSpans")) {
             options.no_html_spans = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "permissiveAtxHeaders")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "permissiveAtxHeaders")) {
             options.permissive_atx_headers = v
         }
-        if (let v = try optsValue.getBooleanLoose(globalThis, "tagFilter")) {
+        if (let v <- try optsValue.getBooleanLoose(globalThis, "tagFilter")) {
             options.tag_filter = v
         }
     }
@@ -239,12 +240,12 @@ public func markdownRender(globalThis: JsGlobalObject, callframe: JsCallFrame): 
 
     if (inputValue.isEmptyOrUndefinedOrNull()) {
         globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let buffer = try StringOrBuffer.fromJS(globalThis, inputValue) ?? {
         globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let input = buffer.slice()
@@ -253,13 +254,13 @@ public func markdownRender(globalThis: JsGlobalObject, callframe: JsCallFrame): 
     let options = try markdownParseOptions(globalThis, optsValue)
 
     // 创建 JS 回调渲染器
-    var jsRenderer = try JsCallbackRenderer.init(globalThis, input, options.heading_ids) ?? {
+    var jsRenderer = try JsCallbackRenderer(globalThis, input, options.heading_ids) ?? {
         globalThis.throwOutOfMemory()
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     // 提取回调
-    try jsRenderer.extractCallbacks(if (callbacksValue.isObject()) callbacksValue else JsValue.jsUndefined)
+    try jsRenderer.extractCallbacks(if (callbacksValue.isObject()) callbacksValue else JsValue.jsUndefined())
 
     // 运行解析器
     try renderWithRenderer(input, options, jsRenderer.renderer())
@@ -283,7 +284,7 @@ public func markdownRenderReact(globalThis: JsGlobalObject, callframe: JsCallFra
 
     var reactVersion: UInt8 = 1 // 默认: react.transitional.element (React 19+)
     if (optsValue.isObject()) {
-        if (let rv = try optsValue.get(globalThis, "reactVersion")) {
+        if (let rv <- try optsValue.get(globalThis, "reactVersion")) {
             if (rv.isNumber()) {
                 let num = rv.toInt32()
                 if (num <= 18) {
@@ -294,7 +295,7 @@ public func markdownRenderReact(globalThis: JsGlobalObject, callframe: JsCallFra
     }
 
     let children = try renderAst(globalThis, callframe, reactVersion) ?? {
-        return JsValue.zero
+        return JsValue.jsUndefined()
     }
 
     let fragment = JSReactElement.createFragment(globalThis, reactVersion, children)
@@ -303,7 +304,7 @@ public func markdownRenderReact(globalThis: JsGlobalObject, callframe: JsCallFra
 
 /// 渲染 Markdown 为 AST（对象树或 React 元素）
 /// 对应 Bun: render_ast()
-/// 在普通模式(reactVersion == None)下，每个元素变为:
+/// 在普通模式(reactVersion.isNone())下，每个元素变为:
 ///   { type: "tagName", props: { ...metadata, children: [...] } }
 /// 在 React 模式下，每个元素变为有效的 React 元素:
 ///   { $$typeof: Symbol.for('react.element'), type, key, ref, props }
@@ -325,7 +326,7 @@ public func renderAst(globalThis: JsGlobalObject, callframe: JsCallFrame, reactV
     // 解析选项
     let options = try markdownParseOptions(globalThis, optsValue)
 
-    var renderer = try ParseRenderer.init(
+    var renderer = try ParseRenderer(
         globalThis,
         input,
         options.heading_ids,
@@ -336,7 +337,7 @@ public func renderAst(globalThis: JsGlobalObject, callframe: JsCallFrame, reactV
     }
 
     // 提取组件覆盖
-    try renderer.extractComponents(if (componentsValue.isObject()) componentsValue else JsValue.jsUndefined)
+    try renderer.extractComponents(if (componentsValue.isObject()) componentsValue else JsValue.jsUndefined())
 
     // 运行解析器
     try renderWithRenderer(input, options, renderer.renderer())
@@ -426,7 +427,7 @@ public enum TagIndex {
 
 /// 获取缓存的标签字符串
 /// 对应 Bun: get_cached_tag_string()
-public func getCachedTagString(globalObject: JsGlobalObject, tag: TagIndex): JsValue {
+public func getCachedTagString(JsGlobalObject, tag: TagIndex): JsValue {
     return BunMarkdownTagStrings.getTagString(globalObject, tag.toUInt8())
 }
 
@@ -505,35 +506,35 @@ public func extractLanguage(srcText: String, infoBeg: UInt32): String {
 /// 组件覆盖，按键名索引
 /// 当设置时，该值替换 type 字段中的字符串标签名
 public class Components {
-    public var h1: JsValue = JsValue.zero
-    public var h2: JsValue = JsValue.zero
-    public var h3: JsValue = JsValue.zero
-    public var h4: JsValue = JsValue.zero
-    public var h5: JsValue = JsValue.zero
-    public var h6: JsValue = JsValue.zero
-    public var p: JsValue = JsValue.zero
-    public var blockquote: JsValue = JsValue.zero
-    public var ul: JsValue = JsValue.zero
-    public var ol: JsValue = JsValue.zero
-    public var li: JsValue = JsValue.zero
-    public var pre: JsValue = JsValue.zero
-    public var hr: JsValue = JsValue.zero
-    public var html: JsValue = JsValue.zero
-    public var table: JsValue = JsValue.zero
-    public var thead: JsValue = JsValue.zero
-    public var tbody: JsValue = JsValue.zero
-    public var tr: JsValue = JsValue.zero
-    public var th: JsValue = JsValue.zero
-    public var td: JsValue = JsValue.zero
-    public var em: JsValue = JsValue.zero
-    public var strong: JsValue = JsValue.zero
-    public var a: JsValue = JsValue.zero
-    public var img: JsValue = JsValue.zero
-    public var code: JsValue = JsValue.zero
-    public var del: JsValue = JsValue.zero
-    public var math: JsValue = JsValue.zero
-    public var u: JsValue = JsValue.zero
-    public var br: JsValue = JsValue.zero
+    public var h1: JsValue = JsValue.jsUndefined()
+    public var h2: JsValue = JsValue.jsUndefined()
+    public var h3: JsValue = JsValue.jsUndefined()
+    public var h4: JsValue = JsValue.jsUndefined()
+    public var h5: JsValue = JsValue.jsUndefined()
+    public var h6: JsValue = JsValue.jsUndefined()
+    public var p: JsValue = JsValue.jsUndefined()
+    public var blockquote: JsValue = JsValue.jsUndefined()
+    public var ul: JsValue = JsValue.jsUndefined()
+    public var ol: JsValue = JsValue.jsUndefined()
+    public var li: JsValue = JsValue.jsUndefined()
+    public var pre: JsValue = JsValue.jsUndefined()
+    public var hr: JsValue = JsValue.jsUndefined()
+    public var html: JsValue = JsValue.jsUndefined()
+    public var table: JsValue = JsValue.jsUndefined()
+    public var thead: JsValue = JsValue.jsUndefined()
+    public var tbody: JsValue = JsValue.jsUndefined()
+    public var tr: JsValue = JsValue.jsUndefined()
+    public var th: JsValue = JsValue.jsUndefined()
+    public var td: JsValue = JsValue.jsUndefined()
+    public var em: JsValue = JsValue.jsUndefined()
+    public var strong: JsValue = JsValue.jsUndefined()
+    public var a: JsValue = JsValue.jsUndefined()
+    public var img: JsValue = JsValue.jsUndefined()
+    public var code: JsValue = JsValue.jsUndefined()
+    public var del: JsValue = JsValue.jsUndefined()
+    public var math: JsValue = JsValue.jsUndefined()
+    public var u: JsValue = JsValue.jsUndefined()
+    public var br: JsValue = JsValue.jsUndefined()
 
     public init() {}
 }
@@ -541,7 +542,7 @@ public class Components {
 /// 解析栈条目
 /// 对应 Bun: ParseStackEntry
 public class ParseStackEntry {
-    public var children: JsValue = JsValue.zero
+    public var children: JsValue = JsValue.jsUndefined()
     public var blockType: ?BlockType = None
     public var spanType: ?SpanType = None
     public var data: UInt32 = 0
@@ -574,21 +575,21 @@ public class ParseRenderer {
     public init() {
         globalObject = JsGlobalObject.current()
         stack = ArrayList<ParseStackEntry>()
-        stackCheck = StackCheck.init()
+        stackCheck = StackCheck()
         srcText = ""
-        headingTracker = HeadingIdTracker.init(false)
+        headingTracker = HeadingIdTracker(false)
         components = Components()
     }
 
     /// 初始化渲染器
     /// 对应 Bun: ParseRenderer::init()
-    public static func init(globalObject: JsGlobalObject, srcText: String, headingIds: Bool, reactVersion: UInt8): ?ParseRenderer {
+    public static func `init`(JsGlobalObject, srcText: String, headingIds: Bool, reactVersion: UInt8): ?ParseRenderer {
         var self_ = ParseRenderer()
         self_.globalObject = globalObject
         self_.stack = ArrayList<ParseStackEntry>()
-        self_.stackCheck = StackCheck.init()
+        self_.stackCheck = StackCheck()
         self_.srcText = srcText
-        self_.headingTracker = HeadingIdTracker.init(headingIds)
+        self_.headingTracker = HeadingIdTracker(headingIds)
         self_.components = Components()
         self_.reactVersion = reactVersion
 
@@ -616,7 +617,7 @@ public class ParseRenderer {
                         "pre", "hr", "html", "table", "thead", "tbody", "tr", "th", "td", "em",
                         "strong", "a", "img", "code", "del", "math", "u", "br"]
         for (name in tagNames) {
-            if (let val = try opts.getTruthy(globalObject, name)) {
+            if (let val <- try opts.getTruthy(globalObject, name)) {
                 if (!val.isBoolean()) {
                     setComponentField(name, val)
                 }
@@ -656,7 +657,7 @@ public class ParseRenderer {
             case "math" => components.math = val
             case "u" => components.u = val
             case "br" => components.br = val
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -687,8 +688,8 @@ public class ParseRenderer {
             case BlockType.tr => components.tr
             case BlockType.th => components.th
             case BlockType.td => components.td
-            case BlockType.doc => JsValue.zero
-            case _ => JsValue.zero
+            case BlockType.doc => JsValue.jsUndefined()
+            case _ => JsValue.jsUndefined()
         }
     }
 
@@ -706,7 +707,7 @@ public class ParseRenderer {
             case SpanType.latexmathDisplay => components.math
             case SpanType.wikilink => components.a
             case SpanType.u => components.u
-            case _ => JsValue.zero
+            case _ => JsValue.jsUndefined()
         }
     }
 
@@ -752,7 +753,7 @@ public class ParseRenderer {
     /// 对应 Bun: ParseRenderer::get_result()
     public func getResult(): JsValue {
         if (stack.isEmpty()) {
-            return JsValue.jsUndefined
+            return JsValue.jsUndefined()
         }
         return stack[0].children
     }
@@ -761,7 +762,7 @@ public class ParseRenderer {
     /// 对应 Bun: ParseRenderer::create_element()
     /// 在 React 模式下使用 C++ 快速路径，在普通模式下创建简单的 { type, props } 对象
     public func createElement(typeVal: JsValue, props: JsValue): JsValue {
-        if (let version = reactVersion) {
+        if (let version <- reactVersion) {
             let obj = JSReactElement.create(globalObject, version, typeVal, props)
             return obj
         } else {
@@ -830,39 +831,34 @@ public class ParseRenderer {
         // 计算 props 字段数
         var propsCount: Int64 = if (blockType == BlockType.hr) { 0 } else { 1 } // children
         match (blockType) {
-            case BlockType.h => {
+            case BlockType.h =>
                 if (slug.isSome()) {
                     propsCount += 1
                 }
-            }
             case BlockType.ol => propsCount += 1 // start
-            case BlockType.li => {
+            case BlockType.li =>
                 let taskMark = taskMarkFromData(entry.data)
                 if (taskMark != 0) {
                     propsCount += 1
                 }
-            }
-            case BlockType.code => {
+            case BlockType.code =>
                 if ((entry.flags & BLOCK_FENCED_CODE) != 0) {
                     let lang = extractLanguage(srcText, entry.data)
                     if (lang.size > 0) {
                         propsCount += 1
                     }
                 }
-            }
-            case BlockType.th => {
+            case BlockType.th =>
                 let alignment = alignmentFromData(entry.data)
                 if (alignment != Align.`default`) {
                     propsCount += 1
                 }
-            }
-            case BlockType.td => {
+            case BlockType.td =>
                 let alignment = alignmentFromData(entry.data)
                 if (alignment != Align.`default`) {
                     propsCount += 1
                 }
-            }
-            case _ => {}
+            case _ => ()
         }
 
         // 构建 React 元素 — 使用组件覆盖作为 type（如果已设置）
@@ -877,41 +873,35 @@ public class ParseRenderer {
 
         // 设置元数据 props
         match (blockType) {
-            case BlockType.h => {
-                if (let Some(s) = slug) {
+            case BlockType.h =>
+                if (let Some(s) <- slug) {
                     props.put(g, "id", createUtf8ForJs(g, s))
                 }
-            }
-            case BlockType.ol => {
+            case BlockType.ol =>
                 props.put(g, "start", JsValue.jsNumber(Float64(data)))
-            }
-            case BlockType.li => {
+            case BlockType.li =>
                 let taskMark = taskMarkFromData(entry.data)
                 if (taskMark != 0) {
                     props.put(g, "checked", JsValue.from(isTaskChecked(taskMark)))
                 }
-            }
-            case BlockType.code => {
+            case BlockType.code =>
                 if ((entry.flags & BLOCK_FENCED_CODE) != 0) {
                     let lang = extractLanguage(srcText, entry.data)
                     if (lang.size > 0) {
                         props.put(g, "language", createUtf8ForJs(g, lang))
                     }
                 }
-            }
-            case BlockType.th => {
+            case BlockType.th =>
                 let alignment = alignmentFromData(entry.data)
-                if (let Some(alignStr) = alignmentName(alignment)) {
+                if (let Some(alignStr) <- alignmentName(alignment)) {
                     props.put(g, "align", createUtf8ForJs(g, alignStr))
                 }
-            }
-            case BlockType.td => {
+            case BlockType.td =>
                 let alignment = alignmentFromData(entry.data)
-                if (let Some(alignStr) = alignmentName(alignment)) {
+                if (let Some(alignStr) <- alignmentName(alignment)) {
                     props.put(g, "align", createUtf8ForJs(g, alignStr))
                 }
-            }
-            case _ => {}
+            case _ => ()
         }
 
         // 设置 children（void 元素跳过）
@@ -971,21 +961,19 @@ public class ParseRenderer {
         // 计算 props 字段数
         var propsCount: Int64 = 1 // children（或 img 的 alt）
         match (spanType) {
-            case SpanType.a => {
+            case SpanType.a =>
                 propsCount += 1 // href
                 if (entry.detail.title.size > 0) {
                     propsCount += 1
                 }
-            }
-            case SpanType.img => {
+            case SpanType.img =>
                 propsCount += 1 // src
                 if (entry.detail.title.size > 0) {
                     propsCount += 1
                 }
-            }
             case SpanType.wikilink => propsCount += 1 // target
             case SpanType.latexmathDisplay => propsCount += 1 // display
-            case _ => {}
+            case _ => ()
         }
 
         // 构建 React 元素
@@ -1000,32 +988,28 @@ public class ParseRenderer {
 
         // 设置元数据 props
         match (spanType) {
-            case SpanType.a => {
+            case SpanType.a =>
                 props.put(g, "href", createUtf8ForJs(g, entry.detail.href))
                 if (entry.detail.title.size > 0) {
                     props.put(g, "title", createUtf8ForJs(g, entry.detail.title))
                 }
-            }
-            case SpanType.img => {
+            case SpanType.img =>
                 props.put(g, "src", createUtf8ForJs(g, entry.detail.href))
                 if (entry.detail.title.size > 0) {
                     props.put(g, "title", createUtf8ForJs(g, entry.detail.title))
                 }
-            }
-            case SpanType.wikilink => {
+            case SpanType.wikilink =>
                 props.put(g, "target", createUtf8ForJs(g, entry.detail.href))
-            }
-            case SpanType.latexmathDisplay => {
+            case SpanType.latexmathDisplay =>
                 props.put(g, "display", JsValue.from(true))
-            }
-            case _ => {}
+            case _ => ()
         }
 
         if (spanType == SpanType.img) {
             // img 是 void 元素 — 将 children 转换为 alt prop
             let len = entry.children.getLength(g)
             if (len == 1) {
-                let child = try entry.children.getIndex(g, 0) ?? JsValue.zero
+                let child = try entry.children.getIndex(g, 0) ?? JsValue.jsUndefined()
                 if (child.isString()) {
                     props.put(g, "alt", child)
                 }
@@ -1033,7 +1017,7 @@ public class ParseRenderer {
                 // 多个子元素 — 拼接字符串部分
                 var altBuf = StringBuilder()
                 for (i in 0..len) {
-                    let child = try entry.children.getIndex(g, UInt32(i)) ?? JsValue.zero
+                    let child = try entry.children.getIndex(g, UInt32(i)) ?? JsValue.jsUndefined()
                     if (child.isString()) {
                         let str = child.toSlice(g)
                         altBuf.append(str)
@@ -1080,7 +1064,7 @@ public class ParseRenderer {
         let parentChildren = stack[stack.size() - 1].children
 
         match (textType) {
-            case TextType.br => {
+            case TextType.br =>
                 let brComponent = components.br
                 let brType: JsValue = if (!brComponent.isEmpty()) {
                     brComponent
@@ -1090,29 +1074,24 @@ public class ParseRenderer {
                 let emptyProps = JsValue.createEmptyObject(g, 0)
                 let obj = createElement(brType, emptyProps)
                 jsArrayPush(parentChildren, g, obj)
-            }
-            case TextType.softbr => {
+            case TextType.softbr =>
                 let str = createUtf8ForJs(g, "\n")
                 jsArrayPush(parentChildren, g, str)
-            }
-            case TextType.nullChar => {
-                let str = createUtf8ForJs(g, "\xEF\xBF\xBD")
+            case TextType.nullChar =>
+                let str = createUtf8ForJs(g, "\u{fffd}")
                 jsArrayPush(parentChildren, g, str)
-            }
-            case TextType.entity => {
+            case TextType.entity =>
                 // 尝试解码 HTML 实体
-                if (let decoded = decodeEntityToUtf8(content)) {
+                if (let decoded <- decodeEntityToUtf8(content)) {
                     let str = createUtf8ForJs(g, decoded)
                     jsArrayPush(parentChildren, g, str)
                 } else {
                     let str = createUtf8ForJs(g, content)
                     jsArrayPush(parentChildren, g, str)
                 }
-            }
-            case _ => {
+            case _ =>
                 let str = createUtf8ForJs(g, content)
                 jsArrayPush(parentChildren, g, str)
-            }
         }
     }
 }
@@ -1127,27 +1106,27 @@ public class ParseRenderer {
 /// 回调函数集合
 /// 对应 Bun: Callbacks
 public class Callbacks {
-    public var heading: JsValue = JsValue.zero
-    public var paragraph: JsValue = JsValue.zero
-    public var blockquote: JsValue = JsValue.zero
-    public var code: JsValue = JsValue.zero
-    public var list: JsValue = JsValue.zero
-    public var listItem: JsValue = JsValue.zero
-    public var hr: JsValue = JsValue.zero
-    public var table: JsValue = JsValue.zero
-    public var thead: JsValue = JsValue.zero
-    public var tbody: JsValue = JsValue.zero
-    public var tr: JsValue = JsValue.zero
-    public var th: JsValue = JsValue.zero
-    public var td: JsValue = JsValue.zero
-    public var html: JsValue = JsValue.zero
-    public var strong: JsValue = JsValue.zero
-    public var emphasis: JsValue = JsValue.zero
-    public var link: JsValue = JsValue.zero
-    public var image: JsValue = JsValue.zero
-    public var codespan: JsValue = JsValue.zero
-    public var strikethrough: JsValue = JsValue.zero
-    public var text: JsValue = JsValue.zero
+    public var heading: JsValue = JsValue.jsUndefined()
+    public var paragraph: JsValue = JsValue.jsUndefined()
+    public var blockquote: JsValue = JsValue.jsUndefined()
+    public var code: JsValue = JsValue.jsUndefined()
+    public var list: JsValue = JsValue.jsUndefined()
+    public var listItem: JsValue = JsValue.jsUndefined()
+    public var hr: JsValue = JsValue.jsUndefined()
+    public var table: JsValue = JsValue.jsUndefined()
+    public var thead: JsValue = JsValue.jsUndefined()
+    public var tbody: JsValue = JsValue.jsUndefined()
+    public var tr: JsValue = JsValue.jsUndefined()
+    public var th: JsValue = JsValue.jsUndefined()
+    public var td: JsValue = JsValue.jsUndefined()
+    public var html: JsValue = JsValue.jsUndefined()
+    public var strong: JsValue = JsValue.jsUndefined()
+    public var emphasis: JsValue = JsValue.jsUndefined()
+    public var link: JsValue = JsValue.jsUndefined()
+    public var image: JsValue = JsValue.jsUndefined()
+    public var codespan: JsValue = JsValue.jsUndefined()
+    public var strikethrough: JsValue = JsValue.jsUndefined()
+    public var text: JsValue = JsValue.jsUndefined()
 
     public init() {}
 }
@@ -1189,20 +1168,20 @@ public class JsCallbackRenderer {
         srcText = ""
         stack = ArrayList<CallbackStackEntry>()
         callbacks = Callbacks()
-        headingTracker = HeadingIdTracker.init(false)
-        stackCheck = StackCheck.init()
+        headingTracker = HeadingIdTracker(false)
+        stackCheck = StackCheck()
     }
 
     /// 初始化
     /// 对应 Bun: JsCallbackRenderer::init()
-    public static func init(globalObject: JsGlobalObject, srcText: String, headingIds: Bool): ?JsCallbackRenderer {
+    public static func `init`(JsGlobalObject, srcText: String, headingIds: Bool): ?JsCallbackRenderer {
         var self_ = JsCallbackRenderer()
         self_.globalObject = globalObject
         self_.srcText = srcText
         self_.stack = ArrayList<CallbackStackEntry>()
         self_.callbacks = Callbacks()
-        self_.headingTracker = HeadingIdTracker.init(headingIds)
-        self_.stackCheck = StackCheck.init()
+        self_.headingTracker = HeadingIdTracker(headingIds)
+        self_.stackCheck = StackCheck()
 
         // 推入根条目
         self_.stack.append(CallbackStackEntry())
@@ -1238,11 +1217,11 @@ public class JsCallbackRenderer {
             ("image", "image"),
             ("codespan", "codespan"),
             ("strikethrough", "strikethrough"),
-            ("text", "text"),
+            ("text", "text")
         ]
 
         for ((fieldName, jsKey) in callbackMap) {
-            if (let val = try opts.getTruthy(globalObject, jsKey)) {
+            if (let val <- try opts.getTruthy(globalObject, jsKey)) {
                 if (val.isCallable()) {
                     setCallbackField(fieldName, val)
                 }
@@ -1274,7 +1253,7 @@ public class JsCallbackRenderer {
             case "codespan" => callbacks.codespan = val
             case "strikethrough" => callbacks.strikethrough = val
             case "text" => callbacks.text = val
-            case _ => {}
+            case _ => ()
         }
     }
 
@@ -1351,10 +1330,10 @@ public class JsCallbackRenderer {
         let childrenJs = createUtf8ForJs(globalObject, children)
 
         // 调用 JS 回调
-        let result = if (let Some(m) = meta) {
-            callback.call(globalObject, JsValue.jsUndefined, [childrenJs, m])
+        let result = if (let Some(m) <- meta) {
+            callback.call(globalObject, JsValue.jsUndefined(), [childrenJs, m])
         } else {
-            callback.call(globalObject, JsValue.jsUndefined, [childrenJs])
+            callback.call(globalObject, JsValue.jsUndefined(), [childrenJs])
         }
 
         if (result.isUndefinedOrNull()) {
@@ -1476,17 +1455,16 @@ public class JsCallbackRenderer {
         headingTracker.trackText(textType, content)
 
         match (textType) {
-            case TextType.nullChar => appendToTop("\xEF\xBF\xBD")
+            case TextType.nullChar => appendToTop("\u{fffd}")
             case TextType.br => appendToTop("\n")
             case TextType.softbr => appendToTop("\n")
             case TextType.entity => decodeAndAppendEntity(content)
-            case _ => {
+            case _ =>
                 if (!callbacks.text.isEmpty()) {
                     callTextCallback(content)
                 } else {
                     appendToTop(content)
                 }
-            }
         }
     }
 
@@ -1503,7 +1481,7 @@ public class JsCallbackRenderer {
             return
         }
         let textJs = createUtf8ForJs(globalObject, content)
-        let result = callbacks.text.call(globalObject, JsValue.jsUndefined, [textJs])
+        let result = callbacks.text.call(globalObject, JsValue.jsUndefined(), [textJs])
         if (!result.isUndefinedOrNull()) {
             let slice = result.toSlice(globalObject)
             appendToTop(slice)
@@ -1513,7 +1491,7 @@ public class JsCallbackRenderer {
     /// 解码并追加 HTML 实体
     /// 对应 Bun: decode_and_append_entity()
     public func decodeAndAppendEntity(entityText: String): Unit {
-        if (let decoded = decodeEntityToUtf8(entityText)) {
+        if (let decoded <- decodeEntityToUtf8(entityText)) {
             appendTextOrRaw(decoded)
         } else {
             appendTextOrRaw(entityText)
@@ -1554,8 +1532,8 @@ public class JsCallbackRenderer {
             case BlockType.th => callbacks.th
             case BlockType.td => callbacks.td
             case BlockType.html => callbacks.html
-            case BlockType.doc => JsValue.zero
-            case _ => JsValue.zero
+            case BlockType.doc => JsValue.jsUndefined()
+            case _ => JsValue.jsUndefined()
         }
     }
 
@@ -1569,7 +1547,7 @@ public class JsCallbackRenderer {
             case SpanType.img => callbacks.image
             case SpanType.code => callbacks.codespan
             case SpanType.del => callbacks.strikethrough
-            case _ => JsValue.zero
+            case _ => JsValue.jsUndefined()
         }
     }
 
@@ -1615,23 +1593,20 @@ public class JsCallbackRenderer {
     public func createBlockMeta(blockType: BlockType, data: UInt32, flags: UInt32, childIndex: UInt32): ?JsValue {
         let g = globalObject
         match (blockType) {
-            case BlockType.h => {
+            case BlockType.h =>
                 let slug = headingTracker.leaveHeading()
                 let fieldCount: Int64 = if (slug.isSome()) { 2 } else { 1 }
                 let obj = JsValue.createEmptyObject(g, UInt64(fieldCount))
                 obj.put(g, "level", JsValue.jsNumber(Float64(data)))
-                if (let Some(s) = slug) {
+                if (let Some(s) <- slug) {
                     obj.put(g, "id", createUtf8ForJs(g, s))
                 }
                 return obj
-            }
-            case BlockType.ol => {
+            case BlockType.ol =>
                 return BunMarkdownMeta.createList(g, true, JsValue.jsNumber(Float64(data)), countListDepth())
-            }
-            case BlockType.ul => {
-                return BunMarkdownMeta.createList(g, false, JsValue.jsUndefined, countListDepth())
-            }
-            case BlockType.code => {
+            case BlockType.ul =>
+                return BunMarkdownMeta.createList(g, false, JsValue.jsUndefined(), countListDepth())
+            case BlockType.code =>
                 if ((flags & BLOCK_FENCED_CODE) != 0) {
                     let lang = extractLanguage(srcText, data)
                     if (lang.size > 0) {
@@ -1641,26 +1616,23 @@ public class JsCallbackRenderer {
                     }
                 }
                 return None
-            }
-            case BlockType.th => {
+            case BlockType.th =>
                 let alignment = alignmentFromData(data)
-                let alignJs = if (let Some(alignStr) = alignmentName(alignment)) {
+                let alignJs = if (let Some(alignStr) <- alignmentName(alignment)) {
                     createUtf8ForJs(g, alignStr)
                 } else {
-                    JsValue.jsUndefined
+                    JsValue.jsUndefined()
                 }
                 return BunMarkdownMeta.createCell(g, alignJs)
-            }
-            case BlockType.td => {
+            case BlockType.td =>
                 let alignment = alignmentFromData(data)
-                let alignJs = if (let Some(alignStr) = alignmentName(alignment)) {
+                let alignJs = if (let Some(alignStr) <- alignmentName(alignment)) {
                     createUtf8ForJs(g, alignStr)
                 } else {
-                    JsValue.jsUndefined
+                    JsValue.jsUndefined()
                 }
                 return BunMarkdownMeta.createCell(g, alignJs)
-            }
-            case BlockType.li => {
+            case BlockType.li =>
                 // li 条目仍在栈顶；父 ul/ol 在 len-2
                 let len = stack.size()
                 let itemIndex = if (len > 1) {
@@ -1678,16 +1650,15 @@ public class JsCallbackRenderer {
                 let startJs = if (isOrdered) {
                     JsValue.jsNumber(Float64(parent.getOrThrow().data))
                 } else {
-                    JsValue.jsUndefined
+                    JsValue.jsUndefined()
                 }
                 let checkedJs = if (taskMark != 0) {
                     JsValue.from(isTaskChecked(taskMark))
                 } else {
-                    JsValue.jsUndefined
+                    JsValue.jsUndefined()
                 }
 
                 return BunMarkdownMeta.createListItem(g, itemIndex, depth, isOrdered, startJs, checkedJs)
-            }
             case _ => return None
         }
     }
@@ -1697,16 +1668,15 @@ public class JsCallbackRenderer {
     public func createSpanMeta(spanType: SpanType, detail: SpanDetail): ?JsValue {
         let g = globalObject
         match (spanType) {
-            case SpanType.a => {
+            case SpanType.a =>
                 let href = createUtf8ForJs(g, detail.href)
                 let title = if (detail.title.size > 0) {
                     createUtf8ForJs(g, detail.title)
                 } else {
-                    JsValue.jsUndefined
+                    JsValue.jsUndefined()
                 }
                 return BunMarkdownMeta.createLink(g, href, title)
-            }
-            case SpanType.img => {
+            case SpanType.img =>
                 // 图片元数据与链接共享形状 (src/href 都是第一个字段)
                 let obj = JsValue.createEmptyObject(g, 2)
                 obj.put(g, "src", createUtf8ForJs(g, detail.href))
@@ -1714,7 +1684,6 @@ public class JsCallbackRenderer {
                     obj.put(g, "title", createUtf8ForJs(g, detail.title))
                 }
                 return obj
-            }
             case _ => return None
         }
     }
@@ -1782,7 +1751,7 @@ public class StackCheck {
 
     public init() {}
 
-    public static func init(): StackCheck {
+    public static func `init`(): StackCheck {
         StackCheck()
     }
 

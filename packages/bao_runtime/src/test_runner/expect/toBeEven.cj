@@ -7,11 +7,11 @@ import bao_jsc.*
 
 /// toBeEven() - 检查值是否为偶数
 /// 用法: expect(received).toBeEven()
-public func toBeEven(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toBeEven(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeEven", matcherParamsFmt: "")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeEven", matcherParamsFmt: "")
 
     this.incrementExpectCallCounter()
 
@@ -24,7 +24,7 @@ public func toBeEven(`this`: Expect, globalThis: JSGlobalObject, callFrame: Call
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

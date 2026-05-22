@@ -36,13 +36,25 @@ public class CompressionStreamError {
 // 对应 Bun: src/runtime/node/node_zlib_binding.zig - FlushValue
 // ============================================================================
 public enum FlushValue {
-    | none = 0
-    | partial = 1
-    | sync = 2
-    | full = 3
-    | finish = 4
-    | block = 5
-    | trees = 6
+    | none
+    | partial
+    | sync
+    | full
+    | finish
+    | block
+    | trees
+
+    public func value(): UInt32 {
+        match (this) {
+            case none => 0
+            case partial => 1
+            case sync => 2
+            case full => 3
+            case finish => 4
+            case block => 5
+            case trees => 6
+        }
+    }
 
     public static func isValid(n: UInt32): Bool {
         return n <= 6
@@ -67,16 +79,47 @@ public enum FlushValue {
 // 对应 Bun: src/runtime/node/node_zlib_binding.zig 中定义的模式
 // ============================================================================
 public enum ZlibMode {
-    | deflate = 0
-    | inflate = 1
-    | gzip = 2
-    | gunzip = 3
-    | deflateRaw = 4
-    | inflateRaw = 5
-    | brotliCompress = 6
-    | brotliDecompress = 7
-    | zstdCompress = 8
-    | zstdDecompress = 9
+    | deflate
+    | inflate
+    | gzip
+    | gunzip
+    | deflateRaw
+    | inflateRaw
+    | brotliCompress
+    | brotliDecompress
+    | zstdCompress
+    | zstdDecompress
+
+    public func value(): Int32 {
+        match (this) {
+            case deflate => 0
+            case inflate => 1
+            case gzip => 2
+            case gunzip => 3
+            case deflateRaw => 4
+            case inflateRaw => 5
+            case brotliCompress => 6
+            case brotliDecompress => 7
+            case zstdCompress => 8
+            case zstdDecompress => 9
+        }
+    }
+
+    public static func fromValue(v: Int32): ZlibMode {
+        match (v) {
+            case 0 => deflate
+            case 1 => inflate
+            case 2 => gzip
+            case 3 => gunzip
+            case 4 => deflateRaw
+            case 5 => inflateRaw
+            case 6 => brotliCompress
+            case 7 => brotliDecompress
+            case 8 => zstdCompress
+            case 9 => zstdDecompress
+            case _ => deflate
+        }
+    }
 }
 
 // ============================================================================
@@ -213,7 +256,7 @@ public class CompressionStreamState {
                 return ZlibImpl.process(mode, input, inOff: inOff, inLen: inLen,
                     output: output, outOff: outOff, outLen: outLen, flush: Int32(flush.value))
             }
-            case ZlibMode.brotliCompress | ZlibMode.brotliDecompress => {
+            case ZlibMode.brotliCompress | ZlibMode.brotliDecompress =>
                 let brotliMode = if (mode == ZlibMode.brotliCompress) {
                     BrotliMode.compress
                 } else {
@@ -221,8 +264,7 @@ public class CompressionStreamState {
                 }
                 return ZlibImpl.brotliProcess(brotliMode, input, inOff: inOff, inLen: inLen,
                     output: output, outOff: outOff, outLen: outLen, flush: Int32(flush.value))
-            }
-            case ZlibMode.zstdCompress | ZlibMode.zstdDecompress => {
+            case ZlibMode.zstdCompress | ZlibMode.zstdDecompress =>
                 let zstdMode = if (mode == ZlibMode.zstdCompress) {
                     ZstdMode.compress
                 } else {
@@ -230,7 +272,6 @@ public class CompressionStreamState {
                 }
                 return ZlibImpl.zstdProcess(zstdMode, input, inOff: inOff, inLen: inLen,
                     output: output, outOff: outOff, outLen: outLen, flush: Int32(flush.value))
-            }
         }
     }
 
@@ -397,24 +438,22 @@ public class ZlibImpl {
     public static func process(mode: ZlibMode, input: Array<UInt8>, inOff: Int32, inLen: Int32,
         output: Array<UInt8>, outOff: Int32, outLen: Int32, flush: Int32): Int32 {
         // 对应 Bun NativeZlib.zig Context.doWork:
-        //   switch (this.mode) {
+        //   match (this.mode) {
         //     DEFLATE, GZIP, DEFLATERAW => doWorkDeflate()
         //     INFLATE, GUNZIP, INFLATERAW => doWorkInflate()
         //     UNZIP => auto-detect gzip header then doWorkInflate()
         //   }
         unsafe {
             match (mode) {
-                case ZlibMode.deflate | ZlibMode.gzip | ZlibMode.deflateRaw => {
+                case ZlibMode.deflate | ZlibMode.gzip | ZlibMode.deflateRaw =>
                     // doWorkDeflate: this.err = c.deflate(&this.state, this.flush)
                     // FFI 调用: deflate(z_stream_ptr, flush)
                     // 实际需要 z_stream 指针，此处返回结果码
                     return 0 // Z_OK
-                }
-                case ZlibMode.inflate | ZlibMode.gunzip | ZlibMode.inflateRaw => {
+                case ZlibMode.inflate | ZlibMode.gunzip | ZlibMode.inflateRaw =>
                     // doWorkInflate: this.err = c.inflate(&this.state, this.flush)
                     // FFI 调用: inflate(z_stream_ptr, flush)
                     return 0 // Z_OK
-                }
                 case _ => return 0
             }
         }
@@ -432,18 +471,16 @@ public class ZlibImpl {
         //   BROTLI_DECODE => {
         //     this.last_result.d = c.BrotliDecoderDecompressStream(
         //       state, &avail_in, &next_in, &avail_out, &next_out, null)
-        //     if (d == .err) this.error_ = c.BrotliDecoderGetErrorCode(state)
+        //     if (d == err) this.error_ = c.BrotliDecoderGetErrorCode(state)
         //   }
         unsafe {
             match (mode) {
-                case BrotliMode.compress => {
+                case BrotliMode.compress =>
                     // FFI: BrotliEncoderCompressStream(state, flush, &avail_in, &next_in, &avail_out, &next_out, null)
                     return 1 // 1 = success for BrotliEncoderCompressStream
-                }
-                case BrotliMode.decompress => {
+                case BrotliMode.decompress =>
                     // FFI: BrotliDecoderDecompressStream(state, &avail_in, &next_in, &avail_out, &next_out, null)
                     return 0 // 0 = BROTLI_DECODER_RESULT_SUCCESS
-                }
             }
         }
     }
@@ -457,14 +494,12 @@ public class ZlibImpl {
         //   ZSTD_DECOMPRESS => this.remaining = c.ZSTD_decompressStream(state, &output, &input)
         unsafe {
             match (mode) {
-                case ZstdMode.compress => {
+                case ZstdMode.compress =>
                     // FFI: ZSTD_compressStream2(state, &output, &input, flush)
                     return 0 // 0 = frame complete
-                }
-                case ZstdMode.decompress => {
+                case ZstdMode.decompress =>
                     // FFI: ZSTD_decompressStream(state, &output, &input)
                     return 0 // 0 = frame complete
-                }
             }
         }
     }

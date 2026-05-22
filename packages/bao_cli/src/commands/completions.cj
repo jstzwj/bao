@@ -113,7 +113,7 @@ public class CompletionsGenerator {
             ("create", "Create a new project from a template"),
             ("upgrade", "Upgrade Bao to the latest version"),
             ("x", "Execute a package binary"),
-            ("completions", "Generate shell completions"),
+            ("completions", "Generate shell completions")
         ]
         for ((cmd, desc) in defaultCommands) {
             commands.append(cmd)
@@ -273,7 +273,7 @@ public class CompletionsGenerator {
         sb.append("  param($commandName, $wordToComplete, $cursorPosition)\n")
         sb.append("  $commands = @(\n")
         for (i in 0..commands.size) {
-            sb.append("    [CompletionResult]::new('${commands[i]}', '${commands[i]}', 'ParameterValue', '${if (i < descriptions.size) descriptions[i] else ""}')\n")
+            sb.append("    [CompletionResult]::new('${commands[i]}', '${commands[i]}', 'ParameterValue', '${if (i < descriptions.size) { descriptions[i] } else { ""}' }\n")
         }
         sb.append("  )\n")
         sb.append("  $commands | Where-Object { $_.CompletionText -like \"$wordToComplete*\" }\n")
@@ -302,10 +302,9 @@ public class CompletionsCommand {
                 case "zsh" => shellType = ShellType.Zsh
                 case "fish" => shellType = ShellType.Fish
                 case "pwsh" | "powershell" => shellType = ShellType.Pwsh
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printCompletionsHelp()
                     return
-                }
                 case _ => logger.warn("Unknown argument: ${arg}")
             }
         }

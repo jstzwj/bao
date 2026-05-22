@@ -212,6 +212,14 @@ public class ArrayList<T> <: Iterable<T> {
         return items_[length]
     }
 
+    /// 移除最后一个元素
+    /// 翻译自: pub fn pop(self: *Self) void
+    public func removeLast(): Unit {
+        if (length > 0) {
+            length -= 1
+        }
+    }
+
     /// 获取最后一个元素
     /// 翻译自: pub fn getLast(self: *const Self) *T
     public func getLast(): ?T {

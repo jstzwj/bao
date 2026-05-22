@@ -47,8 +47,8 @@ public class SSLContextCache {
         // 在锁内查找
         mutex.lock()
         defer mutex.unlock()
-        if (let entry = map.get(d)) {
-            if (let ctx = entry.ctx) {
+        if (let entry <- map.get(d)) {
+            if (let ctx <- entry.ctx) {
                 _ = BoringSSL.SSL_CTX_up_ref(ctx)
                 return ctx
             }
@@ -64,8 +64,8 @@ public class SSLContextCache {
         mutex.lock()
 
         // 重新检查: 另一个调用者可能在我们构建时插入了
-        if (let entry = map.get(d)) {
-            if (let existingCtx = entry.ctx) {
+        if (let entry <- map.get(d)) {
+            if (let existingCtx <- entry.ctx) {
                 // 使用已有的, 释放我们创建的
                 _ = BoringSSL.SSL_CTX_free(ctx)
                 _ = BoringSSL.SSL_CTX_up_ref(existingCtx)

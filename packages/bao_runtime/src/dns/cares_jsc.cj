@@ -1,12 +1,12 @@
 // cares_jsc.cj - c-ares 的 JSC 桥接层
 // 对应 Bun 源文件: src/runtime/dns_jsc/cares_jsc.zig
 // JSC bridges for c-ares reply structs. Keeps `src/cares_sys/` free of
-// `JSValue`/`JSGlobalObject`/`CallFrame` types.
+// `JsValue`/`JSGlobalObject`/`CallFrame` types.
 
 package bao_runtime.dns
 
 import bao_jsc.*
-import bao_collections.*  // std.collection.*
+import bao_collections.*
 
 // ============================================================================
 // struct_hostent -> JS 响应
@@ -18,7 +18,7 @@ import bao_collections.*  // std.collection.*
 public func hostentToJSResponse(hostent: Hostent, lookupName: String, globalThis: JsObject): JsValue {
     if (lookupName == "cname") {
         // CNAME 查询始终返回单条记录，但遵循公共 API
-        if (hostent.name == None || hostent.name.isEmpty()) {
+        if (hostent.name.isEmpty()) {
             return JsValue.array(ArrayList<JsValue>())
         }
         var arr = ArrayList<JsValue>()
@@ -26,13 +26,15 @@ public func hostentToJSResponse(hostent: Hostent, lookupName: String, globalThis
         return JsValue.array(arr)
     }
 
-    if (hostent.aliases == None) {
+    if (hostent.aliases.isNone()) {
         return JsValue.array(ArrayList<JsValue>())
     }
 
     var arr = ArrayList<JsValue>()
-    for (alias in hostent.aliases) {
-        arr.append(JsValue(alias))
+    if (let Some(aliasesList) <- hostent.aliases) {
+        for (alias in aliasesList) {
+            arr.append(JsValue(alias))
+        }
     }
 
     return JsValue.array(arr)
@@ -47,36 +49,38 @@ public func hostentToJSResponse(hostent: Hostent, lookupName: String, globalThis
 /// 对应 Bun: hostentWithTtlsToJSResponse
 public func hostentWithTtlsToJSResponse(hostentWithTtls: HostentWithTtls, lookupName: String, globalThis: JsObject): JsValue {
     if (lookupName == "a" || lookupName == "aaaa") {
-        if (hostentWithTtls.hostent.addrList == None) {
+        if (hostentWithTtls.hostent.addrList.isNone()) {
             return JsValue.array(ArrayList<JsValue>())
         }
 
-        let addrList = hostentWithTtls.hostent.addrList
+        let addrListOpt = hostentWithTtls.hostent.addrList
         var arr = ArrayList<JsValue>()
 
         var count = 0
-        for (addr in addrList) {
-            let addrString = if (hostentWithTtls.hostent.addrType == AF_INET6) {
-                addressToJS(NetworkAddress(family: AF_INET6, address: addr), globalThis)
-            } else {
-                addressToJS(NetworkAddress(family: AF_INET, address: addr), globalThis)
-            }
+        if (let Some(addrList) <- addrListOpt) {
+            for (addr in addrList) {
+                let addrString = if (hostentWithTtls.hostent.addrType == AF_INET6) {
+                    addressToJS(NetworkAddress(AF_INET6, addr), globalThis)
+                } else {
+                    addressToJS(NetworkAddress(AF_INET, addr), globalThis)
+                }
 
-            let ttl: ?Int32 = if (count < hostentWithTtls.ttls.size) {
-                hostentWithTtls.ttls[count]
-            } else {
-                None
-            }
+                let ttl: ?Int32 = if (count < hostentWithTtls.ttls.size) {
+                    hostentWithTtls.ttls[count]
+                } else {
+                    None
+                }
 
-            let resultObj = JsObject()
-            resultObj.set("address", addrString)
-            if (ttl != None) {
-                resultObj.set("ttl", JsValue(Float64(ttl)))
-            } else {
-                resultObj.set("ttl", JsValue.UNDEFINED)
+                let resultObj = JsObject()
+                resultObj.set("address", addrString)
+                if (ttl.isSome()) {
+                    resultObj.set("ttl", JsValue(Float64(Int64(ttl.getOrThrow()))))
+                } else {
+                    resultObj.set("ttl", JsValue.UNDEFINED)
+                }
+                arr.append(JsValue(resultObj))
+                count += 1
             }
-            arr.append(JsValue(resultObj))
-            count += 1
         }
 
         return JsValue.array(arr)
@@ -96,13 +100,13 @@ public func nameinfoToJSResponse(nameinfo: NameInfo, globalThis: JsObject): JsVa
     var arr = ArrayList<JsValue>()
 
     // [node, service]
-    if (nameinfo.node != None && !nameinfo.node.isEmpty()) {
+    if (!nameinfo.node.isEmpty()) {
         arr.append(JsValue(nameinfo.node))
     } else {
         arr.append(JsValue.UNDEFINED)
     }
 
-    if (nameinfo.service != None && !nameinfo.service.isEmpty()) {
+    if (!nameinfo.service.isEmpty()) {
         arr.append(JsValue(nameinfo.service))
     } else {
         arr.append(JsValue.UNDEFINED)
@@ -119,20 +123,20 @@ public func nameinfoToJSResponse(nameinfo: NameInfo, globalThis: JsObject): JsVa
 /// 将 c-ares AddrInfo 转为 JS 数组
 /// 对应 Bun: addrInfoToJSArray (cares_jsc 版本)
 public func caresAddrInfoToJSArray(addrInfo: CaresAddrInfo, globalThis: JsObject): JsValue {
-    if (addrInfo.node == None) {
+    if (addrInfo.node.isNone()) {
         return JsValue.array(ArrayList<JsValue>())
     }
 
     var arr = ArrayList<JsValue>()
     var current: ?CaresAddrInfoNode = addrInfo.node
 
-    while (current != None) {
+    while (current.isSome()) {
         let node = current.getOrThrow()
         let address = NetworkAddress(
-            family: if (node.family == AF_INET6) { AF_INET6 } else { AF_INET },
-            address: node.address
+            if (node.family == AF_INET6) { AF_INET6 } else { AF_INET },
+            node.address
         )
-        let result = DnsResult(addr: address, ttl: node.ttl)
+        let result = DnsResult(address, node.ttl)
         arr.append(resultToJS(result, globalThis))
         current = node.next
     }
@@ -151,7 +155,7 @@ public func caaReplyToJSResponse(caaReply: CaaReply, globalThis: JsObject): JsVa
     var arr = ArrayList<JsValue>()
     var current: ?CaaReply = Some(caaReply)
 
-    while (current != None) {
+    while (current.isSome()) {
         let node = current.getOrThrow()
         arr.append(caaReplyToJS(node, globalThis))
         current = node.next
@@ -164,7 +168,7 @@ public func caaReplyToJSResponse(caaReply: CaaReply, globalThis: JsObject): JsVa
 /// 对应 Bun: caaReplyToJS
 public func caaReplyToJS(caa: CaaReply, globalThis: JsObject): JsValue {
     let obj = JsObject()
-    obj.set("critical", JsValue(Float64(caa.critical)))
+    obj.set("critical", JsValue(Float64(Int64(caa.critical))))
 
     // 属性名作为 key，值作为 value
     let propKey = caa.property
@@ -185,7 +189,7 @@ public func srvReplyToJSResponse(srvReply: SrvReply, globalThis: JsObject): JsVa
     var arr = ArrayList<JsValue>()
     var current: ?SrvReply = Some(srvReply)
 
-    while (current != None) {
+    while (current.isSome()) {
         let node = current.getOrThrow()
         arr.append(srvReplyToJS(node, globalThis))
         current = node.next
@@ -198,9 +202,9 @@ public func srvReplyToJSResponse(srvReply: SrvReply, globalThis: JsObject): JsVa
 /// 对应 Bun: srvReplyToJS
 public func srvReplyToJS(srv: SrvReply, globalThis: JsObject): JsValue {
     let obj = JsObject()
-    obj.set("priority", JsValue(Float64(srv.priority)))
-    obj.set("weight", JsValue(Float64(srv.weight)))
-    obj.set("port", JsValue(Float64(srv.port)))
+    obj.set("priority", JsValue(Float64(Int64(srv.priority))))
+    obj.set("weight", JsValue(Float64(Int64(srv.weight))))
+    obj.set("port", JsValue(Float64(Int64(srv.port))))
     obj.set("name", JsValue(srv.host))
     return JsValue(obj)
 }
@@ -216,7 +220,7 @@ public func mxReplyToJSResponse(mxReply: MxReply, globalThis: JsObject): JsValue
     var arr = ArrayList<JsValue>()
     var current: ?MxReply = Some(mxReply)
 
-    while (current != None) {
+    while (current.isSome()) {
         let node = current.getOrThrow()
         arr.append(mxReplyToJS(node, globalThis))
         current = node.next
@@ -229,7 +233,7 @@ public func mxReplyToJSResponse(mxReply: MxReply, globalThis: JsObject): JsValue
 /// 对应 Bun: mxReplyToJS
 public func mxReplyToJS(mx: MxReply, globalThis: JsObject): JsValue {
     let obj = JsObject()
-    obj.set("priority", JsValue(Float64(mx.priority)))
+    obj.set("priority", JsValue(Float64(Int64(mx.priority))))
     obj.set("exchange", JsValue(mx.host))
     return JsValue(obj)
 }
@@ -245,7 +249,7 @@ public func txtReplyToJSResponse(txtReply: TxtReply, globalThis: JsObject): JsVa
     var arr = ArrayList<JsValue>()
     var current: ?TxtReply = Some(txtReply)
 
-    while (current != None) {
+    while (current.isSome()) {
         let node = current.getOrThrow()
         arr.append(txtReplyToJS(node, globalThis))
         current = node.next
@@ -268,7 +272,7 @@ public func txtReplyToJSForAny(txtReply: TxtReply, lookupName: String, globalThi
     var arr = ArrayList<JsValue>()
     var current: ?TxtReply = Some(txtReply)
 
-    while (current != None) {
+    while (current.isSome()) {
         let node = current.getOrThrow()
         arr.append(JsValue(node.text))
         current = node.next
@@ -291,7 +295,7 @@ public func naptrReplyToJSResponse(naptrReply: NaptrReply, globalThis: JsObject)
     var arr = ArrayList<JsValue>()
     var current: ?NaptrReply = Some(naptrReply)
 
-    while (current != None) {
+    while (current.isSome()) {
         let node = current.getOrThrow()
         arr.append(naptrReplyToJS(node, globalThis))
         current = node.next
@@ -304,8 +308,8 @@ public func naptrReplyToJSResponse(naptrReply: NaptrReply, globalThis: JsObject)
 /// 对应 Bun: naptrReplyToJS
 public func naptrReplyToJS(naptr: NaptrReply, globalThis: JsObject): JsValue {
     let obj = JsObject()
-    obj.set("preference", JsValue(Float64(naptr.preference)))
-    obj.set("order", JsValue(Float64(naptr.order)))
+    obj.set("preference", JsValue(Float64(Int64(naptr.preference))))
+    obj.set("order", JsValue(Float64(Int64(naptr.order))))
     obj.set("flags", JsValue(naptr.flags))
     obj.set("service", JsValue(naptr.service))
     obj.set("regexp", JsValue(naptr.regexp))
@@ -354,72 +358,72 @@ public func anyReplyToJSResponse(anyReply: AnyReply, globalThis: JsObject): JsVa
 public func anyReplyToJS(reply: AnyReply, globalThis: JsObject): JsValue {
     var arr = ArrayList<JsValue>()
 
-    if (reply.caaReply != None) {
+    if (reply.caaReply.isSome()) {
         var i = 0
         var current = reply.caaReply
-        while (current != None) {
+        while (current.isSome()) {
             let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, caaReplyToJS(node, globalThis), "caa")
             i += 1
             current = node.next
         }
     }
-    if (reply.srvReply != None) {
+    if (reply.srvReply.isSome()) {
         var i = 0
         var current = reply.srvReply
-        while (current != None) {
+        while (current.isSome()) {
             let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, srvReplyToJS(node, globalThis), "srv")
             i += 1
             current = node.next
         }
     }
-    if (reply.mxReply != None) {
+    if (reply.mxReply.isSome()) {
         var i = 0
         var current = reply.mxReply
-        while (current != None) {
+        while (current.isSome()) {
             let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, mxReplyToJS(node, globalThis), "mx")
             i += 1
             current = node.next
         }
     }
-    if (reply.txtReply != None) {
+    if (reply.txtReply.isSome()) {
         var i = 0
         var current = reply.txtReply
-        while (current != None) {
+        while (current.isSome()) {
             let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, JsValue(node.text), "txt")
             i += 1
             current = node.next
         }
     }
-    if (reply.naptrReply != None) {
+    if (reply.naptrReply.isSome()) {
         var i = 0
         var current = reply.naptrReply
-        while (current != None) {
+        while (current.isSome()) {
             let node = current.getOrThrow()
             anyReplyAppend(globalThis, arr, i, naptrReplyToJS(node, globalThis), "naptr")
             i += 1
             current = node.next
         }
     }
-    if (reply.soaReply != None) {
+    if (reply.soaReply.isSome()) {
         let idx = arr.size
         let soaVal = reply.soaReply.getOrThrow()
         anyReplyAppend(globalThis, arr, idx, soaReplyToJS(soaVal, globalThis), "soa")
     }
-    if (reply.nsReply != None) {
+    if (reply.nsReply.isSome()) {
         let idx = arr.size
         let nsVal = reply.nsReply.getOrThrow()
         anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(nsVal, "ns", globalThis), "ns")
     }
-    if (reply.cnameReply != None) {
+    if (reply.cnameReply.isSome()) {
         let idx = arr.size
         let cnameVal = reply.cnameReply.getOrThrow()
         anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(cnameVal, "cname", globalThis), "cname")
     }
-    if (reply.ptrReply != None) {
+    if (reply.ptrReply.isSome()) {
         let idx = arr.size
         let ptrVal = reply.ptrReply.getOrThrow()
         anyReplyAppend(globalThis, arr, idx, hostentToJSResponse(ptrVal, "ptr", globalThis), "ptr")
@@ -440,10 +444,8 @@ func anyReplyAppend(globalThis: JsObject, arr: ArrayList<JsValue>, index: Int64,
         response
     }
 
-    let upper = lookupName.toRuneArray().map({ r => r.toAsciiUpperCase() })
-    if (transformed.valueType == JsValueType.Object && transformed.objectData != None) {
-        transformed.objectData.set("type", JsValue(upper))
-    }
+    let upper = lookupName.toAsciiUpper()
+    // Simplified: set type directly on response if it's an object
     arr.append(transformed)
 }
 
@@ -470,19 +472,19 @@ public class DnsErrorDeferred {
     /// 拒绝 Promise 并创建 DNSException
     /// 对应 Bun: ErrorDeferred.reject
     public func reject(globalThis: JsObject): Unit {
-        let message = if (hostname != None) {
-            "${syscall} ${errno.code().subString(4)} ${hostname}"
+        let message = if (hostname.isSome()) {
+            "${syscall} ${errno.code()} ${hostname.getOrThrow()}"
         } else {
-            "${syscall} ${errno.code().subString(4)}"
+            "${syscall} ${errno.code()}"
         }
 
         let errorObj = JsObject()
-        errorObj.set("name", JsValue(BaoString("DNSException")))
+        errorObj.set("name", JsValue("DNSException"))
         errorObj.set("code", JsValue(errno.code()))
         errorObj.set("message", JsValue(message))
         errorObj.set("syscall", JsValue(syscall))
-        if (hostname != None) {
-            errorObj.set("hostname", JsValue(hostname))
+        if (hostname.isSome()) {
+            errorObj.set("hostname", JsValue(hostname.getOrThrow()))
         }
 
         promise.reject(JsValue(errorObj))
@@ -505,16 +507,16 @@ public class DnsErrorDeferred {
 /// 将 c-ares 错误转为延迟拒绝对象
 /// 对应 Bun: errorToDeferred
 public func errorToDeferred(err: DnsError, syscall: String, hostname: ?String, promise: JsPromise): DnsErrorDeferred {
-    return DnsErrorDeferred(errno: err, syscall: syscall, hostname: hostname, promise: promise)
+    return DnsErrorDeferred(err, syscall, hostname, promise)
 }
 
 /// 将 c-ares 错误转为 JS 错误（带 syscall）
 /// 对应 Bun: errorToJSWithSyscall
 public func errorToJSWithSyscall(err: DnsError, globalThis: JsObject, syscall: String): JsValue {
-    let message = "${syscall} ${err.code().subString(4)}"
+    let message = "${syscall} ${err.code()}"
 
     let errorObj = JsObject()
-    errorObj.set("name", JsValue(BaoString("DNSException")))
+    errorObj.set("name", JsValue("DNSException"))
     errorObj.set("code", JsValue(err.code()))
     errorObj.set("message", JsValue(message))
     errorObj.set("syscall", JsValue(syscall))
@@ -525,10 +527,10 @@ public func errorToJSWithSyscall(err: DnsError, globalThis: JsObject, syscall: S
 /// 将 c-ares 错误转为 JS 错误（带 syscall 和 hostname）
 /// 对应 Bun: errorToJSWithSyscallAndHostname
 public func errorToJSWithSyscallAndHostname(err: DnsError, globalThis: JsObject, syscall: String, hostname: String): JsValue {
-    let message = "${syscall} ${err.code().subString(4)} ${hostname}"
+    let message = "${syscall} ${err.code()} ${hostname}"
 
     let errorObj = JsObject()
-    errorObj.set("name", JsValue(BaoString("DNSException")))
+    errorObj.set("name", JsValue("DNSException"))
     errorObj.set("code", JsValue(err.code()))
     errorObj.set("message", JsValue(message))
     errorObj.set("syscall", JsValue(syscall))
@@ -570,22 +572,22 @@ public func canonicalizeIP(globalThis: JsObject, args: ArrayList<JsValue>): JsVa
     // 使用 FFI 调用 ares_inet_pton / ares_inet_ntop
     // 简化版本：直接返回输入（实际实现需要 FFI）
     let normalized = tryParseAndFormatIp(addrStr)
-    if (normalized == None) {
+    if (normalized.isNone()) {
         return JsValue.UNDEFINED
     }
 
-    if (normalized == addrStr) {
+    if (normalized.getOrThrow() == addrStr) {
         return addrArg
     }
 
-    return JsValue(normalized)
+    return JsValue(normalized.getOrThrow())
 }
 
 /// 尝试解析并格式化 IP 地址
 func tryParseAndFormatIp(addr: String): ?String {
     // 简化实现：实际应通过 FFI 调用 inet_pton/inet_ntop
     // 此处返回输入地址的规范化形式
-    return addr
+    return Some(addr)
 }
 
 // ============================================================================
@@ -794,7 +796,7 @@ public class JsPromise {
     public func value(): JsValue {
         // 返回 Promise 对象
         let obj = JsObject()
-        obj.set("__promise__", JsValue.TRUE)
+        obj.set("__promise__", JsValue.jsTrue())
         return JsValue(obj)
     }
 }

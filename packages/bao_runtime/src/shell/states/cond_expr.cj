@@ -200,7 +200,7 @@ public class CondExprState {
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
-        if (err != None) {
+        if (err.isSome()) {
             let exitCode: ExitCode = 1
             return this.parent.childDone(this, exitCode)
         }

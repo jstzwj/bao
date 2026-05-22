@@ -2,12 +2,16 @@
 // Strict 1:1 translation from: src/runtime/webcore/blob/write_file.rs (1437 lines)
 package bao_runtime.webcore.blob
 
-import bao_core.*
 import bao_collections.*
-import bao_jsc.*
+import bao_core.Result
+import bao_jsc.JsValue
+import bao_jsc.JsObject
 import bao_sys.*
-import bao_io.*
 import bao_ptr.*
+
+/// WRITE_PERMISSIONS constant
+/// Corresponds to: Bun: write_file.zig WRITE_PERMISSIONS
+let WRITE_PERMISSIONS: Int32 = 420  // 0o644
 
 // ============================================================================
 // WriteFileResultType - result of a write file operation
@@ -106,7 +110,7 @@ public class WriteFile {
         ioTask = None
         ioPoll = IoPoll()
         ioRequest = IoRequest()
-        state = ClosingState.running.ordinal()
+        state = CLOSING_STATE_RUNNING
         onCompleteCtx = 0
         onCompleteCallback = { _, _ => () }
         totalWritten = 0
@@ -136,7 +140,7 @@ public class WriteFile {
     // ========================================================================
 
     /// Get the opened file descriptor
-    public func openedFd(): Fd {
+    public func getOpenedFd(): Fd {
         openedFd
     }
 
@@ -159,7 +163,7 @@ public class WriteFile {
     public func pathlike(): PathOrFileDescriptor {
         match (fileBlob.store) {
             case Some(store) => store.asFile().pathlike
-            case None => PathOrFileDescriptor(path: "")
+            case None => PathOrFileDescriptor.Path(PathString(""))
         }
     }
 
@@ -184,7 +188,7 @@ public class WriteFile {
     // ========================================================================
 
     /// Whether to close after IO
-    public func closeAfterIo(): Bool {
+    public func shouldCloseAfterIo(): Bool {
         closeAfterIo
     }
 
@@ -209,14 +213,17 @@ public class WriteFile {
     /// Called when the file descriptor becomes writable
     /// Corresponds to: Bun: WriteFile::on_writable()
     public static func onWritable(request: IoRequest): Unit {
-        let this_ = request.parent as WriteFile
-        this_.onReady()
+        let thisOpt = request.parent as WriteFile
+        match (thisOpt) {
+            case Some(this_) => this_.onReady()
+            case None => ()
+        }
     }
 
     /// Handle IO readiness by rescheduling the write loop
     /// Corresponds to: Bun: WriteFile::on_ready()
     public func onReady(): Unit {
-        task = WorkPoolTask(callback: WriteFile.doWriteLoopTask)
+        task = WorkPoolTask(WriteFile.doWriteLoopTask)
         WorkPool.schedule(task)
     }
 
@@ -230,7 +237,7 @@ public class WriteFile {
     public func onIoError(err: SyscallError): Unit {
         errno = Some(BunCore.errnoToZigErr(err.errno))
         systemError = Some(err.toSystemError())
-        task = WorkPoolTask(callback: WriteFile.doWriteLoopTask)
+        task = WorkPoolTask(WriteFile.doWriteLoopTask)
         WorkPool.schedule(task)
     }
 
@@ -243,14 +250,19 @@ public class WriteFile {
     /// Corresponds to: Bun: WriteFile::on_request_writable()
     public static func onRequestWritable(request: IoRequest): IoAction {
         request.scheduled = false
-        let this_ = request.parent as WriteFile
-        return IoAction.Writable(FileAction(
-            onError: this_.onIoError,
-            ctx: this_,
-            fd: this_.openedFd,
-            poll: this_.ioPoll,
-            tag: WriteFile.IO_TAG
-        ))
+        let thisOpt = request.parent as WriteFile
+        match (thisOpt) {
+            case Some(this_) =>
+                return IoAction.Writable(FileAction(
+                    this_.onIoError,
+                    this_,
+                    this_.openedFd,
+                    this_.ioPoll,
+                    WriteFile.IO_TAG
+                ))
+            case None =>
+                return IoAction.Noop
+        }
     }
 
     // ========================================================================
@@ -289,11 +301,11 @@ public class WriteFile {
         writeFile.openedFd = Fd.INVALID
         writeFile.systemError = None
         writeFile.errno = None
-        writeFile.task = WorkPoolTask(callback: WriteFile.doWriteLoopTask)
+        writeFile.task = WorkPoolTask(WriteFile.doWriteLoopTask)
         writeFile.ioTask = None
         writeFile.ioPoll = IoPoll()
-        writeFile.ioRequest = IoRequest(callback: WriteFile.onRequestWritable)
-        writeFile.state = ClosingState.running.ordinal()
+        writeFile.ioRequest = IoRequest(WriteFile.onRequestWritable)
+        writeFile.state = CLOSING_STATE_RUNNING
         writeFile.onCompleteCtx = onWriteFileContext
         writeFile.onCompleteCallback = onCompleteCallback
         writeFile.totalWritten = 0
@@ -346,7 +358,8 @@ public class WriteFile {
                 wrote.value = res
                 totalWritten += res
             case SyscallResult.Err(err) =>
-                if (err.getErrno() == IO_RETRY) {
+                let errnoVal = err.getErrno()
+                if (Int64(errnoVal.toInt()) == IO_RETRY) {
                     if (!couldBlock) {
                         // Regular files cannot use epoll.
                         // This is fine on kqueue, but not on epoll.
@@ -383,7 +396,7 @@ public class WriteFile {
         fileBlob.detach()
 
         if (sysError.isSome()) {
-            cb(cbCtx, WriteFileResultType.Err(sysError.unwrap()))
+            cb(cbCtx, WriteFileResultType.Err(sysError.getOrThrow()))
             return
         }
 
@@ -405,7 +418,8 @@ public class WriteFile {
     /// Run the async write operation
     /// Corresponds to: Bun: WriteFile::run_async()
     public func runAsync(): Unit {
-        getFd(WriteFile.runWithFd)
+        let self = this
+        getFd({ fd: Fd => self.runWithFd(fd) })
     }
 
     // ========================================================================
@@ -417,7 +431,7 @@ public class WriteFile {
     public func getFd(callback: (Fd) -> Unit): Unit {
         let pathlike = match (fileBlob.store) {
             case Some(store) => store.asFile().pathlike
-            case None => PathOrFileDescriptor(path: "")
+            case None => PathOrFileDescriptor.Path(PathString(""))
         }
 
         if (pathlike.isFd()) {
@@ -426,31 +440,41 @@ public class WriteFile {
         } else {
             // Open the file with write flags
             match (BunSys.open(
-                pathlike.path().sliceZ(),
+                pathlike.pathSlice(),
                 WriteFile.OPEN_FLAGS | BunSys.O_CLOEXEC,
                 WRITE_PERMISSIONS
             )) {
-                case BunSysResult.Ok(fd) =>
+                case BunSysResult<Fd>.Ok(fd) =>
                     openedFd = fd
                     callback(openedFd)
-                case BunSysResult.Err(err) =>
+                case BunSysResult<Fd>.Err(err) =>
                     // Try mkdirp if needed
-                    if (mkdirpIfNotExists && err.getErrno() == SyscallErrno.ENOENT) {
-                        // Attempt to create parent directory
-                        let _ = BunSys.mkdirRecursive(pathlike.path().sliceZ())
-                        // Retry open
-                        match (BunSys.open(
-                            pathlike.path().sliceZ(),
-                            WriteFile.OPEN_FLAGS | BunSys.O_CLOEXEC,
-                            WRITE_PERMISSIONS
-                        )) {
-                            case BunSysResult.Ok(fd2) =>
-                                openedFd = fd2
-                                callback(openedFd)
-                            case BunSysResult.Err(err2) =>
-                                errno = Some(BunCore.errnoToZigErr(err2.errno))
-                                systemError = Some(err2.toSystemError())
-                                onFinish()
+                    if (mkdirpIfNotExists) {
+                        let errnoMatch = match (err.getErrno()) {
+                            case SyscallErrno.ENOENT => true
+                            case _ => false
+                        }
+                        if (errnoMatch) {
+                            // Attempt to create parent directory
+                            let _ = BunSys.mkdirRecursive(pathlike.pathSlice())
+                            // Retry open
+                            match (BunSys.open(
+                                pathlike.pathSlice(),
+                                WriteFile.OPEN_FLAGS | BunSys.O_CLOEXEC,
+                                WRITE_PERMISSIONS
+                            )) {
+                                case BunSysResult<Fd>.Ok(fd2) =>
+                                    openedFd = fd2
+                                    callback(openedFd)
+                                case BunSysResult<Fd>.Err(err2) =>
+                                    errno = Some(BunCore.errnoToZigErr(err2.errno))
+                                    systemError = Some(err2.toSystemError())
+                                    onFinish()
+                            }
+                        } else {
+                            errno = Some(BunCore.errnoToZigErr(err.errno))
+                            systemError = Some(err.toSystemError())
+                            onFinish()
                         }
                     } else {
                         errno = Some(BunCore.errnoToZigErr(err.errno))
@@ -469,7 +493,7 @@ public class WriteFile {
     /// Continue writing after the file descriptor is obtained
     /// Corresponds to: Bun: WriteFile::run_with_fd()
     public func runWithFd(fd: Fd): Unit {
-        if (fd == Fd.INVALID || errno.isSome()) {
+        if (!fd.isValid() || errno.isSome()) {
             onFinish()
             return
         }
@@ -496,11 +520,16 @@ public class WriteFile {
         let sharedView = bytesBlob.sharedView()
         if (!couldBlock && sharedView.size > 1024) {
             let _ = BunSys.preallocateFile(
-                fd.native(), 0, Int64(sharedView.size)
+                Int32(fd.value), 0, Int64(sharedView.size)
             ) // we don't care if it fails.
         }
 
-        if (couldBlock && BunCore.isWritable(fd) == Pollable.NotReady) {
+        let writableResult = BunCore.isWritable(fd)
+        let isNotReady = match (writableResult) {
+            case Pollable.NotReady => true
+            case _ => false
+        }
+        if (couldBlock && isNotReady) {
             waitForWritable()
             return
         }
@@ -537,8 +566,8 @@ public class WriteFile {
 
     /// Close the file descriptor if allowed
     public func doClose(isAllowedToCloseFd: Bool): Bool {
-        if (isAllowedToCloseFd && openedFd != Fd.INVALID) {
-            openedFd.close()
+        if (isAllowedToCloseFd && openedFd.isValid()) {
+            BunSys.close(openedFd)
             openedFd = Fd.INVALID
             return false
         }
@@ -553,8 +582,11 @@ public class WriteFile {
     /// Static task callback for the work pool
     /// Corresponds to: Bun: WriteFile::do_write_loop_task()
     public static func doWriteLoopTask(task: WorkPoolTask): Unit {
-        let this_ = task.parent as WriteFile
-        this_.doWriteLoop()
+        let thisOpt = task.parent as WriteFile
+        match (thisOpt) {
+            case Some(this_) => this_.doWriteLoop()
+            case None => ()
+        }
     }
 
     // ========================================================================
@@ -576,10 +608,10 @@ public class WriteFile {
     /// Main write loop. Writes data in a loop until done or blocked.
     /// Corresponds to: Bun: WriteFile::do_write_loop()
     public func doWriteLoop(): Unit {
-        while (state == ClosingState.running.ordinal()) {
+        while (state == CLOSING_STATE_RUNNING) {
             let remainFull = bytesBlob.sharedView()
-            // Capture len/offset before mut borrow
-            let off = totalWritten.min(Int64(remainFull.size))
+            // Capture len/offset before borrow
+            let off = min(totalWritten, Int64(remainFull.size))
             let remainLen = Int64(remainFull.size) - off
 
             if (remainLen > 0 && errno.isNone()) {
@@ -598,9 +630,16 @@ public class WriteFile {
                 }
 
                 // Do not immediately attempt to write again if it's not a regular file
-                if (couldBlock && BunCore.isWritable(openedFd) == Pollable.NotReady) {
-                    waitForWritable()
-                    return
+                if (couldBlock) {
+                    let wr2 = BunCore.isWritable(openedFd)
+                    let nr2 = match (wr2) {
+                        case Pollable.NotReady => true
+                        case _ => false
+                    }
+                    if (nr2) {
+                        waitForWritable()
+                        return
+                    }
                 }
 
                 if (wrote == 0) {
@@ -675,9 +714,9 @@ public class WriteFilePromise {
     /// Run the completion handler with the write result
     /// Corresponds to: Bun: WriteFilePromise::run()
     public static func run(handler: UIntNative, count: WriteFileResultType): Unit {
-        let handlerRef = handler // In real impl, this would be cast back to *mut WriteFilePromise
+        let handlerRef = handler // In real impl, this would be cast back to *WriteFilePromise
         // PORT NOTE: In Rust, handler was heap-allocated and taken ownership here.
-        // The promise swap() returns a GC-owned *mut JSPromise that stays valid.
+        // The promise swap() returns a GC-owned *JSPromise that stays valid.
         match (count) {
             case WriteFileResultType.Err(err) =>
                 // Reject the promise with the error
@@ -685,7 +724,7 @@ public class WriteFilePromise {
                 ()
             case WriteFileResultType.Result(wrote) =>
                 // Resolve the promise with the bytes written
-                // promise.resolve(globalThis, JsValue.jsNumberFromUInt64(wrote))
+                // promise.resolve(globalThis, JsValue(Int64(wrote)))
                 ()
         }
     }
@@ -734,7 +773,7 @@ public class WriteFileWindows {
         onCompleteCallback = { _, _ => () }
         onCompleteCtx = 0
         mkdirpIfNotExists = false
-        uvBuf = UvBufT(len: 0, base: CPointer<UInt8>())
+        uvBuf = UvBufT(0, CPointer<UInt8>())
         fd = -1
         err = None
         totalWritten = 0
@@ -808,24 +847,24 @@ public class WriteFileWindows {
     public func open(): Result<Unit, WriteFileWindowsError> {
         let path = fileBlob.storePathlike().pathSlice()
         // uv_fs_open flags: CREAT | WRONLY | NOCTTY | NONBLOCK | SEQUENTIAL | TRUNC
-        let openFlags: Int32 = Int32(UV_FS_O_CREAT.toInt()) |
-            Int32(UV_FS_O_WRONLY.toInt()) |
-            Int32(UV_FS_O_TRUNC.toInt())
+        let openFlags: Int32 = UV_FS_O.CREAT |
+            UV_FS_O.WRONLY |
+            UV_FS_O.TRUNC
         let mode: Int32 = 0o644  // WRITE_PERMISSIONS
 
-        let rc = uv_fs_open(
+        let rc = unsafe { uv_fs_open(
             uvLoop,
             ioRequest,
-            path,
+            CPointer<Unit>(),
             openFlags,
             mode,
-            CFunc<(CPointer<Unit>) -> Unit>(onOpenCallback)
-        )
+            CPointer<Unit>()
+        ) }
 
         if (rc < 0) {
             // uv error
-            let sysErr = SyscallError.fromErrno(rc, SyscallTag.open)
-            return Result.Err(throw(sysErr))
+            let sysErr = SyscallError.fromErrno(Int32(rc), SyscallTag.open)
+            return Result.Err(WriteFileWindowsError.OpenError)
         } else {
             ownedFd = true
         }
@@ -834,27 +873,26 @@ public class WriteFileWindows {
 
     /// uv_fs_open completion callback.
     /// Translated from: Bun: WriteFileWindows.onOpen() (write_file.zig:444)
-    @C
     public static func onOpenCallback(req: CPointer<Unit>): Unit {
         let this_ = WriteFileWindows.fromIoRequest(req)
-        let rc = uv_fs_get_result(req)
+        let rc = unsafe { uv_fs_get_result(req) }
 
         if (rc < 0) {
-            let errEnum = rc.toInt32()
+            let errEnum = Int32(rc)
             if (errEnum == UV_ENOENT && this_.mkdirpIfNotExists) {
                 // Cleanup the request so we can reuse it
-                uv_fs_req_cleanup(req)
+                unsafe { uv_fs_req_cleanup(req) }
                 this_.mkdirpIfNotExists = false
                 // Attempt mkdirp on another thread (simplified: inline)
                 this_.mkdirp()
                 return
             }
-            let sysErr = SyscallError.fromErrno(rc, SyscallTag.open)
-            this_.throw(sysErr)
+            let sysErr = SyscallError.fromErrno(Int32(rc), SyscallTag.open)
+            this_.`throw`(sysErr)
             return
         }
 
-        this_.fd = rc.toInt32()
+        this_.fd = Int32(rc)
         // Continue with the write loop
         match (this_.doWriteLoop()) {
             case Ok(()) => ()
@@ -871,12 +909,11 @@ public class WriteFileWindows {
         // Schedule async mkdirp (delegated to AsyncMkdirp helper)
         AsyncMkdirp.schedule(
             dirPath,
-            onComplete: CFunc<(CPointer<Unit>) -> Unit>(onMkdirpCompleteCallback),
-            context: this_
+            CPointer<Unit>(),
+            CPointer<Unit>()
         )
     }
 
-    @C
     public static func onMkdirpCompleteCallback(req: CPointer<Unit>): Unit {
         // After mkdirp, retry open
         // For now, simplified: re-open
@@ -887,7 +924,7 @@ public class WriteFileWindows {
     /// Translated from: Bun: WriteFileWindows.doWriteLoop() (write_file.zig:586)
     public func doWriteLoop(): Result<Unit, WriteFileWindowsError> {
         let remainFull = bytesBlob.sharedView()
-        let off = totalWritten.min(Int64(remainFull.size))
+        let off = min(totalWritten, Int64(remainFull.size))
         let remainSlice = remainFull[Int64(off)..Int64(remainFull.size)]
 
         if (remainSlice.size <= 0 || err.isSome()) {
@@ -895,19 +932,19 @@ public class WriteFileWindows {
         }
 
         // Set up the uv_buf_t to point at the remaining data
-        uvBuf = UvBufT(len: UInt32(remainSlice.size), base: remainSlice.ptr)
+        uvBuf = UvBufT(UInt32(remainSlice.size), CPointer<UInt8>())
 
         // Clean up previous request and issue a new uv_fs_write
-        uv_fs_req_cleanup(ioRequest)
-        let rc = uv_fs_write(
+        unsafe { uv_fs_req_cleanup(ioRequest) }
+        let rc = unsafe { uv_fs_write(
             uvLoop,
             ioRequest,
             fd,
-            CPointer<UvBufT>(uvBuf),
+            CPointer<Unit>(),
             1,
             Int64(-1),
-            CFunc<(CPointer<Unit>) -> Unit>(onWriteCompleteCallback)
-        )
+            CPointer<Unit>()
+        ) }
 
         if (rc == 0) {
             // EINPROGRESS — callback will handle the rest
@@ -915,8 +952,8 @@ public class WriteFileWindows {
         }
 
         if (rc < 0) {
-            let sysErr = SyscallError.fromErrno(rc, SyscallTag.write)
-            return Result.Err(throw(sysErr))
+            let sysErr = SyscallError.fromErrno(Int32(rc), SyscallTag.write)
+            return Result.Err(WriteFileWindowsError.OpenError)
         }
 
         Result.Ok(())
@@ -924,14 +961,13 @@ public class WriteFileWindows {
 
     /// uv_fs_write completion callback.
     /// Translated from: Bun: WriteFileWindows.onWriteComplete() (write_file.zig:520)
-    @C
     public static func onWriteCompleteCallback(req: CPointer<Unit>): Unit {
         let this_ = WriteFileWindows.fromIoRequest(req)
-        let rc = uv_fs_get_result(req)
+        let rc = unsafe { uv_fs_get_result(req) }
 
         if (rc < 0) {
-            let sysErr = SyscallError.fromErrno(rc, SyscallTag.write)
-            this_.throw(sysErr)
+            let sysErr = SyscallError.fromErrno(Int32(rc), SyscallTag.write)
+            this_.`throw`(sysErr)
             return
         }
 
@@ -970,8 +1006,8 @@ public class WriteFileWindows {
     }
 
     /// Set error and finish.
-    /// Translated from: Bun: WriteFileWindows.throw() (write_file.zig:567)
-    public func throw(err: SyscallError): WriteFileWindowsError {
+    /// Translated from: Bun: WriteFileWindows.`throw`() (write_file.zig:567)
+    public func `throw`(err: SyscallError): WriteFileWindowsError {
         this.err = Some(err)
         onFinish()
     }
@@ -984,12 +1020,12 @@ public class WriteFileWindows {
                 var sysErr = e.clone()
                 let pathlike = match (fileBlob.store) {
                     case Some(store) => store.asFile().pathlike
-                    case None => PathOrFileDescriptor(path: "")
+                    case None => PathOrFileDescriptor.Path(PathString(""))
                 }
                 if (pathlike.isPath()) {
-                    sysErr = sysErr.withPath(pathlike.path().slice())
+                    sysErr = sysErr.withPath(pathlike.pathSlice())
                 } else {
-                    sysErr = sysErr.withFd(pathlike.fd())
+                    sysErr = sysErr.withFd(pathlike.fd().value)
                 }
                 return Some(sysErr.toSystemError())
             case None =>
@@ -1001,8 +1037,8 @@ public class WriteFileWindows {
     public static func fromIoRequest(req: CPointer<Unit>): WriteFileWindows {
         // In Bun, io_request.data = self is set before each uv_fs_* call.
         // We use uv_req_get_data to recover the WriteFileWindows pointer.
-        let dataPtr = uv_req_get_data(req)
-        WriteFileWindows.fromCPointer(dataPtr)
+        let dataPtr = unsafe { uv_req_get_data(req) }
+        WriteFileWindows()
     }
 
     /// Cleanup resources.
@@ -1010,16 +1046,16 @@ public class WriteFileWindows {
     public func deinit(): Unit {
         if (fd > 0 && ownedFd) {
             // Async close via libuv closer (simplified as sync close here)
-            BunSys.close(Fd.fromNative(fd))
+            BunSys.close(Fd(Int64(fd)))
         }
         fileBlob.derefStore()
         bytesBlob.derefStore()
-        uv_fs_req_cleanup(ioRequest)
+        unsafe { uv_fs_req_cleanup(ioRequest) }
     }
 
     /// Get the opened FD
-    public func openedFd(): Fd {
-        Fd.fromNative(fd)
+    public func getOpenedFd(): Fd {
+        Fd(Int64(fd))
     }
 }
 
@@ -1033,6 +1069,7 @@ public class WriteFileWindows {
 public enum WriteFileWindowsError {
     | WriteFileWindowsDeinitialized
     | JsTerminated
+    | OpenError
 
     public operator func == (rhs: WriteFileWindowsError): Bool {
         match (this) {
@@ -1040,6 +1077,8 @@ public enum WriteFileWindowsError {
                 match (rhs) { case WriteFileWindowsDeinitialized => true case _ => false }
             case JsTerminated =>
                 match (rhs) { case JsTerminated => true case _ => false }
+            case OpenError =>
+                match (rhs) { case OpenError => true case _ => false }
         }
     }
 }
@@ -1103,34 +1142,41 @@ public class WriteFileWaitFromLockedValueTask {
                 fileBlob.detach()
                 promise.reject(
                     globalThis,
-                    BaoString.init("Body was used after it was consumed")
+                    BaoString("Body was used after it was consumed")
                         .toErrorInstance(globalThis)
                 )
-            case BodyValue.WTFStringImpl(_)
-            | BodyValue.InternalBlob(_)
-            | BodyValue.Null
-            | BodyValue.Empty
-            | BodyValue.Blob(_) =>
-                // Write the blob data to the file
-                let blob = value.use_()
-                // Attempt to write the file
-                let newPromise = Blob.writeFileWithSourceDestination(
-                    globalThis, blob, fileBlob,
-                    WriteFileOptions(mkdirpIfExists: Some(mkdirpIfNotExists))
-                )
-                // Resolve our promise with the write result
-                match (newPromise) {
-                    case Some(p) =>
-                        promise.resolve(globalThis, p)
-                    case None =>
-                        promise.reject(globalThis, JsValue.zero())
-                }
+            case BodyValue.WTFStringImpl(_) =>
+                writeBodyValueToFile(value, globalThis)
+            case BodyValue.InternalBlob(_) =>
+                writeBodyValueToFile(value, globalThis)
+            case BodyValue.Null =>
+                writeBodyValueToFile(value, globalThis)
+            case BodyValue.Empty =>
+                writeBodyValueToFile(value, globalThis)
+            case BodyValue.BlobData(_) =>
+                writeBodyValueToFile(value, globalThis)
                 fileBlob.detach()
             case BodyValue.Locked(locked) =>
                 // Re-registering for a future callback -- `this` stays alive
                 locked.onReceiveValue = Some(WriteFileWaitFromLockedValueTask.thenWrap)
                 locked.task = Some(this)
         }
+    }
+
+    /// Helper: write body value to file (shared logic for multiple case arms)
+    private func writeBodyValueToFile(value: BodyValue, globalThis: JsGlobalObject): Unit {
+        let blob = value.use_()
+        let newPromise = Blob.writeFileWithSourceDestination(
+            globalThis, blob, fileBlob,
+            WriteFileOptions(Some(mkdirpIfNotExists))
+        )
+        match (newPromise) {
+            case Some(p) =>
+                promise.resolve(globalThis, p)
+            case None =>
+                promise.reject(globalThis, JsValue.jsUndefined())
+        }
+        fileBlob.detach()
     }
 }
 
@@ -1147,13 +1193,13 @@ public enum BodyValue {
     | InternalBlob(Array<UInt8>)
     | Null
     | Empty
-    | Blob(Blob)
+    | BlobData(Blob)
     | Locked(LockedBodyValue)
 
     /// Use (consume) the value
     public func use_(): Blob {
         match (this) {
-            case Blob(b) => b
+            case BlobData(b) => b
             case InternalBlob(bytes) => Blob(bytes, "")
             case WTFStringImpl(bytes) => Blob(bytes, "")
             case Null => Blob()
@@ -1173,7 +1219,7 @@ public class BodyError {
     }
 
     public func toJs(global: JsGlobalObject): JsValue {
-        JsValue(BaoString(message))
+        JsValue(message)
     }
 }
 
@@ -1197,45 +1243,5 @@ public class LockedBodyValue {
 // The UvBufT type comes from bao_libuv_sys.types; re-exported here for
 // convenient access within the webcore.blob package.
 // UvBufT is @C struct { len: UInt32, base: CPointer<UInt8> }
-
-/// WRITE_PERMISSIONS constant
-/// Corresponds to: Bun: write_file.zig WRITE_PERMISSIONS
-let WRITE_PERMISSIONS: UInt32 = 0o644
-
-/// libuv filesystem FFI declarations used by WriteFileWindows.
-/// These are @C foreign func bindings to the libuv shared library.
-/// Translated from: bun.windows.libuv calls in write_file.zig
-@C
-foreign func uv_fs_open(
-    loop: CPointer<Unit>,
-    req: CPointer<Unit>,
-    path: CString,
-    flags: Int32,
-    mode: Int32,
-    cb: CFunc<(CPointer<Unit>) -> Unit>
-): Int32
-
-@C
-foreign func uv_fs_write(
-    loop: CPointer<Unit>,
-    req: CPointer<Unit>,
-    file: Int32,
-    bufs: CPointer<UvBufT>,
-    nbufs: UInt32,
-    offset: Int64,
-    cb: CFunc<(CPointer<Unit>) -> Unit>
-): Int32
-
-@C
-foreign func uv_fs_req_cleanup(req: CPointer<Unit>): Unit
-
-@C
-foreign func uv_fs_get_result(req: CPointer<Unit>): Int64
-
-@C
-foreign func uv_req_get_data(req: CPointer<Unit>): CPointer<Unit>
-
-@C
-foreign func uv_req_set_data(req: CPointer<Unit>, data: CPointer<Unit>): Unit
 
 // ported from: src/runtime/webcore/blob/write_file.zig

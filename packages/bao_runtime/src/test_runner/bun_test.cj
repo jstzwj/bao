@@ -4,6 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_collections.*  // std.collection.*
 
 // ========== 公共辅助函数 ==========
@@ -45,7 +46,7 @@ public enum Signature {
     /// 格式化为字符串
     public func format(): String {
         match (this) {
-            case scopeFunctions(sf) => return sf.format()
+            | scopeFunctions(sf) => return sf.format()
             case str(s) => return s
         }
     }
@@ -60,7 +61,7 @@ public enum Signature {
 /// 2. 根据allowInPreload检查是否在preload阶段
 public func getActiveTestRoot(globalThis: JSGlobalObject, cfg: GetActiveCfg): ?BunTestRoot {
     let runner = Jest.runner ?? {
-        globalThis.throw(message: "Cannot use " + (cfg.signature.format()) + " outside of the test runner. Run \"bun test\" to run tests.")
+        globalThis.`throw`(message: "Cannot use " + (cfg.signature.format()) + " outside of the test runner. Run \"bun test\" to run tests.")
         return None
     }()
 
@@ -68,7 +69,7 @@ public func getActiveTestRoot(globalThis: JSGlobalObject, cfg: GetActiveCfg): ?B
     let vm = globalThis.bunVM()
 
     if (vm.isInPreload && !cfg.allowInPreload) {
-        globalThis.throw(message: "Cannot use " + (cfg.signature.format()) + " during preload.")
+        globalThis.`throw`(message: "Cannot use " + (cfg.signature.format()) + " during preload.")
         return None
     }
 
@@ -160,7 +161,7 @@ public class GenericHookFns {
 /// 2. 检查done参数（回调函数的参数个数）
 /// 3. 根据当前阶段（Collection/Execution/Done）决定钩子追加位置
 /// 4. 在Execution阶段，需要将钩子插入到执行序列的正确位置
-public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     let tagName = tag.tagName()
     let sigBytes = tag.sig()
 
@@ -181,7 +182,7 @@ public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, cal
     let bunTestRoot = getActiveTestRoot(
         globalThis: globalThis,
         cfg: GetActiveCfg(signature: Signature.str(sigBytes), allowInPreload: true)
-    ) ?? return JSValue.jsUndefined
+    ) ?? return JsValue.jsUndefined
 
     let cfg = ExecutionEntryCfg(
         timeout: args.options.timeout,
@@ -191,10 +192,10 @@ public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, cal
     )
 
     let bunTest = bunTestRoot.getActiveFileUnlessInPreload(vm: globalThis.bunVM())
-    if (bunTest == None) {
-        if (tag == .onTestFinished) {
-            globalThis.throw(message: "Cannot call " + (tagName) + "() in preload. It can only be called inside a test.")
-            return JSValue.jsUndefined
+    if (bunTest.isNone()) {
+        if (tag == onTestFinished) {
+            globalThis.`throw`(message: "Cannot call " + (tagName) + "() in preload. It can only be called inside a test.")
+            return JsValue.jsUndefined
         }
 
         // 在preload中，追加到hookScope
@@ -205,14 +206,14 @@ public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, cal
             base: BaseScopeCfg(),
             phase: AddedInPhase.preload
         )
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     match (bunTest.getOrThrow().phase) {
         case collection =>
-            if (tag == .onTestFinished) {
-                globalThis.throw(message: "Cannot call " + (tagName) + "() outside of a test. It can only be called inside a test.")
-                return JSValue.jsUndefined
+            if (tag == onTestFinished) {
+                globalThis.`throw`(message: "Cannot call " + (tagName) + "() outside of a test. It can only be called inside a test.")
+                return JsValue.jsUndefined
             }
             bunTest.collection.activeScope.appendHook(
                 tag: tag.asHookTag()!!,
@@ -221,18 +222,18 @@ public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, cal
                 base: BaseScopeCfg(),
                 phase: AddedInPhase.collection
             )
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
 
         case execution =>
             let active = bunTest.getCurrentStateData()
             let result = bunTest.execution.getCurrentAndValidExecutionSequence(data: active)
-            if (result == None) {
-                if (tag == .onTestFinished) {
-                    globalThis.throw(message: "Cannot call " + (tagName) + "() here. It cannot be called inside a concurrent test. Use test.serial or remove test.concurrent.")
+            if (result.isNone()) {
+                if (tag == onTestFinished) {
+                    globalThis.`throw`(message: "Cannot call " + (tagName) + "() here. It cannot be called inside a concurrent test. Use test.serial or remove test.concurrent.")
                 } else {
-                    globalThis.throw(message: "Cannot call " + (tagName) + "() here. It cannot be called inside a concurrent test. Call it inside describe() instead.")
+                    globalThis.`throw`(message: "Cannot call " + (tagName) + "() here. It cannot be called inside a concurrent test. Call it inside describe() instead.")
                 }
-                return JSValue.jsUndefined
+                return JsValue.jsUndefined
             }
 
             let (sequence, group) = result.getOrThrow()
@@ -250,8 +251,8 @@ public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, cal
                     }
                     lastEntry
                 case _ =>
-                    globalThis.throw(message: "Cannot call " + (tagName) + "() inside a test. Call it inside describe() instead.")
-                    return JSValue.jsUndefined
+                    globalThis.`throw`(message: "Cannot call " + (tagName) + "() inside a test. Call it inside describe() instead.")
+                    return JsValue.jsUndefined
             }
 
             // 创建新的执行条目并插入链表
@@ -263,11 +264,11 @@ public func genericHookImpl(tag: GenericHookTag, globalThis: JSGlobalObject, cal
             appendPoint.next = newItem
             bunTest.extraExecutionEntries.append(newItem)
 
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
 
         case done =>
-            globalThis.throw(message: "Cannot call " + (tagName) + "() after the test run has completed")
-            return JSValue.jsUndefined
+            globalThis.`throw`(message: "Cannot call " + (tagName) + "() after the test run has completed")
+            return JsValue.jsUndefined
     }
 }
 
@@ -280,7 +281,7 @@ public class HookFn {
     }
 
     /// 钩子函数入口
-    public func hookFn(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func hookFn(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         return genericHookImpl(tag: GenericHookTag.beforeAll, globalThis: globalThis, callFrame: callFrame)
     }
 }
@@ -549,7 +550,7 @@ public class BunTest {
                 return RefDataValue.collection(RefDataCollection(activeScope: collection.activeScope))
             case execution =>
                 let activeGroup = execution.activeGroupRef()
-                if (activeGroup == None) {
+                if (activeGroup.isNone()) {
                     return RefDataValue.done
                 }
                 let group = activeGroup.getOrThrow()
@@ -564,7 +565,7 @@ public class BunTest {
 
                 let sequence = groupSequences[0]
                 let activeEntry = sequence.activeEntry
-                if (activeEntry == None) {
+                if (activeEntry.isNone()) {
                     return RefDataValue.execution(RefDataExecution(
                         groupIndex: execution.groupIndex,
                         entryData: None // 序列已完成
@@ -671,7 +672,7 @@ public class BunTest {
 
                 // 检查过滤器
                 let hasFilter = if (let Some(reporter) <- reporter) {
-                    reporter.jest.filterRegex != None
+                    reporter.jest.filterRegex.isSome()
                 } else {
                     false
                 }
@@ -681,14 +682,14 @@ public class BunTest {
                 if (let Some(reporter) <- reporter) {
                     if (let Some(seed) <- reporter.jest.randomizeSeed) {
                         let path = reporter.jest.files[fileId].source.path.text
-                        perFilePrng = DefaultPrng.init(
+                        perFilePrng = DefaultPrng(
                             seed: WyHash.hash(data: Path.basename(path: path)).wrappingAdd(UInt64(seed))
                         )
                     }
                 }
 
                 // 生成执行顺序
-                var order = Order.Order.init(cfg: Order.Config(
+                var order = Order.Order(cfg: Order.Config(
                     alwaysUseHooks: collection.rootScope.base.only == OnlyMode.no && !hasFilter,
                     randomize: perFilePrng
                 ))
@@ -734,16 +735,16 @@ public class BunTest {
     /// 返回:
     /// - Some(RefDataValue): 同步完成
     /// - None: 异步等待（Promise或done回调）
-    public func runTestCallback(strong: BunTestPtr, globalThis: JSGlobalObject, callback: JSValue, doneParameter: Bool, data: RefDataValue, timeout: Timespec): ?RefDataValue {
-        var doneArg: JSValue = JSValue.zero
-        var doneCallback: JSValue = JSValue.zero
+    public func runTestCallback(strong: BunTestPtr, globalThis: JSGlobalObject, callback: JsValue, doneParameter: Bool, data: RefDataValue, timeout: Timespec): ?RefDataValue {
+        var doneArg: JsValue = JsValue.zero
+        var doneCallback: JsValue = JsValue.zero
 
         if (doneParameter) {
             doneCallback = DoneCallback.createUnbound(globalThis: globalThis)
             let bindResult = DoneCallback.bind(value: doneCallback, globalThis: globalThis)
-            if (bindResult == None) {
+            if (bindResult.isNone()) {
                 onUncaughtException(globalThis: globalThis, exception: None, isRejection: false, userData: data)
-                doneCallback = JSValue.zero
+                doneCallback = JsValue.zero
             } else {
                 doneArg = bindResult.getOrThrow()
             }
@@ -752,12 +753,12 @@ public class BunTest {
         updateMinTimeout(globalThis: globalThis, minTimeout: timeout)
 
         // 执行回调
-        let result: JSValue
-        let argsSlice: Array<JSValue> = if (!doneArg.isEmpty()) { [doneArg] } else { [] }
+        let result: JsValue
+        let argsSlice: Array<JsValue> = if (!doneArg.isEmpty()) { [doneArg] } else { [] }
         result = globalThis.bunVM().eventLoop.runCallbackWithResultAndDrainMicrotasks(
             callback: callback,
             global: globalThis,
-            thisValue: JSValue.jsUndefined,
+            thisValue: JsValue.jsUndefined,
             args: argsSlice
         )
 
@@ -822,7 +823,7 @@ public class BunTest {
         }
 
         // 等待done回调
-        if (dcbRef != None) {
+        if (dcbRef.isSome()) {
             return None
         }
 
@@ -836,24 +837,24 @@ public class BunTest {
     /// 2. 如果应该隐藏错误，直接返回
     /// 3. 否则打印错误信息
     /// 4. 对于"测试间未处理错误"，增加计数器并显示分隔线
-    public func onUncaughtException(globalThis: JSGlobalObject, exception: ?JSValue, isRejection: Bool, userData: RefDataValue) {
+    public func onUncaughtException(globalThis: JSGlobalObject, exception: ?JsValue, isRejection: Bool, userData: RefDataValue) {
         let handleStatus: HandleUncaughtExceptionResult = match (phase) {
             case collection => collection.handleUncaughtException(userData: userData)
             case done => HandleUncaughtExceptionResult.showUnhandledErrorBetweenTests
             case execution => execution.handleUncaughtException(userData: userData)
         }
 
-        if (handleStatus == .hideError) {
+        if (handleStatus == hideError) {
             return // 不打印错误
         }
 
-        if (exception == None) {
+        if (exception.isNone()) {
             return // 异常不应该可见
         }
 
         bunTestRoot.onBeforePrint()
 
-        if (handleStatus == .showUnhandledErrorBetweenTests || handleStatus == .showUnhandledErrorInDescribe) {
+        if (handleStatus == showUnhandledErrorBetweenTests || handleStatus == showUnhandledErrorInDescribe) {
             if (let Some(reporter) <- reporter) {
                 reporter.jest.unhandledErrorsBetweenTests += 1
             }
@@ -863,7 +864,7 @@ public class BunTest {
 
         globalThis.bunVM().runErrorHandler(exception: exception.getOrThrow(), exceptionList: None)
 
-        if (handleStatus == .showUnhandledErrorBetweenTests || handleStatus == .showUnhandledErrorInDescribe) {
+        if (handleStatus == showUnhandledErrorBetweenTests || handleStatus == showUnhandledErrorInDescribe) {
             Output.prettyError("<r><d>-------------------------------<r>\n\n")
         }
 
@@ -922,7 +923,7 @@ public enum RefDataValue {
     public func sequence(buntest: BunTest): ?ExecutionSequence {
         match (this) {
             case execution(groupIndex, entryData) =>
-                if (entryData == None) { return None }
+                if (entryData.isNone()) { return None }
                 let ed = entryData.getOrThrow()
                 let group = buntest.execution.groups[groupIndex]
                 let absIdx = group.sequenceStart + ed.sequenceIndex
@@ -936,9 +937,9 @@ public enum RefDataValue {
     public func entry(buntest: BunTest): ?ExecutionEntry {
         match (this) {
             case execution =>
-                if (buntest.phase != .execution) { return None }
+                if (buntest.phase != execution) { return None }
                 let result = buntest.execution.getCurrentAndValidExecutionSequence(data: this)
-                if (result == None) { return None }
+                if (result.isNone()) { return None }
                 let (sequence, _) = result.getOrThrow()
                 return sequence.activeEntry
             case _ => return None
@@ -1301,9 +1302,9 @@ public class DescribeScope {
     }
 
     /// 追加测试
-    public func appendTest(name: ?String, callback: ?JSValue, cfg: ExecutionEntryCfg, base: BaseScopeCfg, phase: AddedInPhase): ExecutionEntry {
+    public func appendTest(name: ?String, callback: ?JsValue, cfg: ExecutionEntryCfg, base: BaseScopeCfg, phase: AddedInPhase): ExecutionEntry {
         let entry = ExecutionEntry.create(gpa: Allocator.default, name: name, cb: callback, cfg: cfg, parent: this, base: base, phase: phase)
-        entry.base.propagate(hasCallback: callback != None)
+        entry.base.propagate(hasCallback: callback.isSome())
         entries.append(TestScheduleEntry.testCallback(entry))
         return entry
     }
@@ -1327,7 +1328,7 @@ public class DescribeScope {
     }
 
     /// 追加钩子
-    public func appendHook(tag: HookTag, callback: ?JSValue, cfg: ExecutionEntryCfg, base: BaseScopeCfg, phase: AddedInPhase): ExecutionEntry {
+    public func appendHook(tag: HookTag, callback: ?JsValue, cfg: ExecutionEntryCfg, base: BaseScopeCfg, phase: AddedInPhase): ExecutionEntry {
         let entry = ExecutionEntry.create(gpa: Allocator.default, name: None, cb: callback, cfg: cfg, parent: this, base: base, phase: phase)
         getHookEntries(tag: tag).append(entry)
         return entry
@@ -1351,7 +1352,7 @@ public class ExecutionEntryCfg {
 /// 执行条目，表示一个测试或钩子
 public class ExecutionEntry {
     public var base: BaseScope
-    public var callback: ?JSValue = None
+    public var callback: ?JsValue = None
     public var timeout: UInt32 = 0
     public var hasDoneParameter: Bool = false
     public var timespec: Timespec = Timespec.epoch
@@ -1373,9 +1374,9 @@ public class ExecutionEntry {
     }
 
     /// 创建执行条目
-    public static func create(gpa: Allocator, name: ?String, cb: ?JSValue, cfg: ExecutionEntryCfg, parent: ?DescribeScope, base: BaseScopeCfg, phase: AddedInPhase): ExecutionEntry {
+    public static func create(gpa: Allocator, name: ?String, cb: ?JsValue, cfg: ExecutionEntryCfg, parent: ?DescribeScope, base: BaseScopeCfg, phase: AddedInPhase): ExecutionEntry {
         let entry = ExecutionEntry()
-        entry.base = BaseScope(cfg: base, gpa: gpa, name: name, parent: parent, hasCallback: cb != None)
+        entry.base = BaseScope(cfg: base, gpa: gpa, name: name, parent: parent, hasCallback: cb.isSome())
         entry.timeout = cfg.timeout
         entry.hasDoneParameter = cfg.hasDoneParameter
         entry.addedInPhase = phase
@@ -1387,7 +1388,7 @@ public class ExecutionEntry {
 
     /// 评估超时
     public func evaluateTimeout(sequence: ExecutionSequence, now: Timespec): Bool {
-        if (!timespec.isEpoch() && timespec.order(other: now) == .lt) {
+        if (!timespec.isEpoch() && timespec.order(other: now) == lt) {
             // 超时
             let isTestEntry = sequence.testEntry?.base == self.base
             if (isTestEntry) {
@@ -1417,7 +1418,7 @@ public enum TestScheduleEntry {
     /// 销毁
     public func deinit(gpa: Allocator) {
         switch this {
-        case describe(scope) => scope.destroy(gpa => gpa)
+        | describe(scope) => scope.destroy(gpa => gpa)
         case testCallback(entry) => entry.destroy(gpa => gpa)
         }
     }
@@ -1442,12 +1443,12 @@ public enum RunOneResult {
 // ========== 引用的子模块声明 ==========
 
 // 这些类型在其他文件中定义
-public typealias FakeTimersType = FakeTimers
-public typealias ExecutionType = Execution
-public typealias CollectionType = Collection
-public typealias ScopeFunctionsType = ScopeFunctions
-public typealias OrderType = Order
-public typealias DebugType = Debug
+public type FakeTimersType = FakeTimers
+public type ExecutionType = Execution
+public type CollectionType = Collection
+public type ScopeFunctionsType = ScopeFunctions
+public type OrderType = Order
+public type DebugType = Debug
 
 /// 获取VM定时器
 public func vmTimer(): EventLoopTimers {

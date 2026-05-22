@@ -145,11 +145,10 @@ public class TestCommand {
         // 写入 JUnit 报告
         // 严格翻译自: test_command.zig 中 writeJUnitReportIfNeeded
         match (junitReporter) {
-            case Some(jr) => {
+            case Some(jr) =>
                 if (options.reporterOutfile.length > 0) {
                     jr.writeToFile(options.reporterOutfile)
                 }
-            }
             case None => ()
         }
 
@@ -322,7 +321,7 @@ public class TestCommand {
 
         // JUnit 记录
         match (junitReporter) {
-            case Some(jr) => {
+            case Some(jr) =>
                 jr.writeTestCase(
                     if (fileResult.failed > 0) { TestResultStatus.Fail } else { TestResultStatus.Pass },
                     displayName,
@@ -332,7 +331,6 @@ public class TestCommand {
                     0,
                     0
                 )
-            }
             case None => ()
         }
 
@@ -471,7 +469,7 @@ public class TestCommand {
     /// 应用 shard 分片
     private func applyShard(files: ArrayList<String>, shard: ?TestShard): ArrayList<String> {
         match (shard) {
-            case Some(s) => {
+            case Some(s) =>
                 let result = ArrayList<String>()
                 for (i in 0..files.size) {
                     if (i % s.count == s.index - 1) {
@@ -480,7 +478,6 @@ public class TestCommand {
                 }
                 println("--shard=${s.index}/${s.count}: running ${result.size}/${files.size} test file(s)")
                 return result
-            }
             case None => return files
         }
     }
@@ -847,10 +844,9 @@ public class TestRunner {
     public func shouldFileRunConcurrently(fileId: Int64): Bool {
         if (concurrentTestGlob.length == 0) { return false }
         match (files.get(fileId)) {
-            case Some(f) => {
+            case Some(f) =>
                 let name = f.sourcePath
                 return globMatch(concurrentTestGlob, name)
-            }
             case None => return false
         }
     }
@@ -1499,7 +1495,7 @@ public class JUnitReporter {
 
         match (status) {
             case Pass => content.append(" />\n")
-            case Fail => {
+            case Fail =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1508,8 +1504,7 @@ public class JUnitReporter {
                 content.append("  <failure type=\"AssertionError\" />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseFailingTestPassed => {
+            case FailBecauseFailingTestPassed =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1518,8 +1513,7 @@ public class JUnitReporter {
                 content.append("  <failure message=\"test marked with .failing() did not throw\" type=\"AssertionError\"/>\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseExpectedAssertionCount => {
+            case FailBecauseExpectedAssertionCount =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1528,8 +1522,7 @@ public class JUnitReporter {
                 content.append("  <failure message=\"Expected more assertions, but only received ${assertions}\" type=\"AssertionError\"/>\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseTodoPassed => {
+            case FailBecauseTodoPassed =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1538,8 +1531,7 @@ public class JUnitReporter {
                 content.append("  <failure message=\"TODO passed\" type=\"AssertionError\"/>\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseExpectedHasAssertions => {
+            case FailBecauseExpectedHasAssertions =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1548,8 +1540,7 @@ public class JUnitReporter {
                 content.append("  <failure message=\"Expected to have assertions, but none were run\" type=\"AssertionError\"/>\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case SkippedBecauseLabel => {
+            case SkippedBecauseLabel =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.skipped += 1
                 }
@@ -1558,8 +1549,7 @@ public class JUnitReporter {
                 content.append("  <skipped />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case Skip => {
+            case Skip =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.skipped += 1
                 }
@@ -1568,8 +1558,7 @@ public class JUnitReporter {
                 content.append("  <skipped />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case Todo => {
+            case Todo =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.skipped += 1
                 }
@@ -1578,8 +1567,7 @@ public class JUnitReporter {
                 content.append("  <skipped message=\"TODO\" />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseTimeout => {
+            case FailBecauseTimeout =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1588,8 +1576,7 @@ public class JUnitReporter {
                 content.append("  <failure type=\"TimeoutError\" />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseTimeoutWithDoneCallback => {
+            case FailBecauseTimeoutWithDoneCallback =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1598,8 +1585,7 @@ public class JUnitReporter {
                 content.append("  <failure type=\"TimeoutError\" />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseHookTimeout => {
+            case FailBecauseHookTimeout =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1608,8 +1594,7 @@ public class JUnitReporter {
                 content.append("  <failure type=\"TimeoutError\" />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
-            case FailBecauseHookTimeoutWithDoneCallback => {
+            case FailBecauseHookTimeoutWithDoneCallback =>
                 if (suiteStack.size > 0) {
                     suiteStack[suiteStack.size - 1].metrics.failures += 1
                 }
@@ -1618,7 +1603,6 @@ public class JUnitReporter {
                 content.append("  <failure type=\"TimeoutError\" />\n")
                 content.append(indent)
                 content.append("</testcase>\n")
-            }
             case Pending => content.append(" />\n")
         }
     }
@@ -1659,7 +1643,7 @@ public class JUnitReporter {
                 case '>' => writer.append("&gt;")
                 case '"' => writer.append("&quot;")
                 case '\'' => writer.append("&apos;")
-                case _ => {
+                case _ =>
                     // 转义控制字符
                     let code = Int64.fromUInt8(c)
                     if (code >= 0 && code <= 0x1f) {
@@ -1667,7 +1651,6 @@ public class JUnitReporter {
                     } else {
                         writer.append(c)
                     }
-                }
             }
         }
     }
@@ -1987,7 +1970,7 @@ public class CommandLineReporter {
         let formattedLine = outputBuf.toString()
         if (workerIpcFileIdx != None) {
             // 并行工作进程: 通过 IPC 发送
-            ParallelRunner.workerEmitTestDone(workerIpcFileIdx!!, formattedLine)
+            ParallelRunner.workerEmitTestDone(workerIpcFileIdx.getOrThrow(), formattedLine)
         } else {
             print(formattedLine)
         }
@@ -2010,42 +1993,33 @@ public class CommandLineReporter {
             case Skip => summary().skip += 1
             case Todo => summary().todo += 1
             case SkippedBecauseLabel => summary().skippedBecauseLabel += 1
-            case Fail => {
+            case Fail =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseFailingTestPassed => {
+            case FailBecauseFailingTestPassed =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseExpectedAssertionCount => {
+            case FailBecauseExpectedAssertionCount =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseExpectedHasAssertions => {
+            case FailBecauseExpectedHasAssertions =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseTodoPassed => {
+            case FailBecauseTodoPassed =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseTimeout => {
+            case FailBecauseTimeout =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseTimeoutWithDoneCallback => {
+            case FailBecauseTimeoutWithDoneCallback =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseHookTimeout => {
+            case FailBecauseHookTimeout =>
                 summary().fail += 1
                 checkBail()
-            }
-            case FailBecauseHookTimeoutWithDoneCallback => {
+            case FailBecauseHookTimeoutWithDoneCallback =>
                 summary().fail += 1
                 checkBail()
-            }
         }
         summary().expectations += sequence.expectCallCount
     }
@@ -2078,7 +2052,7 @@ public class CommandLineReporter {
         let scopes = ArrayList<String>()
         var parent: ?DescribeScope = testEntry.parent
         while (parent != None) {
-            let scope = parent!!
+            let scope = parent.getOrThrow()
             if (scope.name.length > 0) {
                 scopes.append(scope.name)
             }
@@ -2122,35 +2096,27 @@ public class CommandLineReporter {
 
         // 额外状态信息
         match (status) {
-            case FailBecauseFailingTestPassed => {
+            case FailBecauseFailingTestPassed =>
                 writer.append("  ^ this test is marked as failing but it passed. Remove `.failing` if tested behavior now works\n")
-            }
-            case FailBecauseTodoPassed => {
+            case FailBecauseTodoPassed =>
                 writer.append("  ^ this test is marked as todo but passes. Remove `.todo` if tested behavior now works\n")
-            }
-            case FailBecauseTimeout => {
+            case FailBecauseTimeout =>
                 writer.append("  ^ this test timed out after ${testEntry.timeout}ms.\n")
-            }
-            case FailBecauseHookTimeout => {
+            case FailBecauseHookTimeout =>
                 writer.append("  ^ a beforeEach/afterEach hook timed out for this test.\n")
-            }
-            case FailBecauseTimeoutWithDoneCallback => {
+            case FailBecauseTimeoutWithDoneCallback =>
                 writer.append("  ^ this test timed out after ${testEntry.timeout}ms, before its done callback was called. If a done callback was not intended, remove the last parameter from the test callback function\n")
-            }
-            case FailBecauseHookTimeoutWithDoneCallback => {
+            case FailBecauseHookTimeoutWithDoneCallback =>
                 writer.append("  ^ a beforeEach/afterEach hook timed out before its done callback was called. If a done callback was not intended, remove the last parameter from the hook callback function\n")
-            }
-            case FailBecauseExpectedAssertionCount => {
+            case FailBecauseExpectedAssertionCount =>
                 let expectedCount = if (sequence.expectAssertions == ExpectAssertionsType.Exact) {
                     sequence.expectAssertionsExact
                 } else {
                     12345
                 }
                 writer.append("  expected ${expectedCount} assertion(s), but test ended with ${sequence.expectCallCount} assertion(s)\n")
-            }
-            case FailBecauseExpectedHasAssertions => {
+            case FailBecauseExpectedHasAssertions =>
                 writer.append("  received 0 assertions, but expected at least one assertion to be called\n")
-            }
             case _ => ()
         }
     }
@@ -2165,7 +2131,7 @@ public class CommandLineReporter {
         elapsedNs: Int64
     ): Unit {
         if (reporterOptions.junit == None) { return }
-        let junit = reporterOptions.junit!!
+        let junit = reporterOptions.junit.getOrThrow()
 
         // 构建作用域路径
         let scopes = ArrayList<String>()
@@ -2176,7 +2142,7 @@ public class CommandLineReporter {
         let file = buntest.filePath
 
         while (parent != None) {
-            let scope = parent!!
+            let scope = parent.getOrThrow()
             scopes.append(scope.name)
             parent = scope.parent
         }
@@ -2243,7 +2209,7 @@ public class CommandLineReporter {
     // 严格翻译自: CommandLineReporter.writeJUnitReportIfNeeded
     public func writeJUnitReportIfNeeded(): Unit {
         if (reporterOptions.junit == None) { return }
-        let junit = reporterOptions.junit!!
+        let junit = reporterOptions.junit.getOrThrow()
         let outfile = jest.testOptions.reporterOutfile
         if (outfile.length > 0) {
             if (junit.currentFile.length > 0) {
@@ -2305,7 +2271,7 @@ public class CommandLineReporter {
 
             let report = CodeCoverageReport.generate(vm, entry, opts.ignoreSourcemap)
             if (report != None) {
-                CodeCoverageReport.Lcov.writeFormat(report!!, relativeDir, writer)
+                CodeCoverageReport.Lcov.writeFormat(report.getOrThrow(), relativeDir, writer)
             }
         }
 
@@ -2392,7 +2358,7 @@ public class CommandLineReporter {
 
             if (reporterText) {
                 let fraction = CoverageFraction()
-                CodeCoverageReport.Text.writeFormat(report!!, maxFilepathLength, fraction, relativeDir)
+                CodeCoverageReport.Text.writeFormat(report.getOrThrow(), maxFilepathLength, fraction, relativeDir)
                 avgFunctions += fraction.functions
                 avgLines += fraction.lines
                 avgStmts += fraction.stmts
@@ -2404,7 +2370,7 @@ public class CommandLineReporter {
 
             if (reporterLcov) {
                 match (lcovWriter) {
-                    case Some(w) => CodeCoverageReport.Lcov.writeFormat(report!!, relativeDir, w)
+                    case Some(w) => CodeCoverageReport.Lcov.writeFormat(report.getOrThrow(), relativeDir, w)
                     case None => ()
                 }
             }
@@ -2429,10 +2395,9 @@ public class CommandLineReporter {
         // LCOV 文件写入完成
         if (reporterLcov) {
             match (lcovWriter) {
-                case Some(w) => {
+                case Some(w) =>
                     let lcovPath = Path.join(opts.reportsDirectory, "lcov.info")
                     BaoFile.writeAllText(lcovPath, w.toString())
-                }
                 case None => ()
             }
         }

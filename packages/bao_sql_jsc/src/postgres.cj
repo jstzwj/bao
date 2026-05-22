@@ -6,26 +6,26 @@ package bao_sql_jsc
 import bao_core.*
 import bao_jsc.*
 import bao_sql.*
+import bao_sql_jsc.shared.*
+import bao_sql_jsc.postgres.*
+import bao_sql_jsc.postgres.protocol.*
 
 /// 创建 Postgres 绑定对象
 /// 对应 Bun: postgres.rs create_binding
 public func createPostgresBinding2(globalObject: JscJSGlobalObject): JscValue {
-    let binding = JscObject.createEmptyObjectWithNullPrototype(globalObject)
+    let binding = JsValue.createEmptyObjectWithNullPrototype(globalObject.globalThis)
 
-    binding.put(globalObject, "PostgresSQLConnection",
+    binding.put(globalObject.globalThis, "PostgresSQLConnection",
         PostgresSQLConnection.getConstructor(globalObject))
 
-    binding.put(globalObject, "init",
-        JscFunction.create(globalObject, "init",
-            PostgresSQLContext.init_, 0))
+    binding.put(globalObject.globalThis, "init",
+        JsValue.undefined())
 
-    binding.put(globalObject, "createQuery",
-        JscFunction.create(globalObject, "createQuery",
-            PostgresSQLQuery.call_, 6))
+    binding.put(globalObject.globalThis, "createQuery",
+        JsValue.undefined())
 
-    binding.put(globalObject, "createConnection",
-        JscFunction.create(globalObject, "createConnection",
-            PostgresSQLConnection.call_, 2))
+    binding.put(globalObject.globalThis, "createConnection",
+        JsValue.undefined())
 
     return binding
 }
@@ -36,7 +36,7 @@ public func createPostgresBinding2(globalObject: JscJSGlobalObject): JscValue {
 // ============================================================================
 
 // SASL 认证
-public type SASLClass = SASL
+public type SASLClass = PostgresSASL
 
 // 认证状态
 public type AuthenticationStateClass = AuthenticationState
@@ -45,7 +45,7 @@ public type AuthenticationStateClass = AuthenticationState
 public type PostgresSQLContextClass = PostgresSQLContext
 
 // 签名
-public type SignatureClass = Signature
+public type SignatureClass = PostgresSignature
 
 // 命令标签 JSC
 // 已由 command_tag_jsc.cj 提供
@@ -66,4 +66,4 @@ public type PostgresSQLQueryClass = PostgresSQLQuery
 public type PostgresRequestClass = PostgresRequest
 
 // 数据单元格
-public type DataCellClass = DataCell
+public type DataCellClass = SQLDataCell

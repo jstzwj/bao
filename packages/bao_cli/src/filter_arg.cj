@@ -9,19 +9,19 @@ import bao_core.*
 // ============================================================================
 
 /// 跳过列表: 要跳过的目录名
-private val SKIP_LIST: Array<String> = [
+private let SKIP_LIST: Array<String> = [
     ".",
     "node_modules",
-    ".git",
+    ".git"
 ]
 
 /// 检查路径是否在跳过列表中
-private func globIgnoreFn(val: String): Bool {
-    if (val.length == 0) {
+private func globIgnoreFn(val_: String): Bool {
+    if (val_.length == 0) {
         return false
     }
     for (skip in SKIP_LIST) {
-        if (val == skip) {
+        if (val_ == skip) {
             return true
         }
     }
@@ -54,7 +54,7 @@ public func getCandidatePackagePatterns(
             continue
         }
 
-        let json = JsonParser.parse(jsonSource!!)
+        let json = JsonParser.parse(jsonSource.getOrThrow())
 
         let workspacesProp = json?.getProperty("workspaces")
         if (workspacesProp == None) {
@@ -68,17 +68,17 @@ public func getCandidatePackagePatterns(
 
         // workspaces 可以是数组或对象 { packages: [...] }
         var jsonArr: ?Array<JsonValue> = None
-        if (workspacesProp!!.isArray()) {
-            jsonArr = workspacesProp!!.asArray()
-        } else if (workspacesProp!!.isObject()) {
-            let packages = workspacesProp!!.getProperty("packages")
-            if (packages != None && packages!!.isArray()) {
-                jsonArr = packages!!.asArray()
+        if (workspacesProp.getOrThrow().isArray()) {
+            jsonArr = workspacesProp.getOrThrow().asArray()
+        } else if (workspacesProp.getOrThrow().isObject()) {
+            let packages = workspacesProp.getOrThrow().getProperty("packages")
+            if (packages != None && packages.getOrThrow().isArray()) {
+                jsonArr = packages.getOrThrow().asArray()
             }
         }
 
         if (jsonArr != None) {
-            for (expr in jsonArr!!) {
+            for (expr in jsonArr.getOrThrow()) {
                 if (expr.isString()) {
                     let patternExpr = expr.asString()
                     let pattern = patternExpr + "/package.json"
@@ -157,7 +157,7 @@ public class FilterSet {
     /// 匹配路径
     public func matchesPath(path: String): Bool {
         for (filter in filters) {
-            if (Glob.match(filter.pattern, path).matches()) {
+            if (Glob.`match`(filter.pattern, path).matches()) {
                 return true
             }
         }
@@ -167,11 +167,11 @@ public class FilterSet {
     /// 匹配路径或名称
     public func matchesPathName(path: String, name: String): Bool {
         for (filter in filters) {
-            let target = when (filter.kind) {
+            let target = match (filter.kind) {
                 case PatternKind.name => name
                 case PatternKind.path => path
             }
-            if (Glob.match(filter.pattern, target).matches()) {
+            if (Glob.`match`(filter.pattern, target).matches()) {
                 return true
             }
         }
@@ -259,13 +259,13 @@ public class PackageFilterIterator {
     private func initWalker(): Unit {
         let pattern = patterns[patternIdx.toInt()]
         walker = GlobWalker(rootDir, pattern, true, true, false, true, true)
-        walker!!.init()
+        walker.getOrThrow().`init`()
     }
 
     /// 释放 walker
     private func deinitWalker(): Unit {
         if (walker != None) {
-            walker!!.deinit()
+            walker.getOrThrow().deinit()
             walker = None
         }
     }
@@ -276,8 +276,8 @@ public class PackageFilterIterator {
             return None
         }
         while (true) {
-            let result = walker!!.next()
-            when (result) {
+            let result = walker.getOrThrow().next()
+            match (result) {
                 case Some(path) => return path
                 case None => return None
             }

@@ -7,6 +7,7 @@ package bao_runtime.shell
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_sys.*
 
 // ============================================================================
@@ -231,7 +232,7 @@ public class GlobalJS {
 
     /// 初始化
     /// 对应 Bun: pub fn init(g: &'a JSGlobalObject) -> Self
-    public static func init(g: JsObject): GlobalJS {
+    public static func `init`(g: JsObject): GlobalJS {
         return GlobalJS(g)
     }
 
@@ -326,7 +327,7 @@ public class GlobalMini {
 
     /// 初始化
     /// 对应 Bun: pub fn init(g: &'a MiniEventLoop<'a>) -> Self
-    public static func init(g: MiniEventLoop): GlobalMini {
+    public static func `init`(g: MiniEventLoop): GlobalMini {
         return GlobalMini(g)
     }
 
@@ -434,7 +435,7 @@ public class CmdEnvIter {
     }
 
     /// 下一个条目
-    /// 对应 Bun: pub fn next(&mut self) -> Result<Option<CmdEnvEntry>, Error>
+    /// 对应 Bun: pub fn next(&self) -> Result<Option<CmdEnvEntry>, Error>
     public func next(): ?CmdEnvEntry {
         if (position >= entries.size) {
             return None
@@ -686,7 +687,7 @@ public class JsStrings {
     }
 
     /// 释放所有字符串
-    /// 对应 Bun: impl Drop for JsStrings { fn drop(&mut self) { for s in &self.0 { s.deref(); } } }
+    /// 对应 Bun: impl Drop for JsStrings { fn drop(&self) { for s in &self.0 { s.deref(); } } }
     public func deinit(): Unit {
         strings.clear()
     }
@@ -708,12 +709,12 @@ public func shellCmdFromJs(
     outScript: ArrayList<UInt8>,
     markedArgumentBuffer: MarkedArgumentBuffer
 ): Unit {
-    var builder = ShellSrcBuilder.init(global, outScript, jsstrings)
+    var builder = ShellSrcBuilder(global, outScript, jsstrings)
     var jsobjrefBuf = Array<UInt8>(128, repeat: 0)
 
     var stringIter = stringArgs.arrayIterator(global)
     var i: UInt32 = 0
-    let last = stringIter.length() - 1
+    let last = stringIter.size() - 1
 
     var jsValue = stringIter.next()
     while (jsValue.isSome()) {
@@ -732,9 +733,9 @@ public func shellCmdFromJs(
                         global, tv, outJsobjs, outScript,
                         jsstrings, jsobjrefBuf, markedArgumentBuffer
                     )
-                    builder = ShellSrcBuilder.init(global, outScript, jsstrings)
+                    builder = ShellSrcBuilder(global, outScript, jsstrings)
                 case None =>
-                    global.throwValue(BaoString("Shell script is missing JSValue arg"))
+                    global.throwValue(BaoString("Shell script is missing JsValue arg"))
                     return
             }
         }
@@ -774,7 +775,7 @@ public func handleTemplateValue(
 
         // 检查字符串
         if (templateValue.isString()) {
-            var builder = ShellSrcBuilder.init(global, outScript, jsstrings)
+            var builder = ShellSrcBuilder(global, outScript, jsstrings)
             if (!builder.appendJsValueStr(templateValue, true)) {
                 global.throwValue(BaoString("Shell script string contains invalid UTF-16"))
             }
@@ -784,7 +785,7 @@ public func handleTemplateValue(
         // 检查数组
         if (templateValue.jsType().isArray()) {
             var array = templateValue.arrayIterator(global)
-            let last = array.length() - 1
+            let last = array.size() - 1
             var j: UInt32 = 0
             var arrVal = array.next()
             while (arrVal.isSome()) {
@@ -803,7 +804,7 @@ public func handleTemplateValue(
 
         // 原始值
         if (!templateValue.isObject()) {
-            var builder = ShellSrcBuilder.init(global, outScript, jsstrings)
+            var builder = ShellSrcBuilder(global, outScript, jsstrings)
             if (!builder.appendJsValueStr(templateValue, true)) {
                 global.throwValue(BaoString("Shell script string contains invalid UTF-16"))
             }
@@ -840,13 +841,13 @@ public class ShellSrcBuilder {
 
     /// 初始化
     /// 对应 Bun: pub fn init(global, outbuf, jsstrs_to_escape) -> Self
-    public static func init(global: JsObject, outbuf: ArrayList<UInt8>,
+    public static func `init`(global: JsObject, outbuf: ArrayList<UInt8>,
                              jsstrsToEscape: JsStrings): ShellSrcBuilder {
         return ShellSrcBuilder(global, outbuf, jsstrsToEscape)
     }
 
     /// 追加 JS 值字符串
-    /// 对应 Bun: pub fn append_js_value_str<const ALLOW_ESCAPE>(&mut self, jsval) -> JsResult<bool>
+    /// 对应 Bun: pub fn append_js_value_str<const ALLOW_ESCAPE>(&self, jsval) -> JsResult<bool>
     public func appendJsValueStr(jsVal: JsValue, allowEscape: Bool): Bool {
         let bunStr = jsVal.toBaoString(globalThis)
 
@@ -862,7 +863,7 @@ public class ShellSrcBuilder {
     }
 
     /// 追加 BunString
-    /// 对应 Bun: pub fn append_bun_str<const ALLOW_ESCAPE>(&mut self, bunstr) -> Result<bool, AllocError>
+    /// 对应 Bun: pub fn append_bun_str<const ALLOW_ESCAPE>(&self, bunstr) -> Result<bool, AllocError>
     public func appendBunStr(bunStr: BaoString, allowEscape: Bool): Bool {
         // 空 UTF-16 检查简化
         if (allowEscape && bunStr.size == 0) {
@@ -883,7 +884,7 @@ public class ShellSrcBuilder {
     }
 
     /// 追加 UTF-8 数据
-    /// 对应 Bun: pub fn append_utf8<const ALLOW_ESCAPE>(&mut self, utf8) -> Result<bool, Error>
+    /// 对应 Bun: pub fn append_utf8<const ALLOW_ESCAPE>(&self, utf8) -> Result<bool, Error>
     public func appendUtf8(utf8: Array<UInt8>, allowEscape: Bool): Bool {
         if (allowEscape) {
             if (needsEscapeUtf8AsciiLatin1(utf8)) {
@@ -897,7 +898,7 @@ public class ShellSrcBuilder {
     }
 
     /// 内部 UTF-8 追加
-    /// 对应 Bun: pub fn append_utf8_impl(&mut self, utf8)
+    /// 对应 Bun: pub fn append_utf8_impl(&self, utf8)
     public func appendUtf8Impl(utf8: Array<UInt8>): Unit {
         for (b in utf8) {
             outbuf.append(b)
@@ -905,7 +906,7 @@ public class ShellSrcBuilder {
     }
 
     /// 追加 JS 字符串引用
-    /// 对应 Bun: pub fn append_js_str_ref(&mut self, bunstr)
+    /// 对应 Bun: pub fn append_js_str_ref(&self, bunstr)
     public func appendJsStrRef(bunStr: BaoString): Unit {
         let idx = jsstrsToEscape.size()
         let refStr = "\u{08}s" + idx.toString()
@@ -925,13 +926,13 @@ public class ShellSrcBuilder {
 /// 对应 Bun: pub mod testing_apis
 public class ShellTestingAPIs {
     /// 检查平台是否禁用
-    /// 对应 Bun: pub fn disabled_on_this_platform(global, callframe) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn disabled_on_this_platform(global, callframe) -> JsResult<JsValue>
     public static func disabledOnThisPlatform(global: JsObject, args: ArrayList<JsValue>): JsValue {
         return JsValue.FALSE
     }
 
     /// Shell 词法分析 (用于测试)
-    /// 对应 Bun: pub fn shell_lex(global, callframe) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn shell_lex(global, callframe) -> JsResult<JsValue>
     public static func shellLex(global: JsObject, args: ArrayList<JsValue>): JsValue {
         if (args.size < 2) {
             return JsValue(BaoString("shell_lex: expected 2 arguments"))
@@ -943,7 +944,7 @@ public class ShellTestingAPIs {
     }
 
     /// Shell 解析 (用于测试)
-    /// 对应 Bun: pub fn shell_parse(global, callframe) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn shell_parse(global, callframe) -> JsResult<JsValue>
     public static func shellParse(global: JsObject, args: ArrayList<JsValue>): JsValue {
         if (args.size < 2) {
             return JsValue(BaoString("shell_parse: expected 2 arguments"))

@@ -12,7 +12,7 @@ import bao_collections.*
 // ============================================================================
 
 public enum CssImageKind {
-    | None        // none 关键字
+    | NoImage        // none 关键字
     | Url         // url()
     | Gradient    // 渐变
     | ImageSet    // image-set()
@@ -30,7 +30,7 @@ public class CssImage {
     public var imageSet: ?CssImageSet
 
     public init() {
-        this.kind = CssImageKind.None
+        this.kind = CssImageKind.NoImage
         this.url = ""
         this.gradient = None
         this.imageSet = None
@@ -61,7 +61,7 @@ public class CssImage {
     /// 严格翻译自 Image.to_css
     public func toCss(): String {
         match (kind) {
-            case None => "none"
+            case NoImage => "none"
             case Url => "url(\"${url}\")"
             case Gradient =>
                 match (gradient) {
@@ -121,7 +121,7 @@ public class CssImageSet {
         for (item in items) {
             parts.append(item.toCss())
         }
-        let sb = StringBuilder()
+        let sb = CssStringBuilder()
         for (i in 0..parts.size) {
             if (i > 0) { sb.append(", ") }
             sb.append(parts[i])

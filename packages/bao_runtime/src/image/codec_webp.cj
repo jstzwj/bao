@@ -161,7 +161,7 @@ public class CodecWebp {
         var cw: Int32 = 0
         var ch: Int32 = 0
         if (webPGetInfo(bytes.ptr(), UInt64(bytes.size),
-                         CPointer<Int32>.addrOf(cw), CPointer<Int32>.addrOf(ch)) == 0 ||
+                         CPointer<Int32>(), CPointer<Int32>()) == 0 ||
             cw <= 0 || ch <= 0) {
             return None
         }
@@ -173,8 +173,8 @@ public class CodecWebp {
 
         // 3. 解码
         let ptrOpt = webPDecodeRGBA(bytes.ptr(), UInt64(bytes.size),
-                                      CPointer<Int32>.addrOf(cw), CPointer<Int32>.addrOf(ch))
-        if (ptrOpt == None) { return None }
+                                      CPointer<Int32>(), CPointer<Int32>())
+        if (ptrOpt.isNone()) { return None }
         let ptr = ptrOpt.getOrThrow()
         // defer: WebPFree(ptr)
 
@@ -187,7 +187,7 @@ public class CodecWebp {
 
         // 5. 复制到 default_allocator 拥有的缓冲区
         let len: UInt64 = UInt64(w) * UInt64(h) * 4
-        var out = Array<UInt8>(Int64(len), item: 0)
+        var out = Array<UInt8>(Int64(len), { _: Int64 => UInt8(0) })
         // 从 ptr 复制 len 字节到 out
 
         webPFree(ptr)
@@ -205,11 +205,11 @@ public class CodecWebp {
         // ICCP 提取逻辑:
         // let data = WebPDataView(bytes: bytes.ptr(), size: UInt64(bytes.size))
         // let dmux = webPDemuxInternal(&data, 0, None, WEBP_DEMUX_ABI_VERSION)
-        // if (dmux != None) {
+        // if (dmux.isSome()) {
         //     if (webPDemuxGetI(dmux.getOrThrow(), WEBP_FF_FORMAT_FLAGS) & ICCP_FLAG != 0) {
         //         var iter = WebPChunkIterator()
         //         if (webPDemuxGetChunk(dmux.getOrThrow(), "ICCP", 1, iter) != 0) {
-        //             if (iter.chunk.bytes != None && iter.chunk.size > 0) {
+        //             if (iter.chunk.bytes.isSome() && iter.chunk.size > 0) {
         //                 iccProfile = copyFromC(iter.chunk.bytes.getOrThrow(), iter.chunk.size)
         //             }
         //             webPDemuxReleaseChunkIterator(iter)
@@ -255,7 +255,7 @@ public class CodecWebp {
         // 2. 快速路径: 无配置文件要附加，因此 WebPEncodeRGBA 生成的
         //    裸 VP8/VP8L RIFF 已经是最终容器。避免 mux 往返（及其额外复制），
         //    用于常见 sRGB 情况。
-        if (iccProfile == None) {
+        if (iccProfile.isNone()) {
             // return EncodedImage(bytes: bitstream, format: ImageFormat.webp, freeFunc: "WebPFree")
             return None
         }
@@ -274,7 +274,7 @@ public class CodecWebp {
         // defer: WebPFree(bitstream.ptr)
 
         // let mux = webPNewInternal(WEBP_MUX_ABI_VERSION)
-        // if (mux == None) { return None }
+        // if (mux.isNone()) { return None }
         // defer: WebPMuxDelete(mux)
 
         // let img = WebPDataView(bytes: bitstream.ptr, size: bitstream.len)
@@ -287,11 +287,11 @@ public class CodecWebp {
         // if (webPMuxAssemble(mux, assembled) != WEBP_MUX_OK) {
         //     // WebPMuxAssemble 即使在失败时也会向 assembled 写入半构建的缓冲区;
         //     // 其合同说 WebPDataClear (即 WebPFree) 在任何返回时都可安全调用。
-        //     if (assembled.bytes != None) { webPFree(assembled.bytes.getOrThrow()) }
+        //     if (assembled.bytes.isSome()) { webPFree(assembled.bytes.getOrThrow()) }
         //     return None
         // }
 
-        // if (assembled.bytes == None) { return None }
+        // if (assembled.bytes.isNone()) { return None }
         // return EncodedImage(bytes: copyFromC(assembled.bytes.getOrThrow(), assembled.size),
         //                      format: ImageFormat.webp, freeFunc: "WebPFree")
         return None

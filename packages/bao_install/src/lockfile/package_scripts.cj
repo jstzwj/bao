@@ -116,7 +116,7 @@ public class PackageScripts {
     ): ScriptEntriesResult {
         var scriptIndex: Int64 = 0
         var firstScriptIndex: Int64 = -1
-        var scripts = ArrayList<?String>()
+        var scripts = ArrayList<Option<String>>()
         for (_ in 0..SCRIPT_COUNT) { scripts.append(Option<String>.None) }
         var counter: Int64 = 0
 
@@ -230,7 +230,7 @@ public class PackageScripts {
     /// Helper: process prepare scripts for Git/GitHub/Root
     private func processPrepareScripts(
         preprepare: String, prepare: String, postprepare: String,
-        scripts: ArrayList<?String>, scriptIndex: Int64, counter: Int64, firstScriptIndex: Int64
+        scripts: ArrayList<Option<String>>, scriptIndex: Int64, counter: Int64, firstScriptIndex: Int64
     ): Int64 {
         var idx = scriptIndex
         var cnt = counter
@@ -252,7 +252,7 @@ public class PackageScripts {
     /// Helper: process workspace scripts
     private func processWorkspaceScripts(
         prepare: String,
-        scripts: ArrayList<?String>, scriptIndex: Int64, counter: Int64, firstScriptIndex: Int64
+        scripts: ArrayList<Option<String>>, scriptIndex: Int64, counter: Int64, firstScriptIndex: Int64
     ): Int64 {
         var idx = scriptIndex
         var cnt = counter
@@ -284,7 +284,7 @@ public class PackageScripts {
 public class ScriptsList {
     /// 脚本项列表
     /// 翻译自: items: [names.len]?string
-    public var items: ArrayList<?String>
+    public var items: ArrayList<Option<String>>
 
     /// 第一个脚本索引
     /// 翻译自: first_index: u8
@@ -303,7 +303,7 @@ public class ScriptsList {
     public var packageName: String
 
     public init() {
-        items = ArrayList<?String>()
+        items = ArrayList<Option<String>>()
         firstIndex = 0
         total = 0
         cwd = ""
@@ -311,7 +311,7 @@ public class ScriptsList {
     }
 
     public init(
-        items: ArrayList<?String>,
+        items: ArrayList<Option<String>>,
         firstIndex: UInt8,
         total: UInt8,
         cwd: String,
@@ -374,9 +374,9 @@ public class ScriptsList {
 public class ScriptEntriesResult {
     public var firstIndex: Int64
     public var total: Int64
-    public var entries: ArrayList<?String>
+    public var entries: ArrayList<Option<String>>
 
-    public init(firstIndex: Int64, total: Int64, entries: ArrayList<?String>) {
+    public init(firstIndex: Int64, total: Int64, entries: ArrayList<Option<String>>) {
         this.firstIndex = firstIndex
         this.total = total
         this.entries = entries

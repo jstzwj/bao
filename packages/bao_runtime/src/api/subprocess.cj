@@ -2,6 +2,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_core.*
 import bao_sys.*
 import bao_io.*
@@ -14,19 +15,19 @@ import bao_event_loop.*
 // ============================================================================
 
 /// 平台相关的 stdio 结果类型
-public typealias StdioResult = ExtraPipe   // POSIX 上为 ?FD
+public type StdioResult = ExtraPipe   // POSIX 上为 ?FD
 
 /// MaxBuf 类型别名
-public typealias MaxBufKind = MaxBuf.Kind
+public type MaxBufKind = MaxBuf.Kind
 
 /// StaticPipeWriter 特化为 Subprocess
-public typealias StaticPipeWriter = StaticPipeWriter<Subprocess>
+public type StaticPipeWriter = StaticPipeWriter<Subprocess>
 
 /// ObservableGetter - 标记哪些 getter 已被调用
 public enum ObservableGetter {
-    case stdin
-    case stdout
-    case stderr
+    | stdin
+    | stdout
+    | stderr
 }
 
 /// 子进程对象
@@ -142,23 +143,23 @@ public class Subprocess {
     // ========================================================================
 
     public enum StdioKind {
-        case stdin
-        case stdout
-        case stderr
+        | stdin
+        | stdout
+        | stderr
 
         public func toFd(): FD {
-            return switch (this) {
-                case .stdin => FD.stdin()
-                case .stdout => FD.stdout()
-                case .stderr => FD.stderr()
+            return match (this) {
+                case stdin => FD.stdin()
+                case stdout => FD.stdout()
+                case stderr => FD.stderr()
             }
         }
 
         public func toNum(): Int32 {
-            return switch (this) {
-                case .stdin => 0
-                case .stdout => 1
-                case .stderr => 2
+            return match (this) {
+                case stdin => 0
+                case stdout => 1
+                case stderr => 2
             }
         }
     }
@@ -168,31 +169,31 @@ public class Subprocess {
     // ========================================================================
 
     public enum Source {
-        case blob(BlobAny)
-        case array_buffer(ArrayBufferStrong)
-        case detached
+        | blob(BlobAny)
+        | array_buffer(ArrayBufferStrong)
+        | detached
 
         public func memoryCost(): Int64 {
-            return switch (this) {
-                case .blob => this.blob.memoryCost()
-                case .array_buffer => 0
-                case .detached => 0
+            return match (this) {
+                case blob => this.blob.memoryCost()
+                case array_buffer => 0
+                case detached => 0
             }
         }
 
         public func slice(): Array<UInt8> {
-            return switch (this) {
-                case .blob => this.blob.slice()
-                case .array_buffer => this.array_buffer.slice()
+            return match (this) {
+                case blob => this.blob.slice()
+                case array_buffer => this.array_buffer.slice()
                 else => panic("Invalid source")
             }
         }
 
         public func detach() {
-            switch (this) {
-                case .blob => this.blob.detach()
-                case .array_buffer => this.array_buffer.deinit()
-                else => {}
+            match (this) {
+                case blob => this.blob.detach()
+                case array_buffer => this.array_buffer.deinit()
+                else => ()
             }
             this = .detached
         }
@@ -204,8 +205,8 @@ public class Subprocess {
 
     /// Poll - 轮询机制 (posix FilePoll / windows WaitThread)
     public enum Poll {
-        case pollRef(?FilePoll)
-        case waitThread(WaitThreadPoll)
+        | pollRef(?FilePoll)
+        | waitThread(WaitThreadPoll)
     }
 
     /// WaitThreadPoll - 等待线程轮询
@@ -226,7 +227,7 @@ public class Subprocess {
     /// 调试断言 stdio 结果格式正确
     public static func assertStdioResult(result: StdioResult) {
         if (Environment.isDebug) {
-            if (let fd = result) {
+            if (let fd <- result) {
                 assert(fd.isValid())
             }
         }
@@ -247,7 +248,7 @@ public class Subprocess {
         return this.globalThis.get()
     }
 
-    /// self 的地址作为 *mut Self, 用于 C 回调上下文
+    /// self 的地址作为 *Self, 用于 C 回调上下文
     public func asCtxPtr(): Subprocess {
         return this
     }
@@ -288,10 +289,10 @@ public class Subprocess {
         // `ipc_data` 在初始化后不会设置回 None, 所以仅检查 is_some()
         // 会保持 JSSubprocess 在 VM 生命周期内被强引用。
         // IPC 端在 `_onAfterIPCClosed` 实际运行之前贡献待处理活动:
-        // 通过 `close_event_sent` (而非 `socket != .closed`) 进行门控,
+        // 通过 `close_event_sent` (而非 `socket != closed`) 进行门控,
         // 以在 socket 已经 `.closed` 但持有原始 `*SendQueue` 的任务
         // 仍排队的窗口期间保持 wrapper 为 Strong。
-        if (let ipc = this.ipcData) {
+        if (let ipc <- this.ipcData) {
             if (!ipc.closeEventSent) {
                 return true
             }
@@ -344,25 +345,22 @@ public class Subprocess {
 
     /// 关闭 IO 回调
     public func onCloseIO(kind: StdioKind) {
-        switch (kind) {
-            case .stdin => {
-                switch (this.stdin) {
-                    case .pipe(let pipe) => {
+        match (kind) {
+            case stdin =>
+                match (this.stdin) {
+                    case pipe(pipe) =>
                         // signal 是 JsCell, 所以共享的 &FileSink 就足够了
                         pipe.signal.clear()
                         this.stdin = Writable.ignore()
                         // Writable::Pipe 持有一个侵入式引用; 现在释放它
                         pipe.deref()
-                    }
-                    case .buffer(let buffer) => {
+                    case buffer(buffer) =>
                         buffer.source.detach()
                         this.stdin = Writable.ignore()
-                    }
-                    else => {}
+                    else => ()
                 }
-            }
-            case .stdout, .stderr => {
-                let out: Readable = if (kind == .stdout) {
+            case stdout, .stderr =>
+                let out: Readable = if (kind == stdout) {
                     this.stdout
                 } else {
                     this.stderr
@@ -371,14 +369,13 @@ public class Subprocess {
                 if (out is Readable.pipe) {
                     let pipe = out.replace(Readable.ignore())
                     let pipeState = pipe.reader.state
-                    if (let done = pipeState as PipeReaderState.done) {
+                    if (let done <- pipeState as PipeReaderState.done) {
                         let taken = done.take()
                         out = Readable.buffer(CowString.initOwned(taken))
                     }
                     // 否则 out 保持为 Readable::Ignore (由 replace 设置)
                     pipe.deref()
                 }
-            }
         }
 
         // 当进程在 stdout/stderr 管道完成排空前退出时,
@@ -428,8 +425,8 @@ public class Subprocess {
     }
 
     /// 构造函数 (禁止直接构造)
-    public static func constructor(globalObject: JsGlobalObject, callframe: JsCallFrame): Subprocess {
-        return globalObject.throw("Cannot construct Subprocess")
+    public static func constructor(JsGlobalObject, callframe: JsCallFrame): Subprocess {
+        return globalObject.`throw`("Cannot construct Subprocess")
     }
 
     // ========================================================================
@@ -470,7 +467,7 @@ public class Subprocess {
 
     /// 获取 terminal
     public func getTerminal(globalThis: JsGlobalObject): JsValue {
-        if (let terminal = this.terminal) {
+        if (let terminal <- this.terminal) {
             return terminal.toJS(globalThis)
         }
         return JsValue.jsUndefined()
@@ -504,24 +501,24 @@ public class Subprocess {
         try array.push(global, JsValue.null())
 
         for (item in this.stdioPipes) {
-            switch (item) {
-                case .owned_fd(let fd) => try array.push(global, JsValue.jsNumber(fd.native()))
-                case .unowned_fd(let fd) => try array.push(global, JsValue.jsNumber(fd.native()))
-                case .unavailable => try array.push(global, JsValue.null())
+            match (item) {
+                case owned_fd(fd) => try array.push(global, JsValue.jsNumber(fd.native()))
+                case unowned_fd(fd) => try array.push(global, JsValue.jsNumber(fd.native()))
+                case unavailable => try array.push(global, JsValue.null())
             }
         }
         return array
     }
 
     /// 获取 resource usage
-    public func resourceUsage(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func resourceUsage(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return this.createResourceUsageObject(globalObject)
     }
 
     /// 创建 resource usage JS 对象
-    public func createResourceUsageObject(globalObject: JsGlobalObject): JsValue {
+    public func createResourceUsageObject(JsGlobalObject): JsValue {
         let rusage: Rusage
-        if (let r = this.pidRusage) {
+        if (let r <- this.pidRusage) {
             rusage = r
         } else {
             return JsValue.jsUndefined()
@@ -531,7 +528,7 @@ public class Subprocess {
 
     /// 获取 connected 状态
     public func getConnected(globalThis: JsGlobalObject): JsValue {
-        let connected = if (let d = this.ipcData) {
+        let connected = if (let d <- this.ipcData) {
             d.isConnected()
         } else {
             false
@@ -541,24 +538,21 @@ public class Subprocess {
 
     /// 获取 exited Promise
     public func getExited(thisValue: JsValue, globalThis: JsGlobalObject): JsValue {
-        if (let promise = JSSubprocess.exitedPromiseGetCached(thisValue)) {
+        if (let promise <- JSSubprocess.exitedPromiseGetCached(thisValue)) {
             return promise
         }
 
-        switch (this.process().status) {
-            case .exited(let exit) => {
+        match (this.process().status) {
+            case exited(exit) =>
                 return JSPromise.resolvedPromiseValue(globalThis, JsValue.jsNumber(exit.code))
-            }
-            case .signaled(let signal) => {
+            case signaled(signal) =>
                 return JSPromise.resolvedPromiseValue(
                     globalThis,
                     JsValue.jsNumber(SignalCode(signal).toExitCode() ?? 254),
                 )
-            }
-            case .err(let err) => {
-                let jsErr = err.toJS(globalThis) catch { return JsValue.zero }
+            case err(err) =>
+                let jsErr = err.toJS(globalThis) catch { return JsValue.jsUndefined() }
                 return JSPromise.dangerouslyCreateRejectedPromiseValueWithoutNotifyingVM(globalThis, jsErr)
-            }
             else => {
                 let promise = JsPromise.create(globalThis).toJS()
                 JSSubprocess.exitedPromiseSetCached(thisValue, globalThis, promise)
@@ -569,7 +563,7 @@ public class Subprocess {
 
     /// 获取退出码
     public func getExitCode(globalThis: JsGlobalObject): JsValue {
-        if (let exited = this.process().status as Status.exited) {
+        if (let exited <- this.process().status as Status.exited) {
             return JsValue.jsNumber(exited.code)
         }
         return JsValue.jsNull()
@@ -577,10 +571,10 @@ public class Subprocess {
 
     /// 获取信号码
     public func getSignalCode(global: JsGlobalObject): JsValue {
-        if (let signal = this.process().signalCode()) {
+        if (let signal <- this.process().signalCode()) {
             let sysSig = SignalCode(signal.rawValue)
-            if (let name = sysSig.name()) {
-                return ZigString.init(name).toJS(global)
+            if (let name <- sysSig.name()) {
+                return ZigString(name).toJS(global)
             } else {
                 return JsValue.jsNumber(Int32(signal.rawValue))
             }
@@ -600,13 +594,12 @@ public class Subprocess {
         // 如果信号为 0, 不发送实际信号, 但仍进行错误检查
         let sig = try SignalCode.fromJS(arguments.ptr[0], globalThis)
 
-        if (globalThis.hasException()) { return JsValue.zero }
+        if (globalThis.hasException()) { return JsValue.jsUndefined() }
 
-        switch (this.tryKill(sig)) {
-            case .result => ()
-            case .err(let err) => {
+        match (this.tryKill(sig)) {
+            case result => ()
+            case err(err) =>
                 return globalThis.throwValue(try err.toJS(globalThis))
-            }
         }
 
         return JsValue.jsUndefined()
@@ -647,12 +640,11 @@ public class Subprocess {
         this.stdout.unref()
         this.stderr.unref()
 
-        switch (this.tryKill(this.killSignal)) {
-            case .result => ()
-            case .err(let err) => {
+        match (this.tryKill(this.killSignal)) {
+            case result => ()
+            case err(err) =>
                 // 信号 9 应该总是有效的, 但以防万一失败
                 return global.throwValue(try err.toJS(global))
-            }
         }
 
         return this.getExited(thisJsvalue, global)
@@ -702,7 +694,7 @@ public class Subprocess {
 
     /// abort signal 的 extern "C" 包装器
     public static func onAbortSignal(ctx: Unit, reason: JsValue) {
-        // ctx 被注册为 *mut Subprocess
+        // ctx 被注册为 *Subprocess
         let subprocess = ctx.as(Subprocess)
         subprocess.handleAbortSignal(reason)
     }
@@ -754,7 +746,7 @@ public class Subprocess {
 
     /// 获取 abort signal 的共享借用
     public func abortSignalRef(): ?BackRef<AbortSignal> {
-        if (let signal = this.abortSignal) {
+        if (let signal <- this.abortSignal) {
             return BackRef<AbortSignal>.from(signal)
         }
         return null
@@ -776,7 +768,7 @@ public class Subprocess {
 
     /// 进程退出时的回调
     public func onProcessExit(process: Process, status: Status, rusage: Rusage) {
-        let thisJsvalue = this.thisValue.tryGet() ?? JsValue.zero
+        let thisJsvalue = this.thisValue.tryGet() ?? JsValue.jsUndefined()
         // 复制 BackRef, 以便 &JSGlobalObject 借用与 &self 分离
         let globalThis = this.globalThis
         let globalThisRef = globalThis.get()
@@ -800,22 +792,22 @@ public class Subprocess {
 
         // Windows: 如果拥有终端, 在子进程退出时关闭伪控制台
         if (this.flags.ownsTerminal) {
-            if (let terminal = this.terminal) {
+            if (let terminal <- this.terminal) {
                 terminal.closePseudoconsole()
             }
         }
 
         var stdin: ?FileSink = null
         if (this.stdin is Writable.pipe && this.flags.isStdinAReadableStream) {
-            if (let pipe = this.stdin as Writable.pipe) {
+            if (let pipe <- this.stdin as Writable.pipe) {
                 stdin = pipe
             }
         } else {
             stdin = this.weakFileSinkStdinPtr
         }
-        var existingStdinValue = JsValue.zero
+        var existingStdinValue = JsValue.jsUndefined()
         if (!thisJsvalue.isEmpty()) {
-            if (let existingValue = JSSubprocess.stdinGetCached(thisJsvalue)) {
+            if (let existingValue <- JSSubprocess.stdinGetCached(thisJsvalue)) {
                 if (existingValue.isCell()) {
                     if (stdin == null) {
                         stdin = FileSink.JSSink.fromJS(existingValue)
@@ -849,20 +841,20 @@ public class Subprocess {
             }
         } else {
             // 这与 Node.js 的行为匹配。Node 在流上调用 resume()。
-            if (let pipe = this.stdout as Readable.pipe) {
+            if (let pipe <- this.stdout as Readable.pipe) {
                 if (!pipe.reader.isDone()) {
                     pipe.reader.read()
                 }
             }
 
-            if (let pipe = this.stderr as Readable.pipe) {
+            if (let pipe <- this.stderr as Readable.pipe) {
                 if (!pipe.reader.isDone()) {
                     pipe.reader.read()
                 }
             }
         }
 
-        if (let pipePtr = stdin) {
+        if (let pipePtr <- stdin) {
             this.weakFileSinkStdinPtr = null
             this.updateFlags({ f => f.insert(Flags.HAS_STDIN_DESTRUCTOR_CALLED) })
 
@@ -895,7 +887,7 @@ public class Subprocess {
 
         if (!isSync) {
             if (!thisJsvalue.isEmpty()) {
-                if (let promise = consumeExitedPromise(thisJsvalue, globalThisRef)) {
+                if (let promise <- consumeExitedPromise(thisJsvalue, globalThisRef)) {
                     let _exitGuard = EventLoop.enterScope(eventLoop)
 
                     if (!didUpdateHasPendingActivity) {
@@ -903,20 +895,17 @@ public class Subprocess {
                         didUpdateHasPendingActivity = true
                     }
 
-                    switch (status) {
-                        case .exited(let exited) => {
+                    match (status) {
+                        case exited(exited) =>
                             _ = promise.asAnyPromise().resolve(globalThisRef, JsValue.jsNumber(exited.code))
-                        }
-                        case .err(let err) => {
+                        case err(err) =>
                             let jsErr = err.toJS(globalThisRef)
                             _ = promise.asAnyPromise().rejectWithAsyncStack(globalThisRef, jsErr)
-                        }
-                        case .signaled(let signaled) => {
+                        case signaled(signaled) =>
                             _ = promise.asAnyPromise().resolve(
                                 globalThisRef,
                                 JsValue.jsNumber(128 + signaled),
                             )
-                        }
                         else => {
                             // 在 debug 模式下崩溃
                             if (Environment.isDebug) {
@@ -926,8 +915,8 @@ public class Subprocess {
                     }
                 }
 
-                if (let callback = consumeOnExitCallback(thisJsvalue, globalThisRef)) {
-                    let waitpidValue: JsValue = if (let err = status as Status.err) {
+                if (let callback <- consumeOnExitCallback(thisJsvalue, globalThisRef)) {
+                    let waitpidValue: JsValue = if (let err <- status as Status.err) {
                         err.toJS(globalThisRef)
                     } else {
                         JsValue.jsUndefined()
@@ -944,7 +933,7 @@ public class Subprocess {
                         thisValue,
                         this.getExitCode(globalThisRef),
                         this.getSignalCode(globalThisRef),
-                        waitpidValue,
+                        waitpidValue
                     ]
 
                     if (!didUpdateHasPendingActivity) {
@@ -985,35 +974,32 @@ public class Subprocess {
         //   2. 我们需要释放内存
         //   3. 我们需要停止任何待处理的读取 (1)
 
-        let getter = switch (io) {
-            case .stdin => ObservableGetter.stdin
-            case .stdout => ObservableGetter.stdout
-            case .stderr => ObservableGetter.stderr
+        let getter = match (io) {
+            case stdin => ObservableGetter.stdin
+            case stdout => ObservableGetter.stdout
+            case stderr => ObservableGetter.stderr
         }
         let called = this.hasCalledGetter(getter)
 
-        switch (io) {
-            case .stdin => {
+        match (io) {
+            case stdin =>
                 if (!called) {
                     Writable.finalize(this)
                 } else {
                     this.stdin.close()
                 }
-            }
-            case .stdout => {
+            case stdout =>
                 if (!called) {
                     this.stdout.finalize()
                 } else {
                     this.stdout.close()
                 }
-            }
-            case .stderr => {
+            case stderr =>
                 if (!called) {
                     this.stderr.finalize()
                 } else {
                     this.stderr.close()
                 }
-            }
         }
     }
 
@@ -1027,9 +1013,9 @@ public class Subprocess {
 
         // POSIX: 关闭拥有的 fd
         for (item in this.stdioPipes) {
-            switch (item) {
-                case .owned_fd(let fd) => fd.close()
-                case .unowned_fd, .unavailable => ()
+            match (item) {
+                case owned_fd(fd) => fd.close()
+                case unowned_fd, .unavailable => ()
             }
         }
         this.stdioPipes.clear()
@@ -1051,7 +1037,7 @@ public class Subprocess {
 
     /// 清除 abort signal
     public func clearAbortSignal() {
-        if (let signal = this.abortSignal) {
+        if (let signal <- this.abortSignal) {
             this.abortSignal = null
             signal.pendingActivityUnref()
             signal.cleanNativeBindings(this.asCtxPtr())
@@ -1093,7 +1079,7 @@ public class Subprocess {
         MaxBuf.removeFromSubprocess(mb)
         this.stderrMaxbuf = mb
 
-        if (let ipcData = this.ipcData) {
+        if (let ipcData <- this.ipcData) {
             this.ipcData = null
             // 在正常操作中, socket 在我们到达这里时已经 `.closed`
             // (这就是允许 `computeHasPendingActivity` 降为 false
@@ -1114,16 +1100,15 @@ public class Subprocess {
 
     /// IPC 消息处理
     public func handleIPCMessage(message: IPCDecodedIPCMessage, handle: JsValue) {
-        switch (message) {
-            case .version(let v) => {
+        match (message) {
+            case version(v) =>
                 // 在未来版本中, 我们可以读取此内容以检测版本不匹配,
                 // 或者如果子进程较旧则禁用未来的优化。
-            }
-            case .data(let data) => {
-                let thisJsvalue = this.thisValue.tryGet() ?? JsValue.zero
+            case data(data) =>
+                let thisJsvalue = this.thisValue.tryGet() ?? JsValue.jsUndefined()
                 // 保持 JS 值活跃
                 if (!thisJsvalue.isEmpty()) {
-                    if (let cb = JSSubprocess.ipcCallbackGetCached(thisJsvalue)) {
+                    if (let cb <- JSSubprocess.ipcCallbackGetCached(thisJsvalue)) {
                         let globalThis = this.globalThis()
                         let eventLoop = globalThis.bunVM().eventLoop()
                         eventLoop.runCallback(
@@ -1134,21 +1119,19 @@ public class Subprocess {
                         )
                     }
                 }
-            }
-            case .internal(let data) => {
+            case internal(data) =>
                 let globalThis = this.globalThis
                 _ = NodeClusterBinding.handleInternalMessagePrimary(
                     globalThis,
                     this,
                     data,
                 )
-            }
         }
     }
 
     /// IPC 关闭处理
     public func handleIPCClose() {
-        let thisJsvalue = this.thisValue.tryGet() ?? JsValue.zero
+        let thisJsvalue = this.thisValue.tryGet() ?? JsValue.jsUndefined()
         // 保持 JS 值活跃
         let globalThis = this.globalThis
         let globalThisRef = globalThis.get()
@@ -1156,10 +1139,10 @@ public class Subprocess {
 
         if (!thisJsvalue.isEmpty()) {
             // 避免将回调保持存活超过必要时间
-            JSSubprocess.ipcCallbackSetCached(thisJsvalue, globalThisRef, JsValue.zero)
+            JSSubprocess.ipcCallbackSetCached(thisJsvalue, globalThisRef, JsValue.jsUndefined())
 
             // 调用 onDisconnectCallback (如果存在) 并防止它被保持存活超过必要时间
-            if (let callback = consumeOnDisconnectCallback(thisJsvalue, globalThisRef)) {
+            if (let callback <- consumeOnDisconnectCallback(thisJsvalue, globalThisRef)) {
                 let eventLoop = globalThisRef.bunVM().eventLoop()
                 eventLoop.runCallback(
                     callback,
@@ -1191,8 +1174,8 @@ public class Subprocess {
 
     /// 消费已缓存的 exited Promise
     public static func consumeExitedPromise(thisJsvalue: JsValue, globalThis: JsGlobalObject): JsValue {
-        if (let promise = JSSubprocess.exitedPromiseGetCached(thisJsvalue)) {
-            JSSubprocess.exitedPromiseSetCached(thisJsvalue, globalThis, JsValue.zero)
+        if (let promise <- JSSubprocess.exitedPromiseGetCached(thisJsvalue)) {
+            JSSubprocess.exitedPromiseSetCached(thisJsvalue, globalThis, JsValue.jsUndefined())
             return promise
         }
         return null
@@ -1200,8 +1183,8 @@ public class Subprocess {
 
     /// 消费已缓存的 onExit 回调
     public static func consumeOnExitCallback(thisJsvalue: JsValue, globalThis: JsGlobalObject): JsValue {
-        if (let callback = JSSubprocess.onExitCallbackGetCached(thisJsvalue)) {
-            JSSubprocess.onExitCallbackSetCached(thisJsvalue, globalThis, JsValue.zero)
+        if (let callback <- JSSubprocess.onExitCallbackGetCached(thisJsvalue)) {
+            JSSubprocess.onExitCallbackSetCached(thisJsvalue, globalThis, JsValue.jsUndefined())
             return callback
         }
         return null
@@ -1209,8 +1192,8 @@ public class Subprocess {
 
     /// 消费已缓存的 onDisconnect 回调
     public static func consumeOnDisconnectCallback(thisJsvalue: JsValue, globalThis: JsGlobalObject): JsValue {
-        if (let callback = JSSubprocess.onDisconnectCallbackGetCached(thisJsvalue)) {
-            JSSubprocess.onDisconnectCallbackSetCached(thisJsvalue, globalThis, JsValue.zero)
+        if (let callback <- JSSubprocess.onDisconnectCallbackGetCached(thisJsvalue)) {
+            JSSubprocess.onDisconnectCallbackSetCached(thisJsvalue, globalThis, JsValue.jsUndefined())
             return callback
         }
         return null
@@ -1285,7 +1268,7 @@ public class TestingAPIs {
         let subprocessValue = callframe.argumentsAsArray(2)[0]
         let kindValue = callframe.argumentsAsArray(2)[1]
         let subprocess = Subprocess.fromJS(subprocessValue) ?? {
-            return globalThis.throw("first argument must be a Subprocess")
+            return globalThis.`throw`("first argument must be a Subprocess")
         }()
 
         let kindStr = try kindValue.toBunString(globalThis)
@@ -1295,7 +1278,7 @@ public class TestingAPIs {
         } else if (kindStr.eqlComptime("stderr")) {
             subprocess.stderr
         } else {
-            return globalThis.throw("second argument must be 'stdout' or 'stderr'")
+            return globalThis.`throw`("second argument must be 'stdout' or 'stderr'")
         }
 
         if (out is Readable.pipe) {
@@ -1311,7 +1294,7 @@ public class TestingAPIs {
 }
 
 /// testing_apis 的别名 (匹配 Bun 的 snake_case 命名)
-public typealias testingAPIs = TestingAPIs
+public type testingAPIs = TestingAPIs
 
 // ============================================================================
 // 模块级 assert_stdio_result
@@ -1320,7 +1303,7 @@ public typealias testingAPIs = TestingAPIs
 /// 模块级调试断言 stdio 结果格式正确
 public func assertStdioResult(result: StdioResult) {
     if (Environment.isDebug) {
-        if (let fd = result) {
+        if (let fd <- result) {
             assert(fd.isValid())
         }
     }

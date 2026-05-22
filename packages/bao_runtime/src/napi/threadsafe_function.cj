@@ -5,6 +5,9 @@
 
 package bao_runtime.napi
 
+import bao_jsc.*
+import bao_collections.ArrayList
+
 // ============================================================================
 // NapiTsfnClosingState - 线程安全函数关闭状态
 // 对应 Bun: napi.zig - ThreadSafeFunction.ClosingState
@@ -73,7 +76,7 @@ public class NapiTsfnQueue {
 
     /// 创建队列
     /// 对应 Bun: Queue.init
-    public static func init(maxQueueSize: Int64): NapiTsfnQueue {
+    public static func `init`(maxQueueSize: Int64): NapiTsfnQueue {
         let q = NapiTsfnQueue()
         q.maxQueueSize = maxQueueSize
         return q
@@ -250,7 +253,11 @@ public class NapiThreadsafeFunctionImpl {
     /// 1. 需要运行可能多个任务
     /// 2. 需要终结线程安全函数
     public func onDispatch(): Unit {
-        if (this.closingState == NapiTsfnClosingState.CLOSED) {
+        let isClosed: Bool = match (this.closingState) {
+            case NapiTsfnClosingState.CLOSED => true
+            case _ => false
+        }
+        if (isClosed) {
             this.deinit()
             return
         }
@@ -276,7 +283,10 @@ public class NapiThreadsafeFunctionImpl {
     /// 是否正在关闭
     /// 对应 Bun: ThreadSafeFunction.isClosing
     public func isClosing(): Bool {
-        return this.closingState != NapiTsfnClosingState.NOT_CLOSING
+        match (this.closingState) {
+            case NapiTsfnClosingState.NOT_CLOSING => return false
+            case _ => return true
+        }
     }
 
     /// 可能排队终结器
@@ -290,7 +300,7 @@ public class NapiThreadsafeFunctionImpl {
             this.closingState = NapiTsfnClosingState.CLOSED
             this.callback.deinit()
             this.pollRefActive = false
-            // 对应 Bun: this.event_loop.enqueueTask(jsc.Task.init(this))
+            // 对应 Bun: this.event_loop.enqueueTask(jsc.Task(this))
         }
     }
 
@@ -304,7 +314,7 @@ public class NapiThreadsafeFunctionImpl {
         this.lock.lock()
         let wasBlocked = this.queue.isBlocked()
         let task = this.queue.readItem()
-        if (task == None) {
+        if (task.isNone()) {
             // 队列为空
             if (this.threadCount == 0) {
                 this.maybeQueueFinalizer()
@@ -348,10 +358,10 @@ public class NapiThreadsafeFunctionImpl {
             // C 回调模式
             let jsCallback = this.callback.jsValue
             let callJs = this.callback.callJsCb
-            if (callJs != None) {
+            if (callJs.isSome()) {
                 let handleScope = NapiHandleScope.open(env, false)
                 callJs.getOrThrow()(env, jsCallback, this.ctx, task)
-                if (handleScope != None) {
+                if (handleScope.isSome()) {
                     handleScope.getOrThrow().close(env)
                 }
             }
@@ -422,7 +432,7 @@ public class NapiThreadsafeFunctionImpl {
     public func deinit(): Unit {
         this.unref()
 
-        if (this.finalizerFun != None) {
+        if (this.finalizerFun.isSome()) {
             // 对应 Bun: finalizer.enqueue()
             let finalizer = NapiFinalizer(this.env, this.finalizerFun.getOrThrow())
             finalizer.data = this.finalizerData
@@ -481,9 +491,13 @@ public class NapiThreadsafeFunctionImpl {
 
         this.threadCount -= 1
 
-        if (mode == NapiThreadsafeFunctionReleaseMode.napiTsfnAbort || this.threadCount == 1) {
+        let isAbort: Bool = match (mode) {
+            case NapiThreadsafeFunctionReleaseMode.napiTsfnAbort => true
+            case _ => false
+        }
+        if (isAbort || this.threadCount == 1) {
             if (!this.isClosing()) {
-                if (mode == NapiThreadsafeFunctionReleaseMode.napiTsfnAbort) {
+                if (isAbort) {
                     this.closingState = NapiTsfnClosingState.CLOSING
                     this.aborted = true
                     this.blockingCondvar.signal()
@@ -543,15 +557,15 @@ public class NapiCondition {
 public class NapiAsyncTaskTracker {
     public init() {}
 
-    public func willDispatch(globalObject: JsObject): Unit {
+    public func willDispatch(obj: JsObject): Unit {
         // 简化实现
     }
 
-    public func didDispatch(globalObject: JsObject): Unit {
+    public func didDispatch(obj: JsObject): Unit {
         // 简化实现
     }
 
-    public func didSchedule(globalObject: JsObject): Unit {
+    public func didSchedule(obj: JsObject): Unit {
         // 简化实现
     }
 
@@ -579,13 +593,13 @@ public class NapiThreadsafeFunctionFunctions {
         callJsCb: ?NapiThreadsafeFunctionCallJs): ?NapiThreadsafeFunctionImpl {
         let tsfn = NapiThreadsafeFunctionImpl(env)
         tsfn.ctx = context
-        tsfn.queue = NapiTsfnQueue.init(maxQueueSize)
+        tsfn.queue = NapiTsfnQueue(maxQueueSize)
         tsfn.threadCount = initialThreadCount
         tsfn.finalizerFun = threadFinalizeCb
         tsfn.finalizerData = threadFinalizeData
         tsfn.aborted = false
 
-        if (callJsCb != None) {
+        if (callJsCb.isSome()) {
             // C 回调模式
             tsfn.callback = NapiTsfnCallback(func_, callJsCb.getOrThrow())
         } else {
@@ -602,42 +616,46 @@ public class NapiThreadsafeFunctionFunctions {
 
     /// napi_get_threadsafe_function_context
     /// 对应 Bun: pub export fn napi_get_threadsafe_function_context
-    public static func getContext(func: NapiThreadsafeFunctionImpl): ?Any {
-        return func.ctx
+    public static func getContext(`func`: NapiThreadsafeFunctionImpl): ?Any {
+        return `func`.ctx
     }
 
     /// napi_call_threadsafe_function
     /// 对应 Bun: pub export fn napi_call_threadsafe_function
-    public static func call(func: NapiThreadsafeFunctionImpl, data: ?Any,
+    public static func call(`func`: NapiThreadsafeFunctionImpl, data: ?Any,
         isBlocking: NapiThreadsafeFunctionCallMode): UInt32 {
         // 对应 Bun: func.enqueue(data, is_blocking == napi_tsfn_blocking)
-        return func.enqueue(data, isBlocking == NapiThreadsafeFunctionCallMode.napiTsfnBlocking)
+        let isBlockMode: Bool = match (isBlocking) {
+            case NapiThreadsafeFunctionCallMode.napiTsfnBlocking => true
+            case _ => false
+        }
+        return `func`.enqueue(data, isBlockMode)
     }
 
     /// napi_acquire_threadsafe_function
     /// 对应 Bun: pub export fn napi_acquire_threadsafe_function
-    public static func acquire(func: NapiThreadsafeFunctionImpl): UInt32 {
-        return func.acquire()
+    public static func acquire(`func`: NapiThreadsafeFunctionImpl): UInt32 {
+        return `func`.acquire()
     }
 
     /// napi_release_threadsafe_function
     /// 对应 Bun: pub export fn napi_release_threadsafe_function
-    public static func release(func: NapiThreadsafeFunctionImpl,
+    public static func release(`func`: NapiThreadsafeFunctionImpl,
         mode: NapiThreadsafeFunctionReleaseMode): UInt32 {
-        return func.release(mode, false)
+        return `func`.release(mode, false)
     }
 
     /// napi_unref_threadsafe_function
     /// 对应 Bun: pub export fn napi_unref_threadsafe_function
-    public static func unref(env: NapiEnv, func: NapiThreadsafeFunctionImpl): UInt32 {
-        func.unref()
+    public static func unref(env: NapiEnv, `func`: NapiThreadsafeFunctionImpl): UInt32 {
+        `func`.unref()
         return NapiStatus.ok.toInt()
     }
 
     /// napi_ref_threadsafe_function
     /// 对应 Bun: pub export fn napi_ref_threadsafe_function
-    public static func ref_(env: NapiEnv, func: NapiThreadsafeFunctionImpl): UInt32 {
-        func.ref()
+    public static func ref_(env: NapiEnv, `func`: NapiThreadsafeFunctionImpl): UInt32 {
+        `func`.ref()
         return NapiStatus.ok.toInt()
     }
 }

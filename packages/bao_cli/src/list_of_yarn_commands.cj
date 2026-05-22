@@ -40,7 +40,7 @@ public class ListOfYarnCommands {
         "up",
         "why",
         "workspace",
-        "workspaces",
+        "workspaces"
     ]
 
     /// yarn v1 特有命令
@@ -69,11 +69,11 @@ public class ListOfYarnCommands {
         "upgrade-interactive",
         "upgradeInteractive",
         "version",
-        "versions",
+        "versions"
     ]
 
     /// 所有 yarn 命令的哈希集合
-    private static var allCommandsSet: HashSet<String>? = None
+    private static var allCommandsSet: ?HashSet<String> = None
 
     /// 检查给定名称是否是 yarn 命令
     public static func isYarnCommand(name: String): Bool {

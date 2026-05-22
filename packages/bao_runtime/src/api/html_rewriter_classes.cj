@@ -21,14 +21,14 @@ public class HTMLRewriterClasses {
     /// on fn
     /// 严格翻译自: proto.on { fn: "on", length: 2 }
     /// 参数: (selector: string, handlers: ElementHandlers)
-    public static func on(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func on(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// onDocument fn
     /// 严格翻译自: proto.onDocument { fn: "onDocument", length: 1 }
     /// 参数: (handlers: DocumentHandlers)
-    public static func onDocument(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func onDocument(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -36,7 +36,7 @@ public class HTMLRewriterClasses {
     /// 严格翻译自: proto.transform { fn: "transform", length: 1 }
     /// 参数: (input: Response | ReadableStream)
     /// 返回: Response | ReadableStream
-    public static func transform(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func transform(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }
@@ -51,43 +51,43 @@ public class TextChunkClasses {
 
     /// before fn
     /// 严格翻译自: proto.before { fn: "before", length: 1 }
-    public static func before(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func before(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// after fn
     /// 严格翻译自: proto.after { fn: "after", length: 1 }
-    public static func after(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func after(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// replace fn
     /// 严格翻译自: proto.replace { fn: "replace", length: 1 }
-    public static func replace(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func replace(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// remove fn
     /// 严格翻译自: proto.remove { fn: "remove", length: 0 }
-    public static func remove(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func remove(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// removed getter
     /// 严格翻译自: proto.removed { getter: "removed" }
-    public static func getRemoved(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getRemoved(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 
     /// lastInTextNode getter (cached)
     /// 严格翻译自: proto.lastInTextNode { getter: "lastInTextNode", cache: true }
-    public static func getLastInTextNode(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getLastInTextNode(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 
     /// text getter
     /// 严格翻译自: proto.text { getter: "getText" }
-    public static func getText(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getText(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 }
@@ -102,31 +102,31 @@ public class DocTypeClasses {
 
     /// name getter (cached)
     /// 严格翻译自: proto.name { getter: "name", cache: true }
-    public static func getName(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getName(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// systemId getter (cached)
     /// 严格翻译自: proto.systemId { getter: "systemId", cache: true }
-    public static func getSystemId(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getSystemId(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// publicId getter (cached)
     /// 严格翻译自: proto.publicId { getter: "publicId", cache: true }
-    public static func getPublicId(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getPublicId(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// remove fn
     /// 严格翻译自: proto.remove { fn: "remove", length: 0 }
-    public static func remove(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func remove(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// removed getter
     /// 严格翻译自: proto.removed { getter: "removed" }
-    public static func getRemoved(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getRemoved(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 }
@@ -141,7 +141,7 @@ public class DocEndClasses {
 
     /// append fn
     /// 严格翻译自: proto.append { fn: "append", length: 1 }
-    public static func append(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func append(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }
@@ -156,42 +156,42 @@ public class CommentClasses {
 
     /// before fn
     /// 严格翻译自: proto.before { fn: "before", length: 1 }
-    public static func before(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func before(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// after fn
     /// 严格翻译自: proto.after { fn: "after", length: 1 }
-    public static func after(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func after(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// replace fn
     /// 严格翻译自: proto.replace { fn: "replace", length: 1 }
-    public static func replace(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func replace(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// remove fn
     /// 严格翻译自: proto.remove { fn: "remove", length: 0 }
-    public static func remove(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func remove(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// removed getter
     /// 严格翻译自: proto.removed { getter: "removed" }
-    public static func getRemoved(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getRemoved(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 
     /// text getter/setter
     /// 严格翻译自: proto.text { getter: "getText", setter: "setText" }
-    public static func getText(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getText(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// setText setter
-    public static func setText(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setText(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }
@@ -206,30 +206,30 @@ public class EndTagClasses {
 
     /// before fn
     /// 严格翻译自: proto.before { fn: "before", length: 1 }
-    public static func before(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func before(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// after fn
     /// 严格翻译自: proto.after { fn: "after", length: 1 }
-    public static func after(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func after(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// remove fn
     /// 严格翻译自: proto.remove { fn: "remove", length: 0 }
-    public static func remove(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func remove(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// name getter/setter
     /// 严格翻译自: proto.name { getter: "getName", setter: "setName" }
-    public static func getName(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getName(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// setName setter
-    public static func setName(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setName(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }
@@ -244,13 +244,13 @@ public class AttributeIteratorClasses {
 
     /// next fn
     /// 严格翻译自: proto.next { fn: "next", length: 0 }
-    public static func next(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func next(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// @@iterator fn
     /// 严格翻译自: proto["@@iterator"] { fn: "getThis", length: 0 }
-    public static func getThis(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getThis(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return thisValue
     }
 }
@@ -265,120 +265,120 @@ public class ElementClasses {
 
     /// getAttribute fn
     /// 严格翻译自: proto.getAttribute { fn: "getAttribute", length: 1 }
-    public static func getAttribute(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getAttribute(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsNull()
     }
 
     /// hasAttribute fn
     /// 严格翻译自: proto.hasAttribute { fn: "hasAttribute", length: 1 }
-    public static func hasAttribute(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func hasAttribute(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 
     /// setAttribute fn
     /// 严格翻译自: proto.setAttribute { fn: "setAttribute", length: 2 }
-    public static func setAttribute(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setAttribute(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// removeAttribute fn
     /// 严格翻译自: proto.removeAttribute { fn: "removeAttribute", length: 1 }
-    public static func removeAttribute(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func removeAttribute(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// before fn
     /// 严格翻译自: proto.before { fn: "before", length: 1 }
-    public static func before(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func before(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// after fn
     /// 严格翻译自: proto.after { fn: "after", length: 1 }
-    public static func after(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func after(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// replace fn
     /// 严格翻译自: proto.replace { fn: "replace", length: 1 }
-    public static func replace(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func replace(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// prepend fn
     /// 严格翻译自: proto.prepend { fn: "prepend", length: 1 }
-    public static func prepend(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func prepend(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// append fn
     /// 严格翻译自: proto.append { fn: "append", length: 1 }
-    public static func append(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func append(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// setInnerContent fn
     /// 严格翻译自: proto.setInnerContent { fn: "setInnerContent", length: 1 }
-    public static func setInnerContent(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setInnerContent(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// remove fn
     /// 严格翻译自: proto.remove { fn: "remove", length: 0 }
-    public static func remove(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func remove(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// removeAndKeepContent fn
     /// 严格翻译自: proto.removeAndKeepContent { fn: "removeAndKeepContent", length: 0 }
-    public static func removeAndKeepContent(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func removeAndKeepContent(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// onEndTag fn
     /// 严格翻译自: proto.onEndTag { fn: "onEndTag", length: 1 }
-    public static func onEndTag(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func onEndTag(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// tagName getter/setter
     /// 严格翻译自: proto.tagName { getter: "getTagName", setter: "setTagName" }
-    public static func getTagName(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getTagName(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// setTagName setter
-    public static func setTagName(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setTagName(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// removed getter
     /// 严格翻译自: proto.removed { getter: "getRemoved" }
-    public static func getRemoved(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getRemoved(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 
     /// selfClosing getter
     /// 严格翻译自: proto.selfClosing { getter: "getSelfClosing" }
-    public static func getSelfClosing(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getSelfClosing(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(false)
     }
 
     /// canHaveContent getter
     /// 严格翻译自: proto.canHaveContent { getter: "getCanHaveContent" }
-    public static func getCanHaveContent(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getCanHaveContent(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsBoolean(true)
     }
 
     /// namespaceURI getter (cached)
     /// 严格翻译自: proto.namespaceURI { getter: "getNamespaceURI", cache: true }
-    public static func getNamespaceURI(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getNamespaceURI(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// attributes getter
     /// 严格翻译自: proto.attributes { getter: "getAttributes" }
-    public static func getAttributes(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getAttributes(JsGlobalObject, thisValue: JsValue): JsValue {
         // 返回 AttributeIterator
         return JsValue.jsUndefined()
     }

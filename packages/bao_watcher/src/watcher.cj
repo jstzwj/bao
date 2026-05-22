@@ -131,13 +131,13 @@ public class Watcher {
     //           .watch_events = try allocator.alloc(WatchEvent, max_count),
     //           .changed_filepaths = [_]?[:0]u8{null} ** max_count,
     //       };
-    //       try Platform.init(&watcher.platform, fs.top_level_dir);
-    //       WatcherTrace.init();
+    //       try Platform(&watcher.platform, fs.top_level_dir);
+    //       WatcherTrace();
     //       return watcher;
     //   }
     // ========================================================================
 
-    /// 初始化监视器 - 对应 Bun Watcher.init(T, ctx, fs, allocator)
+    /// 初始化监视器 - 对应 Bun Watcher(T, ctx, fs, allocator)
     /// 严格翻译自: Watcher.zig:69-106
     ///
     /// Bun 使用 comptime 泛型包装类型安全的回调
@@ -172,9 +172,9 @@ public class Watcher {
         platform = None
     }
 
-    /// 初始化平台实现 - 对应 Bun Platform.init(&watcher.platform, fs.top_level_dir)
+    /// 初始化平台实现 - 对应 Bun Platform(&watcher.platform, fs.top_level_dir)
     /// 严格翻译自: Watcher.zig:100
-    ///   try Platform.init(&watcher.platform, fs.top_level_dir);
+    ///   try Platform(&watcher.platform, fs.top_level_dir);
     ///
     /// 必须在构造后调用, 因为可能涉及系统调用 (inotify_init1 等)
     public func initPlatform(): Unit {
@@ -186,7 +186,7 @@ public class Watcher {
                 "Failed to initialize inotify: ${e.toString()}")
         }
 
-        // 初始化 trace - 对应 WatcherTrace.init()
+        // 初始化 trace - 对应 WatcherTrace()
         WatcherTrace.instance.initFunc()
     }
 
@@ -792,7 +792,7 @@ public class Watcher {
     }
 
     /// 提取父目录路径 (带尾斜杠)
-    /// 对应 Bun bun.fs.PathName.init(file_path).dirWithTrailingSlash()
+    /// 对应 Bun bun.fs.PathName(file_path).dirWithTrailingSlash()
     private func parentDirectory(filePath: String): String {
         let lastSlash = filePath.lastIndexOf('/')
         match (lastSlash) {

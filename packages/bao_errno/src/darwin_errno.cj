@@ -165,7 +165,7 @@ public enum DarwinSystemErrno {
     public static let max: Int64 = 107
 
     /// 从数值初始化
-    /// 对应: SystemErrno.init(code: anytype) ?SystemErrno
+    /// 对应: SystemErrno(code: anytype) ?SystemErrno
     public static func initFunc(code: Int64): ?DarwinSystemErrno {
         if (code < 0) {
             if (code <= -max) {

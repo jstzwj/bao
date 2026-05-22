@@ -191,7 +191,7 @@ public class UvLoop {
     }
 
     /// 初始化 libuv 循环 - 对应 uv_loop_init
-    /// Bun: MiniEventLoop.init(allocator) -> .{ .tasks = Queue.init(allocator), .loop = uws.Loop.get() }
+    /// Bun: MiniEventLoop(allocator) -> .{ .tasks = Queue(allocator), .loop = uws.Loop.get() }
     public func initFunc(): Int64 {
         unsafe {
             let result = uv_loop_init(loopPtr)
@@ -548,7 +548,7 @@ public class UvLoop {
     /// Bun:
     ///   pub fn enqueueTask(this, comptime Context, ctx, comptime Callback, comptime field) void {
     ///       const TaskType = MiniEventLoop.Task.New(Context, Callback)
-    ///       @field(ctx, @tagName(field)) = TaskType.init(ctx)
+    ///       @field(ctx, @tagName(field)) = TaskType(ctx)
     ///       this.enqueueJSCTask(&@field(ctx, @tagName(field)))
     ///   }
     public func enqueue(task: () -> Unit): Unit {

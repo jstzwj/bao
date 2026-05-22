@@ -213,7 +213,7 @@ public func lifecycleAgentStopPreventingExit(): Unit {
 //   1. 崩溃处理器 / 信号掩码
 //   2. 分配器连接 (mimalloc)
 //   3. argv / 启动时间捕获
-//   4. Output.Source.Stdio.init() - stdout/stderr 写入器
+//   4. Output.Source.Stdio() - stdout/stderr 写入器
 //   5. StackCheck.configureThread()
 //   6. cli::Cli::start() -> Global::exit(0)
 //
@@ -232,7 +232,7 @@ public func main(): Int64 {
 
     // 1. 崩溃处理器 - 任何下面的代码获得可用栈追踪
     //    对应 Bun: bun_crash_handler::init()
-    CrashHandler.init()
+    CrashHandler()
 
     // SIGPIPE/SIGXFSZ -> SIG_IGN, 类似 main.zig 的 posix 块
     // 对应 Bun:

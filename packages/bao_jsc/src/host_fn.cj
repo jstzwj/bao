@@ -11,7 +11,7 @@ public class HostFn {
     // 严格翻译自 toJSHostFnResult
     // 将宿主函数的结果转换为 JSValue
     public static func toJSHostFnResult(globalThis: JsObject, result: ?JsValue): JsValue {
-        result ?? JsValue.zero
+        result ?? JsValue()
     }
 
     // 严格翻译自 toJSHostCall
@@ -32,7 +32,7 @@ public class HostFn {
         args: Array<JsValue>
     ): ?JsValue {
         let value = function(globalThis, CallFrame())
-        if (value == JsValue.zero) { return None }
+        if (value == JsValue()) { return None }
         Some(value)
     }
 
@@ -94,11 +94,11 @@ public class HostFn {
 
     // 严格翻译自 wrap1, wrap2, wrap3, wrap4, wrap5
     // 包装不同参数数量的函数为宿主函数
-    public static func wrap1(func: (JsObject): JsValue): (JsObject): JsValue { func }
-    public static func wrap2(func: (JsObject, JsValue): JsValue): (JsObject, JsValue): JsValue { func }
-    public static func wrap3(func: (JsObject, JsValue, JsValue): JsValue): (JsObject, JsValue, JsValue): JsValue { func }
-    public static func wrap4(func: (JsObject, JsValue, JsValue, JsValue): JsValue): (JsObject, JsValue, JsValue, JsValue): JsValue { func }
-    public static func wrap5(func: (JsObject, JsValue, JsValue, JsValue, JsValue): JsValue): (JsObject, JsValue, JsValue, JsValue, JsValue): JsValue { func }
+    public static func wrap1(`func`: (JsObject) -> JsValue): (JsObject) -> JsValue { `func` }
+    public static func wrap2(`func`: (JsObject, JsValue) -> JsValue): (JsObject, JsValue) -> JsValue { `func` }
+    public static func wrap3(`func`: (JsObject, JsValue, JsValue) -> JsValue): (JsObject, JsValue, JsValue) -> JsValue { `func` }
+    public static func wrap4(`func`: (JsObject, JsValue, JsValue, JsValue) -> JsValue): (JsObject, JsValue, JsValue, JsValue) -> JsValue { `func` }
+    public static func wrap5(`func`: (JsObject, JsValue, JsValue, JsValue, JsValue) -> JsValue): (JsObject, JsValue, JsValue, JsValue, JsValue) -> JsValue { `func` }
 }
 
 // ========== DOMEffect ==========
@@ -131,44 +131,92 @@ public class DOMEffect {
 }
 
 // ========== DOMEffectID ==========
-public enum DOMEffectID: UInt8 {
-    case InvalidAbstractHeap = 0
-    case World
-    case Stack
-    case Heap
-    case Butterfly_publicLength
-    case Butterfly_vectorLength
-    case GetterSetter_getter
-    case GetterSetter_setter
-    case JSCell_cellState
-    case JSCell_indexingType
-    case JSCell_structureID
-    case JSCell_typeInfoFlags
-    case JSObject_butterfly
-    case JSPropertyNameEnumerator_cachedPropertyNames
-    case RegExpObject_lastIndex
-    case NamedProperties
-    case IndexedInt32Properties
-    case IndexedDoubleProperties
-    case IndexedContiguousProperties
-    case IndexedArrayStorageProperties
-    case DirectArgumentsProperties
-    case ScopeProperties
-    case TypedArrayProperties
-    case HeapObjectCount
-    case RegExpState
-    case MathDotRandomState
-    case JSDateFields
-    case JSMapFields
-    case JSSetFields
-    case JSWeakMapFields
-    case WeakSetFields
-    case JSInternalFields
-    case InternalState
-    case CatchLocals
-    case Absolute
-    case DOMState
-    case Watchpoint_fire
-    case MiscFields
-    case SideState
+public enum DOMEffectID {
+    | InvalidAbstractHeap
+    | World
+    | Stack
+    | Heap
+    | Butterfly_publicLength
+    | Butterfly_vectorLength
+    | GetterSetter_getter
+    | GetterSetter_setter
+    | JSCell_cellState
+    | JSCell_indexingType
+    | JSCell_structureID
+    | JSCell_typeInfoFlags
+    | JSObject_butterfly
+    | JSPropertyNameEnumerator_cachedPropertyNames
+    | RegExpObject_lastIndex
+    | NamedProperties
+    | IndexedInt32Properties
+    | IndexedDoubleProperties
+    | IndexedContiguousProperties
+    | IndexedArrayStorageProperties
+    | DirectArgumentsProperties
+    | ScopeProperties
+    | TypedArrayProperties
+    | HeapObjectCount
+    | RegExpState
+    | MathDotRandomState
+    | JSDateFields
+    | JSMapFields
+    | JSSetFields
+    | JSWeakMapFields
+    | WeakSetFields
+    | JSInternalFields
+    | InternalState
+    | CatchLocals
+    | Absolute
+    | DOMState
+    | Watchpoint_fire
+    | MiscFields
+    | SideState
+
+    public operator func ==(right: DOMEffectID): Bool {
+        match (this) {
+            case InvalidAbstractHeap => match(right) { case InvalidAbstractHeap => true case _ => false }
+            case World => match(right) { case World => true case _ => false }
+            case Stack => match(right) { case Stack => true case _ => false }
+            case Heap => match(right) { case Heap => true case _ => false }
+            case Butterfly_publicLength => match(right) { case Butterfly_publicLength => true case _ => false }
+            case Butterfly_vectorLength => match(right) { case Butterfly_vectorLength => true case _ => false }
+            case GetterSetter_getter => match(right) { case GetterSetter_getter => true case _ => false }
+            case GetterSetter_setter => match(right) { case GetterSetter_setter => true case _ => false }
+            case JSCell_cellState => match(right) { case JSCell_cellState => true case _ => false }
+            case JSCell_indexingType => match(right) { case JSCell_indexingType => true case _ => false }
+            case JSCell_structureID => match(right) { case JSCell_structureID => true case _ => false }
+            case JSCell_typeInfoFlags => match(right) { case JSCell_typeInfoFlags => true case _ => false }
+            case JSObject_butterfly => match(right) { case JSObject_butterfly => true case _ => false }
+            case JSPropertyNameEnumerator_cachedPropertyNames => match(right) { case JSPropertyNameEnumerator_cachedPropertyNames => true case _ => false }
+            case RegExpObject_lastIndex => match(right) { case RegExpObject_lastIndex => true case _ => false }
+            case NamedProperties => match(right) { case NamedProperties => true case _ => false }
+            case IndexedInt32Properties => match(right) { case IndexedInt32Properties => true case _ => false }
+            case IndexedDoubleProperties => match(right) { case IndexedDoubleProperties => true case _ => false }
+            case IndexedContiguousProperties => match(right) { case IndexedContiguousProperties => true case _ => false }
+            case IndexedArrayStorageProperties => match(right) { case IndexedArrayStorageProperties => true case _ => false }
+            case DirectArgumentsProperties => match(right) { case DirectArgumentsProperties => true case _ => false }
+            case ScopeProperties => match(right) { case ScopeProperties => true case _ => false }
+            case TypedArrayProperties => match(right) { case TypedArrayProperties => true case _ => false }
+            case HeapObjectCount => match(right) { case HeapObjectCount => true case _ => false }
+            case RegExpState => match(right) { case RegExpState => true case _ => false }
+            case MathDotRandomState => match(right) { case MathDotRandomState => true case _ => false }
+            case JSDateFields => match(right) { case JSDateFields => true case _ => false }
+            case JSMapFields => match(right) { case JSMapFields => true case _ => false }
+            case JSSetFields => match(right) { case JSSetFields => true case _ => false }
+            case JSWeakMapFields => match(right) { case JSWeakMapFields => true case _ => false }
+            case WeakSetFields => match(right) { case WeakSetFields => true case _ => false }
+            case JSInternalFields => match(right) { case JSInternalFields => true case _ => false }
+            case InternalState => match(right) { case InternalState => true case _ => false }
+            case CatchLocals => match(right) { case CatchLocals => true case _ => false }
+            case Absolute => match(right) { case Absolute => true case _ => false }
+            case DOMState => match(right) { case DOMState => true case _ => false }
+            case Watchpoint_fire => match(right) { case Watchpoint_fire => true case _ => false }
+            case MiscFields => match(right) { case MiscFields => true case _ => false }
+            case SideState => match(right) { case SideState => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: DOMEffectID): Bool {
+        !(this == right)
+    }
 }

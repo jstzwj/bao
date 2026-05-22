@@ -61,7 +61,7 @@ public class DirectoryWatchStore {
         loader: Loader
     ): Unit {
         // 当不是文件路径时，无需跟踪
-        if (specifier.length == 0) { return }
+        if (specifier.size == 0) { return }
         if (!std.fs.path.isAbsolute(import_source)) { return }
 
         match (loader) {
@@ -96,10 +96,10 @@ public class DirectoryWatchStore {
         file_path: String,
         specifier: String
     ): Unit {
-        assert(specifier.length > 0)
+        assert(specifier.size > 0)
         let dev = owner()
 
-        if (dependencies_free_list.items.length == 0) {
+        if (dependencies_free_list.items.size == 0) {
             dependencies.ensureUnusedCapacity(dev.allocator(), 1)
         }
 
@@ -143,8 +143,8 @@ public class DirectoryWatchStore {
         alloc.free(dependencies.items[index.get()].specifier)
         dependencies.items[index.get()] = DirectoryWatchDep.empty
 
-        if (index.get() == dependencies.items.length - 1) {
-            dependencies.items.length -= 1
+        if (index.get() == dependencies.items.size - 1) {
+            dependencies.items.size -= 1
         } else {
             dependencies_free_list.append(alloc, index)
         }
@@ -158,8 +158,8 @@ public class DirectoryWatchStore {
         alloc.free(watches.keys()[entry_index])
         watches.swapRemoveAt(entry_index)
 
-        if (watches.entries.length == 0) {
-            assert(dependencies.items.length == dependencies_free_list.items.length)
+        if (watches.entries.size == 0) {
+            assert(dependencies.items.size == dependencies_free_list.items.size)
             dependencies.clearRetainingCapacity()
             dependencies_free_list.clearRetainingCapacity()
         }
@@ -199,7 +199,7 @@ public class DirectoryWatchStore {
             dependencies.items[index.get()] = dep
             return index
         }
-        let index = DirectoryWatchDepIndex.`init`(dependencies.items.length)
+        let index = DirectoryWatchDepIndex(dependencies.items.size)
         dependencies.appendAssumeCapacity(dep)
         return index
     }

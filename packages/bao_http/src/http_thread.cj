@@ -281,7 +281,7 @@ public class HTTPThread {
     // ========================================================================
 
     /// 是否已唤醒 (原子 bool)
-    /// 严格翻译自: has_awoken: std.atomic.Value(bool) = .init(false)
+    /// 严格翻译自: has_awoken: std.atomic.Value(bool) = .`init`(false)
     public var hasAwoken: Bool
     /// 高精度定时器 (用于 SSL 缓存 TTL)
     /// 严格翻译自: timer: std.time.Timer
@@ -329,7 +329,7 @@ public class HTTPThread {
     /// 严格翻译自: HTTPThread.onStart
     public func initFunc(opts: HTTPThreadInitOpts): Unit {
         // 严格翻译自:
-        //   bun.http.default_arena = Arena.init()
+        //   bun.http.default_arena = Arena()
         //   bun.http.default_allocator = bun.http.default_arena.allocator()
 
         // 初始化 HTTP 上下文
@@ -393,30 +393,30 @@ public class HTTPThread {
         //   }
         if (isSsl) {
             evictStaleSslContexts()
-            let tlsOpt = client.tlsProps as? TLSConfig
+            let tlsOpt = client.tlsProps as TLSConfig
             match (tlsOpt) {
                 case Some(tls) =>
                     if (tls.requiresCustomRequestCtx) {
                         // 缓存查找 — 按 interned TLSConfig 指针匹配
                         var cachedEntry: ?SslContextCacheEntry = None
-                        for (entry in sslContextCache) {
-                            if (entry.configRef == tls) {
-                                cachedEntry = Some(entry)
+                        for (cacheItem in sslContextCache) {
+                            if (cacheItem.configRef.rejectUnauthorized == tls.rejectUnauthorized && cacheItem.configRef.requiresCustomRequestCtx == tls.requiresCustomRequestCtx) {
+                                cachedEntry = Some(cacheItem)
                                 break
                             }
                         }
 
                         match (cachedEntry) {
-                            case Some(entry) =>
+                            case Some(cachedRef) =>
                                 // 缓存命中 — 更新 last_used 并复用
-                                entry.lastUsedNs = timer
-                                client.setCustomSslCtx(entry.ctx)
+                                cachedRef.lastUsedNs = timer
+                                client.setCustomSslCtx(cachedRef.ctx)
                                 // keepalive 支持自定义 SSL 上下文
                                 match (client.httpProxy) {
                                     case Some(proxy) =>
-                                        return entry.ctx.connect(client, proxy.hostname, UInt16(proxy.port))
+                                        return cachedRef.ctx.connect(client, proxy.hostname, UInt16(proxy.port))
                                     case None =>
-                                        return entry.ctx.connect(client, client.url.hostname, UInt16(client.url.port))
+                                        return cachedRef.ctx.connect(client, client.url.hostname, UInt16(client.url.port))
                                 }
                             case None =>
                                 // 缓存未命中 — 创建新的 SSL 上下文
@@ -1030,7 +1030,7 @@ public class HTTPThread {
         if (estimatedSize >= REQUEST_BODY_SEND_STACK_BUFFER_SIZE) {
             // 严格翻译自:
             //   if (this.lazy_request_body_buffer == null) {
-            //       return .{ .heap = HeapRequestBodyBuffer.init() }
+            //       return .{ .heap = HeapRequestBodyBuffer() }
             //   }
             //   return .{ .heap = bun.take(&this.lazy_request_body_buffer).? }
             match (lazyRequestBodyBuffer) {
@@ -1063,11 +1063,11 @@ public var httpThread = HTTPThread()
 
 /// 活跃请求计数 (原子)
 /// 严格翻译自: AsyncHTTP.active_requests_count
-public var activeRequestsCount = AtomicInt64()
+public var activeRequestsCount = AtomicInt64(Int64(0))
 
 /// 最大同时请求数 (原子)
 /// 严格翻译自: AsyncHTTP.max_simultaneous_requests
-public var maxSimultaneousRequests = AtomicInt64()
+public var maxSimultaneousRequests = AtomicInt64(Int64(0))
 
 /// 线程池批次
 public class ThreadPoolBatch {

@@ -15,3 +15,4 @@ target-dir = ""
 bao_jsc = { path = "../bao_jsc" }
 bao_core = { path = "../bao_core" }
 bao_http = { path = "../bao_http" }
+bao_http_types = { path = "../bao_http_types" }

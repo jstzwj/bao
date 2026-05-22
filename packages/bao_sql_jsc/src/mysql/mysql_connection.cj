@@ -27,7 +27,7 @@ public class MySQLConnection {
     var statusFlags: StatusFlags = StatusFlags()
 
     var authPlugin: ?AuthMethod = None
-    var authData: ArrayList<UInt8> = ArrayList<UInt8>()
+    var authData: Array<UInt8> = []
     var database: String = ""
     var user: String = ""
     var password: String = ""
@@ -56,7 +56,7 @@ public class MySQLConnection {
         conn.tlsConfig = tlsConfig
         conn.secure = secure
         conn.sslMode = sslMode
-        conn.tlsStatus = if (sslMode != SSLMode.Disable) TLSStatus.Pending else TLSStatus.None
+        conn.tlsStatus = if (sslMode != SSLMode.Disable) { TLSStatus.Pending } else { TLSStatus.None }
         conn.characterSet = CharacterSet.default_()
         return conn
     }
@@ -111,7 +111,7 @@ public class MySQLConnection {
         return !flags.hasBackpressure &&
             status == ConnectionState.Connected &&
             (writeBuffer.len() > 0 ||
-                (queue.current() != None &&
+                (queue.current().isSome() &&
                  queue.current().getOrThrow().isPending() &&
                  !queue.current().getOrThrow().isBeingPrepared()))
     }
@@ -119,7 +119,7 @@ public class MySQLConnection {
     /// 是否空闲
     /// 对应 Bun: MySQLConnection.isIdle
     public func isIdle(): Bool {
-        return queue.current() == None && writeBuffer.len() == 0
+        return queue.current().isNone() && writeBuffer.len() == 0
     }
 
     /// 入队请求
@@ -169,7 +169,7 @@ public class MySQLConnection {
         }
         statements.deinit()
 
-        authData.clear()
+        authData = []
     }
 
     /// 升级到 TLS
@@ -216,28 +216,27 @@ public class MySQLConnection {
     /// 对应 Bun: MySQLConnection.readAndProcessData
     public func readAndProcessData(data: Array<UInt8>): Unit {
         flags.isProcessingData = true
-        defer {
-            flags.isProcessingData = false
-        }
 
         if (readBuffer.remaining().size == 0) {
-            do {
+            try {
                 processPackets(data)
             } catch (_: Exception) {
                 // 短读，缓冲数据
                 readBuffer.write(data)
             }
+            flags.isProcessingData = false
             return
         }
 
         readBuffer.write(data)
-        do {
+        try {
             processPackets(readBuffer.remaining())
         } catch (_: Exception) {
             // 短读
         }
         lastMessageStart = 0
         readBuffer.reset()
+        flags.isProcessingData = false
     }
 
     /// 处理数据包
@@ -257,14 +256,14 @@ public class MySQLConnection {
             let headerSequenceId = data[offset + 3]
             let packetLength = headerLength + 4
 
-            if (offset + packetLength > data.size) {
+            if (offset + Int64(packetLength) > data.size) {
                 // 短读
                 return
             }
 
             sequenceId = headerSequenceId + 1
 
-            let packetData = data[offset + 4..offset + packetLength]
+            let packetData = data[Int64(offset) + 4..Int64(offset) + Int64(packetLength)]
 
             match (status) {
                 case Handshaking => handleHandshake(packetData)
@@ -274,7 +273,7 @@ public class MySQLConnection {
                 case _ => ()
             }
 
-            offset += packetLength
+            offset += Int64(packetLength)
         }
     }
 
@@ -340,19 +339,19 @@ public class MySQLConnection {
     /// 对应 Bun: MySQLConnection.handleCommand
     public func handleCommand(data: Array<UInt8>, headerLength: UInt32): Unit {
         let request = queue.current()
-        if (request == None) {
+        if (request.isNone()) {
             return
         }
         request.getOrThrow().ref()
-        defer { request.getOrThrow().deref() }
 
         if (request.getOrThrow().isSimple()) {
             handleResultSet(data, headerLength)
+            request.getOrThrow().deref()
             return
         }
 
         let statement = request.getOrThrow().getStatement()
-        if (statement != None) {
+        if (statement.isSome()) {
             match (statement.getOrThrow().status) {
                 case Parsing => handlePreparedStatement(data, headerLength)
                 case Prepared => handleResultSet(data, headerLength)
@@ -363,6 +362,7 @@ public class MySQLConnection {
                 case _ => ()
             }
         }
+        request.getOrThrow().deref()
     }
 
     /// 发送握手响应
@@ -400,15 +400,15 @@ public class MySQLConnection {
     private func getJSConnection(): JSMySQLConnection {
         // 通过字段偏移获取父结构
         return JSMySQLConnection(
-            globalObject: JscJSGlobalObject(),
-            vm: JscVirtualMachine(),
-            connection: this
+            JscJSGlobalObject(),
+            JscVirtualMachine(),
+            this
         )
     }
 
     /// 获取写入器
     public func writer(): MySQLWriter {
-        return MySQLWriter(connection: this)
+        return MySQLWriter(this)
     }
 
     let MAX_PIPELINE_SIZE: Int64 = 65535
@@ -423,6 +423,7 @@ public class MySQLWriter {
         this.connection = connection
     }
 
+
     public func write(data: Array<UInt8>): Unit {
         connection.writeBuffer.write(data)
     }
@@ -435,7 +436,7 @@ public class MySQLWriter {
 /// 偏移字节列表
 public class OffsetByteList {
     var head: Int64 = 0
-    var bytes: ArrayList<UInt8> = ArrayList<UInt8>()
+    var bytes: Array<UInt8> = []
 
     public init() {}
 
@@ -455,13 +456,11 @@ public class OffsetByteList {
     }
 
     public func write(data: Array<UInt8>): Unit {
-        for (b in data) {
-            bytes.append(b)
-        }
+        bytes = bytes.concat(data)
     }
 
     public func clearAndFree(): Unit {
-        bytes = ArrayList<UInt8>()
+        bytes = []
         head = 0
     }
 
@@ -472,7 +471,7 @@ public class OffsetByteList {
 
 /// 字节列表
 public class ByteList {
-    var bytes: ArrayList<UInt8> = ArrayList<UInt8>()
+    var bytes: Array<UInt8> = []
 
     public init() {}
 
@@ -528,6 +527,21 @@ public enum TLSStatus {
     | SSLOk
     | SSLFailed
     | SSLNotAvailable
+
+    public operator func ==(right: TLSStatus): Bool {
+        match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case Pending => match (right) { case Pending => true case _ => false }
+            case MessageSent => match (right) { case MessageSent => true case _ => false }
+            case SSLOk => match (right) { case SSLOk => true case _ => false }
+            case SSLFailed => match (right) { case SSLFailed => true case _ => false }
+            case SSLNotAvailable => match (right) { case SSLNotAvailable => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: TLSStatus): Bool {
+        !(this == right)
+    }
 }
 
 /// 连接标志
@@ -548,9 +562,9 @@ public class PreparedStatementsMap {
 
     public func getOrPut(key: UInt64): GetOrPutResult {
         if (map.contains(key)) {
-            return GetOrPutResult(foundExisting: true, value: map[key].getOrThrow())
+            return GetOrPutResult(true, map.get(key).getOrThrow())
         }
-        return GetOrPutResult(foundExisting: false, value: MySQLStatement())
+        return GetOrPutResult(false, MySQLStatement())
     }
 
     public func values(): Array<MySQLStatement> {

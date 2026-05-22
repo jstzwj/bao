@@ -94,7 +94,7 @@ public class Exif {
                         bytes[Int64(segStart + 4)] == 0x00 && bytes[Int64(segStart + 5)] == 0x00) {
                         let tiffSlice = sliceArray(bytes, segStart + 6, segEnd)
                         let result = parseTiff(tiffSlice)
-                        if (result != None) { return result.getOrThrow() }
+                        if (result.isSome()) { return result.getOrThrow() }
                     }
                 }
             }
@@ -111,27 +111,27 @@ public class Exif {
         if (!big && !(tiff[0] == 0x49 && tiff[1] == 0x49)) { return None } // "II"
 
         let magic = rd16(tiff, 2, big)
-        if (magic != None && magic.getOrThrow() != 42) { return None }
+        if (magic.isSome() && magic.getOrThrow() != 42) { return None }
 
         let ifd0 = rd32(tiff, 4, big)
-        if (ifd0 == None) { return None }
+        if (ifd0.isNone()) { return None }
 
         let count = rd16(tiff, ifd0.getOrThrow(), big)
-        if (count == None) { return None }
+        if (count.isNone()) { return None }
 
         var e: Int64 = ifd0.getOrThrow() + 2
         var n: UInt16 = 0
         while (n < count.getOrThrow()) {
             let tag = rd16(tiff, e, big)
-            if (tag == None) { return None }
+            if (tag.isNone()) { return None }
             if (tag.getOrThrow() == 0x0112) {
                 // Type 3 (SHORT), count 1
                 let ty = rd16(tiff, e + 2, big)
                 let cnt = rd32(tiff, e + 4, big)
-                if (ty == None || cnt == None) { return None }
+                if (ty.isNone() || cnt.isNone()) { return None }
                 if (ty.getOrThrow() != 3 || cnt.getOrThrow() != 1) { return None }
                 let v = rd16(tiff, e + 8, big)
-                if (v == None) { return None }
+                if (v.isNone()) { return None }
                 if (v.getOrThrow() >= 1 && v.getOrThrow() <= 8) {
                     return ExifOrientation.fromValue(UInt8(v.getOrThrow()))
                 }
@@ -165,8 +165,8 @@ public class Exif {
 
     static func sliceArray(b: Array<UInt8>, start: Int64, end: Int64): Array<UInt8> {
         let len = end - start
-        if (len <= 0) { return Array<UInt8>(0, item: 0) }
-        var result = Array<UInt8>(len, item: 0)
+        if (len <= 0) { return Array<UInt8>(Int64(0), { _: Int64 => UInt8(0) }) }
+        var result = Array<UInt8>(Int64(len), { _: Int64 => UInt8(0) })
         var i: Int64 = 0
         while (i < len && start + i < b.size) {
             result[i] = b[start + i]

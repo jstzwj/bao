@@ -4,25 +4,25 @@
 package bao_runtime.socket
 
 // 地址相关
-public typealias SocketAddr = SocketAddress
-public typealias AddrFamily = AddressFamily
+public type SocketAddr = SocketAddress
+public type AddrFamily = AddressFamily
 
 // 处理器与配置
-public typealias SocketHandlers = Handlers
-public typealias SocketCfg = SocketConfig
-public typealias SocketBinType = BinaryType
+public type SocketHandlers = Handlers
+public type SocketCfg = SocketConfig
+public type SocketBinType = BinaryType
 
 // Socket 连接
-public typealias TcpSocket = Socket
-public typealias TlsSocket = Socket  // SSL 通过 Socket.isSsl 区分
+public type TcpSocket = Socket
+public type TlsSocket = Socket  // SSL 通过 Socket.isSsl 区分
 
 // 监听器
-public typealias SocketListener = Listener
-public typealias ListenType = ListenerType
+public type SocketListener = Listener
+public type ListenType = ListenerType
 
 // SSL 配置
-public typealias TlsConfig = SSLConfig
+public type TlsConfig = SSLConfig
 
 // UDP
-public typealias UdpSock = UdpSocket
-public typealias UdpSockConfig = UdpSocketConfig
+public type UdpSock = UdpSocket
+public type UdpSockConfig = UdpSocketConfig

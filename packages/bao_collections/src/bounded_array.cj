@@ -22,7 +22,7 @@ public class BoundedArray<T> {
     private let maxCapacity: Int64
 
     /// 初始化指定容量的空数组
-    /// 对应 Bun BoundedArray.init()
+    /// 对应 Bun BoundedArray()
     public init(capacity: Int64, defaultValue: T) {
         maxCapacity = capacity
         data = Array<T>(capacity, repeat: defaultValue)

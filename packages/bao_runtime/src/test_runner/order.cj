@@ -4,6 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_collections.*  // std.collection.*
 
 // ========== Order - 测试排序 ==========
@@ -241,7 +242,7 @@ public class EntryList {
     public func prepend(current: ExecutionEntry) {
         current.next = first
         first = current
-        if (last == None) { last = current }
+        if (last.isNone()) { last = current }
     }
 
     /// 后置追加

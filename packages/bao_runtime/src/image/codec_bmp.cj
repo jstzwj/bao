@@ -59,7 +59,7 @@ public class CodecBmp {
         let hRaw = readInt32LE(b, 22)
 
         // biHeight == Int32::MIN 会使 abs 溢出
-        if (wRaw <= 0 || hRaw == 0 || hRaw == Int32.MinValue) { return None }
+        if (wRaw <= 0 || hRaw == 0 || hRaw == Int32.Min) { return None }
 
         let bpp = readUInt16LE(b, 28)
         let compression = readUInt32LE(b, 30)
@@ -138,7 +138,7 @@ public class CodecBmp {
     /// 对应 Bun: decode
     public static func decode(bytes: Array<UInt8>, maxPixels: UInt64): ?DecodedImage {
         let hOpt = parseHeader(bytes)
-        if (hOpt == None) { return None }
+        if (hOpt.isNone()) { return None }
         let h = hOpt.getOrThrow()
 
         // 像素守卫
@@ -157,7 +157,7 @@ public class CodecBmp {
 
         let npix = UInt64(h.width) * UInt64(h.height)
         let outSize = npix * 4
-        var out = Array<UInt8>(Int64(outSize), item: 0)
+        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
 
         var y: UInt32 = 0
         while (y < h.height) {

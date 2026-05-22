@@ -48,10 +48,10 @@ public class ZigStackFrame {
     // 转为 API 格式的堆栈帧
     public func toAPI(rootPath: String, origin: ?String): StackFrameApi {
         let frame = StackFrameApi()
-        if (!functionName.isEmpty) {
+        if (!functionName.isEmpty()) {
             frame.functionName = functionName
         }
-        if (!sourceUrl.isEmpty) {
+        if (!sourceUrl.isEmpty()) {
             frame.file = sourceUrlFormatter(rootPath, origin, true, false)
         }
         frame.position = position
@@ -62,21 +62,21 @@ public class ZigStackFrame {
     // 严格翻译自 ZigStackFrame.Zero
     public static func zero(): ZigStackFrame {
         ZigStackFrame(
-            functionName: "",
-            sourceUrl: "",
-            position: ZigStackFramePosition.invalid(),
-            codeType: ZigStackFrameCode.None,
-            isAsync: false
+            "",
+            "",
+            ZigStackFramePosition.invalid(),
+            ZigStackFrameCode.None,
+            false
         )
     }
 
     // 严格翻译自 ZigStackFrame.nameFormatter
     public func nameFormatter(enableColor: Bool): NameFormatter {
         NameFormatter(
-            functionName: functionName,
-            codeType: codeType,
-            enableColor: enableColor,
-            isAsync: isAsync
+            functionName,
+            codeType,
+            enableColor,
+            isAsync
         )
     }
 
@@ -89,10 +89,10 @@ public class ZigStackFrame {
     ): String {
         var result = sourceUrl
         if (!excludeLineColumn) {
-            if (position.line > 0 && position.column > 0) {
-                result += ":" + String(position.line) + ":" + String(position.column)
-            } else if (position.line > 0) {
-                result += ":" + String(position.line)
+            if (position.line.value > 0 && position.column.value > 0) {
+                result += ":" + position.line.value.toString() + ":" + position.column.value.toString()
+            } else if (position.line.value > 0) {
+                result += ":" + position.line.value.toString()
             }
         }
         result
@@ -100,114 +100,111 @@ public class ZigStackFrame {
 
     // ========== SourceURLFormatter ==========
     // 严格翻译自 ZigStackFrame.SourceURLFormatter
-    public class SourceURLFormatter {
-        public var sourceUrl: String = ""
-        public var position: ZigStackFramePosition = ZigStackFramePosition()
-        public var enableColor: Bool = false
-        public var origin: ?String = None
-        public var excludeLineColumn: Bool = false
-        public var remapped: Bool = false
-        public var rootPath: String = ""
-
-        public init() {}
-
-        // 严格翻译自 SourceURLFormatter.format
-        public func format(): String {
-            var result = ""
-
-            if (!remapped) {
-                if (let Some(originUrl) <- origin) {
-                    // 附加 origin 信息
-                }
-                result += sourceUrl
-            } else {
-                if (enableColor && rootPath.size > 1 && sourceUrl.startsWith(rootPath)) {
-                    let relativePath = sourceUrl.slice(rootPath.size)
-                    result += rootPath + "/" + relativePath
-                } else {
-                    result += sourceUrl
-                }
-            }
-
-            if (sourceUrl.size > 0 && (position.line > 0 || position.column > 0)) {
-                result += ":"
-            }
-
-            if (!excludeLineColumn) {
-                if (position.line > 0 && position.column > 0) {
-                    result += String(position.line) + ":" + String(position.column)
-                } else if (position.line > 0) {
-                    result += String(position.line)
-                }
-            }
-
-            result
-        }
-    }
 
     // ========== NameFormatter ==========
     // 严格翻译自 ZigStackFrame.NameFormatter
-    public class NameFormatter {
-        public var functionName: String = ""
-        public var codeType: ZigStackFrameCode = ZigStackFrameCode.None
-        public var enableColor: Bool = false
-        public var isAsync: Bool = false
+}
 
-        public init() {}
 
-        public init(functionName: String, codeType: ZigStackFrameCode, enableColor: Bool, isAsync: Bool) {
-            this.functionName = functionName
-            this.codeType = codeType
-            this.enableColor = enableColor
-            this.isAsync = isAsync
+public class SourceURLFormatter {
+    public var sourceUrl: String = ""
+    public var position: ZigStackFramePosition = ZigStackFramePosition()
+    public var enableColor: Bool = false
+    public var origin: ?String = None
+    public var excludeLineColumn: Bool = false
+    public var remapped: Bool = false
+    public var rootPath: String = ""
+
+    public init() {}
+
+    // 严格翻译自 SourceURLFormatter.format
+    public func format(): String {
+        var result = ""
+
+        if (!remapped) {
+            if (let Some(originUrl) <- origin) {
+                // 附加 origin 信息
+            }
+            result += sourceUrl
+        } else {
+            if (enableColor && rootPath.size > 1 && sourceUrl.startsWith(rootPath)) {
+                let relativePath = sourceUrl[Int64(rootPath.size)..Int64(sourceUrl.size)]
+                result = result + rootPath + "/" + relativePath
+            } else {
+                result += sourceUrl
+            }
         }
 
-        // 严格翻译自 NameFormatter.format
-        public func format(): String {
-            match (codeType) {
-                case Eval => {
-                    var result = "eval"
-                    if (!functionName.isEmpty) {
-                        result += " " + functionName
-                    }
-                    result
+        if (sourceUrl.size > 0 && (position.line.value > 0 || position.column.value > 0)) {
+            result += ":"
+        }
+
+        if (!excludeLineColumn) {
+            if (position.line.value > 0 && position.column.value > 0) {
+                result += position.line.value.toString() + ":" + position.column.value.toString()
+            } else if (position.line.value > 0) {
+                result += position.line.value.toString()
+            }
+        }
+
+        result
+    }
+}
+
+public class NameFormatter {
+    public var functionName: String = ""
+    public var codeType: ZigStackFrameCode = ZigStackFrameCode.None
+    public var enableColor: Bool = false
+    public var isAsync: Bool = false
+
+    public init() {}
+
+    public init(functionName: String, codeType: ZigStackFrameCode, enableColor: Bool, isAsync: Bool) {
+        this.functionName = functionName
+        this.codeType = codeType
+        this.enableColor = enableColor
+        this.isAsync = isAsync
+    }
+
+    // 严格翻译自 NameFormatter.format
+    public func format(): String {
+        match (codeType) {
+            case Eval=>
+                var result = "eval"
+                if (!functionName.isEmpty()) {
+                    result += " " + functionName
                 }
-                case Function => {
-                    if (!functionName.isEmpty) {
-                        if (isAsync) {
-                            "async " + functionName
-                        } else {
-                            functionName
-                        }
+                result
+            case Function=>
+                if (!functionName.isEmpty()) {
+                    if (isAsync) {
+                        "async " + functionName
                     } else {
-                        if (isAsync) {
-                            "async <anonymous>"
-                        } else {
-                            "<anonymous>"
-                        }
+                        functionName
+                    }
+                } else {
+                    if (isAsync) {
+                        "async <anonymous>"
+                    } else {
+                        "<anonymous>"
                     }
                 }
-                case Global => {
+            case Global=>
+                ""
+            case Wasm=>
+                if (!functionName.isEmpty()) {
+                    functionName
+                } else {
+                    "WASM"
+                }
+            case Constructor=>
+                "new " + functionName
+            case _=>
+                if (!functionName.isEmpty()) {
+                    functionName
+                } else {
                     ""
                 }
-                case Wasm => {
-                    if (!functionName.isEmpty) {
-                        functionName
-                    } else {
-                        "WASM"
-                    }
-                }
-                case Constructor => {
-                    "new " + functionName
-                }
-                case _ => {
-                    if (!functionName.isEmpty) {
-                        functionName
-                    } else {
-                        ""
-                    }
-                }
-            }
         }
     }
 }

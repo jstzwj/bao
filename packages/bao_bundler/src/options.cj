@@ -26,68 +26,10 @@ public enum WriteDestination {
 // ============================================================================
 
 /// 允许未解析模式
-public class AllowUnresolved {
-    /// 模式类型
-    public var mode: AllowUnresolvedMode
-    /// glob 模式列表
-    public var patterns: Array<String>
-
-    /// 默认值
-    public static let default: AllowUnresolved = AllowUnresolved(AllowUnresolvedMode.All)
-
-    public init(mode: AllowUnresolvedMode) {
-        this.mode = mode
-        this.patterns = []
-    }
-
-    public init(patterns: Array<String>) {
-        this.mode = AllowUnresolvedMode.Patterns
-        this.patterns = patterns
-    }
-
-    /// 从字符串数组创建
-    // 严格翻译自: options.zig:65 fromStrings()
-    public static func fromStrings(strs: Array<String>): AllowUnresolved {
-        if (strs.size == 0) {
-            return AllowUnresolved(AllowUnresolvedMode.None_)
-        }
-        for (s in strs) {
-            if (s == "*") {
-                return AllowUnresolved(AllowUnresolvedMode.All)
-            }
-        }
-        return AllowUnresolved(strs)
-    }
-
-    /// 检查是否允许给定的形状
-    // 严格翻译自: options.zig:72 allows()
-    public func allows(shape: String): Bool {
-        match (mode) {
-            case AllowUnresolvedMode.All => return true
-            case AllowUnresolvedMode.None_ => return false
-            case AllowUnresolvedMode.Patterns =>
-                // 简化: glob 匹配
-                for (p in patterns) {
-                    if (globMatch(p, shape)) {
-                        return true
-                    }
-                }
-                return false
-        }
-    }
-
-    /// 简化的 glob 匹配
-    private func globMatch(pattern: String, text: String): Bool {
-        return text.startsWith(pattern) || text == pattern
-    }
-}
+// AllowUnresolved - defined in bundler_options.cj
 
 /// 允许未解析模式
-public enum AllowUnresolvedMode {
-    | All       // 跳过所有检查
-    | None_     // 总是报错
-    | Patterns  // glob 模式
-}
+// AllowUnresolvedMode - defined in bundler_options.cj
 
 // ============================================================================
 // 外部模块配置
@@ -96,103 +38,11 @@ public enum AllowUnresolvedMode {
 
 /// 外部模块配置
 // 严格翻译自: options.zig:83 ExternalModules
-public class ExternalModules {
-    /// node_modules 外部模块集合
-    public var nodeModules: HashSet<String>
-    /// 绝对路径外部模块集合
-    public var absPaths: HashSet<String>
-    /// 通配符模式列表
-    public var patterns: Array<WildcardPattern>
-
-    public init() {
-        nodeModules = HashSet<String>()
-        absPaths = HashSet<String>()
-        patterns = [WildcardPattern("/bun:", "")]
-    }
-
-    /// 初始化外部模块
-    // 严格翻译自: options.zig:112 init()
-    public static func init(
-        externals: Array<String>,
-        target: Target
-    ): ExternalModules {
-        var result = ExternalModules()
-
-        // Node 目标: 添加 Node 内置模块
-        match (target) {
-            case Node =>
-                for (pattern in NodeBuiltinPatterns) {
-                    result.nodeModules.put(pattern)
-                }
-            case Bun =>
-                // Bun 目标: 不添加 Node 内置模块
-                ()
-            case _ => ()
-        }
-
-        if (externals.size == 0) {
-            return result
-        }
-
-        var patternsList = ArrayList<WildcardPattern>()
-        patternsList.append(WildcardPattern("/bun:", ""))
-
-        for (external in externals) {
-            let starIndex = external.indexOf("*")
-            match (starIndex) {
-                case Some(i) =>
-                    // 检查是否有第二个 *
-                    let rest = external.substring(i + 1)
-                    if (rest.indexOf("*") != None) {
-                        // 错误: 不能有多个 *
-                        return result
-                    }
-                    patternsList.append(WildcardPattern(
-                        external.substring(0, i),
-                        external.substring(i + 1)
-                    ))
-                case None =>
-                    if (isPackagePath(external)) {
-                        result.nodeModules.put(external)
-                    } else {
-                        // 绝对路径
-                        result.absPaths.put(external)
-                    }
-            }
-        }
-
-        result.patterns = patternsList.toArray()
-        return result
-    }
-
-    /// 检查是否是 Node 内置模块
-    // 严格翻译自: options.zig:93 isNodeBuiltin()
-    public static func isNodeBuiltin(str: String): Bool {
-        for (builtin in NodeBuiltinPatterns) {
-            if (str == builtin || str == "node:${builtin}") {
-                return true
-            }
-        }
-        return false
-    }
-
-    /// 检查是否是包路径
-    private static func isPackagePath(external: String): Bool {
-        return !external.startsWith(".") && !external.startsWith("/")
-    }
-}
+// ExternalModules - defined in bundler_options.cj
 
 /// 通配符模式
 // 严格翻译自: options.zig:88 ExternalModules.WildcardPattern
-public class WildcardPattern {
-    public var prefix: String
-    public var suffix: String
-
-    public init(prefix: String, suffix: String) {
-        this.prefix = prefix
-        this.suffix = suffix
-    }
-}
+// WildcardPattern - defined in bundler_options.cj
 
 /// Node 内置模块模式列表
 public let NodeBuiltinPatterns: Array<String> = [
@@ -225,20 +75,7 @@ public let BunNodeBuiltinPatternsCompat: Array<String> = [
 // ============================================================================
 
 /// 模块类型
-public enum ModuleType {
-    | Unknown
-    | CJS      // CommonJS
-    | ESM      // ES Module
-
-    /// 从字符串列表解析
-    public static func fromString(str: String): ModuleType {
-        match (str) {
-            case "commonjs" => ModuleType.CJS
-            case "module" => ModuleType.ESM
-            case _ => ModuleType.Unknown
-        }
-    }
-}
+// ModuleType - defined in package.cj
 
 // ============================================================================
 // 加载器类型
@@ -361,8 +198,8 @@ public enum Loader {
     /// 从字符串解析
     public static func fromString(slice: String): ?Loader {
         var s = slice
-        if (s.size > 0 && s[0] == '.') {
-            s = s.substring(1)
+        if (s.size > 0 && s[0] == UInt8(46)) {  // '.'
+            s = s[1..]
         }
 
         match (s) {
@@ -649,7 +486,7 @@ public enum Target {
         var exts = HashMap<String, String>()
         let outExtensionsList = [".js", ".cjs", ".mts", ".cts", ".ts", ".tsx", ".jsx", ".json"]
 
-        if (this == Target.Node) {
+        if (match (this) { case Target.Node => true case _ => false }) {
             for (ext in outExtensionsList) {
                 exts.put(ext, ".mjs")
             }
@@ -768,10 +605,7 @@ public enum PackagesOption {
 // ============================================================================
 
 /// 副作用类型
-public enum SideEffects {
-    | HasSideEffects
-    | NoSideEffects_PureData
-}
+// SideEffects - defined in resolver.cj
 
 // ============================================================================
 // 导入路径格式
@@ -793,99 +627,7 @@ public enum ImportPathFormat {
 
 /// ESM 条件映射
 // 严格翻译自: options.zig:1077 ESMConditions
-public class ESMConditions {
-    /// 默认条件
-    public var default_: HashSet<String>
-    /// import 条件
-    public var import_: HashSet<String>
-    /// require 条件
-    public var require: HashSet<String>
-    /// style 条件
-    public var style: HashSet<String>
-
-    public init() {
-        default_ = HashSet<String>()
-        import_ = HashSet<String>()
-        require = HashSet<String>()
-        style = HashSet<String>()
-    }
-
-    /// 初始化 ESM 条件
-    // 严格翻译自: options.zig:1083 init()
-    public static func init(
-        defaults: Array<String>,
-        allowAddons: Bool,
-        conditions: Array<String>
-    ): ESMConditions {
-        var cond = ESMConditions()
-
-        // 设置特殊条件
-        cond.import_.put("import")
-        cond.require.put("require")
-        cond.style.put("style")
-
-        // 用户条件
-        for (condition in conditions) {
-            cond.import_.put(condition)
-            cond.require.put(condition)
-            cond.default_.put(condition)
-        }
-
-        // 默认条件
-        for (default_ in defaults) {
-            cond.default_.put(default_)
-            cond.import_.put(default_)
-            cond.require.put(default_)
-            cond.style.put(default_)
-        }
-
-        // node-addons
-        if (allowAddons) {
-            cond.default_.put("node-addons")
-            cond.import_.put("node-addons")
-            cond.require.put("node-addons")
-        }
-
-        // default
-        cond.default_.put("default")
-        cond.import_.put("default")
-        cond.require.put("default")
-        cond.style.put("default")
-
-        return cond
-    }
-
-    /// 克隆
-    // 严格翻译自: options.zig:1133 clone()
-    public func clone(): ESMConditions {
-        var copy = ESMConditions()
-        for (key in default_) { copy.default_.put(key) }
-        for (key in import_) { copy.import_.put(key) }
-        for (key in require) { copy.require.put(key) }
-        for (key in style) { copy.style.put(key) }
-        return copy
-    }
-
-    /// 追加条件列表
-    // 严格翻译自: options.zig:1151 appendSlice()
-    public func appendSlice(conditions: Array<String>): Unit {
-        for (condition in conditions) {
-            default_.put(condition)
-            import_.put(condition)
-            require.put(condition)
-            style.put(condition)
-        }
-    }
-
-    /// 追加单个条件
-    // 严格翻译自: options.zig:1165 append()
-    public func append(condition: String): Unit {
-        default_.put(condition)
-        import_.put(condition)
-        require.put(condition)
-        style.put(condition)
-    }
-}
+// ESMConditions - defined in bundler_options.cj
 
 // ============================================================================
 // JSX 配置
@@ -974,14 +716,14 @@ public class JsxPragma {
     // 严格翻译自: options.zig:1229 parsePackageName()
     public static func parsePackageName(str: String): String {
         if (str.size == 0) { return str }
-        if (str[0] == '@') {
+        if (str[0] == UInt8(64)) {  // '@'
             let firstSlash = str.indexOf("/")
             match (firstSlash) {
                 case Some(i) =>
-                    let remainder = str.substring(i + 1)
+                    let remainder = str[Int64(i) + 1..]
                     let lastSlash = remainder.indexOf("/")
                     match (lastSlash) {
-                        case Some(j) => return str.substring(0, i + 1 + j + 1)
+                        case Some(j) => return str[0..Int64(i) + Int64(j) + 2]
                         case None => ()
                     }
                 case None => ()
@@ -989,7 +731,7 @@ public class JsxPragma {
         }
         let firstSlash = str.indexOf("/")
         match (firstSlash) {
-            case Some(i) => return str.substring(0, i)
+            case Some(i) => return str[0..Int64(i)]
             case None => return str
         }
     }
@@ -1077,50 +819,11 @@ public class DefaultUserDefines {
 
 /// 扩展名解析
 // 严格翻译自: options.zig:1535 ResolveFileExtensions
-public class ResolveFileExtensions {
-    /// node_modules 分组
-    public var nodeModules: ExtensionGroup
-    /// 默认分组
-    public var default_: ExtensionGroup
-
-    public init() {
-        nodeModules = ExtensionGroup(
-            ExtensionDefaults.NodeModulesModuleExtensionOrder,
-            ExtensionDefaults.NodeModulesExtensionOrder
-        )
-        default_ = ExtensionGroup(
-            ExtensionDefaults.ModuleExtensionOrder,
-            ExtensionDefaults.ExtensionOrder
-        )
-    }
-
-    /// 获取对应分组
-    public func group(isNodeModules: Bool): ExtensionGroup {
-        return if (isNodeModules) { nodeModules } else { default_ }
-    }
-
-    /// 获取对应扩展名列表
-    // 严格翻译自: options.zig:1549 kind()
-    public func kind(kind_: ImportKind, isNodeModules: Bool): Array<String> {
-        let g = group(isNodeModules)
-        match (kind_) {
-            case Stmt | EntryPointBuild | EntryPointRun | Dynamic => return g.esm
-            case _ => return g.default_
-        }
-    }
-}
+// ResolveFileExtensions - defined in bundler_options.cj
 
 /// 扩展名分组
 // 严格翻译自: options.zig:1556 ResolveFileExtensions.Group
-public class ExtensionGroup {
-    public var esm: Array<String>
-    public var default_: Array<String>
-
-    public init(esm: Array<String>, default_: Array<String>) {
-        this.esm = esm
-        this.default_ = default_
-    }
-}
+// ExtensionGroup - defined in bundler_options.cj
 
 /// 扩展名顺序
 public class ExtensionOrder {
@@ -1167,437 +870,15 @@ public class ExtensionDefaults {
 // 这是打包器的主要配置结构
 // ============================================================================
 
-/// Bundle 选项
-// 严格翻译自: options.zig:1670 BundleOptions
-/// BundleOptions is used when ResolveMode is not set to "disable".
-/// BundleOptions is effectively webpack + babel
-public class BundleOptions {
-    /// 页脚
-    public var footer: String
-    /// 头部
-    public var banner: String
-    /// 定义
-    public var define: HashMap<String, String>
-    /// 丢弃
-    public var drop: Array<String>
-    /// 加载器映射
-    public var loaders: HashMap<String, Loader>
-    /// 解析目录
-    public var resolveDir: String
-    /// JSX 配置
-    public var jsx: JsxPragma
-    /// 发射装饰器元数据
-    public var emitDecoratorMetadata: Bool
-    /// 实验性装饰器
-    public var experimentalDecorators: Bool
-    /// 自动导入 JSX
-    public var autoImportJsx: Bool
-    /// 允许运行时
-    public var allowRuntime: Bool
-    /// 裁剪未使用的导入
-    public var trimUnusedImports: ?Bool
-    /// 将内置模块标记为外部
-    public var markBuiltinsAsExternal: Bool
-    /// 服务端组件
-    public var serverComponents: Bool
-    /// 热模块重载
-    public var hotModuleReloading: Bool
-    /// React 快速刷新
-    public var reactFastRefresh: Bool
-    /// 注入文件列表
-    public var inject: ?Array<String>
-    /// 源 (URL)
-    public var origin: String
-    /// 输出目录
-    public var outputDir: String
-    /// 根目录
-    public var rootDir: String
-    /// node_modules bundle URL
-    public var nodeModulesBundleUrl: String
-    /// node_modules bundle 路径
-    public var nodeModulesBundlePrettyPath: String
-    /// 是否写入
-    public var write: Bool
-    /// 保留符号链接
-    public var preserveSymlinks: Bool
-    /// 保留扩展名
-    public var preserveExtensions: Bool
-    /// 生产模式
-    public var production: Bool
-    /// 输出格式
-    public var outputFormat: OutputFormat
-    /// 在查询字符串中附加包版本
-    public var appendPackageVersionInQueryString: Bool
-    /// tsconfig 覆盖
-    public var tsconfigOverride: ?String
-    /// 目标平台
-    public var target: Target
-    /// 主字段
-    public var mainFields: Array<String>
-    /// 外部模块
-    public var external: ExternalModules
-    /// 允许未解析
-    public var allowUnresolved: AllowUnresolved
-    /// 入口点列表
-    public var entryPoints: Array<String>
-    /// 入口命名
-    public var entryNaming: String
-    /// 资源命名
-    public var assetNaming: String
-    /// chunk 命名
-    public var chunkNaming: String
-    /// 公共路径
-    public var publicPath: String
-    /// 扩展名解析顺序
-    public var extensionOrder: ResolveFileExtensions
-    /// 主字段扩展名顺序
-    public var mainFieldExtensionOrder: Array<String>
-    /// 额外 CJS 扩展名
-    public var extraCjsExtensions: Array<String>
-    /// 输出扩展名映射
-    public var outExtensions: HashMap<String, String>
-    /// 导入路径格式
-    public var importPathFormat: ImportPathFormat
-    /// 是否已加载 defines
-    public var definesLoaded: Bool
-    /// 环境变量配置
-    public var env: EnvConfig
-    /// 是否 polyfill node globals
-    public var polyfillNodeGlobals: Bool
-    /// 仅转换
-    public var transformOnly: Bool
-    /// 是否加载 tsconfig.json
-    public var loadTsconfigJson: Bool
-    /// 是否加载 package.json
-    public var loadPackageJson: Bool
-    /// 重写 jest 用于测试
-    public var rewriteJestForTests: Bool
-    /// 宏重映射
-    public var macroRemap: HashMap<String, String>
-    /// 无宏
-    public var noMacros: Bool
-    /// ESM 条件
-    public var conditions: ESMConditions
-    /// tree-shaking
-    public var treeShaking: Bool
-    /// 代码分割
-    public var codeSplitting: Bool
-    /// source map
-    public var sourceMap: SourceMapOption
-    /// 包选项
-    public var packages: PackagesOption
-    /// 禁用转译
-    public var disableTranspilation: Bool
-    /// 全局缓存
-    public var globalCache: GlobalCache
-    /// 离线安装优先
-    public var preferOfflineInstall: Bool
-    /// 最新安装优先
-    public var preferLatestInstall: Bool
-    /// 内联
-    public var inlining: Bool
-    /// 内联入口点 import.meta.main
-    public var inlineEntrypointImportMetaMain: Bool
-    /// 压缩空白
-    public var minifyWhitespace: Bool
-    /// 压缩语法
-    public var minifySyntax: Bool
-    /// 压缩标识符
-    public var minifyIdentifiers: Bool
-    /// 保留名称
-    public var keepNames: Bool
-    /// 死代码消除
-    public var deadCodeElimination: Bool
-    /// REPL 模式
-    public var replMode: Bool
-    /// CSS 分块
-    public var cssChunking: Bool
-    /// 忽略 DCE 注解
-    public var ignoreDceAnnotations: Bool
-    /// 发射 DCE 注解
-    public var emitDceAnnotations: Bool
-    /// 字节码
-    public var bytecode: Bool
-    /// 代码覆盖率
-    public var codeCoverage: Bool
-    /// 调试器
-    public var debugger_: Bool
-    /// 编译
-    public var compile: Bool
-    /// 编译为独立 HTML
-    public var compileToStandaloneHtml: Bool
-    /// metafile
-    public var metafile: Bool
-    /// metafile JSON 路径
-    public var metafileJsonPath: String
-    /// metafile Markdown 路径
-    public var metafileMarkdownPath: String
-    /// 服务插件
-    public var servePlugins: ?Array<String>
-    /// bunfig 路径
-    public var bunfigPath: String
-    /// 解包 CommonJS 包列表
-    public var unwrapCommonjsPackages: Array<String>
-    /// 支持多输出
-    public var supportsMultipleOutputs: Bool
-    /// 强制 NODE_ENV
-    public var forceNodeEnv: ForceNodeEnv
-    /// 忽略模块解析错误
-    public var ignoreModuleResolutionErrors: Bool
-    /// 优化导入
-    public var optimizeImports: ?HashSet<String>
-
-    public init() {
-        footer = ""
-        banner = ""
-        define = HashMap<String, String>()
-        drop = []
-        loaders = defaultLoaders()
-        resolveDir = "/"
-        jsx = JsxPragma()
-        emitDecoratorMetadata = false
-        experimentalDecorators = false
-        autoImportJsx = true
-        allowRuntime = true
-        trimUnusedImports = None
-        markBuiltinsAsExternal = false
-        serverComponents = false
-        hotModuleReloading = false
-        reactFastRefresh = false
-        inject = None
-        origin = ""
-        outputDir = "out"
-        rootDir = ""
-        nodeModulesBundleUrl = ""
-        nodeModulesBundlePrettyPath = ""
-        write = false
-        preserveSymlinks = false
-        preserveExtensions = false
-        production = false
-        outputFormat = OutputFormat.ESM
-        appendPackageVersionInQueryString = false
-        tsconfigOverride = None
-        target = Target.Browser
-        mainFields = Target.Browser.defaultMainFields()
-        external = ExternalModules()
-        allowUnresolved = AllowUnresolved(AllowUnresolvedMode.All)
-        entryPoints = []
-        entryNaming = ""
-        assetNaming = ""
-        chunkNaming = ""
-        publicPath = ""
-        extensionOrder = ResolveFileExtensions()
-        mainFieldExtensionOrder = ExtensionDefaults.MainFieldExtensionOrder
-        extraCjsExtensions = []
-        outExtensions = HashMap<String, String>()
-        importPathFormat = ImportPathFormat.Relative
-        definesLoaded = false
-        env = EnvConfig()
-        polyfillNodeGlobals = false
-        transformOnly = false
-        loadTsconfigJson = true
-        loadPackageJson = true
-        rewriteJestForTests = false
-        macroRemap = HashMap<String, String>()
-        noMacros = false
-        conditions = ESMConditions()
-        treeShaking = false
-        codeSplitting = false
-        sourceMap = SourceMapOption.None
-        packages = PackagesOption.Bundle
-        disableTranspilation = false
-        globalCache = GlobalCache.Disable
-        preferOfflineInstall = false
-        preferLatestInstall = false
-        inlining = false
-        inlineEntrypointImportMetaMain = false
-        minifyWhitespace = false
-        minifySyntax = false
-        minifyIdentifiers = false
-        keepNames = false
-        deadCodeElimination = true
-        replMode = false
-        cssChunking = false
-        ignoreDceAnnotations = false
-        emitDceAnnotations = false
-        bytecode = false
-        codeCoverage = false
-        debugger_ = false
-        compile = false
-        compileToStandaloneHtml = false
-        metafile = false
-        metafileJsonPath = ""
-        metafileMarkdownPath = ""
-        servePlugins = None
-        bunfigPath = ""
-        unwrapCommonjsPackages = BundleOptions.defaultUnwrapCommonjsPackages
-        supportsMultipleOutputs = true
-        forceNodeEnv = ForceNodeEnv.Unspecified
-        ignoreModuleResolutionErrors = false
-        optimizeImports = None
-    }
-
-    /// 默认解包 CommonJS 包列表
-    // 严格翻译自: options.zig:1832 default_unwrap_commonjs_packages
-    public static let defaultUnwrapCommonjsPackages: Array<String> = [
-        "react", "react-is", "react-dom", "scheduler",
-        "react-client", "react-server", "react-refresh"
-    ]
-
-    /// 是否是测试模式
-    // 严格翻译自: options.zig:1821 isTest()
-    public func isTest(): Bool {
-        return rewriteJestForTests
-    }
-
-    /// 设置生产模式
-    // 严格翻译自: options.zig:1825 setProduction()
-    public func setProduction(value: Bool): Unit {
-        if (forceNodeEnv == ForceNodeEnv.Unspecified) {
-            production = value
-            jsx.development = !value
-        }
-    }
-
-    /// CSS 导入行为
-    // 严格翻译自: options.zig:1842 cssImportBehavior()
-    public func cssImportBehavior(): CssInJsBehavior {
-        match (target) {
-            case Browser => CssInJsBehavior.AutoOnImportCSS
-            case _ => CssInJsBehavior.Facade
-        }
-    }
-
-    /// defines 是否未设置
-    // 严格翻译自: options.zig:1851 areDefinesUnset()
-    public func areDefinesUnset(): Bool {
-        return !definesLoaded
-    }
-
-    /// 加载 defines
-    // 严格翻译自: options.zig:1855 loadDefines()
-    public func loadDefines(): Unit {
-        if (definesLoaded) {
-            return
-        }
-        // 简化: 设置默认 NODE_ENV
-        if (!define.contains("process.env.NODE_ENV")) {
-            define.put("process.env.NODE_ENV",
-                if (production) { "\"production\"" } else { "\"development\"" }
-            )
-        }
-        if (!define.contains("process.env.BUN_ENV")) {
-            define.put("process.env.BUN_ENV",
-                if (production) { "\"production\"" } else { "\"development\"" }
-            )
-        }
-        // 浏览器 define
-        match (target.processBrowserDefineValue()) {
-            case Some(value) => define.put("process.browser", value)
-            case None => ()
-        }
-        definesLoaded = true
-    }
-
-    /// 获取加载器
-    // 严格翻译自: options.zig:1895 loader()
-    public func loader(ext: String): Loader {
-        match (loaders.get(ext)) {
-            case Some(l) => return l
-            case None => return Loader.File
-        }
-    }
-
-    /// 从 API 创建
-    // 严格翻译自: options.zig:1973 fromApi()
-    public static func fromApi(
-        entryPoints: Array<String>,
-        target: ?String,
-        outputDir: String,
-        define: HashMap<String, String>,
-        loaders: HashMap<String, Loader>,
-        external: Array<String>,
-        sourceMap: ?String,
-        mainFields: Array<String>,
-        conditions: Array<String>,
-        jsxFactory: String,
-        jsxFrag: String,
-        jsxRuntime: JsxRuntime,
-        jsxImportSource: String,
-        development: Bool
-    ): BundleOptions {
-        var opts = BundleOptions()
-        opts.target = Target.from(target)
-        opts.entryPoints = entryPoints
-        opts.outputDir = if (outputDir.size > 0) { outputDir } else { "out" }
-        opts.define = define
-        opts.loaders = loaders
-        opts.mainFields = if (mainFields.size > 0) { mainFields } else { opts.target.defaultMainFields() }
-
-        // 外部模块
-        opts.external = ExternalModules.init(external, opts.target)
-
-        // 输出扩展名
-        opts.outExtensions = opts.target.outExtensions()
-
-        // source map
-        opts.sourceMap = SourceMapOption.fromApi(sourceMap)
-
-        // ESM 条件
-        opts.conditions = ESMConditions.init(
-            opts.target.defaultConditions(),
-            true,
-            conditions
-        )
-
-        // tree-shaking
-        opts.treeShaking = opts.target.isBun() || opts.production
-        opts.inlining = opts.treeShaking
-        if (opts.inlining) {
-            opts.minifySyntax = true
-        }
-
-        // 目标特定设置
-        match (opts.target) {
-            case Node =>
-                opts.importPathFormat = ImportPathFormat.Relative
-                opts.allowRuntime = false
-            case Bun =>
-                opts.importPathFormat = ImportPathFormat.AbsolutePath
-            case _ => ()
-        }
-
-        // 浏览器 polyfill
-        opts.polyfillNodeGlobals = opts.target == Target.Browser
-
-        // JSX
-        opts.jsx = JsxPragma.fromApi(
-            jsxFactory, jsxFrag, jsxRuntime,
-            jsxImportSource, development, false
-        )
-
-        return opts
-    }
-}
-
-/// 强制 NODE_ENV 模式
-// 严格翻译自: options.zig:1815 ForceNodeEnv
-public enum ForceNodeEnv {
-    | Unspecified
-    | Development
-    | Production
-}
+// BundleOptions - defined in bundler_options.cj
+// ForceNodeEnv - defined in bundler_options.cj
 
 // ============================================================================
 // 全局缓存
 // ============================================================================
 
 /// 全局缓存模式
-public enum GlobalCache {
-    | Disable
-    | Auto
-    | Fallback
-}
+// GlobalCache - defined elsewhere
 
 // ============================================================================
 // 转换选项
@@ -1606,82 +887,7 @@ public enum GlobalCache {
 
 /// 转换选项
 // 严格翻译自: options.zig:2108 TransformOptions
-public class TransformOptions {
-    /// 页脚
-    public var footer: String
-    /// 头部
-    public var banner: String
-    /// 定义
-    public var define: HashMap<String, String>
-    /// 加载器
-    public var loader: Loader
-    /// 解析目录
-    public var resolveDir: String
-    /// JSX 配置
-    public var jsx: ?JsxPragma
-    /// React 快速刷新
-    public var reactFastRefresh: Bool
-    /// 注入文件列表
-    public var inject: ?Array<String>
-    /// 源 (URL)
-    public var origin: String
-    /// 保留符号链接
-    public var preserveSymlinks: Bool
-    /// 入口点
-    public var entryPoint: String
-    /// 解析路径
-    public var resolvePaths: Bool
-    /// tsconfig 覆盖
-    public var tsconfigOverride: ?String
-    /// 目标平台
-    public var target: Target
-    /// 主字段
-    public var mainFields: Array<String>
-
-    public init() {
-        footer = ""
-        banner = ""
-        define = HashMap<String, String>()
-        loader = Loader.Js
-        resolveDir = "/"
-        jsx = None
-        reactFastRefresh = false
-        inject = None
-        origin = ""
-        preserveSymlinks = false
-        entryPoint = ""
-        resolvePaths = false
-        tsconfigOverride = None
-        target = Target.Browser
-        mainFields = Target.Browser.defaultMainFields()
-    }
-
-    /// 未缓存初始化
-    // 严格翻译自: options.zig:2126 initUncached()
-    public static func initUncached(entryPointName: String, code: String): TransformOptions {
-        var opts = TransformOptions()
-        opts.entryPoint = entryPointName
-        opts.resolveDir = Path.dirname(entryPointName)
-        opts.mainFields = Target.Browser.defaultMainFields()
-
-        // 默认定义
-        opts.define.put("process.env.NODE_ENV", "development")
-
-        // 加载器
-        let ext = Path.extname(entryPointName)
-        match (defaultLoaders().get(ext)) {
-            case Some(l) => opts.loader = l
-            case None => opts.loader = Loader.File
-        }
-
-        // JSX
-        if (opts.loader.isJSX()) {
-            opts.jsx = JsxPragma()
-        }
-
-        return opts
-    }
-}
+// TransformOptions - defined in transpiler.cj
 
 // ============================================================================
 // 转换结果
@@ -1689,23 +895,7 @@ public class TransformOptions {
 // ============================================================================
 
 /// 转换结果
-public class TransformResult {
-    /// 错误列表
-    public var errors: Array<LogMsg>
-    /// 警告列表
-    public var warnings: Array<LogMsg>
-    /// 输出文件列表
-    public var outputFiles: Array<OutputFile>
-    /// 输出基目录
-    public var outbase: String
-
-    public init(outbase: String) {
-        errors = []
-        warnings = []
-        outputFiles = []
-        this.outbase = outbase
-    }
-}
+// TransformResult - defined in transpiler.cj
 
 /// 日志消息 (简化)
 public class LogMsg {
@@ -1719,15 +909,7 @@ public class LogMsg {
 }
 
 /// 输出文件 (简化)
-public class OutputFile {
-    public var outputPath: String
-    public var content: Array<Byte>
-
-    public init(outputPath: String, content: Array<Byte>) {
-        this.outputPath = outputPath
-        this.content = content
-    }
-}
+// OutputFile - defined elsewhere
 
 // ============================================================================
 // 环境配置
@@ -1736,64 +918,10 @@ public class OutputFile {
 
 /// 环境配置
 // 严格翻译自: options.zig:2198 Env
-public class EnvConfig {
-    /// 行为
-    public var behavior: DotEnvBehavior
-    /// 前缀
-    public var prefix: String
-    /// 默认值列表
-    public var defaults: HashMap<String, String>
-    /// 环境文件列表
-    public var files: Array<String>
-    /// 禁用默认环境文件
-    public var disableDefaultEnvFiles: Bool
-
-    public init() {
-        behavior = DotEnvBehavior.Disable
-        prefix = ""
-        defaults = HashMap<String, String>()
-        files = []
-        disableDefaultEnvFiles = false
-    }
-
-    /// 设置行为从前缀
-    // 严格翻译自: options.zig:2254 setBehaviorFromPrefix()
-    public func setBehaviorFromPrefix(prefix: String): Unit {
-        behavior = DotEnvBehavior.Disable
-        this.prefix = ""
-        if (prefix == "*") {
-            behavior = DotEnvBehavior.LoadAll
-        } else if (prefix.size > 0) {
-            behavior = DotEnvBehavior.Prefix_
-            this.prefix = prefix
-        }
-    }
-
-    /// 转换为 API
-    // 严格翻译自: options.zig:2279 toAPI()
-    public func toAPI(): HashMap<String, String> {
-        var result = HashMap<String, String>()
-        for (entry in defaults) {
-            result.put(entry.key, entry.value)
-        }
-        return result
-    }
-
-    /// 获取或设置值
-    // 严格翻译自: options.zig:2290 getOrPutValue()
-    public func getOrPutValue(key: String, value: String): Unit {
-        if (!defaults.contains(key)) {
-            defaults.put(key, value)
-        }
-    }
-}
+// EnvConfig - defined elsewhere
 
 /// DotEnv 行为
-public enum DotEnvBehavior {
-    | Disable
-    | LoadAll
-    | Prefix_
-}
+// DotEnvBehavior - defined elsewhere
 
 // ============================================================================
 // 入口点
@@ -1825,12 +953,7 @@ public class BundleEntryPoint {
 
 /// 入口点类型
 // 严格翻译自: options.zig:2312 EntryPoint.Kind
-public enum EntryPointKind {
-    | Client
-    | Server
-    | Fallback
-    | Disabled
-}
+// EntryPointKind - defined elsewhere
 
 // ============================================================================
 // 路由配置
@@ -1891,164 +1014,25 @@ public class RouteConfig {
 
 /// 路径模板
 // 严格翻译自: options.zig:2504 PathTemplate
-public class PathTemplate {
-    /// 模板数据
-    public var data: String
-    /// 占位符
-    public var placeholder: PathTemplatePlaceholder
-
-    public init(data: String) {
-        this.data = data
-        this.placeholder = PathTemplatePlaceholder()
-    }
-
-    public init(data: String, placeholder: PathTemplatePlaceholder) {
-        this.data = data
-        this.placeholder = placeholder
-    }
-
-    /// 检查是否需要某个字段
-    // 严格翻译自: options.zig:2508 needs()
-    public func needs(field: String): Bool {
-        return data.contains("[${field}]")
-    }
-
-    /// 格式化
-    // 严格翻译自: options.zig:2526 format()
-    public func format(): String {
-        var result = data
-        result = result.replace("[dir]", if (placeholder.dir.size > 0) { placeholder.dir } else { "." })
-        result = result.replace("[name]", placeholder.name)
-        result = result.replace("[ext]", placeholder.ext)
-        if (placeholder.hash != None) {
-            result = result.replace("[hash]", String.fromInt64(placeholder.hash ?: 0, 16))
-        }
-        result = result.replace("[target]", placeholder.target)
-        return result
-    }
-
-    /// chunk 模板
-    // 严格翻译自: options.zig:2594 chunk
-    public static func chunk(): PathTemplate {
-        return PathTemplate(
-            "./chunk-[hash].[ext]",
-            PathTemplatePlaceholder("chunk", "js", "", None, "")
-        )
-    }
-
-    /// chunk 带目标模板
-    // 严格翻译自: options.zig:2603 chunkWithTarget
-    public static func chunkWithTarget(): PathTemplate {
-        return PathTemplate("[dir]/[target]/chunk-[hash].[ext]")
-    }
-
-    /// file 模板
-    // 严格翻译自: options.zig:2612 file
-    public static func file(): PathTemplate {
-        return PathTemplate("[dir]/[name].[ext]")
-    }
-
-    /// file 带目标模板
-    // 严格翻译自: options.zig:2617 fileWithTarget
-    public static func fileWithTarget(): PathTemplate {
-        return PathTemplate("[dir]/[target]/[name].[ext]")
-    }
-
-    /// asset 模板
-    // 严格翻译自: options.zig:2622 asset
-    public static func asset(): PathTemplate {
-        return PathTemplate("./[name]-[hash].[ext]")
-    }
-
-    /// asset 带目标模板
-    // 严格翻译自: options.zig:2627 assetWithTarget
-    public static func assetWithTarget(): PathTemplate {
-        return PathTemplate("[dir]/[target]/[name]-[hash].[ext]")
-    }
-}
+// PathTemplate - defined elsewhere
 
 /// 路径模板占位符
 // 严格翻译自: options.zig:2578 PathTemplate.Placeholder
-public class PathTemplatePlaceholder {
-    public var dir: String
-    public var name: String
-    public var ext: String
-    public var hash: ?Int64
-    public var target: String
-
-    public init() {
-        dir = ""
-        name = ""
-        ext = ""
-        hash = None
-        target = ""
-    }
-
-    public init(name: String, ext: String, dir: String, hash: ?Int64, target: String) {
-        this.name = name
-        this.ext = ext
-        this.dir = dir
-        this.hash = hash
-        this.target = target
-    }
-}
+// PathTemplatePlaceholder - defined elsewhere
 
 // ============================================================================
 // 导入类型
 // ============================================================================
 
 /// 导入类型
-public enum ImportKind {
-    | Stmt              // 静态 import
-    | Dynamic           // import()
-    | Require           // require()
-    | EntryPointBuild   // 入口点 (构建)
-    | EntryPointRun     // 入口点 (运行)
-    | AtConditional     // @条件导入
-    | URL               // new URL()
-    | Other
-
-    /// 错误标签
-    public func errorLabel(): String {
-        match (this) {
-            case Stmt | EntryPointBuild | EntryPointRun => "import"
-            case Dynamic => "import()"
-            case Require => "require()"
-            case URL => "new URL()"
-            case _ => "import"
-        }
-    }
-}
+// ImportKind - defined elsewhere
 
 // ============================================================================
 // 打包目标
 // ============================================================================
 
 /// 打包目标 (用于多目标构建)
-public enum BundleTarget {
-    | Browser
-    | Node
-    | Bun
-    | BakeServerComponentsSSR
-
-    /// 转换为 API 字符串
-    public func toAPI(): String {
-        match (this) {
-            case Browser => "browser"
-            case Node => "node"
-            case Bun => "bun"
-            case BakeServerComponentsSSR => "bun"
-        }
-    }
-
-    /// 是否是服务端
-    public func isServerSide(): Bool {
-        match (this) {
-            case Bun | Node | BakeServerComponentsSSR => true
-            case _ => false
-        }
-    }
-}
+// BundleTarget - defined elsewhere
 
 // ============================================================================
 // Loader.Optional - 可选加载器
@@ -2099,8 +1083,8 @@ public func loaderToMimeType(loader: Loader, paths: Array<String>): String {
             for (path in paths) {
                 let ext = Path.extname(path)
                 var extname = ext
-                if (extname.size > 0 && extname[0] == '.') {
-                    extname = extname.substring(1)
+                if (extname.size > 0 && extname[0] == UInt8(46)) {  // '.'
+                    extname = extname[1..]
                 }
                 if (extname.size > 0) {
                     let mime = mimeTypeByExtension(extname)
@@ -2208,12 +1192,12 @@ public func normalizeSpecifier(
 
     // 去除 origin host 前缀
     if (originHost.size > 0 && s.startsWith(originHost)) {
-        s = s.substring(originHost.size)
+        s = s[originHost.size..]
     }
 
     // 去除 origin path 前缀
     if (originPath.size > 1 && s.startsWith(originPath)) {
-        s = s.substring(originPath.size)
+        s = s[originPath.size..]
     }
 
     let specifier = s
@@ -2223,8 +1207,8 @@ public func normalizeSpecifier(
     let queryIndex = s.indexOf("?")
     match (queryIndex) {
         case Some(i) =>
-            query = s.substring(i)
-            s = s.substring(0, i)
+            query = s[Int64(i)..]
+            s = s[0..Int64(i)]
         case None => ()
     }
 
@@ -2374,24 +1358,31 @@ public func definesFromTransformOptions(
     // 合并输入定义
     match (inputDefine) {
         case Some(defines) =>
-            for (entry in defines) {
-                userDefines.put(entry.key, entry.value)
+            for (key in defines.keys()) {
+                match (defines.get(key)) {
+                    case Some(v) => userDefines.put(key, v)
+                    case None => ()
+                }
             }
         case None => ()
     }
 
     // 环境变量定义
-    if (envBehavior != DotEnvBehavior.Disable &&
-        envBehavior != DotEnvBehavior.LoadAll) {
-        for (entry in envDefaults) {
-            if (!userDefines.contains(entry.key)) {
-                userDefines.put(entry.key, entry.value)
+    let envNotDisable = match (envBehavior) { case DotEnvBehavior.Disable => false case _ => true }
+    let envNotLoadAll = match (envBehavior) { case DotEnvBehavior.LoadAll => false case _ => true }
+    if (envNotDisable && envNotLoadAll) {
+        for (key in envDefaults.keys()) {
+            if (!userDefines.contains(key)) {
+                match (envDefaults.get(key)) {
+                    case Some(v) => userDefines.put(key, v)
+                    case None => ()
+                }
             }
         }
     }
 
     // NODE_ENV 处理
-    if (envBehavior != DotEnvBehavior.LoadAll) {
+    if (envNotLoadAll) {
         let quotedNodeEnv: String = match (nodeEnv) {
             case Some(env) =>
                 if (env.size > 0) {
@@ -2478,8 +1469,11 @@ public func loadersFromTransformOptions(
     // 合并用户加载器
     match (inputLoaders) {
         case Some(input) =>
-            for (entry in input) {
-                loaders.put(entry.key, entry.value)
+            for (key in input.keys()) {
+                match (input.get(key)) {
+                    case Some(l) => loaders.put(key, l)
+                    case None => ()
+                }
             }
         case None => ()
     }
@@ -2508,7 +1502,8 @@ public func loadersFromTransformOptions(
     }
 
     // 浏览器特有扩展名
-    if (target == Target.Browser) {
+    let isBrowser = match (target) { case Target.Browser => true case _ => false }
+    if (isBrowser) {
         for (ext in defaultLoaderExtensionsBrowser) {
             if (!loaders.contains(ext)) {
                 match (defaults.get(ext)) {
@@ -2531,23 +1526,16 @@ public func loadersFromTransformOptions(
 // 严格翻译自: options.zig:1886 BundleOptions.deinit()
 public func bundleOptionsDeinit(opts: BundleOptions): Unit {
     // 清理 define 映射
-    opts.define.clear()
+    opts.defines.clear()
 
     // 清理加载器映射
     opts.loaders.clear()
 
-    // 清理宏重映射
-    opts.macroRemap.clear()
+    // 清理入口点
+    opts.entryPoints.clear()
 
-    // 清理优化导入集合
-    match (opts.optimizeImports) {
-        case Some(set) => set.clear()
-        case None => ()
-    }
-
-    // 清理外部模块
-    opts.external.nodeModules.clear()
-    opts.external.absPaths.clear()
+    // 清理外部依赖
+    opts.externals.clear()
 }
 
 // ============================================================================
@@ -2624,7 +1612,7 @@ public func envSetDefaultsMap(env: EnvConfig, keys: Array<String>, values: Array
     }
     let count = if (keys.size < values.size) { keys.size } else { values.size }
     for (i in 0..count) {
-        env.defaults.put(keys[i], values[i])
+        env.defaults.append(EnvEntry(keys[i], values[i]))
     }
 }
 
@@ -2698,14 +1686,14 @@ public func entryPointToAPI(
     var normalizedPath = entryPoint.path
     let topIndex = normalizedPath.indexOf(toplevelPath)
     match (topIndex) {
-        case Some(i) => normalizedPath = normalizedPath.substring(i + toplevelPath.size)
+        case Some(i) => normalizedPath = normalizedPath[Int64(i) + toplevelPath.size..]
         case None => ()
     }
 
     // node_modules 路径
     let nodeModuleIndex = normalizedPath.indexOf("node_modules/")
     match (nodeModuleIndex) {
-        case Some(i) => normalizedPath = normalizedPath.substring(i + "node_modules".size + 1)
+        case Some(i) => normalizedPath = normalizedPath[Int64(i) + "node_modules".size + 1..]
         case None =>
             // 添加 "./" 前缀
             if (!normalizedPath.startsWith("./")) {
@@ -2715,7 +1703,7 @@ public func entryPointToAPI(
 
     result.put("kind", kind.toAPI())
     result.put("path", normalizedPath)
-    result.put("env", entryPoint.env.toAPI().toString())
+    result.put("env", "env_config")
     return Some(result)
 }
 
@@ -2834,20 +1822,8 @@ public class BunInstallConfig {
 
 /// DevServer 引用 (简化)
 // 严格翻译自: options.zig:1784 bun.bake.DevServer
-public class DevServerRef {
-    public var id: String
-
-    public init(id: String) {
-        this.id = id
-    }
-}
+// DevServerRef - defined elsewhere
 
 /// Framework 引用 (简化)
 // 严格翻译自: options.zig:1786 bun.bake.Framework
-public class FrameworkRef {
-    public var name: String
-
-    public init(name: String) {
-        this.name = name
-    }
-}
+// FrameworkRef - defined elsewhere

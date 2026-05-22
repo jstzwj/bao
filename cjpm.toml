@@ -66,7 +66,6 @@ members = [
     "packages/bao_picohttp_sys",
     "packages/bao_simdutf_sys",
     "packages/bao_tcc_sys",
-    "packages/bao_windows_sys",
     "packages/bao_crash_handler",
     "packages/bao_perf",
     "packages/bao_bunfig",
@@ -153,7 +152,6 @@ build-members = [
     "packages/bao_picohttp_sys",
     "packages/bao_simdutf_sys",
     "packages/bao_tcc_sys",
-    "packages/bao_windows_sys",
     "packages/bao_crash_handler",
     "packages/bao_perf",
     "packages/bao_bunfig",
@@ -179,7 +177,7 @@ test-members = [
     "packages/bao_unicode",
     "packages/bao_hash",
 ]
-compile-option = ""
+compile-option = "-Woff unused"
 override-compile-option = ""
 link-option = ""
 target-dir = "target"

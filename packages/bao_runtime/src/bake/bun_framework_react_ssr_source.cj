@@ -3,7 +3,7 @@
 
 package bao_runtime.bake
 
-public const bunFrameworkReactSsrSource: String = """
+public const bunFrameworkReactSsrSource: String = #"""
 // This file is loaded in the SSR graph, meaning the `react-server` condition is
 // no longer set. This means we can import client components, using `react-dom`
 // to perform Server-side rendering (creating HTML) out of the RSC payload.
@@ -198,7 +198,7 @@ class RscInjectionStream extends EventEmitter {
       // The HTML is about to finish. When this happens there cannot be more RSC
       // chunks, since if that was truly the case, the HTML wouldn't be done.
       const { controller } = this;
-      controller.write(data.subarray(0, data.length - closingBodyTag.length));
+      controller.write(data.subarray(0, data.size - closingBodyTag.size));
       this.drainRscChunks();
       controller.write(closingBodyTag);
       controller.flush();
@@ -214,7 +214,7 @@ class RscInjectionStream extends EventEmitter {
     if (rsc === RscState.Done) return;
 
     const { controller, decoder, rscChunks } = this;
-    if (rscChunks.length === 0) return;
+    if (rscChunks.size === 0) return;
 
     if (rsc === RscState.Waiting) {
       controller.write(startScriptTag);
@@ -288,7 +288,7 @@ class StaticRscInjectionStream extends EventEmitter {
 
   end() {
     // Inject the finalized RSC payload into the last chunk
-    const lastChunk = this.chunks[this.chunks.length - 1];
+    const lastChunk = this.chunks[this.chunks.size - 1];
 
     // Release assertions for React's behavior. If these break there will be malformed HTML.
     if (typeof lastChunk === "string") {
@@ -299,7 +299,7 @@ class StaticRscInjectionStream extends EventEmitter {
       this.destroy(new Error("The last chunk did not end with a closing </body></html> tag"));
       return;
     }
-    this.chunks[this.chunks.length - 1] = lastChunk.slice(0, lastChunk.length - closingBodyTag.length);
+    this.chunks[this.chunks.size - 1] = lastChunk.slice(0, lastChunk.size - closingBodyTag.size);
 
     let string = startScriptTag;
     writeManyFlightScriptData(this.rscPayloadChunks, new TextDecoder("utf-8"), { write: str => (string += str) });
@@ -325,7 +325,7 @@ function writeSingleFlightScriptData(
   try {
     // `decode()` will throw on invalid UTF-8 sequences.
     controller.write("'" + toSingleQuote(decoder.decode(chunk, { stream: true })) + "')</script>");
-  } catch {
+  } catch (e: Exception) {
     // The chunk cannot be embedded as a UTF-8 string in the script tag.
     // No data should have been written yet, so a base64 fallback can be used.
     const base64 = btoa(String.fromCodePoint(...chunk));
@@ -342,24 +342,24 @@ function writeManyFlightScriptData(
   decoder: TextDecoder,
   controller: { write: (str: string) => void },
 ) {
-  if (chunks.length === 1) return writeSingleFlightScriptData(chunks[0], decoder, controller);
+  if (chunks.size === 1) return writeSingleFlightScriptData(chunks[0], decoder, controller);
 
   let i = 0;
   try {
     // Combine all chunks into a single string if possible.
-    for (; i < chunks.length; i++) {
+    for (; i < chunks.size; i++) {
       // `decode()` will throw on invalid UTF-8 sequences.
       const str = toSingleQuote(decoder.decode(chunks[i], { stream: true }));
       if (i === 0) controller.write("'");
       controller.write(str);
     }
     controller.write("')</script>");
-  } catch {
+  } catch (e: Exception) {
     // The chunk cannot be embedded as a UTF-8 string in the script tag.
     // Since this is rare, just make the rest of the chunks base64.
     if (i > 0) controller.write("');__bun_f.push(");
     controller.write('Uint8Array.from(atob("');
-    for (; i < chunks.length; i++) {
+    for (; i < chunks.size; i++) {
       const chunk = chunks[i];
       const base64 = btoa(String.fromCodePoint(...chunk));
       controller.write(base64.slice(1, -1));
@@ -385,7 +385,7 @@ function toSingleQuote(str: string): string {
 
 // Note that the bundler special cases constant folding for `charCodeAt`.
 function endsWithClosingScript(view: Uint8Array): boolean {
-  const length = view.length;
+  const length = view.size;
   return (
     length >= 9 &&
     view[length - 9] === "<".charCodeAt(0) &&
@@ -401,7 +401,7 @@ function endsWithClosingScript(view: Uint8Array): boolean {
 }
 
 function endsWithClosingBody(view: Uint8Array): boolean {
-  const length = view.length;
+  const length = view.size;
   return (
     length >= 14 &&
     view[length - 14] === "<".charCodeAt(0) &&
@@ -421,4 +421,4 @@ function endsWithClosingBody(view: Uint8Array): boolean {
   );
 }
 
-"""
+"""#

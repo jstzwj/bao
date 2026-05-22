@@ -264,7 +264,7 @@ public class SpawnSyncEventLoop {
 
     // ========================================================================
     // init - 初始化隔离事件循环
-    // 严格翻译自: SpawnSyncEventLoop.init(self, vm)
+    // 严格翻译自: SpawnSyncEventLoop(self, vm)
     //
     // Bun (Zig):
     //   pub fn init(self: *SpawnSyncEventLoop, vm: *jsc.VirtualMachine) void {
@@ -274,12 +274,12 @@ public class SpawnSyncEventLoop {
     //           .uws_loop = loop,
     //       }
     //       self.event_loop = .{
-    //           .tasks = jsc.EventLoop.Queue.init(bun.default_allocator),
+    //           .tasks = jsc.EventLoop.Queue(bun.default_allocator),
     //           .global = vm.global,
     //           .virtual_machine = vm,
     //       }
     //       self.uws_loop.internal_loop_data.setParentEventLoop(
-    //           jsc.EventLoopHandle.init(&self.event_loop))
+    //           jsc.EventLoopHandle(&self.event_loop))
     //       self.uws_loop.internal_loop_data.jsc_vm = null
     //   }
     //
@@ -291,7 +291,7 @@ public class SpawnSyncEventLoop {
     // 仓颉: 创建独立的 MiniEventLoop 实例
     // ========================================================================
 
-    /// 初始化隔离事件循环 - 对应 Bun SpawnSyncEventLoop.init(vm)
+    /// 初始化隔离事件循环 - 对应 Bun SpawnSyncEventLoop(vm)
     /// 创建独立的事件循环实例, 与主循环完全隔离
     public func initFunc(vm: ?VmContext): Unit {
         // 创建独立的 MiniEventLoop

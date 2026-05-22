@@ -16,21 +16,21 @@ public func create(globalThis: JsGlobalObject): JsValue {
     // gcAggressionLevel
     object.put(
         globalThis,
-        ZigString.static("gcAggressionLevel"),
+        ZigString.`static`("gcAggressionLevel"),
         JsFunction.create(globalThis, "gcAggressionLevel", gcAggressionLevel, 1),
     )
 
     // arrayBufferToString
     object.put(
         globalThis,
-        ZigString.static("arrayBufferToString"),
+        ZigString.`static`("arrayBufferToString"),
         JsFunction.create(globalThis, "arrayBufferToString", arrayBufferToString, 1),
     )
 
     // mimallocDump
     object.put(
         globalThis,
-        ZigString.static("mimallocDump"),
+        ZigString.`static`("mimallocDump"),
         JsFunction.create(globalThis, "mimallocDump", dumpMimalloc, 1),
     )
 
@@ -45,11 +45,11 @@ public func gcAggressionLevel(globalThis: JsGlobalObject, callframe: JsCallFrame
     let value = callframe.argumentsOld(1).ptr[0]
 
     if (!value.isEmptyOrUndefinedOrNull()) {
-        switch (try value.coerceInt32(globalThis)) {
+        match (try value.coerceInt32(globalThis)) {
             case 1 => globalThis.bunVM().aggressive_garbage_collection = .mild
             case 2 => globalThis.bunVM().aggressive_garbage_collection = .aggressive
             case 0 => globalThis.bunVM().aggressive_garbage_collection = .none
-            else => {}
+            else => ()
         }
     }
     return ret
@@ -64,22 +64,21 @@ public func arrayBufferToString(globalThis: JsGlobalObject, callframe: JsCallFra
     }
 
     let arrayBuffer = ArrayBuffer.fromTypedArray(globalThis, args[0])
-    switch (arrayBuffer.typed_array_type) {
-        case .Uint16Array, .Int16Array => {
-            var zigStr = ZigString.init("")
+    match (arrayBuffer.typed_array_type) {
+        case Uint16Array, .Int16Array =>
+            var zigStr = ZigString("")
             zigStr._unsafe_ptr_do_not_use = arrayBuffer.ptr
             zigStr.len = arrayBuffer.len
             zigStr.markUTF16()
             return zigStr.toJS(globalThis)
-        }
         else => {
-            return ZigString.init(arrayBuffer.slice()).toJS(globalThis)
+            return ZigString(arrayBuffer.slice()).toJS(globalThis)
         }
     }
 }
 
 /// 输出 mimalloc 内存分配统计信息
-public func dumpMimalloc(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func dumpMimalloc(JsGlobalObject, callframe: JsCallFrame): JsValue {
     globalObject.bunVM().arena.dumpStats()
     if (HeapBreakdown.enabled) {
         dumpZoneMallocStats()
@@ -92,4 +91,4 @@ public func dumpMimalloc(globalObject: JsGlobalObject, callframe: JsCallFrame): 
 // ============================================================================
 
 /// 外部 C 函数: 输出 zone malloc 统计信息
-extern func dumpZoneMallocStats()
+public func dumpZoneMallocStats(): Unit { }

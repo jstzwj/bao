@@ -23,7 +23,7 @@ public class TranspilerClasses {
     /// 严格翻译自: proto.scanImports { fn: "scanImports", length: 2 }
     /// 参数: (code: string, path?: string)
     /// 返回: Array<{ path: string, kind: string }>
-    public static func scanImports(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func scanImports(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -31,7 +31,7 @@ public class TranspilerClasses {
     /// 严格翻译自: proto.scan { fn: "scan", length: 2 }
     /// 参数: (code: string, path?: string)
     /// 返回: ScanResult
-    public static func scan(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func scan(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -39,7 +39,7 @@ public class TranspilerClasses {
     /// 严格翻译自: proto.transform { fn: "transform", length: 2 }
     /// 参数: (code: string, options?: TranspilerOptions)
     /// 返回: Promise<string>
-    public static func transform(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func transform(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -47,7 +47,7 @@ public class TranspilerClasses {
     /// 严格翻译自: proto.transformSync { fn: "transformSync", length: 2 }
     /// 参数: (code: string, options?: TranspilerOptions)
     /// 返回: string
-    public static func transformSync(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func transformSync(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }
@@ -64,73 +64,73 @@ public class BuildArtifactClasses {
 
     /// text fn
     /// 严格翻译自: proto.text { fn: "getText" }
-    public static func getText(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getText(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// json fn
     /// 严格翻译自: proto.json { fn: "getJSON" }
-    public static func getJSON(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getJSON(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// arrayBuffer fn
     /// 严格翻译自: proto.arrayBuffer { fn: "getArrayBuffer" }
-    public static func getArrayBuffer(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getArrayBuffer(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// slice fn
     /// 严格翻译自: proto.slice { fn: "getSlice", length: 2 }
-    public static func getSlice(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getSlice(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// stream fn
     /// 严格翻译自: proto.stream { fn: "getStream", length: 1 }
-    public static func getStream(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func getStream(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// path getter (cached)
     /// 严格翻译自: proto.path { getter: "getPath", cache: true }
-    public static func getPath(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getPath(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// size getter
     /// 严格翻译自: proto.size { getter: "getSize" }
-    public static func getSize(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getSize(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsNumber(0)
     }
 
     /// hash getter (cached)
     /// 严格翻译自: proto.hash { getter: "getHash", cache: true }
-    public static func getHash(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getHash(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// sourcemap getter (cached)
     /// 严格翻译自: proto.sourcemap { getter: "getSourceMap", cache: true }
-    public static func getSourceMap(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getSourceMap(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsNull()
     }
 
     /// loader getter (cached)
     /// 严格翻译自: proto.loader { getter: "getLoader", cache: true }
-    public static func getLoader(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getLoader(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("js")
     }
 
     /// type getter (cached)
     /// 严格翻译自: proto.type { getter: "getMimeType", cache: true }
-    public static func getMimeType(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getMimeType(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 
     /// kind getter (cached)
     /// 严格翻译自: proto.kind { getter: "getOutputKind", cache: true }
-    public static func getOutputKind(globalObject: JsGlobalObject, thisValue: JsValue): JsValue {
+    public static func getOutputKind(JsGlobalObject, thisValue: JsValue): JsValue {
         return JsValue.jsString("")
     }
 }

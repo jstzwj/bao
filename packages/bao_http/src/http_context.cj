@@ -7,6 +7,7 @@ import bao_collections.*
 import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
+import bao_http.h2_client.*
 
 // ============================================================================
 // HTTPContext - HTTP/HTTPS 连接上下文
@@ -189,7 +190,7 @@ public class ActiveSocket {
     /// 严格翻译自: active.get(HTTPClient)
     public func getClient(): ?HTTPClient {
         match (type_) {
-            case httpClient => return socket as? HTTPClient
+            case httpClient => return socket as HTTPClient
             case _ => return None
         }
     }
@@ -206,7 +207,7 @@ public class ActiveSocket {
     /// 获取 PooledSocket 实例
     public func getPooled(): ?PooledSocket {
         match (type_) {
-            case pooledSocket => return socket as? PooledSocket
+            case pooledSocket => return socket as PooledSocket
             case _ => return None
         }
     }
@@ -392,14 +393,29 @@ public class HTTPContext {
     public func unregisterH2(session: Any): Unit {
         if (!isSsl) { return }
         // 严格翻译自: swapRemove by registry_index
-        var idx: Int64 = 0
+        // Find the session by index using reference comparison
+        var idx: Int64 = -1
         for (i in 0..activeH2Sessions.size) {
-            if (activeH2Sessions[i] == session) {
-                idx = i
-                break
+            let elem = activeH2Sessions[i]
+            let h2Opt = elem as H2FetchClientSession
+            let sessOpt = session as H2FetchClientSession
+            match (h2Opt) {
+                case Some(h2Elem) =>
+                    match (sessOpt) {
+                        case Some(h2Sess) =>
+                            // Compare by identity: same hostname + port + nextStreamId
+                            if (h2Elem.hostname == h2Sess.hostname
+                                && h2Elem.port == h2Sess.port
+                                && h2Elem.nextStreamId == h2Sess.nextStreamId) {
+                                idx = i
+                            }
+                        case None => ()
+                    }
+                case None => ()
             }
+            if (idx >= 0) { break }
         }
-        if (idx < activeH2Sessions.size) {
+        if (idx >= 0 && idx < activeH2Sessions.size) {
             activeH2Sessions.removeAt(idx)
         }
     }
@@ -408,7 +424,7 @@ public class HTTPContext {
     /// 严格翻译自: HTTPContext.tagAsH2
     ///   pub fn tagAsH2(socket: HTTPSocket, session: *H2.ClientSession) void {
     ///       if (socket.ext(**anyopaque)) |ctx| {
-    ///           ctx.* = bun.cast(**anyopaque, ActiveSocket.init(session).ptr());
+    ///           ctx.* = bun.cast(**anyopaque, ActiveSocket(session).ptr());
     ///       }
     ///   }
     /// 注意: 静态方法无法访问 socketTags 映射，需通过实例方法调用
@@ -434,12 +450,12 @@ public class HTTPContext {
         //   }
         //   return false
         for (pc in pendingH2Connects) {
-            match (pc as? H2PendingConnect) {
+            match (pc as H2PendingConnect) {
                 case Some(pendingConnect) =>
                     var i: Int64 = 0
                     while (i < pendingConnect.waiters.size) {
                         let waiter = pendingConnect.waiters[i]
-                        if (waiter.asyncHttpId == Int64(asyncHttpId)) {
+                        if (waiter.client.asyncHttpId == Int64(asyncHttpId)) {
                             // swapRemove: 将最后一个元素移到位置 i，然后移除末尾
                             pendingConnect.waiters.removeAt(i)
                             waiter.failFromH2("Aborted")
@@ -518,7 +534,7 @@ public class HTTPContext {
                     pooled.h2Session = h2Session
                     pooled.inUse = true
                     // 标记 socket ext 为 PooledSocket
-                    // 严格翻译自: ctx.* = bun.cast(**anyopaque, ActiveSocket.init(pending).ptr())
+                    // 严格翻译自: ctx.* = bun.cast(**anyopaque, ActiveSocket(pending).ptr())
                     socketTags.put(socketFd, ActiveSocket.initPooled(pooled))
                     return
                 }
@@ -724,11 +740,12 @@ public class HTTPContext {
             //           session.adopt(client); return null
             //       }
             //   }
-            for (session in activeH2Sessions) {
-                match (session as? H2FetchClientSession) {
-                    case Some(h2Session) =>
-                        if (h2Session.hasHeadroom() && h2Session.matches(hostname, Int64(port))) {
-                            h2Session.adopt(client)
+            for (sessionAny in activeH2Sessions) {
+                let fetchClientOpt = sessionAny as H2FetchClientSession
+                match (fetchClientOpt) {
+                    case Some(fetchClientSess) =>
+                        if (fetchClientSess.hasHeadroom() && fetchClientSess.matches(hostname, Int64(port))) {
+                            fetchClientSess.adopt(H2ClientRef(Int64(client.asyncHttpId)))
                             return None
                         }
                     case None => ()
@@ -742,14 +759,11 @@ public class HTTPContext {
             //       }
             //   }
             for (pc in pendingH2Connects) {
-                match (pc as? H2PendingConnect) {
+                match (pc as H2PendingConnect) {
                     case Some(pendingConnect) =>
-                        let sslConfigRef = match (client.tlsProps as? H2SslConfigRef) {
-                            case Some(ref) => Some(ref)
-                            case None => None
-                        }
+                        let sslConfigRef = client.tlsProps as H2SslConfigRef
                         if (pendingConnect.matches(hostname, Int64(port), sslConfigRef)) {
-                            pendingConnect.addWaiter(H2WaiterRef(Int64(client.asyncHttpId), client))
+                            pendingConnect.addWaiter(H2WaiterRef(Int64(client.asyncHttpId)))
                             return None
                         }
                     case None => ()
@@ -792,7 +806,7 @@ public class HTTPContext {
                     // 复用已有连接
                     // 严格翻译自:
                     //   if (sock.ext(**anyopaque)) |ctx| {
-                    //       ctx.* = bun.cast(**anyopaque, ActiveSocket.init(client).ptr());
+                    //       ctx.* = bun.cast(**anyopaque, ActiveSocket(client).ptr());
                     //   }
                     // 重新标记 socket 为当前 client
                     socketTags.put(existing.socketFd, ActiveSocket.initClient(client))
@@ -833,7 +847,7 @@ public class HTTPContext {
         // 严格翻译自:
         //   const socket = try HTTPSocket.connectGroup(
         //       &this.group, kind, if (comptime ssl) this.secure else null,
-        //       hostname, port, ActiveSocket.init(client).ptr(), false)
+        //       hostname, port, ActiveSocket(client).ptr(), false)
         //   client.allow_retry = false
         //   if (comptime ssl) {
         //       if (client.canOfferH2()) {
@@ -847,7 +861,7 @@ public class HTTPContext {
         let socketFd = createConnection(hostname, port)
         client.allowRetry = false
 
-        // 严格翻译自: ActiveSocket.init(client).ptr() 作为 connectGroup 的 ext 参数
+        // 严格翻译自: ActiveSocket(client).ptr() 作为 connectGroup 的 ext 参数
         // 将 socket 标记为属于此 client
         match (socketFd) {
             case Some(fd) => socketTags.put(fd, ActiveSocket.initClient(client))
@@ -864,16 +878,14 @@ public class HTTPContext {
         //       }
         //   }
         if (isSsl && client.canOfferH2()) {
-            let sslConfigRef = match (client.tlsProps as? H2SslConfigRef) {
+            let sslConfigRef = match (client.tlsProps as H2SslConfigRef) {
                 case Some(ref) => ref
-                case None => H2SslConfigRef()
+                case None => H2SslConfigRef(Int64(0))
             }
             let pc = H2PendingConnect(
                 hostname,
                 Int64(port),
-                sslConfigRef,
-                ArrayList<H2WaiterRef>(),
-                match (socketFd) { case Some(fd) => fd case None => Int64(-1) }
+                sslConfigRef
             )
             pendingH2Connects.append(pc)
             client.pendingH2 = pc
@@ -889,7 +901,7 @@ public class HTTPContext {
         //   client.connected_url = if (client.http_proxy) |proxy| proxy else client.url
         //   const socket = try HTTPSocket.connectUnixGroup(
         //       &this.group, kind, if (comptime ssl) this.secure else null,
-        //       socket_path, ActiveSocket.init(client).ptr(), false)
+        //       socket_path, ActiveSocket(client).ptr(), false)
         //   client.allow_retry = false
         //   return socket
         client.connectedUrl = client.url
@@ -932,7 +944,7 @@ public class HTTPContext {
         //   if (socket.ext(*anyopaque)) |slot| {
         //       return getTagged(slot.*);
         //   }
-        //   return ActiveSocket.init(dead_socket);
+        //   return ActiveSocket(dead_socket);
         let tagged = match (socketTags.get(socketFd)) {
             case Some(t) => t
             case None => ActiveSocket.initDead()
@@ -947,7 +959,7 @@ public class HTTPContext {
     ///           Handler.addMemoryBackToPool(tagged.as(PooledSocket));
     ///       }
     ///       if (socket.ext(**anyopaque)) |ctx| {
-    ///           ctx.* = bun.cast(**anyopaque, ActiveSocket.init(dead_socket).ptr());
+    ///           ctx.* = bun.cast(**anyopaque, ActiveSocket(dead_socket).ptr());
     ///       }
     ///   }
     public func markTaggedSocketAsDead(socketFd: Int64, tagged: ActiveSocket): Unit {
@@ -960,7 +972,7 @@ public class HTTPContext {
             case _ => ()
         }
         // 设置 socket ext 为 dead_socket
-        // 严格翻译自: ctx.* = bun.cast(**anyopaque, ActiveSocket.init(dead_socket).ptr())
+        // 严格翻译自: ctx.* = bun.cast(**anyopaque, ActiveSocket(dead_socket).ptr())
         socketTags.put(socketFd, ActiveSocket.initDead())
     }
 
@@ -1330,7 +1342,7 @@ public class HTTPContextHandler {
 /// Socket 组 — 对应 uws.SocketGroup
 public class SocketGroup {
     /// 初始化 socket 组
-    /// 严格翻译自: this.group.init(bun.http.http_thread.loop.loop, null, this)
+    /// 严格翻译自: this.group.`init`(bun.http.http_thread.loop.loop, null, this)
     public init() {}
 
     /// 关闭所有 socket

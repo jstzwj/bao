@@ -36,13 +36,14 @@ public class JSONLineBuffer {
     // 严格翻译自 JSONLineBuffer.scanForNewline
     // 在缓冲区的未扫描部分中扫描换行符
     public func scanForNewline() {
-        if (newlinePos != None) { return }
+        if (newlinePos.isSome()) { return }
         let slice = activeSlice()
         let scannedPosInt = scannedPos
-        if (scannedPosInt >= slice.size) { return }
+        if (Int64(scannedPosInt) >= slice.size) { return }
 
-        let unscanned = slice[Int(scannedPosInt)..]
-        match (unscanned.indexOf(Character('\n'))) {
+        let unscanned = slice[Int64(scannedPosInt)..]
+        let newlineIdx = unscanned.indexOf(UInt8(10))
+        match (newlineIdx) {
             case Some(idx) =>
                 let pos = scannedPosInt + UInt32(idx)
                 newlinePos = pos
@@ -78,10 +79,10 @@ public class JSONLineBuffer {
 
     private func nextAt(pos: UInt32): ?JSONLineBufferEntry {
         let slice = activeSlice()
-        if (Int(pos) + 1 <= slice.size) {
+        if (Int64(pos) + 1 <= slice.size) {
             return JSONLineBufferEntry(
-                data: slice[0..Int(pos) + 1],
-                newlinePos: pos
+                slice[0..Int64(pos) + 1],
+                pos
             )
         }
         return None
@@ -91,19 +92,19 @@ public class JSONLineBuffer {
     // 处理消息后从缓冲区前端消费字节
     // 只是前进 head 偏移量 - 在达到压缩阈值之前不复制
     public func consume(bytes: UInt32) {
-        head = head &+ bytes
+        head = head + bytes
 
         // 调整 scannedPos（减去消费的字节，但不低于零）
-        scannedPos = if (bytes >= scannedPos) { 0 } else { scannedPos - bytes }
+        scannedPos = if (bytes >= scannedPos) { UInt32(0) } else { scannedPos - bytes }
 
         // 调整 newlinePos
-        if let pos = newlinePos {
-            if (bytes > pos) {
+        if (let pos <- newlinePos) {
+            if (bytes > pos.getOrThrow()) {
                 // 消费超过了已知换行符 - 清除并扫描下一个
                 newlinePos = None
                 scanForNewline()
             } else {
-                newlinePos = pos - bytes
+                newlinePos = pos.getOrThrow() - bytes
             }
         }
 
@@ -177,18 +178,18 @@ public class ByteList {
     public var buffer: Array<Byte> = []
 
     public init() {}
-    public init(_ bytes: Array<Byte>) {
+    public init(bytes: Array<Byte>) {
         buffer = bytes
         len = UInt32(bytes.size)
         cap = len
     }
 
-    public func slice(_ from: UInt32): Array<Byte> {
-        if (Int(from) >= buffer.size) { return [] }
-        buffer[Int(from):]
+    public func slice(from: UInt32): Array<Byte> {
+        if (Int64(from) >= buffer.size) { return [] }
+        buffer[Int64(from)..]
     }
 
-    public func write(_ bytes: Array<Byte>) {
+    public func write(bytes: Array<Byte>) {
         for (b in bytes) {
             buffer.append(b)
         }
@@ -197,5 +198,5 @@ public class ByteList {
     }
 
     public func unusedCapacitySlice(): Array<Byte> { [] }
-    public func ensureUnusedCapacity(_ additional: Int64) {}
+    public func ensureUnusedCapacity(additional: Int64) {}
 }

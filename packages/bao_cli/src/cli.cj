@@ -57,7 +57,7 @@ public class Cli {
 
     /// 是否为主线程
     /// 对应 Bun: Cli.is_main_thread
-    public static threadlocal var isMainThread: Bool = false
+    public static var isMainThread: Bool = false
 }
 
 /// 调试标志
@@ -90,15 +90,15 @@ public class DebugFlags {
 
 /// Loader 冒号列表类型
 /// 对应 Bun: LoaderColonList
-public typealias LoaderColonList = ColonListType<Loader>
+public type LoaderColonList = ColonListType<Loader>
 
 /// Define 冒号列表类型
 /// 对应 Bun: DefineColonList
-public typealias DefineColonList = ColonListType<String>
+public type DefineColonList = ColonListType<String>
 
 /// 无效目标错误
 /// 对应 Bun: invalidTarget
-public static func invalidTarget(target: String): Unit {
+public func invalidTarget(target: String): Unit {
     Output.prettyErrorLn("<r><red>error:<r> Invalid target: ${target}")
     Global.exit(1)
 }
@@ -107,20 +107,21 @@ public static func invalidTarget(target: String): Unit {
 // HelpCommand — 帮助命令
 // ============================================================================
 
+/// 帮助显示原因
+/// 对应 Bun: HelpCommand.Reason
+public enum HelpCommandReason {
+    | explicit
+    | invalidCommand
+}
+
 /// 帮助命令
 /// 对应 Bun: HelpCommand
 public class HelpCommand {
-    /// 帮助显示原因
-    /// 对应 Bun: HelpCommand.Reason
-    public enum Reason {
-        | explicit
-        | invalidCommand
-    }
 
     /// 执行帮助命令
     /// 对应 Bun: HelpCommand.exec()
     public static func exec(allocator: Allocator): Unit {
-        execWithReason(allocator, Reason.explicit)
+        execWithReason(allocator, HelpCommandReason.explicit)
     }
 
     /// 示例包名列表 (用于 x)
@@ -147,7 +148,7 @@ public class HelpCommand {
 
     /// 按原因打印帮助
     /// 对应 Bun: HelpCommand.printWithReason
-    public static func printWithReason(reason: Reason, showAllFlags: Bool): Unit {
+    public static func printWithReason(reason: HelpCommandReason, showAllFlags: Bool): Unit {
         let rand = Random(Math.max(Time.milliTimestamp(), 0))
         let packageXI = rand.uintAtMost(packagesToXFiller.size - 1)
         let packageAddI = rand.uintAtMost(packagesToAddFiller.size - 1)
@@ -162,8 +163,8 @@ public class HelpCommand {
         let packageAdd4 = packagesToAddFiller[(packageAddI + 3) % packagesToAddFiller.size]
         let packageCreate = packagesToCreateFiller[packageCreateI]
 
-        when (reason) {
-            case Reason.explicit => {
+        match (reason) {
+            case HelpCommandReason.explicit =>
                 Output.pretty("<r><b><magenta>Bao<r> is a fast JavaScript runtime, package manager, bundler, and test runner.\n\n")
                 printCliHelptext(packageX, packageAdd, packageRemove, packageAdd2, packageAdd3, packageAdd4, packageCreate)
                 if (showAllFlags) {
@@ -172,11 +173,9 @@ public class HelpCommand {
                 }
                 Output.pretty("\nLearn more about Bao:            <magenta>https://bao.dev/docs<r>\n")
                 Output.pretty("Join our Discord community:      <blue>https://bao.dev/discord<r>\n\n")
-            }
-            case Reason.invalidCommand => {
+            case HelpCommandReason.invalidCommand =>
                 Output.prettyError("<r><red>Uh-oh<r> not sure what to do with that command.\n\n")
                 printCliHelptext(packageX, packageAdd, packageRemove, packageAdd2, packageAdd3, packageAdd4, packageCreate)
-            }
         }
 
         Output.flush()
@@ -221,7 +220,7 @@ public class HelpCommand {
     public static func execWithReason(allocator: Allocator, reason: Reason): Unit {
         printWithReason(reason, false)
 
-        if (reason == Reason.invalidCommand) {
+        if (reason == HelpCommandReason.invalidCommand) {
             Global.exit(1)
         }
         Global.exit(0)
@@ -301,7 +300,7 @@ public class Command {
     public static func which(): CommandTag {
         let args = BunArgv.getArgs()
 
-        let argv0 = if (args.length > 0) args[0] else ""
+        let argv0 = if (args.length > 0) { args[0] } else { "" }
         if (argv0.length == 0) {
             return CommandTag.HelpCommand
         }
@@ -325,7 +324,7 @@ public class Command {
         }
 
         // 查找第一个非 flag 参数
-        var nextArg = if (args.length > 1) args[1] else ""
+        var nextArg = if (args.length > 1) { args[1] } else { "" }
         var argIdx = 1
         while (nextArg.length > 0 && nextArg[0] == '-' &&
                !(nextArg.length > 1 && nextArg[1] == 'e') &&
@@ -341,7 +340,7 @@ public class Command {
     /// 匹配命令字符串到命令标签
     /// 对应 Bun: Command.which() 中的 switch
     private static func matchCommand(name: String, args: Array<String>): CommandTag {
-        when (name) {
+        match (name) {
             case "init" => return CommandTag.InitCommand
             case "build", "bao" => return CommandTag.BuildCommand
             case "discord" => return CommandTag.DiscordCommand
@@ -352,7 +351,7 @@ public class Command {
             case "unlink" => return CommandTag.UnlinkCommand
             case "x" => return CommandTag.BunxCommand
             case "repl" => return CommandTag.ReplCommand
-            case "i", "install" => {
+            case "i", "install" =>
                 // 检查是否有 -g/--global
                 for (arg in args) {
                     if (arg == "-g" || arg == "--global") {
@@ -360,7 +359,6 @@ public class Command {
                     }
                 }
                 return CommandTag.InstallCommand
-            }
             case "ci" => return CommandTag.InstallCommand
             case "c", "create" => return CommandTag.CreateCommand
             case "test" => return CommandTag.TestCommand
@@ -407,95 +405,74 @@ public class Command {
     public static func start(allocator: Allocator, log: Log): Unit {
         let tag = which()
 
-        when (tag) {
+        match (tag) {
             case CommandTag.DiscordCommand => DiscordCommand.exec(allocator)
             case CommandTag.HelpCommand => HelpCommand.exec(allocator)
             case CommandTag.ReservedCommand => ReservedCommand.exec(allocator)
             case CommandTag.InitCommand => InitCommand.exec(allocator, BunArgv.getArgs().slice(Math.min(2, BunArgv.getArgs().length)))
             case CommandTag.InfoCommand => execInfoCommand(allocator, log)
-            case CommandTag.BuildCommand => {
+            case CommandTag.BuildCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.BuildCommand)
                 BuildCommand.exec(ctx, None)
-            }
-            case CommandTag.InstallCompletionsCommand => {
+            case CommandTag.InstallCompletionsCommand =>
                 InstallCompletionsCommand.exec(allocator)
-            }
-            case CommandTag.InstallCommand => {
+            case CommandTag.InstallCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.InstallCommand)
                 InstallCommand.exec(ctx)
-            }
-            case CommandTag.AddCommand => {
+            case CommandTag.AddCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.AddCommand)
                 AddCommand.exec(ctx)
-            }
-            case CommandTag.UpdateCommand => {
+            case CommandTag.UpdateCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.UpdateCommand)
                 UpdateCommand.exec(ctx)
-            }
-            case CommandTag.PatchCommand => {
+            case CommandTag.PatchCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.PatchCommand)
                 PatchCommand.exec(ctx)
-            }
-            case CommandTag.PatchCommitCommand => {
+            case CommandTag.PatchCommitCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.PatchCommitCommand)
                 PatchCommitCommand.exec(ctx)
-            }
-            case CommandTag.OutdatedCommand => {
+            case CommandTag.OutdatedCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.OutdatedCommand)
                 OutdatedCommand.exec(ctx)
-            }
-            case CommandTag.UpdateInteractiveCommand => {
+            case CommandTag.UpdateInteractiveCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.UpdateInteractiveCommand)
                 UpdateInteractiveCommand.exec(ctx)
-            }
-            case CommandTag.PublishCommand => {
+            case CommandTag.PublishCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.PublishCommand)
                 PublishCommand.exec(ctx)
-            }
-            case CommandTag.AuditCommand => {
+            case CommandTag.AuditCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.AuditCommand)
                 AuditCommand.exec(ctx)
-            }
-            case CommandTag.WhyCommand => {
+            case CommandTag.WhyCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.WhyCommand)
                 WhyCommand.exec(ctx)
-            }
-            case CommandTag.BunxCommand => {
+            case CommandTag.BunxCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.BunxCommand)
-                let offset = if (isBunxExe) 0 else 1
+                let offset = if (isBunxExe) { 0 } else { 1 }
                 BunxCommand.exec(ctx, BunArgv.getArgs().slice(offset))
-            }
-            case CommandTag.ReplCommand => {
+            case CommandTag.ReplCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
                 ReplCommand.exec(ctx)
-            }
-            case CommandTag.RemoveCommand => {
+            case CommandTag.RemoveCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RemoveCommand)
                 RemoveCommand.exec(ctx)
-            }
-            case CommandTag.LinkCommand => {
+            case CommandTag.LinkCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.LinkCommand)
                 LinkCommand.exec(ctx)
-            }
-            case CommandTag.UnlinkCommand => {
+            case CommandTag.UnlinkCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.UnlinkCommand)
                 UnlinkCommand.exec(ctx)
-            }
-            case CommandTag.PackageManagerCommand => {
+            case CommandTag.PackageManagerCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.PackageManagerCommand)
                 PackageManagerCommand.exec(ctx)
-            }
-            case CommandTag.TestCommand => {
+            case CommandTag.TestCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.TestCommand)
                 TestCommand.exec(ctx)
-            }
-            case CommandTag.GetCompletionsCommand => {
+            case CommandTag.GetCompletionsCommand =>
                 execGetCompletions(allocator, log)
-            }
-            case CommandTag.CreateCommand => {
+            case CommandTag.CreateCommand =>
                 execCreate(allocator, log)
-            }
-            case CommandTag.RunCommand => {
+            case CommandTag.RunCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
                 ctx.args.target = Target.bun
 
@@ -523,20 +500,17 @@ public class Command {
                     }
                     Global.exit(1)
                 }
-            }
-            case CommandTag.RunAsNodeCommand => {
+            case CommandTag.RunAsNodeCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RunAsNodeCommand)
                 RunCommand.execAsIfNode(ctx)
-            }
-            case CommandTag.UpgradeCommand => {
+            case CommandTag.UpgradeCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.UpgradeCommand)
                 UpgradeCommand.exec(ctx)
-            }
-            case CommandTag.AutoCommand => {
+            case CommandTag.AutoCommand =>
                 let ctx = try {
                     Command.initContext(allocator, log, CommandTag.AutoCommand)
                 } catch (e: Exception) {
-                    HelpCommand.execWithReason(allocator, HelpCommand.Reason.explicit)
+                    HelpCommand.execWithReason(allocator, HelpCommand.HelpCommandReason.explicit)
                     return
                 }
                 ctx.args.target = Target.bun
@@ -573,22 +547,18 @@ public class Command {
 
                 Output.flush()
                 HelpCommand.exec(allocator)
-            }
-            case CommandTag.ExecCommand => {
+            case CommandTag.ExecCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.ExecCommand)
                 if (ctx.positionals.length > 1) {
                     ExecCommand.exec(ctx)
                 } else {
                     CommandTag.printHelp(CommandTag.ExecCommand, true)
                 }
-            }
-            case CommandTag.FuzzilliCommand => {
+            case CommandTag.FuzzilliCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.FuzzilliCommand)
                 FuzzilliCommand.exec(ctx)
-            }
-            case _ => {
+            case _ =>
                 HelpCommand.exec(allocator)
-            }
         }
     }
 
@@ -745,7 +715,7 @@ public class Command {
     private static func execInfoCommand(allocator: Allocator, log: Log): Unit {
         let cli = PackageManager.CommandLineArguments.parse(allocator, Subcommand.info)
         let ctx = Command.initContext(allocator, log, CommandTag.InfoCommand)
-        val (pm, _) = PackageManager.init(ctx, cli, Subcommand.info)
+        let (pm, _) = PackageManager.`init`(ctx, cli, Subcommand.info)
 
         var packageName = ""
         var propertyPath: ?String = None
@@ -830,7 +800,7 @@ public enum CommandTag {
     /// 检查命令是否使用全局选项
     /// 对应 Bun: Command.Tag.uses_global_options
     public static func usesGlobalOptions(tag: CommandTag): Bool {
-        when (tag) {
+        match (tag) {
             case CommandTag.DiscordCommand,
                  CommandTag.HelpCommand,
                  CommandTag.ReservedCommand,
@@ -845,14 +815,12 @@ public enum CommandTag {
     /// 打印帮助
     /// 对应 Bun: Command.Tag.printHelp / tagPrintHelp
     public static func printHelp(cmd: CommandTag, showAllFlags: Bool): Unit {
-        when (cmd) {
-            case CommandTag.AutoCommand => {
-                HelpCommand.printWithReason(HelpCommand.Reason.explicit, showAllFlags)
-            }
-            case CommandTag.RunCommand, CommandTag.RunAsNodeCommand => {
+        match (cmd) {
+            case CommandTag.AutoCommand =>
+                HelpCommand.printWithReason(HelpCommand.HelpCommandReason.explicit, showAllFlags)
+            case CommandTag.RunCommand, CommandTag.RunAsNodeCommand =>
                 RunCommand.printHelp(None)
-            }
-            case CommandTag.InitCommand => {
+            case CommandTag.InitCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao init<r> <cyan>[flags]<r> <blue>[\\<folder\\>]<r>\n")
                 Output.pretty("  Initialize a Bao project in the current directory.\n")
                 Output.pretty("  Creates a package.json, tsconfig.json, and baofig.toml if they don't exist.\n\n")
@@ -862,8 +830,7 @@ public enum CommandTag {
                 Output.pretty("  <cyan>-m, --minimal<r>          Only initialize type definitions\n")
                 Output.pretty("  <cyan>-r, --react<r>            Initialize a React project\n\n")
                 Output.flush()
-            }
-            case CommandTag.BunxCommand => {
+            case CommandTag.BunxCommand =>
                 Output.prettyErrorLn("<b>Usage<r>: <b><green>baox<r> <cyan>[flags]<r> <blue>\\<package\\><r><d>\\<@version\\><r> [flags and arguments for the package]<r>")
                 Output.prettyErrorLn("Execute an npm package executable (CLI), automatically installing if needed.\n\n")
                 Output.prettyErrorLn("Flags:\n")
@@ -871,68 +838,56 @@ public enum CommandTag {
                 Output.prettyErrorLn("  <cyan>-p, --package <blue>\\<package\\><r>    Specify package to install\n")
                 Output.prettyErrorLn("  <cyan>--no-install<r>           Skip installation if package is not already installed\n\n")
                 Output.flush()
-            }
-            case CommandTag.BuildCommand => {
+            case CommandTag.BuildCommand =>
                 Output.pretty("<b>Usage<r>:\n  Transpile and bundle one or more files.\n")
                 Output.pretty("  <b><green>bao build<r> <cyan>[flags]<r> <blue>\\<entrypoint\\><r>\n\n")
                 Output.pretty("<b>Examples:<r>\n")
                 Output.pretty("  <b><green>bao build<r> <cyan>--outfile=bundle.js<r> <blue>./src/index.ts<r>\n")
                 Output.pretty("  <b><green>bao build<r> <cyan>--compile --outfile=my-app<r> <blue>./cli.ts<r>\n\n")
                 Output.flush()
-            }
-            case CommandTag.TestCommand => {
+            case CommandTag.TestCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao test<r> <cyan>[flags]<r> <blue>[\\<patterns\\>]<r>\n")
                 Output.pretty("  Run all matching test files and print the results to stdout\n\n")
                 Output.pretty("<b>Examples:<r>\n")
                 Output.pretty("  <b><green>bao test<r>\n")
                 Output.pretty("  <b><green>bao test<r> <blue>foo bar<r>\n\n")
                 Output.flush()
-            }
-            case CommandTag.CreateCommand => {
+            case CommandTag.CreateCommand =>
                 Output.pretty("<b>Usage<r>:\n")
                 Output.pretty("  <b><green>bao create<r> <magenta>\\<template\\><r> <cyan>[...flags]<r> <blue>dest<r>\n\n")
                 Output.flush()
-            }
-            case CommandTag.HelpCommand => {
-                HelpCommand.printWithReason(HelpCommand.Reason.explicit, false)
-            }
-            case CommandTag.UpgradeCommand => {
+            case CommandTag.HelpCommand =>
+                HelpCommand.printWithReason(HelpCommand.HelpCommandReason.explicit, false)
+            case CommandTag.UpgradeCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao upgrade<r> <cyan>[flags]<r>\n")
                 Output.pretty("  Upgrade Bao\n\n")
                 Output.pretty("<b>Examples:<r>\n")
                 Output.pretty("  <b><green>bao upgrade<r>\n\n")
                 Output.flush()
-            }
-            case CommandTag.ReplCommand => {
+            case CommandTag.ReplCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao repl<r> <cyan>[flags]<r>\n")
                 Output.pretty("  Open a Bao REPL\n\n")
                 Output.flush()
-            }
-            case CommandTag.GetCompletionsCommand => {
+            case CommandTag.GetCompletionsCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao getcompletes<r>")
                 Output.flush()
-            }
-            case CommandTag.InstallCompletionsCommand => {
+            case CommandTag.InstallCompletionsCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao completions<r>")
                 Output.flush()
-            }
-            case CommandTag.PatchCommand => {
+            case CommandTag.PatchCommand =>
                 PackageManager.CommandLineArguments.printHelp(Subcommand.patch)
-            }
-            case CommandTag.PatchCommitCommand => {
+            case CommandTag.PatchCommitCommand =>
                 PackageManager.CommandLineArguments.printHelp(Subcommand.patchCommit)
-            }
-            case CommandTag.ExecCommand => {
+            case CommandTag.ExecCommand =>
                 Output.pretty("<b>Usage: bao exec <r><cyan>\\<script\\><r>\n\n")
                 Output.pretty("Execute a shell script directly from Bao.\n\n")
                 Output.pretty("<b><red>Note<r>: If executing this from a shell, make sure to escape the string!\n\n")
                 Output.pretty("<b>Examples<d>:<r>\n")
                 Output.pretty("  <b>bao exec \"echo hi\"<r>\n\n")
                 Output.flush()
-            }
             case CommandTag.OutdatedCommand, CommandTag.UpdateInteractiveCommand,
                  CommandTag.PublishCommand, CommandTag.AuditCommand => {
-                let subcmd = when (cmd) {
+                let subcmd = match (cmd) {
                     case CommandTag.OutdatedCommand => Subcommand.outdated
                     case CommandTag.UpdateInteractiveCommand => Subcommand.update
                     case CommandTag.PublishCommand => Subcommand.publish
@@ -941,15 +896,14 @@ public enum CommandTag {
                 }
                 PackageManager.CommandLineArguments.printHelp(subcmd)
             }
-            case CommandTag.InfoCommand => {
+            case CommandTag.InfoCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao info<r> <cyan>[flags]<r> <blue>\\<package\\><r> <blue>[property path]<r>\n")
                 Output.pretty("  Display package metadata from the registry.\n\n")
                 Output.pretty("<b>Examples:<r>\n")
                 Output.pretty("  <b><green>bao info<r> <blue>react<r>\n")
                 Output.pretty("  <b><green>bao info<r> <blue>react<r> version\n\n")
                 Output.flush()
-            }
-            case CommandTag.WhyCommand => {
+            case CommandTag.WhyCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao why<r> <cyan>[flags]<r> <blue>\\<package\\><r>\n")
                 Output.pretty("  Explain why a package is installed\n\n")
                 Output.pretty("<b>Arguments:<r>\n")
@@ -957,10 +911,8 @@ public enum CommandTag {
                 Output.pretty("<b>Examples:<r>\n")
                 Output.pretty("  <b><green>bao why<r> <blue>react<r>\n\n")
                 Output.flush()
-            }
-            case _ => {
-                HelpCommand.printWithReason(HelpCommand.Reason.explicit, false)
-            }
+            case _ =>
+                HelpCommand.printWithReason(HelpCommand.HelpCommandReason.explicit, false)
         }
     }
 }

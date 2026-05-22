@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toThrow() - 检查函数是否抛出异常
 /// 用法: expect(fn).toThrow() / expect(fn).toThrow("message") / expect(fn).toThrow(ErrorClass)
-public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -16,10 +16,10 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     this.incrementExpectCallCounter()
 
     // 解析 expected_value
-    var expectedValue: JSValue = JSValue.zero
+    var expectedValue: JsValue = JsValue.zero
     let value = arguments[0]
     if (value.isUndefined()) {
-        expectedValue = JSValue.zero
+        expectedValue = JsValue.zero
     } else if (value.isUndefinedOrNull() || (!value.isObject() && !value.isString())) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
         defer { formatter.deinit() }
@@ -33,8 +33,8 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     } else if (value.isString()) {
         // `.toThrow("") behaves the same as `.toThrow()`
         let s = value.toJSString(globalThis)
-        if (s.length() == 0) {
-            expectedValue = JSValue.zero
+        if (s.size() == 0) {
+            expectedValue = JsValue.zero
         } else {
             expectedValue = value
         }
@@ -47,14 +47,14 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
     let (result_, returnValueFromFunction) = this.getValueAsToThrow(globalThis: globalThis, value: this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toThrow", matcherParamsFmt: "<green>expected<r>"))
 
-    let didThrow = result_ != JSValue.zero
+    let didThrow = result_ != JsValue.zero
 
     // ========== not 分支 ==========
     if (not) {
         let signature = Expect.getSignature(matcherName: "toThrow", args: "<green>expected<r>", not: true)
 
         if (!didThrow) {
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
 
         let result = result_
@@ -62,11 +62,11 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
         defer { formatter.deinit() }
 
         // expected 为空或 undefined
-        if (expectedValue == JSValue.zero || expectedValue.isUndefined() ){
+        if (expectedValue == JsValue.zero || expectedValue.isUndefined() ){
             let signatureNoArgs = Expect.getSignature(matcherName: "toThrow", args: "", not: true)
             if (let Some(err) <- result.toError() ){
-                let name: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "name") ?? JSValue.jsUndefined
-                let message: JSValue = err.getTruthyComptime(globalThis: globalThis, key: "message") ?? JSValue.jsUndefined
+                let name: JsValue = err.getTruthyComptime(globalThis: globalThis, key: "name") ?? JsValue.jsUndefined
+                let message: JsValue = err.getTruthyComptime(globalThis: globalThis, key: "message") ?? JsValue.jsUndefined
                 let fmt = signatureNoArgs + "\n\nError name: <red>{f}<r>\nError message: <red>{f}<r>\n"
                 return globalThis.throwPretty(fmt, args: [name.toFmt(formatter), message.toFmt(formatter)])
             }
@@ -77,16 +77,16 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
         // expected 是字符串 (部分匹配)
         if (expectedValue.isString()) {
-            var receivedMessage: JSValue = JSValue.jsUndefined
+            var receivedMessage: JsValue = JsValue.jsUndefined
             if (result.isObject()) {
                 let tmpMsg = result.fastGet(globalThis: globalThis, property: "message")
                 if (let Some(msg) <- tmpMsg) {
                     receivedMessage = msg
                 }
             } else {
-                receivedMessage = JSValue.fromCell(result.toJSString(globalThis))
+                receivedMessage = JsValue.fromCell(result.toJSString(globalThis))
             }
-            if (globalThis.hasException()) { return JSValue.zero }
+            if (globalThis.hasException()) { return JsValue.zero }
 
             // partial match
             let expectedSlice = expectedValue.toSliceOrNull(globalThis: globalThis)
@@ -94,7 +94,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
             let receivedSlice = receivedMessage.toSliceOrNull(globalThis: globalThis)
             defer { receivedSlice.deinit() }
             if (!strings.contains(receivedSlice.slice(), expectedSlice.slice()) ){
-                return JSValue.jsUndefined
+                return JsValue.jsUndefined
             }
 
             return this.throw_(globalThis: globalThis, signature: signature,
@@ -104,21 +104,21 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
         // expected 是正则表达式
         if (expectedValue.isRegExp()) {
-            var receivedMessage: JSValue = JSValue.jsUndefined
+            var receivedMessage: JsValue = JsValue.jsUndefined
             if (result.isObject()) {
                 let tmpMsg = result.fastGet(globalThis: globalThis, property: "message")
                 if (let Some(msg) <- tmpMsg) {
                     receivedMessage = msg
                 }
             } else {
-                receivedMessage = JSValue.fromCell(result.toJSString(globalThis))
+                receivedMessage = JsValue.fromCell(result.toJSString(globalThis))
             }
-            if (globalThis.hasException()) { return JSValue.zero }
+            if (globalThis.hasException()) { return JsValue.zero }
 
             if (let Some(testFn) <- expectedValue.get(globalThis: globalThis, key: "test") ){
                 let matches = testFn.call(globalThis: globalThis, thisValue: expectedValue, args: [receivedMessage])
                 if (!matches.toBoolean()) {
-                    return JSValue.jsUndefined
+                    return JsValue.jsUndefined
                 }
             }
 
@@ -129,20 +129,20 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
         // expected 含有 message 属性 (完全匹配)
         if (let Some(expectedMessage) <- expectedValue.fastGet(globalThis: globalThis, property: "message") ){
-            var receivedMessage: JSValue = JSValue.jsUndefined
+            var receivedMessage: JsValue = JsValue.jsUndefined
             if (result.isObject()) {
                 let tmpMsg = result.fastGet(globalThis: globalThis, property: "message")
                 if (let Some(msg) <- tmpMsg) {
                     receivedMessage = msg
                 }
             } else {
-                receivedMessage = JSValue.fromCell(result.toJSString(globalThis))
+                receivedMessage = JsValue.fromCell(result.toJSString(globalThis))
             }
-            if (globalThis.hasException()) { return JSValue.zero }
+            if (globalThis.hasException()) { return JsValue.zero }
 
             // no partial match for this case
             if (!expectedMessage.isSameValue(receivedMessage, globalThis: globalThis) ){
-                return JSValue.jsUndefined
+                return JsValue.jsUndefined
             }
 
             return this.throw_(globalThis: globalThis, signature: signature,
@@ -152,12 +152,12 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
         // 检查 instanceof
         if (!result.isInstanceOf(globalThis: globalThis, expected: expectedValue) ){
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
 
         var expectedClass = ZigString.Empty
         expectedValue.getClassName(globalThis: globalThis, result: expectedClass)
-        var receivedMessage: JSValue = JSValue.jsUndefined
+        var receivedMessage: JsValue = JsValue.jsUndefined
         let tmpMsg2 = result.fastGet(globalThis: globalThis, property: "message")
         if (let Some(msg2) <- tmpMsg2) {
             receivedMessage = msg2
@@ -169,8 +169,8 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
     // ========== 正向分支: didThrow ==========
     if (didThrow) {
-        if (expectedValue == JSValue.zero || expectedValue.isUndefined() ){
-            return JSValue.jsUndefined
+        if (expectedValue == JsValue.zero || expectedValue.isUndefined() ){
+            return JsValue.jsUndefined
         }
 
         let result = if (let Some(r) <- result_.toError()) {
@@ -179,11 +179,11 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
             result_
         }
 
-        var receivedMessage: ?JSValue = None
+        var receivedMessage: ?JsValue = None
         if (result.isObject()) {
             receivedMessage = result.fastGet(globalThis: globalThis, property: "message")
         } else {
-            receivedMessage = JSValue.fromCell(result.toJSString(globalThis))
+            receivedMessage = JsValue.fromCell(result.toJSString(globalThis))
         }
 
         // expected 是字符串
@@ -195,7 +195,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
                 let receivedSlice = recvMsg.toSlice(globalThis: globalThis, allocator: globalThis.allocator())
                 defer { receivedSlice.deinit() }
                 if (strings.contains(receivedSlice.slice(), expectedSlice.slice()) ){
-                    return JSValue.jsUndefined
+                    return JsValue.jsUndefined
                 }
             }
 
@@ -221,7 +221,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
                 if (let Some(testFn) <- expectedValue.get(globalThis: globalThis, key: "test") ){
                     let matches = testFn.call(globalThis: globalThis, thisValue: expectedValue, args: [recvMsg])
                     if (matches.toBoolean()) {
-                        return JSValue.jsUndefined
+                        return JsValue.jsUndefined
                     }
                 }
             }
@@ -248,11 +248,11 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
             let isEqual = result.jestStrictDeepEquals(expectedValue, globalThis: globalThis)
 
             if (globalThis.hasException()) {
-                return JSValue.zero
+                return JsValue.zero
             }
 
             if (isEqual) {
-                return JSValue.jsUndefined
+                return JsValue.jsUndefined
             }
 
             let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
@@ -268,7 +268,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
             if (let Some(recvMsg) <- receivedMessage) {
                 if (recvMsg.isSameValue(expectedMessage, globalThis: globalThis)) {
-                    return JSValue.jsUndefined
+                    return JsValue.jsUndefined
                 }
             }
 
@@ -288,7 +288,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
         // instanceof 检查
         if (result.isInstanceOf(globalThis: globalThis, expected: expectedValue)) {
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
 
         // 构造函数不匹配
@@ -316,7 +316,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     defer { formatter.deinit() }
     let receivedLine = "Received function did not throw\nReceived value: <red>{f}<r>\n"
 
-    if (expectedValue == JSValue.zero || expectedValue.isUndefined() ){
+    if (expectedValue == JsValue.zero || expectedValue.isUndefined() ){
         let signature = Expect.getSignature(matcherName: "toThrow", args: "", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n" + receivedLine,

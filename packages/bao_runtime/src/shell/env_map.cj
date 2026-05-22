@@ -30,7 +30,7 @@ public class EnvMap {
     var map: HashMap<EnvStr, EnvStr>
 
     /// 初始化
-    /// 对应 Bun: EnvMap.init(alloc)
+    /// 对应 Bun: EnvMap(alloc)
     public static func initFunc(alloc: Allocator): EnvMap {
         EnvMap(map: HashMap<EnvStr, EnvStr>())
     }
@@ -78,7 +78,7 @@ public class EnvMap {
     /// 调用者应在传入前 defer val.deref()！
     public func insert(key: EnvStr, val: EnvStr) {
         let existing = this.map.get(key)
-        if (existing == None) {
+        if (existing.isNone()) {
             // 新键 — 增加键的引用
             key.ref()
         } else {
@@ -117,7 +117,7 @@ public class EnvMap {
     /// 增加返回值的引用。调用者负责在完成后 deref！
     public func get(key: EnvStr): ?EnvStr {
         let val = this.map.get(key)
-        if (val == None) {
+        if (val.isNone()) {
             return None
         }
         // 增加返回值的引用
@@ -189,7 +189,7 @@ public class EnvMap {
 
         /// 是否有下一个
         public func hasNext(): Boolean {
-            return this.index < this.entries.length
+            return this.index < this.entries.size
         }
 
         /// 获取下一个条目
@@ -206,7 +206,7 @@ public class EnvMap {
 
         /// 映射长度
         public func len(): UInt64 {
-            return UInt64(this.entries.length)
+            return UInt64(this.entries.size)
         }
     }
 }

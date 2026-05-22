@@ -169,10 +169,10 @@ public class UpgradeCommand {
         let version = getLatestVersion(opts)
 
         match (version) {
-            case Some(ver) => {
+            case Some(ver) =>
                 let verName = ver.name()
                 match (verName) {
-                    case Some(name) => {
+                    case Some(name) =>
                         // 检查是否已是最新
                         if (ver.isCurrent()) {
                             logger.success("You're already on the latest version of Bao (${name})")
@@ -185,7 +185,7 @@ public class UpgradeCommand {
                         logger.info("Downloading...")
                         let zipData = downloadZip(ver, opts)
                         match (zipData) {
-                            case Some(data) => {
+                            case Some(data) =>
                                 if (data.size == 0) {
                                     logger.error("Downloaded empty content")
                                     return
@@ -199,7 +199,7 @@ public class UpgradeCommand {
                                 // 步骤3: 解压到临时目录
                                 let tmpDir = extractToTemp(data, name)
                                 match (tmpDir) {
-                                    case Some(dir) => {
+                                    case Some(dir) =>
                                         // 步骤4: 验证
                                         let verified = verifyBinary(dir, name)
                                         if (verified) {
@@ -217,20 +217,15 @@ public class UpgradeCommand {
                                         }
                                         // 清理临时目录
                                         BaoFile.removeTree(dir)
-                                    }
                                     case None => logger.error("Extraction failed")
                                 }
-                            }
                             case None => logger.error("Download failed")
                         }
-                    }
                     case None => logger.error("Could not determine version name")
                 }
-            }
-            case None => {
+            case None =>
                 logger.error("Could not fetch latest version from GitHub")
                 return
-            }
         }
     }
 
@@ -243,20 +238,18 @@ public class UpgradeCommand {
         // 复用 stable 的下载和替换流程
         let zipData = downloadZip(version, opts)
         match (zipData) {
-            case Some(data) => {
+            case Some(data) =>
                 let tmpDir = extractToTemp(data, "canary")
                 match (tmpDir) {
-                    case Some(dir) => {
+                    case Some(dir) =>
                         let replaced = replaceExecutable(dir)
                         if (replaced) {
                             logger.success("Upgraded to latest canary build!")
                             logger.info("Report bugs: https://github.com/bao-dev/bao/issues")
                         }
                         BaoFile.removeTree(dir)
-                    }
                     case None => logger.error("Extraction failed")
                 }
-            }
             case None => logger.error("Canary build not available for this platform yet")
         }
     }
@@ -274,13 +267,13 @@ public class UpgradeCommand {
         let client = HttpClient()
         let response = client.get(apiUrl)
         match (response) {
-            case Some(resp) => {
+            case Some(resp) =>
                 if (resp.statusCode == 200) {
                     // 解析 JSON 响应
                     let parser = JsonParser()
                     let json = parser.parse(resp.body)
                     match (json) {
-                        case Some(root) => {
+                        case Some(root) =>
                             var tag = ""
                             var zipUrl = ""
                             var size: Int64 = 0
@@ -293,28 +286,25 @@ public class UpgradeCommand {
 
                             // 在 assets 中查找匹配平台的 zip
                             match (JsonHelper.getField(root, "assets")) {
-                                case Some(JsonValue.Array(assets)) => {
+                                case Some(JsonValue.Array(assets)) =>
                                     for (asset in assets) {
                                         let contentType = JsonHelper.getString(asset, "content_type")
                                         match (contentType) {
-                                            case Some(ct) => {
+                                            case Some(ct) =>
                                                 if (ct == "application/zip") {
                                                     let assetName = JsonHelper.getString(asset, "name")
                                                     match (assetName) {
-                                                        case Some(n) => {
+                                                        case Some(n) =>
                                                             if (n == PlatformInfo.zipFilename()) {
                                                                 zipUrl = JsonHelper.getString(asset, "browser_download_url") ?? ""
                                                                 size = JsonHelper.getInt64(asset, "size") ?? 0
                                                             }
-                                                        }
                                                         case None => ()
                                                     }
                                                 }
-                                            }
                                             case None => ()
                                         }
                                     }
-                                }
                                 case _ => ()
                             }
 
@@ -324,7 +314,6 @@ public class UpgradeCommand {
                                 ver.size = size
                                 return Some(ver)
                             }
-                        }
                         case None => ()
                     }
                 } else if (resp.statusCode == 404) {
@@ -334,7 +323,6 @@ public class UpgradeCommand {
                 } else {
                     logger.error("GitHub returned status ${resp.statusCode}")
                 }
-            }
             case None => logger.error("Could not connect to GitHub")
         }
         return None
@@ -346,17 +334,15 @@ public class UpgradeCommand {
         let client = HttpClient()
         let response = client.get(version.zipUrl)
         match (response) {
-            case Some(resp) => {
+            case Some(resp) =>
                 if (resp.statusCode == 200) {
                     return Some(resp.bodyBytes)
                 }
                 logger.error("Download failed with status ${resp.statusCode}")
                 return None
-            }
-            case None => {
+            case None =>
                 logger.error("Could not download from ${version.zipUrl}")
                 return None
-            }
         }
     }
 
@@ -375,17 +361,15 @@ public class UpgradeCommand {
         // 解压 (调用系统 unzip)
         let result = Process.spawn(["unzip", "-q", "-o", zipPath], extractDir)
         match (result) {
-            case Some(exitCode) => {
+            case Some(exitCode) =>
                 if (exitCode == 0) {
                     return Some(extractDir)
                 }
                 logger.error("Unzip failed with exit code ${exitCode}")
                 return None
-            }
-            case None => {
+            case None =>
                 logger.error("Could not find 'unzip' in PATH")
                 return None
-            }
         }
     }
 
@@ -450,10 +434,9 @@ public class UpgradeCommand {
                 case "--canary" => opts.canary = true
                 case "--stable" => opts.stable = true
                 case "--dry-run" => opts.dryRun = true
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printUpgradeHelp()
                     return opts
-                }
                 case _ => logger.warn("Unknown option: ${arg}")
             }
         }

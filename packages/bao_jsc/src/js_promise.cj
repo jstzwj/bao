@@ -3,11 +3,21 @@
 
 package bao_jsc
 
+import bao_collections.*
+
 // Promise 状态 - 严格翻译自 JSPromise.zig Status
 public enum JsPromiseState {
     | Pending
     | Fulfilled
     | Rejected
+
+    public func toString(): String {
+        match (this) {
+            case Pending => "pending"
+            case Fulfilled => "fulfilled"
+            case Rejected => "rejected"
+        }
+    }
 }
 
 // Promise 反应 (then 回调)
@@ -27,7 +37,7 @@ class PromiseReaction {
 public class JsPromise {
     var state: JsPromiseState = JsPromiseState.Pending
     var result: JsValue = JsValue.undefined()
-    var reactions: Array<PromiseReaction> = []
+    var reactions: ArrayList<PromiseReaction> = ArrayList<PromiseReaction>()
     var isHandled: Bool = false
 
     public init() {}
@@ -78,7 +88,9 @@ public class JsPromise {
 
     // catch - Promise.prototype.catch
     public func `catch`(onRejected: JsFunction): JsPromise {
-        then(None, Some(onRejected))
+        let noResolve: ?JsFunction = None
+        let someReject: ?JsFunction = Some(onRejected)
+        then(noResolve, someReject)
     }
 
     // finally - Promise.prototype.finally
@@ -140,9 +152,50 @@ public class JsPromise {
         let obj = JsObject.make()
         obj.className = "Promise"
         // 存储内部状态
-        obj.set("[[PromiseState]]", JsValue(s: state.toString()))
+        obj.set("[[PromiseState]]", JsValue(state.toString()))
         obj.set("[[PromiseResult]]", result)
-        return JsValue(obj: obj)
+        return JsValue(obj)
+    }
+
+    // ========== AnyPromise 需要的方法 ==========
+
+    // unwrap - 解包 Promise
+    public func unwrap(mode: JSPromiseUnwrapMode): JsPromiseUnwrapped {
+        let w = JsPromiseUnwrapped()
+        match (state) {
+            case JsPromiseState.Fulfilled =>
+                w.isSuccess = true
+                w.value = result
+            case JsPromiseState.Rejected =>
+                w.isSuccess = false
+                w.value = result
+            case JsPromiseState.Pending => ()
+        }
+        w
+    }
+
+    // status - 获取状态
+    public func status(): JSPromiseStatus {
+        match (state) {
+            case JsPromiseState.Pending => JSPromiseStatus.Pending
+            case JsPromiseState.Fulfilled => JSPromiseStatus.Fulfilled
+            case JsPromiseState.Rejected => JSPromiseStatus.Rejected
+        }
+    }
+
+    // getResult - 获取结果
+    public func getResult(): JsValue {
+        result
+    }
+
+    // isHandledStatus
+    public func isHandledStatus(): Bool {
+        isHandled
+    }
+
+    // setHandled
+    public func setHandled() {
+        isHandled = true
     }
 }
 

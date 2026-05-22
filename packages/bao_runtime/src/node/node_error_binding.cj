@@ -25,8 +25,8 @@ public enum NodeErrorCode {
 // 对应 Bun: src/runtime/node/node_error_binding.zig - createSimpleError
 //
 // Bun 使用 comptime 宏展开为：
-//   pub fn ERR_INVALID_HANDLE_TYPE(global) -> JsResult<JSValue> { ... }
-//   pub fn ERR_CHILD_CLOSED_BEFORE_REPLY(global) -> JsResult<JSValue> { ... }
+//   pub fn ERR_INVALID_HANDLE_TYPE(global) -> JsResult<JsValue> { ... }
+//   pub fn ERR_CHILD_CLOSED_BEFORE_REPLY(global) -> JsResult<JsValue> { ... }
 // 每个函数返回一个 JSFunction，调用时创建带有 code 属性的错误对象。
 // ============================================================================
 public class NodeErrorBinding {

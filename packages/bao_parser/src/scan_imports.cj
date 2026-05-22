@@ -167,7 +167,6 @@ public class ImportScanVisitor {
                      hmrContext: ?ConvertESMExportsForHmr): ImportScanner {
         var scanner = ImportScanner()
         var stmtsEnd = 0
-        let allocator = p.allocator
         let isTypeScriptEnabled = p.options.features.typescript
         let keepUnusedImports = !p.options.features.trimUnusedImports
 
@@ -184,12 +183,12 @@ public class ImportScanVisitor {
                 //   非 bundle 模式: ESM 实时绑定处理
                 // ==================================================================
                 case StmtTag.Import =>
-                    let record = p.importRecords.get(stmt.importRecordIndex)
+                    let record = p.importRecords[stmt.importRecordIndex]
 
                     // 宏导入直接跳过
                     if (record.path.isMacro()) {
                         record.flags.isUnused = true
-                        record.path.isDisabled = true
+                        record.pathIsDisabled = true
                         shouldSkip = true
                     }
 
@@ -207,12 +206,12 @@ public class ImportScanVisitor {
                             var isUnusedInTypeScript = true
 
                             // 检查默认导入
-                            if (stmt.defaultNameLoc != None) {
+                            if (stmt.defaultNameLoc.isSome()) {
                                 foundImports = true
-                                let symbol = p.symbols.get(stmt.defaultNameRef.innerIndex())
+                                let symbol = p.symbols[stmt.defaultNameRef.innerIndex]
 
                                 // TypeScript 使用单独的未使用定义
-                                if (isTypeScriptEnabled && p.tsUseCounts.get(stmt.defaultNameRef.innerIndex()) != 0) {
+                                if (isTypeScriptEnabled && p.tsUseCounts[stmt.defaultNameRef.innerIndex] != 0) {
                                     isUnusedInTypeScript = false
                                 }
 
@@ -223,11 +222,11 @@ public class ImportScanVisitor {
                             }
 
                             // 检查命名空间导入 (import *)
-                            if (stmt.starNameLoc != None) {
+                            if (stmt.starNameLoc.isSome()) {
                                 foundImports = true
-                                let symbol = p.symbols.get(stmt.namespaceRef.innerIndex())
+                                let symbol = p.symbols[stmt.namespaceRef.innerIndex]
 
-                                if (isTypeScriptEnabled && p.tsUseCounts.get(stmt.namespaceRef.innerIndex()) != 0) {
+                                if (isTypeScriptEnabled && p.tsUseCounts[stmt.namespaceRef.innerIndex] != 0) {
                                     isUnusedInTypeScript = false
                                 }
 
@@ -253,9 +252,9 @@ public class ImportScanVisitor {
                                 for (j in 0..stmt.importItems.size) {
                                     let item = stmt.importItems[Int64(j)]
                                     let ref = item.nameRef
-                                    let symbol = p.symbols.get(ref.innerIndex())
+                                    let symbol = p.symbols[ref.innerIndex]
 
-                                    if (isTypeScriptEnabled && p.tsUseCounts.get(ref.innerIndex()) != 0) {
+                                    if (isTypeScriptEnabled && p.tsUseCounts[ref.innerIndex] != 0) {
                                         isUnusedInTypeScript = false
                                     }
 
@@ -270,9 +269,9 @@ public class ImportScanVisitor {
 
                             // TypeScript: 所有导入都未使用时完全移除
                             // JavaScript: trim_unused_imports 且所有项都移除时移除
-                            let allItemsRemoved = stmt.starNameLoc == None &&
+                            let allItemsRemoved = stmt.starNameLoc .isNone() &&
                                                   stmt.importItems.size == 0 &&
-                                                  stmt.defaultNameLoc == None
+                                                  stmt.defaultNameLoc .isNone()
                             if ((isTypeScriptEnabled && foundImports && isUnusedInTypeScript &&
                                  !p.options.preserveUnusedImportsTs) ||
                                 (!isTypeScriptEnabled && p.options.features.trimUnusedImports &&
@@ -291,18 +290,16 @@ public class ImportScanVisitor {
                         // ====================================================================
                         let namespaceRef = stmt.namespaceRef
                         let convertStarToClause = !p.options.bundle &&
-                            p.symbols.get(namespaceRef.innerIndex()).useCountEstimate == 0
+                            p.symbols[namespaceRef.innerIndex].useCountEstimate == 0
 
                         if (convertStarToClause && !keepUnusedImports) {
                             stmt.starNameLoc = None
                         }
 
                         record.flags.containsDefaultAlias = record.flags.containsDefaultAlias ||
-                            stmt.defaultNameLoc != None
+                            stmt.defaultNameLoc.isSome()
 
-                        let existingItems = p.importItemsForNamespace.get(namespaceRef).getOrElse(
-                            ImportItemForNamespaceMap()
-                        )
+                        let existingItems = if (let Some(items) <- p.importItemsForNamespace.get(namespaceRef)) { items } else { ImportItemForNamespaceMap() }
 
                         if (p.options.bundle) {
                             // ================================================================
@@ -313,21 +310,21 @@ public class ImportScanVisitor {
                             // ================================================================
 
                             // 处理命名空间属性访问
-                            if (stmt.starNameLoc != None && existingItems.count() > 0) {
+                            if (stmt.starNameLoc.isSome() && existingItems.count() > 0) {
                                 // 将排序后的属性名转为命名导入
-                                for (entry in existingItems.entries()) {
-                                    let alias = entry.key
-                                    let item = entry.value
-                                    p.namedImports.put(item.ref.getOrElse(Ref.NONE), NamedImport(
+                                for (entry in existingItems.items()) {
+                                    let alias = entry.first
+                                    let item = entry.second
+                                    p.namedImports.put(item.ref.getOr(Ref.NONE), NamedImport(
                                         alias, item.loc, namespaceRef, stmt.importRecordIndex
                                     ))
 
-                                    let nameRef = item.ref.getOrElse(Ref.NONE)
-                                    let sym = p.symbols.get(nameRef.innerIndex())
+                                    let nameRef = item.ref.getOr(Ref.NONE)
+                                    let sym = p.symbols[nameRef.innerIndex]
 
                                     // 标记命名空间别名以便打印机打印为属性访问
                                     sym.namespaceAliasRef = namespaceRef
-                                    sym.namespaceAliasImportRecordIndex = stmt.importRecordIndex
+                                    sym.namespaceAliasImportRecordIndex = UInt32(stmt.importRecordIndex)
 
                                     // 记录自动生成的顶层命名空间别名符号
                                     p.declaredSymbols.append(DeclaredSymbol(nameRef, true))
@@ -335,8 +332,8 @@ public class ImportScanVisitor {
                             }
 
                             // 处理星号导入
-                            if (stmt.starNameLoc != None) {
-                                let loc = stmt.starNameLoc.getOrElse(Loc.EMPTY)
+                            if (stmt.starNameLoc.isSome()) {
+                                let loc = stmt.starNameLoc.getOr(Loc.EMPTY)
                                 record.flags.containsImportStar = true
                                 p.namedImports.put(namespaceRef, NamedImport(
                                     "", loc, Ref.NONE, stmt.importRecordIndex
@@ -348,11 +345,11 @@ public class ImportScanVisitor {
                             }
 
                             // 处理默认导入
-                            if (stmt.defaultNameLoc != None) {
+                            if (stmt.defaultNameLoc.isSome()) {
                                 let defaultRef = stmt.defaultNameRef
                                 record.flags.containsDefaultAlias = true
                                 p.namedImports.put(defaultRef, NamedImport(
-                                    "default", stmt.defaultNameLoc.getOrElse(Loc.EMPTY),
+                                    "default", stmt.defaultNameLoc.getOr(LocRef(Loc.EMPTY, Option<Ref>.None)).loc,
                                     namespaceRef, stmt.importRecordIndex
                                 ))
                             }
@@ -381,28 +378,28 @@ public class ImportScanVisitor {
                                 ))
 
                                 // 标记命名空间别名
-                                let sym = p.symbols.get(nameRef.innerIndex())
-                                if (record.flags.containsImportStar || stmt.starNameLoc != None) {
+                                let sym = p.symbols[nameRef.innerIndex]
+                                if (record.flags.containsImportStar || stmt.starNameLoc.isSome()) {
                                     sym.namespaceAliasRef = namespaceRef
-                                    sym.namespaceAliasImportRecordIndex = stmt.importRecordIndex
+                                    sym.namespaceAliasImportRecordIndex = UInt32(stmt.importRecordIndex)
                                 }
                             }
 
                             // require 语句的命名空间别名
                             if (record.flags.wasOriginallyRequire) {
-                                let sym = p.symbols.get(namespaceRef.innerIndex())
+                                let sym = p.symbols[namespaceRef.innerIndex]
                                 sym.namespaceAliasRef = namespaceRef
-                                sym.namespaceAliasImportRecordIndex = stmt.importRecordIndex
+                                sym.namespaceAliasImportRecordIndex = UInt32(stmt.importRecordIndex)
                             }
                         }
 
                         // 记录导入记录索引
-                        p.importRecordsForCurrentPart.append(stmt.importRecordIndex)
+                        p.importRecordsForCurrentPart.append(UInt32(stmt.importRecordIndex))
 
                         record.flags.containsImportStar = record.flags.containsImportStar ||
-                            stmt.starNameLoc != None
+                            stmt.starNameLoc.isSome()
                         record.flags.containsDefaultAlias = record.flags.containsDefaultAlias ||
-                            stmt.defaultNameLoc != None
+                            stmt.defaultNameLoc.isSome()
 
                         for (item in stmt.importItems) {
                             record.flags.containsDefaultAlias = record.flags.containsDefaultAlias ||
@@ -420,13 +417,14 @@ public class ImportScanVisitor {
                 case StmtTag.Function =>
                     if (stmt.isExport) {
                         if (stmt.funcName.size > 0) {
-                            let originalName = p.symbols.get(stmt.funcRef.innerIndex()).originalName
+                            let originalName = p.symbols[stmt.funcRef.innerIndex].originalName
                             p.recordExport(stmt.funcLoc, originalName, stmt.funcRef)
                         } else {
                             p.log.addRangeError(p.source, Range(stmt.funcOpenParensLoc, 2),
                                 "Exported functions must have a name")
                         }
                     }
+
 
                 // ==================================================================
                 // .s_class => |st| - 类声明
@@ -435,13 +433,14 @@ public class ImportScanVisitor {
                 case StmtTag.Class =>
                     if (stmt.isExport) {
                         if (stmt.className.size > 0) {
-                            let originalName = p.symbols.get(stmt.classRef.innerIndex()).originalName
+                            let originalName = p.symbols[stmt.classRef.innerIndex].originalName
                             p.recordExport(stmt.classLoc, originalName, stmt.classRef)
                         } else {
                             p.log.addRangeError(p.source, Range(stmt.classBodyLoc, 0),
                                 "Exported classes must have a name")
                         }
                     }
+
 
                 // ==================================================================
                 // .s_local => |st| - 变量声明
@@ -461,40 +460,47 @@ public class ImportScanVisitor {
                     //   if (st.was_ts_import_equals and !st.is_export and st.decls.len > 0) { ... }
                     if (stmt.wasTsImportEquals && !stmt.isExport && stmt.decls.size > 0) {
                         let decl = stmt.decls[0]
-                        var value = decl.value
+                        var optValue = decl.value
 
                         // 跳到底层引用 (处理 a.b.c 链)
-                        if (value != None) {
-                            var current = value
+                        if (optValue.isSome()) {
+                            var current = optValue.getOr(Expr(Loc.EMPTY, ExprTag.Missing))
                             var done = false
                             while (!done) {
                                 match (current.tag) {
                                     case ExprTag.Dot =>
-                                        current = current.target
+                                        if (let Some(t) <- current.target) {
+                                            current = t
+                                        } else {
+                                            done = true
+                                        }
                                     case _ =>
                                         done = true
                                 }
                             }
-                            value = current
+                            optValue = Some(current)
                         }
 
                         // 是标识符引用且非 require() 调用?
-                        if (value != None && value.tag == ExprTag.Identifier) {
-                            let binding = decl.binding
-                            if (binding.tag == BindingTag.Identifier &&
-                                p.symbols.get(binding.ref.innerIndex()).useCountEstimate == 0) {
-                                // 未使用的 import-equals, 移除
-                                p.ignoreUsage(value.ref)
-                                scanner.removedImportEquals = true
-                                shouldSkip = true
-                            } else {
-                                scanner.keptImportEquals = true
+                        if (optValue.isSome()) {
+                            let val = optValue.getOr(Expr(Loc.EMPTY, ExprTag.Missing))
+                            if (val.tag == ExprTag.Identifier) {
+                                let binding = decl.binding
+                                if (binding.tag == BindingTag.Identifier &&
+                                    p.symbols[binding.ref.innerIndex].useCountEstimate == 0) {
+                                    // 未使用的 import-equals, 移除
+                                    p.ignoreUsage(val.ref)
+                                    scanner.removedImportEquals = true
+                                    shouldSkip = true
+                                } else {
+                                    scanner.keptImportEquals = true
+                                }
                             }
                         }
                     }
 
                 // ==================================================================
-                // .s_export_default => |st| - 默认导出
+                // .s_export__ => |st| - 默认导出
                 // 严格翻译自: scan_imports.zig:419-438
                 //   记录 default 导出
                 //   非 HMR + CommonJS 模式下重写为 __exportDefault 调用
@@ -502,20 +508,22 @@ public class ImportScanVisitor {
                 case StmtTag.ExportDefault =>
                     // 记录 default 导出
                     if (stmt.defaultNameRef.isValid()) {
-                        p.recordExport(stmt.defaultNameLoc, "default", stmt.defaultNameRef)
+                        let loc = if (let Some(lr) <- stmt.defaultNameLoc) { lr.loc } else { Loc.EMPTY }
+                        p.recordExport(loc, "default", stmt.defaultNameRef)
                     }
 
                     // 非 HMR 且转换为 CommonJS 时, 重写 export default
                     if (!hotModuleReloadingTransformations && willTransformToCommonJs) {
-                        let expr = stmt.exprValue
-                        // 重写为: __exportDefault(module.exports, expr)
-                        let moduleExports = p.moduleExports(expr.loc)
-                        let exportDefaultArgs = ArrayList<Expr>()
-                        exportDefaultArgs.append(moduleExports)
-                        exportDefaultArgs.append(expr)
-                        let call = p.callRuntime(expr.loc, "__exportDefault", exportDefaultArgs)
-                        stmt = Stmt(expr.loc, StmtTag.Expr)
-                        stmt.exprValue = call
+                        if (let Some(exprVal) <- stmt.exprValue) {
+                            // 重写为: __exportDefault(module.exports, expr)
+                            let moduleExports = p.moduleExports(exprVal.loc)
+                            let exportDefaultArgs = ArrayList<Expr>()
+                            exportDefaultArgs.append(moduleExports)
+                            exportDefaultArgs.append(exprVal)
+                            let call = p.callRuntime(exprVal.loc, "__exportDefault", exportDefaultArgs)
+                            stmt = Stmt(exprVal.loc, StmtTag.Expr)
+                            stmt.exprValue = Some(call)
+                        }
                     }
 
                 // ==================================================================
@@ -532,16 +540,16 @@ public class ImportScanVisitor {
                 // 严格翻译自: scan_imports.zig:444-464
                 // ==================================================================
                 case StmtTag.ExportStar =>
-                    p.importRecordsForCurrentPart.append(stmt.importRecordIndex)
+                    p.importRecordsForCurrentPart.append(UInt32(stmt.importRecordIndex))
 
-                    if (stmt.exportStarAlias != None) {
+                    if (stmt.exportStarAlias .isSome()) {
                         // "export * as ns from 'path'"
-                        let alias = stmt.exportStarAlias
+                        let aliasStr = if (let Some(a) <- stmt.exportStarAlias) { a } else { "" }
                         p.namedImports.put(stmt.namespaceRef, NamedImport(
-                            "", alias.loc, Ref.NONE, stmt.importRecordIndex, true, true
+                            "", stmt.loc, Ref.NONE, stmt.importRecordIndex, true, true
                         ))
-                        p.recordExport(alias.loc, alias.originalName, stmt.namespaceRef)
-                        let starRecord = p.importRecords.get(stmt.importRecordIndex)
+                        p.recordExport(stmt.loc, aliasStr, stmt.namespaceRef)
+                        let starRecord = p.importRecords[stmt.importRecordIndex]
                         starRecord.flags.containsImportStar = true
                     } else {
                         // "export * from 'path'"
@@ -555,7 +563,7 @@ public class ImportScanVisitor {
                 //   SExportFrom 实际上等于 SImport + SExportClause
                 // ==================================================================
                 case StmtTag.ExportFrom =>
-                    p.importRecordsForCurrentPart.append(stmt.importRecordIndex)
+                    p.importRecordsForCurrentPart.append(UInt32(stmt.importRecordIndex))
 
                     for (item in stmt.exportItems) {
                         let ref = item.nameRef
@@ -567,7 +575,7 @@ public class ImportScanVisitor {
                         ))
                         p.recordExport(item.nameLoc, item.alias, ref)
 
-                        let fromRecord = p.importRecords.get(stmt.importRecordIndex)
+                        let fromRecord = p.importRecords[stmt.importRecordIndex]
                         if (item.originalName == "default") {
                             fromRecord.flags.containsDefaultAlias = true
                         } else if (item.originalName == "__esModule") {
@@ -646,8 +654,15 @@ public class ImportItemForNamespaceMap {
 
     public func items(): ArrayList<Tuple<String, ImportItemForNamespaceEntry>> {
         let result = ArrayList<Tuple<String, ImportItemForNamespaceEntry>>()
-        for (entry in entries) {
-            result.append(entry)
+        let iter = entries.iterator()
+        while (true) {
+            let next = iter.next()
+            if (next.isNone()) {
+                break
+            }
+            if (let Some((k, v)) <- next) {
+                result.append(Tuple(k, v))
+            }
         }
         return result
     }

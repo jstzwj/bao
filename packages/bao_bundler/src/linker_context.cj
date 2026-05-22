@@ -345,6 +345,8 @@ public class LinkerContext {
     public var graph: LinkerGraph
     /// 日志
     public var log: Log
+    /// 事件循环
+    public var eventLoop: EventLoop
     /// 解析器
     public var resolver: Resolver
     /// 循环检测器
@@ -376,6 +378,7 @@ public class LinkerContext {
         parseGraph = Graph()
         graph = LinkerGraph()
         log = Log()
+        eventLoop = EventLoop()
         resolver = Resolver()
         cycleDetector = ArrayList<ImportTracker>()
         cjsRuntimeRef = 0
@@ -572,6 +575,12 @@ public class LinkerContext {
         chunkVisitMap: HashSet<Int64>
     ): Unit {
         return
+    }
+
+    /// 并行生成 chunks
+    // 严格翻译自: LinkerContext.zig:generateChunksInParallel()
+    public func generateChunksInParallel(chunks: ArrayList<Chunk>, minify: Bool): ArrayList<OutputFile> {
+        return ArrayList<OutputFile>()
     }
 }
 

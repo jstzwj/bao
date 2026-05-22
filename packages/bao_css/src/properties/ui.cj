@@ -91,7 +91,7 @@ public enum ColorSchemeKeyword {
 /// Zig 源码为 DefineEnumProperty(@compileError(...)) 占位
 /// 严格翻译自 Resize
 public enum Resize {
-    | None
+    | NoneValue
     | Both
     | Horizontal
     | Vertical
@@ -100,7 +100,7 @@ public enum Resize {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Both => "both"
             case Horizontal => "horizontal"
             case Vertical => "vertical"
@@ -213,7 +213,7 @@ public enum ColorOrAuto {
 /// appearance 属性值
 /// 严格翻译自 Appearance
 public enum Appearance {
-    | None                // 无
+    | NoneValue                // 无
     | Auto                // 自动
     | Textfield           // 文本字段
     | MenulistButton      // 菜单列表按钮
@@ -233,7 +233,7 @@ public enum Appearance {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Auto => "auto"
             case Textfield => "textfield"
             case MenulistButton => "menulist-button"
@@ -286,7 +286,7 @@ public struct Caret {
 public enum UserSelect {
     | Auto
     | Text
-    | None
+    | NoneValue
     | Contain
     | All
 
@@ -294,7 +294,7 @@ public enum UserSelect {
         match (this) {
             case Auto => "auto"
             case Text => "text"
-            case None => "none"
+            case NoneValue => "none"
             case Contain => "contain"
             case All => "all"
         }

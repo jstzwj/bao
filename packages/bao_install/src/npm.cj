@@ -15,6 +15,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 注册表默认配置
@@ -292,11 +293,11 @@ public class NpmClient {
             let response = HttpClient.fetch(whoamiUrl)
             if (response.status == 200) {
                 let bodyText = response.text()
-                let jsonParser = JsonParser()
+                let jsonParser = PkgJsonParser()
                 let json = jsonParser.parse(bodyText)
                 match (json) {
                     case Some(root) =>
-                        match (JsonHelper.getString(root, "username")) {
+                        match (PkgJsonHelper.getString(root, "username")) {
                             case Some(u) => return Some(u)
                             case None => return None
                         }
@@ -325,11 +326,11 @@ public class NpmClient {
         }
         // 尝试从响应体解析 error 字段
         try {
-            let jsonParser = JsonParser()
+            let jsonParser = PkgJsonParser()
             let json = jsonParser.parse(body)
             match (json) {
                 case Some(root) =>
-                    match (JsonHelper.getString(root, "error")) {
+                    match (PkgJsonHelper.getString(root, "error")) {
                         case Some(e) => message = message + ": ${e}"
                         case None => ()
                     }
@@ -570,12 +571,12 @@ public class OperatingSystem {
             return OperatingSystem.all
         }
         if (combinedAdded == UInt16(0) && removed != UInt16(0)) {
-            return OperatingSystem(OS_ALL_VALUE & ~removed)
+            return OperatingSystem(OS_ALL_VALUE & !removed)
         }
         if (removed == UInt16(0)) {
             return OperatingSystem(combinedAdded)
         }
-        return OperatingSystem(combinedAdded & ~removed)
+        return OperatingSystem(combinedAdded & !removed)
     }
 
     /// 序列化为 JSON 字符串
@@ -754,12 +755,12 @@ public class LibcType {
             return LibcType.all
         }
         if (combinedAdded == UInt8(0) && removed != UInt8(0)) {
-            return LibcType(LIBC_ALL_VALUE & ~removed)
+            return LibcType(LIBC_ALL_VALUE & !removed)
         }
         if (removed == UInt8(0)) {
             return LibcType(combinedAdded)
         }
-        return LibcType(combinedAdded & ~removed)
+        return LibcType(combinedAdded & !removed)
     }
 
     public operator func ==(right: LibcType): Bool {
@@ -921,12 +922,12 @@ public class Architecture {
             return Architecture.all
         }
         if (combinedAdded == UInt16(0) && removed != UInt16(0)) {
-            return Architecture(ARCH_ALL_VALUE & ~removed)
+            return Architecture(ARCH_ALL_VALUE & !removed)
         }
         if (removed == UInt16(0)) {
             return Architecture(combinedAdded)
         }
-        return Architecture(combinedAdded & ~removed)
+        return Architecture(combinedAdded & !removed)
     }
 
     /// 序列化为 JSON 字符串
@@ -1139,7 +1140,7 @@ public class SemverVersion {
         if (patch != other.patch) {
             return if (patch < other.patch) { Int64(-1) } else { Int64(1) }
         }
-        return tag.compareTo(other.tag)
+        if (tag < other.tag) { Int64(-1) } else if (tag > other.tag) { Int64(1) } else { Int64(0) }
     }
 
     public func toString(): String {
@@ -1158,40 +1159,6 @@ public class SemverVersion {
 //       none, file, named_file, map, dir
 //   }
 // ============================================================================
-
-/// Bin 类型标签
-/// 翻译自: Bin.Tag
-public enum BinTag {
-    | None
-    | File
-    | NamedFile
-    | Map
-    | Dir
-}
-
-/// Bin 信息
-/// 翻译自: src/install/bin.zig - Bin
-public class PackageBin {
-    public var tag: BinTag
-    public var filePath: ?String
-    public var name: ?String
-    public var namedPath: ?String
-    public var binMap: HashMap<String, String>
-    public var dirPath: ?String
-
-    public init() {
-        tag = BinTag.None
-        filePath = None
-        name = None
-        namedPath = None
-        binMap = HashMap<String, String>()
-        dirPath = None
-    }
-
-    public static func init(): PackageBin {
-        return PackageBin()
-    }
-}
 
 // ============================================================================
 // 包版本数据
@@ -1225,7 +1192,7 @@ public class PackageBin {
 public class PackageVersionData {
     /// 完整性哈希 (integrity || shasum)
     /// 翻译自: integrity: Integrity = Integrity{}
-    public var integrity: IntegrityInfo
+    public var integrity: Integrity
 
     /// dependencies
     /// 翻译自: dependencies: ExternalStringMap = ExternalStringMap{}
@@ -1296,7 +1263,7 @@ public class PackageVersionData {
     public var publishTimestampMs: Float64
 
     public init() {
-        integrity = IntegrityInfo()
+        integrity = Integrity()
         dependencies = ExternalStringMap()
         optionalDependencies = ExternalStringMap()
         peerDependencies = ExternalStringMap()
@@ -1328,52 +1295,6 @@ public class PackageVersionData {
 // 完整性信息 (简化版, 详细版在 integrity.cj)
 // 严格翻译自: src/install/integrity.zig - Integrity
 // ============================================================================
-
-/// 完整性信息
-/// 翻译自: Integrity extern struct
-/// 对应 PackageVersion.integrity 字段
-public class IntegrityInfo {
-    /// 哈希算法标签
-    public var tag: IntegrityTag
-    /// 哈希值 (hex 编码)
-    public var value: String
-
-    public init() {
-        tag = IntegrityTag.Unknown
-        value = ""
-    }
-
-    public init(tag: IntegrityTag, value: String) {
-        this.tag = tag
-        this.value = value
-    }
-
-    /// 标签是否为支持的算法
-    /// 翻译自: Tag.isSupported
-    public func isSupported(): Bool {
-        return tag.isSupported()
-    }
-}
-
-/// 完整性标签 (简化)
-/// 翻译自: Integrity.Tag enum(u8)
-public enum IntegrityTag {
-    | Unknown
-    | SHA1
-    | SHA256
-    | SHA384
-    | SHA512
-
-    public func isSupported(): Bool {
-        match (this) {
-            case SHA1 => true
-            case SHA256 => true
-            case SHA384 => true
-            case SHA512 => true
-            case _ => false
-        }
-    }
-}
 
 // ============================================================================
 // NPM 包数据
@@ -1834,7 +1755,7 @@ public class NpmPackageManifest {
         packageVersion: PackageVersionData,
         minimumReleaseAgeMs: Float64
     ): Bool {
-        let currentTimestampMs = Float64(TimeStamp.currentMillis())
+        let currentTimestampMs = Float64(Int64(0)) // TODO: TimeStamp.currentMillis()
         return packageVersion.publishTimestampMs > currentTimestampMs - minimumReleaseAgeMs
     }
 
@@ -1982,9 +1903,9 @@ public class NpmPackageManifest {
 
         match (minAgeMs) {
             case None =>
-                return FindVersionResult.foundResult(distResult.unwrap()!)
+                return FindVersionResult.foundResult(distResult.getOrThrow())
             case Some(ms) =>
-                let r = distResult.unwrap()!
+                let r = distResult.getOrThrow()
                 if (!isPackageVersionTooRecent(r.packageVersion, ms)) {
                     return FindVersionResult.foundResult(r)
                 }
@@ -2037,7 +1958,7 @@ public class NpmPackageManifest {
     ): FindVersionResult {
         var bestVersion: ?ManifestFindResult = None
         var prevBlockedFromAge: ?PackageVersionData = None
-        let currentTimestampMs = Float64(TimeStamp.currentMillis())
+        let currentTimestampMs = Float64(Int64(0)) // TODO: TimeStamp.currentMillis()
         let sevenDaysMs: Float64 = 604800000.0 * 7.0
         let stabilityWindowMs = if (minimumReleaseAgeMs < sevenDaysMs) {
             minimumReleaseAgeMs
@@ -2271,7 +2192,10 @@ public class ManifestSerializer {
         }
         let filePath = Path.join([cacheDir, fileName])
         let data = write(manifest, scope)
-        return BaoFile.writeAllBytes(filePath, data)
+        match (BaoFile.writeAllBytes(filePath, data)) {
+            case SysMaybe<Unit>.Ok(_) => return true
+            case SysMaybe<Unit>.Err(_) => return false
+        }
     }
 
     /// 从磁盘加载 Manifest
@@ -2289,9 +2213,14 @@ public class ManifestSerializer {
         }
         let filePath = Path.join([cacheDir, fileName])
         if (!BaoFile.exists(filePath)) { return None }
-        let bytes = BaoFile.readAllBytes(filePath)
-        if (bytes.size == 0) { return None }
-        return readAll(bytes, scope)
+        let bytesResult = BaoFile.readAllBytes(filePath)
+        let dataOpt = bytesResult.result()
+        if (dataOpt.isSome()) {
+            let data = dataOpt.getOrThrow()
+            if (data.size == 0) { return None }
+            return readAll(data, scope)
+        }
+        return None
     }
 
     // ========================================================================
@@ -2299,7 +2228,7 @@ public class ManifestSerializer {
     // ========================================================================
 
     /// 追加 UInt64 (小端序)
-    private static func appendUInt64(builder: ArrayList<UInt8>, value: UInt64): Unit {
+    public static func appendUInt64(builder: ArrayList<UInt8>, value: UInt64): Unit {
         builder.append(UInt8(value & UInt64(0xFF)))
         builder.append(UInt8((value >> 8) & UInt64(0xFF)))
         builder.append(UInt8((value >> 16) & UInt64(0xFF)))
@@ -2311,7 +2240,7 @@ public class ManifestSerializer {
     }
 
     /// 读取 UInt64 (小端序)
-    private static func readUInt64(bytes: Array<UInt8>, offset: Int64): UInt64 {
+    public static func readUInt64(bytes: Array<UInt8>, offset: Int64): UInt64 {
         if (offset + 7 >= bytes.size) { return UInt64(0) }
         return UInt64(bytes[offset]) |
             (UInt64(bytes[offset + 1]) << 8) |
@@ -2346,7 +2275,7 @@ public class ManifestSerializer {
         sb.append("\",\"modified\":\"")
         sb.append(pkg.modified)
         sb.append("\",\"publicMaxAge\":")
-        sb.append(String(UInt64(pkg.publicMaxAge)))
+        sb.append(UInt64(pkg.publicMaxAge).toString())
         sb.append(",\"hasExtendedManifest\":")
         sb.append(if (pkg.hasExtendedManifest) { "true" } else { "false" })
         sb.append("}")
@@ -2390,14 +2319,18 @@ public class SemverQueryGroup {
                 case Some(sv) =>
                     // 检查是否为精确版本 (无范围操作符)
                     let trimmed = rangeStr.trimStart("^~><= ")
-                    if (trimmed == sv.version) {
+                    if (trimmed == sv.toString()) {
                         isExact = true
+                        let preStr = match (sv.prerelease) {
+                            case Some(pre) => "-${pre}"
+                            case None => ""
+                        }
                         exactVersion = Some(SemverVersion(
-                            sv.major, sv.minor, sv.patch,
-                            if (sv.preRelease.size > 0) { "-${sv.preRelease}" } else { "" }
+                            UInt64(sv.major), UInt64(sv.minor), UInt64(sv.patch),
+                            preStr
                         ))
                     }
-                    hasPre = sv.preRelease.size > 0
+                    hasPre = sv.prerelease.isSome()
                 case None => ()
             }
         }
@@ -2496,8 +2429,8 @@ public class HexEncode {
         var result = ArrayList<UInt8>()
         var i: Int64 = 0
         while (i + 1 < hex.size) {
-            let high = hexCharToInt(hex[i])
-            let low = hexCharToInt(hex[i + 1])
+            let high = hexCharToInt(Rune(UInt32(hex[i])))
+            let low = hexCharToInt(Rune(UInt32(hex[i + 1])))
             if (high >= 0 && low >= 0) {
                 result.append(UInt8((high << 4) | low))
             }
@@ -2507,7 +2440,7 @@ public class HexEncode {
     }
 
     private static func hexCharToInt(c: Rune): Int64 {
-        let v = Int64(c)
+        let v = Int64(UInt32(c))
         if (v >= 0x30 && v <= 0x39) { return v - 0x30 }  // '0'-'9'
         if (v >= 0x61 && v <= 0x66) { return v - 0x61 + 10 }  // 'a'-'f'
         if (v >= 0x41 && v <= 0x46) { return v - 0x41 + 10 }  // 'A'-'F'
@@ -2567,39 +2500,7 @@ public class NpmRegistryApi {
 // 严格翻译自: src/dotenv/env_loader.zig - DotEnv.Loader
 // ============================================================================
 
-/// 环境变量加载器接口 (简化)
-/// 翻译自: DotEnv.Loader
-public class DotEnvLoader {
-    private var envMap: HashMap<String, String>
-
-    public init() {
-        envMap = HashMap<String, String>()
-    }
-
-    /// 获取环境变量值
-    /// 翻译自: DotEnv.Loader.get
-    public func get(key: String): ?String {
-        return envMap.get(key)
-    }
-
-    /// 自动获取值 (如果值以 $ 开头, 则从环境变量获取)
-    /// 翻译自: DotEnv.Loader.getAuto
-    public func getAuto(value: String): String {
-        if (value.size > 0 && value[0] == Rune('$')) {
-            let key = value[1..]
-            match (envMap.get(key)) {
-                case Some(v) => return v
-                case None => ()
-            }
-        }
-        return value
-    }
-
-    /// 设置环境变量
-    public func put(key: String, value: String): Unit {
-        envMap.put(key, value)
-    }
-}
+// NOTE: DotEnvLoader defined in package_manager.cj (canonical)
 
 // ============================================================================
 // NpmRegistryScope 扩展: fromAPI 方法
@@ -2639,7 +2540,7 @@ public class NpmRegistryScopeFactory {
 
         // 支持 $ENV_VAR 替换注册表 URL
         // 翻译自: if (strings.startsWithChar(registry_.url, '$'))
-        if (regUrl.size > 0 && regUrl[0] == Rune('$')) {
+        if (regUrl.size > 0 && regUrl[0] == UInt8(0x24)) {
             let envKey = regUrl[1..]
             // 去除尾部斜杠
             let trimmedKey = if (envKey.endsWith("/")) { envKey[..envKey.size - 1] } else { envKey }
@@ -2669,7 +2570,7 @@ public class NpmRegistryScopeFactory {
                 var needsToCheckSlash = true
 
                 while (true) {
-                    let colonIdx = lastIndexOfChar(pathname, Rune(':'))
+                    let colonIdx = lastIndexOfChar(pathname, UInt8(0x3A))
                     match (colonIdx) {
                         case Some(colon) =>
                             let segment = pathname[Int64(colon) + 1..]
@@ -2678,12 +2579,12 @@ public class NpmRegistryScopeFactory {
                             needsNormalize = true
 
                             // 去除尾部斜杠
-                            if (pathname.size > 1 && pathname[pathname.size - 1] == Rune('/')) {
+                            if (pathname.size > 1 && pathname[pathname.size - 1] == UInt8(0x2F)) {
                                 pathname = pathname[..pathname.size - 1]
                             }
 
                             // 解析 key=value
-                            let eqlIdx = indexOfChar(segment, Rune('='))
+                            let eqlIdx = indexOfChar(segment, UInt8(0x3D))
                             match (eqlIdx) {
                                 case Some(eqlI) =>
                                     let value = segment[Int64(eqlI) + 1..]
@@ -2725,11 +2626,11 @@ public class NpmRegistryScopeFactory {
                 // 如果没有找到冒号, 检查路径中最后一个 '/' 后是否有 key=value
                 // 翻译自: if (needs_to_check_slash) ...
                 if (needsToCheckSlash) {
-                    let lastSlashIdx = lastIndexOfChar(pathname, Rune('/'))
+                    let lastSlashIdx = lastIndexOfChar(pathname, UInt8(0x2F))
                     match (lastSlashIdx) {
                         case Some(lastSlash) =>
                             let remain = pathname[Int64(lastSlash) + 1..]
-                            let remainEql = indexOfChar(remain, Rune('='))
+                            let remainEql = indexOfChar(remain, UInt8(0x3D))
                             match (remainEql) {
                                 case Some(eqlI) =>
                                     let segKey = remain[..Int64(eqlI)]
@@ -2762,8 +2663,14 @@ public class NpmRegistryScopeFactory {
 
             // 环境变量替换 username 和 password
             // 翻译自: registry.username = env.getAuto(registry.username)
-            username = env.getAuto(username)
-            password = env.getAuto(password)
+            if (username.size > 0 && username[0] == UInt8(0x24)) {
+                let envVal = env.get(username[1..])
+                match (envVal) { case Some(v) => username = v case None => () }
+            }
+            if (password.size > 0 && password[0] == UInt8(0x24)) {
+                let envVal = env.get(password[1..])
+                match (envVal) { case Some(v) => password = v case None => () }
+            }
 
             // 如果有 username + password 但没有 auth, 构建 Basic Auth
             // 翻译自: if (registry.username.len > 0 and registry.password.len > 0 and auth.len == 0)
@@ -2776,7 +2683,10 @@ public class NpmRegistryScopeFactory {
 
         // 环境变量替换 token
         // 翻译自: registry.token = env.getAuto(registry.token)
-        token = env.getAuto(token)
+        if (token.size > 0 && token[0] == UInt8(0x24)) {
+            let envVal = env.get(token[1..])
+            match (envVal) { case Some(v) => token = v case None => () }
+        }
 
         // 如果修改了 URL 路径, 重新构建 URL
         // 翻译自: if (needs_normalize) { url = URL.parse(...) }
@@ -2812,7 +2722,7 @@ public class NpmRegistryScopeFactory {
     // ========================================================================
 
     /// 查找字符在字符串中最后出现的位置
-    private static func lastIndexOfChar(s: String, c: Rune): ?Int64 {
+    private static func lastIndexOfChar(s: String, c: UInt8): ?Int64 {
         var i = s.size - 1
         while (i >= 0) {
             if (s[Int64(i)] == c) {
@@ -2824,7 +2734,7 @@ public class NpmRegistryScopeFactory {
     }
 
     /// 查找字符在字符串中首次出现的位置
-    private static func indexOfChar(s: String, c: Rune): ?Int64 {
+    private static func indexOfChar(s: String, c: UInt8): ?Int64 {
         var i: Int64 = 0
         while (i < s.size) {
             if (s[i] == c) {
@@ -2839,8 +2749,8 @@ public class NpmRegistryScopeFactory {
     private static func trimSlashes(s: String): String {
         var start: Int64 = 0
         var end = s.size
-        while (start < end && s[start] == Rune('/')) { start += 1 }
-        while (end > start && s[end - 1] == Rune('/')) { end -= 1 }
+        while (start < end && s[start] == UInt8(0x2F)) { start += 1 }
+        while (end > start && s[end - 1] == UInt8(0x2F)) { end -= 1 }
         return s[start..end]
     }
 }
@@ -2920,27 +2830,35 @@ public class Base64 {
     /// Base64 编码
     public static func encode(input: String): String {
         var sb = StringBuilder()
-        let bytes = input.toBytes()
+        let runes = input.toArray()
         var i: Int64 = 0
-        while (i + 2 < bytes.size) {
-            let b0 = UInt32(bytes[i])
-            let b1 = UInt32(bytes[i + 1])
-            let b2 = UInt32(bytes[i + 2])
-            sb.append(String([Rune(UInt32(CHARS[Int64((b0 >> 2) & 0x3F)])])))
-            sb.append(String([Rune(UInt32(CHARS[Int64(((b0 & 0x3) << 4) | ((b1 >> 4) & 0xF))])]))
-            sb.append(String([Rune(UInt32(CHARS[Int64(((b1 & 0xF) << 2) | ((b2 >> 6) & 0x3))])])))
-            sb.append(String([Rune(UInt32(CHARS[Int64(b2 & 0x3F)])]))
+        while (i + 2 < runes.size) {
+            let b0 = UInt32(runes[i])
+            let b1 = UInt32(runes[i + 1])
+            let b2 = UInt32(runes[i + 2])
+            let i0 = Int64((b0 >> 2) & UInt32(0x3F))
+            let i1 = Int64(((b0 & UInt32(0x3)) << 4) | ((b1 >> 4) & UInt32(0xF)))
+            let i2 = Int64(((b1 & UInt32(0xF)) << 2) | ((b2 >> 6) & UInt32(0x3)))
+            let i3 = Int64(b2 & UInt32(0x3F))
+            sb.append(String(Rune(UInt32(CHARS[i0]))))
+            sb.append(String(Rune(UInt32(CHARS[i1]))))
+            sb.append(String(Rune(UInt32(CHARS[i2]))))
+            sb.append(String(Rune(UInt32(CHARS[i3]))))
             i += 3
         }
-        if (i < bytes.size) {
-            let b0 = UInt32(bytes[i])
-            sb.append(String([Rune(UInt32(CHARS[Int64((b0 >> 2) & 0x3F)])]))
-            if (i + 1 < bytes.size) {
-                let b1 = UInt32(bytes[i + 1])
-                sb.append(String([Rune(UInt32(CHARS[Int64(((b0 & 0x3) << 4) | ((b1 >> 4) & 0xF))])]))
-                sb.append(String([Rune(UInt32(CHARS[Int64((b1 & 0xF) << 2)])]))
+        if (i < runes.size) {
+            let b0 = UInt32(runes[i])
+            let idx0 = Int64((b0 >> 2) & UInt32(0x3F))
+            sb.append(String(Rune(UInt32(CHARS[idx0]))))
+            if (i + 1 < runes.size) {
+                let b1 = UInt32(runes[i + 1])
+                let i1 = Int64(((b0 & UInt32(0x3)) << 4) | ((b1 >> 4) & UInt32(0xF)))
+                let i2 = Int64((b1 & UInt32(0xF)) << 2)
+                sb.append(String(Rune(UInt32(CHARS[i1]))))
+                sb.append(String(Rune(UInt32(CHARS[i2]))))
             } else {
-                sb.append(String([Rune(UInt32(CHARS[Int64((b0 & 0x3) << 4)])]))
+                let i1 = Int64((b0 & UInt32(0x3)) << 4)
+                sb.append(String(Rune(UInt32(CHARS[i1]))))
                 sb.append("=")
             }
             sb.append("=")
@@ -2954,9 +2872,10 @@ public class Base64 {
         let lookup = Base64.buildLookup()
         var buf: UInt32 = 0
         var bits: Int64 = 0
-        for (c in input) {
-            if (c == Rune('=')) { break }
-            let idx = Int64(c) - Int64(Rune('+'))
+        for (r in input) {
+            let c = UInt8(r)
+            if (c == UInt8(0x3D)) { break }
+            let idx = Int64(c) - Int64(UInt8(0x2B))
             if (idx >= 0 && idx < lookup.size) {
                 let val = lookup[idx]
                 if (val >= 0) {
@@ -2978,7 +2897,7 @@ public class Base64 {
         let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
         var i: Int64 = 0
         while (i < chars.size) {
-            let idx = Int64(chars[i]) - Int64(Rune('+'))
+            let idx = Int64(chars[i]) - Int64(UInt8(0x2B))
             if (idx >= 0 && idx < arr.size) {
                 arr[idx] = i
             }
@@ -3014,7 +2933,7 @@ public class NpmPackageManifestHelper {
     /// 计算 Manifest 序列化后的字节长度
     /// 严格翻译自: PackageManifest.byteLength (Zig ~887-893)
     ///   pub fn byteLength(this, scope) usize {
-    ///       var counter = std.Io.Writer.Discarding.init(&.{});
+    ///       var counter = std.Io.Writer.Discarding(&.{});
     ///       const writer = &counter.writer;
     ///       Serializer.write(this, scope, @TypeOf(writer), writer) catch return 0;
     ///       return counter.count;
@@ -3170,9 +3089,7 @@ public class ManifestSerializerExt {
         let scopeCopy = scope
         let cacheDirCopy = cacheDir
         // 在仓颉中, 使用异步任务
-        Thread.start({
-            ManifestSerializer.save(manifestCopy, scopeCopy, cacheDirCopy)
-        })
+        ManifestSerializer.save(manifestCopy, scopeCopy, cacheDirCopy)
     }
 
     /// 从文件加载 Manifest
@@ -3190,7 +3107,10 @@ public class ManifestSerializerExt {
     ): ?NpmPackageManifest {
         // 读取文件
         if (!BaoFile.exists(filePath)) { return None }
-        let bytes = BaoFile.readAllBytes(filePath)
+        let bytesResult = BaoFile.readAllBytes(filePath)
+        let bytesOpt = bytesResult.result()
+        if (bytesOpt.isNone()) { return None }
+        let bytes = bytesOpt.getOrThrow()
         if (bytes.size == 0) { return None }
 
         // 验证 header 长度
@@ -3239,10 +3159,10 @@ public class Pair<T, U> {
 // ============================================================================
 
 /// Wyhash11 哈希状态 (增量累加)
-/// 翻译自: bun.Wyhash11.init(0) / .update() / .final()
+/// 翻译自: bun.Wyhash11(0) / .update() / .final()
 ///   在 Zig 的 PackageManifest.parse 中用于依赖去重:
-///     var name_hasher = bun.Wyhash11.init(0)
-///     var version_hasher = bun.Wyhash11.init(0)
+///     var name_hasher = bun.Wyhash11(0)
+///     var version_hasher = bun.Wyhash11(0)
 ///     for each dep: name_hasher.update(hash_bytes)
 ///     const name_map_hash = name_hasher.final()
 ///   注意: 这里使用简化实现, 将多个 UInt64 哈希值 XOR 合并为一个
@@ -3270,9 +3190,9 @@ public class Wyhash11State {
     public func final(): UInt64 {
         // 最终混合: 乘以一个质数并异或高位
         state = state ^ (state >> UInt64(33))
-        state = state &* UInt64(0xff51afd7ed558ccd)
+        state = state * 0xff51afd7ed558ccdu64
         state = state ^ (state >> UInt64(33))
-        state = state &* UInt64(0xc4ceb9fe1a85ec53)
+        state = state * 0xc4ceb9fe1a85ec53u64
         state = state ^ (state >> UInt64(33))
         return state
     }
@@ -3361,18 +3281,17 @@ public class PackageManifestParser {
         isExtendedManifest: Bool
     ): ?NpmPackageManifest {
         // 1. JSON 解析
-        let jsonParser = JsonParser()
+        let jsonParser = PkgJsonParser()
         let jsonRoot = jsonParser.parse(jsonBuffer)
-        match (jsonRoot) {
+        let json = match (jsonRoot) {
+            case Some(j) => j
             case None => return None
-            case Some(_) => ()
         }
-        let json = jsonRoot.unwrap()!
 
         // 检查是否有 "error" 字段
         // 翻译自: if (json.asProperty("error")) |error_q|
-        match (JsonHelper.getString(json, "error")) {
-            case Some(err) => return None  // npm error
+        match (PkgJsonHelper.getString(json, "error")) {
+            case Some(errMsg) => return None  // npm error
             case None => ()
         }
 
@@ -3391,11 +3310,11 @@ public class PackageManifestParser {
         var versionExternStringsDedupeMap = ExternalStringMapDeduper()
 
         // 可选 peer 依赖名称哈希列表 - 翻译自:
-        //   var optional_peer_dep_names = std.array_list.Managed(u64).init(...)
+        //   var optional_peer_dep_names = std.array_list.Managed(u64).`init`(...)
         var optionalPeerDepNames = ArrayList<UInt64>()
 
         // 打包依赖集合 - 翻译自:
-        //   var bundled_deps_set = bun.StringSet.init(allocator)
+        //   var bundled_deps_set = bun.StringSet(allocator)
         //   var bundle_all_deps = false
         var bundledDepsSet = HashSet<String>()
         var bundleAllDeps = false
@@ -3422,7 +3341,7 @@ public class PackageManifestParser {
         // 包名不匹配警告
         // 翻译自: if (PackageManager.verbose_install) { ... } (Zig ~1779-1788)
         //   如果注册表是默认注册表, 验证收到的名称与期望的名称匹配
-        match (JsonHelper.getString(json, "name")) {
+        match (PkgJsonHelper.getString(json, "name")) {
             case Some(receivedName) =>
                 // 注: 在完整实现中, 这里应检查 scope.url_hash == Registry.default_url_hash
                 // 并在名称不匹配时输出警告
@@ -3439,7 +3358,7 @@ public class PackageManifestParser {
 
         // 计算 "modified" 字段
         // 翻译自: if (json.asProperty("modified")) |name_q|
-        match (JsonHelper.getString(json, "modified")) {
+        match (PkgJsonHelper.getString(json, "modified")) {
             case Some(modified) => stringLen += modified.size
             case None => ()
         }
@@ -3456,14 +3375,14 @@ public class PackageManifestParser {
         //     - 遍历 peerDependenciesMeta 计数合成依赖
         // ====================================================================
 
-        match (JsonHelper.getObject(json, "versions")) {
+        match (PkgJsonHelper.getObject(json, "versions")) {
             case Some(versionsObj) =>
-                let versionKeys = JsonHelper.getKeys(versionsObj)
+                let versionKeys = PkgJsonHelper.getKeys(versionsObj)
 
                 for (versionName in versionKeys) {
                     // 解析 semver 版本
                     // 翻译自:
-                    //   const sliced_version = SlicedString.init(version_name, version_name)
+                    //   const sliced_version = SlicedString(version_name, version_name)
                     //   const parsed_version = Semver.Version.parse(sliced_version)
                     let parsedVersion = parseSemverVersion(versionName)
                     if (!parsedVersion.valid) { continue }
@@ -3480,7 +3399,7 @@ public class PackageManifestParser {
                         preVersionsLen += 1
                         externStringCount += 1
                     } else {
-                        let hasBuild = versionName.indexOf("+") != None
+                        let hasBuild = versionName.indexOf("+") .isSome()
                         if (hasBuild) {
                             externStringCount += 1
                         }
@@ -3491,14 +3410,14 @@ public class PackageManifestParser {
                     stringLen += versionName.size
 
                     // tarball URL
-                    let versionObj = JsonHelper.getObject(versionsObj, versionName)
+                    let versionObj = PkgJsonHelper.getObject(versionsObj, versionName)
                     match (versionObj) {
                         case Some(vObj) =>
                             // 翻译自:
                             //   if (dist_q.expr.get("tarball")) |tarball_prop|
                             //     string_builder.count(tarball)
                             //     tarball_urls_count += @intFromBool(tarball.len > 0)
-                            match (JsonHelper.getNestedString(vObj, "dist", "tarball")) {
+                            match (PkgJsonHelper.getNestedString(vObj, "dist", "tarball")) {
                                 case Some(tarball) =>
                                     stringLen += tarball.size
                                     if (tarball.size > 0) {
@@ -3516,14 +3435,14 @@ public class PackageManifestParser {
                             //   对于 string bin: count 字符串
                             //   对于 directories.bin: count 字符串
                             var binHandled = false
-                            match (JsonHelper.getObject(vObj, "bin")) {
+                            match (PkgJsonHelper.getObject(vObj, "bin")) {
                                 case Some(binObj) =>
-                                    let binKeys = JsonHelper.getKeys(binObj)
+                                    let binKeys = PkgJsonHelper.getKeys(binObj)
                                     if (binKeys.size == 0) {
                                         binHandled = true
                                     } else if (binKeys.size == 1) {
                                         // 单个 bin
-                                        match (JsonHelper.getString(vObj, "bin")) {
+                                        match (PkgJsonHelper.getString(vObj, "bin")) {
                                             case Some(binStr) => stringLen += binStr.size
                                             case None => ()
                                         }
@@ -3533,8 +3452,13 @@ public class PackageManifestParser {
                                         // 翻译自: extern_string_count_bin += obj.properties.len * 2
                                         externStringCountBin += binKeys.size * 2
                                         for (k in binKeys) { stringLen += k.size }
-                                        let binVals = JsonHelper.getValues(binObj)
-                                        for (v in binVals) { stringLen += v.size }
+                                        let binVals = PkgJsonHelper.getValues(binObj)
+                                        for (v in binVals) {
+                                            match (v) {
+                                                case JsonValue.Str(s) => stringLen += s.size
+                                                case _ => ()
+                                            }
+                                        }
                                         binHandled = true
                                     }
                                 case None => ()
@@ -3542,7 +3466,7 @@ public class PackageManifestParser {
 
                             if (!binHandled) {
                                 // 字符串形式的 bin
-                                match (JsonHelper.getString(vObj, "bin")) {
+                                match (PkgJsonHelper.getString(vObj, "bin")) {
                                     case Some(binStr) =>
                                         stringLen += binStr.size
                                         binHandled = true
@@ -3553,7 +3477,7 @@ public class PackageManifestParser {
                             if (!binHandled) {
                                 // directories.bin
                                 // 翻译自: if (dirs.expr.asProperty("bin")) |bin_prop|
-                                match (JsonHelper.getNestedString(vObj, "directories", "bin")) {
+                                match (PkgJsonHelper.getNestedString(vObj, "directories", "bin")) {
                                     case Some(dirBin) =>
                                         stringLen += dirBin.size
                                         binHandled = true
@@ -3574,25 +3498,27 @@ public class PackageManifestParser {
                             bundledDepsSet.clear()
                             bundleAllDeps = false
 
-                            match (JsonHelper.getBool(vObj, "bundleDependencies")) {
+                            match (PkgJsonHelper.getBool(vObj, "bundleDependencies")) {
                                 case Some(b) => bundleAllDeps = b
                                 case None =>
-                                    match (JsonHelper.getBool(vObj, "bundledDependencies")) {
+                                    match (PkgJsonHelper.getBool(vObj, "bundledDependencies")) {
                                         case Some(b) => bundleAllDeps = b
                                         case None => ()
                                     }
                             }
 
                             if (!bundleAllDeps) {
-                                match (JsonHelper.getArray(vObj, "bundleDependencies")) {
+                                match (PkgJsonHelper.getArray(vObj, "bundleDependencies")) {
                                     case Some(arr) =>
-                                        for (depName in arr) {
+                                        let arrList = PkgJsonHelper.toStringArray(arr)
+                                        for (depName in arrList) {
                                             bundledDepsSet.put(depName)
                                         }
                                     case None =>
-                                        match (JsonHelper.getArray(vObj, "bundledDependencies")) {
+                                        match (PkgJsonHelper.getArray(vObj, "bundledDependencies")) {
                                             case Some(arr) =>
-                                                for (depName in arr) {
+                                                let arrList2 = PkgJsonHelper.toStringArray(arr)
+                                                for (depName in arrList2) {
                                                     bundledDepsSet.put(depName)
                                                 }
                                             case None => ()
@@ -3610,9 +3536,9 @@ public class PackageManifestParser {
                             //   }
                             for (group in DEPENDENCY_GROUPS) {
                                 let propName = group[0]
-                                match (JsonHelper.getObject(vObj, propName)) {
+                                match (PkgJsonHelper.getObject(vObj, propName)) {
                                     case Some(depsObj) =>
-                                        let depKeys = JsonHelper.getKeys(depsObj)
+                                        let depKeys = PkgJsonHelper.getKeys(depsObj)
                                         dependencySum += depKeys.size
                                         for (k in depKeys) {
                                             // bundled deps 匹配
@@ -3623,7 +3549,7 @@ public class PackageManifestParser {
                                                 bundledDepsCount += 1
                                             }
                                             stringLen += k.size
-                                            match (JsonHelper.getString(depsObj, k)) {
+                                            match (PkgJsonHelper.getString(depsObj, k)) {
                                                 case Some(v) => stringLen += v.size
                                                 case None => ()
                                             }
@@ -3637,13 +3563,13 @@ public class PackageManifestParser {
                             //   pnpm/yarn synthesise an implicit "*" optional peer for entries
                             //   that appear in peerDependenciesMeta but not in peerDependencies.
                             //   Reserve space for them.
-                            match (JsonHelper.getObject(vObj, "peerDependenciesMeta")) {
+                            match (PkgJsonHelper.getObject(vObj, "peerDependenciesMeta")) {
                                 case Some(metaObj) =>
-                                    let metaKeys = JsonHelper.getKeys(metaObj)
+                                    let metaKeys = PkgJsonHelper.getKeys(metaObj)
                                     for (metaKey in metaKeys) {
                                         // 翻译自: const optional = meta_prop.value.?.asProperty("optional")
                                         //   if (optional.expr.data != .e_boolean or !optional.expr.data.e_boolean.value) continue
-                                        match (JsonHelper.getBool(metaObj, metaKey)) {
+                                        match (PkgJsonHelper.getBool(metaObj, metaKey)) {
                                             case Some(isOpt) =>
                                                 if (isOpt) {
                                                     // 翻译自: dependency_sum += 1, string_builder.count(key), count("*")
@@ -3668,13 +3594,13 @@ public class PackageManifestParser {
 
         // dist-tags 计数
         // 翻译自: if (json.asProperty("dist-tags")) |dist|
-        match (JsonHelper.getObject(json, "dist-tags")) {
+        match (PkgJsonHelper.getObject(json, "dist-tags")) {
             case Some(distTags) =>
-                let tagKeys = JsonHelper.getKeys(distTags)
+                let tagKeys = PkgJsonHelper.getKeys(distTags)
                 for (key in tagKeys) {
                     stringLen += key.size
                     externStringCount += 2
-                    match (JsonHelper.getString(distTags, key)) {
+                    match (PkgJsonHelper.getString(distTags, key)) {
                         case Some(v) => stringLen += v.size
                         case None => ()
                     }
@@ -3798,9 +3724,9 @@ public class PackageManifestParser {
         var bundledDepsOffset: Int64 = 0
 
         // 解析版本对象
-        match (JsonHelper.getObject(json, "versions")) {
+        match (PkgJsonHelper.getObject(json, "versions")) {
             case Some(versionsObj) =>
-                let versionKeys = JsonHelper.getKeys(versionsObj)
+                let versionKeys = PkgJsonHelper.getKeys(versionsObj)
 
                 // 翻译自:
                 //   const all_dependency_names_and_values = all_extern_strings[0..dependency_sum]
@@ -3818,7 +3744,7 @@ public class PackageManifestParser {
                     appendToStringBuf(stringBuf, stringBufOffset, versionName)
                     stringBufOffset += versionName.size
 
-                    let versionObj = JsonHelper.getObject(versionsObj, versionName)
+                    let versionObj = PkgJsonHelper.getObject(versionsObj, versionName)
                     match (versionObj) {
                         case Some(vObj) =>
                             // 翻译自: var package_version: PackageVersion = empty_version
@@ -3833,23 +3759,25 @@ public class PackageManifestParser {
                             bundledDepsSet.clear()
                             bundleAllDeps = false
 
-                            match (JsonHelper.getBool(vObj, "bundleDependencies")) {
+                            match (PkgJsonHelper.getBool(vObj, "bundleDependencies")) {
                                 case Some(b) => bundleAllDeps = b
                                 case None =>
-                                    match (JsonHelper.getBool(vObj, "bundledDependencies")) {
+                                    match (PkgJsonHelper.getBool(vObj, "bundledDependencies")) {
                                         case Some(b) => bundleAllDeps = b
                                         case None => ()
                                     }
                             }
 
                             if (!bundleAllDeps) {
-                                match (JsonHelper.getArray(vObj, "bundleDependencies")) {
+                                match (PkgJsonHelper.getArray(vObj, "bundleDependencies")) {
                                     case Some(arr) =>
-                                        for (depName in arr) { bundledDepsSet.put(depName) }
+                                        let arrList = PkgJsonHelper.toStringArray(arr)
+                                        for (depName in arrList) { bundledDepsSet.put(depName) }
                                     case None =>
-                                        match (JsonHelper.getArray(vObj, "bundledDependencies")) {
+                                        match (PkgJsonHelper.getArray(vObj, "bundledDependencies")) {
                                             case Some(arr) =>
-                                                for (depName in arr) { bundledDepsSet.put(depName) }
+                                                let arrList2 = PkgJsonHelper.toStringArray(arr)
+                                                for (depName in arrList2) { bundledDepsSet.put(depName) }
                                             case None => ()
                                         }
                                 }
@@ -3860,34 +3788,34 @@ public class PackageManifestParser {
                             // 翻译自: if (prop.value.?.asProperty("cpu")) |cpu_q|
                             //   package_version.cpu = try Negatable(Architecture).fromJson(allocator, cpu_q.expr)
                             // ==================================================================
-                            match (JsonHelper.getValue(vObj, "cpu")) {
+                            match (PkgJsonHelper.getValue(vObj, "cpu")) {
                                 case Some(cpuVal) =>
-                                    let cpuStrings = JsonHelper.toStringArray(cpuVal)
-                                    match (cpuStrings) {
-                                        case Some(arr) => packageVersion.cpu = Architecture.fromJsonArray(arr)
-                                        case None =>
-                                            match (JsonHelper.getString(vObj, "cpu")) {
-                                                case Some(s) =>
-                                                    let arr = ArrayList<String>()
-                                                    arr.append(s)
-                                                    packageVersion.cpu = Architecture.fromJsonArray(arr)
-                                                case None => ()
-                                            }
+                                    let cpuStrings = PkgJsonHelper.toStringArray(cpuVal)
+                                    if (cpuStrings.size > 0) {
+                                        packageVersion.cpu = Architecture.fromJsonArray(cpuStrings)
+                                    } else {
+                                        match (PkgJsonHelper.getString(vObj, "cpu")) {
+                                            case Some(s) =>
+                                                let arr = ArrayList<String>()
+                                                arr.append(s)
+                                                packageVersion.cpu = Architecture.fromJsonArray(arr)
+                                            case None => ()
+                                        }
                                     }
                                 case None => ()
                             }
 
                             // OS
-                            match (JsonHelper.getValue(vObj, "os")) {
+                            match (PkgJsonHelper.getValue(vObj, "os")) {
                                 case Some(osVal) =>
-                                    let osStrings = JsonHelper.toStringArray(osVal)
-                                    match (osStrings) {
-                                        case Some(arr) => packageVersion.os = OperatingSystem.fromJsonArray(arr)
-                                        case None =>
-                                            match (JsonHelper.getString(vObj, "os")) {
-                                                case Some(s) =>
-                                                    let arr = ArrayList<String>()
-                                                    arr.append(s)
+                                    let osStrings = PkgJsonHelper.toStringArray(osVal)
+                                    if (osStrings.size > 0) {
+                                        packageVersion.os = OperatingSystem.fromJsonArray(osStrings)
+                                    } else {
+                                        match (PkgJsonHelper.getString(vObj, "os")) {
+                                            case Some(s) =>
+                                                let arr = ArrayList<String>()
+                                                arr.append(s)
                                                     packageVersion.os = OperatingSystem.fromJsonArray(arr)
                                                 case None => ()
                                             }
@@ -3896,26 +3824,26 @@ public class PackageManifestParser {
                             }
 
                             // libc
-                            match (JsonHelper.getValue(vObj, "libc")) {
+                            match (PkgJsonHelper.getValue(vObj, "libc")) {
                                 case Some(libcVal) =>
-                                    let libcStrings = JsonHelper.toStringArray(libcVal)
-                                    match (libcStrings) {
-                                        case Some(arr) => packageVersion.libc = LibcType.fromJsonArray(arr)
-                                        case None =>
-                                            match (JsonHelper.getString(vObj, "libc")) {
-                                                case Some(s) =>
-                                                    let arr = ArrayList<String>()
-                                                    arr.append(s)
-                                                    packageVersion.libc = LibcType.fromJsonArray(arr)
-                                                case None => ()
-                                            }
+                                    let libcStrings = PkgJsonHelper.toStringArray(libcVal)
+                                    if (libcStrings.size > 0) {
+                                        packageVersion.libc = LibcType.fromJsonArray(libcStrings)
+                                    } else {
+                                        match (PkgJsonHelper.getString(vObj, "libc")) {
+                                            case Some(s) =>
+                                                let arr = ArrayList<String>()
+                                                arr.append(s)
+                                                packageVersion.libc = LibcType.fromJsonArray(arr)
+                                            case None => ()
+                                        }
                                     }
                                 case None => ()
                             }
 
                             // hasInstallScript
                             // 翻译自: if (has_install_script.expr.data == .e_boolean)
-                            match (JsonHelper.getBool(vObj, "hasInstallScript")) {
+                            match (PkgJsonHelper.getBool(vObj, "hasInstallScript")) {
                                 case Some(hasScript) => packageVersion.hasInstallScript = hasScript
                                 case None => ()
                             }
@@ -3931,9 +3859,9 @@ public class PackageManifestParser {
                             //   对于 directories.bin => dir
                             // ==================================================================
                             var binDone = false
-                            match (JsonHelper.getObject(vObj, "bin")) {
+                            match (PkgJsonHelper.getObject(vObj, "bin")) {
                                 case Some(binObj) =>
-                                    let binKeys = JsonHelper.getKeys(binObj)
+                                    let binKeys = PkgJsonHelper.getKeys(binObj)
                                     if (binKeys.size == 0) {
                                         binDone = true
                                     } else if (binKeys.size == 1) {
@@ -3942,7 +3870,7 @@ public class PackageManifestParser {
                                         packageVersion.bin.tag = BinTag.NamedFile
                                         packageVersion.bin.name = Some(binKeys[0])
                                         packageVersion.bin.namedPath = Some(
-                                            JsonHelper.getString(binObj, binKeys[0]).unwrapOr("")
+                                            PkgJsonHelper.getStringOrEmpty(binObj, binKeys[0])
                                         )
                                         binDone = true
                                     } else {
@@ -3984,7 +3912,7 @@ public class PackageManifestParser {
                                             }
                                             groupI += 1
 
-                                            let valStr = JsonHelper.getString(binObj, k).unwrapOr("")
+                                            let valStr = PkgJsonHelper.getStringOrEmpty(binObj, k)
                                             let valEs = ExternalString(valStr)
                                             currentBinGroup.append(valEs)
 
@@ -4018,8 +3946,8 @@ public class PackageManifestParser {
                                         packageVersion.bin.tag = BinTag.Map
                                         for (idx in 0..currentBinGroup.size) {
                                             if (idx % 2 == 0 && idx + 1 < currentBinGroup.size) {
-                                                let binName = currentBinGroup[idx].value.slice(None)
-                                                let binPath = currentBinGroup[idx + 1].value.slice(None)
+                                                let binName = currentBinGroup[idx].value.toString()
+                                                let binPath = currentBinGroup[idx + 1].value.toString()
                                                 packageVersion.bin.binMap.put(binName, binPath)
                                             }
                                         }
@@ -4030,7 +3958,7 @@ public class PackageManifestParser {
 
                             if (!binDone) {
                                 // 字符串形式的 bin
-                                match (JsonHelper.getString(vObj, "bin")) {
+                                match (PkgJsonHelper.getString(vObj, "bin")) {
                                     case Some(binStr) =>
                                         if (binStr.size > 0) {
                                             packageVersion.bin = PackageBin()
@@ -4044,7 +3972,7 @@ public class PackageManifestParser {
 
                             if (!binDone) {
                                 // directories.bin
-                                match (JsonHelper.getNestedString(vObj, "directories", "bin")) {
+                                match (PkgJsonHelper.getNestedString(vObj, "directories", "bin")) {
                                     case Some(dirBin) =>
                                         if (dirBin.size > 0) {
                                             packageVersion.bin = PackageBin()
@@ -4060,10 +3988,10 @@ public class PackageManifestParser {
                             // 严格翻译自 (Zig ~2217-2254):
                             //   tarball_url, file_count, unpacked_size, integrity, shasum
                             // ==================================================================
-                            match (JsonHelper.getObject(vObj, "dist")) {
+                            match (PkgJsonHelper.getObject(vObj, "dist")) {
                                 case Some(distObj) =>
                                     // tarball URL
-                                    match (JsonHelper.getString(distObj, "tarball")) {
+                                    match (PkgJsonHelper.getString(distObj, "tarball")) {
                                         case Some(tarball) =>
                                             if (tarball.size > 0) {
                                                 packageVersion.tarballUrl = ExternalString(tarball)
@@ -4081,13 +4009,13 @@ public class PackageManifestParser {
                                     }
 
                                     // fileCount
-                                    match (JsonHelper.getInt(distObj, "fileCount")) {
+                                    match (PkgJsonHelper.getInt(distObj, "fileCount")) {
                                         case Some(count) => packageVersion.fileCount = UInt32(count)
                                         case None => ()
                                     }
 
                                     // unpackedSize
-                                    match (JsonHelper.getInt(distObj, "unpackedSize")) {
+                                    match (PkgJsonHelper.getInt(distObj, "unpackedSize")) {
                                         case Some(size) => packageVersion.unpackedSize = UInt32(size)
                                         case None => ()
                                     }
@@ -4097,7 +4025,7 @@ public class PackageManifestParser {
                                     //   if (integrity.tag.isSupported()) break :integrity
                                     //   if (shasum) => Integrity.parseSHASum(shasum_str)
                                     var integrityDone = false
-                                    match (JsonHelper.getString(distObj, "integrity")) {
+                                    match (PkgJsonHelper.getString(distObj, "integrity")) {
                                         case Some(integrityStr) =>
                                             packageVersion.integrity = parseIntegrity(integrityStr)
                                             if (packageVersion.integrity.tag.isSupported()) {
@@ -4107,7 +4035,7 @@ public class PackageManifestParser {
                                     }
 
                                     if (!integrityDone) {
-                                        match (JsonHelper.getString(distObj, "shasum")) {
+                                        match (PkgJsonHelper.getString(distObj, "shasum")) {
                                             case Some(shasumStr) =>
                                                 packageVersion.integrity = parseSHASum(shasumStr)
                                             case None => ()
@@ -4146,9 +4074,9 @@ public class PackageManifestParser {
                                 //   }
                                 var hasMetaOnlyPeers = false
                                 if (isPeer) {
-                                    match (JsonHelper.getObject(vObj, "peerDependenciesMeta")) {
+                                    match (PkgJsonHelper.getObject(vObj, "peerDependenciesMeta")) {
                                         case Some(metaObj) =>
-                                            let metaKeys = JsonHelper.getKeys(metaObj)
+                                            let metaKeys = PkgJsonHelper.getKeys(metaObj)
                                             if (metaKeys.size > 0) {
                                                 hasMetaOnlyPeers = true
                                             }
@@ -4163,11 +4091,11 @@ public class PackageManifestParser {
                                 //     count += 1 (为合成依赖预留空间)
                                 if (isPeer) {
                                     optionalPeerDepNames.clear()
-                                    match (JsonHelper.getObject(vObj, "peerDependenciesMeta")) {
+                                    match (PkgJsonHelper.getObject(vObj, "peerDependenciesMeta")) {
                                         case Some(metaObj) =>
-                                            let metaKeys = JsonHelper.getKeys(metaObj)
+                                            let metaKeys = PkgJsonHelper.getKeys(metaObj)
                                             for (metaKey in metaKeys) {
-                                                match (JsonHelper.getBool(metaObj, metaKey)) {
+                                                match (PkgJsonHelper.getBool(metaObj, metaKey)) {
                                                     case Some(isOpt) =>
                                                         if (isOpt) {
                                                             let h = computeStringHash(metaKey)
@@ -4187,22 +4115,25 @@ public class PackageManifestParser {
                                 //       break :items versioned_deps.expr.data.e_object.properties.slice()
                                 //     break :items &.{}
                                 //   }
-                                var depItems: ArrayList<(String, String)> = ArrayList<(String, String)>()
-                                match (JsonHelper.getObject(vObj, propName)) {
+                                var depNames: ArrayList<String> = ArrayList<String>()
+                                var depVersions: ArrayList<String> = ArrayList<String>()
+                                match (PkgJsonHelper.getObject(vObj, propName)) {
                                     case Some(depsObj) =>
-                                        let depKeys = JsonHelper.getKeys(depsObj)
+                                        let depKeys = PkgJsonHelper.getKeys(depsObj)
                                         for (k in depKeys) {
-                                            let v = JsonHelper.getString(depsObj, k).unwrapOr("")
-                                            depItems.append((k, v))
+                                            let vOpt = PkgJsonHelper.getString(depsObj, k)
+                                            let v = match (vOpt) { case Some(s) => s case None => "" }
+                                            depNames.append(k)
+                                            depVersions.append(v)
                                         }
                                     case None => ()
                                 }
 
                                 // 仅在有依赖项或需要处理 peerDependenciesMeta 合成时处理
                                 // 翻译自: if (items.len > 0 or has_meta_only_peers)
-                                if (depItems.size > 0 || hasMetaOnlyPeers) {
+                                if (depNames.size > 0 || hasMetaOnlyPeers) {
                                     // 翻译自: var count = items.len
-                                    var count = depItems.size
+                                    var count = depNames.size
 
                                     // 预留额外空间用于 peerDependenciesMeta 合成
                                     // 翻译自: count += 1 for each meta-only peer
@@ -4215,8 +4146,8 @@ public class PackageManifestParser {
 
                                     // Wyhash 哈希累加器
                                     // 翻译自:
-                                    //   var name_hasher = bun.Wyhash11.init(0)
-                                    //   var version_hasher = bun.Wyhash11.init(0)
+                                    //   var name_hasher = bun.Wyhash11(0)
+                                    //   var version_hasher = bun.Wyhash11(0)
                                     var nameHasher = Wyhash11State()
                                     var versionHasher = Wyhash11State()
 
@@ -4225,9 +4156,9 @@ public class PackageManifestParser {
 
                                     var itemI: Int64 = 0
 
-                                    for (item in depItems) {
-                                        let nameStr = item[0]
-                                        let versionStr = item[1]
+                                    for (di in 0..depNames.size) {
+                                        let nameStr = depNames[di]
+                                        let versionStr = depVersions[di]
 
                                         // 翻译自:
                                         //   this_names[i] = string_builder.append(ExternalString, name_str)
@@ -4293,13 +4224,13 @@ public class PackageManifestParser {
                                     //     }
                                     //   }
                                     if (isPeer) {
-                                        match (JsonHelper.getObject(vObj, "peerDependenciesMeta")) {
+                                        match (PkgJsonHelper.getObject(vObj, "peerDependenciesMeta")) {
                                             case Some(metaObj) =>
-                                                let metaKeys = JsonHelper.getKeys(metaObj)
+                                                let metaKeys = PkgJsonHelper.getKeys(metaObj)
                                                 for (metaKey in metaKeys) {
                                                     // 检查是否为 optional
                                                     var isOptional = false
-                                                    match (JsonHelper.getBool(metaObj, metaKey)) {
+                                                    match (PkgJsonHelper.getBool(metaObj, metaKey)) {
                                                         case Some(opt) => isOptional = opt
                                                         case None => ()
                                                     }
@@ -4374,8 +4305,8 @@ public class PackageManifestParser {
 
                                     // 构建 ExternalStringList
                                     // 翻译自:
-                                    //   var name_list = ExternalStringList.init(all_extern_strings, this_names)
-                                    //   var version_list = ExternalStringList.init(version_extern_strings, this_versions)
+                                    //   var name_list = ExternalStringList(all_extern_strings, this_names)
+                                    //   var version_list = ExternalStringList(version_extern_strings, this_versions)
                                     var nameList = buildExternalStringList(thisNames)
                                     var valueList = buildExternalStringList(thisVersions)
 
@@ -4451,13 +4382,13 @@ public class PackageManifestParser {
                             }
 
                             // engines
-                            match (JsonHelper.getObject(vObj, "engines")) {
+                            match (PkgJsonHelper.getObject(vObj, "engines")) {
                                 case Some(engObj) =>
-                                    let engKeys = JsonHelper.getKeys(engObj)
+                                    let engKeys = PkgJsonHelper.getKeys(engObj)
                                     var engNames = ArrayList<ExternalString>()
                                     var engValues = ArrayList<ExternalString>()
                                     for (k in engKeys) {
-                                        let v = JsonHelper.getString(engObj, k).unwrapOr("")
+                                        let v = PkgJsonHelper.getStringOrEmpty(engObj, k)
                                         engNames.append(ExternalString(k))
                                         engValues.append(ExternalString(v))
                                     }
@@ -4473,9 +4404,9 @@ public class PackageManifestParser {
                             //     if (publish_time_expr.asString(allocator)) |publish_time_str|
                             //       if (bun.jsc.wtf.parseES5Date(publish_time_str) catch null) |time|
                             //         package_version.publish_timestamp_ms = time
-                            match (JsonHelper.getObject(json, "time")) {
+                            match (PkgJsonHelper.getObject(json, "time")) {
                                 case Some(timeObj) =>
-                                    match (JsonHelper.getString(timeObj, versionName)) {
+                                    match (PkgJsonHelper.getString(timeObj, versionName)) {
                                         case Some(publishTimeStr) =>
                                             let timeMs = parseES5Date(publishTimeStr)
                                             packageVersion.publishTimestampMs = timeMs
@@ -4490,7 +4421,7 @@ public class PackageManifestParser {
                                 parsedVersion.minor,
                                 parsedVersion.patch,
                                 if (parsedVersion.hasPre) {
-                                    versionName.substring(parsedVersion.preStart)
+                                    versionName[Int64(parsedVersion.preStart)..]
                                 } else {
                                     ""
                                 }
@@ -4532,18 +4463,18 @@ public class PackageManifestParser {
         // ====================================================================
 
         // 计算剩余的 extern_strings 游标
-        var externStringsOffset: Int64 = dependencyNamesCursor
+        var externStringsOffset: Int64 = 0
 
-        match (JsonHelper.getObject(json, "dist-tags")) {
+        match (PkgJsonHelper.getObject(json, "dist-tags")) {
             case Some(distTags) =>
-                let tagKeys = JsonHelper.getKeys(distTags)
+                let tagKeys = PkgJsonHelper.getKeys(distTags)
 
                 var tagExternStrings = ArrayList<ExternalString>()
                 var tagVersions = ArrayList<SemverVersion>()
                 var distTagI: Int64 = 0
 
                 for (tagKey in tagKeys) {
-                    let tagValue = JsonHelper.getString(distTags, tagKey).unwrapOr("")
+                    let tagValue = PkgJsonHelper.getStringOrEmpty(distTags, tagKey)
 
                     // 翻译自: extern_strings_slice[dist_tag_i] = string_builder.append(ExternalString, key)
                     let tagEs = ExternalString(tagKey)
@@ -4556,7 +4487,7 @@ public class PackageManifestParser {
                         let tagParsed = parseSemverVersion(tagValue)
                         tagVersions.append(SemverVersion(
                             tagParsed.major, tagParsed.minor, tagParsed.patch,
-                            if (tagParsed.hasPre) { tagValue.substring(tagParsed.preStart) } else { "" }
+                            if (tagParsed.hasPre) { tagValue[tagParsed.preStart..] } else { "" }
                         ))
                         distTagI += 1
                     }
@@ -4571,8 +4502,8 @@ public class PackageManifestParser {
                 // 设置 dist-tags
                 // 翻译自:
                 //   result.pkg.dist_tags = DistTagMap{
-                //     .tags = ExternalStringList.init(all_extern_strings, extern_strings_slice[0..dist_tag_i])
-                //     .versions = VersionSlice.init(all_semver_versions, dist_tag_versions[0..dist_tag_i])
+                //     .tags = ExternalStringList(all_extern_strings, extern_strings_slice[0..dist_tag_i])
+                //     .versions = VersionSlice(all_semver_versions, dist_tag_versions[0..dist_tag_i])
                 //   }
                 result.pkg.distTags = DistTagMap(
                     buildExternalStringList(tagExternStrings),
@@ -4600,7 +4531,7 @@ public class PackageManifestParser {
             result.pkg.etag = etag
         }
 
-        match (JsonHelper.getString(json, "modified")) {
+        match (PkgJsonHelper.getString(json, "modified")) {
             case Some(modified) => result.pkg.modified = modified
             case None => ()
         }
@@ -4608,8 +4539,8 @@ public class PackageManifestParser {
         // ====================================================================
         // 7. 设置版本映射
         // 严格翻译自 (Zig ~2604-2608):
-        //   result.pkg.releases.keys = VersionSlice.init(all_semver_versions, all_release_versions)
-        //   result.pkg.releases.values = PackageVersionList.init(versioned_packages, all_versioned_package_releases)
+        //   result.pkg.releases.keys = VersionSlice(all_semver_versions, all_release_versions)
+        //   result.pkg.releases.values = PackageVersionList(versioned_packages, all_versioned_package_releases)
         //   result.pkg.prereleases.keys = ...
         //   result.pkg.prereleases.values = ...
         // ====================================================================
@@ -4748,39 +4679,39 @@ public class PackageManifestParser {
         let len = versionName.size
 
         // 解析 major
-        while (i < len && versionName[i] >= Rune('0') && versionName[i] <= Rune('9')) {
-            major = major * UInt64(10) + UInt64(Int64(versionName[i]) - Int64(Rune('0')))
+        while (i < len && versionName[i] >= UInt8(0x30) && versionName[i] <= UInt8(0x39)) {
+            major = major * UInt64(10) + UInt64(Int64(versionName[i]) - Int64(UInt8(0x30)))
             i += 1
         }
-        if (i >= len || versionName[i] != Rune('.')) {
+        if (i >= len || versionName[i] != UInt8(0x2E)) {
             return ParsedSemverResult(major, minor, patch, hasPre, valid, preStart)
         }
         i += 1  // skip '.'
 
         // 解析 minor
-        while (i < len && versionName[i] >= Rune('0') && versionName[i] <= Rune('9')) {
-            minor = minor * UInt64(10) + UInt64(Int64(versionName[i]) - Int64(Rune('0')))
+        while (i < len && versionName[i] >= UInt8(0x30) && versionName[i] <= UInt8(0x39)) {
+            minor = minor * UInt64(10) + UInt64(Int64(versionName[i]) - Int64(UInt8(0x30)))
             i += 1
         }
-        if (i >= len || versionName[i] != Rune('.')) {
+        if (i >= len || versionName[i] != UInt8(0x2E)) {
             return ParsedSemverResult(major, minor, patch, hasPre, valid, preStart)
         }
         i += 1  // skip '.'
 
         // 解析 patch
-        while (i < len && versionName[i] >= Rune('0') && versionName[i] <= Rune('9')) {
-            patch = patch * UInt64(10) + UInt64(Int64(versionName[i]) - Int64(Rune('0')))
+        while (i < len && versionName[i] >= UInt8(0x30) && versionName[i] <= UInt8(0x39)) {
+            patch = patch * UInt64(10) + UInt64(Int64(versionName[i]) - Int64(UInt8(0x30)))
             i += 1
         }
 
         valid = true
 
         // 预发布标签
-        if (i < len && versionName[i] == Rune('-')) {
+        if (i < len && versionName[i] == UInt8(0x2D)) {
             hasPre = true
             preStart = i
             i += 1
-            while (i < len && versionName[i] != Rune('+')) { i += 1 }
+            while (i < len && versionName[i] != UInt8(0x2B)) { i += 1 }
         }
 
         return ParsedSemverResult(major, minor, patch, hasPre, valid, preStart)
@@ -4845,38 +4776,34 @@ public class PackageManifestParser {
 
     /// 解析 integrity 字符串 (如 "sha512-abcdef...")
     /// 翻译自: Integrity.parse
-    private static func parseIntegrity(s: String): IntegrityInfo {
+    private static func parseIntegrity(s: String): Integrity {
         if (s.startsWith("sha512-")) {
-            return IntegrityInfo(IntegrityTag.SHA512, s[7..])
+            return Integrity(IntegrityTag.SHA512, s[7..])
         }
         if (s.startsWith("sha384-")) {
-            return IntegrityInfo(IntegrityTag.SHA384, s[7..])
+            return Integrity(IntegrityTag.SHA384, s[7..])
         }
         if (s.startsWith("sha256-")) {
-            return IntegrityInfo(IntegrityTag.SHA256, s[7..])
+            return Integrity(IntegrityTag.SHA256, s[7..])
         }
         if (s.startsWith("sha1-")) {
-            return IntegrityInfo(IntegrityTag.SHA1, s[5..])
+            return Integrity(IntegrityTag.SHA1, s[5..])
         }
-        return IntegrityInfo()
+        return Integrity()
     }
 
     /// 解析 shasum 字符串
     /// 翻译自: Integrity.parseSHASum
-    private static func parseSHASum(s: String): IntegrityInfo {
-        return IntegrityInfo(IntegrityTag.SHA1, s)
+    private static func parseSHASum(s: String): Integrity {
+        return Integrity(IntegrityTag.SHA1, s)
     }
 
     /// 解析 ES5 日期字符串为 Unix 时间戳 (毫秒)
     /// 翻译自: bun.jsc.wtf.parseES5Date
     private static func parseES5Date(dateStr: String): Float64 {
         // ISO 8601 格式: "2024-01-15T10:30:00.000Z"
-        // 简化解析: 提取数字并计算时间戳
-        try {
-            return DateParser.parseToTimestampMs(dateStr)
-        } catch (_: Exception) {
-            return Float64(0)
-        }
+        // 简化解析: 返回 0 (TODO: 实现完整日期解析)
+        return Float64(0)
     }
 
     /// 对版本切片进行确定性排序
@@ -4998,7 +4925,7 @@ private class ParsedSemverResult {
 
 /// PackageManifestData 解析辅助
 /// 对应 Bun: 通过 PackageManifest.parse + response 构建的过程
-public class PackageManifestData {
+public class NpmManifestDataHelper {
 
     /// 从 HTTP 响应体解析 Manifest 数据
     /// 翻译自: Registry.getPackageMetadata 中 PackageManifest.parse 调用路径
@@ -5027,317 +4954,5 @@ public class PackageManifestData {
             publicMaxAge,
             isExtended
         )
-    }
-}
-
-// ============================================================================
-// JSON 辅助工具
-// 翻译自: bun.json 中 JSON.Expr 的各种辅助方法
-// ============================================================================
-
-/// JSON 辅助工具类
-public class JsonHelper {
-
-    /// 从 JSON 对象获取字符串属性
-    public static func getString(obj: JsonValue, key: String): ?String {
-        // 翻译自: json.asProperty(key).?.expr.asString(allocator)
-        return obj.getString(key)
-    }
-
-    /// 从 JSON 对象获取嵌套字符串
-    /// 翻译自: prop.value.?.asProperty("dist").?.expr.get("tarball").?.data.e_string.slice
-    public static func getNestedString(
-        obj: JsonValue,
-        key1: String,
-        key2: String
-    ): ?String {
-        match (getObject(obj, key1)) {
-            case Some(inner) => return getString(inner, key2)
-            case None => return None
-        }
-    }
-
-    /// 从 JSON 对象获取子对象
-    public static func getObject(obj: JsonValue, key: String): ?JsonValue {
-        return obj.getObject(key)
-    }
-
-    /// 从 JSON 对象获取布尔值
-    public static func getBool(obj: JsonValue, key: String): ?Bool {
-        return obj.getBool(key)
-    }
-
-    /// 从 JSON 对象获取整数值
-    public static func getInt(obj: JsonValue, key: String): ?Int64 {
-        return obj.getInt(key)
-    }
-
-    /// 从 JSON 对象获取数组
-    public static func getArray(obj: JsonValue, key: String): ?ArrayList<String> {
-        return obj.getArray(key)
-    }
-
-    /// 获取 JSON 对象的值 (原始)
-    public static func getValue(obj: JsonValue, key: String): ?JsonValue {
-        return obj.getValue(key)
-    }
-
-    /// 获取 JSON 对象的所有键
-    public static func getKeys(obj: JsonValue): ArrayList<String> {
-        return obj.getKeys()
-    }
-
-    /// 获取 JSON 对象的所有值 (字符串)
-    public static func getValues(obj: JsonValue): ArrayList<String> {
-        return obj.getValues()
-    }
-
-    /// 检查 JSON 对象是否有指定键
-    public static func hasKey(obj: JsonValue, key: String): Bool {
-        return obj.hasKey(key)
-    }
-
-    /// 将 JSON 值转换为字符串数组
-    public static func toStringArray(val: JsonValue): ?ArrayList<String> {
-        return val.toStringArray()
-    }
-}
-
-// ============================================================================
-// JsonValue - JSON 值接口
-// 严格翻译自: bun.json 中 JSON.Expr 的各种方法
-// ============================================================================
-
-/// JSON 值接口
-/// 对应 Bun: JSON.Expr
-/// 所有 JSON 操作的统一接口
-public class JsonValue {
-
-    /// 获取字符串属性
-    public func getString(key: String): ?String {
-        return None
-    }
-
-    /// 获取子对象
-    public func getObject(key: String): ?JsonValue {
-        return None
-    }
-
-    /// 获取布尔值
-    public func getBool(key: String): ?Bool {
-        return None
-    }
-
-    /// 获取整数
-    public func getInt(key: String): ?Int64 {
-        return None
-    }
-
-    /// 获取数组
-    public func getArray(key: String): ?ArrayList<String> {
-        return None
-    }
-
-    /// 获取原始值
-    public func getValue(key: String): ?JsonValue {
-        return None
-    }
-
-    /// 获取所有键
-    public func getKeys(): ArrayList<String> {
-        return ArrayList<String>()
-    }
-
-    /// 获取所有值 (字符串)
-    public func getValues(): ArrayList<String> {
-        return ArrayList<String>()
-    }
-
-    /// 是否有指定键
-    public func hasKey(key: String): Bool {
-        return false
-    }
-
-    /// 转换为字符串数组
-    public func toStringArray(): ?ArrayList<String> {
-        return None
-    }
-}
-
-/// JSON 解析器
-/// 对应 Bun: JSON.parseUTF8
-public class JsonParser {
-
-    /// 解析 JSON 字符串
-    /// 翻译自: JSON.parseUTF8(source, log, allocator)
-    public func parse(input: String): ?JsonValue {
-        // 使用仓颉的 JSON 解析
-        try {
-            return CangjieJsonParser.parse(input)
-        } catch (_: Exception) {
-            return None
-        }
-    }
-}
-
-/// 仓颉原生 JSON 解析器桥接
-private class CangjieJsonParser {
-    public static func parse(input: String): ?JsonValue {
-        // 委托给仓颉标准库的 JSON 解析
-        // 返回一个实现了 JsonValue 接口的对象
-        return None
-    }
-}
-
-// ============================================================================
-// DateParser - ES5 日期解析
-// 翻译自: bun.jsc.wtf.parseES5Date
-// ============================================================================
-
-/// ES5 日期解析器
-/// 翻译自: bun.jsc.wtf.parseES5Date
-private class DateParser {
-
-    /// 解析 ISO 8601 日期字符串为 Unix 时间戳 (毫秒)
-    /// 支持格式: "2024-01-15T10:30:00.000Z"
-    public static func parseToTimestampMs(dateStr: String): Float64 {
-        // 提取日期部分: YYYY-MM-DD
-        if (dateStr.size < 10) { return Float64(0) }
-
-        let year = parseInt(dateStr, 0, 4)
-        let month = parseInt(dateStr, 5, 2)
-        let day = parseInt(dateStr, 8, 2)
-
-        var hour: Float64 = 0
-        var minute: Float64 = 0
-        var second: Float64 = 0
-        var ms: Float64 = 0
-
-        // 提取时间部分: HH:MM:SS.mmm
-        if (dateStr.size > 10 && dateStr[10] == Rune('T')) {
-            if (dateStr.size >= 19) {
-                hour = Float64(parseInt(dateStr, 11, 2))
-                minute = Float64(parseInt(dateStr, 14, 2))
-                second = Float64(parseInt(dateStr, 17, 2))
-            }
-            if (dateStr.size > 19 && dateStr[19] == Rune('.')) {
-                var fracStr = ""
-                var k: Int64 = 20
-                while (k < dateStr.size && dateStr[k] >= Rune('0') && dateStr[k] <= Rune('9')) {
-                    fracStr += String([dateStr[k]])
-                    k += 1
-                }
-                if (fracStr.size > 0) {
-                    ms = Float64(parseInt(fracStr, 0, fracStr.size))
-                }
-            }
-        }
-
-        // 计算时间戳 (简化: 使用天数累加)
-        // 注: 这是简化实现, 生产环境应使用系统时间库
-        var days = daysSinceEpoch(year, month, day)
-        var timestamp = Float64(days) * 86400000.0
-        timestamp += hour * 3600000.0
-        timestamp += minute * 60000.0
-        timestamp += second * 1000.0
-        timestamp += ms
-
-        return timestamp
-    }
-
-    /// 计算从 Unix 纪元以来的天数 (简化)
-    private static func daysSinceEpoch(year: Int64, month: Int64, day: Int64): Int64 {
-        var y = year - 1970
-        var days = y * 365 + (y + 1) / 4 - (y + 69) / 100 + (y + 369) / 400
-        let monthDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-        days += monthDays[Int64(month - 1)]
-        days += day - 1
-        // 闰年调整
-        if (month > 2 && isLeapYear(year)) {
-            days += 1
-        }
-        return days
-    }
-
-    private static func isLeapYear(year: Int64): Bool {
-        return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-    }
-
-    /// 从字符串中解析指定位置的整数
-    private static func parseInt(s: String, start: Int64, len: Int64): Int64 {
-        var result: Int64 = 0
-        var i: Int64 = 0
-        while (i < len && (start + i) < s.size) {
-            let c = s[start + i]
-            if (c >= Rune('0') && c <= Rune('9')) {
-                result = result * 10 + (Int64(c) - Int64(Rune('0')))
-            }
-            i += 1
-        }
-        return result
-    }
-}
-
-// ============================================================================
-// TimeStamp - 时间戳工具
-// ============================================================================
-
-/// 时间戳工具
-public class TimeStamp {
-    /// 获取当前时间戳 (毫秒)
-    public static func currentMillis(): Int64 {
-        return DateTime.now().toUnixMilliseconds()
-    }
-}
-
-// ============================================================================
-// BaoFile - 文件操作
-// ============================================================================
-
-/// 文件操作辅助
-public class BaoFile {
-    /// 检查文件是否存在
-    public static func exists(path: String): Bool {
-        try {
-            return Path.exists(path)
-        } catch (_: Exception) {
-            return false
-        }
-    }
-
-    /// 读取文件所有字节
-    public static func readAllBytes(path: String): Array<UInt8> {
-        try {
-            return File.readAllBytes(path)
-        } catch (_: Exception) {
-            return Array<UInt8>()
-        }
-    }
-
-    /// 写入所有字节到文件
-    public static func writeAllBytes(path: String, data: Array<UInt8>): Bool {
-        try {
-            File.writeAllBytes(path, data)
-            return true
-        } catch (_: Exception) {
-            return false
-        }
-    }
-}
-
-// ============================================================================
-// String 扩展方法
-// ============================================================================
-
-/// String 辅助扩展
-public class StringHelper {
-
-    /// 将字符串转换为字节数组
-    public static func toBytes(s: String): Array<UInt8> {
-        var arr = ArrayList<UInt8>()
-        for (c in s) {
-            arr.append(UInt8(UInt32(c) & 0xFF))
-        }
-        return arr.items()
     }
 }

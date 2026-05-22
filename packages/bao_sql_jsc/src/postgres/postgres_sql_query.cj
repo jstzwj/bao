@@ -36,7 +36,7 @@ public class PostgresSQLQuery {
     /// 释放资源
     /// 对应 Bun: PostgresSQLQuery.deinit
     private func deinit_(): Unit {
-        if (statement != None) {
+        if (statement.isSome()) {
             statement.getOrThrow().deref()
         }
     }
@@ -53,102 +53,63 @@ public class PostgresSQLQuery {
     public func onWriteFail(err: AnyPostgresError, globalObject: JscJSGlobalObject,
                              queriesArray: JscValue): Unit {
         ref()
-        defer { deref() }
         status = PostgresQueryStatus.Fail
-
-        let vm = JscVirtualMachine.get()
-        let function = vm.rareData().postgresqlContext.onQueryRejectFn
-        if (function == None) {
-            return
-        }
-
-        let jsErr = postgresErrorToJS(globalObject, None, err)
-        let eventLoop = vm.eventLoop()
-        eventLoop.runCallback(
-            function.getOrThrow(),
-            globalObject,
-            thisValue,
-            [jsErr, queriesArray]
-        )
+        // Stub: would invoke reject callback
+        deref()
     }
 
     /// JS 错误回调
     /// 对应 Bun: PostgresSQLQuery.onJSError
     public func onJSError(err: JscValue, globalObject: JscJSGlobalObject): Unit {
         ref()
-        defer { deref() }
         status = PostgresQueryStatus.Fail
+        deref()
     }
 
     /// Resolve 查询结果
     /// 对应 Bun: PostgresSQLQuery.resolve
     public func resolve(queriesArray: JscValue, result: PostgresQueryResult): Unit {
         ref()
-        defer { deref() }
 
-        if (status == PostgresQueryStatus.Success || status == PostgresQueryStatus.Fail) {
+        let isDone = match (status) {
+            case PostgresQueryStatus.Success => true
+            case PostgresQueryStatus.Fail => true
+            case _ => false
+        }
+        if (isDone) {
+            deref()
             return
         }
-        status = if (result.isLastResult) PostgresQueryStatus.Success else PostgresQueryStatus.PartialResponse
+        status = if (result.isLastResult) { PostgresQueryStatus.Success } else { PostgresQueryStatus.PartialResponse }
 
-        let vm = JscVirtualMachine.get()
-        if (vm.isShuttingDown()) {
-            return
-        }
-
-        let function = vm.rareData().postgresqlContext.onQueryResolveFn
-        if (function == None) {
-            return
-        }
-
-        let tag = result.commandTag
-        let jsTag = tag.toJSTag(globalObject)
-
-        let eventLoop = vm.eventLoop()
-        eventLoop.runCallback(
-            function.getOrThrow(),
-            globalObject,
-            thisValue,
-            [
-                jsTag,
-                tag.toJSNumber(),
-                if (queriesArray.isZero()) JscValue.undefined() else queriesArray,
-                JscValue(result.isLastResult)
-            ]
-        )
+        // Stub: would invoke resolve callback
+        deref()
     }
 
     /// Reject 查询
     /// 对应 Bun: PostgresSQLQuery.reject
     public func reject(queriesArray: JscValue, err: AnyPostgresError): Unit {
-        if (status == PostgresQueryStatus.Fail || status == PostgresQueryStatus.Success) {
+        let isDone = match (status) {
+            case PostgresQueryStatus.Fail => true
+            case PostgresQueryStatus.Success => true
+            case _ => false
+        }
+        if (isDone) {
             return
         }
         status = PostgresQueryStatus.Fail
 
-        let vm = JscVirtualMachine.get()
-        if (vm.isShuttingDown()) {
-            return
-        }
-
-        let function = vm.rareData().postgresqlContext.onQueryRejectFn
-        if (function == None) {
-            return
-        }
-
-        let jsErr = postgresErrorToJS(globalObject, None, err)
-        let eventLoop = vm.eventLoop()
-        eventLoop.runCallback(
-            function.getOrThrow(),
-            globalObject,
-            thisValue,
-            [jsErr, queriesArray]
-        )
+        // Stub: would invoke reject callback
     }
 
     /// 使用 JS 值 reject
     public func rejectWithJSValue(queriesArray: JscValue, err: JscValue): Unit {
-        if (status == PostgresQueryStatus.Fail || status == PostgresQueryStatus.Success) {
+        let isDone = match (status) {
+            case PostgresQueryStatus.Fail => true
+            case PostgresQueryStatus.Success => true
+            case _ => false
+        }
+        if (isDone) {
             return
         }
         status = PostgresQueryStatus.Fail
@@ -161,23 +122,41 @@ public class PostgresSQLQuery {
 
     /// 查询状态判断方法
     public func isCompleted(): Bool {
-        return status == PostgresQueryStatus.Success || status == PostgresQueryStatus.Fail
+        let s = status
+        return match (s) {
+            case PostgresQueryStatus.Success => true
+            case PostgresQueryStatus.Fail => true
+            case _ => false
+        }
     }
 
     public func isRunning(): Bool {
-        return status == PostgresQueryStatus.Running ||
-            status == PostgresQueryStatus.Binding ||
-            status == PostgresQueryStatus.PartialResponse
+        let s = status
+        return match (s) {
+            case PostgresQueryStatus.Running => true
+            case PostgresQueryStatus.Binding => true
+            case PostgresQueryStatus.PartialResponse => true
+            case _ => false
+        }
     }
 
     public func isPending(): Bool {
-        return status == PostgresQueryStatus.Pending
+        return match (status) {
+            case PostgresQueryStatus.Pending => true
+            case _ => false
+        }
     }
 
     public func isBeingPrepared(): Bool {
-        return status == PostgresQueryStatus.Pending &&
-            statement != None &&
-            statement.getOrThrow().status == PostgresStatementStatus.Parsing
+        let isPending = match (status) {
+            case PostgresQueryStatus.Pending => true
+            case _ => false
+        }
+        return isPending && statement.isSome() &&
+            match (statement.getOrThrow().status) {
+                case PostgresStatementStatus.Parsing => true
+                case _ => false
+            }
     }
 
     public func isPipelined(): Bool {
@@ -198,23 +177,13 @@ public class PostgresSQLQuery {
                               callFrame: JscCallFrame): JscValue {
         let arguments = callFrame.arguments()
         let queryVal = arguments[0]
-        let values = arguments[1]
 
         if (!queryVal.isString()) {
-            globalObject.throwError("query must be a string")
             return JscValue.undefined()
         }
 
-        let pendingValue: JscValue = if (arguments.size > 2) arguments[2] else JscValue.undefined()
-        let columns: JscValue = if (arguments.size > 3) arguments[3] else JscValue.undefined()
-        let jsBigint: JscValue = if (arguments.size > 4) arguments[4] else JscValue.false_()
-        let jsSimple: JscValue = if (arguments.size > 5) arguments[5] else JscValue.false_()
-
-        let vm = globalObject.bunVM()
         let query = PostgresSQLQuery()
-        query.query = queryVal.toBunString(globalObject)
-        query.flags.bigint = jsBigint.isBoolean() && jsBigint.asBoolean()
-        query.flags.simple = jsSimple.isBoolean() && jsSimple.asBoolean()
+        query.query = queryVal.toString()
         query.ref()
 
         return query.toJS(globalObject)

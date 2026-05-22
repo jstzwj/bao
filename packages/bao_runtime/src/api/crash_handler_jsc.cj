@@ -24,11 +24,11 @@ public class CrashHandlerJsBindings {
             ("panic", jsPanic),
             ("rootError", jsRootError),
             ("outOfMemory", jsOutOfMemory),
-            ("raiseIgnoringPanicHandler", jsRaiseIgnoringPanicHandler),
+            ("raiseIgnoringPanicHandler", jsRaiseIgnoringPanicHandler)
         ]
 
         for ((name, fn) in functions) {
-            let jsName = ZigString.static(name)
+            let jsName = ZigString.`static`(name)
             obj.put(global, jsName, JsFunction.create(global, name, fn, 1))
         }
 
@@ -41,7 +41,7 @@ public class CrashHandlerJsBindings {
 
     /// 获取 MachO 镜像零偏移
     public static func jsGetMachOImageZeroOffset(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        if (!Environment.isMac) { return JsValue.jsUndefined }
+        if (!Environment.isMac) { return JsValue.jsUndefined() }
 
         // 获取镜像头和 vmaddr_slide
         // ... 平台特定实现
@@ -52,34 +52,34 @@ public class CrashHandlerJsBindings {
     public static func jsSegfault(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
         CrashHandler.suppressCoreDumpsIfNecessary()
         // ... 写入无效内存地址
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 触发 panic (仅用于测试)
     public static func jsPanic(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
         CrashHandler.suppressCoreDumpsIfNecessary()
         CrashHandler.panicImpl("invoked crashByPanic() handler")
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 触发根错误 (仅用于测试)
     public static func jsRootError(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
         CrashHandler.handleRootError(Error.Test)
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 触发内存不足 (仅用于测试)
     public static func jsOutOfMemory(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
         CrashHandler.suppressCoreDumpsIfNecessary()
         Global.outOfMemory()
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 忽略 panic 处理器引发信号 (仅用于测试)
     public static func jsRaiseIgnoringPanicHandler(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
         CrashHandler.suppressCoreDumpsIfNecessary()
         Global.raiseIgnoringPanicHandler(.SIGSEGV)
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 获取功能特性作为 VLQ 编码
@@ -97,13 +97,13 @@ public class CrashHandlerJsBindings {
         let list = Analytics.packedFeaturesList
         let array = try JsValue.createEmptyArray(global, list.count)
         for ((feature, i) in list.enumerated()) {
-            try array.putIndex(global, UInt32(i), BunString.static(feature).toJS(global))
+            try array.putIndex(global, UInt32(i), BunString.`static`(feature).toJS(global))
         }
-        obj.put(global, ZigString.static("features"), array)
-        obj.put(global, ZigString.static("version"), BunString.init(Global.packageJsonVersion).toJS(global))
-        obj.put(global, ZigString.static("is_canary"), JsValue.jsBoolean(Environment.isCanary))
-        obj.put(global, ZigString.static("revision"), BunString.init(Environment.gitSha).toJS(global))
-        obj.put(global, ZigString.static("generated_at"), JsValue.jsNumberFromInt64(max(Time.milliTimestamp(), 0)))
+        obj.put(global, ZigString.`static`("features"), array)
+        obj.put(global, ZigString.`static`("version"), BunString(Global.packageJsonVersion).toJS(global))
+        obj.put(global, ZigString.`static`("is_canary"), JsValue.jsBoolean(Environment.isCanary))
+        obj.put(global, ZigString.`static`("revision"), BunString(Environment.gitSha).toJS(global))
+        obj.put(global, ZigString.`static`("generated_at"), JsValue.jsNumberFromInt64(max(Time.milliTimestamp(), 0)))
         return obj
     }
 }

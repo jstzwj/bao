@@ -69,7 +69,7 @@ public class PerfTraceCtx {
 /// 提示: 确保使用字符串字面量调用 trace(), 而非变量
 public class PerfTrace {
     /// 是否已启用 (运行时检测)
-    /// 对应 Bun: is_enabled = std.atomic.Value(bool).init(false)
+    /// 对应 Bun: is_enabled = std.atomic.Value(bool).`init`(false)
     private static var isEnabledFlag: Bool = false
     /// 是否已检测
     private static var hasChecked: Bool = false
@@ -148,11 +148,11 @@ public class DarwinTracer {
     public static func initOSLog(): Unit {
         if (osLogInitialized) { return }
         osLogInitialized = true
-        // OSLog.init() - 通过 C FFI 调用 os_log_create
+        // OSLog() - 通过 C FFI 调用 os_log_create
     }
 
     /// 创建追踪上下文
-    /// 对应 Bun: Darwin.init(name) -> interval = os_log.signpost(name).interval(.PointsOfInterest)
+    /// 对应 Bun: Darwin(name) -> interval = os_log.signpost(name).interval(.PointsOfInterest)
     public static func initTrace(event: PerfEvent): PerfTraceCtx {
         return PerfTraceCtx(event, true)
     }
@@ -171,7 +171,7 @@ public class DarwinTracer {
 /// 使用 Bun 自定义的 trace 事件 API
 public class LinuxTracer {
     /// 是否已初始化
-    /// 对应 Bun: is_initialized = std.atomic.Value(bool).init(false)
+    /// 对应 Bun: is_initialized = std.atomic.Value(bool).`init`(false)
     private static var isInitialized: Bool = false
     /// 是否支持
     private static var isSupportedFlag: Bool = false
@@ -189,7 +189,7 @@ public class LinuxTracer {
     }
 
     /// 初始化追踪上下文
-    /// 对应 Bun: Linux.init(event) -> start_time = timespec.now(.force_real_time).ns()
+    /// 对应 Bun: Linux(event) -> start_time = timespec.now(.force_real_time).ns()
     public static func initTrace(event: PerfEvent): PerfTraceCtx {
         return PerfTraceCtx(event, true)
     }

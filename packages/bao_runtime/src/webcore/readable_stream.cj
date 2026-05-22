@@ -6,6 +6,7 @@ package bao_runtime.webcore
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_sys.*
 
 // ============================================================================
@@ -51,7 +52,7 @@ public enum ReadableStreamSourceTag {
 
 /// 可读流数据源
 /// 对应 Bun: ReadableStream.Source
-/// Rust Source::Blob(*mut ByteBlobLoader), Source::File(*mut FileReader), etc.
+/// Rust Source::Blob(*ByteBlobLoader), Source::File(*FileReader), etc.
 /// are raw non-owning pointers. In Cangjie we store nullable references.
 public class ReadableStreamSource {
     /// 源类型标签
@@ -63,21 +64,21 @@ public class ReadableStreamSource {
     /// 是否已取消
     public var cancelled: Bool
     /// ByteStream 引用 (Bytes 源)
-    /// 对应 Bun: Source::Bytes(*mut ByteStream) — BackRef
+    /// 对应 Bun: Source::Bytes(*ByteStream) — BackRef
     public var byteStream: ?ByteStream
     /// ByteBlobLoader 引用 (Blob 源)
-    /// 对应 Bun: Source::Blob(*mut ByteBlobLoader)
+    /// 对应 Bun: Source::Blob(*ByteBlobLoader)
     public var blobLoader: ?ByteBlobLoader
     /// FileReader 引用 (File 源)
-    /// 对应 Bun: Source::File(*mut FileReader)
+    /// 对应 Bun: Source::File(*FileReader)
     public var fileReader: ?FileReader
     /// 大小提示
     public var sizeHint: BlobSizeType
     /// 取消回调
-    /// 对应 Bun: NewSource.cancel_handler (Cell<Option<fn(Option<*mut c_void>)>>)
+    /// 对应 Bun: NewSource.cancel_handler (Cell<Option<fn(Option<*c_void>)>>)
     public var cancelCallback: ?((?(UIntPtr)) -> Unit)
     /// 取消上下文
-    /// 对应 Bun: NewSource.cancel_ctx (Cell<Option<*mut c_void>>)
+    /// 对应 Bun: NewSource.cancel_ctx (Cell<Option<*c_void>>)
     public var cancelCtx: ?UIntPtr
 
     public init() {
@@ -154,7 +155,7 @@ public class ReadableStreamSource {
     /// 对应 Bun: Source::bytes() -> Option<BackRef<ByteStream>>
     /// Shared borrow of the Bytes payload. The pointer is the JS wrapper's
     /// m_ctx heap allocation, non-null and live while the owning ReadableStream
-    /// JSValue is rooted. R-2: every ByteStream field touched through this
+    /// JsValue is rooted. R-2: every ByteStream field touched through this
     /// borrow is Cell/JsCell-backed, so re-entrant JS aliases shared-only.
     public func bytes(): ?ByteStream {
         match (tag) {
@@ -166,7 +167,7 @@ public class ReadableStreamSource {
     /// 获取 FileReader 的 BackRef (File 源)
     /// 对应 Bun: Source::file() -> Option<BackRef<FileReader>>
     /// Same invariant as bytes(): non-null and live while the owning
-    /// ReadableStream JSValue is rooted.
+    /// ReadableStream JsValue is rooted.
     public func file(): ?FileReader {
         match (tag) {
             case File => fileReader
@@ -190,9 +191,8 @@ public class ReadableStreamSource {
         hasReceivedLastChunk = true
 
         match (cancelCallback) {
-            case Some(cb) => {
+            case Some(cb) =>
                 cb(cancelCtx)
-            }
             case None => ()
         }
     }
@@ -242,7 +242,7 @@ public class ReadableStreamStrong {
     }
 
     /// 初始化 — 创建一个新的 Strong 引用
-    /// 对应 Bun: Strong.init(this: ReadableStream, global) -> Strong
+    /// 对应 Bun: Strong(`this`: ReadableStream, global) -> Strong
     public static func create(stream: ReadableStream, global: JsGlobalObject): ReadableStreamStrong {
         let held = JsStrongOptional.create(stream.value, global)
         return ReadableStreamStrong(held, global)
@@ -272,15 +272,13 @@ public class ReadableStreamStrong {
     /// this handle to point at the first branch and returns the second.
     public func tee(global: JsGlobalObject): ?ReadableStream {
         match (get(global)) {
-            case Some(stream) => {
+            case Some(stream) =>
                 match (stream.tee()) {
-                    case (first, second) => {
+                    case (first, second) =>
                         // Update this handle to the first branch
                         held.set(global, first.value)
                         return Some(second)
-                    }
                 }
-            }
             None => None
         }
     }
@@ -347,7 +345,7 @@ public class ReadableStream {
     }
 
     /// 转为 JS 值
-    /// 对应 Bun: ReadableStream.to_js() -> JSValue
+    /// 对应 Bun: ReadableStream.to_js() -> JsValue
     pub func toJs(): JsValue {
         value
     }
@@ -357,16 +355,14 @@ public class ReadableStream {
     pub func reloadTag(): Unit {
         let reloaded = ReadableStream.fromJsValue(value)
         match (reloaded) {
-            case Some(stream) => {
+            case Some(stream) =>
                 source = stream.source
                 value = stream.value
                 locked = stream.locked
                 disturbed = stream.disturbed
-            }
-            case None => {
+            case None =>
                 source = ReadableStreamSource()
                 value = JsValue.ZERO
-            }
         }
     }
 
@@ -384,54 +380,45 @@ public class ReadableStream {
         reloadTag()
 
         match (source.getTag()) {
-            case Blob => {
+            case Blob =>
                 match (source.blobSource()) {
-                    case Some(loader) => {
+                    case Some(loader) =>
                         let anyBlob = loader.toAnyBlob()
                         match (anyBlob) {
-                            case Some(b) => {
+                            case Some(b) =>
                                 done()
                                 return Some(b)
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
-            }
-            case File => {
+            case File =>
                 match (source.file()) {
-                    case Some(reader) => {
+                    case Some(reader) =>
                         // 对应 Bun: Source::File -> FileReader Lazy::Blob(store) path
                         let anyBlob = reader.toAnyBlob()
                         match (anyBlob) {
-                            case Some(b) => {
+                            case Some(b) =>
                                 done()
                                 return Some(b)
-                            }
                             case None => ()
                         }
-                    }
                     case None => ()
                 }
-            }
-            case Bytes => {
+            case Bytes =>
                 match (source.bytes()) {
-                    case Some(bs) => {
+                    case Some(bs) =>
                         // If we've received the complete body by the time this function is called
                         // we can avoid streaming it and convert it to a Blob
                         let anyBlob = bs.toAnyBlob()
                         match (anyBlob) {
-                            case Some(b) => {
+                            case Some(b) =>
                                 done()
                                 return Some(b)
-                            }
                             case None => return None
                         }
-                    }
                     case None => ()
                 }
-            }
             case _ => ()
         }
 
@@ -445,27 +432,23 @@ public class ReadableStream {
     /// This will resolve any pending promises to done: true.
     pub func done(): Unit {
         match (source.getTag()) {
-            case Blob => {
+            case Blob =>
                 match (source.blobSource()) {
                     case Some(loader) => loader.cancel()
                     case None => ()
                 }
-            }
-            case File => {
+            case File =>
                 match (source.file()) {
                     case Some(reader) => reader.cancel()
                     case None => ()
                 }
-            }
-            case Bytes => {
+            case Bytes =>
                 match (source.bytes()) {
-                    case Some(bs) => {
+                    case Some(bs) =>
                         bs.done = true
                         bs.hasReceivedLastChunk = true
-                    }
                     case None => ()
                 }
-            }
             case _ => ()
         }
         detachIfPossible()
@@ -545,7 +528,7 @@ public class ReadableStream {
     /// 对应 Bun: ReadableStream.tee(global_this) -> JsResult<Option<(ReadableStream, ReadableStream)>>
     /// 对应 Web API: readableStream.tee()
     pub func tee(): (ReadableStream, ReadableStream) {
-        // 对应 Bun: ReadableStream__tee(self.value, global_this, &mut out1, &mut out2) FFI
+        // 对应 Bun: ReadableStream__tee(self.value, global_this, &out1, &out2) FFI
         let stream1 = ReadableStream(ReadableStreamSource(source.tag))
         let stream2 = ReadableStream(ReadableStreamSource(source.tag))
         // Copy buffer to both streams
@@ -585,30 +568,24 @@ public class ReadableStream {
             return None
         }
 
-        // 对应 Bun: ReadableStreamTag__tagged(global_this, &mut out, &mut ptr) FFI
+        // 对应 Bun: ReadableStreamTag__tagged(global_this, &out, &ptr) FFI
         // Attempt to tag the readable stream value
         let (tag, source) = tagReadableStream(value)
         match (tag) {
-            case ReadableStreamTag.JavaScript => {
+            case ReadableStreamTag.JavaScript =>
                 let src = ReadableStreamSource(ReadableStreamSourceTag.JavaScript)
                 Some(ReadableStream(value: value, source: src))
-            }
-            case ReadableStreamTag.Blob => {
+            case ReadableStreamTag.Blob =>
                 Some(ReadableStream(value: value, source: source))
-            }
-            case ReadableStreamTag.File => {
+            case ReadableStreamTag.File =>
                 Some(ReadableStream(value: value, source: source))
-            }
-            case ReadableStreamTag.Bytes => {
+            case ReadableStreamTag.Bytes =>
                 Some(ReadableStream(value: value, source: source))
-            }
-            case ReadableStreamTag.Direct => {
+            case ReadableStreamTag.Direct =>
                 let src = ReadableStreamSource(ReadableStreamSourceTag.Direct)
                 Some(ReadableStream(value: value, source: src))
-            }
-            case ReadableStreamTag.Invalid => {
+            case ReadableStreamTag.Invalid =>
                 None
-            }
         }
     }
 
@@ -623,7 +600,7 @@ public class ReadableStream {
     }
 
     /// 从原生值创建可读流
-    /// 对应 Bun: ReadableStream::from_native(global_this, native) -> JsResult<JSValue>
+    /// 对应 Bun: ReadableStream::from_native(global_this, native) -> JsResult<JsValue>
     pub static func fromNative(global: JsGlobalObject, native: JsValue): JsValue {
         // 对应 Bun: ZigGlobalObject__createNativeReadableStream(global_this, native) FFI
         createNativeReadableStream(native)
@@ -660,17 +637,16 @@ public class ReadableStream {
         recommendedChunkSize: BlobSizeType
     ): JsValue {
         match (blob.store) {
-            case Some(store) => {
+            case Some(store) =>
                 match (store.kind) {
-                    case BlobStoreKind.Memory => {
+                    case BlobStoreKind.Memory =>
                         // ByteBlobLoader path — 对应 Bun: Data::Bytes branch
                         let loader = ByteBlobLoader()
                         loader.setup(blob, recommendedChunkSize)
                         let source = ReadableStreamSource(ReadableStreamSourceTag.Blob, loader)
                         let stream = ReadableStream(source)
                         return stream.toJsValue()
-                    }
-                    case BlobStoreKind.File => {
+                    case BlobStoreKind.File =>
                         // FileReader path — 对应 Bun: Data::File branch
                         let reader = FileReader()
                         reader.startOffset = blob.offset
@@ -680,15 +656,12 @@ public class ReadableStream {
                         let source = ReadableStreamSource(ReadableStreamSourceTag.File, reader)
                         let stream = ReadableStream(source)
                         return stream.toJsValue()
-                    }
-                    case BlobStoreKind.S3 => {
+                    case BlobStoreKind.S3 =>
                         // S3 path — 对应 Bun: Data::S3 branch
                         let source = ReadableStreamSource(ReadableStreamSourceTag.Bytes)
                         let stream = ReadableStream(source)
                         return stream.toJsValue()
-                    }
                 }
-            }
             case None => return ReadableStream.empty().toJsValue()
         }
     }
@@ -719,19 +692,17 @@ public class ReadableStream {
         offset: Int64
     ): JsValue {
         match (blob.store) {
-            case Some(store) => {
+            case Some(store) =>
                 match (store.kind) {
-                    case BlobStoreKind.File => {
+                    case BlobStoreKind.File =>
                         let source = ReadableStreamSource(ReadableStreamSourceTag.File)
                         let reader = FileReader()
                         reader.startOffset = offset
                         source.fileReader = Some(reader)
                         let stream = ReadableStream(source)
                         return stream.toJsValue()
-                    }
                     case _ => ()
                 }
-            }
             case None => ()
         }
         ReadableStream.empty().toJsValue()
@@ -750,7 +721,7 @@ public class ReadableStream {
     }
 
     /// 创建空流
-    /// 对应 Bun: ReadableStream::empty(global_this) -> JsResult<JSValue>
+    /// 对应 Bun: ReadableStream::empty(global_this) -> JsResult<JsValue>
     /// 对应 FFI: ReadableStream__empty(global)
     pub static func empty(): ReadableStream {
         let stream = ReadableStream()
@@ -759,7 +730,7 @@ public class ReadableStream {
     }
 
     /// 创建已使用的流
-    /// 对应 Bun: ReadableStream::used(global_this) -> JsResult<JSValue>
+    /// 对应 Bun: ReadableStream::used(global_this) -> JsResult<JsValue>
     /// 对应 FFI: ReadableStream__used(global)
     pub static func used(): ReadableStream {
         let stream = ReadableStream()
@@ -822,7 +793,7 @@ public class ReadableStream {
 // ============================================================================
 // is_disturbed_value - 检查 JS 值是否为已消费的可读流
 // 对应 Bun: pub fn is_disturbed_value(value, global_object) -> bool
-// SAFETY: FFI call; value may be any JSValue (C++ side checks).
+// SAFETY: FFI call; value may be any JsValue (C++ side checks).
 // ============================================================================
 
 /// 检查给定 JS 值是否为已消费的可读流
@@ -853,27 +824,27 @@ public interface SourceContext {
     /// 对应 Bun: const SUPPORTS_REF: bool = false
     func supportsRef(): Bool
 
-    /// Start callback — 对应 Bun: fn on_start(&mut self) -> streams::Start
+    /// Start callback — 对应 Bun: fn on_start(&self) -> streams::Start
     func onStart(): StreamStart
 
-    /// Pull callback — 对应 Bun: fn on_pull(&mut self, buf: &mut [u8], view: JSValue) -> streams::Result
+    /// Pull callback — 对应 Bun: fn on_pull(&self, buf: &[u8], view: JsValue) -> streams::Result
     func onPull(buf: Array<UInt8>, view: JsValue): StreamResult
 
-    /// Cancel callback — 对应 Bun: fn on_cancel(&mut self)
+    /// Cancel callback — 对应 Bun: fn on_cancel(&self)
     func onCancel(): Unit
 
     /// Per-context teardown side-effects. Must NOT free the enclosing
     /// NewSource<Self> allocation — that is done by the caller (decrement_count)
     /// after this returns.
-    /// 对应 Bun: fn deinit_fn(&mut self)
+    /// 对应 Bun: fn deinit_fn(&self)
     func onDeinit(): Unit
 
     /// setRefUnrefFn — default no-op (Zig: ?fn, null => ref/unref are no-ops)
-    /// 对应 Bun: fn set_ref_unref(&mut self, _enable: bool) {}
+    /// 对应 Bun: fn set_ref_unref(&self, _enable: bool) {}
     func setRefUnref(enable: Bool): Unit
 
     /// drainInternalBuffer — default returns empty (Zig: ?fn, null => .{})
-    /// 对应 Bun: fn drain_internal_buffer(&mut self) -> Vec<u8> { Vec::default() }
+    /// 对应 Bun: fn drain_internal_buffer(&self) -> Vec<u8> { Vec::default() }
     func drainInternalBuffer(): Array<UInt8>
 
     /// memoryCostFn — default returns 0; NewSource::memory_cost adds size_of::<Self>()
@@ -881,15 +852,15 @@ public interface SourceContext {
     func memoryCostFn(): Int64
 
     /// toBufferedValue — 返回 None 表示 "not implemented" (调用方会抛出未实现错误).
-    /// 对应 Bun: fn to_buffered_value(global, action) -> Option<JsResult<JSValue>> { None }
+    /// 对应 Bun: fn to_buffered_value(global, action) -> Option<JsResult<JsValue>> { None }
     func toBufferedValue(action: BufferActionTag): ?JsValue
 
     /// setRawMode — default: not present (returns None).
-    /// 对应 Bun: fn set_raw_mode(&mut self, _flag: bool) -> Option<SyscallResult<()>> { None }
+    /// 对应 Bun: fn set_raw_mode(&self, _flag: bool) -> Option<SyscallResult<()>> { None }
     func setRawMode(flag: Bool): ?SyscallError
 
     /// setFlowing — default no-op.
-    /// 对应 Bun: fn set_flowing(&mut self, _flag: bool) {}
+    /// 对应 Bun: fn set_flowing(&self, _flag: bool) {}
     func setFlowing(flag: Bool): Unit
 }
 
@@ -903,13 +874,13 @@ public interface SourceContext {
 /// 对应 Bun: NewSourceCodegen trait
 /// Binds the four SourceContext::js_* accessors to the codegen'd module.
 public interface NewSourceCodegen {
-    /// 对应 Bun: fn to_js(&mut self, global_this) -> JSValue
+    /// 对应 Bun: fn to_js(&self, global_this) -> JsValue
     func toJs(global: JsGlobalObject): JsValue
     /// 对应 Bun: fn pending_promise_set_cached(this, global, value)
     func pendingPromiseSetCached(thisValue: JsValue, global: JsGlobalObject, value: JsValue): Unit
     /// 对应 Bun: fn on_drain_callback_set_cached(this, global, value)
     func onDrainCallbackSetCached(thisValue: JsValue, global: JsGlobalObject, value: JsValue): Unit
-    /// 对应 Bun: fn on_drain_callback_get_cached(this) -> Option<JSValue>
+    /// 对应 Bun: fn on_drain_callback_get_cached(this) -> Option<JsValue>
     func onDrainCallbackGetCached(thisValue: JsValue): ?JsValue
 }
 
@@ -918,8 +889,8 @@ public interface NewSourceCodegen {
 // 对应 Bun: NewSource<C: SourceContext> (repr(C))
 // Zig: pub fn NewSource(comptime Context: type, ...) type { return struct {...} }
 //
-// repr(C) keeps `context` at offset 0: C++ wrapped() returns *mut NewSource<C>
-// and ReadableStream::from_js casts that straight to *mut C.
+// repr(C) keeps `context` at offset 0: C++ wrapped() returns *NewSource<C>
+// and ReadableStream::from_js casts that straight to *C.
 // ============================================================================
 
 /// 泛型流数据源包装
@@ -940,7 +911,7 @@ public class NewSource {
     /// 对应 Bun: pub pending_err: Option<syscall::Error>
     public var pendingErr: ?SyscallError
     /// 关闭处理函数
-    /// 对应 Bun: pub close_handler: Option<fn(Option<*mut c_void>)>
+    /// 对应 Bun: pub close_handler: Option<fn(Option<*c_void>)>
     public var closeHandler: ?(() -> Unit)
     /// 关闭上下文指针
     /// 对应 Bun: pub close_ctx: Option<NonNull<c_void>>
@@ -949,16 +920,16 @@ public class NewSource {
     /// 对应 Bun: pub close_jsvalue: bun_jsc::strong::Optional
     public var closeJsvalue: JsStrongOptional
     /// 取消处理函数 (interior-mutable via Cell)
-    /// 对应 Bun: pub cancel_handler: Cell<Option<fn(Option<*mut c_void>)>>
+    /// 对应 Bun: pub cancel_handler: Cell<Option<fn(Option<*c_void>)>>
     public var cancelHandler: ?(() -> Unit)
     /// 取消上下文指针 (interior-mutable via Cell)
-    /// 对应 Bun: pub cancel_ctx: Cell<Option<*mut c_void>>
+    /// 对应 Bun: pub cancel_ctx: Cell<Option<*c_void>>
     public var cancelCtx: ?UIntPtr
     /// 全局对象引用 (BackRef)
     /// 对应 Bun: pub global_this: Option<bun_ptr::BackRef<JSGlobalObject>>
     public var globalThis: ?JsGlobalObject
     /// 自身 JS 值 (points at the JSCell that owns this m_ctx)
-    /// 对应 Bun: pub this_jsvalue: JSValue
+    /// 对应 Bun: pub this_jsvalue: JsValue
     public var thisJsvalue: JsValue
     /// 是否已关闭 (interior-mutable via Cell)
     /// 对应 Bun: pub is_closed: Cell<bool>
@@ -999,13 +970,13 @@ public class NewSource {
     }
 
     /// Pull data from the context
-    /// 对应 Bun: pub fn pull(&mut self, buf: &mut [u8]) -> streams::Result
+    /// 对应 Bun: pub fn pull(&self, buf: &[u8]) -> streams::Result
     public func pull(buf: Array<UInt8>): StreamResult {
         context.onPull(buf, JsValue.ZERO)
     }
 
     /// Increment ref (r#ref in Rust, ref is a keyword)
-    /// 对应 Bun: pub fn r#ref(&mut self)
+    /// 对应 Bun: pub fn r#ref(&self)
     public func refSource(): Unit {
         if (context.supportsRef()) {
             context.setRefUnref(true)
@@ -1013,7 +984,7 @@ public class NewSource {
     }
 
     /// Decrement ref (unref)
-    /// 对应 Bun: pub fn unref(&mut self)
+    /// 对应 Bun: pub fn unref(&self)
     public func unrefSource(): Unit {
         if (context.supportsRef()) {
             context.setRefUnref(false)
@@ -1021,7 +992,7 @@ public class NewSource {
     }
 
     /// Set ref to specified value
-    /// 对应 Bun: pub fn set_ref(&mut self, value: bool)
+    /// 对应 Bun: pub fn set_ref(&self, value: bool)
     public func setRef(value: Bool): Unit {
         if (context.supportsRef()) {
             context.setRefUnref(value)
@@ -1029,25 +1000,25 @@ public class NewSource {
     }
 
     /// Start the source
-    /// 对应 Bun: pub fn start(&mut self) -> streams::Start
+    /// 对应 Bun: pub fn start(&self) -> streams::Start
     public func start(): StreamStart {
         context.onStart()
     }
 
     /// Pull from JS callback
-    /// 对应 Bun: pub fn on_pull_from_js(&mut self, buf, view) -> streams::Result
+    /// 对应 Bun: pub fn on_pull_from_js(&self, buf, view) -> streams::Result
     public func onPullFromJs(buf: Array<UInt8>, view: JsValue): StreamResult {
         context.onPull(buf, view)
     }
 
     /// Start from JS callback
-    /// 对应 Bun: pub fn on_start_from_js(&mut self) -> streams::Start
+    /// 对应 Bun: pub fn on_start_from_js(&self) -> streams::Start
     public func onStartFromJs(): StreamStart {
         context.onStart()
     }
 
     /// Cancel the source
-    /// 对应 Bun: pub fn cancel(&mut self)
+    /// 对应 Bun: pub fn cancel(&self)
     public func cancel(): Unit {
         if (cancelled) {
             return
@@ -1055,16 +1026,15 @@ public class NewSource {
         cancelled = true
         context.onCancel()
         match (cancelHandler) {
-            case Some(handler) => {
+            case Some(handler) =>
                 handler()
                 cancelHandler = None
-            }
             case None => ()
         }
     }
 
     /// Handle close
-    /// 对应 Bun: pub fn on_close(&mut self)
+    /// 对应 Bun: pub fn on_close(&self)
     /// Zig: if (close == &JSReadableStreamSource.onClose) — identity check
     /// against the exact fn pointer stored by set_on_close_from_js, so the
     /// JS path receives self (not close_ctx, which is unset on that path).
@@ -1073,37 +1043,35 @@ public class NewSource {
             return
         }
         match (closeHandler) {
-            case Some(close) => {
+            case Some(close) =>
                 closeHandler = None
                 close()
-            }
             case None => ()
         }
     }
 
     /// JS close handler (on_js_close)
-    /// 对应 Bun: fn on_js_close(ptr: Option<*mut c_void>)
+    /// 对应 Bun: fn on_js_close(ptr: Option<*c_void>)
     /// Invoked via close_handler when the JS side registered an onclose callback.
     public func onJsClose(): Unit {
         match (closeJsvalue.get()) {
-            case Some(cb) => {
+            case Some(cb) =>
                 // Queue microtask with the callback
                 // In real implementation: globalThis().queue_microtask(cb, &[])
                 queueMicrotask(cb)
-            }
             case None => ()
         }
         closeJsvalue.deinit()
     }
 
     /// Increment reference count
-    /// 对应 Bun: pub fn increment_count(&mut self)
+    /// 对应 Bun: pub fn increment_count(&self)
     public func incrementCount(): Unit {
         refCount = refCount + 1
     }
 
     /// Decrement reference count
-    /// 对应 Bun: pub unsafe fn decrement_count(this: *mut Self) -> u32
+    /// 对应 Bun: pub unsafe fn decrement_count(`this`: *Self) -> u32
     /// Release one reference. If the count hits zero, runs context teardown
     /// and frees the allocation (bun.destroy(this)).
     /// SAFETY: caller must ensure `this` is live and not accessed after return.
@@ -1123,7 +1091,7 @@ public class NewSource {
     }
 
     /// Get pending error
-    /// 对应 Bun: pub fn get_error(&mut self) -> Option<syscall::Error>
+    /// 对应 Bun: pub fn get_error(&self) -> Option<syscall::Error>
     public func getError(): ?SyscallError {
         let err = pendingErr
         pendingErr = None
@@ -1131,13 +1099,13 @@ public class NewSource {
     }
 
     /// Drain the internal buffer
-    /// 对应 Bun: pub fn drain(&mut self) -> Vec<u8>
+    /// 对应 Bun: pub fn drain(&self) -> Vec<u8>
     public func drain(): Array<UInt8> {
         context.drainInternalBuffer()
     }
 
     /// Convert to ReadableStream JS value
-    /// 对应 Bun: pub fn to_readable_stream(&mut self, global_this) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn to_readable_stream(&self, global_this) -> JsResult<JsValue>
     pub func toReadableStream(): JsValue {
         let outValue = if (thisJsvalue != JsValue.ZERO) {
             thisJsvalue
@@ -1172,14 +1140,12 @@ public class NewSource {
     public func setRawModeFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         let flag = callFrame.argument(0)
         match (context.setRawMode(flag.toBoolean())) {
-            case Some(err) => {
+            case Some(err) =>
                 // Return error as JS value
                 JsValue(BaoString(err.message))
-            }
-            case None => {
+            case None =>
                 // Zig: @compileError — should never reach here
                 JsValue.UNDEFINED
-            }
         }
     }
 
@@ -1205,7 +1171,7 @@ public class NewSource {
     // ========================================================================
 
     /// Pull from JS entry point (codegen thunk)
-    /// 对应 Bun: pub fn pull_from_js(&mut self, global_this, call_frame)
+    /// 对应 Bun: pub fn pull_from_js(&self, global_this, call_frame)
     public func pullFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         let thisJsvalue = callFrame.this()
         let arguments = callFrame.arguments(2)
@@ -1213,18 +1179,16 @@ public class NewSource {
         this.thisJsvalue = thisJsvalue
 
         match (view.asArrayBuffer()) {
-            case Some(buffer) => {
+            case Some(buffer) =>
                 let result = onPullFromJs(buffer, view)
                 return processResult(thisJsvalue, arguments[1], result)
-            }
-            case None => {
+            case None =>
                 return JsValue.UNDEFINED
-            }
         }
     }
 
     /// Start from JS entry point (codegen thunk)
-    /// 对应 Bun: pub fn start_from_js(&mut self, global_this, call_frame)
+    /// 对应 Bun: pub fn start_from_js(&self, global_this, call_frame)
     public func startFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         globalThis = Some(global)
         thisJsvalue = callFrame.this()
@@ -1233,19 +1197,18 @@ public class NewSource {
             case StreamStartTag.Empty => JsValue.jsNumber(0.0)
             case StreamStartTag.Ready => JsValue.jsNumber(16384.0)
             case StreamStartTag.ChunkSize => JsValue.jsNumber(startResult.chunkSize)
-            case StreamStartTag.Err => {
+            case StreamStartTag.Err =>
                 match (startResult.err) {
                     case Some(e) => JsValue(BaoString(e.message))
                     case None => JsValue.UNDEFINED
                 }
-            }
             case StreamStartTag.OwnedAndDone => JsValue.jsNumber(startResult.ownedData.size)
             case _ => JsValue.UNDEFINED
         }
     }
 
     /// Get isClosed from JS (codegen thunk)
-    /// 对应 Bun: pub fn get_is_closed_from_js(&mut self, _global_object) -> JSValue
+    /// 对应 Bun: pub fn get_is_closed_from_js(&self, _global_object) -> JsValue
     public func getIsClosedFromJs(): JsValue {
         JsValue(isClosed)
     }
@@ -1260,41 +1223,35 @@ public class NewSource {
         result: StreamResult
     ): JsValue {
         match (result.tag) {
-            case StreamResultTag.Err => {
+            case StreamResultTag.Err =>
                 match (result.err) {
-                    case Some(err) => {
+                    case Some(err) =>
                         // Throw the error
                         JsValue(BaoString("Stream error"))
-                    }
                     case None => JsValue.UNDEFINED
                 }
-            }
-            case StreamResultTag.Pending => {
+            case StreamResultTag.Pending =>
                 let out = result.toJsValue()
                 // Set pending promise cached on the JS wrapper
                 // In real implementation: pending_promise_set_cached(thisJsvalue, global, out)
                 out
-            }
-            case StreamResultTag.TemporaryAndDone => {
+            case StreamResultTag.TemporaryAndDone =>
                 // Set done=true at flags[0]
                 let value = JsValue.TRUE
                 // In real implementation: JSObjectSetPropertyAtIndex for flags[0]
                 result.toJsValue()
-            }
-            case StreamResultTag.OwnedAndDone => {
+            case StreamResultTag.OwnedAndDone =>
                 let value = JsValue.TRUE
                 result.toJsValue()
-            }
-            case StreamResultTag.IntoArrayAndDone => {
+            case StreamResultTag.IntoArrayAndDone =>
                 let value = JsValue.TRUE
                 result.toJsValue()
-            }
             case _ => result.toJsValue()
         }
     }
 
     /// Cancel from JS entry point (codegen thunk)
-    /// 对应 Bun: pub fn cancel_from_js(&mut self, _global_object, call_frame)
+    /// 对应 Bun: pub fn cancel_from_js(&self, _global_object, call_frame)
     public func cancelFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         thisJsvalue = callFrame.this()
         cancel()
@@ -1302,7 +1259,7 @@ public class NewSource {
     }
 
     /// Set onclose callback from JS
-    /// 对应 Bun: pub fn set_on_close_from_js(&mut self, global_object, value)
+    /// 对应 Bun: pub fn set_on_close_from_js(&self, global_object, value)
     /// Store the handler by identity — on_close compares the stored fn pointer
     /// against on_js_close to decide whether to pass self (JS path) or close_ctx
     /// (native path).
@@ -1324,7 +1281,7 @@ public class NewSource {
     }
 
     /// Set onDrain callback from JS
-    /// 对应 Bun: pub fn set_on_drain_from_js(&mut self, global_object, value)
+    /// 对应 Bun: pub fn set_on_drain_from_js(&self, global_object, value)
     public func setOnDrainFromJs(global: JsGlobalObject, value: JsValue): Unit {
         globalThis = Some(global)
 
@@ -1340,7 +1297,7 @@ public class NewSource {
     }
 
     /// Get onclose callback from JS
-    /// 对应 Bun: pub fn get_on_close_from_js(&mut self, _global_object) -> JSValue
+    /// 对应 Bun: pub fn get_on_close_from_js(&self, _global_object) -> JsValue
     public func getOnCloseFromJs(): JsValue {
         match (closeJsvalue.get()) {
             case Some(v) => v
@@ -1349,14 +1306,14 @@ public class NewSource {
     }
 
     /// Get onDrain callback from JS
-    /// 对应 Bun: pub fn get_on_drain_from_js(&mut self, _global_object) -> JSValue
+    /// 对应 Bun: pub fn get_on_drain_from_js(&self, _global_object) -> JsValue
     public func getOnDrainFromJs(): JsValue {
         // In real implementation: on_drain_callback_get_cached(thisJsvalue)
         JsValue.UNDEFINED
     }
 
     /// Update ref from JS entry point
-    /// 对应 Bun: pub fn update_ref_from_js(&mut self, _global_object, call_frame)
+    /// 对应 Bun: pub fn update_ref_from_js(&self, _global_object, call_frame)
     public func updateRefFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         thisJsvalue = callFrame.this()
         let refOrUnref = callFrame.argument(0).toBoolean()
@@ -1374,7 +1331,7 @@ public class NewSource {
     }
 
     /// Drain from JS entry point
-    /// 对应 Bun: pub fn drain_from_js(&mut self, global_this, call_frame)
+    /// 对应 Bun: pub fn drain_from_js(&self, global_this, call_frame)
     /// Ownership of the buffer transfers to JSC: ArrayBuffer::from_bytes installs
     /// a deallocator which frees on GC. Suppress Vec::Drop so the same allocation
     /// isn't freed twice.
@@ -1495,13 +1452,12 @@ public class ReadableStreamDefaultReader {
             let result = self.read()
             let resultObj = JsObject()
             match (result.value) {
-                case Some(bytes) => {
+                case Some(bytes) =>
                     let arr = ArrayList<JsValue>()
                     for (b in bytes) {
                         arr.append(JsValue(Float64(Int64(b))))
                     }
                     resultObj.set("value", JsValue.array(arr))
-                }
                 case None => resultObj.set("value", JsValue.UNDEFINED)
             }
             resultObj.set("done", JsValue(result.done))
@@ -1564,13 +1520,12 @@ public func blobLoaderToAnyBlob(loader: ByteBlobLoader): ?AnyBlob {
         return None
     }
     match (loader.store) {
-        case Some(store) => {
+        case Some(store) =>
             let data = store.bytes
             if (data.size > 0) {
                 let b = Blob(data, loader.contentType)
                 return Some(AnyBlob.fromBlob(b))
             }
-        }
         case None => ()
     }
     None
@@ -1620,18 +1575,16 @@ public func streamResultToJsValue(result: StreamResult): JsValue {
         case StreamResultTag.OwnedAndDone => JsValue.arrayBuffer(result.ownedData.toArray())
         case StreamResultTag.Temporary => JsValue.arrayBuffer(result.tempData.toArray())
         case StreamResultTag.TemporaryAndDone => JsValue.arrayBuffer(result.tempData.toArray())
-        case StreamResultTag.Pending => {
+        case StreamResultTag.Pending =>
             match (result.pending) {
                 case Some(p) => p.toJsValue()
                 case None => JsValue.UNDEFINED
             }
-        }
-        case StreamResultTag.Err => {
+        case StreamResultTag.Err =>
             match (result.err) {
                 case Some(e) => JsValue(BaoString("Stream error"))
                 case None => JsValue.UNDEFINED
             }
-        }
         case _ => JsValue.UNDEFINED
     }
 }
@@ -1644,12 +1597,11 @@ public func streamStartToJsValue(start: StreamStart): JsValue {
         case StreamStartTag.ChunkSize => JsValue.jsNumber(start.chunkSize)
         case StreamStartTag.OwnedAndDone => JsValue.jsNumber(start.ownedData.size)
         case StreamStartTag.Done => JsValue.jsNumber(start.doneData.size)
-        case StreamStartTag.Err => {
+        case StreamStartTag.Err =>
             match (start.err) {
                 case Some(e) => JsValue(BaoString(e.message))
                 case None => JsValue.UNDEFINED
             }
-        }
         case _ => JsValue.UNDEFINED
     }
 }

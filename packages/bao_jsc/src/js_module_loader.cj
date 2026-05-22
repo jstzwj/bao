@@ -74,10 +74,10 @@ public class JSModuleLoader_ {
     ): JsPromise {
         // FFI: JSModuleLoader__import(globalObject, moduleName) orelse error.JSError
         let result = importFFI(globalObject, moduleName)
-        if (result == None) {
-            throw JsError("JSError: Failed to import module: " + moduleName)
+        match (result) {
+            case Some(r) => r
+            case None => throw JsError("JSError: Failed to import module: " + moduleName)
         }
-        result.getOrThrow()
     }
 
     // ========== FFI 桩函数 ==========

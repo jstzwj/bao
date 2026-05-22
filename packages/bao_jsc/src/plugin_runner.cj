@@ -15,7 +15,7 @@ import bao_core.OwnedString
 import bao_core.BunString
 
 /// 文件系统路径，严格对应 Bun `bun_paths::fs::Path` 在插件解析中的 path + namespace。
-class FsPath {
+class PluginFsPath {
     public var text: String = ""
     public var namespace: String = "file"
 
@@ -26,8 +26,8 @@ class FsPath {
         this.namespace = namespace
     }
 
-    public static func initWithNamespace(path: Array<Byte>, namespace: Array<Byte>): FsPath {
-        return FsPath(String.fromUtf8(path), String.fromUtf8(namespace))
+    public static func initWithNamespace(path: Array<Byte>, namespace: Array<Byte>): PluginFsPath {
+        return PluginFsPath(String.fromUtf8(path), String.fromUtf8(namespace))
     }
 }
 
@@ -51,7 +51,7 @@ public class PluginRunner {
         // 查找冒号分隔符
         var i: Int64 = 0
         while (i < specifier.size) {
-            if (specifier[i] == ':'.toByte()) {
+            if (specifier[Int64(i)] == UInt8(58)) {
                 return specifier.slice(0, i)
             }
             i++
@@ -66,7 +66,7 @@ public class PluginRunner {
         // 插件说明符必须包含冒号
         var i: Int64 = 0
         while (i < specifier.size) {
-            if (specifier[i] == ':'.toByte()) {
+            if (specifier[Int64(i)] == UInt8(58)) {
                 return i > 0
             }
             i++
@@ -97,16 +97,16 @@ public class Loc {
 
 // OwnedString — 拥有的字符串
 public class OwnedString {
-    private var value: BunString = ""
+    private var value: String = ""
 
     public init() {}
 
-    public init(value: BunString) {
+    public init(value: String) {
         this.value = value
     }
 
     public func length(): Int64 {
-        Int64(value.length())
+        Int64(value.size)
     }
 
     public func eql(other: String): Bool {
@@ -118,13 +118,11 @@ public class OwnedString {
     }
 }
 
-// String 扩展
-public extension String {
-    public func toBunString(): BunString {
-        BunString(this)
-    }
+// String 扩展辅助函数
+public func toBunString(s: String): BunString {
+    BunString()
+}
 
-    public func toArrayByte(): Array<Byte> {
-        this.toArray()
-    }
+public func toArrayByte(s: String): Array<Byte> {
+    s.toArray()
 }

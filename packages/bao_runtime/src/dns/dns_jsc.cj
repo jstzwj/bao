@@ -6,6 +6,8 @@
 
 package bao_runtime.dns
 
+import bao_jsc.*
+
 // ============================================================================
 // 从 dns.cj 重新导出的核心类型
 // 对应 Bun: mod.rs - pub use dns_body::{...}
@@ -125,22 +127,20 @@ package bao_runtime.dns
 /// 获取全局 DNS 解析器
 /// 对应 Bun: global_resolver() / RareData::globalDNSResolver()
 public func getGlobalResolver(vm: VirtualMachine): DnsResolver {
-    let globalData = DnsGlobalData(allocator: SimpleAllocator(), vm: vm)
+    let globalData = DnsGlobalData(SimpleAllocator(), vm)
     return globalData.resolver
 }
 
 /// DNS 查找的公共入口
 /// 对应 Bun: internal.getaddrinfo
 public func dnsLookup(vm: VirtualMachine, host: String, port: UInt16): ?DnsRequest {
-    let loop_ = vm.getEventLoop()
-    return DnsInternal.getaddrinfo(loop_, host, port, None)
+    return DnsInternal.getaddrinfo(EventLoop(), host, port, Option<Ref<Bool>>.None)
 }
 
 /// DNS 预取
 /// 对应 Bun: internal.prefetch
 public func dnsPrefetch(vm: VirtualMachine, host: String, port: UInt16): Unit {
-    let loop_ = vm.getEventLoop()
-    DnsInternal.prefetch(loop_, host, port)
+    DnsInternal.prefetch(EventLoop(), host, port)
 }
 
 /// 获取 DNS 缓存统计信息
@@ -158,7 +158,7 @@ public func getRuntimeDefaultResultOrder(): DnsOrder {
 /// 简单分配器实现
 class SimpleAllocator <: Allocator {
     public func allocate(size: Int64): ?Array<Byte> {
-        return Array<Byte>(size)
+        return Array<Byte>(size, { _ => UInt8(0) })
     }
     public func free(ptr: Array<Byte>): Unit {}
 }

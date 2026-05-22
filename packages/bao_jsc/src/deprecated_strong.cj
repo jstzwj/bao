@@ -7,7 +7,7 @@ package bao_jsc
 // 严格翻译自 DeprecatedStrong (Strong.Deprecated)
 // 强引用，在 CI 断言模式下包含安全检查
 public class DeprecatedStrong {
-    public var raw: JsValue = JsValue.zero
+    public var raw: JsValue = JsValue()
     public var safety: ?SafetyInfo = None
 
     public init() {}
@@ -30,7 +30,7 @@ public class DeprecatedStrong {
 
     // 严格翻译自 DeprecatedStrong.deinit
     public func deinit() {
-        raw = JsValue.zero
+        raw = JsValue()
     }
 
     // 严格翻译自 DeprecatedStrong.get
@@ -66,7 +66,7 @@ public class DeprecatedStrong {
 public class DeprecatedStrongOptional {
     public var backing: DeprecatedStrong = DeprecatedStrong()
 
-    public static let empty: DeprecatedStrongOptional = DeprecatedStrongOptional.initNonCell(JsValue.zero)
+    public static let empty: DeprecatedStrongOptional = DeprecatedStrongOptional.initNonCell(JsValue())
 
     public init() {}
 
@@ -88,13 +88,13 @@ public class DeprecatedStrongOptional {
 
     public func get(): ?JsValue {
         let result = backing.get()
-        if (result == JsValue.zero) { return None }
+        if (result == JsValue()) { return None }
         return Some(result)
     }
 
     public func swap(next: JsValue): ?JsValue {
         let result = backing.swap(next)
-        if (result == JsValue.zero) { return None }
+        if (result == JsValue()) { return None }
         return Some(result)
     }
 
@@ -103,7 +103,7 @@ public class DeprecatedStrongOptional {
     }
 
     public func has(): Bool {
-        return backing.get() != JsValue.zero
+        return backing.get() != JsValue()
     }
 
     public func ref() {

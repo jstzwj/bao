@@ -11,6 +11,7 @@
 package bao_runtime.image
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_collections.*  // std.collection.*
 
 // ============================================================================
@@ -52,7 +53,7 @@ public class BunImage {
 
         // 解析源
         let source = sourceFromJS(global, args[0])
-        if (source == None) {
+        if (source.isNone()) {
             return None
         }
         img.source = source.getOrThrow()
@@ -73,11 +74,11 @@ public class BunImage {
         }
         let obj = opt.getObject()
         let maxPixelsVal = obj.get("maxPixels")
-        if (maxPixelsVal != None && maxPixelsVal.isNumber()) {
+        if (maxPixelsVal.isSome() && maxPixelsVal.isNumber()) {
             img.maxPixels = UInt64(maxPixelsVal.toNumber().clamp(0.0, 1e15))
         }
         let autoOrientVal = obj.get("autoOrient")
-        if (autoOrientVal != None) {
+        if (autoOrientVal.isSome()) {
             img.autoOrient = autoOrientVal.toBoolean()
         }
     }
@@ -92,7 +93,7 @@ public class BunImage {
             // data: URL
             if (s.startsWith("data:")) {
                 let commaIdx = s.indexOf(',')
-                if (commaIdx == None) {
+                if (commaIdx.isNone()) {
                     return None
                 }
                 let meta = s.subString(5, commaIdx.getOrThrow())
@@ -102,7 +103,7 @@ public class BunImage {
                 }
                 // 解码 base64
                 let decoded = base64Decode(payload)
-                if (decoded == None) {
+                if (decoded.isNone()) {
                     return None
                 }
                 return ImageSource.owned(decoded.getOrThrow())
@@ -148,15 +149,15 @@ public class BunImage {
         if (args.size > 2 && args[2].valueType == JsValueType.Object) {
             let opt = args[2].getObject()
             let filterVal = opt.get("filter")
-            if (filterVal != None && filterVal.valueType == JsValueType.String) {
+            if (filterVal.isSome() && filterVal.valueType == JsValueType.String) {
                 resize.filter = ImageFilter.fromString(filterVal.toString())
             }
             let fitVal = opt.get("fit")
-            if (fitVal != None && fitVal.valueType == JsValueType.String) {
+            if (fitVal.isSome() && fitVal.valueType == JsValueType.String) {
                 resize.fit = ImageFit.fromString(fitVal.toString())
             }
             let withoutEnlargement = opt.get("withoutEnlargement")
-            if (withoutEnlargement != None) {
+            if (withoutEnlargement.isSome()) {
                 resize.withoutEnlargement = withoutEnlargement.toBoolean()
             }
         }
@@ -199,7 +200,7 @@ public class BunImage {
     /// 调制（亮度/饱和度）
     /// 对应 Bun: doModulate
     public func doModulate(global: JsObject, args: ArrayList<JsValue>): BunImage {
-        var m = if (pipeline.modulate != None) {
+        var m = if (pipeline.modulate.isSome()) {
             pipeline.modulate.getOrThrow()
         } else {
             ImageModulate()
@@ -208,12 +209,12 @@ public class BunImage {
         if (args.size > 0 && args[0].valueType == JsValueType.Object) {
             let opt = args[0].getObject()
             let brightness = opt.get("brightness")
-            if (brightness != None && brightness.isNumber()) {
+            if (brightness.isSome() && brightness.isNumber()) {
                 let x = brightness.toNumber()
                 m.brightness = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f32 }
             }
             let saturation = opt.get("saturation")
-            if (saturation != None && saturation.isNumber()) {
+            if (saturation.isSome() && saturation.isNumber()) {
                 let x = saturation.toNumber()
                 m.saturation = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f32 }
             }
@@ -261,7 +262,7 @@ public class BunImage {
     /// 通用格式设置
     /// 对应 Bun: setFormat
     func setFormat(fmt: ImageFormat, global: JsObject, args: ArrayList<JsValue>): BunImage {
-        var enc = if (pipeline.output != None) {
+        var enc = if (pipeline.output.isSome()) {
             pipeline.output.getOrThrow()
         } else {
             EncodeOptions(format: fmt)
@@ -271,31 +272,31 @@ public class BunImage {
         if (args.size > 0 && args[0].valueType == JsValueType.Object) {
             let opt = args[0].getObject()
             let quality = opt.get("quality")
-            if (quality != None && quality.isNumber()) {
+            if (quality.isSome() && quality.isNumber()) {
                 enc.quality = UInt8(quality.toNumber().clamp(1.0, 100.0))
             }
             let lossless = opt.get("lossless")
-            if (lossless != None) {
+            if (lossless.isSome()) {
                 enc.lossless = lossless.toBoolean()
             }
             let compressionLevel = opt.get("compressionLevel")
-            if (compressionLevel != None && compressionLevel.isNumber()) {
+            if (compressionLevel.isSome() && compressionLevel.isNumber()) {
                 enc.compressionLevel = Int8(compressionLevel.toNumber().clamp(0.0, 9.0))
             }
             let palette = opt.get("palette")
-            if (palette != None) {
+            if (palette.isSome()) {
                 enc.palette = palette.toBoolean()
             }
             let colors = opt.get("colors")
-            if (colors != None && colors.isNumber()) {
+            if (colors.isSome() && colors.isNumber()) {
                 enc.colors = UInt16(colors.toNumber().clamp(2.0, 256.0))
             }
             let dither = opt.get("dither")
-            if (dither != None) {
+            if (dither.isSome()) {
                 enc.dither = dither.toBoolean()
             }
             let progressive = opt.get("progressive")
-            if (progressive != None) {
+            if (progressive.isSome()) {
                 enc.progressive = progressive.toBoolean()
             }
         }
@@ -371,10 +372,10 @@ public class BunImage {
 
         var output = pipeline.output
         // 如果目标为字符串且未指定格式，从扩展名推断
-        if (output == None && args[0].valueType == JsValueType.String) {
+        if (output.isNone() && args[0].valueType == JsValueType.String) {
             let path = args[0].toString()
             let fmt = ImageFormat.fromExtension(path)
-            if (fmt != None) {
+            if (fmt.isSome()) {
                 output = EncodeOptions(format: fmt.getOrThrow())
             }
         }
@@ -418,7 +419,7 @@ public class BunImage {
     // 构造函数 (JS new Bun.Image(...))
     // 严格翻译自: Image.constructor
     //   pub fn constructor(global: *jsc.JSGlobalObject, callframe: *jsc.CallFrame,
-    //                     this_value: jsc.JSValue) bun.JSError!*Image
+    //                     this_value: jsc.JsValue) bun.JSError!*Image
     // ========================================================================
 
     /// JS 构造函数 - 对应 Bun Image.constructor
@@ -429,14 +430,14 @@ public class BunImage {
             global.throwInvalidArguments("Image() expects a path, ArrayBuffer, TypedArray, Blob or data: URL")
             return None
         }
-        return fromInputJS(global, args[0], if (args.size > 1) args[1] else JsValue.jsUndefined())
+        return fromInputJS(global, args[0], if (args.size > 1) { args[1] } else { JsValue.jsUndefined() })
     }
 
     /// 内部: 从输入构造 - 对应 Bun fromInputJS
     static func fromInputJS(global: JsObject, input: JsValue, options: JsValue): ?BunImage {
         let img = BunImage(ImageSource.jsBuffer)
         let source = sourceFromJS(global, input)
-        if (source == None) { return None }
+        if (source.isNone()) { return None }
         img.source = source.getOrThrow()
         applyOptions(img, global, options)
         return img
@@ -445,8 +446,8 @@ public class BunImage {
     // ========================================================================
     // fromBlobJS - 从 Blob 构造
     // 严格翻译自: Image.fromBlobJS
-    //   pub fn fromBlobJS(global: *jsc.JSGlobalObject, blob_value: jsc.JSValue,
-    //                     options: jsc.JSValue) bun.JSError!jsc.JSValue
+    //   pub fn fromBlobJS(global: *jsc.JSGlobalObject, blob_value: jsc.JsValue,
+    //                     options: jsc.JsValue) bun.JSError!jsc.JsValue
     //   Bun.file("...").image() / Bun.s3("...").image() / Blob#image()
     //   与 new Bun.Image(blob, opts) 相同的分配
     // ========================================================================
@@ -456,7 +457,7 @@ public class BunImage {
     public static func fromBlobJS(global: JsObject, blobValue: JsValue, options: JsValue): ?BunImage {
         let img = BunImage(ImageSource.jsBuffer)
         let source = sourceFromJS(global, blobValue)
-        if (source == None) { return None }
+        if (source.isNone()) { return None }
         img.source = source.getOrThrow()
         // Blob 不会产生 jsBuffer 源
         applyOptions(img, global, options)
@@ -533,7 +534,7 @@ public class BunImage {
         match (source) {
             case ImageSource.jsBuffer | ImageSource.blob => return baseSize
             case ImageSource.owned(b) => return baseSize + Int64(b.size)
-            case ImageSource.path(p) => return baseSize + Int64(p.length)
+            case ImageSource.path(p) => return baseSize + Int64(p.size)
         }
     }
 }
@@ -785,7 +786,7 @@ public class BlobReadChain {
         }
 
         match (result) {
-            case ReadBytesResult.ok(bytes) => {
+            case ReadBytesResult.ok(bytes) =>
                 // 第一个解析器获胜: 将源交换为 .owned
                 // 后续解析器释放冗余读取的字节
                 if (image.source == ImageSource.blob) {
@@ -795,11 +796,9 @@ public class BlobReadChain {
 
                 // 源现在是 .owned; 重新进入 schedule() 走常规路径
                 // image.schedule(global, thisValue, kind, deliver)
-            }
-            case ReadBytesResult.err(e) => {
+            case ReadBytesResult.err(e) =>
                 deliver.deinit()
                 // 拒绝 outer promise
-            }
         }
     }
 }
@@ -867,7 +866,7 @@ public class PipelineTask {
             // if (codecs.probe(input, this.maxPixels)) |p| {
             //     var w = p.width
             //     var h = p.height
-            //     if (this.autoOrient and p.format == .jpeg) {
+            //     if (this.autoOrient and p.format == jpeg) {
             //         let t = Exif.readJpeg(input).transform()
             //         if (t[2] == 90 || t[2] == 270) { swap(w, h) }
             //     }
@@ -887,7 +886,7 @@ public class PipelineTask {
         //    需要交换提示轴, 否则一个轴可能过度缩小然后放大, 丢失细节。
         //    (flip/flop 是纯镜像, 从不改变 w/h, 所以提示通过它们仍然有效。)
         let hint = DecodeHint()
-        if (this.pipeline.resize != None) {
+        if (this.pipeline.resize.isSome()) {
             let r = this.pipeline.resize.getOrThrow()
             var tw = r.w
             // r.h==0 表示"保持纵横比" — 仅在宽度上约束。
@@ -914,9 +913,9 @@ public class PipelineTask {
 
         // 6. EXIF 自动方向: 在任何用户操作之前应用, 以便 resize 目标和 metadata
         //    报告视觉直立的维度, 与 Sharp 相同。
-        //    if (this.autoOrient and srcFormat == .jpeg) {
+        //    if (this.autoOrient and srcFormat == jpeg) {
         //        let orient = Exif.readJpeg(input)
-        //        if (orient != .normal) { applyOrientation(decoded, orient) }
+        //        if (orient != normal) { applyOrientation(decoded, orient) }
         //    }
 
         // 7. metadata 二次检查 (HEIC/AVIF 通过完整解码到达此处)
@@ -949,7 +948,7 @@ public class PipelineTask {
         // // 将源 ICC 配置文件携带到编码器, 除非调用者已设置一个。
         // // 管线不转换 RGBA 的颜色, 所以丢弃配置文件会将非 sRGB 源
         // // (Display-P3, Adobe RGB, Jpegli XYB) 重新解释为 sRGB 并明显偏移颜色。
-        // if (enc.iccProfile == None) { enc.iccProfile = decoded.iccProfile }
+        // if (enc.iccProfile.isNone()) { enc.iccProfile = decoded.iccProfile }
         //
         // let out = Codecs.encode(decoded.rgba, decoded.width, decoded.height, enc)
         // 如果编码失败, 设置错误结果并返回
@@ -978,7 +977,7 @@ public class PipelineTask {
         // 旋转
         if (p.rotate != 0) {
             // val next = Codecs.rotate(decoded.rgba, decoded.width, decoded.height, p.rotate)
-            // if (next == None) { return /* error */ }
+            // if (next.isNone()) { return /* error */ }
             // 释放 decoded.rgba
             // decoded.rgba = next.getOrThrow().rgba
             // decoded.width = next.getOrThrow().width
@@ -988,7 +987,7 @@ public class PipelineTask {
         // 翻转（垂直）
         if (p.flip) {
             // val next = Codecs.flip(decoded.rgba, decoded.width, decoded.height, false)
-            // if (next == None) { return /* error */ }
+            // if (next.isNone()) { return /* error */ }
             // 释放 decoded.rgba
             // decoded.rgba = next.getOrThrow()
         }
@@ -996,13 +995,13 @@ public class PipelineTask {
         // 翻转（水平）
         if (p.flop) {
             // val next = Codecs.flip(decoded.rgba, decoded.width, decoded.height, true)
-            // if (next == None) { return /* error */ }
+            // if (next.isNone()) { return /* error */ }
             // 释放 decoded.rgba
             // decoded.rgba = next.getOrThrow()
         }
 
         // 缩放
-        if (p.resize != None) {
+        if (p.resize.isSome()) {
             let r = p.resize.getOrThrow()
             let t = resolveResize(r, decoded.width, decoded.height)
             // 守卫输出画布和 H-then-V 中间体 (总是 dst_w x src_h —
@@ -1018,7 +1017,7 @@ public class PipelineTask {
             if (t.w != decoded.width || t.h != decoded.height) {
                 // val next = Codecs.resize(decoded.rgba, decoded.width, decoded.height,
                 //                           t.w, t.h, r.filter)
-                // if (next == None) { return /* error */ }
+                // if (next.isNone()) { return /* error */ }
                 // 释放 decoded.rgba
                 // decoded.rgba = next.getOrThrow()
                 // decoded.width = t.w
@@ -1027,7 +1026,7 @@ public class PipelineTask {
         }
 
         // 调制
-        if (p.modulate != None) {
+        if (p.modulate.isSome()) {
             let m = p.modulate.getOrThrow()
             Codecs.modulate(decoded.rgba, m.brightness, m.saturation)
         }
@@ -1106,19 +1105,19 @@ public class PipelineTask {
                 w = UInt32((Float32(maxIn) * r + 0.5f32).clamp(1.0f32, Float32(maxIn)))
             }
             let resized = Codecs.resize(rgba, sw, sh, w, h, Filter.box)
-            if (resized == None) { return PipelineResult.err("DecodeFailed") }
+            if (resized.isNone()) { return PipelineResult.err("DecodeFailed") }
             pixels = resized.getOrThrow()
         }
 
         let hashOpt = ThumbHash.encode(w, h, pixels)
-        if (hashOpt == None) { return PipelineResult.err("DecodeFailed") }
+        if (hashOpt.isNone()) { return PipelineResult.err("DecodeFailed") }
 
         let renderedOpt = ThumbHash.decode(hashOpt.getOrThrow())
-        if (renderedOpt == None) { return PipelineResult.err("DecodeFailed") }
+        if (renderedOpt.isNone()) { return PipelineResult.err("DecodeFailed") }
         let rendered = renderedOpt.getOrThrow()
 
         let pngOut = CodecPng.encode(rendered.rgba, rendered.width, rendered.height, -1, None)
-        if (pngOut == None) { return PipelineResult.err("DecodeFailed") }
+        if (pngOut.isNone()) { return PipelineResult.err("DecodeFailed") }
         let out = pngOut.getOrThrow()
 
         return PipelineResult.encoded(EncodedResult(
@@ -1179,7 +1178,7 @@ public class MetaResult {
 func base64Decode(input: String): ?Array<Byte> {
     // 标准Base64字符集
     let table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-    let len = input.length
+    let len = input.size
     if (len == 0) { return Array<Byte>() }
 
     // 计算输出长度

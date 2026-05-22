@@ -7,48 +7,9 @@
 
 package bao_jsc
 
-// ========== ZigErrorType ==========
-// 严格翻译自 ZigErrorType.zig
-public enum ZigErrorType {
-    | NoError
-    | Error
-    | TypeError
-    | RangeError
-    | SyntaxError
-    | ReferenceError
-    | URIError
-    | AggregateError
-    | SystemError
-    | BundlerError
-    | UnknownError
-}
-
-// ========== ZigStackFrameCode ==========
-// 严格翻译自 ZigStackFrameCode.zig
-public enum ZigStackFrameCode {
-    | None
-    | Eval
-    | Module
-    | Script
-    | Function
-    | Native
-    | Wasm
-}
-
-// ========== ZigStackFramePosition ==========
-// 严格翻译自 ZigStackFramePosition.zig
-public class ZigStackFramePosition {
-    public var line: Int64 = 0
-    public var column: Int64 = 0
-    public var byteOffset: Int64 = 0
-    public var sourceURL: String = ""
-
-    public init() {}
-
-    public func isInvalid(): Bool {
-        line == 0 && column == 0
-    }
-}
+// 注意: ZigErrorType 已移至 zig_error_type.cj
+// 注意: ZigStackFrameCode 已移至 zig_stack_frame_code.cj
+// 注意: ZigStackFramePosition 已移至 zig_stack_frame_position.cj
 
 // ========== ErrorCode ==========
 // 严格翻译自 ErrorCode.zig
@@ -67,145 +28,38 @@ public enum JsErrorCode {
     | CircularImport
     | ResolutionFailed
 
+    public func toName(): String {
+        match (this) {
+            case Unknown => "Unknown"
+            case InvalidArgType => "InvalidArgType"
+            case InvalidArgValue => "InvalidArgValue"
+            case MissingArgs => "MissingArgs"
+            case OutOfRange => "OutOfRange"
+            case ModuleNotFound => "ModuleNotFound"
+            case FileNotFound => "FileNotFound"
+            case PermissionDenied => "PermissionDenied"
+            case AlreadyExists => "AlreadyExists"
+            case NotDir => "NotDir"
+            case IsDir => "IsDir"
+            case CircularImport => "CircularImport"
+            case ResolutionFailed => "ResolutionFailed"
+        }
+    }
+
     // 转为 Error 类型
     public func toError(): Exception {
-        Exception(this.toString())
+        Exception(toName())
     }
 }
 
-// ========== DeferredError ==========
-// 严格翻译自 DeferredError.zig
-// 错误不能在非主线程创建，因此用此结构存储信息以便稍后实例化
-public class DeferredError {
-    public var kind: DeferredErrorKind = DeferredErrorKind.PlainError
-    public var code: JsErrorCode = JsErrorCode.Unknown
-    public var message: String = ""
+// 注意: DeferredError 已移至 deferred_error.cj
+// 注意: DeferredErrorKind 已移至 deferred_error.cj
+// 注意: Errorable<T> 已移至 errorable.cj
 
-    public init() {}
+// 注意: GetterSetter 已移至 getter_setter.cj
 
-    public init(kind: DeferredErrorKind, code: JsErrorCode, message: String) {
-        this.kind = kind
-        this.code = code
-        this.message = message
-    }
-
-    // 严格翻译自 DeferredError.toError
-    public func toError(global: JsObject): JsValue {
-        let err = match (kind) {
-            case PlainError => JsValue(JsError(message).toString())
-            case TypeError => JsValue(JsTypeError(message).toString())
-            case RangeError => JsValue(JsRangeError(message).toString())
-        }
-        err
-    }
-}
-
-public enum DeferredErrorKind {
-    | PlainError
-    | TypeError
-    | RangeError
-}
-
-// ========== Errorable<T> ==========
-// 严格翻译自 Errorable.zig
-// 可错误的结果包装器
-public class Errorable<T> {
-    public var result: ?T = None
-    public var errorValue: ?ZigErrorType = None
-    public var success: Bool = false
-
-    public init() {}
-
-    // 严格翻译自 Errorable.value
-    public static func ok<T>(val: T): Errorable<T> {
-        let e = Errorable<T>()
-        e.result = val
-        e.success = true
-        e
-    }
-
-    // 严格翻译自 Errorable.err
-    public static func err<T>(code: JsErrorCode, errValue: JsValue): Errorable<T> {
-        let e = Errorable<T>()
-        e.errorValue = ZigErrorType.Error
-        e.success = false
-        e
-    }
-
-    // 严格翻译自 Errorable.unwrap
-    public func unwrap(): ?T {
-        if (success) {
-            return result
-        }
-        None
-    }
-}
-
-// ========== GetterSetter ==========
-// 严格翻译自 GetterSetter.zig
-// 访问器属性描述符，包含 getter 和/或 setter 函数
-public class GetterSetter {
-    public var getter: ?JsValue = None
-    public var setter: ?JsValue = None
-
-    public init() {}
-
-    public init(getter: JsValue, setter: JsValue) {
-        this.getter = getter
-        this.setter = setter
-    }
-
-    // 严格翻译自 GetterSetter.isGetterNull
-    public func isGetterNull(): Bool {
-        getter == None
-    }
-
-    // 严格翻译自 GetterSetter.isSetterNull
-    public func isSetterNull(): Bool {
-        setter == None
-    }
-}
-
-// ========== CustomGetterSetter ==========
-// 严格翻译自 CustomGetterSetter.zig
-// 自定义原生 getter/setter 实现
-public class CustomGetterSetter {
-    public var getter: ?JsValue = None
-    public var setter: ?JsValue = None
-
-    public init() {}
-
-    // 严格翻译自 CustomGetterSetter.isGetterNull
-    public func isGetterNull(): Bool {
-        getter == None
-    }
-
-    // 严格翻译自 CustomGetterSetter.isSetterNull
-    public func isSetterNull(): Bool {
-        setter == None
-    }
-}
-
-// ========== DeprecatedStrong<T> ==========
-// 严格翻译自 DeprecatedStrong.zig
-// 已弃用的强引用，功能类似 Strong 但带弃用警告
-public class DeprecatedStrong<T> {
-    var value: ?T = None
-
-    public init() {}
-
-    public func deinit() {
-        value = None
-    }
-
-    public func get(): ?T {
-        value
-    }
-
-    public func set(newValue: T) {
-        value = newValue
-    }
-}
+// 注意: CustomGetterSetter 已移至 custom_getter_setter.cj
+// 注意: DeprecatedStrong 已移至 deprecated_strong.cj
 
 // 注意: Strong<T> 已移至 strong.cj
 // 注意: Weak<T> 已移至 weak.cj
@@ -290,7 +144,7 @@ public class JsPropertyIterator {
             let names = object.getOwnPropertyNames()
             if (idx < Int64(names.size)) {
                 let name = names[Int64(idx)]
-                if (options.skipEmptyName && name.isEmpty) {
+                if (options.skipEmptyName && name.isEmpty()) {
                     continue
                 }
                 if (options.includeValue) {
@@ -326,24 +180,4 @@ public class JsPropertyIterator {
     }
 }
 
-// ========== TopExceptionScope ==========
-// 严格翻译自 TopExceptionScope.zig
-// 异常作用域管理
-public class TopExceptionScope {
-    public var globalObject: ?JsObject = None
-    public var hadException: Bool = false
-
-    public init() {}
-
-    public init(global: JsObject) {
-        this.globalObject = global
-    }
-
-    public func deinit() {
-        // 恢复异常状态
-    }
-
-    public func returnIfException(): Bool {
-        false
-    }
-}
+// 注意: TopExceptionScope 已移至 top_exception_scope.cj

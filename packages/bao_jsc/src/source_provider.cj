@@ -70,7 +70,7 @@ public class SourceProvider_ {
     func computeHash(s: String): Int64 {
         var h: Int64 = 0
         for (c in s) {
-            h = h * 31 + Int64(c.code)
+            h = h * 31 + Int64(c)
         }
         h
     }

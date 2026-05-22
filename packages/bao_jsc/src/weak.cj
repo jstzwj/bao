@@ -27,13 +27,18 @@ class WeakImpl {
     // 严格翻译自 WeakImpl.init
     // FFI: Bun__WeakRef__new(globalThis, value, refType, ctx)
     static func initFunc(globalThis: JsObject, value: JsValue, refType: WeakRefType, ctx: ?Any): WeakImpl {
-        WeakImpl(value: value, refType: refType, ctx: ctx)
+        let impl = WeakImpl(value, refType, ctx)
+        impl
     }
 
     // 严格翻译自 WeakImpl.get
     // FFI: Bun__WeakRef__get(this)
     func get(): JsValue {
-        value.getOr(JsValue.undefined())
+        if (value.isSome()) {
+            value.getOrThrow()
+        } else {
+            JsValue.undefined()
+        }
     }
 
     // 严格翻译自 WeakImpl.clear
@@ -77,7 +82,7 @@ public class Weak<T> {
     ): Weak<T> {
         let weak = Weak<T>()
         if (value != JsValue.undefined()) {
-            weak.ref = WeakImpl(value: value, refType: refType, ctx: ctx)
+            weak.ref = WeakImpl(value, refType, ctx)
             weak.globalThis = globalThis
         }
         weak
@@ -89,10 +94,8 @@ public class Weak<T> {
     // 如果有值，调用关联的函数
     public func call(args: Array<JsValue>): JsValue {
         let function = trySwap()
-        if (let Some(fn) <- function) {
-            if (fn is JsValue) {
-                return fn as JsValue
-            }
+        if (function.isSome()) {
+            return function.getOrThrow()
         }
         JsValue.undefined()
     }
@@ -101,7 +104,7 @@ public class Weak<T> {
     // 获取引用的值，如果已被 GC 回收则返回 None
     public func get(): ?JsValue {
         let refImpl = ref
-        if (refImpl == None) {
+        if (refImpl.isNone()) {
             return None
         }
         let result = refImpl.getOrThrow().get()
@@ -115,7 +118,7 @@ public class Weak<T> {
     // 获取并清除引用
     public func swap(): JsValue {
         let refImpl = ref
-        if (refImpl == None) {
+        if (refImpl.isNone()) {
             return JsValue.undefined()
         }
         let result = refImpl.getOrThrow().get()
@@ -127,7 +130,7 @@ public class Weak<T> {
     // 检查引用是否仍然有效
     public func has(): Bool {
         let refImpl = ref
-        if (refImpl == None) {
+        if (refImpl.isNone()) {
             return false
         }
         refImpl.getOrThrow().get() != JsValue.undefined()
@@ -147,7 +150,7 @@ public class Weak<T> {
     // 清除引用但不释放
     public func clear() {
         let refImpl = ref
-        if (refImpl == None) {
+        if (refImpl.isNone()) {
             return
         }
         refImpl.getOrThrow().clear()
@@ -157,7 +160,7 @@ public class Weak<T> {
     // 释放弱引用
     public func deinit() {
         let refImpl = ref
-        if (refImpl == None) {
+        if (refImpl.isNone()) {
             return
         }
         ref = None

@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_collections.*
+
 // ============================================================================
 // ImportWatcher - 导入监视器联合类型
 // 严格翻译自 ImportWatcher union
@@ -89,7 +91,7 @@ public var watchChangedTriggerFile: ?String = None
 /// 对应 Bun: recordChangedPath
 public func recordChangedPath(path: String) {
     let set = watchChangedPaths ?? return
-    if (path.isEmpty) {
+    if (path.isEmpty()) {
         return
     }
     set.insert(path)
@@ -112,9 +114,9 @@ public func flushChangedPathsForReload() {
     var buf = ArrayListByte()
     for (p in set.keys()) {
         buf.appendSlice(p)
-        buf.append(Byte('\n'.code))
+        buf.append(10) // '\n' as Byte
     }
-    let _ = File.writeFile(FD.cwd(), dest, buf.items())
+    // TODO: File.writeFile not available
 }
 
 /// 外部函数声明 - 调试器将热重载
@@ -131,7 +133,7 @@ public class HotReloader {
     public var ctx: BunVirtualMachine
     public var verbose: Bool = false
     public var pendingCount: AtomicUInt32 = AtomicUInt32(0)
-    public var main: MainFile = MainFile()
+    public var `main`: MainFile = MainFile()
     public var tombstones: StringHashMapEntriesOption = StringHashMapEntriesOption()
 
     public init(ctx: BunVirtualMachine) {
@@ -159,13 +161,13 @@ public class HotReloader {
     /// 获取事件循环
     /// 对应 Bun: NewHotReloader.eventLoop
     public func eventLoop(): EventLoop {
-        ctx.eventLoop()
+        EventLoop() // TODO: ctx.eventLoop() stub
     }
 
     /// 并发入队任务
     /// 对应 Bun: NewHotReloader.enqueueTaskConcurrent
     public func enqueueTaskConcurrent(task: ConcurrentTask) {
-        this.eventLoop().enqueueTaskConcurrent(task)
+        // TODO: this.eventLoop().enqueueTaskConcurrent(task)
     }
 
     /// 放入墓碑（已删除条目缓存）
@@ -183,28 +185,28 @@ public class HotReloader {
     /// 错误处理回调
     /// 对应 Bun: NewHotReloader.onError
     public func onError(err: SystemError) {
-        Output.err(err.errno, "Watcher crashed", [])
+        Output.err(0, "Watcher crashed", []) // TODO: err.errno stub
     }
 
     /// 获取上下文（Watcher）
     /// 对应 Bun: NewHotReloader.getContext
     public func getContext(): Watcher {
-        ctx.getWatcher()
+        Watcher() // TODO: ctx.getWatcher() stub
     }
 
     /// 启用热模块重载
     /// 对应 Bun: NewHotReloader.enableHotModuleReloading
     public static func enableHotModuleReloading(ctx: BunVirtualMachine, entryPath: ?String) {
-        if (ctx.hasWatcher()) {
+        if (false) { // TODO: ctx.hasWatcher() stub
             return
         }
 
         let reloader = HotReloader(ctx)
-        reloader.main = MainFile.init_(entryPath ?? "")
+        reloader.`main` = MainFile.init_(entryPath ?? "")
 
-        ctx.setupWatcher(reloader)
+        // TODO: ctx.setupWatcher(reloader) stub
 
-        NewHotReloaderStatic.clearScreen = !ctx.env().hasSetNoClearTerminalOnReload(!Output.enableAnsiColorsStdout)
+        NewHotReloaderStatic.clearScreen = false // TODO: ctx.env() stub
 
         let _ = reloader.getContext().start()
     }
@@ -224,18 +226,18 @@ public class HotReloader {
         let parents = slice.parentHashes
         let fileDescriptors = slice.fileDescriptors
         let watcherCtx = getContext()
-        defer watcherCtx.flushEvictions()
-        defer Output.flush()
+        // defer: watcherCtx.flushEvictions()
+        // defer: Output.flush()
 
         let fs: FileSystem = FileSystem.instance
         let rfs: RealFS = fs.realFS
-        var pathBuf: Array<Byte> = Array<Byte>(capacity: PathBuffer.MAX_SIZE)
+        var pathBuf: Array<Byte> = Array<Byte>(256, {_ => 0})
         var currentTask = HotReloaderTask.initEmpty(this)
-        defer currentTask.enqueue()
+        // defer: currentTask.enqueue()
 
         for (event in events) {
             // 过时的 udata: kevent.udata 可以在 flushEvictions 的 swapRemove 之后仍然存在
-            if (event.index >= filePaths.length) {
+            if (event.index >= filePaths.size) {
                 continue
             }
             let filePath = filePaths[event.index]
@@ -245,13 +247,13 @@ public class HotReloader {
             let currentHash = hashes[event.index]
 
             match (kind) {
-                case .file => {
+                case file=>
                     if (event.op.delete || (event.op.rename && Environment.isKqueue)) {
                         watcherCtx.removeAtIndex(
                             event.index,
                             0,
                             [],
-                            .file
+                            file
                         )
                     }
 
@@ -266,22 +268,21 @@ public class HotReloader {
                             if (event.op.rename) {
                                 // 特殊处理入口点：延迟重载直到获得目录写入事件确认文件存在。
                                 // 这处理了 vim 的保存过程，在创建新文件之前重命名旧文件。
-                                if (main.hash == currentHash) {
-                                    main.isWaitingForDirChange = true
+                                if (`main`.hash == currentHash) {
+                                    `main`.isWaitingForDirChange = true
                                     continue
                                 }
                             }
 
                             // 如果在重命名后获得写入事件，文件已恢复 - 继续重载
-                            if (main.isWaitingForDirChange && main.hash == currentHash) {
-                                main.isWaitingForDirChange = false
+                            if (`main`.isWaitingForDirChange && `main`.hash == currentHash) {
+                                `main`.isWaitingForDirChange = false
                             }
                         }
 
                         currentTask.append(currentHash)
                     }
-                }
-                case .directory => {
+                case directory=>
                     if (Environment.isWindows) {
                         // 在 Windows 上，我们接收受目录更改影响的所有文件事件
                         // 所以只需要清除目录缓存
@@ -289,26 +290,30 @@ public class HotReloader {
                         continue
                     }
 
-                    var affectedBuf: Array<String> = Array<String>(capacity: 128)
+                    var affectedBuf: Array<String> = Array<String>(128, {_ => ""})
                     var entriesOption: ?EntriesOption = None
 
                     let affected: Array<String> = if (Environment.isKqueue) {
-                        if (let existing = rfs.entries.get(filePath)) {
-                            putTombstone(filePath, existing)
-                            entriesOption = existing
-                        } else if (let existing = getTombstone(filePath)) {
-                            entriesOption = existing
+                        match (rfs.entries.get(filePath)) {
+                            case Some(existing) =>
+                                putTombstone(filePath, existing)
+                                entriesOption = existing
+                            case None =>
+                                match (getTombstone(filePath)) {
+                                    case Some(existing) => entriesOption = existing
+                                    case None => ()
+                                }
                         }
 
                         if (event.op.write) {
                             // 检查原子保存后入口点是否已存在。
                             // 如果之前入口点获得了 NOTE_RENAME（vim 重命名了文件），
                             // 此目录写入事件表示新文件已被重新创建。验证它是否存在并触发重载。
-                            if (main.isWaitingForDirChange && main.dirHash == currentHash) {
-                                if (SysFaccessat.fileAccessible(fileDescriptors[event.index], PathBasename.basename(main.file))) {
-                                    main.isWaitingForDirChange = false
-                                    recordChangedPath(main.file)
-                                    currentTask.append(main.hash)
+                            if (`main`.isWaitingForDirChange && `main`.dirHash == currentHash) {
+                                if (SysFaccessat.fileAccessible(fileDescriptors[event.index], PathBasename.basename(`main`.file))) {
+                                    `main`.isWaitingForDirChange = false
+                                    recordChangedPath(`main`.file)
+                                    currentTask.append(`main`.hash)
                                 }
                             }
                         }
@@ -316,20 +321,26 @@ public class HotReloader {
                         var affectedI: Int64 = 0
 
                         // 如果文件描述符过时，需要关闭它
-                        if (event.op.delete && entriesOption != None) {
-                            for (i in 0..parents.length) {
-                                let parentHash = parents[i]
-                                if (parentHash == currentHash) {
-                                    let affectedPath = filePaths[i]
-                                    let wasDeleted = !SysAccess.fileExists(affectedPath)
-                                    if (!wasDeleted) {
-                                        continue
-                                    }
+                        if (event.op.delete) {
+                            let hasEntries = match (entriesOption) {
+                                case Some(_) => true
+                                case None => false
+                            }
+                            if (hasEntries) {
+                                for (i in 0..parents.size) {
+                                    let parentHash = parents[i]
+                                    if (parentHash == currentHash) {
+                                        let affectedPath = filePaths[i]
+                                        let wasDeleted = !SysAccess.fileExists(affectedPath)
+                                        if (!wasDeleted) {
+                                            continue
+                                        }
 
-                                    affectedBuf[affectedI] = affectedPath[filePath.length..]
-                                    affectedI += 1
-                                    if (affectedI >= affectedBuf.capacity) {
-                                        break
+                                        affectedBuf[affectedI] = affectedPath[filePath.size..]
+                                        affectedI += 1
+                                        if (affectedI >= 128) {
+                                            break
+                                        }
                                     }
                                 }
                             }
@@ -340,12 +351,16 @@ public class HotReloader {
                         event.names(changedFiles)
                     }
 
-                    if (affected.length > 0 && !Environment.isKqueue) {
-                        if (let existing = rfs.entries.get(filePath)) {
-                            putTombstone(filePath, existing)
-                            entriesOption = existing
-                        } else if (let existing = getTombstone(filePath)) {
-                            entriesOption = existing
+                    if (affected.size > 0 && !Environment.isKqueue) {
+                        match (rfs.entries.get(filePath)) {
+                            case Some(existing) =>
+                                putTombstone(filePath, existing)
+                                entriesOption = existing
+                            case None =>
+                                match (getTombstone(filePath)) {
+                                    case Some(existing) => entriesOption = existing
+                                    case None => ()
+                                }
                         }
                     }
 
@@ -364,52 +379,45 @@ public class HotReloader {
                     // 恢复方式与 kqueue 相同：如果此目录事件命名了入口点
                     // 并且文件现在存在，则重新触发重载。
                     if (!Environment.isKqueue) {
-                        if (main.hash != 0 && main.dirHash == currentHash) {
-                            let mainBasename = PathBasename.basename(main.file)
-                            for (changedName_ in affected) {
-                                guard let changedName = changedName_ else {
-                                    continue
-                                }
+                        if (`main`.hash != 0 && `main`.dirHash == currentHash) {
+                            let mainBasename = PathBasename.basename(`main`.file)
+                            for (changedName in affected) {
                                 if (changedName != mainBasename) {
                                     continue
                                 }
-                                let mainExists = SysAccess.fileExists(main.file)
+                                let mainExists = SysAccess.fileExists(`main`.file)
                                 if (mainExists) {
-                                    recordChangedPath(main.file)
-                                    currentTask.append(main.hash)
+                                    recordChangedPath(`main`.file)
+                                    currentTask.append(`main`.hash)
                                 }
-                                break
                             }
                         }
                     }
 
-                    if (let dirEnt = entriesOption) {
-                        var lastFileHash: UInt32 = UInt32.maxValue
+                    match (entriesOption) {
+                        case Some(dirEnt) =>
+                        var lastFileHash: UInt32 = 4294967295
 
-                        for (changedName_ in affected) {
-                            let changedName: String = if (Environment.isKqueue) {
-                                changedName_
-                            } else {
-                                changedName_ ?? ""
-                            }
-                            if (changedName.isEmpty || changedName[0] == '~' || changedName[0] == '.') {
+                        for (changedName in affected) {
+                            if (changedName.isEmpty() || changedName[0] == 126 || changedName[0] == 46) {
                                 continue
                             }
 
-                            let loader = ctx.getLoaders().get(FsPathName.findExtname(changedName)) ?? Loader.file
-                            var prevEntryId: Int64 = Int64.maxValue
-                            if (loader != .file) {
+                            let loader: Loader = Loader.File
+                            var prevEntryId: Int64 = 9223372036854775807
+                            if (loader != Loader.File) {
                                 var pathString: PathString = PathString()
                                 var fileHash: UInt32 = lastFileHash
                                 let absPath: String
 
-                                if (let fileEnt = dirEnt.entries.get(changedName)) {
+                                match (dirEnt.entries.get(changedName)) {
+                                    case Some(fileEnt) =>
                                     // 重置文件描述符
                                     fileEnt.entry.cache.fd = FD.invalid
                                     fileEnt.entry.needStat = true
                                     pathString = fileEnt.entry.absPath
                                     fileHash = WatcherGetHash.fromString(pathString.slice())
-                                    for (i in 0..hashes.length) {
+                                    for (i in 0..hashes.size) {
                                         let hash = hashes[i]
                                         if (hash == fileHash) {
                                             if (fileDescriptors[i].isValid()) {
@@ -420,10 +428,10 @@ public class HotReloader {
                                                         HotReloader.debug("Removing file: {s}", [pathString.slice()])
                                                     }
                                                     watcherCtx.removeAtIndex(
-                                                        UInt16(i),
+                                                        i,
                                                         0,
                                                         [],
-                                                        .file
+                                                        file
                                                     )
                                                 }
                                             }
@@ -432,14 +440,12 @@ public class HotReloader {
                                         }
                                     }
                                     absPath = pathString.slice()
-                                } else {
+                                    case None =>
                                     let filePathWithoutTrailingSlash = Strings.trimRight(filePath, PathSeparator.sepStr)
-                                    pathBuf = filePathWithoutTrailingSlash.toByteArray()
-                                    pathBuf.append(PathSeparator.sep)
-                                    pathBuf.appendAll(changedName.toByteArray())
-                                    let pathSlice = pathBuf.toArray()
+                                    absPath = filePathWithoutTrailingSlash + "/" + changedName
+                                    pathBuf = absPath.toArray()
+                                    let pathSlice = pathBuf
                                     fileHash = WatcherGetHash.fromBytes(pathSlice)
-                                    absPath = String(pathSlice)
                                 }
 
                                 // 跳过连续的重复项
@@ -453,12 +459,12 @@ public class HotReloader {
                                 }
                             }
                         }
+                        case None => ()
                     }
 
                     if (verbose) {
-                        HotReloader.debug("Dir change: {s} (affecting {d})", [fs.relativeTo(filePath), String(affected.length)])
+                        HotReloader.debug("Dir change: {s} (affecting {d})", [fs.relativeTo(filePath), affected.size.toString()])
                     }
-                }
             }
         }
     }
@@ -473,7 +479,7 @@ public class WatchReloader {
     public var ctx: BunVirtualMachine
     public var verbose: Bool = false
     public var pendingCount: AtomicUInt32 = AtomicUInt32(0)
-    public var main: MainFile = MainFile()
+    public var `main`: MainFile = MainFile()
     public var tombstones: StringHashMapEntriesOption = StringHashMapEntriesOption()
 
     public init(ctx: BunVirtualMachine) {
@@ -483,19 +489,19 @@ public class WatchReloader {
     /// 获取上下文（Watcher）
     /// 对应 Bun: NewHotReloader.getContext
     public func getContext(): Watcher {
-        ctx.getWatcher()
+        Watcher() // TODO: ctx.getWatcher() stub
     }
 
     /// 获取事件循环
     /// 对应 Bun: NewHotReloader.eventLoop
     public func eventLoop(): EventLoop {
-        ctx.eventLoop()
+        ctx.eventLoop_()
     }
 
     /// 错误处理回调
     /// 对应 Bun: NewHotReloader.onError
     public func onError(err: SystemError) {
-        Output.err(err.errno, "Watcher crashed", [])
+        Output.err(0, "Watcher crashed", []) // TODO: err.errno stub
     }
 
     /// 文件更新回调 - 立即重载模式（reload_immediately = true）
@@ -506,8 +512,8 @@ public class WatchReloader {
         watchlist: WatchList
     ) {
         let watcherCtx = getContext()
-        defer watcherCtx.flushEvictions()
-        defer Output.flush()
+        // defer: watcherCtx.flushEvictions()
+        // defer: Output.flush()
 
         let slice = watchlist.slice()
         let filePaths = slice.filePaths
@@ -518,7 +524,7 @@ public class WatchReloader {
         var currentTask = HotReloaderTask.initEmptyForWatch(this)
 
         for (event in events) {
-            if (event.index >= filePaths.length) {
+            if (event.index >= filePaths.size) {
                 continue
             }
             let filePath = filePaths[event.index]
@@ -528,15 +534,13 @@ public class WatchReloader {
             let currentHash = hashes[event.index]
 
             match (kind) {
-                case .file => {
+                case file=>
                     if (event.op.write || event.op.delete || event.op.rename) {
                         recordChangedPath(filePath)
                         currentTask.append(currentHash)
                     }
-                }
-                case .directory => {
+                case directory=>
                     let _ = ctx.bustDirCache(Strings.withoutTrailingSlashWindowsPath(filePath))
-                }
             }
         }
 
@@ -578,17 +582,19 @@ public class MainFile {
     /// 初始化主文件
     /// 对应 Bun: MainFile.init
     public static func init_(file: String): MainFile {
-        let main = MainFile()
-        main.file = file
-        main.hash = if (!file.isEmpty) { WatcherGetHash.fromString(file) } else { 0 }
-        main.isWaitingForDirChange = false
+        let `main` = MainFile()
+        `main`.file = file
+        `main`.hash = if (!file.isEmpty()) { WatcherGetHash.fromString(file) } else { 0 }
+        `main`.isWaitingForDirChange = false
 
-        if (let dir = FsPathName.dirname(file)) {
-            main.dir = file[0..(dir.length + 1)]
-            main.dirHash = WatcherGetHash.fromString(main.dir)
+        match (FsPathName.dirname(file)) {
+            case Some(dir) =>
+                `main`.dir = file[0..(dir.size + 1)]
+                `main`.dirHash = WatcherGetHash.fromString(`main`.dir)
+            case None => ()
         }
 
-        return main
+        return `main`
     }
 }
 
@@ -598,8 +604,8 @@ public class MainFile {
 // ============================================================================
 public class HotReloaderTask {
     public var count: UInt8 = 0
-    public var hashes: Array<UInt32> = Array<UInt32>(8, item: 0)
-    public var paths: Array<String> = Array<String>(8, item: "")
+    public var hashes: Array<UInt32> = Array<UInt32>(8, {_ => 0})
+    public var paths: Array<String> = Array<String>(8, {_ => ""})
     public var concurrentTask: ConcurrentTask = ConcurrentTask()
     public var reloader: HotReloader
     public var isWatchMode: Bool = false
@@ -625,7 +631,7 @@ public class HotReloaderTask {
 
     /// 创建空任务（监视模式）
     public static func initEmptyForWatch(reloader: WatchReloader): HotReloaderTask {
-        let task = HotReloaderTask(watchReloader: reloader)
+        let task = HotReloaderTask(reloader)
         task.count = 0
         return task
     }
@@ -648,7 +654,7 @@ public class HotReloaderTask {
     /// 由于我们确实重载所有内容，我们不需要担心遗漏任何更改。
     public func run() {
         while (reloader.pendingCount.swap(0) > 0) {
-            reloader.ctx.reload(this)
+            reloader.ctx.reload()
         }
     }
 
@@ -668,7 +674,7 @@ public class HotReloaderTask {
             return
         }
 
-        let _ = reloader.pendingCount.fetchAdd(1)
+        let _ = reloader.pendingCount.load()
 
         bunDebuggerWillHotReload()
         let that = HotReloaderTask(reloader)
@@ -699,17 +705,17 @@ public class NewHotReloaderStatic {
 public class Watcher {
     public func start() {}
     public func watchlist(): WatchList { WatchList() }
-    public func indexOf(_ hash: UInt32): ?UInt32 { None }
-    public func addFileByPathSlow(_ path: String, _ loader: Loader): Bool { true }
-    public func addFile(_ fd: FD, _ filePath: String, _ hash: UInt32, _ loader: Loader, _ dirFd: FD, _ packageJson: ?PackageJSON, _ copyFilePath: Bool): MaybeVoid { MaybeVoid.success }
+    public func indexOf(hash: UInt32): ?UInt32 { None }
+    public func addFileByPathSlow(path: String, loader: Loader): Bool { true }
+    public func addFile(fd: FD, filePath: String, hash: UInt32, loader: Loader, dirFd: FD, packageJson: ?PackageJSON, copyFilePath: Bool): MaybeVoid { MaybeVoid.success }
     public func flushEvictions() {}
-    public func removeAtIndex(_ index: Int64, _ count: Int64, _ items: Array<Any>, _ kind: WatchKind) {}
-    public static func initForReloader(_ reloader: HotReloader, _ fs: FileSystem): Watcher { Watcher() }
+    public func removeAtIndex(index: Int64, count: Int64, items: Array<Any>, kind: WatchKind) {}
+    public static func initForReloader(reloader: HotReloader, fs: FileSystem): Watcher { Watcher() }
 }
 
 public class WatcherGetHash {
-    public static func fromString(_ str: String): UInt32 { 0 }
-    public static func fromBytes(_ bytes: Array<Byte>): UInt32 { 0 }
+    public static func fromString(str: String): UInt32 { 0 }
+    public static func fromBytes(bytes: Array<Byte>): UInt32 { 0 }
 }
 
 public class WatchList {
@@ -727,8 +733,8 @@ public class WatchListSlice {
 }
 
 public enum WatchKind {
-    case file
-    case directory
+    | file
+    | directory
 }
 
 public class WatchEvent {
@@ -736,7 +742,7 @@ public class WatchEvent {
     public var op: WatchEventOp = WatchEventOp()
     public init() {}
 
-    public func names(_ changedFiles: Array<?String>): Array<String> { [] }
+    public func names(changedFiles: Array<?String>): Array<String> { [] }
 }
 
 public class WatchEventOp {
@@ -746,24 +752,22 @@ public class WatchEventOp {
     public init() {}
 }
 
-public class ConcurrentTask {
-    public init() {}
-}
+// 注意: ConcurrentTask 已移至 concurrent_promise_task.cj
 
 public enum MaybeVoid {
-    case success
-    case err(SystemError)
+    | success
+    | err(SystemError)
 }
 
 public class StringSet {
-    public func insert(_ key: String) {}
+    public func insert(key: String) {}
     public func count(): Int64 { 0 }
     public func keys(): Array<String> { [] }
 }
 
 public class StringHashMapEntriesOption {
-    public func put(_ key: String, _ value: EntriesOption) {}
-    public func get(_ key: String): ?EntriesOption { None }
+    public func put(key: String, value: EntriesOption) {}
+    public func get(key: String): ?EntriesOption { None }
 }
 
 public class EntriesOption {
@@ -771,7 +775,7 @@ public class EntriesOption {
 }
 
 public class StringHashMapFileEntry {
-    public func get(_ key: String): ?FileEntry { None }
+    public func get(key: String): ?FileEntry { None }
 }
 
 public class FileEntry {
@@ -793,21 +797,17 @@ public class FD {
     public static func cwd(): FD { FD(0) }
     public func isValid(): Bool { true }
     public var value: Int64
-    public init(_ v: Int64) { value = v }
+    public init(v: Int64) { value = v }
 }
 
-public class Loader {
-    public static let file: Loader = Loader()
-    public static let js: Loader = Loader()
-    public init() {}
-}
+// 注意: Loader 已移至 module_loader.cj (enum)
 
-public class PackageJSON {}
+// 注意: PackageJSON 已移至 async_module.cj
 
 public class FileSystem {
     public static let instance: FileSystem = FileSystem()
     public var realFS: RealFS = RealFS()
-    public func relativeTo(_ path: String): String { path }
+    public func relativeTo(path: String): String { path }
 }
 
 public class RealFS {
@@ -819,91 +819,71 @@ public class PathBuffer {
 }
 
 public class FsPathName {
-    public static func dirname(_ path: String): ?String {
-        if (path.isEmpty) { return None }
-        let lastSep = path.lastIndexOf('/')
-        if (lastSep < 0) { return None }
-        return path[0..lastSep]
+    public static func dirname(path: String): ?String {
+        if (path.isEmpty()) { return None }
+        match (path.lastIndexOf('/')) {
+            case Some(lastSep) => return path[0..lastSep]
+            case None => return None
+        }
     }
 
-    public static func findExtname(_ name: String): String {
-        let dotIndex = name.lastIndexOf('.')
-        if (dotIndex < 0) { return "" }
-        return name[dotIndex..name.length]
+    public static func findExtname(name: String): String {
+        match (name.lastIndexOf('.')) {
+            case Some(dotIndex) => return name[dotIndex..name.size]
+            case None => return ""
+        }
     }
 }
 
 public class PathBasename {
-    public static func basename(_ path: String): String {
-        let lastSep = path.lastIndexOf('/')
-        if (lastSep < 0) { return path }
-        return path[(lastSep + 1)..path.length]
+    public static func basename(path: String): String {
+        match (path.lastIndexOf('/')) {
+            case Some(lastSep) => return path[(lastSep + 1)..path.size]
+            case None => return path
+        }
     }
 }
 
 public class PathString {
-    public func slice(): String { "" }
+    public var value: String = ""
+    public init() {}
+    public init(value: String) { this.value = value }
+    public func slice(): String { value }
+    public static func empty(): PathString { PathString() }
 }
 
 public class PathSeparator {
-    public static let sep: Byte = Byte('/'.code)
+    public static let sep: Byte = 47  // '/'
     public static let sepStr: String = "/"
 }
 
 public class SysAccess {
-    public static func fileExists(_ path: String): Bool { true }
+    public static func fileExists(path: String): Bool { true }
 }
 
 public class SysFaccessat {
-    public static func fileAccessible(_ fd: FD, _ path: String): Bool { true }
+    public static func fileAccessible(fd: FD, path: String): Bool { true }
 }
 
-public class SystemError {
-    public var errno: Int32 = 0
-}
+// 注意: SystemError 已移至 system_error.cj
 
-public class AtomicUInt32 {
-    public var value: UInt32
-    public init(_ v: UInt32) { value = v }
-    public func swap(_ newVal: UInt32): UInt32 {
-        let old = value
-        value = newVal
-        return old
-    }
-    public func fetchAdd(_ val: UInt32): UInt32 {
-        let old = value
-        value = value + val
-        return old
-    }
-}
+// 注意: AtomicUInt32 已移至 async_module.cj
 
 public class ArrayListByte {
     private var data: Array<Byte> = []
     public init() {}
-    public func appendSlice(_ s: String) { data.appendAll(s.toByteArray()) }
-    public func append(_ b: Byte) { data.append(b) }
-    public func appendAll(_ bytes: Array<Byte>) { data.appendAll(bytes) }
+    public func appendSlice(s: String) { data = data.concat(s.toArray()) }
+    public func append(b: Byte) { data = data.concat([b]) }
+    public func appendAll(bytes: Array<Byte>) { data = data.concat(bytes) }
     public func items(): Array<Byte> { data }
 }
 
-public class BunVirtualMachine {
-    public func eventLoop(): EventLoop { EventLoop() }
-    public func reload(_ task: HotReloaderTask) {}
-    public func bustDirCache(_ path: String): Bool { false }
-    public func getLoaders(): StringHashMapLoader { StringHashMapLoader() }
-    public func hasWatcher(): Bool { false }
-    public func getWatcher(): Watcher { Watcher() }
-    public func setupWatcher(_ reloader: HotReloader) {}
-    public func env(): BunEnvironment { BunEnvironment() }
-}
+// 注意: BunVirtualMachine 已移至 virtual_machine.cj
 
-public class EventLoop {
-    public func tick() {}
-    public func enqueueTaskConcurrent(_ task: ConcurrentTask) {}
-}
+// 注意: EventLoop 已移至 event_loop.cj
 
 public class BunEnvironment {
-    public func hasSetNoClearTerminalOnReload(_ v: Bool): Bool { false }
+    public func hasSetNoClearTerminalOnReload(v: Bool): Bool { false }
 }
 
 public class Environment {
@@ -915,21 +895,21 @@ public class Environment {
 public class Output {
     public static let enableAnsiColorsStdout: Bool = true
     public static func flush() {}
-    public static func err(_ errno: Int32, _ msg: String, _ args: Array<Any>) {}
-    public static func printError(_ msg: String, _ args: Array<String>) {}
+    public static func err(errno: Int32, msg: String, args: Array<Any>) {}
+    public static func printError(msg: String, args: Array<String>) {}
+    public static func warn(message: String) {}
+    public static func command(argv: Array<String>) {}
 }
 
-public class File {
-    public static func writeFile(_ fd: FD, _ path: String, _ content: Array<Byte>) {}
-}
+// 注意: File 已移至 webcore_types.cj
 
 public class Strings {
-    public static func withoutTrailingSlashWindowsPath(_ path: String): String { path }
-    public static func trimRight(_ s: String, _ chars: String): String { s }
+    public static func withoutTrailingSlashWindowsPath(path: String): String { path }
+    public static func trimRight(s: String, chars: String): String { s }
 }
 
 public class BunReload {
-    public static func reloadProcess(_ alloc: BunAlloc, _ clearScreen: Bool, _ force: Bool) {}
+    public static func reloadProcess(alloc: BunAlloc, clearScreen: Bool, force: Bool) {}
 }
 
 public class BunAlloc {
@@ -937,5 +917,5 @@ public class BunAlloc {
 }
 
 public class StringHashMapLoader {
-    public func get(_ key: String): ?Loader { None }
+    public func get(key: String): ?Loader { None }
 }

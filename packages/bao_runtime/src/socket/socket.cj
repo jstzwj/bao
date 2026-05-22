@@ -5,6 +5,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // Socket 状态标志
@@ -284,7 +285,7 @@ public class Socket {
     public func getHandlers(): Handlers {
         match (handlers) {
             case Some(h) => h
-            case None => throw BaoError("No handlers set on Socket")
+            case None => throw Exception("No handlers set on Socket")
         }
     }
 
@@ -297,30 +298,27 @@ public class Socket {
     /// 对应 Zig: doConnect
     public func doConnect(target: ConnectionTarget): Unit {
         ref()
-        defer {
+        try {
+            socketState = SocketState.Connecting
+
+            match (target) {
+                case Host(host, port) =>
+                    // TCP 连接: 解析主机名, 建立连接
+                    let cleanedHost = cleanIPv6Brackets(host)
+                    let kind = if (isSsl) { "tls" } else { "tcp" }
+                    // 实际实现: 通过 bao_sys socket 接口连接
+                    socketState = SocketState.Connecting
+                case Unix(path) =>
+                    // Unix 域套接字连接
+                    socketState = SocketState.Connecting
+                case Fd(fdValue) =>
+                    // 从文件描述符创建
+                    this.fd = fdValue
+                    socketState = SocketState.Connected
+                    onOpen()
+            }
+        } finally {
             deref()
-        }
-
-        socketState = SocketState.Connecting
-
-        match (target) {
-            case Host(host, port) => {
-                // TCP 连接: 解析主机名, 建立连接
-                let cleanedHost = cleanIPv6Brackets(host)
-                let kind = if (isSsl) "tls" else "tcp"
-                // 实际实现: 通过 bao_sys socket 接口连接
-                socketState = SocketState.Connecting
-            }
-            case Unix(path) => {
-                // Unix 域套接字连接
-                socketState = SocketState.Connecting
-            }
-            case Fd(fdValue) => {
-                // 从文件描述符创建
-                this.fd = fdValue
-                socketState = SocketState.Connected
-                onOpen()
-            }
         }
     }
 
@@ -328,33 +326,31 @@ public class Socket {
     /// 对应 Zig: handleConnectError
     public func handleConnectError(errno: Int64): Unit {
         ref()
-        defer {
+        try {
+            bufferedData.clear()
+
+            let wasAttached = !isDetached()
+            socketState = SocketState.Detached
+
+            let h = getHandlers()
+            let errorCode = if (errno == 2) { "ENOENT" } else { "ECONNREFUSED" }
+            let errorMsg = "Failed to connect"
+
+            let callback = h.onConnectError
+
+            // 如果没有 connectError 回调, 拒绝 promise
+            if (callback.valueType != JsValueType.Function) {
+                thisValue = JsValue.UNDEFINED
+                h.rejectPromise(JsValue(errorMsg))
+                return
+            }
+
+            // 调用 connectError 回调
+            thisValue = JsValue.UNDEFINED
+        } finally {
             deref()
-        }
-
-        bufferedData.clear()
-
-        let wasAttached = !isDetached()
-        socketState = SocketState.Detached
-        defer {
             markInactive()
         }
-
-        let h = getHandlers()
-        let errorCode = if (errno == 2) "ENOENT" else "ECONNREFUSED"
-        let errorMsg = "Failed to connect"
-
-        let callback = h.onConnectError
-
-        // 如果没有 connectError 回调, 拒绝 promise
-        if (callback.valueType != JsValueType.Function) {
-            thisValue = JsValue.UNDEFINED
-            h.rejectPromise(JsValue(errorMsg))
-            return
-        }
-
-        // 调用 connectError 回调
-        thisValue = JsValue.UNDEFINED
     }
 
     // ========================================================================
@@ -366,25 +362,25 @@ public class Socket {
     /// 对应 Zig: onOpen
     public func onOpen(): Unit {
         ref()
-        defer {
+        try {
+            socketState = SocketState.Connected
+            markActive()
+
+            let h = getHandlers()
+            let callback = h.onOpen
+
+            // 解析 promise
+            h.resolvePromise(thisValue)
+
+            if (callback.valueType != JsValueType.Function) {
+                return
+            }
+
+            // 调用 onOpen(thisValue)
+            // 实际实现: 通过 JS 引擎调用
+        } finally {
             deref()
         }
-
-        socketState = SocketState.Connected
-        markActive()
-
-        let h = getHandlers()
-        let callback = h.onOpen
-
-        // 解析 promise
-        h.resolvePromise(thisValue)
-
-        if (callback.valueType != JsValueType.Function) {
-            return
-        }
-
-        // 调用 onOpen(thisValue)
-        // 实际实现: 通过 JS 引擎调用
     }
 
     /// 连接已关闭
@@ -395,37 +391,34 @@ public class Socket {
 
         // 处理 twin (upgradeTLS 的 raw 半)
         match (twin) {
-            case Some(raw) => {
+            case Some(raw) =>
                 twin = None
                 raw.onClose(errno)
-            }
             case None => ()
         }
 
-        defer {
+        try {
+            if (flags.finalizing) {
+                return
+            }
+
+            let h = getHandlers()
+            let callback = h.onClose
+            if (callback.valueType != JsValueType.Function) {
+                return
+            }
+
+            // 构建错误值
+            var jsError = JsValue.UNDEFINED
+            if (errno != 0) {
+                jsError = JsValue("Read error: ${errno}")
+            }
+
+            // 调用 onClose(thisValue, jsError)
+        } finally {
             deref()
-        }
-        defer {
             markInactive()
         }
-
-        if (flags.finalizing) {
-            return
-        }
-
-        let h = getHandlers()
-        let callback = h.onClose
-        if (callback.valueType != JsValueType.Function) {
-            return
-        }
-
-        // 构建错误值
-        var jsError = JsValue.UNDEFINED
-        if (errno != 0) {
-            jsError = JsValue(BaoString("Read error: ${errno}"))
-        }
-
-        // 调用 onClose(thisValue, jsError)
     }
 
     /// 数据到达
@@ -437,11 +430,10 @@ public class Socket {
 
         // 处理原生回调
         match (nativeCallback) {
-            case NativeCallback.H2(_) => {
+            case NativeCallback.H2(_) =>
                 if (nativeCallback.onData(data)) {
                     return
                 }
-            }
             case NativeCallback.None => ()
         }
 
@@ -465,11 +457,10 @@ public class Socket {
         }
 
         match (nativeCallback) {
-            case NativeCallback.H2(_) => {
+            case NativeCallback.H2(_) =>
                 if (nativeCallback.onWritable()) {
                     return
                 }
-            }
             case NativeCallback.None => ()
         }
 
@@ -513,19 +504,19 @@ public class Socket {
         }
 
         ref()
-        defer {
+        try {
+            let h = getHandlers()
+            let callback = h.onEnd
+            if (callback.valueType != JsValueType.Function) {
+                // 未处理 FIN, 直接关闭
+                markInactive()
+                return
+            }
+
+            // 调用 onEnd(thisValue)
+        } finally {
             deref()
         }
-
-        let h = getHandlers()
-        let callback = h.onEnd
-        if (callback.valueType != JsValueType.Function) {
-            // 未处理 FIN, 直接关闭
-            markInactive()
-            return
-        }
-
-        // 调用 onEnd(thisValue)
     }
 
     /// TLS 握手完成
@@ -610,15 +601,14 @@ public class Socket {
         }
 
         ref()
-        defer {
-            deref()
-        }
-
-        match (writeOrEnd(args, false, true)) {
-            case WriteResult.Fail => return JsValue.UNDEFINED
-            case WriteResult.Success(w, _) => {
-                return JsValue(Float64(w))
+        try {
+            match (writeOrEnd(args, false, true)) {
+                case WriteResult.Fail => return JsValue.UNDEFINED
+                case WriteResult.Success(w, _) =>
+                    return JsValue(Float64(w))
             }
+        } finally {
+            deref()
         }
     }
 
@@ -654,7 +644,7 @@ public class Socket {
                 i += 1
             }
             if (remaining.size > 0) {
-                bufferedData.appendAll(remaining)
+                for (b in remaining) { bufferedData.append(b) }
             }
         }
 
@@ -665,7 +655,7 @@ public class Socket {
     /// 对应 Zig: internalFlush
     public func internalFlush(): Unit {
         if (bufferedData.size > 0) {
-            let buffer = bufferedData.toArray()
+            let buffer = bufferedData.toOwnedSlice()
             let written = doSocketWrite(buffer)
             let wrote: Int64 = if (written > 0) { written } else { 0 }
             bytesWritten += wrote
@@ -863,12 +853,11 @@ public class Socket {
             flags.isActive = false
 
             match (handlers) {
-                case Some(h) => {
+                case Some(h) =>
                     if (h.markInactive()) {
                         // 客户端模式: handlers 已被释放
                         handlers = None
                     }
-                }
                 case None => ()
             }
         }
@@ -885,10 +874,9 @@ public class Socket {
     /// 分离原生回调
     public func detachNativeCallback(): Unit {
         match (nativeCallback) {
-            case NativeCallback.H2(h2) => {
+            case H2(_) =>
                 nativeCallback = NativeCallback.None
-            }
-            case NativeCallback.None => ()
+            case None => ()
         }
     }
 
@@ -969,10 +957,9 @@ public class Socket {
         }
         serverName = None
         match (connection) {
-            case Some(c) => {
+            case Some(c) =>
                 c.deinit()
                 connection = None
-            }
             case None => ()
         }
     }
@@ -994,7 +981,7 @@ public class Socket {
     /// 清理 IPv6 地址中的方括号
     private func cleanIPv6Brackets(host: String): String {
         if (host.size > 1 && host.startsWith("[") && host.endsWith("]")) {
-            return host.subString(1, host.size - 2)
+            return host[1..host.size - 1]
         }
         return host
     }
@@ -1003,7 +990,7 @@ public class Socket {
     private func binaryTypeToJS(data: Array<UInt8>, binaryType: BinaryType): JsValue {
         // 简化: 返回字符串表示
         // 实际实现应根据 binaryType 创建 Buffer/ArrayBuffer/Uint8Array
-        return JsValue(BaoString("Buffer(${data.size} bytes)"))
+        return JsValue("Buffer(${data.size} bytes)")
     }
 
     /// 将 JS 值转为字节数组

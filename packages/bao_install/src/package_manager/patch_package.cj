@@ -491,6 +491,7 @@ public class PatchPackage {
         match (bunPatchTag) {
             case Some(patchTag) =>
                 // 恢复 bun-patch-tag - 简化实现
+                ()
             case None => ()
         }
     }
@@ -819,8 +820,8 @@ public class PatchPackage {
             if (isSymlink) {
                 // 翻译自: 删除符号链接
                 let removeErr = PatchSys.unlink(path)
-                if (removeErr != None) {
-                    Output.err(removeErr!, "failed to detach <b>${path}<r> from the shared package store; refusing to patch through it")
+                if (removeErr.isSome()) {
+                    Output.err(removeErr.getOrThrow(), "failed to detach <b>${path}<r> from the shared package store; refusing to patch through it")
                     Global.crash()
                 }
 
@@ -1634,11 +1635,6 @@ public class PatchSpawnOpts {
     public init() {}
 }
 
-/// Spawn Result
-public class PatchSpawnResult {
-    public init() {}
-}
-
 /// Spawn 结果
 public enum PatchSpawnResult {
     | Ok(PatchSpawnResultData)
@@ -1670,27 +1666,4 @@ public enum SysMaybe<T> {
 /// Output Writer
 public class PatchOutputWriter {
     public init() {}
-}
-
-/// Output 工具 (补丁用)
-public class Output {
-    public static func print(msg: String): Unit {}
-    public static func pretty(msg: String): Unit {}
-    public static func prettyln(msg: String): Unit {}
-    public static func printErrorln(msg: String): Unit {}
-    public static func printError(msg: String): Unit {}
-    public static func prettyError(msg: String): Unit {}
-    public static func prettyErrorln(msg: String): Unit {}
-    public static func err(e: String, msg: String): Unit {}
-    public static func errGeneric(msg: String): Unit {}
-    public static func warn(msg: String): Unit {}
-    public static func note(msg: String): Unit {}
-    public static func errorWriter(): PatchOutputWriter { return PatchOutputWriter() }
-    public static func flush(): Unit {}
-}
-
-/// Global 工具 (补丁用)
-public class Global {
-    public static func crash(): Unit {}
-    public static func exit(code: Int64): Unit {}
 }

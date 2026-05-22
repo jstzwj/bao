@@ -435,7 +435,7 @@ public class PackageGraph {
 /// 对应 Bun: WorkspacePackageJSONCache
 public class WorkspaceResolver {
     private var rootDir: String
-    private var jsonParser: JsonParser
+    private var jsonParser: PkgJsonParser
     private var graph: PackageGraph
     /// 根包的 package.json
     private var rootPackage: ?WorkspacePackage
@@ -444,7 +444,7 @@ public class WorkspaceResolver {
 
     public init(rootDir: String) {
         this.rootDir = rootDir
-        jsonParser = JsonParser()
+        jsonParser = PkgJsonParser()
         graph = PackageGraph()
         rootPackage = None
         workspaceVersions = HashMap<String, String>()
@@ -465,7 +465,7 @@ public class WorkspaceResolver {
             case None => ()
         }
         // 2. 获取 workspaces 配置
-        let workspacesField = JsonHelper.getField(root, "workspaces")
+        let workspacesField = PkgJsonHelper.getField(root, "workspaces")
         let globs = WorkspaceGlob.parseGlobs(workspacesField)
         // 3. 展开 glob 模式
         let workspacePaths = WorkspaceGlob.expandGlobs(globs, rootDir)
@@ -500,12 +500,12 @@ public class WorkspaceResolver {
 
     /// 解析单个 package.json
     private func parsePackageJson(json: JsonValue, relativePath: String, isRoot: Bool): ?WorkspacePackage {
-        let name = match (JsonHelper.getString(json, "name")) {
+        let name = match (PkgJsonHelper.getString(json, "name")) {
             case Some(n) => n
             case None => if (isRoot) { "root" } else { return None }
         }
 
-        let versionStr = match (JsonHelper.getString(json, "version")) {
+        let versionStr = match (PkgJsonHelper.getString(json, "version")) {
             case Some(v) => v
             case None => "0.0.0"
         }
@@ -518,51 +518,51 @@ public class WorkspaceResolver {
         let pkg = WorkspacePackage(name, version, relativePath)
         pkg.isRoot = isRoot
         pkg.absolutePath = Path.join([rootDir, relativePath])
-        pkg.`main` = match (JsonHelper.getString(json, "main")) {
+        pkg.`main` = match (PkgJsonHelper.getString(json, "main")) {
             case Some(m) => m
             case None => "index.js"
         }
 
         // 依赖
-        pkg.dependencies = JsonHelper.getStringMap(json, "dependencies")
-        pkg.devDependencies = JsonHelper.getStringMap(json, "devDependencies")
-        pkg.peerDependencies = JsonHelper.getStringMap(json, "peerDependencies")
-        pkg.optionalDependencies = JsonHelper.getStringMap(json, "optionalDependencies")
+        pkg.dependencies = PkgJsonHelper.getStringMap(json, "dependencies")
+        pkg.devDependencies = PkgJsonHelper.getStringMap(json, "devDependencies")
+        pkg.peerDependencies = PkgJsonHelper.getStringMap(json, "peerDependencies")
+        pkg.optionalDependencies = PkgJsonHelper.getStringMap(json, "optionalDependencies")
 
         // peerDependenciesMeta
-        match (JsonHelper.getField(json, "peerDependenciesMeta")) {
+        match (PkgJsonHelper.getField(json, "peerDependenciesMeta")) {
             case Some(JsonValue.Object(pdm)) => parsePeerDepsMeta(pdm, pkg)
             case _ => ()
         }
 
         // scripts
-        match (JsonHelper.getField(json, "scripts")) {
+        match (PkgJsonHelper.getField(json, "scripts")) {
             case Some(JsonValue.Object(scripts)) => parseScripts(scripts, pkg)
             case _ => ()
         }
 
         // bin
-        match (JsonHelper.getField(json, "bin")) {
+        match (PkgJsonHelper.getField(json, "bin")) {
             case Some(JsonValue.Object(binObj)) => parseBin(binObj, pkg)
             case Some(JsonValue.Str(binStr)) => pkg.bin.put(name, binStr)
             case _ => ()
         }
 
         // trustedDependencies
-        match (JsonHelper.getField(json, "trustedDependencies")) {
+        match (PkgJsonHelper.getField(json, "trustedDependencies")) {
             case Some(JsonValue.Array(arr)) => parseTrustedDeps(arr, pkg)
             case _ => ()
         }
 
         // overrides
-        match (JsonHelper.getField(json, "overrides")) {
+        match (PkgJsonHelper.getField(json, "overrides")) {
             case Some(JsonValue.Object(overridesObj)) => parseOverrides(overridesObj, pkg)
             case _ => ()
         }
 
         // workspaces (仅根包)
         if (isRoot) {
-            let wsGlobs = WorkspaceGlob.parseGlobs(JsonHelper.getField(json, "workspaces"))
+            let wsGlobs = WorkspaceGlob.parseGlobs(PkgJsonHelper.getField(json, "workspaces"))
             for (g in wsGlobs) {
                 pkg.workspaces.append(g)
             }

@@ -141,7 +141,7 @@ public class CowSlice {
     // 对应 Bun: pub fn takeSlice(str: *Self, allocator: Allocator) Allocator.Error!SliceMut
     public func takeSlice(alloc: Allocator): ?CPointer<UInt8> {
         if (!isOwned) {
-            if (intoOwned(alloc) == None) {
+            if (intoOwned(alloc).isNone()) {
                 return None
             }
         }

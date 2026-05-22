@@ -48,7 +48,7 @@ public class ConcurrentPromiseTaskGeneric {
         // 创建 Promise 并建立强引用
         let promise = JsPromise()
         task.promise = promise
-        task.ref.ref()
+        // task.ref.ref(vm)  // TODO: ref() needs VM parameter
 
         task
     }
@@ -91,7 +91,8 @@ public class ConcurrentPromiseTaskGeneric {
     public func onFinish() {
         if (let Some(el) <- eventLoop) {
             if (let Some(ct) <- concurrentTask) {
-                el.enqueueTaskConcurrent(ct)
+                // TODO: enqueueTaskConcurrent not yet on EventLoop
+                // el.enqueueTaskConcurrent(ct)
             }
         }
     }
@@ -128,7 +129,7 @@ public class WorkPoolTask {
 
     public init() {}
 
-    public init(callback: (): Unit) {
+    public init(callback: () -> Unit) {
         this.callback = callback
     }
 
@@ -156,7 +157,7 @@ public class ConcurrentTask {
 
     // 从 ConcurrentPromiseTaskGeneric 创建
     public static func from(task: ConcurrentPromiseTaskGeneric, mode: String): ConcurrentTask {
-        let ct = ConcurrentTask(task: task)
+        let ct = ConcurrentTask(task)
         ct.manualDeinit = (mode == "manual_deinit")
         ct
     }
@@ -173,7 +174,7 @@ public class ConcurrentTask {
 // ConcurrentPromiseTask 需要 EventLoop 的额外方法
 public func enqueueTaskConcurrent(el: EventLoop, task: ConcurrentTask) {
     // 将并发任务入队到事件循环
-    el.enqueue(EventLoopEntry(EventLoopTag.Default, {
+    el.enqueue(EventLoopEntry(EventLoopTag.Default, { =>
         task.run()
     }))
 }

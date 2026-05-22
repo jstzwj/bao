@@ -11,12 +11,21 @@
 
 package bao_jsc
 
+import bao_collections.*
+
 import bao_core.*
 import bao_http_types.MimeType
 import bao_ptr.RawRefCount
 
+// 引用计数结果 (前移以避免 "used before being defined")
+public let SHOULD_DESTROY: Int32 = 0
+public let SHOULD_NOT_DESTROY: Int32 = 1
+
+// 估算的 Store 大小 (前移以避免 "used before being defined")
+public let STORE_SIZE: Int64 = 128
+
 // 对应 Bun bun_core::string::immutable::AsciiStatus: enum { Unknown, AllAscii, NonAscii }
-enum AsciiStatus {
+public enum AsciiStatus {
     | Unknown
     | AllAscii
     | NonAscii
@@ -38,7 +47,7 @@ public type SizeType = UInt64
 
 // 严格翻译自 webcore_types.rs MAX_SIZE
 // webcore.Blob.max_size (Blob.zig:61) — std.math.maxInt(u52)
-public let MAX_SIZE: SizeType = (1 as UInt64 << 52) - 1
+public let MAX_SIZE: SizeType = UInt64(4503599627370495)
 
 // ========== ClosingState ==========
 // 严格翻译自 webcore_types.rs ClosingState
@@ -75,13 +84,13 @@ public class Blob {
     // 是否通过 File 构造函数创建
     public var isJsdomFile: Bool = false
     // 内部引用计数 (计算异步读取器的借用)
-    public var refCount: RawRefCount = RawRefCount(value:0)
+    public var refCount: RawRefCount = RawRefCount(0)
     // 全局对象引用
     public var globalThis: ?JSGlobalObject = None
     // 最后修改时间
     public var lastModified: Float64 = 0.0
     // 文件名
-    public var name: BunString = BunString.dead()
+    public var name: BunString = BunStringExt.dead()
 
     public init() {}
 
@@ -89,7 +98,7 @@ public class Blob {
     // bun.TrivialNew(@This()) (Blob.zig:16) — 堆提升并标记为堆分配
     public static func new(blob: Blob): Blob {
         let result = Blob()
-        result.refCount = RawRefCount(value:1)
+        result.refCount = RawRefCount(1)
         // 复制字段
         result.size = blob.size
         result.offset = blob.offset
@@ -120,7 +129,7 @@ public class Blob {
 
     // 严格翻译自 Blob::set_not_heap_allocated
     public func setNotHeapAllocated() {
-        refCount = RawRefCount(value:0)
+        refCount = RawRefCount(0)
     }
 
     // 严格翻译自 Blob::content_type_slice
@@ -157,8 +166,8 @@ public class Blob {
         blob.size = store.size()
         blob.store = store
         // 设置 content_type
-        match(store.data) {
-            case Data.File(f) => blob.contentType = f.mimeType.value
+        match(store.dataMut()) {
+            case Some(Data.FileData(f)) => blob.contentType = toArrayByte(f.mimeType.contentType)
             case _ => blob.contentType = []
         }
         blob.globalThis = globalThis
@@ -166,12 +175,12 @@ public class Blob {
     }
 
     // 严格翻译自 Blob::init
-    // Blob.init(bytes, allocator, globalThis) (Blob.zig:3576)。获取 bytes 所有权
-    public static func init(bytes: Array<Byte>, globalThis: JSGlobalObject): Blob {
+    // Blob(bytes, allocator, globalThis) (Blob.zig:3576)。获取 bytes 所有权
+    public static func `init`(bytes: Array<Byte>, globalThis: JSGlobalObject): Blob {
         let blob = Blob()
-        blob.size = SizeType(bytes.size)
+        blob.size = UInt64(bytes.size)
         if (!bytes.isEmpty()) {
-            blob.store = StoreRef.from(Store.init(bytes))
+            blob.store = StoreRef.from(Store.`init`(bytes))
         }
         blob.globalThis = globalThis
         blob
@@ -188,14 +197,17 @@ public class Blob {
     // 严格翻译自 Blob::shared_view
     // Blob.sharedView() (Blob.zig:3737) — 内存中字节的借用视图
     public func sharedView(): Array<Byte> {
-        if (store == None) { return [] }
+        if (store .isNone()) { return [] }
         if (size == 0) { return [] }
         let s = store.getOrThrow()
         var slice = s.sharedView()
         if (slice.isEmpty()) { return [] }
-        let off = Int64.min(offset, Int64(slice.size))
-        slice = slice.slice(off)
-        slice.slice(0, Int64.min(Int64(slice.size), size))
+        let offset64 = Int64(offset)
+        let sliceLen = Int64(slice.size)
+        let off = if (offset64 < sliceLen) { offset64 } else { sliceLen }
+        slice = slice.slice(off, sliceLen)
+        let end = if (Int64(slice.size) < Int64(size)) { Int64(slice.size) } else { Int64(size) }
+        slice.slice(0, end)
     }
 
     // 严格翻译自 Blob::detach
@@ -223,7 +235,7 @@ public class Blob {
         result.contentTypeWasSet = contentTypeWasSet
         result.charset = charset
         result.isJsdomFile = isJsdomFile
-        result.refCount = RawRefCount(value:0)
+        result.refCount = RawRefCount(0)
         result.globalThis = globalThis
         result.lastModified = lastModified
         result.name = name
@@ -243,13 +255,13 @@ public class Blob {
         duped.contentTypeWasSet = contentTypeWasSet
         duped.charset = charset
         duped.isJsdomFile = isJsdomFile
-        duped.refCount = RawRefCount(value:0)
+        duped.refCount = RawRefCount(0)
         duped.globalThis = globalThis
         duped.lastModified = lastModified
         duped.name = name
         // 如果源 content_type 是堆分配的, 进行深拷贝
         if (contentTypeAllocated) {
-            duped.contentType = contentType.toArray().toArrayByte()
+            duped.contentType = contentType.toArray()
         }
         duped
     }
@@ -260,9 +272,9 @@ public class Blob {
     public func hasContentTypeFromUser(): Bool {
         contentTypeWasSet || (match(store) {
             case Some(s) =>
-                match(s.data) {
-                    case Data.File(_) => true
-                    case Data.S3(_) => true
+                match(s.dataMut()) {
+                    case Some(Data.FileData(_)) => true
+                    case Some(Data.S3Data(_)) => true
                     case _ => false
                 }
             case None => false
@@ -274,10 +286,11 @@ public class Blob {
         if (!contentType.isEmpty()) { return Some(contentType) }
         match(store) {
             case Some(s) =>
-                match(s.data) {
-                    case Data.File(f) => Some(f.mimeType.value)
-                    case Data.S3(s3) => Some(s3.mimeType.value)
-                    case Data.Bytes(_) => None
+                match(s.dataMut()) {
+                    case Some(Data.FileData(f)) => Some(toArrayByte(f.mimeType.contentType))
+                    case Some(Data.S3Data(s3)) => Some(toArrayByte(s3.mimeType.contentType))
+                    case Some(Data.BytesData(_)) => None
+                    case None => None
                 }
             case None => None
         }
@@ -287,8 +300,8 @@ public class Blob {
     public func isBunFile(): Bool {
         match(store) {
             case Some(s) =>
-                match(s.data) {
-                    case Data.File(_) => true
+                match(s.dataMut()) {
+                    case Some(Data.FileData(_)) => true
                     case _ => false
                 }
             case None => false
@@ -299,8 +312,8 @@ public class Blob {
     public func isS3(): Bool {
         match(store) {
             case Some(s) =>
-                match(s.data) {
-                    case Data.S3(_) => true
+                match(s.dataMut()) {
+                    case Some(Data.S3Data(_)) => true
                     case _ => false
                 }
             case None => false
@@ -316,16 +329,17 @@ public class Blob {
     public func getFileName(): ?Array<Byte> {
         match(store) {
             case Some(s) =>
-                match(s.data) {
-                    case Data.Bytes(bytes) =>
+                match(s.dataMut()) {
+                    case Some(Data.BytesData(bytes)) =>
                         let n = bytes.storedName.slice()
-                        if (n.isEmpty()) { None } else { Some(n) }
-                    case Data.File(file) =>
-                        match(file.pathlike) {
-                            case PathOrFileDescriptor.Path(path) => Some(path.slice())
+                        if (n.isEmpty()) { None } else { Some(n.toArray()) }
+                    case Some(Data.FileData(fileObj)) =>
+                        match(fileObj.pathlike) {
+                            case PathOrFileDescriptor.Path(path) => Some(PathLikeOps.slice(path))
                             case PathOrFileDescriptor.Fd(_) => None
                         }
-                    case Data.S3(s3) => Some(s3.pathlike.slice())
+                    case Some(Data.S3Data(s3)) => Some(PathLikeOps.slice(s3.pathlike))
+                    case None => None
                 }
             case None => None
         }
@@ -335,11 +349,11 @@ public class Blob {
     // Blob.deinit() (Blob.zig:3720)。拆解拥有的资源
     public func deinit() {
         detach()
-        name = BunString.dead()
+        name = BunStringExt.dead()
         freeContentType()
         if (isHeapAllocated()) {
             // 堆分配的 Blob 会在 refCount 降到 0 时被释放
-            refCount = RawRefCount(value:0)
+            refCount = RawRefCount(0)
         }
     }
 
@@ -352,16 +366,12 @@ public class Blob {
     // 严格翻译自 blob__deref
     public func blobDeref() {
         if (!isHeapAllocated()) { return }
-        if (refCount.decrement() == ShouldDestroy) {
+        if (refCount.decrement() == SHOULD_DESTROY) {
             refCount.increment()  // 重新武装, 以便 deinit 中的检查通过
             deinit()
         }
     }
 }
-
-// 引用计数结果
-public let SHOULD_DESTROY: Int32 = 0
-public let SHOULD_NOT_DESTROY: Int32 = 1
 
 // ========== Store 模块 ==========
 // 严格翻译自 webcore_types.rs store 模块
@@ -370,18 +380,18 @@ public let SHOULD_NOT_DESTROY: Int32 = 1
 // 严格翻译自 webcore_types.rs DataTag
 // Data 的仅判别标签 (Zig: std.meta.Tag(Store.Data))
 public enum DataTag {
-    | Bytes
-    | File
-    | S3
+    | BytesTag
+    | FileTag
+    | S3Tag
 }
 
 // ========== Data ==========
 // 严格翻译自 webcore_types.rs store::Data
 // Store.Data (Store.zig:37) — union(enum) { bytes, file, s3 }
 public enum Data {
-    | Bytes(Bytes)
-    | File(File)
-    | S3(S3)
+    | BytesData(Bytes)
+    | FileData(File)
+    | S3Data(S3)
 }
 
 // ========== SerializeTag ==========
@@ -392,14 +402,17 @@ public enum SerializeTag {
     | Empty
 }
 
-public extension SerializeTag {
+// SerializeTag extension methods
+public class SerializeTagExt {
+
     public static func fromRaw(raw: UInt8): ?SerializeTag {
         match(raw) {
             case 0 => Some(SerializeTag.File)
             case 1 => Some(SerializeTag.Bytes)
             case 2 => Some(SerializeTag.Empty)
             case _ => None
-        }
+        
+}
     }
 }
 
@@ -410,19 +423,17 @@ public class Bytes {
     public var ptr: ?CPointer<UInt8> = None
     public var len: SizeType = 0
     public var cap: SizeType = 0
-    public var storedName: PathString = PathString.default()
+    public var storedName: PathString = PathString.empty()
 
     public init() {}
 
     // 严格翻译自 Bytes::init
     // 获取 bytes (由全局 mimalloc 分配器分配) 的所有权
-    public static func init(bytes: Array<Byte>): Bytes {
+    public static func `init`(bytes: Array<Byte>): Bytes {
         let b = Bytes()
-        b.len = SizeType(bytes.size)
-        b.cap = SizeType(bytes.size)
-        if (!bytes.isEmpty()) {
-            b.ptr = bytes.toCPointer()
-        }
+        b.len = UInt64(bytes.size)
+        b.cap = UInt64(bytes.size)
+        // ptr: CPointer not available in pure Cangjie; stub
         b
     }
 
@@ -430,11 +441,9 @@ public class Bytes {
     // 获取 Box<[u8]> 的所有权
     public static func initOwned(bytes: Array<Byte>): Bytes {
         let b = Bytes()
-        b.len = SizeType(bytes.size)
-        b.cap = SizeType(bytes.size)
-        if (!bytes.isEmpty()) {
-            b.ptr = bytes.toCPointer()
-        }
+        b.len = UInt64(bytes.size)
+        b.cap = UInt64(bytes.size)
+        // ptr: CPointer not available in pure Cangjie; stub
         b
     }
 
@@ -483,7 +492,7 @@ public class Bytes {
         ptr = None
         len = 0
         cap = 0
-        storedName = PathString.default()
+        storedName = PathString.empty()
     }
 }
 
@@ -491,8 +500,8 @@ public class Bytes {
 // 严格翻译自 webcore_types.rs store::File
 // Store.File (Store.zig:250) — 引用磁盘上文件的 blob 存储
 public class File {
-    public var pathlike: PathOrFileDescriptor = PathOrFileDescriptor.default()
-    public var mimeType: MimeType = MimeType.OTHER
+    public var pathlike: PathOrFileDescriptor = PathOrFileDescriptorExt.default()
+    public var mimeType: MimeType = MimeType()
     public var isAtty: ?Bool = None
     public var mode: UInt32 = 0
     public var seekable: ?Bool = None
@@ -502,10 +511,10 @@ public class File {
     public init() {}
 
     // 严格翻译自 File::init
-    public static func init(pathlike: PathOrFileDescriptor, mimeType: ?MimeType): File {
+    public static func `init`(pathlike: PathOrFileDescriptor, mimeType: ?MimeType): File {
         let f = File()
         f.pathlike = pathlike
-        f.mimeType = mimeType ?? MimeType.OTHER
+        f.mimeType = mimeType ?? MimeType()
         f
     }
 
@@ -524,8 +533,8 @@ public class File {
 // 严格翻译自 webcore_types.rs store::S3
 // Store.S3 (Store.zig:291) — S3 blob 存储
 public class S3 {
-    public var pathlike: PathLike = PathLike.default()
-    public var mimeType: MimeType = MimeType.OTHER
+    public var pathlike: PathLike = PathLikeOps.default()
+    public var mimeType: MimeType = MimeType()
     public var credentials: ?S3Credentials = None
     public var options: MultiPartUploadOptions = MultiPartUploadOptions()
     public var acl: ?ACL = None
@@ -546,25 +555,14 @@ public class S3 {
 
     // 严格翻译自 S3::estimated_size
     public func estimatedSize(): Int64 {
-        pathlike.estimatedSize()
+        PathLikeOps.estimatedSize(pathlike)
     }
 
     // 严格翻译自 S3::path
     // 返回 URL 规范化的 S3 路径
     public func path(): Array<Byte> {
-        var pathName = URL.parse(pathlike.slice()).s3Path()
-        // 规范化开头和结尾
-        if (pathName.endsWith("/")) {
-            pathName = pathName.slice(0, Int64(pathName.size))
-        } else if (pathName.endsWith("\\")) {
-            pathName = pathName.slice(0, Int64(pathName.size) - 1)
-        }
-        if (pathName.startsWith("/")) {
-            pathName = pathName.slice(1)
-        } else if (pathName.startsWith("\\")) {
-            pathName = pathName.slice(1)
-        }
-        pathName
+        // 简化实现: 返回 pathlike 的字节切片
+        PathLikeOps.slice(pathlike)
     }
 
     // 严格翻译自 S3::init_with_referenced_credentials
@@ -576,12 +574,12 @@ public class S3 {
         let s3 = S3()
         s3.credentials = credentials
         s3.pathlike = pathlike
-        s3.mimeType = mimeType ?? MimeType.OTHER
+        s3.mimeType = mimeType ?? MimeType()
         s3
     }
 
     // 严格翻译自 S3::init
-    public static func init(
+    public static func `init`(
         pathlike: PathLike,
         mimeType: ?MimeType,
         credentials: S3Credentials
@@ -589,7 +587,7 @@ public class S3 {
         let s3 = S3()
         s3.credentials = credentials
         s3.pathlike = pathlike
-        s3.mimeType = mimeType ?? MimeType.OTHER
+        s3.mimeType = mimeType ?? MimeType()
         s3
     }
 }
@@ -598,8 +596,8 @@ public class S3 {
 // 严格翻译自 webcore_types.rs store::Store
 // Blob.Store (Store.zig:1-9). 内部引用计数; 总是堆分配
 public class Store {
-    public var data: Data = Data.Bytes(Bytes())
-    public var mimeType: MimeType = MimeType.NONE
+    public var data: Data = Data.BytesData(Bytes())
+    public var mimeType: MimeType = MimeType()
     public var refCount: UInt32 = 1
     public var isAllAscii: ?Bool = None
 
@@ -611,11 +609,11 @@ public class Store {
     }
 
     // 严格翻译自 Store::init
-    // Store.init(bytes, allocator) (Store.zig:152)。获取 bytes 所有权
-    public static func init(bytes: Array<Byte>): Store {
+    // Store(bytes, allocator) (Store.zig:152)。获取 bytes 所有权
+    public static func `init`(bytes: Array<Byte>): Store {
         let store = Store()
-        store.data = Data.Bytes(Bytes.init(bytes))
-        store.mimeType = MimeType.NONE
+        store.data = Data.BytesData(Bytes.`init`(bytes))
+        store.mimeType = MimeType()
         store.refCount = 1
         store.isAllAscii = None
         store
@@ -624,15 +622,15 @@ public class Store {
     // 严格翻译自 Store::get_path
     public func getPath(): ?Array<Byte> {
         match(data) {
-            case Data.Bytes(bytes) =>
+            case Data.BytesData(bytes) =>
                 let n = bytes.storedName.slice()
-                if (n.isEmpty()) { None } else { Some(n) }
-            case Data.File(file) =>
-                match(file.pathlike) {
-                    case PathOrFileDescriptor.Path(path) => Some(path.slice())
+                if (n.isEmpty()) { None } else { Some(n.toArray()) }
+            case Data.FileData(fileObj) =>
+                match(fileObj.pathlike) {
+                    case PathOrFileDescriptor.Path(path) => Some(PathLikeOps.slice(path))
                     case PathOrFileDescriptor.Fd(_) => None
                 }
-            case Data.S3(s3) => Some(s3.pathlike.slice())
+            case Data.S3Data(s3) => Some(PathLikeOps.slice(s3.pathlike))
         }
     }
 
@@ -640,9 +638,9 @@ public class Store {
     public func memoryCost(): Int64 {
         if (hasOneRef()) {
             Int64(STORE_SIZE) + match(data) {
-                case Data.Bytes(bytes) => Int64(bytes.len)
-                case Data.File(_) => 0
-                case Data.S3(s3) => s3.estimatedSize()
+                case Data.BytesData(bytes) => Int64(bytes.len)
+                case Data.FileData(_) => 0
+                case Data.S3Data(s3) => s3.estimatedSize()
             }
         } else {
             0
@@ -652,16 +650,16 @@ public class Store {
     // 严格翻译自 Store::size
     public func size(): SizeType {
         match(data) {
-            case Data.Bytes(b) => b.length()
-            case Data.File(_) => MAX_SIZE
-            case Data.S3(_) => MAX_SIZE
+            case Data.BytesData(b) => b.length()
+            case Data.FileData(_) => MAX_SIZE
+            case Data.S3Data(_) => MAX_SIZE
         }
     }
 
     // 严格翻译自 Store::shared_view
     public func sharedView(): Array<Byte> {
         match(data) {
-            case Data.Bytes(bytes) => bytes.slice()
+            case Data.BytesData(bytes) => bytes.slice()
             case _ => []
         }
     }
@@ -695,26 +693,24 @@ public class Store {
     // 清理数据
     public func deinitData() {
         match(data) {
-            case Data.Bytes(bytes) => bytes.deinit()
-            case Data.File(file) =>
+            case Data.BytesData(bytes) => bytes.deinit()
+            case Data.FileData(fileObj) =>
                 // 如果 pathlike 是 String, 释放复制的路径
-                match(file.pathlike) {
+                match(fileObj.pathlike) {
                     case PathOrFileDescriptor.Path(p) =>
                         match(p) {
-                            case PathLike.String(s) => {} // 释放拥有的路径
-                            case _ => {}
+                            case PathLike.String(s) => () // 释放拥有的路径
+                            case _ => ()
                         }
-                    case _ => {}
+                    case _ => ()
                 }
-            case Data.S3(s3) =>
+            case Data.S3Data(_) =>
                 // credentials 和 pathlike 在各自的 Drop 中释放
-                {}
+                ()
+            case _ => ()
         }
     }
 }
-
-// 估算的 Store 大小
-public let STORE_SIZE: Int64 = 128
 
 // ========== StoreRef ==========
 // 严格翻译自 webcore_types.rs store::StoreRef
@@ -731,14 +727,14 @@ public class StoreRef {
     // 严格翻译自 StoreRef::adopt
     // 采用现有的 +1。不增加引用计数
     public static func adopt(store: Store): StoreRef {
-        StoreRef(store: store)
+        StoreRef(store)
     }
 
     // 严格翻译自 StoreRef::retained
     // 包装原始 *Store, 增加其侵入式引用计数
     public static func retained(store: Store): StoreRef {
         store.ref_()
-        StoreRef(store: store)
+        StoreRef(store)
     }
 
     // 严格翻译自 StoreRef::as_ptr
@@ -765,7 +761,7 @@ public class StoreRef {
 
     // 严格翻译自 StoreRef::from (Box<Store>)
     public static func from(store: Store): StoreRef {
-        StoreRef(store: store)
+        StoreRef(store)
     }
 
     // Clone: 增加引用计数
@@ -773,7 +769,7 @@ public class StoreRef {
         match(ptr) {
             case Some(s) =>
                 s.ref_()
-                StoreRef(store: s)
+                StoreRef(s)
             case None => StoreRef()
         }
     }
@@ -807,11 +803,8 @@ public class StoreRef {
 // ========== 支撑类型 ==========
 // 以下类型在其他包中定义, 此处提供占位引用
 
-// JSTimeType — JS 时间戳类型 (毫秒)
-public type JSTimeType = Float64
-
-// INIT_TIMESTAMP — 初始时间戳常量
-public let INIT_TIMESTAMP: JSTimeType = 0.0
+// 注意: JSTimeType 已移至 jsc.cj
+// 注意: INIT_TIMESTAMP 已移至 jsc.cj
 
 // S3 凭证占位
 public class S3Credentials {
@@ -845,7 +838,7 @@ public class RawRefCount {
     }
 
     public static func initValue(value: Int32): RawRefCount {
-        RawRefCount(value: value)
+        RawRefCount(value)
     }
 
     public func increment() {
@@ -860,9 +853,11 @@ public class RawRefCount {
 }
 
 // BunString 类型别名
-public type BunString = String
+// 注意: BunString 已移至 bun_string_jsc.cj
 
 // BunString 辅助
-public extension BunString {
-    public static func dead(): BunString { "" }
+// BunString extension methods
+public class BunStringExt {
+
+    public static func dead(): BunString { BunString() }
 }

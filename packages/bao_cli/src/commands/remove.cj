@@ -113,12 +113,11 @@ public class RemoveCommand {
             logger.info("Reinstalling to clean up...")
             let result = pm.install(installOpts)
             match (result) {
-                case Some(summary) => {
+                case Some(summary) =>
                     logger.success("Removed ${opts.packages.size} package(s)")
                     if (summary.removed > 0) {
                         logger.info("Cleaned up ${summary.removed} unused packages")
                     }
-                }
                 case None => ()
             }
         } catch (e: Exception) {
@@ -167,18 +166,16 @@ public class RemoveCommand {
                 case "--no-install" => opts.noInstall = true
                 case "--force" => opts.force = true
                 case "--verbose" | "-v" => logger.setLevel(LogLevel.DEBUG)
-                case "--help" | "-h" => {
+                case "--help" | "-h" =>
                     printRemoveHelp()
                     return opts
-                }
-                case _ => {
+                case _ =>
                     // 包名参数
                     if (!arg.startsWith("-")) {
                         opts.packages.append(arg)
                     } else {
                         logger.warn("Unknown option: ${arg}")
                     }
-                }
             }
             i++
         }
@@ -190,14 +187,13 @@ public class RemoveCommand {
     private func readPackageJson(dir: String): ?MutablePackageJson {
         let content = BaoFile.readAllText(Path.join([dir, "package.json"]))
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
                     case Some(root) => return MutablePackageJson.fromJson(root)
                     case None => return None
                 }
-            }
             case None => return None
         }
     }

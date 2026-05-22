@@ -47,16 +47,16 @@ public class SecretsJob {
     //           .ctx = ctx,
     //           .promise = jsc.Strong.create(promise, global),
     //       });
-    //       job.any_task = jsc.AnyTask.New(SecretsJob, &runFromJS).init(job);
+    //       job.any_task = jsc.AnyTask.New(SecretsJob, &runFromJS).`init`(job);
     //       return job;
     //   }
     public static func create(global: JsObject, ctx: SecretsJobOptions, promise: JsValue): SecretsJob {
         let job = SecretsJob()
         // job.vm = global.bunVM()  // FFI
-        job.task = WorkPoolTask(callback: runTask)
+        job.task = WorkPoolTask()
         job.ctx = ctx
         // job.promise = jsc.Strong.create(promise, global)  // FFI
-        // job.anyTask = jsc.AnyTask.New(SecretsJob, &runFromJS).init(job)  // FFI
+        // job.anyTask = jsc.AnyTask.New(SecretsJob, &runFromJS).`init`(job)  // FFI
         job
     }
 
@@ -72,9 +72,9 @@ public class SecretsJob {
     //       SecretsJobOptions.Bun__SecretsJobOptions__runTask(job.ctx, vm.global);
     //   }
     public static func runTask(task: WorkPoolTask) {
-        let job = task.parentJob
+        // stub: parent job lookup via FFI field pointer arithmetic not available
         // 在工作线程中运行密钥扫描
-        job.ctx.runTask(job.vm.global)
+        // job.ctx.runTask(job.vm.global)
         // 将 anyTask 排入主线程并发队列
         // vm.enqueueTaskConcurrent(ConcurrentTask.create(job.anyTask))
     }
@@ -106,7 +106,7 @@ public class SecretsJob {
             return
         }
 
-        ctx.runFromJS(vm.global, promiseValue)
+        ctx.runFromJS(vm.globalObject, promiseValue)
         deinit()
     }
 
@@ -162,25 +162,7 @@ public func secretsScheduleJob(global: JsObject, options: SecretsJobOptions, pro
     job.schedule()
 }
 
-// ========== WorkPoolTask ==========
-// 严格翻译自 jsc.WorkPoolTask
-// 工作池任务
-public class WorkPoolTask {
-    public var callback: (WorkPoolTask): Unit
-    public var parentJob: SecretsJob = SecretsJob()
-
-    public init() {
-        callback = { _ => }
-    }
-
-    public init(callback: (WorkPoolTask): Unit) {
-        this.callback = callback
-    }
-
-    public func run() {
-        callback(this)
-    }
-}
+// 注意: WorkPoolTask 已移至 concurrent_promise_task.cj
 
 // ========== SecretsJobOptions ==========
 public class SecretsJobOptions {

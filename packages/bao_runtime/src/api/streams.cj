@@ -43,7 +43,7 @@ public class InternalReadableStreamSource {
 
     /// drainFromJS - 从 JS 侧排空数据
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::drainFromJS 等
-    public func drainFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func drainFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 排空流中的数据到消费者
         return JsValue.jsUndefined()
@@ -56,7 +56,7 @@ public class InternalReadableStreamSource {
 
     /// startFromJS - 从 JS 侧启动流
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::startFromJS 等
-    public func startFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func startFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 启动流读取
         return JsValue.jsUndefined()
@@ -69,7 +69,7 @@ public class InternalReadableStreamSource {
 
     /// updateRefFromJS - 从 JS 侧更新引用计数
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::updateRefFromJS 等
-    public func updateRefFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func updateRefFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 更新引用计数
         return JsValue.jsUndefined()
@@ -81,15 +81,15 @@ public class InternalReadableStreamSource {
     // ========================================================================
 
     /// getOnCloseFromJS - 获取关闭回调
-    public func getOnCloseFromJS(globalObject: JsGlobalObject): JsValue {
-        if (let Some(cb) = onCloseCallback) {
+    public func getOnCloseFromJS(JsGlobalObject): JsValue {
+        if (let Some(cb) <- onCloseCallback) {
             return cb
         }
         return JsValue.jsUndefined()
     }
 
     /// setOnCloseFromJS - 设置关闭回调
-    public func setOnCloseFromJS(globalObject: JsGlobalObject, value: JsValue): JsValue {
+    public func setOnCloseFromJS(JsGlobalObject, value: JsValue): JsValue {
         onCloseCallback = value
         return JsValue.jsBoolean(true)
     }
@@ -100,15 +100,15 @@ public class InternalReadableStreamSource {
     // ========================================================================
 
     /// getOnDrainFromJS - 获取排空回调
-    public func getOnDrainFromJS(globalObject: JsGlobalObject): JsValue {
-        if (let Some(cb) = onDrainCallback) {
+    public func getOnDrainFromJS(JsGlobalObject): JsValue {
+        if (let Some(cb) <- onDrainCallback) {
             return cb
         }
         return JsValue.jsUndefined()
     }
 
     /// setOnDrainFromJS - 设置排空回调
-    public func setOnDrainFromJS(globalObject: JsGlobalObject, value: JsValue): JsValue {
+    public func setOnDrainFromJS(JsGlobalObject, value: JsValue): JsValue {
         onDrainCallback = value
         return JsValue.jsBoolean(true)
     }
@@ -120,7 +120,7 @@ public class InternalReadableStreamSource {
 
     /// cancelFromJS - 取消流
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::cancelFromJS 等
-    public func cancelFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func cancelFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 取消流, 释放资源
         return JsValue.jsUndefined()
@@ -133,7 +133,7 @@ public class InternalReadableStreamSource {
 
     /// pullFromJS - 从流拉取数据
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::pullFromJS 等
-    public func pullFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func pullFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 拉取更多数据
         return JsValue.jsUndefined()
@@ -145,7 +145,7 @@ public class InternalReadableStreamSource {
     // ========================================================================
 
     /// getIsClosedFromJS - 获取是否已关闭
-    public func getIsClosedFromJS(globalObject: JsGlobalObject): JsValue {
+    public func getIsClosedFromJS(JsGlobalObject): JsValue {
         return JsValue.jsBoolean(false)
     }
 
@@ -190,35 +190,35 @@ public class BlobInternalReadableStreamSource <: InternalReadableStreamSource {
 
     /// textFromJS - 读取流为文本
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::textFromJS
-    public func textFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func textFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         // 将流数据读取为 UTF-8 文本
         return JsValue.jsEmptyString()
     }
 
     /// jsonFromJS - 读取流为 JSON
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::jsonFromJS
-    public func jsonFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func jsonFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         // 将流数据解析为 JSON
         return JsValue.jsUndefined()
     }
 
     /// arrayBufferFromJS - 读取流为 ArrayBuffer
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::arrayBufferFromJS
-    public func arrayBufferFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func arrayBufferFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         // 将流数据读取为 ArrayBuffer
         return JsValue.jsNull()
     }
 
     /// blobFromJS - 读取流为 Blob
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::blobFromJS
-    public func blobFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func blobFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         // 将流数据读取为 Blob
         return JsValue.jsNull()
     }
 
     /// bytesFromJS - 读取流为 Uint8Array
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::bytesFromJS
-    public func bytesFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func bytesFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         // 将流数据读取为 Uint8Array
         return JsValue.jsNull()
     }
@@ -243,7 +243,7 @@ public class FileInternalReadableStreamSource <: InternalReadableStreamSource {
 
     /// setRawModeFromJS - 设置原始模式
     /// 严格翻译自: crate::webcore::file_reader::Source::setRawModeFromJS
-    public func setRawModeFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func setRawModeFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 设置流为原始模式
         return JsValue.jsUndefined()
@@ -251,7 +251,7 @@ public class FileInternalReadableStreamSource <: InternalReadableStreamSource {
 
     /// setFlowingFromJS - 设置流动模式
     /// 严格翻译自: crate::webcore::file_reader::Source::setFlowingFromJS
-    public func setFlowingFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func setFlowingFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 设置流为流动模式
         return JsValue.jsUndefined()
@@ -271,27 +271,27 @@ public class FileInternalReadableStreamSource <: InternalReadableStreamSource {
 public class BytesInternalReadableStreamSource <: InternalReadableStreamSource {
 
     /// textFromJS - 读取流为文本
-    public func textFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func textFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return JsValue.jsEmptyString()
     }
 
     /// jsonFromJS - 读取流为 JSON
-    public func jsonFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func jsonFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// arrayBufferFromJS - 读取流为 ArrayBuffer
-    public func arrayBufferFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func arrayBufferFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return JsValue.jsNull()
     }
 
     /// blobFromJS - 读取流为 Blob
-    public func blobFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func blobFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return JsValue.jsNull()
     }
 
     /// bytesFromJS - 读取流为 Uint8Array
-    public func bytesFromJS(globalObject: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func bytesFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
         return JsValue.jsNull()
     }
 }

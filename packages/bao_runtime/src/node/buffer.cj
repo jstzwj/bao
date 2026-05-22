@@ -65,14 +65,13 @@ public class BufferVectorized {
     private static func encodeString(str: String, encoding: Encoding): Array<UInt8> {
         match (encoding) {
             case Encoding.utf8 => Array<UInt8>(str.toUtf8Array())
-            case Encoding.ascii => {
+            case Encoding.ascii =>
                 let arr = Array<UInt8>(str.size, item: UInt8(0))
                 for (i in 0..str.size) {
                     arr[i] = UInt8(str[i])
                 }
                 return arr
-            }
-            case Encoding.hex => {
+            case Encoding.hex =>
                 // hex 编码：每两个字符表示一个字节
                 let arr = Array<UInt8>(str.size / 2, item: UInt8(0))
                 for (i in 0..arr.size) {
@@ -81,7 +80,6 @@ public class BufferVectorized {
                     arr[i] = high * 16 + low
                 }
                 return arr
-            }
             case _ => Array<UInt8>(str.toUtf8Array())
         }
     }

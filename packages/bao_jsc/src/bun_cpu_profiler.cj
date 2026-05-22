@@ -77,7 +77,7 @@ public class BunCPUProfiler {
 
 // 支撑类型
 public class TimeUtils {
-    public static func epochMicroseconds(): UInt64 { UInt64(Date.now().toUnixMillis()) * 1000 }
+    public static func epochMicroseconds(): UInt64 { UInt64(0) * 1000 } // TODO: DateTime not available
 }
 public class ProcessInfo {
     public static let pid: UInt64 = 0

@@ -95,7 +95,7 @@ public class PipelineState {
     /// 启动
     public func start(): Yield {
         // 设置命令
-        if (this.cmds == None) {
+        if (this.cmds.isNone()) {
             this.state = PipelineStateKind.done(0)
             return Yield.done
         }

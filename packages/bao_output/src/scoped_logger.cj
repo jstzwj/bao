@@ -61,7 +61,7 @@ public enum Visibility {
 // 也翻译自: src/bun_core/output.zig:840-936
 //   fn ScopedLogger(comptime tagname: []const u8, comptime visibility: Visibility) type {
 //       return struct {
-//           var really_disable = std.atomic.Value(bool).init(visibility == .hidden);
+//           var really_disable = std.atomic.Value(bool).`init`(visibility == .hidden);
 //           var lock = bun.Mutex{};
 //           var is_visible_once = std.once(evaluateIsVisible);
 //           pub fn isVisible() bool { ... }

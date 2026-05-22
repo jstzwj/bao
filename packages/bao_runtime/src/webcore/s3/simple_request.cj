@@ -561,11 +561,11 @@ public class S3HttpSimpleTask {
 
     // ========================================================================
     // deinit - 释放资源
-    // 严格翻译自: pub fn deinit(this: *@This()) void
+    // 严格翻译自: pub fn deinit(`this`: *@This()) void
     // ========================================================================
 
     /// 释放资源
-    /// 对应 Bun: pub fn deinit(this: *@This()) void
+    /// 对应 Bun: pub fn deinit(`this`: *@This()) void
     public func deinit(): Unit {
         pollRef.unref(vm)
         responseBuffer.deinit()
@@ -573,14 +573,14 @@ public class S3HttpSimpleTask {
         signResult.deinit()
         http.clearData()
         range = ""
-        if (proxyUrl.length > 0) {
+        if (proxyUrl.size > 0) {
             proxyUrl = ""
         }
     }
 
     // ========================================================================
     // errorWithBody - 从响应体解析错误
-    // 严格翻译自: fn errorWithBody(this: @This(), comptime error_type: ErrorType) bun.JSTerminated!void
+    // 严格翻译自: fn errorWithBody(`this`: @This(), comptime error_type: ErrorType) bun.JSTerminated!void
     // ========================================================================
 
     /// 从响应体解析错误
@@ -595,16 +595,16 @@ public class S3HttpSimpleTask {
         if (result.fail) {
             code = "RequestError"
             hasErrorCode = true
-        } else if (result.body != None) {
+        } else if (result.body.isSome()) {
             let bytes = result.body.slice()
-            if (bytes.length > 0) {
+            if (bytes.size > 0) {
                 message = bytes
                 // 解析 XML <Code>
                 let codeStart = bytes.indexOf("<Code>")
                 if (codeStart >= 0) {
                     let codeEnd = bytes.indexOf("</Code>")
                     if (codeEnd > codeStart) {
-                        code = bytes.substring(codeStart + "<Code>".length, codeEnd)
+                        code = bytes.substring(codeStart + "<Code>".size, codeEnd)
                         hasErrorCode = true
                     }
                 }
@@ -613,7 +613,7 @@ public class S3HttpSimpleTask {
                 if (msgStart >= 0) {
                     let msgEnd = bytes.indexOf("</Message>")
                     if (msgEnd > msgStart) {
-                        message = bytes.substring(msgStart + "<Message>".length, msgEnd)
+                        message = bytes.substring(msgStart + "<Message>".size, msgEnd)
                     }
                 }
             }
@@ -633,7 +633,7 @@ public class S3HttpSimpleTask {
 
     // ========================================================================
     // failIfContainsError - 检查 200 响应中是否包含错误
-    // 严格翻译自: fn failIfContainsError(this: *@This(), status: u32) bun.JSTerminated!bool
+    // 严格翻译自: fn failIfContainsError(`this`: *@This(), status: u32) bun.JSTerminated!bool
     // ========================================================================
 
     /// 检查 HTTP 200 响应中是否包含 S3 错误
@@ -645,10 +645,10 @@ public class S3HttpSimpleTask {
 
         if (result.fail) {
             code = "RequestError"
-        } else if (result.body != None) {
+        } else if (result.body.isSome()) {
             let bytes = result.body.slice()
             var hasError = false
-            if (bytes.length > 0) {
+            if (bytes.size > 0) {
                 message = bytes
                 if (bytes.indexOf("<Error>") >= 0) {
                     hasError = true
@@ -656,14 +656,14 @@ public class S3HttpSimpleTask {
                     if (codeStart >= 0) {
                         let codeEnd = bytes.indexOf("</Code>")
                         if (codeEnd > codeStart) {
-                            code = bytes.substring(codeStart + "<Code>".length, codeEnd)
+                            code = bytes.substring(codeStart + "<Code>".size, codeEnd)
                         }
                     }
                     let msgStart = bytes.indexOf("<Message>")
                     if (msgStart >= 0) {
                         let msgEnd = bytes.indexOf("</Message>")
                         if (msgEnd > msgStart) {
-                            message = bytes.substring(msgStart + "<Message>".length, msgEnd)
+                            message = bytes.substring(msgStart + "<Message>".size, msgEnd)
                         }
                     }
                 }
@@ -725,11 +725,11 @@ public class S3HttpSimpleTask {
 
     // ========================================================================
     // onResponse - 主线程上的响应回调
-    // 严格翻译自: pub fn onResponse(this: *@This()) bun.JSTerminated!void
+    // 严格翻译自: pub fn onResponse(`this`: *@This()) bun.JSTerminated!void
     // ========================================================================
 
     /// 主线程上的响应回调
-    /// 对应 Bun: pub fn onResponse(this: *@This()) bun.JSTerminated!void
+    /// 对应 Bun: pub fn onResponse(`this`: *@This()) bun.JSTerminated!void
     /// 根据回调类型和 HTTP 状态码分发结果
     public func onResponse(): Unit {
         defer { deinit() }
@@ -749,22 +749,20 @@ public class S3HttpSimpleTask {
             // 404: not_found
             // 其他: failure
             // ----------------------------------------------------------------
-            case S3CallbackKind.Stat => {
+            case S3CallbackKind.Stat =>
                 match (response.statusCode) {
-                    case 200 => {
+                    case 200 =>
                         let contentLen = response.headers.get("content-length")
-                        let parsedSize: Int64 = if (contentLen.length > 0) Int64.parse(contentLen) else 0
+                        let parsedSize: Int64 = if (contentLen.size > 0) { Int64.parse(contentLen) } else { 0 }
                         statCallback(S3StatResult.success(
                             parsedSize,
                             response.headers.get("etag"),
                             response.headers.get("last-modified"),
                             response.headers.get("content-type")
                         ), callbackContext)
-                    }
                     case 404 => errorWithBody(true)
                     case _ => errorWithBody(false)
                 }
-            }
             // ----------------------------------------------------------------
             // Delete
             // 对应 Bun: .delete => |callback| { ... }
@@ -772,14 +770,13 @@ public class S3HttpSimpleTask {
             // 404: not_found
             // 其他: failure
             // ----------------------------------------------------------------
-            case S3CallbackKind.Delete => {
+            case S3CallbackKind.Delete =>
                 match (response.statusCode) {
                     case 200 => deleteCallback(S3DeleteResult.success(), callbackContext)
                     case 204 => deleteCallback(S3DeleteResult.success(), callbackContext)
                     case 404 => errorWithBody(true)
                     case _ => errorWithBody(false)
                 }
-            }
             // ----------------------------------------------------------------
             // ListObjects
             // 对应 Bun: .listObjects => |callback| { ... }
@@ -787,32 +784,29 @@ public class S3HttpSimpleTask {
             // 404: not_found
             // 其他: failure
             // ----------------------------------------------------------------
-            case S3CallbackKind.ListObjects => {
+            case S3CallbackKind.ListObjects =>
                 match (response.statusCode) {
-                    case 200 => {
-                        if (result.body != None) {
+                    case 200 =>
+                        if (result.body.isSome()) {
                             let success = list_objects.parseS3ListObjectsResult(result.body.slice())
                             listObjectsCallback(S3ListObjectsResultEx.success(success), callbackContext)
                         } else {
                             errorWithBody(false)
                         }
-                    }
                     case 404 => errorWithBody(true)
                     case _ => errorWithBody(false)
                 }
-            }
             // ----------------------------------------------------------------
             // Upload
             // 对应 Bun: .upload => |callback| { ... }
             // 200: success
             // 其他: failure
             // ----------------------------------------------------------------
-            case S3CallbackKind.Upload => {
+            case S3CallbackKind.Upload =>
                 match (response.statusCode) {
                     case 200 => uploadCallback(S3UploadResult.success(), callbackContext)
                     case _ => errorWithBody(false)
                 }
-            }
             // ----------------------------------------------------------------
             // Download
             // 对应 Bun: .download => |callback| { ... }
@@ -820,71 +814,65 @@ public class S3HttpSimpleTask {
             // 404: not_found
             // 其他: failure
             // ----------------------------------------------------------------
-            case S3CallbackKind.Download => {
+            case S3CallbackKind.Download =>
                 match (response.statusCode) {
-                    case 200 => {
+                    case 200 =>
                         let body = responseBuffer
                         responseBuffer = MutableString()
                         downloadCallback(S3DownloadResult.success(
                             response.headers.get("etag"),
                             body
                         ), callbackContext)
-                    }
-                    case 204 => {
+                    case 204 =>
                         let body = responseBuffer
                         responseBuffer = MutableString()
                         downloadCallback(S3DownloadResult.success(
                             response.headers.get("etag"),
                             body
                         ), callbackContext)
-                    }
-                    case 206 => {
+                    case 206 =>
                         let body = responseBuffer
                         responseBuffer = MutableString()
                         downloadCallback(S3DownloadResult.success(
                             response.headers.get("etag"),
                             body
                         ), callbackContext)
-                    }
                     case 404 => errorWithBody(true)
                     case _ => errorWithBody(false)
                 }
-            }
             // ----------------------------------------------------------------
             // Commit
             // 对应 Bun: .commit => |callback| { ... }
             // commit multipart 可能 200 但 body 包含错误
             // ----------------------------------------------------------------
-            case S3CallbackKind.Commit => {
+            case S3CallbackKind.Commit =>
                 if (!failIfContainsError(response.statusCode)) {
                     commitCallback(S3CommitResult.success(), callbackContext)
                 }
-            }
             // ----------------------------------------------------------------
             // Part
             // 对应 Bun: .part => |callback| { ... }
             // 从 ETag header 获取分块的 etag
             // ----------------------------------------------------------------
-            case S3CallbackKind.Part => {
+            case S3CallbackKind.Part =>
                 if (!failIfContainsError(response.statusCode)) {
                     let etag = response.headers.get("etag")
-                    if (etag.length > 0) {
+                    if (etag.size > 0) {
                         partCallback(S3PartResult.etagResult(etag), callbackContext)
                     } else {
                         errorWithBody(false)
                     }
                 }
-            }
         }
     }
 
     // ========================================================================
     // httpCallback - HTTP 线程回调
-    // 严格翻译自: pub fn httpCallback(this: *@This(), async_http, result) void
+    // 严格翻译自: pub fn httpCallback(`this`: *@This(), async_http, result) void
     // ========================================================================
 
     /// HTTP 线程回调
-    /// 对应 Bun: pub fn httpCallback(this: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult) void
+    /// 对应 Bun: pub fn httpCallback(`this`: *@This(), async_http: *bun.http.AsyncHTTP, result: bun.http.HTTPClientResult) void
     public func httpCallback(asyncHttp: AsyncHttp, httpResult: HttpClientResult): Unit {
         let isDone = !httpResult.hasMore
         result = httpResult
@@ -932,8 +920,8 @@ public func executeSimpleS3Request(
             options.storageClass,
             options.requestPayer
         )
-    } catch {
-        if (options.range.length > 0) {
+    } catch (e: Exception) {
+        if (options.range.size > 0) {
             // 释放 range
         }
         let errorCodeAndMessage = getSignErrorCodeAndMessage()
@@ -943,9 +931,9 @@ public func executeSimpleS3Request(
 
     // 2. 构造 HTTP 头
     let httpHeaders: HttpHeaders
-    if (options.range.length > 0) {
+    if (options.range.size > 0) {
         httpHeaders = signResult.mixWithHeader("range", options.range)
-    } else if (options.contentType.length > 0) {
+    } else if (options.contentType.size > 0) {
         httpHeaders = signResult.mixWithHeader("Content-Type", options.contentType)
     } else {
         httpHeaders = signResult.toHttpHeaders()
@@ -968,7 +956,7 @@ public func executeSimpleS3Request(
     task.proxyUrl = proxy
 
     // 5. 配置 AsyncHTTP
-    task.http = AsyncHttp.init(
+    task.http = AsyncHttp(
         options.method,
         url,
         task.headers,
@@ -979,7 +967,7 @@ public func executeSimpleS3Request(
     )
 
     // 6. 调度 HTTP 请求
-    HTTPThread.init()
+    HTTPThread()
     let batch = ThreadPoolBatch()
     task.http.schedule(batch)
     HTTPThread.schedule(batch)

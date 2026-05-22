@@ -32,12 +32,12 @@ public class HashObject {
             "murmur32v2",
             "murmur32v3",
             "murmur64v2",
-            "rapidhash",
+            "rapidhash"
         ]
 
         for (name in fnNames) {
             let value = JsFunction.create(globalThis, name, getHashFn(name), 1)
-            function.put(globalThis, ZigString.static(name), value)
+            function.put(globalThis, ZigString.`static`(name), value)
         }
 
         return function
@@ -121,18 +121,18 @@ public class HashObject {
     /// 通用哈希函数包装器 - 处理输入参数和种子, 调用对应哈希算法
     public static func hashWrap(globalThis: JsGlobalObject, callframe: JsCallFrame, algorithm: String): JsValue {
         let arguments = callframe.argumentsOld(2).slice()
-        var args = CallFrame.ArgumentsSlice.init(globalThis.bunVM(), arguments)
+        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments)
         defer args.deinit()
 
         var input: Array<UInt8> = []
         var inputSlice = ZigString.Slice.empty
         defer inputSlice.deinit()
 
-        if (let arg = args.nextEat()) {
-            if (let blob = arg.asBlob()) {
+        if (let arg <- args.nextEat()) {
+            if (let blob <- arg.asBlob()) {
                 input = blob.sharedView()
             } else {
-                switch (arg.jsTypeLoose()) {
+                match (arg.jsTypeLoose()) {
                     case JSType.ArrayBuffer,
                          JSType.Int8Array,
                          JSType.Uint8Array,
@@ -152,7 +152,7 @@ public class HashObject {
                             input = arrayBuffer.byteSlice()
                         } else {
                             globalThis.throwInvalidArguments("ArrayBuffer conversion error")
-                            return JsValue.zero
+                            return JsValue.jsUndefined()
                         }
                     default:
                         inputSlice = try arg.toSlice(globalThis, default_allocator)
@@ -163,7 +163,7 @@ public class HashObject {
 
         // 获取可选种子值
         var seed: UInt64 = 0
-        if (let arg = args.nextEat()) {
+        if (let arg <- args.nextEat()) {
             if (arg.isNumber() || arg.isBigInt()) {
                 seed = arg.toUInt64NoTruncate()
             }
@@ -181,7 +181,7 @@ public class HashObject {
 
     /// 计算哈希值 (根据算法名称分派)
     public static func computeHash(algorithm: String, data: Array<UInt8>, seed: UInt64): HashResult {
-        switch (algorithm) {
+        match (algorithm) {
             case "wyhash":
                 return HashResult.value64(Wyhash.hash(UInt64(seed), data))
             case "adler32":
@@ -214,27 +214,27 @@ public class HashObject {
 
 /// 哈希结果
 public enum HashResult {
-    case value32(UInt32)
-    case value64(UInt64)
+    | value32(UInt32)
+    | value64(UInt64)
 
     public var is32Bit: Bool {
         match (this) {
-            case .value32(_) => true
-            case .value64(_) => false
+            case value32(_) => true
+            case value64(_) => false
         }
     }
 
     public var value32: UInt32 {
         match (this) {
-            case .value32(v) => v
-            case .value64(v) => UInt32(v & 0xFFFFFFFF)
+            case value32(v) => v
+            case value64(v) => UInt32(v & 0xFFFFFFFF)
         }
     }
 
     public var value64: UInt64 {
         match (this) {
-            case .value32(v) => UInt64(v)
-            case .value64(v) => v
+            case value32(v) => UInt64(v)
+            case value64(v) => v
         }
     }
 }

@@ -7,7 +7,7 @@ import bao_jsc.*
 
 /// toMatchObject() - 检查对象是否深度匹配
 /// 用法: expect(received).toMatchObject(expected)
-public func toMatchObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toMatchObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
@@ -17,7 +17,7 @@ public func toMatchObject(`this`: Expect, globalThis: JSGlobalObject, callFrame:
 
     let not = this.flags.not
 
-    let receivedObject: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchObject", matcherParamsFmt: "<green>expected<r>")
+    let receivedObject: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchObject", matcherParamsFmt: "<green>expected<r>")
 
     if (!receivedObject.isObject()) {
         let matcherError = "\n\n<b>Matcher error<r>: <red>received<r> value must be a non-null object\n"
@@ -30,7 +30,7 @@ public func toMatchObject(`this`: Expect, globalThis: JSGlobalObject, callFrame:
         return this.throw_(globalThis: globalThis, signature: signature, fmt: matcherError, args: [])
     }
 
-    if (args.length < 1 || !args[0].isObject()) {
+    if (args.size < 1 || !args[0].isObject()) {
         let matcherError = "\n\n<b>Matcher error<r>: <green>expected<r> value must be a non-null object\n"
         if (not) {
             let signature = Expect.getSignature(matcherName: "toMatchObject", args: "", not: true)
@@ -45,7 +45,7 @@ public func toMatchObject(`this`: Expect, globalThis: JSGlobalObject, callFrame:
     var pass = receivedObject.jestDeepMatch(propertyMatchers, globalThis: globalThis, partial: true)
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     // 处理失败
     let diffFormatter = DiffFormatter(received: receivedObject, expected: propertyMatchers, globalThis: globalThis, not: not)

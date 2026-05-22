@@ -180,7 +180,7 @@ public class CmdState {
         cmd.base = Base.initWithNewAllocScope(StateKind.cmd, interpreter, shellState)
         cmd.node = node
         cmd.parent = parent
-        cmd.spawnArena = ArenaAllocator.`init`(cmd.base.allocator())
+        cmd.spawnArena = ArenaAllocator(cmd.base.allocator())
         cmd.args = ArrayList<?String>()
         cmd.redirectionFile = ArrayList<Byte>()
         cmd.exitCode = None
@@ -274,7 +274,7 @@ public class CmdState {
 
     /// 是否已完成
     public func hasFinished(): Bool {
-        if (this.exitCode == None) {
+        if (this.exitCode.isNone()) {
             return false
         }
         if (this.exec != CmdExec.none) {

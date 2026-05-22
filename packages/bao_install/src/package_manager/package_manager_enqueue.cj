@@ -28,16 +28,6 @@ import bao_core.*
 import bao_collections.*
 
 // ============================================================================
-// 常量
-// 严格翻译自: PackageManagerEnqueue.zig
-//   const invalid_package_id = bun.install.invalid_package_id
-// ============================================================================
-
-/// 无效包 ID
-/// 翻译自: invalid_package_id
-public let INVALID_PACKAGE_ID: UInt32 = UInt32(4294967295) // std.math.maxInt(u32)
-
-// ============================================================================
 // 入队结果
 // ============================================================================
 
@@ -176,23 +166,6 @@ public class TaskIdRef {
 }
 
 // ============================================================================
-// 预安装状态
-// 严格翻译自: PackageManagerEnqueue.zig 中的 PreinstallState 引用
-//   determinePreinstallState 返回: done, extract, calc_patch_hash, apply_patch
-// ============================================================================
-
-/// 预安装状态
-public enum PreinstallState {
-    | Done
-    | Extract
-    | Extracting
-    | CalcPatchHash
-    | CalcingPatchHash
-    | ApplyPatch
-    | ApplyingPatch
-}
-
-// ============================================================================
 // 包管理器入队操作
 // 严格翻译自: src/install/PackageManager/PackageManagerEnqueue.zig
 //   大量入队函数, 负责将各种类型的依赖加入处理队列
@@ -293,7 +266,7 @@ public class PackageManagerEnqueue {
         // Step 1. 跳过被 dependencies 覆盖的 peer 依赖
         // 翻译自: if (end - begin > 1 and lockfile.buffers.dependencies.items[0].behavior.isPeer())
         var begin: Int64 = dependencies.off
-        let end: Int64 = dependencies.off + dependencies.len
+        let end: Int64 = dependencies.off + dependencies.length
 
         if (end - begin > 1 && lockfile.dependencies[Int64(0)].behavior.isPeer()) {
             var peerI: Int64 = 0
@@ -896,7 +869,7 @@ public class PackageManagerEnqueue {
             let workspacePath = manager.lockfile.getWorkspacePathByNameHash(nameHash)
             let workspaceVersion = manager.lockfile.getWorkspaceVersion(nameHash)
             if (manager.options.linkWorkspacePackages &&
-                workspaceVersion != None) {
+                workspaceVersion.isSome()) {
                 // 翻译自: 检查 workspace version 是否满足 npm version
                 let rootPkg = manager.lockfile.rootPackage()
                 match (rootPkg) {
@@ -1199,12 +1172,12 @@ public class PackageManagerEnqueue {
         successFn: ?SuccessFn,
         failFn: ?FailFn
     ): Unit {
-        let dep = dep.version
+        let depVer = dep.version
         let res = EnqueueResolutionData()
         res.tag = ResolutionTagEnqueue.Git
 
         // 翻译自: 检查 lockfile 中是否已存在
-        let existingPkgId = manager.lockfile.getPackageID(dep.nameHash, None, res)
+        let existingPkgId = manager.lockfile.getPackageID(depVer.nameHash, None, res)
         match (existingPkgId) {
             case Some(pkgId) =>
                 match (successFn) {
@@ -1215,8 +1188,8 @@ public class PackageManagerEnqueue {
             case None => ()
         }
 
-        let alias = dep.name
-        let url = dep.gitRepo
+        let alias = depVer.name
+        let url = depVer.gitRepo
         let cloneId = manager.taskIdForGitClone(url)
 
         // 翻译自: git_repositories.get(clone_id)
@@ -1224,21 +1197,21 @@ public class PackageManagerEnqueue {
         match (repoFd) {
             case Some(fd) =>
                 // 仓库已克隆, 执行 checkout
-                let resolved = manager.findCommit(fd, alias, dep.gitCommittish, cloneId)
+                let resolved = manager.findCommit(fd, alias, depVer.gitCommittish, cloneId)
                 let checkoutId = manager.taskIdForGitCheckout(url, resolved)
 
                 // 翻译自: enqueue callback context
                 manager.taskQueueGetOrPut(checkoutId)
 
                 // 翻译自: peer 依赖检查
-                if (dep.behavior.isPeer()) {
+                if (depVer.behavior.isPeer()) {
                     if (!installPeer) {
                         manager.peerDependencies.writeItem(depId)
                         return
                     }
                 }
 
-                if (manager.hasCreatedNetworkTask(checkoutId, dep.behavior.isRequired())) {
+                if (manager.hasCreatedNetworkTask(checkoutId, depVer.behavior.isRequired())) {
                     return
                 }
 
@@ -1253,22 +1226,22 @@ public class PackageManagerEnqueue {
                 manager.taskQueueGetOrPut(cloneId)
 
                 // 翻译自: peer 依赖检查
-                if (dep.behavior.isPeer()) {
+                if (depVer.behavior.isPeer()) {
                     if (!installPeer) {
                         manager.peerDependencies.writeItem(depId)
                         return
                     }
                 }
 
-                if (manager.hasCreatedNetworkTask(cloneId, dep.behavior.isRequired())) {
+                if (manager.hasCreatedNetworkTask(cloneId, depVer.behavior.isRequired())) {
                     return
                 }
 
                 // 创建 clone 任务
-                let repository = RepositoryRef(dep.gitRepo, dep.gitCommittish)
+                let repository = RepositoryRef(depVer.gitRepo, depVer.gitCommittish)
                 let task = enqueueGitClone(
                     manager, cloneId, alias, repository,
-                    depId, dep, res, None
+                    depId, depVer, res, None
                 )
                 manager.taskBatch.push(task)
         }
@@ -1288,12 +1261,12 @@ public class PackageManagerEnqueue {
         successFn: ?SuccessFn,
         failFn: ?FailFn
     ): Unit {
-        let dep = dep.version
+        let depVer = dep.version
         let res = EnqueueResolutionData()
         res.tag = ResolutionTagEnqueue.GitHub
 
         // 翻译自: 检查 lockfile 中是否已存在
-        let existingPkgId = manager.lockfile.getPackageID(dep.nameHash, None, res)
+        let existingPkgId = manager.lockfile.getPackageID(depVer.nameHash, None, res)
         match (existingPkgId) {
             case Some(pkgId) =>
                 match (successFn) {
@@ -1305,13 +1278,13 @@ public class PackageManagerEnqueue {
         }
 
         // 翻译自: allocGitHubURL
-        let url = manager.allocGitHubURL(dep)
+        let url = manager.allocGitHubURL(depVer)
         let taskId = manager.taskIdForTarball(url)
 
         manager.taskQueueGetOrPut(taskId)
 
         // 翻译自: peer 依赖检查
-        if (dep.behavior.isPeer()) {
+        if (depVer.behavior.isPeer()) {
             if (!installPeer) {
                 manager.peerDependencies.writeItem(depId)
                 return
@@ -1322,7 +1295,7 @@ public class PackageManagerEnqueue {
         let networkTask = manager.generateNetworkTaskForTarball(
             taskId,
             url,
-            dep.behavior.isRequired(),
+            depVer.behavior.isRequired(),
             depId,
             None,
             None,
@@ -1550,21 +1523,6 @@ public type SuccessFn = (UInt32, UInt32) -> Unit
 /// 失败回调
 public type FailFn = (UInt32, String) -> Unit
 
-/// 依赖版本标签
-/// 翻译自: Dependency.Version.tag
-public enum DependencyVersionTag {
-    | DistTag
-    | NPM
-    | Folder
-    | Git
-    | GitHub
-    | Symlink
-    | Workspace
-    | Tarball
-    | Catalog
-    | Uninitialized
-}
-
 /// 依赖引用
 public class DependencyRef {
     public var name: String
@@ -1702,20 +1660,20 @@ public class FindResultData {
 /// 翻译自: Lockfile.DependencySlice
 public class DependencyList {
     public var off: Int64
-    public var len: Int64
+    public var length: Int64
 
     public init() {
         off = 0
-        len = 0
+        length = 0
     }
 
     public init(off: Int64, len: Int64) {
         this.off = off
-        this.len = len
+        this.length = len
     }
 
     public func len(): Int64 {
-        return len
+        return length
     }
 }
 
@@ -1939,22 +1897,6 @@ public class NetworkTaskRef {
     public func forGitCheckout(depId: UInt32, dep: DependencyRef, repo: String, ref_: String): Unit {}
     public func taskId(): TaskIdRef { return TaskIdRef() }
     public func schedule(batch: NetworkTarballBatch): Unit {}
-}
-
-/// Extract tarball 引用
-/// 翻译自: *ExtractTarball
-public class ExtractTarballRef {
-    public var name: String
-    public var url: String
-    public var resolution: String
-    public var integrity: IntegrityInfo
-
-    public init() {
-        name = ""
-        url = ""
-        resolution = ""
-        integrity = IntegrityInfo()
-    }
 }
 
 /// 入队任务引用
@@ -2219,14 +2161,5 @@ public class NetworkTarballBatch {
 
     public init() {
         len = 0
-    }
-}
-
-/// 布尔引用
-public class BoolRef {
-    public var value: Bool
-
-    public init(value: Bool) {
-        this.value = value
     }
 }

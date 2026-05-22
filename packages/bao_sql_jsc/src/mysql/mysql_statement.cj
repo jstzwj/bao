@@ -5,6 +5,8 @@ package bao_sql_jsc.mysql
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
+import bao_collections.ArrayList
 
 /// MySQL 预处理语句
 /// 对应 Bun: MySQLStatement
@@ -69,7 +71,7 @@ public class MySQLStatement {
                         columns[remaining].nameOrIndex = NameOrIndex.Duplicate
                         flags.hasDuplicateColumns = true
                     }
-                    seenFields.put(name)
+                    seenFields.add(name)
                     flags.hasNamedColumns = true
                 case Index(index) =>
                     if (seenNumbers.contains(index)) {
@@ -104,7 +106,7 @@ public class MySQLStatement {
             }
         }
 
-        let ids = Array<ExternColumnIdentifier>(nonDuplicatedCount, item: ExternColumnIdentifier())
+        let ids = Array<ExternColumnIdentifier>(nonDuplicatedCount, { _ => ExternColumnIdentifier() })
         var i: Int64 = 0
         for (col in columns) {
             match (col.nameOrIndex) {
@@ -212,7 +214,7 @@ public class ErrorPacket {
             msg = "MySQL error occurred"
         }
 
-        let code = if (errorCode == 1064) "ERR_MYSQL_SYNTAX_ERROR" else "ERR_MYSQL_SERVER_ERROR"
+        let code = if (errorCode == 1064) { "ERR_MYSQL_SYNTAX_ERROR" } else { "ERR_MYSQL_SERVER_ERROR" }
         return createMySQLError(globalObject, msg, code, errorCode, sqlState)
     }
 }
@@ -221,10 +223,10 @@ public class ErrorPacket {
 /// 对应 Bun: createMySQLError (error_packet_jsc.zig)
 public func createMySQLError(globalObject: JscJSGlobalObject, message: String,
                               code: String, errno: UInt16, sqlState: String): JscValue {
-    let optsObj = JscObject.createEmptyObject(globalObject)
-    optsObj.put(globalObject, "code", JscValue(code))
-    optsObj.put(globalObject, "errno", JscValue(errno))
-    optsObj.put(globalObject, "sqlState", JscValue(sqlState))
-    optsObj.put(globalObject, "message", JscValue(message))
-    return optsObj.toValue()
+    let optsObj = JscValue.createEmptyObject(globalObject.globalThis)
+    optsObj.put(globalObject.globalThis, "code", JscValue(code))
+    optsObj.put(globalObject.globalThis, "errno", JscValue(Int64(errno)))
+    optsObj.put(globalObject.globalThis, "sqlState", JscValue(sqlState))
+    optsObj.put(globalObject.globalThis, "message", JscValue(message))
+    return optsObj
 }

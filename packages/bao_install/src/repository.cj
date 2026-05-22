@@ -11,6 +11,7 @@ import bao_io.*
 import bao_hash.*
 import bao_path.*
 import bao_http.*
+import bao_sys.*
 
 // ============================================================================
 // 简化的全局 Git 配置
@@ -59,13 +60,20 @@ public class SloppyGlobalGitConfig {
     ///   查找 [core] 段中的 askpass 和 sshCommand 设置
     public func loadAndParse(): Unit {
         loaded = true
-        let homeDir = EnvVar.get("HOME")
+        let homeDirOpt = EnvVar.get("HOME")
+        if (homeDirOpt.isNone()) { return }
+        let homeDir = homeDirOpt.getOrThrow()
         if (homeDir.size == 0) { return }
 
         let configPath = Path.join([homeDir, ".gitconfig"])
         if (!BaoFile.exists(configPath)) { return }
 
-        let content = BaoFile.readAllText(configPath)
+        let contentResult = BaoFile.readAllText(configPath)
+        if (contentResult.isErr()) { return }
+        let content = match (contentResult) {
+            case SysMaybe.Ok(s) => s
+            case _ => ""
+        }
         if (content.size == 0) { return }
 
         var foundAskpass = false
@@ -76,7 +84,7 @@ public class SloppyGlobalGitConfig {
         for (line in lines) {
             if (foundAskpass && foundSshCommand) { break }
 
-            let trimmed = line.trim(" \t\r")
+            let trimmed = line.trimStart().trimEnd()
             if (trimmed.size == 0) { continue }
             if (trimmed[0] == UInt8(35)) { continue }  // '#'
 
@@ -84,7 +92,22 @@ public class SloppyGlobalGitConfig {
                 let endBracket = trimmed.indexOf("]")
                 match (endBracket) {
                     case Some(eb) =>
-                        if (trimmed[..eb + 1].toLowerCase() == "[core]") {
+                        let sectionName = trimmed[..eb + 1]
+                        // Compare with "[core]" case-insensitively
+                        var isCore = true
+                        let coreStr = "[core]"
+                        if (sectionName.size != coreStr.size) {
+                            isCore = false
+                        } else {
+                            for (ii in 0..sectionName.size) {
+                                let c1 = sectionName[Int64(ii)]
+                                let c2 = coreStr[Int64(ii)]
+                                if (c1 != c2 && !(c1 >= 65 && c1 <= 90 && c1 + 32 == c2) && !(c2 >= 65 && c2 <= 90 && c2 + 32 == c1)) {
+                                    isCore = false
+                                }
+                            }
+                        }
+                        if (isCore) {
                             inCoreSection = true
                             continue
                         }
@@ -121,7 +144,18 @@ public class SloppyGlobalGitConfig {
     /// 翻译自: SloppyGlobalGitConfig.loadAndParse 中的键匹配逻辑
     private func checkConfigKey(line: String, key: String): Bool {
         if (line.size <= key.size) { return false }
-        if (!line[..key.size].toLowerCase().equals(key)) { return false }
+        if (line.size <= key.size) { return false }
+        // Compare case-insensitively by checking byte-by-byte
+        var allMatch = true
+        let prefix = line[..key.size]
+        for (i in 0..key.size) {
+            let c1 = prefix[Int64(i)]
+            let c2 = key[Int64(i)]
+            if (c1 != c2 && !(c1 >= 65 && c1 <= 90 && c1 + 32 == c2) && !(c2 >= 65 && c2 <= 90 && c2 + 32 == c1)) {
+                allMatch = false
+            }
+        }
+        if (!allMatch) { return false }
         let nextChar = line[Int64(key.size)]
         return nextChar == UInt8(32) || nextChar == UInt8(9) || nextChar == UInt8(61)  // ' ', '\t', '='
     }
@@ -162,12 +196,12 @@ public class RepositorySharedEnv {
         }
 
         // 克隆基础环境
-        for (entry in otherEnv.entries()) {
-            instance.env.put(entry.key, entry.value)
-        }
+        otherEnv.forEach({ k, v =>
+            instance.env.put(k, v)
+        })
 
         // 设置 GIT_ASKPASS
-        if (!instance.env.containsKey("GIT_ASKPASS")) {
+        if (!instance.env.contains("GIT_ASKPASS")) {
             let config = SloppyGlobalGitConfig.get()
             if (!config.hasAskpass) {
                 instance.env.put("GIT_ASKPASS", "echo")
@@ -175,7 +209,7 @@ public class RepositorySharedEnv {
         }
 
         // 设置 GIT_SSH_COMMAND
-        if (!instance.env.containsKey("GIT_SSH_COMMAND")) {
+        if (!instance.env.contains("GIT_SSH_COMMAND")) {
             let config = SloppyGlobalGitConfig.get()
             if (!config.hasSshCommand) {
                 instance.env.put("GIT_SSH_COMMAND", "ssh -oStrictHostKeyChecking=accept-new")
@@ -372,12 +406,12 @@ public class Repository {
     /// 比较两个 Repository 的顺序
     /// 翻译自: Repository.order
     ///   pub fn order(lhs, rhs, lhs_buf, rhs_buf) std.math.Order
-    public func order(rhs: Repository): Int64 {
-        let ownerOrder = this.owner.compareTo(rhs.owner)
-        if (ownerOrder != 0) { return ownerOrder }
-        let repoOrder = this.repo.compareTo(rhs.repo)
-        if (repoOrder != 0) { return repoOrder }
-        return this.committish.compareTo(rhs.committish)
+    public func order(rhs: Repository): Ordering {
+        let ownerOrder = this.owner.compare(rhs.owner)
+        if (ownerOrder != Ordering.EQ) { return ownerOrder }
+        let repoOrder = this.repo.compare(rhs.repo)
+        if (repoOrder != Ordering.EQ) { return repoOrder }
+        return this.committish.compare(rhs.committish)
     }
 
     /// 判断两个 Repository 是否相等
@@ -420,7 +454,7 @@ public class Repository {
             // 显示 resolved 中最后一个 '-' 后的部分
             let lastDash = this.resolved.lastIndexOf("-")
             let displayResolved = match (lastDash) {
-                Some(d) => this.resolved[Int64(d) + 1..]
+                case Some(d) => this.resolved[Int64(d) + 1..]
                 case None => this.resolved
             }
             result = result + "#" + displayResolved
@@ -448,7 +482,7 @@ public class Repository {
         if (this.resolved.size > 0) {
             let lastDash = this.resolved.lastIndexOf("-")
             let displayResolved = match (lastDash) {
-                Some(d) => this.resolved[Int64(d) + 1..]
+                case Some(d) => this.resolved[Int64(d) + 1..]
                 case None => this.resolved
             }
             result = result + "+" + displayResolved
@@ -531,12 +565,12 @@ public class Repository {
             return None
         }
 
-        return result.stdout.trim(" \t\r\n")
+        return result.stdout.trimStart().trimEnd()
     }
 
     /// Checkout Git 仓库
     /// 翻译自: Repository.checkout
-    ///   pub fn checkout(allocator, env, log, cache_dir, repo_dir, name, url, resolved) !ExtractData
+    ///   pub fn checkout(allocator, env, log, cache_dir, repo_dir, name, url, resolved) !RepositoryExtractData
     ///   克隆 bare 仓库到工作目录, checkout 指定 commit, 读取 package.json
     public static func checkout(
         cacheDir: String,
@@ -544,7 +578,7 @@ public class Repository {
         name: String,
         url: String,
         resolved: String
-    ): ExtractData {
+    ): RepositoryExtractData {
         let folderName = cachedGitFolderName(resolved)
         let target = Path.join([cacheDir, folderName])
 
@@ -553,10 +587,14 @@ public class Repository {
             // 已有缓存, 尝试读取 package.json
             let jsonPath = Path.join([target, "package.json"])
             if (BaoFile.exists(jsonPath)) {
-                let jsonContent = BaoFile.readAllText(jsonPath)
-                return ExtractData(url, resolved, jsonPath, jsonContent)
+                let jsonContentResult = BaoFile.readAllText(jsonPath)
+                let jsonContent = match (jsonContentResult) {
+                    case SysMaybe.Ok(s) => s
+                    case _ => ""
+                }
+                return RepositoryExtractData(url, resolved, jsonPath, jsonContent)
             }
-            return ExtractData(url, resolved, "", "")
+            return RepositoryExtractData(url, resolved, "", "")
         }
 
         // git clone --no-checkout
@@ -570,7 +608,7 @@ public class Repository {
         ])
 
         if (!cloneResult.success) {
-            return ExtractData()
+            return RepositoryExtractData()
         }
 
         // git checkout
@@ -579,12 +617,12 @@ public class Repository {
         ])
 
         if (!checkoutResult.success) {
-            return ExtractData()
+            return RepositoryExtractData()
         }
 
         // 删除 .git 目录
         let gitDir = Path.join([target, ".git"])
-        BaoFile.deleteTree(gitDir)
+        BaoFile.removeRecursive(gitDir)
 
         // 写入 .bun-tag 文件
         if (resolved.size > 0) {
@@ -595,12 +633,16 @@ public class Repository {
         // 读取 package.json
         let jsonPath = Path.join([target, "package.json"])
         if (BaoFile.exists(jsonPath)) {
-            let jsonContent = BaoFile.readAllText(jsonPath)
-            return ExtractData(url, resolved, jsonPath, jsonContent)
+            let jsonContentResult = BaoFile.readAllText(jsonPath)
+            let jsonContent = match (jsonContentResult) {
+                case SysMaybe.Ok(s) => s
+                case _ => ""
+            }
+            return RepositoryExtractData(url, resolved, jsonPath, jsonContent)
         }
 
         // 允许没有 package.json 的 Git 依赖
-        return ExtractData(url, resolved, "", "")
+        return RepositoryExtractData(url, resolved, "", "")
     }
 
     /// 创建 GitHub tarball URL
@@ -651,7 +693,7 @@ public class Repository {
 
         if (remain.size == 0) {
             // 使用版本字面量的 SHA1 哈希
-            return Sha1.hash(versionLiteral)
+            return SimpleSha1.hash(versionLiteral)
         }
 
         // 去掉最后一个 '/' 前的部分
@@ -662,7 +704,7 @@ public class Repository {
         }
 
         if (remain.size == 0) {
-            return Sha1.hash(versionLiteral)
+            return SimpleSha1.hash(versionLiteral)
         }
 
         return remain
@@ -722,7 +764,7 @@ public class Repository {
         // 检查已知主机的 TLD
         let tld = getHostDomain(host)
         match (tld) {
-            Some(t) => return Some("https://${host}${t}/${path}")
+            case Some(t) => return Some("https://${host}${t}/${path}")
             case None => return Some("https://${host}/${path}")
         }
     }
@@ -785,18 +827,18 @@ public class GitExecResult {
 
 // ============================================================================
 // 提取数据
-// 严格翻译自: src/install/install.zig - ExtractData
-//   const ExtractData = struct {
+// 严格翻译自: src/install/install.zig - RepositoryExtractData
+//   const RepositoryExtractData = struct {
 //       url: string = "",
 //       resolved: string = "",
 //       json: struct { path: string, buf: string } = .{},
 //   }
 // ============================================================================
 
-/// 提取数据
-/// 翻译自: install.ExtractData
+/// 提取数据 (Repository 版本)
+/// 翻译自: install.RepositoryExtractData
 ///   Git checkout 或 tarball 提取的结果
-public class ExtractData {
+public class RepositoryExtractData {
     /// 原始 URL
     public var url: String
     /// 解析后的 commit hash
@@ -831,7 +873,7 @@ public class ExtractData {
 // ============================================================================
 
 /// SHA-1 哈希工具
-public class Sha1 {
+public class SimpleSha1 {
     /// 计算字符串的 SHA-1 哈希 (十六进制)
     public static func hash(input: String): String {
         // 简化实现: 返回基于内容的哈希

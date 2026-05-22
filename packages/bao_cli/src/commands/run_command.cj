@@ -47,6 +47,18 @@ public class NpmArgs {
     public static let packageVersion: String = "npm_package_version"
 }
 
+/// 过滤器类型
+/// 严格翻译自: RunCommand.Filter
+public enum RunCommandFilter {
+    | Script
+    | Bin
+    | All
+    | BunJs
+    | AllPlusBunJs
+    | ScriptAndDescriptions
+    | ScriptExclude
+}
+
 // ============================================================================
 // RunCommand — 主命令类
 // 严格翻译自: run_command.zig RunCommand struct
@@ -75,18 +87,6 @@ public class RunCommand {
     /// bun-node 临时目录
     /// 严格翻译自: RunCommand.bun_node_dir
     public static let bunNodeDir: String = "/tmp/bun-node"
-
-    /// 过滤器类型
-    /// 严格翻译自: RunCommand.Filter
-    public enum Filter {
-        | Script
-        | Bin
-        | All
-        | BunJs
-        | AllPlusBunJs
-        | ScriptAndDescriptions
-        | ScriptExclude
-    }
 
     // ========================================================================
     // Shell 查找
@@ -149,7 +149,7 @@ public class RunCommand {
             let c = script[i]
 
             match (c) {
-                case 'y' => {
+                case 'y' =>
                     if (delimiter > UInt8(0)) {
                         let remainder = script.substringFrom(i)
                         if (remainder.startsWith("yarn ")) {
@@ -189,17 +189,13 @@ public class RunCommand {
                         }
                     }
                     delimiter = UInt8(0)
-                }
-                case ' ' => {
+                case ' ' =>
                     delimiter = UInt8(' ')
-                }
-                case '"' => {
+                case '"' =>
                     delimiter = UInt8('"')
-                }
-                case '\'' => {
+                case '\'' =>
                     delimiter = UInt8('\'')
-                }
-                case 'n' => {
+                case 'n' =>
                     if (delimiter > UInt8(0)) {
                         if (script.startsWithFrom("npm run ", i)) {
                             sb.append("${bunRun} ")
@@ -215,8 +211,7 @@ public class RunCommand {
                         }
                     }
                     delimiter = UInt8(0)
-                }
-                case 'p' => {
+                case 'p' =>
                     if (delimiter > UInt8(0)) {
                         if (script.startsWithFrom("pnpm run ", i)) {
                             sb.append("${bunRun} ")
@@ -238,10 +233,8 @@ public class RunCommand {
                         }
                     }
                     delimiter = UInt8(0)
-                }
-                case _ => {
+                case _ =>
                     delimiter = UInt8(0)
-                }
             }
 
             sb.append(c)
@@ -355,9 +348,8 @@ public class RunCommand {
             let exitCode = Process.spawnWithEnv(shellPath, argv, env.toEnvArray(), cwd)
 
             match (exitCode) {
-                case code if code > 0 && code != 2 && !silent => {
+                case code if code > 0 && code != 2 && !silent =>
                     Output.prettyErrorLn("error: script \"${name}\" exited with code ${code}")
-                }
                 case _ => ()
             }
 
@@ -416,7 +408,7 @@ public class RunCommand {
                     // 检查是否可能是尝试运行 package.json script
                     var isProbablyPkgScript = false
                     match (originalScriptForBunRun) {
-                        case Some(scriptName) => {
+                        case Some(scriptName) =>
                             if ((exitCode == 1 && scriptName == "test") ||
                                 (exitCode == 2 && (scriptName == "install" ||
                                                    scriptName == "kill" ||
@@ -424,7 +416,6 @@ public class RunCommand {
                                  ctx.positionals.size == 1)) {
                                 isProbablyPkgScript = true
                             }
-                        }
                         case None => ()
                     }
 
@@ -516,11 +507,10 @@ public class RunCommand {
 
         // 检测 NODE_ENV=production
         match (envLoader.get("NODE_ENV")) {
-            case Some(nodeEnv) => {
+            case Some(nodeEnv) =>
                 if (nodeEnv == "production") {
                     // 设置 production 模式
                 }
-            }
             case None => ()
         }
 
@@ -551,7 +541,7 @@ public class RunCommand {
         // 从 package.json 设置 npm_package_* 变量
         let pkgOpt = readPackageJson(cwd)
         match (pkgOpt) {
-            case Some(pkg) => {
+            case Some(pkg) =>
                 rootDirInfo.enclosingPackageJson = Some(pkg)
                 if (pkg.name.length > 0) {
                     envLoader.putDefault(NpmArgs.packageName, pkg.name)
@@ -566,7 +556,6 @@ public class RunCommand {
                 for ((k, v) in pkg.config) {
                     envLoader.putDefault("npm_package_config_${k}", v)
                 }
-            }
             case None => ()
         }
 
@@ -593,9 +582,8 @@ public class RunCommand {
         var packageJsonDir: String = ""
 
         match (rootDirInfo.enclosingPackageJson) {
-            case Some(pkg) => {
+            case Some(pkg) =>
                 packageJsonDir = removeTrailingSlash(Path.dirname(pkg.path))
-            }
             case None => ()
         }
 
@@ -785,10 +773,9 @@ public class RunCommand {
         if (targetName.length == 0) {
             match (rootDirInfo.enclosingPackageJson) {
                 case Some(pkg) => printHelp(Some(pkg))
-                case None => {
+                case None =>
                     printHelp(None)
                     println("\nNo package.json found.")
-                }
             }
             return true
         }
@@ -803,16 +790,14 @@ public class RunCommand {
         // 严格翻译自: run_command.zig 中 scripts.get(target_name)
         if (!skipScriptCheck) {
             match (rootDirInfo.enclosingPackageJson) {
-                case Some(pkg) => {
+                case Some(pkg) =>
                     match (pkg.scripts.get(targetName)) {
-                        case Some(scriptContent) => {
+                        case Some(scriptContent) =>
                             return runPackageScriptWithLifecycle(
                                 ctx, pkg, targetName, scriptContent, passthrough
                             )
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -822,20 +807,18 @@ public class RunCommand {
         let resolution = tryResolveModule(targetName)
         var resolvedToUnrunnableFile: ?ResolvedFileInfo = None
         match (resolution) {
-            case Some(path) => {
+            case Some(path) =>
                 let loader = detectLoader(path)
                 if (canBeRunByBun(loader) || loader == "html" || loader == "md") {
                     return bootAndHandleError(ctx, path, None)
                 } else {
                     resolvedToUnrunnableFile = Some(ResolvedFileInfo(path, loader))
                 }
-            }
-            case None => {
+            case None =>
                 // 支持 HTML glob 入口点
                 if (targetName.endsWith(".html") && targetName.contains("*")) {
                     return bootAndHandleError(ctx, targetName, Some("html"))
                 }
-            }
         }
 
         // 在 node_modules/.bin 和系统 PATH 中查找
@@ -853,12 +836,11 @@ public class RunCommand {
         if (pathForWhich.length > 0) {
             let destination = whichBinary(pathForWhich, Sys.getcwd(), targetName)
             match (destination) {
-                case Some(binaryPath) => {
+                case Some(binaryPath) =>
                     return runBinaryWithoutBunxPath(
                         ctx, binaryPath, Sys.getcwd(), DotEnvLoader(),
                         passthrough, Some(targetName)
                     ) != 0 || true
-                }
                 case None => ()
             }
         }
@@ -871,11 +853,10 @@ public class RunCommand {
 
         if (logErrors) {
             match (resolvedToUnrunnableFile) {
-                case Some(info) => {
+                case Some(info) =>
                     Output.prettyErrorLn("error: Cannot run \"${info.path}\"")
                     Output.noteGeneric("Bao cannot run ${info.loader} files directly", [])
-                }
-                case None => {
+                case None =>
                     let ext = Path.extension(targetName)
                     if (targetName.length > 0 && (targetName[0] == '.' || targetName[0] == '/' || Path.isAbsolute(targetName))) {
                         Output.prettyErrorLn("error: Module not found \"${targetName}\"")
@@ -884,7 +865,6 @@ public class RunCommand {
                     } else {
                         Output.prettyErrorLn("error: Script not found \"${targetName}\"")
                     }
-                }
             }
 
             Sys.exit(1)
@@ -949,7 +929,7 @@ public class RunCommand {
         // 运行 pre-script
         // 严格翻译自: run_command.zig 中 prescript 检查
         match (pkg.scripts.get("pre${name}")) {
-            case Some(preScript) => {
+            case Some(preScript) =>
                 let exitCode = runPackageScriptForeground(
                     ctx, preScript, "pre${name}", pkgDir, env,
                     ArrayList<String>(), ctx.silent, ctx.useSystemShell
@@ -957,7 +937,6 @@ public class RunCommand {
                 if (exitCode != 0) {
                     return true
                 }
-            }
             case None => ()
         }
 
@@ -969,12 +948,11 @@ public class RunCommand {
 
         // 运行 post-script
         match (pkg.scripts.get("post${name}")) {
-            case Some(postScript) => {
+            case Some(postScript) =>
                 runPackageScriptForeground(
                     ctx, postScript, "post${name}", pkgDir, env,
                     ArrayList<String>(), ctx.silent, ctx.useSystemShell
                 )
-            }
             case None => ()
         }
 
@@ -996,14 +974,13 @@ public class RunCommand {
         let scriptPath = resolveScriptPath(scriptName)
 
         match (scriptPath) {
-            case Some(path) => {
+            case Some(path) =>
                 // 检查是否为目录
                 if (BaoFile.isDirectory(path)) {
                     return false
                 }
                 // 检查是否可运行
                 return _bootAndHandleError(ctx, path, None)
-            }
             case None => return false
         }
     }
@@ -1068,27 +1045,24 @@ public class RunCommand {
     private static func renderMarkdownFileAndExit(path: String): Unit {
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 // 获取终端列数
                 var columns: Int64 = 80
                 let columnsEnv = Sys.getenv("COLUMNS")
                 match (columnsEnv) {
-                    case Some(v) => {
+                    case Some(v) =>
                         try {
                             let n = Int64.parse(v)
                             if (n > 0) { columns = n }
                         } catch (_: Exception) {}
-                    }
                     case None => ()
                 }
 
                 // 渲染 Markdown
                 let rendered = renderMarkdownToTerminal(text, columns)
                 println(rendered)
-            }
-            case None => {
+            case None =>
                 Output.prettyErrorLn("error: Failed to read file ${path}")
-            }
         }
         Sys.exit(0)
     }
@@ -1170,14 +1144,13 @@ public class RunCommand {
         ctx: CommandContext,
         defaultCompletions: ?Array<String>,
         rejectList: Array<String>,
-        filter: Filter
+        filter: RunCommandFilter
     ): ShellCompletions {
         var shellOut = ShellCompletions()
-        if (filter != Filter.ScriptExclude) {
+        if (filter != RunCommandFilter.ScriptExclude) {
             match (defaultCompletions) {
-                case Some(defaults) => {
+                case Some(defaults) =>
                     shellOut.commands = defaults
-                }
                 case None => ()
             }
         }
@@ -1188,11 +1161,11 @@ public class RunCommand {
         let cwd = Sys.getcwd()
         let pkgOpt = readPackageJson(cwd)
 
-        if (filter == Filter.Script || filter == Filter.All ||
-            filter == Filter.AllPlusBunJs || filter == Filter.ScriptAndDescriptions ||
-            filter == Filter.ScriptExclude) {
+        if (filter == RunCommandFilter.Script || filter == RunCommandFilter.All ||
+            filter == RunCommandFilter.AllPlusBunJs || filter == RunCommandFilter.ScriptAndDescriptions ||
+            filter == RunCommandFilter.ScriptExclude) {
             match (pkgOpt) {
-                case Some(pkg) => {
+                case Some(pkg) =>
                     var commands = ArrayList<String>()
                     if (shellOut.commands != None) {
                         for (c in shellOut.commands ?? []) {
@@ -1226,7 +1199,6 @@ public class RunCommand {
                     }
 
                     shellOut.commands = commands.toArray()
-                }
                 case None => ()
             }
         }
@@ -1253,14 +1225,13 @@ public class RunCommand {
         let cwd = Sys.getcwd()
         let pkgOpt = readPackageJson(cwd)
         match (pkgOpt) {
-            case Some(pkg) => {
+            case Some(pkg) =>
                 if (pkg.scripts.size > 0) {
                     println("Scripts:")
                     for ((key, cmd) in pkg.scripts) {
                         println("  ${key}: ${cmd}")
                     }
                 }
-            }
             case None => println("No package.json found.")
         }
     }
@@ -1292,16 +1263,15 @@ public class RunCommand {
 
         // 列出 package.json scripts
         match (pkg) {
-            case Some(p) => {
+            case Some(p) =>
                 if (p.scripts.size > 0) {
                     println("package.json scripts (${p.scripts.size} found):")
                     for (key in p.scripts.keys()) {
                         match (p.scripts.get(key)) {
-                            case Some(cmd) => {
+                            case Some(cmd) =>
                                 println("")
                                 println("  $ bao run ${key}")
                                 println("    ${cmd}")
-                            }
                             case None => ()
                         }
                     }
@@ -1309,7 +1279,6 @@ public class RunCommand {
                 } else {
                     println("No \"scripts\" found in package.json.")
                 }
-            }
             case None => ()
         }
     }
@@ -1344,12 +1313,11 @@ public class RunCommand {
         let path = Path.join([dir, "package.json"])
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 let pkg = RunPackageJson()
                 pkg.path = path
                 parsePackageJsonScripts(text, pkg)
                 return Some(pkg)
-            }
             case None => return None
         }
     }
@@ -1358,16 +1326,15 @@ public class RunCommand {
     private static func parsePackageJsonScripts(content: String, pkg: RunPackageJson): Unit {
         let parser = JsonParser()
         match (parser.parse(content)) {
-            case Some(root) => {
+            case Some(root) =>
                 match (JsonHelper.getField(root, "scripts")) {
-                    case Some(scripts) => {
+                    case Some(scripts) =>
                         for (key in scripts.keys()) {
                             match (scripts.get(key)) {
                                 case Some(v) => pkg.scripts.put(key, v.toString())
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
                 // 解析 name
@@ -1382,17 +1349,15 @@ public class RunCommand {
                 }
                 // 解析 config
                 match (JsonHelper.getField(root, "config")) {
-                    case Some(config) => {
+                    case Some(config) =>
                         for (key in config.keys()) {
                             match (config.get(key)) {
                                 case Some(v) => pkg.config.put(key, v.toString())
                                 case None => ()
                             }
                         }
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
     }

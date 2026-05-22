@@ -24,7 +24,7 @@ public enum SVGPaint {
     | Color(String)                          // 纯色
     | ContextFill                            // 上下文填充
     | ContextStroke                          // 上下文描边
-    | None                                   // 无
+    | NoneValue                                   // 无
 
     private func urlFallbackToCss(u: String, fallback: Option<SVGPaintFallback>): String {
         var result = "url(" + u + ")"
@@ -41,7 +41,7 @@ public enum SVGPaint {
             case Color(c) => c
             case ContextFill => "context-fill"
             case ContextStroke => "context-stroke"
-            case None => "none"
+            case NoneValue => "none"
         }
     }
 }
@@ -54,12 +54,12 @@ public enum SVGPaint {
 /// SVG paint 回退值
 /// 严格翻译自 SVGPaintFallback
 public enum SVGPaintFallback {
-    | None          // 无回退
+    | NoneValue          // 无回退
     | Color(String) // 纯色回退
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Color(c) => c
         }
     }
@@ -111,12 +111,12 @@ public enum StrokeLinejoin {
 /// stroke-dasharray 属性值
 /// 严格翻译自 StrokeDasharray
 public enum StrokeDasharray {
-    | None                       // 无虚线
+    | NoneValue                       // 无虚线
     | Values(ArrayList<String>)  // 虚线模式
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Values(vals) =>
                 var r = ""
                 for (i in 0..vals.size) {
@@ -136,12 +136,12 @@ public enum StrokeDasharray {
 /// marker 属性值
 /// 严格翻译自 Marker
 public enum Marker {
-    | None          // 无标记
+    | NoneValue          // 无标记
     | Url(String)   // URL 引用
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Url(u) => "url(" + u + ")"
         }
     }

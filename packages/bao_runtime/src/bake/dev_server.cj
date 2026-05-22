@@ -7,12 +7,24 @@
 // 所有工作都在内存中保存，使用手动管理的数据导向设计。
 package bao_runtime.bake
 
-import bao_core.*
 import bao_collections.*
 import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
 import bao_jsc.*
+import bao_bundler.Log
+import bao_bundler.Transpiler
+import bao_bundler.Source
+import bao_bundler.SourceMapOption
+import bao_bundler.BundleV2
+import bao_bundler.Arena
+import bao_bundler.Resolver
+import bao_bundler.Plugin
+import bao_bundler.Define
+import bao_bundler.DefineData
+import bao_watcher.*
+import bao_threading.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // 子模块导入
@@ -24,31 +36,13 @@ import bao_jsc.*
 
 // ============================================================================
 // 类型别名
+// Note: Types from parent package bao_runtime and imported packages are
+// directly available. Stub types are provided for types not yet translated.
 // ============================================================================
 
-public type VirtualMachine = jsc.VirtualMachine
-public type Transpiler = bun.transpiler.Transpiler
-public type AnyServer = bun.jsc.API.AnyServer
-public type FrameworkRouter = framework_router.FrameworkRouter
-public type Log = bun.logger.Log
-public type Watcher = bun.Watcher
-public type ThreadLock = bun.safety.ThreadLock
-public type Strong = jsc.Strong
-public type BundleV2 = bun.bundle_v2.BundleV2
-public type EventLoopTimer = bun.api.Timer.EventLoopTimer
-public type Timer = std.time.Timer
-public type ArrayListUnmanaged<T> = std.ArrayListUnmanaged<T>
-public type AutoArrayHashMapUnmanaged<K, V> = std.AutoArrayHashMapUnmanaged<K, V>
-public type AutoHashMapUnmanaged<K, V> = std.AutoHashMapUnmanaged<K, V>
-public type ArrayHashMapUnmanaged<K, V> = std.ArrayHashMapUnmanaged<K, V>
-public type StringArrayHashMap<V> = std.StringArrayHashMap<V>
-public type StringHashMap<V> = std.StringHashMap<V>
-public type HiveArray<T> = bun.HiveArray<T>
-public type DebuggerId = bun.bake.DebuggerId
-public type PathBuffer = bun.PathBuffer
-public type JSPromiseStrong = jsc.JSPromise.Strong
-public type IncrementalGraphServerFileIndex = IncrementalGraph(.server).FileIndex
-public type FrameworkRouterRouteIndex = FrameworkRouter.Route.Index
+public class AnyServer {} // stub: bun.jsc.API.AnyServer
+public class Timer {} // stub: std.time.Timer
+public type IncrementalGraphServerFileIndex = UInt32 // stub: IncrementalGraphServer.FileIndex
 
 // ============================================================================
 // 分配器作用域
@@ -56,8 +50,28 @@ public type FrameworkRouterRouteIndex = FrameworkRouter.Route.Index
 // ============================================================================
 
 /// 分配器作用域
-public type AllocationScope = bun.allocators.AllocationScopeIn<bun.DefaultAllocator>
-public type DevAllocator = AllocationScope.Borrowed
+public class AllocationScope {} // stub: bun.allocators.AllocationScopeIn<bun.DefaultAllocator>
+public class DevAllocator {} // stub: AllocationScope.Borrowed
+public class JSPromiseStrong {
+    public static let empty: JSPromiseStrong = JSPromiseStrong()
+    public init() {}
+}
+public class AutoArrayHashMapUnmanaged<K, V> {
+    public init() {}
+    public func put(k: K, v: V): Unit {}
+}
+public class RouteBundle {} // stub
+public class RouteBundleIndex {
+    public var value: UInt32 = UInt32(0)
+    public init() {}
+    public init(v: UInt32) { value = v }
+}
+public class ArrayListUnmanaged<T> {
+    public init() {}
+    public func append(i: T): Unit {}
+}
+public class HotReloadEvent { public init() {} }
+public class State { public init() {} }
 
 // ============================================================================
 // 常量前缀
@@ -65,15 +79,15 @@ public type DevAllocator = AllocationScope.Borrowed
 // ============================================================================
 
 /// 内部前缀
-public static let INTERNAL_PREFIX = "/_bun"
+public let INTERNAL_PREFIX = "/_bun"
 
 /// 资源前缀: /_bun/asset/<key>
 /// 对应 Bun: pub const asset_prefix = internal_prefix ++ "/asset"
-public static let ASSET_PREFIX = "/_bun/asset"
+public let ASSET_PREFIX = "/_bun/asset"
 
 /// 客户端脚本前缀: /_bun/client/{name}-{rbi}{generation}.js
 /// 对应 Bun: pub const client_prefix = internal_prefix ++ "/client"
-public static let CLIENT_PREFIX = "/_bun/client"
+public let CLIENT_PREFIX = "/_bun/client"
 
 // ============================================================================
 // Magic 枚举
@@ -123,8 +137,8 @@ public enum TestingBatchEvents {
 /// 用于跟踪等待bundle完成的Promise
 public class DeferredPromise {
     public var strong: JSPromiseStrong = JSPromiseStrong.empty
-    public var routeBundleIndices: AutoArrayHashMapUnmanaged<RouteBundle.Index, Unit> =
-        AutoArrayHashMapUnmanaged<RouteBundle.Index, Unit>()
+    public var routeBundleIndices: AutoArrayHashMapUnmanaged<RouteBundleIndex, Unit> =
+        AutoArrayHashMapUnmanaged<RouteBundleIndex, Unit>()
 
     /// 设置路由Bundle状态
     /// 对应 Bun: pub fn setRouteBundleState(self, dev, state) void
@@ -146,7 +160,7 @@ public class DeferredPromise {
     public func deinitIdempotently(): Unit {
         strong.deinit()
         routeBundleIndices.deinit(bun.default_allocator)
-        routeBundleIndices = AutoArrayHashMapUnmanaged<RouteBundle.Index, Unit>()
+        routeBundleIndices = AutoArrayHashMapUnmanaged<RouteBundleIndex, Unit>()
     }
 }
 
@@ -190,7 +204,7 @@ public class CurrentBundle {
 /// 下一个Bundle - 当current_bundle非null且有新请求时暂存于此
 public class NextBundle {
     /// 有活跃请求要bundle的RouteBundle列表
-    public var routeQueue: AutoArrayHashMapUnmanaged<RouteBundle.Index, Unit>
+    public var routeQueue: AutoArrayHashMapUnmanaged<RouteBundleIndex, Unit>
     /// 如果有重载事件应被排空
     public var reloadEvent: ?HotReloadEvent
     /// 被此bundle阻塞的请求列表
@@ -198,7 +212,7 @@ public class NextBundle {
     public var promise: DeferredPromise
 
     public init() {
-        routeQueue = AutoArrayHashMapUnmanaged<RouteBundle.Index, Unit>()
+        routeQueue = AutoArrayHashMapUnmanaged<RouteBundleIndex, Unit>()
         reloadEvent = None
         requests = DeferredRequestList()
         promise = DeferredPromise()
@@ -225,10 +239,10 @@ public class IncrementalResult {
         ArrayListUnmanaged<IncrementalGraphServerFileIndex>()
     public var failuresAdded: ArrayListUnmanaged<SerializedFailure> =
         ArrayListUnmanaged<SerializedFailure>()
-    public var htmlRoutesSoftAffected: ArrayListUnmanaged<RouteBundle.Index> =
-        ArrayListUnmanaged<RouteBundle.Index>()
-    public var htmlRoutesHardAffected: ArrayListUnmanaged<RouteBundle.Index> =
-        ArrayListUnmanaged<RouteBundle.Index>()
+    public var htmlRoutesSoftAffected: ArrayListUnmanaged<RouteBundleIndex> =
+        ArrayListUnmanaged<RouteBundleIndex>()
+    public var htmlRoutesHardAffected: ArrayListUnmanaged<RouteBundleIndex> =
+        ArrayListUnmanaged<RouteBundleIndex>()
 
     public static let empty: IncrementalResult = IncrementalResult()
 }
@@ -303,9 +317,9 @@ public enum ReqOrSaved {
 
     /// 获取HTTP方法
     public func method(): HTTPMethod {
-        switch (this) {
-            case .req(let r) => HTTPMethod.which(r.method()) ?? .POST
-            case .saved(let s) => s.request.method
+        match (this) {
+            case req(r) => HTTPMethod.which(r.method()) ?? HTTPMethod.POST
+            case saved(s) => s.request.method
         }
     }
 }
@@ -322,30 +336,30 @@ public class RequestEnsureRouteBundledCtx {
     public var req: ReqOrSaved
     public var resp: AnyResponse
     public var kind: DeferredRequestHandlerKind
-    public var routeBundleIndex: RouteBundle.Index
+    public var routeBundleIndex: RouteBundleIndex
 
     /// 当请求被延迟时调用
     public func onDefer(bundleField: BundleQueueType): Unit {
-        let requestsArray = switch (bundleField) {
-            case .current_bundle => dev.currentBundle.get().requests
-            case .next_bundle => dev.nextBundle.requests
+        let requestsArray = match (bundleField) {
+            case current_bundle => dev.currentBundle.get().requests
+            case next_bundle => dev.nextBundle.requests
         }
         dev.deferRequest(requestsArray, routeBundleIndex, kind, req, resp)
     }
 
     /// 当路由已加载时调用
     public func onLoaded(): Unit {
-        switch (kind) {
-            case .server_handler =>
+        match (kind) {
+            case server_handler =>
                 dev.onFrameworkRequestWithBundle(
                     routeBundleIndex,
-                    switch (req) {
-                        case .req(let r) => SavedRequestUnion.stack(r)
-                        case .saved(let s) => SavedRequestUnion.saved(s)
+                    match (req) {
+                        case req(r) => SavedRequestUnion.stack(r)
+                        case saved(s) => SavedRequestUnion.saved(s)
                     },
                     resp
                 )
-            case .bundled_html_page =>
+            case bundled_html_page =>
                 dev.onHtmlRequestWithBundle(routeBundleIndex, resp, req.method())
         }
     }
@@ -577,7 +591,7 @@ public class DevServer {
     public init() {
         allocationScope = AllocationScope()
         root = ""
-        inspectorServerId = DebuggerId.init(0)
+        inspectorServerId = DebuggerId(0)
         configurationHashKey = Array<Byte>(16)
         vm = VirtualMachine.get()
         router = FrameworkRouter()
@@ -635,18 +649,18 @@ public class DevServer {
         dev.activeWebsocketConnections = AutoHashMapUnmanaged<HmrSocket, Unit>()
         dev.currentBundle = None
         dev.nextBundle = NextBundle()
-        dev.inspectorServerId = DebuggerId.init(0)
+        dev.inspectorServerId = DebuggerId(0)
         dev.assets = Assets()
         dev.sourceMaps = SourceMapStore.empty
         dev.pluginState = PluginState.unknown
-        dev.bundlingFailures = ArrayHashMapUnmanaged<SerializedFailure, Unit>()
+        devRouteBundle.State.bundlingFailures = ArrayHashMapUnmanaged<SerializedFailure, Unit>()
         dev.assumePerfectIncrementalBundling = false
         dev.testingBatchEvents = TestingBatchEvents.disabled
         dev.broadcastConsoleLogFromBrowserToServer = options.broadcastConsoleLogFromBrowserToServer
         dev.hasPreCrashHandler = false
 
         let alloc = dev.allocator()
-        dev.log = Log.init(alloc)
+        dev.log = Log(alloc)
 
         // 初始化服务器运行时
         if (!dev.frontendOnly) {
@@ -677,12 +691,12 @@ public class DevServer {
             let sockets = alloc.alloc<HmrSocket>(count)
             var i: Int64 = 0
             var it = activeWebsocketConnections.keyIterator()
-            while (let item = it.next()) {
+            while (let item <- it.next()) {
                 sockets[i] = item.get()
                 i += 1
             }
             for (s in sockets) {
-                if (let websocket = s.underlying) {
+                if (let websocket <- s.underlying) {
                     websocket.close()
                 }
             }
@@ -715,10 +729,10 @@ public class DevServer {
 
         // 释放桶导出
         var it2 = barrelNeededExports.iterator()
-        while (let entry = it2.next()) {
+        while (let entry <- it2.next()) {
             var inner = entry.value
             var innerIt = inner.keyIterator()
-            while (let k = innerIt.next()) { alloc.free(k.get()) }
+            while (let k <- innerIt.next()) { alloc.free(k.get()) }
             inner.deinit(alloc)
             alloc.free(entry.key)
         }
@@ -737,7 +751,7 @@ public class DevServer {
         incrementalResult.htmlRoutesHardAffected.deinit(alloc)
 
         // Tailwind插件
-        if (let hack = hasTailwindPluginHack) {
+        if (let hack <- hasTailwindPluginHack) {
             for (key in hack.keys()) { alloc.free(key) }
             hack.deinit(alloc)
         }
@@ -774,9 +788,9 @@ public class DevServer {
         }
 
         // 测试批处理
-        switch (testingBatchEvents) {
-            case .enabled(let batch) => batch.entryPoints.deinit(alloc)
-            else => {}
+        match (testingBatchEvents) {
+            case enabled(batch) => batch.entryPoints.deinit(alloc)
+            case _ => ()
         }
 
         magic = Magic.valid // 会被设为undefined但仓颉没有这个概念
@@ -815,27 +829,27 @@ public class DevServer {
     /// 初始化服务器运行时
     /// 对应 Bun: fn initServerRuntime(dev: *DevServer) void
     func initServerRuntime(): Unit {
-        let runtime = BunString.static(bun.bake.getHmrRuntime(.server).code)
+        let runtime = BunString.`static`(bun.bake.getHmrRuntime(Side.server).code)
 
-        let interface = BakeLoadInitialServerCode(
+        let `interface` = BakeLoadInitialServerCode(
             vm.global,
             runtime,
-            if (let sc = framework.serverComponents) { sc.separateSsrGraph } else { false }
+            if (let sc <- framework.serverComponents) { sc.separateSsrGraph } else { false }
         )
 
-        if (!interface.isObject()) {
-            panic("Internal assertion failure: expected interface from HMR runtime to be an object")
+        if (!`interface`.isObject()) {
+            panic("Internal assertion failure: expected `interface` from HMR runtime to be an object")
         }
 
-        let fetchFunction = interface.get(vm.global, "handleRequest")
-        if (fetchFunction == None) {
-            panic("Internal assertion failure: expected interface from HMR runtime to contain handleRequest")
+        let fetchFunction = `interface`.get(vm.global, "handleRequest")
+        if (fetchFunction.isNone()) {
+            panic("Internal assertion failure: expected `interface` from HMR runtime to contain handleRequest")
         }
         serverFetchFunctionCallback = Strong.create(fetchFunction.get(), vm.global)
 
-        let registerUpdate = interface.get(vm.global, "registerUpdate")
-        if (registerUpdate == None) {
-            panic("Internal assertion failure: expected interface from HMR runtime to contain registerUpdate")
+        let registerUpdate = `interface`.get(vm.global, "registerUpdate")
+        if (registerUpdate.isNone()) {
+            panic("Internal assertion failure: expected `interface` from HMR runtime to contain registerUpdate")
         }
         serverRegisterUpdateCallback = Strong.create(registerUpdate.get(), vm.global)
     }
@@ -867,21 +881,21 @@ public class DevServer {
         let app = server.app.get()
 
         // 注册内部路由
-        app.get("\(CLIENT_PREFIX)/:route", this, wrapGenericRequestHandler(onJsRequest))
-        app.get("\(ASSET_PREFIX)/:asset", this, wrapGenericRequestHandler(onAssetRequest))
-        app.get("\(INTERNAL_PREFIX)/src/*", this, wrapGenericRequestHandler(onSrcRequest))
-        app.post("\(INTERNAL_PREFIX)/report_error", this, wrapGenericRequestHandler(ErrorReportRequest.run))
-        app.post("\(INTERNAL_PREFIX)/unref", this, wrapGenericRequestHandler(onUnrefSourceMap))
+        app.get("${CLIENT_PREFIX}/:route", this, wrapGenericRequestHandler(onJsRequest))
+        app.get("${ASSET_PREFIX}/:asset", this, wrapGenericRequestHandler(onAssetRequest))
+        app.get("${INTERNAL_PREFIX}/src/*", this, wrapGenericRequestHandler(onSrcRequest))
+        app.post("${INTERNAL_PREFIX}/report_error", this, wrapGenericRequestHandler(ErrorReportRequest.run))
+        app.post("${INTERNAL_PREFIX}/unref", this, wrapGenericRequestHandler(onUnrefSourceMap))
 
         app.any(INTERNAL_PREFIX, this, wrapGenericRequestHandler(onNotFound))
 
         // HMR WebSocket
-        app.ws("\(INTERNAL_PREFIX)/hmr", this, HmrSocket.behavior())
+        app.ws("${INTERNAL_PREFIX}/hmr", this, HmrSocket.behavior())
 
         // 调试路由
-        app.get("\(INTERNAL_PREFIX)/incremental_visualizer", this,
+        app.get("${INTERNAL_PREFIX}/incremental_visualizer", this,
                 wrapGenericRequestHandler(onIncrementalVisualizer))
-        app.get("\(INTERNAL_PREFIX)/memory_visualizer", this,
+        app.get("${INTERNAL_PREFIX}/memory_visualizer", this,
                 wrapGenericRequestHandler(onMemoryVisualizer))
 
         // 仅当框架有文件系统路由类型时才附加catch-all处理器
@@ -907,17 +921,17 @@ public class DevServer {
         }
 
         // 解析路由bundle索引和generation
-        let minLen = "00000000FFFFFFFF.js".size + (if (isMap) ".map".size else 0)
-        if (routeId.size < minLen) return notFound(resp)
+        let minLen = "00000000FFFFFFFF.js".size + (if (isMap) { ".map".size } else { 0 })
+        if (routeId.size < minLen) { return notFound(resp) }
 
         let hex = routeId[routeId.size - minLen..][0..16]
         let id = parseHexToInt<UInt64>(hex)
-        if (id == None) return notFound(resp)
+        if (id.isNone()) { return notFound(resp) }
 
         if (isMap) {
             let sourceId: SourceMapStore.SourceId = id.get()
-            if (let entry = sourceMaps.entries.getPtr(id.get())) {
-                let jsonBytes = entry.renderJSON(this, allocator(), sourceId.kind, allocator(), .client)
+            if (let entry <- sourceMaps.entries.getPtr(id.get())) {
+                let jsonBytes = entry.renderJSON(this, allocator(), sourceId.kind, allocator(), Side.client)
                 let response = StaticRoute.initFromAnyBlob(
                     Array<Blob>.fromOwnedSlice(allocator(), jsonBytes),
                     StaticRouteOptions(server: server, mimeType: MimeType.json)
@@ -929,34 +943,34 @@ public class DevServer {
             return notFound(resp)
         }
 
-        let routeBundleIndex: RouteBundle.Index = RouteBundle.Index.init(id.get() & 0xFFFFFFFF)
+        let routeBundleIndex: RouteBundleIndex = RouteBundleIndex(id.get() & 0xFFFFFFFF)
         let generation: UInt32 = UInt32(id.get() >> 32)
 
-        if (routeBundleIndex.get() >= routeBundles.items.size) return notFound(resp)
+        if (routeBundleIndex.get() >= routeBundles.items.size) { return notFound(resp) }
 
         let routeBundle = routeBundles.items[routeBundleIndex.get()]
         if (routeBundle.clientScriptGeneration != generation ||
-            routeBundle.serverState != .loaded) {
+            routeBundle.serverState != loaded) {
             // Bundle已过期，发送重新加载脚本
             resp.corked(onOutdatedJSCorked)
             return
         }
 
-        onJsRequestWithBundle(routeBundleIndex, resp, HTTPMethod.which(req.method()) ?? .POST)
+        onJsRequestWithBundle(routeBundleIndex, resp, HTTPMethod.which(req.method()) ?? HTTPMethod.POST)
     }
 
     /// 处理资源请求
     /// 对应 Bun: fn onAssetRequest(dev, req, resp) void
     func onAssetRequest(req: UwsRequest, resp: AnyResponse): Unit {
         let param = req.parameter(0)
-        if (param.size < 16) return notFound(resp)
+        if (param.size < 16) { return notFound(resp) }
 
         let hex = param[0..16]
         let hashOpt = parseHexToInt<UInt64>(hex)
-        if (hashOpt == None) return notFound(resp)
+        if (hashOpt.isNone()) { return notFound(resp) }
 
         let asset = assets.get(hashOpt.get())
-        if (asset == None) return notFound(resp)
+        if (asset.isNone()) { return notFound(resp) }
 
         req.setYield(false)
         asset.get().on(resp)
@@ -971,10 +985,10 @@ public class DevServer {
 
         // 尝试匹配框架路由
         var params: FrameworkRouter.MatchedParams
-        if (let routeIndex = router.match(pathname, params)) {
+        if (let routeIndex <- router.`match`(pathname, params)) {
             // 确保路由已bundle
             let routeBundleIndex = findRouteBundleIndex(routeIndex.get())
-            if (let rbi = routeBundleIndex) {
+            if (let rbi <- routeBundleIndex) {
                 ensureRouteIsBundled(rbi.get(), req, resp)
             } else {
                 notFound(resp)
@@ -1023,8 +1037,8 @@ public class DevServer {
     // ========================================================================
 
     /// 获取路由Bundle指针
-    /// 对应 Bun: pub fn routeBundlePtr(index: RouteBundle.Index) RouteBundle
-    public func routeBundlePtr(index: RouteBundle.Index): RouteBundle {
+    /// 对应 Bun: pub fn routeBundlePtr(index: RouteBundleIndex) RouteBundle
+    public func routeBundlePtr(index: RouteBundleIndex): RouteBundle {
         routeBundles.items[index.get()]
     }
 
@@ -1040,123 +1054,114 @@ public class DevServer {
         currentBundle = cb
 
         // 实际的bundle执行通过BundleV2进行
-        // bv2 = BundleV2.init(...)
+        // bv2 = BundleV2(...)
     }
 
     /// 确保路由已Bundle
     /// 对应 Bun: fn ensureRouteIsBundled(dev, route_bundle_index, Ctx, ctx)
-    public func ensureRouteIsBundled(routeBundleIndex: RouteBundle.Index,
+    public func ensureRouteIsBundled(routeBundleIndex: RouteBundleIndex,
                                       req: UwsRequest, resp: AnyResponse): Unit {
         let state = routeBundlePtr(routeBundleIndex).serverState
 
-        switch (state) {
-            case .unqueued => {
+        match (state) {
+            case unqueued =>
                 // 如果正在捆绑其他内容，延迟请求
-                if (currentBundle != None) {
-                    nextBundle.routeQueue.put(allocator(), routeBundleIndex, Unit())
-                    routeBundlePtr(routeBundleIndex).serverState = .deferred_to_next_bundle
+                if (currentBundle.isSome()) {
+                    nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
+                    routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.deferred_to_next_bundle
                     return
                 }
 
                 // 检查插件状态
-                switch (pluginState) {
-                    case .unknown => {
-                        if (server.getOrLoadPlugins(.dev_server(this)) == .pending) {
-                            pluginState = .pending
-                            nextBundle.routeQueue.put(allocator(), routeBundleIndex, Unit())
-                            routeBundlePtr(routeBundleIndex).serverState = .deferred_to_next_bundle
+                match (pluginState) {
+                    case unknown =>
+                        if (server.getOrLoadPlugins(PluginTarget.dev_server(this)) == PluginState.pending) {
+                            pluginState = PluginState.pending
+                            nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
+                            routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.deferred_to_next_bundle
                             return
                         }
-                        pluginState = .loaded
-                    }
-                    case .pending => {
-                        nextBundle.routeQueue.put(allocator(), routeBundleIndex, Unit())
-                        routeBundlePtr(routeBundleIndex).serverState = .deferred_to_next_bundle
+                        pluginState = RouteBundle.State.loaded
+                    case pending =>
+                        nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
+                        routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.deferred_to_next_bundle
                         return
-                    }
-                    case .err => {
+                    case err =>
                         resp.end("Plugin Error", false)
                         return
-                    }
-                    case .loaded => ()
+                    case loaded => ()
                 }
 
                 // 准备bundle
-                nextBundle.routeQueue.put(allocator(), routeBundleIndex, Unit())
-                routeBundlePtr(routeBundleIndex).serverState = .bundling
+                nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
+                routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.bundling
 
                 startAsyncBundle(
                     EntryPointList.empty,
                     false,
                     Timer.start()
                 )
-            }
-            case .deferred_to_next_bundle => {
-                // 已在队列中
-            }
-            case .bundling => {
-                // 等待当前bundle完成
-            }
-            case .possible_bundling_failures => {
+            case deferred_to_next_bundle =>
+                () // 已在队列中
+            case bundling =>
+                () // 等待当前bundle完成
+            case possible_bundling_failures =>
                 // 检查失败是否影响此路由
                 if (bundlingFailures.count() > 0) {
                     // 可能需要重新构建
                 }
-                routeBundlePtr(routeBundleIndex).serverState = .loaded
-            }
-            case .evaluation_failure => {
+                routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.loaded
+            case evaluation_failure =>
                 sendSerializedFailures(
                     DevResponse.http(resp),
                     Array<SerializedFailure>(),
                     FailureKind.evaluation,
                     None
                 )
-            }
-            case .loaded => {
+            case loaded =>
                 onFrameworkRequestWithBundle(
                     routeBundleIndex,
                     SavedRequestUnion.stack(req),
                     resp
                 )
-            }
         }
     }
 
     /// 带有Bundle的框架请求处理
     /// 对应 Bun: fn onFrameworkRequestWithBundle(dev, route_bundle_index, req, resp)
-    public func onFrameworkRequestWithBundle(routeBundleIndex: RouteBundle.Index,
+    public func onFrameworkRequestWithBundle(routeBundleIndex: RouteBundleIndex,
                                               req: SavedRequestUnion, resp: AnyResponse): Unit {
         let routeBundle = routeBundlePtr(routeBundleIndex)
         let serverRequestCallback = serverFetchFunctionCallback.get()
-        if (serverRequestCallback == None) return
+        if (serverRequestCallback.isNone()) { return }
 
         // 提取URL参数
         let url = req.url()
         let pathname = extractPathnameFromUrl(url)
         var params = FrameworkRouter.MatchedParams()
-        let paramsJsValue = if (let match = router.matchSlow(pathname, params)) {
+        let paramsJsValue = if (let matchedRoute <- router.matchSlow(pathname, params)) {
             params.toJS(vm.global)
-        } else { JSValue.null }
+        } else { JsValue.null }
 
         // 调用服务器端fetch处理器
         let responseValue = serverRequestCallback.get().call(
-            vm.global, JSValue.jsUndefined,
-            Array<JSValue>(
+            vm.global, JsValue.jsUndefined,
+            Array<JsValue>(
                 getRouterTypeMain(routeBundleIndex),
                 getRouteModules(routeBundleIndex),
                 getClientId(routeBundleIndex),
                 getStyles(routeBundleIndex),
                 paramsJsValue,
-                JSValue.null, JSValue.null, JSValue.null
+                JsValue.null, JsValue.null, JsValue.null
             )
         )
 
         // 处理响应
-        server.get().onSavedRequest(req, resp, serverRequestCallback, 8, Array<JSValue>())
+        server.get().onSavedRequest(req, resp, serverRequestCallback, 8, Array<JsValue>())
     }
 
     /// 带有Bundle的HTML请求处理
-    public func onHtmlRequestWithBundle(routeBundleIndex: RouteBundle.Index,
+    public func onHtmlRequestWithBundle(routeBundleIndex: RouteBundleIndex,
                                          resp: AnyResponse, method: HTTPMethod): Unit {
         let routeBundle = routeBundlePtr(routeBundleIndex)
         // 返回HTML页面
@@ -1169,29 +1174,29 @@ public class DevServer {
     // ========================================================================
 
     /// 获取路由器类型主文件
-    private func getRouterTypeMain(routeBundleIndex: RouteBundle.Index): JSValue {
+    private func getRouterTypeMain(routeBundleIndex: RouteBundleIndex): JsValue {
         // 简化: 返回服务器文件字符串
-        JSValue.null
+        JsValue.null
     }
 
     /// 获取路由模块列表
-    private func getRouteModules(routeBundleIndex: RouteBundle.Index): JSValue {
-        JSValue.createEmptyArray(vm.global, 0)
+    private func getRouteModules(routeBundleIndex: RouteBundleIndex): JsValue {
+        JsValue.createEmptyArray(vm.global, 0)
     }
 
     /// 获取客户端ID
-    private func getClientId(routeBundleIndex: RouteBundle.Index): JSValue {
+    private func getClientId(routeBundleIndex: RouteBundleIndex): JsValue {
         let bundleIndex: UInt32 = routeBundleIndex.get()
         let generation: UInt32 = routeBundlePtr(routeBundleIndex).clientScriptGeneration
         let str = BunString.createFormat(
-            "\(CLIENT_PREFIX)/route-\(bundleIndex)\(generation).js"
+            "${CLIENT_PREFIX}/route-${bundleIndex}${generation}.js"
         )
         str.toJS(vm.global)
     }
 
     /// 获取样式
-    private func getStyles(routeBundleIndex: RouteBundle.Index): JSValue {
-        JSValue.createEmptyArray(vm.global, 0)
+    private func getStyles(routeBundleIndex: RouteBundleIndex): JsValue {
+        JsValue.createEmptyArray(vm.global, 0)
     }
 
     // ========================================================================
@@ -1215,7 +1220,7 @@ public class DevServer {
     /// 对应 Bun: pub fn publish(topic, data, opcode) void
     public func publish(topic: HmrTopic, data: Array<Byte>, opcode: Opcode): Unit {
         // 发布到所有订阅的WebSocket
-        if (let srv = server) {
+        if (let srv <- server) {
             let app = srv.app.get()
             app.publish(topic.toString(), data, opcode)
         }
@@ -1223,14 +1228,14 @@ public class DevServer {
 
     /// 检查路由失败
     /// 对应 Bun: fn checkRouteFailures(dev, route_bundle_index, resp)
-    public func checkRouteFailures(routeBundleIndex: RouteBundle.Index,
+    public func checkRouteFailures(routeBundleIndex: RouteBundleIndex,
                                      resp: DevResponse): CheckRouteFailuresResult {
         // 跟踪图以查找此路由可到达的失败
         let gts = initGraphTraceState(allocator(), 0)
         graphSafetyLock.lock()
         defer(graphSafetyLock.unlock())
 
-        traceAllRouteImports(routeBundlePtr(routeBundleIndex), gts, .findErrors)
+        traceAllRouteImports(routeBundlePtr(routeBundleIndex), gts, TraceAllRouteImportsMode.findErrors)
 
         if (incrementalResult.failuresAdded.items.size > 0) {
             if (!assumePerfectIncrementalBundling) {
@@ -1250,7 +1255,7 @@ public class DevServer {
     /// 解析十六进制字符串为整数
     /// 对应 Bun: pub fn parseHexToInt(comptime T: type, slice: []const u8) ?T
     public static func parseHexToInt<T>(slice: String): ?T {
-        if (slice.size < 2) return None
+        if (slice.size < 2) { return None }
         var result: T = Zeroes.zeroes<T>()
         for (i in 0..slice.size) {
             let c = slice[Int64(i)]
@@ -1269,8 +1274,8 @@ public class DevServer {
     }
 
     /// 慢速查找路由到Bundle索引
-    /// 对应 Bun: pub fn routeToBundleIndexSlow(pattern: String) ?RouteBundle.Index
-    public func routeToBundleIndexSlow(pattern: String): ?RouteBundle.Index {
+    /// 对应 Bun: pub fn routeToBundleIndexSlow(pattern: String) ?RouteBundleIndex
+    public func routeToBundleIndexSlow(pattern: String): ?RouteBundleIndex {
         // 遍历路由查找匹配的Bundle索引
         for (i in 0..routeBundles.items.size) {
             // 检查路由模式是否匹配
@@ -1286,18 +1291,18 @@ public class DevServer {
 
     /// 延迟请求
     /// 对应 Bun: fn deferRequest(dev, requests_array, route_bundle_index, kind, req, resp)
-    public func deferRequest(requestsArray: DeferredRequestList, routeBundleIndex: RouteBundle.Index,
+    public func deferRequest(requestsArray: DeferredRequestList, routeBundleIndex: RouteBundleIndex,
                               kind: DeferredRequestHandlerKind, req: ReqOrSaved, resp: AnyResponse): Unit {
         let deferred = deferredRequestPool.get()
         deferred.data = DeferredRequest(
             routeBundleIndex: routeBundleIndex,
             dev: this,
-            handler: switch (kind) {
-                case .bundled_html_page => DeferredRequestHandler.bundledHtmlPage(
+            handler: match (kind) {
+                case bundled_html_page => DeferredRequestHandler.bundledHtmlPage(
                     response: resp,
                     method: req.method()
                 )
-                case .server_handler => DeferredRequestHandler.serverHandler(
+                case server_handler => DeferredRequestHandler.serverHandler(
                     // 保存请求上下文
                 )
             }
@@ -1306,7 +1311,7 @@ public class DevServer {
     }
 
     /// 查找路由Bundle索引
-    private func findRouteBundleIndex(routeIndex: FrameworkRouterRouteIndex): ?RouteBundle.Index {
+    private func findRouteBundleIndex(routeIndex: FrameworkRouterRouteIndex): ?RouteBundleIndex {
         for (i in 0..routeBundles.items.size) {
             // 检查路由索引匹配
         }
@@ -1351,13 +1356,13 @@ func notFound(resp: AnyResponse): Unit {
 }
 
 /// 404 corked回调
-static func notFoundCorked(resp: AnyResponse): Unit {
+func notFoundCorked(resp: AnyResponse): Unit {
     resp.writeStatus("404 Not Found")
     resp.end("Not Found", false)
 }
 
 /// 过期JS corked回调
-static func onOutdatedJSCorked(resp: AnyResponse): Unit {
+func onOutdatedJSCorked(resp: AnyResponse): Unit {
     // 发送即时重载页面的payload
     resp.writeStatus("200 OK")
     resp.writeHeader("Content-Type", "application/javascript")
@@ -1373,12 +1378,12 @@ func wrapGenericRequestHandler(handler: Any, isSsl: Bool): RequestHandler {
 func extractPathnameFromUrl(url: String): String {
     // 移除协议、主机、查询、哈希
     let pathStart = url.indexOf('/')
-    if (pathStart == None) return "/"
+    if (pathStart.isNone()) { return "/" }
     let path = url[pathStart.get()..]
     let queryStart = path.indexOf('?')
-    if (queryStart != None) return path[0..queryStart.get()]
+    if (queryStart.isSome()) { return path[0..queryStart.get()] }
     let hashStart = path.indexOf('#')
-    if (hashStart != None) return path[0..hashStart.get()]
+    if (hashStart.isSome()) { return path[0..hashStart.get()] }
     return path
 }
 
@@ -1413,16 +1418,16 @@ public enum DevResponse {
     | none
 
     public func writeStatus(status: String): Unit {
-        switch (this) {
-            case .http(let resp) => resp.writeStatus(status)
-            case .none => ()
+        match (this) {
+            case http(resp) => resp.writeStatus(status)
+            case none => ()
         }
     }
 
     public func end(body: String, close: Bool): Unit {
-        switch (this) {
-            case .http(let resp) => resp.end(body, close)
-            case .none => ()
+        match (this) {
+            case http(resp) => resp.end(body, close)
+            case none => ()
         }
     }
 }
@@ -1434,11 +1439,11 @@ class GraphTraceState {
 }
 
 /// 延迟请求列表
-public typealias DeferredRequestList = ArrayList<DeferredRequest>
+public type DeferredRequestList = ArrayList<DeferredRequest>
 
 /// 延迟请求
 public class DeferredRequest {
-    public var routeBundleIndex: RouteBundle.Index
+    public var routeBundleIndex: RouteBundleIndex
     public var dev: DevServer
     public var handler: DeferredRequestHandler
 
@@ -1452,7 +1457,7 @@ public class DeferredRequest {
 
 /// 延迟请求处理器
 public enum DeferredRequestHandler {
-    | bundledHtmlPage(response: AnyResponse, method: HTTPMethod)
+    | bundledHtmlPage(AnyResponse, HTTPMethod)
     | serverHandler(AnyRequestContext)
 }
 
@@ -1545,7 +1550,7 @@ public class EntryPointOptions {
 }
 
 /// 序列化失败所有者打包
-public typealias SerializedFailureOwnerPacked = UInt64
+public type SerializedFailureOwnerPacked = UInt64
 
 /// 测试批处理
 public class TestingBatch {

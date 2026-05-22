@@ -21,25 +21,25 @@ public class ResumableFetchSinkClasses {
 
     /// start fn
     /// 严格翻译自: proto.start { fn: "jsStart", length: 1 }
-    public static func jsStart(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsStart(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// write fn
     /// 严格翻译自: proto.write { fn: "jsWrite", length: 1 }
-    public static func jsWrite(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsWrite(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// end fn
     /// 严格翻译自: proto.end { fn: "jsEnd", length: 1 }
-    public static func jsEnd(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsEnd(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// setHandlers fn (passThis: true)
     /// 严格翻译自: proto.setHandlers { fn: "jsSetHandlers", length: 2, passThis: true }
-    public static func jsSetHandlers(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsSetHandlers(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }
@@ -55,25 +55,25 @@ public class ResumableS3UploadSinkClasses {
 
     /// start fn
     /// 严格翻译自: proto.start { fn: "jsStart", length: 1 }
-    public static func jsStart(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsStart(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// write fn
     /// 严格翻译自: proto.write { fn: "jsWrite", length: 1 }
-    public static func jsWrite(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsWrite(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// end fn
     /// 严格翻译自: proto.end { fn: "jsEnd", length: 1 }
-    public static func jsEnd(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsEnd(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 
     /// setHandlers fn (passThis: true)
     /// 严格翻译自: proto.setHandlers { fn: "jsSetHandlers", length: 2, passThis: true }
-    public static func jsSetHandlers(globalObject: JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func jsSetHandlers(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
         return JsValue.jsUndefined()
     }
 }

@@ -29,38 +29,38 @@ public enum ScopeFunctionsMode {
 public class ScopeFunctions {
     public var mode: ScopeFunctionsMode = ScopeFunctionsMode.test_
     public var cfg: BaseScopeCfg = BaseScopeCfg()
-    public var each: JSValue = JSValue.zero
+    public var each: JsValue = JsValue.zero
 
     /// 字符串常量
     public static let strings = ScopeFunctionStrings()
 
     /// 获取.skip属性
-    public func getSkip(globalThis: JSGlobalObject): JSValue {
+    public func getSkip(globalThis: JSGlobalObject): JsValue {
         return genericExtend(cfg: BaseScopeCfg(selfMode: ScopeMode.skip), name: "get .skip", fnName: "skip")
     }
 
     /// 获取.todo属性
-    public func getTodo(globalThis: JSGlobalObject): JSValue {
+    public func getTodo(globalThis: JSGlobalObject): JsValue {
         return genericExtend(cfg: BaseScopeCfg(selfMode: ScopeMode.todo), name: "get .todo", fnName: "todo")
     }
 
     /// 获取.failing属性
-    public func getFailing(globalThis: JSGlobalObject): JSValue {
+    public func getFailing(globalThis: JSGlobalObject): JsValue {
         return genericExtend(cfg: BaseScopeCfg(selfMode: ScopeMode.failing), name: "get .failing", fnName: "failing")
     }
 
     /// 获取.concurrent属性
-    public func getConcurrent(globalThis: JSGlobalObject): JSValue {
+    public func getConcurrent(globalThis: JSGlobalObject): JsValue {
         return genericExtend(cfg: BaseScopeCfg(selfConcurrent: ConcurrentMode.yes), name: "get .concurrent", fnName: "concurrent")
     }
 
     /// 获取.serial属性
-    public func getSerial(globalThis: JSGlobalObject): JSValue {
+    public func getSerial(globalThis: JSGlobalObject): JsValue {
         return genericExtend(cfg: BaseScopeCfg(selfConcurrent: ConcurrentMode.no), name: "get .serial", fnName: "serial")
     }
 
     /// 获取.only属性
-    public func getOnly(globalThis: JSGlobalObject): JSValue {
+    public func getOnly(globalThis: JSGlobalObject): JsValue {
         return genericExtend(cfg: BaseScopeCfg(selfOnly: true), name: "get .only", fnName: "only")
     }
 
@@ -68,42 +68,42 @@ public class ScopeFunctions {
     ///
     /// 当条件为true时跳过（因为.if()的含义是"如果满足条件则运行"，
     /// 这里invert=true表示条件不满足时保留原始配置）
-    public func fnIf(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func fnIf(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         return genericIf(callFrame: callFrame, conditionalCfg: BaseScopeCfg(selfMode: ScopeMode.skip), name: "call .if()", invert: true, fnName: "if")
     }
 
     /// .skipIf()调用
     ///
     /// 当条件为true时跳过
-    public func fnSkipIf(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func fnSkipIf(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         return genericIf(callFrame: callFrame, conditionalCfg: BaseScopeCfg(selfMode: ScopeMode.skip), name: "call .skipIf()", invert: false, fnName: "skipIf")
     }
 
     /// .todoIf()调用
     ///
     /// 当条件为true时标记为TODO
-    public func fnTodoIf(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func fnTodoIf(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         return genericIf(callFrame: callFrame, conditionalCfg: BaseScopeCfg(selfMode: ScopeMode.todo), name: "call .todoIf()", invert: false, fnName: "todoIf")
     }
 
     /// .failingIf()调用
     ///
     /// 当条件为true时标记为failing
-    public func fnFailingIf(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func fnFailingIf(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         return genericIf(callFrame: callFrame, conditionalCfg: BaseScopeCfg(selfMode: ScopeMode.failing), name: "call .failingIf()", invert: false, fnName: "failingIf")
     }
 
     /// .concurrentIf()调用
     ///
     /// 当条件为true时设为并发模式
-    public func fnConcurrentIf(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func fnConcurrentIf(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         return genericIf(callFrame: callFrame, conditionalCfg: BaseScopeCfg(selfConcurrent: ConcurrentMode.yes), name: "call .concurrentIf()", invert: false, fnName: "concurrentIf")
     }
 
     /// .serialIf()调用
     ///
     /// 当条件为true时设为串行模式
-    public func fnSerialIf(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func fnSerialIf(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         return genericIf(callFrame: callFrame, conditionalCfg: BaseScopeCfg(selfConcurrent: ConcurrentMode.no), name: "call .serialIf()", invert: false, fnName: "serialIf")
     }
 
@@ -111,19 +111,19 @@ public class ScopeFunctions {
     ///
     /// 接收一个数组参数，用于参数化测试。
     /// 例如: test.each([1,2,3])("test %s", (n) => { ... })
-    public func fnEach(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func fnEach(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.arguments(max: 1)
         let array = arguments[0]
 
         if (array.isUndefinedOrNull() || !array.isArray()) {
             let formatter = ConsoleObject.Formatter(global: globalThis)
             globalThis.`throw`(message: "Expected array, got " + formatter.format(value: array))
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
 
         if (!each.isEmpty()) {
             globalThis.`throw`(message: "Cannot each on " + format())
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
 
         return ScopeFunctions.createBound(
@@ -139,7 +139,7 @@ public class ScopeFunctions {
     ///
     /// 当test/it/describe被直接调用时触发。
     /// 解析参数（描述、回调、选项），然后入队describe或test回调。
-    public func callAsFunction(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+    public func callAsFunction(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let lineNo = captureTestLineNumber(callFrame: callFrame, globalThis: globalThis)
 
         let buntestStrong = cloneActiveStrong(
@@ -148,8 +148,8 @@ public class ScopeFunctions {
                 signature: Signature.scopeFunctions(this),
                 allowInPreload: false
             )
-        ) ?? return JSValue.jsUndefined
-        let bunTest = buntestStrong.get() ?? return JSValue.jsUndefined
+        ) ?? return JsValue.jsUndefined
+        let bunTest = buntestStrong.get() ?? return JsValue.jsUndefined
 
         // 根据模式决定回调是否必须
         let callbackMode: CallbackMode = match (cfg.selfMode) {
@@ -175,7 +175,7 @@ public class ScopeFunctions {
             if (each.isUndefinedOrNull() || !each.isArray()) {
                 let formatter = ConsoleObject.Formatter(global: globalThis)
                 globalThis.`throw`(message: "Expected array, got " + formatter.format(value: each))
-                return JSValue.jsUndefined
+                return JsValue.jsUndefined
             }
 
             var testIdx: UInt64 = 0
@@ -184,7 +184,7 @@ public class ScopeFunctions {
                 if (item.isEmpty()) { break }
 
                 // 收集参数列表
-                var argsList: Array<JSValue> = Array<JSValue>()
+                var argsList: Array<JsValue> = Array<JsValue>()
                 if (item.isArray()) {
                     // 展开数组作为参数列表
                     var itemIter = item.arrayIterator(global: globalThis)
@@ -239,13 +239,13 @@ public class ScopeFunctions {
             )
         }
 
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     /// 入队describe或test回调
     private func enqueueDescribeOrTestCallback(
         bunTest: BunTest, globalThis: JSGlobalObject, callFrame: CallFrame,
-        callback: ?JSValue, description: ?String,
+        callback: ?JsValue, description: ?String,
         options: ParseArgumentsOptions, callbackLength: UInt64, lineNo: UInt32
     ) {
         // 只允许在收集阶段
@@ -289,7 +289,7 @@ public class ScopeFunctions {
             }
         }
 
-        let hasDoneParameter = if (callback != None) { callbackLength >= 1 } else { false }
+        let hasDoneParameter = if (callback.isSome()) { callbackLength >= 1 } else { false }
 
         var base = cfg
         base.lineNo = lineNo
@@ -349,11 +349,11 @@ public class ScopeFunctions {
     /// 根据条件和invert参数决定使用conditionalCfg还是保持当前配置
     /// - invert=true: 条件!=invert时使用conditionalCfg（即条件为false时使用）
     /// - invert=false: 条件==invert(false)时保持当前配置（即条件为true时使用conditionalCfg）
-    private func genericIf(callFrame: CallFrame, conditionalCfg: BaseScopeCfg, name: String, invert: Bool, fnName: String): JSValue {
+    private func genericIf(callFrame: CallFrame, conditionalCfg: BaseScopeCfg, name: String, invert: Bool, fnName: String): JsValue {
         let arguments = callFrame.arguments(max: 1)
         if (arguments.size == 0) {
             globalThis.`throw`(message: "Expected condition to be a boolean")
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
 
         let condition = arguments[0].toBoolean()
@@ -370,16 +370,16 @@ public class ScopeFunctions {
     /// 通用扩展
     ///
     /// 将当前配置与新配置合并，创建新的ScopeFunctions绑定
-    private func genericExtend(cfg: BaseScopeCfg, name: String, fnName: String): JSValue {
+    private func genericExtend(cfg: BaseScopeCfg, name: String, fnName: String): JsValue {
         // failing不能用于describe
         if (cfg.selfMode == ScopeMode.failing && mode == ScopeFunctionsMode.describe) {
             globalThis.`throw`(message: "Cannot " + (name) + " on " + (format()))
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
 
         // .only在CI环境中发出警告
         if (cfg.selfOnly) {
-            errorInCI(globalObject: globalThis, message: ".only")
+            errorInCI(globalThis, message: ".only")
         }
 
         // 合并配置
@@ -390,12 +390,12 @@ public class ScopeFunctions {
             )
         } else {
             globalThis.`throw`(message: "Cannot " + (name) + " on " + (format()))
-            return JSValue.jsUndefined
+            return JsValue.jsUndefined
         }
     }
 
     /// 创建未绑定的ScopeFunctions
-    public static func createUnbound(globalThis: JSGlobalObject, mode: Mode, each: JSValue, cfg: BaseScopeCfg): JSValue {
+    public static func createUnbound(globalThis: JSGlobalObject, mode: Mode, each: JsValue, cfg: BaseScopeCfg): JsValue {
         let value = ScopeFunctions(mode: mode, cfg: cfg, each: each).toJS(global: globalThis)
         value.ensureStillAlive()
 
@@ -409,7 +409,7 @@ public class ScopeFunctions {
     /// 绑定
     ///
     /// 创建一个绑定了当前ScopeFunctions作为this的JS函数
-    public func bind(value: JSValue, globalThis: JSGlobalObject, name: String): JSValue {
+    public func bind(value: JsValue, globalThis: JSGlobalObject, name: String): JsValue {
         let callFn = JSFunction.create(global: globalThis, name: name, hostFn: callAsFunction, argCount: 1)
         let bound = JSValueTestExt.bind(
             value: callFn, global: globalThis,
@@ -421,7 +421,7 @@ public class ScopeFunctions {
     }
 
     /// 创建已绑定的ScopeFunctions
-    public static func createBound(globalThis: JSGlobalObject, mode: Mode, each: JSValue, cfg: BaseScopeCfg, name: String): JSValue {
+    public static func createBound(globalThis: JSGlobalObject, mode: Mode, each: JsValue, cfg: BaseScopeCfg, name: String): JsValue {
         let value = createUnbound(globalThis: globalThis, mode: mode, each: each, cfg: cfg)
         let scopeFunctions = ScopeFunctions(mode: mode, cfg: cfg, each: each)
         return scopeFunctions.bind(value: value, globalThis: globalThis, name: name)
@@ -451,9 +451,9 @@ public class ScopeFunctions {
         if (a1.isUndefinedOrNull()) { len = 0 }
 
         // 解析参数位置
-        var description: JSValue = JSValue.undefined
-        var callback: JSValue = JSValue.undefined
-        var options: JSValue = JSValue.undefined
+        var description: JsValue = JsValue.undefined
+        var callback: JsValue = JsValue.undefined
+        var options: JsValue = JsValue.undefined
 
         match (len) {
             case 3 =>
@@ -478,7 +478,7 @@ public class ScopeFunctions {
         }
 
         // 验证回调
-        var resultCallback: ?JSValue = None
+        var resultCallback: ?JsValue = None
         if (cfg.callback != CallbackMode.require && callback.isUndefinedOrNull()) {
             resultCallback = None
         } else if (callback.isFunction()) {
@@ -525,7 +525,7 @@ public class ScopeFunctions {
                     globalThis.`throw`(message: (signature) + "() expects repeats to be a number")
                     return ParseArgumentsResult()
                 }
-                if (result.options.retry != None && result.options.retry.getOrThrow() != 0) {
+                if (result.options.retry.isSome() && result.options.retry.getOrThrow() != 0) {
                     globalThis.`throw`(message: (signature) + "(): Cannot set both retry and repeats")
                     return ParseArgumentsResult()
                 }
@@ -541,7 +541,7 @@ public class ScopeFunctions {
         }
 
         // 设置默认retry
-        if (result.options.retry == None) {
+        if (result.options.retry.isNone()) {
             if (let Some(runner) <- Jest.runner) {
                 result.options.retry = runner.testOptions.retry
             }
@@ -574,12 +574,12 @@ public class ScopeFunctions {
     /// - 类: 使用类名
     /// - 函数: 使用函数名
     /// - 数字/字符串: 直接转换
-    private static func getDescription(globalThis: JSGlobalObject, description: JSValue, signature: Signature): ?String {
+    private static func getDescription(globalThis: JSGlobalObject, description: JsValue, signature: Signature): ?String {
         if (description.isEmpty()) { return None }
 
         if (description.isClass(global: globalThis)) {
             let className = description.getClassName(global: globalThis)
-            if (className.length > 0) {
+            if (className.size > 0) {
                 return className
             }
             let funcName = description.getName(global: globalThis)
@@ -588,7 +588,7 @@ public class ScopeFunctions {
 
         if (description.isFunction()) {
             let funcName = description.getName(global: globalThis)
-            if (funcName.length > 0) {
+            if (funcName.size > 0) {
                 return funcName
             }
         }
@@ -610,7 +610,7 @@ public class ScopeFunctions {
 
         var currentParent = parent
         while (let Some(scope) <- currentParent ){
-            if (scope.base.name == None) {
+            if (scope.base.name.isNone()) {
                 currentParent = scope.base.parent
                 continue
             }
@@ -674,7 +674,7 @@ public enum FunctionKind {
 /// 解析参数结果
 public class ParseArgumentsResult {
     public var description: ?String = None
-    public var callback: ?JSValue = None
+    public var callback: ?JsValue = None
     public var options: ParseArgumentsOptions = ParseArgumentsOptions()
 
     public init() {}

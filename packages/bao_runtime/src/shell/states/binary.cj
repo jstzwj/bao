@@ -77,7 +77,7 @@ public class BinaryState {
     /// 启动
     public func start(): Yield {
         this.currentlyExecuting = this.makeChild(true)
-        if (this.currentlyExecuting == None) {
+        if (this.currentlyExecuting.isNone()) {
             this.currentlyExecuting = this.makeChild(false)
             this.left = 0
         }
@@ -95,14 +95,14 @@ public class BinaryState {
         child.deinit()
         this.currentlyExecuting = None
 
-        if (this.left == None) {
+        if (this.left.isNone()) {
             this.left = exitCode
             // && 和 || 的短路逻辑
             if ((this.node.op == BinaryOp.and && exitCode != 0) || (this.node.op == BinaryOp.or && exitCode == 0)) {
                 return this.parent.childDone(this, exitCode)
             }
             this.currentlyExecuting = this.makeChild(false)
-            if (this.currentlyExecuting == None) {
+            if (this.currentlyExecuting.isNone()) {
                 this.right = 0
                 return this.parent.childDone(this, 0)
             }

@@ -58,7 +58,7 @@ public class BasenameCmd {
 
     /// 打印到缓冲区或直接输出
     func print(msg: String) {
-        if (this.bltn().stdout.needsIO() != None) {
+        if (this.bltn().stdout.needsIO().isSome()) {
             this.buf.appendAll(msg.toByteArray())
             return
         }

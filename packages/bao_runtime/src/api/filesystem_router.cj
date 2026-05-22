@@ -2,6 +2,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_core.*
 import bao_sys.*
 import bao_io.*
@@ -53,7 +54,7 @@ public class FileSystemRouter {
         var outBuf = PathBuffer()
 
         // style 参数
-        if (let styleVal = try arg.get(globalThis, "style")) {
+        if (let styleVal <- try arg.get(globalThis, "style")) {
             let styleStr = try styleVal.getZigString(globalThis)
             if (!styleStr.eqlComptime("nextjs")) {
                 return globalThis.throwInvalidArguments("Only 'nextjs' style is currently implemented")
@@ -63,7 +64,7 @@ public class FileSystemRouter {
         }
 
         // dir 参数
-        if (let dir = try arg.get(globalThis, "dir")) {
+        if (let dir <- try arg.get(globalThis, "dir")) {
             if (!dir.isString()) {
                 return globalThis.throwInvalidArguments("Expected dir to be a string")
             }
@@ -85,12 +86,12 @@ public class FileSystemRouter {
 
         // 创建 Arena 分配器
         var arena = globalThis.allocator().create(ArenaAllocator) catch { unreachable }
-        arena = ArenaAllocator.init(globalThis.allocator())
+        arena = ArenaAllocator(globalThis.allocator())
         let allocator = arena.allocator()
-        var extensions = ArrayList<String>.init(allocator)
+        var extensions = ArrayList<String>.`init`(allocator)
 
         // fileExtensions 参数
-        if (let fileExtensions = try arg.get(globalThis, "fileExtensions")) {
+        if (let fileExtensions <- try arg.get(globalThis, "fileExtensions")) {
             if (!fileExtensions.jsType().isArray()) {
                 originStr.deinit()
                 arena.deinit()
@@ -100,7 +101,7 @@ public class FileSystemRouter {
 
             var iter = try fileExtensions.arrayIterator(globalThis)
             extensions.ensureTotalCapacityPrecise(iter.len) catch { unreachable }
-            while (let val = try iter.next()) {
+            while (let val <- try iter.next()) {
                 if (!val.isString()) {
                     originStr.deinit()
                     arena.deinit()
@@ -113,7 +114,7 @@ public class FileSystemRouter {
         }
 
         // assetPrefix 参数
-        if (let assetPrefix = try arg.getTruthy(globalThis, "assetPrefix")) {
+        if (let assetPrefix <- try arg.getTruthy(globalThis, "assetPrefix")) {
             if (!assetPrefix.isString()) {
                 originStr.deinit()
                 arena.deinit()
@@ -125,7 +126,7 @@ public class FileSystemRouter {
         }
 
         let origLog = vm.transpiler.resolver.log
-        var log = Logger.Log.init(allocator)
+        var log = Logger.Log(allocator)
         vm.transpiler.resolver.log = log
         defer vm.transpiler.resolver.log = origLog
 
@@ -141,11 +142,11 @@ public class FileSystemRouter {
             originStr.deinit()
             arena.deinit()
             globalThis.allocator().destroy(arena)
-            return globalThis.throw("Unable to find directory: \{rootDirPath.slice()}")
+            return globalThis.`throw`("Unable to find directory: \{rootDirPath.slice()}")
         }
 
         // 初始化路由器
-        var router = Router.init(vm.transpiler.fs, allocator, RouterConfig{
+        var router = Router(vm.transpiler.fs, allocator, RouterConfig{
             dir = pathToUse,
             extensions = if (extensions.items.len > 0) extensions.items else DEFAULT_EXTENSIONS,
             asset_prefix_path = assetPrefixSlice.slice(),
@@ -160,7 +161,7 @@ public class FileSystemRouter {
         }
 
         // origin 参数
-        if (let origin = try arg.get(globalThis, "origin")) {
+        if (let origin <- try arg.get(globalThis, "origin")) {
             if (!origin.isString()) {
                 arena.deinit()
                 globalThis.allocator().destroy(arena)
@@ -205,8 +206,8 @@ public class FileSystemRouter {
 
     /// 获取 origin
     public func getOrigin(globalThis: JsGlobalObject): JsValue {
-        if (let origin = this.origin) {
-            return ZigString.init(origin.slice()).withEncoding().toJS(globalThis)
+        if (let origin <- this.origin) {
+            return ZigString(origin.slice()).withEncoding().toJS(globalThis)
         }
         return JsValue.jsNull()
     }
@@ -219,21 +220,21 @@ public class FileSystemRouter {
         defer default_allocator.free(nameStrings)
         var pathsStrings = nameStrings[names.len..]
         for ((name, i) in names.enumerated()) {
-            nameStrings[i] = ZigString.init(name).withEncoding()
-            pathsStrings[i] = ZigString.init(paths[i]).withEncoding()
+            nameStrings[i] = ZigString(name).withEncoding()
+            pathsStrings[i] = ZigString(paths[i]).withEncoding()
         }
         return JsValue.fromEntries(globalThis, nameStrings.ptr, pathsStrings.ptr, names.len, true)
     }
 
     /// 获取 style
     public func getStyle(globalThis: JsGlobalObject): JsValue {
-        return BunString.static("nextjs").toJS(globalThis)
+        return BunString.`static`("nextjs").toJS(globalThis)
     }
 
     /// 获取 assetPrefix
     public func getAssetPrefix(globalThis: JsGlobalObject): JsValue {
-        if (let assetPrefix = this.assetPrefix) {
-            return ZigString.init(assetPrefix.slice()).withEncoding().toJS(globalThis)
+        if (let assetPrefix <- this.assetPrefix) {
+            return ZigString(assetPrefix.slice()).withEncoding().toJS(globalThis)
         }
         return JsValue.jsNull()
     }
@@ -260,12 +261,12 @@ public class FileSystemRouter {
             }
 
             if (arg.isCell()) {
-                if (let req = arg.as(Request)) {
+                if (let req <- arg.as(Request)) {
                     req.ensureURL() catch { unreachable }
                     return req.url.toUTF8(globalThis.allocator())
                 }
 
-                if (let resp = arg.as(Response)) {
+                if (let resp <- arg.as(Response)) {
                     return resp.getUTF8Url(globalThis.allocator())
                 }
             }
@@ -287,7 +288,7 @@ public class FileSystemRouter {
         }
 
         let urlPath = URLPath.parse(path.slice()) catch { err =>
-            return globalThis.throw("\{err} parsing path: \{path.slice()}")
+            return globalThis.`throw`("\{err} parsing path: \{path.slice()}")
         }
 
         var params = Router.Param.List{}
@@ -302,7 +303,7 @@ public class FileSystemRouter {
             return JsValue.jsNull()
         }
 
-        var result = MatchedRoute.init(
+        var result = MatchedRoute(
             globalThis.allocator(),
             route,
             this.origin,
@@ -322,13 +323,13 @@ public class FileSystemRouter {
         let thisValue = callframe.this()
 
         var arena = globalThis.allocator().create(ArenaAllocator) catch { unreachable }
-        arena = ArenaAllocator.init(globalThis.allocator())
+        arena = ArenaAllocator(globalThis.allocator())
 
         var allocator = arena.allocator()
         var vm = globalThis.bunVM()
 
         let origLog = vm.transpiler.resolver.log
-        var log = Logger.Log.init(allocator)
+        var log = Logger.Log(allocator)
         vm.transpiler.resolver.log = log
         defer vm.transpiler.resolver.log = origLog
 
@@ -342,10 +343,10 @@ public class FileSystemRouter {
         } ?? {
             arena.deinit()
             globalThis.allocator().destroy(arena)
-            return globalThis.throw("Unable to find directory: \{this.router.config.dir}")
+            return globalThis.`throw`("Unable to find directory: \{this.router.config.dir}")
         }
 
-        var router = Router.init(vm.transpiler.fs, allocator, RouterConfig{
+        var router = Router(vm.transpiler.fs, allocator, RouterConfig{
             dir = allocator.dupe(UInt8, this.router.config.dir) catch { unreachable },
             extensions = allocator.dupe(String, this.router.config.extensions) catch { unreachable },
             asset_prefix_path = this.router.config.asset_prefix_path,
@@ -363,7 +364,7 @@ public class FileSystemRouter {
         globalThis.allocator().destroy(this.arena)
 
         this.arena = arena
-        this.js.routesSetCached(thisValue, globalThis, JsValue.zero)
+        this.js.routesSetCached(thisValue, globalThis, JsValue.jsUndefined())
         this.allocator = allocator
         this.router = router
         return thisValue
@@ -381,13 +382,13 @@ public class FileSystemRouter {
 
         let rootDirInfo = vm.transpiler.resolver.readDirInfo(path) catch { return }
 
-        if (let dir = rootDirInfo) {
-            if (let entries = dir.getEntriesConst()) {
+        if (let dir <- rootDirInfo) {
+            if (let entries <- dir.getEntriesConst()) {
                 var iter = entries.data.iterator()
-                while (let entryPtr = iter.next()) {
+                while (let entryPtr <- iter.next()) {
                     let entry = entryPtr.value_ptr
                     if (entry.base()[0] == '.') { continue }
-                    if (entry.kind(vm.transpiler.fs.fs, false) == .dir) {
+                    if (entry.kind(vm.transpiler.fs.fs, false) == dir) {
                         for (bannedDir in Router.banned_dirs) {
                             if (Strings.eqlComptime(entry.base(), bannedDir)) { continue }
                         }
@@ -407,9 +408,9 @@ public class FileSystemRouter {
 
     /// 终结化
     public func finalize() {
-        if (let prefix = this.assetPrefix) { prefix.deref() }
-        if (let prefix = this.origin) { prefix.deref() }
-        if (let dir = this.baseDir) { dir.deref() }
+        if (let prefix <- this.assetPrefix) { prefix.deref() }
+        if (let prefix <- this.origin) { prefix.deref() }
+        if (let dir <- this.baseDir) { dir.deref() }
 
         this.router.deinit()
         this.arena.deinit()
@@ -459,16 +460,16 @@ public class MatchedRoute {
         route.paramsListHolder = paramsList
         route.route = route.routeHolder
         route.routeHolder.params = route.paramsListHolder
-        if (let o = origin) { o.ref() }
-        if (let prefix = assetPrefix) { prefix.ref() }
+        if (let o <- origin) { o.ref() }
+        if (let prefix <- assetPrefix) { prefix.ref() }
 
         return route
     }
 
     /// 释放资源
     public func deinit() {
-        if (let map = this.queryStringMap) { map.deinit() }
-        if (let map = this.paramMap) { map.deinit() }
+        if (let map <- this.queryStringMap) { map.deinit() }
+        if (let map <- this.paramMap) { map.deinit() }
         if (this.needsDeinit) {
             if (this.route.pathname.len > 0 && Mimalloc.mi_is_in_heap_region(this.route.pathname.ptr)) {
                 Mimalloc.mi_free(this.route.pathname.ptr)
@@ -477,9 +478,9 @@ public class MatchedRoute {
             this.paramsListHolder = Router.Param.List{}
         }
 
-        if (let o = this.origin) { o.deref() }
-        if (let prefix = this.assetPrefix) { prefix.deref() }
-        if (let base = this.baseDir) { base.deref() }
+        if (let o <- this.origin) { o.deref() }
+        if (let prefix <- this.assetPrefix) { prefix.deref() }
+        if (let base <- this.baseDir) { base.deref() }
 
         default_allocator.destroy(this)
     }
@@ -490,22 +491,22 @@ public class MatchedRoute {
 
     /// 获取文件路径
     public func getFilePath(globalThis: JsGlobalObject): JsValue {
-        return ZigString.init(this.route.file_path).withEncoding().toJS(globalThis)
+        return ZigString(this.route.file_path).withEncoding().toJS(globalThis)
     }
 
     /// 获取路径名
     public func getPathname(globalThis: JsGlobalObject): JsValue {
-        return ZigString.init(this.route.pathname).withEncoding().toJS(globalThis)
+        return ZigString(this.route.pathname).withEncoding().toJS(globalThis)
     }
 
     /// 获取路由名
     public func getRoute(globalThis: JsGlobalObject): JsValue {
-        return ZigString.init(this.route.name).withEncoding().toJS(globalThis)
+        return ZigString(this.route.name).withEncoding().toJS(globalThis)
     }
 
     /// 获取名称
     public func getName(globalThis: JsGlobalObject): JsValue {
-        return ZigString.init(this.route.name).withEncoding().toJS(globalThis)
+        return ZigString(this.route.name).withEncoding().toJS(globalThis)
     }
 
     // ========================================================================
@@ -520,20 +521,20 @@ public class MatchedRoute {
 
         public static func initFunc(name: String): ZigString {
             if (Strings.contains(name, "[[")) {
-                return ZigString.init(OPTIONAL_CATCH_ALL)
+                return ZigString(OPTIONAL_CATCH_ALL)
             } else if (Strings.contains(name, "[...")) {
-                return ZigString.init(CATCH_ALL)
+                return ZigString(CATCH_ALL)
             } else if (Strings.contains(name, "[")) {
-                return ZigString.init(DYNAMIC)
+                return ZigString(DYNAMIC)
             } else {
-                return ZigString.init(EXACT)
+                return ZigString(EXACT)
             }
         }
     }
 
     /// 获取路由类型
     public func getKind(globalThis: JsGlobalObject): JsValue {
-        return KindEnum.init(this.route.name).toJS(globalThis)
+        return KindEnum(this.route.name).toJS(globalThis)
     }
 
     /// 获取参数
@@ -545,7 +546,7 @@ public class MatchedRoute {
         if (this.paramMap == null) {
             this.paramMap = try QueryStringMap.initWithScanner(
                 globalThis.allocator(),
-                CombinedScanner.init(
+                CombinedScanner(
                     "",
                     this.route.pathnameWithoutLeadingSlash(),
                     this.route.name,
@@ -567,18 +568,18 @@ public class MatchedRoute {
 
         if (this.queryStringMap == null) {
             if (this.route.params.len > 0) {
-                this.queryStringMap = try QueryStringMap.initWithScanner(globalThis.allocator(), CombinedScanner.init(
+                this.queryStringMap = try QueryStringMap.initWithScanner(globalThis.allocator(), CombinedScanner(
                     this.route.query_string,
                     this.route.pathnameWithoutLeadingSlash(),
                     this.route.name,
                     this.route.params,
                 ))
             } else {
-                this.queryStringMap = try QueryStringMap.init(globalThis.allocator(), this.route.query_string)
+                this.queryStringMap = try QueryStringMap(globalThis.allocator(), this.route.query_string)
             }
         }
 
-        if (let map = this.queryStringMap) {
+        if (let map <- this.queryStringMap) {
             return createQueryObject(globalThis, map)
         }
 
@@ -593,13 +594,13 @@ public class MatchedRoute {
 
         BunObject.getPublicPathWithAssetPrefix(
             this.route.file_path,
-            if (let baseDir = this.baseDir) baseDir.slice() else VirtualMachine.get().transpiler.fs.top_level_dir,
-            if (let origin = this.origin) URL.parse(origin.slice()) else URL{},
-            if (let prefix = this.assetPrefix) prefix.slice() else "",
+            if (let baseDir <- this.baseDir) baseDir.slice() else VirtualMachine.get().transpiler.fs.top_level_dir,
+            if (let origin <- this.origin) URL.parse(origin.slice()) else URL{},
+            if (let prefix <- this.assetPrefix) prefix.slice() else "",
             writer,
             .posix,
         )
-        return ZigString.init(buf[0..writer.context.pos]).withEncoding().toJS(globalThis)
+        return ZigString(buf[0..writer.context.pos]).withEncoding().toJS(globalThis)
     }
 
     /// 终结化
@@ -620,15 +621,15 @@ class QueryObjectCreator {
 
     public func create(obj: JsObject, global: JsGlobalObject) {
         var iter = this.query.iter()
-        while (let entry = iter.next()) {
+        while (let entry <- iter.next()) {
             let entryName = entry.name
-            var str = ZigString.init(entryName).withEncoding()
+            var str = ZigString(entryName).withEncoding()
 
             if (entry.values.len > 1) {
-                var values = entry.values.map { v => ZigString.init(v).withEncoding() }
+                var values = entry.values.map { v => ZigString(v).withEncoding() }
                 try obj.putRecord(global, str, values)
             } else {
-                let value = ZigString.init(entry.values[0]).withEncoding()
+                let value = ZigString(entry.values[0]).withEncoding()
                 try obj.putRecord(global, str, [value])
             }
         }

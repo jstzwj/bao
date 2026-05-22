@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toContainAnyValues() - 检查对象是否包含任一指定值
 /// 用法: expect(received).toContainAnyValues(expected)
-public func toContainAnyValues(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toContainAnyValues(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toContainAnyValues() takes 1 argument")
     }
 
@@ -25,7 +25,7 @@ public func toContainAnyValues(`this`: Expect, globalThis: JSGlobalObject, callF
         return globalThis.throwInvalidArgumentType("toContainAnyValues", argName: "expected", expectedType: "array")
     }
     expected.ensureStillAlive()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainAnyValues", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainAnyValues", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
     var pass = false

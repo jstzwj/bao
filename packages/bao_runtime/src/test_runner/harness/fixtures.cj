@@ -35,93 +35,93 @@ public class Fixtures {
     /// 示例路由列表 - 用于测试路由匹配
     public static func getSampleRouteList(): HashMap<String, String> {
         let map = HashMap<String, String>()
-        map["pages/[...catch-all-at-root].js"] = "//pages/[...catch-all-at-root].js"
-        map["pages/index.js"] = "//pages/index.js"
-        map["pages/Foo.js"] = "//pages/Foo.js"
-        map["pages/[TitleCaseParam].js"] = "//pages/[TitleCaseParam].js"
-        map["pages/[TitleCaseParam]/file.js"] = "//pages/[TitleCaseParam]/file.js"
-        map["pages/[TitleCaseParam]/[snake_case_param].js"] = "//pages/[TitleCaseParam]/[snake_case_param].js"
-        map["pages/[TitleCaseParam]/[snake_case_param]/file.js"] = "//pages/[TitleCaseParam]/[snake_case_param]/file.js"
-        map["pages/[TitleCaseParam]/[snake_case_param]/bacon/index.js"] = "//pages/[TitleCaseParam]/[snake_case_param]/bacon/index.js"
+        map.put("pages/[...catch-all-at-root].js", "//pages/[...catch-all-at-root].js")
+        map.put("pages/index.js", "//pages/index.js")
+        map.put("pages/Foo.js", "//pages/Foo.js")
+        map.put("pages/[TitleCaseParam].js", "//pages/[TitleCaseParam].js")
+        map.put("pages/[TitleCaseParam]/file.js", "//pages/[TitleCaseParam]/file.js")
+        map.put("pages/[TitleCaseParam]/[snake_case_param].js", "//pages/[TitleCaseParam]/[snake_case_param].js")
+        map.put("pages/[TitleCaseParam]/[snake_case_param]/file.js", "//pages/[TitleCaseParam]/[snake_case_param]/file.js")
+        map.put("pages/[TitleCaseParam]/[snake_case_param]/bacon/index.js", "//pages/[TitleCaseParam]/[snake_case_param]/bacon/index.js")
         return map
     }
 
     /// GitHub API路由列表 - 用于测试复杂路由匹配
     public static func getGithubApiRoutesList(): HashMap<String, String> {
         let map = HashMap<String, String>()
-        map["pages/index.js"] = "//pages/index.js"
-        map["pages/app.js"] = "//pages/app.js"
-        map["pages/app/installations.js"] = "//pages/app/installations.js"
-        map["pages/app/installations/[installation_id].js"] = "//pages/app/installations/[installation_id].js"
-        map["pages/apps/[app_slug].js"] = "//pages/apps/[app_slug].js"
-        map["pages/codes_of_conduct.js"] = "//pages/codes_of_conduct.js"
-        map["pages/codes_of_conduct/[key].js"] = "//pages/codes_of_conduct/[key].js"
-        map["pages/emojis.js"] = "//pages/emojis.js"
-        map["pages/events.js"] = "//pages/events.js"
-        map["pages/feeds.js"] = "//pages/feeds.js"
-        map["pages/gitignore/templates.js"] = "//pages/gitignore/templates.js"
-        map["pages/gitignore/templates/[name].js"] = "//pages/gitignore/templates/[name].js"
-        map["pages/installation/repositories.js"] = "//pages/installation/repositories.js"
-        map["pages/licenses.js"] = "//pages/licenses.js"
-        map["pages/licenses/[license].js"] = "//pages/licenses/[license].js"
-        map["pages/meta.js"] = "//pages/meta.js"
-        map["pages/octocat.js"] = "//pages/octocat.js"
-        map["pages/organizations.js"] = "//pages/organizations.js"
-        map["pages/rate_limit.js"] = "//pages/rate_limit.js"
-        map["pages/repositories.js"] = "//pages/repositories.js"
-        map["pages/search/code.js"] = "//pages/search/code.js"
-        map["pages/search/commits.js"] = "//pages/search/commits.js"
-        map["pages/search/issues.js"] = "//pages/search/issues.js"
-        map["pages/search/labels.js"] = "//pages/search/labels.js"
-        map["pages/search/repositories.js"] = "//pages/search/repositories.js"
-        map["pages/search/topics.js"] = "//pages/search/topics.js"
-        map["pages/search/users.js"] = "//pages/search/users.js"
-        map["pages/zen.js"] = "//pages/zen.js"
-        map["pages/repos/[owner]/[repo].js"] = "//pages/repos/[owner]/[repo].js"
-        map["pages/repos/[owner]/[repo]/contents/[path].js"] = "//pages/repos/[owner]/[repo]/contents/[path].js"
-        map["pages/repos/[owner]/[repo]/issues.js"] = "//pages/repos/[owner]/[repo]/issues.js"
-        map["pages/repos/[owner]/[repo]/pulls.js"] = "//pages/repos/[owner]/[repo]/pulls.js"
-        map["pages/repos/[owner]/[repo]/commits.js"] = "//pages/repos/[owner]/[repo]/commits.js"
-        map["pages/repos/[owner]/[repo]/branches.js"] = "//pages/repos/[owner]/[repo]/branches.js"
-        map["pages/repos/[owner]/[repo]/tags.js"] = "//pages/repos/[owner]/[repo]/tags.js"
-        map["pages/repos/[owner]/[repo]/releases.js"] = "//pages/repos/[owner]/[repo]/releases.js"
-        map["pages/repos/[owner]/[repo]/hooks.js"] = "//pages/repos/[owner]/[repo]/hooks.js"
-        map["pages/repos/[owner]/[repo]/deployments.js"] = "//pages/repos/[owner]/[repo]/deployments.js"
-        map["pages/repos/[owner]/[repo]/stargazers.js"] = "//pages/repos/[owner]/[repo]/stargazers.js"
-        map["pages/repos/[owner]/[repo]/contributors.js"] = "//pages/repos/[owner]/[repo]/contributors.js"
+        map.put("pages/index.js", "//pages/index.js")
+        map.put("pages/app.js", "//pages/app.js")
+        map.put("pages/app/installations.js", "//pages/app/installations.js")
+        map.put("pages/app/installations/[installation_id].js", "//pages/app/installations/[installation_id].js")
+        map.put("pages/apps/[app_slug].js", "//pages/apps/[app_slug].js")
+        map.put("pages/codes_of_conduct.js", "//pages/codes_of_conduct.js")
+        map.put("pages/codes_of_conduct/[key].js", "//pages/codes_of_conduct/[key].js")
+        map.put("pages/emojis.js", "//pages/emojis.js")
+        map.put("pages/events.js", "//pages/events.js")
+        map.put("pages/feeds.js", "//pages/feeds.js")
+        map.put("pages/gitignore/templates.js", "//pages/gitignore/templates.js")
+        map.put("pages/gitignore/templates/[name].js", "//pages/gitignore/templates/[name].js")
+        map.put("pages/installation/repositories.js", "//pages/installation/repositories.js")
+        map.put("pages/licenses.js", "//pages/licenses.js")
+        map.put("pages/licenses/[license].js", "//pages/licenses/[license].js")
+        map.put("pages/meta.js", "//pages/meta.js")
+        map.put("pages/octocat.js", "//pages/octocat.js")
+        map.put("pages/organizations.js", "//pages/organizations.js")
+        map.put("pages/rate_limit.js", "//pages/rate_limit.js")
+        map.put("pages/repositories.js", "//pages/repositories.js")
+        map.put("pages/search/code.js", "//pages/search/code.js")
+        map.put("pages/search/commits.js", "//pages/search/commits.js")
+        map.put("pages/search/issues.js", "//pages/search/issues.js")
+        map.put("pages/search/labels.js", "//pages/search/labels.js")
+        map.put("pages/search/repositories.js", "//pages/search/repositories.js")
+        map.put("pages/search/topics.js", "//pages/search/topics.js")
+        map.put("pages/search/users.js", "//pages/search/users.js")
+        map.put("pages/zen.js", "//pages/zen.js")
+        map.put("pages/repos/[owner]/[repo].js", "//pages/repos/[owner]/[repo].js")
+        map.put("pages/repos/[owner]/[repo]/contents/[path].js", "//pages/repos/[owner]/[repo]/contents/[path].js")
+        map.put("pages/repos/[owner]/[repo]/issues.js", "//pages/repos/[owner]/[repo]/issues.js")
+        map.put("pages/repos/[owner]/[repo]/pulls.js", "//pages/repos/[owner]/[repo]/pulls.js")
+        map.put("pages/repos/[owner]/[repo]/commits.js", "//pages/repos/[owner]/[repo]/commits.js")
+        map.put("pages/repos/[owner]/[repo]/branches.js", "//pages/repos/[owner]/[repo]/branches.js")
+        map.put("pages/repos/[owner]/[repo]/tags.js", "//pages/repos/[owner]/[repo]/tags.js")
+        map.put("pages/repos/[owner]/[repo]/releases.js", "//pages/repos/[owner]/[repo]/releases.js")
+        map.put("pages/repos/[owner]/[repo]/hooks.js", "//pages/repos/[owner]/[repo]/hooks.js")
+        map.put("pages/repos/[owner]/[repo]/deployments.js", "//pages/repos/[owner]/[repo]/deployments.js")
+        map.put("pages/repos/[owner]/[repo]/stargazers.js", "//pages/repos/[owner]/[repo]/stargazers.js")
+        map.put("pages/repos/[owner]/[repo]/contributors.js", "//pages/repos/[owner]/[repo]/contributors.js")
         return map
     }
 
     /// Vercel路由列表
     public static func getVercelRoutesList(): HashMap<String, String> {
         let map = HashMap<String, String>()
-        map["pages/index.js"] = "// pages/index.js"
-        map["pages/404.js"] = "// pages/404.js"
-        map["pages/_app.js"] = "// pages/_app.js"
-        map["pages/_error.js"] = "// pages/_error.js"
-        map["pages/_flags.js"] = "// pages/_flags.js"
-        map["pages/about.js"] = "// pages/about.js"
-        map["pages/blog.js"] = "// pages/blog.js"
-        map["pages/careers.js"] = "// pages/careers.js"
-        map["pages/contact.js"] = "// pages/contact.js"
-        map["pages/dashboard.js"] = "// pages/dashboard.js"
-        map["pages/domains.js"] = "// pages/domains.js"
-        map["pages/home.js"] = "// pages/home.js"
-        map["pages/login/[[...mode]].js"] = "// pages/login/[[...mode]].js"
-        map["pages/new.js"] = "// pages/new.js"
-        map["pages/pricing.js"] = "// pages/pricing.js"
-        map["pages/teams.js"] = "// pages/teams.js"
-        map["pages/teams/connect.js"] = "// pages/teams/connect.js"
-        map["pages/teams/create.js"] = "// pages/teams/create.js"
-        map["pages/teams/invite.js"] = "// pages/teams/invite.js"
-        map["pages/support/request.js"] = "// pages/support/request.js"
-        map["pages/[teamSlug].js"] = "// pages/[teamSlug].js"
-        map["pages/[teamSlug]/[project].js"] = "// pages/[teamSlug]/[project].js"
-        map["pages/[teamSlug]/[project]/[id].js"] = "// pages/[teamSlug]/[project]/[id].js"
-        map["pages/[teamSlug]/[project]/deployments.js"] = "// pages/[teamSlug]/[project]/deployments.js"
-        map["pages/[teamSlug]/[project]/domains.js"] = "// pages/[teamSlug]/[project]/domains.js"
-        map["pages/[teamSlug]/[project]/insights.js"] = "// pages/[teamSlug]/[project]/insights.js"
-        map["pages/[teamSlug]/[project]/settings.js"] = "// pages/[teamSlug]/[project]/settings.js"
+        map.put("pages/index.js", "// pages/index.js")
+        map.put("pages/404.js", "// pages/404.js")
+        map.put("pages/_app.js", "// pages/_app.js")
+        map.put("pages/_error.js", "// pages/_error.js")
+        map.put("pages/_flags.js", "// pages/_flags.js")
+        map.put("pages/about.js", "// pages/about.js")
+        map.put("pages/blog.js", "// pages/blog.js")
+        map.put("pages/careers.js", "// pages/careers.js")
+        map.put("pages/contact.js", "// pages/contact.js")
+        map.put("pages/dashboard.js", "// pages/dashboard.js")
+        map.put("pages/domains.js", "// pages/domains.js")
+        map.put("pages/home.js", "// pages/home.js")
+        map.put("pages/login/[[...mode]].js", "// pages/login/[[...mode]].js")
+        map.put("pages/new.js", "// pages/new.js")
+        map.put("pages/pricing.js", "// pages/pricing.js")
+        map.put("pages/teams.js", "// pages/teams.js")
+        map.put("pages/teams/connect.js", "// pages/teams/connect.js")
+        map.put("pages/teams/create.js", "// pages/teams/create.js")
+        map.put("pages/teams/invite.js", "// pages/teams/invite.js")
+        map.put("pages/support/request.js", "// pages/support/request.js")
+        map.put("pages/[teamSlug].js", "// pages/[teamSlug].js")
+        map.put("pages/[teamSlug]/[project].js", "// pages/[teamSlug]/[project].js")
+        map.put("pages/[teamSlug]/[project]/[id].js", "// pages/[teamSlug]/[project]/[id].js")
+        map.put("pages/[teamSlug]/[project]/deployments.js", "// pages/[teamSlug]/[project]/deployments.js")
+        map.put("pages/[teamSlug]/[project]/domains.js", "// pages/[teamSlug]/[project]/domains.js")
+        map.put("pages/[teamSlug]/[project]/insights.js", "// pages/[teamSlug]/[project]/insights.js")
+        map.put("pages/[teamSlug]/[project]/settings.js", "// pages/[teamSlug]/[project]/settings.js")
         return map
     }
 }

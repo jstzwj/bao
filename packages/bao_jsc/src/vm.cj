@@ -9,6 +9,15 @@ public enum JsCompileMode {
     | Module      // ES Module
     | Eval        // eval 代码
     | Json        // JSON
+
+    public func toString(): String {
+        match (this) {
+            case Script => "Script"
+            case Module => "Module"
+            case Eval => "Eval"
+            case Json => "Json"
+        }
+    }
 }
 
 // JS 执行上下文 - 严格翻译自 JavaScriptCore.zig Context
@@ -30,16 +39,16 @@ public class JsContext {
     // 设置全局对象的内置属性
     func setupGlobalObject() {
         // globalThis
-        globalObject.set("globalThis", JsValue(obj: globalObject))
+        globalObject.set("globalThis", JsValue(globalObject))
         // undefined/null
         globalObject.set("undefined", JsValue.undefined())
-        globalObject.set("NaN", JsValue(n: Float64.NaN))
-        globalObject.set("Infinity", JsValue(n: Float64.PositiveInfinity))
+        globalObject.set("NaN", JsValue(0.0 / 0.0))
+        globalObject.set("Infinity", JsValue(1.0 / 0.0))
 
         // console
         let consoleObj = JsObject.make()
         consoleObj.className = "Console"
-        globalObject.set("console", JsValue(obj: consoleObj))
+        globalObject.set("console", JsValue(consoleObj))
 
         // 内置构造函数
         setupBuiltins()
@@ -49,24 +58,24 @@ public class JsContext {
         let mathObj = JsObject.make()
         mathObj.className = "Math"
         setupMathObject(mathObj)
-        globalObject.set("Math", JsValue(obj: mathObj))
+        globalObject.set("Math", JsValue(mathObj))
 
         let jsonObj = JsObject.make()
         jsonObj.className = "JSON"
-        globalObject.set("JSON", JsValue(obj: jsonObj))
+        globalObject.set("JSON", JsValue(jsonObj))
     }
 
     func setupMathObject(mathObj: JsObject) {
-        mathObj.set("PI", JsValue(n: 3.141592653589793))
-        mathObj.set("E", JsValue(n: 2.718281828459045))
-        mathObj.set("LN2", JsValue(n: 0.6931471805599453))
-        mathObj.set("LN10", JsValue(n: 2.302585092994046))
-        mathObj.set("LOG2E", JsValue(n: 1.4426950408889634))
-        mathObj.set("LOG10E", JsValue(n: 0.4342944819032518))
-        mathObj.set("SQRT2", JsValue(n: 1.4142135623730951))
-        mathObj.set("SQRT1_2", JsValue(n: 0.7071067811865476))
-        mathObj.set("MAX_SAFE_INTEGER", JsValue(n: 9007199254740991.0))
-        mathObj.set("MIN_SAFE_INTEGER", JsValue(n: -9007199254740991.0))
+        mathObj.set("PI", JsValue(3.141592653589793))
+        mathObj.set("E", JsValue(2.718281828459045))
+        mathObj.set("LN2", JsValue(0.6931471805599453))
+        mathObj.set("LN10", JsValue(2.302585092994046))
+        mathObj.set("LOG2E", JsValue(1.4426950408889634))
+        mathObj.set("LOG10E", JsValue(0.4342944819032518))
+        mathObj.set("SQRT2", JsValue(1.4142135623730951))
+        mathObj.set("SQRT1_2", JsValue(0.7071067811865476))
+        mathObj.set("MAX_SAFE_INTEGER", JsValue(9007199254740991.0))
+        mathObj.set("MIN_SAFE_INTEGER", JsValue(-9007199254740991.0))
     }
 
     // 在上下文中执行脚本
@@ -101,7 +110,7 @@ public class JsVirtualMachine {
 
     // 创建执行上下文
     public func createContext(): JsContext {
-        JsContext(vm: this)
+        JsContext(this)
     }
 
     // 执行脚本 - 严格翻译自 JavaScriptCore.zig evaluateScript
@@ -124,8 +133,9 @@ public class JsVirtualMachine {
     func compile(code: String, sourceUrl: String, mode: JsCompileMode): JsModule {
         // 检查缓存
         let cacheKey = sourceUrl + ":" + mode.toString()
-        if (let Some(cached) <- compileCache.get(cacheKey)) {
-            return cached
+        let cachedResult = compileCache.get(cacheKey)
+        if (cachedResult.isSome()) {
+            return cachedResult.getOrThrow()
         }
         // 创建模块
         let module = JsModule(sourceUrl, code, mode)
@@ -146,13 +156,13 @@ public class JsVirtualMachine {
     }
 
     // 排队微任务 - 严格翻译自 VM.zig queueMicrotask
-    public func queueMicrotask(task: (): Unit) {
+    public func queueMicrotask(task: () -> Unit) {
         microtaskQueue.enqueue(task)
     }
 
     // 排队微任务 (JsValue 版本)
     public func queueMicrotaskCallback(callback: JsFunction, args: Array<JsValue>) {
-        microtaskQueue.enqueue({
+        microtaskQueue.enqueue({ =>
             callback.call(JsValue.undefined(), args)
         })
     }
@@ -186,10 +196,10 @@ public class JsVirtualMachine {
     // 堆统计
     public func heapStats(): HeapStats {
         HeapStats(
-            totalSize: heapSize,
-            usedSize: 0,  // 由 GC 子系统填充
-            collectionCount: 0,
-            lastCollectionTime: 0.0
+            heapSize,
+            0,  // 由 GC 子系统填充
+            0,
+            0.0
         )
     }
 }
@@ -223,11 +233,7 @@ public class JsModule {
 
     // 获取所有导出名
     public func getExportNames(): Array<String> {
-        var names = Array<String>()
-        for ((name, _)) in exports {
-            names.append(name)
-        }
-        names
+        exports.keys()
     }
 
     // 获取命名空间对象

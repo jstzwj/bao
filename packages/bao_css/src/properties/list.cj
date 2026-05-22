@@ -19,13 +19,13 @@ import bao_collections.*
 /// list-style-type 属性值
 /// 严格翻译自 ListStyleType
 public enum ListStyleType {
-    | None                     // 无标记
+    | NoneValue                     // 无标记
     | Str(String)              // 显式标记字符串
     | CounterStyleVal(CounterStyle) // 命名计数器样式
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Str(s) => s
             case CounterStyleVal(cs) => cs.toCss()
         }

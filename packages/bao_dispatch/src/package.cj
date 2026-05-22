@@ -246,7 +246,7 @@ public class LinkInterface {
 // ============================================================================
 
 /// 实现函数类型
-public typealias DispatchFn = (CPointer<Unit>) -> Unit
+public type DispatchFn = (CPointer<Unit>) -> Unit
 
 /// 链接实现注册表 - 管理 link_impl 注册的实现
 public class LinkImpl {

@@ -30,7 +30,7 @@ public class ErrorReportRequest {
 
     /// 运行错误报告请求
     public static func run(dev: DevServer, req: Request, resp: AnyResponse): Unit {
-        let ctx = ErrorReportRequest(dev, BodyReaderMixin.`init`(dev.allocator()))
+        let ctx = ErrorReportRequest(dev, BodyReaderMixin(dev.allocator()))
         ctx.dev.server.getOrThrow().onPendingRequest()
         ctx.body.readBody(resp)
     }
@@ -56,8 +56,8 @@ public class ErrorReportRequest {
         var sfa_general = StackFallback(65536, dev.allocator())
         var sfa_sourcemap = StackFallback(65536, dev.allocator())
         let temp_alloc = sfa_general.get()
-        var arena = ArenaAllocator.`init`(temp_alloc)
-        var source_map_arena = ArenaAllocator.`init`(sfa_sourcemap.get())
+        var arena = ArenaAllocator(temp_alloc)
+        var source_map_arena = ArenaAllocator(sfa_sourcemap.get())
 
         // 读取载荷，组装 ZigException
         let name = readString32(reader, temp_alloc)
@@ -88,7 +88,7 @@ public class ErrorReportRequest {
             let gop = parsed_source_maps.getOrPut(temp_alloc, id)
             if (!gop.found_existing) {
                 let psm = dev.source_maps.getParsedSourceMap(id, source_map_arena.allocator(), temp_alloc)
-                if (psm == None) {
+                if (psm.isNone()) {
                     gop.value_ptr = None
                     continue
                 }
@@ -105,9 +105,9 @@ public class ErrorReportRequest {
                     line_start_byte: 0,
                 )
                 let index = remapped_position.source_index
-                if (index >= 1 && (index - 1) < result.file_paths.length) {
+                if (index >= 1 && (index - 1) < result.file_paths.size) {
                     let abs_path = result.file_paths[index - 1]
-                    frame.source_url = ZigString.`init`(abs_path)
+                    frame.source_url = ZigString(abs_path)
                     frame.remapped = true
                 }
             }
@@ -133,15 +133,15 @@ public class ErrorReportRequest {
             w.writeInt(frame.position.line.oneBased())
             w.writeInt(frame.position.column.oneBased())
             let function_name = frame.function_name.value.ZigString.slice()
-            w.writeInt(function_name.length)
+            w.writeInt(function_name.size)
             w.writeAll(function_name)
             let src = frame.source_url.value.ZigString.slice()
             if (bun.strings.hasPrefixComptime(src, "/")) {
                 let file = dev.relativePath(src)
-                w.writeInt(file.length)
+                w.writeInt(file.size)
                 w.writeAll(file)
             } else {
-                w.writeInt(src.length)
+                w.writeInt(src.size)
                 w.writeAll(src)
             }
         }
@@ -156,23 +156,23 @@ public class ErrorReportRequest {
         if (!bun.strings.startsWith(source_url, browser_url)) {
             return None
         }
-        let after_host = source_url.slice(bun.strings.withoutTrailingSlash(browser_url).length)
+        let after_host = source_url.slice(bun.strings.withoutTrailingSlash(browser_url).size)
         if (!bun.strings.hasPrefixComptime(after_host, DevServer.CLIENT_PREFIX + "/")) {
             return None
         }
-        let after_prefix = after_host.slice(DevServer.CLIENT_PREFIX.length + 1)
+        let after_prefix = after_host.slice(DevServer.CLIENT_PREFIX.size + 1)
         if (!bun.strings.hasSuffixComptime(after_prefix, ".js")) {
             return None
         }
-        let min_len = "00000000FFFFFFFF.js".length
-        if (after_prefix.length < min_len) {
+        let min_len = "00000000FFFFFFFF.js".size
+        if (after_prefix.size < min_len) {
             return None
         }
-        let hex = after_prefix.slice(after_prefix.length - min_len, after_prefix.length - min_len + 16)
-        if (hex.length != 16) {
+        let hex = after_prefix.slice(after_prefix.size - min_len, after_prefix.size - min_len + 16)
+        if (hex.size != 16) {
             return None
         }
-        return SourceMapStore.Key.`init`(DevServer.parseHexToInt<UInt64>(hex) ?? return None)
+        return SourceMapStore.Key(DevServer.parseHexToInt<UInt64>(hex) ?? return None)
     }
 
     /// 提取 JSON 编码的源代码

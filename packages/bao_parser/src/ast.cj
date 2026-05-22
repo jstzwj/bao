@@ -194,6 +194,16 @@ public class Expr {
     public var jsxProps: ArrayList<GProperty>
     public var jsxChildren: ArrayList<Expr>
 
+    // --- Side-effect analysis flags ---
+    /// 是否可以在未使用时安全移除 - 对应 Bun E.Dot.can_be_removed_if_unused
+    public var canBeRemovedIfUnused: Bool
+    /// with 语句中是否必须保留 - 对应 Bun E.Identifier.must_keep_due_to_with_stmt
+    public var mustKeepDueToWithStmt: Bool
+    /// typeof 标识符标记 - 对应 Bun E.Unary.was_originally_typeof_identifier
+    public var wasOriginallyTypeofIdentifier: Bool
+    /// __PURE__ 标注 - 对应 Bun E.Call.can_be_unwrapped_if_unused
+    public var canBeUnwrappedIfUnused: CanBeUnwrapped
+
     public init(loc: Loc, tag: ExprTag) {
         this.loc = loc
         this.tag = tag
@@ -225,6 +235,10 @@ public class Expr {
         jsxTag = None
         jsxProps = ArrayList<GProperty>()
         jsxChildren = ArrayList<Expr>()
+        canBeRemovedIfUnused = false
+        mustKeepDueToWithStmt = false
+        wasOriginallyTypeofIdentifier = false
+        canBeUnwrappedIfUnused = CanBeUnwrapped.Never
     }
 
     public init() {
@@ -233,7 +247,7 @@ public class Expr {
 
     // === 工厂方法 (对应 Bun 中 p.e 的各种分配方法) ===
 
-    /// 创建布尔表达式 - 对应 Bun Expr.init(E.Boolean, .{ .value = v }, loc)
+    /// 创建布尔表达式 - 对应 Bun Expr(E.Boolean, .{ .value = v }, loc)
     public static func bool_(loc: Loc, value: Bool): Expr {
         let e = Expr(loc, ExprTag.Boolean)
         e.boolValue = value
@@ -584,6 +598,8 @@ public class Stmt {
     public var importPath: String
     /// 导入默认名称
     public var defaultName: String
+    /// 默认名称引用 - 对应 S.Import.default_name_ref
+    public var defaultNameRef: Ref
 
     // --- 异常处理 ---
     /// catch 子句 - 对应 S.Try.catch_
@@ -618,12 +634,14 @@ public class Stmt {
     public var clauseItems: ArrayList<ClauseItem>
     public var isSingleLine: Bool
     public var starNameLoc: ?Loc
+    public var defaultNameLoc: ?LocRef
     public var localKind: LocalKind
     public var funcNameRef: Ref
     public var funcNameLoc: Loc
     public var classNameRef: Ref
     public var classNameLoc: Loc
     public var labelRef: ?Ref
+    public var exportStarAlias: ?String
     public var innerStmt: ?Stmt
     public var bodyLoc: Loc
     public var bodyStmts: ArrayList<Stmt>
@@ -640,6 +658,34 @@ public class Stmt {
     public var innerStmtVal: ?Stmt
     public var isAsync: Bool
     public var isGenerator: Bool
+
+    // --- scan_imports / visit_stmt 兼容字段 ---
+    /// 导出项 (clauseItems 的别名) - 用于 export/export_from
+    public var exportItems: ArrayList<ClauseItem>
+    /// 是否为 TS import-equals - 对应 S.Local.was_ts_import_equals
+    public var wasTsImportEquals: Bool
+    /// 函数开括号位置 - 对应 S.Function.open_parens_loc
+    public var funcOpenParensLoc: Loc
+    /// 类体位置 - 对应 S.Class.body_loc
+    public var classBodyLoc: Loc
+    /// 表达式值 - 用于 ExportDefault
+    public var exprValue: ?Expr
+    /// 函数数据 (fn 别名) - 用于 visit_stmt
+    public var functionValue: ?GFn
+    /// 类数据 (classData 别名) - 用于 visit_stmt
+    public var classValue: ?GClass
+    /// 函数名 (fn.name 的快捷方式)
+    public var funcName: String
+    /// 函数引用 (funcNameRef 别名)
+    public var funcRef: Ref
+    /// 函数位置 (funcNameLoc 别名)
+    public var funcLoc: Loc
+    /// 类名 (classData.name 的快捷方式)
+    public var className: String
+    /// 类引用 (classNameRef 别名)
+    public var classRef: Ref
+    /// 类位置 (classNameLoc 别名)
+    public var classLoc: Loc
 
     public init(loc: Loc, tag: StmtTag) {
         this.loc = loc
@@ -660,6 +706,7 @@ public class Stmt {
         importItems = ArrayList<ClauseItem>()
         importPath = ""
         defaultName = ""
+        defaultNameRef = Ref.NONE
         catchBody = None
         catchBinding = None
         finallyBody = None
@@ -686,12 +733,14 @@ public class Stmt {
         clauseItems = ArrayList<ClauseItem>()
         isSingleLine = true
         starNameLoc = None
+        defaultNameLoc = None
         localKind = LocalKind.Var
         funcNameRef = Ref.NONE
         funcNameLoc = Loc.EMPTY
         classNameRef = Ref.NONE
         classNameLoc = Loc.EMPTY
         labelRef = None
+        exportStarAlias = None
         innerStmt = None
         bodyLoc = Loc.EMPTY
         bodyStmts = ArrayList<Stmt>()
@@ -708,6 +757,19 @@ public class Stmt {
         innerStmtVal = None
         isAsync = false
         isGenerator = false
+        exportItems = ArrayList<ClauseItem>()
+        wasTsImportEquals = false
+        funcOpenParensLoc = Loc.EMPTY
+        classBodyLoc = Loc.EMPTY
+        exprValue = None
+        functionValue = None
+        classValue = None
+        funcName = ""
+        funcRef = Ref.NONE
+        funcLoc = Loc.EMPTY
+        className = ""
+        classRef = Ref.NONE
+        classLoc = Loc.EMPTY
     }
 
     public init() {
@@ -926,6 +988,15 @@ public enum BindingTag {
     | Array         // b_array
     | Object        // b_object
     | Missing       // b_missing
+
+    public operator func ==(right: BindingTag): Bool {
+        match (this) {
+            case Identifier => match (right) { case Identifier => true case _ => false }
+            case Array => match (right) { case Array => true case _ => false }
+            case Object => match (right) { case Object => true case _ => false }
+            case Missing => match (right) { case Missing => true case _ => false }
+        }
+    }
 }
 
 /// 绑定节点 - 对应 Bun Binding
@@ -1094,6 +1165,20 @@ public enum GPropertyKind {
     | Method
     | Field
     | Spread
+
+    public func toInt(): Int64 {
+        match (this) {
+            case Getter => 0
+            case Setter => 1
+            case Method => 2
+            case Field => 3
+            case Spread => 4
+        }
+    }
+
+    public operator func ==(right: GPropertyKind): Bool {
+        this.toInt() == right.toInt()
+    }
 }
 
 /// 属性标志 - 对应 Bun Flags.Property
@@ -1121,6 +1206,9 @@ public class GProperty {
     public var kind: GPropertyKind
     public var flags: GPropertyFlags
     public var loc: Loc
+    public var decorators: ArrayList<Expr>
+    public var ref: Ref
+    public var initializer: ?Expr
 
     public init(loc: Loc, key: String, value: ?Expr) {
         this.loc = loc
@@ -1129,6 +1217,9 @@ public class GProperty {
         this.value = value
         kind = GPropertyKind.Field
         flags = GPropertyFlags()
+        decorators = ArrayList<Expr>()
+        ref = Ref.NONE
+        initializer = None
     }
 
     /// 创建方法属性
@@ -1314,6 +1405,29 @@ public enum ScopeKind {
     | Module
     | Entry            // 命名空间/枚举入口
     | EntryBlock       // 模块入口块
+
+    public operator func ==(right: ScopeKind): Bool {
+        match (this) {
+            case Block => match (right) { case Block => true case _ => false }
+            case With => match (right) { case With => true case _ => false }
+            case Label => match (right) { case Label => true case _ => false }
+            case ClassName => match (right) { case ClassName => true case _ => false }
+            case ClassBody => match (right) { case ClassBody => true case _ => false }
+            case ClassStaticInit => match (right) { case ClassStaticInit => true case _ => false }
+            case CatchBinding => match (right) { case CatchBinding => true case _ => false }
+            case FunctionArgs => match (right) { case FunctionArgs => true case _ => false }
+            case FunctionBody => match (right) { case FunctionBody => true case _ => false }
+            case Function => match (right) { case Function => true case _ => false }
+            case ArrowFunction => match (right) { case ArrowFunction => true case _ => false }
+            case Module => match (right) { case Module => true case _ => false }
+            case Entry => match (right) { case Entry => true case _ => false }
+            case EntryBlock => match (right) { case EntryBlock => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ScopeKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// 作用域成员
@@ -1345,6 +1459,8 @@ public class Scope {
     public var containsDirectEval: Bool
     /// 严格模式
     public var strictMode: StrictModeKind
+    /// 是否在 const local prefix 之后 - 对应 Bun Scope.is_after_const_local_prefix
+    public var isAfterConstLocalPrefix: Bool
 
     public init(id: Int64, kind: ScopeKind) {
         this.id = id
@@ -1355,6 +1471,7 @@ public class Scope {
         memberMap = HashMap<String, Ref>()
         containsDirectEval = false
         strictMode = StrictModeKind.SloppyMode
+        isAfterConstLocalPrefix = false
     }
 
     public init(kind: ScopeKind, parent: ArrayList<Scope>) {
@@ -1366,6 +1483,17 @@ public class Scope {
         memberMap = HashMap<String, Ref>()
         containsDirectEval = false
         strictMode = StrictModeKind.SloppyMode
+        isAfterConstLocalPrefix = false
+    }
+
+    /// 兼容 scan_symbols - 计算成员名称哈希
+    public static func getMemberHash(name: String): UInt64 {
+        // 简单 DJB2 哈希
+        var hash: UInt64 = 5381
+        for (i in 0..name.size) {
+            hash = hash * UInt64(33) + UInt64(name[i])
+        }
+        return hash
     }
 }
 
@@ -1398,6 +1526,40 @@ public enum SymbolKind {
     | PrivateStaticSet   // 静态私有 setter
     | Ref
 
+    public func toInt(): Int64 {
+        match (this) {
+            case Unbound => 0
+            case Import => 1
+            case Export => 2
+            case Resolved => 3
+            case Constant => 4
+            case Let => 5
+            case Var => 6
+            case Hoisted => 7
+            case HoistedFunction => 8
+            case Class => 9
+            case Label => 10
+            case Other => 11
+            case Private => 12
+            case PrivateStatic => 13
+            case PrivateMethod => 14
+            case PrivateStaticMethod => 15
+            case PrivateGet => 16
+            case PrivateSet => 17
+            case PrivateStaticGet => 18
+            case PrivateStaticSet => 19
+            case Ref => 20
+        }
+    }
+
+    public operator func ==(right: SymbolKind): Bool {
+        return this.toInt() == right.toInt()
+    }
+
+    public operator func !=(right: SymbolKind): Bool {
+        return !(this == right)
+    }
+
     /// 是否为私有成员类型
     public func isPrivate(): Bool {
         match (this) {
@@ -1421,12 +1583,24 @@ public class Symbol {
     public var useCountEstimate: Int64
     /// 符号类型
     public var kind: SymbolKind
+    /// 链接引用 - 对应 Bun Symbol.link
+    public var link: Ref
+    /// 是否已被赋值 - 对应 Bun Symbol.has_been_assigned_to
+    public var hasBeenAssignedTo: Bool
+    /// 命名空间别名引用 - 对应 Bun Symbol.namespace_alias.namespace_ref
+    public var namespaceAliasRef: Ref
+    /// 命名空间别名导入记录索引 - 对应 Bun Symbol.namespace_alias.import_record_index
+    public var namespaceAliasImportRecordIndex: UInt32
 
     public init(name: String, ref: Ref) {
         this.originalName = name
         this.ref = ref
         useCountEstimate = 0
         kind = SymbolKind.Other
+        namespaceAliasRef = Ref.NONE
+        namespaceAliasImportRecordIndex = 0
+        link = Ref.NONE
+        hasBeenAssignedTo = false
     }
 
     public init(kind: SymbolKind, name: String, ref: Ref) {
@@ -1434,5 +1608,9 @@ public class Symbol {
         this.originalName = name
         this.ref = ref
         useCountEstimate = 0
+        namespaceAliasRef = Ref.NONE
+        namespaceAliasImportRecordIndex = 0
+        link = Ref.NONE
+        hasBeenAssignedTo = false
     }
 }

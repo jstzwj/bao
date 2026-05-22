@@ -17,7 +17,7 @@ import bao_collections.*
 /// filter / backdrop-filter 属性值
 /// 严格翻译自 FilterList
 public enum FilterList {
-    | None                       // "none"
+    | NoneValue                       // "none"
     | Filters(ArrayList<Filter>) // 滤镜函数列表
 
     private func filtersToCss(filters: ArrayList<Filter>): String {
@@ -37,7 +37,7 @@ public enum FilterList {
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Filters(filters) => filtersToCss(filters)
         }
     }

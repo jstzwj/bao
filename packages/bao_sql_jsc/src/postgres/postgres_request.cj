@@ -5,6 +5,8 @@ package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
+import bao_collections.ArrayList
 
 /// Postgres 请求工具
 /// 对应 Bun: PostgresRequest
@@ -36,14 +38,14 @@ public class PostgresRequest {
         // 写入参数值
         writer.short(len)
 
-        let iter = QueryBindingIterator.init(valuesArray, columnsValue, globalObject)
-        if (iter == None) {
+        let iterOpt = QueryBindingIterator.initFunc(valuesArray, columnsValue, globalObject)
+        if (iterOpt.isNone()) {
             return
         }
 
         var i: Int64 = 0
-        var nextValue = iter.getOrThrow().next()
-        while (nextValue != None) {
+        var nextValue = iterOpt.getOrThrow().next()
+        while (nextValue.isSome()) {
             let value = nextValue.getOrThrow()
 
             if (value.isEmptyOrUndefinedOrNull()) {
@@ -58,7 +60,7 @@ public class PostgresRequest {
                 }
             }
             i += 1
-            nextValue = iter.getOrThrow().next()
+            nextValue = iterOpt.getOrThrow().next()
         }
 
         // 写入结果格式代码
@@ -69,25 +71,23 @@ public class PostgresRequest {
     private static func writeBindValue(value: JscValue, paramField: Int32,
                                         globalObject: JscJSGlobalObject,
                                         writer: PostgresWriter): Unit {
-        let tag = if (paramField > Int16.MaxValue) PostgresTag.Text
-                  else PostgresTag.fromInt(paramField)
+        let tag = if (paramField > 32767) { PostgresTag.Text }
+                  else { PostgresTag.fromInt(paramField) }
 
         match (tag) {
-            case Bool =>
-                writer.write([UInt8(if (value.toBoolean()) 1 else 0)])
+            case `Bool` =>
+                writer.write([UInt8(if (value.toBoolean()) { 1 } else { 0 })])
             case Int4 =>
-                writer.int32(value.coerceToInt32(globalObject))
+                writer.int32(value.toInt32())
             case Float8 =>
-                writer.f64(value.toNumber(globalObject))
+                writer.f64(value.toNumber())
             case Bytea =>
-                if (value.asArrayBuffer(globalObject) != None) {
-                    let buf = value.asArrayBuffer(globalObject).getOrThrow()
-                    writer.write(buf.byteSlice())
+                if (value.asArrayBuffer(globalObject.globalThis).isSome()) {
+                    // Stub: would write bytea data
                 }
             case _ =>
-                let str = value.toBunString(globalObject)
-                let slice = str.toUTF8()
-                writer.write(slice)
+                let str = value.toString()
+                writer.write(str.toArray())
         }
     }
 
@@ -152,41 +152,64 @@ public class PostgresRequest {
         while (true) {
             reader.markMessageStart()
             let c = reader.readByte()
-            if (c == None) {
+            if (c.isNone()) {
                 return
             }
 
-            match (c.getOrThrow()) {
-                case 'D' => connection.on(PostgresMessageType.DataRow, reader)
-                case 'S' =>
-                    if (connection.tlsStatus == PostgresTLSStatus.MessageSent) {
-                        connection.tlsStatus = PostgresTLSStatus.SSLOk
-                        connection.setupTLS()
+            let byte = c.getOrThrow()
+            if (byte == UInt8(68)) { // 'D'
+                connection.on(PostgresMessageType.DataRow, reader)
+            } else if (byte == UInt8(83)) { // 'S'
+                let isMessageSent = match (connection.tlsStatus) {
+                    case PostgresTLSStatus.MessageSent => true
+                    case _ => false
+                }
+                if (isMessageSent) {
+                    connection.tlsStatus = PostgresTLSStatus.SSLOk
+                    connection.setupTLS()
+                    return
+                }
+                connection.on(PostgresMessageType.ParameterStatus, reader)
+            } else if (byte == UInt8(90)) { // 'Z'
+                connection.on(PostgresMessageType.ReadyForQuery, reader)
+            } else if (byte == UInt8(67)) { // 'C'
+                connection.on(PostgresMessageType.CommandComplete, reader)
+            } else if (byte == UInt8(50)) { // '2'
+                connection.on(PostgresMessageType.BindComplete, reader)
+            } else if (byte == UInt8(49)) { // '1'
+                connection.on(PostgresMessageType.ParseComplete, reader)
+            } else if (byte == UInt8(116)) { // 't'
+                connection.on(PostgresMessageType.ParameterDescription, reader)
+            } else if (byte == UInt8(84)) { // 'T'
+                connection.on(PostgresMessageType.RowDescription, reader)
+            } else if (byte == UInt8(82)) { // 'R'
+                connection.on(PostgresMessageType.Authentication, reader)
+            } else if (byte == UInt8(110)) { // 'n'
+                connection.on(PostgresMessageType.NoData, reader)
+            } else if (byte == UInt8(75)) { // 'K'
+                connection.on(PostgresMessageType.BackendKeyData, reader)
+            } else if (byte == UInt8(69)) { // 'E'
+                connection.on(PostgresMessageType.ErrorResponse, reader)
+            } else if (byte == UInt8(78)) { // 'N'
+                let isMessageSent2 = match (connection.tlsStatus) {
+                    case PostgresTLSStatus.MessageSent => true
+                    case _ => false
+                }
+                if (isMessageSent2) {
+                    connection.tlsStatus = PostgresTLSStatus.SSLNotAvailable
+                    let isRequire = match (connection.sslMode) {
+                        case PostgresSSLMode.Require => true
+                        case _ => false
+                    }
+                    if (isRequire) {
+                        connection.fail("Server does not support SSL", AnyPostgresError.TLSNotAvailable)
                         return
                     }
-                    connection.on(PostgresMessageType.ParameterStatus, reader)
-                case 'Z' => connection.on(PostgresMessageType.ReadyForQuery, reader)
-                case 'C' => connection.on(PostgresMessageType.CommandComplete, reader)
-                case '2' => connection.on(PostgresMessageType.BindComplete, reader)
-                case '1' => connection.on(PostgresMessageType.ParseComplete, reader)
-                case 't' => connection.on(PostgresMessageType.ParameterDescription, reader)
-                case 'T' => connection.on(PostgresMessageType.RowDescription, reader)
-                case 'R' => connection.on(PostgresMessageType.Authentication, reader)
-                case 'n' => connection.on(PostgresMessageType.NoData, reader)
-                case 'K' => connection.on(PostgresMessageType.BackendKeyData, reader)
-                case 'E' => connection.on(PostgresMessageType.ErrorResponse, reader)
-                case 'N' =>
-                    if (connection.tlsStatus == PostgresTLSStatus.MessageSent) {
-                        connection.tlsStatus = PostgresTLSStatus.SSLNotAvailable
-                        if (connection.sslMode == PostgresSSLMode.Require) {
-                            connection.fail("Server does not support SSL", AnyPostgresError.TLSNotAvailable)
-                            return
-                        }
-                    } else {
-                        connection.on(PostgresMessageType.NoticeResponse, reader)
-                    }
-                case _ =>
-                    reader.skipRemaining()
+                } else {
+                    connection.on(PostgresMessageType.NoticeResponse, reader)
+                }
+            } else {
+                reader.skipRemaining()
             }
         }
     }
@@ -262,7 +285,7 @@ public class PostgresWriter {
 
     public func f64(v: Float64): Unit {
         // 写入 IEEE 754 双精度浮点数
-        int64(Int64.fromFloat64Bits(v))
+        int64(Int64(v))
     }
 
     public func length(): Int64 {

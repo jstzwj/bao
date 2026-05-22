@@ -88,14 +88,14 @@ public enum AnimationPlayState {
 /// animation-fill-mode 属性值
 /// 严格翻译自 AnimationFillMode
 public enum AnimationFillMode {
-    | None
+    | NoneValue
     | Forwards
     | Backwards
     | Both
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Forwards => "forwards"
             case Backwards => "backwards"
             case Both => "both"
@@ -111,7 +111,7 @@ public enum AnimationFillMode {
     }
 
     public static func default(): AnimationFillMode {
-        AnimationFillMode.None
+        AnimationFillMode.NoneValue
     }
 }
 
@@ -175,13 +175,13 @@ public enum AnimationIterationCount {
 /// animation-name 属性值
 /// 严格翻译自 AnimationName
 public enum AnimationName {
-    | None             // "none" 关键字
+    | NoneValue             // "none" 关键字
     | Ident(String)    // @keyframes 规则标识符
     | Str(String)      // 字符串名称
 
     public func toCss(): String {
         match (this) {
-            case None => "none"
+            case NoneValue => "none"
             case Ident(s) => s
             case Str(s) => s
         }
@@ -249,7 +249,7 @@ public enum ScrollAxis {
 /// 严格翻译自 AnimationTimeline
 public enum AnimationTimeline {
     | Auto                           // DocumentTimeline
-    | None                           // 不关联时间线
+    | NoneValue                           // 不关联时间线
     | DashedIdent(String)            // 通过名称引用的时间线
     | Scroll(ScrollTimeline)         // scroll() 函数
     | View(ViewTimeline)             // view() 函数
@@ -257,7 +257,7 @@ public enum AnimationTimeline {
     public func toCss(): String {
         match (this) {
             case Auto => "auto"
-            case None => "none"
+            case NoneValue => "none"
             case DashedIdent(d) => d
             case Scroll(st) => "scroll(" + st.toCss() + ")"
             case View(vt) => "view(" + vt.toCss() + ")"
@@ -456,14 +456,14 @@ public class Animation {
     public var timeline: AnimationTimeline         // 时间线
 
     public init() {
-        this.name = AnimationName.None
+        this.name = AnimationName.NoneValue
         this.duration = "0s"
         this.timingFunction = "ease"
         this.iterationCount = AnimationIterationCount.Number(1.0)
         this.direction = AnimationDirection.Normal
         this.playState = AnimationPlayState.Running
         this.delay = "0s"
-        this.fillMode = AnimationFillMode.None
+        this.fillMode = AnimationFillMode.NoneValue
         this.timeline = AnimationTimeline.Auto
     }
 
@@ -495,7 +495,7 @@ public class Animation {
         var parts = ArrayList<String>()
 
         // 名称（如果有非默认值才输出）
-        if (match (name) { case None => false case _ => true }) {
+        if (match (name) { case NoneValue => false case _ => true }) {
             // duration / delay（如果非零）
             if (duration != "0s" || delay != "0s") {
                 parts.append(duration)
@@ -522,7 +522,7 @@ public class Animation {
             }
 
             // fill-mode（如果非默认）
-            if (fillMode != AnimationFillMode.None) {
+            if (fillMode != AnimationFillMode.NoneValue) {
                 parts.append(fillMode.toCss())
             }
 
@@ -535,7 +535,7 @@ public class Animation {
         parts.append(name.toCss())
 
         // timeline（如果非默认）
-        if (match (name) { case None => false case _ => true }) {
+        if (match (name) { case NoneValue => false case _ => true }) {
             if (timeline != AnimationTimeline.Auto) {
                 parts.append(timeline.toCss())
             }

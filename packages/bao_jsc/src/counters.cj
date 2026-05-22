@@ -43,13 +43,13 @@ public class Counters {
     }
 
     private func incrementSpawnSyncBlocking() {
-        if (spawnSyncBlocking < Int32.MaxValue) {
+        if (spawnSyncBlocking < 2147483647) {
             spawnSyncBlocking++
         }
     }
 
     private func incrementSpawnMemfd() {
-        if (spawnMemfd < Int32.MaxValue) {
+        if (spawnMemfd < 2147483647) {
             spawnMemfd++
         }
     }
@@ -60,9 +60,9 @@ public class Counters {
     public func toJS(globalObject: JsObject): JsValue {
         let obj = JsObject.make()
         obj.className = "Counters"
-        obj.set("spawnSyncBlocking", JsValue(n: Float64(spawnSyncBlocking)))
-        obj.set("spawnMemfd", JsValue(n: Float64(spawnMemfd)))
-        JsValue(obj: obj)
+        obj.set("spawnSyncBlocking", JsValue(Float64(spawnSyncBlocking)))
+        obj.set("spawnMemfd", JsValue(Float64(spawnMemfd)))
+        JsValue(obj)
     }
 
     // ========== createCountersObject ==========

@@ -154,7 +154,7 @@ public class ConvertESMExportsForHmr {
                 let decls = stmt.decls
                 for (i in 0..decls.size) {
                     let decl = decls[Int64(i)]
-                    if (decl.value == None) {
+                    if (decl.value.isNone()) {
                         // 没有初始值的声明, 保留但记录导出
                         decls[Int64(newLen)] = decl
                         newLen += 1
@@ -166,7 +166,7 @@ public class ConvertESMExportsForHmr {
                     match (binding.tag) {
                         case BindingTag.Identifier =>
                             let idRef = binding.ref
-                            let symbol = p.symbols.get(idRef.innerIndex())
+                            let symbol = p.symbols[idRef.innerIndex]
 
                             // 如果符号未使用且值可移动, 将初始值直接移到导出属性
                             if (symbol.useCountEstimate == 0 && canBeMoved(decl.value)) {
@@ -195,7 +195,7 @@ public class ConvertESMExportsForHmr {
                 return localStmt
 
             // ==================================================================
-            // .s_export_default => |st| - 默认导出
+            // .s_export__ => |st| - 默认导出
             // 严格翻译自: lower_esm_exports_hmr.zig:76-158
             //   React Fast Refresh 边界情况处理
             //   可移动到内部作用域的表达式/类/函数处理
@@ -217,10 +217,10 @@ public class ConvertESMExportsForHmr {
                 }
 
                 // 否则生成临时变量: var __default_export = expr; export { __default_export as default }
-                let tempId = p.generateTempRef("default_export")
+                let tempId = p.newSymbol(SymbolKind.Other, "default_export")
                 let declaredSymbols = lastPart.declaredSymbols
-                declaredSymbols.append(DeclaredSymbol(tempId, true))
-                lastPart.symbolUses.put(tempId, SymbolUse(1))
+                declaredSymbols.append(tempId)
+                lastPart.symbolUses.put(tempId, 1)
 
                 let defaultKey = Expr.string(stmt.loc, "default")
                 let defaultIdExpr = Expr.identifier(stmt.loc, "", tempId)
@@ -243,13 +243,15 @@ public class ConvertESMExportsForHmr {
                 }
 
                 // 导出为 CommonJS 格式
-                let className = stmt.className
-                let classRef = stmt.classRef
-                let key = Expr.string(stmt.loc, className)
-                let value = Expr.identifier(stmt.loc, className, classRef)
-                let `prop` = GProperty(stmt.loc, className, Some(value))
-                `prop`.kind = GPropertyKind.Field
-                exportProps.append(`prop`)
+                if (let Some(cls) <- stmt.classData) {
+                    let className = cls.name
+                    let classRef = Ref.NONE  // placeholder ref
+                    let key = Expr.string(stmt.loc, className)
+                    let value = Expr.identifier(stmt.loc, className, classRef)
+                    let `prop` = GProperty(stmt.loc, className, Some(value))
+                    `prop`.kind = GPropertyKind.Field
+                    exportProps.append(`prop`)
+                }
 
                 // 去除 export 关键字
                 classStmt.isExport = false
@@ -269,9 +271,11 @@ public class ConvertESMExportsForHmr {
                 // 去除 export 标记
                 fnStmt.isExport = false
 
-                let funcName = stmt.funcName
-                let funcRef = stmt.funcRef
-                visitRefToExport(p, funcRef, None, stmt.loc, false)
+                if (let Some(fn) <- stmt.fn) {
+                    let funcName = fn.name
+                    let funcRef = Ref.NONE  // placeholder ref
+                    visitRefToExport(p, funcRef, Option<String>.None, stmt.loc, false)
+                }
                 return fnStmt
 
             // ==================================================================
@@ -280,7 +284,7 @@ public class ConvertESMExportsForHmr {
             //   不生成语句, 只记录导出项
             // ==================================================================
             case StmtTag.Export =>
-                for (item in stmt.exportItems) {
+                for (item in stmt.importItems) {
                     let ref = item.nameRef
                     visitRefToExport(p, ref, Some(item.alias), item.nameLoc, false)
                 }
@@ -295,17 +299,17 @@ public class ConvertESMExportsForHmr {
             case StmtTag.ExportFrom =>
                 let deduped = deduplicatedImport(
                     p,
-                    stmt.importRecordIndex,
+                    UInt32(stmt.importRecordIndex),
                     stmt.namespaceRef,
-                    stmt.exportItems,
-                    stmt.loc,
-                    None,
+                    stmt.importItems,
+                    stmt.starNameLoc,
+                    Option<LocRef>.None,
                     stmt.loc
                 )
 
-                for (item in stmt.exportItems) {
+                for (item in stmt.importItems) {
                     let ref = item.nameRef
-                    let symbol = p.symbols.get(ref.innerIndex())
+                    let symbol = p.symbols[ref.innerIndex]
 
                     // 设置 namespace_alias 使用去重后的导入记录
                     // 对应 Bun: symbol.namespace_alias = .{
@@ -330,19 +334,18 @@ public class ConvertESMExportsForHmr {
             case StmtTag.ExportStar =>
                 let deduped = deduplicatedImport(
                     p,
-                    stmt.importRecordIndex,
+                    UInt32(stmt.importRecordIndex),
                     stmt.namespaceRef,
                     ArrayList<ClauseItem>(),  // 空 items
-                    stmt.loc,
-                    None,
+                    stmt.starNameLoc,
+                    Option<LocRef>.None,
                     stmt.loc
                 )
 
-                if (stmt.exportStarAlias != None) {
-                    // 'export * as ns from' 创建一个命名属性
-                    let alias = stmt.exportStarAlias
+                if (stmt.exportStarAlias.isSome()) {
+                    let aliasStr = if (let Some(a) <- stmt.exportStarAlias) { a } else { "" }
                     let nsIdExpr = Expr.identifier(stmt.loc, "", deduped.namespaceRef)
-                    let `prop` = GProperty(stmt.loc, alias.getOrElse(""), Some(nsIdExpr))
+                    let `prop` = GProperty(stmt.loc, aliasStr, Some(nsIdExpr))
                     `prop`.kind = GPropertyKind.Field
                     exportProps.append(`prop`)
                 } else {
@@ -362,11 +365,11 @@ public class ConvertESMExportsForHmr {
             case StmtTag.Import =>
                 let _ = deduplicatedImport(
                     p,
-                    stmt.importRecordIndex,
+                    UInt32(stmt.importRecordIndex),
                     stmt.namespaceRef,
                     stmt.importItems,
                     stmt.starNameLoc,
-                    stmt.defaultName,
+                    Option<LocRef>.None,
                     stmt.loc
                 )
                 return stmt
@@ -403,8 +406,8 @@ public class ConvertESMExportsForHmr {
         defaultName: ?LocRef,
         loc: Loc
     ): DeduplicatedImportResult {
-        let ir = p.importRecords.get(importRecordIndex)
-        let pathText = ir.path.text
+        let ir = p.importRecords[Int64(importRecordIndex)]
+        let pathText = ir.path
 
         if (let Some(existingRef) <- importsSeen.get(pathText)) {
             // 已存在同一模块的导入
@@ -414,7 +417,7 @@ public class ConvertESMExportsForHmr {
             let existingStmtIdx = existingRef.stmtIndex
             let existingStmt = stmts[Int64(existingStmtIdx)]
             let existingImportRecordIdx = existingStmt.importRecordIndex
-            let survivingRecord = p.importRecords.get(existingImportRecordIdx)
+            let survivingRecord = p.importRecords[existingImportRecordIdx]
             survivingRecord.isUnused = false
 
             // 合并 items
@@ -433,35 +436,35 @@ public class ConvertESMExportsForHmr {
                 let existingNsRef = existingStmt.namespaceRef
                 if (!existingNsRef.isValid()) {
                     existingStmt.namespaceRef = namespaceRef
-                    return DeduplicatedImportResult(namespaceRef, existingImportRecordIdx)
+                    return DeduplicatedImportResult(namespaceRef, UInt32(existingImportRecordIdx))
                 } else {
                     // 擦除这个 namespace ref 但建立链接
-                    let symbol = p.symbols.get(namespaceRef.innerIndex())
+                    let symbol = p.symbols[namespaceRef.innerIndex]
                     symbol.useCountEstimate = 0
                     symbol.link = existingNsRef
                 }
             }
 
             // 合并 star_name_loc
-            if (existingStmt.starNameLoc == None) {
+            if (existingStmt.starNameLoc.isNone()) {
                 if (let Some(stl) <- starNameLoc) {
                     existingStmt.starNameLoc = Some(stl)
                 }
             }
 
             // 合并 default_name
-            if (existingStmt.defaultNameLoc == None) {
+            if (existingStmt.defaultNameLoc.isNone()) {
                 if (let Some(dn) <- defaultName) {
                     existingStmt.defaultNameLoc = Some(dn)
                 }
             }
 
-            return DeduplicatedImportResult(existingStmt.namespaceRef, existingImportRecordIdx)
+            return DeduplicatedImportResult(existingStmt.namespaceRef, UInt32(existingImportRecordIdx))
         }
 
         // 新模块导入 - 创建 import 语句并追加
         let importStmt = Stmt(loc, StmtTag.Import)
-        importStmt.importRecordIndex = importRecordIndex
+        importStmt.importRecordIndex = Int64(importRecordIndex)
         importStmt.isSingleLine = true
         if (let Some(dn) <- defaultName) {
             importStmt.defaultNameLoc = Some(dn)
@@ -493,16 +496,18 @@ public class ConvertESMExportsForHmr {
                 () // b_missing: 不做处理
             case BindingTag.Identifier =>
                 // b_identifier: 为标识符创建导出
-                visitRefToExport(p, binding.ref, None, binding.loc, false)
-            case BindingTag.ArrayPattern =>
+                visitRefToExport(p, binding.ref, Option<String>.None, binding.loc, false)
+            case BindingTag.Array =>
                 // b_array: 递归处理每个元素的绑定
                 for (item in binding.arrayItems) {
-                    visitBindingToExport(p, item.binding)
+                    visitBindingToExport(p, item)
                 }
-            case BindingTag.ObjectPattern =>
+            case BindingTag.Object =>
                 // b_object: 递归处理每个属性的值绑定
                 for (item in binding.objectProperties) {
-                    visitBindingToExport(p, item.value)
+                    if (let Some(v) <- item.value) {
+                        visitBindingToExport(p, v)
+                    }
                 }
             case _ =>
                 ()
@@ -531,7 +536,7 @@ public class ConvertESMExportsForHmr {
         loc: Loc,
         isLiveBindingSource: Bool
     ): Unit {
-        let symbol = p.symbols.get(ref.innerIndex())
+        let symbol = p.symbols[ref.innerIndex]
         let id = if (symbol.kind == SymbolKind.Import) {
             // 导入标识符
             Expr(loc, ExprTag.ImportIdentifier)
@@ -546,24 +551,24 @@ public class ConvertESMExportsForHmr {
             //   try ctx.export_props.append(p.allocator, .{
             //       .kind = .get,
             //       .key = key,
-            //       .value = Expr.init(E.Function, .{ .func = .{
+            //       .value = Expr(E.Function, .{ .func = .{
             //           .body = .{
             //               .stmts = ... S.Return{ .value = id },
             //               .loc = loc,
             //           },
             //       } }, loc),
             //   });
-            let name = exportSymbolName.getOrElse(symbol.originalName)
+            let name = if (let Some(n) <- exportSymbolName) { n } else { symbol.originalName }
             let key = Expr.string(loc, name)
 
             // 生成临时变量用于 getter
-            let arg1 = p.generateTempRef(symbol.originalName)
-            lastPart.declaredSymbols.append(DeclaredSymbol(arg1, true))
-            lastPart.symbolUses.put(arg1, SymbolUse(1))
+            let arg1 = p.newSymbol(SymbolKind.Other, symbol.originalName)
+            lastPart.declaredSymbols.append(arg1)
+            lastPart.symbolUses.put(arg1, 1)
 
             // 'get abc() { return abc }'
             let returnStmt = Stmt(loc, StmtTag.Return)
-            returnStmt.returnValue = Some(id)
+            returnStmt.expr = Some(id)
 
             let getterBody = ArrayList<Stmt>()
             getterBody.append(returnStmt)
@@ -573,8 +578,8 @@ public class ConvertESMExportsForHmr {
             exportProps.append(getterProp)
         } else {
             // 'abc,' - 简单属性
-            let name = exportSymbolName.getOrElse(symbol.originalName)
-            let `prop` = GProperty(loc, name, Some(id))
+            let name2 = if (let Some(n) <- exportSymbolName) { n } else { symbol.originalName }
+            let `prop` = GProperty(loc, name2, Some(id))
             `prop`.kind = GPropertyKind.Field
             exportProps.append(`prop`)
         }
@@ -617,7 +622,7 @@ public class ConvertESMExportsForHmr {
             // hmr.exports = { ... }
             // 对应 Bun:
             //   Expr.assign(
-            //       Expr.init(E.Dot, .{
+            //       Expr(E.Dot, .{
             //           .target = Expr.initIdentifier(p.hmr_api_ref, logger.Loc.Empty),
             //           .name = "exports",
             //           .name_loc = logger.Loc.Empty,
@@ -634,12 +639,12 @@ public class ConvertESMExportsForHmr {
             assignExpr.right = Some(obj)
 
             let assignStmt = Stmt(Loc.EMPTY, StmtTag.Expr)
-            assignStmt.exprValue = assignExpr
+            assignStmt.expr = Some(assignExpr)
             stmts.append(assignStmt)
 
             // 标记 module_ref 依赖
-            lastPart.symbolUses.put(p.moduleRef, SymbolUse(1))
-            lastPart.declaredSymbols.append(DeclaredSymbol(p.moduleRef, true))
+            lastPart.symbolUses.put(p.moduleRef, 1)
+            lastPart.declaredSymbols.append(p.moduleRef)
         }
 
         // 3. React Fast Refresh 处理
@@ -656,7 +661,7 @@ public class ConvertESMExportsForHmr {
             callExpr.args = ArrayList<Expr>()
 
             let callStmt = Stmt(Loc.EMPTY, StmtTag.Expr)
-            callStmt.exprValue = callExpr
+            callStmt.expr = Some(callExpr)
             stmts.append(callStmt)
         }
 
@@ -680,19 +685,19 @@ public class ConvertESMExportsForHmr {
                 let k = keys[Int64(j)]
                 let v = values[Int64(j)]
                 if (let Some(existing) <- lastPart.symbolUses.get(k)) {
-                    existing.countEstimate += v.countEstimate
+                    lastPart.symbolUses.put(k, existing + v)
                 } else {
                     lastPart.symbolUses.put(k, v)
                 }
             }
             // 清空当前 part
             part.stmts = ArrayList<Stmt>()
-            part.declaredSymbols = ArrayList<DeclaredSymbol>()
+            part.declaredSymbols = ArrayList<Ref>()
             part.tag = PartTag.DeadDueToInlining
             part.dependencies = ArrayList<PartDependency>()
             part.dependencies.append(PartDependency(
                 UInt32(allParts.size - 1),
-                p.source.index
+                UInt32(p.source.index)
             ))
         }
 
@@ -701,7 +706,7 @@ public class ConvertESMExportsForHmr {
             lastPart.importRecordIndices.append(idx)
         }
         for (ds in p.declaredSymbols) {
-            lastPart.declaredSymbols.append(ds)
+            lastPart.declaredSymbols.append(ds.ref)
         }
 
         lastPart.stmts = stmts
@@ -735,21 +740,26 @@ public class ConvertESMExportsForHmr {
     ///   const can_be_moved_to_inner_scope = switch (st.value) { ... }
     private func canExportDefaultBeMoved(p: Parser, stmt: Stmt): Bool {
         // 简化实现: 对于表达式和简单声明, 返回 true
-        match (stmt.exprValue.tag) {
-            case ExprTag.Identifier => true
-            case ExprTag.Function | ExprTag.Class =>
-                // 只有在符号未使用时可移动
-                true
-            case _ =>
-                false
+        if (let Some(e) <- stmt.expr) {
+            match (e.tag) {
+                case ExprTag.Identifier => true
+                case ExprTag.Function | ExprTag.Class =>
+                    // 只有在符号未使用时可移动
+                    true
+                case _ =>
+                    false
+            }
+        } else {
+            false
         }
     }
 
     /// 获取 export default 的值表达式
     private func getExportDefaultValue(stmt: Stmt): Expr {
-        match (stmt.exprValue.tag) {
-            case ExprTag.Identifier => stmt.exprValue
-            case _ => stmt.exprValue
+        if (let Some(e) <- stmt.expr) {
+            e
+        } else {
+            Expr(Loc.EMPTY, ExprTag.Missing)
         }
     }
 }
@@ -778,9 +788,4 @@ public class PartDependency {
     }
 }
 
-/// 部分标签 - 对应 Bun Part.Tag
-public enum PartTag {
-    | None
-    | DeadDueToInlining
-}
 

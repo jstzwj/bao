@@ -22,7 +22,7 @@ public class MemoryCost {
         var assets: UInt64 = 0
 
         // 计算根路径
-        other_bytes += dev.root.length
+        other_bytes += dev.root.size
         // 路由器
         other_bytes += dev.router.memoryCost()
         // 路由 bundle
@@ -47,7 +47,7 @@ public class MemoryCost {
         for (entry in dev.source_maps.entries.values()) {
             source_maps += entry.files.memoryCost()
             let files = entry.files.slice()
-            for (i in 0..files.length) {
+            for (i in 0..files.size) {
                 source_maps += files.get(i).memoryCost()
             }
         }
@@ -65,15 +65,15 @@ public class MemoryCost {
         other_bytes += memoryCostArrayList(dev.directory_watchers.dependencies_free_list)
         other_bytes += memoryCostArrayHashMap(dev.directory_watchers.watches)
         for (dep in dev.directory_watchers.dependencies.items) {
-            other_bytes += dep.specifier.length
+            other_bytes += dep.specifier.size
         }
         for (dir_name in dev.directory_watchers.watches.keys()) {
-            other_bytes += dir_name.length
+            other_bytes += dir_name.size
         }
         // 绑定失败
         other_bytes += memoryCostSlice(dev.bundling_failures.keys())
         for (failure in dev.bundling_failures.keys()) {
-            other_bytes += failure.data.length
+            other_bytes += failure.data.size
         }
 
         return MemoryCost(
@@ -104,7 +104,7 @@ public class MemoryCost {
 
     /// 切片的内存成本
     public static func memoryCostSlice<T>(slice: Array<T>): UInt64 {
-        return slice.length * sizeOf<T>()
+        return slice.size * sizeOf<T>()
     }
 
     /// ArrayHashMap 的内存成本

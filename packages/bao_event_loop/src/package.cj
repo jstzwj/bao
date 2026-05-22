@@ -4,6 +4,7 @@ package bao_event_loop
 import bao_core.*
 import bao_threading.*
 import bao_collections.*
+import std.time.*
 
 public class AtomicInt64 {
     private var value: Int64
@@ -58,6 +59,46 @@ public class Timespec {
 
     public func toMillis(): Int64 {
         return sec * 1000 + nsec / 1000000
+    }
+
+    public static func nowAllowMocked(): Timespec {
+        let ms = DateTime.now().toUnixTimeStamp().toMilliseconds()
+        Timespec(ms / 1000, (ms % 1000) * 1000000)
+    }
+
+    public static func nowForceRealTime(): Timespec {
+        let ms = DateTime.now().toUnixTimeStamp().toMilliseconds()
+        Timespec(ms / 1000, (ms % 1000) * 1000000)
+    }
+
+    public func addMs(ms: Int64): Timespec {
+        let newSec = sec + ms / 1000
+        let newNsec = nsec + (ms % 1000) * 1000000
+        if (newNsec >= 1000000000) {
+            return Timespec(newSec + 1, newNsec - 1000000000)
+        }
+        Timespec(newSec, newNsec)
+    }
+
+    public func duration(other: Timespec): Timespec {
+        let dSec = sec - other.sec
+        let dNsec = nsec - other.nsec
+        if (dNsec < 0) {
+            return Timespec(dSec - 1, dNsec + 1000000000)
+        }
+        Timespec(dSec, dNsec)
+    }
+
+    public func greaterThan(other: Timespec): Bool {
+        if (sec != other.sec) {
+            return sec > other.sec
+        }
+        return nsec > other.nsec
+    }
+
+    public func assign(other: Timespec): Unit {
+        sec = other.sec
+        nsec = other.nsec
     }
 }
 

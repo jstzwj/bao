@@ -7,14 +7,14 @@ import bao_jsc.*
 
 /// toEqualIgnoringWhitespace() - 检查去除空白后是否相等
 /// 用法: expect(received).toEqualIgnoringWhitespace(expected)
-public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
-    if (arguments.length < 1) {
+    if (arguments.size < 1) {
         return globalThis.throwInvalidArguments("toEqualIgnoringWhitespace() requires 1 argument")
     }
 
@@ -27,7 +27,7 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
         return globalThis.throw_("toEqualIgnoringWhitespace() requires the first argument to be a string")
     }
 
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqualIgnoringWhitespace", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqualIgnoringWhitespace", matcherParamsFmt: "<green>expected<r>")
 
     if (!value.isString()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
@@ -48,7 +48,7 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
     var pass = strings.eql(normalizedValue, normalizedExpected)
 
     if (not) { pass = !pass }
-    if (pass) { return JSValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }

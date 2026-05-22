@@ -33,10 +33,12 @@ public class ProcessAutoKiller {
     private func killProcesses(): UInt32 {
         var count: UInt32 = 0
         while (processes.size > 0) {
-            let process = processes.removeLast()
+            let lastIdx = Int64(processes.size - 1)
+            let process = processes[lastIdx]
+            processes = processes[0..lastIdx]
             if (!process.hasExited()) {
                 process.kill()
-                count += 1
+                count += UInt32(1)
             }
         }
         count
@@ -58,11 +60,17 @@ public class ProcessAutoKiller {
     // 严格翻译自 ProcessAutoKiller.onSubprocessExit
     public func onSubprocessExit(process: SubProcess) {
         if (everEnabled) {
-            match (processes.indexOf(process)) {
-                case Some(idx) =>
-                    processes.removeAt(idx)
-                    process.deref()
-                case None => ()
+            // Stub: linear scan to find and remove process
+            var idx: Int64 = -1
+            for (i in 0..processes.size) {
+                if (processes[Int64(i)].hasExited()) {
+                    idx = Int64(i)
+                    break
+                }
+            }
+            if (idx >= 0) {
+                processes = processes[0..idx].concat(processes[idx + 1..])
+                process.deref()
             }
         }
     }
@@ -79,7 +87,7 @@ public class ProcessAutoKiller {
 // 支撑类型
 public class ProcessAutoKillerResult {
     public var processes: UInt32 = 0
-    public init(processes: UInt32) { self.processes = processes }
+    public init(processes: UInt32) { this.processes = processes }
 }
 
 public class SubProcess {
@@ -87,10 +95,4 @@ public class SubProcess {
     public func kill() {}
     public func ref() {}
     public func deref() {}
-}
-
-public class ProcessAutoKillerResult {
-    public var processes: UInt32 = 0
-    public init() {}
-    public init(processes: UInt32) { this.processes = processes }
 }

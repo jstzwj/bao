@@ -137,7 +137,7 @@ public class PatchTask {
 
     /// 从主线程运行
     /// 翻译自: PatchTask.runFromMainThread
-    public func runFromMainThread(logLevel: LogLevel): Unit {
+    public func runFromMainThread(logLevel: InstallLogLevel): Unit {
         completed = true
     }
 

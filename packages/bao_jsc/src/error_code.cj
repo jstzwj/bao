@@ -61,7 +61,7 @@ public class ErrorCode {
             case 0 => "NoError"
             case 1 => "ParserError"
             case 2 => "JSErrorObject"
-            case _ => "ErrorCode(" + String(Int64(value)) + ")"
+            case _ => "ErrorCode(" + Int64(value).toString() + ")"
         }
     }
 }

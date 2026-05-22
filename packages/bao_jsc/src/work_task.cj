@@ -19,7 +19,7 @@ public class WorkTask<Context> {
     public var ref: KeepAlive = KeepAlive()
 
     public init(ctx: Context) {
-        self.ctx = ctx
+        this.ctx = ctx
     }
 
     // 严格翻译自 WorkTask.createOnJSThread
@@ -29,8 +29,8 @@ public class WorkTask<Context> {
         value: Context
     ): WorkTask<Context> {
         let vm = globalThis.bunVM()
-        let task = WorkTask<Context>(ctx: value)
-        task.eventLoop = vm.eventLoop()
+        let task = WorkTask<Context>(value)
+        task.eventLoop = vm.eventLoop
         task.allocator = allocator
         task.globalThis = globalThis
         task.ref.ref(vm)
@@ -39,7 +39,7 @@ public class WorkTask<Context> {
 
     // 严格翻译自 WorkTask.deinit
     public func deinit() {
-        ref.unref(eventLoop.virtualMachine)
+        ref.unref(eventLoop.virtualMachine())
     }
 
     // 严格翻译自 WorkTask.runFromThreadPool
@@ -49,14 +49,14 @@ public class WorkTask<Context> {
 
     // 严格翻译自 WorkTask.runFromJS
     public func runFromJS() {
-        ref.unref(eventLoop.virtualMachine)
+        ref.unref(eventLoop.virtualMachine())
         // tracker.willDispatch / didDispatch
         // ctx.then(globalThis)
     }
 
     // 严格翻译自 WorkTask.schedule
     public func schedule() {
-        let vm = eventLoop.virtualMachine
+        let vm = eventLoop.virtualMachine()
         ref.ref(vm)
         // asyncTaskTracker.didSchedule(globalThis)
         // WorkPool.schedule(&task)
@@ -68,10 +68,7 @@ public class WorkTask<Context> {
     }
 }
 
-// 支撑类型
-public class WorkPoolTask {
-    public init() {}
-}
+// 注意: WorkPoolTask 已移至 concurrent_promise_task.cj
 
 public class KeepAlive {
     public init() {}

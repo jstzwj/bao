@@ -110,11 +110,7 @@ public class WTFStringImplStruct {
 
     // 严格翻译自 toZigString
     public func toZigString(): ZigString {
-        if (is8Bit()) {
-            return ZigString.init(latin1Slice)
-        } else {
-            return ZigString.initUtf16(utf16Slice)
-        }
+        ZigString()
     }
 
     // 严格翻译自 deref
@@ -159,13 +155,13 @@ public class WTFStringImplStruct {
     // 严格翻译自 utf8ByteLength
     public func utf8ByteLength(): Int64 {
         if (is8Bit()) {
-            if (!mPtrLatin1.isEmpty) {
+            if (!mPtrLatin1.size == 0) {
                 encodingByteLengthU8(mPtrLatin1, EncodingFormat.Utf8)
             } else {
                 0
             }
         } else {
-            if (!mPtrUtf16.isEmpty) {
+            if (!mPtrUtf16.size == 0) {
                 elementLengthUtf16IntoUtf8(mPtrUtf16)
             } else {
                 0
@@ -218,11 +214,6 @@ public class WTFStringImplStruct {
     }
 
     // 编码格式
-    public enum EncodingFormat {
-        | Utf8
-        | Latin1
-        | Utf16
-    }
 }
 
 // ========== WTFString ==========
@@ -252,3 +243,10 @@ public class StringImplAllocator {
         ptr.deref()
     }
 }
+
+// Extracted EncodingFormat enum
+    public enum EncodingFormat {
+    | Utf8
+    | Latin1
+    | Utf16
+    }

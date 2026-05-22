@@ -85,12 +85,12 @@ public class CookieMap {
         let result = ArrayList<String>()
         for (key in cookies.keys()) {
             match (cookies.get(key)) {
-                case Some(entry) => {
+                case Some(entry) =>
                     var cookieStr = "${entry.name}=${entry.value}"
-                    if (entry.path.length > 0) {
+                    if (entry.path.size > 0) {
                         cookieStr += "; Path=${entry.path}"
                     }
-                    if (entry.domain.length > 0) {
+                    if (entry.domain.size > 0) {
                         cookieStr += "; Domain=${entry.domain}"
                     }
                     if (entry.secure) {
@@ -99,14 +99,13 @@ public class CookieMap {
                     if (entry.httpOnly) {
                         cookieStr += "; HttpOnly"
                     }
-                    if (entry.sameSite.length > 0) {
+                    if (entry.sameSite.size > 0) {
                         cookieStr += "; SameSite=${entry.sameSite}"
                     }
                     if (entry.maxAge >= 0) {
                         cookieStr += "; Max-Age=${entry.maxAge}"
                     }
                     result.append(cookieStr)
-                }
                 case None => ()
             }
         }

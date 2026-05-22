@@ -40,7 +40,7 @@ public class HotReloadEvent {
 
     /// 重置事件以供重用
     public func reset(): Unit {
-        if (debug_mutex != None) {
+        if (debug_mutex.isSome()) {
             debug_mutex.getOrThrow().unlock()
         }
         files.clearRetainingCapacity()
@@ -61,20 +61,20 @@ public class HotReloadEvent {
 
     /// 追加目录
     public func appendDir(allocator: Allocator, dir_path: String, maybe_sub_path: ?String): Unit {
-        if (dir_path.length == 0) { return }
+        if (dir_path.size == 0) { return }
         dirs.getOrPut(allocator, dir_path)
 
         let sub_path = maybe_sub_path ?? return
-        if (sub_path.length == 0) { return }
+        if (sub_path.size == 0) { return }
 
         let platform = bun.path.Platform.auto
-        let ends_with_sep = platform.isSeparator(dir_path[dir_path.length - 1])
+        let ends_with_sep = platform.isSeparator(dir_path[dir_path.size - 1])
         let starts_with_sep = platform.isSeparator(sub_path[0])
         let sep_offset: Int32 = if (ends_with_sep && starts_with_sep) { -1 } else { 1 }
 
-        extra_files.ensureUnusedCapacity(allocator, Int32(dir_path.length + sub_path.length) + sep_offset + 1)
+        extra_files.ensureUnusedCapacity(allocator, Int32(dir_path.size + sub_path.size) + sep_offset + 1)
         if (ends_with_sep) {
-            extra_files.appendSliceAssumeCapacity(dir_path.slice(0, dir_path.length - 1))
+            extra_files.appendSliceAssumeCapacity(dir_path.slice(0, dir_path.size - 1))
         } else {
             extra_files.appendSliceAssumeCapacity(dir_path)
         }
@@ -113,7 +113,7 @@ public class HotReloadEvent {
                             bun.path.dirname(dep.source_file_path),
                             dep.specifier,
                             ImportKind.stmt,
-                        )) != None) {
+                        )).isSome()) {
                             appendFile(dev.allocator(), dep.source_file_path)
                             dev.directory_watchers.freeDependencyIndex(dev.allocator(), index)
                         } else {
@@ -137,7 +137,7 @@ public class HotReloadEvent {
             files.put(dev.allocator(), rest_extra.slice(0, str), ())
             rest_extra = rest_extra.slice(str + 1)
         }
-        if (rest_extra.length > 0) {
+        if (rest_extra.size > 0) {
             files.put(dev.allocator(), rest_extra, ())
         }
 
@@ -158,7 +158,7 @@ public class HotReloadEvent {
 
         let dev = first.owner
 
-        if (dev.current_bundle != None) {
+        if (dev.current_bundle.isSome()) {
             dev.next_bundle.reload_event = first
             return
         }

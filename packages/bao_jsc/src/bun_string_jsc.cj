@@ -102,7 +102,7 @@ public class BunStringJSC {
     public static func jsEscapeRegExp(global: JsObject, callFrame: CallFrame): JsValue {
         let inputValue = callFrame.argument(0)
         if (!inputValue.isString()) {
-            return global.throwInvalidArgumentType("escapeRegExp", "input", "string")
+            throw JsTypeError("escapeRegExp: input must be a string")
         }
         // Escape regex characters
         inputValue
@@ -112,7 +112,7 @@ public class BunStringJSC {
     public static func jsEscapeRegExpForPackageNameMatching(global: JsObject, callFrame: CallFrame): JsValue {
         let inputValue = callFrame.argument(0)
         if (!inputValue.isString()) {
-            return global.throwInvalidArgumentType("escapeRegExpForPackageNameMatching", "input", "string")
+            throw JsTypeError("escapeRegExpForPackageNameMatching: input must be a string")
         }
         inputValue
     }

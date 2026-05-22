@@ -26,7 +26,7 @@ public class AdditionalOnAbortCallback {
         data = None
     }
 
-    /// 对应 Bun: pub fn deref(this: AdditionalOnAbortCallback) void
+    /// 对应 Bun: pub fn deref(`this`: AdditionalOnAbortCallback) void
     public func deref(): Unit {
         data = None
     }
@@ -128,7 +128,7 @@ public class RequestContext {
     /// 响应对象 - 对应 Bun: resp: Option<uws::AnyResponse>
     public var resp: ?ResponseRef
 
-    /// 原始请求 - 对应 Bun: req: Option<*mut Req<SSL_ENABLED, HTTP3>>
+    /// 原始请求 - 对应 Bun: req: Option<*Req<SSL_ENABLED, HTTP3>>
     public var req: ?RawRequestRef
 
     /// 请求弱引用 - 对应 Bun: request_weakref: request::WeakRef
@@ -146,10 +146,10 @@ public class RequestContext {
     /// 标志位 - 对应 Bun: flags: Flags<DEBUG_MODE>
     public var flags: RequestContextFlags
 
-    /// WebSocket 升级上下文 - 对应 Bun: upgrade_context: Option<*mut WebSocketUpgradeContext>
+    /// WebSocket 升级上下文 - 对应 Bun: upgrade_context: Option<*WebSocketUpgradeContext>
     public var upgradeContext: ?WebSocketUpgradeContext
 
-    /// JS Response 值 - 对应 Bun: response_jsvalue: JSValue
+    /// JS Response 值 - 对应 Bun: response_jsvalue: JsValue
     public var responseJsvalue: JsValueRef
 
     /// 引用计数 - 对应 Bun: ref_count: u8 = 1
@@ -252,7 +252,7 @@ public class RequestContext {
 
     /// 创建请求上下文
     /// 对应 Bun: pub fn create(this, server, req, resp, should_deinit_context, method) void
-    /// Rust: pub fn create(this: &mut MaybeUninit<Self>, server, req, resp, ...)
+    /// Rust: pub fn create(`this`: &MaybeUninit<Self>, server, req, resp, ...)
     public func create(server: ServerRef, req: RawRequestRef, resp: ResponseRef,
                        shouldDeinitContext: ?BoolRef, method: ?HttpMethod): Unit {
         this.server = Some(server)
@@ -275,10 +275,9 @@ public class RequestContext {
     /// 对应 Bun: pub fn setSignalAborted(this, reason) void
     public func setSignalAborted(reason: Int64): Unit {
         match (signal) {
-            case Some(s) => {
+            case Some(s) =>
                 // 对应 Bun: signal.signal(server.globalThis, reason)
                 s.abort(reason)
-            }
             case None => ()
         }
     }
@@ -298,69 +297,65 @@ public class RequestContext {
     /// 对应 Bun: pub inline fn isAsync(this) bool
     /// Rust: pub fn is_async(&self) -> bool
     public func isAsync(): Bool {
-        return deferDeinitUntilCallbackCompletes == None
+        return deferDeinitUntilCallbackCompletes.isNone()
     }
 
     /// 设置中止处理
     /// 对应 Bun: pub fn setAbortHandler(this) void
-    /// Rust: pub fn set_abort_handler(&mut self)
+    /// Rust: pub fn set_abort_handler(&self)
     public func setAbortHandler(): Unit {
         if (flags.hasAbortHandler) {
             return
         }
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 flags.hasAbortHandler = true
                 r.setAbortHandler(this)
-            }
             case None => ()
         }
     }
 
     /// 设置 Cookie
     /// 对应 Bun: pub fn setCookies(this, cookie_map) void
-    /// Rust: pub fn set_cookies(&mut self, cookie_map: Option<*mut CookieMap>)
+    /// Rust: pub fn set_cookies(&self, cookie_map: Option<*CookieMap>)
     public func setCookies(cookieMap: ?CookieMapRef): Unit {
         cookies = cookieMap
     }
 
     /// 设置超时处理
     /// 对应 Bun: pub fn setTimeoutHandler(this) void
-    /// Rust: pub fn set_timeout_handler(&mut self)
+    /// Rust: pub fn set_timeout_handler(&self)
     public func setTimeoutHandler(): Unit {
         if (flags.hasTimeoutHandler) {
             return
         }
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 flags.hasTimeoutHandler = true
                 r.setTimeoutHandler(this)
-            }
             case None => ()
         }
     }
 
     /// 设置超时
     /// 对应 Bun: pub fn setTimeout(this, seconds: c_uint) bool
-    /// Rust: pub fn set_timeout(&mut self, seconds: c_uint) -> bool
+    /// Rust: pub fn set_timeout(&self, seconds: c_uint) -> bool
     public func setTimeout(seconds: Int64): Bool {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 r.timeout(if (seconds > 255) { 255 } else { seconds })
                 if (seconds > 0) {
                     // 对应 Bun: 只在有 timeout callback 时设置
                     match (requestWeakref) {
-                        case Some(req) => {
+                        case Some(req) =>
                             // if has timeout callback, set handler
                             setTimeoutHandler()
-                        }
                         case None => ()
                     }
                 } else {
                     r.clearTimeout()
                 }
                 return true
-            }
             case None => false
         }
     }
@@ -395,14 +390,14 @@ public class RequestContext {
 
     /// 增加引用
     /// 对应 Bun: pub fn ref(this) void
-    /// Rust: pub fn ref_(&mut self)
+    /// Rust: pub fn ref_(&self)
     public func ref(): Unit {
         refCount += 1
     }
 
     /// 减少引用
     /// 对应 Bun: pub fn deref(this) void
-    /// Rust: pub fn deref(&mut self)
+    /// Rust: pub fn deref(&self)
     public func deref(): Unit {
         var oldCount = refCount
         refCount -= 1
@@ -417,13 +412,13 @@ public class RequestContext {
     /// Rust: pub fn is_aborted_or_ended(&self) -> bool
     public func isAbortedOrEnded(): Bool {
         // resp == null or aborted or server == null or server terminated
-        if (resp == None) {
+        if (resp.isNone()) {
             return true
         }
         if (flags.aborted) {
             return true
         }
-        if (server == None) {
+        if (server.isNone()) {
             return true
         }
         // 对应 Rust: self.server().terminated()
@@ -463,11 +458,10 @@ public class RequestContext {
         }
         // 对应 Bun: check if body is Locked (streaming)
         match (requestBody) {
-            case Some(body) => {
+            case Some(body) =>
                 if (body.value == BodyValue.Locked) {
                     return false
                 }
-            }
             case None => ()
         }
         return true
@@ -485,7 +479,7 @@ public class RequestContext {
         // 5 - is the only reference of the context
         // 6 - is not waiting for request body
         // 7 - did not call sendfile
-        return resp != None &&
+        return resp.isSome() &&
             !flags.aborted &&
             !flags.hasMarkedComplete &&
             !flags.hasMarkedPending &&
@@ -501,10 +495,10 @@ public class RequestContext {
 
     /// 渲染缺失响应
     /// 对应 Bun: pub fn renderMissingCorked(this) void
-    /// Rust: pub fn render_missing_corked(ctx: *mut Self)
+    /// Rust: pub fn render_missing_corked(ctx: *Self)
     public func renderMissing(): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 if (!isDebugMode) {
                     // Production path
                     if (!flags.hasWrittenStatus) {
@@ -540,14 +534,13 @@ public class RequestContext {
                 r.writeHeaderInt("content-length", missingContent.size)
                 flags.hasWrittenStatus = true
                 end(missingContent, shouldCloseConnection())
-            }
             case None => ()
         }
     }
 
     /// 渲染缺失的无效响应
     /// 对应 Bun: fn render_missing_invalid_response(this, value) void
-    /// Rust: fn render_missing_invalid_response(&mut self, value: JSValue)
+    /// Rust: fn render_missing_invalid_response(&self, value: JsValue)
     public func renderMissingInvalidResponse(): Unit {
         // 简化: 对应 Bun 中输出错误消息然后调用 renderMissing
         renderMissing()
@@ -555,38 +548,35 @@ public class RequestContext {
 
     /// 渲染生产错误
     /// 对应 Bun: pub fn renderProductionError(this, status) void
-    /// Rust: pub fn render_production_error(&mut self, status: u16)
+    /// Rust: pub fn render_production_error(&self, status: u16)
     public func renderProductionError(status: Int64): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 match (status) {
-                    case 404 => {
+                    case 404 =>
                         if (!flags.hasWrittenStatus) {
                             r.writeStatus("404 Not Found")
                             flags.hasWrittenStatus = true
                         }
                         endWithoutBody(shouldCloseConnection())
-                    }
-                    case _ => {
+                    case _ =>
                         if (!flags.hasWrittenStatus) {
                             r.writeStatus("500 Internal Server Error")
                             r.writeHeader("content-type", "text/plain")
                             flags.hasWrittenStatus = true
                         }
                         end("Something went wrong!", shouldCloseConnection())
-                    }
                 }
-            }
             case None => ()
         }
     }
 
     /// 渲染默认错误
     /// 对应 Bun: pub fn renderDefaultError(this, ...) void
-    /// Rust: pub fn render_default_error(&mut self, log, err, exceptions, fmt)
+    /// Rust: pub fn render_default_error(&self, log, err, exceptions, fmt)
     public func renderDefaultError(status: Int64, message: String): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 if (!flags.hasWrittenStatus) {
                     r.writeStatus(HTTPStatusText.get(status) ?? "500 Internal Server Error")
                     r.writeHeader("content-type", "text/html; charset=utf-8")
@@ -594,29 +584,27 @@ public class RequestContext {
                 }
                 let errorPage = "<html><body><h1>${message}</h1></body></html>"
                 end(errorPage, shouldCloseConnection())
-            }
             case None => ()
         }
     }
 
     /// 运行错误处理器
     /// 对应 Bun: pub fn runErrorHandler(this, value) void
-    /// Rust: pub fn run_error_handler(&mut self, value: JSValue)
+    /// Rust: pub fn run_error_handler(&self, value: JsValue)
     public func runErrorHandler(errorValue: BaoError): Unit {
         runErrorHandlerWithStatusCode(errorValue, 500)
     }
 
     /// 运行错误处理器 (带状态码)
     /// 对应 Bun: pub fn runErrorHandlerWithStatusCode(this, value, status) void
-    /// Rust: pub fn run_error_handler_with_status_code(&mut self, value, status)
+    /// Rust: pub fn run_error_handler_with_status_code(&self, value, status)
     public func runErrorHandlerWithStatusCode(errorValue: BaoError, status: Int64): Unit {
         // 对应 Rust: check if resp is none or has_responded
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 if (r.hasResponded()) {
                     return
                 }
-            }
             case None => return
         }
 
@@ -629,17 +617,15 @@ public class RequestContext {
         if (!flags.hasCalledErrorHandler) {
             flags.hasCalledErrorHandler = true
             match (server) {
-                case Some(s) => {
+                case Some(s) =>
                     // 调用用户 onError 回调
                     match (s.config.onError) {
-                        case Some(handler) => {
+                        case Some(handler) =>
                             let response = handler(errorValue)
                             renderResponse(response)
                             return
-                        }
                         case None => ()
                     }
-                }
                 case None => ()
             }
         }
@@ -651,7 +637,7 @@ public class RequestContext {
     /// 对应 Rust: fn finish_running_error_handler
     public func finishRunningErrorHandler(errorValue: BaoError, status: Int64): Unit {
         match (server) {
-            case Some(s) => {
+            case Some(s) =>
                 if (isDebugMode) {
                     // 调试模式: 渲染 HTML 错误页
                     let msg = "${method} ${pathname} failed"
@@ -661,7 +647,6 @@ public class RequestContext {
                 if (status != 404) {
                     // 对应 Bun: call on_unhandled_rejection
                 }
-            }
             case None => ()
         }
         renderProductionError(status)
@@ -669,7 +654,7 @@ public class RequestContext {
 
     /// 渲染响应
     /// 对应 Bun: pub fn render(this, response) void
-    /// Rust: pub fn render(&mut self, response: &mut Response)
+    /// Rust: pub fn render(&self, response: &Response)
     public func renderResponse(response: Response): Unit {
         if (isAbortedOrEnded()) {
             return
@@ -681,10 +666,10 @@ public class RequestContext {
 
     /// 渲染元数据 (状态行 + 头部)
     /// 对应 Bun: pub fn renderMetadata(this) void
-    /// Rust: pub fn render_metadata(&mut self)
+    /// Rust: pub fn render_metadata(&self)
     public func renderMetadata(response: Response): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 var status = response.status
                 var size = response.body.size
 
@@ -743,14 +728,13 @@ public class RequestContext {
                     }
                     flags.needsContentRange = false
                 }
-            }
             case None => ()
         }
     }
 
     /// 写入状态行
     /// 对应 Bun: fn doWriteStatus(this, status) void
-    /// Rust: fn do_write_status(&mut self, status: u16)
+    /// Rust: fn do_write_status(&self, status: u16)
     public func doWriteStatus(status: Int64): Unit {
         if (flags.hasWrittenStatus) {
             return
@@ -758,23 +742,22 @@ public class RequestContext {
         flags.hasWrittenStatus = true
 
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 let text = HTTPStatusText.get(status)
                 match (text) {
                     case Some(t) => r.writeStatus(t)
                     case None => r.writeStatus("${status} HM")
                 }
-            }
             case None => ()
         }
     }
 
     /// 写入头部
     /// 对应 Bun: fn doWriteHeaders(this, headers) void
-    /// Rust: fn do_write_headers(&mut self, headers: &mut FetchHeaders)
+    /// Rust: fn do_write_headers(&self, headers: &FetchHeaders)
     public func doWriteHeaders(headers: HashMap<String, String>): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 // 对应 Bun: fast_remove content-length and transfer-encoding
                 // (these are managed separately)
                 if (isHttp3) {
@@ -786,37 +769,34 @@ public class RequestContext {
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
     }
 
     /// 渲染 bytes
     /// 对应 Bun: pub fn renderBytes(this) void
-    /// Rust: pub fn render_bytes(&mut self)
+    /// Rust: pub fn render_bytes(&self)
     public func renderBytes(response: Response): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 match (response.body) {
-                    case Some(body) => {
+                    case Some(body) =>
                         if (!r.tryEnd(body, body.size, shouldCloseConnection())) {
                             flags.hasMarkedPending = true
                             // 注册 onWritable 回调
                             r.onWritable(this)
                         }
-                    }
                     case None => ()
                 }
                 detachResponse()
                 deref()
-            }
             case None => ()
         }
     }
 
     /// 渲染 Blob 数据
     /// 对应 Bun: fn doRenderBlob(this) void
-    /// Rust: pub fn do_render_blob(&mut self)
+    /// Rust: pub fn do_render_blob(&self)
     public func doRenderBlob(): Unit {
         // 对应 Bun: small body optimization - cork if body < 16k
         let fastSize = blobData.fastSize()
@@ -829,19 +809,18 @@ public class RequestContext {
 
     /// 渲染 Blob 数据 (corked)
     /// 对应 Bun: fn doRenderBlobCorked(this) void
-    /// Rust: pub fn do_render_blob_corked(this: *mut Self)
+    /// Rust: pub fn do_render_blob_corked(`this`: *Self)
     public func doRenderBlobCorked(): Unit {
         // 简化: render_metadata + render_bytes
         let size = blobData.size()
         let bytes = blobData.slice()
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 if (!r.tryEnd(bytes, size, shouldCloseConnection())) {
                     flags.hasMarkedPending = true
                     r.onWritable(this)
                     return
                 }
-            }
             case None => ()
         }
         detachResponse()
@@ -856,7 +835,7 @@ public class RequestContext {
 
     /// 处理缓冲的请求体块
     /// 对应 Bun: pub fn onBufferedBodyChunk(this, chunk, last) void
-    /// Rust: pub fn on_buffered_body_chunk(this: *mut Self, chunk: &[u8], last: bool)
+    /// Rust: pub fn on_buffered_body_chunk(`this`: *Self, chunk: &[u8], last: bool)
     public func onBufferedBodyChunk(chunk: Array<UInt8>, last: Bool): Unit {
         flags.isWaitingForRequestBody = !last
         if (isAbortedOrEnded() || flags.hasMarkedComplete) {
@@ -869,27 +848,25 @@ public class RequestContext {
         // 检查最大请求体大小
         // 对应 Bun: this.server.?.config.max_request_body_size
         match (server) {
-            case Some(s) => {
+            case Some(s) =>
                 if (requestBodyBuf.size + chunk.size > s.config.maxRequestBodySize) {
                     // 请求体过大 - 413
                     match (resp) {
-                        case Some(r) => {
+                        case Some(r) =>
                             if (!r.hasResponded()) {
                                 flags.hasWrittenStatus = true
                                 r.writeStatus("413 Payload Too Large")
                             }
-                        }
                         case None => ()
                     }
                     endWithoutBody(true)
                     return
                 }
-            }
             case None => ()
         }
 
         // 对应 Bun: if has request_body_readable_stream_ref
-        if (requestBodyReadableStreamRef != None) {
+        if (requestBodyReadableStreamRef.isSome()) {
             // 对应 Bun: route through readable stream
             if (last) {
                 // 对应 Bun: last chunk - release readable stream ref
@@ -906,9 +883,8 @@ public class RequestContext {
         if (last) {
             // 完成请求体读取
             match (requestBody) {
-                case Some(body) => {
+                case Some(body) =>
                     body.resolve(requestBodyBuf)
-                }
                 case None => ()
             }
         }
@@ -916,7 +892,7 @@ public class RequestContext {
 
     /// 开始流式请求体
     /// 对应 Bun: pub fn onStartStreamingRequestBody(this) DrainResult
-    /// Rust: pub fn on_start_streaming_request_body(&mut self) -> DrainResult
+    /// Rust: pub fn on_start_streaming_request_body(&self) -> DrainResult
     public func onStartStreamingRequestBody(): DrainResult {
         if (isAbortedOrEnded()) {
             return DrainResult.Aborted
@@ -933,20 +909,18 @@ public class RequestContext {
 
     /// 开始缓冲
     /// 对应 Bun: pub fn onStartBuffering(this) void
-    /// Rust: pub fn on_start_buffering(&mut self)
+    /// Rust: pub fn on_start_buffering(&self)
     public func onStartBuffering(): Unit {
         match (server) {
-            case Some(s) => {
+            case Some(s) =>
                 // 对应 Bun: !HTTP3 && !transfer_encoding && content_len == 0 => empty body
                 if (!isHttp3 && !flags.isTransferEncoding && requestBodyContentLen == 0) {
                     match (requestBody) {
-                        case Some(body) => {
+                        case Some(body) =>
                             body.resolve(Array<UInt8>())
-                        }
                         case None => ()
                     }
                 }
-            }
             case None => ()
         }
     }
@@ -957,71 +931,67 @@ public class RequestContext {
 
     /// 结束响应 (带数据)
     /// 对应 Bun: pub fn end(this, data, closeConnection) void
-    /// Rust: pub fn end(&mut self, data: &[u8], close_connection: bool)
+    /// Rust: pub fn end(&self, data: &[u8], close_connection: bool)
     public func end(data: String, closeConnection: Bool): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 detachResponse()
                 endRequestStreamingAndDrain()
                 r.end(data, closeConnection)
                 deref()
-            }
             case None => ()
         }
     }
 
     /// 结束响应流
     /// 对应 Bun: pub fn endStream(this, closeConnection) void
-    /// Rust: pub fn end_stream(&mut self, close_connection: bool)
+    /// Rust: pub fn end_stream(&self, close_connection: bool)
     public func endStream(closeConnection: Bool): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 detachResponse()
                 endRequestStreamingAndDrain()
                 // 对应 Bun: only send terminating chunk if response is pending
                 r.endStream(closeConnection)
                 deref()
-            }
             case None => ()
         }
     }
 
     /// 结束响应 (无 body)
     /// 对应 Bun: pub fn endWithoutBody(this, closeConnection) void
-    /// Rust: pub fn end_without_body(&mut self, close_connection: bool)
+    /// Rust: pub fn end_without_body(&self, close_connection: bool)
     public func endWithoutBody(closeConnection: Bool): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 detachResponse()
                 endRequestStreamingAndDrain()
                 r.endWithoutBody(closeConnection)
                 deref()
-            }
             case None => ()
         }
     }
 
     /// 强制关闭
     /// 对应 Bun: pub fn forceClose(this) void
-    /// Rust: pub fn force_close(&mut self)
+    /// Rust: pub fn force_close(&self)
     public func forceClose(): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 detachResponse()
                 endRequestStreamingAndDrain()
                 r.forceClose()
                 deref()
-            }
             case None => ()
         }
     }
 
     /// 分离响应
     /// 对应 Bun: fn detachResponse(this) void
-    /// Rust: fn detach_response(&mut self)
+    /// Rust: fn detach_response(&self)
     public func detachResponse(): Unit {
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 resp = None
                 // 对应 Bun: clear on_data, aborted, timeout
                 if (flags.isWaitingForRequestBody) {
@@ -1036,7 +1006,6 @@ public class RequestContext {
                     r.clearTimeout()
                     flags.hasTimeoutHandler = false
                 }
-            }
             case None => ()
         }
     }
@@ -1049,7 +1018,7 @@ public class RequestContext {
 
     /// 在不析构的情况下终结
     /// 对应 Bun: pub fn finalizeWithoutDeinit(this) void
-    /// Rust: pub fn finalize_without_deinit(&mut self)
+    /// Rust: pub fn finalize_without_deinit(&self)
     public func finalizeWithoutDeinit(): Unit {
         blobData.detach()
         flags.hasFinalized = true
@@ -1065,10 +1034,9 @@ public class RequestContext {
         responseBufOwned = Array<UInt8>()
 
         match (additionalOnAbort) {
-            case Some(cb) => {
+            case Some(cb) =>
                 cb.deref()
                 additionalOnAbort = None
-            }
             case None => ()
         }
 
@@ -1087,45 +1055,42 @@ public class RequestContext {
 
     /// 析构
     /// 对应 Bun: pub fn deinit(this) void
-    /// Rust: pub fn deinit(&mut self)
+    /// Rust: pub fn deinit(&self)
     public func deinit(): Unit {
         detachResponse()
         endRequestStreamingAndDrain()
         flags.hasMarkedComplete = true
 
         match (deferDeinitUntilCallbackCompletes) {
-            case Some(ref_) => {
+            case Some(ref_) =>
                 ref_.value = true
                 return  // 延迟析构
-            }
             case None => ()
         }
 
         finalizeWithoutDeinit()
 
         match (server) {
-            case Some(s) => {
+            case Some(s) =>
                 server = None
                 s.onRequestComplete()
-            }
             case None => ()
         }
     }
 
     /// 中止处理
     /// 对应 Bun: pub fn onAbort(this, resp) void
-    /// Rust: pub fn on_abort(this: *mut Self, resp: uws::AnyResponse)
+    /// Rust: pub fn on_abort(`this`: *Self, resp: uws::AnyResponse)
     public func onAbort(): Unit {
         // 对应 Bun: H3 path - if already responded, just clear
         if (isHttp3) {
             match (resp) {
-                case Some(r) => {
+                case Some(r) =>
                     if (r.hasResponded()) {
                         resp = None
                         flags.hasAbortHandler = false
                         return
                     }
-                }
                 case None => ()
             }
         }
@@ -1134,14 +1099,13 @@ public class RequestContext {
 
         // 调用附加中止回调
         match (additionalOnAbort) {
-            case Some(cb) => {
+            case Some(cb) =>
                 match (cb.callback) {
                     case Some(fn_) => fn_()
                     case None => ()
                 }
                 cb.deref()
                 additionalOnAbort = None
-            }
             case None => ()
         }
 
@@ -1149,21 +1113,19 @@ public class RequestContext {
 
         // 对应 Bun: if signal is not aborted, abort the signal
         match (signal) {
-            case Some(s) => {
+            case Some(s) =>
                 if (!s.aborted()) {
                     s.abort(0)
                 }
                 signal = None
-            }
             case None => ()
         }
 
         // if have sink, call onAborted on sink
         match (sink) {
-            case Some(s) => {
+            case Some(s) =>
                 s.abort()
                 return
-            }
             case None => ()
         }
 
@@ -1179,29 +1141,28 @@ public class RequestContext {
 
     /// 超时处理
     /// 对应 Bun: pub fn onTimeout(this, resp) void
-    /// Rust: pub fn on_timeout(this: *mut Self, _resp: uws::AnyResponse)
+    /// Rust: pub fn on_timeout(`this`: *Self, _resp: uws::AnyResponse)
     public func onTimeout(): Unit {
         // 对应 Bun: trigger request timeout event callback
         // 简化实现
     }
 
     /// onResolve 回调
-    /// 对应 Bun: pub fn onResolve(_: *jsc.JSGlobalObject, callframe) bun.JSError!jsc.JSValue
-    /// Rust: pub fn on_resolve(_global, callframe) -> JsResult<JSValue>
+    /// 对应 Bun: pub fn onResolve(_: *jsc.JSGlobalObject, callframe) bun.JSError!jsc.JsValue
+    /// Rust: pub fn on_resolve(_global, callframe) -> JsResult<JsValue>
     public func handleResolve(value: Response): Unit {
         if (isAbortedOrEnded() || didUpgradeWebSocket()) {
             return
         }
-        if (server == None) {
+        if (server.isNone()) {
             renderMissingInvalidResponse()
             return
         }
 
         if (method == HttpMethod.HEAD) {
             match (resp) {
-                case Some(r) => {
+                case Some(r) =>
                     doRenderHeadResponse(value)
-                }
                 case None => ()
             }
             return
@@ -1212,18 +1173,17 @@ public class RequestContext {
 
     /// onReject 回调
     /// 对应 Bun: fn handleReject(ctx, value) void
-    /// Rust: fn handle_reject(ctx: &mut Self, value: JSValue)
+    /// Rust: fn handle_reject(ctx: &Self, value: JsValue)
     public func handleReject(errorValue: BaoError): Unit {
         if (isAbortedOrEnded()) {
             return
         }
 
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 if (!r.hasResponded()) {
                     runErrorHandler(errorValue)
                 }
-            }
             case None => ()
         }
 
@@ -1236,31 +1196,29 @@ public class RequestContext {
         }
 
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 if (!r.hasResponded() && !flags.hasMarkedPending && !flags.isErrorPromisePending) {
                     renderMissing()
                 }
-            }
             case None => ()
         }
     }
 
     /// 渲染 HEAD 响应
     /// 对应 Bun: fn doRenderHeadResponse(pair) void
-    /// Rust: fn do_render_head_response(pair: *mut HeaderResponsePair)
+    /// Rust: fn do_render_head_response(pair: *HeaderResponsePair)
     public func doRenderHeadResponse(response: Response): Unit {
         // 对应 Bun: needs_content_length = false, render metadata, then write content-length
         flags.needsContentLength = false
         renderMetadata(response)
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 let size = match (response.body) {
                     case Some(b) => b.size
                     case None => 0
                 }
                 r.writeHeaderInt("Content-Length", size)
                 endWithoutBody(shouldCloseConnection())
-            }
             case None => ()
         }
         deref()
@@ -1268,14 +1226,13 @@ public class RequestContext {
 
     /// 处理流解析
     /// 对应 Bun: pub fn handleResolveStream(req) void
-    /// Rust: pub fn handle_resolve_stream(req: &mut Self)
+    /// Rust: pub fn handle_resolve_stream(req: &Self)
     public func handleResolveStream(): Unit {
         // 对应 Bun: finalize sink, detach stream
         match (sink) {
-            case Some(s) => {
+            case Some(s) =>
                 s.finalize()
                 sink = None
-            }
             case None => ()
         }
 
@@ -1295,10 +1252,9 @@ public class RequestContext {
     public func handleRejectStream(error: BaoError): Unit {
         // 对应 Bun: finalize sink
         match (sink) {
-            case Some(s) => {
+            case Some(s) =>
                 s.finalize()
                 sink = None
-            }
             case None => ()
         }
 
@@ -1314,28 +1270,27 @@ public class RequestContext {
 
     /// 处理 onPipe
     /// 对应 Bun: pub fn onPipe(this, stream) void
-    /// Rust: pub fn on_pipe(this: &mut Self, mut stream: WebCore::streams::Result)
+    /// Rust: pub fn on_pipe(`this`: &Self, stream: WebCore::streams::Result)
     public func onPipe(chunk: Array<UInt8>, isDone: Bool): Unit {
         if (isAbortedOrEnded()) {
             return
         }
 
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 // 对应 Bun: write chunk to response
                 r.write(chunk)
                 if (isDone) {
                     flags.hasMarkedPending = true
                     r.onWritable(this)
                 }
-            }
             case None => ()
         }
     }
 
     /// 处理 on_response
     /// 对应 Bun: pub fn onResponse(this, request_value, response_value) void
-    /// Rust: pub fn on_response(&mut self, this, request_value, response_value)
+    /// Rust: pub fn on_response(&self, this, request_value, response_value)
     public func onResponse(responseValue: ?Response): Unit {
         if (isAbortedOrEnded()) {
             return
@@ -1346,22 +1301,20 @@ public class RequestContext {
         }
 
         match (responseValue) {
-            case Some(response) => {
+            case Some(response) =>
                 if (method == HttpMethod.HEAD) {
                     doRenderHeadResponse(response)
                     return
                 }
                 renderResponse(response)
-            }
-            case None => {
+            case None =>
                 renderMissing()
-            }
         }
     }
 
     /// 执行 sendfile
     /// 对应 Bun: pub fn doSendfile(this, blob) void
-    /// Rust: pub fn do_sendfile(&mut self, blob: Blob)
+    /// Rust: pub fn do_sendfile(&self, blob: Blob)
     public func doSendfile(blob: AnyBlobData): Unit {
         if (isAbortedOrEnded()) {
             return
@@ -1369,7 +1322,7 @@ public class RequestContext {
         if (flags.hasSendfileCtx) {
             return
         }
-        if (resp == None || server == None) {
+        if (resp.isNone() || server.isNone()) {
             return
         }
 
@@ -1387,12 +1340,11 @@ public class RequestContext {
             let statSize = blob.size()
             match (range) {
                 case RangeRaw.None => ()
-                case RangeRaw.Suffix(suffix) => {
+                case RangeRaw.Suffix(suffix) =>
                     sendfile.offset = if (statSize > suffix) { statSize - suffix } else { 0 }
                     sendfile.remain = if (statSize > suffix) { suffix } else { statSize }
                     flags.needsContentRange = true
-                }
-                case RangeRaw.Bounded(bounded) => {
+                case RangeRaw.Bounded(bounded) =>
                     let start = bounded.start
                     let end = match (bounded.end) {
                         case Some(e) => e
@@ -1402,12 +1354,11 @@ public class RequestContext {
                         // 对应 Bun: Unsatisfiable => 416
                         doWriteStatus(416)
                         match (resp) {
-                            case Some(r) => {
+                            case Some(r) =>
                                 r.writeHeader("Content-Range", "bytes */${statSize}")
                                 r.writeHeader("Accept-Ranges", "bytes")
                                 detachResponse()
                                 r.end("", shouldCloseConnection())
-                            }
                             case None => ()
                         }
                         deref()
@@ -1417,7 +1368,6 @@ public class RequestContext {
                     sendfile.remain = end - start + 1
                     sendfile.total = statSize
                     flags.needsContentRange = true
-                }
             }
         }
 
@@ -1427,10 +1377,9 @@ public class RequestContext {
         // 对应 Bun: empty file or no body method
         if (sendfile.remain == 0 || !method.hasBody()) {
             match (resp) {
-                case Some(r) => {
+                case Some(r) =>
                     detachResponse()
                     r.end("", shouldCloseConnection())
-                }
                 case None => ()
             }
             deref()
@@ -1445,9 +1394,8 @@ public class RequestContext {
         // 简化: 不启动 FileResponseStream, 直接写入
         let bytes = blobData.slice()
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 r.end(bytes, shouldCloseConnection())
-            }
             case None => ()
         }
         detachResponse()
@@ -1456,7 +1404,7 @@ public class RequestContext {
 
     /// 处理 onWritable 回调
     /// 对应 Bun: pub fn onWritableBytes(this, write_offset, resp) bool
-    /// Rust: pub fn on_writable_bytes(this: *mut Self, write_offset, resp) -> bool
+    /// Rust: pub fn on_writable_bytes(`this`: *Self, write_offset, resp) -> bool
     public func onWritableBytes(writeOffset: Int64): Bool {
         if (isAbortedOrEnded()) {
             return false
@@ -1464,7 +1412,7 @@ public class RequestContext {
 
         let bytes = blobData.slice()
         match (resp) {
-            case Some(r) => {
+            case Some(r) =>
                 let remaining = bytes.drop(writeOffset)
                 if (r.tryEnd(remaining, bytes.size, shouldCloseConnection())) {
                     detachResponse()
@@ -1474,7 +1422,6 @@ public class RequestContext {
                     flags.hasMarkedPending = true
                     r.onWritable(this)
                 }
-            }
             case None => ()
         }
         return true
@@ -1482,7 +1429,7 @@ public class RequestContext {
 
     /// 转为异步请求
     /// 对应 Bun: pub fn toAsync(this, req, request_object) void
-    /// Rust: pub fn to_async(&mut self, req, request_object)
+    /// Rust: pub fn to_async(&self, req, request_object)
     public func toAsync(): Unit {
         if (isDebugMode) {
             // 对应 Bun: pathname = request_object.url.get().clone()
@@ -1603,7 +1550,7 @@ public class ResponseRef {
 }
 
 /// 原始请求引用
-/// 对应 Bun: *mut Req<SSL_ENABLED, HTTP3> (erased to *mut c_void)
+/// 对应 Bun: *Req<SSL_ENABLED, HTTP3> (erased to *c_void)
 public class RawRequestRef {
     public var method: String
     public var url: String
@@ -1648,7 +1595,7 @@ public class CookieMapRef {
 }
 
 /// WebSocket 升级上下文
-/// 对应 Bun: upgrade_context: Option<*mut WebSocketUpgradeContext>
+/// 对应 Bun: upgrade_context: Option<*WebSocketUpgradeContext>
 public class WebSocketUpgradeContext {
     private var upgraded: Bool
 
@@ -1794,7 +1741,7 @@ public class AnyBlobData {
 }
 
 /// JS 值引用
-/// 对应 Bun: JSValue
+/// 对应 Bun: JsValue
 public class JsValueRef {
     public var isEmpty: Bool
 
@@ -1909,7 +1856,7 @@ public class DevServerRef {
 }
 
 /// BaoError 类型
-/// 对应 Bun: bun.JSError / JSValue error
+/// 对应 Bun: bun.JSError / JsValue error
 public class BaoError {
     public var message: String
     public var code: Int64
@@ -1941,9 +1888,8 @@ public class RangeRequest {
     /// 对应 Bun: pub fn rawFromRequest(req) Raw
     public static func rawFromRequest(headers: HashMap<String, String>): RangeRaw {
         match (headers.get("range")) {
-            case Some(rangeValue) => {
+            case Some(rangeValue) =>
                 return parseRange(rangeValue)
-            }
             case None => return RangeRaw.None
         }
     }

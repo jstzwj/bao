@@ -51,6 +51,10 @@ public class PackageInstallSummary {
         return fail > 0
     }
 
+    public func addBlockedScripts(hash: UInt32, count: Int64): Unit {
+        packagesWithBlockedScripts.put(hash, count)
+    }
+
     /// 合并另一个摘要
     public func merge(other: PackageInstallSummary): Unit {
         success += other.success
@@ -240,7 +244,7 @@ public class PackageInstallRequest {
         let pkgJsonPath = "${destPath}/package.json"
         match (BaoFile.readAllText(pkgJsonPath)) {
             case SysMaybe<String>.Ok(content) =>
-                let json = JsonParser().parse(content)
+                let json = PkgJsonParser().parse(content)
                 match (json) {
                     case Some(root) =>
                         match (root) {
@@ -439,14 +443,66 @@ public class PackageManagerRef {
     /// 全局链接目录路径
     public var globalLinkDirPath: String
     /// 日志级别
-    public var logLevel: LogLevel
+    public var logLevel: InstallLogLevel
+    /// 是否启用全局虚拟存储
+    public var enableGlobalVirtualStore: Bool
+    /// 公共提升模式匹配器
+    public var publicHoistPattern: ?PnpmMatcher
+    /// 隐藏提升模式匹配器
+    public var hoistPattern: ?PnpmMatcher
+    /// 强制安装
+    public var forceInstall: Bool
+    /// 待处理任务计数
+    public var pendingTaskCount: Int64
+    /// 待处理的生命周期脚本任务
+    public var pendingLifecycleScriptTasks: Int64
+
+    public func enqueueNpmDownload(depId: UInt32, pkgId: UInt32, name: String, resolution: String): Unit {}
+    public func enqueueGitCheckout(depId: UInt32, name: String, resolution: String): Unit {}
+    public func enqueueGitHubDownload(depId: UInt32, pkgId: UInt32, resolution: String): Unit {}
+    public func enqueueTarballDownload(depId: UInt32, pkgId: UInt32, resolution: String): Unit {}
+    public func runTasks(): Unit {}
+    public func lifecycleScriptTimeLog(entry: LifecycleScriptTimeEntry): Unit {}
+    public func taskQueueFetchRemove(taskId: Int64): ?ArrayList<String> { return None }
+    public var topLevelDir: String = ""
+    public var isGlobal: Bool = false
+    public var updateRequests: ArrayList<UpdateRequest> = ArrayList<UpdateRequest>()
+    public var postinstallOptimizer: PostinstallOptimizerList = PostinstallOptimizerList()
+    public var summaryAddedTrustedDependencies: ArrayList<String> = ArrayList<String>()
+    public var trustedDepsToAddToPackageJson: ArrayList<String> = ArrayList<String>()
+    public var totalScripts: Int64 = Int64(0)
+    public func enqueuePatchTask(data: PatchTaskData): Unit {}
+    public func spawnPackageLifecycleScripts(scripts: LifecycleScriptList, pkgId: UInt32, name: String, treeId: UInt32): Unit {}
+    public var enableForceSaveLockfile: Bool = false
+    public var activeLifecycleScriptCount: Int64 = Int64(0)
+    public var maxConcurrentLifecycleScripts: Int64 = Int64(1)
+    public func sleep(): Unit {}
+    public func reportSlowLifecycleScripts(): Unit {}
+    public func enqueueGitForCheckout(depId: UInt32, name: String, resolution: String, context: DependencyInstallContextData): Unit {}
+    public func allocGitHubURL(resolution: String): String { return "" }
+    public func enqueuePackageForDownload(name: String, depId: UInt32, pkgId: UInt32, resolution: String, context: DependencyInstallContextData): Unit {}
+    public func enqueueTarballForDownload(depId: UInt32, pkgId: UInt32, url: String, context: DependencyInstallContextData): Unit {}
+    public func enqueueTarballForReading(depId: UInt32, pkgId: UInt32, name: String, resolution: String, context: DependencyInstallContextData): Unit {}
 
     public init() {
         cacheDirectoryPath = ""
         temporaryDirectoryPath = ""
         globalLinkDirPath = ""
-        logLevel = LogLevel.Default
+        logLevel = InstallLogLevel.Default
+        enableGlobalVirtualStore = false
+        publicHoistPattern = None
+        hoistPattern = None
+        forceInstall = false
+        pendingTaskCount = Int64(0)
+        pendingLifecycleScriptTasks = Int64(0)
     }
+}
+
+/// Patch task data placeholder
+public class PatchTaskData {
+    public init() {}
+    public static func newApplyPatchHash(manager: PackageManagerRef, packageId: UInt32, hash: String, name: String, resolution: String): PatchTaskData { PatchTaskData() }
+    public func setApplyInstallContext(ctx: DependencyInstallContextData): Unit {}
 }
 
 // ============================================================================
@@ -455,13 +511,13 @@ public class PackageManagerRef {
 // ============================================================================
 
 /// 日志级别
-public enum LogLevel {
+public enum InstallLogLevel {
     | Silent       // 不输出任何信息
     | Verbose      // 详细日志
     | Default      // 默认输出
     | DefaultNoProgress // 默认, 不显示进度条
 
-    public operator func ==(right: LogLevel): Bool {
+    public operator func ==(right: InstallLogLevel): Bool {
         match (this) {
             case Silent => match (right) { case Silent => true case _ => false }
             case Verbose => match (right) { case Verbose => true case _ => false }
@@ -470,7 +526,7 @@ public enum LogLevel {
         }
     }
 
-    public operator func !=(right: LogLevel): Bool {
+    public operator func !=(right: InstallLogLevel): Bool {
         return !(this == right)
     }
 

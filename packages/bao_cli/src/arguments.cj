@@ -1258,7 +1258,7 @@ public class Arguments {
         // 6. 处理 --cwd
         var cwd: String = ""
         match (parsed.getOption("cwd")) {
-            case Some(cwdArg) => {
+            case Some(cwdArg) =>
                 cwd = Path.resolve(cwdArg)
                 // 尝试 chdir
                 try {
@@ -1267,7 +1267,6 @@ public class Arguments {
                     Output.errGeneric("Could not change directory to \"${cwdArg}\"", [])
                     Sys.exit(1)
                 }
-            }
             case None => cwd = Sys.getcwd()
         }
         ctx.args.absoluteWorkingDir = cwd
@@ -1292,11 +1291,10 @@ public class Arguments {
             ctx.noExitOnError = parsed.hasFlag("no-exit-on-error")
 
             match (parsed.getOption("elide-lines")) {
-                case Some(v) => {
+                case Some(v) =>
                     if (v.length > 0) {
                         ctx.elideLines = parseIntOrError(v, "elide-lines")
                     }
-                }
                 case None => ()
             }
         }
@@ -1392,7 +1390,7 @@ public class Arguments {
 
             // 移除命令前缀
             match (cmd) {
-                case CommandTag.BuildCommand => {
+                case CommandTag.BuildCommand =>
                     if (entryPoints.size > 0) {
                         let first = entryPoints[0]
                         if (first == "build" || first == "bao") {
@@ -1401,8 +1399,7 @@ public class Arguments {
                             }
                         }
                     }
-                }
-                case CommandTag.RunCommand => {
+                case CommandTag.RunCommand =>
                     if (entryPoints.size > 0) {
                         let first = entryPoints[0]
                         if (first == "run" || first == "r") {
@@ -1411,7 +1408,6 @@ public class Arguments {
                             }
                         }
                     }
-                }
                 case _ => ()
             }
 
@@ -1443,7 +1439,7 @@ public class Arguments {
         // 31. 处理 --shell
         if (cmd == CommandTag.RunCommand || cmd == CommandTag.AutoCommand) {
             match (parsed.getOption("shell")) {
-                case Some(shell) => {
+                case Some(shell) =>
                     if (shell == "bao") {
                         ctx.useSystemShell = false
                     } else if (shell == "system") {
@@ -1452,7 +1448,6 @@ public class Arguments {
                         Output.errGeneric("Expected --shell to be one of 'bao' or 'system'. Received: \"${shell}\"", [])
                         Sys.exit(1)
                     }
-                }
                 case None => ()
             }
         }
@@ -1467,14 +1462,12 @@ public class Arguments {
 
         // 33. 处理 log level
         match (parsed.getOption("log-level")) {
-            case Some(ll) => {
+            case Some(ll) =>
                 match (LogLevel.fromString(ll)) {
-                    case Some(level) => {
+                    case Some(level) =>
                         ctx.log.level = level
-                    }
                     case None => ()
                 }
-            }
             case None => ()
         }
 
@@ -1547,21 +1540,19 @@ public class Arguments {
 
         // 处理 --unhandled-rejections
         match (parsed.getOption("unhandled-rejections")) {
-            case Some(v) => {
+            case Some(v) =>
                 match (UnhandledRejections.fromString(v)) {
                     case Some(ur) => ctx.args.unhandledRejections = Some(ur)
-                    case None => {
+                    case None =>
                         Output.errGeneric("Invalid value for --unhandled-rejections: \"${v}\"", [])
                         Sys.exit(1)
-                    }
                 }
-            }
             case None => ()
         }
 
         // 处理 --port
         match (parsed.getOption("port")) {
-            case Some(portStr) => {
+            case Some(portStr) =>
                 if (cmd == CommandTag.RunAsNodeCommand) {
                     ctx.runtimeOptions.evalScript = portStr
                     ctx.runtimeOptions.evalAndPrint = true
@@ -1569,24 +1560,21 @@ public class Arguments {
                     let port = parseIntOrError(portStr, "port")
                     ctx.args.port = Some(port)
                 }
-            }
             case None => ()
         }
 
         // 处理 --max-http-header-size
         match (parsed.getOption("max-http-header-size")) {
-            case Some(sizeStr) => {
+            case Some(sizeStr) =>
                 let size = parseIntOrError(sizeStr, "max-http-header-size")
                 // 设置全局 max_http_header_size
-            }
             case None => ()
         }
 
         // 处理 --user-agent
         match (parsed.getOption("user-agent")) {
-            case Some(ua) => {
+            case Some(ua) =>
                 // 设置全局 overridden_default_user_agent
-            }
             case None => ()
         }
 
@@ -1606,37 +1594,32 @@ public class Arguments {
             ctx.globalCache = GlobalCache.Fallback
         } else {
             match (parsed.getOption("install")) {
-                case Some(v) => {
+                case Some(v) =>
                     match (GlobalCache.fromString(v)) {
                         case Some(gc) => ctx.globalCache = gc
-                        case None => {
+                        case None =>
                             if (v.length == 0) {
                                 ctx.globalCache = GlobalCache.Force
                             } else {
                                 Output.errGeneric("Invalid value for --install: \"${v}\"", [])
                                 Sys.exit(1)
                             }
-                        }
                     }
-                }
                 case None => ()
             }
         }
 
         // 处理 --print / --eval
         match (parsed.getOption("print")) {
-            case Some(script) => {
+            case Some(script) =>
                 ctx.runtimeOptions.evalScript = script
                 ctx.runtimeOptions.evalAndPrint = true
-            }
-            case None => {
+            case None =>
                 match (parsed.getOption("eval")) {
-                    case Some(script) => {
+                    case Some(script) =>
                         ctx.runtimeOptions.evalScript = script
-                    }
                     case None => ()
                 }
-            }
         }
 
         ctx.runtimeOptions.ifPresent = parsed.hasFlag("if-present")
@@ -1648,10 +1631,9 @@ public class Arguments {
 
         // 处理 --console-depth
         match (parsed.getOption("console-depth")) {
-            case Some(depthStr) => {
+            case Some(depthStr) =>
                 let depth = parseIntOrError(depthStr, "console-depth")
-                ctx.runtimeOptions.consoleDepth = if (depth == 0) 65535 else depth
-            }
+                ctx.runtimeOptions.consoleDepth = if (depth == 0) { 65535 } else { depth }
             case None => ()
         }
 
@@ -1718,9 +1700,8 @@ public class Arguments {
             ctx.runtimeOptions.cpuProf.mdFormat = cpuProfMd
             ctx.runtimeOptions.cpuProf.jsonFormat = cpuProf
             match (parsed.getOption("cpu-prof-interval")) {
-                case Some(v) => {
+                case Some(v) =>
                     ctx.runtimeOptions.cpuProf.interval = parseIntOrDefault(v, 1000)
-                }
                 case None => ()
             }
         }
@@ -1787,11 +1768,10 @@ public class Arguments {
 
         // 如果 port 已设置但 origin 未设置，自动设置 origin
         match (ctx.args.port) {
-            case Some(p) => {
+            case Some(p) =>
                 if (ctx.args.origin == None) {
                     ctx.args.origin = Some("http://localhost:${p}/")
                 }
-            }
             case None => ()
         }
     }
@@ -1806,21 +1786,19 @@ public class Arguments {
 
         // --timeout
         match (parsed.getOption("timeout")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.length > 0) {
                     to.defaultTimeoutMs = parseIntOrError(v, "timeout")
                 }
-            }
             case None => ()
         }
 
         // --max-concurrency
         match (parsed.getOption("max-concurrency")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.length > 0) {
                     to.maxConcurrency = parseIntOrError(v, "max-concurrency")
                 }
-            }
             case None => ()
         }
 
@@ -1854,7 +1832,7 @@ public class Arguments {
 
         // --reporter
         match (parsed.getOption("reporter")) {
-            case Some(reporter) => {
+            case Some(reporter) =>
                 if (reporter == "junit") {
                     if (to.reporterOutfile.length == 0) {
                         Output.errGeneric("--reporter=junit requires --reporter-outfile [file]", [])
@@ -1867,7 +1845,6 @@ public class Arguments {
                     Output.errGeneric("unsupported reporter format '${reporter}'. Available: 'junit', 'dots'", [])
                     Sys.exit(1)
                 }
-            }
             case None => ()
         }
 
@@ -1896,7 +1873,7 @@ public class Arguments {
 
         // --bail
         match (parsed.getOption("bail")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.length > 0) {
                     to.bail = parseIntOrError(v, "bail")
                     if (to.bail == 0) {
@@ -1906,27 +1883,24 @@ public class Arguments {
                 } else {
                     to.bail = 1
                 }
-            }
             case None => ()
         }
 
         // --rerun-each
         match (parsed.getOption("rerun-each")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.length > 0) {
                     to.repeatCount = parseIntOrError(v, "rerun-each")
                 }
-            }
             case None => ()
         }
 
         // --retry
         match (parsed.getOption("retry")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.length > 0) {
                     to.retry = parseIntOrError(v, "retry")
                 }
-            }
             case None => ()
         }
 
@@ -1938,10 +1912,9 @@ public class Arguments {
 
         // --test-name-pattern
         match (parsed.getOption("test-name-pattern")) {
-            case Some(pattern) => {
+            case Some(pattern) =>
                 to.testFilterPattern = pattern
                 // 在 Bun 中会编译正则表达式
-            }
             case None => ()
         }
 
@@ -1953,9 +1926,8 @@ public class Arguments {
 
         // --shard
         match (parsed.getOption("shard")) {
-            case Some(shard) => {
+            case Some(shard) =>
                 parseShard(shard, ctx)
-            }
             case None => ()
         }
 
@@ -1971,7 +1943,7 @@ public class Arguments {
 
         // --parallel
         match (parsed.getOption("parallel")) {
-            case Some(v) => {
+            case Some(v) =>
                 let parsed_: Int64 = if (v.length > 0) {
                     parseIntOrError(v, "parallel")
                 } else {
@@ -1983,24 +1955,21 @@ public class Arguments {
                 }
                 to.parallel = parsed_
                 to.isolate = true  // --parallel implies --isolate
-            }
             case None => ()
         }
 
         // --parallel-delay
         match (parsed.getOption("parallel-delay")) {
-            case Some(v) => {
+            case Some(v) =>
                 to.parallelDelayMs = parseIntOrError(v, "parallel-delay")
-            }
             case None => ()
         }
 
         // --seed
         match (parsed.getOption("seed")) {
-            case Some(v) => {
+            case Some(v) =>
                 to.randomize = true
                 to.seed = parseIntOrError(v, "seed")
-            }
             case None => ()
         }
     }
@@ -2100,21 +2069,19 @@ public class Arguments {
 
         // --packages
         match (parsed.getOption("packages")) {
-            case Some(v) => {
+            case Some(v) =>
                 match (PackagesMode.fromString(v)) {
                     case Some(pm) => ctx.args.packages = pm
-                    case None => {
+                    case None =>
                         Output.errGeneric("Invalid packages setting: \"${v}\"", [])
                         Sys.exit(1)
-                    }
                 }
-            }
             case None => ()
         }
 
         // --env
         match (parsed.getOption("env")) {
-            case Some(env) => {
+            case Some(env) =>
                 if (env.contains("*")) {
                     let asterisk = env.indexOf('*')
                     if (asterisk == 0) {
@@ -2131,26 +2098,22 @@ public class Arguments {
                     Output.errGeneric("Expected 'env' to be 'inline', 'disable', or a prefix with a '*'", [])
                     Sys.exit(1)
                 }
-            }
             case None => ()
         }
 
         // --target
         match (parsed.getOption("target")) {
-            case Some(target) => {
+            case Some(target) =>
                 match (BuildTarget.fromString(target)) {
-                    case Some(t) => {
+                    case Some(t) =>
                         ctx.args.target = Some(t)
                         if (t == BuildTarget.Bun) {
                             ctx.runInBun = true
                         }
-                    }
-                    case None => {
+                    case None =>
                         Output.errGeneric("Invalid target: \"${target}\"", [])
                         Sys.exit(1)
-                    }
                 }
-            }
             case None => ()
         }
 
@@ -2170,13 +2133,12 @@ public class Arguments {
 
         // --compile-exec-argv
         match (parsed.getOption("compile-exec-argv")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (!bo.compile) {
                     Output.errGeneric("--compile-exec-argv requires --compile", [])
                     Sys.exit(1)
                 }
                 bo.compileExecArgv = v
-            }
             case None => ()
         }
 
@@ -2188,59 +2150,50 @@ public class Arguments {
 
         // --outdir / --outfile
         match (parsed.getOption("outdir")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.length > 0) { bo.outdir = v }
-            }
-            case None => {
+            case None =>
                 match (parsed.getOption("outfile")) {
-                    case Some(v) => {
+                    case Some(v) =>
                         if (v.length > 0) { bo.outfile = v }
-                    }
                     case None => ()
                 }
-            }
         }
 
         // --metafile
         match (parsed.getOption("metafile")) {
-            case Some(v) => {
-                bo.metafile = if (v.length > 0) v else "meta.json"
-            }
+            case Some(v) =>
+                bo.metafile = if (v.length > 0) { v } else { "meta.json" }
             case None => ()
         }
 
         // --metafile-md
         match (parsed.getOption("metafile-md")) {
-            case Some(v) => {
-                bo.metafileMd = if (v.length > 0) v else "meta.md"
-            }
+            case Some(v) =>
+                bo.metafileMd = if (v.length > 0) { v } else { "meta.md" }
             case None => ()
         }
 
         // --root
         match (parsed.getOption("root")) {
-            case Some(v) => {
+            case Some(v) =>
                 if (v.length > 0) { bo.rootDir = v }
-            }
             case None => ()
         }
 
         // --format
         match (parsed.getOption("format")) {
-            case Some(format) => {
+            case Some(format) =>
                 match (OutputFormat.fromString(format)) {
-                    case Some(f) => {
+                    case Some(f) =>
                         bo.outputFormat = f
                         if (f == OutputFormat.CJS && ctx.args.target == None) {
                             ctx.args.target = Some(BuildTarget.Node)
                         }
-                    }
-                    case None => {
+                    case None =>
                         Output.errGeneric("Invalid format - must be esm, cjs, or iife", [])
                         Sys.exit(1)
-                    }
                 }
-            }
             case None => ()
         }
 
@@ -2275,21 +2228,18 @@ public class Arguments {
 
         // --sourcemap
         match (parsed.getOption("sourcemap")) {
-            case Some(setting) => {
+            case Some(setting) =>
                 match (SourceMapMode.fromString(setting)) {
-                    case Some(mode) => {
+                    case Some(mode) =>
                         ctx.args.sourceMap = mode
                         // compile 模式下使用 external
                         if (bo.compile) {
                             ctx.args.sourceMap = SourceMapMode.External
                         }
-                    }
-                    case None => {
+                    case None =>
                         Output.errGeneric("Invalid sourcemap setting: \"${setting}\"", [])
                         Sys.exit(1)
-                    }
                 }
-            }
             case None => ()
         }
 
@@ -2341,15 +2291,13 @@ public class Arguments {
 
         if (jsxFactory != None || jsxFragment != None || jsxImportSource != None || jsxRuntime != None) {
             match (jsxRuntime) {
-                case Some(runtimeStr) => {
+                case Some(runtimeStr) =>
                     match (resolveJsxRuntime(runtimeStr)) {
                         case Some(runtime) => ctx.args.jsxRuntime = runtime
-                        case None => {
+                        case None =>
                             Output.errGeneric("Invalid JSX runtime: \"${runtimeStr}\"", [])
                             Sys.exit(1)
-                        }
                     }
-                }
                 case None => ()
             }
 
@@ -2388,9 +2336,8 @@ public class Arguments {
             ctx.hasLoadedGlobalConfig = true
             let homeConfig = getHomeConfigPath()
             match (homeConfig) {
-                case Some(path) => {
+                case Some(path) =>
                     loadConfigPath(true, path, ctx, cmd)
-                }
                 case None => ()
             }
         }
@@ -2400,14 +2347,13 @@ public class Arguments {
 
         match (userConfigPath) {
             case Some(cp) => configPath = cp
-            case None => {
+            case None =>
                 // 自动加载 bunfig.toml
                 if (cmd == CommandTag.AutoCommand || cmd == CommandTag.RunCommand ||
                     cmd == CommandTag.BuildCommand) {
                     configPath = "baofig.toml"
                     autoLoaded = true
                 }
-            }
         }
 
         if (configPath.length == 0) {
@@ -2433,18 +2379,16 @@ public class Arguments {
     private static func loadBunfig(autoLoaded: Bool, configPath: String, ctx: CommandContext, cmd: CommandTag): Unit {
         let content = BaoFile.readAllText(configPath)
         match (content) {
-            case Some(text) => {
+            case Some(text) =>
                 ctx.loadedBunfig = true
                 // 解析 bunfig.toml
                 // 在 Bun 中这使用 Bunfig.parse()
                 // 此处简化为标记已加载
-            }
-            case None => {
+            case None =>
                 if (!autoLoaded) {
                     Output.errGeneric("Config file not found: \"${configPath}\"", [])
                     Sys.exit(1)
                 }
-            }
         }
     }
 
@@ -2454,18 +2398,16 @@ public class Arguments {
         // 尝试 XDG_CONFIG_HOME
         let xdgHome = Sys.getenv("XDG_CONFIG_HOME")
         match (xdgHome) {
-            case Some(dir) => {
+            case Some(dir) =>
                 return Path.join([dir, ".baofig.toml"])
-            }
             case None => ()
         }
 
         // 尝试 HOME
         let home = Sys.getenv("HOME")
         match (home) {
-            case Some(dir) => {
+            case Some(dir) =>
                 return Path.join([dir, ".baofig.toml"])
-            }
             case None => ()
         }
 

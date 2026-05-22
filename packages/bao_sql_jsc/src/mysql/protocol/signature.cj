@@ -5,6 +5,9 @@ package bao_sql_jsc.mysql.protocol
 
 import bao_core.*
 import bao_jsc.*
+import bao_sql_jsc.shared.*
+import bao_sql_jsc.mysql.*
+import bao_collections.ArrayList
 
 /// MySQL 签名
 /// 对应 Bun: mysql/protocol/Signature.zig
@@ -29,43 +32,42 @@ public class MySQLSignature {
         sig.query = query
         sig.name = query
 
-        do {
-            let iter = QueryBindingIterator.init(arrayValue, columns, globalObject)
-            if (iter == None) {
+        try {
+            let iterOpt = QueryBindingIterator.initFunc(arrayValue, columns, globalObject)
+            if (iterOpt.isNone()) {
                 return None
             }
 
-            var fields = ArrayList<SignatureParam>()
-            var nameBuilder = StringBuilder()
-            nameBuilder.append(query)
+            var fields: Array<SignatureParam> = []
+            var nameStr = query
 
-            var nextValue = iter.getOrThrow().next()
-            while (nextValue != None) {
+            var nextValue = iterOpt.getOrThrow().next()
+            while (nextValue.isSome()) {
                 let value = nextValue.getOrThrow()
                 if (value.isEmptyOrUndefinedOrNull()) {
-                    fields.append(SignatureParam(fieldType: 6, unsigned: false)) // NULL
-                    nameBuilder.append(".null")
+                    fields = fields.concat([SignatureParam(6, false)]) // NULL
+                    nameStr = nameStr + ".null"
                 } else {
-                    var unsigned = false
+                    let unsigned = false
                     let fieldType = MySQLFieldType.fromJS(globalObject, value, unsigned)
-                    if (fieldType != None) {
+                    if (fieldType.isSome()) {
                         let param = SignatureParam(
-                            fieldType: UInt8(fieldType.getOrThrow().value()),
-                            unsigned: unsigned
+                            UInt8(fieldType.getOrThrow().value()),
+                            unsigned
                         )
-                        fields.append(param)
-                        nameBuilder.append(fieldType.getOrThrow().name())
+                        fields = fields.concat([param])
+                        nameStr = nameStr + fieldType.getOrThrow().name()
                     }
                 }
-                nextValue = iter.getOrThrow().next()
+                nextValue = iterOpt.getOrThrow().next()
             }
 
-            if (iter.getOrThrow().anyFailed()) {
+            if (iterOpt.getOrThrow().anyFailed()) {
                 return None
             }
 
-            sig.fields = fields.toArray()
-            sig.name = nameBuilder.toString()
+            sig.fields = fields
+            sig.name = nameStr
             return sig
         } catch (_: Exception) {
             return None
@@ -75,9 +77,9 @@ public class MySQLSignature {
     /// 计算哈希
     /// 对应 Bun: Signature.hash
     public func hash(): UInt64 {
-        var hasher = Wyhash.init(0)
+        var hasher = Wyhash.initFunc(0)
         hasher.update(name)
-        return hasher.final()
+        return hasher.final_()
     }
 
     /// 释放资源
@@ -97,9 +99,9 @@ public class SignatureParam {
     public var fieldType: UInt8
     public var unsigned: Bool
 
-    public init(fieldType: UInt8, unsigned: Bool) {
-        this.fieldType = fieldType
-        this.unsigned = unsigned
+    public init(_fieldType: UInt8, _unsigned: Bool) {
+        this.fieldType = _fieldType
+        this.unsigned = _unsigned
     }
 }
 
@@ -138,6 +140,6 @@ public class StringBuilder {
     }
 
     public func toString(): String {
-        return String.fromUtf8(buffer.toArray())
+        return String.fromUtf8(buffer.toOwnedSlice())
     }
 }

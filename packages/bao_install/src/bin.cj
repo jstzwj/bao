@@ -7,6 +7,7 @@ import bao_collections.*
 import bao_io.*
 import bao_hash.*
 import bao_path.*
+import bao_sys.*
 
 // ============================================================================
 // Bin 标签
@@ -34,6 +35,20 @@ public enum BinTag {
             case None => true
             case _ => false
         }
+    }
+
+    public operator func ==(right: BinTag): Bool {
+        match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case File => match (right) { case File => true case _ => false }
+            case NamedFile => match (right) { case NamedFile => true case _ => false }
+            case Dir => match (right) { case Dir => true case _ => false }
+            case Map => match (right) { case Map => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: BinTag): Bool {
+        return !(this == right)
     }
 }
 
@@ -71,7 +86,7 @@ public class PackageBin {
         dirPath = None
     }
 
-    public static func init(): PackageBin {
+    public static func `init`(): PackageBin {
         return PackageBin()
     }
 
@@ -138,15 +153,15 @@ public class PackageBin {
             case Map =>
                 if (binMap.size != other.binMap.size) { return false }
                 // map 中的键值对需要逐一比较
-                var iter = binMap.iterator()
-                while (iter.hasNext()) {
-                    let entry = iter.next()
-                    let key = entry.key
-                    let value = entry.value
-                    match (other.binMap.get(key)) {
-                        case Some(otherValue) =>
-                            if (value != otherValue) { return false }
-                        case None => return false
+                for (k in binMap.keys()) {
+                    match (binMap.get(k)) {
+                        case Some(v) =>
+                            match (other.binMap.get(k)) {
+                                case Some(otherValue) =>
+                                    if (v != otherValue) { return false }
+                                case None => return false
+                            }
+                        case None => ()
                     }
                 }
                 return true
@@ -182,10 +197,11 @@ public class PackageBin {
                     case None => ()
                 }
             case Map =>
-                var iter = binMap.iterator()
-                while (iter.hasNext()) {
-                    let entry = iter.next()
-                    result.binMap.put(entry.key, entry.value)
+                for (k in binMap.keys()) {
+                    match (binMap.get(k)) {
+                        case Some(v) => result.binMap.put(k, v)
+                        case None => ()
+                    }
                 }
         }
 
@@ -204,36 +220,36 @@ public class PackageBin {
 
     /// 从 JSON 解析 Bin
     /// 翻译自: Bin.parseAppend
-    public static func parseFromJson(json: DynamicJsonValue): PackageBin {
+    public static func parseFromJson(json: JsonValue): PackageBin {
         let result = PackageBin()
 
-        match (json.type) {
-            case JsonValueType.Object =>
-                let obj = json.asObject()
+        match (json) {
+            case JsonValue.Object(obj) =>
                 match (obj.size) {
                     case 0 => ()
                     case 1 =>
                         // 单个属性 => named_file
-                        let firstEntry = obj.firstEntry()
-                        match (firstEntry) {
-                            case Some(entry) =>
-                                result.tag = BinTag.NamedFile
-                                result.name = Some(entry.key)
-                                result.namedPath = Some(entry.value.asString())
-                            case None => ()
+                        let keys = obj.keys()
+                        if (keys.size >= 1) {
+                            let k = keys[0]
+                            result.tag = BinTag.NamedFile
+                            result.name = Some(k)
+                            match (obj.get(k)) {
+                                case Some(JsonValue.Str(v)) => result.namedPath = Some(v)
+                                case _ => ()
+                            }
                         }
                     case _ =>
                         // 多个属性 => map
                         result.tag = BinTag.Map
-                        let entries = obj.entries()
-                        var iter = entries.iterator()
-                        while (iter.hasNext()) {
-                            let entry = iter.next()
-                            result.binMap.put(entry.key, entry.value.asString())
+                        for (k in obj.keys()) {
+                            match (obj.get(k)) {
+                                case Some(JsonValue.Str(s)) => result.binMap.put(k, s)
+                                case _ => ()
+                            }
                         }
                 }
-            case JsonValueType.String =>
-                let str = json.asString()
+            case JsonValue.Str(str) =>
                 if (str.size > 0) {
                     result.tag = BinTag.File
                     result.filePath = Some(str)
@@ -253,12 +269,15 @@ public class PackageBin {
 
     /// 从 directories 字段解析 Bin
     /// 翻译自: Bin.parseAppendFromDirectories
-    public static func parseFromDirectories(json: DynamicJsonValue): PackageBin {
+    public static func parseFromDirectories(json: JsonValue): PackageBin {
         let result = PackageBin()
-        let binStr = json.asString()
-        if (binStr.size > 0) {
-            result.tag = BinTag.Dir
-            result.dirPath = Some(binStr)
+        match (json) {
+            case JsonValue.Str(binStr) =>
+                if (binStr.size > 0) {
+                    result.tag = BinTag.Dir
+                    result.dirPath = Some(binStr)
+                }
+            case _ => ()
         }
         return result
     }
@@ -293,14 +312,16 @@ public class PackageBin {
                 var sb = StringBuilder()
                 sb.append("{")
                 var first = true
-                var iter = binMap.iterator()
-                while (iter.hasNext()) {
-                    let entry = iter.next()
-                    if (!first) {
-                        sb.append(",")
+                for (k in binMap.keys()) {
+                    match (binMap.get(k)) {
+                        case Some(v) =>
+                            if (!first) {
+                                sb.append(",")
+                            }
+                            first = false
+                            sb.append(" \"${k}\": \"${v}\"")
+                        case None => ()
                     }
-                    first = false
-                    sb.append(" \"${entry.key}\": \"${entry.value}\"")
                 }
                 sb.append(" }")
                 return sb.toString()
@@ -320,7 +341,9 @@ public class PackageBin {
             case NamedFile =>
                 let nameStr = name ?? ""
                 let pathStr = namedPath ?? ""
-                let indentStr = String(Int64(indent), ' ')
+                var indentBuf = StringBuilder()
+                for (_ in 0..indent) { indentBuf.append(" ") }
+                let indentStr = indentBuf.toString()
                 return "{\n${indentStr}${nameStr}: ${pathStr},\n}"
             case Dir =>
                 match (dirPath) {
@@ -330,21 +353,27 @@ public class PackageBin {
             case Map =>
                 var sb = StringBuilder()
                 sb.append("{\n")
-                let indentStr = String(Int64(indent + 1), ' ')
+                var indentBuf2 = StringBuilder()
+                for (_ in 0..(indent + 1)) { indentBuf2.append(" ") }
+                let indentStr = indentBuf2.toString()
                 var first = true
-                var iter = binMap.iterator()
-                while (iter.hasNext()) {
-                    let entry = iter.next()
-                    if (!first) {
-                        sb.append(",\n")
+                for (k in binMap.keys()) {
+                    match (binMap.get(k)) {
+                        case Some(v) =>
+                            if (!first) {
+                                sb.append(",\n")
+                            }
+                            first = false
+                            sb.append("${indentStr}\"${k}\": \"${v}\"")
+                        case None => ()
                     }
-                    first = false
-                    sb.append("${indentStr}\"${entry.key}\": \"${entry.value}\"")
                 }
                 if (!first) {
                     sb.append(",\n")
                 }
-                let outerIndent = String(Int64(indent), ' ')
+                var outerIndentBuf = StringBuilder()
+                for (_ in 0..indent) { outerIndentBuf.append(" ") }
+                let outerIndent = outerIndentBuf.toString()
                 sb.append("${outerIndent}}")
                 return sb.toString()
         }
@@ -456,18 +485,14 @@ public class BinNamesIterator {
                 done = true
                 return None
             case Map =>
-                var iter = bin.binMap.iterator()
-                var count: Int64 = 0
-                while (iter.hasNext()) {
-                    let entry = iter.next()
-                    if (count == i) {
-                        i += 1
-                        if (!iter.hasNext()) {
-                            done = true
-                        }
-                        return Some(normalizedBinName(entry.key))
+                let keyList = bin.binMap.keys()
+                if (i < keyList.size) {
+                    let k = keyList[Int64(i)]
+                    i += 1
+                    if (i >= keyList.size) {
+                        done = true
                     }
-                    count += 1
+                    return Some(normalizedBinName(k))
                 }
                 done = true
                 return None
@@ -482,7 +507,7 @@ public class BinNamesIterator {
         let result = ArrayList<String>()
         var nextName = next()
         while (nextName.isSome()) {
-            result.append(nextName.unwrap())
+            result.append(nextName.getOrThrow())
             nextName = next()
         }
         return result
@@ -505,11 +530,17 @@ public class BinNamesIterator {
 ///   从路径中提取文件名: "scripts/foo" -> "foo", "@scope/pkg" -> "pkg"
 public func normalizedBinName(name: String): String {
     // 查找最后一个路径分隔符
-    let lastSlash = name.lastIndexOfAny("/\\:")
-    match (lastSlash) {
-        case Some(i) => return name[Int64(i) + 1..]
-        case None => return name
+    var lastSlashIdx: Int64 = -1
+    for (i in 0..name.size) {
+        let c = name[Int64(i)]
+        if (c == UInt8(47) || c == UInt8(92) || c == UInt8(58)) { // '/', '\', ':'
+            lastSlashIdx = Int64(i)
+        }
     }
+    if (lastSlashIdx >= 0) {
+        return name[lastSlashIdx + 1..]
+    }
+    return name
 }
 
 /// 从包名提取 bin 名 (去掉 @scope/ 前缀)
@@ -631,15 +662,17 @@ public class BinLinker {
                 let absDest = "${binDirPath}${normalizedName}"
                 linkBinOrCreateShim(absTarget, absDest, global)
             case Map =>
-                var iter = bin.binMap.iterator()
-                while (iter.hasNext()) {
-                    let entry = iter.next()
-                    let binDest = normalizedBinName(entry.key)
-                    let binTarget = entry.value
-                    if (binTarget.size == 0 || binDest.size == 0) { continue }
-                    let absTarget = resolveBinTarget(packageDir, binTarget, binDest)
-                    let absDest = "${binDirPath}${binDest}"
-                    linkBinOrCreateShim(absTarget, absDest, global)
+                for (k in bin.binMap.keys()) {
+                    match (bin.binMap.get(k)) {
+                        case Some(v) =>
+                            let binDest = normalizedBinName(k)
+                            let binTarget = v
+                            if (binTarget.size == 0 || binDest.size == 0) { continue }
+                            let absTarget = resolveBinTarget(packageDir, binTarget, binDest)
+                            let absDest = "${binDirPath}${binDest}"
+                            linkBinOrCreateShim(absTarget, absDest, global)
+                        case None => ()
+                    }
                 }
             case Dir =>
                 match (bin.dirPath) {
@@ -689,10 +722,8 @@ public class BinLinker {
                 let absDest = "${binDirPath}${normalizedName}"
                 unlinkBinOrShim(absDest)
             case Map =>
-                var iter = bin.binMap.iterator()
-                while (iter.hasNext()) {
-                    let entry = iter.next()
-                    let binDest = normalizedBinName(entry.key)
+                for (k in bin.binMap.keys()) {
+                    let binDest = normalizedBinName(k)
                     if (binDest.size == 0) { continue }
                     let absDest = "${binDirPath}${binDest}"
                     unlinkBinOrShim(absDest)
@@ -792,13 +823,13 @@ public class BinLinker {
         }
 
         // 设置 umask
-        ensureUmask()
+        UmaskHelper.ensureUmask()
 
         // 尝试创建符号链接
         let result = BaoFile.createSymlink(relTarget, absDest)
         if (result) {
             // 成功: chmod
-            BaoFile.chmod(absTarget, 0x1FF) // 0o777
+            // BaoFile.chmod(absTarget, 0x1FF) // TODO: chmod not available in Cangjie
             return
         }
 
@@ -811,7 +842,7 @@ public class BinLinker {
                 err = Some("failed to create symlink: ${absDest}")
                 return
             }
-            BaoFile.chmod(absTarget, 0x1FF)
+            // BaoFile.chmod(absTarget, 0x1FF) // TODO: chmod not available
             return
         }
 
@@ -824,7 +855,7 @@ public class BinLinker {
                 err = Some("failed to create symlink after mkdir: ${absDest}")
                 return
             }
-            BaoFile.chmod(absTarget, 0x1FF)
+            // BaoFile.chmod(absTarget, 0x1FF) // TODO: chmod not available
         } else {
             err = Some("ENOENT for global bin link: ${absDest}")
         }
@@ -874,22 +905,28 @@ public class BinLinker {
     /// 翻译自: Linker.tryNormalizeShebang
     private func tryNormalizeShebang(absTarget: String): Unit {
         // 读取文件头部
-        let content = BaoFile.readAllText(absTarget)
+        let contentOpt = BaoFile.readAllText(absTarget)
+        var content: String = ""
+        match (contentOpt) {
+            case SysMaybe.Ok(v) => content = v
+            case _ => return
+        }
         if (content.size < 5) { return }
-        if (content[0] != '#' || content[1] != '!') { return }
+        if (content[Int64(0)] != UInt8(35) || content[Int64(1)] != UInt8(33)) { return } // '#', '!'
 
         // 查找第一个换行符
         match (content.indexOf("\n")) {
             case Some(newlineIdx) =>
                 let chunkWithoutNewline = content[..Int64(newlineIdx)]
                 // 检查是否有 \r\n
-                if (chunkWithoutNewline.size > 0 && chunkWithoutNewline[Int64(chunkWithoutNewline.size) - 1] == '\r') {
+                if (chunkWithoutNewline.size > 0 && chunkWithoutNewline[Int64(chunkWithoutNewline.size) - 1] == UInt8(13)) { // '\r'
                     // 需要修正: 将 \r\n 替换为 \n
                     let fixed = content[..Int64(chunkWithoutNewline.size) - 1] + "\n" + content[Int64(newlineIdx) + 1..]
                     // 原子写入: 先写到临时文件, 再重命名
                     let tmpName = ".tmp_shebang_${absTarget.hashCode()}"
-                    if (BaoFile.writeAllText(tmpName, fixed)) {
-                        BaoFile.rename(tmpName, absTarget)
+                    match (BaoFile.writeAllText(tmpName, fixed)) {
+                        case SysMaybe.Ok(_) => BaoFile.rename(tmpName, absTarget)
+                        case _ => ()
                     }
                 }
             case None => ()
@@ -1019,23 +1056,25 @@ public class BinLinker {
             BaoFile.remove(exePath)
         }
     }
+}
 
-    // ========================================================================
-    // Linker.ensureUmask
+// ========================================================================
+// Linker.ensureUmask
     // 严格翻译自: Linker.ensureUmask
     //   pub fn ensureUmask() void
     //   确保已设置 umask (只设置一次)
     // ========================================================================
 
-    /// 确保 umask 已设置
-    /// 翻译自: Linker.ensureUmask
-    private static var hasSetUmask: Bool = false
-    private static var umaskValue: UInt32 = UInt32(0)
+/// 确保 umask 已设置
+/// 翻译自: Linker.ensureUmask
+public class UmaskHelper {
+    public static var hasSetUmask: Bool = false
+    public static var umaskValue: UInt32 = UInt32(0)
 
     public static func ensureUmask(): Unit {
         if (!hasSetUmask) {
             hasSetUmask = true
-            umaskValue = SysFs.getUmask()
+            umaskValue = UInt32(0o022) // TODO: SysFs.getUmask() not available
         }
     }
 }

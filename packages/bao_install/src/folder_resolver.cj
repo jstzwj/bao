@@ -108,7 +108,7 @@ public class FolderResolver {
         try {
             match (BaoFile.readAllText(pkgJsonPath)) {
                 case SysMaybe<String>.Ok(content) =>
-                    let json = JsonParser().parse(content)
+                    let json = PkgJsonParser().parse(content)
                     match (json) {
                         case Some(root) => return resolveFromJson(root, normalizedPath)
                         case None => return FolderResolveResult.err("Failed to parse package.json in: ${normalizedPath}")
@@ -122,11 +122,11 @@ public class FolderResolver {
     }
 
     private static func resolveFromJson(root: JsonValue, normalizedPath: String): FolderResolveResult {
-        let name = match (JsonHelper.getString(root, "name")) {
+        let name = match (PkgJsonHelper.getString(root, "name")) {
             case Some(n) => n
             case None => Path.basename(normalizedPath)
         }
-        let version = match (JsonHelper.getString(root, "version")) {
+        let version = match (PkgJsonHelper.getString(root, "version")) {
             case Some(v) => v
             case None => "0.0.0"
         }

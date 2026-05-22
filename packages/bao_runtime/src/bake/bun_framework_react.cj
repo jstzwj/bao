@@ -21,7 +21,7 @@ public func bunFrameworkReactConfig(): Framework {
                 extensions: [".jsx", ".tsx"],
                 style: FrameworkRouterStyle.nextjs_pages,
                 allow_layouts: true,
-            ),
+            )
         ],
         server_components: Some(ServerComponents(
             separate_ssr_graph: true,
@@ -36,7 +36,7 @@ public func bunFrameworkReactConfig(): Framework {
         built_in_modules: StringArrayHashMap<BuiltInModule>.fromEntries([
             ("bun-framework-react/client.tsx", BuiltInModule.`import`("bun-framework-react/client.tsx")),
             ("bun-framework-react/server.tsx", BuiltInModule.`import`("bun-framework-react/server.tsx")),
-            ("bun-framework-react/ssr.tsx", BuiltInModule.`import`("bun-framework-react/ssr.tsx")),
+            ("bun-framework-react/ssr.tsx", BuiltInModule.`import`("bun-framework-react/ssr.tsx"))
         ]),
     )
 }

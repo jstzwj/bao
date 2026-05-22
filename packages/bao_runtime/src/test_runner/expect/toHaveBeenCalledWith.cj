@@ -7,12 +7,12 @@ import bao_jsc.*
 
 /// toHaveBeenCalledWith() - 检查mock函数是否以指定参数被调用
 /// 用法: expect(mockFn).toHaveBeenCalledWith(...expected)
-public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
+public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.arguments()
-    let value: JSValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalledWith", matcherParamsFmt: "<green>...expected<r>")
+    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalledWith", matcherParamsFmt: "<green>...expected<r>")
 
     this.incrementExpectCallCounter()
 
@@ -32,11 +32,11 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     if (callsCount > 0) {
         var itr = calls.arrayIterator(globalThis: globalThis)
         while (let Some(callItem) <- itr.next()) {
-            if (callItem == JSValue.zero || !callItem.jsType().isArray()) {
+            if (callItem == JsValue.zero || !callItem.jsType().isArray()) {
                 return globalThis.throw_("Internal error: expected mock call item to be an array of arguments.")
             }
 
-            if (callItem.getLength(globalThis: globalThis) != arguments.length) {
+            if (callItem.getLength(globalThis: globalThis) != arguments.size) {
                 continue
             }
 
@@ -57,14 +57,14 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     }
 
     if (pass != this.flags.not) {
-        return JSValue.jsUndefined
+        return JsValue.jsUndefined
     }
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
     defer { formatter.deinit() }
 
-    let expectedArgsJsArray = JSValue.createEmptyArray(globalThis: globalThis, length: arguments.length)
+    let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: arguments.size)
     for ((arg, i) in arguments) {
         expectedArgsJsArray.putIndex(globalThis: globalThis, index: UInt32(i), value: arg)
     }

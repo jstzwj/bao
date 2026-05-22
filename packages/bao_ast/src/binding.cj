@@ -146,14 +146,14 @@ public class Binding {
         this.objectBindingData = None
     }
 
-    /// 创建标识符绑定 - 对应 Bun Binding.init(*B.Identifier, loc)
+    /// 创建标识符绑定 - 对应 Bun Binding(*B.Identifier, loc)
     public static func identifier(ref: Ref, loc: ASTLoc): Binding {
         let b = Binding(BindingTag.Identifier, loc)
         b.identifierData = BIdentifier(ref)
         return b
     }
 
-    /// 创建数组绑定 - 对应 Bun Binding.init(*B.Array, loc)
+    /// 创建数组绑定 - 对应 Bun Binding(*B.Array, loc)
     public static func arrayBinding(items: ArrayList<ArrayBinding>, hasSpread: Bool,
                                      isSingleLine: Bool, loc: ASTLoc): Binding {
         let b = Binding(BindingTag.Array, loc)
@@ -161,7 +161,7 @@ public class Binding {
         return b
     }
 
-    /// 创建对象绑定 - 对应 Bun Binding.init(*B.Object, loc)
+    /// 创建对象绑定 - 对应 Bun Binding(*B.Object, loc)
     public static func objectBinding(properties: ArrayList<BindingProperty>,
                                       isSingleLine: Bool, loc: ASTLoc): Binding {
         let b = Binding(BindingTag.Object, loc)
@@ -169,7 +169,7 @@ public class Binding {
         return b
     }
 
-    /// 创建缺失绑定 - 对应 Bun Binding.init(B.Missing, loc)
+    /// 创建缺失绑定 - 对应 Bun Binding(B.Missing, loc)
     public static func missing(loc: ASTLoc): Binding {
         return Binding(BindingTag.Missing, loc)
     }

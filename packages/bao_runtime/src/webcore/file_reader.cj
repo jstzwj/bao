@@ -7,13 +7,14 @@
 //   - OpenedFileBlob: 打开的文件结果 (fd, pollable, nonblocking, fileType)
 //   - SourceContext trait impl: onStart, onPull, onReadChunk, onReaderDone, onReaderError, onCancel, drain, setRefOrUnref, setFlowing, memoryCost, setRawMode, deinit
 //   - Source = readable_stream::NewSource<FileReader>
-//   - parent(): 从 context 字段反推 *mut Source (fieldParentPtr)
+//   - parent(): 从 context 字段反推 *Source (fieldParentPtr)
 //   仓颉: 提供兼容的文件流式读取器
 package bao_runtime.webcore
 
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_sys.*
 import bao_io.*
 
@@ -22,7 +23,7 @@ import bao_io.*
 // 严格翻译自: FileReader.ReadDuringJSOnPullResult
 //   Bun: pub enum ReadDuringJSOnPullResult {
 //       None,
-//       Js(&'static mut [u8]),
+//       Js(&'static [u8]),
 //       AmountRead(usize),
 //       Temporary(bun_ptr::RawSlice<u8>),
 //       UseBuffered(usize),
@@ -53,12 +54,12 @@ public enum ReadDuringJSOnPullKind {
 /// JS pull 期间读取结果
 /// 严格翻译自 FileReader.ReadDuringJSOnPullResult
 ///
-/// Bun 的原始枚举使用 &'static mut [u8] 和 RawSlice<u8> 等不安全指针。
+/// Bun 的原始枚举使用 &'static [u8] 和 RawSlice<u8> 等不安全指针。
 /// 仓颉翻译使用安全的 Array<UInt8> 和 Int64 来表示数据。
 public class ReadDuringJSOnPullResult {
     /// 变体标签
     public var kind: ReadDuringJSOnPullKind
-    /// JS 缓冲区 (对应 .Js(&'static mut [u8]) — 剩余未填充部分)
+    /// JS 缓冲区 (对应 .Js(&'static [u8]) — 剩余未填充部分)
     public var jsBuffer: Array<UInt8>
     /// 读取量 (对应 .AmountRead(usize))
     public var amountRead: Int64
@@ -459,7 +460,7 @@ public class IOReaderState {
     public var hasPendingRead: Bool
     /// Posix flags (对应 Bun: Cell<PosixFlags>)
     public var flags: PosixFlags
-    /// 父对象指针 (对应 Bun: *mut c_void parent)
+    /// 父对象指针 (对应 Bun: *c_void parent)
     public var parent: UIntPtr
     /// 引用计数
     public var refCount: Int64
@@ -478,38 +479,38 @@ public class IOReaderState {
     }
 
     /// 读取文件偏移量
-    /// 对应 Bun: pub fn start_file_offset(&mut self, fd: Fd, pollable: bool, offset: usize) -> sys::Result<()>
+    /// 对应 Bun: pub fn start_file_offset(&self, fd: Fd, pollable: bool, offset: usize) -> sys::Result<()>
     public func startFileOffset(fd: Int64, pollable: Bool, offset: Int64): ?SyscallError {
         // 在实际实现中使用 lseek
         return None
     }
 
     /// 开始读取
-    /// 对应 Bun: pub fn start(&mut self, fd: Fd, pollable: bool) -> sys::Result<()>
+    /// 对应 Bun: pub fn start(&self, fd: Fd, pollable: bool) -> sys::Result<()>
     public func start(fd: Int64, pollable: Bool): ?SyscallError {
         flags.set(PosixFlags.POLLABLE, pollable)
         return None
     }
 
     /// 读取数据
-    /// 对应 Bun: pub fn read(&mut self)
+    /// 对应 Bun: pub fn read(&self)
     public func read(): Unit {
         hasPendingRead = true
     }
 
     /// 关闭
-    /// 对应 Bun: pub fn close(&mut self)
+    /// 对应 Bun: pub fn close(&self)
     public func close(): Unit {
         done = true
         hasPendingRead = false
     }
 
     /// 取消暂停
-    /// 对应 Bun: pub fn unpause(&mut self)
+    /// 对应 Bun: pub fn unpause(&self)
     public func unpause(): Unit {}
 
     /// 暂停
-    /// 对应 Bun: pub fn pause(&mut self)
+    /// 对应 Bun: pub fn pause(&self)
     public func pause(): Unit {}
 
     /// 更新引用
@@ -537,7 +538,7 @@ public class IOReaderState {
     }
 
     /// 获取缓冲区
-    /// 对应 Bun: buffer() -> *mut Vec<u8>
+    /// 对应 Bun: buffer() -> *Vec<u8>
     public func bufferPtr(): ArrayList<UInt8> {
         return buffer
     }
@@ -631,7 +632,7 @@ public class StreamResultPending {
     }
 
     /// 运行 pending 回调
-    /// 对应 Bun: pub fn run(&mut self)
+    /// 对应 Bun: pub fn run(&self)
     public func run(): Unit {
         state = PendingState.None
     }
@@ -712,7 +713,7 @@ public class StreamStart {
 // StreamResult - 流结果
 // 严格翻译自: streams.Result
 //   Bun: pub enum Result {
-//       Pending(*mut Pending),
+//       Pending(*Pending),
 //       Err(StreamError),
 //       Done,
 //       Owned(Vec<u8>),
@@ -755,7 +756,7 @@ public enum StreamResultTag {
 /// IntoArray 数据
 /// 对应 Bun: streams.IntoArray
 public class IntoArrayData {
-    public var value: UIntPtr  // JSValue (raw)
+    public var value: UIntPtr  // JsValue (raw)
     public var len: UInt64
 
     public init() {
@@ -888,7 +889,7 @@ public class StreamResult {
 //       pub done: Cell<bool>,
 //       pub pending: JsCell<streams::Pending>,
 //       pub pending_value: JsCell<Strong>,
-//       pub pending_view: JsCell<&'static mut [u8]>,
+//       pub pending_view: JsCell<&'static [u8]>,
 //       pub fd: Cell<Fd>,
 //       pub start_offset: Option<usize>,
 //       pub max_size: Option<usize>,
@@ -910,10 +911,10 @@ public class StreamResult {
 /// R-2 (host-fn re-entrancy): every JS-exposed / vtable-reachable method takes
 /// `&self`; per-field interior mutability via `Cell` (Copy) / `JsCell` (non-
 /// Copy). The `SourceContext` trait and `BufferedReaderParent` shims still
-/// hand in `&mut Self` / `*mut Self` until those layers are migrated.
+/// hand in `&Self` / `*Self` until those layers are migrated.
 ///
-/// `reader` is wrapped in `UnsafeCell` so that the back-ref `*mut FileReader`
-/// (vtable `parent`) and the reader's own `&mut self` both derive from a
+/// `reader` is wrapped in `UnsafeCell` so that the back-ref `*FileReader`
+/// (vtable `parent`) and the reader's own `&self` both derive from a
 /// SharedReadWrite root.
 public class FileReader {
     /// IO 读取器 (对应 Bun: UnsafeCell<IOReader>)
@@ -928,7 +929,7 @@ public class FileReader {
     /// Pending JS 值 (对应 Bun: JsCell<Strong>)
     /// 对应 Bun: FileReader.pending_value
     public var pendingValue: UIntPtr
-    /// Pending 视图缓冲区 (对应 Bun: JsCell<&'static mut [u8]>)
+    /// Pending 视图缓冲区 (对应 Bun: JsCell<&'static [u8]>)
     /// 对应 Bun: FileReader.pending_view
     public var pendingView: Array<UInt8>
     /// 文件描述符 (对应 Bun: Cell<Fd>)
@@ -990,7 +991,7 @@ public class FileReader {
     }
 
     /// 带文件描述符的初始化
-    /// 对应 Bun: FileReader.setup(&mut self, fd: Fd)
+    /// 对应 Bun: FileReader.setup(&self, fd: Fd)
     ///   Zig writes `this.* = FileReader{...}` (in-place init)
     public init(fd: Int64) {
         reader = IOReaderState()
@@ -1028,23 +1029,23 @@ public class FileReader {
     // ========================================================================
 
     /// SharedReadWrite accessor for the embedded BufferedReader.
-    /// 对应 Bun: pub fn reader(&self) -> &mut IOReader
+    /// 对应 Bun: pub fn reader(&self) -> &IOReader
     ///   SAFETY: single-threaded; matches Zig `*FileReader` aliasing model.
     ///   #[inline] #[allow(clippy::mut_from_ref)]
-    ///   pub fn reader(&self) -> &mut IOReader { unsafe { &mut *self.reader.get() } }
+    ///   pub fn reader(&self) -> &IOReader { unsafe { &*self.reader.get() } }
 
     // ========================================================================
     // setup - 初始化 (in-place)
     // 严格翻译自: FileReader.setup (lines 335-349)
-    //   Bun: pub fn setup(&mut self, fd: Fd) { *self = FileReader { ... }; ... }
+    //   Bun: pub fn setup(&self, fd: Fd) { *self = FileReader { ... }; ... }
     // ========================================================================
 
     /// 初始化 FileReader (in-place init)
-    /// 对应 Bun: pub fn setup(&mut self, fd: Fd)
+    /// 对应 Bun: pub fn setup(&self, fd: Fd)
     ///
     /// In Zig, `self` is the `context` field of an already-allocated `Source`;
     /// the Zig writes `this.* = FileReader{...}` then reads `parent()`.
-    /// R-2: kept `&mut self` — init-time constructor that runs before any
+    /// R-2: kept `&self` — init-time constructor that runs before any
     /// host-fn could re-enter; `*self =` requires unique access.
     public func setup(fd: Int64): Unit {
         // Reset state
@@ -1098,50 +1099,42 @@ public class FileReader {
         // R-2: move the Lazy out of the cell up-front (it's reset to None
         // on every path) so the StoreRef is owned locally.
         match (lazy.kind) {
-            case Blob => {
+            case Blob =>
                 match (lazy.blobStore) {
-                    case Some(store) => {
+                    case Some(store) =>
                         // PORT NOTE: reshaped for borrowck — Zig `defer { deref; lazy = none }`
                         // is hoisted after the match below since both arms fall through.
                         match (store.data().tag) {
-                            case StoreDataTag.S3 | StoreDataTag.Bytes => {
+                            case StoreDataTag.S3 | StoreDataTag.Bytes =>
                                                 // panic!("Invalid state in FileReader: expected file ")
                                                 lazy = FileReaderLazy()
                                                 return StreamStart.err(
                                                     SyscallError.fromCode(-1, "InvalidState")
                                                 )
-                                            }
-                            case StoreDataTag.File => {
+                            case StoreDataTag.File =>
                                 // PORT NOTE: Lazy::open_file_blob in Bun does the actual file open
                                 // This is a simplified version
                                 let openResult = openFileBlob(store)
                                 lazy = FileReaderLazy()
                                 match (openResult) {
-                                    case Some(opened) => {
+                                    case Some(opened) =>
                                         fd = opened.fd
                                         pollable = opened.pollable
                                         fileType = opened.fileType
                                         reader.flags.set(PosixFlags.NONBLOCKING, opened.nonblocking)
                                         reader.flags.set(PosixFlags.POLLABLE, pollable)
-                                    }
-                                    case None => {
+                                    case None =>
                                         fd = -1
                                         return StreamStart.err(
                                             SyscallError.fromCode(-1, "OpenFailed")
                                         )
-                                    }
                                 }
-                            }
-                            case _ => {
+                            case _ =>
                                 lazy = FileReaderLazy()
-                            }
                         }
-                    }
-                    case None => {
+                    case None =>
                         lazy = FileReaderLazy()
-                    }
                 }
-            }
             case None => ()
         }
 
@@ -1157,20 +1150,18 @@ public class FileReader {
             waitingForOnReaderDone = true
             // Start reading from offset or beginning
             match (startOffset) {
-                case Some(offset) => {
+                case Some(offset) =>
                     let err = reader.startFileOffset(fd, pollable, offset)
                     match (err) {
                         case Some(e) => return StreamStart.err(e)
                         case None => ()
                     }
-                }
-                case None => {
+                case None =>
                     let err = reader.start(fd, pollable)
                     match (err) {
                         case Some(e) => return StreamStart.err(e)
                         case None => ()
                     }
-                }
             }
         } else {
             if (reader.isPollable() && !reader.isDone()) {
@@ -1180,9 +1171,8 @@ public class FileReader {
 
         // Set file type specific flags
         match (fileType) {
-            case Socket => {
+            case Socket =>
                 reader.flags.insert(PosixFlags.SOCKET)
-            }
             case _ => ()
         }
 
@@ -1204,12 +1194,12 @@ public class FileReader {
     // ========================================================================
     // onPull - 拉取数据
     // 严格翻译自: FileReader.on_pull (lines 783-927)
-    //   Bun: pub fn on_pull(&self, buffer: &'static mut [u8], array: JSValue) -> streams::Result
+    //   Bun: pub fn on_pull(&self, buffer: &'static [u8], array: JsValue) -> streams::Result
     // ========================================================================
 
     /// 拉取数据
     /// 严格翻译自 FileReader.on_pull()
-    /// 在 Bun 中: onPull(this: *FileReader, buffer: []u8, array: jsc.JSValue) streams.Result
+    /// 在 Bun 中: onPull(`this`: *FileReader, buffer: []u8, array: jsc.JsValue) streams.Result
     ///
     /// This is the main data-pulling function called by the ReadableStream
     /// controller when more data is needed. It handles several cases:
@@ -1267,7 +1257,7 @@ public class FileReader {
             readInsideOnPull = ReadDuringJSOnPullResult.none()
 
             match (pulled.kind) {
-                case Js => {
+                case Js =>
                     let amountRead = bufferLen - pulled.jsBuffer.size
 
                     if (amountRead > 0) {
@@ -1283,28 +1273,23 @@ public class FileReader {
                     // Fallthrough: set pending with the remaining buffer
                     pendingView = pulled.jsBuffer
                     return StreamResult.pending(pending)
-                }
-                case Temporary => {
+                case Temporary =>
                     if (reader.isDone()) {
                         return StreamResult.temporaryAndDone(pulled.temporaryData)
                     }
                     return StreamResult.temporary(pulled.temporaryData)
-                }
-                case UseBuffered => {
+                case UseBuffered =>
                     let buf = buffered
                     buffered = ArrayList<UInt8>()
                     if (reader.isDone()) {
                         return StreamResult.ownedAndDone(buf)
                     }
                     return StreamResult.owned(buf)
-                }
-                case AmountRead => {
+                case AmountRead =>
                     // Should not be produced by on_read_chunk
                     // Fall through to set pending
-                }
-                case None => {
-                    // Should not happen — we just stored Js(buffer) above
-                }
+                case None =>
+                    () // Should not happen — we just stored Js(buffer) above
             }
 
             if (reader.isDone()) {
@@ -1347,7 +1332,7 @@ public class FileReader {
         // Handle max_size truncation
         if (workingBuf.size > 0) {
             match (maxSize) {
-                case Some(max) => {
+                case Some(max) =>
                     if (totalReaded >= max) {
                         return false
                     }
@@ -1362,7 +1347,6 @@ public class FileReader {
                         close = true
                         hasMore = false
                     }
-                }
                 case None => ()
             }
         }
@@ -1370,7 +1354,7 @@ public class FileReader {
         // Handle readInsideOnPull state machine
         if (!readInsideOnPull.isNone()) {
             match (readInsideOnPull.kind) {
-                case Js => {
+                case Js =>
                     if (readInsideOnPull.jsBuffer.size >= workingBuf.size && !hasMore) {
                         // Copy buf into JS buffer
                         readInsideOnPull = ReadDuringJSOnPullResult.js(
@@ -1385,23 +1369,18 @@ public class FileReader {
                         }
                         readInsideOnPull = ReadDuringJSOnPullResult.useBuffered(workingBuf.size)
                     }
-                }
-                case UseBuffered => {
+                case UseBuffered =>
                     let original = readInsideOnPull.useBuffered
                     for (b in workingBuf) {
                         buffered.append(b)
                     }
                     readInsideOnPull = ReadDuringJSOnPullResult.useBuffered(workingBuf.size + original)
-                }
-                case AmountRead => {
-                    // panic!("Invalid state")
-                }
-                case Temporary => {
-                    // panic!("Invalid state")
-                }
-                case None => {
-                    // unreachable
-                }
+                case AmountRead =>
+                    () // panic!("Invalid state")
+                case Temporary =>
+                    () // panic!("Invalid state")
+                case None =>
+                    () // unreachable
             }
         } else if (pending.state == PendingState.Pending) {
             // Certain readers (such as pipes) may return 0-byte reads even when
@@ -1418,7 +1397,7 @@ public class FileReader {
             // PORT NOTE: reshaped for borrowck — Zig `defer { clear; run() }` becomes
             // a labeled block computing ret, then cleanup + run + return.
             let ret: Bool = match (true) {
-                case _ => {
+                case _ =>
                     if (workingBuf.size == 0) {
                         if (buffered.size == 0) {
                             buffered = ArrayList<UInt8>() // clearAndFree
@@ -1486,7 +1465,6 @@ public class FileReader {
                             !wasDone
                         }
                     }
-                }
             }
 
             // Clear pending state and run

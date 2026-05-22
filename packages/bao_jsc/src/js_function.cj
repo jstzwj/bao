@@ -37,13 +37,13 @@ public class JsFunction {
 
     // 创建原生函数 - 严格翻译自 JSFunction.zig create/functionCreate
     public static func create(name: String, callback: JsCallback): JsFunction {
-        let fn = JsFunction(name: name, callback: callback)
+        let fn = JsFunction(name, 0, callback)
         fn.prototype = Some(JsObject.make())
         return fn
     }
 
     public static func create(name: String, length: Int64, callback: JsCallback): JsFunction {
-        let fn = JsFunction(name: name, length: length, callback: callback)
+        let fn = JsFunction(name, length, callback)
         fn.prototype = Some(JsObject.make())
         return fn
     }
@@ -53,7 +53,14 @@ public class JsFunction {
         let fn = JsFunction()
         fn.name = name
         fn.length = Int64(params.size)
-        fn.sourceCode = params.join(",") + " => " + body
+        var paramStr = ""
+        var first = true
+        for (p in params) {
+            if (!first) { paramStr = paramStr + "," }
+            paramStr = paramStr + p
+            first = false
+        }
+        fn.sourceCode = paramStr + " => " + body
         fn.prototype = Some(JsObject.make())
         return fn
     }
@@ -105,7 +112,7 @@ public class JsFunction {
 
     // apply - Function.prototype.apply
     public func apply(thisArg: JsValue, argsArray: JsValue): JsValue {
-        let args: Array<JsValue>
+        var args: Array<JsValue>
         if (argsArray.isObject()) {
             let obj = argsArray.toObject()
             if (obj.className == "Array") {
@@ -115,7 +122,7 @@ public class JsFunction {
                 let len = obj.get("length").toLength()
                 args = []
                 for (i in 0..len) {
-                    args.append(obj.get(String(i)))
+                    args = args.concat([obj.get(i.toString())])
                 }
             }
         } else {
@@ -127,7 +134,10 @@ public class JsFunction {
     // resolveThis - 严格翻译自 JSFunction.zig resolveThisBinding
     func resolveThis(thisArg: JsValue): JsObject {
         if (isBound) {
-            return boundThis.getOr(JsObject.make())
+            match (boundThis) {
+                case Some(obj) => obj
+                case None => JsObject.make()
+            }
         }
         if (isArrow) {
             // 箭头函数继承外层 this
@@ -146,7 +156,7 @@ public class JsFunction {
 
     // toString - Function.prototype.toString
     public func toString(): String {
-        if (!sourceCode.isEmpty) {
+        if (!sourceCode.isEmpty()) {
             return "function " + name + "(" + sourceCode + ")"
         }
         "function " + name + "() { [native code] }"
@@ -154,12 +164,12 @@ public class JsFunction {
 
     // Getter/Setter 工厂
     public static func getter(name: String, callback: JsCallback): JsFunction {
-        let fn = JsFunction(name: "get " + name, callback: callback)
+        let fn = JsFunction("get " + name, 0, callback)
         return fn
     }
 
     public static func setter(name: String, callback: JsCallback): JsFunction {
-        let fn = JsFunction(name: "set " + name, callback: callback)
+        let fn = JsFunction("set " + name, 0, callback)
         return fn
     }
 }
@@ -207,9 +217,9 @@ public class JsArguments {
         obj.className = "Arguments"
         obj.arrayStorage = args
         for (i in 0..args.size) {
-            obj.set(String(i), args[i])
+            obj.set(i.toString(), args[i])
         }
-        obj.set("length", JsValue(n: Int64(args.size)))
+        obj.set("length", JsValue(Int64(args.size)))
         return obj
     }
 }

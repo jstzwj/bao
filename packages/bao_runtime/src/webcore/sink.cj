@@ -7,6 +7,7 @@ package bao_runtime.webcore
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_collections.ArrayList
 import bao_sys.*
 import bao_ptr.*
 
@@ -163,7 +164,7 @@ public class SinkVTable {
 /// 对应 Bun: Sink<'a>
 public class Sink {
     /// 类型擦除指针 (handler 引用)
-    /// 对应 Bun: Sink.ptr: &'a mut ()
+    /// 对应 Bun: Sink.ptr: &'a ()
     public var ptr: UIntNative
     /// 虚表
     /// 对应 Bun: Sink.vtable: VTable
@@ -505,30 +506,30 @@ public class JSSink<T> where T <: JsSinkType {
 /// 不能使用 const generics 驱动 link_name, 所以每个 SinkType 提供 resolved externs
 public interface JsSinkAbi {
     /// ${abi_name}__fromJS — 将 *ThisSink 编码为 UIntNative
-    func fromJsExtern(value: JSValue): UIntNative
+    func fromJsExtern(value: JsValue): UIntNative
 
     /// ${abi_name}__createObject
-    func createObjectExtern(global: JSGlobalObject, obj: UIntNative, destructor: UIntNative): JSValue
+    func createObjectExtern(global: JSGlobalObject, obj: UIntNative, destructor: UIntNative): JsValue
 
     /// ${abi_name}__setDestroyCallback
-    func setDestroyCallbackExtern(value: JSValue, callback: UIntNative): Unit
+    func setDestroyCallbackExtern(value: JsValue, callback: UIntNative): Unit
 
     /// ${abi_name}__assignToStream
     func assignToStreamExtern(
         global: JSGlobalObject,
-        stream: JSValue,
+        stream: JsValue,
         ptr: UIntNative,
         jsvaluePtr: UIntNative
-    ): JSValue
+    ): JsValue
 
     /// ${abi_name}__onClose
-    func onCloseExtern(ptr: JSValue, reason: JSValue): Unit
+    func onCloseExtern(ptr: JsValue, reason: JsValue): Unit
 
     /// ${abi_name}__onReady
-    func onReadyExtern(ptr: JSValue, amount: JSValue, offset: JSValue): Unit
+    func onReadyExtern(ptr: JsValue, amount: JsValue, offset: JsValue): Unit
 
     /// ${abi_name}__detachPtr
-    func detachPtrExtern(ptr: JSValue): Unit
+    func detachPtrExtern(ptr: JsValue): Unit
 }
 
 // ============================================================================
@@ -612,7 +613,7 @@ public interface JsSinkType {
 
     /// 从 JS 结束
     /// 对应 Bun: JsSinkType::end_from_js()
-    func endFromJs(global: JSGlobalObject): JSValue
+    func endFromJs(global: JSGlobalObject): JsValue
 
     /// 刷新
     /// 对应 Bun: JsSinkType::flush()
@@ -628,7 +629,7 @@ public interface JsSinkType {
 
     /// 获取待处理错误
     /// 对应 Bun: JsSinkType::get_pending_error()
-    func getPendingError(): ?JSValue
+    func getPendingError(): ?JsValue
 
     /// 获取信号
     /// 对应 Bun: JsSinkType::signal()
@@ -640,7 +641,7 @@ public interface JsSinkType {
 
     /// 从 JS 刷新
     /// 对应 Bun: JsSinkType::flush_from_js()
-    func flushFromJs(global: JSGlobalObject, wait: Bool): JSValue
+    func flushFromJs(global: JSGlobalObject, wait: Bool): JsValue
 
     /// 待处理状态是否为 pending
     /// 对应 Bun: JsSinkType::pending_state_is_pending()
@@ -648,7 +649,7 @@ public interface JsSinkType {
 
     /// 保护 JS 包装器
     /// 对应 Bun: JsSinkType::protect_js_wrapper()
-    func protectJsWrapper(global: JSGlobalObject, thisValue: JSValue): Unit
+    func protectJsWrapper(global: JSGlobalObject, thisValue: JsValue): Unit
 
     /// 更新引用
     /// 对应 Bun: JsSinkType::update_ref()
@@ -681,16 +682,16 @@ public class DefaultJsSinkType <: JsSinkType {
     public func writeUTF16(data: StreamResult): StreamResultWritable { StreamResultWritable.done() }
     public func writeLatin1(data: StreamResult): StreamResultWritable { StreamResultWritable.done() }
     public func end(err: ?SyscallError): ?SyscallError { return None }
-    public func endFromJs(global: JSGlobalObject): JSValue { JSValue.undefined() }
+    public func endFromJs(global: JSGlobalObject): JsValue { JsValue.undefined() }
     public func flush(): ?SyscallError { return None }
     public func start(config: StreamStart): ?SyscallError { return None }
     public func construct(): Unit {}
-    public func getPendingError(): ?JSValue { return None }
+    public func getPendingError(): ?JsValue { return None }
     public func signal(): ?StreamSignal { return None }
     public func isDone(): Bool { return false }
-    public func flushFromJs(global: JSGlobalObject, wait: Bool): JSValue { JSValue.undefined() }
+    public func flushFromJs(global: JSGlobalObject, wait: Bool): JsValue { JsValue.undefined() }
     public func pendingStateIsPending(): Bool { return false }
-    public func protectJsWrapper(global: JSGlobalObject, thisValue: JSValue): Unit {}
+    public func protectJsWrapper(global: JSGlobalObject, thisValue: JsValue): Unit {}
     public func updateRef(value: Bool): Unit {}
     public func getFd(): Int32 { return -1 }
 }
@@ -707,19 +708,19 @@ public class JSSinkHelper {
 
     /// createObject — 创建 JS 对象
     /// 对应 Bun: JSSink::create_object() (Sink.rs:623-633)
-    public static func createObject<T>(global: JSGlobalObject, obj: T, destructor: UIntNative): JSValue where T <: JsSinkAbi {
+    public static func createObject<T>(global: JSGlobalObject, obj: T, destructor: UIntNative): JsValue where T <: JsSinkAbi {
         return T.createObjectExtern(global, 0, destructor)
     }
 
     /// setDestroyCallback — 设置销毁回调
     /// 对应 Bun: JSSink::set_destroy_callback() (Sink.rs:635-637)
-    public static func setDestroyCallback<T>(value: JSValue, callback: UIntNative): Unit where T <: JsSinkAbi {
+    public static func setDestroyCallback<T>(value: JsValue, callback: UIntNative): Unit where T <: JsSinkAbi {
         T.setDestroyCallbackExtern(value, callback)
     }
 
     /// fromJs — 从 JS 值恢复 Sink
     /// 对应 Bun: JSSink::from_js() (Sink.rs:641-647)
-    public static func fromJs<T>(value: JSValue): ?UIntNative where T <: JsSinkAbi {
+    public static func fromJs<T>(value: JsValue): ?UIntNative where T <: JsSinkAbi {
         let raw = T.fromJsExtern(value)
         if (raw == FromJsResult.DETACHED || raw == FromJsResult.CAST_FAILED) {
             return None
@@ -731,10 +732,10 @@ public class JSSinkHelper {
     /// 对应 Bun: JSSink::assign_to_stream() (Sink.rs:649-661)
     public static func assignToStream<T>(
         global: JSGlobalObject,
-        stream: JSValue,
+        stream: JsValue,
         ptr: UIntNative,
         jsvaluePtr: UIntNative
-    ): JSValue where T <: JsSinkAbi {
+    ): JsValue where T <: JsSinkAbi {
         return T.assignToStreamExtern(global, stream, ptr, jsvaluePtr)
     }
 
@@ -745,7 +746,7 @@ public class JSSinkHelper {
             return
         }
         signal.clear()
-        // 在实际实现中, 这里会取消保护 JSValue 并调用 detachPtrExtern
+        // 在实际实现中, 这里会取消保护 JsValue 并调用 detachPtrExtern
         // value.unprotect()
         // T.detachPtrExtern(value)
     }
@@ -755,13 +756,13 @@ public class JSSinkHelper {
     public static func jsConstruct<T>(
         global: JSGlobalObject,
         frame: CallFrame
-    ): JSValue where T <: JsSinkType {
+    ): JsValue where T <: JsSinkType {
         if (!T().hasConstruct) {
             // throw illegal constructor
-            return JSValue.zero()
+            return JsValue.zero()
         }
         // 创建新实例
-        return JSValue.zero()
+        return JsValue.zero()
     }
 
     /// jsWrite — JS 写入宿主函数体
@@ -770,7 +771,7 @@ public class JSSinkHelper {
         global: JSGlobalObject,
         frame: CallFrame,
         sink: T
-    ): JSValue where T <: JsSinkType {
+    ): JsValue where T <: JsSinkType {
         // 检查待处理错误
         match (sink.getPendingError()) {
             case Some(err) => return err // throw value
@@ -779,19 +780,19 @@ public class JSSinkHelper {
 
         let args = frame.args
         if (args.size == 0) {
-            return JSValue.zero() // throw type error
+            return JsValue.zero() // throw type error
         }
 
         let arg = args[0]
         if (arg.isUndefined() || arg.isNull()) {
-            return JSValue.zero() // throw type error
+            return JsValue.zero() // throw type error
         }
 
         // ArrayBuffer 路径
         if (arg.isArrayBuffer()) {
             let slice = arg.arrayBufferSlice()
             if (slice.size == 0) {
-                return JSValue.jsNumber(0.0)
+                return JsValue.jsNumber(0.0)
             }
             let data = ArrayList<UInt8>()
             for (b in slice) { data.append(b) }
@@ -802,7 +803,7 @@ public class JSSinkHelper {
         if (arg.isString()) {
             let view = arg.toStringView(global)
             if (view.size == 0) {
-                return JSValue.jsNumber(0.0)
+                return JsValue.jsNumber(0.0)
             }
             if (view.is16Bit()) {
                 let data = ArrayList<UInt8>()
@@ -815,7 +816,7 @@ public class JSSinkHelper {
             return sink.writeLatin1(StreamResult.temporary(data)).toJs(global)
         }
 
-        return JSValue.zero() // throw type error
+        return JsValue.zero() // throw type error
     }
 
     /// jsFlush — JS 刷新宿主函数体
@@ -824,7 +825,7 @@ public class JSSinkHelper {
         global: JSGlobalObject,
         frame: CallFrame,
         sink: T
-    ): JSValue where T <: JsSinkType {
+    ): JsValue where T <: JsSinkType {
         match (sink.getPendingError()) {
             case Some(err) => return err // throw value
             case None => ()
@@ -836,8 +837,8 @@ public class JSSinkHelper {
         }
 
         match (sink.flush()) {
-            case Some(err) => JSValue.zero() // throw
-            case None => JSValue.undefined()
+            case Some(err) => JsValue.zero() // throw
+            case None => JsValue.undefined()
         }
     }
 
@@ -847,7 +848,7 @@ public class JSSinkHelper {
         global: JSGlobalObject,
         frame: CallFrame,
         sink: T
-    ): JSValue where T <: JsSinkType {
+    ): JsValue where T <: JsSinkType {
         match (sink.getPendingError()) {
             case Some(err) => return err // throw value
             case None => ()
@@ -860,8 +861,8 @@ public class JSSinkHelper {
         }
 
         match (sink.start(config)) {
-            case Some(err) => JSValue.zero() // throw
-            case None => JSValue.undefined()
+            case Some(err) => JsValue.zero() // throw
+            case None => JsValue.undefined()
         }
     }
 
@@ -871,7 +872,7 @@ public class JSSinkHelper {
         global: JSGlobalObject,
         frame: CallFrame,
         sink: T
-    ): JSValue where T <: JsSinkType {
+    ): JsValue where T <: JsSinkType {
         match (sink.getPendingError()) {
             case Some(err) => return err // throw value
             case None => ()
@@ -898,18 +899,17 @@ public class JSSinkHelper {
     public static func jsClose<T>(
         global: JSGlobalObject,
         sink: T
-    ): JSValue where T <: JsSinkType {
+    ): JsValue where T <: JsSinkType {
         match (sink.getPendingError()) {
-            case Some(err) => {
+            case Some(err) =>
                 // throw_error 设置待处理的 JS 异常
-                return JSValue.zero()
-            }
+                return JsValue.zero()
             case None => ()
         }
 
         match (sink.end(None)) {
-            case Some(err) => JSValue.zero() // throw
-            case None => JSValue.undefined()
+            case Some(err) => JsValue.zero() // throw
+            case None => JsValue.undefined()
         }
     }
 
@@ -918,11 +918,10 @@ public class JSSinkHelper {
     public static func jsEndWithSink<T>(
         sink: T,
         global: JSGlobalObject
-    ): JSValue where T <: JsSinkType {
+    ): JsValue where T <: JsSinkType {
         match (sink.getPendingError()) {
-            case Some(err) => {
-                return JSValue.zero() // throw value
-            }
+            case Some(err) =>
+                return JsValue.zero() // throw value
             case None => ()
         }
 
@@ -939,11 +938,11 @@ public class JSSinkHelper {
 
     /// jsGetInternalFd — JS 获取内部文件描述符宿主函数体
     /// 对应 Bun: JSSink::js_get_internal_fd() (Sink.rs:1136-1143)
-    public static func jsGetInternalFd<T>(sink: T): JSValue where T <: JsSinkType {
+    public static func jsGetInternalFd<T>(sink: T): JsValue where T <: JsSinkType {
         if (sink.hasGetFd) {
-            return JSValue.jsNumber(Float64(sink.getFd()))
+            return JsValue.jsNumber(Float64(sink.getFd()))
         }
-        return JSValue.null()
+        return JsValue.null()
     }
 
     /// jsMemoryCost — JS 内存开销宿主函数体
@@ -958,22 +957,22 @@ public class JSSinkHelper {
 // 对应 Bun: SinkSignal<T> (Sink.rs:696-734)
 // ============================================================================
 
-/// JSSink.SinkSignal — 将 JSValue (C++ sink 控制器单元) 包装为 Signal
+/// JSSink.SinkSignal — 将 JsValue (C++ sink 控制器单元) 包装为 Signal
 /// 对应 Bun: SinkSignal<T>
 public class SinkSignal<T> where T <: JsSinkAbi {
     public init() {}
 
-    /// init — 从 C++ JSValue 初始化 Signal
+    /// init — 从 C++ JsValue 初始化 Signal
     /// 对应 Bun: SinkSignal::init() (Sink.rs:699-733)
-    public static func init(cpp: JSValue): StreamSignal {
+    public static func `init`(cpp: JsValue): StreamSignal {
         let vtable = SignalVTable(
             onClose: { (err: ?SyscallError): Unit =>
-                // onClose: 调用 T.onCloseExtern(cpp, JSValue.UNDEFINED)
-                T.onCloseExtern(cpp, JSValue.undefined())
+                // onClose: 调用 T.onCloseExtern(cpp, JsValue.UNDEFINED)
+                T.onCloseExtern(cpp, JsValue.undefined())
             },
             onReady: { (amount: ?BlobSizeType, offset: ?BlobSizeType): Unit =>
-                // onReady: 调用 T.onReadyExtern(cpp, JSValue.UNDEFINED, JSValue.UNDEFINED)
-                T.onReadyExtern(cpp, JSValue.undefined(), JSValue.undefined())
+                // onReady: 调用 T.onReadyExtern(cpp, JsValue.UNDEFINED, JsValue.UNDEFINED)
+                T.onReadyExtern(cpp, JsValue.undefined(), JsValue.undefined())
             },
             onStart: { (): Unit => }
         )
@@ -1111,22 +1110,22 @@ public func onSinkDestroyed(ptrValue: UIntNative, sinkPtr: UIntNative): Unit {
 /// 调用帧 — JS 函数调用的上下文
 public class CallFrame {
     /// 参数列表
-    public var args: Array<JSValue>
+    public var args: Array<JsValue>
     /// this 值
-    public var thisValue: JSValue
+    public var thisValue: JsValue
 
     public init() {
-        args = Array<JSValue>()
-        thisValue = JSValue.undefined()
+        args = Array<JsValue>()
+        thisValue = JsValue.undefined()
     }
 
-    public init(args: Array<JSValue>) {
+    public init(args: Array<JsValue>) {
         this.args = args
-        thisValue = JSValue.undefined()
+        thisValue = JsValue.undefined()
     }
 
     /// 获取 this
-    public func this(): JSValue {
+    public func this(): JsValue {
         return thisValue
     }
 
@@ -1136,21 +1135,21 @@ public class CallFrame {
     }
 
     /// 获取第 N 个参数
-    public func argument(index: Int64): JSValue {
+    public func argument(index: Int64): JsValue {
         if (index < args.size) {
             return args[index]
         }
-        return JSValue.undefined()
+        return JsValue.undefined()
     }
 }
 
 // ============================================================================
-// JSValue - JS 值类型
-// 对应 Bun: bun_jsc::JSValue
+// JsValue - JS 值类型
+// 对应 Bun: bun_jsc::JsValue
 // ============================================================================
 
 /// JS 值
-public class JSValue {
+public class JsValue {
     /// 编码值
     public var encoded: UInt64
 
@@ -1163,24 +1162,24 @@ public class JSValue {
     }
 
     /// 零值
-    public static func zero(): JSValue {
-        return JSValue(0)
+    public static func zero(): JsValue {
+        return JsValue(0)
     }
 
     /// undefined
-    public static func undefined(): JSValue {
-        return JSValue(0xA) // JSC undefined encoding
+    public static func undefined(): JsValue {
+        return JsValue(0xA) // JSC undefined encoding
     }
 
     /// null
-    public static func null(): JSValue {
-        return JSValue(0x2) // JSC null encoding
+    public static func null(): JsValue {
+        return JsValue(0x2) // JSC null encoding
     }
 
     /// TRUE
-    public static let TRUE = JSValue(0x7)
+    public static let TRUE = JsValue(0x7)
     /// FALSE
-    public static let FALSE = JSValue(0x0)
+    public static let FALSE = JsValue(0x0)
 
     /// 是否为 undefined
     public func isUndefined(): Bool {
@@ -1233,12 +1232,12 @@ public class JSValue {
     }
 
     /// JS 数字
-    public static func jsNumber(v: Float64): JSValue {
-        return JSValue(v.toUInt64()) // 简化编码
+    public static func jsNumber(v: Float64): JsValue {
+        return JsValue(v.toUInt64()) // 简化编码
     }
 
     /// 转为 JS
-    public func toJs(): JSValue {
+    public func toJs(): JsValue {
         return this
     }
 
@@ -1263,23 +1262,23 @@ public class JSGlobalObject {
     public init() {}
 
     /// 抛出非法构造函数错误
-    public func throwIllegalConstructor(name: String): JSValue {
-        return JSValue.zero()
+    public func throwIllegalConstructor(name: String): JsValue {
+        return JsValue.zero()
     }
 
     /// 抛出无效参数错误
-    public func throwInvalidArguments(msg: String): JSValue {
-        return JSValue.zero()
+    public func throwInvalidArguments(msg: String): JsValue {
+        return JsValue.zero()
     }
 
     /// 抛出值
-    public func throwValue(value: JSValue): JSValue {
-        return JSValue.zero()
+    public func throwValue(value: JsValue): JsValue {
+        return JsValue.zero()
     }
 
     /// 转类型错误
-    public func toTypeError(code: Int64, msg: String): JSValue {
-        return JSValue.zero()
+    public func toTypeError(code: Int64, msg: String): JsValue {
+        return JsValue.zero()
     }
 }
 

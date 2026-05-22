@@ -5,6 +5,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // 监听器类型
@@ -125,13 +126,13 @@ public class Listener {
     public static func listen(globalObject: JsObject, opts: JsValue, vm: VirtualMachine): JsValue {
         // 验证参数
         if (opts.valueType != JsValueType.Object) {
-            return JsValue(BaoString("Expected object"))
+            return JsValue("Expected object")
         }
 
         // 解析 Socket 配置
         let config = SocketConfig.fromJS(vm, opts, globalObject, true)
         match (config) {
-            case Some(cfg) => {
+            case Some(cfg) =>
                 let handlers = cfg.handlers
 
                 // 创建 Listener
@@ -141,24 +142,21 @@ public class Listener {
                     case None => false
                 }
 
-                match (cfg.connection) {
-                    case ConnectionTarget.Host(host, port) => {
+                match (cfg.connection()) {
+                    case ConnectionTarget.Host(host, port) =>
                         // TCP/TLS 监听
                         let listenSocket = UwsListenSocket()
                         listenSocket.localPort = port
                         listener.listener = ListenerType.Uws(listenSocket)
                         listener.connection = ConnectionTarget.Host(host, port)
-                    }
-                    case ConnectionTarget.Unix(path) => {
+                    case ConnectionTarget.Unix(path) =>
                         // Unix 域套接字监听
                         let listenSocket = UwsListenSocket()
                         listener.listener = ListenerType.Uws(listenSocket)
                         listener.connection = ConnectionTarget.Unix(path)
-                    }
-                    case ConnectionTarget.Fd(fd) => {
+                    case ConnectionTarget.Fd(fd) =>
                         // 不支持从 fd 监听
-                        return JsValue(BaoString("Bun does not support listening on a file descriptor."))
-                    }
+                        return JsValue("Bun does not support listening on a file descriptor.")
                 }
 
                 // 设置默认数据
@@ -167,27 +165,25 @@ public class Listener {
                 }
 
                 return JsValue.UNDEFINED  // 实际返回 listener 的 JS 包装器
-            }
-            case None => {
-                return JsValue(BaoString("Invalid options"))
-            }
+            case None =>
+                return JsValue("Invalid options")
         }
     }
 
     /// 重新加载 SSL 配置
-    /// 对应 Bun: pub fn reload(this: *Listener, globalObject: *jsc.JSGlobalObject, callframe: *jsc.CallFrame) bun.JSError!JSValue
+    /// 对应 Bun: pub fn reload(`this`: *Listener, globalObject: *jsc.JSGlobalObject, callframe: *jsc.CallFrame) bun.JSError!JsValue
     /// 允许在不重启服务器的情况下更新 TLS 证书
     public func reload(globalObject: JsObject, args: ArrayList<JsValue>): JsValue {
         // 验证是否有SSL
         if (!ssl) {
-            return globalObject.throwTypeError("Cannot reload() on a non-SSL listener")
+            throw JsTypeError("Cannot reload() on a non-SSL listener")
         }
 
         // 解析新的TLS配置
         let options = args[0]
         if (options.isObject()) {
             let newTls = options.get(globalObject, "tls")
-            if (newTls.isObject()) {
+            if (newTls.isSome() && newTls.getOrThrow().isObject()) {
                 // 重新配置SSL上下文
                 // 对应 Bun: SSLConfig.fromJS(globalObject, newTls)
                 // 更新 secureCtx
@@ -198,9 +194,9 @@ public class Listener {
     }
 
     /// 构造函数
-    /// 对应 Bun: pub fn constructor(globalObject: *jsc.JSGlobalObject, _: *jsc.CallFrame) bun.JSError!*Listener
+    /// 对应 Bun: pub fn constructor(*jsc.JSGlobalObject, _: *jsc.CallFrame) bun.JSError!*Listener
     public static func constructor(globalObject: JsObject): Listener {
-        let listener = Listener(Handlers())
+        let listener = Listener(Handlers(VirtualMachine(), globalObject, SocketMode.Server))
         listener.listener = ListenerType.None
         listener.connection = ConnectionTarget.Host("", 0)
         listener.ssl = false
@@ -232,20 +228,20 @@ public class Listener {
     /// 建立客户端连接
     /// 对应 Zig: connect(globalObject, opts)
     public static func connect(globalObject: JsObject, opts: JsValue, vm: VirtualMachine): JsValue {
-        return connectInner(globalObject, None, None, opts, vm)
+        return connectInner(globalObject, Option<Socket>.None, Option<Socket>.None, opts, vm)
     }
 
     /// 内部连接实现
     /// 对应 Zig: connectInner
     public static func connectInner(globalObject: JsObject, prevTcp: ?Socket, prevTls: ?Socket, opts: JsValue, vm: VirtualMachine): JsValue {
         if (opts.valueType != JsValueType.Object) {
-            return JsValue(BaoString("Expected options object"))
+            return JsValue("Expected options object")
         }
 
         // 解析配置
         let config = SocketConfig.fromJS(vm, opts, globalObject, false)
         match (config) {
-            case Some(cfg) => {
+            case Some(cfg) =>
                 let handlers = cfg.handlers
                 let sslEnabled = match (cfg.ssl) {
                     case Some(_) => true
@@ -259,33 +255,27 @@ public class Listener {
                 let socket = Socket(sslEnabled)
                 socket.handlers = Some(handlers)
 
-                match (cfg.connection) {
-                    case ConnectionTarget.Host(_, _) | ConnectionTarget.Unix(_) => {
+                match (cfg.connection()) {
+                    case ConnectionTarget.Host(_, _) | ConnectionTarget.Unix(_) =>
                         // TCP/TLS 连接
-                        match (cfg.connection) {
-                            case ConnectionTarget.Host(host, port) => {
+                        match (cfg.connection()) {
+                            case ConnectionTarget.Host(host, port) =>
                                 socket.connection = Some(ConnectionTarget.Host(host, port))
                                 socket.doConnect(ConnectionTarget.Host(host, port))
-                            }
-                            case ConnectionTarget.Unix(path) => {
+                            case ConnectionTarget.Unix(path) =>
                                 socket.connection = Some(ConnectionTarget.Unix(path))
                                 socket.doConnect(ConnectionTarget.Unix(path))
-                            }
                             case _ => ()
                         }
-                    }
-                    case ConnectionTarget.Fd(fd) => {
+                    case ConnectionTarget.Fd(fd) =>
                         socket.fd = fd
                         socket.connection = Some(ConnectionTarget.Fd(fd))
                         socket.doConnect(ConnectionTarget.Fd(fd))
-                    }
                 }
 
                 return promise
-            }
-            case None => {
-                return JsValue(BaoString("Invalid options"))
-            }
+            case None =>
+                return JsValue("Invalid options")
         }
     }
 
@@ -317,9 +307,8 @@ public class Listener {
 
         // 取消 Unix 域套接字文件链接
         match (connection) {
-            case ConnectionTarget.Unix(path) => {
+            case ConnectionTarget.Unix(path) =>
                 unlinkUnixSocketPath(path)
-            }
             case _ => ()
         }
 
@@ -348,13 +337,12 @@ public class Listener {
         listener = ListenerType.None
 
         match (current) {
-            case ListenerType.Uws(socket) => {
+            case ListenerType.Uws(socket) =>
                 match (connection) {
                     case ConnectionTarget.Unix(path) => unlinkUnixSocketPath(path)
                     case _ => ()
                 }
                 socket.close()
-            }
             case ListenerType.NamedPipe(ctx) => ()
             case ListenerType.None => ()
         }
@@ -374,9 +362,8 @@ public class Listener {
         }
 
         match (connection) {
-            case ConnectionTarget.Host(_, _) | ConnectionTarget.Unix(_) => {
+            case ConnectionTarget.Host(_, _) | ConnectionTarget.Unix(_) =>
                 connection.deinit()
-            }
             case _ => ()
         }
 
@@ -460,10 +447,9 @@ public class Listener {
     /// 对应 Zig: getsockname
     public func getsockname(globalObject: JsObject, out: JsValue): JsValue {
         match (listener) {
-            case ListenerType.Uws(socket) => {
+            case ListenerType.Uws(socket) =>
                 // 填充 out 对象的 family/address/port
                 return JsValue.UNDEFINED
-            }
             case _ => return JsValue.UNDEFINED
         }
     }
@@ -472,19 +458,18 @@ public class Listener {
     /// 对应 Zig: addServerName
     public func addServerName(globalObject: JsObject, hostname: JsValue, tls: JsValue): JsValue {
         if (!ssl) {
-            return JsValue(BaoString("addServerName requires SSL support"))
+            return JsValue("addServerName requires SSL support")
         }
 
         match (hostname.valueType) {
-            case JsValueType.String => {
+            case JsValueType.String =>
                 let name = hostname.toString()
                 if (name.isEmpty()) {
-                    return JsValue(BaoString("hostname pattern cannot be empty"))
+                    return JsValue("hostname pattern cannot be empty")
                 }
                 // 添加 SNI 映射
                 return JsValue.UNDEFINED
-            }
-            case _ => return JsValue(BaoString("hostname pattern expects a string"))
+            case _ => return JsValue("hostname pattern expects a string")
         }
     }
 
@@ -499,7 +484,7 @@ public class Listener {
             return
         }
         // Linux 抽象套接字以 NUL 字节开头, 无文件系统入口
-        if (path.size > 0 && path.subString(0, 1) == "\u{00}") {
+        if (path.size > 0 && path[0].toString() == "\u{00}") {
             return
         }
         // 通过 bao_sys unlink 删除文件
