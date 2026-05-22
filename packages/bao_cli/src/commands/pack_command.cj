@@ -174,17 +174,17 @@ public class BinInfo {
 /// 二进制类型枚举
 /// 严格翻译自: src/cli/pack_command.zig BinInfo.Type
 public enum BinInfoType {
-    case file
-    case dir
+    | File
+    | Dir
 }
 
 /// 忽略模式来源类型
 /// 严格翻译自: src/cli/pack_command.zig IgnorePatterns.Kind
 public enum IgnoreKind {
-    case defaultIgnore
-    case npmIgnore
-    case gitIgnore
-    case packageJson
+    | defaultIgnore
+    | npmIgnore
+    | gitIgnore
+    | packageJson
 }
 
 /// 忽略模式集合
@@ -725,11 +725,11 @@ public class PackCommand {
         // 严格翻译自: PackCommand.pack → for (bins) |bin|
         for (bin in bins) {
             match (bin.binType) {
-                case BinInfoType.file =>
+                case BinInfoType.File =>
                     if (BaoFile.exists(bin.path)) {
                         packQueue.add(PackQueueItem(bin.path, true))
                     }
-                case BinInfoType.dir =>
+                case BinInfoType.Dir =>
                     if (BaoFile.isDirectory(bin.path)) {
                         iterateProjectTree(
                             packQueue,
@@ -1017,7 +1017,7 @@ public class PackCommand {
                     ignoreStack,
                     entryKind
                 )
-                if (excluded != None) {
+                if (excluded.isSome()) {
                     if (opts.verbose) {
                         let info = excluded ?? ExclusionInfo("", IgnoreKind.defaultIgnore)
                         println("ignore [${info.kind}]: ${info.pattern} ${entrySubpath}")
@@ -1028,12 +1028,12 @@ public class PackCommand {
                 match (entryKind) {
                     case "file" =>
                         // 检查是否为 bin 文件 (已在单独流程中处理)
-                        if (isBinEntry(bins, entrySubpath, BinInfoType.file)) {
+                        if (isBinEntry(bins, entrySubpath, BinInfoType.File)) {
                             continue
                         }
                         packQueue.add(PackQueueItem(entrySubpath, false))
                     case "directory" =>
-                        if (isBinEntry(bins, entrySubpath, BinInfoType.dir)) {
+                        if (isBinEntry(bins, entrySubpath, BinInfoType.Dir)) {
                             continue
                         }
                         let subdir = openSubdir(dir, entryName, entrySubpath)
@@ -1143,7 +1143,7 @@ public class PackCommand {
                 // 未包含的目录仍需遍历 (可能包含子目录中匹配的文件)
                 if (!included) {
                     if (entryKind == "directory") {
-                        if (isBinEntry(bins, entrySubpath, BinInfoType.dir)) {
+                        if (isBinEntry(bins, entrySubpath, BinInfoType.Dir)) {
                             continue
                         }
                         let subdir = openSubdir(dir, entryName, entrySubpath)
@@ -1154,7 +1154,7 @@ public class PackCommand {
 
                 match (entryKind) {
                     case "directory" =>
-                        if (isBinEntry(bins, entrySubpath, BinInfoType.dir)) {
+                        if (isBinEntry(bins, entrySubpath, BinInfoType.Dir)) {
                             continue
                         }
                         let subdir = openSubdir(dir, entryName, entrySubpath)
@@ -1164,7 +1164,7 @@ public class PackCommand {
                             continue
                         }
                         subpathDedupe.add(entrySubpath)
-                        if (isBinEntry(bins, entrySubpath, BinInfoType.file)) {
+                        if (isBinEntry(bins, entrySubpath, BinInfoType.File)) {
                             continue
                         }
                         packQueue.add(PackQueueItem(entrySubpath, false))
@@ -1261,7 +1261,7 @@ public class PackCommand {
                     ignoreStack,
                     entryKind
                 )
-                if (excluded != None) {
+                if (excluded.isSome()) {
                     if (opts.verbose) {
                         let info = excluded ?? ExclusionInfo("", IgnoreKind.defaultIgnore)
                         println("ignore [${info.kind}]: ${info.pattern} ${entrySubpath}")
@@ -1275,12 +1275,12 @@ public class PackCommand {
                             continue
                         }
                         dedupe.add(entrySubpath)
-                        if (isBinEntry(bins, entrySubpath, BinInfoType.file)) {
+                        if (isBinEntry(bins, entrySubpath, BinInfoType.File)) {
                             continue
                         }
                         packQueue.add(PackQueueItem(entrySubpath, false))
                     case "directory" =>
-                        if (isBinEntry(bins, entrySubpath, BinInfoType.dir)) {
+                        if (isBinEntry(bins, entrySubpath, BinInfoType.Dir)) {
                             continue
                         }
                         let subdir = openSubdir(dir, entryName, entrySubpath)
@@ -1496,7 +1496,7 @@ public class PackCommand {
                     ArrayList<IgnorePatterns>(),
                     entryKind
                 )
-                if (excluded != None) {
+                if (excluded.isSome()) {
                     if (opts.verbose) {
                         let info = excluded ?? ExclusionInfo("", IgnoreKind.defaultIgnore)
                         println("ignore [${info.kind}]: ${info.pattern} ${entrySubpath}")
@@ -1727,7 +1727,7 @@ public class PackCommand {
         match (binField) {
             case Some(JsonValue.Str(binStr)) =>
                 let normalized = Path.normalizePosix(binStr)
-                bins.append(BinInfo(normalized, BinInfoType.file))
+                bins.append(BinInfo(normalized, BinInfoType.File))
                 return bins
             case Some(JsonValue.Object(binObj)) =>
                 let values = binObj.values()
@@ -1735,7 +1735,7 @@ public class PackCommand {
                     match (`val`) {
                         case JsonValue.Str(binStr) =>
                             let normalized = Path.normalizePosix(binStr)
-                            bins.append(BinInfo(normalized, BinInfoType.file))
+                            bins.append(BinInfo(normalized, BinInfoType.File))
                         case _ => ()
                     }
                 }
@@ -1753,7 +1753,7 @@ public class PackCommand {
                 match (binDir) {
                     case Some(binStr) =>
                         let normalized = Path.normalizePosix(binStr)
-                        bins.append(BinInfo(normalized, BinInfoType.dir))
+                        bins.append(BinInfo(normalized, BinInfoType.Dir))
                     case None => ()
                 }
             case _ => ()
@@ -1770,11 +1770,11 @@ public class PackCommand {
                 continue
             }
             match (bin.binType) {
-                case BinInfoType.file =>
+                case BinInfoType.File =>
                     if (bin.path == path) {
                         return true
                     }
-                case BinInfoType.dir =>
+                case BinInfoType.Dir =>
                     let binWithoutTrailing = Path.withoutTrailingSlash(bin.path)
                     if (path.startsWith(binWithoutTrailing)) {
                         let remain = path.substring(binWithoutTrailing.length)
@@ -2180,7 +2180,7 @@ public class PackCommand {
             tarArgs.append(stagingDir)
             tarArgs.append("package")
 
-            let exitCode = Process.spawn(tarArgs.toArray(), ".")
+            let exitCode = Process.`spawn`(tarArgs.toArray(), ".")
             // 清理临时目录
             BaoFile.removeTree(stagingDir)
 

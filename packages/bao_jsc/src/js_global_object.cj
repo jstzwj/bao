@@ -57,6 +57,11 @@ public class JSGlobalObject {
 
     // ========== 错误创建 ==========
 
+    // 发出警告 - 对应 Bun globalThis.emitWarning
+    public func emitWarning(message: String, warningType: String): Unit {
+        // 发出警告不应中断执行
+    }
+
     // 严格翻译自 JSGlobalObject.throwStackOverflow
     public func throwStackOverflow(): JsError {
         JsError("Stack overflow")

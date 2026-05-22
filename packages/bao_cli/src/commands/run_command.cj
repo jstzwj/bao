@@ -288,7 +288,7 @@ public class RunCommand {
         useSystemShell: Bool
     ): Int64 {
         let shellBin = findShell(env.get("PATH") ?? "", cwd)
-        if (shellBin == None) {
+        if (shellBin.isNone()) {
             if (!silent) {
                 Output.errGeneric("No shell found. Please install bash, sh, or zsh.", [])
             }
@@ -348,9 +348,10 @@ public class RunCommand {
             let exitCode = Process.spawnWithEnv(shellPath, argv, env.toEnvArray(), cwd)
 
             match (exitCode) {
-                case code if code > 0 && code != 2 && !silent =>
-                    Output.prettyErrorLn("error: script \"${name}\" exited with code ${code}")
-                case _ => ()
+                case code =>
+                    if (code > 0 && code != 2 && !silent) {
+                        Output.prettyErrorLn("error: script \"${name}\" exited with code ${code}")
+                    }
             }
 
             return exitCode
@@ -531,7 +532,7 @@ public class RunCommand {
         envLoader.putDefault("npm_config_local_prefix", cwd)
 
         // 设置 npm_execpath
-        if (envLoader.get("npm_execpath") == None) {
+        if (envLoader.get("npm_execpath").isNone()) {
             let selfExe = Sys.getExecutablePath()
             if (selfExe.length > 0) {
                 envLoader.putDefault("npm_execpath", selfExe)
@@ -729,7 +730,7 @@ public class RunCommand {
             let ext = Path.extension(targetName)
             if (ext.length > 0) {
                 let defaultLoader = getDefaultLoader(ext)
-                if (defaultLoader != None) {
+                if (defaultLoader.isSome()) {
                     let loader = defaultLoader ?? ""
                     if (canBeRunByBun(loader) || loader == "md") {
                         tryFastRun = true
@@ -1167,7 +1168,7 @@ public class RunCommand {
             match (pkgOpt) {
                 case Some(pkg) =>
                     var commands = ArrayList<String>()
-                    if (shellOut.commands != None) {
+                    if (shellOut.commands.isSome()) {
                         for (c in shellOut.commands ?? []) {
                             commands.append(c)
                         }
@@ -1204,7 +1205,7 @@ public class RunCommand {
         }
 
         // 排序
-        if (shellOut.commands != None) {
+        if (shellOut.commands.isSome()) {
             let cmds = shellOut.commands ?? []
             cmds.sort()
             shellOut.commands = cmds

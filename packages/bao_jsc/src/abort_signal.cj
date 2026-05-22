@@ -1,6 +1,8 @@
 // 严格翻译自: src/jsc/AbortSignal.zig
 package bao_jsc
 
+import bao_event_loop.*
+
 // ========== EventLoopTimerState ==========
 // 严格翻译自 AbortSignal 中使用的 EventLoopTimer State
 // 注意: bao_event_loop 中为 TimerState，这里保留原始 Zig 中的命名
@@ -9,16 +11,6 @@ public enum EventLoopTimerState {
     | ACTIVE
     | CANCELLED
     | FIRED
-}
-
-// ========== EventLoopTimer 桩 ==========
-// AbortSignal.Timeout 中使用的简化版 EventLoopTimer
-// 完整版在 bao_event_loop 中定义
-public class EventLoopTimer {
-    public var state: EventLoopTimerState = EventLoopTimerState.PENDING
-    public var isActive: Bool = false
-
-    public init() {}
 }
 
 // ========== TimerObjectInternalsFlags 桩 ==========
@@ -60,7 +52,7 @@ public enum AbortReason {
 // ========== AbortSignal.Timeout ==========
 // 严格翻译自 AbortSignal.Timeout
 public class AbortSignalTimeout {
-    public var eventLoopTimer: EventLoopTimer = EventLoopTimer()
+    public var eventLoopTimer: EventLoopTimer = EventLoopTimer(TimerTag.AbortSignalTimeout)
     public var signal_: AbortSignal
     public var flags: TimerObjectInternalsFlags = TimerObjectInternalsFlags()
     public var generation: UInt32 = 0
@@ -71,14 +63,14 @@ public class AbortSignalTimeout {
 
     // 严格翻译自 Timeout.cancel
     public func cancel(vm: BunVirtualMachine) {
-        if (eventLoopTimer.isActive) {
+        if (eventLoopTimer.isActive()) {
             // TODO: vm.timer.remove(eventLoopTimer) - timer API 未实现
         }
     }
 
     // 严格翻译自 Timeout.run
     public func run(vm: BunVirtualMachine) {
-        eventLoopTimer.state = EventLoopTimerState.FIRED
+        eventLoopTimer.state = TimerState.Fired
         cancel(vm)
 
         if (Int64(generation) != vm.testIsolationGeneration) {

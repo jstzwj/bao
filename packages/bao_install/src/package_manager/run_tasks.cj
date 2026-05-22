@@ -363,7 +363,7 @@ public class RunTasks {
                             let entry = manager.manifests.getOrPut(manifest.pkgNameHash)
                             entry.setManifest(manifest)
 
-                            if (timestamp == None) {
+                            if (timestamp.isNone()) {
                                 timestamp = UInt32(truncateTimestamp(currentTimestamp())) + UInt32(300)
                             }
 
@@ -743,7 +743,7 @@ public class RunTasks {
             // processExtractedTarballPackage 返回了 pkg, 处理依赖列表
             var anyRoot = false
             let dependencyListEntry = manager.taskQueue.getEntry(task.id)
-            if (dependencyListEntry == None) {
+            if (dependencyListEntry.isNone()) {
                 // break :handle_pkg
             } else {
                 let entry = dependencyListEntry.getOrThrow()
@@ -988,7 +988,7 @@ public class RunTasks {
             // 处理依赖列表
             var anyRoot = false
             let dependencyListEntry = manager.taskQueue.getEntry(task.id)
-            if (dependencyListEntry == None) {
+            if (dependencyListEntry.isNone()) {
                 // break :handle_pkg
             } else {
                 let entry = dependencyListEntry.getOrThrow()
@@ -1565,6 +1565,13 @@ public class ManifestData {
     public func hasExtendedManifest(): Bool {
         return pkgHasExtendedManifest
     }
+
+    // stubs for enqueue usage
+    public func resolveVersion(version: DependencyVersionInfo): ?ResolvedVersion { return None }
+    public func findVersion(version: DependencyVersionInfo): ?FindResultData { return None }
+    public func findByDistTag(tag: String): ?FindResultData { return None }
+    public func findByDistTagWithFilter(tag: String, minAgeMs: ?Int64, excludes: HashSet<String>): ?FindResultData { return None }
+    public func findBestVersionWithFilter(version: DependencyVersionInfo, buf: String, minAgeMs: ?Int64, excludes: HashSet<String>): ?FindResultData { return None }
 }
 
 /// 解析请求引用
@@ -1572,12 +1579,30 @@ public class ExtractRequestRef {
     public var name: String
     public var resolution: ResolutionRef
     public var dependencyId: UInt32
+    // additional fields for enqueue usage
+    public var networkTask: NetworkTaskRef
+    public var tarball: ExtractTarballRef
 
     public init() {
         name = ""
         resolution = ResolutionRef()
         dependencyId = UInt32(0)
+        networkTask = NetworkTaskRef()
+        tarball = ExtractTarballRef()
     }
+
+    public init(networkTask: NetworkTaskRef, tarball: ExtractTarballRef) {
+        name = ""
+        resolution = ResolutionRef()
+        dependencyId = UInt32(0)
+        this.networkTask = networkTask
+        this.tarball = tarball
+    }
+}
+
+/// 解压 Tarball 引用 (stub)
+public class ExtractTarballRef {
+    public init() {}
 }
 
 /// 解析引用
@@ -1589,7 +1614,8 @@ public class ResolutionRef {
     }
 }
 
-/// 解析标签
+/// 解析标签 (duplicate removed - see process_dependency_list.cj)
+/*
 public enum ResolutionTag {
     | Uninitialized
     | NPM
@@ -1603,6 +1629,7 @@ public enum ResolutionTag {
     | RemoteTarball
     | SingleFileModule
 }
+*/
 
 /// 解析任务标签
 public enum ResolveTaskTag {
@@ -1645,6 +1672,13 @@ public class NetworkTaskRef {
     public func getExtractCallback(): ExtractRequestRef { return ExtractRequestRef() }
     public func setStreamingExtractTask(task: ResolveTaskRef): Unit {}
     public func setTarballStream(stream: TarballStream): Unit {}
+    // additional stubs for enqueue usage
+    public func forManifest(pkgName: String, depId: UInt32, dep: DependencyRef, installPeer: Bool, successFn: ?SuccessFn, failFn: ?FailFn): Unit {}
+    public func forExtract(depId: UInt32, dep: DependencyRef, tarballUrl: String, integrity: IntegrityInfo): Unit {}
+    public func forLocalTarball(depId: UInt32, dep: DependencyRef, path: String): Unit {}
+    public func forGitCheckout(depId: UInt32, dep: DependencyRef, repo: String, ref_: String): Unit {}
+    public func schedule(batch: NetworkTarballBatch): Unit {}
+    public func configure(id: TaskId, allocator: Allocator, manager: RunTasksPackageManagerState, patchTask: ?PatchTaskRef): Unit {}
 }
 
 /// 网络任务响应
@@ -1845,7 +1879,8 @@ public class GitValue {
     }
 }
 
-/// 任务 ID
+/// 任务 ID (duplicate removed - see populate_manifest_cache.cj)
+/*
 public class TaskId {
     public var value: UInt64
 
@@ -1869,6 +1904,7 @@ public class TaskId {
         return value
     }
 }
+*/
 
 /// 包引用
 public class PackageRef {
@@ -1894,12 +1930,15 @@ public class PackageMetaRef {
     }
 }
 
-/// 完整性信息
+/// 完整性信息 (duplicate removed - see package_manager_enqueue.cj)
+/*
 public class IntegrityInfo {
     public init() {}
 }
+*/
 
-/// 补丁任务引用
+/// 补丁任务引用 (duplicate removed - see package_manager_enqueue.cj)
+/*
 public class PatchTaskRef {
     public var callback: PatchTaskCallback
 
@@ -1923,6 +1962,7 @@ public class PatchTaskRef {
     public func getApplyPkgName(): String { return "" }
     public func schedule(batch: ThreadPoolBatch): Unit {}
 }
+*/
 
 /// 补丁任务回调
 public enum PatchTaskCallback {
@@ -2049,6 +2089,9 @@ public class TaskBatch {
     public func iterator(): TaskBatchIterator {
         return TaskBatchIterator(items)
     }
+
+    // additional stub for enqueue usage
+    public func push(task: EnqueueTaskRef): Unit {}
 }
 
 /// 任务批处理迭代器
@@ -2167,7 +2210,6 @@ public class RunTasksCallbacks {
     public func onPackageManifestError(ctx: RunTasksContext, name: String, err: String, urlBuf: String): Unit {}
     public func onPackageDownloadError(ctx: RunTasksContext, id: TaskId, name: String, resolution: ResolutionRef, err: String, urlBuf: String): Unit {}
     public func onPackageDownloadError(ctx: RunTasksContext, pkgId: UInt32, name: String, resolution: ResolutionRef, err: String, urlBuf: String): Unit {}
-    public func onPackageDownloadError(ctx: RunTasksContext, id: TaskId, name: String, res: ResolutionRef, err: String, url: String): Unit {}
     public func onResolve(ctx: RunTasksContext): Unit {}
 }
 
@@ -2390,11 +2432,13 @@ public class DependencyListSlice {
     }
 }
 
-/// 对等依赖队列
+/// 对等依赖队列 (duplicate removed - see process_dependency_list.cj)
+/*
 public class PeerDependencyQueue {
     public init() {}
     public func readItem(): ?UInt32 { return None }
 }
+*/
 
 /// 网络去重映射
 public class NetworkDedupeMap {
@@ -2428,6 +2472,8 @@ public class PreallocatedTasks {
     public func get(): NetworkTaskRef { return NetworkTaskRef() }
     public func put(task: ResolveTaskRef): Unit {}
     public func put(task: NetworkTaskRef): Unit {}
+    // additional for enqueue usage
+    public func getEnqueueTask(): EnqueueTaskRef { return EnqueueTaskRef() }
 }
 
 /// 线程池引用
@@ -2470,21 +2516,25 @@ public class CommandContext {
     public init() {}
 }
 
-/// 清单缓存
+/// 清单缓存 (duplicate removed - see populate_manifest_cache.cj)
+/*
 public class ManifestCache {
     public init() {}
 
     public func getOrPut(hash: UInt64): ManifestCacheEntry { return ManifestCacheEntry() }
     public func insert(hash: UInt64, manifest: ManifestData): Unit {}
 }
+*/
 
-/// 清单缓存条目
+/// 清单缓存条目 (duplicate removed - see populate_manifest_cache.cj)
+/*
 public class ManifestCacheEntry {
     public init() {}
 
     public func setManifest(manifest: ManifestData): Unit {}
     public func setPublicMaxAge(age: UInt32): Unit {}
 }
+*/
 
 /// 锁文件引用
 public class RunTasksLockfileRef {
@@ -2521,7 +2571,8 @@ public class LockfileBuffers {
     public init() {}
 }
 
-/// 依赖版本信息
+/// 依赖版本信息 (duplicate removed - see package_manager_enqueue.cj)
+/*
 public class DependencyVersionInfo {
     public var tag: DependencyVersionTag
 
@@ -2534,6 +2585,7 @@ public class DependencyVersionInfo {
     public func setGitHubPackageName(name: String): Unit {}
     public func setTarballPackageName(name: String): Unit {}
 }
+*/
 
 /// 依赖版本 (Git)
 public class DependencyVersionGit {
@@ -2563,7 +2615,8 @@ public enum DependencyVersionTag {
     | Catalog
 }
 
-/// 仓库引用
+/// 仓库引用 (duplicate removed - see package_manager_enqueue.cj)
+/*
 public class RepositoryRef {
     public var owner: String
     public var repo: String
@@ -2575,6 +2628,7 @@ public class RepositoryRef {
         committish = ""
     }
 }
+*/
 
 /// 仓库工具
 public class Repository {
@@ -2599,15 +2653,18 @@ public class ProgressStrings {
     public static let extractEmoji: String = "📦"
 }
 
-/// 任务回调上下文
+/// 任务回调上下文 (duplicate removed - see process_dependency_list.cj)
+/*
 public enum TaskCallbackContext {
     | Dependency(UInt32)
     | RootDependency(UInt32)
     | Extract(ExtractData)
     | Other
 }
+*/
 
-/// 任务回调列表
+/// 任务回调列表 (duplicate removed - see process_dependency_list.cj)
+/*
 public class TaskCallbackList {
     public var items: ArrayList<TaskCallbackContext>
 
@@ -2617,16 +2674,21 @@ public class TaskCallbackList {
 
     public func deinit(): Unit {}
 }
+*/
 
-/// 提取数据
+/// 提取数据 (duplicate removed - see process_dependency_list.cj)
+/*
 public class ExtractData {
     public init() {}
 }
+*/
 
-/// 范围信息
+/// 范围信息 (duplicate removed - see populate_manifest_cache.cj)
+/*
 public class ScopeInfo {
     public init() {}
 }
+*/
 
 /// 临时目录引用
 public class TempDirRef {

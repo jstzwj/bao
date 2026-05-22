@@ -191,7 +191,7 @@ public class PublishCommand {
         manager = pm
 
         // 分支: 从 tarball 路径发布 vs 从 workspace 发布
-        if (opts.tarballPath != None) {
+        if (opts.tarballPath.isSome()) {
             // 从 tarball 路径发布
             // 严格翻译自: Context(false).fromTarballPath
             let config = fromTarballPath(opts.tarballPath.getOrThrow(), pm)
@@ -227,7 +227,7 @@ public class PublishCommand {
 
                             // 运行 publish/postpublish 生命周期脚本
                             // 严格翻译自: publish_command.zig → publish_script / postpublish_script
-                            if (pm.options.do.runScripts) {
+                            if (pm.options.`do`.runScripts) {
                                 let absWorkspacePath = Path.withoutTrailingSlash(
                                     pm.originalPackageJsonPath.substring(
                                         0, pm.originalPackageJsonPath.length - "package.json".length
@@ -297,7 +297,7 @@ public class PublishCommand {
                 let archive = ArchiveIterator.`init`(bytes)
                 while (true) {
                     let next = archive.next()
-                    if (next == None) {
+                    if (next.isNone()) {
                         break
                     }
                     let entry = next.getOrThrow()
@@ -329,14 +329,14 @@ public class PublishCommand {
                             let filename = stripped
 
                             // 检查 package.json
-                            if (maybePackageJsonContents == None &&
+                            if (maybePackageJsonContents.isNone() &&
                                 filename.equalsIgnoreCase("package.json")) {
                                 maybePackageJsonContents = entry.readData()
                             }
                             // 检查 README
-                            else if (maybeReadme == None && isReadmeFilename(filename)) {
+                            else if (maybeReadme.isNone() && isReadmeFilename(filename)) {
                                 let readmeContents = entry.readData()
-                                if (readmeContents != None) {
+                                if (readmeContents.isSome()) {
                                     maybeReadme = ReadmeInfo(filename, readmeContents.getOrThrow())
                                 }
                             }
@@ -351,7 +351,7 @@ public class PublishCommand {
 
                 // 验证 package.json 存在
                 let packageJsonContents = maybePackageJsonContents
-                if (packageJsonContents == None) {
+                if (packageJsonContents.isNone()) {
                     logger.error("failed to find package.json in tarball '${path}'")
                     return None
                 }
@@ -360,7 +360,7 @@ public class PublishCommand {
                 // 严格翻译自: JSON.parsePackageJSONUTF8(source, manager.log, ctx.allocator)
                 let parser = JsonParser()
                 let json = parser.parse(packageJsonContents.getOrThrow())
-                if (json == None) {
+                if (json.isNone()) {
                     logger.error("failed to parse tarball package.json")
                     return None
                 }
@@ -389,7 +389,7 @@ public class PublishCommand {
                             match (accessVal) {
                                 case Some(a) =>
                                     let accessLevel = AccessLevel.fromStr(a)
-                                    if (accessLevel == None) {
+                                    if (accessLevel.isNone()) {
                                         Output.errGeneric("invalid `access` value: '${a}'")
                                         return None
                                     }
@@ -402,7 +402,7 @@ public class PublishCommand {
 
                 // 获取 name
                 let name = JsonHelper.getString(root, "name")
-                if (name == None || name.getOrThrow().isEmpty()) {
+                if (name.isNone() || name.getOrThrow().isEmpty()) {
                     logger.error("missing `name` string in package.json")
                     return None
                 }
@@ -416,7 +416,7 @@ public class PublishCommand {
 
                 // 获取 version
                 let version = JsonHelper.getString(root, "version")
-                if (version == None || version.getOrThrow().isEmpty()) {
+                if (version.isNone() || version.getOrThrow().isEmpty()) {
                     logger.error("missing `version` string in package.json")
                     return None
                 }
@@ -504,7 +504,7 @@ public class PublishCommand {
                                 match (accessVal) {
                                     case Some(a) =>
                                         let accessLevel = AccessLevel.fromStr(a)
-                                        if (accessLevel == None) {
+                                        if (accessLevel.isNone()) {
                                             Output.errGeneric("invalid `access` value: '${a}'")
                                             return None
                                         }
@@ -618,7 +618,7 @@ public class PublishCommand {
         // 严格翻译自: if (readme) |r| { if (json.get("readme") == null) ... }
         match (readme) {
             case Some(r) =>
-                if (JsonHelper.getField(json, "readme") == None) {
+                if (JsonHelper.getField(json, "readme").isNone()) {
                     JsonHelper.setString(json, "readme", r.contents)
                     JsonHelper.setString(json, "readmeFilename", r.filename)
                 }
@@ -678,7 +678,7 @@ public class PublishCommand {
                 let newBinObj = JsonValue.newObject()
                 for (key in keys) {
                     let value = binObj.getString(key)
-                    if (value != None && !value.getOrThrow().isEmpty()) {
+                    if (value.isSome() && !value.getOrThrow().isEmpty()) {
                         let normalizedKey = Path.normalizePosix(key).removePrefix("./")
                         let normalizedValue = Path.normalizePosix(value.getOrThrow()).removePrefix("./")
 
@@ -698,7 +698,7 @@ public class PublishCommand {
                 match (directories) {
                     case Some(JsonValue.Object(dirs)) =>
                         let binDir = JsonHelper.getString(dirs, "bin")
-                        if (binDir != None && !binDir.getOrThrow().isEmpty()) {
+                        if (binDir.isSome() && !binDir.getOrThrow().isEmpty()) {
                             let normalizedBinDir = Path.normalizePosix(binDir.getOrThrow())
                                 .removePrefix("./")
                                 .removeTrailingSlash("/")
@@ -791,7 +791,7 @@ public class PublishCommand {
     ): HashMap<String, String> {
         let headers = HashMap<String, String>()
 
-        let npmAuthType = if (maybeOtp == None) {
+        let npmAuthType = if (maybeOtp.isNone()) {
             authType ?? "web"
         } else {
             "legacy"
@@ -807,7 +807,7 @@ public class PublishCommand {
             headers.put("authorization", "Basic ${registry.auth}")
         }
 
-        if (maybeJsonLen != None) {
+        if (maybeJsonLen.isSome()) {
             headers.put("content-type", "application/json")
         }
 
@@ -819,7 +819,7 @@ public class PublishCommand {
         headers.put("npm-command", "publish")
 
         let wsStr = if (usesWorkspaces) { "true" } else { "false" }
-        let ciStr = if (ciName != None) { " ci/${ciName.getOrThrow()}" } else { "" }
+        let ciStr = if (ciName.isSome()) { " ci/${ciName.getOrThrow()}" } else { "" }
         headers.put("user-agent", "${Global.userAgent} ${Global.osName} ${Global.archName} workspaces/${wsStr}${ciStr}")
 
         headers.put("Connection", "keep-alive")
@@ -1065,7 +1065,7 @@ public class PublishCommand {
                 let authUrlStr = JsonHelper.getString(root, "authUrl")
                 let doneUrlStr = JsonHelper.getString(root, "doneUrl")
 
-                if (authUrlStr != None && doneUrlStr != None) {
+                if (authUrlStr.isSome() && doneUrlStr.isSome()) {
                     // Web 认证流程
                     // 严格翻译自: Output.prettyln("Authenticate your account at...")
                     Output.prettyLn("\nAuthenticate your account at (press <b>ENTER<r> to open in browser):\n")
@@ -1140,7 +1140,7 @@ public class PublishCommand {
                                         match (doneJson) {
                                             case Some(doneRoot) =>
                                                 let token = JsonHelper.getString(doneRoot, "token")
-                                                if (token != None) {
+                                                if (token.isSome()) {
                                                     return token.getOrThrow()
                                                 }
                                                 Output.errGeneric("WebLogin: missing `token` field in response json")
@@ -1177,7 +1177,7 @@ public class PublishCommand {
         Terminal.waitForEnter()
 
         // 使用系统命令打开 URL
-        Process.spawn(["open", authUrl], ".")
+        Process.`spawn`(["open", authUrl], ".")
     }
 
     /// 检查版本是否已存在于 registry

@@ -300,7 +300,7 @@ public class CliParser {
 public let BAO_VERSION = "0.1.0"
 
 /// Bao CLI 主入口
-main(): Unit {
+`main`(): Unit {
     let args = getArgs()
     let command = CliParser.parse(args)
 
@@ -618,7 +618,7 @@ private func readPackageJson(): ?PackageInfo {
             }
 
             let pkg = PackageInfo(name, version)
-            pkg.main = match (JsonHelper.getString(root, "main")) {
+            pkg.`main` = match (JsonHelper.getString(root, "main")) {
                 case Some(m) => m
                 case None => "index.js"
             }

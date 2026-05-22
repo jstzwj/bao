@@ -397,6 +397,8 @@ public class TaskCallbackList {
     public init() {
         items = ArrayList<TaskCallbackContext>()
     }
+
+    public func deinit(): Unit {}
 }
 
 /// 布尔引用

@@ -179,14 +179,20 @@ public class PatchCommand {
                 // 严格翻译自: PackageManager 中打开编辑器的逻辑
                 match (opts.editor) {
                     case Some(editor) =>
-                        Process.spawn([editor, patchDir], ".")
+                        let editorArgs = ArrayList<String>()
+                        editorArgs.append(editor)
+                        editorArgs.append(patchDir)
+                        Process.`spawn`(editorArgs.toArray(), ".")
                     case None =>
                         // 检查 $EDITOR / $VISUAL 环境变量
                         let editorEnv = Sys.getEnv("EDITOR") ?? Sys.getEnv("VISUAL")
                         match (editorEnv) {
                             case Some(ed) =>
                                 if (!ed.isEmpty()) {
-                                    Process.spawn([ed, patchDir], ".")
+                                    let edArgs = ArrayList<String>()
+                                    edArgs.append(ed)
+                                    edArgs.append(patchDir)
+                                    Process.`spawn`(edArgs.toArray(), ".")
                                 }
                             case None => ()
                         }
@@ -356,51 +362,57 @@ public class PatchCommitCommand {
                         let name = JsonHelper.getString(root, "name")
                         let version = JsonHelper.getString(root, "version")
 
-                        match (name, version) {
-                            case (Some(n), Some(v)) =>
-                                // 获取原始包路径
-                                let originalPath = Path.join(["node_modules", n])
-                                if (!BaoFile.exists(originalPath)) {
-                                    logger.error("Original package '${n}' not found in node_modules")
-                                    return 1
-                                }
-
-                                // 创建 patches 目录
-                                BaoFile.mkdir("patches", false)
-
-                                // 计算 diff
-                                // 对应 Bun: 使用 diff 命令生成 unified diff
-                                let patchFileName = "${n}@${v}.patch"
-                                let patchFilePath = Path.join(["patches", patchFileName])
-
-                                let diffResult = computeDiff(originalPath, patchDir, patchFilePath)
-                                if (!diffResult) {
-                                    logger.error("Failed to compute patch diff")
-                                    return 1
-                                }
-
-                                // 更新 package.json
-                                // 对应 Bun: 更新 patchedDependencies 字段
-                                updatePackageJsonPatch(n, v, patchFilePath)
-
-                                // 重新安装以应用 patch
-                                logger.info("Applying patch...")
-                                let installArgs = ArrayList<String>()
-                                installArgs.append(Sys.getExecutablePath())
-                                installArgs.append("install")
-                                let exitCode = Process.spawn(installArgs.toArray(), ".")
-                                match (exitCode) {
-                                    case Some(code) =>
-                                        if (code == 0) {
-                                            if (!opts.silent) {
-                                                println("Patch committed successfully!")
-                                                println("  Patch file: ${patchFilePath}")
-                                            }
+                        match (name) {
+                            case Some(n) =>
+                                match (version) {
+                                    case Some(v) =>
+                                        // 获取原始包路径
+                                        let originalPath = Path.join(["node_modules", n])
+                                        if (!BaoFile.exists(originalPath)) {
+                                            logger.error("Original package '${n}' not found in node_modules")
+                                            return 1
                                         }
-                                        return code
-                                    case None => return 1
+
+                                        // 创建 patches 目录
+                                        BaoFile.mkdir("patches", false)
+
+                                        // 计算 diff
+                                        // 对应 Bun: 使用 diff 命令生成 unified diff
+                                        let patchFileName = "${n}@${v}.patch"
+                                        let patchFilePath = Path.join(["patches", patchFileName])
+
+                                        let diffResult = computeDiff(originalPath, patchDir, patchFilePath)
+                                        if (!diffResult) {
+                                            logger.error("Failed to compute patch diff")
+                                            return 1
+                                        }
+
+                                        // 更新 package.json
+                                        // 对应 Bun: 更新 patchedDependencies 字段
+                                        updatePackageJsonPatch(n, v, patchFilePath)
+
+                                        // 重新安装以应用 patch
+                                        logger.info("Applying patch...")
+                                        let installArgs = ArrayList<String>()
+                                        installArgs.append(Sys.getExecutablePath())
+                                        installArgs.append("install")
+                                        let exitCode = Process.`spawn`(installArgs.toArray(), ".")
+                                        match (exitCode) {
+                                            case Some(code) =>
+                                                if (code == 0) {
+                                                    if (!opts.silent) {
+                                                        println("Patch committed successfully!")
+                                                        println("  Patch file: ${patchFilePath}")
+                                                    }
+                                                }
+                                                return code
+                                            case None => return 1
+                                        }
+                                    case None =>
+                                        logger.error("Patch directory package.json must have name and version")
+                                        return 1
                                 }
-                            case _ =>
+                            case None =>
                                 logger.error("Patch directory package.json must have name and version")
                                 return 1
                         }
@@ -426,7 +438,7 @@ public class PatchCommitCommand {
         args.append(patchedPath)
 
         // 将 diff 输出重定向到文件
-        let result = Process.spawnWithOutput(args.toArray(), ".")
+        let result = Process.`spawnWithOutput`(args.toArray(), ".")
         match (result) {
             case Some(output) =>
                 BaoFile.writeAllText(outputPath, output)

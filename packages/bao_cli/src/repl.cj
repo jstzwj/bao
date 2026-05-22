@@ -805,59 +805,73 @@ public class Repl {
                     case None => return Key.escape
                 }
 
-                match (third) {
-                    case 'A'.toUInt8() => return Key.arrowUp
-                    case 'B'.toUInt8() => return Key.arrowDown
-                    case 'C'.toUInt8() => return Key.arrowRight
-                    case 'D'.toUInt8() => return Key.arrowLeft
-                    case 'H'.toUInt8() => return Key.home
-                    case 'F'.toUInt8() => return Key.end
-                    case _ =>
-                        // 处理数字后跟 ~
-                        if (third >= '1'.toUInt8() && third <= '6'.toUInt8()) {
-                            let fourth = match (readByte()) {
-                                case Some(v) => v
-                                case None => return Key.unknown
-                            }
-                            if (fourth == '~'.toUInt8()) {
-                                match (third) {
-                                    case '1'.toUInt8() => return Key.home
-                                    case '3'.toUInt8() => return Key.delete
-                                    case '4'.toUInt8() => return Key.end
-                                    case '5'.toUInt8() => return Key.pageUp
-                                    case '6'.toUInt8() => return Key.pageDown
-                                    case _ => return Key.unknown
-                                }
-                            } else if (fourth == ';'.toUInt8()) {
-                                let mod = match (readByte()) {
-                                    case Some(v) => v
-                                    case None => return Key.unknown
-                                }
-                                let dir = match (readByte()) {
-                                    case Some(v) => v
-                                    case None => return Key.unknown
-                                }
-                                if (mod == '5'.toUInt8() || mod == '3'.toUInt8()) {
-                                    match (dir) {
-                                        case 'C'.toUInt8() => return Key.altRight
-                                        case 'D'.toUInt8() => return Key.altLeft
-                                        case _ => return Key.unknown
-                                    }
-                                }
+                if (third == 'A'.toUInt8()) {
+                    return Key.arrowUp
+                } else if (third == 'B'.toUInt8()) {
+                    return Key.arrowDown
+                } else if (third == 'C'.toUInt8()) {
+                    return Key.arrowRight
+                } else if (third == 'D'.toUInt8()) {
+                    return Key.arrowLeft
+                } else if (third == 'H'.toUInt8()) {
+                    return Key.home
+                } else if (third == 'F'.toUInt8()) {
+                    return Key.end
+                } else if (third >= '1'.toUInt8() && third <= '6'.toUInt8()) {
+                    let fourth = match (readByte()) {
+                        case Some(v) => v
+                        case None => return Key.unknown
+                    }
+                    if (fourth == '~'.toUInt8()) {
+                        if (third == '1'.toUInt8()) {
+                            return Key.home
+                        } else if (third == '3'.toUInt8()) {
+                            return Key.delete
+                        } else if (third == '4'.toUInt8()) {
+                            return Key.end
+                        } else if (third == '5'.toUInt8()) {
+                            return Key.pageUp
+                        } else if (third == '6'.toUInt8()) {
+                            return Key.pageDown
+                        } else {
+                            return Key.unknown
+                        }
+                    } else if (fourth == ';'.toUInt8()) {
+                        let mod_ = match (readByte()) {
+                            case Some(v) => v
+                            case None => return Key.unknown
+                        }
+                        let dir = match (readByte()) {
+                            case Some(v) => v
+                            case None => return Key.unknown
+                        }
+                        if (mod_ == '5'.toUInt8() || mod_ == '3'.toUInt8()) {
+                            if (dir == 'C'.toUInt8()) {
+                                return Key.altRight
+                            } else if (dir == 'D'.toUInt8()) {
+                                return Key.altLeft
+                            } else {
                                 return Key.unknown
                             }
                         }
                         return Key.unknown
+                    } else {
+                        return Key.unknown
+                    }
+                } else {
+                    return Key.unknown
                 }
             } else if (second == 'O'.toUInt8()) { // SS3
                 let third = match (readByte()) {
                     case Some(v) => v
                     case None => return Key.escape
                 }
-                match (third) {
-                    case 'H'.toUInt8() => return Key.home
-                    case 'F'.toUInt8() => return Key.end
-                    case _ => return Key.unknown
+                if (third == 'H'.toUInt8()) {
+                    return Key.home
+                } else if (third == 'F'.toUInt8()) {
+                    return Key.end
+                } else {
+                    return Key.unknown
                 }
             } else if (second == 'b'.toUInt8()) {
                 return Key.altB

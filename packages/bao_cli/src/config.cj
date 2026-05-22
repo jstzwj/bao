@@ -469,7 +469,7 @@ public class Config {
                         let info = PackageJsonInfo()
                         info.name = JsonHelper.getString(root, "name") ?? "unknown"
                         info.version = JsonHelper.getString(root, "version") ?? "0.0.0"
-                        info.main = JsonHelper.getString(root, "main") ?? "index.js"
+                        info.`main` = JsonHelper.getString(root, "main") ?? "index.js"
                         info.module = JsonHelper.getString(root, "module")
                         info.types = JsonHelper.getString(root, "types")
 
@@ -582,7 +582,7 @@ public class Config {
 public class PackageJsonInfo {
     public var name: String
     public var version: String
-    public var main: String
+    public var `main`: String
     public var module: ?String
     public var types: ?String
     public var scripts: HashMap<String, String>
@@ -594,7 +594,7 @@ public class PackageJsonInfo {
     public init() {
         name = ""
         version = ""
-        main = "index.js"
+        `main` = "index.js"
         module = None
         types = None
         scripts = HashMap<String, String>()
@@ -612,8 +612,8 @@ public class PackageJsonInfo {
             case None => ()
         }
         // 回退: main 文件
-        if (!main.isEmpty()) {
-            return Some("bao run ${main}")
+        if (!`main`.isEmpty()) {
+            return Some("bao run ${`main`}")
         }
         return None
     }

@@ -359,7 +359,7 @@ public class UpgradeCommand {
         BaoFile.writeAllBytes(zipPath, data)
 
         // 解压 (调用系统 unzip)
-        let result = Process.spawn(["unzip", "-q", "-o", zipPath], extractDir)
+        let result = Process.`spawn`(["unzip", "-q", "-o", zipPath], extractDir)
         match (result) {
             case Some(exitCode) =>
                 if (exitCode == 0) {
@@ -386,7 +386,7 @@ public class UpgradeCommand {
         }
 
         // 运行 --version 验证
-        let result = Process.spawn([exePath, "--version"], extractDir)
+        let result = Process.`spawn`([exePath, "--version"], extractDir)
         match (result) {
             case Some(exitCode) => return exitCode == 0
             case None => return false

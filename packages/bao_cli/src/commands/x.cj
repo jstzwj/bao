@@ -160,7 +160,7 @@ public class XCommand {
             installArgs.append("--verbose")
         }
 
-        let exitCode = Process.spawn(installArgs.toArray(), cacheDir)
+        let exitCode = Process.`spawn`(installArgs.toArray(), cacheDir)
         match (exitCode) {
             case Some(code) =>
                 if (code != 0) {

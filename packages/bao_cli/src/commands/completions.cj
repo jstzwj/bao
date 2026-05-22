@@ -273,7 +273,8 @@ public class CompletionsGenerator {
         sb.append("  param($commandName, $wordToComplete, $cursorPosition)\n")
         sb.append("  $commands = @(\n")
         for (i in 0..commands.size) {
-            sb.append("    [CompletionResult]::new('${commands[i]}', '${commands[i]}', 'ParameterValue', '${if (i < descriptions.size) { descriptions[i] } else { ""}' }\n")
+            let desc = if (i < descriptions.size) { descriptions[i] } else { "" }
+            sb.append("    [CompletionResult]::new('\${commands[i]}', '\${commands[i]}', 'ParameterValue', '\${desc}' }\n")
         }
         sb.append("  )\n")
         sb.append("  $commands | Where-Object { $_.CompletionText -like \"$wordToComplete*\" }\n")

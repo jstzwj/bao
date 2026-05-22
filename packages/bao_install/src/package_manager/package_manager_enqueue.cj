@@ -147,6 +147,23 @@ public class PatchTaskRef {
         callback = PatchCallbackType.CalcHash
         taskId = TaskIdRef()
     }
+
+    public func deinit(): Unit {}
+    public func runFromMainThread(manager: RunTasksPackageManagerState, logLevel: LogLevel): Unit {}
+    public func isApplyCallback(): Bool {
+        match (callback) {
+            case PatchCallbackType.Apply => return true
+            case _ => return false
+        }
+    }
+    public func getApplyLoggerErrors(): Int64 { return Int64(0) }
+    public func getApplyTaskId(): ?TaskId { return None }
+    public func hasApplyInstallContext(): Bool { return false }
+    public func getApplyInstallContext(): PatchApplyInstallContext { return PatchApplyInstallContext() }
+    public func getApplyPkgId(): UInt32 { return UInt32(0) }
+    public func getApplyPkgName(): String { return "" }
+    public func schedule(batch: ThreadPoolBatch): Unit {}
+    public func setApplyTaskId(taskId: TaskId): Unit {}
 }
 
 /// 补丁回调类型
@@ -526,7 +543,7 @@ public class PackageManagerEnqueue {
         tarball: ExtractTarballRef,
         networkTask: NetworkTaskRef
     ): EnqueueTaskRef {
-        let task = manager.preallocatedResolveTasks.get()
+        let task = manager.preallocatedResolveTasks.getEnqueueTask()
         task.setTag(TaskTagEnqueue.Extract)
         task.setPackageManager(manager)
         task.setId(networkTask.taskId())
@@ -575,7 +592,7 @@ public class PackageManagerEnqueue {
         res: EnqueueResolutionData,
         patchNameAndVersionHash: ?UInt64
     ): EnqueueTaskRef {
-        let task = manager.preallocatedResolveTasks.get()
+        let task = manager.preallocatedResolveTasks.getEnqueueTask()
         task.setTag(TaskTagEnqueue.GitClone)
         task.setPackageManager(manager)
         task.setId(taskId)
@@ -606,7 +623,7 @@ public class PackageManagerEnqueue {
         resolved: String,
         patchNameAndVersionHash: ?UInt64
     ): EnqueueTaskRef {
-        let task = manager.preallocatedResolveTasks.get()
+        let task = manager.preallocatedResolveTasks.getEnqueueTask()
         task.setTag(TaskTagEnqueue.GitCheckout)
         task.setPackageManager(manager)
         task.setId(taskId)
@@ -651,7 +668,7 @@ public class PackageManagerEnqueue {
             }
         }
 
-        let task = manager.preallocatedResolveTasks.get()
+        let task = manager.preallocatedResolveTasks.getEnqueueTask()
         task.setTag(TaskTagEnqueue.LocalTarball)
         task.setPackageManager(manager)
         task.setId(taskId)
@@ -1625,6 +1642,12 @@ public class DependencyVersionInfo {
     public func isNPM(): Bool {
         return tag == DependencyVersionTag.NPM || tag == DependencyVersionTag.DistTag
     }
+
+    // additional stubs for run_tasks usage
+    public func getPkgName(): String { return "" }
+    public func setGitPackageName(name: String): Unit {}
+    public func setGitHubPackageName(name: String): Unit {}
+    public func setTarballPackageName(name: String): Unit {}
 }
 
 /// 依赖行为引用
@@ -1809,7 +1832,8 @@ public enum ManifestLoadMode {
     | LoadFromDiskOnly
 }
 
-/// 清单数据
+/// 清单数据 (duplicate removed - see run_tasks.cj)
+/*
 public class ManifestData {
     public func resolveVersion(version: DependencyVersionInfo): ?ResolvedVersion { return None }
     public func findVersion(version: DependencyVersionInfo): ?FindResultData { return None }
@@ -1817,6 +1841,7 @@ public class ManifestData {
     public func findByDistTagWithFilter(tag: String, minAgeMs: ?Int64, excludes: HashSet<String>): ?FindResultData { return None }
     public func findBestVersionWithFilter(version: DependencyVersionInfo, buf: String, minAgeMs: ?Int64, excludes: HashSet<String>): ?FindResultData { return None }
 }
+*/
 
 /// 已解析版本
 public class ResolvedVersion {
@@ -1888,7 +1913,8 @@ public class EnqueuePackageInfo {
     }
 }
 
-/// 网络任务引用
+/// 网络任务引用 (duplicate removed - see run_tasks.cj)
+/*
 public class NetworkTaskRef {
     public init() {}
     public func forManifest(pkgName: String, depId: UInt32, dep: DependencyRef, installPeer: Bool, successFn: ?SuccessFn, failFn: ?FailFn): Unit {}
@@ -1898,6 +1924,7 @@ public class NetworkTaskRef {
     public func taskId(): TaskIdRef { return TaskIdRef() }
     public func schedule(batch: NetworkTarballBatch): Unit {}
 }
+*/
 
 /// 入队任务引用
 /// 翻译自: *Task (ThreadPool.Task)
@@ -1945,7 +1972,8 @@ public class EnqueueTaskRef {
     }
 }
 
-/// 解压请求引用
+/// 解压请求引用 (duplicate removed - see run_tasks.cj)
+/*
 public class ExtractRequestRef {
     public var networkTask: NetworkTaskRef
     public var tarball: ExtractTarballRef
@@ -1955,6 +1983,7 @@ public class ExtractRequestRef {
         this.tarball = tarball
     }
 }
+*/
 
 /// Git Clone 请求引用
 public class GitCloneRequestRef {
@@ -2010,15 +2039,18 @@ public class LocalTarballRequestRef {
 /// 仓库引用 (入队用)
 /// 翻译自: *Repository
 public class RepositoryRef {
+    public var owner: String
     public var repo: String
     public var committish: String
 
     public init() {
+        owner = ""
         repo = ""
         committish = ""
     }
 
     public init(repo: String, committish: String) {
+        owner = ""
         this.repo = repo
         this.committish = committish
     }
@@ -2069,12 +2101,14 @@ public enum TaskCallbackContextEnqueue {
     | Other
 }
 
-/// 任务批次
+/// 任务批次 (duplicate removed - see run_tasks.cj)
+/*
 /// 翻译自: ThreadPool.Batch
 public class TaskBatch {
     public init() {}
     public func push(task: EnqueueTaskRef): Unit {}
 }
+*/
 
 /// FIFO 队列
 /// 翻译自: std.fifo
@@ -2084,12 +2118,14 @@ public class FifoQueue<T> {
     public func writeItemAssumeCapacity(item: T): Unit {}
 }
 
-/// 预分配任务池
+/// 预分配任务池 (duplicate removed - see run_tasks.cj)
+/*
 /// 翻译自: preallocated_resolve_tasks
 public class PreallocatedTasks {
     public init() {}
     public func get(): EnqueueTaskRef { return EnqueueTaskRef() }
 }
+*/
 
 /// 原子计数器
 /// 翻译自: pending_pre_calc_hashes.fetchAdd

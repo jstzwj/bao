@@ -128,7 +128,7 @@ public class TestCommand {
         // Shard 分片
         // 严格翻译自: test_command.zig 中 --shard=M/N 处理
         var filteredFiles = testFiles
-        if (options.shard != None) {
+        if (options.shard.isSome()) {
             filteredFiles = applyShard(testFiles, options.shard)
         }
 
@@ -1261,7 +1261,7 @@ public class JUnitReporter {
     /// 获取主机名
     // 严格翻译自: JunitReporter.getHostname
     public func getHostname(): ?String {
-        if (hostnameValue == None) {
+        if (hostnameValue.isNone()) {
             let hostname = Sys.gethostname()
             if (hostname.length > 0) {
                 let escaped = StringBuilder()
@@ -1392,7 +1392,7 @@ public class JUnitReporter {
         content.append(">\n")
 
         if (isFileSuite) {
-            if (propertiesListToRepeat == None) {
+            if (propertiesListToRepeat.isNone()) {
                 generatePropertiesList()
             }
             match (propertiesListToRepeat) {
@@ -1735,7 +1735,7 @@ class TestEnvLoader {
     }
 
     public func getOrPut(key: String): Bool {
-        if (map.get(key) != None) {
+        if (map.get(key).isSome()) {
             return true
         }
         map.put(key, "")
@@ -1968,7 +1968,7 @@ public class CommandLineReporter {
 
         // 写入输出
         let formattedLine = outputBuf.toString()
-        if (workerIpcFileIdx != None) {
+        if (workerIpcFileIdx.isSome()) {
             // 并行工作进程: 通过 IPC 发送
             ParallelRunner.workerEmitTestDone(workerIpcFileIdx.getOrThrow(), formattedLine)
         } else {
@@ -2051,7 +2051,7 @@ public class CommandLineReporter {
         // 构建作用域路径
         let scopes = ArrayList<String>()
         var parent: ?DescribeScope = testEntry.parent
-        while (parent != None) {
+        while (parent.isSome()) {
             let scope = parent.getOrThrow()
             if (scope.name.length > 0) {
                 scopes.append(scope.name)
@@ -2130,7 +2130,7 @@ public class CommandLineReporter {
         testEntry: ExecutionEntry,
         elapsedNs: Int64
     ): Unit {
-        if (reporterOptions.junit == None) { return }
+        if (reporterOptions.junit.isNone()) { return }
         let junit = reporterOptions.junit.getOrThrow()
 
         // 构建作用域路径
@@ -2141,7 +2141,7 @@ public class CommandLineReporter {
 
         let file = buntest.filePath
 
-        while (parent != None) {
+        while (parent.isSome()) {
             let scope = parent.getOrThrow()
             scopes.append(scope.name)
             parent = scope.parent
@@ -2208,7 +2208,7 @@ public class CommandLineReporter {
     /// 如果需要，写入 JUnit 报告
     // 严格翻译自: CommandLineReporter.writeJUnitReportIfNeeded
     public func writeJUnitReportIfNeeded(): Unit {
-        if (reporterOptions.junit == None) { return }
+        if (reporterOptions.junit.isNone()) { return }
         let junit = reporterOptions.junit.getOrThrow()
         let outfile = jest.testOptions.reporterOutfile
         if (outfile.length > 0) {
@@ -2270,7 +2270,7 @@ public class CommandLineReporter {
             }
 
             let report = CodeCoverageReport.generate(vm, entry, opts.ignoreSourcemap)
-            if (report != None) {
+            if (report.isSome()) {
                 CodeCoverageReport.Lcov.writeFormat(report.getOrThrow(), relativeDir, writer)
             }
         }
@@ -2354,7 +2354,7 @@ public class CommandLineReporter {
             }
 
             let report = CodeCoverageReport.generate(vm, entry, opts.ignoreSourcemap)
-            if (report == None) { continue }
+            if (report.isNone()) { continue }
 
             if (reporterText) {
                 let fraction = CoverageFraction()
@@ -3279,7 +3279,7 @@ public class HashSet<T> {
     }
 
     public func contains(value: T): Bool {
-        return map.get(value) != None
+        return map.get(value).isSome()
     }
 
     public func size(): Int64 {

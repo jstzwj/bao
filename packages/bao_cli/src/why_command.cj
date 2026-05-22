@@ -3,6 +3,7 @@ package bao_cli
 
 import bao_core.*
 import bao_install.*
+import bao_collections.*
 
 // ============================================================================
 // WhyCommand — 解释包为什么被安装
@@ -230,7 +231,7 @@ public class WhyCommand {
 
         if (topOnly) {
             maxDepth = 1
-        } else if (pm.options.depth != None) {
+        } else if (pm.options.depth.isSome()) {
             maxDepth = pm.options.depth.getOrThrow()
         } else {
             maxDepth = 100
@@ -266,7 +267,7 @@ public class WhyCommand {
                 }
 
                 var dependentsEntry = allDependents.get(targetId)
-                if (dependentsEntry == None) {
+                if (dependentsEntry.isNone()) {
                     dependentsEntry = ArrayList<WhyDependentInfo>()
                     allDependents.put(targetId, dependentsEntry.getOrThrow())
                 }
@@ -320,7 +321,7 @@ public class WhyCommand {
             Output.prettyLn("${targetName}@${targetVersion.version}")
 
             let dependents = allDependents.get(targetVersion.pkgId)
-            if (dependents != None) {
+            if (dependents.isSome()) {
                 let deps = dependents.getOrThrow()
                 if (deps.size == 0) {
                     Output.prettyLn("  └─ No dependents found")
@@ -394,7 +395,7 @@ public class WhyCommand {
         // (简化实现: 使用 visited 集合)
 
         let dependents = allDependents.get(currentPkgId)
-        if (dependents == None) {
+        if (dependents.isNone()) {
             return
         }
 
@@ -433,14 +434,14 @@ public class WhyCommand {
 
     /// 获取指定符的具体程度
     private static func getSpecifierSpecificity(spec: String): Int64 {
-        if (spec.length == 0) return 9
-        if (spec[0] == '*') return 1
-        if (spec.contains(".x")) return 5
-        if (spec.containsAny("<>=")) return 6
-        if (spec[0] == '~') return 7
-        if (spec[0] == '^') return 8
-        if (spec.contains("workspace:")) return 9
-        if (spec[0].isDigit()) return 10
+        if (spec.size == 0) { return 9 }
+        if (spec[0] == '*') { return 1 }
+        if (spec.contains(".x")) { return 5 }
+        if (spec.containsAny("<>=")) { return 6 }
+        if (spec[0] == '~') { return 7 }
+        if (spec[0] == '^') { return 8 }
+        if (spec.contains("workspace:")) { return 9 }
+        if (spec[0].isDigit()) { return 10 }
         return 3
     }
 

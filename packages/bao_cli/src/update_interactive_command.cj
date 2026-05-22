@@ -589,7 +589,7 @@ public class UpdateInteractiveCommand {
             // 保留其他版本前缀
             let firstChar = origVersion[0]
             if (firstChar == '^' || firstChar == '~' || firstChar == '>' || firstChar == '<' || firstChar == '=') {
-                let secondChar = origVersion.length > 1 ? origVersion[1] : ' '
+                let secondChar = if (origVersion.size > 1) { origVersion[1] } else { ' ' }
                 if ((firstChar == '>' || firstChar == '<') && secondChar == '=') {
                     match (alias) {
                         case Some(a) => return "npm:${a}@${firstChar}=${newVersion}"
@@ -672,7 +672,7 @@ public class UpdateInteractiveCommand {
         let workspacePkgIds: Array<Int64>
         if (manager.options.filterPatterns.length > 0) {
             workspacePkgIds = findMatchingWorkspaces(originalCwd, manager, manager.options.filterPatterns)
-        } else if (manager.options.do.recursive) {
+        } else if (manager.options.`do`.recursive) {
             workspacePkgIds = getAllWorkspaces(manager)
         } else {
             let rootPkgId = manager.rootPackageId.get(manager.lockfile, manager.workspaceNameHash)
@@ -1098,7 +1098,7 @@ public class UpdateInteractiveCommand {
                 pkg.manager = manager
                 pkg.isCatalog = dep.version.tag == VersionTag.catalog
                 pkg.catalogName = catalogName
-                pkg.useLatest = manager.options.do.updateToLatest
+                pkg.useLatest = manager.options.`do`.updateToLatest
                 outdatedPackages.append(pkg)
             }
         }

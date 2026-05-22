@@ -28,6 +28,10 @@ public enum ScriptExecutionStatus {
         }
     }
 
+    public operator func !=(other: ScriptExecutionStatus): Bool {
+        !(this == other)
+    }
+
     // 是否正在运行
     public func isRunning(): Bool {
         this == Running

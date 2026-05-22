@@ -231,6 +231,7 @@ public enum AuthType {
 /// Node 链接器类型
 /// 对应 Bun: Options.NodeLinker
 public enum NodeLinker {
+    | Auto
     | Isolated
     | Hoisted
 
@@ -380,6 +381,28 @@ public enum Subcommand {
     | Info
     | Why
     | Scan
+
+    public operator func ==(right: Subcommand): Bool {
+        match (this) {
+            case Install => match (right) { case Install => true case _ => false }
+            case Update => match (right) { case Update => true case _ => false }
+            case Pm => match (right) { case Pm => true case _ => false }
+            case Add => match (right) { case Add => true case _ => false }
+            case Remove => match (right) { case Remove => true case _ => false }
+            case Link => match (right) { case Link => true case _ => false }
+            case Unlink => match (right) { case Unlink => true case _ => false }
+            case Patch => match (right) { case Patch => true case _ => false }
+            case PatchCommit => match (right) { case PatchCommit => true case _ => false }
+            case Outdated => match (right) { case Outdated => true case _ => false }
+            case Pack => match (right) { case Pack => true case _ => false }
+            case Publish => match (right) { case Publish => true case _ => false }
+            case Audit => match (right) { case Audit => true case _ => false }
+            case Info => match (right) { case Info => true case _ => false }
+            case Why => match (right) { case Why => true case _ => false }
+            case Scan => match (right) { case Scan => true case _ => false }
+        }
+    }
+    public operator func !=(right: Subcommand): Bool { !(this == right) }
 
     /// 是否支持工作区过滤
     public func supportsWorkspaceFiltering(): Bool {
@@ -1588,7 +1611,7 @@ public class CommandLineArguments {
     ///   pub fn parse(allocator, comptime subcommand) !CommandLineArguments
     ///   根据子命令类型解析对应的命令行参数, 返回 CommandLineArguments 实例
     public static func parse(subcommand: Subcommand, args: ParsedArgs): CommandLineArguments {
-        Output.isVerbose = Output.isVerbose()
+        Output.isVerbose = Output.isVerboseCheck()
 
         var cli = CommandLineArguments()
 
@@ -1909,7 +1932,7 @@ public class CommandLineArguments {
         match (cwdArg) {
             case Some(cwd_) =>
                 var finalPath: String = cwd_
-                if (cwd_.size > 0 && cwd_[0] == '.') {
+                if (cwd_.size > 0 && cwd_[0] == 46) {
                     let cwd = BaoFile.getcwd()
                     finalPath = Path.join([cwd, cwd_])
                 }
@@ -2114,6 +2137,10 @@ public enum ArgValue {
 public class Output {
     public static var isVerbose: Bool = false
 
+    public static func isVerboseCheck(): Bool {
+        return isVerbose
+    }
+
     public static func pretty(text: String): Unit {
         BaoConsole.print(text)
     }
@@ -2127,6 +2154,14 @@ public class Output {
     }
 
     public static func errGeneric(msg: String): Unit {
+        BaoConsole.printErr("error: " + msg)
+    }
+
+    public static func prettyErrorln(msg: String): Unit {
+        BaoConsole.printErr(msg)
+    }
+
+    public static func err(err: String, msg: String): Unit {
         BaoConsole.printErr("error: " + msg)
     }
 
@@ -2230,19 +2265,5 @@ public class HashMap<K, V> {
     public func put(key: K, value: V): Unit {}
 }
 
-/// ArrayList
-public class ArrayList<T> {
-    public var size: Int64
-
-    public init() {
-        size = 0
-    }
-
-    public func add(item: T): Unit {
-        size = size + 1
-    }
-
-    public operator func [](index: Int64): T {
-        return unsafe { uninitialized<T>() }
-    }
-}
+/// ArrayList removed - use bao_collections.ArrayList
+// Local ArrayList was shadowing the imported one from bao_collections

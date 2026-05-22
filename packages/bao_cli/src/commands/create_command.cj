@@ -136,8 +136,11 @@ public class CreateOptions {
 
         for (arg in args) {
             match (arg) {
-                case "--help" | "-h" =>
+                case "--help" =>
                     // 帮助已在外层处理
+                    ()
+                case "-h" =>
+                    ()
                 case "--force" => opts.overwrite = true
                 case "--no-install" => opts.skipInstall = true
                 case "--no-git" => opts.skipGit = true
@@ -226,7 +229,7 @@ public func execTask(task_: String, cwd: String, npmClient: ?NPMClient): Unit {
     }
 
     // 构建参数列表
-    let npmArgsCount = if (npmClient != None) { 2 } else { 0 }
+    let npmArgsCount = if (npmClient.isSome()) { 2 } else { 0 }
     var argv = ArrayList<String>()
 
     // 如果有 npm client，前两个参数是 npm_client + "run"
@@ -246,7 +249,7 @@ public func execTask(task_: String, cwd: String, npmClient: ?NPMClient): Unit {
 
     // 如果任务以 "bun " 开头且有 npm_client，去掉前两个参数
     // 严格翻译自: create_command.zig 中 strings.startsWith(task, "bun ") 检查
-    if (npmClient != None && task.startsWith("bun ")) {
+    if (npmClient.isSome() && task.startsWith("bun ")) {
         argv = argv.sublist(2)
     }
 
@@ -260,7 +263,7 @@ public func execTask(task_: String, cwd: String, npmClient: ?NPMClient): Unit {
 
     // 执行命令
     // 严格翻译自: create_command.zig 中 bun.spawnSync
-    Process.spawn(argv.toArray(), cwd)
+    Process.`spawn`(argv.toArray(), cwd)
 }
 
 // ============================================================================
@@ -745,7 +748,7 @@ public class GitHandler {
         // 严格翻译自: create_command.zig 中 std.Thread.spawn
         successValue = 0
         let self = this
-        backgroundThread = Some(Thread.spawn({
+        backgroundThread = Some(Thread.`spawn`({
             self.spawnThread(destination, path, verbose)
         }))
     }
@@ -801,7 +804,7 @@ public class GitHandler {
                 // 执行每个 git 命令
                 // 严格翻译自: create_command.zig 中 inline for + process.spawnAndWait
                 for (command in commands) {
-                    Process.spawn(command, destination)
+                    Process.`spawn`(command, destination)
                 }
 
                 let gitEnd = Time.nowNanos()
@@ -1114,7 +1117,7 @@ public class CreateCommand {
                 let tarPath = Path.join([extractDir, "template.tar.gz"])
                 BaoFile.writeAllBytes(tarPath, fileBuf)
                 // tar xzf template.tar.gz --strip-components=1
-                Process.spawn(["tar", "xzf", tarPath, "--strip-components=1", "-C", destination], destination)
+                Process.`spawn`(["tar", "xzf", tarPath, "--strip-components=1", "-C", destination], destination)
 
                 // 尝试读取 package.json
                 // 严格翻译自: create_command.zig 中 plucker.found + plucker.fd
@@ -1440,7 +1443,7 @@ public class CreateCommand {
             if (!createOptions.skipInstall) {
                 // 后台 git
                 // 严格翻译自: create_command.zig 中 GitHandler.spawn(destination, PATH, verbose)
-                gitHandler.spawn(destination, pathEnv, createOptions.verbose)
+                gitHandler.`spawn`(destination, pathEnv, createOptions.verbose)
             } else {
                 // 同步 git
                 // 严格翻译自: create_command.zig 中 GitHandler.run
@@ -1484,7 +1487,7 @@ public class CreateCommand {
 
                 // 执行安装
                 // 严格翻译自: create_command.zig 中 bun.spawnSync install
-                let result = Process.spawn(installArgs, destination)
+                let result = Process.`spawn`(installArgs, destination)
 
                 let endTime = Time.nowNanos()
                 println("")

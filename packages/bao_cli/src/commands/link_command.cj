@@ -305,6 +305,7 @@ public class LinkCommand {
             case Some(content) =>
                 // 简化: 在实际实现中需要 JSON 操作
                 // 添加 "dependencies": { "<name>": "link:<name>" }
+                ()
             case None => ()
         }
     }

@@ -387,12 +387,14 @@ public class InstallDiffSummary {
     }
 }
 
-/// 节点链接器
+/// 节点链接器 (duplicate removed - see command_line_arguments.cj)
+/*
 public enum NodeLinker {
     | Auto
     | Hoisted
     | Isolated
 }
+*/
 
 /// 包子命令
 public enum PackageSubcommand {
@@ -499,6 +501,8 @@ public class SecurityScanResults {
 public class SecurityScanner {
     public static func printSecurityAdvisories(results: SecurityScanResults): Unit {}
     public static func promptForWarnings(): Bool { return false }
+    // additional overload for install_with_manager usage
+    public static func printSecurityAdvisories(manager: IwmPackageManagerRef, results: IwmSecurityScanResults): Unit {}
 }
 
 /// 命令上下文

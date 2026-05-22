@@ -567,15 +567,17 @@ public class ArgParser {
 // ============================================================================
 
 /// 字符串填充到指定长度
-private func String.padEnd(width: Int64): String {
-    if (this.length >= width) {
-        return this
+extend String {
+    func padEnd(width: Int64): String {
+        if (this.size >= width) {
+            return this
+        }
+        var result = this
+        var i = this.size
+        while (i < width) {
+            result += " "
+            i += 1
+        }
+        return result
     }
-    var result = this
-    var i = this.length
-    while (i < width) {
-        result += " "
-        i += 1
-    }
-    return result
 }

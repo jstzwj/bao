@@ -185,7 +185,7 @@ public class InstallWithManager {
             let patchIter = manager.lockfile.patchedDependenciesIterator()
             while (patchIter.hasNext()) {
                 let entry = patchIter.next()
-                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, null))
+                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, None))
             }
 
             manager.enqueueDependencyList(root.dependencies)
@@ -194,7 +194,7 @@ public class InstallWithManager {
             let patchIter = manager.lockfile.patchedDependenciesIterator()
             while (patchIter.hasNext()) {
                 let entry = patchIter.next()
-                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, null))
+                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, None))
             }
             manager.drainDependencyList()
         }
@@ -374,7 +374,7 @@ public class InstallWithManager {
                         Output.flush()
                     }
 
-                    manager.spawnPackageLifecycleScripts(ctx, scripts, false, true, null)
+                    manager.spawnPackageLifecycleScripts(ctx, scripts, false, true, None)
 
                     while (manager.pendingLifecycleScriptTasks > 0) {
                         manager.reportSlowLifecycleScripts()
@@ -1826,6 +1826,17 @@ public enum IwmLogLevel {
     | VerboseColor
     | Debug
 
+    public operator func ==(right: IwmLogLevel): Bool {
+        match (this) {
+            case Silent => match (right) { case Silent => true case _ => false }
+            case Default => match (right) { case Default => true case _ => false }
+            case Verbose => match (right) { case Verbose => true case _ => false }
+            case VerboseColor => match (right) { case VerboseColor => true case _ => false }
+            case Debug => match (right) { case Debug => true case _ => false }
+        }
+    }
+    public operator func !=(right: IwmLogLevel): Bool { !(this == right) }
+
     public func isVerbose(): Bool {
         match (this) {
             case IwmLogLevel.Verbose => return true
@@ -1938,12 +1949,34 @@ public enum IwmMigrationKind {
     | None_
     | Npm
     | Binary
+
+    public operator func ==(right: IwmMigrationKind): Bool {
+        match (this) {
+            case None_ => match (right) { case None_ => true case _ => false }
+            case Npm => match (right) { case Npm => true case _ => false }
+            case Binary => match (right) { case Binary => true case _ => false }
+        }
+    }
+    public operator func !=(right: IwmMigrationKind): Bool { !(this == right) }
 }
 
 /// 锁文件格式
 public enum IwmLockfileFormat {
     | Binary
     | Text
+
+    public operator func ==(right: IwmLockfileFormat): Bool {
+        match (this) {
+            case Binary => match (right) { case Binary => true case _ => false }
+            case Text => match (right) { case Text => true case _ => false }
+        }
+    }
+    public operator func !=(right: IwmLockfileFormat): Bool { !(this == right) }
+}
+
+/// 缓存版本
+public enum IwmCacheVersion {
+    | V1
 }
 
 /// 配置版本结果
@@ -2312,11 +2345,13 @@ public class IwmSecurityScanResults {
     public func hasWarnings(): Bool { return false }
 }
 
-/// 安全扫描器
+/// 安全扫描器 (duplicate removed - see update_package_json_and_install.cj)
+/*
 public class SecurityScanner {
     public static func printSecurityAdvisories(manager: IwmPackageManagerRef, results: IwmSecurityScanResults): Unit {}
     public static func promptForWarnings(): Bool { return false }
 }
+*/
 
 /// 根生命周期脚本
 public class IwmRootLifecycleScripts {

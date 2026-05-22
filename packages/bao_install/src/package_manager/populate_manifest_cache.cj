@@ -83,7 +83,7 @@ public class PopulateManifestCache {
 
             let pkgName = pkgNames[Int64(pkgId)]
             let manifest = manager.manifests.byName(pkgName, manager.scopeForPackageName(pkgName), ManifestLoadStrategy.LoadFromMemoryFallbackToDisk, needsExtendedManifest)
-            if (manifest == None) {
+            if (manifest.isNone()) {
                 startManifestTask(manager, pkgName, dep, needsExtendedManifest)
             }
 
@@ -116,7 +116,7 @@ public class PopulateManifestCache {
 
                 let packageName = pkgNames[Int64(pkgId)]
                 let manifest = manager.manifests.byName(packageName, manager.scopeForPackageName(packageName), ManifestLoadStrategy.LoadFromMemoryFallbackToDisk, needsExtendedManifest)
-                if (manifest == None) {
+                if (manifest.isNone()) {
                     startManifestTask(manager, packageName, dep, needsExtendedManifest)
                 }
 
@@ -220,6 +220,17 @@ public class ManifestCache {
     public func byName(pkgName: String, scope: ScopeInfo, strategy: ManifestLoadStrategy, needsExtendedManifest: Bool): ?PackageManifestData {
         return None
     }
+    // additional methods for run_tasks usage
+    public func getOrPut(hash: UInt64): ManifestCacheEntry { return ManifestCacheEntry() }
+    public func insert(hash: UInt64, manifest: ManifestData): Unit {}
+}
+
+/// 清单缓存条目
+public class ManifestCacheEntry {
+    public init() {}
+
+    public func setManifest(manifest: ManifestData): Unit {}
+    public func setPublicMaxAge(age: UInt32): Unit {}
 }
 
 /// 解析信息
@@ -250,7 +261,27 @@ public class ScopeInfo {
 
 /// 任务 ID
 public class TaskId {
-    public static func forManifest(pkgName: String): TaskId { return TaskId() }
+    public var value: UInt64
+
+    public init(value: UInt64) {
+        this.value = value
+    }
+
+    public static func invalid(): TaskId {
+        return TaskId(UInt64(0))
+    }
+
+    public static func forManifest(name: String): TaskId {
+        return TaskId(hashString(name))
+    }
+
+    public static func forGitCheckout(repo: String, resolved: String): TaskId {
+        return TaskId(hashString("${repo}:${resolved}"))
+    }
+
+    public func get(): UInt64 {
+        return value
+    }
 }
 
 /// 包清单数据

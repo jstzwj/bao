@@ -407,9 +407,9 @@ public class BunfigParser {
         expect(expr, BunfigExprTag.Object)
         let map = BunfigStringMap()
         let props = expr.asProperties()
-        for (prop in props) {
-            let key = prop.key.asString()
-            let value = prop.value
+        for (`prop` in props) {
+            let key = `prop`.key.asString()
+            let value = `prop`.value
             if (!key.isEmpty() && value.isString()) {
                 map.set(key, value.asString())
             }
@@ -433,7 +433,7 @@ public class BunfigParser {
             case Some(rootExpr) =>
                 let s = rootExpr.asString()
                 if (s.isSome()) {
-                    ctx.debug.testDirectory = s!
+                    ctx.debug.testDirectory = s.getOrThrow()
                 }
             case None => ()
         }
@@ -868,8 +868,8 @@ public class BunfigParser {
             case Some(expr) =>
                 expect(expr, BunfigExprTag.Object)
                 let props = expr.asProperties()
-                for (prop in props) {
-                    let name = prop.key.asString()
+                for (`prop` in props) {
+                    let name = `prop`.key.asString()
                     if (name.isEmpty()) {
                         continue
                     }
@@ -879,7 +879,7 @@ public class BunfigParser {
                     } else {
                         name
                     }
-                    parseRegistry(prop.value)
+                    parseRegistry(`prop`.value)
                 }
             case None => ()
         }
@@ -1344,15 +1344,15 @@ public class BunfigParser {
                 case Some(expr) =>
                     expect(expr, BunfigExprTag.Object)
                     let props = expr.asProperties()
-                    for (prop in props) {
-                        if (!prop.value.isBoolean()) {
+                    for (`prop` in props) {
+                        if (!`prop`.value.isBoolean()) {
                             continue
                         }
-                        let key = prop.key.asString()
+                        let key = `prop`.key.asString()
                         if (key.isEmpty()) {
                             continue
                         }
-                        let value = prop.value.asBool()
+                        let `value` = `prop`.value.asBool()
                         // 对应 Bun: package_bundle_map.insert(path, ...)
                     }
                 case None => ()
@@ -1461,16 +1461,16 @@ public class BunfigParser {
         let props = expr.asProperties()
         var extensions = ArrayList<String>()
         var loaderNames = ArrayList<String>()
-        for (prop in props) {
-            let key = prop.key.asString()
+        for (`prop` in props) {
+            let key = `prop`.key.asString()
             if (key.isEmpty()) {
                 continue
             }
             if (!key.startsWith(".")) {
                 addError("file extension for loader must start with a '.'")
             }
-            expectString(prop.value)
-            let loaderName = prop.value.asString()
+            expectString(`prop`.value)
+            let loaderName = `prop`.value.asString()
             extensions.append(key)
             loaderNames.append(loaderName)
         }
@@ -1960,11 +1960,11 @@ public class BunfigExprObject {
 // 对应 Bun: bun_ast Property
 public class BunfigProperty {
     public let key: BunfigExpr
-    public let value: BunfigExpr
+    public let `value`: BunfigExpr
 
-    public init(key: BunfigExpr, value: BunfigExpr) {
+    public init(key: BunfigExpr, `value`: BunfigExpr) {
         this.key = key
-        this.value = value
+        this.`value` = `value`
     }
 }
 
