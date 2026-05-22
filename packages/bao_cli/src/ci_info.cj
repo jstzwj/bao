@@ -57,13 +57,13 @@ public func isPR(): Bool {
 private func isCIUncached(): Bool {
     let ciEnv = Env.get("CI")
     let generatedIsCI = CIInfoGenerated.isCIUncachedGenerated()
-    return ciEnv != None || generatedIsCI || detectCIName() != None
+    return ciEnv.isSome() || generatedIsCI || detectCIName().isSome()
 }
 
 /// 未缓存的 CI 名称检测实现
 private func detectUncached(): ?String {
     let ciEnv = Env.get("CI")
-    if (ciEnv == None) {
+    if (ciEnv.isNone()) {
         return None
     }
     return CIInfoGenerated.detectUncachedGenerated()

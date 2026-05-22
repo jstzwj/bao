@@ -39,7 +39,7 @@ public class EventLoopDelayMonitor {
     public var enabled: Bool = false
 
     public init() {
-        eventLoopTimer = EventLoopTimer(TimerTagKind.EventLoopDelayMonitor)
+        eventLoopTimer = EventLoopTimer(TimerTag.EventLoopDelayMonitor)
     }
 
     // ========================================================================
@@ -98,7 +98,7 @@ public class EventLoopDelayMonitor {
 
     /// 是否启用 - 对应 Bun isEnabled
     public func isEnabled(): Bool {
-        return enabled && jsHistogram != JSValue.zero
+        return enabled && !jsHistogram.isZero()
     }
 
     // ========================================================================
@@ -111,11 +111,11 @@ public class EventLoopDelayMonitor {
 
     /// 定时器触发回调 - 对应 Bun onFire
     public func onFire(vm: VirtualMachine, now: Timespec): Unit {
-        if (!enabled || jsHistogram == JSValue.zero) {
+        if (!enabled || jsHistogram.isZero()) {
             return
         }
 
-        let nowNs = now.toNanos()
+        let nowNs = timespecToNanos(now)
         if (lastFireNs > 0) {
             // 计算预期延迟
             let expectedNs = UInt64(Int64(resolutionMs)) * UInt64(1000000)
@@ -145,9 +145,6 @@ public class EventLoopDelayMonitor {
     // 对应 Bun 的 extern / export 函数
     // ========================================================================
 
-    /// 记录延迟到直方图 - 对应 Bun JSNodePerformanceHooksHistogram_recordDelay
-    extern func jsNodePerformanceHooksHistogramRecordDelay(histogram: JSValue, delayNs: Int64): Unit
-
     /// 启用事件循环延迟监控 - 对应 Bun Timer_enableEventLoopDelayMonitoring
     public static func enableEventLoopDelayMonitoring(vm: VirtualMachine, histogram: JSValue, resolutionMs: Int32): Unit {
         vm.timer.eventLoopDelay.enable(vm, histogram, resolutionMs)
@@ -157,4 +154,9 @@ public class EventLoopDelayMonitor {
     public static func disableEventLoopDelayMonitoring(vm: VirtualMachine): Unit {
         vm.timer.eventLoopDelay.disable(vm)
     }
+}
+
+/// 记录延迟到直方图 - 对应 Bun JSNodePerformanceHooksHistogram_recordDelay
+func jsNodePerformanceHooksHistogramRecordDelay(histogram: JSValue, delayNs: Int64): Unit {
+    // 简化实现
 }

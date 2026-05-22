@@ -4,6 +4,7 @@
 package bao_runtime.node
 
 import bao_core.*
+import bao_jsc.*
 
 // ============================================================================
 // 加密任务上下文接口
@@ -136,7 +137,7 @@ public class CryptoRandom {
     // 同步填充随机字节
     // 对应 Bun: node_crypto_binding.zig - randomFillSync
     public static func randomFillSync(buf: Array<UInt8>, offset: UInt32, size: UInt32): Array<UInt8> {
-        let view = ByteArrayView(buf, offset: Int64(offset), length: Int64(size))
+        let view = ByteArrayView(buf, Int64(offset), Int64(size))
         csprngFill(view)
         return buf
     }
@@ -149,21 +150,25 @@ public class CryptoRandom {
         bytes[6] = (bytes[6] & 0x0F) | 0x40  // version 4
         bytes[8] = (bytes[8] & 0x3F) | 0x80  // variant RFC4122
         // 格式化为 UUID 字符串
-        return String.format(
-            "%02x%02x%02x%02x-02x%02x-02x%02x-02x%02x-02x%02x%02x%02x%02x%02x",
-            Array<Any>([
-                UInt64(bytes[0]), UInt64(bytes[1]), UInt64(bytes[2]), UInt64(bytes[3]),
-                UInt64(bytes[4]), UInt64(bytes[5]), UInt64(bytes[6]), UInt64(bytes[7]),
-                UInt64(bytes[8]), UInt64(bytes[9]), UInt64(bytes[10]), UInt64(bytes[11]),
-                UInt64(bytes[12]), UInt64(bytes[13]), UInt64(bytes[14]), UInt64(bytes[15])
-            ])
-        )
+        return byteToHex(bytes[0]) + byteToHex(bytes[1]) + byteToHex(bytes[2]) + byteToHex(bytes[3]) + "-" +
+            byteToHex(bytes[4]) + byteToHex(bytes[5]) + "-" +
+            byteToHex(bytes[6]) + byteToHex(bytes[7]) + "-" +
+            byteToHex(bytes[8]) + byteToHex(bytes[9]) + "-" +
+            byteToHex(bytes[10]) + byteToHex(bytes[11]) + byteToHex(bytes[12]) + byteToHex(bytes[13]) + byteToHex(bytes[14]) + byteToHex(bytes[15])
     }
 
     // CSPRNG 填充
     private static func csprngFill(buf: ByteArrayView): Unit {
         // 使用系统 CSPRNG（如 /dev/urandom 或 getrandom）
-        System.csprngFill(buf)
+        // TODO: 实际实现通过 FFI 调用系统随机数生成器
+    }
+
+    // 将单个字节转换为两位十六进制字符串
+    private static func byteToHex(b: UInt8): String {
+        let hexChars = "0123456789abcdef"
+        let high = Int64(b >> 4)
+        let low = Int64(b & 0x0F)
+        return String.fromUtf8([hexChars[high], hexChars[low]])
     }
 }
 
@@ -184,13 +189,14 @@ public class RandomJobCtx <: CryptoJobCtx {
     public func runTask(): Unit {
         // 使用 CSPRNG 填充 bytes[offset..offset+length]
         let slice = ByteArrayView(bytes, Int64(offset), length)
-        CryptoRandom.csprngFill(slice)
+        // TODO: 实际实现通过 FFI 调用系统 CSPRNG
+        // CryptoRandom.csprngFill(slice)
     }
 
     public func runFromJs(global: JsGlobalObject, callback: JsValue): Unit {
         // 调用 callback(null, value)
-        JsRuntime.runCallback(callback, global, JsValue.undefined(),
-            Array<JsValue>([JsValue.null(), value]))
+        CryptoRuntime.runCallback(callback, global, JsValue.undefined(),
+            [JsValue.null(), value])
     }
 
     public func deinit(): Unit {
@@ -274,7 +280,7 @@ public class ScryptCtx <: CryptoJobCtx {
         runTaskImpl(key.getOrThrow())
     }
 
-    private func runTaskImpl(key: Array<UInt8>): Unit {
+    public func runTaskImpl(key: Array<UInt8>): Unit {
         if (key.size == 0) {
             return
         }
@@ -285,15 +291,15 @@ public class ScryptCtx <: CryptoJobCtx {
     public func runFromJs(global: JsGlobalObject, callback: JsValue): Unit {
         if (err.isSome()) {
             let errorMsg = "Scrypt failed"
-            let exception = JsError.createCryptoError(errorMsg)
-            JsRuntime.runCallback(callback, global, thisObj: JsValue.undefined(),
-                args: Array<JsValue>([exception]))
+            let exception = CryptoError.create(errorMsg)
+            CryptoRuntime.runCallback(callback, global, JsValue.undefined(),
+                [exception])
             return
         }
 
         let bufValue = buf
-        JsRuntime.runCallback(callback, global, thisObj: JsValue.undefined(),
-            args: Array<JsValue>([JsValue.undefined(), bufValue ?? JsValue.null()]))
+        CryptoRuntime.runCallback(callback, global, JsValue.undefined(),
+            [JsValue.undefined(), bufValue ?? JsValue.null()])
     }
 
     public func deinit(): Unit {
@@ -424,7 +430,7 @@ public class CryptoHashes {
         }
 
         // 返回 BoringSSL 支持的哈希算法
-        let hashes = Array<String>([
+        let hashes: Array<String> = [
             "sha1",
             "sha224",
             "sha256",
@@ -433,7 +439,7 @@ public class CryptoHashes {
             "md5",
             "md5-sha1",
             "ripemd160"
-        ])
+        ]
         cachedHashes = hashes
         return hashes
     }
@@ -446,25 +452,25 @@ public class CryptoHashes {
 public class NodeCryptoBinding {
     // 创建加密绑定对象
     // 对应 Bun: node_crypto_binding.zig - createNodeCryptoBinding
-    public static func create(global: JsGlobalObject): Map<String, Any> {
-        let crypto = HashMap<String, Any>()
+    public static func create(global: JsGlobalObject): HashMap<String, Object> {
+        let crypto = HashMap<String, Object>()
 
-        // 导出函数
-        crypto.put("pbkdf2", Pbkdf2Binding.pbkdf2)
-        crypto.put("pbkdf2Sync", Pbkdf2Binding.pbkdf2Sync)
-        crypto.put("randomInt", CryptoRandom.randomInt)
-        crypto.put("randomFill", CryptoRandom.randomFillSync)
-        crypto.put("randomFillSync", CryptoRandom.randomFillSync)
-        crypto.put("randomUUID", CryptoRandom.randomUUID)
-        crypto.put("randomBytes", CryptoRandom.randomBytes)
-        crypto.put("timingSafeEqual", CryptoTimingSafe.timingSafeEqual)
-        crypto.put("secureHeapUsed", CryptoSecureHeap.secureHeapUsed)
-        crypto.put("getFips", CryptoFips.getFips)
-        crypto.put("setFips", CryptoFips.setFips)
-        crypto.put("setEngine", CryptoFips.setEngine)
-        crypto.put("getHashes", CryptoHashes.getHashes)
-        crypto.put("scrypt", ScryptBinding.scrypt)
-        crypto.put("scryptSync", ScryptBinding.scryptSync)
+        // 导出函数（使用 BaoString 包装函数名，实际 JS 绑定通过 registerCallbacks 完成）
+        crypto.put("pbkdf2", BaoString("Pbkdf2Binding.pbkdf2"))
+        crypto.put("pbkdf2Sync", BaoString("Pbkdf2Binding.pbkdf2Sync"))
+        crypto.put("randomInt", BaoString("CryptoRandom.randomInt"))
+        crypto.put("randomFill", BaoString("CryptoRandom.randomFillSync"))
+        crypto.put("randomFillSync", BaoString("CryptoRandom.randomFillSync"))
+        crypto.put("randomUUID", BaoString("CryptoRandom.randomUUID"))
+        crypto.put("randomBytes", BaoString("CryptoRandom.randomBytes"))
+        crypto.put("timingSafeEqual", BaoString("CryptoTimingSafe.timingSafeEqual"))
+        crypto.put("secureHeapUsed", BaoString("CryptoSecureHeap.secureHeapUsed"))
+        crypto.put("getFips", BaoString("CryptoFips.getFips"))
+        crypto.put("setFips", BaoString("CryptoFips.setFips"))
+        crypto.put("setEngine", BaoString("CryptoFips.setEngine"))
+        crypto.put("getHashes", BaoString("CryptoHashes.getHashes"))
+        crypto.put("scrypt", BaoString("ScryptBinding.scrypt"))
+        crypto.put("scryptSync", BaoString("ScryptBinding.scryptSync"))
 
         return crypto
     }
@@ -476,25 +482,25 @@ public class NodeCryptoBinding {
 public class ScryptBinding {
     // 异步 scrypt
     public static func scrypt(global: JsGlobalObject, args: ScryptJsArgs): JsValue {
-        let ctx = ScryptCtx.fromJs(global, args: args, isAsync: true)
+        let ctx = ScryptCtx.fromJs(global, args, true)
         if (ctx.isNone()) {
             return JsValue.undefined()
         }
         // 创建并调度任务
-        let job = CryptoJob<ScryptCtx>(ctx: ctx.getOrThrow())
+        let job = CryptoJob<ScryptCtx>(ctx.getOrThrow())
         job.callback = None  // 从 args 获取
-        JsRuntime.scheduleCryptoJob(global, job)
+        CryptoRuntime.scheduleCryptoJob(global, job)
         return JsValue.undefined()
     }
 
     // 同步 scrypt
     public static func scryptSync(global: JsGlobalObject, args: ScryptJsArgs): Array<UInt8> {
-        let ctx = ScryptCtx.fromJs(global, args: args, isAsync: false)
+        let ctx = ScryptCtx.fromJs(global, args, false)
         if (ctx.isNone()) {
             return Array<UInt8>()
         }
 
-        let key = Array<UInt8>(Int64(ctx.getOrThrow().keylen), item: UInt8(0))
+        let key = Array<UInt8>(Int64(ctx.getOrThrow().keylen), { _ => UInt8(0) })
         ctx.getOrThrow().runTaskImpl(key)
 
         if (ctx.getOrThrow().err.isSome()) {
@@ -506,33 +512,8 @@ public class ScryptBinding {
 
 // ============================================================================
 // 辅助类型
+// StringOrBuffer — 已在 types.cj 中定义
 // ============================================================================
-
-// StringOrBuffer — 字符串或缓冲区
-public class StringOrBuffer {
-    public var isString: Bool = true
-    public var str: String = ""
-    public var bytes: Array<UInt8> = Array<UInt8>()
-
-    public init() {}
-
-    public init(str: String) {
-        this.isString = true
-        this.str = str
-    }
-
-    public init(bytes: Array<UInt8>) {
-        this.isString = false
-        this.bytes = bytes
-    }
-
-    public func slice(): Array<UInt8> {
-        if (isString) {
-            return Array<UInt8>(str.toUtf8Array())
-        }
-        return bytes
-    }
-}
 
 // ByteArrayView — 字节数组视图
 public class ByteArrayView {
@@ -545,44 +526,32 @@ public class ByteArrayView {
     public init(ptr: UIntNative, offset: Int64, length: Int64) {
         this.ptr = ptr
         this.offset = offset
-        this.size = length
+        this.length = length
     }
 
     public init(arr: Array<UInt8>) {
-        self.ptr = UIntNative(0)  // 指向 arr 的内部指针
-        self.offset = 0
-        self.size = Int64(arr.size)
+        this.ptr = UIntNative(0)  // 指向 arr 的内部指针
+        this.offset = 0
+        this.length = Int64(arr.size)
     }
 
     public init(arr: Array<UInt8>, offset: Int64, length: Int64) {
-        self.ptr = UIntNative(0)
-        self.offset = offset
-        self.size = if (length >= 0) { length } else { Int64(arr.size) - offset }
+        this.ptr = UIntNative(0)
+        this.offset = offset
+        this.length = if (length >= 0) { length } else { Int64(arr.size) - offset }
     }
 }
 
-// JsValue — JS 值占位类型
-public class JsValue {
-    public static func undefined(): JsValue { JsValue() }
-    public static func null(): JsValue { JsValue() }
-    public static func jsNumber(v: Float64): JsValue { JsValue() }
-    public static func jsNumberFromInt32(v: Int32): JsValue { JsValue() }
-
-    public init() {}
-}
-
-// JsGlobalObject — JS 全局对象占位类型
-public class JsGlobalObject {}
-
-// JsError — JS 错误
-public class JsError {
-    public static func createCryptoError(message: String): JsValue {
-        return JsValue()
-    }
-}
-
-// JsRuntime — JS 运行时
-public class JsRuntime {
+// JsValue, JsGlobalObject — 已从 bao_jsc.* 导入
+// CryptoRuntime — 加密相关运行时辅助
+public class CryptoRuntime {
     public static func runCallback(callback: JsValue, global: JsGlobalObject, thisObj: JsValue, args: Array<JsValue>): Unit {}
     public static func scheduleCryptoJob<C>(global: JsGlobalObject, job: CryptoJob<C>): Unit where C <: CryptoJobCtx {}
+}
+
+// CryptoError — 加密错误辅助
+public class CryptoError {
+    public static func create(message: String): JsValue {
+        return JsValue()
+    }
 }

@@ -34,7 +34,7 @@ public class ScanCommand {
     /// 使用指定的 PackageManager 执行扫描
     /// 对应 Bun: ScanCommand.execWithManager()
     public static func execWithManager(ctx: CommandContext, manager: PackageManager, originalCwd: String): Unit {
-        if (manager.options.securityScanner == None) {
+        if (manager.options.securityScanner.isNone()) {
             Output.prettyErrorLn("error: no security scanner configured")
             Output.pretty(
                 "\n" +
@@ -61,7 +61,7 @@ public class ScanCommand {
         }
 
         let scanResults = SecurityScanner.performSecurityScanForAll(manager, ctx, originalCwd)
-        if (scanResults == None) {
+        if (scanResults.isNone()) {
             Output.errGeneric("Could not perform security scan")
             Global.exit(1)
         }

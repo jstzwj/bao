@@ -77,7 +77,7 @@ public class ListOfYarnCommands {
 
     /// 检查给定名称是否是 yarn 命令
     public static func isYarnCommand(name: String): Bool {
-        if (allCommandsSet == None) {
+        if (allCommandsSet.isNone()) {
             let set = HashSet<String>()
             for (cmd in yarnV2Commands) {
                 set.put(cmd)

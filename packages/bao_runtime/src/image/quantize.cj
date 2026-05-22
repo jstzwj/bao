@@ -46,7 +46,7 @@ class QuantizeBox {
     var max: Array<UInt8>  // [4]
 
     init() {
-        min = Array<UInt8>(4, item: 255)
+        min = Array<UInt8>(Int64(4), { _: Int64 => UInt8(255) })
         max = Array<UInt8>(Int64(4), { _: Int64 => UInt8(0) })
     }
 
@@ -79,6 +79,11 @@ public class QuantizeOptions {
     public init(maxColors: UInt16) {
         this.maxColors = maxColors
     }
+
+    public init(maxColors: UInt16, dither: Bool) {
+        this.maxColors = maxColors
+        this.dither = dither
+    }
 }
 
 // ============================================================================
@@ -103,7 +108,7 @@ public class Quantize {
         }
 
         // 盒子列表
-        var boxes = Array<QuantizeBox>(Int64(want), item: QuantizeBox())
+        var boxes = Array<QuantizeBox>(Int64(want), { _: Int64 => QuantizeBox() })
         var boxCount: Int64 = 1
         boxes[0] = shrink(rgba, order, 0, n)
 
@@ -180,7 +185,7 @@ public class Quantize {
             }
         }
 
-        return QuantizeResult(palette: palette, indices: indices, colors: k, hasAlpha: hasAlpha)
+        return QuantizeResult(palette, indices, k, hasAlpha)
     }
 
     /// Floyd-Steinberg 误差扩散
@@ -249,7 +254,7 @@ public class Quantize {
 
     /// 找最近调色板条目
     static func nearestPalette(palette: Array<UInt8>, k: UInt16, r: Int32, g: Int32, b: Int32, a: Int32): UInt8 {
-        var bestDist: Int64 = Int64.MaxValue
+        var bestDist: Int64 = Int64.Max
         var bestIdx: UInt8 = 0
         var i: Int64 = 0
         while (i < Int64(k)) {

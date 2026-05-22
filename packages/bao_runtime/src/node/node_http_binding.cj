@@ -3,6 +3,9 @@
 // 严格翻译自: src/runtime/node/node_http_binding.zig
 package bao_runtime.node
 
+import bao_core.*
+import bao_jsc.*
+
 // ============================================================================
 // HTTP 绑定 — HTTP 相关配置和服务器管理
 // 对应 Bun: src/runtime/node/node_http_binding.zig
@@ -50,12 +53,12 @@ public func getBunServerAllClosedPromise(global: JsGlobalObject, server: JsValue
 public class NodeHttpBinding {
     // 获取最大 HTTP 头部大小
     public static func getMaxHTTPHeaderSize(): Int64 {
-        return bao_runtime.node.getMaxHTTPHeaderSize()
+        return getMaxHTTPHeaderSize()
     }
 
     // 设置最大 HTTP 头部大小
     public static func setMaxHTTPHeaderSize(size: Int64): Unit {
-        bao_runtime.node.setMaxHTTPHeaderSize(size)
+        setMaxHTTPHeaderSize(size)
     }
 
     // 获取服务器全部关闭的 Promise
@@ -64,9 +67,7 @@ public class NodeHttpBinding {
     }
 }
 
-// ============================================================================
-// JsResult — JS 操作结果
-// ============================================================================
+// JsResult — JS 操作结果（bao_jsc 中没有，本地定义）
 public enum JsResult<T> {
     | ok(T)
     | err(String)
@@ -79,19 +80,4 @@ public enum JsResult<T> {
     }
 }
 
-// JsGlobalObject — JS 全局对象
-public class JsGlobalObject {}
-
-// JsValue — JS 值
-public class JsValue {
-    public static func undefined(): JsValue { JsValue() }
-    public static func null(): JsValue { JsValue() }
-    public static func jsNumber(v: Int64): JsValue { JsValue() }
-
-    public init() {}
-}
-
-// JsError — JS 错误
-public class JsError <: Exception {
-    public init(msg: String) { super(msg) }
-}
+// JsGlobalObject, JsValue, JsError — 已从 bao_jsc.* 导入

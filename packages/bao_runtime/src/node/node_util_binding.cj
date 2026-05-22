@@ -3,6 +3,9 @@
 // 严格翻译自: src/runtime/node/node_util_binding.zig
 package bao_runtime.node
 
+import bao_core.*
+import bao_jsc.*
+
 // ============================================================================
 // 错误名称映射
 // 对应 Bun: src/runtime/node/node_util_binding.zig - internalErrorName
@@ -128,7 +131,7 @@ public class NormalizeEncoding {
 // ============================================================================
 public class ParseEnv {
     // 解析 .env 格式的内容为键值对
-    public static func parse(content: String): Map<String, String> {
+    public static func parse(content: String): HashMap<String, String> {
         let result = HashMap<String, String>()
         let lines = content.split('\n')
         for (line in lines) {
@@ -139,12 +142,12 @@ public class ParseEnv {
             let eqIdx = trimmed.indexOf('=')
             if (eqIdx.isSome()) {
                 let idx = eqIdx.getOrThrow()
-                let key = trimmed.substring(0, idx).trimAscii()
-                var value = trimmed.substring(idx + 1, trimmed.size).trimAscii()
+                let key = trimmed[0..idx].trimAscii()
+                var value = trimmed[idx + 1..trimmed.size].trimAscii()
                 // 去除引号
                 if ((value.startsWith("\"") && value.endsWith("\"")) ||
                     (value.startsWith("'") && value.endsWith("'"))) {
-                    value = value.substring(1, value.size - 1)
+                    value = value[1..value.size - 1]
                 }
                 result.put(key, value)
             }

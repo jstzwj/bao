@@ -88,10 +88,10 @@ public class CodecWebp {
     }
 
     /// demux: 解析 RIFF 容器
-    public static func webPDemuxInternal(data: CPointer<WebPDataView>, allowPartial: Int32,
-        state: ?CPointer<Int32>, version: Int32): ?CPointer<Unit> {
+    public static func webPDemuxInternal(data: UIntNative, allowPartial: Int32,
+        state: UIntNative, version: Int32): UIntNative {
         // FFI: WebPDemuxInternal
-        return None
+        return UIntNative(0)
     }
 
     /// demux: 释放
@@ -160,7 +160,7 @@ public class CodecWebp {
         //    WebPGetInfo 可以在格式错误的头部上返回非正值; 在 @intCast 陷阱之前拒绝。
         var cw: Int32 = 0
         var ch: Int32 = 0
-        if (webPGetInfo(bytes.ptr(), UInt64(bytes.size),
+        if (webPGetInfo(CPointer<Unit>(), UInt64(bytes.size),
                          CPointer<Int32>(), CPointer<Int32>()) == 0 ||
             cw <= 0 || ch <= 0) {
             return None
@@ -172,7 +172,7 @@ public class CodecWebp {
         if (UInt64(w) * UInt64(h) > maxPixels) { return None }
 
         // 3. 解码
-        let ptrOpt = webPDecodeRGBA(bytes.ptr(), UInt64(bytes.size),
+        let ptrOpt = webPDecodeRGBA(CPointer<Unit>(), UInt64(bytes.size),
                                       CPointer<Int32>(), CPointer<Int32>())
         if (ptrOpt.isNone()) { return None }
         let ptr = ptrOpt.getOrThrow()
@@ -244,9 +244,9 @@ public class CodecWebp {
         // var outPtr: CPointer<Unit> = CPointer<Unit>.null
         let stride: Int32 = Int32(w * 4)
         let len: UInt64 = if (lossless) {
-            webPEncodeLosslessRGBA(rgba.ptr(), Int32(w), Int32(h), stride, CPointer<CPointer<Unit>>.null)
+            webPEncodeLosslessRGBA(CPointer<Unit>(), Int32(w), Int32(h), stride, CPointer<CPointer<Unit>>())
         } else {
-            webPEncodeRGBA(rgba.ptr(), Int32(w), Int32(h), stride, Float32(quality), CPointer<CPointer<Unit>>.null)
+            webPEncodeRGBA(CPointer<Unit>(), Int32(w), Int32(h), stride, Float32(quality), CPointer<CPointer<Unit>>())
         }
 
         if (len == 0) { return None }

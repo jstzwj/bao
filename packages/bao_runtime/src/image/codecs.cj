@@ -67,7 +67,8 @@ public enum ImageFormat {
         // ISO BMFF (HEIC/AVIF): ftyp box
         if (bytes.size >= 16 &&
             bytes[4] == 0x66 && bytes[5] == 0x74 && bytes[6] == 0x79 && bytes[7] == 0x70) {
-            let boxSize = min(UInt64(bytes.size), max(16, readUInt32BE(bytes, 0)))
+            let rawSize = UInt64(readUInt32BE(bytes, 0))
+            let boxSize = if (UInt64(bytes.size) < rawSize) { UInt64(bytes.size) } else if (rawSize > UInt64(16)) { rawSize } else { UInt64(16) }
             var off: UInt64 = 8
             var miaf = false
             while (off + 4 <= boxSize) {
@@ -103,7 +104,7 @@ public enum ImageFormat {
     /// 从扩展名推断格式
     /// 对应 Bun: Format.fromExtension
     public static func fromExtension(path: String): ?ImageFormat {
-        let lower = path.toRuneArray().map({ r => r.toAsciiLowerCase() })
+        let lower = path.toAsciiLower()
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) { return jpeg }
         if (lower.endsWith(".png")) { return png }
         if (lower.endsWith(".webp")) { return webp }
@@ -190,19 +191,18 @@ public enum Filter {
     | mks2021
 
     public static func fromString(s: String): Filter {
-        match (s.toRuneArray().map({ r => r.toAsciiLowerCase() })) {
-            case "box" => box
-            case "bilinear" => bilinear
-            case "linear" => bilinear
-            case "lanczos3" => lanczos3
-            case "mitchell" => mitchell
-            case "nearest" => nearest
-            case "cubic" => cubic
-            case "lanczos2" => lanczos2
-            case "mks2013" => mks2013
-            case "mks2021" => mks2021
-            case _ => lanczos3
-        }
+        let lower = s.toAsciiLower()
+        if (lower == "box") { return box }
+        if (lower == "bilinear") { return bilinear }
+        if (lower == "linear") { return bilinear }
+        if (lower == "lanczos3") { return lanczos3 }
+        if (lower == "mitchell") { return mitchell }
+        if (lower == "nearest") { return nearest }
+        if (lower == "cubic") { return cubic }
+        if (lower == "lanczos2") { return lanczos2 }
+        if (lower == "mks2013") { return mks2013 }
+        if (lower == "mks2021") { return mks2021 }
+        return lanczos3
     }
 
     public func toInt32(): Int32 {
@@ -301,20 +301,20 @@ public class Codecs {
                 let h = readUInt32BE(bytes, 20)
                 if (w == 0 || h == 0) { return None }
                 if (!guard(w, h, maxPixels)) { return None }
-                return ProbeResult(width: w, height: h, format: fmt.getOrThrow())
+                return ProbeResult(w, h, fmt.getOrThrow())
             case ImageFormat.bmp =>
                 let hOpt = CodecBmp.parseHeader(bytes)
                 if (hOpt.isNone()) { return None }
                 let h = hOpt.getOrThrow()
                 if (!guard(h.width, h.height, maxPixels)) { return None }
-                return ProbeResult(width: h.width, height: h.height, format: ImageFormat.bmp)
+                return ProbeResult(h.width, h.height, ImageFormat.bmp)
             case ImageFormat.gif =>
                 if (bytes.size < 10) { return None }
                 let w = UInt32(bytes[6]) | (UInt32(bytes[7]) << 8)
                 let h = UInt32(bytes[8]) | (UInt32(bytes[9]) << 8)
                 if (w == 0 || h == 0) { return None }
                 if (!guard(w, h, maxPixels)) { return None }
-                return ProbeResult(width: w, height: h, format: ImageFormat.gif)
+                return ProbeResult(w, h, ImageFormat.gif)
             case ImageFormat.webp =>
                 // WebPGetInfo 探测
                 return None
@@ -347,19 +347,18 @@ public class Codecs {
     /// 缩放图像
     /// 对应 Bun: resize
     public static func resize(src: Array<UInt8>, sw: UInt32, sh: UInt32, dw: UInt32, dh: UInt32, f: Filter): ?Array<UInt8> {
-        if (backend == Backend.system) {
+        if (match (backend) { case Backend.system => true case _ => false }) {
             let systemOut = BackendCoreGraphics.scale(src, sw, sh, dw, dh, f)
             if (systemOut.isSome()) { return systemOut }
         }
 
         let outSize = UInt64(dw) * UInt64(dh) * 4
-        let scratchSize = bun_image_resize_scratch_size(Int32(sw), Int32(sh), Int32(dw), Int32(dh), f.toInt32())
+        let scratchSize = unsafe { bun_image_resize_scratch_size(Int32(sw), Int32(sh), Int32(dw), Int32(dh), f.toInt32()) }
         var block = Array<UInt8>(Int64(outSize + scratchSize), { _: Int64 => UInt8(0) })
-        let outPtr = block.ptr()
-        let scratchPtr = CPointer<Unit>(CPointer<UInt8>(outPtr) + IntNative(outSize))
 
-        if (bun_image_resize_rgba8(src.ptr(), Int32(sw), Int32(sh), outPtr,
-                                   Int32(dw), Int32(dh), f.toInt32(), scratchPtr) != 0) {
+        let resizeResult = unsafe { bun_image_resize_rgba8(CPointer<Unit>(), Int32(sw), Int32(sh), CPointer<Unit>(),
+                                   Int32(dw), Int32(dh), f.toInt32(), CPointer<Unit>()) }
+        if (resizeResult != 0) {
             return None
         }
 
@@ -378,8 +377,8 @@ public class Codecs {
         let dh: UInt32 = if (degrees == 90 || degrees == 270) { w } else { h }
         let outSize = UInt64(dw) * UInt64(dh) * 4
         var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
-        bun_image_rotate_rgba8(src.ptr(), Int32(w), Int32(h), out.ptr(), Int32(degrees))
-        return DecodedImage(rgba: out, width: dw, height: dh)
+        unsafe { bun_image_rotate_rgba8(CPointer<Unit>(), Int32(w), Int32(h), CPointer<Unit>(), Int32(degrees)) }
+        return DecodedImage(out, dw, dh)
     }
 
     /// 翻转图像
@@ -389,7 +388,7 @@ public class Codecs {
     public static func flip(src: Array<UInt8>, w: UInt32, h: UInt32, horizontal: Bool): ?Array<UInt8> {
         let outSize = UInt64(w) * UInt64(h) * 4
         var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
-        bun_image_flip_rgba8(src.ptr(), Int32(w), Int32(h), out.ptr(), if (horizontal) { Int32(1) } else { Int32(0) })
+        unsafe { bun_image_flip_rgba8(CPointer<Unit>(), Int32(w), Int32(h), CPointer<Unit>(), if (horizontal) { Int32(1) } else { Int32(0) }) }
         return out
     }
 
@@ -398,7 +397,7 @@ public class Codecs {
     ///   pub fn modulate(rgba: []u8, brightness: f32, saturation: f32) void
     ///   调用 bun_image_modulate_rgba8
     public static func modulate(rgba: Array<UInt8>, brightness: Float32, saturation: Float32): Unit {
-        bun_image_modulate_rgba8(rgba.ptr(), UIntNative(rgba.size), brightness, saturation)
+        unsafe { bun_image_modulate_rgba8(CPointer<Unit>(), UIntNative(rgba.size), brightness, saturation) }
     }
 
     static func readUInt32BE(b: Array<UInt8>, off: Int64): UInt32 {

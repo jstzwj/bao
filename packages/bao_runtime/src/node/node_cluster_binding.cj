@@ -3,6 +3,8 @@
 // 严格翻译自: src/runtime/node/node_cluster_binding.zig
 package bao_runtime.node
 
+import std.collection.ArrayList
+
 // ============================================================================
 // 集群绑定 — IPC 进程间通信
 // 对应 Bun: src/runtime/node/node_cluster_binding.zig
@@ -14,38 +16,38 @@ public class NodeClusterBinding {
 
     // 子进程发送帮助函数
     // 对应 Bun: src/runtime/node/node_cluster_binding.zig - sendHelperChild
-    public static func sendHelperChild(message: Any, handle: Any, callback: ClusterCallback): Bool {
+    public static func sendHelperChild(message: Object, handle: Object, callback: ClusterCallback): Bool {
         // 简化实现
         return false
     }
 
     // 子进程内部消息处理
     // 对应 Bun: src/runtime/node/node_cluster_binding.zig - onInternalMessageChild
-    public static func onInternalMessageChild(worker: Any, callback: Any): Unit {
+    public static func onInternalMessageChild(worker: Object, callback: Object): Unit {
         // 简化实现
     }
 
     // 处理子进程内部消息
     // 对应 Bun: src/runtime/node/node_cluster_binding.zig - handleInternalMessageChild
-    public static func handleInternalMessageChild(message: Any): Unit {
+    public static func handleInternalMessageChild(message: Object): Unit {
         // 简化实现
     }
 
     // 主进程发送帮助函数
     // 对应 Bun: src/runtime/node/node_cluster_binding.zig - sendHelperPrimary
-    public static func sendHelperPrimary(subprocess: Any, message: Any, handle: Any, callback: ClusterCallback): Bool {
+    public static func sendHelperPrimary(subprocess: Object, message: Object, handle: Object, callback: ClusterCallback): Bool {
         return false
     }
 
     // 主进程内部消息处理
     // 对应 Bun: src/runtime/node/node_cluster_binding.zig - onInternalMessagePrimary
-    public static func onInternalMessagePrimary(subprocess: Any, worker: Any, callback: Any): Unit {
+    public static func onInternalMessagePrimary(subprocess: Object, worker: Object, callback: Object): Unit {
         // 简化实现
     }
 
     // 处理主进程内部消息
     // 对应 Bun: src/runtime/node/node_cluster_binding.zig - handleInternalMessagePrimary
-    public static func handleInternalMessagePrimary(subprocess: Any, message: Any): Unit {
+    public static func handleInternalMessagePrimary(subprocess: Object, message: Object): Unit {
         // 简化实现
     }
 
@@ -62,7 +64,7 @@ public class NodeClusterBinding {
 // ============================================================================
 public class InternalMsgHolder {
     public var seq: Int32 = 0
-    public var messages: Array<Any> = Array<Any>()
+    public var messages: ArrayList<Object> = ArrayList<Object>()
 
     public init() {}
 
@@ -70,11 +72,11 @@ public class InternalMsgHolder {
         return false
     }
 
-    public func enqueue(message: Any): Unit {
-        messages.append(message)
+    public func enqueue(message: Object): Unit {
+        messages.add(message)
     }
 
-    public func dispatch(message: Any): Unit {
+    public func dispatch(message: Object): Unit {
         // 简化实现
     }
 
@@ -82,7 +84,7 @@ public class InternalMsgHolder {
         for (msg in messages) {
             dispatch(msg)
         }
-        messages = Array<Any>()
+        messages = ArrayList<Object>()
     }
 }
 

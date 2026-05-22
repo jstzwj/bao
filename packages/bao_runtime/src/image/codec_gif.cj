@@ -48,7 +48,7 @@ class GifBits {
             this.block -= 1
             this.nbits += 8
         }
-        let mask: UInt32 = if (n >= 32) { UInt32.MaxValue } else { (UInt32(1) << n) - 1 }
+        let mask: UInt32 = if (n >= 32) { UInt32.Max } else { (UInt32(1) << n) - 1 }
         let v: UInt16 = UInt16(this.acc & mask)
         this.acc >>= n
         if (this.nbits >= n) {
@@ -340,7 +340,7 @@ public class CodecGif {
         var s = ""
         var i = start
         while (i < end && i < b.size) {
-            s.append(Char(b[i]))
+            s = s + String(Rune(b[i]))
             i += 1
         }
         return s

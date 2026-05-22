@@ -3,6 +3,8 @@
 // 严格翻译自: src/runtime/node/node_net_binding.zig
 package bao_runtime.node
 
+import std.convert.*
+
 // ============================================================================
 // 自动选择族默认值
 // 对应 Bun: src/runtime/node/node_net_binding.zig - autoSelectFamilyDefault
@@ -63,10 +65,10 @@ public class SocketAddress {
     public static func parse(addr: String): ?SocketAddress {
         let sa = SocketAddress()
         // 解析地址:端口格式
-        let lastColon = addr.lastIndexOf(':')
-        if (lastColon >= 0) {
-            sa.address = addr.substring(0, endIndex: lastColon)
-            sa.port = UInt16(Int64(addr.substring(lastColon + 1)) ?? UInt16(0))
+        let parts = addr.split(":")
+        if (parts.size >= 2) {
+            sa.address = parts[0]
+            sa.port = UInt16(Int64.parse(parts[parts.size - 1]))
         } else {
             sa.address = addr
         }
@@ -81,22 +83,22 @@ public class SocketAddress {
 public class NodeNetBinding {
     // 获取自动选择族默认值
     public static func getDefaultAutoSelectFamily(): Bool {
-        return bao_runtime.node.getDefaultAutoSelectFamily()
+        return getDefaultAutoSelectFamily()
     }
 
     // 设置自动选择族默认值
     public static func setDefaultAutoSelectFamily(value: Bool): Unit {
-        bao_runtime.node.setDefaultAutoSelectFamily(value)
+        setDefaultAutoSelectFamily(value)
     }
 
     // 获取自动选择族尝试超时
     public static func getDefaultAutoSelectFamilyAttemptTimeout(): UInt32 {
-        return bao_runtime.node.getDefaultAutoSelectFamilyAttemptTimeout()
+        return getDefaultAutoSelectFamilyAttemptTimeout()
     }
 
     // 设置自动选择族尝试超时
     public static func setDefaultAutoSelectFamilyAttemptTimeout(value: UInt32): Unit {
-        bao_runtime.node.setDefaultAutoSelectFamilyAttemptTimeout(value)
+        setDefaultAutoSelectFamilyAttemptTimeout(value)
     }
 
     // 创建分离的 socket

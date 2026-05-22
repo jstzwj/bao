@@ -70,7 +70,7 @@ public class UntrustedCommand {
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, logLevel)
 
         // 如果 lockfile 需要更新
-        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
+        if (loadLockfile.serializerResult.isSome() && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
             updateLockfileIfNeeded(pm, loadLockfile)
         }
 
@@ -110,7 +110,7 @@ public class UntrustedCommand {
 
         while (true) {
             let nodeModules = treeIterator.next()
-            if (nodeModules == None) {
+            if (nodeModules.isNone()) {
                 break
             }
             let nm = nodeModules.getOrThrow()
@@ -140,7 +140,7 @@ public class UntrustedCommand {
                 )
                 nodeModulesPath.setLength(folderSaved)
 
-                if (scriptsList != None && scriptsList.getOrThrow().total > 0) {
+                if (scriptsList.isSome() && scriptsList.getOrThrow().total > 0) {
                     untrustedDepsWithScripts.append(UntrustedDepInfo(
                         depId: depId,
                         packageId: packageId,
@@ -221,7 +221,7 @@ public class TrustCommand {
         PackageManagerCommand.handleLoadLockfileErrors(loadLockfile, logLevel)
 
         // 如果 lockfile 需要更新 (meta.has_install_script)
-        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
+        if (loadLockfile.serializerResult.isSome() && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
             updateLockfileIfNeeded(pm, loadLockfile)
         }
 
@@ -278,7 +278,7 @@ public class TrustCommand {
 
         while (true) {
             let nodeModules = treeIterator.next()
-            if (nodeModules == None) {
+            if (nodeModules.isNone()) {
                 break
             }
             let nm = nodeModules.getOrThrow()
@@ -308,7 +308,7 @@ public class TrustCommand {
                 )
                 nodeModulesPath.setLength(folderSaved)
 
-                if (scriptsList != None && scriptsList.getOrThrow().total > 0) {
+                if (scriptsList.isSome() && scriptsList.getOrThrow().total > 0) {
                     // 判断是否跳过
                     var skip = true
                     if (trustAll) {
@@ -399,7 +399,6 @@ public class TrustCommand {
             let skipPlural = if (totalSkippedPackages > 1) { "s" } else { "" }
             Output.prettyLn(
                 " <yellow>${totalSkippedPackages}<r> package${skipPlural} with blocked scripts" )
-            )
         }
     }
 
@@ -440,7 +439,7 @@ public class TrustCommand {
         editor.editTrustedDependencies(packageNamesToAdd)
 
         // 更新 lockfile 的 trustedDependencies
-        if (pm.lockfile.trustedDependencies == None) {
+        if (pm.lockfile.trustedDependencies.isNone()) {
             pm.lockfile.trustedDependencies = HashMap<String, Unit>()
         }
         for (name in packageNamesToAdd) {
@@ -531,7 +530,7 @@ public class PmTrustedCommand {
     /// 对应 Bun: Lockfile.hasTrustedDependency
     public static func isTrusted(packageName: String): Bool {
         let trustFile = BaoFile.readAllText("node_modules/.trusted")
-        if (trustFile == None) {
+        if (trustFile.isNone()) {
             return false
         }
         return trustFile.getOrThrow().contains(packageName)

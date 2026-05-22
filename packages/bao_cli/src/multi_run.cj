@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // MultiRun — 并行/顺序脚本执行
@@ -242,7 +243,7 @@ public class MultiRunState {
                 if (code != 0) {
                     writer.println("Exited with code ${code}")
                 } else {
-                    if (handle.startTime != None && handle.endTime != None) {
+                    if (handle.startTime.isSome() && handle.endTime.isSome()) {
                         let duration = handle.endTime.getOrThrow().since(handle.startTime.getOrThrow())
                         let ms = duration.toDouble() / 1_000_000.0
                         if (ms > 1000.0) {
@@ -316,7 +317,7 @@ public class MultiRunState {
     public func abort(): Unit {
         aborted = true
         for (handle in handles) {
-            if (handle.process != None && handle.status == ProcessStatus.running) {
+            if (handle.process.isSome() && handle.status == ProcessStatus.running) {
                 handle.process.getOrThrow().kill()
             }
         }
@@ -325,10 +326,10 @@ public class MultiRunState {
     /// 确定最终退出码
     public func finalize(): Int64 {
         for (handle in handles) {
-            if (handle.process != None) {
+            if (handle.process.isSome()) {
                 match (handle.status) {
                     case ProcessStatus.exited(code) =>
-                        if (code != 0) return code
+                        if (code != 0) { return code }
                     case ProcessStatus.signaled(_) => return 1
                     case _ => return 1
                 }
@@ -395,23 +396,23 @@ private func addScriptConfigs(
 ): Unit {
     let groupStart = configs.size
 
-    let label = if (labelPrefix != None) {
+    let label = if (labelPrefix.isSome()) {
         "${labelPrefix.getOrThrow()}:${rawName}"
     } else {
         rawName
     }
 
-    let scriptContent = if (scriptsMap != None) { scriptsMap.getOrThrow().get(rawName) } else { None }
+    let scriptContent = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(rawName) } else { None }
 
-    if (scriptContent != None) {
+    if (scriptContent.isSome()) {
         // package.json 脚本 - 检查 pre/post
         let preName = "pre${rawName}"
         let postName = "post${rawName}"
 
-        let preContent = if (scriptsMap != None) { scriptsMap.getOrThrow().get(preName) } else { None }
-        let postContent = if (scriptsMap != None) { scriptsMap.getOrThrow().get(postName) } else { None }
+        let preContent = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(preName) } else { None }
+        let postContent = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(postName) } else { None }
 
-        if (preContent != None) {
+        if (preContent.isSome()) {
             let config = MultiScriptConfig()
             config.label = label
             config.command = preContent.getOrThrow()
@@ -428,7 +429,7 @@ private func addScriptConfigs(
         mainConfig.PATH = path
         configs.append(mainConfig)
 
-        if (postContent != None) {
+        if (postContent.isSome()) {
             let config = MultiScriptConfig()
             config.label = label
             config.command = postContent.getOrThrow()
@@ -493,7 +494,7 @@ public func multiRun(ctx: CommandContext): Unit {
         case None => ""
     }
     let shellBinOpt = RunCommand.findShell(pathEnv, cwd)
-    if (shellBinOpt == None) {
+    if (shellBinOpt.isNone()) {
         Output.prettyErrorLn("error: Missing shell")
         Global.exit(1)
     }
@@ -510,7 +511,7 @@ public func multiRun(ctx: CommandContext): Unit {
     for (rawName in scriptNames) {
         // 检查是否为 glob 模式
         if (rawName.contains('*')) {
-            if (scriptsMap != None) {
+            if (scriptsMap.isSome()) {
                 let matches = ArrayList<String>()
                 for (key in scriptsMap.getOrThrow().keys()) {
                     if (matchesGlob(rawName, key)) {
@@ -637,7 +638,7 @@ public class MultiRunAbortHandler {
 
     public func install(): Unit {
         shouldAbort = false
-        SignalHandler.install(SIGINT, { shouldAbort = true })
+        SignalHandler.install(SIGINT, { => shouldAbort = true })
     }
 
     public func uninstall(): Unit {

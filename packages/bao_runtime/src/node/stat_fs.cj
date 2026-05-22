@@ -65,13 +65,13 @@ public class StatFSFactory {
     // 从平台 statfs 数据创建 StatFS
     public static func create(bigint: Bool, ftype: Int64, bsize: Int64, blocks: Int64,
                               bfree: Int64, bavail: Int64, files: Int64, ffree: Int64): StatFS {
-        return StatFS(fstype: Int32(ftype), bsize: Int32(bsize), blocks: Int32(blocks),
-                      bfree: Int32(bfree), bavail: Int32(bavail), files: Int32(files), ffree: Int32(ffree))
+        return StatFS(Int32(ftype), Int32(bsize), Int32(blocks),
+                      Int32(bfree), Int32(bavail), Int32(files), Int32(ffree))
     }
 
     public static func createBigInt(ftype: Int64, bsize: Int64, blocks: Int64,
                                      bfree: Int64, bavail: Int64, files: Int64, ffree: Int64): BigIntStatFS {
-        return BigIntStatFS(fstype: ftype, bsize: bsize, blocks: blocks,
-                           bfree: bfree, bavail: bavail, files: files, ffree: ffree)
+        return BigIntStatFS(ftype, bsize, blocks,
+                           bfree, bavail, files, ffree)
     }
 }

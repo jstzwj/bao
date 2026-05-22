@@ -107,7 +107,7 @@ public class PackageManagerCommand {
         // 读取 lockfile 文件并计算 hash
         let lockfilePath = ctx.args.entryPoints[0]
         let bytes = BaoFile.readAllBytes(lockfilePath)
-        if (bytes == None) {
+        if (bytes.isNone()) {
             Output.errGeneric("failed to read lockfile")
             Global.crash()
         }
@@ -149,7 +149,7 @@ public class PackageManagerCommand {
         handleLoadLockfileErrors(loadLockfile, logLevel)
 
         // 检查是否需要更新 lockfile
-        if (loadLockfile.serializerResult != None && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
+        if (loadLockfile.serializerResult.isSome() && loadLockfile.serializerResult.getOrThrow().packagesNeedUpdate) {
             updateLockfileIfNeeded(pm, loadLockfile)
         }
 
@@ -167,7 +167,7 @@ public class PackageManagerCommand {
 
         while (true) {
             let nodeModules = treeIterator.next()
-            if (nodeModules == None) {
+            if (nodeModules.isNone()) {
                 break
             }
             let nm = nodeModules.getOrThrow()
@@ -297,11 +297,11 @@ public class PackageManagerCommand {
             headers.put("authorization", "Bearer ${scope.token}")
 
             let response = HttpClient.getSynchronous(url, headers)
-            if (response != None) {
+            if (response.isSome()) {
                 let json = JsonParser.parse(response.getOrThrow())
-                if (json != None && json.getOrThrow().isObject()) {
+                if (json.isSome() && json.getOrThrow().isObject()) {
                     let username = json.getOrThrow().asObject().get("username")
-                    if (username != None && username.getOrThrow().isString()) {
+                    if (username.isSome() && username.getOrThrow().isString()) {
                         Output.println(username.getOrThrow().asString())
                         return
                     }

@@ -16,3 +16,4 @@ bao_sql = { path = "../bao_sql" }
 bao_jsc = { path = "../bao_jsc" }
 bao_core = { path = "../bao_core" }
 bao_collections = { path = "../bao_collections" }
+bao_event_loop = { path = "../bao_event_loop" }

@@ -20,10 +20,10 @@ public class Stats {
     public var size: UInt64 = 0      // 文件大小（字节）
     public var blksize: UInt64 = 0   // 块大小
     public var blocks: UInt64 = 0    // 分配的块数
-    public var atimeMs: Float64 = 0  // 最后访问时间（毫秒）
-    public var mtimeMs: Float64 = 0  // 最后修改时间（毫秒）
-    public var ctimeMs: Float64 = 0  // 最后状态变更时间（毫秒）
-    public var birthtimeMs: Float64 = 0 // 创建时间（毫秒）
+    public var atimeMs: Float64 = 0.0  // 最后访问时间（毫秒）
+    public var mtimeMs: Float64 = 0.0  // 最后修改时间（毫秒）
+    public var ctimeMs: Float64 = 0.0  // 最后状态变更时间（毫秒）
+    public var birthtimeMs: Float64 = 0.0 // 创建时间（毫秒）
 
     public init() {}
 
@@ -79,7 +79,7 @@ public class Stats {
     // 转换为 JS 对象
     // 对应 Bun: Stat.zig - StatType(false).toJS
     public func toJS(globalObject: JsGlobalObject): JsValue {
-        let obj = JsObject(globalObject)
+        let obj = JsObject()
         obj.set("dev", JsValue(Int64(dev)))
         obj.set("ino", JsValue(Int64(ino)))
         obj.set("mode", JsValue(Int64(mode)))
@@ -99,28 +99,15 @@ public class Stats {
         obj.set("ctime", JsValue(ctimeMs))
         obj.set("birthtime", JsValue(birthtimeMs))
         // 设置文件类型判断方法
-        obj.set("isFile", JsValue.nativeFunction(JsNativeFunction("isFile") { _ =>
-            JsValue(this.isFile())
-        }))
-        obj.set("isDirectory", JsValue.nativeFunction(JsNativeFunction("isDirectory") { _ =>
-            JsValue(this.isDirectory())
-        }))
-        obj.set("isSymbolicLink", JsValue.nativeFunction(JsNativeFunction("isSymbolicLink") { _ =>
-            JsValue(this.isSymbolicLink())
-        }))
-        obj.set("isBlockDevice", JsValue.nativeFunction(JsNativeFunction("isBlockDevice") { _ =>
-            JsValue(this.isBlockDevice())
-        }))
-        obj.set("isCharacterDevice", JsValue.nativeFunction(JsNativeFunction("isCharacterDevice") { _ =>
-            JsValue(this.isCharacterDevice())
-        }))
-        obj.set("isFIFO", JsValue.nativeFunction(JsNativeFunction("isFIFO") { _ =>
-            JsValue(this.isFIFO())
-        }))
-        obj.set("isSocket", JsValue.nativeFunction(JsNativeFunction("isSocket") { _ =>
-            JsValue(this.isSocket())
-        }))
-        return obj.toJsValue()
+        // TODO: 使用 JsValue.nativeFunction 绑定实际方法
+        obj.set("isFile", JsValue(this.isFile()))
+        obj.set("isDirectory", JsValue(this.isDirectory()))
+        obj.set("isSymbolicLink", JsValue(this.isSymbolicLink()))
+        obj.set("isBlockDevice", JsValue(this.isBlockDevice()))
+        obj.set("isCharacterDevice", JsValue(this.isCharacterDevice()))
+        obj.set("isFIFO", JsValue(this.isFIFO()))
+        obj.set("isSocket", JsValue(this.isSocket()))
+        return JsValue(obj)
     }
 }
 
@@ -206,7 +193,7 @@ public class BigIntStats {
     // 转换为 JS 对象
     // 对应 Bun: Stat.zig - StatType(true).toJS
     public func toJS(globalObject: JsGlobalObject): JsValue {
-        let obj = JsObject(globalObject)
+        let obj = JsObject()
         obj.set("dev", JsValue(Int64(dev)))
         obj.set("ino", JsValue(Int64(ino)))
         obj.set("mode", JsValue(Int64(mode)))
@@ -226,28 +213,15 @@ public class BigIntStats {
         obj.set("ctimeNs", JsValue(Int64(ctimeNs)))
         obj.set("birthtimeNs", JsValue(Int64(birthtimeNs)))
         // 文件类型判断方法
-        obj.set("isFile", JsValue.nativeFunction(JsNativeFunction("isFile") { _ =>
-            JsValue(this.isFile())
-        }))
-        obj.set("isDirectory", JsValue.nativeFunction(JsNativeFunction("isDirectory") { _ =>
-            JsValue(this.isDirectory())
-        }))
-        obj.set("isSymbolicLink", JsValue.nativeFunction(JsNativeFunction("isSymbolicLink") { _ =>
-            JsValue(this.isSymbolicLink())
-        }))
-        obj.set("isBlockDevice", JsValue.nativeFunction(JsNativeFunction("isBlockDevice") { _ =>
-            JsValue(this.isBlockDevice())
-        }))
-        obj.set("isCharacterDevice", JsValue.nativeFunction(JsNativeFunction("isCharacterDevice") { _ =>
-            JsValue(this.isCharacterDevice())
-        }))
-        obj.set("isFIFO", JsValue.nativeFunction(JsNativeFunction("isFIFO") { _ =>
-            JsValue(this.isFIFO())
-        }))
-        obj.set("isSocket", JsValue.nativeFunction(JsNativeFunction("isSocket") { _ =>
-            JsValue(this.isSocket())
-        }))
-        return obj.toJsValue()
+        // TODO: 使用 JsValue.nativeFunction 绑定实际方法
+        obj.set("isFile", JsValue(this.isFile()))
+        obj.set("isDirectory", JsValue(this.isDirectory()))
+        obj.set("isSymbolicLink", JsValue(this.isSymbolicLink()))
+        obj.set("isBlockDevice", JsValue(this.isBlockDevice()))
+        obj.set("isCharacterDevice", JsValue(this.isCharacterDevice()))
+        obj.set("isFIFO", JsValue(this.isFIFO()))
+        obj.set("isSocket", JsValue(this.isSocket()))
+        return JsValue(obj)
     }
 }
 
@@ -262,10 +236,10 @@ public class StatsFactory {
                               size: UInt64, blksize: UInt64, blocks: UInt64,
                               atimeMs: Float64, mtimeMs: Float64, ctimeMs: Float64,
                               birthtimeMs: Float64): Stats {
-        return Stats(dev: dev, ino: ino, mode: mode, nlink: nlink,
-                     uid: uid, gid: gid, rdev: rdev, size: size,
-                     blksize: blksize, blocks: blocks,
-                     atimeMs: atimeMs, mtimeMs: mtimeMs, ctimeMs: ctimeMs, birthtimeMs: birthtimeMs)
+        return Stats(dev, ino, mode, nlink,
+                     uid, gid, rdev, size,
+                     blksize, blocks,
+                     atimeMs, mtimeMs, ctimeMs, birthtimeMs)
     }
 
     public static func createBigInt(dev: UInt64, ino: UInt64, mode: UInt64,
@@ -275,10 +249,10 @@ public class StatsFactory {
                                      birthtimeMs: Int64,
                                      atimeNs: UInt64, mtimeNs: UInt64, ctimeNs: UInt64,
                                      birthtimeNs: UInt64): BigIntStats {
-        return BigIntStats(dev: dev, ino: ino, mode: mode, nlink: nlink,
-                          uid: uid, gid: gid, rdev: rdev, size: size,
-                          blksize: blksize, blocks: blocks,
-                          atimeMs: atimeMs, mtimeMs: mtimeMs, ctimeMs: ctimeMs, birthtimeMs: birthtimeMs,
-                          atimeNs: atimeNs, mtimeNs: mtimeNs, ctimeNs: ctimeNs, birthtimeNs: birthtimeNs)
+        return BigIntStats(dev, ino, mode, nlink,
+                          uid, gid, rdev, size,
+                          blksize, blocks,
+                          atimeMs, mtimeMs, ctimeMs, birthtimeMs,
+                          atimeNs, mtimeNs, ctimeNs, birthtimeNs)
     }
 }

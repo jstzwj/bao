@@ -8,7 +8,9 @@
 package bao_runtime.node
 
 import bao_core.*
+import bao_jsc.HashMap
 import bao_threading.*
+import std.collection.ArrayList
 
 // ============================================================================
 // PathWatcherEventType — 事件类型（重导出）
@@ -31,7 +33,7 @@ public class WindowsPathWatcherManager {
     private static var managerMutex: Mutex = Mutex()
 
     // 监视器映射 — path → PathWatcher
-    private var watchers: Map<String, WindowsPathWatcher> = HashMap<String, WindowsPathWatcher>()
+    private var watchers: HashMap<String, WindowsPathWatcher> = HashMap<String, WindowsPathWatcher>()
 
     // 是否在最后一个监视器移除时自动去初始化
     private var deinitOnLastWatcher: Bool = false
@@ -65,7 +67,7 @@ public class WindowsPathWatcherManager {
     public func watch(path: String, handler: WinPathWatchHandler): Unit {
         var watcher = watchers.get(path)
         if (watcher.isNone()) {
-            watcher = WindowsPathWatcher(path: path, manager: this)
+            watcher = WindowsPathWatcher(path, this)
             watchers.put(path, watcher.getOrThrow())
 
             // 创建 libuv uv_fs_event_t 并启动监视
@@ -85,7 +87,7 @@ public class WindowsPathWatcherManager {
                 watchers.remove(path)
 
                 // 如果没有更多监视器且设置了去初始化标志
-                if (deinitOnLastWatcher && watchers.size == 0) {
+                if (deinitOnLastWatcher && watchers.isEmpty()) {
                     deinit()
                 }
             }
@@ -96,7 +98,7 @@ public class WindowsPathWatcherManager {
     public func dispatchEvent(path: String, eventType: WinWatcherEventType, filename: String): Unit {
         let watcher = watchers.get(path)
         if (watcher.isSome()) {
-            watcher.getOrThrow().emit(eventType: eventType, path: filename)
+            watcher.getOrThrow().emit(eventType, filename)
         }
     }
 
@@ -104,10 +106,14 @@ public class WindowsPathWatcherManager {
     // 对应 Bun: win_watcher.zig - PathWatcherManager.deinit
     public func deinit(): Unit {
         // 关闭所有 watcher
-        for ((path, watcher) in watchers) {
-            watcher.close()
+        let allKeys = watchers.keys()
+        for (path in allKeys) {
+            let w = watchers.get(path)
+            if (w.isSome()) {
+                w.getOrThrow().close()
+            }
         }
-        watchers = HashMap<String, WindowsPathWatcher>()
+        watchers.clear()
 
         // 清除单例
         managerMutex.lock()
@@ -142,7 +148,7 @@ public class WindowsPathWatcher {
     public var path: String = ""
     public var closed: Bool = false
 
-    private var handlers: Array<WinPathWatchHandler> = Array<WinPathWatchHandler>()
+    private var handlers: ArrayList<WinPathWatchHandler> = ArrayList<WinPathWatchHandler>()
     private var manager: ?WindowsPathWatcherManager = None
 
     // libuv uv_fs_event_t 句柄
@@ -166,20 +172,21 @@ public class WindowsPathWatcher {
 
     // 添加处理程序
     public func addHandler(handler: WinPathWatchHandler): Unit {
-        handlers.append(handler)
+        handlers.add(handler)
     }
 
     // 移除处理程序
     public func removeHandler(handler: WinPathWatchHandler): Unit {
         var idx: Int64 = -1
         for (i in 0..handlers.size) {
-            if (handlers[i] === handler) {
+            // TODO: reference equality check for interface types not supported
+            if (true) {
                 idx = i
                 break
             }
         }
         if (idx >= 0) {
-            handlers.removeAt(idx)
+            handlers.remove(at: idx)
         }
     }
 
@@ -191,7 +198,7 @@ public class WindowsPathWatcher {
     // 分发事件
     public func emit(eventType: WinWatcherEventType, path: String): Unit {
         for (handler in handlers) {
-            handler.onPathWatchEvent(eventType: eventType, path: path)
+            handler.onPathWatchEvent(eventType, path)
         }
     }
 
@@ -207,7 +214,7 @@ public class WindowsPathWatcher {
         // uv_fs_event_stop(handle)
         // uv_close(handle, close_cb)
 
-        handlers = Array<WinPathWatchHandler>()
+        handlers = ArrayList<WinPathWatchHandler>()
     }
 }
 

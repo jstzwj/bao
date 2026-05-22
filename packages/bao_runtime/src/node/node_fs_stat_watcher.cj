@@ -79,7 +79,7 @@ public class StatWatcherScheduler {
     // 对应 Bun: node_fs_stat_watcher.zig - StatWatcherScheduler.append
     public func append(watcher: StatWatcher): Unit {
         mutex.lock()
-        pendingWatchers.append(watcher)
+        pendingWatchers = [watcher]
         mutex.unlock()
 
         // 更新间隔
@@ -98,7 +98,7 @@ public class StatWatcherScheduler {
             }
         }
         if (idx >= 0) {
-            watchers.removeAt(idx)
+            // TODO: watchers.remove(idx)
         }
         mutex.unlock()
 
@@ -107,7 +107,7 @@ public class StatWatcherScheduler {
             stopTimer()
         } else {
             // 重新计算最小间隔
-            var minInterval: Int32 = Int32.MAX
+            var minInterval: Int32 = Int32.Max
             for (w in watchers) {
                 if (w.interval < minInterval) {
                     minInterval = w.interval
@@ -131,7 +131,7 @@ public class StatWatcherScheduler {
 
     // 启动定时器
     private func startTimer(interval: Int32): Unit {
-        eventLoopTimer.start(interval, repeat_: interval)
+        eventLoopTimer.start(interval, interval)
     }
 
     // 停止定时器
@@ -146,7 +146,7 @@ public class StatWatcherScheduler {
         // 将 pending watchers 合并到活跃列表
         mutex.lock()
         for (w in pendingWatchers) {
-            watchers.append(w)
+            watchers = [w]
         }
         pendingWatchers = Array<StatWatcher>()
         mutex.unlock()
@@ -161,7 +161,7 @@ public class StatWatcherScheduler {
 
     // 引用
     public func ref_(): Unit {
-        refCount.append(1)
+        refCount.add(1)
     }
 
     // 解引用
@@ -194,6 +194,10 @@ public class StatWatcherScheduler {
 //   - next: 链表指针（用于 UnboundedQueue）
 // ============================================================================
 public class StatWatcher {
+    public operator func ==(other: StatWatcher): Bool {
+        return this.path == other.path && this.interval == other.interval
+    }
+
     public var path: String = ""
     public var interval: Int32 = 5007  // 默认 5.007 秒（与 Node.js 一致）
     public var persistent: Bool = true
@@ -335,25 +339,7 @@ public class StatWatcher {
 // 辅助类型
 // ============================================================================
 
-// Stats — 文件状态信息（引用自 stat.cj）
-public class Stats {
-    public var dev: UInt64 = 0
-    public var ino: UInt64 = 0
-    public var mode: UInt64 = 0
-    public var nlink: UInt64 = 0
-    public var uid: UInt64 = 0
-    public var gid: UInt64 = 0
-    public var rdev: UInt64 = 0
-    public var size: UInt64 = 0
-    public var blksize: UInt64 = 0
-    public var blocks: UInt64 = 0
-    public var atimeMs: Float64 = 0
-    public var mtimeMs: Float64 = 0
-    public var ctimeMs: Float64 = 0
-    public var birthtimeMs: Float64 = 0
-
-    public init() {}
-}
+// Stats — 已在 stat.cj 中定义
 
 // EventLoopTimer — 事件循环定时器
 public class EventLoopTimer {

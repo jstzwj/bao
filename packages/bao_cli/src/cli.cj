@@ -342,7 +342,8 @@ public class Command {
     private static func matchCommand(name: String, args: Array<String>): CommandTag {
         match (name) {
             case "init" => return CommandTag.InitCommand
-            case "build", "bao" => return CommandTag.BuildCommand
+            case "build" => return CommandTag.BuildCommand
+            case "bao" => return CommandTag.BuildCommand
             case "discord" => return CommandTag.DiscordCommand
             case "upgrade" => return CommandTag.UpgradeCommand
             case "completions" => return CommandTag.InstallCompletionsCommand
@@ -351,8 +352,14 @@ public class Command {
             case "unlink" => return CommandTag.UnlinkCommand
             case "x" => return CommandTag.BunxCommand
             case "repl" => return CommandTag.ReplCommand
-            case "i", "install" =>
-                // 检查是否有 -g/--global
+            case "i" =>
+                for (arg in args) {
+                    if (arg == "-g" || arg == "--global") {
+                        return CommandTag.AddCommand
+                    }
+                }
+                return CommandTag.InstallCommand
+            case "install" =>
                 for (arg in args) {
                     if (arg == "-g" || arg == "--global") {
                         return CommandTag.AddCommand
@@ -360,14 +367,19 @@ public class Command {
                 }
                 return CommandTag.InstallCommand
             case "ci" => return CommandTag.InstallCommand
-            case "c", "create" => return CommandTag.CreateCommand
+            case "c" => return CommandTag.CreateCommand
+            case "create" => return CommandTag.CreateCommand
             case "test" => return CommandTag.TestCommand
             case "pm" => return CommandTag.PackageManagerCommand
-            case "add", "a" => return CommandTag.AddCommand
+            case "add" => return CommandTag.AddCommand
+            case "a" => return CommandTag.AddCommand
             case "update" => return CommandTag.UpdateCommand
             case "patch" => return CommandTag.PatchCommand
             case "patch-commit" => return CommandTag.PatchCommitCommand
-            case "r", "remove", "rm", "uninstall" => return CommandTag.RemoveCommand
+            case "r" => return CommandTag.RemoveCommand
+            case "remove" => return CommandTag.RemoveCommand
+            case "rm" => return CommandTag.RemoveCommand
+            case "uninstall" => return CommandTag.RemoveCommand
             case "run" => return CommandTag.RunCommand
             case "help" => return CommandTag.HelpCommand
             case "exec" => return CommandTag.ExecCommand
@@ -375,7 +387,13 @@ public class Command {
             case "publish" => return CommandTag.PublishCommand
             case "audit" => return CommandTag.AuditCommand
             case "info" => return CommandTag.InfoCommand
-            case "deploy", "cloud", "config", "use", "auth", "login", "logout" => return CommandTag.ReservedCommand
+            case "deploy" => return CommandTag.ReservedCommand
+            case "cloud" => return CommandTag.ReservedCommand
+            case "config" => return CommandTag.ReservedCommand
+            case "use" => return CommandTag.ReservedCommand
+            case "auth" => return CommandTag.ReservedCommand
+            case "login" => return CommandTag.ReservedCommand
+            case "logout" => return CommandTag.ReservedCommand
             case "whoami" => return CommandTag.PackageManagerCommand
             case "prune" => return CommandTag.ReservedCommand
             case "list" => return CommandTag.PackageManagerCommand

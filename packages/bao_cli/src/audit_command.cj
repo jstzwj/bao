@@ -122,7 +122,7 @@ public class AuditCommand {
             Output.write("\n")
             if (responseText.length > 0) {
                 let json = JsonParser.parse(responseText)
-                if (json != None && json.getOrThrow().isObject() && json.getOrThrow().asObject().size == 0) {
+                if (json.isSome() && json.getOrThrow().isObject() && json.getOrThrow().asObject().size == 0) {
                     return 0
                 }
                 return 1
@@ -280,7 +280,7 @@ private func printEnhancedAuditReport(
     ignoreList: ArrayList<String>
 ): Int64 {
     let json = JsonParser.parse(responseText)
-    if (json == None) {
+    if (json.isNone()) {
         Output.write(responseText)
         Output.write("\n")
         return 1
@@ -306,7 +306,7 @@ private func printEnhancedAuditReport(
                     if (vuln.isObject()) {
                         let vulnerability = parseVulnerability(allocator, packageName, vuln)
 
-                        if (auditLevel != None && !auditLevel.getOrThrow().shouldIncludeSeverity(vulnerability.severity)) {
+                        if (auditLevel.isSome() && !auditLevel.getOrThrow().shouldIncludeSeverity(vulnerability.severity)) {
                             continue
                         }
 
@@ -339,7 +339,7 @@ private func printEnhancedAuditReport(
         for (vulnerability in auditResult.allVulnerabilities) {
             let paths = findDependencyPaths(allocator, vulnerability.packageName, dependencyTree, pm)
 
-            let result = auditResult.vulnerablePackages.getOrPut(vulnerability.packageName, {
+            let result = auditResult.vulnerablePackages.getOrPut(vulnerability.packageName, { =>
                 let info = AuditPackageInfo()
                 info.name = vulnerability.packageName
                 info.version = vulnerability.vulnerableVersions
@@ -402,17 +402,17 @@ private func printEnhancedAuditReport(
                 hasPrevious = true
             }
             if (highCount > 0) {
-                if (hasPrevious) Output.pretty(", ")
+                if (hasPrevious) { Output.pretty(", ") }
                 Output.pretty("${highCount} high")
                 hasPrevious = true
             }
             if (moderateCount > 0) {
-                if (hasPrevious) Output.pretty(", ")
+                if (hasPrevious) { Output.pretty(", ") }
                 Output.pretty("${moderateCount} moderate")
                 hasPrevious = true
             }
             if (lowCount > 0) {
-                if (hasPrevious) Output.pretty(", ")
+                if (hasPrevious) { Output.pretty(", ") }
                 Output.pretty("${lowCount} low")
             }
             Output.prettyLn(")")

@@ -57,7 +57,7 @@ public class UnlinkCommand {
 
             // Step 1. 解析最近的 package.json 文件
             let packageJsonSource = BaoFile.readSource(manager.originalPackageJsonPath, ctx.allocator)
-            if (packageJsonSource == None) {
+            if (packageJsonSource.isNone()) {
                 Output.errGeneric("failed to read \"${manager.originalPackageJsonPath}\" for unlinking")
                 Global.crash()
             }
@@ -93,7 +93,7 @@ public class UnlinkCommand {
             BinLinker.ensureUmask()
 
             var explicitGlobalDir = ""
-            if (ctx.install != None) {
+            if (ctx.install.isSome()) {
                 explicitGlobalDir = match (ctx.install.getOrThrow().globalDir) {
                     case Some(d) => d
                     case None => explicitGlobalDir

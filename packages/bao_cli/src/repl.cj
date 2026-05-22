@@ -174,7 +174,7 @@ public class History {
     /// 对应 Bun: History.load
     public func load(): Unit {
         let homePath = EnvVar.HOME.get()
-        if (homePath == None || homePath.getOrThrow().length == 0) {
+        if (homePath.isNone() || homePath.getOrThrow().length == 0) {
             return
         }
 
@@ -182,7 +182,7 @@ public class History {
         filePath = path
 
         let content = BaoFile.readAllText(path)
-        if (content == None) {
+        if (content.isNone()) {
             return
         }
 
@@ -612,7 +612,7 @@ public class ReplCommandHandlers {
         }
 
         let content = BaoFile.readAllText(filename)
-        if (content == None) {
+        if (content.isNone()) {
             repl.printError("Failed to read ${filename}\n")
             return ReplResult.skipEval
         }
@@ -1017,7 +1017,7 @@ public class Repl {
 
         // 转换代码
         let transformedCode = transformForRepl(code)
-        if (transformedCode == None) {
+        if (transformedCode.isNone()) {
             evaluateRaw(code)
             return
         }
@@ -1035,7 +1035,7 @@ public class Repl {
         // 处理异步结果
         var resolvedResult = result
         let promise = result.asPromise()
-        if (promise != None) {
+        if (promise.isSome()) {
             promise.getOrThrow().setHandled()
             vm.waitForPromise(promise)
 
@@ -1064,7 +1064,7 @@ public class Repl {
         var actualResult = resolvedResult
         if (resolvedResult.isObject()) {
             let maybeValue = resolvedResult.getOwn(global, "value")
-            if (maybeValue != None) {
+            if (maybeValue.isSome()) {
                 actualResult = maybeValue.getOrThrow()
             }
         }
@@ -1117,7 +1117,7 @@ public class Repl {
         }
 
         let transformedCode = transformForRepl(code)
-        if (transformedCode == None) {
+        if (transformedCode.isNone()) {
             val (result, exception) = JscREPL.evaluate(global, code, "[eval]")
             if (!exception.isUndefined() && !exception.isNull()) {
                 printJSError(exception)
@@ -1135,7 +1135,7 @@ public class Repl {
         // 处理异步
         var resolvedResult = result
         let promise = result.asPromise()
-        if (promise != None) {
+        if (promise.isSome()) {
             promise.getOrThrow().setHandled()
             vm.waitForPromise(promise)
             match (promise.getOrThrow().status()) {
@@ -1150,7 +1150,7 @@ public class Repl {
         var actualResult = resolvedResult
         if (resolvedResult.isObject()) {
             let maybeValue = resolvedResult.getOwn(global, "value")
-            if (maybeValue != None) {
+            if (maybeValue.isSome()) {
                 actualResult = maybeValue.getOrThrow()
             }
         }
@@ -1204,7 +1204,7 @@ public class Repl {
             }
         }
 
-        if (vm != None) {
+        if (vm.isSome()) {
             vm.getOrThrow().tick()
         }
     }
@@ -1222,7 +1222,7 @@ public class Repl {
         }
 
         let transformedCode = transformForRepl(code)
-        if (transformedCode == None) {
+        if (transformedCode.isNone()) {
             evaluateRaw(code)
             return
         }
@@ -1237,7 +1237,7 @@ public class Repl {
 
         var resolvedResult = result
         let promise = result.asPromise()
-        if (promise != None) {
+        if (promise.isSome()) {
             promise.getOrThrow().setHandled()
             vm.waitForPromise(promise)
             match (promise.getOrThrow().status()) {
@@ -1253,7 +1253,7 @@ public class Repl {
         var actualResult = resolvedResult
         if (resolvedResult.isObject()) {
             let maybeValue = resolvedResult.getOwn(global, "value")
-            if (maybeValue != None) {
+            if (maybeValue.isSome()) {
                 actualResult = maybeValue.getOrThrow()
             }
         }
@@ -1328,7 +1328,7 @@ public class Repl {
     /// 打印 JS 错误
     /// 对应 Bun: Repl.printJSError
     public func printJSError(errorValue: JSValue): Unit {
-        if (errorValue == None || errorValue.isUndefined()) {
+        if (errorValue.isNone() || errorValue.isUndefined()) {
             return
         }
         let formatted = ConsoleObject.formatError(errorValue, useColors)
@@ -1346,7 +1346,7 @@ public class Repl {
     /// 对应 Bun: Repl.copyValueToClipboard
     public func copyValueToClipboard(value: JSValue): Unit {
         let text = valueToClipboardString(value)
-        if (text == None) {
+        if (text.isNone()) {
             printError("Failed to format value for clipboard\n")
             return
         }
@@ -1396,7 +1396,7 @@ public class Repl {
     /// 对应 Bun: Repl.runWithVM
     public func runWithVM(vm: ?VirtualMachine): Unit {
         this.vm = vm
-        if (vm != None) {
+        if (vm.isSome()) {
             global = vm.getOrThrow().global
         }
 
@@ -1413,7 +1413,7 @@ public class Repl {
 
         while (running) {
             let key = readKey()
-            if (key == None) {
+            if (key.isNone()) {
                 // EOF
                 print("\n")
                 break
@@ -1491,13 +1491,13 @@ public class Repl {
                     refreshLine()
                 case Key.arrowUp, Key.ctrlP =>
                     let prevLine = history.prev(lineEditor.getLine())
-                    if (prevLine != None) {
+                    if (prevLine.isSome()) {
                         lineEditor.set(prevLine.getOrThrow())
                         refreshLine()
                     }
                 case Key.arrowDown, Key.ctrlN =>
                     let nextLine = history.next()
-                    if (nextLine != None) {
+                    if (nextLine.isSome()) {
                         lineEditor.set(nextLine.getOrThrow())
                     } else {
                         lineEditor.clear()
@@ -1558,7 +1558,7 @@ public class Repl {
             let args = if (spaceIdx >= 0) { line.substring(spaceIdx + 1) } else { "" }
 
             let cmd = ReplCommandDef.find(cmdName)
-            if (cmd != None) {
+            if (cmd.isSome()) {
                 let result = cmd.getOrThrow().handler(this, args)
                 match (result) {
                     case ReplResult.exitRepl =>
@@ -1689,7 +1689,7 @@ public class Repl {
         }
 
         // 属性补全
-        if (global == None) {
+        if (global.isNone()) {
             lineEditor.insert(' '.toUInt8())
             lineEditor.insert(' '.toUInt8())
             refreshLine()
@@ -1711,7 +1711,7 @@ public class Repl {
         // 从全局对象获取补全
         let completions = JscREPL.getCompletions(global.getOrThrow(), JSValue.jsUndefined(), prefix)
 
-        if (completions == None || !completions.getOrThrow().isArray()) {
+        if (completions.isNone() || !completions.getOrThrow().isArray()) {
             lineEditor.insert(' '.toUInt8())
             lineEditor.insert(' '.toUInt8())
             refreshLine()

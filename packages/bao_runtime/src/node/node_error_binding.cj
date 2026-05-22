@@ -35,8 +35,8 @@ public class NodeErrorBinding {
     // 使用 createTypeErrorInstance（TypeError 而非 Error）
     public static func createInvalidHandleTypeError(): NodeError {
         return NodeError(
-            code: "ERR_INVALID_HANDLE_TYPE",
-            message: "This handle type cannot be sent"
+            "ERR_INVALID_HANDLE_TYPE",
+            "This handle type cannot be sent"
         )
     }
 
@@ -45,14 +45,14 @@ public class NodeErrorBinding {
     // 使用 createErrorInstance（普通 Error）
     public static func createChildClosedBeforeReplyError(): NodeError {
         return NodeError(
-            code: "ERR_CHILD_CLOSED_BEFORE_REPLY",
-            message: "Child closed before reply received"
+            "ERR_CHILD_CLOSED_BEFORE_REPLY",
+            "Child closed before reply received"
         )
     }
 
     // 根据错误码创建对应的错误对象
     public static func createSimpleError(code: String, message: String): NodeError {
-        return NodeError(code: code, message: message)
+        return NodeError(code, message)
     }
 
     // 创建 JS 错误函数
@@ -61,13 +61,13 @@ public class NodeErrorBinding {
     public static func createErrorFunction(code: String, message: String, isTypeError: Bool): () -> NodeError {
         if (isTypeError) {
             return { =>
-                let err = NodeError(code: code, message: message)
+                let err = NodeError(code, message)
                 err.isTypeError = true
                 return err
             }
         }
         return { =>
-            NodeError(code: code, message: message)
+            NodeError(code, message)
         }
     }
 }

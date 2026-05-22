@@ -32,9 +32,19 @@ public class TimeoutObject {
 
     public init() {
         refCount = RefCount()
-        eventLoopTimer = EventLoopTimer(TimerTagKind.Timeout)
+        eventLoopTimer = EventLoopTimer(TimerTag.TimeoutObject)
         internals = TimerObjectInternals()
         internals.ownerTimeout = this
+    }
+
+    /// 增加引用 - 对应 Bun ref
+    public func ref(): Unit {
+        refCount.ref()
+    }
+
+    /// 减少引用 - 对应 Bun deref
+    public func deref(): Unit {
+        refCount.deref()
     }
 
     // ========================================================================
@@ -66,7 +76,7 @@ public class TimeoutObject {
         let jsValue = timeout.toJS(globalThis)
         jsValue.ensureStillAlive()
 
-        timeout.internals.init(
+        timeout.internals.initFunc(
             jsValue,
             globalThis,
             id,
@@ -76,10 +86,10 @@ public class TimeoutObject {
             arguments
         )
 
-        if (globalThis.bunVM().isInspectorEnabled()) {
+        if (timerGetVM(globalThis).isInspectorEnabled()) {
             let kindBig = kind.big()
             let timerId = TimerID(id, kindBig)
-            Debugger.didScheduleAsyncCall(
+            TimerDebugger.didScheduleAsyncCall(
                 globalThis,
                 DOMTimer,
                 timerId.asyncID(),
@@ -167,7 +177,7 @@ public class TimeoutObject {
 
     /// close 操作 - 对应 Bun close
     public func close(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
-        internals.cancel(globalThis.bunVM())
+        internals.cancel(timerGetVM(globalThis))
         callFrame.this_()
     }
 
@@ -238,7 +248,7 @@ public class TimeoutObject {
 
     /// 释放 - 对应 Bun dispose
     public func dispose(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
-        internals.cancel(globalThis.bunVM())
+        internals.cancel(timerGetVM(globalThis))
         JSValue.jsUndefined()
     }
 
@@ -324,73 +334,4 @@ public class TimeoutObject {
     public static func jsIdleStartSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {
         thisValue.setCachedProperty("idleStart", value)
     }
-}
-
-// ============================================================================
-// RefCount - 引用计数
-// 对应 Bun bun.ptr.RefCount
-// ============================================================================
-
-/// 引用计数 - 对应 Bun RefCount
-public class RefCount {
-    private var count: Int32 = 0
-    private var deinitFn: (() -> Unit)
-
-    public init() {
-        deinitFn = { }
-    }
-
-    public init(deinitFn: () -> Unit) {
-        this.deinitFn = deinitFn
-    }
-
-    /// 初始化 - 对应 Bun RefCount.init()
-    public func init_(): Unit {
-        count = 1
-    }
-
-    /// 增加引用 - 对应 Bun ref
-    public func ref(): Unit {
-        count = count + 1
-    }
-
-    /// 减少引用 - 对应 Bun deref
-    public func deref(): Unit {
-        count = count - 1
-        if (count <= 0) {
-            deinitFn()
-        }
-    }
-
-    /// 断言没有残留引用 - 对应 Bun assertNoRefs
-    public func assertNoRefs(): Unit {
-        // 在 debug 模式下断言 count == 0
-    }
-}
-
-// ============================================================================
-// CallFrame - JS 调用帧
-// 对应 Bun jsc.CallFrame
-// ============================================================================
-
-/// JS 调用帧 - 对应 Bun jsc.CallFrame
-public class CallFrame {
-    /// 获取 this 值
-    public func this_(): JSValue {
-        JSValue.jsUndefined()
-    }
-
-    /// 获取参数
-    public func argument(index: Int64): JSValue {
-        JSValue.jsUndefined()
-    }
-}
-
-/// JSValue 扩展 - 缓存属性操作
-public func getCachedProperty(name: String): JSValue {
-    JSValue.jsUndefined()
-}
-
-public func setCachedProperty(name: String, value: JSValue): Unit {
-    // 缓存属性设置
 }

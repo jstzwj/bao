@@ -11,6 +11,7 @@ package bao_cli
 import bao_core.*
 import bao_install.*
 import bao_http.*
+import bao_collections.*
 
 // ============================================================================
 // PmViewCommand — 查看包元数据命令
@@ -41,7 +42,7 @@ public class PmViewCommand {
         if (packageSpec == "." || packageSpec == "") {
             // 尝试从 package.json 获取包名
             let pkgName = readCurrentPackageName(pm)
-            if (pkgName != None) {
+            if (pkgName.isSome()) {
                 name = pkgName.getOrThrow()
             } else {
                 name = Path.basename(FileSystem.instance.topLevelDir)
@@ -55,15 +56,15 @@ public class PmViewCommand {
         // 从 registry 获取元数据
         // 对应 Bun: scope_for_package_name + URL::parse + HTTP GET
         let metadata = fetchPackageMetadata(pm, name, version)
-        if (metadata == None) {
+        if (metadata.isNone()) {
             Output.errGeneric("Package not found: ${name}")
             return
         }
 
         // 打印结果
-        if (propertyPath != None) {
+        if (propertyPath.isSome()) {
             let value = resolveJsonPath(metadata.getOrThrow(), propertyPath.getOrThrow())
-            if (value != None) {
+            if (value.isSome()) {
                 // 检查是否为数组 (多值输出, 每行一个)
                 if (value.getOrThrow().isArray()) {
                     let arr = value.getOrThrow().asArray()
@@ -89,7 +90,7 @@ public class PmViewCommand {
 
         if (spec == "." || spec == "") {
             let pkgName = readCurrentPackageName(pm)
-            if (pkgName != None) {
+            if (pkgName.isSome()) {
                 name = pkgName.getOrThrow()
             } else {
                 name = Path.basename(FileSystem.instance.topLevelDir)
@@ -101,14 +102,14 @@ public class PmViewCommand {
         }
 
         let metadata = fetchPackageMetadata(pm, name, version)
-        if (metadata == None) {
+        if (metadata.isNone()) {
             Output.errGeneric("Package not found: ${name}")
             return
         }
 
-        if (propertyPath != None) {
+        if (propertyPath.isSome()) {
             let value = resolveJsonPath(metadata.getOrThrow(), propertyPath.getOrThrow())
-            if (value != None) {
+            if (value.isSome()) {
                 if (jsonOutput) {
                     Output.println(JsonFormatter.format(value.getOrThrow()))
                 } else {
@@ -136,13 +137,13 @@ public class PmViewCommand {
     /// 对应 Bun: 尝试从 package.json 读取 name
     private static func readCurrentPackageName(pm: PackageManager): ?String {
         let pkgContent = BaoFile.readAllText("package.json")
-        if (pkgContent == None) {
+        if (pkgContent.isNone()) {
             return None
         }
         let json = JsonParser.parse(pkgContent.getOrThrow())
-        if (json != None && json.getOrThrow().isObject()) {
+        if (json.isSome() && json.getOrThrow().isObject()) {
             let name = json.getOrThrow().asObject().get("name")
-            if (name != None && name.getOrThrow().isString()) {
+            if (name.isSome() && name.getOrThrow().isString()) {
                 let nameStr = name.getOrThrow().asString()
                 if (nameStr.length > 0) {
                     return nameStr
@@ -197,7 +198,7 @@ public class PmViewCommand {
         // HTTP 代理和 TLS 配置
         // 对应 Bun: manager.http_proxy / manager.tls_reject_unauthorized
         let response = HttpClient.getSynchronous(url, headers)
-        if (response == None) {
+        if (response.isNone()) {
             return None
         }
 
@@ -221,7 +222,7 @@ public class PmViewCommand {
             } else if (current.isArray()) {
                 // 支持数组索引: versions.0, versions[0]
                 let idx = Int64.parse(part)
-                if (idx != None) {
+                if (idx.isSome()) {
                     let arr = current.asArray()
                     if (idx.getOrThrow() >= 0 && idx.getOrThrow() < arr.length) {
                         current = arr[idx.getOrThrow()]
@@ -257,7 +258,7 @@ public class PmViewCommand {
 
         // 打印关键词
         let keywords = obj.get("keywords")
-        if (keywords != None && keywords.getOrThrow().isArray()) {
+        if (keywords.isSome() && keywords.getOrThrow().isArray()) {
             let kw = keywords.getOrThrow().asArray().map { it.asString() }.joinToString(" ")
             Output.println("keywords: ${kw}")
         }
@@ -269,7 +270,7 @@ public class PmViewCommand {
 
         // 打印可用版本
         let versions = obj.get("versions")
-        if (versions != None && versions.getOrThrow().isObject()) {
+        if (versions.isSome() && versions.getOrThrow().isObject()) {
             let versionList = versions.getOrThrow().asObject().keys()
             Output.println("versions: ${versionList.length} versions available")
             // 显示最近的 5 个版本
@@ -286,7 +287,7 @@ public class PmViewCommand {
 
         // 打印 dist-tags
         let distTags = obj.get("dist-tags")
-        if (distTags != None && distTags.getOrThrow().isObject()) {
+        if (distTags.isSome() && distTags.getOrThrow().isObject()) {
             Output.println("dist-tags:")
             for ((tag, ver) in distTags.getOrThrow().asObject()) {
                 Output.println("  ${tag}: ${ver.asString()}")
@@ -296,14 +297,14 @@ public class PmViewCommand {
 
     private static func printField(obj: JsonObject, field: String): Unit {
         let value = obj.get(field)
-        if (value != None) {
+        if (value.isSome()) {
             Output.println("${field}: ${formatJsonValue(value.getOrThrow())}")
         }
     }
 
     private static func printDependencies(obj: JsonObject, field: String): Unit {
         let deps = obj.get(field)
-        if (deps != None && deps.getOrThrow().isObject() && deps.getOrThrow().asObject().size > 0) {
+        if (deps.isSome() && deps.getOrThrow().isObject() && deps.getOrThrow().asObject().size > 0) {
             Output.println("${field}:")
             for ((name, version) in deps.getOrThrow().asObject()) {
                 Output.println("  ${name}: ${version.asString()}")
@@ -316,7 +317,7 @@ public class PmViewCommand {
         match (value) {
             case JsonValue.Str(s) => return s
             case JsonValue.Num(n) => return "${n}"
-            case JsonValue.Bool(b) => return "${b}"
+            case JsonValue.`Bool`(b) => return "${b}"
             case JsonValue.Null => return "null"
             case JsonValue.Obj(obj) => return JsonFormatter.format(value)
             case JsonValue.Arr(arr) => return JsonFormatter.format(value)

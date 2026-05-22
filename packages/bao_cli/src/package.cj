@@ -300,7 +300,7 @@ public class CliParser {
 public let BAO_VERSION = "0.1.0"
 
 /// Bao CLI 主入口
-public func main(): Unit {
+main(): Unit {
     let args = getArgs()
     let command = CliParser.parse(args)
 

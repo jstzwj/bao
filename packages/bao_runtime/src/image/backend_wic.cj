@@ -157,8 +157,8 @@ public class BackendWic {
     }
 
     /// COM 创建实例
-    public static func coCreateInstance(clsid: CPointer<COMGuid>, outer: CPointer<UInt8>,
-        ctx: UInt32, iid: CPointer<COMGuid>, out: CPointer<CPointer<UInt8>>): Int32 {
+    public static func coCreateInstance(clsid: UIntNative, outer: UIntNative,
+        ctx: UInt32, iid: UIntNative, out: UIntNative): Int32 {
         // FFI: ole32 CoCreateInstance
         return -1
     }
@@ -195,8 +195,8 @@ public class BackendWic {
     }
 
     /// WIC 转换位图源 (从 windowscodecs.dll 延迟加载的唯一平坦导出)
-    public static func wicConvertBitmapSource(dstFmt: CPointer<COMGuid>, src: CPointer<UInt8>,
-        out: CPointer<CPointer<UInt8>>): Int32 {
+    public static func wicConvertBitmapSource(dstFmt: UIntNative, src: UIntNative,
+        out: UIntNative): Int32 {
         // FFI: WICConvertBitmapSource
         return -1
     }
@@ -382,7 +382,10 @@ public class BackendWic {
     /// (剪贴板省略的) 将其重新包装为 BMP 文件。
     /// 无论哪种方式, 结果是常规 BunImage 解码器理解的字节; 此处不解码。
     public static func clipboard(): ?Array<UInt8> {
-        if (openClipboard(UIntNative.None) == 0) { return None }
+        if (openClipboard(UIntNative(0)) == 0) {
+            let noneResult: ?Array<UInt8> = None
+            return noneResult
+        }
         // defer: closeClipboard()
 
         // 1. 注册的文件格式块 — 逐字复制
@@ -418,7 +421,7 @@ public class BackendWic {
                     // BITMAPFILEHEADER: 'BM' . u32 file-size . 2xu16 reserved . u32 bfOffBits
                     // bfOffBits = 14 + biSize + colour-table; 24/32 位 DIB 无颜色表,
                     // 但 40 字节头部带 BI_BITFIELDS 附加 12 字节掩码。
-                    let ihSize: UInt64 = readUInt32LE(buf, 14)
+                    let ihSize: UInt64 = UInt64(readUInt32LE(buf, 14))
                     let compression: UInt32 = readUInt32LE(buf, 14 + 16)
                     let masks: UInt64 = if (ihSize == 40 && compression == 3) { 12 } else { 0 }
                     let off = 14 + ihSize + masks

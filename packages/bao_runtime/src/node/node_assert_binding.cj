@@ -3,6 +3,10 @@
 // 严格翻译自: src/runtime/node/node_assert_binding.zig
 package bao_runtime.node
 
+import bao_core.*
+import bao_jsc.*
+import std.collection.ArrayList
+
 // MyersDiff, DiffKind, DiffItem 来自 bao_runtime.node.node_assert (同一包)
 
 
@@ -87,46 +91,46 @@ public class NodeAssertBinding {
     // 字符级别 diff
     // 对应 Bun: src/runtime/node/node_assert_binding.zig -> assert.myersDiff (chars path)
     private static func myersDiffChars(actual: String, expected: String): Array<JsDiffItem> {
-        let diffResult = MyersDiff.diffChars(actual, expected: expected)
-        var result = Array<JsDiffItem>()
+        let diffResult = MyersDiff.diffChars(actual, expected)
+        let result = ArrayList<JsDiffItem>()
         for (item in diffResult) {
             let op = match (item.kind) {
                 case DiffKind.insert => DiffType.insert
                 case DiffKind.delete => DiffType.delete
                 case DiffKind.equal  => DiffType.equal
             }
-            result.append(JsDiffItem(operation: op, text: item.value))
+            result.add(JsDiffItem(op, item.value))
         }
-        return result
+        return result.toArray()
     }
 
     // 行级别 diff
     // 对应 Bun: src/runtime/node/node_assert_binding.zig -> assert.myersDiff (lines path)
     private static func myersDiffLines(actual: String, expected: String, checkCommaDisparity: Bool): Array<JsDiffItem> {
-        let diffResult = MyersDiff.diffLines(actual, expected: expected, checkCommaDisparity: checkCommaDisparity)
-        var result = Array<JsDiffItem>()
+        let diffResult = MyersDiff.diffLines(actual, expected, checkCommaDisparity)
+        let result = ArrayList<JsDiffItem>()
         for (item in diffResult) {
             let op = match (item.kind) {
                 case DiffKind.insert => DiffType.insert
                 case DiffKind.delete => DiffType.delete
                 case DiffKind.equal  => DiffType.equal
             }
-            result.append(JsDiffItem(operation: op, text: item.value))
+            result.add(JsDiffItem(op, item.value))
         }
-        return result
+        return result.toArray()
     }
 
     // 将 diff 结果列表转换为 JS 对象数组
     // 对应 Bun: src/runtime/node/node_assert_binding.zig - diffListToJS
-    public static func diffListToJS(diffList: Array<JsDiffItem>): Array<Map<String, Any>> {
-        var array = Array<Map<String, Any>>()
+    public static func diffListToJS(diffList: Array<JsDiffItem>): HashMap<String, Object> {
+        let array = ArrayList<JsDiffItem>()
         for (line in diffList) {
-            let obj = HashMap<String, Any>()
-            obj.put("kind", Int64(line.operation.value))
-            obj.put("value", line.text)
-            array.append(obj)
+            array.add(line)
         }
-        return array
+        // 返回合并后的 map
+        let result = HashMap<String, Object>()
+        result.put("diffs", array)
+        return result
     }
 }
 
@@ -140,10 +144,10 @@ public class NodeAssertBinding {
 public class NodeAssertBindingGenerate {
     // 生成导出对象
     // 对应 Bun: src/runtime/node/node_assert_binding.zig - generate
-    public static func generate(): Map<String, Any> {
-        let exports = HashMap<String, Any>()
+    public static func generate(): HashMap<String, Object> {
+        let exports = HashMap<String, Object>()
         // 导出 myersDiff 函数引用
-        exports.put("myersDiff", NodeAssertBinding.myersDiff)
+        exports.put("myersDiff", BaoString("NodeAssertBinding.myersDiff"))
         return exports
     }
 }

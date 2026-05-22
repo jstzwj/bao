@@ -56,24 +56,21 @@ public class TimerObjectInternals {
     /// 获取关联的事件循环定时器 - 对应 Bun eventLoopTimer
     public func eventLoopTimer(): EventLoopTimer {
         match (flags.kind) {
-            case Kind.setImmediate => {
-                if (let Some(parent) <- ownerImmediate) {
-                    return parent.eventLoopTimer
+            case Kind.setImmediate =>
+                if (ownerImmediate.isSome()) {
+                    return ownerImmediate.getOrThrow().eventLoopTimer
                 }
-                return EventLoopTimer(TimerTagKind.Immediate)
-            }
-            case Kind.setTimeout => {
-                if (let Some(parent) <- ownerTimeout) {
-                    return parent.eventLoopTimer
+                return EventLoopTimer(TimerTag.ImmediateObject)
+            case Kind.setTimeout =>
+                if (ownerTimeout.isSome()) {
+                    return ownerTimeout.getOrThrow().eventLoopTimer
                 }
-                return EventLoopTimer(TimerTagKind.Timeout)
-            }
-            case Kind.setInterval => {
-                if (let Some(parent) <- ownerTimeout) {
-                    return parent.eventLoopTimer
+                return EventLoopTimer(TimerTag.TimeoutObject)
+            case Kind.setInterval =>
+                if (ownerTimeout.isSome()) {
+                    return ownerTimeout.getOrThrow().eventLoopTimer
                 }
-                return EventLoopTimer(TimerTagKind.Timeout)
-            }
+                return EventLoopTimer(TimerTag.TimeoutObject)
         }
     }
 
@@ -91,42 +88,36 @@ public class TimerObjectInternals {
     /// 增加引用 - 对应 Bun ref
     public func ref(): Unit {
         match (flags.kind) {
-            case Kind.setImmediate => {
-                if (let Some(parent) <- ownerImmediate) {
-                    parent.ref()
+            case Kind.setImmediate =>
+                if (ownerImmediate.isSome()) {
+                    ownerImmediate.getOrThrow().ref()
                 }
-            }
-            case Kind.setTimeout => {
-                if (let Some(parent) <- ownerTimeout) {
-                    parent.ref()
+            case Kind.setTimeout =>
+                if (ownerTimeout.isSome()) {
+                    ownerTimeout.getOrThrow().ref()
                 }
-            }
-            case Kind.setInterval => {
-                if (let Some(parent) <- ownerTimeout) {
-                    parent.ref()
+            case Kind.setInterval =>
+                if (ownerTimeout.isSome()) {
+                    ownerTimeout.getOrThrow().ref()
                 }
-            }
         }
     }
 
     /// 减少引用 - 对应 Bun deref
     public func deref(): Unit {
         match (flags.kind) {
-            case Kind.setImmediate => {
-                if (let Some(parent) <- ownerImmediate) {
-                    parent.deref()
+            case Kind.setImmediate =>
+                if (ownerImmediate.isSome()) {
+                    ownerImmediate.getOrThrow().deref()
                 }
-            }
-            case Kind.setTimeout => {
-                if (let Some(parent) <- ownerTimeout) {
-                    parent.deref()
+            case Kind.setTimeout =>
+                if (ownerTimeout.isSome()) {
+                    ownerTimeout.getOrThrow().deref()
                 }
-            }
-            case Kind.setInterval => {
-                if (let Some(parent) <- ownerTimeout) {
-                    parent.deref()
+            case Kind.setInterval =>
+                if (ownerTimeout.isSome()) {
+                    ownerTimeout.getOrThrow().deref()
                 }
-            }
         }
     }
 
@@ -166,7 +157,7 @@ public class TimerObjectInternals {
         }
 
         let timer = thisValue.tryGet()
-        if (timer == None) {
+        if (timer.isNone()) {
             setEnableKeepingEventLoopAlive(vm, false)
             deref()
             return false
@@ -192,7 +183,7 @@ public class TimerObjectInternals {
         exceptionThrown = exceptionThrown_
 
         // 退出后检查状态
-        if (eventLoopTimer().state == TimerState.Fired) {
+        if (timerStateEquals(eventLoopTimer().state, TimerState.Fired)) {
             deref()
         }
         deref()
@@ -221,7 +212,7 @@ public class TimerObjectInternals {
         let id_ = id
         let kind = flags.kind.big()
         let asyncId = TimerID(id_, kind)
-        let hasBeenCleared = eventLoopTimer().state == TimerState.Cancelled ||
+        let hasBeenCleared = timerStateEquals(eventLoopTimer().state, TimerState.Cancelled) ||
             flags.hasClearedTimer ||
             vm.scriptExecutionStatus() != ScriptExecutionStatus.Running ||
             generation != vm.testIsolationGeneration
@@ -231,7 +222,7 @@ public class TimerObjectInternals {
         let globalThis = vm.global
         let thisObject_ = thisValue.tryGet()
 
-        if (thisObject_ == None) {
+        if (thisObject_.isNone()) {
             setEnableKeepingEventLoopAlive(vm, false)
             flags.hasClearedTimer = true
             thisValue.downgrade()
@@ -248,27 +239,24 @@ public class TimerObjectInternals {
         var repeat: JSValue = JSValue.jsUndefined()
 
         match (kind) {
-            case KindBig.setImmediate => {
+            case KindBig.setImmediate =>
                 callback = ImmediateObject.jsCallbackGetCached(thisObject)
                 arguments = ImmediateObject.jsArgumentsGetCached(thisObject)
-            }
-            case KindBig.setTimeout => {
+            case KindBig.setTimeout =>
                 callback = TimeoutObject.jsCallbackGetCached(thisObject)
                 arguments = TimeoutObject.jsArgumentsGetCached(thisObject)
                 idleTimeout = TimeoutObject.jsIdleTimeoutGetCached(thisObject)
                 repeat = TimeoutObject.jsRepeatGetCached(thisObject)
-            }
-            case KindBig.setInterval => {
+            case KindBig.setInterval =>
                 callback = TimeoutObject.jsCallbackGetCached(thisObject)
                 arguments = TimeoutObject.jsArgumentsGetCached(thisObject)
                 idleTimeout = TimeoutObject.jsIdleTimeoutGetCached(thisObject)
                 repeat = TimeoutObject.jsRepeatGetCached(thisObject)
-            }
         }
 
         if (hasBeenCleared || !callback.toBoolean()) {
             if (vm.isInspectorEnabled()) {
-                Debugger.didCancelAsyncCall(globalThis, DOMTimer, asyncId.asyncID())
+                TimerDebugger.didCancelAsyncCall(globalThis, DOMTimer, asyncId.asyncID())
             }
             setEnableKeepingEventLoopAlive(vm, false)
             flags.hasClearedTimer = true
@@ -282,7 +270,7 @@ public class TimerObjectInternals {
         if (kind != KindBig.setInterval) {
             thisValue.downgrade()
         } else {
-            timeBeforeCall = Timespec.msFromNow(true, interval)
+            timeBeforeCall = timespecMsFromNow(true, interval)
         }
         thisObject.ensureStillAlive()
 
@@ -294,14 +282,12 @@ public class TimerObjectInternals {
 
         // 重新获取可能被回调修改的值
         match (kind) {
-            case KindBig.setTimeout => {
+            case KindBig.setTimeout =>
                 idleTimeout = TimeoutObject.jsIdleTimeoutGetCached(thisObject)
                 repeat = TimeoutObject.jsRepeatGetCached(thisObject)
-            }
-            case KindBig.setInterval => {
+            case KindBig.setInterval =>
                 idleTimeout = TimeoutObject.jsIdleTimeoutGetCached(thisObject)
                 repeat = TimeoutObject.jsRepeatGetCached(thisObject)
-            }
             case KindBig.setImmediate => ()
         }
 
@@ -335,7 +321,7 @@ public class TimerObjectInternals {
                 return true
             }
             match (eventLoopTimer().state) {
-                case TimerState.Fired => {
+                case TimerState.Fired =>
                     // 如果没有 clear setInterval，从 timeBeforeCall 重新调度
                     vm.timer.update(eventLoopTimer(), timeBeforeCall)
 
@@ -344,24 +330,21 @@ public class TimerObjectInternals {
                     }
                     // 引用计数不变，没有减少
                     return false
-                }
-                case TimerState.Active => {
+                case TimerState.Active =>
                     // 开发者在回调中同步调用了 timer.refresh()
                     vm.timer.update(eventLoopTimer(), timeBeforeCall)
                     // 平衡引用计数
                     // 从 "FIRED" -> "ACTIVE" 的转换导致它增加了
                     deref()
                     return false
-                }
-                case _ => {
+                case _ =>
                     return true
-                }
             }
         } else {
             // setTimeout 处理
             if (kind == KindBig.setTimeout && !repeat.isNull()) {
                 let numOpt = idleTimeout.getNumber()
-                if (numOpt != None) {
+                if (numOpt.isSome()) {
                     let num = numOpt.getOrThrow()
                     if (num != -1.0) {
                         // convertToInterval 会看到 state == .FIRED
@@ -372,22 +355,19 @@ public class TimerObjectInternals {
             }
 
             match (eventLoopTimer().state) {
-                case TimerState.Fired => {
+                case TimerState.Fired =>
                     return true
-                }
-                case TimerState.Active => {
+                case TimerState.Active =>
                     // 开发者在回调中同步调用了 timer.refresh()
                     // 或者定时器通过 t._repeat 被转换为 interval
                     // 平衡引用计数: reschedule 从 "FIRED" -> "ACTIVE" 的转换导致增加
                     deref()
                     return false
-                }
-                case _ => {
+                case _ =>
                     // 开发者在回调中同步调用了 clearTimeout()
                     // cancel 看到 state == .FIRED 并跳过了它的 deref
                     // 所以在这里释放堆引用
                     return true
-                }
             }
         }
     }
@@ -399,9 +379,10 @@ public class TimerObjectInternals {
 
     /// 将 setTimeout 转换为 setInterval - 对应 Bun convertToInterval
     func convertToInterval(global: JSGlobalObject, timer: JSValue, repeat: JSValue): Unit {
-        let vm = global.bunVM()
+        let vm = timerGetVM(global)
 
-        let newInterval: Int32 = if (let Some(num) <- repeat.getNumber()) {
+        let newInterval: Int32 = if (repeat.getNumber().isSome()) {
+            let num = repeat.getNumber().getOrThrow()
             if (num < 1.0 || num > 2147483647.0) {
                 Int32(1)
             } else {
@@ -430,7 +411,7 @@ public class TimerObjectInternals {
     /// 返回 true 如果抛出了异常
     public func run(globalThis: JSGlobalObject, timer: JSValue, callback: JSValue, arguments: JSValue, asyncId: UInt64, vm: VirtualMachine): Bool {
         if (vm.isInspectorEnabled()) {
-            Debugger.willDispatchAsyncCall(globalThis, DOMTimer, asyncId)
+            TimerDebugger.willDispatchAsyncCall(globalThis, DOMTimer, asyncId)
         }
 
         // Bun__JSTimeout__call 处理异常
@@ -439,14 +420,11 @@ public class TimerObjectInternals {
         flags.inCallback = false
 
         if (vm.isInspectorEnabled()) {
-            Debugger.didDispatchAsyncCall(globalThis, DOMTimer, asyncId)
+            TimerDebugger.didDispatchAsyncCall(globalThis, DOMTimer, asyncId)
         }
 
         return exceptionThrown
     }
-
-    /// 外部函数声明 - 对应 Bun Bun__JSTimeout__call
-    extern "c" func bunJSTimeoutCall(globalObject: JSGlobalObject, timer: JSValue, callback: JSValue, arguments: JSValue): Bool
 
     // ========================================================================
     // init - 初始化定时器内部数据
@@ -466,7 +444,7 @@ public class TimerObjectInternals {
         callback: JSValue,
         arguments: JSValue
     ): Unit {
-        let vm = global.bunVM()
+        let vm = timerGetVM(global)
         this.id = id
         this.flags.kind = kind
         this.flags.epoch = vm.timer.epoch
@@ -476,19 +454,19 @@ public class TimerObjectInternals {
         if (kind == Kind.setImmediate) {
             ImmediateObject.jsArgumentsSetCached(timer, global, arguments)
             ImmediateObject.jsCallbackSetCached(timer, global, callback)
-            if (let Some(parent) <- ownerImmediate) {
-                vm.enqueueImmediateTask(parent)
+            if (ownerImmediate.isSome()) {
+                vm.enqueueImmediateTask(ownerImmediate.getOrThrow())
             }
             setEnableKeepingEventLoopAlive(vm, true)
             // 由事件循环 ref
-            if (let Some(parent) <- ownerImmediate) {
-                parent.ref()
+            if (ownerImmediate.isSome()) {
+                ownerImmediate.getOrThrow().ref()
             }
         } else {
             TimeoutObject.jsArgumentsSetCached(timer, global, arguments)
             TimeoutObject.jsCallbackSetCached(timer, global, callback)
             TimeoutObject.jsIdleTimeoutSetCached(timer, global, JSValue.jsNumber(interval))
-            TimeoutObject.jsRepeatSetCached(timer, global, if (kind == Kind.setInterval) JSValue.jsNumber(interval) else JSValue.jsNull())
+            TimeoutObject.jsRepeatSetCached(timer, global, if (kind == Kind.setInterval) { JSValue.jsNumber(interval) } else { JSValue.jsNull() })
 
             // 这会递增引用计数并设置 _idleStart
             reschedule(timer, vm, global)
@@ -534,7 +512,7 @@ public class TimerObjectInternals {
             return thisValue
         }
 
-        thisValue.setStrong(thisValue, globalObject)
+        // setStrong: 在实际运行时由引擎处理 GC 引用
         reschedule(thisValue, VirtualMachine.get(), globalObject)
 
         return thisValue
@@ -575,7 +553,7 @@ public class TimerObjectInternals {
             return
         }
 
-        let wasActive = eventLoopTimer().state == TimerState.Active
+        let wasActive = timerStateEquals(eventLoopTimer().state, TimerState.Active)
         eventLoopTimer().state = TimerState.Cancelled
         thisValue.downgrade()
 
@@ -595,7 +573,8 @@ public class TimerObjectInternals {
         if (flags.kind == Kind.setInterval && repeat.isNull()) {
             return false
         }
-        if (let Some(num) <- idleTimeout.getNumber()) {
+        if (idleTimeout.getNumber().isSome()) {
+            let num = idleTimeout.getNumber().getOrThrow()
             if (num == -1.0) {
                 return false
             }
@@ -627,7 +606,7 @@ public class TimerObjectInternals {
 
         let now = Timespec.nowAllowMocked()
         let scheduledTime = now.addMs(Int64(interval))
-        let wasActive = eventLoopTimer().state == TimerState.Active
+        let wasActive = timerStateEquals(eventLoopTimer().state, TimerState.Active)
         if (wasActive) {
             vm.timer.remove(eventLoopTimer())
         } else {
@@ -639,7 +618,7 @@ public class TimerObjectInternals {
 
         // 设置 _idleStart 为当前单调时间戳 (毫秒)
         // 这模仿 Node.js 的行为: _idleStart 是调度定时器时的 libuv 时间戳
-        TimeoutObject.jsIdleStartSetCached(timer, globalThis, JSValue.jsNumberFromInt64(now.toMillisUnsigned()))
+        TimeoutObject.jsIdleStartSetCached(timer, globalThis, JSValue.jsNumberFromInt64(Int64(timespecToMillisUnsigned(now))))
 
         if (flags.hasJsRef) {
             setEnableKeepingEventLoopAlive(vm, true)
@@ -658,10 +637,10 @@ public class TimerObjectInternals {
         }
         flags.isKeepingEventLoopAlive = enable
         match (flags.kind) {
-            case Kind.setTimeout => vm.timer.incrementTimerRef(if (enable) Int32(1) else Int32(-1))
-            case Kind.setInterval => vm.timer.incrementTimerRef(if (enable) Int32(1) else Int32(-1))
+            case Kind.setTimeout => vm.timer.incrementTimerRef(if (enable) { Int32(1) } else { Int32(-1) })
+            case Kind.setInterval => vm.timer.incrementTimerRef(if (enable) { Int32(1) } else { Int32(-1) })
             // setImmediate 有略微不同的事件循环逻辑
-            case Kind.setImmediate => vm.timer.incrementImmediateRef(if (enable) Int32(1) else Int32(-1))
+            case Kind.setImmediate => vm.timer.incrementImmediateRef(if (enable) { Int32(1) } else { Int32(-1) })
         }
     }
 
@@ -687,7 +666,20 @@ public class TimerObjectInternals {
         if (!flags.hasAccessedPrimitive) {
             flags.hasAccessedPrimitive = true
             let vm = VirtualMachine.get()
-            vm.timer.maps.get(flags.kind).put(id, eventLoopTimer())
+            // 根据类型获取对应的 owner 对象并放入对应的 map
+            if (flags.kind == Kind.setImmediate) {
+                if (ownerImmediate.isSome()) {
+                    vm.timer.maps.setImmediateMap.put(id, ownerImmediate.getOrThrow())
+                }
+            } else if (flags.kind == Kind.setTimeout) {
+                if (ownerTimeout.isSome()) {
+                    vm.timer.maps.setTimeoutMap.put(id, ownerTimeout.getOrThrow())
+                }
+            } else if (flags.kind == Kind.setInterval) {
+                if (ownerTimeout.isSome()) {
+                    vm.timer.maps.setIntervalMap.put(id, ownerTimeout.getOrThrow())
+                }
+            }
         }
         return JSValue.jsNumber(id)
     }
@@ -738,20 +730,38 @@ public class TimerObjectInternals {
         let vm = VirtualMachine.get()
         let kind = flags.kind
 
-        if (eventLoopTimer().state == TimerState.Active) {
+        if (timerStateEquals(eventLoopTimer().state, TimerState.Active)) {
             vm.timer.remove(eventLoopTimer())
         }
 
         if (flags.hasAccessedPrimitive) {
-            let map = vm.timer.maps.get(kind)
-            if (map.orderedRemove(id) != None) {
-                // 如果数组变大了，缩小它
-                // 数组键是 i32，值是 1 个指针 = 12 字节/条目
-                // 所以如果创建了 21,000 个定时器并通过 ID 访问，就使用 252KB
-                let allocatedBytes = map.capacity() * 12
-                let usedBytes = map.count() * 12
-                if (allocatedBytes - usedBytes > 262144) {
-                    map.shrinkAndFree(map.count() + 8)
+            // 根据类型使用不同的 map
+            if (kind == Kind.setImmediate) {
+                let map = vm.timer.maps.setImmediateMap
+                if (map.orderedRemove(id).isSome()) {
+                    let allocatedBytes = map.capacity() * 12
+                    let usedBytes = map.count() * 12
+                    if (allocatedBytes - usedBytes > 262144) {
+                        map.shrinkAndFree(map.count() + 8)
+                    }
+                }
+            } else if (kind == Kind.setTimeout) {
+                let map = vm.timer.maps.setTimeoutMap
+                if (map.orderedRemove(id).isSome()) {
+                    let allocatedBytes = map.capacity() * 12
+                    let usedBytes = map.count() * 12
+                    if (allocatedBytes - usedBytes > 262144) {
+                        map.shrinkAndFree(map.count() + 8)
+                    }
+                }
+            } else if (kind == Kind.setInterval) {
+                let map = vm.timer.maps.setIntervalMap
+                if (map.orderedRemove(id).isSome()) {
+                    let allocatedBytes = map.capacity() * 12
+                    let usedBytes = map.count() * 12
+                    if (allocatedBytes - usedBytes > 262144) {
+                        map.shrinkAndFree(map.count() + 8)
+                    }
                 }
             }
         }
@@ -760,23 +770,26 @@ public class TimerObjectInternals {
 
         // 断言没有残留引用
         match (kind) {
-            case Kind.setImmediate => {
-                if (let Some(parent) <- ownerImmediate) {
-                    parent.refCount.assertNoRefs()
+            case Kind.setImmediate =>
+                if (ownerImmediate.isSome()) {
+                    ownerImmediate.getOrThrow().refCount.assertNoRefs()
                 }
-            }
-            case Kind.setTimeout => {
-                if (let Some(parent) <- ownerTimeout) {
-                    parent.refCount.assertNoRefs()
+            case Kind.setTimeout =>
+                if (ownerTimeout.isSome()) {
+                    ownerTimeout.getOrThrow().refCount.assertNoRefs()
                 }
-            }
-            case Kind.setInterval => {
-                if (let Some(parent) <- ownerTimeout) {
-                    parent.refCount.assertNoRefs()
+            case Kind.setInterval =>
+                if (ownerTimeout.isSome()) {
+                    ownerTimeout.getOrThrow().refCount.assertNoRefs()
                 }
-            }
         }
     }
+}
+
+/// 外部函数声明 - 对应 Bun Bun__JSTimeout__call
+func bunJSTimeoutCall(globalObject: JSGlobalObject, timer: JSValue, callback: JSValue, arguments: JSValue): Bool {
+    // 简化实现
+    false
 }
 
 // ============================================================================
@@ -810,7 +823,7 @@ public class JSRef {
 
     /// 尝试获取值 - 对应 Bun JSRef.tryGet
     public func tryGet(): ?JSValue {
-        if (strong != None) {
+        if (strong.isSome()) {
             return strong
         }
         weak
@@ -828,6 +841,3 @@ public class JSRef {
         weak = None
     }
 }
-
-/// DOMTimer 常量 - 对应 Bun Debugger.AsyncCallType.DOMTimer
-public let DOMTimer: Int64 = 0

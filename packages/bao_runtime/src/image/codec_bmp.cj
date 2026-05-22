@@ -53,7 +53,7 @@ public class CodecBmp {
 
         // OS/2 BITMAPCOREHEADER (12) 和其他特殊情况
         if (ihSize < 40) { return None }
-        if (14 + ihSize > UInt64(b.size)) { return None }
+        if (UInt64(14) + UInt64(ihSize) > UInt64(b.size)) { return None }
 
         let wRaw = readInt32LE(b, 18)
         let hRaw = readInt32LE(b, 22)
@@ -144,7 +144,7 @@ public class CodecBmp {
         // 像素守卫
         if (UInt64(h.width) * UInt64(h.height) > maxPixels) { return None }
 
-        let bppBytes: UInt32 = h.bpp / 8
+        let bppBytes: UInt32 = UInt32(h.bpp) / UInt32(8)
         // 行填充到 4 字节边界 — DWORD 对齐
         let stride: UInt64 = ((UInt64(h.width) * UInt64(bppBytes) + 3) / 4) * 4
         let need = UInt64(h.pixOff) + stride * UInt64(h.height)
@@ -185,7 +185,7 @@ public class CodecBmp {
                 let rMax = (UInt32(1) << rw) - 1
                 let gMax = (UInt32(1) << gw) - 1
                 let bMax = (UInt32(1) << bw) - 1
-                let aMax = if (aw > 0) { (UInt32(1) << aw) - 1 } else { UInt32.MaxValue }
+                let aMax = if (aWidth > 0) { (UInt32(1) << aWidth) - 1 } else { UInt32.Max }
 
                 let base = Int64(dstOff + UInt64(x) * 4)
                 out[base + 0] = to8((pix >> Int64(rs)) & rMax, rw)

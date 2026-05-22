@@ -45,7 +45,7 @@ public func getCandidatePackagePatterns(
         log.clear()
 
         let jsonSource = BaoFile.readAllText(jsonPath)
-        if (jsonSource == None) {
+        if (jsonSource.isNone()) {
             let parent = Path.dirname(currentDir)
             if (parent == currentDir || parent.length == 0) {
                 break
@@ -57,7 +57,7 @@ public func getCandidatePackagePatterns(
         let json = JsonParser.parse(jsonSource.getOrThrow())
 
         let workspacesProp = json?.getProperty("workspaces")
-        if (workspacesProp == None) {
+        if (workspacesProp.isNone()) {
             let parent = Path.dirname(currentDir)
             if (parent == currentDir || parent.length == 0) {
                 break
@@ -72,12 +72,12 @@ public func getCandidatePackagePatterns(
             jsonArr = workspacesProp.getOrThrow().asArray()
         } else if (workspacesProp.getOrThrow().isObject()) {
             let packages = workspacesProp.getOrThrow().getProperty("packages")
-            if (packages != None && packages.getOrThrow().isArray()) {
+            if (packages.isSome() && packages.getOrThrow().isArray()) {
                 jsonArr = packages.getOrThrow().asArray()
             }
         }
 
-        if (jsonArr != None) {
+        if (jsonArr.isSome()) {
             for (expr in jsonArr.getOrThrow()) {
                 if (expr.isString()) {
                     let patternExpr = expr.asString()
@@ -245,7 +245,7 @@ public class PackageFilterIterator {
             }
 
             let path = walkerNext()
-            if (path != None) {
+            if (path.isSome()) {
                 return path
             } else {
                 valid = false
@@ -264,7 +264,7 @@ public class PackageFilterIterator {
 
     /// 释放 walker
     private func deinitWalker(): Unit {
-        if (walker != None) {
+        if (walker.isSome()) {
             walker.getOrThrow().deinit()
             walker = None
         }
@@ -272,7 +272,7 @@ public class PackageFilterIterator {
 
     /// walker 的下一个结果
     private func walkerNext(): ?String {
-        if (walker == None) {
+        if (walker.isNone()) {
             return None
         }
         while (true) {

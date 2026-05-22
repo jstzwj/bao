@@ -70,7 +70,7 @@ public class PmPkgCommand {
 
         for (key in args) {
             let value = resolveJsonPath(json, key)
-            if (value != None) {
+            if (value.isSome()) {
                 printValue(value.getOrThrow(), source)
             }
         }
@@ -118,7 +118,7 @@ public class PmPkgCommand {
             let value = if (parseValuesAsJson) {
                 // 尝试将值解析为 JSON
                 let parsed = JsonParser.parse(rawValue)
-                if (parsed != None) {
+                if (parsed.isSome()) {
                     parsed.getOrThrow()
                 } else {
                     JsonValue.Str(rawValue)
@@ -172,7 +172,7 @@ public class PmPkgCommand {
         }
         let json = parsePackageJson(pkgContent)
 
-        if (json != None) {
+        if (json.isSome()) {
             // 修复逻辑
             var fixed = json.getOrThrow()
 
@@ -235,7 +235,7 @@ public class PmPkgCommand {
             let first = parts[0]
             let restPath = parts.subList(1, parts.length).joinToString(".")
             let existing = obj.get(first)
-            let newValue = if (existing != None) {
+            let newValue = if (existing.isSome()) {
                 setNestedValue(existing.getOrThrow(), restPath, value)
             } else {
                 // 创建嵌套对象
@@ -266,7 +266,7 @@ public class PmPkgCommand {
             let first = parts[0]
             let restPath = parts.subList(1, parts.length).joinToString(".")
             let existing = obj.get(first)
-            if (existing != None) {
+            if (existing.isSome()) {
                 obj.put(first, deleteNestedField(existing.getOrThrow(), restPath, value))
             }
             return JsonValue.Obj(obj)
@@ -282,7 +282,7 @@ public class PmPkgCommand {
     /// 读取 package.json
     private static func readPackageJson(): ?String {
         let content = BaoFile.readAllText("package.json")
-        if (content == None) {
+        if (content.isNone()) {
             Output.errGeneric("No package.json found in current directory")
         }
         return content
@@ -291,7 +291,7 @@ public class PmPkgCommand {
     /// 解析 package.json
     private static func parsePackageJson(content: String): ?JsonValue {
         let json = JsonParser.parse(content)
-        if (json == None) {
+        if (json.isNone()) {
             Output.errGeneric("Failed to parse package.json")
         }
         return json
@@ -343,7 +343,7 @@ public class PmPkgCommand {
         // 先按优先级顺序添加
         for (key in sortedOrder) {
             let value = obj.get(key)
-            if (value != None) {
+            if (value.isSome()) {
                 sorted.put(key, value.getOrThrow())
             }
         }
@@ -380,7 +380,7 @@ public class PmPkgCommand {
         match (value) {
             case JsonValue.Str(s) => Output.println(s)
             case JsonValue.Num(n) => Output.println("${n}")
-            case JsonValue.Bool(b) => Output.println("${b}")
+            case JsonValue.`Bool`(b) => Output.println("${b}")
             case JsonValue.Null => Output.println("null")
             case JsonValue.Obj(obj) => Output.println(JsonFormatter.format(value))
             case JsonValue.Arr(arr) =>
@@ -396,7 +396,7 @@ public class PmPkgCommand {
         match (value) {
             case JsonValue.Str(s) => return s
             case JsonValue.Num(n) => return "${n}"
-            case JsonValue.Bool(b) => return "${b}"
+            case JsonValue.`Bool`(b) => return "${b}"
             case JsonValue.Null => return "null"
             case JsonValue.Obj(obj) => return JsonFormatter.format(value)
             case JsonValue.Arr(arr) => return JsonFormatter.format(value)

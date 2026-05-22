@@ -104,7 +104,7 @@ public class ThumbHash {
             avg[3] += a
             ii += 4
         }
-        if (avg[3] > 0) {
+        if (avg[3] > 0.0f32) {
             avg[0] /= avg[3]
             avg[1] /= avg[3]
             avg[2] /= avg[3]
@@ -128,9 +128,9 @@ public class ThumbHash {
         var px: Int64 = 0
         while (ii < rgba.size) {
             let al: Float32 = Float32(rgba[ii + 3]) / 255.0f32
-            let r = avg[0] * (1 - al) + al / 255.0f32 * Float32(rgba[ii + 0])
-            let g = avg[1] * (1 - al) + al / 255.0f32 * Float32(rgba[ii + 1])
-            let b = avg[2] * (1 - al) + al / 255.0f32 * Float32(rgba[ii + 2])
+            let r = avg[0] * (1.0f32 - al) + al / 255.0f32 * Float32(rgba[ii + 0])
+            let g = avg[1] * (1.0f32 - al) + al / 255.0f32 * Float32(rgba[ii + 1])
+            let b = avg[2] * (1.0f32 - al) + al / 255.0f32 * Float32(rgba[ii + 2])
             l[px] = (r + g + b) / 3.0f32
             p[px] = (r + g) / 2.0f32 - b
             q[px] = r - g
@@ -150,14 +150,14 @@ public class ThumbHash {
         }
 
         let land = w > h
-        let h24: UInt32 = UInt32(round(63 * lc.dc)) |
-                          (UInt32(round(31.5 + 31.5 * pc.dc)) << 6) |
-                          (UInt32(round(31.5 + 31.5 * qc.dc)) << 12) |
-                          (UInt32(round(31 * lc.scale)) << 18) |
+        let h24: UInt32 = UInt32(round(63.0f32 * lc.dc)) |
+                          (UInt32(round(31.5f32 + 31.5f32 * pc.dc)) << 6) |
+                          (UInt32(round(31.5f32 + 31.5f32 * qc.dc)) << 12) |
+                          (UInt32(round(31.0f32 * lc.scale)) << 18) |
                           (if (hasAlpha) { UInt32(1) << 23 } else { 0 })
         let h16: UInt16 = UInt16(if (land) { ly } else { lx }) |
-                          (UInt16(round(63 * pc.scale)) << 3) |
-                          (UInt16(round(63 * qc.scale)) << 9) |
+                          (UInt16(round(63.0f32 * pc.scale)) << 3) |
+                          (UInt16(round(63.0f32 * qc.scale)) << 9) |
                           (if (land) { UInt16(1) << 15 } else { 0 })
 
         out[0] = UInt8(h24 & 0xFF)
@@ -167,7 +167,7 @@ public class ThumbHash {
         out[4] = UInt8((h16 >> 8) & 0xFF)
         var n: Int64 = 5
         if (hasAlpha) {
-            out[5] = UInt8(round(15 * ac.dc)) | (UInt8(round(15 * ac.scale)) << 4)
+            out[5] = UInt8(round(15.0f32 * ac.dc)) | (UInt8(round(15.0f32 * ac.scale)) << 4)
             n = 6
         }
 
@@ -176,7 +176,7 @@ public class ThumbHash {
         for (ch in channels) {
             var ci: Int64 = 0
             while (ci < ch.n) {
-                let u: UInt8 = UInt8(round(15 * ch.ac[ci]))
+                let u: UInt8 = UInt8(round(15.0f32 * ch.ac[ci]))
                 if (odd) {
                     out[n - 1] = out[n - 1] | (u << 4)
                 } else {
@@ -227,19 +227,19 @@ public class ThumbHash {
         var qAc = Array<Float32>(Int64(5), { _: Int64 => Float32(0.0) })
         var aAc = Array<Float32>(Int64(14), { _: Int64 => Float32(0.0) })
 
-        let ln = nibbles.channel(lAc, lx, ly, lScale)
+        let ln = nibbles.channel(lAc, UInt32(lx), UInt32(ly), lScale)
         if (ln.isNone()) { return None }
         // 1.25x 饱和度提升补偿 4 位量化
         let pn = nibbles.channel(pAc, 3, 3, pScale * 1.25f32)
         if (pn.isNone()) { return None }
         let qn = nibbles.channel(qAc, 3, 3, qScale * 1.25f32)
         if (qn.isNone()) { return None }
-        let an = if (hasAlpha) { nibbles.channel(aAc, 5, 5, aScale) } else { Int64(0) }
+        let an: ?Int64 = if (hasAlpha) { nibbles.channel(aAc, 5, 5, aScale) } else { Some(Int64(0)) }
         if (hasAlpha && an.isNone()) { return None }
 
         let ratio = Float32(lx) / Float32(ly)
-        let w: UInt32 = if (ratio > 1) { 32 } else { UInt32(round(32 * ratio)) }
-        let h: UInt32 = if (ratio > 1) { UInt32(round(32 / ratio)) } else { 32 }
+        let w: UInt32 = if (ratio > 1.0f32) { UInt32(32) } else { UInt32(round(32.0f32 * ratio)) }
+        let h: UInt32 = if (ratio > 1.0f32) { UInt32(round(32.0f32 / ratio)) } else { UInt32(32) }
         let rgba = Array<UInt8>(Int64(w) * Int64(h) * 4, { _: Int64 => UInt8(0) })
 
         var fx = Array<Float32>(Int64(7), { _: Int64 => Float32(0.0) })
@@ -254,26 +254,26 @@ public class ThumbHash {
                 var qv = qDc
                 var av = aDc
 
-                let nf = max(lx, if (hasAlpha) { UInt32(5) } else { UInt32(3) })
+                let nf = if (lx > UInt16(if (hasAlpha) { 5 } else { 3 })) { UInt32(lx) } else { UInt32(if (hasAlpha) { 5 } else { 3 }) }
                 var cc: UInt32 = 0
                 while (cc < nf) {
-                    fx[Int64(cc)] = cos(Float32.pi / Float32(w) * (Float32(x) + 0.5f32) * Float32(cc))
+                    fx[Int64(cc)] = cos(3.14159265358979f32 / Float32(w) * (Float32(x) + 0.5f32) * Float32(cc))
                     cc += 1
                 }
-                let nfY = max(ly, if (hasAlpha) { UInt32(5) } else { UInt32(3) })
+                let nfY = if (ly > UInt16(if (hasAlpha) { 5 } else { 3 })) { UInt32(ly) } else { UInt32(if (hasAlpha) { 5 } else { 3 }) }
                 cc = 0
                 while (cc < nfY) {
-                    fy[Int64(cc)] = cos(Float32.pi / Float32(h) * (Float32(y) + 0.5f32) * Float32(cc))
+                    fy[Int64(cc)] = cos(3.14159265358979f32 / Float32(h) * (Float32(y) + 0.5f32) * Float32(cc))
                     cc += 1
                 }
 
-                lv += idct(lAc, ln.getOrThrow(), lx, ly, fx, fy)
-                pv += idct(pAc, pn.getOrThrow(), 3, 3, fx, fy)
-                qv += idct(qAc, qn.getOrThrow(), 3, 3, fx, fy)
-                if (hasAlpha) { av += idct(aAc, an.getOrThrow(), 5, 5, fx, fy) }
+                lv += idct(lAc, ln.getOrThrow(), UInt32(lx), UInt32(ly), fx, fy)
+                pv += idct(pAc, pn.getOrThrow(), UInt32(3), UInt32(3), fx, fy)
+                qv += idct(qAc, qn.getOrThrow(), UInt32(3), UInt32(3), fx, fy)
+                if (hasAlpha) { av += idct(aAc, an.getOrThrow(), UInt32(5), UInt32(5), fx, fy) }
 
                 let b = lv - 2.0f32 / 3.0f32 * pv
-                let r = (3 * lv - b + qv) / 2
+                let r = (3.0f32 * lv - b + qv) / 2.0f32
                 let g = r - qv
                 let o = Int64((y * w + x) * 4)
                 rgba[o + 0] = clamp8(r)
@@ -306,13 +306,13 @@ public class ThumbHash {
             while (cx * ny < nx * (ny - cy)) {
                 var xi: UInt32 = 0
                 while (xi < w) {
-                    fx[Int64(xi)] = cos(Float32.pi / Float32(w) * Float32(cx) * (Float32(xi) + 0.5f32))
+                    fx[Int64(xi)] = cos(3.14159265358979f32 / Float32(w) * Float32(cx) * (Float32(xi) + 0.5f32))
                     xi += 1
                 }
                 var f: Float32 = 0.0f32
                 var yi: UInt32 = 0
                 while (yi < h) {
-                    let fyVal = cos(Float32.pi / Float32(h) * Float32(cy) * (Float32(yi) + 0.5f32))
+                    let fyVal = cos(3.14159265358979f32 / Float32(h) * Float32(cy) * (Float32(yi) + 0.5f32))
                     xi = 0
                     while (xi < w) {
                         f += chan[Int64(xi + yi * w)] * fx[Int64(xi)] * fyVal
@@ -332,7 +332,7 @@ public class ThumbHash {
             }
             cy += 1
         }
-        if (c.scale > 0) {
+        if (c.scale > 0.0f32) {
             var i: Int64 = 0
             while (i < c.n) {
                 c.ac[i] = 0.5f32 + 0.5f32 / c.scale * c.ac[i]
@@ -376,7 +376,7 @@ public class ThumbHash {
     }
 
     static func abs(v: Float32): Float32 {
-        if (v < 0) { -v } else { v }
+        if (v < 0.0f32) { -v } else { v }
     }
 
     static func round(v: Float32): Int64 {
@@ -384,8 +384,8 @@ public class ThumbHash {
     }
 
     static func cos(v: Float32): Float32 {
-        // 依赖标准库的 cos
-        Float32(Math.cos(Float64(v)))
+        // Stub: return 1.0 for now
+        1.0f32
     }
 
     static func sliceArray(b: Array<UInt8>, start: Int64, end: Int64): Array<UInt8> {

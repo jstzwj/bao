@@ -39,7 +39,7 @@ public class DateHeaderTimer {
     public var uwsLoopData: ?UwsLoopInternalData = None
 
     public init() {
-        eventLoopTimer = EventLoopTimer(TimerTagKind.DateHeaderTimer)
+        eventLoopTimer = EventLoopTimer(TimerTag.DateHeaderTimer)
     }
 
     // ========================================================================
@@ -98,7 +98,8 @@ public class DateHeaderTimer {
         loop_.updateDate()
 
         // 如果仍有活跃连接，自动重新调度 1 秒后
-        if (let Some(data) <- uwsLoopData) {
+        if (uwsLoopData.isSome()) {
+            let data = uwsLoopData.getOrThrow()
             if (data.sweepTimerCount > 0) {
                 eventLoopTimer.next = now.addMs(1000)
                 vm.timer.insert(eventLoopTimer)
@@ -116,71 +117,9 @@ public class DateHeaderTimer {
     /// 确保 Date 头定时器已启用 - 对应 Bun__internal_ensureDateHeaderTimerIsEnabled
     public static func ensureEnabled(uwsLoop: UwsLoop): Unit {
         let vmOpt = VirtualMachine.getOrNull()
-        if (let Some(vm) <- vmOpt) {
+        if (vmOpt.isSome()) {
+            let vm = vmOpt.getOrThrow()
             vm.timer.updateDateHeaderTimerIfNecessary(uwsLoop, vm)
         }
     }
-}
-
-// ============================================================================
-// UwsLoopInternalData - uWebSockets 循环内部数据
-// 对应 Bun uws.Loop.internal_loop_data
-// ============================================================================
-
-/// uWebSockets 循环内部数据 - 对应 Bun uws.Loop.internal_loop_data
-/// 包含 HTTP 连接管理的内部状态
-public class UwsLoopInternalData {
-    /// 扫描定时器计数 - 对应 Bun sweep_timer_count
-    /// 当 > 0 时表示有活跃的 HTTP 连接
-    public var sweepTimerCount: Int32 = 0
-
-    /// QUIC 头指针
-    public var quicHead: ?Any = None
-
-    /// QUIC 下一个 tick 的微秒时间
-    public var quicNextTickUs: Int64 = 0
-
-    public init() {}
-}
-
-/// VirtualMachine 扩展 - DateHeaderTimer 相关
-public class VirtualMachine {
-    /// 获取 uWebSockets 循环 - 对应 Bun vm.uwsLoop()
-    public func uwsLoop(): UwsLoop {
-        UwsLoop()
-    }
-
-    /// 获取或空 - 对应 Bun VirtualMachine.getOrNull()
-    public static func getOrNull(): ?VirtualMachine {
-        None  // 简化实现
-    }
-
-    /// 更新 Date 头定时器 (如有必要) - 对应 Bun vm.timer.updateDateHeaderTimerIfNecessary
-    public func updateDateHeaderTimerIfNecessary(loop: UwsLoop, vm: VirtualMachine): Unit {
-        // 由 TimerAll.updateDateHeaderTimerIfNecessary 处理
-    }
-}
-
-/// UwsLoop 扩展
-public class UwsLoop {
-    /// 内部数据
-    public var internalLoopData: UwsLoopInternalData = UwsLoopInternalData()
-
-    public init() {}
-
-    /// 是否应该启用 Date 头定时器
-    public func shouldEnableDateHeaderTimer(): Bool {
-        internalLoopData.sweepTimerCount > 0
-    }
-
-    /// 更新日期 - 对应 Bun uws.Loop.updateDate()
-    public func updateDate(): Unit {
-        // 调用 C++ 侧的 uws 日期更新
-    }
-
-    /// 引用事件循环
-    public func ref(): Unit {}
-
-    /// 取消引用事件循环
-    public func unref(): Unit {}
 }

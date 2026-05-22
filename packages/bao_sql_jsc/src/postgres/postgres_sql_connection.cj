@@ -4,10 +4,16 @@
 package bao_sql_jsc.postgres
 
 import bao_core.*
+import bao_event_loop.EventLoopTimer
+import bao_event_loop.TimerTag
+import bao_event_loop.AutoFlusher
 import bao_jsc.*
 import bao_sql.*
-import bao_sql_jsc.mysql.*
 import bao_sql_jsc.shared.*
+import bao_sql_jsc.mysql.AnySocket
+import bao_sql_jsc.mysql.OffsetByteList
+import bao_sql_jsc.mysql.SSLConfig
+import bao_sql_jsc.mysql.ConnectionFlags
 import bao_collections.ArrayList
 
 /// Postgres SQL 连接
@@ -60,8 +66,8 @@ public class PostgresSQLConnection {
     public init(globalObject: JscJSGlobalObject, vm: JscVirtualMachine) {
         this.globalObject = globalObject
         this.vm = vm
-        this.timer = EventLoopTimer()
-        this.maxLifetimeTimer = EventLoopTimer()
+        this.timer = EventLoopTimer(TimerTag.PostgresSQLConnectionTimeout)
+        this.maxLifetimeTimer = EventLoopTimer(TimerTag.PostgresSQLConnectionMaxLifetime)
     }
 
     public func ref(): Unit {

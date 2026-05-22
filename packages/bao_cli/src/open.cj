@@ -96,10 +96,10 @@ public class EditorHelper {
         let varNames = ["EDITOR", "VISUAL"]
         for (varName in varNames) {
             let value = env.get(varName)
-            if (value != None) {
+            if (value.isSome()) {
                 let basename = Path.basename(value.getOrThrow())
                 let editor = byName(basename)
-                if (editor != None) { return editor }
+                if (editor.isSome()) { return editor }
             }
         }
         return None
@@ -115,7 +115,7 @@ public class EditorHelper {
             let binName = binNameFor(editor)
             if (binName.length > 0) {
                 let bin = Which.which(pathEnv, cwd, binName)
-                if (bin != None) { return Some(editor) }
+                if (bin.isSome()) { return Some(editor) }
             }
         }
         return None
@@ -130,7 +130,7 @@ public class EditorHelper {
         let binName = binNameFor(editor)
         if (binName.length > 0) {
             let bin = Which.which(pathEnv, cwd, binName)
-            return bin != None
+            return bin.isSome()
         }
         return false
     }
@@ -138,7 +138,7 @@ public class EditorHelper {
     /// 通过回退路径查找编辑器
     public static func byFallbackPathForEditor(editor: Editor): Bool {
         let paths = binPathFor(editor)
-        if (paths != None) {
+        if (paths.isSome()) {
             for (path in paths.getOrThrow()) {
                 if (BaoFile.exists(path)) { return true }
             }
@@ -169,7 +169,7 @@ public class EditorHelper {
         Editor.webstorm,
         Editor.intellij,
         Editor.textmate,
-        Editor.vim,
+        Editor.vim
     ]
 }
 
@@ -200,16 +200,16 @@ public func binPathFor(editor: Editor): ?Array<String> {
     match (editor) {
         case Editor.vscode => Some([
             "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
-            "/Applications/VSCodium.app/Contents/Resources/app/bin/code",
+            "/Applications/VSCodium.app/Contents/Resources/app/bin/code"
         ])
         case Editor.atom => Some([
-            "/Applications/Atom.app/Contents/Resources/app/atom.sh",
+            "/Applications/Atom.app/Contents/Resources/app/atom.sh"
         ])
         case Editor.sublime => Some([
             "/Applications/Sublime Text 4.app/Contents/SharedSupport/bin/subl",
             "/Applications/Sublime Text 3.app/Contents/SharedSupport/bin/subl",
             "/Applications/Sublime Text 2.app/Contents/SharedSupport/bin/subl",
-            "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl",
+            "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"
         ])
         case _ => None
     }
@@ -218,24 +218,24 @@ public func binPathFor(editor: Editor): ?Array<String> {
 /// 编辑器名称映射表
 /// 对应 Bun: Editor.name_map (ComptimeStringMap)
 public class EditorNameMap {
-    private static let map: HashMap<String, Editor> = {
-        let m = HashMap<String, Editor>()
-        m.put("sublime", Editor.sublime)
-        m.put("subl", Editor.sublime)
-        m.put("vscode", Editor.vscode)
-        m.put("code", Editor.vscode)
-        m.put("textmate", Editor.textmate)
-        m.put("mate", Editor.textmate)
-        m.put("atom", Editor.atom)
-        m.put("idea", Editor.intellij)
-        m.put("webstorm", Editor.webstorm)
-        m.put("nvim", Editor.neovim)
-        m.put("neovim", Editor.neovim)
-        m.put("vim", Editor.vim)
-        m.put("vi", Editor.vim)
-        m.put("emacs", Editor.emacs)
-        m
-    }()
+    private static let map: HashMap<String, Editor> = HashMap<String, Editor>()
+
+    static init() {
+        map.put("sublime", Editor.sublime)
+        map.put("subl", Editor.sublime)
+        map.put("vscode", Editor.vscode)
+        map.put("code", Editor.vscode)
+        map.put("textmate", Editor.textmate)
+        map.put("mate", Editor.textmate)
+        map.put("atom", Editor.atom)
+        map.put("idea", Editor.intellij)
+        map.put("webstorm", Editor.webstorm)
+        map.put("nvim", Editor.neovim)
+        map.put("neovim", Editor.neovim)
+        map.put("vim", Editor.vim)
+        map.put("vi", Editor.vim)
+        map.put("emacs", Editor.emacs)
+    }
 
     public static func get(name: String): ?Editor {
         return map.get(name)
@@ -263,7 +263,7 @@ public class EditorContext {
     /// 自动检测编辑器 (仅在未检测时)
     /// 对应 Bun: EditorContext.autoDetectEditor()
     public func autoDetectEditor(env: DotEnvLoader): Unit {
-        if (editor == None) {
+        if (editor.isNone()) {
             detectEditor(env)
         }
     }
@@ -287,7 +287,7 @@ public class EditorContext {
 
             // 名称查找
             let editor_ = EditorHelper.byName(Path.basename(name))
-            if (editor_ != None) {
+            if (editor_.isSome()) {
                 if (EditorHelper.byPATHForEditor(env, editor_.getOrThrow(), Fs.instance.topLevelDir)) {
                     editor = editor_
                     // path = resolved from PATH
@@ -302,7 +302,7 @@ public class EditorContext {
 
         // 2. EDITOR 环境变量
         let envEditor = EditorHelper.detect(env)
-        if (envEditor != None) {
+        if (envEditor.isSome()) {
             if (EditorHelper.byPATHForEditor(env, envEditor.getOrThrow(), Fs.instance.topLevelDir)) {
                 editor = envEditor
                 return
@@ -315,7 +315,7 @@ public class EditorContext {
 
         // 3. 通过 PATH 回退检测
         let fallbackEditor = EditorHelper.byFallback(env, Fs.instance.topLevelDir)
-        if (fallbackEditor != None) {
+        if (fallbackEditor.isSome()) {
             editor = fallbackEditor
             return
         }

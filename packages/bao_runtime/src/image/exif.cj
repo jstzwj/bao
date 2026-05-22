@@ -116,10 +116,10 @@ public class Exif {
         let ifd0 = rd32(tiff, 4, big)
         if (ifd0.isNone()) { return None }
 
-        let count = rd16(tiff, ifd0.getOrThrow(), big)
+        let count = rd16(tiff, Int64(ifd0.getOrThrow()), big)
         if (count.isNone()) { return None }
 
-        var e: Int64 = ifd0.getOrThrow() + 2
+        var e: Int64 = Int64(ifd0.getOrThrow()) + 2
         var n: UInt16 = 0
         while (n < count.getOrThrow()) {
             let tag = rd16(tiff, e, big)

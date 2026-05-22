@@ -239,5 +239,5 @@ public class ZlibImpl {
     }
 
     // CRC32 查找表
-    private static let crc32Table: Array<UInt32> = Array<UInt32>(256, item: UInt32(0))
+    private static let crc32Table: Array<UInt32> = Array<UInt32>(256, { _ => UInt32(0) })
 }

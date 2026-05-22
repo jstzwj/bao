@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // FilterRun — 使用 --filter/--workspaces 运行脚本
@@ -74,7 +75,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
 
     while (true) {
         let packageJsonPath = packageJsonIter.next()
-        if (packageJsonPath == None) {
+        if (packageJsonPath.isNone()) {
             break
         }
 
@@ -87,14 +88,15 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         }
 
         let pkgjson = PackageJSON.parse(thisTranspiler.resolver, dirpath)
-        if (pkgjson == None) {
+        if (pkgjson.isNone()) {
             continue
         }
 
-        let pkgscripts = match (pkgjson.getOrThrow().scripts) {
-            case Some(v) => v
-            case None => continue
+        let pkgscriptsOpt = pkgjson.getOrThrow().scripts
+        if (pkgscriptsOpt.isNone()) {
+            continue
         }
+        let pkgscripts = pkgscriptsOpt.getOrThrow()
 
         if (!filterInstance.matches(path, pkgjson.getOrThrow().name)) {
             continue
@@ -106,7 +108,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         let scriptNames = [preScriptName, scriptName, postScriptName]
         for ((i, name) in scriptNames.iterator().indexed()) {
             let originalContent = pkgscripts.get(name)
-            if (originalContent == None) {
+            if (originalContent.isNone()) {
                 if (i == 1 && ctx.workspaces && !ctx.ifPresent) {
                     Output.errGeneric("Missing '${scriptName}' script at '${path}'")
                     Global.exit(1)
@@ -150,12 +152,10 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
     }
 
     let eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
-    let pathEnv = match (thisTranspiler.env.get("PATH")) {
-        case Some(v) => v
-        case None => ""
-    }
+    let pathEnvOpt = thisTranspiler.env.get("PATH")
+    let pathEnv = if (pathEnvOpt.isSome()) { pathEnvOpt.getOrThrow() } else { "" }
     let shellBinOpt = RunCommand.findShell(pathEnv, fsInstance.topLevelDir)
-    if (shellBinOpt == None) {
+    if (shellBinOpt.isNone()) {
         Output.prettyErrorLn("error: Missing shell")
         Global.exit(1)
     }
@@ -336,7 +336,8 @@ public class FilterRunState {
                     drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Exited with code ${code}\n")
                 case ProcessStatus.signaled(sig) =>
                     drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Signaled with code ${sig}\n")
-                case _ => }
+                case _ => ()
+            }
             flushDrawBuf()
         }
     }
@@ -348,17 +349,15 @@ public class FilterRunState {
         }
         drawBuf.clear()
         for (handle in handles) {
-            let elideLines = match (if (isAbort) { None } else { handle.config.elideCount } {
-                case Some(v) => v
-                case None => 10
-            }
+            let elideOpt = if (isAbort) { None } else { handle.config.elideCount }
+            let elideLines = if (elideOpt.isSome()) { elideOpt.getOrThrow() } else { 10 }
             drawBuf.append("${handle.config.packageName} ${handle.config.scriptName} $ ${handle.config.scriptContent}\n")
             // 简化: 显示缓冲区内容
             if (handle.buffer.length > 0) {
                 drawBuf.append("| ${handle.buffer.toString()}\n")
             }
             drawBuf.append("+- ")
-            if (handle.process != None) {
+            if (handle.process.isSome()) {
                 match (handle.status) {
                     case ProcessStatus.running => drawBuf.append("Running...\n")
                     case ProcessStatus.exited(code) =>
@@ -386,7 +385,7 @@ public class FilterRunState {
     public func abort(): Unit {
         aborted = true
         for (handle in handles) {
-            if (handle.process != None) {
+            if (handle.process.isSome()) {
                 handle.process.getOrThrow().kill()
             }
         }
@@ -399,7 +398,7 @@ public class FilterRunState {
         }
         for (handle in handles) {
             match (handle.status) {
-                case ProcessStatus.exited(code) => if (code != 0) return code
+                case ProcessStatus.exited(code) => if (code != 0) { return code }
                 case ProcessStatus.signaled(_) => return 1
                 case _ => return 1
             }
@@ -466,7 +465,7 @@ public class FilterRunAbortHandler {
 
     public static func install(): Unit {
         shouldAbort = false
-        SignalHandler.install(SIGINT, { shouldAbort = true })
+        SignalHandler.install(SIGINT, { => shouldAbort = true })
     }
 
     public static func uninstall(): Unit {

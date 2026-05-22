@@ -325,7 +325,7 @@ public class UpdateInteractiveCommand {
 
         for (update in updates) {
             var list = workspaceGroups.get(update.workspacePath)
-            if (list == None) {
+            if (list.isNone()) {
                 list = ArrayList<PackageUpdate>()
                 workspaceGroups.put(update.workspacePath, list.getOrThrow())
             }
@@ -345,7 +345,7 @@ public class UpdateInteractiveCommand {
             let packageJson = manager.workspacePackageJsonCache.getWithPath(
                 packageJsonPath, GuessIndentation: true
             )
-            if (packageJson == None) {
+            if (packageJson.isNone()) {
                 Output.errGeneric("Failed to parse package.json at ${packageJsonPath}")
                 continue
             }
@@ -357,9 +357,9 @@ public class UpdateInteractiveCommand {
                 // 在正确的依赖节中查找包
                 if (packageJson.getOrThrow().root.isObject()) {
                     let section = packageJson.getOrThrow().root.asProperty(update.depType)
-                    if (section != None && section.getOrThrow().isObject()) {
+                    if (section.isSome() && section.getOrThrow().isObject()) {
                         let versionQuery = section.getOrThrow().asProperty(update.name)
-                        if (versionQuery != None && version.getOrThrow().isString()) {
+                        if (versionQuery.isSome() && version.getOrThrow().isString()) {
                             // 获取原始版本以保留前缀
                             let originalVersion = versionQuery.getOrThrow().asString()
 
@@ -397,7 +397,7 @@ public class UpdateInteractiveCommand {
 
         for ((catalogKey, update) in catalogUpdates) {
             var list = workspaceCatalogUpdates.get(update.workspacePath)
-            if (list == None) {
+            if (list.isNone()) {
                 list = ArrayList<CatalogUpdateRequest>()
                 workspaceCatalogUpdates.put(update.workspacePath, list.getOrThrow())
             }
@@ -427,7 +427,7 @@ public class UpdateInteractiveCommand {
             let packageJson = manager.workspacePackageJsonCache.getWithPath(
                 packageJsonPath, GuessIndentation: true
             )
-            if (packageJson == None) {
+            if (packageJson.isNone()) {
                 Output.errGeneric("Failed to parse package.json at ${packageJsonPath}")
                 continue
             }
@@ -461,9 +461,9 @@ public class UpdateInteractiveCommand {
         var catalogObj: JsonExpr = JsonExpr.Null
 
         let workspaces = packageJson.asProperty("workspaces")
-        if (workspaces != None && workspaces.getOrThrow().isObject()) {
+        if (workspaces.isSome() && workspaces.getOrThrow().isObject()) {
             let catalog = workspaces.getOrThrow().asProperty("catalog")
-            if (catalog != None && catalog.getOrThrow().isObject()) {
+            if (catalog.isSome() && catalog.getOrThrow().isObject()) {
                 catalogObj = catalog.getOrThrow()
             }
         }
@@ -471,7 +471,7 @@ public class UpdateInteractiveCommand {
         // 回退到根级别的 catalog
         if (!catalogObj.isObject()) {
             let rootCatalog = packageJson.asProperty("catalog")
-            if (rootCatalog != None && rootCatalog.getOrThrow().isObject()) {
+            if (rootCatalog.isSome() && rootCatalog.getOrThrow().isObject()) {
                 catalogObj = rootCatalog.getOrThrow()
             }
         }
@@ -483,7 +483,7 @@ public class UpdateInteractiveCommand {
         // 获取原始版本以保留前缀
         var versionWithPrefix = newVersion
         let existingProp = catalogObj.asProperty(packageName)
-        if (existingProp != None && existingProp.getOrThrow().isString()) {
+        if (existingProp.isSome() && existingProp.getOrThrow().isString()) {
             let originalVersion = existingProp.getOrThrow().asString()
             versionWithPrefix = preserveVersionPrefix(originalVersion, newVersion)
         }
@@ -492,8 +492,8 @@ public class UpdateInteractiveCommand {
         catalogObj.put(packageName, versionWithPrefix)
 
         // 检查是否需要在 workspaces.catalog 或根级别 catalog 下更新
-        if (workspaces != None && workspaces.getOrThrow().isObject()) {
-            if (workspaces.getOrThrow().asProperty("catalog") != None) {
+        if (workspaces.isSome() && workspaces.getOrThrow().isObject()) {
+            if (workspaces.getOrThrow().asProperty("catalog").isSome()) {
                 // 在 workspaces.catalog 下更新
                 workspaces.getOrThrow().put("catalog", catalogObj)
                 return
@@ -511,9 +511,9 @@ public class UpdateInteractiveCommand {
         var catalogsObj: JsonExpr = JsonExpr.Null
 
         let workspaces = packageJson.asProperty("workspaces")
-        if (workspaces != None && workspaces.getOrThrow().isObject()) {
+        if (workspaces.isSome() && workspaces.getOrThrow().isObject()) {
             let catalogs = workspaces.getOrThrow().asProperty("catalogs")
-            if (catalogs != None && catalogs.getOrThrow().isObject()) {
+            if (catalogs.isSome() && catalogs.getOrThrow().isObject()) {
                 catalogsObj = catalogs.getOrThrow()
             }
         }
@@ -521,7 +521,7 @@ public class UpdateInteractiveCommand {
         // 回退到根级别的 catalogs
         if (!catalogsObj.isObject()) {
             let rootCatalogs = packageJson.asProperty("catalogs")
-            if (rootCatalogs != None && rootCatalogs.getOrThrow().isObject()) {
+            if (rootCatalogs.isSome() && rootCatalogs.getOrThrow().isObject()) {
                 catalogsObj = rootCatalogs.getOrThrow()
             }
         }
@@ -539,7 +539,7 @@ public class UpdateInteractiveCommand {
         // 获取原始版本以保留前缀
         var versionWithPrefix = newVersion
         let existingProp = catalogObj.asProperty(packageName)
-        if (existingProp != None && existingProp.getOrThrow().isString()) {
+        if (existingProp.isSome() && existingProp.getOrThrow().isString()) {
             let originalVersion = existingProp.getOrThrow().asString()
             versionWithPrefix = preserveVersionPrefix(originalVersion, newVersion)
         }
@@ -551,8 +551,8 @@ public class UpdateInteractiveCommand {
         catalogsObj.put(catalogName, catalogObj)
 
         // 检查是否需要在 workspaces.catalogs 或根级别 catalogs 下更新
-        if (workspaces != None && workspaces.getOrThrow().isObject()) {
-            if (workspaces.getOrThrow().asProperty("catalogs") != None) {
+        if (workspaces.isSome() && workspaces.getOrThrow().isObject()) {
+            if (workspaces.getOrThrow().asProperty("catalogs").isSome()) {
                 workspaces.getOrThrow().put("catalogs", catalogsObj)
                 return
             }
@@ -913,7 +913,7 @@ public class UpdateInteractiveCommand {
         for (pkg in packages) {
             if (pkg.isCatalog) {
                 var list = catalogMap.get(pkg.name)
-                if (list == None) {
+                if (list.isNone()) {
                     list = ArrayList<OutdatedPackage>()
                     catalogMap.put(pkg.name, list.getOrThrow())
                 }
@@ -982,7 +982,7 @@ public class UpdateInteractiveCommand {
                 }
                 let dep = lockfile.buffers.dependencies.items[depId]
                 let resolvedVersion = manager.lockfile.resolveCatalogDependency(dep)
-                if (resolvedVersion == None) {
+                if (resolvedVersion.isNone()) {
                     continue
                 }
                 if (resolvedVersion.getOrThrow().tag != ResolutionTag.npm && resolvedVersion.getOrThrow().tag != ResolutionTag.distTag) {
@@ -1000,9 +1000,9 @@ public class UpdateInteractiveCommand {
                 let manifest = manager.manifests.byNameAllowExpired(
                     manager, manager.scopeForPackageName(packageName),
                     packageName, expired, ManifestLoadType.loadFromMemoryFallbackToDisk,
-                    manager.options.minimumReleaseAgeMs != None
+                    manager.options.minimumReleaseAgeMs.isSome()
                 )
-                if (manifest == None) {
+                if (manifest.isNone()) {
                     continue
                 }
 
@@ -1010,7 +1010,7 @@ public class UpdateInteractiveCommand {
                     "latest", manager.options.minimumReleaseAgeMs,
                     manager.options.minimumReleaseAgeExcludes
                 )
-                if (latest == None) {
+                if (latest.isNone()) {
                     continue
                 }
 
@@ -1221,7 +1221,7 @@ public class UpdateInteractiveCommand {
     private static func getTerminalSize(): TerminalSize {
         // 尝试获取终端尺寸
         let size = Terminal.getTerminalSize()
-        if (size != None) {
+        if (size.isSome()) {
             // 保留空间: 提示 (1行) + 滚动指示器 (2行) + 缓冲区
             let usableHeight = if (size.getOrThrow().height > 6) {
                 size.getOrThrow().height - 4
@@ -1466,7 +1466,7 @@ public class UpdateInteractiveCommand {
                     let sel = state.selected[i.toInt()]
 
                     // 检查是否需要标题头
-                    let needsHeader = currentDepType == None || currentDepType.getOrThrow() != pkg.dependencyType
+                    let needsHeader = currentDepType.isNone() || currentDepType.getOrThrow() != pkg.dependencyType
 
                     // 打印依赖类型标题及列头
                     if (needsHeader) {
@@ -2045,7 +2045,7 @@ public class VersionDiffFmt {
         }
 
         // tag 部分 (pre-release)
-        if (targetParsed.tag != None && targetParsed.tag.getOrThrow().length > 0) {
+        if (targetParsed.tag.isSome() && targetParsed.tag.getOrThrow().length > 0) {
             result += "-${targetParsed.tag.getOrThrow()}"
         }
 

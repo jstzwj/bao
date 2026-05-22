@@ -32,9 +32,19 @@ public class ImmediateObject {
 
     public init() {
         refCount = RefCount()
-        eventLoopTimer = EventLoopTimer(TimerTagKind.Immediate)
+        eventLoopTimer = EventLoopTimer(TimerTag.ImmediateObject)
         internals = TimerObjectInternals()
         internals.ownerImmediate = this
+    }
+
+    /// 增加引用 - 对应 Bun ref
+    public func ref(): Unit {
+        refCount.ref()
+    }
+
+    /// 减少引用 - 对应 Bun deref
+    public func deref(): Unit {
+        refCount.deref()
     }
 
     // ========================================================================
@@ -63,7 +73,7 @@ public class ImmediateObject {
         let jsValue = immediate.toJS(globalThis)
         jsValue.ensureStillAlive()
 
-        immediate.internals.init(
+        immediate.internals.initFunc(
             jsValue,
             globalThis,
             id,
@@ -73,9 +83,9 @@ public class ImmediateObject {
             arguments
         )
 
-        if (globalThis.bunVM().isInspectorEnabled()) {
+        if (timerGetVM(globalThis).isInspectorEnabled()) {
             let timerId = TimerID(id, KindBig.setImmediate)
-            Debugger.didScheduleAsyncCall(
+            TimerDebugger.didScheduleAsyncCall(
                 globalThis,
                 DOMTimer,
                 timerId.asyncID(),
@@ -171,7 +181,7 @@ public class ImmediateObject {
 
     /// 释放 - 对应 Bun dispose
     public func dispose(globalThis: JSGlobalObject, callFrame: CallFrame): JSValue {
-        internals.cancel(globalThis.bunVM())
+        internals.cancel(timerGetVM(globalThis))
         JSValue.jsUndefined()
     }
 
@@ -224,14 +234,4 @@ public class ImmediateObject {
     public static func jsArgumentsSetCached(thisValue: JSValue, global: JSGlobalObject, value: JSValue): Unit {
         thisValue.setCachedProperty("arguments", value)
     }
-}
-
-/// JSValue 扩展 - 对象类型检查
-public func isObject(): Bool {
-    false
-}
-
-/// 获取原生对象
-public func getNativeObject(): Any {
-    Object()
 }

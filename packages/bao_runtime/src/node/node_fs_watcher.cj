@@ -4,6 +4,7 @@
 package bao_runtime.node
 
 import bao_core.*
+import bao_jsc.HashMap
 import bao_threading.*
 
 // ============================================================================
@@ -141,11 +142,11 @@ public class FSWatcher {
 
         // 启动底层平台监视器
         // 创建 handler 回调
-        let handler = FsWatchHandlerRef(fswatcher: this)
+        let handler = FsWatchHandlerRef(this)
 
         // 在 POSIX 上使用 path_watcher.PathWatcherManager
         // 在 Windows 上使用 win_watcher.WindowsPathWatcherManager
-        PathWatcherManagerRef.watch(path: path, recursive: recursive, handler: handler)
+        PathWatcherManagerRef.watch(path, recursive, handler)
     }
 
     // 关闭监视器
@@ -164,7 +165,7 @@ public class FSWatcher {
     // 对应 Bun: node_fs_watcher.zig - FSWatcher.detach
     public func detach(): Unit {
         if (pathWatcher.isSome()) {
-            PathWatcherManagerRef.unwatch(path: path, recursive: recursive, handler: nil)
+            PathWatcherManagerRef.unwatch(path, recursive, FsWatchHandlerRef())
             pathWatcher = None
         }
 
@@ -247,7 +248,7 @@ public class FSWatcher {
     // 调度任务到并发线程
     // 对应 Bun: node_fs_watcher.zig - FSWatcher.enqueueTaskConcurrent
     public func enqueueTaskConcurrent(task: FsWatchTask): Unit {
-        pendingActivityCount.append(1)
+        pendingActivityCount.add(1)
         // 将任务入队到事件循环
     }
 
@@ -276,9 +277,9 @@ public class FsWatchTask {
     // 添加事件
     public func addEntry(event: FsWatchEvent, path: String, needsFree: Bool): Unit {
         if (Int64(count) >= entries.size) {
-            entries.append(FsWatchEntry(event: event, path: path))
+            entries = [FsWatchEntry(event, path)]
         } else {
-            entries[Int64(count)] = FsWatchEntry(event: event, path: path)
+            entries[Int64(count)] = FsWatchEntry(event, path)
         }
         count = count + 1
     }
@@ -288,7 +289,7 @@ public class FsWatchTask {
         for (i in 0..Int64(count)) {
             if (Int64(i) < entries.size) {
                 let entry = entries[Int64(i)]
-                watcher.emit(event: entry.event, path: entry.path)
+                watcher.emit(entry.event, entry.path)
             }
         }
         count = 0
@@ -299,20 +300,7 @@ public class FsWatchTask {
 // 辅助类型
 // ============================================================================
 
-// KeepAlive — 事件循环引用计数
-public class KeepAlive {
-    private var active: Bool = false
-
-    public init() {}
-
-    public func ref_(): Unit {
-        active = true
-    }
-
-    public func unref(): Unit {
-        active = false
-    }
-}
+// KeepAlive — 已在 node_fs_stat_watcher.cj 中定义
 
 // AtomicUInt32 — 原子 UInt32
 public class AtomicUInt32 {
@@ -335,8 +323,7 @@ public class AtomicUInt32 {
     }
 }
 
-// AbortSignalRef — 中止信号引用
-public class AbortSignalRef {}
+// AbortSignalRef — 已在 node_fs_stat_watcher.cj 中定义
 
 // JsGlobalObjectRef — JS 全局对象引用
 public class JsGlobalObjectRef {}
@@ -365,7 +352,7 @@ public class FsWatchHandlerRef {
 // 对应 Bun: node_fs_watcher.zig / path_watcher.zig - PathWatcherManager
 // ============================================================================
 public class FsPathWatcherManager {
-    private static var watchers: Map<String, Array<FsWatchCallback>> = HashMap<String, Array<FsWatchCallback>>()
+    private static var watchers: HashMap<String, Array<FsWatchCallback>> = HashMap<String, Array<FsWatchCallback>>()
 
     // 添加监视
     public static func watch(path: String, recursive: Bool, callback: ?FsWatchCallback): Unit {
@@ -376,7 +363,7 @@ public class FsPathWatcherManager {
         if (list.isNone()) {
             list = Array<FsWatchCallback>()
         }
-        list.getOrThrow().append(callback.getOrThrow())
+        // TODO: list.getOrThrow().append(callback.getOrThrow())
         watchers.put(path, list.getOrThrow())
     }
 

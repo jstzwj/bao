@@ -15,6 +15,38 @@ import bao_collections.ArrayList
 import bao_collections.*  // std.collection.*
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+func clampF64(x: Float64, lo: Float64, hi: Float64): Float64 {
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+func clampF32(x: Float32, lo: Float32, hi: Float32): Float32 {
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+func clampI64(x: Int64, lo: Int64, hi: Int64): Int64 {
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+func clampU64(x: UInt64, lo: UInt64, hi: UInt64): UInt64 {
+    if (x < lo) { return lo }
+    if (x > hi) { return hi }
+    return x
+}
+
+func isFiniteF64(x: Float64): Bool {
+    return x == x && x != 1.0 / 0.0 && x != -1.0 / 0.0
+}
+
+// ============================================================================
 // Image - 图像处理主类
 // 对应 Bun: Image.zig - Image
 // ============================================================================
@@ -25,7 +57,7 @@ public class BunImage {
     public var source: ImageSource
     public var pipeline: ImagePipeline = ImagePipeline()
     /// 解压缩炸弹防护。在任何 RGBA 缓冲区分配前检查头部尺寸。
-    public var maxPixels: UInt64 = Codecs.defaultMaxPixels
+    public var maxPixels: UInt64 = defaultMaxPixels
     /// 应用 EXIF 方向 (JPEG)，类似 Sharp 的 .rotate() 无参数 / autoOrient
     public var autoOrient: Bool = true
     /// 在管线运行一次后填充；允许 .width/.height 在首次 await 后同步回答
@@ -72,13 +104,18 @@ public class BunImage {
         if (!opt.isObject()) {
             return
         }
-        let obj = opt.getObject()
+        let objOpt = opt.getObject()
+        if (objOpt.isNone()) { return }
+        let obj = objOpt.getOrThrow()
         let maxPixelsVal = obj.get("maxPixels")
-        if (maxPixelsVal.isSome() && maxPixelsVal.isNumber()) {
-            img.maxPixels = UInt64(maxPixelsVal.toNumber().clamp(0.0, 1e15))
+        if (maxPixelsVal.isNumber()) {
+            var n = maxPixelsVal.toNumber()
+            if (n < 0.0) { n = 0.0 }
+            if (n > 1e15) { n = 1e15 }
+            img.maxPixels = UInt64(n)
         }
         let autoOrientVal = obj.get("autoOrient")
-        if (autoOrientVal.isSome()) {
+        if (!autoOrientVal.isUndefined()) {
             img.autoOrient = autoOrientVal.toBoolean()
         }
     }
@@ -96,8 +133,8 @@ public class BunImage {
                 if (commaIdx.isNone()) {
                     return None
                 }
-                let meta = s.subString(5, commaIdx.getOrThrow())
-                let payload = s.subString(commaIdx.getOrThrow() + 1)
+                let meta = s[Int64(5)..commaIdx.getOrThrow()]
+                let payload = s[(commaIdx.getOrThrow() + 1)..]
                 if (!meta.contains(";base64")) {
                     return None
                 }
@@ -137,27 +174,33 @@ public class BunImage {
             return this
         }
 
-        var resize = ImageResize(
-            w: UInt32(args[0].toNumber().clamp(1.0, 262143.0)),
-            h: if (args.size > 1 && args[1].isNumber()) {
-                UInt32(args[1].toNumber().clamp(0.0, 262143.0))
-            } else {
-                0
-            }
-        )
+        var w = args[0].toNumber()
+        if (w < 1.0) { w = 1.0 }
+        if (w > 262143.0) { w = 262143.0 }
+        var hVal = if (args.size > 1 && args[1].isNumber()) {
+            var hv = args[1].toNumber()
+            if (hv < 0.0) { hv = 0.0 }
+            if (hv > 262143.0) { hv = 262143.0 }
+            UInt32(hv)
+        } else {
+            UInt32(0)
+        }
+        var resize = ImageResize(UInt32(w), hVal)
 
         if (args.size > 2 && args[2].valueType == JsValueType.Object) {
-            let opt = args[2].getObject()
+            let optRaw = args[2].getObject()
+            if (optRaw.isNone()) { return this }
+            let opt = optRaw.getOrThrow()
             let filterVal = opt.get("filter")
-            if (filterVal.isSome() && filterVal.valueType == JsValueType.String) {
+            if (!filterVal.isUndefined() && filterVal.valueType == JsValueType.String) {
                 resize.filter = ImageFilter.fromString(filterVal.toString())
             }
             let fitVal = opt.get("fit")
-            if (fitVal.isSome() && fitVal.valueType == JsValueType.String) {
+            if (!fitVal.isUndefined() && fitVal.valueType == JsValueType.String) {
                 resize.fit = ImageFit.fromString(fitVal.toString())
             }
             let withoutEnlargement = opt.get("withoutEnlargement")
-            if (withoutEnlargement.isSome()) {
+            if (!withoutEnlargement.isUndefined()) {
                 resize.withoutEnlargement = withoutEnlargement.toBoolean()
             }
         }
@@ -173,7 +216,7 @@ public class BunImage {
             return this
         }
 
-        let raw = Int64(args[0].toNumber().clamp(-1e15, 1e15))
+        let raw = Int64(clampF64(args[0].toNumber(), -1e15, 1e15))
         let deg = ((raw % 360) + 360) % 360
         if (deg != 0 && deg != 90 && deg != 180 && deg != 270) {
             return this
@@ -207,16 +250,19 @@ public class BunImage {
         }
 
         if (args.size > 0 && args[0].valueType == JsValueType.Object) {
-            let opt = args[0].getObject()
-            let brightness = opt.get("brightness")
-            if (brightness.isSome() && brightness.isNumber()) {
-                let x = brightness.toNumber()
-                m.brightness = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f32 }
-            }
-            let saturation = opt.get("saturation")
-            if (saturation.isSome() && saturation.isNumber()) {
-                let x = saturation.toNumber()
-                m.saturation = if (x.isFinite()) { Float32(x.clamp(0.0, 10000.0)) } else { 1.0f32 }
+            let optRaw = args[0].getObject()
+            if (optRaw.isSome()) {
+                let opt = optRaw.getOrThrow()
+                let brightness = opt.get("brightness")
+                if (brightness.isNumber()) {
+                    let x = brightness.toNumber()
+                    m.brightness = if (isFiniteF64(x)) { Float32(clampF64(x, 0.0, 10000.0)) } else { 1.0f32 }
+                }
+                let saturation = opt.get("saturation")
+                if (saturation.isNumber()) {
+                    let x = saturation.toNumber()
+                    m.saturation = if (isFiniteF64(x)) { Float32(clampF64(x, 0.0, 10000.0)) } else { 1.0f32 }
+                }
             }
         }
 
@@ -265,39 +311,42 @@ public class BunImage {
         var enc = if (pipeline.output.isSome()) {
             pipeline.output.getOrThrow()
         } else {
-            EncodeOptions(format: fmt)
+            EncodeOptions(fmt)
         }
         enc.format = fmt
 
         if (args.size > 0 && args[0].valueType == JsValueType.Object) {
-            let opt = args[0].getObject()
-            let quality = opt.get("quality")
-            if (quality.isSome() && quality.isNumber()) {
-                enc.quality = UInt8(quality.toNumber().clamp(1.0, 100.0))
-            }
-            let lossless = opt.get("lossless")
-            if (lossless.isSome()) {
-                enc.lossless = lossless.toBoolean()
-            }
-            let compressionLevel = opt.get("compressionLevel")
-            if (compressionLevel.isSome() && compressionLevel.isNumber()) {
-                enc.compressionLevel = Int8(compressionLevel.toNumber().clamp(0.0, 9.0))
-            }
-            let palette = opt.get("palette")
-            if (palette.isSome()) {
-                enc.palette = palette.toBoolean()
-            }
-            let colors = opt.get("colors")
-            if (colors.isSome() && colors.isNumber()) {
-                enc.colors = UInt16(colors.toNumber().clamp(2.0, 256.0))
-            }
-            let dither = opt.get("dither")
-            if (dither.isSome()) {
-                enc.dither = dither.toBoolean()
-            }
-            let progressive = opt.get("progressive")
-            if (progressive.isSome()) {
-                enc.progressive = progressive.toBoolean()
+            let optRaw = args[0].getObject()
+            if (optRaw.isSome()) {
+                let opt = optRaw.getOrThrow()
+                let quality = opt.get("quality")
+                if (quality.isNumber()) {
+                    enc.quality = UInt8(clampF64(quality.toNumber(), 1.0, 100.0))
+                }
+                let lossless = opt.get("lossless")
+                if (!lossless.isUndefined()) {
+                    enc.lossless = lossless.toBoolean()
+                }
+                let compressionLevel = opt.get("compressionLevel")
+                if (compressionLevel.isNumber()) {
+                    enc.compressionLevel = Int8(clampF64(compressionLevel.toNumber(), 0.0, 9.0))
+                }
+                let palette = opt.get("palette")
+                if (!palette.isUndefined()) {
+                    enc.palette = palette.toBoolean()
+                }
+                let colors = opt.get("colors")
+                if (colors.isNumber()) {
+                    enc.colors = UInt16(clampF64(colors.toNumber(), 2.0, 256.0))
+                }
+                let dither = opt.get("dither")
+                if (!dither.isUndefined()) {
+                    enc.dither = dither.toBoolean()
+                }
+                let progressive = opt.get("progressive")
+                if (!progressive.isUndefined()) {
+                    enc.progressive = progressive.toBoolean()
+                }
             }
         }
 
@@ -317,7 +366,7 @@ public class BunImage {
         let obj = JsObject()
         obj.set("width", JsValue(Float64(lastWidth)))
         obj.set("height", JsValue(Float64(lastHeight)))
-        obj.set("format", JsValue(BaoString("png")))
+        obj.set("format", JsValue("png"))
         return JsValue(obj)
     }
 
@@ -360,7 +409,7 @@ public class BunImage {
                 return JsValue.UNDEFINED
             }
         }
-        return schedule(global, PipelineTaskKind.placeholder(), DeliverKind.dataurl)
+        return schedule(global, PipelineTaskKind.placeholder, DeliverKind.dataurl)
     }
 
     /// 写入文件
@@ -376,11 +425,11 @@ public class BunImage {
             let path = args[0].toString()
             let fmt = ImageFormat.fromExtension(path)
             if (fmt.isSome()) {
-                output = EncodeOptions(format: fmt.getOrThrow())
+                output = EncodeOptions(fmt.getOrThrow())
             }
         }
 
-        return schedule(global, PipelineTaskKind.encode(output), DeliverKind.writeDest())
+        return schedule(global, PipelineTaskKind.encode(output), DeliverKind.writeDest)
     }
 
     /// 调度异步任务
@@ -389,14 +438,14 @@ public class BunImage {
         let promise = JsPromise()
         pendingTasks += 1
         // 实际实现会将任务提交到工作池
-        return promise.value()
+        return promise.toJsValue()
     }
 
     /// 编码用于 HTTP body
     /// 对应 Bun: encodeForBody
     public func encodeForBody(global: JsObject): EncodeResult {
         // 简化实现
-        return EncodeResult(bytes: Array<Byte>(), mime: "image/png")
+        return EncodeResult(Array<Byte>(), "image/png")
     }
 
     // ========================================================================
@@ -472,7 +521,7 @@ public class BunImage {
     /// 获取当前后端 - 对应 Bun Image.getBackend
     /// static Bun.Image.backend getter
     public static func getBackend(global: JsObject): JsValue {
-        JsValue.jsString(Codecs.backend.toString())
+        JsValue(Codecs.backend.toString())
     }
 
     /// 设置当前后端 - 对应 Bun Image.setBackend
@@ -481,12 +530,9 @@ public class BunImage {
         // 解析枚举值
         if (!value.isString()) { return false }
         let s = value.toString()
-        match (s) {
-            case "system" => Codecs.backend = Backend.system
-            case "bun" => Codecs.backend = Backend.bun
-            case _ => return false
-        }
-        return true
+        if (s == "system") { Codecs.backend = Backend.system; return true }
+        if (s == "bun") { Codecs.backend = Backend.bun; return true }
+        return false
     }
 
     // ========================================================================
@@ -635,15 +681,14 @@ public enum ImageFilter {
     | mitchell
 
     public static func fromString(s: String): ImageFilter {
-        match (s.toRuneArray().map({ r => r.toAsciiLowerCase() })) {
-            case "nearest" => nearest
-            case "box" => box
-            case "bilinear" => bilinear
-            case "hamming" => hamming
-            case "lanczos3" => lanczos3
-            case "mitchell" => mitchell
-            case _ => lanczos3
-        }
+        let lower = s.toAsciiLower()
+        if (lower == "nearest") { return nearest }
+        if (lower == "box") { return box }
+        if (lower == "bilinear") { return bilinear }
+        if (lower == "hamming") { return hamming }
+        if (lower == "lanczos3") { return lanczos3 }
+        if (lower == "mitchell") { return mitchell }
+        return lanczos3
     }
 }
 
@@ -658,10 +703,9 @@ public enum ImageFit {
     | inside  // 保持纵横比，适应内框
 
     public static func fromString(s: String): ImageFit {
-        match (s.toRuneArray().map({ r => r.toAsciiLowerCase() })) {
-            case "inside" => inside
-            case _ => fill
-        }
+        let lower = s.toAsciiLower()
+        if (lower == "inside") { return inside }
+        return fill
     }
 }
 
@@ -735,6 +779,14 @@ public class DecodedImage {
 
     public init() {
         rgba = Array<Byte>()
+        width = UInt32(0)
+        height = UInt32(0)
+    }
+
+    public init(rgba: Array<Byte>, width: UInt32, height: UInt32) {
+        this.rgba = rgba
+        this.width = width
+        this.height = height
     }
 
     public func deinit(): Unit {}
@@ -789,16 +841,14 @@ public class BlobReadChain {
             case ReadBytesResult.ok(bytes) =>
                 // 第一个解析器获胜: 将源交换为 .owned
                 // 后续解析器释放冗余读取的字节
-                if (image.source == ImageSource.blob) {
+                if (match (image.source) { case ImageSource.blob => true case _ => false }) {
                     image.source.deinit()
                     image.source = ImageSource.owned(bytes)
                 }
 
                 // 源现在是 .owned; 重新进入 schedule() 走常规路径
                 // image.schedule(global, thisValue, kind, deliver)
-            case ReadBytesResult.err(e) =>
-                deliver.deinit()
-                // 拒绝 outer promise
+            case ReadBytesResult.err(_) => ()
         }
     }
 }
@@ -838,7 +888,7 @@ public class PipelineTask {
         this.deliver = deliver
         this.maxPixels = maxPixels
         this.autoOrient = autoOrient
-        this.result = PipelineResult.err("DecodeFailed")
+        this.result = PipelineResult.err
     }
 
     /// 最大输入文件大小 (256 MiB)
@@ -862,7 +912,7 @@ public class PipelineTask {
         // 2. 仅头部的 metadata 快速路径
         //    Sharp 仅解析 IHDR/SOF/VP8 头部; 我们过去先解码完整 RGBA 缓冲区
         //    (在 1920x1080 PNG 上慢 ~70x)。EXIF 方向仅交换报告的维度, 不涉及像素。
-        if (this.kind == PipelineTaskKind.metadata) {
+        if (match (this.kind) { case PipelineTaskKind.metadata => true case _ => false }) {
             // if (codecs.probe(input, this.maxPixels)) |p| {
             //     var w = p.width
             //     var h = p.height
@@ -919,14 +969,14 @@ public class PipelineTask {
         //    }
 
         // 7. metadata 二次检查 (HEIC/AVIF 通过完整解码到达此处)
-        if (this.kind == PipelineTaskKind.metadata) {
+        if (match (this.kind) { case PipelineTaskKind.metadata => true case _ => false }) {
             // this.result = PipelineResult.meta(MetaResult(
             //     w: decoded.width, h: decoded.height, format: srcFormat))
             return
         }
 
         // 8. 占位符
-        if (this.kind == PipelineTaskKind.placeholder) {
+        if (match (this.kind) { case PipelineTaskKind.placeholder => true case _ => false }) {
             // this.result = makePlaceholder(decoded.rgba, decoded.width, decoded.height)
             return
         }
@@ -961,7 +1011,7 @@ public class PipelineTask {
     /// 对应 Bun: PipelineTask.then
     public func then(promise: JsPromise): Unit {
         // 简化实现
-        promise.resolve(JsValue.UNDEFINED)
+        JsPromise.resolve(JsValue.UNDEFINED)
     }
 
     /// 应用管线操作
@@ -1042,20 +1092,20 @@ public class PipelineTask {
         var h: UInt32 = if (r.h != 0) {
             r.h
         } else {
-            UInt64(UInt64(r.w) * UInt64(sh) / UInt64(sw)).clamp(1, UInt64(0x3FFFF)).truncateToUInt32()
+            UInt32(clampU64(UInt64(UInt64(r.w) * UInt64(sh) / UInt64(sw)), UInt64(1), UInt64(0x3FFFF)))
         }
-        if (r.fit == ImageFit.inside) {
+        if (match (r.fit) { case ImageFit.inside => true case _ => false }) {
             // 缩小框以保持源的纵横比并使两侧都适合。(Sharp 的 fit:'inside')
             let sx = Float64(w) / Float64(sw)
             let sy = Float64(h) / Float64(sh)
             let s = if (sx < sy) { sx } else { sy }
-            w = UInt64((Float64(sw) * s + 0.5).clamp(1.0, Float64(0x3FFFF))).truncateToUInt32()
-            h = UInt64((Float64(sh) * s + 0.5).clamp(1.0, Float64(0x3FFFF))).truncateToUInt32()
+            w = UInt32(UInt64(clampF64(Float64(sw) * s + 0.5, 1.0, Float64(0x3FFFF))))
+            h = UInt32(UInt64(clampF64(Float64(sh) * s + 0.5, 1.0, Float64(0x3FFFF))))
         }
         if (r.withoutEnlargement && (w > sw || h > sh)) {
-            return ResizeTarget(w: sw, h: sh)
+            return ResizeTarget(sw, sh)
         }
-        return ResizeTarget(w: w, h: h)
+        return ResizeTarget(w, h)
     }
 
     /// 应用 EXIF 方向
@@ -1097,32 +1147,32 @@ public class PipelineTask {
 
         if (w > maxIn || h > maxIn) {
             let r = Float32(w) / Float32(h)
-            if (r > 1) {
+            if (r > 1.0f32) {
                 w = maxIn
-                h = UInt32((Float32(maxIn) / r + 0.5f32).clamp(1.0f32, Float32(maxIn)))
+                h = UInt32(clampF32(Float32(maxIn) / r + 0.5f32, 1.0f32, Float32(maxIn)))
             } else {
                 h = maxIn
-                w = UInt32((Float32(maxIn) * r + 0.5f32).clamp(1.0f32, Float32(maxIn)))
+                w = UInt32(clampF32(Float32(maxIn) * r + 0.5f32, 1.0f32, Float32(maxIn)))
             }
             let resized = Codecs.resize(rgba, sw, sh, w, h, Filter.box)
-            if (resized.isNone()) { return PipelineResult.err("DecodeFailed") }
+            if (resized.isNone()) { return PipelineResult.err }
             pixels = resized.getOrThrow()
         }
 
         let hashOpt = ThumbHash.encode(w, h, pixels)
-        if (hashOpt.isNone()) { return PipelineResult.err("DecodeFailed") }
+        if (hashOpt.isNone()) { return PipelineResult.err }
 
         let renderedOpt = ThumbHash.decode(hashOpt.getOrThrow())
-        if (renderedOpt.isNone()) { return PipelineResult.err("DecodeFailed") }
+        if (renderedOpt.isNone()) { return PipelineResult.err }
         let rendered = renderedOpt.getOrThrow()
 
-        let pngOut = CodecPng.encode(rendered.rgba, rendered.width, rendered.height, -1, None)
-        if (pngOut.isNone()) { return PipelineResult.err("DecodeFailed") }
+        let noProfile: ?Array<UInt8> = None
+        let pngOut = CodecPng.encode(rendered.rgba, rendered.width, rendered.height, Int8(-1), noProfile)
+        if (pngOut.isNone()) { return PipelineResult.err }
         let out = pngOut.getOrThrow()
 
         return PipelineResult.encoded(EncodedResult(
-            bytes: out.bytes, format: ImageFormat.png,
-            w: rendered.width, h: rendered.height))
+            out.bytes, ImageFormat.png, rendered.width, rendered.height))
     }
 
     /// 清理资源
@@ -1134,7 +1184,7 @@ public class PipelineTask {
 
 /// 管线结果
 public enum PipelineResult {
-    | encoded
+    | encoded(EncodedResult)
     | meta
     | err
     | ioErr
@@ -1183,12 +1233,12 @@ func base64Decode(input: String): ?Array<Byte> {
 
     // 计算输出长度
     var padding = 0
-    if (len >= 1 && input[len - 1] == '=') { padding += 1 }
-    if (len >= 2 && input[len - 2] == '=') { padding += 1 }
+    if (len >= 1 && input[len - 1] == UInt8(0x3D)) { padding += 1 }  // '='
+    if (len >= 2 && input[len - 2] == UInt8(0x3D)) { padding += 1 }  // '='
     let outLen = Int64((len * 3) / 4 - padding)
     if (outLen < 0) { return None }
 
-    var result = Array<Byte>(outLen, item: Byte(0))
+    var result = Array<UInt8>(outLen, { _: Int64 => UInt8(0) })
     var buf: UInt32 = 0
     var bits: Int64 = 0
     var idx: Int64 = 0
@@ -1197,7 +1247,7 @@ func base64Decode(input: String): ?Array<Byte> {
         let c = input[i]
         let val = base64CharValue(c)
         if (val < 0) {
-            if (c == '=') { break }
+            if (c == UInt8(0x3D)) { break }  // '='
             continue  // 跳过空白字符
         }
         buf = UInt32(UInt64(buf) << 6 | UInt64(val))
@@ -1205,7 +1255,7 @@ func base64Decode(input: String): ?Array<Byte> {
         if (bits >= 8) {
             bits -= 8
             if (idx < outLen) {
-                result[idx] = Byte(UInt8(UInt64(buf) >> UInt64(bits)))
+                result[idx] = UInt8(UInt64(buf) >> UInt64(bits))
                 idx += 1
             }
         }
@@ -1216,11 +1266,11 @@ func base64Decode(input: String): ?Array<Byte> {
 
 /// Base64 字符值
 func base64CharValue(c: UInt8): Int64 {
-    if (c >= UInt8('A') && c <= UInt8('Z')) { return Int64(c) - Int64(UInt8('A')) }
-    if (c >= UInt8('a') && c <= UInt8('z')) { return Int64(c) - Int64(UInt8('a')) + 26 }
-    if (c >= UInt8('0') && c <= UInt8('9')) { return Int64(c) - Int64(UInt8('0')) + 52 }
-    if (c == UInt8('+')) { return 62 }
-    if (c == UInt8('/')) { return 63 }
+    if (c >= 65 && c <= 90) { return Int64(c) - 65 }
+    if (c >= 97 && c <= 122) { return Int64(c) - 97 + 26 }
+    if (c >= 48 && c <= 57) { return Int64(c) - 48 + 52 }
+    if (c == 43) { return 62 }  // '+'
+    if (c == 47) { return 63 }  // '/'
     return -1
 }
 
@@ -1234,7 +1284,7 @@ func coerceInt(x: Float64, lo: Float64, hi: Float64): Int64 {
     if (x.isNaN()) {
         return Int64(lo)
     }
-    return Int64(x.clamp(lo, hi))
+    return Int64(clampF64(x, Float64(lo), Float64(hi)))
 }
 
 /// Resize 目标

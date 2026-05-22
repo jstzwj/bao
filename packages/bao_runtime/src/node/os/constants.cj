@@ -162,8 +162,8 @@ public class OsConstants {
 
     // 创建完整常量对象
     // 对应 Bun: src/runtime/node/os/constants.zig - create
-    public static func create(): HashMap<String, Any> {
-        let m = HashMap<String, Any>()
+    public static func create(): HashMap<String, Object> {
+        let m = HashMap<String, Object>()
         m.put("errno", errno())
         m.put("signals", signals())
         m.put("priority", priority())

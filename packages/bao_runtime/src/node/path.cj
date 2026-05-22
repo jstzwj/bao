@@ -5,6 +5,7 @@ package bao_runtime.node
 
 import bao_core.*
 import bao_sys.*
+import std.collection.ArrayList
 
 // ============================================================================
 // Constants
@@ -13,11 +14,11 @@ import bao_sys.*
 // ============================================================================
 public class PathConstants {
     // Character constants
-    public static let CHAR_FORWARD_SLASH: UInt8 = '/'.toUInt8()
-    public static let CHAR_BACKWARD_SLASH: UInt8 = '\\'.toUInt8()
-    public static let CHAR_COLON: UInt8 = ':'.toUInt8()
-    public static let CHAR_DOT: UInt8 = '.'.toUInt8()
-    public static let CHAR_QUESTION_MARK: UInt8 = '?'.toUInt8()
+    public static let CHAR_FORWARD_SLASH: UInt8 = UInt8(0x2F)     // '/'
+    public static let CHAR_BACKWARD_SLASH: UInt8 = UInt8(0x5C)    // '\\'
+    public static let CHAR_COLON: UInt8 = UInt8(0x3A)              // ':'
+    public static let CHAR_DOT: UInt8 = UInt8(0x2E)                // '.'
+    public static let CHAR_QUESTION_MARK: UInt8 = UInt8(0x3F)      // '?'
 
     // String constants
     public static let CHAR_STR_BACKWARD_SLASH: String = "\\"
@@ -30,8 +31,8 @@ public class PathConstants {
     public static let MAX_PATH_BYTES: Int64 = 4096
 
     // Separator constants
-    public static let SEP_POSIX: UInt8 = '/'.toUInt8()
-    public static let SEP_WINDOWS: UInt8 = '\\'.toUInt8()
+    public static let SEP_POSIX: UInt8 = UInt8(0x2F)   // '/'
+    public static let SEP_WINDOWS: UInt8 = UInt8(0x5C)  // '\\'
     public static let SEP_STR_POSIX: String = "/"
     public static let SEP_STR_WINDOWS: String = "\\"
 
@@ -102,8 +103,8 @@ public class Path {
     // 'A'-'Z' or 'a'-'z'
     // ========================================================================
     public static func isWindowsDeviceRoot(byte: UInt8): Bool {
-        return (byte >= 'A'.toUInt8() && byte <= 'Z'.toUInt8()) ||
-               (byte >= 'a'.toUInt8() && byte <= 'z'.toUInt8())
+        return (byte >= UInt8(0x41) && byte <= UInt8(0x5A)) ||  // 'A'-'Z'
+               (byte >= UInt8(0x61) && byte <= UInt8(0x7A))      // 'a'-'z'
     }
 
     // ========================================================================
@@ -111,8 +112,8 @@ public class Path {
     // Corresponds to Bun: path.rs to_lower_t
     // ========================================================================
     public static func toLower(byte: UInt8): UInt8 {
-        if (byte >= 'A'.toUInt8() && byte <= 'Z'.toUInt8()) {
-            return byte + ('a'.toUInt8() - 'A'.toUInt8())
+        if (byte >= UInt8(0x41) && byte <= UInt8(0x5A)) {  // 'A'-'Z'
+            return byte + UInt8(0x20)  // 'a' - 'A' = 32
         }
         return byte
     }
@@ -163,7 +164,7 @@ public class Path {
     // Returns cached cwd without trailing slash
     // ========================================================================
     public static func getCwd(): String {
-        return System.cwd()
+        return OS.getcwd()
     }
 
     // ========================================================================
@@ -172,7 +173,7 @@ public class Path {
     // Based on Node v21.6.1 path.posix.basename
     // ========================================================================
     public static func basenamePosix(path: String, suffix: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return ""
@@ -259,7 +260,7 @@ public class Path {
     // Based on Node v21.6.1 path.win32.basename
     // ========================================================================
     public static func basenameWindows(path: String, suffix: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return ""
@@ -349,15 +350,19 @@ public class Path {
     // basename — Get filename from path (dispatches to platform)
     // Corresponds to Bun: path.rs basename (JS entry point)
     // ========================================================================
-    public static func basename(path: String, suffix: String = ""): String {
-        return basenamePosix(path, suffix: suffix)
+    public static func basename(path: String, suffix: String): String {
+        return basenamePosix(path, suffix)
+    }
+
+    public static func basename(path: String): String {
+        return basenamePosix(path, "")
     }
 
     public static func basename(path: String, suffix: String, isWindows: Bool): String {
         if (isWindows) {
-            return basenameWindows(path, suffix: suffix)
+            return basenameWindows(path, suffix)
         }
-        return basenamePosix(path, suffix: suffix)
+        return basenamePosix(path, suffix)
     }
 
     // ========================================================================
@@ -366,7 +371,7 @@ public class Path {
     // Based on Node v21.6.1 path.posix.dirname
     // ========================================================================
     public static func dirnamePosix(path: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return "."
@@ -407,7 +412,7 @@ public class Path {
     // Based on Node v21.6.1 path.win32.dirname
     // ========================================================================
     public static func dirnameWindows(path: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return "."
@@ -520,7 +525,7 @@ public class Path {
     // Based on Node v21.6.1 path.posix.extname
     // ========================================================================
     public static func extnamePosix(path: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return ""
@@ -576,7 +581,7 @@ public class Path {
     // Based on Node v21.6.1 path.win32.extname
     // ========================================================================
     public static func extnameWindows(path: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return ""
@@ -652,7 +657,7 @@ public class Path {
     // Based on Node v21.6.1 private helper _format
     // ========================================================================
     public static func formatPosix(parsed: PathParsed): String {
-        return formatImpl(parsed, sep: PathConstants.CHAR_FORWARD_SLASH)
+        return formatImpl(parsed, PathConstants.CHAR_FORWARD_SLASH)
     }
 
     // ========================================================================
@@ -660,7 +665,7 @@ public class Path {
     // Corresponds to Bun: path.rs _format_t (with backslash)
     // ========================================================================
     public static func formatWindows(parsed: PathParsed): String {
-        return formatImpl(parsed, sep: PathConstants.CHAR_BACKWARD_SLASH)
+        return formatImpl(parsed, PathConstants.CHAR_BACKWARD_SLASH)
     }
 
     // ========================================================================
@@ -830,7 +835,7 @@ public class Path {
     // Corresponds to Bun: path.rs Bun__Node__Path_joinWTF
     // ========================================================================
     public static func joinWTF(lhs: String, rhs: String): String {
-        return joinPosix(Array<String>([lhs, rhs]))
+        return joinPosix([lhs, rhs])
     }
 
     // ========================================================================
@@ -840,7 +845,7 @@ public class Path {
     // Resolves . and .. elements
     // ========================================================================
     public static func normalizePosix(path: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return "."
@@ -877,17 +882,18 @@ public class Path {
                         result[result.size - 1] != PathConstants.CHAR_DOT ||
                         result[result.size - 2] != PathConstants.CHAR_DOT) {
                         if (result.size > 2) {
-                            let lastSlashIndex = result.lastIndexOf('/')
-                            if (lastSlashIndex < 0) {
+                            let lastSlashIdx = result.lastIndexOf('/')
+                            if (lastSlashIdx.isNone()) {
                                 result = ""
                                 lastSegmentLength = 0
                             } else {
-                                result = result.substring(0, Int64(lastSlashIndex))
+                                let lastSlashIndex = lastSlashIdx.getOrThrow()
+                                result = result[0..lastSlashIndex]
                                 let lastIndexOfSep = result.lastIndexOf('/')
-                                if (lastIndexOfSep < 0) {
-                                    lastSegmentLength = Int64(result.size)
+                                if (lastIndexOfSep.isNone()) {
+                                    lastSegmentLength = result.size
                                 } else {
-                                    lastSegmentLength = Int64(result.size) - 1 - Int64(lastIndexOfSep)
+                                    lastSegmentLength = result.size - 1 - lastIndexOfSep.getOrThrow()
                                 }
                             }
                         } else if (result.size > 0) {
@@ -933,7 +939,7 @@ public class Path {
         }
 
         // Append trailing separator
-        if (trailingSep && result[result.size - 1] != '/') {
+        if (trailingSep && result[result.size - 1] != UInt8(0x2F)) {
             result = result + "/"
         }
 
@@ -951,7 +957,7 @@ public class Path {
     // Based on Node v21.6.1 path.win32.normalize
     // ========================================================================
     public static func normalizeWindows(path: String): String {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return "."
@@ -1061,7 +1067,7 @@ public class Path {
     // Based on Node v21.6.1 path.posix.parse
     // ========================================================================
     public static func parsePosix(path: String): PathParsed {
-        validateString(path, name: "path")
+        validateString(path, "path")
         let len = path.size
         if (len == 0) {
             return PathParsed()
@@ -1133,7 +1139,7 @@ public class Path {
             dir = "/"
         }
 
-        return PathParsed(root: root, dir: dir, base: base, ext: ext, name: nameStr)
+        return PathParsed(root, dir, base, ext, nameStr)
     }
 
     // ========================================================================
@@ -1142,7 +1148,7 @@ public class Path {
     // Based on Node v21.6.1 path.win32.parse
     // ========================================================================
     public static func parseWindows(path: String): PathParsed {
-        validateString(path, name: "path")
+        validateString(path, "path")
         var root = ""
         var dir = ""
         var base = ""
@@ -1151,7 +1157,7 @@ public class Path {
 
         let len = path.size
         if (len == 0) {
-            return PathParsed(root: root, dir: dir, base: base, ext: ext, name: nameStr)
+            return PathParsed(root, dir, base, ext, nameStr)
         }
 
         var rootEnd: Int64 = 0
@@ -1165,7 +1171,7 @@ public class Path {
                 base = substring(path, 0, 1)
                 nameStr = base
             }
-            return PathParsed(root: root, dir: dir, base: base, ext: ext, name: nameStr)
+            return PathParsed(root, dir, base, ext, nameStr)
         }
 
         // Try to match a root
@@ -1207,14 +1213,14 @@ public class Path {
             if (len <= 2) {
                 root = path
                 dir = path
-                return PathParsed(root: root, dir: dir, base: base, ext: ext, name: nameStr)
+                return PathParsed(root, dir, base, ext, nameStr)
             }
             rootEnd = 2
             if (isSepWindows(path[2])) {
                 if (len == 3) {
                     root = path
                     dir = path
-                    return PathParsed(root: root, dir: dir, base: base, ext: ext, name: nameStr)
+                    return PathParsed(root, dir, base, ext, nameStr)
                 }
                 rootEnd = 3
             }
@@ -1279,7 +1285,7 @@ public class Path {
             dir = root
         }
 
-        return PathParsed(root: root, dir: dir, base: base, ext: ext, name: nameStr)
+        return PathParsed(root, dir, base, ext, nameStr)
     }
 
     // ========================================================================
@@ -1303,16 +1309,16 @@ public class Path {
     // Based on Node v21.6.1 path.posix.relative
     // ========================================================================
     public static func relativePosix(from: String, to: String): String {
-        validateString(from, name: "from")
-        validateString(to, name: "to")
+        validateString(from, "from")
+        validateString(to, "to")
 
         if (from == to) {
             return ""
         }
 
         // Resolve both paths to absolute
-        let fromAbs = resolvePosix(Array<String>([from]))
-        let toAbs = resolvePosix(Array<String>([to]))
+        let fromAbs = resolvePosix([from])
+        let toAbs = resolvePosix([to])
 
         if (fromAbs == toAbs) {
             return ""
@@ -1334,7 +1340,7 @@ public class Path {
             let fromByte = fromAbs[Int64(fromStart + i)]
             if (fromByte != toAbs[Int64(toStart + i)]) {
                 break
-            } else if (fromByte == '/') {
+            } else if (fromByte == UInt8(0x2F)) {
                 lastCommonSep = i
             }
             i += 1
@@ -1343,14 +1349,14 @@ public class Path {
 
         if (matchesAllOfSmallest) {
             if (toLen > smallestLength) {
-                if (toAbs[Int64(toStart + smallestLength)] == '/') {
+                if (toAbs[Int64(toStart + smallestLength)] == UInt8(0x2F)) {
                     return substring(toAbs, toStart + smallestLength + 1, toOrigLen)
                 }
                 if (smallestLength == 0) {
                     return substring(toAbs, toStart + smallestLength, toOrigLen)
                 }
             } else if (fromLen > smallestLength) {
-                if (fromAbs[Int64(fromStart + smallestLength)] == '/') {
+                if (fromAbs[Int64(fromStart + smallestLength)] == UInt8(0x2F)) {
                     lastCommonSep = smallestLength
                 } else if (smallestLength == 0) {
                     lastCommonSep = 0
@@ -1362,7 +1368,7 @@ public class Path {
         var out = ""
         var j: Int64 = fromStart + (if (lastCommonSep >= 0) { lastCommonSep + 1 } else { 0 })
         while (j <= fromEnd) {
-            if (j == fromEnd || fromAbs[Int64(j)] == '/') {
+            if (j == fromEnd || fromAbs[Int64(j)] == UInt8(0x2F)) {
                 if (out.size > 0) {
                     out = out + "/.."
                 } else {
@@ -1388,15 +1394,15 @@ public class Path {
     // Based on Node v21.6.1 path.win32.relative
     // ========================================================================
     public static func relativeWindows(from: String, to: String): String {
-        validateString(from, name: "from")
-        validateString(to, name: "to")
+        validateString(from, "from")
+        validateString(to, "to")
 
         if (from == to) {
             return ""
         }
 
-        let fromOrig = resolveWindows(Array<String>([from]))
-        let toOrig = resolveWindows(Array<String>([to]))
+        let fromOrig = resolveWindows([from])
+        let toOrig = resolveWindows([to])
 
         if (eqlIgnoreCase(fromOrig, toOrig)) {
             return ""
@@ -1513,14 +1519,14 @@ public class Path {
     // Corresponds to Bun: path.rs relative (JS entry point)
     // ========================================================================
     public static func relative(from: String, to: String): String {
-        return relativePosix(from, to: to)
+        return relativePosix(from, to)
     }
 
     public static func relative(from: String, to: String, isWindows: Bool): String {
         if (isWindows) {
-            return relativeWindows(from, to: to)
+            return relativeWindows(from, to)
         }
-        return relativePosix(from, to: to)
+        return relativePosix(from, to)
     }
 
     // ========================================================================
@@ -1732,7 +1738,7 @@ public class Path {
     // Converts device roots and UNC paths to \\?\ long UNC paths
     // ========================================================================
     public static func toNamespacedPathWindows(path: String): String {
-        let resolved = resolveWindows(Array<String>([path]))
+        let resolved = resolveWindows([path])
         let len = resolved.size
 
         if (len <= 2) {
@@ -1791,7 +1797,7 @@ public class Path {
         // dir || root
         let dirIsRoot = dir.size == 0 || dir == root
         let dirOrRoot = if (dirIsRoot) { root } else { dir }
-        let sepStr = String.fromCharCode(sep)
+        let sepStr = String.fromUtf8([sep])
 
         // base || name + formatExt(ext)
         var baseOrNameExt = base
@@ -1846,17 +1852,18 @@ public class Path {
                         result[result.size - 1] != PathConstants.CHAR_DOT ||
                         result[result.size - 2] != PathConstants.CHAR_DOT) {
                         if (result.size > 2) {
-                            let lastSlashIndex = result.lastIndexOf('/')
-                            if (lastSlashIndex < 0) {
+                            let lastSlashIdx = result.lastIndexOf('/')
+                            if (lastSlashIdx.isNone()) {
                                 result = ""
                                 lastSegmentLength = 0
                             } else {
-                                result = result.substring(0, Int64(lastSlashIndex))
+                                let lastSlashIndex = lastSlashIdx.getOrThrow()
+                                result = result[0..lastSlashIndex]
                                 let lastIndexOfSep = result.lastIndexOf('/')
-                                if (lastIndexOfSep < 0) {
-                                    lastSegmentLength = Int64(result.size)
+                                if (lastIndexOfSep.isNone()) {
+                                    lastSegmentLength = result.size
                                 } else {
-                                    lastSegmentLength = Int64(result.size) - 1 - Int64(lastIndexOfSep)
+                                    lastSegmentLength = result.size - 1 - lastIndexOfSep.getOrThrow()
                                 }
                             }
                         } else if (result.size > 0) {
@@ -1928,17 +1935,18 @@ public class Path {
                         result[result.size - 1] != PathConstants.CHAR_DOT ||
                         result[result.size - 2] != PathConstants.CHAR_DOT) {
                         if (result.size > 2) {
-                            let lastSlashIndex = result.lastIndexOf('\\')
-                            if (lastSlashIndex < 0) {
+                            let lastSlashIdx = result.lastIndexOf("\\")
+                            if (lastSlashIdx.isNone()) {
                                 result = ""
                                 lastSegmentLength = 0
                             } else {
-                                result = result.substring(0, Int64(lastSlashIndex))
-                                let lastIndexOfSep = result.lastIndexOf('\\')
-                                if (lastIndexOfSep < 0) {
-                                    lastSegmentLength = Int64(result.size)
+                                let lastSlashIndex = lastSlashIdx.getOrThrow()
+                                result = result[0..lastSlashIndex]
+                                let lastIndexOfSep = result.lastIndexOf("\\")
+                                if (lastIndexOfSep.isNone()) {
+                                    lastSegmentLength = result.size
                                 } else {
-                                    lastSegmentLength = Int64(result.size) - 1 - Int64(lastIndexOfSep)
+                                    lastSegmentLength = result.size - 1 - lastIndexOfSep.getOrThrow()
                                 }
                             }
                         } else if (result.size > 0) {
@@ -1999,20 +2007,20 @@ public class Path {
             return ""
         }
         let realEnd = if (end > len) { len } else { end }
-        return s.substring(start, realEnd)
+        return s[start..realEnd]
     }
 
     // Split path by separator
     private static func splitPath(path: String, sep: UInt8): Array<String> {
-        let sepStr = String.fromCharCode(sep)
+        let sepStr = String.fromUtf8([sep])
         let parts = path.split(sepStr)
-        var result = Array<String>()
+        var result = ArrayList<String>()
         for (part in parts) {
             if (part.size > 0) {
-                result.append(part)
+                result.add(part)
             }
         }
-        return result
+        return result.toArray()
     }
 }
 
@@ -2030,7 +2038,7 @@ public class PathHostFunctions {
         }
         let path = args[0]
         let suffix = if (args.size > 1) { args[1] } else { "" }
-        return Path.basename(path, suffix: suffix, isWindows: isWindows)
+        return Path.basename(path, suffix, isWindows)
     }
 
     // Bun__Path__dirname
@@ -2038,7 +2046,7 @@ public class PathHostFunctions {
         if (args.size == 0) {
             return "."
         }
-        return Path.dirname(args[0], isWindows: isWindows)
+        return Path.dirname(args[0], isWindows)
     }
 
     // Bun__Path__extname
@@ -2046,7 +2054,7 @@ public class PathHostFunctions {
         if (args.size == 0) {
             return ""
         }
-        return Path.extname(args[0], isWindows: isWindows)
+        return Path.extname(args[0], isWindows)
     }
 
     // Bun__Path__format
@@ -2054,7 +2062,7 @@ public class PathHostFunctions {
         if (args.size == 0) {
             return ""
         }
-        return Path.format(args[0], isWindows: isWindows)
+        return Path.format(args[0], isWindows)
     }
 
     // Bun__Path__isAbsolute
@@ -2062,12 +2070,12 @@ public class PathHostFunctions {
         if (args.size == 0) {
             return false
         }
-        return Path.isAbsolute(args[0], isWindows: isWindows)
+        return Path.isAbsolute(args[0], isWindows)
     }
 
     // Bun__Path__join
     public static func join(global: Int64, isWindows: Bool, args: Array<String>): String {
-        return Path.join(args, isWindows: isWindows)
+        return Path.join(args, isWindows)
     }
 
     // Bun__Path__normalize
@@ -2075,7 +2083,7 @@ public class PathHostFunctions {
         if (args.size == 0) {
             return "."
         }
-        return Path.normalize(args[0], isWindows: isWindows)
+        return Path.normalize(args[0], isWindows)
     }
 
     // Bun__Path__parse
@@ -2083,7 +2091,7 @@ public class PathHostFunctions {
         if (args.size == 0) {
             return PathParsed()
         }
-        return Path.parse(args[0], isWindows: isWindows)
+        return Path.parse(args[0], isWindows)
     }
 
     // Bun__Path__relative
@@ -2091,12 +2099,12 @@ public class PathHostFunctions {
         if (args.size < 2) {
             return ""
         }
-        return Path.relative(args[0], to: args[1], isWindows: isWindows)
+        return Path.relative(args[0], args[1], isWindows)
     }
 
     // Bun__Path__resolve
     public static func resolve(global: Int64, isWindows: Bool, args: Array<String>): String {
-        return Path.resolve(args, isWindows: isWindows)
+        return Path.resolve(args, isWindows)
     }
 
     // Bun__Path__toNamespacedPath
@@ -2104,6 +2112,6 @@ public class PathHostFunctions {
         if (args.size == 0) {
             return ""
         }
-        return Path.toNamespacedPath(args[0], isWindows: isWindows)
+        return Path.toNamespacedPath(args[0], isWindows)
     }
 }

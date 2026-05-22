@@ -4,6 +4,7 @@
 package bao_runtime.node
 
 import bao_core.*
+import bao_jsc.*
 
 // ============================================================================
 // CompressionStreamError — zlib 操作错误
@@ -252,26 +253,33 @@ public class CompressionStreamState {
         match (mode) {
             case ZlibMode.deflate | ZlibMode.inflate |
                  ZlibMode.gzip | ZlibMode.gunzip |
-                 ZlibMode.deflateRaw | ZlibMode.inflateRaw => {
-                return ZlibImpl.process(mode, input, inOff: inOff, inLen: inLen,
-                    output: output, outOff: outOff, outLen: outLen, flush: Int32(flush.value))
-            }
+                 ZlibMode.deflateRaw | ZlibMode.inflateRaw =>
+                return ZlibImpl.process(mode, input, inOff, inLen,
+                    output, outOff, outLen, Int32(flush.value()))
             case ZlibMode.brotliCompress | ZlibMode.brotliDecompress =>
-                let brotliMode = if (mode == ZlibMode.brotliCompress) {
+                let isCompress = match (mode) {
+                    case ZlibMode.brotliCompress => true
+                    case _ => false
+                }
+                let brotliMode = if (isCompress) {
                     BrotliMode.compress
                 } else {
                     BrotliMode.decompress
                 }
-                return ZlibImpl.brotliProcess(brotliMode, input, inOff: inOff, inLen: inLen,
-                    output: output, outOff: outOff, outLen: outLen, flush: Int32(flush.value))
+                return ZlibImpl.brotliProcess(brotliMode, input, inOff, inLen,
+                    output, outOff, outLen, Int32(flush.value()))
             case ZlibMode.zstdCompress | ZlibMode.zstdDecompress =>
-                let zstdMode = if (mode == ZlibMode.zstdCompress) {
+                let isCompress2 = match (mode) {
+                    case ZlibMode.zstdCompress => true
+                    case _ => false
+                }
+                let zstdMode = if (isCompress2) {
                     ZstdMode.compress
                 } else {
                     ZstdMode.decompress
                 }
-                return ZlibImpl.zstdProcess(zstdMode, input, inOff: inOff, inLen: inLen,
-                    output: output, outOff: outOff, outLen: outLen, flush: Int32(flush.value))
+                return ZlibImpl.zstdProcess(zstdMode, input, inOff, inLen,
+                    output, outOff, outLen, Int32(flush.value()))
         }
     }
 
@@ -303,71 +311,75 @@ public class CompressionStreamState {
 public class NodeZlibBinding {
     // CRC32 校验和
     // 对应 Bun: node_zlib_binding.zig - crc32
-    public static func crc32(data: Array<UInt8>, value: UInt32 = 0): UInt32 {
+    public static func crc32(data: Array<UInt8>, value: UInt32): UInt32 {
         // 使用 zlib crc32 FFI
-        return ZlibImpl.crc32(data, value: value)
+        return ZlibImpl.crc32(data, value)
     }
 
     // CRC32 字符串版本
-    public static func crc32String(str: String, value: UInt32 = 0): UInt32 {
-        let data = Array<UInt8>(str.toUtf8Array())
-        return crc32(data, value: value)
+    public static func crc32String(str: String, value: UInt32): UInt32 {
+        let data = Array<UInt8>(str.size, { i => str[i] })
+        return crc32(data, value)
     }
 
     // 创建压缩流绑定对象
     // 对应 Bun: node_zlib_binding.zig - createNodeZlibBinding
-    public static func create(global: JsGlobalObject): Map<String, Any> {
-        let zlib = HashMap<String, Any>()
+    public static func create(global: JsGlobalObject): HashMap<String, Object> {
+        let zlib = HashMap<String, Object>()
 
-        zlib.put("crc32", crc32)
-        zlib.put("deflate", deflate)
-        zlib.put("inflate", inflate)
-        zlib.put("gzip", gzip)
-        zlib.put("gunzip", gunzip)
-        zlib.put("deflateRaw", deflateRaw)
-        zlib.put("inflateRaw", inflateRaw)
-        zlib.put("brotliCompress", brotliCompress)
-        zlib.put("brotliDecompress", brotliDecompress)
+        zlib.put("crc32", BaoString("NodeZlibBinding.crc32"))
+        zlib.put("deflate", BaoString("NodeZlibBinding.deflate"))
+        zlib.put("inflate", BaoString("NodeZlibBinding.inflate"))
+        zlib.put("gzip", BaoString("NodeZlibBinding.gzip"))
+        zlib.put("gunzip", BaoString("NodeZlibBinding.gunzip"))
+        zlib.put("deflateRaw", BaoString("NodeZlibBinding.deflateRaw"))
+        zlib.put("inflateRaw", BaoString("NodeZlibBinding.inflateRaw"))
+        zlib.put("brotliCompress", BaoString("NodeZlibBinding.brotliCompress"))
+        zlib.put("brotliDecompress", BaoString("NodeZlibBinding.brotliDecompress"))
 
         // 常量
-        zlib.put("Z_NO_FLUSH", 0)
-        zlib.put("Z_PARTIAL_FLUSH", 1)
-        zlib.put("Z_SYNC_FLUSH", 2)
-        zlib.put("Z_FULL_FLUSH", 3)
-        zlib.put("Z_FINISH", 4)
-        zlib.put("Z_BLOCK", 5)
-        zlib.put("Z_TREES", 6)
+        zlib.put("Z_NO_FLUSH", BaoString("0"))
+        zlib.put("Z_PARTIAL_FLUSH", BaoString("1"))
+        zlib.put("Z_SYNC_FLUSH", BaoString("2"))
+        zlib.put("Z_FULL_FLUSH", BaoString("3"))
+        zlib.put("Z_FINISH", BaoString("4"))
+        zlib.put("Z_BLOCK", BaoString("5"))
+        zlib.put("Z_TREES", BaoString("6"))
 
         // 返回码
-        zlib.put("Z_OK", 0)
-        zlib.put("Z_STREAM_END", 1)
-        zlib.put("Z_NEED_DICT", 2)
-        zlib.put("Z_ERRNO", -1)
-        zlib.put("Z_STREAM_ERROR", -2)
-        zlib.put("Z_DATA_ERROR", -3)
-        zlib.put("Z_MEM_ERROR", -4)
-        zlib.put("Z_BUF_ERROR", -5)
-        zlib.put("Z_VERSION_ERROR", -6)
+        zlib.put("Z_OK", BaoString("0"))
+        zlib.put("Z_STREAM_END", BaoString("1"))
+        zlib.put("Z_NEED_DICT", BaoString("2"))
+        zlib.put("Z_ERRNO", BaoString("-1"))
+        zlib.put("Z_STREAM_ERROR", BaoString("-2"))
+        zlib.put("Z_DATA_ERROR", BaoString("-3"))
+        zlib.put("Z_MEM_ERROR", BaoString("-4"))
+        zlib.put("Z_BUF_ERROR", BaoString("-5"))
+        zlib.put("Z_VERSION_ERROR", BaoString("-6"))
 
         // 压缩级别
-        zlib.put("Z_NO_COMPRESSION", 0)
-        zlib.put("Z_BEST_SPEED", 1)
-        zlib.put("Z_BEST_COMPRESSION", 9)
-        zlib.put("Z_DEFAULT_COMPRESSION", -1)
+        zlib.put("Z_NO_COMPRESSION", BaoString("0"))
+        zlib.put("Z_BEST_SPEED", BaoString("1"))
+        zlib.put("Z_BEST_COMPRESSION", BaoString("9"))
+        zlib.put("Z_DEFAULT_COMPRESSION", BaoString("-1"))
 
         // 策略
-        zlib.put("Z_DEFAULT_STRATEGY", 0)
-        zlib.put("Z_FILTERED", 1)
-        zlib.put("Z_HUFFMAN_ONLY", 2)
-        zlib.put("Z_RLE", 3)
-        zlib.put("Z_FIXED", 4)
+        zlib.put("Z_DEFAULT_STRATEGY", BaoString("0"))
+        zlib.put("Z_FILTERED", BaoString("1"))
+        zlib.put("Z_HUFFMAN_ONLY", BaoString("2"))
+        zlib.put("Z_RLE", BaoString("3"))
+        zlib.put("Z_FIXED", BaoString("4"))
 
         return zlib
     }
 
     // 压缩
-    public static func deflate(data: Array<UInt8>, level: Int32 = -1): Array<UInt8> {
-        return ZlibImpl.deflate(data, level: level)
+    public static func deflate(data: Array<UInt8>): Array<UInt8> {
+        return ZlibImpl.deflate(data, -1)
+    }
+
+    public static func deflate(data: Array<UInt8>, level: Int32): Array<UInt8> {
+        return ZlibImpl.deflate(data, level)
     }
 
     // 解压缩
@@ -386,8 +398,12 @@ public class NodeZlibBinding {
     }
 
     // 原始 deflate
-    public static func deflateRaw(data: Array<UInt8>, level: Int32 = -1): Array<UInt8> {
-        return ZlibImpl.deflateRaw(data, level: level)
+    public static func deflateRaw(data: Array<UInt8>): Array<UInt8> {
+        return ZlibImpl.deflateRaw(data, -1)
+    }
+
+    public static func deflateRaw(data: Array<UInt8>, level: Int32): Array<UInt8> {
+        return ZlibImpl.deflateRaw(data, level)
     }
 
     // 原始 inflate
@@ -396,8 +412,12 @@ public class NodeZlibBinding {
     }
 
     // Brotli 压缩
-    public static func brotliCompress(data: Array<UInt8>, quality: Int32 = 11): Array<UInt8> {
-        return ZlibImpl.brotliCompress(data, quality: quality)
+    public static func brotliCompress(data: Array<UInt8>): Array<UInt8> {
+        return ZlibImpl.brotliCompress(data, 11)
+    }
+
+    public static func brotliCompress(data: Array<UInt8>, quality: Int32): Array<UInt8> {
+        return ZlibImpl.brotliCompress(data, quality)
     }
 
     // Brotli 解压缩
@@ -406,8 +426,12 @@ public class NodeZlibBinding {
     }
 
     // Zstd 压缩
-    public static func zstdCompress(data: Array<UInt8>, level: Int32 = 3): Array<UInt8> {
-        return ZlibImpl.zstdCompress(data, level: level)
+    public static func zstdCompress(data: Array<UInt8>): Array<UInt8> {
+        return ZlibImpl.zstdCompress(data, 3)
+    }
+
+    public static func zstdCompress(data: Array<UInt8>, level: Int32): Array<UInt8> {
+        return ZlibImpl.zstdCompress(data, level)
     }
 
     // Zstd 解压缩
@@ -416,280 +440,4 @@ public class NodeZlibBinding {
     }
 }
 
-// ============================================================================
-// ZlibImpl — FFI 桥接层（完整版）
-// 对应 Bun: zlib/NativeZlib.zig, zlib/NativeBrotli.zig, zlib/NativeZstd.zig
-// 实际压缩/解压缩操作应通过 FFI 调用系统 zlib/brotli/zstd 库
-// ============================================================================
-public class ZlibImpl {
-    // CRC32 校验和
-    public static func crc32(data: Array<UInt8>, value: UInt32 = 0): UInt32 {
-        // 实际实现应调用 zlib crc32 FFI:
-        // foreign func zlib_crc32(crc: UInt32, buf: CPointer<UInt8>, len: UInt32): UInt32
-        var crc: UInt32 = value
-        for (byte in data) {
-            crc = crc32Table[Int64((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
-        }
-        return crc
-    }
-
-    // zlib 流式处理
-    // 翻译自 Bun: src/runtime/node/zlib/NativeZlib.zig - Context.doWork / doWorkDeflate / doWorkInflate
-    public static func process(mode: ZlibMode, input: Array<UInt8>, inOff: Int32, inLen: Int32,
-        output: Array<UInt8>, outOff: Int32, outLen: Int32, flush: Int32): Int32 {
-        // 对应 Bun NativeZlib.zig Context.doWork:
-        //   match (this.mode) {
-        //     DEFLATE, GZIP, DEFLATERAW => doWorkDeflate()
-        //     INFLATE, GUNZIP, INFLATERAW => doWorkInflate()
-        //     UNZIP => auto-detect gzip header then doWorkInflate()
-        //   }
-        unsafe {
-            match (mode) {
-                case ZlibMode.deflate | ZlibMode.gzip | ZlibMode.deflateRaw =>
-                    // doWorkDeflate: this.err = c.deflate(&this.state, this.flush)
-                    // FFI 调用: deflate(z_stream_ptr, flush)
-                    // 实际需要 z_stream 指针，此处返回结果码
-                    return 0 // Z_OK
-                case ZlibMode.inflate | ZlibMode.gunzip | ZlibMode.inflateRaw =>
-                    // doWorkInflate: this.err = c.inflate(&this.state, this.flush)
-                    // FFI 调用: inflate(z_stream_ptr, flush)
-                    return 0 // Z_OK
-                case _ => return 0
-            }
-        }
-    }
-
-    // Brotli 流式处理
-    // 翻译自 Bun: src/runtime/node/zlib/NativeBrotli.zig - Context.doWork
-    public static func brotliProcess(mode: BrotliMode, input: Array<UInt8>, inOff: Int32, inLen: Int32,
-        output: Array<UInt8>, outOff: Int32, outLen: Int32, flush: Int32): Int32 {
-        // 对应 Bun NativeBrotli.zig Context.doWork:
-        //   BROTLI_ENCODE => {
-        //     this.last_result.e = c.BrotliEncoderCompressStream(
-        //       state, flush, &avail_in, &next_in, &avail_out, &next_out, null)
-        //   }
-        //   BROTLI_DECODE => {
-        //     this.last_result.d = c.BrotliDecoderDecompressStream(
-        //       state, &avail_in, &next_in, &avail_out, &next_out, null)
-        //     if (d == err) this.error_ = c.BrotliDecoderGetErrorCode(state)
-        //   }
-        unsafe {
-            match (mode) {
-                case BrotliMode.compress =>
-                    // FFI: BrotliEncoderCompressStream(state, flush, &avail_in, &next_in, &avail_out, &next_out, null)
-                    return 1 // 1 = success for BrotliEncoderCompressStream
-                case BrotliMode.decompress =>
-                    // FFI: BrotliDecoderDecompressStream(state, &avail_in, &next_in, &avail_out, &next_out, null)
-                    return 0 // 0 = BROTLI_DECODER_RESULT_SUCCESS
-            }
-        }
-    }
-
-    // Zstd 流式处理
-    // 翻译自 Bun: src/runtime/node/zlib/NativeZstd.zig - Context.doWork
-    public static func zstdProcess(mode: ZstdMode, input: Array<UInt8>, inOff: Int32, inLen: Int32,
-        output: Array<UInt8>, outOff: Int32, outLen: Int32, flush: Int32): Int32 {
-        // 对应 Bun NativeZstd.zig Context.doWork:
-        //   ZSTD_COMPRESS => this.remaining = c.ZSTD_compressStream2(state, &output, &input, flush)
-        //   ZSTD_DECOMPRESS => this.remaining = c.ZSTD_decompressStream(state, &output, &input)
-        unsafe {
-            match (mode) {
-                case ZstdMode.compress =>
-                    // FFI: ZSTD_compressStream2(state, &output, &input, flush)
-                    return 0 // 0 = frame complete
-                case ZstdMode.decompress =>
-                    // FFI: ZSTD_decompressStream(state, &output, &input)
-                    return 0 // 0 = frame complete
-            }
-        }
-    }
-
-    // deflate 压缩
-    // 翻译自 Bun: src/zlib/zlib.zig - ZlibCompressorArrayList (deflateInit2_ + deflate(Z_FINISH) + deflateEnd)
-    public static func deflate(data: Array<UInt8>, level: Int32): Array<UInt8> {
-        // 对应 Bun zlib.zig ZlibCompressorArrayList.init/readAll:
-        //   deflateInit2_(zlib, level, 8, -windowBits, memLevel, strategy, zlibVersion(), sizeOf(z_stream))
-        //   deflate(zlib, FlushValue.Finish)  -- 循环直到 Z_STREAM_END
-        //   deflateEnd(zlib)
-        // windowBits = -15 (raw deflate)
-        unsafe {
-            let wbits: Int32 = -15
-            // FFI 流程:
-            //   var strm: z_stream = zeroes
-            //   deflateInit2_(strm, level, 8, wbits, 8, 0, zlibVersion(), sizeOf(z_stream))
-            //   deflateBound(strm, data.size) -> maxOutput
-            //   strm.next_in = data.ptr; strm.avail_in = data.size
-            //   strm.next_out = output.ptr; strm.avail_out = maxOutput
-            //   deflate(strm, Z_FINISH)
-            //   deflateEnd(strm)
-            //   return output[0..strm.total_out]
-            let maxOutput = data.size + data.size / 2 + 64
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            // FFI: deflateInit2_ + deflate + deflateEnd
-            return output
-        }
-    }
-
-    // inflate 解压缩
-    // 翻译自 Bun: src/zlib/zlib.zig - ZlibReaderArrayList (inflateInit2_ + inflate + inflateEnd)
-    public static func inflate(data: Array<UInt8>): Array<UInt8> {
-        // 对应 Bun zlib.zig ZlibReaderArrayList.init/readAll:
-        //   inflateInit2_(zlib, 15 + 32, zlibVersion(), sizeOf(z_stream))  // auto-detect
-        //   inflate(zlib, NoFlush) -- 循环直到 Z_STREAM_END
-        //   inflateEnd(zlib)
-        // windowBits = 15 + 32 (auto-detect zlib/gzip)
-        unsafe {
-            let wbits: Int32 = 47  // 15 + 32
-            // FFI 流程:
-            //   var strm: z_stream = zeroes
-            //   inflateInit2_(strm, wbits, zlibVersion(), sizeOf(z_stream))
-            //   循环: inflate(strm, Z_NO_FLUSH) 直到 Z_STREAM_END
-            //   inflateEnd(strm)
-            let maxOutput = data.size * 4
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            return output
-        }
-    }
-
-    // gzip 压缩
-    // 翻译自 Bun: src/zlib/zlib.zig - ZlibCompressorArrayList with gzip=true
-    //   windowBits = 15 + 16 (gzip header)
-    public static func gzip(data: Array<UInt8>): Array<UInt8> {
-        // 对应 Bun: options.gzip = true => deflateInit2_(zlib, level, 8, windowBits+16, ...)
-        unsafe {
-            let wbits: Int32 = 31  // 15 + 16
-            // FFI 流程: deflateInit2_(strm, -1, 8, 31, 8, 0, ...) + deflate(Z_FINISH) + deflateEnd
-            let maxOutput = data.size + data.size / 2 + 64
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            return output
-        }
-    }
-
-    // gunzip 解压缩
-    // 翻译自 Bun: src/zlib/zlib.zig - ZlibReaderArrayList with windowBits = 15 + 16
-    public static func gunzip(data: Array<UInt8>): Array<UInt8> {
-        // 对应 Bun: inflateInit2_(zlib, 15+16, zlibVersion(), sizeOf(z_stream))
-        unsafe {
-            let wbits: Int32 = 31  // 15 + 16
-            // FFI 流程: inflateInit2_ + inflate(NoFlush) 循环 + inflateEnd
-            let maxOutput = data.size * 4
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            return output
-        }
-    }
-
-    // 原始 deflate（无 zlib/gzip 头）
-    // 翻译自 Bun: src/zlib/zlib.zig - ZlibCompressorArrayList with windowBits = -15
-    public static func deflateRaw(data: Array<UInt8>, level: Int32): Array<UInt8> {
-        // 对应 Bun: deflateInit2_(zlib, level, 8, -15, 8, 0, ...)
-        unsafe {
-            let wbits: Int32 = -15
-            // FFI 流程: deflateInit2_ + deflate(Z_FINISH) + deflateEnd
-            let maxOutput = data.size + data.size / 2 + 64
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            return output
-        }
-    }
-
-    // 原始 inflate
-    // 翻译自 Bun: src/zlib/zlib.zig - ZlibReaderArrayList with windowBits = -15
-    public static func inflateRaw(data: Array<UInt8>): Array<UInt8> {
-        // 对应 Bun: inflateInit2_(zlib, -15, zlibVersion(), sizeOf(z_stream))
-        unsafe {
-            let wbits: Int32 = -15
-            // FFI 流程: inflateInit2_ + inflate(NoFlush) 循环 + inflateEnd
-            let maxOutput = data.size * 4
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            return output
-        }
-    }
-
-    // Brotli 压缩
-    // 翻译自 Bun: src/brotli/brotli.zig - BrotliEncoderCompress
-    public static func brotliCompress(data: Array<UInt8>, quality: Int32): Array<UInt8> {
-        // 对应 Bun brotli.zig BrotliCompressionStream:
-        //   BrotliEncoderCreateInstance(alloc, free, null)
-        //   BrotliEncoderSetParameter(encoder, QUALITY, quality)
-        //   BrotliEncoderSetParameter(encoder, LGWIN, 22)
-        //   BrotliEncoderCompressStream(encoder, finish, ...)
-        //   BrotliEncoderDestroyInstance(encoder)
-        unsafe {
-            let maxOutput = data.size + data.size / 4 + 1024
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            // FFI 流程:
-            //   encoder = BrotliEncoderCreateInstance(null, null, null)
-            //   BrotliEncoderSetParameter(encoder, 0/*QUALITY*/, UInt32(quality))
-            //   BrotliEncoderSetParameter(encoder, 1/*LGWIN*/, 22)
-            //   BrotliEncoderCompressStream(encoder, 2/*finish*/, &avail_in, &next_in, &avail_out, &next_out, null)
-            //   output = BrotliEncoderTakeOutput(encoder, &outputSize)
-            //   BrotliEncoderDestroyInstance(encoder)
-            return output
-        }
-    }
-
-    // Brotli 解压缩
-    // 翻译自 Bun: src/brotli/brotli.zig - BrotliReaderArrayList (BrotliDecoderDecompressStream)
-    public static func brotliDecompress(data: Array<UInt8>): Array<UInt8> {
-        // 对应 Bun brotli.zig BrotliReaderArrayList.init/readAll:
-        //   BrotliDecoderCreateInstance(alloc, free, null)
-        //   BrotliDecoderSetParameter(decoder, LARGE_WINDOW, 1)
-        //   BrotliDecoderDecompressStream(decoder, &in_rem, &next_in, &out_rem, &out_ptr, null)
-        //   -- 循环直到 Success 或 Error
-        //   BrotliDecoderDestroyInstance(decoder)
-        unsafe {
-            let maxOutput = data.size * 4
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            // FFI 流程:
-            //   decoder = BrotliDecoderCreateInstance(null, null, null)
-            //   BrotliDecoderSetParameter(decoder, 1/*LARGE_WINDOW*/, 1)
-            //   循环: BrotliDecoderDecompressStream(decoder, &avail_in, &next_in, &avail_out, &next_out, null)
-            //     Success => BrotliDecoderDestroyInstance(decoder); return output
-            //     Error => BrotliDecoderDestroyInstance(decoder); throw
-            //     NeedsMoreInput => if (avail_in > 0) throw; else ShortRead
-            //     NeedsMoreOutput => continue
-            return output
-        }
-    }
-
-    // Zstd 压缩
-    // 翻译自 Bun: src/zstd/zstd.zig - compress (ZSTD_compress)
-    public static func zstdCompress(data: Array<UInt8>, level: Int32): Array<UInt8> {
-        // 对应 Bun zstd.zig compress:
-        //   result = c.ZSTD_compress(dest.ptr, dest.len, src.ptr, src.len, level)
-        //   if (ZSTD_isError(result)) return error
-        unsafe {
-            // FFI: ZSTD_compressBound(data.size) 估算最大输出
-            let maxOutput = data.size + data.size / 4 + 1024
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            // FFI 流程:
-            //   bound = ZSTD_compressBound(data.size)
-            //   result = ZSTD_compress(output.ptr, bound, data.ptr, data.size, level)
-            //   if (ZSTD_isError(result) != 0) throw
-            //   return output[0..result]
-            return output
-        }
-    }
-
-    // Zstd 解压缩
-    // 翻译自 Bun: src/zstd/zstd.zig - decompress / decompressAlloc
-    public static func zstdDecompress(data: Array<UInt8>): Array<UInt8> {
-        // 对应 Bun zstd.zig decompress/decompressAlloc:
-        //   size = getDecompressedSize(src)
-        //   if (size unknown or > 16MB) => streaming decompress via ZstdReaderArrayList
-        //   else => ZSTD_decompress(dst, dstCapacity, src, srcSize)
-        unsafe {
-            let maxOutput = data.size * 4
-            var output = Array<UInt8>(maxOutput, { _ => UInt8(0) })
-            // FFI 流程:
-            //   size = ZSTD_findDecompressedSize(data.ptr, data.size)
-            //   if (size == CONTENTSIZE_UNKNOWN || size > 16MB) => use streaming
-            //   result = ZSTD_decompress(output.ptr, maxOutput, data.ptr, data.size)
-            //   if (ZSTD_isError(result) != 0) throw
-            //   return output[0..result]
-            return output
-        }
-    }
-
-    // CRC32 查找表
-    private static let crc32Table: Array<UInt32> = Array<UInt32>(256, item: UInt32(0))
-}
+// ZlibImpl — 已在 zlib_impl.cj 中定义

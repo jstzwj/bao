@@ -30,7 +30,7 @@ public class TimeLike {
     // 从毫秒创建 TimeLike
     public static func fromMilliseconds(milliseconds: Float64): TimeLike {
         var sec: Float64 = Float64(Int64(milliseconds / 1000.0))
-        var nsec: Float64 = (milliseconds % 1000.0) * 1000000.0
+        var nsec: Float64 = (milliseconds - Float64(Int64(milliseconds / 1000.0)) * 1000.0) * 1000000.0
 
         if (nsec < 0.0) {
             nsec = nsec + 1000000000.0

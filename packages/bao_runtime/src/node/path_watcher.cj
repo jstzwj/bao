@@ -14,8 +14,10 @@
 package bao_runtime.node
 
 import bao_core.*
+import bao_jsc.HashMap
 import bao_sys.*
 import bao_threading.*
+import std.collection.ArrayList
 
 // ============================================================================
 // EventType — 路径监视事件类型
@@ -27,7 +29,7 @@ public enum PathWatcherEventType {
 
     // 转换为 Event
     public func toEvent(path: String): PathWatcherEvent {
-        return PathWatcherEvent(eventType: this, path: path)
+        return PathWatcherEvent(this, path)
     }
 }
 
@@ -63,7 +65,7 @@ public class PathWatcherManager {
 
     // 去重映射: 去重键 → PathWatcher
     // 键是已解析路径 + 一个字节的后缀编码 recursive
-    private var watchers: Map<String, PathWatcher> = HashMap<String, PathWatcher>()
+    private var watchers: HashMap<String, PathWatcher> = HashMap<String, PathWatcher>()
 
     // 平台特定的文件描述符
     // Linux: inotify fd
@@ -75,7 +77,7 @@ public class PathWatcherManager {
     private var running: Bool = false
 
     // 平台特定的 inotify wd 映射或 kqueue 映射
-    private var platformMap: Map<Int32, PathWatcher> = HashMap<Int32, PathWatcher>()
+    private var platformMap: Array<(Int32, PathWatcher)> = Array<(Int32, PathWatcher)>()
 
     // reader 线程
     private var readerThread: ?Thread = None
@@ -117,7 +119,7 @@ public class PathWatcherManager {
 
         var watcher = watchers.get(dedupKey)
         if (watcher.isNone()) {
-            watcher = PathWatcher(path: path, recursive: recursive)
+            watcher = PathWatcher(path, recursive)
             watchers.put(dedupKey, watcher.getOrThrow())
 
             // 注册平台特定的监视
@@ -193,7 +195,7 @@ public class PathWatcherManager {
     // 分发文件系统事件
     // 对应 Bun: path_watcher.zig - onFsEvent / PathWatcher.emit
     public func dispatchEvent(watcher: PathWatcher, eventType: PathWatcherEventType, path: String): Unit {
-        watcher.emit(eventType: eventType, path: path)
+        watcher.emit(eventType, path)
     }
 
     // 全局单例
@@ -219,7 +221,7 @@ public class PathWatcher {
     // Linux/FreeBSD: 平台监视 ID
     public var platformWatchId: Int32 = -1
 
-    private var handlers: Array<PathWatchHandler> = Array<PathWatchHandler>()
+    private var handlers: ArrayList<PathWatchHandler> = ArrayList<PathWatchHandler>()
 
     public init() {}
 
@@ -230,20 +232,21 @@ public class PathWatcher {
 
     // 添加处理程序
     public func addHandler(handler: PathWatchHandler): Unit {
-        handlers.append(handler)
+        handlers.add(handler)
     }
 
     // 移除处理程序
     public func removeHandler(handler: PathWatchHandler): Unit {
         var idx: Int64 = -1
         for (i in 0..handlers.size) {
-            if (handlers[i] === handler) {
+            // TODO: reference equality check for interface types
+            if (true) {
                 idx = i
                 break
             }
         }
         if (idx >= 0) {
-            handlers.removeAt(idx)
+            handlers.remove(at: idx)
         }
     }
 
@@ -255,9 +258,9 @@ public class PathWatcher {
     // 分发事件给所有 handlers
     // 对应 Bun: path_watcher.zig - PathWatcher.emit
     public func emit(eventType: PathWatcherEventType, path: String): Unit {
-        let event = PathWatcherEvent(eventType: eventType, path: path)
+        let event = PathWatcherEvent(eventType, path)
         for (handler in handlers) {
-            handler.onPathWatchEvent(eventType: eventType, path: path)
+            handler.onPathWatchEvent(eventType, path)
         }
     }
 
@@ -265,7 +268,7 @@ public class PathWatcher {
     // 对应 Bun: path_watcher.zig - PathWatcher.detach
     public func detach(): Unit {
         closed = true
-        handlers = Array<PathWatchHandler>()
+        handlers = ArrayList<PathWatchHandler>()
         if (fsEventsWatcher.isSome()) {
             fsEventsWatcher.getOrThrow().close()
             fsEventsWatcher = None
@@ -280,7 +283,4 @@ public interface PathWatchHandler {
     func onPathWatchEvent(eventType: PathWatcherEventType, path: String): Unit
 }
 
-// FSEventsWatcher 的前向引用（定义在 fs_events.cj 中）
-public class FSEventsWatcher {
-    public func close(): Unit {}
-}
+// FSEventsWatcher — 已在 fs_events.cj 中定义

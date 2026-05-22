@@ -72,7 +72,7 @@ public class PmVersionCommand {
         let positionals = ctx.positionals
         let opts = parseOptions(positionals)
 
-        if (positionals.size < 1 || opts.versionArg == None) {
+        if (positionals.size < 1 || opts.versionArg.isNone()) {
             // 无参数或只有选项: 显示当前版本
             printCurrentVersion()
             return
@@ -88,14 +88,14 @@ public class PmVersionCommand {
 
         // 尝试解析为版本变更类型
         let bumpType = VersionBumpType.parse(versionArg)
-        if (bumpType != None) {
+        if (bumpType.isSome()) {
             bumpVersion(bumpType.getOrThrow(), opts)
             return
         }
 
         // 尝试解析为显式版本号
         let version = SemVer.parse(versionArg)
-        if (version != None) {
+        if (version.isSome()) {
             setVersion(version.getOrThrow().format(), opts)
             return
         }
@@ -122,7 +122,7 @@ public class PmVersionCommand {
                         opts.preid = arg.substring("--preid=".length)
                     } else {
                         // 第一个非选项参数为版本参数
-                        if (opts.versionArg == None) {
+                        if (opts.versionArg.isNone()) {
                             opts.versionArg = arg
                         }
                     }
@@ -135,15 +135,15 @@ public class PmVersionCommand {
     /// 对应 Bun: 无参数时显示当前版本
     private static func printCurrentVersion(): Unit {
         let pkgContent = BaoFile.readAllText("package.json")
-        if (pkgContent == None) {
+        if (pkgContent.isNone()) {
             Output.errGeneric("No package.json found")
             return
         }
 
         let json = JsonParser.parse(pkgContent.getOrThrow())
-        if (json != None && json.getOrThrow().isObject()) {
+        if (json.isSome() && json.getOrThrow().isObject()) {
             let version = json.getOrThrow().asObject().get("version")
-            if (version != None && version.getOrThrow().isString()) {
+            if (version.isSome() && version.getOrThrow().isString()) {
                 Output.println(version.getOrThrow().asString())
                 return
             }
@@ -158,9 +158,9 @@ public class PmVersionCommand {
             case None => return None
         }
         let json = JsonParser.parse(pkgContent)
-        if (json != None && json.getOrThrow().isObject()) {
+        if (json.isSome() && json.getOrThrow().isObject()) {
             let version = json.getOrThrow().asObject().get("version")
-            if (version != None && version.getOrThrow().isString()) {
+            if (version.isSome() && version.getOrThrow().isString()) {
                 return SemVer.parse(version.getOrThrow().asString())
             }
         }
@@ -171,7 +171,7 @@ public class PmVersionCommand {
     /// 对应 Bun: bumpVersion (semver 递增逻辑)
     public static func bumpVersion(bumpType: VersionBumpType, opts: VersionOptions): Unit {
         let current = getCurrentVersion()
-        if (current == None) {
+        if (current.isNone()) {
             Output.errGeneric("No version found in package.json")
             return
         }
@@ -190,7 +190,7 @@ public class PmVersionCommand {
             case VersionBumpType.premajor =>
                 SemVer(current.getOrThrow().major + 1, 0, 0, opts.preid, 0)
             case VersionBumpType.prerelease =>
-                if (current.getOrThrow().prerelease != None) {
+                if (current.getOrThrow().prerelease.isSome()) {
                     SemVer(current.getOrThrow().major, current.getOrThrow().minor, current.getOrThrow().patch, current.getOrThrow().prereleaseTag, current.getOrThrow().prereleaseNum + 1)
                 } else {
                     SemVer(current.getOrThrow().major, current.getOrThrow().minor, current.getOrThrow().patch + 1, opts.preid, 0)
@@ -215,7 +215,7 @@ public class PmVersionCommand {
             if (output.length > 0 && output[0] == 'v') {
                 let tagVersion = output.substring(1)
                 let version = SemVer.parse(tagVersion)
-                if (version != None) {
+                if (version.isSome()) {
                     setVersion(version.getOrThrow().format(), opts)
                     return
                 }
@@ -230,7 +230,7 @@ public class PmVersionCommand {
     /// 对应 Bun: setVersion (修改 package.json 并执行 lifecycle 脚本)
     public static func setVersion(version: String, opts: VersionOptions): Unit {
         let pkgContent = BaoFile.readAllText("package.json")
-        if (pkgContent == None) {
+        if (pkgContent.isNone()) {
             Output.errGeneric("No package.json found")
             return
         }
@@ -270,16 +270,16 @@ public class PmVersionCommand {
     /// 对应 Bun: 执行 npm lifecycle 脚本 (preversion, version, postversion)
     private static func executeLifecycleScript(scriptName: String): Unit {
         let pkgContent = BaoFile.readAllText("package.json")
-        if (pkgContent == None) {
+        if (pkgContent.isNone()) {
             return
         }
 
         let json = JsonParser.parse(pkgContent.getOrThrow())
-        if (json != None && json.getOrThrow().isObject()) {
+        if (json.isSome() && json.getOrThrow().isObject()) {
             let scripts = json.getOrThrow().asObject().get("scripts")
-            if (scripts != None && scripts.getOrThrow().isObject()) {
+            if (scripts.isSome() && scripts.getOrThrow().isObject()) {
                 let script = scripts.getOrThrow().asObject().get(scriptName)
-                if (script != None && script.getOrThrow().isString()) {
+                if (script.isSome() && script.getOrThrow().isString()) {
                     try {
                         Sys.exec(script.getOrThrow().asString())
                     } catch (e: Exception) {
@@ -293,7 +293,7 @@ public class PmVersionCommand {
     /// Git add 并 commit
     /// 对应 Bun: git add + git commit + git tag
     private static func gitAddAndCommit(version: String, opts: VersionOptions): Unit {
-        let commitMessage = if (opts.message != None) {
+        let commitMessage = if (opts.message.isSome()) {
             opts.message.getOrThrow()
         } else {
             "v${version}"
@@ -361,7 +361,7 @@ public class SemVer {
     /// 格式化为字符串
     public func format(): String {
         let base = "${major}.${minor}.${patch}"
-        if (prerelease != None) {
+        if (prerelease.isSome()) {
             return "${base}-${prereleaseTag}.${prereleaseNum}"
         }
         return base
@@ -430,13 +430,13 @@ public class SemVer {
             return patch - other.patch
         }
         // 有 prerelease 的版本 < 没有 prerelease 的版本
-        if (prerelease != None && other.prerelease == None) {
+        if (prerelease.isSome() && other.prerelease.isNone()) {
             return -1
         }
-        if (prerelease == None && other.prerelease != None) {
+        if (prerelease.isNone() && other.prerelease.isSome()) {
             return 1
         }
-        if (prerelease != None && other.prerelease != None) {
+        if (prerelease.isSome() && other.prerelease.isSome()) {
             return prereleaseNum - other.prereleaseNum
         }
         return 0

@@ -6,6 +6,7 @@ package bao_runtime.node
 import bao_core.*
 import bao_sys.*
 import bao_threading.*
+import std.collection.*
 
 // ============================================================================
 // FSEvents 类型定义
@@ -81,7 +82,7 @@ public type CFAbsoluteTime = Float64
 public type CFTimeInterval = Float64
 public type CFIndex = Int64
 public type CFStringEncoding = UInt32
-public type FSEventStreamCreateFlags = UInt32
+// FSEventStreamCreateFlags type alias removed — class with same name holds constants
 public type FSEventStreamEventId = UInt64
 public type OSStatusType = Int32
 
@@ -126,7 +127,7 @@ public class FSEventStreamContext {
 // ============================================================================
 public class Semaphore {
     private var count: UInt32 = 0
-    private var mutex: Mutex = Mutex()
+    private var mutex: FutexMutex = FutexMutex()
     private var cond: Condition = Condition()
 
     public init() {}
@@ -184,17 +185,17 @@ public class ConcurrentFsEventsTask {
 // macOS 上通过 dlopen/dlsym 动态加载
 // ============================================================================
 public class CoreFoundation {
-    public var arrayCreate: ((UIntNative, UIntNative, CFIndex, UIntNative) -> UIntNative)? = None
-    public var release: ((UIntNative) -> Unit)? = None
-    public var runLoopAddSource: ((UIntNative, UIntNative, UIntNative) -> Unit)? = None
-    public var runLoopGetCurrent: (() -> UIntNative)? = None
-    public var runLoopRemoveSource: ((UIntNative, UIntNative, UIntNative) -> Unit)? = None
-    public var runLoopRun: (() -> Unit)? = None
-    public var runLoopSourceCreate: ((UIntNative, CFIndex, UIntNative) -> UIntNative)? = None
-    public var runLoopSourceSignal: ((UIntNative) -> Unit)? = None
-    public var runLoopStop: ((UIntNative) -> Unit)? = None
-    public var runLoopWakeUp: ((UIntNative) -> Unit)? = None
-    public var stringCreateWithFileSystemRepresentation: ((UIntNative, UIntNative) -> UIntNative)? = None
+    public var arrayCreate: ?((UIntNative, UIntNative, CFIndex, UIntNative) -> UIntNative) = None
+    public var release: ?((UIntNative) -> Unit) = None
+    public var runLoopAddSource: ?((UIntNative, UIntNative, UIntNative) -> Unit) = None
+    public var runLoopGetCurrent: ?(() -> UIntNative) = None
+    public var runLoopRemoveSource: ?((UIntNative, UIntNative, UIntNative) -> Unit) = None
+    public var runLoopRun: ?(() -> Unit) = None
+    public var runLoopSourceCreate: ?((UIntNative, CFIndex, UIntNative) -> UIntNative) = None
+    public var runLoopSourceSignal: ?((UIntNative) -> Unit) = None
+    public var runLoopStop: ?((UIntNative) -> Unit) = None
+    public var runLoopWakeUp: ?((UIntNative) -> Unit) = None
+    public var stringCreateWithFileSystemRepresentation: ?((UIntNative, UIntNative) -> UIntNative) = None
     public var runLoopDefaultMode: UIntNative = 0
 
     public init() {}
@@ -212,20 +213,12 @@ public class CoreFoundation {
 // macOS 上通过 dlopen/dlsym 动态加载
 // ============================================================================
 public class CoreServices {
-    public var fsEventStreamCreate: ((
-        UIntNative,                   // allocator
-        UIntNative,                   // callback
-        UIntNative,                   // context
-        UIntNative,                   // paths
-        FSEventStreamEventId,         // sinceWhen
-        CFTimeInterval,               // latency
-        FSEventStreamCreateFlags      // flags
-    ) -> UIntNative)? = None
-    public var fsEventStreamInvalidate: ((UIntNative) -> Unit)? = None
-    public var fsEventStreamRelease: ((UIntNative) -> Unit)? = None
-    public var fsEventStreamScheduleWithRunLoop: ((UIntNative, UIntNative, UIntNative) -> Unit)? = None
-    public var fsEventStreamStart: ((UIntNative) -> Int32)? = None
-    public var fsEventStreamStop: ((UIntNative) -> Unit)? = None
+    public var fsEventStreamCreate: ?((UIntNative, UIntNative, UIntNative, UIntNative, FSEventStreamEventId, CFTimeInterval, UInt32) -> UIntNative) = None
+    public var fsEventStreamInvalidate: ?((UIntNative) -> Unit) = None
+    public var fsEventStreamRelease: ?((UIntNative) -> Unit) = None
+    public var fsEventStreamScheduleWithRunLoop: ?((UIntNative, UIntNative, UIntNative) -> Unit) = None
+    public var fsEventStreamStart: ?((UIntNative) -> Int32) = None
+    public var fsEventStreamStop: ?((UIntNative) -> Unit) = None
     public var kFSEventStreamEventIdSinceNow: FSEventStreamEventId = 18446744073709551615
 
     public init() {}
@@ -246,9 +239,9 @@ public class FSEventsLoop {
     public var mutex: Mutex = Mutex()
     public var loop_: UIntNative = 0
     public var sem: Semaphore = Semaphore()
-    public var thread: ?Thread = None
-    public var tasks: Array<ConcurrentFsEventsTask> = Array<ConcurrentFsEventsTask>()
-    public var watchers: Array<?FSEventsWatcher> = Array<?FSEventsWatcher>()
+    public var thread: ?FsEventsThread = None
+    public var tasks: ArrayList<ConcurrentFsEventsTask> = ArrayList<ConcurrentFsEventsTask>()
+    public var watchers: ArrayList<?FSEventsWatcher> = ArrayList<?FSEventsWatcher>()
     public var watcherCount: UInt32 = 0
     public var fseventStream: UIntNative = 0
     public var paths: ?Array<UIntNative> = None
@@ -266,18 +259,26 @@ public class FSEventsLoop {
         }
         let cfInst = cf.getOrThrow()
 
-        loop_ = cfInst.runLoopGetCurrent?.getOrThrow()() ?? UIntNative(0)
+        let runLoopGetCurrent = cfInst.runLoopGetCurrent
+        if (runLoopGetCurrent.isSome()) {
+            loop_ = runLoopGetCurrent.getOrThrow()()
+        }
 
         if (signalSource != UIntNative(0) && loop_ != UIntNative(0) && cfInst.runLoopDefaultMode != UIntNative(0)) {
-            cfInst.runLoopAddSource?.getOrThrow()(loop_, signalSource, cfInst.runLoopDefaultMode)
+            let fn_ = cfInst.runLoopAddSource
+            if (fn_.isSome()) { fn_.getOrThrow()(loop_, signalSource, cfInst.runLoopDefaultMode) }
         }
 
         sem.post()
 
-        cfInst.runLoopRun?.getOrThrow()()
+        let runLoopRun = cfInst.runLoopRun
+        if (runLoopRun.isSome()) {
+            runLoopRun.getOrThrow()()
+        }
 
         if (loop_ != UIntNative(0) && signalSource != UIntNative(0) && cfInst.runLoopDefaultMode != UIntNative(0)) {
-            cfInst.runLoopRemoveSource?.getOrThrow()(loop_, signalSource, cfInst.runLoopDefaultMode)
+            let fn_ = cfInst.runLoopRemoveSource
+            if (fn_.isSome()) { fn_.getOrThrow()(loop_, signalSource, cfInst.runLoopDefaultMode) }
         }
 
         loop_ = UIntNative(0)
@@ -290,7 +291,7 @@ public class FSEventsLoop {
         }
 
         let batch = tasks
-        tasks = Array<ConcurrentFsEventsTask>()
+        tasks = ArrayList<ConcurrentFsEventsTask>()
 
         for (task in batch) {
             if (task.task.isSome()) {
@@ -310,13 +311,13 @@ public class FSEventsLoop {
 
         // 启动 CF 线程
         loop.sem = Semaphore()
-        loop.thread = Thread()
+        loop.thread = FsEventsThread(loop.cfThreadLoop)
         if (loop.thread.isNone()) {
             return None
         }
 
         // 线程启动后等待同步
-        loop.thread.getOrThrow().start(loop.cfThreadLoop)
+        loop.thread.getOrThrow().start()
         loop.sem.wait()
 
         return loop
@@ -327,17 +328,19 @@ public class FSEventsLoop {
         let concurrent = ConcurrentFsEventsTask()
         concurrent.task = task
         concurrent.autoDelete = true
-        tasks.append(concurrent)
+        tasks.add(concurrent)
 
         // 信号 CF 线程
         let cf = CoreFoundation.load()
         if (cf.isSome()) {
             let cfInst = cf.getOrThrow()
             if (signalSource != UIntNative(0)) {
-                cfInst.runLoopSourceSignal?.getOrThrow()(signalSource)
+                let fn_ = cfInst.runLoopSourceSignal
+                if (fn_.isSome()) { fn_.getOrThrow()(signalSource) }
             }
             if (loop_ != UIntNative(0)) {
-                cfInst.runLoopWakeUp?.getOrThrow()(loop_)
+                let fn_ = cfInst.runLoopWakeUp
+                if (fn_.isSome()) { fn_.getOrThrow()(loop_) }
             }
         }
     }
@@ -348,7 +351,7 @@ public class FSEventsLoop {
         mutex.lock()
         if (Int64(watcherCount) == watchers.size) {
             watcherCount = watcherCount + 1
-            watchers.append(watcher)
+            watchers.add(watcher)
         } else {
             for (i in 0..watchers.size) {
                 if (watchers[i].isNone()) {
@@ -368,7 +371,7 @@ public class FSEventsLoop {
         mutex.unlock()
 
         // 安排 _schedule 在 CF 线程执行
-        let task = FsEventsTask(callback: { (_: UIntNative) => schedule() })
+        let task = FsEventsTask({ _arg => schedule() })
         enqueueTaskConcurrent(task)
     }
 
@@ -378,10 +381,12 @@ public class FSEventsLoop {
         mutex.lock()
         let len = watchers.size
         for (i in 0..len) {
-            if (watchers[i].isSome() && watchers[i].getOrThrow() === watcher) {
-                watchers[i] = None
+            if (watchers[i].isSome() && watchers[i].getOrThrow() == watcher) {
                 if (i == len - 1) {
-                    watchers.removeAt(i)
+                    watchers.remove(at: i)
+                } else {
+                    watchers.remove(at: i)
+                    watchers.add(Option<FSEventsWatcher>.None, at: i)
                 }
                 watcherCount = watcherCount - 1
                 break
@@ -396,7 +401,7 @@ public class FSEventsLoop {
         }
         mutex.unlock()
 
-        let task = FsEventsTask(callback: { (_: UIntNative) => schedule() })
+        let task = FsEventsTask({ _arg => schedule() })
         enqueueTaskConcurrent(task)
     }
 
@@ -434,7 +439,7 @@ public class FSEventsLoop {
 
         // 延迟 0.05 秒
         let latency: CFAbsoluteTime = 0.05
-        let flags: FSEventStreamCreateFlags = UInt32(
+        let flags: UInt32 = UInt32(
             FSEventStreamCreateFlags.kFSEventStreamCreateFlagNoDefer |
             FSEventStreamCreateFlags.kFSEventStreamCreateFlagFileEvents
         )
@@ -453,14 +458,15 @@ public class FSEventsLoop {
     public func stop(): Unit {
         let cf = CoreFoundation.load()
         if (cf.isSome() && loop_ != UIntNative(0)) {
-            cf.getOrThrow().runLoopStop?.getOrThrow()(loop_)
+            let fn_ = cf.getOrThrow().runLoopStop
+            if (fn_.isSome()) { fn_.getOrThrow()(loop_) }
         }
     }
 
     // 关闭并等待
     // 对应 Bun: fs_events.zig - close_and_wait
     public func close(): Unit {
-        let task = FsEventsTask(callback: { (_: UIntNative) => stop() })
+        let task = FsEventsTask({ _arg => stop() })
         enqueueTaskConcurrent(task)
 
         // 等待线程结束
@@ -477,7 +483,7 @@ public class FSEventsLoop {
                 }
             }
         }
-        watchers = Array<?FSEventsWatcher>()
+        watchers = ArrayList<?FSEventsWatcher>()
         watcherCount = 0
     }
 }
@@ -492,10 +498,14 @@ public class FSEventsWatcher {
     public var loop_: ?FSEventsLoop = None
     public var ctx: UIntNative = 0
 
-    private var callback: ((FsWatcherEvent, Bool) -> Unit)? = None
-    private var flushCallback: (() -> Unit)? = None
+    private var callback: ?((FsWatcherEvent, Bool) -> Unit) = None
+    private var flushCallback: ?(() -> Unit) = None
 
     public init() {}
+
+    public operator func ==(other: FSEventsWatcher): Bool {
+        return this.path == other.path && this.recursive == other.recursive
+    }
 
     public init(
         path: String,
@@ -513,12 +523,16 @@ public class FSEventsWatcher {
 
     // 发射事件
     public func emit(event: FsWatcherEvent, isFile: Bool): Unit {
-        callback?.getOrThrow()(event, isFile)
+        if (callback.isSome()) {
+            callback.getOrThrow()(event, isFile)
+        }
     }
 
     // 刷新回调
     public func flush(): Unit {
-        flushCallback?.getOrThrow()()
+        if (flushCallback.isSome()) {
+            flushCallback.getOrThrow()()
+        }
     }
 
     // 关闭 watcher
@@ -573,11 +587,11 @@ public class FSEventsGlobal {
         var loop_ = defaultLoop
         if (loop_.isSome()) {
             let watcher = FSEventsWatcher(
-                path: path,
-                recursive: recursive,
-                callback: callback,
-                flushCallback: updateEnd,
-                ctx: ctx
+                path,
+                recursive,
+                callback,
+                updateEnd,
+                ctx
             )
             watcher.loop_ = loop_
             loop_.getOrThrow().registerWatcher(watcher)
@@ -597,11 +611,11 @@ public class FSEventsGlobal {
         mutex.unlock()
 
         let watcher = FSEventsWatcher(
-            path: path,
-            recursive: recursive,
-            callback: callback,
-            flushCallback: updateEnd,
-            ctx: ctx
+            path,
+            recursive,
+            callback,
+            updateEnd,
+            ctx
         )
         watcher.loop_ = loop_
         loop_.getOrThrow().registerWatcher(watcher)
@@ -617,5 +631,23 @@ public class FSEventsGlobal {
             defaultLoop = None
         }
         mutex.unlock()
+    }
+}
+
+// FsEventsThread — 线程封装（本地定义）
+public class FsEventsThread {
+    private var `func`: () -> Unit
+
+    public init(`func`: () -> Unit) {
+        this.`func` = `func`
+    }
+
+    public func start(): Unit {
+        // 实际实现: spawn OS thread
+        `func`()
+    }
+
+    public func join(): Unit {
+        // 实际实现: join OS thread
     }
 }

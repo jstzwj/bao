@@ -198,7 +198,7 @@ public class OutdatedCommand {
                     manager, manager.scopeForPackageName(packageName),
                     packageName, true
                 )
-                if (manifest == None) {
+                if (manifest.isNone()) {
                     continue
                 }
 

@@ -4,6 +4,7 @@
 package bao_runtime.node.assert
 
 import bao_runtime.node.*
+import bao_collections.*
 
 // ============================================================================
 // Myers diff 选项
@@ -36,23 +37,22 @@ public class MyersDiffAlgorithm {
         }
 
         if (n == 0) {
-            let result = Array<DiffItem>()
+            let result = ArrayList<DiffItem>()
             for (line in expected) {
-                result.append(DiffItem(kind: DiffKind.insert, value: line))
+                result.append(DiffItem(DiffKind.insert, line))
             }
-            return result
+            return result.items()
         }
 
         if (m == 0) {
-            let result = Array<DiffItem>()
+            let result = ArrayList<DiffItem>()
             for (line in actual) {
-                result.append(DiffItem(kind: DiffKind.delete, value: line))
+                result.append(DiffItem(DiffKind.delete, line))
             }
-            return result
+            return result.items()
         }
 
-        // 使用 LCS 回溯法计算 diff
-        return computeDiff(actual, expected: expected, checkCommaDisparity: checkCommaDisparity)
+        return computeDiff(actual, expected, checkCommaDisparity)
     }
 
     // 计算最长公共子序列并生成 diff
@@ -60,15 +60,14 @@ public class MyersDiffAlgorithm {
         let n = actual.size
         let m = expected.size
 
-        // 构建 LCS 表
-        let dp = Array<Array<Int64>>(n + 1, item: Array<Int64>(m + 1, item: Int64(0)))
+        let dp = Array<Array<Int64>>(Int64(n + 1), { _ => Array<Int64>(Int64(m + 1), { _ => Int64(0) }) })
 
         for (i in 1..Int64(n + 1)) {
             for (j in 1..Int64(m + 1)) {
                 let aLine = actual[Int64(i - 1)]
                 let eLine = expected[Int64(j - 1)]
                 let areEqual = if (checkCommaDisparity) {
-                    aLine.trimRight(',') == eLine.trimRight(',')
+                    aLine.trimEnd(',') == eLine.trimEnd(',')
                 } else {
                     aLine == eLine
                 }
@@ -76,13 +75,14 @@ public class MyersDiffAlgorithm {
                 if (areEqual) {
                     dp[Int64(i)][Int64(j)] = dp[Int64(i - 1)][Int64(j - 1)] + 1
                 } else {
-                    dp[Int64(i)][Int64(j)] = Int64.max(dp[Int64(i - 1)][Int64(j)], dp[Int64(i)][Int64(j - 1)])
+                    let left = dp[Int64(i - 1)][Int64(j)]
+                    let top = dp[Int64(i)][Int64(j - 1)]
+                    dp[Int64(i)][Int64(j)] = if (left > top) { left } else { top }
                 }
             }
         }
 
-        // 回溯生成 diff
-        var result = Array<DiffItem>()
+        var result = ArrayList<DiffItem>()
         var i: Int64 = Int64(n)
         var j: Int64 = Int64(m)
 
@@ -91,13 +91,13 @@ public class MyersDiffAlgorithm {
                 let aLine = actual[Int64(i - 1)]
                 let eLine = expected[Int64(j - 1)]
                 let areEqual = if (checkCommaDisparity) {
-                    aLine.trimRight(',') == eLine.trimRight(',')
+                    aLine.trimEnd(',') == eLine.trimEnd(',')
                 } else {
                     aLine == eLine
                 }
 
                 if (areEqual && dp[Int64(i)][Int64(j)] == dp[Int64(i - 1)][Int64(j - 1)] + 1) {
-                    result.insert(0, value: DiffItem(kind: DiffKind.equal, value: aLine))
+                    result.insert(0, DiffItem(DiffKind.equal, aLine))
                     i -= 1
                     j -= 1
                     continue
@@ -105,21 +105,20 @@ public class MyersDiffAlgorithm {
             }
 
             if (j > 0 && (i == 0 || dp[Int64(i)][Int64(j)] == dp[Int64(i)][Int64(j - 1)])) {
-                result.insert(0, value: DiffItem(kind: DiffKind.insert, value: expected[Int64(j - 1)]))
+                result.insert(0, DiffItem(DiffKind.insert, expected[Int64(j - 1)]))
                 j -= 1
             } else if (i > 0) {
-                result.insert(0, value: DiffItem(kind: DiffKind.delete, value: actual[Int64(i - 1)]))
+                result.insert(0, DiffItem(DiffKind.delete, actual[Int64(i - 1)]))
                 i -= 1
             }
         }
 
-        return result
+        return result.items()
     }
 
-    // 比较字符串行是否相等
     private static func areStrLinesEqual(a: String, b: String, checkCommaDisparity: Bool): Bool {
         if (checkCommaDisparity) {
-            return a.trimRight(',') == b.trimRight(',')
+            return a.trimEnd(',') == b.trimEnd(',')
         }
         return a == b
     }

@@ -1655,26 +1655,26 @@ public class Arguments {
             case None => ()
         }
         // 验证 cron 参数必须同时提供
-        if ((cronTitle != None) != (cronPeriod != None)) {
+        if ((cronTitle.isSome()) != (cronPeriod.isSome())) {
             Output.errGeneric("--cron-title and --cron-period must be provided together", [])
             Sys.exit(1)
         }
 
         // 处理 debugger
-        if (parsed.hasFlag("inspect") || parsed.getOption("inspect") != None) {
+        if (parsed.hasFlag("inspect") || parsed.getOption("inspect").isSome()) {
             ctx.debugger.enabled = true
             match (parsed.getOption("inspect")) {
                 case Some(v) => ctx.debugger.pathOrPort = v
                 case None => ()
             }
-        } else if (parsed.hasFlag("inspect-wait") || parsed.getOption("inspect-wait") != None) {
+        } else if (parsed.hasFlag("inspect-wait") || parsed.getOption("inspect-wait").isSome()) {
             ctx.debugger.enabled = true
             ctx.debugger.waitForConnection = true
             match (parsed.getOption("inspect-wait")) {
                 case Some(v) => ctx.debugger.pathOrPort = v
                 case None => ()
             }
-        } else if (parsed.hasFlag("inspect-brk") || parsed.getOption("inspect-brk") != None) {
+        } else if (parsed.hasFlag("inspect-brk") || parsed.getOption("inspect-brk").isSome()) {
             ctx.debugger.enabled = true
             ctx.debugger.waitForConnection = true
             ctx.debugger.setBreakpointOnFirstLine = true
@@ -1769,7 +1769,7 @@ public class Arguments {
         // 如果 port 已设置但 origin 未设置，自动设置 origin
         match (ctx.args.port) {
             case Some(p) =>
-                if (ctx.args.origin == None) {
+                if (ctx.args.origin.isNone()) {
                     ctx.args.origin = Some("http://localhost:${p}/")
                 }
             case None => ()
@@ -2187,7 +2187,7 @@ public class Arguments {
                 match (OutputFormat.fromString(format)) {
                     case Some(f) =>
                         bo.outputFormat = f
-                        if (f == OutputFormat.CJS && ctx.args.target == None) {
+                        if (f == OutputFormat.CJS && ctx.args.target.isNone()) {
                             ctx.args.target = Some(BuildTarget.Node)
                         }
                     case None =>
@@ -2289,7 +2289,7 @@ public class Arguments {
         let jsxRuntime = parsed.getOption("jsx-runtime")
         let jsxSideEffects = parsed.hasFlag("jsx-side-effects")
 
-        if (jsxFactory != None || jsxFragment != None || jsxImportSource != None || jsxRuntime != None) {
+        if (jsxFactory.isSome() || jsxFragment.isSome() || jsxImportSource.isSome() || jsxRuntime.isSome()) {
             match (jsxRuntime) {
                 case Some(runtimeStr) =>
                     match (resolveJsxRuntime(runtimeStr)) {

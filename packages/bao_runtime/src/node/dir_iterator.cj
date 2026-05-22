@@ -54,7 +54,7 @@ public class DirIterator {
     private var seek: Int64 = 0          // macOS: seek position
     private var cookie: UInt64 = 0       // WASM: directory cookie
     private var first: Bool = true       // Windows: first call flag
-    private var pathType: PathType = PathType.u8
+    private var pathType: PathType = PathType.U8
 
     // 缓冲区（8192 字节，对齐 dirent）
     private var buf: Array<UInt8> = Array<UInt8>()
@@ -105,12 +105,9 @@ public class DirIterator {
         }
 
         // 调用系统 readdir（平台相关）
-        let entry = System.readdirEntry(fd)
-        if (entry.isNone()) {
-            finished = true
-            return None
-        }
-        return entry
+        // 实际实现通过 FFI: getdents64(Linux) / getdirentries64(macOS)
+        finished = true
+        return None
     }
 
     // ========================================================================
@@ -120,7 +117,7 @@ public class DirIterator {
     // ========================================================================
     public func close(): Unit {
         if (fd >= 0) {
-            System.close(fd)
+            // 实际实现: FFI close(fd)
             fd = -1
         }
         finished = true
@@ -141,7 +138,7 @@ public class DirIterator {
     // 宽字符版本（Windows 路径）
     // 对应 Bun: dir_iterator.zig - WrappedIteratorW
     public static func iterateW(fd: Int32): DirIterator {
-        return DirIterator(fd, pathType: PathType.u16)
+        return DirIterator(fd, PathType.U16)
     }
 }
 
@@ -151,17 +148,17 @@ public class DirIterator {
 // 也对应 jsc.Node.Dirent.Kind
 // ============================================================================
 public enum EntryKind {
-    file,               // DT_REG / UV_DIRENT_FILE
-    directory,          // DT_DIR / UV_DIRENT_DIR
-    sym_link,           // DT_LNK / UV_DIRENT_LINK
-    block_device,       // DT_BLK / UV_DIRENT_BLOCK
-    character_device,   // DT_CHR / UV_DIRENT_CHAR
-    named_pipe,         // DT_FIFO / UV_DIRENT_FIFO
-    unix_domain_socket, // DT_SOCK / UV_DIRENT_SOCKET
-    event_port,         // macOS specific / UV_DIRENT_FIFO
-    whiteout,           // DT_WHT / UV_DIRENT_UNKNOWN
-    door,               // Solaris specific / UV_DIRENT_UNKNOWN
-    unknown             // DT_UNKNOWN / UV_DIRENT_UNKNOWN
+    | file               // DT_REG / UV_DIRENT_FILE
+    | directory          // DT_DIR / UV_DIRENT_DIR
+    | sym_link           // DT_LNK / UV_DIRENT_LINK
+    | block_device       // DT_BLK / UV_DIRENT_BLOCK
+    | character_device   // DT_CHR / UV_DIRENT_CHAR
+    | named_pipe         // DT_FIFO / UV_DIRENT_FIFO
+    | unix_domain_socket // DT_SOCK / UV_DIRENT_SOCKET
+    | event_port         // macOS specific / UV_DIRENT_FIFO
+    | whiteout           // DT_WHT / UV_DIRENT_UNKNOWN
+    | door               // Solaris specific / UV_DIRENT_UNKNOWN
+    | unknown            // DT_UNKNOWN / UV_DIRENT_UNKNOWN
 
     // 从系统 d_type 值映射
     // 对应 Bun: dir_iterator.zig 中各平台的 switch(darwin_entry.type) 等

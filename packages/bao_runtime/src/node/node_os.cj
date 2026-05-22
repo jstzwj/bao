@@ -4,7 +4,10 @@
 package bao_runtime.node
 
 import bao_core.*
+import bao_jsc.*
 import bao_sys.*
+import std.convert.*
+import std.collection.ArrayList
 
 // ============================================================================
 // CPU 时间信息
@@ -35,13 +38,13 @@ public class CPUTimes {
     // 转换为 JS 对象
     // 对应 Bun: CPUTimes.toValue
     public func toJsObject(globalObject: JsGlobalObject): JsValue {
-        let obj = JsObject(globalObject)
+        let obj = JsObject()
         obj.set("user", JsValue(Int64(user)))
         obj.set("nice", JsValue(Int64(nice)))
         obj.set("sys", JsValue(Int64(sys)))
         obj.set("idle", JsValue(Int64(idle)))
         obj.set("irq", JsValue(Int64(irq)))
-        return obj.toJsValue()
+        return JsValue(obj)
     }
 }
 
@@ -110,7 +113,7 @@ public class NodeOs {
     // Windows: 使用 uv_cpu_info
     // ========================================================================
     public static func cpus(): Array<CPUInfo> {
-        return System.cpus()
+        return NodeOsSystem.cpus()
     }
 
     // ========================================================================
@@ -118,7 +121,7 @@ public class NodeOs {
     // 对应 Bun: node_os.zig hostCpuCount (bun_sysconf__SC_NPROCESSORS_ONLN)
     // ========================================================================
     public static func cpuCount(): Int32 {
-        return System.cpuCount()
+        return Int32(SysModule.cpuCount())
     }
 
     // ========================================================================
@@ -126,7 +129,7 @@ public class NodeOs {
     // 对应 Bun: node_os.zig freemem() -> Bun__Os__getFreeMemory
     // ========================================================================
     public static func freemem(): UInt64 {
-        return System.freemem()
+        return NodeOsSystem.freemem()
     }
 
     // ========================================================================
@@ -138,7 +141,7 @@ public class NodeOs {
     // Windows: uv_get_total_memory
     // ========================================================================
     public static func totalmem(): UInt64 {
-        return System.totalmem()
+        return NodeOsSystem.totalmem()
     }
 
     // ========================================================================
@@ -150,11 +153,11 @@ public class NodeOs {
     // ========================================================================
     public static func homedir(): String {
         // 先检查 HOME 环境变量（POSIX 实现）
-        let homeEnv = System.getenv("HOME")
+        let homeEnv = OS.getEnv("HOME")
         if (homeEnv.isSome() && homeEnv.getOrThrow().size > 0) {
             return homeEnv.getOrThrow()
         }
-        return System.homedir()
+        return NodeOsSystem.homedir()
     }
 
     // ========================================================================
@@ -164,7 +167,7 @@ public class NodeOs {
     // Windows: GetHostNameW (可能需要 WSAStartup)
     // ========================================================================
     public static func hostname(): String {
-        return System.hostname()
+        return OS.hostname()
     }
 
     // ========================================================================
@@ -176,7 +179,7 @@ public class NodeOs {
     // Windows: 返回 [0, 0, 0]
     // ========================================================================
     public static func loadavg(): Array<Float64> {
-        return System.loadavg()
+        return NodeOsSystem.loadavg()
     }
 
     // ========================================================================
@@ -187,7 +190,7 @@ public class NodeOs {
     // Windows: uv_os_uname.release
     // ========================================================================
     public static func release(): String {
-        return System.osRelease()
+        return NodeOsSystem.osRelease()
     }
 
     // ========================================================================
@@ -198,7 +201,7 @@ public class NodeOs {
     // Windows: uv_uptime
     // ========================================================================
     public static func uptime(): Float64 {
-        return System.uptime()
+        return NodeOsSystem.uptime()
     }
 
     // ========================================================================
@@ -211,14 +214,14 @@ public class NodeOs {
         let info = UserInfo()
         info.homedir = homedir()
 
-        let userEnv = System.getenv("USER")
-        info.username = if (userEnv.isSome()) { userEnv! } else { "unknown" }
+        let userEnv = OS.getEnv("USER")
+        info.username = if (userEnv.isSome()) { userEnv.getOrThrow() } else { "unknown" }
 
-        let shellEnv = System.getenv("SHELL")
-        info.shell = if (shellEnv.isSome()) { shellEnv! } else { "unknown" }
+        let shellEnv = OS.getEnv("SHELL")
+        info.shell = if (shellEnv.isSome()) { shellEnv.getOrThrow() } else { "unknown" }
 
-        info.uid = Int32(System.getuid())
-        info.gid = Int32(System.getgid())
+        info.uid = Int32(OS.uid())
+        info.gid = Int32(OS.gid())
         return info
     }
 
@@ -229,8 +232,8 @@ public class NodeOs {
     // Windows: uv_interface_addresses
     // 包含: address, netmask, family, mac, internal, cidr, scopeid
     // ========================================================================
-    public static func networkInterfaces(): Map<String, Array<NetworkInterfaceInfo>> {
-        return System.networkInterfaces()
+    public static func networkInterfaces(): HashMap<String, Array<NetworkInterfaceInfo>> {
+        return NodeOsSystem.networkInterfaces()
     }
 
     // ========================================================================
@@ -240,7 +243,7 @@ public class NodeOs {
     // 错误时抛出 ESRCH (no such process)
     // ========================================================================
     public static func getPriority(pid: Int32): Int32 {
-        return System.getPriority(pid)
+        return NodeOsSystem.getPriority(pid)
     }
 
     // ========================================================================
@@ -250,13 +253,13 @@ public class NodeOs {
     // 错误码: ESRCH, EACCES, EPERM
     // ========================================================================
     public static func setPriority(pid: Int32, priority: Int32): Unit {
-        System.setPriority(pid, priority: priority)
+        NodeOsSystem.setPriority(pid, priority)
     }
 
     // 便捷版本：仅设置优先级（pid 默认为 0）
     // 对应 Bun: node_os.zig setPriority2
     public static func setPriority(priority: Int32): Unit {
-        setPriority(0, priority: priority)
+        setPriority(0, priority)
     }
 
     // ========================================================================
@@ -267,7 +270,7 @@ public class NodeOs {
     // Windows: uv_os_uname.version
     // ========================================================================
     public static func version(): String {
-        return System.osVersion()
+        return NodeOsSystem.osVersion()
     }
 
     // ========================================================================
@@ -276,7 +279,7 @@ public class NodeOs {
     // Linux: "Linux", macOS: "Darwin", Windows: "Windows_NT"
     // ========================================================================
     public static func getType(): String {
-        return System.osType()
+        return NodeOsSystem.osType()
     }
 
     // ========================================================================
@@ -285,7 +288,7 @@ public class NodeOs {
     // x86_64: "x64", aarch64: "arm64", 等
     // ========================================================================
     public static func arch(): String {
-        return System.arch()
+        return NodeOsSystem.arch()
     }
 
     // ========================================================================
@@ -294,14 +297,14 @@ public class NodeOs {
     // Linux: "linux", macOS: "darwin", Windows: "win32"
     // ========================================================================
     public static func platform(): String {
-        return System.platform()
+        return NodeOsSystem.platform()
     }
 
     // ========================================================================
     // tmpdir — 获取临时目录
     // ========================================================================
     public static func tmpdir(): String {
-        return System.tmpdir()
+        return NodeOsSystem.tmpdir()
     }
 
     // ========================================================================
@@ -316,7 +319,7 @@ public class NodeOs {
     // endianness — 获取字符顺序
     // ========================================================================
     public static func endianness(): String {
-        return if (System.isLittleEndian()) { "LE" } else { "BE" }
+        return if (NodeOsSystem.isLittleEndian()) { "LE" } else { "BE" }
     }
 
     // ========================================================================
@@ -332,18 +335,18 @@ public class NodeOs {
     // 对应 Bun: node_os.zig hostCpuCount
     // ========================================================================
     public static func availableParallelism(): Int32 {
-        return System.cpuCount()
+        return Int32(SysModule.cpuCount())
     }
 
     // ========================================================================
     // getPid / getPpid — 进程 ID
     // ========================================================================
     public static func getPid(): Int32 {
-        return System.getpid()
+        return Int32(OS.pid())
     }
 
     public static func getPpid(): Int32 {
-        return System.getppid()
+        return Int32(OS.ppid())
     }
 }
 
@@ -360,11 +363,11 @@ public class OsCpusImpl {
     // 从 /sys/devices/system/cpu/cpu{N}/cpufreq/scaling_cur_freq 读取频率
     // ========================================================================
     public static func cpusLinux(): Array<CPUInfo> {
-        var result = Array<CPUInfo>()
+        var result = ArrayList<CPUInfo>()
         var numCpus: Int64 = 0
 
         // 读取 /proc/stat
-        let statContent = System.readFileToString("/proc/stat")
+        let statContent = NodeOsSystem.readFileToString("/proc/stat")
         if (statContent.size > 0) {
             let lines = statContent.split("\n")
             var firstLine = true
@@ -386,69 +389,71 @@ public class OsCpusImpl {
                 // scale = 10（对应 Bun 中的固定缩放因子）
                 let scale: UInt64 = 10
                 let times = CPUTimes(
-                    user: scale * UInt64(Int64.parse(toks[1])),
-                    nice: scale * UInt64(Int64.parse(toks[2])),
-                    sys: scale * UInt64(Int64.parse(toks[3])),
-                    idle: scale * UInt64(Int64.parse(toks[4])),
-                    irq: scale * UInt64(Int64.parse(toks[6]))
+                    scale * UInt64(Int64.parse(toks[1])),
+                    scale * UInt64(Int64.parse(toks[2])),
+                    scale * UInt64(Int64.parse(toks[3])),
+                    scale * UInt64(Int64.parse(toks[4])),
+                    scale * UInt64(Int64.parse(toks[6]))
                 )
-                let cpu = CPUInfo(model: "unknown", speed: 0, times: times)
-                result.append(cpu)
+                let cpu = CPUInfo("unknown", 0, times)
+                result.add(cpu)
                 numCpus += 1
             }
         }
 
         // 如果 /proc/stat 读取失败，返回基于 CPU 数量的 stub
         if (numCpus == 0) {
-            let count = System.cpuCount()
+            let count = Int32(SysModule.cpuCount())
             for (i in 0..count) {
-                result.append(CPUInfo(model: "unknown", speed: 0, times: CPUTimes()))
+                result.add(CPUInfo("unknown", 0, CPUTimes()))
             }
-            return result
+            return result.toArray()
         }
 
         // 读取 /proc/cpuinfo 获取型号信息
-        let cpuInfo = System.readFileToString("/proc/cpuinfo")
+        let cpuInfo = NodeOsSystem.readFileToString("/proc/cpuinfo")
         if (cpuInfo.size > 0) {
             let lines = cpuInfo.split("\n")
             var cpuIndex: Int64 = 0
             var hasModelName = true
+            let procPrefix = "processor\t: "
+            let modelPrefix = "model name\t: "
             for (line in lines) {
-                if (line.startsWith("processor\t: ")) {
+                if (line.startsWith(procPrefix)) {
                     if (!hasModelName && cpuIndex < numCpus) {
-                        result[Int32(cpuIndex)].model = "unknown"
+                        result[Int64(cpuIndex)].model = "unknown"
                     }
-                    let digits = line.substring("processor\t: ".size)
+                    let digits = line[Int64(procPrefix.size)..line.size]
                     cpuIndex = Int64.parse(digits)
                     if (cpuIndex >= numCpus) {
                         break
                     }
                     hasModelName = false
-                } else if (line.startsWith("model name\t: ")) {
-                    let modelName = line.substring("model name\t: ".size)
+                } else if (line.startsWith(modelPrefix)) {
+                    let modelName = line[Int64(modelPrefix.size)..line.size]
                     if (cpuIndex < numCpus) {
-                        result[Int32(cpuIndex)].model = modelName
+                        result[Int64(cpuIndex)].model = modelName
                     }
                     hasModelName = true
                 }
             }
             if (!hasModelName && cpuIndex < numCpus) {
-                result[Int32(cpuIndex)].model = "unknown"
+                result[Int64(cpuIndex)].model = "unknown"
             }
         }
 
         // 读取 CPU 频率
         for (i in 0..Int64(result.size)) {
             let path = "/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_cur_freq"
-            let freqContent = System.readFileToString(path)
+            let freqContent = NodeOsSystem.readFileToString(path)
             if (freqContent.size > 0) {
-                let digits = freqContent.trim()
+                let digits = freqContent.trimAscii()
                 let freqKhz = Int64.parse(digits)
-                result[Int32(i)].speed = freqKhz / 1000  // kHz → MHz
+                result[i].speed = freqKhz / 1000  // kHz → MHz
             }
         }
 
-        return result
+        return result.toArray()
     }
 
     // ========================================================================
@@ -460,18 +465,18 @@ public class OsCpusImpl {
     // Apple Silicon: 频率硬编码为 2400 MHz
     // ========================================================================
     public static func cpusDarwin(): Array<CPUInfo> {
-        var result = Array<CPUInfo>()
+        var result = ArrayList<CPUInfo>()
 
         // 获取 CPU 数量
-        let numCpus = System.cpuCount()
+        let numCpus = Int32(SysModule.cpuCount())
 
         // 获取型号名称
         var modelName: String = "unknown"
-        let brandString = System.sysctlString("machdep.cpu.brand_string")
+        let brandString = NodeOsSystem.sysctlString("machdep.cpu.brand_string")
         if (brandString.size > 0) {
             modelName = brandString
         } else {
-            let hwModel = System.sysctlString("hw.model")
+            let hwModel = NodeOsSystem.sysctlString("hw.model")
             if (hwModel.size > 0) {
                 modelName = hwModel
             }
@@ -479,7 +484,7 @@ public class OsCpusImpl {
 
         // 获取 CPU 频率
         var speed: Int64 = 0
-        let cpuFreq = System.sysctlInt64("hw.cpufrequency")
+        let cpuFreq = NodeOsSystem.sysctlInt64("hw.cpufrequency")
         if (cpuFreq > 0) {
             speed = cpuFreq / 1000000  // Hz → MHz
         } else {
@@ -490,26 +495,26 @@ public class OsCpusImpl {
         // 获取 CPU 时间
         // macOS: host_processor_info 返回每个 CPU 的 ticks
         // ticks * (1000 / CLK_TCK) = 毫秒
-        let ticks = System.sysctlInt64("kern.clockrate")
+        let ticks = NodeOsSystem.sysctlInt64("kern.clockrate")
         let multiplier: UInt64 = if (ticks > 0) { UInt64(1000 / ticks) } else { 1 }
 
         for (i in 0..numCpus) {
-            let times = System.getCpuTimesDarwin(i)
+            let times = NodeOsSystem.getCpuTimesDarwin(i)
             let cpuInfo = CPUInfo(
-                model: modelName,
-                speed: speed,
-                times: CPUTimes(
-                    user: times.user * multiplier,
-                    nice: times.nice * multiplier,
-                    sys: times.sys * multiplier,
-                    idle: times.idle * multiplier,
-                    irq: 0  // macOS 不提供 irq 信息
+                modelName,
+                speed,
+                CPUTimes(
+                    times.user * multiplier,
+                    times.nice * multiplier,
+                    times.sys * multiplier,
+                    times.idle * multiplier,
+                    0  // macOS 不提供 irq 信息
                 )
             )
-            result.append(cpuInfo)
+            result.add(cpuInfo)
         }
 
-        return result
+        return result.toArray()
     }
 
     // ========================================================================
@@ -520,20 +525,20 @@ public class OsCpusImpl {
     // 使用 sysctlbyname hw.clockrate 获取频率
     // ========================================================================
     public static func cpusFreeBSD(): Array<CPUInfo> {
-        var result = Array<CPUInfo>()
+        var result = ArrayList<CPUInfo>()
 
-        let numCpus = System.cpuCount()
+        let numCpus = Int32(SysModule.cpuCount())
 
         // 获取型号
         var modelName: String = "unknown"
-        let hwModel = System.sysctlString("hw.model")
+        let hwModel = NodeOsSystem.sysctlString("hw.model")
         if (hwModel.size > 0) {
             modelName = hwModel
         }
 
         // 获取频率
         var speedMhz: Int64 = 0
-        let clockRate = System.sysctlInt64("hw.clockrate")
+        let clockRate = NodeOsSystem.sysctlInt64("hw.clockrate")
         if (clockRate > 0) {
             speedMhz = clockRate
         }
@@ -541,24 +546,24 @@ public class OsCpusImpl {
         // 获取 CPU 时间
         // kern.cp_times 返回 ncpu * 5 个 long 值
         // 每组 5 个: user, nice, sys, intr, idle
-        let ticks = System.sysconfClkTck()
+        let ticks = NodeOsSystem.sysconfClkTck()
         let mult: UInt64 = if (ticks > 0) { UInt64(1000 / ticks) } else { 1 }
 
-        let cpuTimes = System.getCpuTimesFreeBSD()
+        let cpuTimes = NodeOsSystem.getCpuTimesFreeBSD()
         for (i in 0..Int64(numCpus)) {
             if (i * 5 + 4 < cpuTimes.size) {
                 let times = CPUTimes(
-                    user: UInt64(Int64.max(cpuTimes[i * 5 + 0], 0)) * mult,
-                    nice: UInt64(Int64.max(cpuTimes[i * 5 + 1], 0)) * mult,
-                    sys: UInt64(Int64.max(cpuTimes[i * 5 + 2], 0)) * mult,
-                    idle: UInt64(Int64.max(cpuTimes[i * 5 + 4], 0)) * mult,
-                    irq: UInt64(Int64.max(cpuTimes[i * 5 + 3], 0)) * mult
+                    UInt64(if (cpuTimes[i * 5 + 0] > 0) { cpuTimes[i * 5 + 0] } else { 0 }) * mult,
+                    UInt64(if (cpuTimes[i * 5 + 1] > 0) { cpuTimes[i * 5 + 1] } else { 0 }) * mult,
+                    UInt64(if (cpuTimes[i * 5 + 2] > 0) { cpuTimes[i * 5 + 2] } else { 0 }) * mult,
+                    UInt64(if (cpuTimes[i * 5 + 4] > 0) { cpuTimes[i * 5 + 4] } else { 0 }) * mult,
+                    UInt64(if (cpuTimes[i * 5 + 3] > 0) { cpuTimes[i * 5 + 3] } else { 0 }) * mult
                 )
-                result.append(CPUInfo(model: modelName, speed: speedMhz, times: times))
+                result.add(CPUInfo(modelName, speedMhz, times))
             }
         }
 
-        return result
+        return result.toArray()
     }
 
     // ========================================================================
@@ -567,14 +572,14 @@ public class OsCpusImpl {
     // 使用 uv_cpu_info 获取 CPU 信息
     // ========================================================================
     public static func cpusWindows(): Array<CPUInfo> {
-        var result = Array<CPUInfo>()
-        let cpuInfos = System.uvCpuInfo()
+        var result = ArrayList<CPUInfo>()
+        let cpuInfos = NodeOsSystem.uvCpuInfo()
 
         for (cpuInfo in cpuInfos) {
-            result.append(cpuInfo)
+            result.add(cpuInfo)
         }
 
-        return result
+        return result.toArray()
     }
 }
 
@@ -647,5 +652,135 @@ public class OsPriorityErrors {
             return "no such process"
         }
         return "set priority failed"
+    }
+}
+
+// ============================================================================
+// NodeOsSystem — OS 信息系统调用存根
+// 对应 Bun 中各种系统调用（尚未通过 FFI 实现的部分）
+// ============================================================================
+public class NodeOsSystem {
+    // 获取 CPU 信息数组
+    public static func cpus(): Array<CPUInfo> {
+        return OsCpusImpl.cpusLinux()
+    }
+
+    // 获取空闲内存（字节）
+    public static func freemem(): UInt64 {
+        return 0
+    }
+
+    // 获取总内存（字节）
+    public static func totalmem(): UInt64 {
+        return 0
+    }
+
+    // 获取用户主目录
+    public static func homedir(): String {
+        return "/root"
+    }
+
+    // 获取系统负载平均值
+    public static func loadavg(): Array<Float64> {
+        return [0.0, 0.0, 0.0]
+    }
+
+    // 获取操作系统发行版本
+    public static func osRelease(): String {
+        return "unknown"
+    }
+
+    // 获取系统运行时间（秒）
+    public static func uptime(): Float64 {
+        return 0.0
+    }
+
+    // 获取网络接口信息
+    public static func networkInterfaces(): HashMap<String, Array<NetworkInterfaceInfo>> {
+        return HashMap<String, Array<NetworkInterfaceInfo>>()
+    }
+
+    // 获取进程优先级
+    public static func getPriority(pid: Int32): Int32 {
+        return 0
+    }
+
+    // 设置进程优先级
+    public static func setPriority(pid: Int32, priority: Int32): Unit {
+        // TODO: 实际实现通过 FFI 调用 setpriority
+    }
+
+    // 获取操作系统版本
+    public static func osVersion(): String {
+        return ""
+    }
+
+    // 获取操作系统类型
+    public static func osType(): String {
+        return "Linux"
+    }
+
+    // 获取操作系统架构
+    public static func arch(): String {
+        return "x64"
+    }
+
+    // 获取操作系统平台
+    public static func platform(): String {
+        return "linux"
+    }
+
+    // 获取临时目录
+    public static func tmpdir(): String {
+        let tmpEnv = OS.getEnv("TMPDIR")
+        if (tmpEnv.isSome() && tmpEnv.getOrThrow().size > 0) {
+            return tmpEnv.getOrThrow()
+        }
+        let tmpEnv2 = OS.getEnv("TMP")
+        if (tmpEnv2.isSome() && tmpEnv2.getOrThrow().size > 0) {
+            return tmpEnv2.getOrThrow()
+        }
+        return "/tmp"
+    }
+
+    // 判断是否小端
+    public static func isLittleEndian(): Bool {
+        return true
+    }
+
+    // 读取文件内容为字符串
+    public static func readFileToString(path: String): String {
+        // TODO: 实际实现通过 SysFs 读取
+        return ""
+    }
+
+    // sysctl 读取字符串（macOS/FreeBSD）
+    public static func sysctlString(name: String): String {
+        return ""
+    }
+
+    // sysctl 读取 Int64（macOS/FreeBSD）
+    public static func sysctlInt64(name: String): Int64 {
+        return 0
+    }
+
+    // 获取 macOS CPU 时间
+    public static func getCpuTimesDarwin(cpuIndex: Int32): CPUTimes {
+        return CPUTimes()
+    }
+
+    // 获取 FreeBSD CPU 时间数组
+    public static func getCpuTimesFreeBSD(): Array<Int64> {
+        return []
+    }
+
+    // 获取时钟 tick 频率
+    public static func sysconfClkTck(): Int64 {
+        return 100
+    }
+
+    // 获取 uv_cpu_info（Windows）
+    public static func uvCpuInfo(): Array<CPUInfo> {
+        return []
     }
 }
