@@ -496,6 +496,13 @@ public class ShellSubprocess {
                 case fd => ()
                 case inherit => ()
                 case ignore => ()
+            }
+        }
+    }
+
+    // ========================================================================
+    // 可读取
+    // ========================================================================
 
     /// 可读取端
     /// 对应 Bun: pub const Readable = union(enum) { ... }
@@ -525,8 +532,9 @@ public class ShellSubprocess {
             match (stdio) {
                 case inherit =>
                     return Readable.inherit
-                case ipc, .dup2, .ignore =>
-                    return Readable.ignore
+                case ipc => return Readable.ignore
+                case dup2 => return Readable.ignore
+                case ignore => return Readable.ignore
                 case path =>
                     return Readable.ignore
                 case fd(fd) =>
@@ -555,8 +563,12 @@ public class ShellSubprocess {
             match (this) {
                 case pipe(pipe) =>
                     pipe.updateRef(true)
-                case fd, .memfd, .inherit, .ignore, .closed, .buffer =>
-                    () // 无操作
+                case fd => ()
+                case memfd => ()
+                case inherit => ()
+                case ignore => ()
+                case closed => ()
+                case buffer => ()
             }
         }
 
@@ -565,8 +577,12 @@ public class ShellSubprocess {
             match (this) {
                 case pipe(pipe) =>
                     pipe.updateRef(false)
-                case fd, .memfd, .inherit, .ignore, .closed, .buffer =>
-                    () // 无操作
+                case fd => ()
+                case memfd => ()
+                case inherit => ()
+                case ignore => ()
+                case closed => ()
+                case buffer => ()
             }
         }
 
@@ -581,8 +597,9 @@ public class ShellSubprocess {
                     return String.fromBytes(buf)
                 case memfd =>
                     return None
-                case inherit, .ignore, .closed =>
-                    return None
+                case inherit => return None
+                case ignore => return None
+                case closed => return None
             }
         }
 
@@ -596,8 +613,10 @@ public class ShellSubprocess {
                     this = Readable.closed
                 case pipe(pipe) =>
                     pipe.close()
-                case inherit, .ignore, .closed, .buffer =>
-                    () // 无操作
+                case inherit => ()
+                case ignore => ()
+                case closed => ()
+                case buffer => ()
             }
         }
 
@@ -611,8 +630,10 @@ public class ShellSubprocess {
                     this = Readable.closed
                 case pipe(pipe) =>
                     this = Readable.closed
-                case inherit, .ignore, .closed, .buffer =>
-                    () // 无操作
+                case inherit => ()
+                case ignore => ()
+                case closed => ()
+                case buffer => ()
             }
         }
     }
@@ -1066,8 +1087,8 @@ public class PipeReader {
             case done(bytes) =>
                 this.state = PipeReaderState.done(Array<Byte>())
                 return MarkedArrayBuffer.fromBytes(bytes, .Uint8Array).toNodeBuffer(globalThis)
-            case pending, .err =>
-                return JsValue.jsUndefined()
+            case pending => return JsValue.jsUndefined()
+            case err => return JsValue.jsUndefined()
         }
     }
 
@@ -1077,8 +1098,8 @@ public class PipeReader {
         match (this.state) {
             case pending =>
                 this.reader.close()
-            case done, .err =>
-                () // 无操作
+            case done => ()
+            case err => ()
         }
     }
 
