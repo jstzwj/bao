@@ -663,12 +663,12 @@ public class InstallWithManager {
         var resolutions = manager.lockfile.buffers.resolutions.slice(off, off + len)
 
         // 翻译自: 初始化 resolutions 为 invalid_package_id
-        for (i in 0..resolutions.size) {
+        for (i in 0..resolutions.size()) {
             resolutions[i] = IwmConstants.INVALID_PACKAGE_ID
         }
 
         // 翻译自: 克隆新依赖
-        for (i in 0..newDependencies.size) {
+        for (i in 0..newDependencies.size()) {
             let newDep = newDependencies[i]
             dependencies[i] = newDep.clone(manager, lockfile.buffers.stringBytes, builder)
             if (mapping[i] != IwmConstants.INVALID_PACKAGE_ID) {
@@ -1678,7 +1678,17 @@ public class IwmResolutionList {
     public var size: Int64
     public init() { size = 0 }
     public func ensureUnusedCapacity(count: Int64): Unit {}
-    public func slice(off: Int64, end: Int64): IwmResolutionSlice { return IwmResolutionSlice() }
+    public func slice(off: Int64, end: Int64): IwmResolutionBufferSlice { return IwmResolutionBufferSlice() }
+    public operator func [](index: Int64): UInt32 { return UInt32(0) }
+    public operator func [](index: Int64, value: UInt32): Unit {}
+}
+
+/// Resolution Buffer Slice (mutable UInt32 slice from buffer)
+public class IwmResolutionBufferSlice {
+    public init() {}
+    public func size(): Int64 { return 0 }
+    public operator func [](index: Int64): UInt32 { return UInt32(0) }
+    public operator func [](index: Int64, value: UInt32): Unit {}
 }
 
 /// 字符串字节
@@ -1695,12 +1705,30 @@ public class IwmDependencySlice <: Iterable<IwmDependencyRef> {
     public func iterator(): Iterator<IwmDependencyRef> { return IwmDependencySliceIterator() }
 }
 
-/// 解析切片
+/// 解析切片 (per-package resolution IDs)
 public class IwmResolutionSlice {
     public init() {}
-    public func get(list: IwmResolutionList): IwmResolutionSlice { return this }
+    public func get(list: IwmResolutionList): IwmPackageIdSlice { return IwmPackageIdSlice() }
+    public func size(): Int64 { return 0 }
+    public operator func [](index: Int64): IwmResolution { return IwmResolution() }
+}
+
+/// Package ID Slice (returned by resolution slice .get())
+public class IwmPackageIdSlice {
+    public init() {}
     public func size(): Int64 { return 0 }
     public operator func [](index: Int64): UInt32 { return UInt32(0) }
+}
+
+/// 解析
+public class IwmResolution {
+    public var tag: IwmResolutionTag
+    public var npmVersion: IwmSemverVersion
+
+    public init() {
+        tag = IwmResolutionTag.Uninitialized
+        npmVersion = IwmSemverVersion()
+    }
 }
 
 /// 依赖切片迭代器
@@ -1721,6 +1749,7 @@ public class IwmPackagesSlice {
     public func setScripts(id: UInt32, scripts: IwmPackageScripts): Unit {}
     public func setDependencies(id: UInt32, off: Int64, len: Int64): Unit {}
     public func setResolutions(id: UInt32, off: Int64, len: Int64): Unit {}
+    public func getResolutions(id: UInt32): IwmResolutionSlice { return IwmResolutionSlice() }
     public func len(): Int64 { return 0 }
 }
 
@@ -2203,6 +2232,8 @@ public class IwmDependencyRef {
 
     public func nameSlice(bytes: IwmStringBytes): String { return "" }
     public func realnameSlice(bytes: IwmStringBytes): String { return "" }
+    public func count(bytes: IwmStringBytes, builder: IwmStringBuilder): Unit {}
+    public func clone(manager: IwmPackageManagerRef, bytes: IwmStringBytes, builder: IwmStringBuilder): IwmDependencyRef { return this }
 }
 
 /// 依赖版本

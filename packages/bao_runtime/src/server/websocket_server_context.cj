@@ -3,9 +3,18 @@
 // 对应: Bun.serve() 的 WebSocket 配置
 package bao_runtime.server
 
-import bao_core.*
-import bao_jsc.*
-import bao_collections.*
+import bao_core.Output
+import bao_core.ArenaAllocator
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
+import bao_jsc.JsError
+import bao_jsc.CallFrame
+import bao_jsc.Strong
+import bao_jsc.StrongOptional
+import bao_jsc.JSFunction
+import bao_jsc.HostFunction
+import bao_collections.HashMap
+import bao_collections.ArrayList
 
 // ============================================================================
 // WebSocketServerContext - WebSocket 服务器上下文

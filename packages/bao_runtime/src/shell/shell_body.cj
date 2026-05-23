@@ -269,7 +269,7 @@ public class GlobalJS {
 
     /// 抛出自定义错误
     /// 对应 Bun: pub fn throw(self, args: fmt::Arguments<'_>) -> ShellErr
-    public func throw(args: String): ShellErr {
+    public func `throw`(args: String): ShellErr {
         return ShellErr.Custom(args.toArray())
     }
 
