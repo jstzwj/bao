@@ -11,7 +11,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{CallFrame, ComparisonResult, ConsoleObject, Formatter, JSGlobalObject, JsValue}
+import bao_jsc.{CallFrame, ComparisonResult, ConsoleFormatter, ConsoleObject, Formatter, JsObject, JSGlobalObject, JsValue}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 

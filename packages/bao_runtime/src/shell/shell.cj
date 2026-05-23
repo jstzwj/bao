@@ -465,7 +465,7 @@ public class AST {
         | pipeline
         | cmd
         | subshell
-        case `if`
+        | `if`
         | condexpr
         | async
     }
@@ -667,7 +667,7 @@ public class AST {
     /// 二元操作符类型
     public enum BinaryOp {
         | And   // &&
-        case Or    // ||
+        | Or    // ||
     }
 
     /// 二元表达式
@@ -701,7 +701,7 @@ public class AST {
         | cmd
         | assigns
         | subshell
-        case `if`
+        | `if`
         | condexpr
     }
 

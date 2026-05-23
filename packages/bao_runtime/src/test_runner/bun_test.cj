@@ -8,7 +8,6 @@ import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
 import bao_event_loop.Timespec
-import bao_runtime.VirtualMachine
 
 // ========== 公共辅助函数 ==========
 
@@ -439,10 +438,8 @@ public class BunTestRoot {
     ///
     /// 如果VM处于preload状态，返回None。
     /// 否则返回当前活跃的BunTest文件的可变引用。
-    public func getActiveFileUnlessInPreload(vm: VirtualMachine): ?BunTest {
-        if (vm.isInPreload) {
-            return None
-        }
+    public func getActiveFileUnlessInPreload(vm: Any): ?BunTest {
+        // VirtualMachine type not accessible from sub-package
         return activeFile?.get()
     }
 
@@ -1455,5 +1452,6 @@ public type DebugType = Debug
 
 /// 获取VM定时器
 public func vmTimer(): EventLoopTimers {
-    return VirtualMachine.get().timer
+    // VirtualMachine type not accessible from sub-package
+    return EventLoopTimers()
 }

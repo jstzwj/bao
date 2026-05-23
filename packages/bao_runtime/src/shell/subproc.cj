@@ -799,20 +799,26 @@ public class PipeReader {
             if (this.capturedWriter.err.isSome()) {
                 let capturedErr = this.capturedWriter.err
                 this.capturedWriter.err = None
-                if (this.state == done(let data)) {
-                    // 释放已完成的内存
+                match (this.state) {
+                    case done(_) =>
+                        () // 释放已完成的内存
+                    case _ => ()
                 }
-                if (this.state != err) {
-                    this.state = PipeReaderState.err(capturedErr)
+                match (this.state) {
+                    case err(_) => () // 保持错误状态
+                    case _ =>
+                        this.state = PipeReaderState.err(capturedErr)
                 }
             }
 
             // 获取错误
             var err: ?SystemError = None
-            if (this.state == err(let e)) {
-                if (e.isSome()) {
-                    err = e
-                }
+            match (this.state) {
+                case err(e) =>
+                    if (e.isSome()) {
+                        err = e
+                    }
+                case _ => ()
             }
             return cmd.bufferedOutputClose(this.outType, err)
         }
@@ -822,11 +828,19 @@ public class PipeReader {
     /// 获取此读取器的StdioKind
     /// 对应 Bun: pub fn kind(reader: *const PipeReader, process: *const ShellSubprocess) StdioKind
     public func kind(process: ShellSubprocess): StdioKind {
-        if (process.stdout == pipe(let pipe) && pipe == this) {
-            return StdioKind.stdout
+        match (process.stdout) {
+            case pipe(p) =>
+                if (p == this) {
+                    return StdioKind.stdout
+                }
+            case _ => ()
         }
-        if (process.stderr == pipe(let pipe) && pipe == this) {
-            return StdioKind.stderr
+        match (process.stderr) {
+            case pipe(p) =>
+                if (p == this) {
+                    return StdioKind.stderr
+                }
+            case _ => ()
         }
         return StdioKind.stdout  // 不应到达
     }
@@ -840,13 +854,15 @@ public class PipeReader {
     /// 读取错误
     /// 对应 Bun: pub fn onReaderError(`this`: *PipeReader, err: bun.sys.Error) void
     public func onReaderError(err: SyscallError) {
-        if (this.state == done(let data)) {
-            // 释放已完成的内存
+        match (this.state) {
+            case done(_) =>
+                () // 释放已完成的内存
+            case _ => ()
         }
         this.state = PipeReaderState.err(err.toSystemError())
         this.ref()
-        defer { this.deref() }
         this.trySignalDoneToCmd().run()
+        this.deref()
         if (this.process.isSome()) {
             let proc = this.process
             proc.onCloseIO(this.kind(proc))
@@ -863,8 +879,10 @@ public class PipeReader {
     /// 获取拥有的切片
     /// 对应 Bun: pub fn toOwnedSlice(`this`: *PipeReader) []u8
     public func toOwnedSlice(): Array<Byte> {
-        if (this.state == done(let data)) {
-            return data
+        match (this.state) {
+            case done(data) =>
+                return data
+            case _ => ()
         }
         let out = this.reader.buffer()
         this.reader.clearBuffer()
@@ -878,19 +896,19 @@ public class PipeReader {
     /// 转为可读流
     /// 对应 Bun: pub fn toReadableStream(`this`: *PipeReader, globalObject: ...) jsc.JsValue
     public func toReadableStream(globalObject: JSGlobalObject): JsValue {
-        defer { this.deinit() }
-        match (this.state) {
+        let result: JsValue = match (this.state) {
             case pending =>
                 let stream = ReadableStream.fromPipe(globalObject, this, this.reader)
                 this.state = PipeReaderState.done(Array<Byte>())
-                return stream
+                stream
             case done(bytes) =>
                 this.state = PipeReaderState.done(Array<Byte>())
-                return ReadableStream.fromOwnedSlice(globalObject, bytes, 0)
-            case err(err) =>
-                let empty = ReadableStream.empty(globalObject)
-                return empty
+                ReadableStream.fromOwnedSlice(globalObject, bytes, 0)
+            case err(_) =>
+                ReadableStream.empty(globalObject)
         }
+        this.deinit()
+        return result
     }
 
     /// 转为Buffer
@@ -958,18 +976,22 @@ public class PipeReader {
     /// 去初始化
     /// 对应 Bun: fn deinit(`this`: *PipeReader) void
     public func deinit() {
-        if (this.state == done(let data)) {
-            // 释放内存
+        match (this.state) {
+            case done(_) =>
+                () // 释放内存
+            case _ => ()
         }
 
         if (!this.capturedWriter.dead) {
             this.capturedWriter.deinit()
         }
 
-        if (this.state == err(let e)) {
-            if (e.isSome()) {
-                this.state = PipeReaderState.err(None)
-            }
+        match (this.state) {
+            case err(e) =>
+                if (e.isSome()) {
+                    this.state = PipeReaderState.err(None)
+                }
+            case _ => ()
         }
 
         this.bufferedOutput.deinit()

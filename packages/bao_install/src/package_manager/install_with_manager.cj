@@ -780,7 +780,7 @@ public class InstallWithManager {
         let iter = lockfile.workspacePaths.iterator()
         while (iter.hasNext()) {
             let entry = iter.next()
-            let path = entry.value.slice(lockfile.buffers.stringBytes)
+            let path = entry.value
             let str = builder.appendString(path)
             manager.lockfile.workspacePaths.putAssumeCapacity(entry.key, str)
         }
@@ -799,7 +799,7 @@ public class InstallWithManager {
         let iter = lockfile.workspaceVersions.iterator()
         while (iter.hasNext()) {
             let entry = iter.next()
-            let version = entry.value.append(lockfile.buffers.stringBytes, builder)
+            let version = entry.value
             manager.lockfile.workspaceVersions.putAssumeCapacity(entry.key, version)
         }
     }
@@ -819,14 +819,13 @@ public class InstallWithManager {
             let gop = manager.lockfile.patchedDependencies.getOrPut(manager.lockfile.allocator, pkgNameAndVersionHash)
 
             if (!gop.foundExisting) {
-                gop.value = IwmPatchedDependency(
-                    path: builder.appendString(entry.value.path.slice(lockfile.buffers.stringBytes))
-                )
-                gop.value.setPatchfileHash(None)
-            } else if (gop.value.path.slice(manager.lockfile.buffers.stringBytes) !=
-                       entry.value.path.slice(lockfile.buffers.stringBytes)) {
-                gop.value.path = builder.appendString(entry.value.path.slice(lockfile.buffers.stringBytes))
-                gop.value.setPatchfileHash(None)
+                gop.value = IwmPatchedDependency()
+                gop.value.path = builder.appendString(entry.value.path)
+                gop.value.setPatchfileHash(Option<UInt64>.None)
+            } else if (gop.value.path !=
+                       entry.value.path) {
+                gop.value.path = builder.appendString(entry.value.path)
+                gop.value.setPatchfileHash(Option<UInt64>.None)
             }
         }
 
@@ -2512,7 +2511,9 @@ public class IwmTrustedDependencies {
 
 /// String HashMap
 public class IwmStringHashMap {
-    public init() {}
+    public var size: Int64
+
+    public init() { size = 0 }
     public func ensureTotalCapacity(count: Int64): Unit {}
     public func clearRetainingCapacity(): Unit {}
     public func values(): ArrayList<IwmStringEntry> { return ArrayList<IwmStringEntry>() }
