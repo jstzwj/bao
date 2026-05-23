@@ -666,7 +666,9 @@ public class AnyTaskRef {
     public init() {}
 }
 
+/* Duplicate: SocketAddress is defined in request_context.cj
 /// SocketAddress for file_response_stream
 public class SocketAddress {
     public init() {}
 }
+*/

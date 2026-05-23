@@ -3,7 +3,7 @@
 // 对应: 解析 HTTP Range: bytes=... 请求头
 package bao_runtime.server
 
-import std.collection.HashMap
+import bao_collections.*
 
 // ============================================================================
 // RangeRequest - HTTP Range 请求解析
@@ -77,8 +77,6 @@ public class RangeRequest {
                 if (n == 0) {
                     return RangeResult.Unsatisfiable
                 }
-                // RFC 9110 §14.1.3: 正的 suffix-length 是可满足的
-                // 对于空表示体，返回完整 (0-byte) body
                 if (total == Int64(0)) {
                     return RangeResult.Absent
                 }
@@ -107,34 +105,38 @@ public class RangeRequest {
 
     /// 解析 Range 头值为 Raw 格式
     /// 对应 Bun: pub fn parseRaw(header: []const u8) Raw
-    /// 匹配 WebKit 的 parseRange (HTTPParsers.cpp): 大小写不敏感 "bytes"
     public static func parseRaw(header: String): RangeRaw {
         var rest = header
 
         // 检查 "bytes" 前缀，至少需要 5 个字符
-        if (rest.size < 5 || !eqlCaseInsensitiveASCII(rest[0..5], "bytes")) {
+        if (rest.size < 5 || !eqlCaseInsensitiveASCII(rest.subString(0, 5), "bytes")) {
             return RangeRaw.Absent
         }
-        rest = rest[5..]
-        rest = trim(rest, " \t")
+        rest = rest.subString(5)
+        rest = trimWhiteSpace(rest)
 
-        if (rest.size == 0 || rest.toRuneArray()[0] != '=') {
+        if (rest.size == 0) {
             return RangeRaw.Absent
         }
-        rest = rest[1..]
+        let runes = rest.toRuneArray()
+        if (runes[0] != '=') {
+            return RangeRaw.Absent
+        }
+        rest = rest.subString(1)
 
         // 多范围 - 不支持，返回完整 body
-        if (rest.indexOf(",") >= 0) {
+        if (rest.contains(",")) {
             return RangeRaw.Absent
         }
 
-        let dashIdx = rest.indexOf("-")
-        if (dashIdx < 0) {
+        let dashIdxOpt = rest.indexOf("-")
+        if (dashIdxOpt.isNone()) {
             return RangeRaw.Absent
         }
+        let dashIdx = dashIdxOpt.getOrThrow()
 
-        let startS = trim(rest[0..dashIdx], " \t")
-        let endS = trim(rest[(dashIdx + 1)..], " \t")
+        let startS = trimWhiteSpace(rest.subString(0, dashIdx))
+        let endS = trimWhiteSpace(rest.subString(dashIdx + 1))
 
         // bytes=-N (后缀范围)
         if (startS.size == 0) {
@@ -174,7 +176,7 @@ public class RangeRequest {
 
     /// 从请求头解析原始 Range
     /// 对应 Bun: pub fn rawFromRequest(req: uws.AnyRequest) Raw
-    public static func rawFromRequest(headers: std.collection.HashMap<String, String>): RangeRaw {
+    public static func rawFromRequest(headers: HashMap<String, String>): RangeRaw {
         match (headers.get("range")) {
             case Some(h) => parseRaw(h)
             case None => RangeRaw.Absent
@@ -183,7 +185,7 @@ public class RangeRequest {
 
     /// 从请求头解析 Range 为 Result
     /// 对应 Bun: pub fn fromRequest(req: uws.AnyRequest, total: u64) Result
-    public static func fromRequest(headers: std.collection.HashMap<String, String>, total: Int64): RangeResult {
+    public static func fromRequest(headers: HashMap<String, String>, total: Int64): RangeResult {
         match (headers.get("range")) {
             case Some(h) => parse(h, total)
             case None => RangeResult.Absent
@@ -195,7 +197,6 @@ public class RangeRequest {
     // ========================================================================
 
     /// 大小写不敏感 ASCII 比较
-    /// 对应 Bun: bun.strings.eqlCaseInsensitiveASCII
     private static func eqlCaseInsensitiveASCII(a: String, b: String): Bool {
         if (a.size != b.size) {
             return false
@@ -215,35 +216,38 @@ public class RangeRequest {
     /// ASCII 字符转小写
     private static func toLowerASCIIRune(c: Rune): Rune {
         let v = Int64(c)
-        if (v >= 65 && v <= 90) { // A-Z
+        if (v >= 65 && v <= 90) {
             return Rune(v + 32)
         }
         return c
     }
 
-    /// 去除两端空白
-    private static func trim(s: String, chars: String): String {
+    /// 去除两端空白字符
+    private static func trimWhiteSpace(s: String): String {
         var start = 0
         var end = s.size
+        let runes = s.toRuneArray()
         while (start < end) {
-            let r = s.toRuneArray()[Int64(start)]
-            if (!chars.contains(String.fromRune(r))) {
+            let r = runes[Int64(start)]
+            if (r != ' ' && r != '\t') {
                 break
             }
             start++
         }
         while (end > start) {
-            let r = s.toRuneArray()[Int64(end - 1)]
-            if (!chars.contains(String.fromRune(r))) {
+            let r = runes[Int64(end - 1)]
+            if (r != ' ' && r != '\t') {
                 break
             }
             end--
         }
-        return s[start..(start + end - start)]
+        if (start == 0 && end == s.size) {
+            return s
+        }
+        return s.subString(start, end - start)
     }
 
     /// 解析无符号整数
-    /// 对应 Bun: std.fmt.parseUnsigned(u64, end_s, 10)
     private static func parseUnsigned(s: String): ?Int64 {
         if (s.size == 0) {
             return None
@@ -251,7 +255,7 @@ public class RangeRequest {
         var result: Int64 = 0
         for (c in s) {
             let v = Int64(c)
-            if (v < 48 || v > 57) { // 非数字
+            if (v < 48 || v > 57) {
                 return None
             }
             let digit = Int64(v - 48)

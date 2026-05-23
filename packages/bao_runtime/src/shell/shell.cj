@@ -187,7 +187,9 @@ public class Result<T> {
 
     /// 成功结果
     public static prop success: Result<T> {
-        Result<T>(result: Zeroes.zeroes<T>())
+        get() {
+            Result<T>(result: Zeroes.zeroes<T>())
+        }
     }
 
     /// 是否为错误

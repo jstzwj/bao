@@ -25,7 +25,7 @@ public class IOReader {
     /// 缓冲区
     public var buf: ArrayList<Byte>
     /// 读取器列表
-    public var readers: Readers
+    public var readers: IOReaderReaders
     /// 已读字节数
     public var read: UInt64 = 0
     /// 引用计数
@@ -72,7 +72,7 @@ public class IOReader {
         this.concurrentTask = EventLoopTask.fromEventLoop(evtloop)
         this.asyncDeinit = AsyncDeinitReader()
         this.buf = ArrayList<Byte>()
-        this.readers = Readers()
+        this.readers = IOReaderReaders()
         return this
     }
 
@@ -178,106 +178,107 @@ public class IOReader {
         this.reader.deinit()
     }
 
-    // ========================================================================
-    // 读取器列表
-    // ========================================================================
+}
 
-    /// 读取器列表
-    public class Readers {
-        var items: ArrayList<ChildPtr>
+// ========================================================================
+// 读取器列表
+// ========================================================================
 
-        init() {
-            this.items = ArrayList<ChildPtr>()
-        }
+/// 读取器列表
+public class IOReaderReaders {
+    var items: ArrayList<ChildPtr>
 
-        func len(): UInt64 {
-            return UInt64(this.items.size)
-        }
-
-        func append(reader: ChildPtr) {
-            this.items.append(reader)
-        }
-
-        func swapRemove(idx: UInt64) {
-            this.items.swapRemove(Int64(idx))
-        }
-
-        func get(idx: UInt64): ChildPtr {
-            return this.items[Int64(idx)]
-        }
-
-        func slice(): Array<ChildPtr> {
-            return this.items.toArray()
-        }
-
-        func deinit() {
-            this.items.clear()
-        }
-
-        func memoryCost(): UInt64 {
-            return UInt64(this.items.size) * 8
-        }
+    init() {
+        this.items = ArrayList<ChildPtr>()
     }
 
-    // ========================================================================
-    // IO读取器子指针
-    // ========================================================================
-
-    /// IO读取器子指针
-    /// 用于标记读取器的类型
-    public class IOReaderChildPtr {
-        public var ptr: Any
-
-        init() {
-            this.ptr = None
-        }
-
-        public static func initFunc(p: Any): IOReaderChildPtr {
-            let cptr = IOReaderChildPtr()
-            cptr.ptr = p
-            return cptr
-        }
-
-        public func memoryCost(): UInt64 {
-            return 0
-        }
-
-        /// 读取数据块回调
-        public func onReadChunk(chunk: Array<Byte>, remove: Boolean): Yield {
-            return Yield.suspended
-        }
-
-        /// 读取完成回调
-        public func onReaderDone(err: ?SystemError): Yield {
-            return Yield.suspended
-        }
+    func len(): UInt64 {
+        return UInt64(this.items.size)
     }
 
-    // ========================================================================
-    // 异步去初始化读取器
-    // ========================================================================
+    func append(reader: ChildPtr) {
+        this.items.append(reader)
+    }
 
-    /// 异步去初始化读取器
-    public class AsyncDeinitReader {
-        public var ran: Boolean = false
+    func swapRemove(idx: UInt64) {
+        this.items.swapRemove(Int64(idx))
+    }
 
-        /// 排队到事件循环
-        public func enqueue() {
-            if (this.ran) {
-                return
-            }
-            this.ran = true
-            // 将任务排队到事件循环
+    func get(idx: UInt64): ChildPtr {
+        return this.items[Int64(idx)]
+    }
+
+    func slice(): Array<ChildPtr> {
+        return this.items.toArray()
+    }
+
+    func deinit() {
+        this.items.clear()
+    }
+
+    func memoryCost(): UInt64 {
+        return UInt64(this.items.size) * 8
+    }
+}
+
+// ========================================================================
+// IO读取器子指针
+// ========================================================================
+
+/// IO读取器子指针
+/// 用于标记读取器的类型
+public class IOReaderChildPtr {
+    public var ptr: Any
+
+    init() {
+        this.ptr = None
+    }
+
+    public static func initFunc(p: Any): IOReaderChildPtr {
+        let cptr = IOReaderChildPtr()
+        cptr.ptr = p
+        return cptr
+    }
+
+    public func memoryCost(): UInt64 {
+        return 0
+    }
+
+    /// 读取数据块回调
+    public func onReadChunk(chunk: Array<Byte>, remove: Boolean): Yield {
+        return Yield.suspended
+    }
+
+    /// 读取完成回调
+    public func onReaderDone(err: ?SystemError): Yield {
+        return Yield.suspended
+    }
+}
+
+// ========================================================================
+// 异步去初始化读取器
+// ========================================================================
+
+/// 异步去初始化读取器
+public class AsyncDeinitReader {
+    public var ran: Boolean = false
+
+    /// 排队到事件循环
+    public func enqueue() {
+        if (this.ran) {
+            return
         }
+        this.ran = true
+        // 将任务排队到事件循环
+    }
 
-        /// 从主线程运行
-        public func runFromMainThread() {
-            // 执行异步去初始化
-        }
+    /// 从主线程运行
+    public func runFromMainThread() {
+        // 执行异步去初始化
+    }
 
-        /// 从主线程Mini运行
-        public func runFromMainThreadMini() {
-            this.runFromMainThread()
-        }
+    /// 从主线程Mini运行
+    public func runFromMainThreadMini() {
+        this.runFromMainThread()
     }
 }

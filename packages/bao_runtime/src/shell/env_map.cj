@@ -92,8 +92,8 @@ public class EnvMap {
 
     /// 获取迭代器
     /// 对应 Bun: EnvMap.iterator()
-    public func iterator(): Iterator {
-        Iterator(envMap: this)
+    public func iterator(): EnvMapIterator {
+        EnvMapIterator(envMap: this)
     }
 
     /// 清空但保留容量
@@ -174,39 +174,40 @@ public class EnvMap {
         }
     }
 
-    /// 迭代器
-    /// 对应 Bun: MapType.Iterator
-    public class Iterator {
-        var envMap: EnvMap
-        var entries: Array<(EnvStr, EnvStr)>
-        var index: Int64 = 0
+}
 
-        init(envMap: EnvMap) {
-            this.envMap = envMap
-            this.entries = envMap.map.entries()
-            this.index = 0
-        }
+/// 迭代器
+/// 对应 Bun: MapType.Iterator
+public class EnvMapIterator {
+    var envMap: EnvMap
+    var entries: Array<(EnvStr, EnvStr)>
+    var index: Int64 = 0
 
-        /// 是否有下一个
-        public func hasNext(): Boolean {
-            return this.index < this.entries.size
-        }
+    init(envMap: EnvMap) {
+        this.envMap = envMap
+        this.entries = envMap.map.entries()
+        this.index = 0
+    }
 
-        /// 获取下一个条目
-        /// 注意: 返回的键值对引用计数已由 EnvMap 管理，
-        /// 调用者如果需要持有引用，应自行调用 ref()。
-        public func next(): ?(EnvStr, EnvStr) {
-            if (!this.hasNext()) {
-                return None
-            }
-            let entry = this.entries[this.index]
-            this.index += 1
-            return entry
-        }
+    /// 是否有下一个
+    public func hasNext(): Boolean {
+        return this.index < this.entries.size
+    }
 
-        /// 映射长度
-        public func len(): UInt64 {
-            return UInt64(this.entries.size)
+    /// 获取下一个条目
+    /// 注意: 返回的键值对引用计数已由 EnvMap 管理，
+    /// 调用者如果需要持有引用，应自行调用 ref()。
+    public func next(): ?(EnvStr, EnvStr) {
+        if (!this.hasNext()) {
+            return None
         }
+        let entry = this.entries[this.index]
+        this.index += 1
+        return entry
+    }
+
+    /// 映射长度
+    public func len(): UInt64 {
+        return UInt64(this.entries.size)
     }
 }

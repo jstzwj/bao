@@ -34,7 +34,6 @@ import bao_options.LoaderMap
 import bao_options.DotEnvBehavior
 import bao_options.SourceMapMode
 import bao_path.*
-import bao_watcher.Watcher
 import bao_runtime.bake.dev_server.SerializedFailure
 import bao_runtime.bake.dev_server.HmrSocket
 
@@ -143,9 +142,12 @@ public enum Opcode {
     | pong
 }
 
-/// Promise type stub
+/// Promise type stub - adds resolve/then/all/unit
 public class Promise<T> {
     public init() {}
+    public static func resolve(value: T): Promise<T> { Promise<T>() }
+    public static func unit(): Promise<Unit> { Promise<Unit>() }
+    public func then(callback: (T) -> Unit): Unit {}
 }
 
 /// Thread lock stub
@@ -320,6 +322,7 @@ public class BunString {
     public static func `static`(s: String): BunString { BunString() }
     public static func createFormat(fmt: String): BunString { BunString() }
     public func toJS(global: JSGlobalObject): JsValue { JsValue() }
+    public func toUTF8(alloc: Allocator): String { "" }
 }
 
 /// Event loop timer stub
@@ -427,11 +430,42 @@ public enum WatchKind {
 /// DynamicRouteMap stub
 public class DynamicRouteMap {
     public init() {}
+    public func deinit(alloc: Allocator): Unit {}
+    public func keys(): Array<Any> { Array<Any>() }
+    public func values(): Array<Any> { Array<Any>() }
+    public func get(key: String): ?Any { None }
+    public static func DataList(): DataListHelper { DataListHelper() }
 }
 
 /// StaticRouteMap stub
 public class StaticRouteMap {
     public init() {}
+    public func deinit(alloc: Allocator): Unit {}
+    public func get(key: String): ?Any { None }
+    public static func DataList(): DataListHelper { DataListHelper() }
+}
+
+public class DataListHelper {
+    public init() {}
+    public static func capacityInBytes(cap: Int64): UInt64 { 0 }
+}
+
+/// AnyServer stub
+public class AnyServer {
+    public init() {}
+    public static func from(server: Any): AnyServer { AnyServer() }
+    public var app: Any
+    public init(app: Any) { this.app = app }
+    public func getOrLoadPlugins(target: PluginTarget): PluginState { PluginState.loaded }
+    public func onSavedRequest(req: Any, resp: AnyResponse, callback: Any, count: Int64, args: Array<JsValue>): Unit {}
+}
+
+/// PluginState stub
+public enum PluginState {
+    | unknown
+    | pending
+    | loaded
+    | err
 }
 
 /// panic function
@@ -470,6 +504,9 @@ public class BunRef {
     public var default_allocator: Allocator
     public var jsc: JscRef
     public var api: ApiRef
+    public var resolver: ResolverRef
+    public var http: HttpRef
+    public var hash: HashRef
     public init() {
         bake = BakeRef()
         path = PathRef()
@@ -477,6 +514,9 @@ public class BunRef {
         default_allocator = Allocator()
         jsc = JscRef()
         api = ApiRef()
+        resolver = ResolverRef()
+        http = HttpRef()
+        hash = HashRef()
     }
 }
 
@@ -488,6 +528,7 @@ public class BakeRef {
 public class PathRef {
     public init() {}
     public func relative(base: String, path: String): String { path }
+    public static func joinAbsStringZ(base: String, rel: String): String { base + "/" + rel }
 }
 
 public class StringsRef {
@@ -497,13 +538,37 @@ public class StringsRef {
     public static func hasSuffix(s: String, suffix: String): Bool { s.endsWith(suffix) }
     public static func hasPrefix(s: String, prefix: String): Bool { s.startsWith(prefix) }
     public static func hasSuffixComptime(s: String, suffix: String): Bool { s.endsWith(suffix) }
+    public static func hasPrefixComptime(s: String, prefix: String): Bool { s.startsWith(prefix) }
     public static func withoutTrailingSlashWindowsPath(s: String): String {
         if (s.endsWith("/") || s.endsWith("\\")) { s[0..s.size - 1] } else { s }
     }
+    public static func indexOfCharPos(s: String, ch: UInt8, from: UInt64): ?UInt64 {
+        var i = from
+        while (i < UInt64(s.size)) {
+            if (UInt8(s[Int64(i)]) == ch) { return i }
+            i += 1
+        }
+        return None
+    }
+}
+
+public class ResolverRef {
+    public init() {}
+    public func isPackagePath(path: String): Bool { path.startsWith("@") || !path.startsWith("/") && !path.startsWith(".") }
+}
+
+public class HttpRef {
+    public init() {}
+}
+
+public class HashRef {
+    public init() {}
+    public func apply(data: Array<Byte>): UInt64 { 0 }
 }
 
 public class JscRef {
     public init() {}
+    public func initialize(b: Bool): Unit {}
 }
 
 public class ApiRef {
@@ -521,4 +586,64 @@ public func toBytes(value: UInt32): Array<Byte> {
     result[2] = UInt8((value >> 16) & UInt32(0xFF))
     result[3] = UInt8((value >> 24) & UInt32(0xFF))
     return result
+}
+
+/// FileSystem stub
+public class FileSystem {
+    public static func get(): FileSystem { FileSystem() }
+    public var topLevelDir: String = "/"
+    public init() {}
+    public func exists(path: String): Bool { true }
+}
+
+/// DeferredRequest list stubs
+public class DeferredRequestList {
+    public init() {}
+    public func prepend(item: Any): Unit {}
+}
+
+/// Timer stub with start method
+public class Timer {
+    public init() {}
+    public static func start(): Timer { Timer() }
+}
+
+/// Global stub
+public class Global {
+    public static func crash(): Nothing { throw Exception("crash") }
+}
+
+/// SourceMapOption enum - matches the enum values used in bake files
+public enum SourceMapOption {
+    | none_
+    | inline_
+    | external_
+}
+
+/// AllocationScope stub
+public class AllocationScope {
+    public init() {}
+    public static func initDefault(): AllocationScope { AllocationScope() }
+    public func allocator(): Allocator { Allocator() }
+    public func borrow(): DevAllocator { DevAllocator() }
+}
+
+/// DevAllocator stub
+public class DevAllocator {}
+
+/// Additional imports and stubs for types used by production.cj, bake_body.cj etc.
+/// Log stub - local to this package to avoid ambiguity
+public class Log {
+    public init() {}
+    public init(alloc: Allocator) {}
+    public func deinit(): Unit {}
+    public func reset(): Unit {}
+}
+
+/// CWD helper
+public func getCwd(): String { "/" }
+
+/// String.joinAbs helper
+public func joinAbsStringZ(base: String, rel: String): String {
+    if (base.endsWith("/")) { base + rel } else { base + "/" + rel }
 }

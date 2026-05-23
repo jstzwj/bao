@@ -559,7 +559,7 @@ public class InstallWithManager {
         let workspaceDeps = workspaceDepList.get(lockfile.buffers.dependencies)
         let workspacePackageIds = workspaceResList.get(lockfile.buffers.resolutions)
 
-        for (i in 0..workspaceDeps.size) {
+        for (i in 0..workspaceDeps.size()) {
             let dep = workspaceDeps[i]
             let packageId = workspacePackageIds[i]
             if (dep.version.tag != IwmDependencyVersionTag.NPM && dep.version.tag != IwmDependencyVersionTag.DistTag) {
@@ -629,7 +629,7 @@ public class InstallWithManager {
             version.count(lockfile.buffers.stringBytes, builder)
         }
         for (patchDep in lockfile.patchedDependencies.values()) {
-            builder.count(patchDep.path.slice(lockfile.buffers.stringBytes))
+            builder.count(patchDep.path)
         }
 
         lockfile.overrides.count(lockfile, builder)
@@ -638,7 +638,7 @@ public class InstallWithManager {
 
         // 翻译自: 更新依赖列表偏移
         let off = manager.lockfile.buffers.dependencies.size
-        let len = newDependencies.size
+        let len = newDependencies.size()
         manager.lockfile.packages().setDependencies(0, off, len)
         manager.lockfile.packages().setResolutions(0, off, len)
         builder.allocate()
@@ -1683,16 +1683,27 @@ public class IwmStringBytes {
 }
 
 /// 依赖切片
-public class IwmDependencySlice {
+public class IwmDependencySlice <: Iterable<IwmDependencyRef> {
     public init() {}
     public func size(): Int64 { return 0 }
     public func get(list: IwmDependencyList): IwmDependencySlice { return this }
+    public operator func [](index: Int64): IwmDependencyRef { return IwmDependencyRef() }
+    public func iterator(): Iterator<IwmDependencyRef> { return IwmDependencySliceIterator() }
 }
 
 /// 解析切片
 public class IwmResolutionSlice {
     public init() {}
     public func get(list: IwmResolutionList): IwmResolutionSlice { return this }
+    public func size(): Int64 { return 0 }
+    public operator func [](index: Int64): UInt32 { return UInt32(0) }
+}
+
+/// 依赖切片迭代器
+public class IwmDependencySliceIterator <: Iterator<IwmDependencyRef> {
+    public init() {}
+    public func next(): Option<IwmDependencyRef> { return None }
+    public func hasNext(): Bool { return false }
 }
 
 /// 包列表切片
@@ -2464,6 +2475,7 @@ public class IwmPatchedDependenciesMap {
     public func getOrPut(allocator: IwmAllocator, key: UInt64): IwmPatchedDepGop { return IwmPatchedDepGop() }
     public func contains(key: UInt64): Bool { return false }
     public func orderedRemove(key: UInt64): Unit {}
+    public func values(): ArrayList<IwmPatchedDependency> { return ArrayList<IwmPatchedDependency>() }
     public var entries: IwmPatchedDepEntries
 }
 

@@ -202,10 +202,12 @@ public class ShellSubprocess {
                         buffer.source.detach()
                         buffer.deref()
                         this.stdin = Writable.ignore
-                    case fd, .memfd, .inherit, .ignore =>
-                        () // 无操作
+                    case fd => ()
+                    case memfd => ()
+                    case inherit => ()
+                    case ignore => ()
                 }
-            case stdout, .stderr =>
+            case stdout =>
                 let out: Readable = this.getIO(kind)
                 match (out) {
                     case pipe(pipe) =>
@@ -216,8 +218,29 @@ public class ShellSubprocess {
                             out = Readable.ignore
                         }
                         pipe.deref()
-                    case fd, .memfd, .inherit, .ignore, .closed, .buffer =>
-                        () // 无操作
+                    case fd => ()
+                    case memfd => ()
+                    case inherit => ()
+                    case ignore => ()
+                    case closed => ()
+                    case buffer => ()
+                }
+            case stderr =>
+                let out2: Readable = this.getIO(kind)
+                match (out2) {
+                    case pipe(pipe) =>
+                        if (pipe.state == done(let data2)) {
+                            out2 = Readable.buffer(data2)
+                        } else {
+                            out2 = Readable.ignore
+                        }
+                        pipe.deref()
+                    case fd => ()
+                    case memfd => ()
+                    case inherit => ()
+                    case ignore => ()
+                    case closed => ()
+                    case buffer => ()
                 }
         }
     }

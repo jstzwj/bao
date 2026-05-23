@@ -436,7 +436,7 @@ public class NodeHTTPResponse {
 
     /// 可能停止读取请求体
     /// 对应 Bun: pub fn maybe_stop_reading_body(&self, vm, this_value)
-    public func maybeStopReadingBody(vm: VirtualMachine, thisValue: JsValue): Unit {
+    public func maybeStopReadingBody(vm: Object, thisValue: JsValue): Unit {
         upgradeContext.reset()
 
         if ((flags.upgraded || flags.socketClosed || flags.ended)
@@ -1293,7 +1293,7 @@ public class PollRef {
         has = false
     }
 
-    public func unref(vm: VirtualMachine): Unit {
+    public func unref(vm: Object): Unit {
         has = false
     }
 }
