@@ -390,16 +390,14 @@ public enum Writable {
     }
 
     /// 关闭
-    public mutating func close() {
+    public func close() {
         match (this) {
             case pipe(pipe) =>
                 pipe.end(None)
             case memfd(fd) =>
                 fd.close()
-                this = Writable.ignore
             case fd(fd) =>
                 fd.close()
-                this = Writable.ignore
             case buffer(buffer) =>
                 buffer.close()
             case inherit => ()
@@ -409,7 +407,7 @@ public enum Writable {
 
     /// 关闭回调 - 防止use-after-free
     /// 对应 Bun: pub fn onClose(`this`: *Writable, _: ?bun.sys.Error) void
-    public mutating func onClose(err: ?SystemError) {
+    public func onClose(err: ?SystemError) {
         match (this) {
             case buffer(buffer) =>
                 buffer.deref()
@@ -420,7 +418,6 @@ public enum Writable {
             case inherit => ()
             case ignore => ()
         }
-        this = Writable.ignore
     }
 
     /// 就绪回调
@@ -483,17 +480,15 @@ public enum Writable {
 
     /// 终结化
     /// 对应 Bun: pub fn finalize(`this`: *Writable) void
-    public mutating func finalize() {
+    public func finalize() {
         match (this) {
             case pipe(pipe) =>
                 pipe.deref()
-                this = Writable.ignore
             case buffer(buffer) =>
                 buffer.updateRef(false)
                 buffer.deref()
             case memfd(fd) =>
                 fd.close()
-                this = Writable.ignore
             case fd => ()
             case inherit => ()
             case ignore => ()
@@ -732,7 +727,7 @@ public class PipeReader {
     /// 设置缓冲输出为ArrayBuffer
     /// 对应 Bun: buffered_output = .{ .array_buffer = .{ .buf = ..., .i = 0 } }
     public func setBufferedOutputArrayBuffer(arrayBuffer: ArrayBufferStrong) {
-        this.bufferedOutput = BufferedOutput.arrayBuffer(ArrayBufferEntry(arrayBuffer))
+        this.bufferedOutput = BufferedOutput.arrayBuffer(PipeReaderArrayBufferEntry(arrayBuffer))
     }
 
     /// 读取全部
@@ -983,6 +978,160 @@ public class PipeReader {
 
         this.bufferedOutput.deinit()
         this.reader.deinit()
+    }
+}
+
+/// 管道读取器状态
+/// 对应 Bun: state: union(enum) { pending, done: []u8, err: ?jsc.SystemError }
+public enum PipeReaderState {
+    | pending
+    | done(Array<Byte>)
+    | err(?SystemError)
+}
+
+/// 缓冲输出
+/// 对应 Bun: const BufferedOutput = union(enum) { bytelist, array_buffer }
+public enum BufferedOutput {
+    | bytelist(ByteList)
+    | arrayBuffer(PipeReaderArrayBufferEntry)
+
+    /// 获取长度
+    public func len(): Int64 {
+        match (this) {
+            case bytelist(bl) =>
+                return bl.size
+            case arrayBuffer(entry) =>
+                return entry.i
+        }
+    }
+
+    /// 获取切片
+    public func slice(): Array<Byte> {
+        match (this) {
+            case bytelist(bl) =>
+                return bl.toArray()
+            case arrayBuffer(entry) =>
+                return entry.buf.slice()
+        }
+    }
+
+    /// 追加字节
+    public func append(bytes: Array<Byte>) {
+        match (this) {
+            case bytelist(bl) =>
+                bl.appendSlice(bytes)
+            case arrayBuffer(entry) =>
+                let arrayBufSlice = entry.buf.slice()
+                if (entry.i >= arrayBufSlice.size) {
+                    return
+                }
+                let length = Math.min(arrayBufSlice.size - entry.i, bytes.size)
+                for (j in 0..size) {
+                    arrayBufSlice[entry.i + j] = bytes[j]
+                }
+                entry.i = entry.i + length
+        }
+    }
+
+    /// 去初始化
+    public func deinit() {
+        match (this) {
+            case bytelist(bl) =>
+                bl.clear()
+            case arrayBuffer(entry) =>
+                entry.buf.deinit()
+        }
+    }
+}
+
+/// ArrayBuffer条目
+/// 对应 Bun: struct { buf: jsc.ArrayBuffer.Strong, i: u32 = 0 }
+public class PipeReaderArrayBufferEntry {
+    public var buf: ArrayBufferStrong
+    public var i: UInt32 = 0
+
+    public init(buf: ArrayBufferStrong) {
+        this.buf = buf
+    }
+}
+
+/// 捕获写入器
+/// 对应 Bun: pub const CapturedWriter = struct { dead, writer, written, err }
+public class CapturedWriter {
+    /// 是否已死
+    public var dead: Boolean = true
+    /// 写入器
+    public var writer: IOWriter
+    /// 已写入量
+    public var written: UInt64 = 0
+    /// 错误
+    public var err: ?SystemError = None
+    /// 父引用 (仓颉适配)
+    public var parentRef: PipeReader
+
+    /// 执行写入
+    public func doWrite(chunk: Array<Byte>) {
+        if (this.dead || this.err.isSome()) {
+            return
+        }
+        this.writer.enqueue(this, None, chunk).run()
+    }
+
+    /// 获取缓冲区
+    public func getBuffer(): Array<Byte> {
+        let parent = this.parent()
+        let buf = parent.reader.buffer()
+        if (this.written >= buf.items.size) {
+            return Array<Byte>()
+        }
+        return buf.items[this.written..]
+    }
+
+    /// 获取父PipeReader
+    public func parent(): PipeReader {
+        return this.parentRef
+    }
+
+    /// 是否完成
+    public func isDone(justWritten: Int64): Boolean {
+        if (this.dead || this.err.isSome()) {
+            return true
+        }
+        let p = this.parent()
+        if (p.state == pending) {
+            return false
+        }
+        return this.written + justWritten >= p.bufferedOutput.len()
+    }
+
+    /// IO写入器数据块回调
+    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+        this.written += amount
+        if (err.isSome()) {
+            this.err = err
+            return this.parent().trySignalDoneToCmd()
+        } else if (this.written >= this.parent().bufferedOutput.len() && this.parent().state != pending) {
+            return this.parent().trySignalDoneToCmd()
+        }
+        return Yield.suspended
+    }
+
+    /// 错误回调
+    public func onError(err: SystemError) {
+        this.err = err
+    }
+
+    /// 关闭回调
+    public func onClose() {
+        this.parent().onCapturedWriterDone()
+    }
+
+    /// 去初始化
+    public func deinit() {
+        if (this.err.isSome()) {
+            this.err = None
+        }
+        this.writer.deref()
     }
 }
 
