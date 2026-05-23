@@ -600,13 +600,11 @@ public enum Readable {
     }
 
     /// 关闭
-    public mutating func close() {
+    public func close() {
         match (this) {
             case memfd(fd) =>
-                this = Readable.closed
                 fd.close()
-            case fd =>
-                this = Readable.closed
+            case fd => ()
             case pipe(pipe) =>
                 pipe.close()
             case inherit => ()
@@ -617,15 +615,13 @@ public enum Readable {
     }
 
     /// 终结化
-    public mutating func finalize() {
+    public func finalize() {
         match (this) {
             case memfd(fd) =>
-                this = Readable.closed
                 fd.close()
-            case fd =>
-                this = Readable.closed
+            case fd => ()
             case pipe(pipe) =>
-                this = Readable.closed
+                ()
             case inherit => ()
             case ignore => ()
             case closed => ()
@@ -779,8 +775,8 @@ public class PipeReader {
             return
         }
         this.ref()
-        defer { this.deref() }
         this.trySignalDoneToCmd().run()
+        this.deref()
 
         if (this.process.isSome()) {
             let proc = this.process
