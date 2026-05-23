@@ -285,6 +285,20 @@ public class AnyRouteObj {
 }
 
 // ============================================================================
+// 本地类型别名 (无法从 bao_runtime.bake 子包导入)
+// ============================================================================
+
+/// JS字符串分配列表 - 对应 bake包中的 StringRefList
+public class StringRefList {
+    public init() {}
+}
+
+/// 框架路由器类型 - 对应 bake包中的 FrameworkRouterType
+public class FrameworkRouterType {
+    public init() {}
+}
+
+// ============================================================================
 // 服务器初始化上下文
 // 对应 Bun: pub const ServerInitContext = struct { ... }
 // ============================================================================

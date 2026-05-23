@@ -724,7 +724,7 @@ public class InstallWithManager {
             return result
         }
 
-        let hashesLen = manager.lockfile.overrides.map.size + lockfile.overrides.map.size
+        let hashesLen = manager.lockfile.overrides.map.size() + lockfile.overrides.map.size()
         if (hashesLen == 0) {
             return result
         }
@@ -1671,6 +1671,7 @@ public class IwmDependencyList {
     public init() { size = 0 }
     public func ensureUnusedCapacity(count: Int64): Unit {}
     public func slice(off: Int64, end: Int64): IwmDependencySlice { return IwmDependencySlice() }
+    public operator func [](index: Int64): IwmDependencyRef { return IwmDependencyRef() }
 }
 
 /// 解析列表
@@ -1702,6 +1703,7 @@ public class IwmDependencySlice <: Iterable<IwmDependencyRef> {
     public func size(): Int64 { return 0 }
     public func get(list: IwmDependencyList): IwmDependencySlice { return this }
     public operator func [](index: Int64): IwmDependencyRef { return IwmDependencyRef() }
+    public operator func [](index: Int64, value: IwmDependencyRef): Unit {}
     public func iterator(): Iterator<IwmDependencyRef> { return IwmDependencySliceIterator() }
 }
 
@@ -1749,7 +1751,7 @@ public class IwmPackagesSlice {
     public func setScripts(id: UInt32, scripts: IwmPackageScripts): Unit {}
     public func setDependencies(id: UInt32, off: Int64, len: Int64): Unit {}
     public func setResolutions(id: UInt32, off: Int64, len: Int64): Unit {}
-    public func getResolutions(id: UInt32): IwmResolutionSlice { return IwmResolutionSlice() }
+    public func getResolutions(id: UInt32): IwmResolutionBufferSlice { return IwmResolutionBufferSlice() }
     public func len(): Int64 { return 0 }
 }
 

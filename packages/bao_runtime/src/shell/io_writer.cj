@@ -34,7 +34,7 @@ public class IOWriter {
     /// 文件描述符
     public var fd: FD
     /// 写入器列表
-    public var writers: Writers
+    public var writers: IOWriterWriters
     /// 缓冲区
     public var buf: ArrayList<Byte>
     /// 写入器索引
@@ -88,7 +88,7 @@ public class IOWriter {
         this.concurrentTask = EventLoopTask.fromEventLoop(evtloop)
         this.concurrentTask2 = EventLoopTask.fromEventLoop(evtloop)
         this.writer = WriterImpl()
-        this.writers = Writers()
+        this.writers = IOWriterWriters()
         this.buf = ArrayList<Byte>()
         this.asyncDeinit = AsyncDeinitWriter()
         return this
@@ -109,7 +109,7 @@ public class IOWriter {
     }
 
     /// 取消指定写入器的数据块
-    public func cancelChunks(ptr: ChildPtr) {
+    public func cancelChunks(ptr: IOWriterChildPtr) {
         if (this.writers.len() == 0) {
             return
         }
@@ -214,7 +214,7 @@ public class IOWriter {
     }
 
     /// 推进到下一个写入器
-    public func bump(currentWriter: Writer): Yield {
+    public func bump(currentWriter: IOWriterWriter): Yield {
         let isDead = currentWriter.isDead()
         let written = currentWriter.written
         let childPtr = currentWriter.ptr
@@ -336,149 +336,8 @@ public class IOWriter {
     }
 
     // ========================================================================
-    // 写入器
+    // 写入器（类型已提取到顶层: IOWriterWriter, IOWriterWriters）
     // ========================================================================
-
-    /// 写入器条目
-    public struct Writer {
-        public var ptr: IOWriterChildPtr
-        public var len: UInt64
-        public var written: UInt64 = 0
-        public var bytelist: ?ByteList
-
-        /// 是否写完所有数据
-        public func wroteEverything(): Boolean {
-            return this.written >= this.len
-        }
-
-        /// 是否死亡
-        public func isDead(): Boolean {
-            return false
-        }
-
-        /// 标记为死亡
-        public mutating func setDead() {
-            // 标记为死亡
-        }
-    }
-
-    // ========================================================================
-    // 写入器列表
-    // ========================================================================
-
-    /// 写入器列表
-    public class Writers {
-        var items: ArrayList<Writer>
-
-        init() {
-            this.items = ArrayList<Writer>()
-        }
-
-        func len(): UInt64 {
-            return UInt64(this.items.size)
-        }
-
-        func append(writer: Writer) {
-            this.items.append(writer)
-        }
-
-        func get(idx: UInt64): Writer {
-            return this.items[Int64(idx)]
-        }
-
-        func slice(): Array<Writer> {
-            return this.items.toArray()
-        }
-
-        func sliceMutable(): Array<Writer> {
-            return this.items.toArray()
-        }
-
-        func clearRetainingCapacity() {
-            this.items.clear()
-        }
-
-        func truncate(idx: UInt64) {
-            // 从idx开始截断
-            while (UInt64(this.items.size) > idx) {
-                this.items.removeAt(this.items.size - 1)
-            }
-        }
-
-        func deinit() {
-            this.items.clear()
-        }
-
-        func memoryCost(): UInt64 {
-            return UInt64(this.items.size) * 8
-        }
-    }
-
-    // ========================================================================
-    // IO写入器子指针
-    // ========================================================================
-
-    /// IO写入器子指针
-    /// 注册所有需要使用IOWriter写入文件描述符的类型
-    public class IOWriterChildPtr {
-        public var ptr: Any
-
-        init() {
-            this.ptr = None
-        }
-
-        public static func initFunc(p: Any): IOWriterChildPtr {
-            let cptr = IOWriterChildPtr()
-            cptr.ptr = p
-            return cptr
-        }
-
-        public func asAnyOpaque(): Any {
-            return this.ptr
-        }
-
-        public static func fromAnyOpaque(p: Any): IOWriterChildPtr {
-            let cptr = IOWriterChildPtr()
-            cptr.ptr = p
-            return cptr
-        }
-
-        /// IO写入器数据块写入完成回调
-        public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
-            return Yield.done
-        }
-    }
-
-    // ========================================================================
-    // 异步去初始化写入器
-    // ========================================================================
-
-    /// 异步去初始化写入器
-    public class AsyncDeinitWriter {
-        public var ran: Boolean = false
-        public var writer: ?IOWriter = None
-
-        /// 排队到事件循环
-        public func enqueue() {
-            if (this.ran) {
-                return
-            }
-            this.ran = true
-            // 将任务排队到事件循环
-        }
-
-        /// 从主线程运行
-        public func runFromMainThread() {
-            if (let w <- this.writer) {
-                w.deinitOnMainThread()
-            }
-        }
-
-        /// 从主线程Mini运行
-        public func runFromMainThreadMini() {
-            this.runFromMainThread()
-        }
-    }
 }
 
 /// 写入状态
