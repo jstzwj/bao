@@ -816,6 +816,21 @@ public enum HttpMethod {
 
     public func name(): String { asStr() }
 
+    public operator func ==(right: HttpMethod): Bool {
+        match (this) {
+            case HttpMethod.GET => match (right) { case HttpMethod.GET => true case _ => false }
+            case HttpMethod.POST => match (right) { case HttpMethod.POST => true case _ => false }
+            case HttpMethod.PUT => match (right) { case HttpMethod.PUT => true case _ => false }
+            case HttpMethod.DELETE => match (right) { case HttpMethod.DELETE => true case _ => false }
+            case HttpMethod.HEAD => match (right) { case HttpMethod.HEAD => true case _ => false }
+            case HttpMethod.OPTIONS => match (right) { case HttpMethod.OPTIONS => true case _ => false }
+            case HttpMethod.PATCH => match (right) { case HttpMethod.PATCH => true case _ => false }
+            case HttpMethod.CONNECT => match (right) { case HttpMethod.CONNECT => true case _ => false }
+            case HttpMethod.TRACE => match (right) { case HttpMethod.TRACE => true case _ => false }
+            case HttpMethod.ANY => match (right) { case HttpMethod.ANY => true case _ => false }
+        }
+    }
+
     public static func fromName(s: String): ?HttpMethod {
         match (s) {
             case "GET" => HttpMethod.GET

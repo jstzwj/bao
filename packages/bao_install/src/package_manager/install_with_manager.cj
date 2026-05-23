@@ -505,8 +505,9 @@ public class InstallWithManager {
             manager.allocator, manager.log, rootPackageJsonPath
         )
 
-        let sourceCopy = match (rootPackageJsonEntry) {
-            case IwmPackageJsonCacheResult.Entry(source) => source
+        var sourceCopy = IwmSource()
+        match (rootPackageJsonEntry) {
+            case IwmPackageJsonCacheResult.Entry(source) => sourceCopy = source
             case IwmPackageJsonCacheResult.ReadErr(err) =>
                 if (manager.log.hasErrors()) { manager.log.print(IwmOutputWriter()) }
                 Output.err(err, "failed to read '${rootPackageJsonPath}'")
@@ -599,7 +600,7 @@ public class InstallWithManager {
         let builder = manager.lockfile.stringBuilder()
         maybeRoot.scripts.count(lockfile.buffers.stringBytes, builder)
         builder.allocate()
-        manager.lockfile.packages.setScripts(0, maybeRoot.scripts.clone(lockfile.buffers.stringBytes, builder))
+        manager.lockfile.packages().setScripts(0, maybeRoot.scripts.clone(lockfile.buffers.stringBytes, builder))
         builder.clamp()
     }
 
@@ -638,8 +639,8 @@ public class InstallWithManager {
         // 翻译自: 更新依赖列表偏移
         let off = manager.lockfile.buffers.dependencies.size
         let len = newDependencies.size
-        manager.lockfile.packages.setDependencies(0, off, len)
-        manager.lockfile.packages.setResolutions(0, off, len)
+        manager.lockfile.packages().setDependencies(0, off, len)
+        manager.lockfile.packages().setResolutions(0, off, len)
         builder.allocate()
 
         // 翻译自: 处理 overrides
@@ -656,7 +657,7 @@ public class InstallWithManager {
         manager.lockfile.buffers.dependencies.ensureUnusedCapacity(len)
         manager.lockfile.buffers.resolutions.ensureUnusedCapacity(len)
 
-        let oldResolutions = manager.lockfile.packages.getResolutions(0)
+        let oldResolutions = manager.lockfile.packages().getResolutions(0)
 
         var dependencies = manager.lockfile.buffers.dependencies.slice(off, off + len)
         var resolutions = manager.lockfile.buffers.resolutions.slice(off, off + len)
@@ -676,7 +677,7 @@ public class InstallWithManager {
         }
 
         // 翻译自: 更新 scripts
-        manager.lockfile.packages.setScripts(0, maybeRoot.scripts.clone(lockfile.buffers.stringBytes, builder))
+        manager.lockfile.packages().setScripts(0, maybeRoot.scripts.clone(lockfile.buffers.stringBytes, builder))
 
         // 翻译自: 更新 workspace paths
         updateWorkspacePaths(manager, lockfile, builder)
@@ -1284,7 +1285,7 @@ public class InstallWithManager {
 
         var installRootDependencies = workspaceFilters.size == 0
         if (!installRootDependencies) {
-            let pkgNames = manager.lockfile.packages.names()
+            let pkgNames = manager.lockfile.packages().names()
             let absRootPath = FileSystem.instance.topLevelDirWithoutTrailingSlash()
 
             for (filter in workspaceFilters) {
@@ -1684,11 +1685,14 @@ public class IwmStringBytes {
 /// 依赖切片
 public class IwmDependencySlice {
     public init() {}
+    public func size(): Int64 { return 0 }
+    public func get(list: IwmDependencyList): IwmDependencySlice { return this }
 }
 
 /// 解析切片
 public class IwmResolutionSlice {
     public init() {}
+    public func get(list: IwmResolutionList): IwmResolutionSlice { return this }
 }
 
 /// 包列表切片
@@ -2442,6 +2446,8 @@ public class IwmStringEntry {
     }
 
     public func slice(bytes: IwmStringBytes): String { return value }
+    public func count(bytes: IwmStringBytes, builder: IwmStringBuilder): Unit {}
+    public func append(bytes: IwmStringBytes, builder: IwmStringBuilder): String { return value }
 }
 
 /// String HashMap Iterator

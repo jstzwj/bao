@@ -330,7 +330,7 @@ public class HTMLBundleRoute {
         match (server) {
             case Some(srv) =>
                 let loadResult = srv.getOrLoadPlugins(
-                    ServePluginCallback.htmlBundleRoute(this)
+                    ServePluginCallback.HtmlBundleRoute(this)
                 )
                 match (loadResult) {
                     case err =>

@@ -335,6 +335,7 @@ public class ServePluginPending {
     }
 }
 
+/* Duplicate: GetOrStartLoadResult is defined in html_bundle.cj
 /// 插件加载结果
 /// 对应 Bun: pub const GetOrStartLoadResult = union(enum) { ready, pending, err }
 public enum GetOrStartLoadResult {
@@ -345,13 +346,16 @@ public enum GetOrStartLoadResult {
     /// 加载失败
     | err
 }
+*/
 
+/* Duplicate: ServePluginCallback is defined in html_bundle.cj
 /// 插件回调类型
 /// 对应 Bun: pub const Callback = union(enum) { html_bundle_route, dev_server }
 public enum ServePluginCallback {
     | htmlBundleRoute(HTMLBundleRoute)
     | devServer(DevServer)
 }
+*/
 
 /// 服务器插件状态机
 /// 管理插件加载的异步生命周期
@@ -380,11 +384,11 @@ public class ServePlugins {
                     case devServer(dev) =>
                         pending.devServer = dev
                 }
-                return GetOrStartLoadResult.pending
+                return GetOrStartLoadResult.Pending
             case loaded(plugin) =>
-                return GetOrStartLoadResult.ready(plugin)
+                return GetOrStartLoadResult.Ready(plugin)
             case err =>
-                return GetOrStartLoadResult.err
+                return GetOrStartLoadResult.Err
         }
     }
 

@@ -3,7 +3,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{JSGlobalObject, JsValue, Output, StringBuilder}
+import bao_jsc.{JSGlobalObject, JsValue, Output}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 

@@ -1645,6 +1645,19 @@ public enum BodyValue {
     | WTFStringImpl
     | Error
     | Locked
+
+    public operator func ==(right: BodyValue): Bool {
+        match (this) {
+            case BodyValue.Null => match (right) { case BodyValue.Null => true case _ => false }
+            case BodyValue.Empty => match (right) { case BodyValue.Empty => true case _ => false }
+            case BodyValue.Used => match (right) { case BodyValue.Used => true case _ => false }
+            case BodyValue.InternalBlob => match (right) { case BodyValue.InternalBlob => true case _ => false }
+            case BodyValue.Blob => match (right) { case BodyValue.Blob => true case _ => false }
+            case BodyValue.WTFStringImpl => match (right) { case BodyValue.WTFStringImpl => true case _ => false }
+            case BodyValue.Error => match (right) { case BodyValue.Error => true case _ => false }
+            case BodyValue.Locked => match (right) { case BodyValue.Locked => true case _ => false }
+        }
+    }
 }
 
 /// Bool 引用 (用于延迟析构标记)
@@ -1903,10 +1916,10 @@ public class RangeRequest {
         if (!value.startsWith("bytes=")) {
             return RangeRaw.Absent
         }
-        let spec = value.subString(6)
+        let spec = value[6..]
         if (spec.startsWith("-")) {
             // 对应: bytes=-N (suffix)
-            let suffixStr = spec.subString(1)
+            let suffixStr = spec[1..]
             let suffix = Int64.parse(suffixStr) ?? 0
             return RangeRaw.Suffix(suffix)
         }

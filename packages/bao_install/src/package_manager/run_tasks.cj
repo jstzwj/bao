@@ -2820,6 +2820,7 @@ public class RunTasksDebug {
 /// 时间工具
 public class Time {
     public static func now(): Int64 { return Int64(0) }
+    public static func nanoTimestamp(): Int64 { return Int64(0) }
 }
 
 /// 无效包 ID

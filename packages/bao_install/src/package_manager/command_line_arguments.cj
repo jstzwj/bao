@@ -2162,6 +2162,10 @@ public class Output {
         BaoConsole.printErr("error: " + msg)
     }
 
+    public static func prettyError(msg: String): Unit {
+        BaoConsole.printErr(msg)
+    }
+
     public static func prettyErrorln(msg: String): Unit {
         BaoConsole.printErr(msg)
     }
@@ -2173,6 +2177,18 @@ public class Output {
     public static func errorWriter(): BaoWriter {
         return BaoWriter()
     }
+
+    public static func enableBuffering(): Unit {}
+
+    public static func note(msg: String): Unit {
+        BaoConsole.printErr("note: " + msg)
+    }
+
+    public static func prettyln(text: String): Unit {
+        BaoConsole.print(text + "\n")
+    }
+
+    public static func printStartEndStdout(start: Int64, end: Int64): Unit {}
 }
 
 /// 全局工具

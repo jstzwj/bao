@@ -3,7 +3,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{FileSystem, Source, StringBuilder}
+import bao_jsc.{FileSystem, Source}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 

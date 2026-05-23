@@ -209,64 +209,11 @@ public class Interpreter {
     public var cleanupState: CleanupState
 
     // ========================================================================
-    // 解释器标志
+    // 解释器标志 — 参见顶层 InterpreterFlags
     // ========================================================================
 
-    /// 解释器标志
-    public struct InterpreterFlags {
-        public var done: Boolean = false
-        public var quiet: Boolean = false
-    }
-
-    /// 清理状态
-    public enum CleanupState {
-        /// 尚未清理 - 需要完整清理
-        | needsFullCleanup
-        /// 运行时资源已通过finish()清理
-        | runtimeCleaned
-    }
-
-    // ========================================================================
-    // 状态节点引用
-    // ========================================================================
-
-    /// 状态基类
-    public type State = Base
-    /// 脚本状态
-    public type Script = ScriptState
-    /// 语句状态
-    public type Stmt = StmtState
-    /// 管道状态
-    public type Pipeline = PipelineState
-    /// 二元表达式状态
-    public type Binary = BinaryState
-    /// 子shell状态
-    public type Subshell = SubshellState
-    /// 展开状态
-    public type Expansion = ExpansionState
-    /// 赋值状态
-    public type Assigns = AssignsState
-    /// 异步状态
-    public type Async = AsyncState
-    /// 条件表达式状态
-    public type CondExpr = CondExprState
-    /// if条件状态
-    public type If = IfState
-    /// 命令状态
-    public type Cmd = CmdState
-
-    /// 内置命令
-    public type Builtin = BuiltinImpl
-
-    /// IO
-    public type IO = IO
-    /// IO读取器
-    public type IOReader = IOReader
-    /// IO写入器
-    public type IOWriter = IOWriter
-
-    /// 分配作用域
-    public type AllocScope = AllocScopeImpl
+    /// 清理状态 — 参见顶层 CleanupState
+    public var flags: InterpreterFlags
 
     // ========================================================================
     // 初始化和运行
