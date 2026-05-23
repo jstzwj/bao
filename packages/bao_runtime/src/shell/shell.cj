@@ -1232,34 +1232,34 @@ public class AST {
 /// Token标记类型
 public enum TokenTag {
     | Pipe               // |
-    case DoublePipe         // ||
-    case Ampersand          // &
-    case DoubleAmpersand    // &&
-    case Redirect           // > < >> etc
-    case Dollar             // $
-    case Asterisk           // *
-    case DoubleAsterisk     // **
-    case Eq                 // =
-    case Semicolon          // ;
-    case Newline            // \n
-    case BraceBegin         // {
-    case Comma              // ,
-    case BraceEnd           // }
-    case CmdSubstBegin      // $(
-    case CmdSubstQuoted     // quoted command substitution
-    case CmdSubstEnd        // )
-    case OpenParen          // (
-    case CloseParen         // )
-    case Var                // variable reference
-    case VarArgv            // $0-$9
-    case Text               // plain text
-    case SingleQuotedText   // 'text'
-    case DoubleQuotedText   // "text"
-    case JSObjRef           // JS object reference
-    case DoubleBracketOpen  // [[
-    case DoubleBracketClose // ]]
-    case Delimit            // delimiter
-    case Eof                // end of file
+    | DoublePipe         // ||
+    | Ampersand          // &
+    | DoubleAmpersand    // &&
+    | Redirect           // > < >> etc
+    | Dollar             // $
+    | Asterisk           // *
+    | DoubleAsterisk     // **
+    | Eq                 // =
+    | Semicolon          // ;
+    | Newline            // \n
+    | BraceBegin         // {
+    | Comma              // ,
+    | BraceEnd           // }
+    | CmdSubstBegin      // $(
+    | CmdSubstQuoted     // quoted command substitution
+    | CmdSubstEnd        // )
+    | OpenParen          // (
+    | CloseParen         // )
+    | Var                // variable reference
+    | VarArgv            // $0-$9
+    | Text               // plain text
+    | SingleQuotedText   // 'text'
+    | DoubleQuotedText   // "text"
+    | JSObjRef           // JS object reference
+    | DoubleBracketOpen  // [[
+    | DoubleBracketClose // ]]
+    | Delimit            // delimiter
+    | Eof                // end of file
 }
 
 // ============================================================================
@@ -1445,8 +1445,8 @@ public class InputChar {
 /// 子Shell种类
 public enum SubShellKind {
     | normal     // (echo hi; echo hello)
-    case backtick   // `echo hi; echo hello`
-    case dollar     // $(echo hi; echo hello)
+    | backtick   // `echo hi; echo hello`
+    | dollar     // $(echo hi; echo hello)
 
     /// 获取闭合Token
     public func closingTok(): TokenTag {
@@ -1486,7 +1486,7 @@ public enum ParserSubshellKind {
 /// If子句Token类型
 public enum IfClauseTok {
     | `if`
-    case `else`
+    | `else`
     | elif
     | then
     | fi
@@ -1885,7 +1885,7 @@ public class TestToken {
 /// 重定向方向
 public enum RedirectDirection {
     | out  // 输出重定向 > >>
-    case `in` // 输入重定向 < <<
+    | `in` // 输入重定向 < <<
 }
 
 // ============================================================================

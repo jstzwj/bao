@@ -3,7 +3,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{CallFrame, EventLoopTimerState, JSFunction, JSGlobalObject, JsValue, Output, PromiseStatus, ConsoleObject, Formatter, BunString}
+import bao_jsc.{CallFrame, ConsoleFormatter, EventLoopTimerState, JSFunction, JSGlobalObject, JsObject, JsValue, Output, PromiseStatus, ConsoleObject, Formatter, BunString}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator

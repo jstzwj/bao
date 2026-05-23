@@ -196,12 +196,10 @@ public class ShellSubprocess {
                     case pipe(pipe) =>
                         pipe.signal.clear()
                         pipe.deref()
-                        this.stdin = Writable.ignore
                     case buffer(buffer) =>
                         this.onStaticPipeWriterDone()
                         buffer.source.detach()
                         buffer.deref()
-                        this.stdin = Writable.ignore
                     case fd => ()
                     case memfd => ()
                     case inherit => ()
@@ -212,10 +210,10 @@ public class ShellSubprocess {
                 match (out) {
                     case pipe(pipe) =>
                         match (pipe.state) {
-                            case done(data) =>
-                                out = Readable.buffer(data)
+                            case done(_) =>
+                                () // 数据已在pipe中
                             case _ =>
-                                out = Readable.ignore
+                                ()
                         }
                         pipe.deref()
                     case fd => ()
@@ -230,10 +228,10 @@ public class ShellSubprocess {
                 match (out2) {
                     case pipe(pipe) =>
                         match (pipe.state) {
-                            case done(data2) =>
-                                out2 = Readable.buffer(data2)
+                            case done(_) =>
+                                () // 数据已在pipe中
                             case _ =>
-                                out2 = Readable.ignore
+                                ()
                         }
                         pipe.deref()
                     case fd => ()
@@ -252,8 +250,14 @@ public class ShellSubprocess {
         // 将待处理的管道读取器标记为错误状态
         for (kind in [StdioKind.stdout, StdioKind.stderr]) {
             let r = this.getIO(kind)
-            if (r == pipe && r.pipe.state == pending) {
-                r.pipe.state = PipeReaderState.err(None)
+            match (r) {
+                case pipe(p) =>
+                    match (p.state) {
+                        case pending =>
+                            p.state = PipeReaderState.err(None)
+                        case _ => ()
+                    }
+                case _ => ()
             }
         }
         this.process.exitHandler = ExitHandler()
@@ -676,8 +680,10 @@ public class PipeReader {
     /// 是否完成
     /// 对应 Bun: pub fn isDone(`this`: *PipeReader) bool
     public func isDone(): Boolean {
-        if (this.state == pending) {
-            return false
+        match (this.state) {
+            case pending =>
+                return false
+            case _ => ()
         }
         return this.capturedWriter.isDone(0)
     }
@@ -729,8 +735,10 @@ public class PipeReader {
     /// 读取全部
     /// 对应 Bun: pub fn readAll(`this`: *PipeReader) void
     public func readAll() {
-        if (this.state == pending) {
-            this.reader.read()
+        match (this.state) {
+            case pending =>
+                this.reader.read()
+            case _ => ()
         }
     }
 
@@ -1044,7 +1052,7 @@ public enum BufferedOutput {
                     return
                 }
                 let length = Math.min(arrayBufSlice.size - entry.i, bytes.size)
-                for (j in 0..size) {
+                for (j in 0..length) {
                     arrayBufSlice[entry.i + j] = bytes[j]
                 }
                 entry.i = entry.i + length
