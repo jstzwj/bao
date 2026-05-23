@@ -1160,10 +1160,6 @@ public class InstallWithManager {
         didMetaHashChange: Bool,
         logLevel: IwmLogLevel
     ): Unit {
-        defer {
-            Output.flush()
-        }
-
         var printedTimestamp = false
 
         if (manager.options.doSummary) {
@@ -1248,9 +1244,10 @@ public class InstallWithManager {
         summary: IwmPackageInstallSummary,
         global: Bool
     ): Unit {
-        let packagesCount = summary.packagesWithBlockedScripts.size
+        let packagesCount = summary.blockedScriptsCount()
         var scriptsCount = 0
-        for (count in summary.packagesWithBlockedScripts.values()) {
+        for (entry in summary.blockedScriptsEntries()) {
+            let (_, count) = entry
             scriptsCount += count
         }
 
@@ -1525,6 +1522,14 @@ public enum IwmLockfileSaveFormat {
             case Text => "bun.lock"
         }
     }
+
+    public operator func ==(right: IwmLockfileSaveFormat): Bool {
+        match (this) {
+            case Binary => match (right) { case Binary => true case _ => false }
+            case Text => match (right) { case Text => true case _ => false }
+        }
+    }
+    public operator func !=(right: IwmLockfileSaveFormat): Bool { !(this == right) }
 }
 
 // ============================================================================
@@ -1755,9 +1760,20 @@ public class IwmPackagesSlice {
 }
 
 /// 元数据切片
-public class IwmMetaSlice { public init() {} }
+public class IwmMetaSlice {
+    public init() {}
+    public operator func [](index: Int64): IwmMeta { return IwmMeta() }
+}
 /// 脚本切片
-public class IwmScriptsSlice { public init() {} }
+public class IwmScriptsSlice {
+    public init() {}
+    public operator func [](index: Int64): IwmPackageScripts { return IwmPackageScripts() }
+}
+/// 元数据
+public class IwmMeta {
+    public init() {}
+    public func hasInstallScript(): Bool { return false }
+}
 /// 名称切片
 public class IwmNameSlice { public init() {} }
 
@@ -2166,6 +2182,16 @@ public class IwmPackageInstallSummary {
         skipped = 0
         successfullyInstalled = None
         packagesWithBlockedScripts = HashMap<String, Int64>()
+    }
+
+    public func blockedScriptsCount(): Int64 {
+        var c = Int64(0)
+        packagesWithBlockedScripts.forEach({ _, _ => c += 1 })
+        return c
+    }
+
+    public func blockedScriptsEntries(): ArrayList<(String, Int64)> {
+        return packagesWithBlockedScripts.allEntries()
     }
 }
 
