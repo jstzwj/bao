@@ -1124,8 +1124,10 @@ public class CapturedWriter {
             return true
         }
         let p = this.parent()
-        if (p.state == pending) {
-            return false
+        match (p.state) {
+            case pending =>
+                return false
+            case _ => ()
         }
         return this.written + justWritten >= p.bufferedOutput.len()
     }
@@ -1136,7 +1138,13 @@ public class CapturedWriter {
         if (err.isSome()) {
             this.err = err
             return this.parent().trySignalDoneToCmd()
-        } else if (this.written >= this.parent().bufferedOutput.len() && this.parent().state != pending) {
+        }
+        let parentState = this.parent().state
+        let isPending = match (parentState) {
+            case pending => true
+            case _ => false
+        }
+        if (this.written >= this.parent().bufferedOutput.len() && !isPending) {
             return this.parent().trySignalDoneToCmd()
         }
         return Yield.suspended

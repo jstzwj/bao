@@ -416,11 +416,12 @@ public class GlobalMini {
 
 /// Shell AST定义
 /// 对应 Bun中的完整AST结构
-public class AST {
+/// 注意: 以下类型在Bun中嵌套在AST命名空间内，仓颉中提取到顶层
 
-    /// AST脚本 - 顶层节点
-    /// 对应 Bun: pub const Script = struct { stmts: []Stmt, ... }
-    public class Script {
+/// AST脚本 - 顶层节点
+/// 对应 Bun: pub const Script = struct { stmts: []Stmt, ... }
+public class ASTScript {
+    public var stmts: Array<ASTStmt>
         public var stmts: Array<Stmt>
 
         public init(stmts: Array<Stmt>) {
