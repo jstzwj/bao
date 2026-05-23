@@ -4,6 +4,9 @@
 
 package bao_runtime.bake
 
+import bao_bun_alloc.Allocator
+import bao_core.Output
+
 /// 从文件系统发现路由，由框架配置指导。
 /// 与所有不同的范式无关。支持增量更新用于 DevServer，或序列化为二进制用于生产。
 public class FrameworkRouter {
@@ -73,12 +76,12 @@ public class FrameworkRouter {
 
     /// 获取路由指针
     public func routePtr(i: FrameworkRouterRouteIndex): FrameworkRouterRoute {
-        return routes.items[i.get()]
+        return routes.items[i.getOrThrow()]
     }
 
     /// 获取类型指针
     public func typePtr(i: FrameworkRouterType.Index): FrameworkRouterType {
-        return types[i.get()]
+        return types[i.getOrThrow()]
     }
 
     func newRoute(alloc: Allocator, route_data: FrameworkRouterRoute): FrameworkRouterRouteIndex {
@@ -104,7 +107,7 @@ public class FrameworkRouter {
 
     /// 扫描特定类型的路由
     public func scan(alloc: Allocator, ty: FrameworkRouterType.Index, r: Resolver, ctx: FrameworkRouterInsertionContext): Unit {
-        let t = types[ty.get()]
+        let t = types[ty.getOrThrow()]
         assert(!bun.strings.hasSuffixComptime(t.abs_root, "/"))
         assert(std.fs.path.isAbsolute(t.abs_root))
         let root_info = r.readDirInfoIgnoreError(t.abs_root) ?? return
@@ -182,7 +185,7 @@ public class FrameworkRouterType {
     public var server_file_string: Strong.Optional
 
     public static func rootRouteIndex(type_index: FrameworkRouterTypeIndex): FrameworkRouterRouteIndex {
-        return FrameworkRouterRouteIndex(type_index.get())
+        return FrameworkRouterRouteIndex(type_index.getOrThrow())
     }
 }
 

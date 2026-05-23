@@ -4,6 +4,7 @@
 package bao_runtime.server
 
 import bao_core.*
+import bao_jsc.*
 import bao_collections.*
 import bao_sys.*
 
@@ -227,7 +228,7 @@ public class RequestContext {
         responseWeakref = None
         blobData = AnyBlobData()
         sendfile = SendfileContext()
-        range = RangeRaw.None
+        range = RangeRaw.Absent
         requestBodyReadableStreamRef = None
         requestBodyBuf = Array<UInt8>()
         requestBodyContentLen = 0
@@ -1335,11 +1336,11 @@ public class RequestContext {
         sendfile.total = 0
 
         // 对应 Bun: honor Range header
-        if (range != RangeRaw.None) {
+        if (range != RangeRaw.Absent) {
             // 对应 Bun: resolve range
             let statSize = blob.size()
             match (range) {
-                case RangeRaw.None => ()
+                case RangeRaw.Absent => ()
                 case RangeRaw.Suffix(suffix) =>
                     sendfile.offset = if (statSize > suffix) { statSize - suffix } else { 0 }
                     sendfile.remain = if (statSize > suffix) { suffix } else { statSize }
@@ -1837,11 +1838,13 @@ public class ServerRef {
     }
 }
 
+/* Duplicate: VirtualMachineRef is defined in websocket_server_context.cj
 /// 虚拟机引用
 /// 对应 Bun: VirtualMachine
 public class VirtualMachineRef {
     public init() {}
 }
+*/
 
 /// 全局对象引用
 /// 对应 Bun: JSGlobalObject
@@ -1881,6 +1884,7 @@ public class BaoError {
 /// 对应 Bun: on_error callback type
 public type ErrorHandler = (error: BaoError) -> Response
 
+/* Duplicate: RangeRequest is defined in range_request.cj
 /// RangeRequest 工具类
 /// 对应 Bun: RangeRequest namespace
 public class RangeRequest {
@@ -1890,19 +1894,19 @@ public class RangeRequest {
         match (headers.get("range")) {
             case Some(rangeValue) =>
                 return parseRange(rangeValue)
-            case None => return RangeRaw.None
+            case None => return RangeRaw.Absent
         }
     }
 
     /// 解析 Range 头值
     public static func parseRange(value: String): RangeRaw {
         if (!value.startsWith("bytes=")) {
-            return RangeRaw.None
+            return RangeRaw.Absent
         }
-        let spec = value.substring(6)
+        let spec = value.subString(6)
         if (spec.startsWith("-")) {
             // 对应: bytes=-N (suffix)
-            let suffixStr = spec.substring(1)
+            let suffixStr = spec.subString(1)
             let suffix = Int64.parse(suffixStr) ?? 0
             return RangeRaw.Suffix(suffix)
         }
@@ -1916,9 +1920,10 @@ public class RangeRequest {
             }
             return RangeRaw.Bounded(RangeBounded(start, endVal))
         }
-        return RangeRaw.None
+        return RangeRaw.Absent
     }
 }
+*/
 
 /// StreamPair 结构
 /// 对应 Bun: pub struct StreamPair<'a, ThisServer, const SSL, const DBG, const H3>

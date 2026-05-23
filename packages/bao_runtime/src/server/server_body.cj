@@ -199,6 +199,7 @@ public class MethodSet {
 // 对应 Bun: pub struct ServerInitContext<'a>
 // ============================================================================
 
+/* Duplicate: ServerInitContext is defined in server.cj
 /// 服务器初始化上下文
 /// 对应 Bun: pub struct ServerInitContext<'a>
 public class ServerInitContext {
@@ -230,12 +231,14 @@ public class ServerInitContext {
         this.userRoutes = ArrayList<StaticRouteEntry>()
     }
 }
+*/
 
 // ============================================================================
 // ServePlugins - 服务器插件状态机
 // 对应 Bun: pub struct ServePlugins
 // ============================================================================
 
+/* Duplicate: ServePlugins is defined in server.cj
 /// 服务器插件状态机
 /// 对应 Bun: pub struct ServePlugins
 /// 处理异步加载插件的状态。此结构不是线程安全的。
@@ -296,6 +299,7 @@ public class ServePlugins {
         }
     }
 }
+*/
 
 /// 服务器插件状态
 /// 对应 Bun: pub enum ServePluginsState
@@ -329,6 +333,7 @@ public class ServePluginsPendingData {
     }
 }
 
+/* Duplicate: GetOrStartLoadResult is defined in server.cj
 /// 获取或加载结果
 /// 对应 Bun: pub enum GetOrStartLoadResult<'a>
 public enum GetOrStartLoadResult {
@@ -336,13 +341,16 @@ public enum GetOrStartLoadResult {
     | Pending
     | Err
 }
+*/
 
+/* Duplicate: ServePluginsCallback is defined in server.cj
 /// 服务器插件回调
 /// 对应 Bun: pub enum ServePluginsCallback<'a>
 public enum ServePluginsCallback {
     | HtmlBundleRoute(HtmlBundleRoute)
     | DevServer(DevServer)
 }
+*/
 
 /// 插件引用守卫
 /// 对应 Bun: struct ServePluginsRef
@@ -499,55 +507,9 @@ public enum AnyUserRouteList {
 // HTTP 请求/响应/服务器 相关类型
 // ============================================================================
 
-/// 请求上下文
-/// 对应 Bun: NewRequestContext<ThisServer, SSL, DBG, H3>
-public class RequestContext {
-    public var method: HttpMethod
-    public var upgradeContext: ?WebSocketUpgradeContext
-    public var deferDeinitUntilCallbackCompletes: ?DeferDeinitFlag
-    public var requestBody: ?BodyValue
-    public var signal: ?AbortSignal
-    public var requestWeakref: ?Request
-    public var flags: RequestContextFlags
-
-    public init() {
-        this.method = HttpMethod.GET
-        this.upgradeContext = None
-        this.deferDeinitUntilCallbackCompletes = None
-        this.requestBody = None
-        this.signal = None
-        this.requestWeakref = None
-        this.flags = RequestContextFlags()
-    }
-}
-
-/// 请求上下文标志
-/// 对应 Bun: RequestContext.flags (packed struct)
-public class RequestContextFlags {
-    public var isWebBrowserNavigation: Bool
-    public var isTransferEncoding: Bool
-    public var isWaitingForRequestBody: Bool
-
-    public init() {
-        isWebBrowserNavigation = false
-        isTransferEncoding = false
-        isWaitingForRequestBody = false
-    }
-
-    public func setIsWebBrowserNavigation(v: Bool): Unit { isWebBrowserNavigation = v }
-    public func setIsTransferEncoding(v: Bool): Unit { isTransferEncoding = v }
-    public func setIsWaitingForRequestBody(v: Bool): Unit { isWaitingForRequestBody = v }
-}
-
 /// 延迟释放标志
 /// 对应 Bun: DeferDeinitFlag
 public class DeferDeinitFlag {
-    public init() {}
-}
-
-/// 请求体值
-/// 对应 Bun: webcore::body::Value
-public class BodyValue {
     public init() {}
 }
 
@@ -557,78 +519,28 @@ public class AbortSignal {
     public init() {}
 }
 
-/// 请求
-/// 对应 Bun: webcore::Request
-public class Request {
-    public init() {}
-}
-
 /// 请求引用
 /// 对应 Bun: uws::Request (wraps raw pointer)
 public class RequestRef {
     public init() {}
 }
 
-/// 响应引用
-/// 对应 Bun: uws::NewAppResponse<SSL>
-public class ResponseRef {
+/// CallFrame
+/// 对应 Bun: jsc::CallFrame
+public class CallFrame {
     public init() {}
 }
 
-/// 任意响应
-/// 对应 Bun: uws::AnyResponse
-public class AnyResponse {
+/// DevServer
+/// 对应 Bun: bake::dev_server::DevServer
+public class DevServer {
     public init() {}
 }
 
-/// 服务器引用
-/// 对应 Bun: *const NewServer
-public class ServerRef {
+/// 路径或文件描述符
+/// 对应 Bun: node::types::PathOrFileDescriptor
+public class PathOrFileDescriptor {
     public init() {}
-}
-
-/// WebSocket 升级上下文
-/// 对应 Bun: uws::WebSocketUpgradeContext
-public class WebSocketUpgradeContext {
-    public init() {}
-}
-
-/// 文件路由
-/// 对应 Bun: super::file_route::FileRoute
-public class FileRoute {
-    public init() {}
-}
-
-/// 静态路由
-/// 对应 Bun: super::static_route::StaticRoute
-public class StaticRoute {
-    public init() {}
-}
-
-/// HTML Bundle 路由
-/// 对应 Bun: html_bundle::Route
-public class HtmlBundleRoute {
-    public init() {}
-}
-
-/// HTML Bundle
-/// 对应 Bun: html_bundle::HTMLBundle
-public class HTMLBundle {
-    public init() {}
-}
-
-/// 静态路由条目
-/// 对应 Bun: server_config::StaticRouteEntry
-public class StaticRouteEntry {
-    public var path: Array<UInt8>
-    public var route: AnyRoute
-    public var method: MethodSet
-
-    public init(path: Array<UInt8>, route: AnyRoute, method: MethodSet) {
-        this.path = path
-        this.route = route
-        this.method = method
-    }
 }
 
 /// FetchHeaders
@@ -653,96 +565,6 @@ public class JsBundlerPlugin {
 /// 对应 Bun: jsc::JSPromiseStrong
 public class JsPromiseStrong {
     public init() {}
-}
-
-/// DevServer
-/// 对应 Bun: bake::dev_server::DevServer
-public class DevServer {
-    public init() {}
-}
-
-/// 路径或文件描述符
-/// 对应 Bun: node::types::PathOrFileDescriptor
-public class PathOrFileDescriptor {
-    public init() {}
-}
-
-/// CallFrame
-/// 对应 Bun: jsc::CallFrame
-public class CallFrame {
-    public init() {}
-}
-
-// ============================================================================
-// HttpMethod - HTTP 方法
-// 对应 Bun: bun_http::Method
-// ============================================================================
-
-/// HTTP 方法
-/// 对应 Bun: bun_http::Method
-public enum HttpMethod {
-    | GET
-    | HEAD
-    | POST
-    | PUT
-    | DELETE
-    | PATCH
-    | OPTIONS
-    | CONNECT
-    | TRACE
-    | ANY
-
-    public func ordinal(): Int64 {
-        match (this) {
-            case HttpMethod.GET => 0
-            case HttpMethod.HEAD => 1
-            case HttpMethod.POST => 2
-            case HttpMethod.PUT => 3
-            case HttpMethod.DELETE => 4
-            case HttpMethod.PATCH => 5
-            case HttpMethod.OPTIONS => 6
-            case HttpMethod.CONNECT => 7
-            case HttpMethod.TRACE => 8
-            case HttpMethod.ANY => 9
-        }
-    }
-
-    public func name(): String {
-        match (this) {
-            case HttpMethod.GET => "GET"
-            case HttpMethod.HEAD => "HEAD"
-            case HttpMethod.POST => "POST"
-            case HttpMethod.PUT => "PUT"
-            case HttpMethod.DELETE => "DELETE"
-            case HttpMethod.PATCH => "PATCH"
-            case HttpMethod.OPTIONS => "OPTIONS"
-            case HttpMethod.CONNECT => "CONNECT"
-            case HttpMethod.TRACE => "TRACE"
-            case HttpMethod.ANY => "ANY"
-        }
-    }
-
-    public static func fromName(s: String): ?HttpMethod {
-        match (s) {
-            case "GET" => HttpMethod.GET
-            case "HEAD" => HttpMethod.HEAD
-            case "POST" => HttpMethod.POST
-            case "PUT" => HttpMethod.PUT
-            case "DELETE" => HttpMethod.DELETE
-            case "PATCH" => HttpMethod.PATCH
-            case "OPTIONS" => HttpMethod.OPTIONS
-            case "CONNECT" => HttpMethod.CONNECT
-            case "TRACE" => HttpMethod.TRACE
-            case _ => None
-        }
-    }
-}
-
-/// 空闲超时警告回调
-/// 对应 Bun: fn on_timeout_for_idle_warn()
-private func onTimeoutForIdleWarn(): Unit {
-    // 空闲超时警告 (开发模式)
-    Output.prettyErrorln("Warning: request is taking too long. It has been idle for a while.")
 }
 
 /// 输出工具

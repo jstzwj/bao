@@ -10,7 +10,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.*
+import bao_jsc.{CallFrame, FFI, JSGlobalObject, JsValue}
 
 // ========== JSMockFunction - Mock 函数 ==========
 

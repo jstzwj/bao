@@ -27,6 +27,15 @@ public enum FileType {
     | Pipe           // 管道 (FIFO/CHR)
     | Socket         // Socket
     | NonBlockingPipe // 非阻塞管道
+
+    public operator func ==(right: FileType): Bool {
+        match (this) {
+            case FileType.File => match (right) { case FileType.File => true case _ => false }
+            case FileType.Pipe => match (right) { case FileType.Pipe => true case _ => false }
+            case FileType.Socket => match (right) { case FileType.Socket => true case _ => false }
+            case FileType.NonBlockingPipe => match (right) { case FileType.NonBlockingPipe => true case _ => false }
+        }
+    }
 }
 
 /// 文件响应流模式
@@ -35,6 +44,13 @@ public enum FileType {
 public enum FileResponseStreamMode {
     | Reader    // 使用 BufferedReader 读取
     | Sendfile  // 使用 sendfile() 系统调用
+
+    public operator func ==(right: FileResponseStreamMode): Bool {
+        match (this) {
+            case FileResponseStreamMode.Reader => match (right) { case FileResponseStreamMode.Reader => true case _ => false }
+            case FileResponseStreamMode.Sendfile => match (right) { case FileResponseStreamMode.Sendfile => true case _ => false }
+        }
+    }
 }
 
 /// Sendfile 状态
@@ -628,12 +644,6 @@ public class FileResponseStream {
 // 辅助类型
 // ============================================================================
 
-/// 虚拟机引用
-/// 对应 Bun: bun_ptr::BackRef<VirtualMachine>
-public class VirtualMachineRef {
-    public init() {}
-}
-
 /// EventLoop handle 引用
 /// 对应 Bun: EventLoopHandle
 public class EventLoopHandleRef {
@@ -656,95 +666,7 @@ public class AnyTaskRef {
     public init() {}
 }
 
-/// BaoError 类型
-public class BaoError {
-    public var message: String
-    public var code: Int64
-
-    public init() {
-        message = ""
-        code = 0
-    }
-
-    public init(message: String) {
-        this.message = message
-        this.code = 0
-    }
-
-    public init(message: String, code: Int64) {
-        this.message = message
-        this.code = code
-    }
-}
-
-/// ResponseRef 扩展 (用于 FileResponseStream)
-/// 对应 Bun: AnyResponse 的方法
-public class ResponseRef {
-    public var fd: Int64
-    public var responded: Bool
-    public var closeConnection: Bool
-    private var headers: HashMap<String, String>
-    private var statusWritten: Bool
-
-    public init() {
-        fd = -1
-        responded = false
-        closeConnection = false
-        headers = HashMap<String, String>()
-        statusWritten = false
-    }
-
-    public func writeStatus(status: String): Unit {
-        statusWritten = true
-    }
-
-    public func writeHeader(name: String, value: String): Unit {
-        headers.put(name, value)
-    }
-
-    public func writeHeaderInt(name: String, value: Int64): Unit {
-        headers.put(name, value.toString())
-    }
-
-    public func hasResponded(): Bool {
-        return responded
-    }
-
-    public func tryEnd(data: Array<UInt8>, totalSize: Int64, close: Bool): Bool {
-        responded = true
-        return true
-    }
-
-    public func end(data: String, close: Bool): Unit {
-        responded = true
-    }
-
-    public func endStream(close: Bool): Unit {
-        responded = true
-    }
-
-    public func endWithoutBody(close: Bool): Unit {
-        responded = true
-    }
-
-    public func forceClose(): Unit {
-        responded = true
-    }
-
-    public func timeout(seconds: Int64): Unit { }
-    public func setAbortHandlerForStream(stream: FileResponseStream): Unit { }
-    public func setAbortHandler(ctx: Object): Unit { }
-    public func setTimeoutHandler(ctx: Object): Unit { }
-    public func onWritable(ctx: Object): Unit { }
-    public func onWritableForStream(stream: FileResponseStream): Unit { }
-    public func clearOnWritable(): Unit { }
-    public func clearOnData(): Unit { }
-    public func clearAborted(): Unit { }
-    public func clearTimeout(): Unit { }
-    public func shouldCloseConnection(): Bool { return closeConnection }
-    public func getRemoteSocketInfo(): ?SocketAddress { return None }
-    public func cork(): Unit { }
-    public func getNativeHandle(): Int64 { return fd }
-    public func prepareForSendfile(): Unit { }
-    public func markNeedsMore(): Unit { }
+/// SocketAddress for file_response_stream
+public class SocketAddress {
+    public init() {}
 }

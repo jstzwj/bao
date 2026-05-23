@@ -60,13 +60,13 @@ public class HmrRuntimeClient {
 
         if (onServerSideReload.isSome()) {
             isPerformingRouteReload = true
-            return onServerSideReload.get()().then({ _ =>
+            return onServerSideReload.getOrThrow()().then({ _ =>
                 var shouldContinue = true
                 while (shouldContinue) {
                     shouldContinue = shouldPerformAnotherRouteReload
                     shouldPerformAnotherRouteReload = false
                     if (shouldContinue) {
-                        return onServerSideReload.get()()
+                        return onServerSideReload.getOrThrow()()
                     }
                 }
                 isPerformingRouteReload = false
@@ -188,7 +188,7 @@ public class HmrRuntimeClient {
     /// 处理 HMR 加载错误
     public func onHmrLoadError(event: Any, source: ?String, lineno: ?Int64, colno: ?Int64, error: ?Any): Unit {
         if (error.isSome()) {
-            console.error(error.get().toString())
+            console.error(error.getOrThrow().toString())
         } else {
             console.error("Failed to load HMR script")
         }
@@ -203,7 +203,7 @@ public class HmrRuntimeClient {
     public func start(): Promise<Unit> {
         // 加载刷新运行时
         if (config.refresh.isSome()) {
-            let refreshModule = loadModuleAsync(config.refresh.get(), false, None)
+            let refreshModule = loadModuleAsync(config.refresh.getOrThrow(), false, None)
             // 设置刷新运行时
         }
 

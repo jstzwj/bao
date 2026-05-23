@@ -239,27 +239,27 @@ public class PerThread {
 
     /// 发送到其他线程进行渲染的选项
     public func outputIndex(id: OpaqueFileId): OutputFileIndex {
-        return output_indexes[id.get()]
+        return output_indexes[id.getOrThrow()]
     }
 
     public func inputFile(id: OpaqueFileId): EntryPointMapInputFile {
-        return input_files[id.get()]
+        return input_files[id.getOrThrow()]
     }
 
     public func outputFile(id: OpaqueFileId): OutputFile {
-        return bundled_outputs[outputIndex(id).get()]
+        return bundled_outputs[outputIndex(id).getOrThrow()]
     }
 
     public func loadBundledModule(id: OpaqueFileId): JsValue {
-        return loadModule(vm, vm.global, module_keys[id.get()].toJS(vm.global))
+        return loadModule(vm, vm.global, module_keys[id.getOrThrow()].toJS(vm.global))
     }
 
     public func preloadBundledModule(id: OpaqueFileId): JsValue {
-        if (!loaded_files.isSet(id.get())) {
-            loaded_files.set(id.get())
-            all_server_files.putIndex(vm.global, Int64(id.get()), module_keys[id.get()].toJS(vm.global))
+        if (!loaded_files.isSet(id.getOrThrow())) {
+            loaded_files.set(id.getOrThrow())
+            all_server_files.putIndex(vm.global, Int64(id.getOrThrow()), module_keys[id.getOrThrow()].toJS(vm.global))
         }
-        return JsValue.jsNumberFromInt32(Int32(id.get()))
+        return JsValue.jsNumberFromInt32(Int32(id.getOrThrow()))
     }
 }
 
@@ -275,7 +275,7 @@ public class PerThreadOptions {
 
 /// 加载模块
 func loadModule(vm: VirtualMachine, global: JSGlobalObject, key: JsValue): JsValue {
-    let promise = BakeLoadModuleByKey(global, key).asAnyPromise().get().internal
+    let promise = BakeLoadModuleByKey(global, key).asAnyPromise().getOrThrow().internal
     promise.setHandled()
     vm.waitForPromise(PromiseRef(internal: promise))
     match (vm.eventLoop().drainMicrotasks()) {
@@ -304,7 +304,7 @@ public struct TypeAndFlags {
 public func BakeProdLoad(pt: PerThread, key: bun.String): bun.String {
     let utf8 = key.toUTF8(pt.vm.allocator)
     if (let Some(value) <- pt.module_map.get(utf8.slice())) {
-        return pt.bundled_outputs[value.get()].value.toBunString()
+        return pt.bundled_outputs[value.getOrThrow()].value.toBunString()
     }
     return bun.String.dead
 }

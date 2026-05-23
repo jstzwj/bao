@@ -12,7 +12,7 @@ package bao_runtime.server
 /// Range 请求解析结果
 /// 对应 Bun: pub const Result = union(enum) { none, satisfiable, unsatisfiable }
 public enum RangeResult {
-    | None
+    | Absent
     | Satisfiable(RangeSatisfiable)
     | Unsatisfiable
 }
@@ -33,7 +33,7 @@ public class RangeSatisfiable {
 /// 解析前的原始 Range 数据
 /// 对应 Bun: pub const Raw = union(enum) { none, suffix, bounded }
 public enum RangeRaw {
-    | None
+    | Absent
     | Suffix(Int64)                    // bytes=-N
     | Bounded(RangeBounded)            // bytes=N-[M]
 }
@@ -60,7 +60,7 @@ public class RangeRequest {
     /// 对应 Bun: pub fn resolve(`this`: Raw, total: u64) Result
     public static func resolve(raw: RangeRaw, total: Int64): RangeResult {
         match (raw) {
-            case RangeRaw.None => RangeResult.None
+            case RangeRaw.Absent => RangeResult.None
             case RangeRaw.Suffix(n) =>
                 if (n == 0) {
                     return RangeResult.Unsatisfiable
@@ -100,36 +100,36 @@ public class RangeRequest {
         var rest = header
 
         // 检查 "bytes" 前缀，至少需要 5 个字符
-        if (rest.size < 5 || !eqlCaseInsensitiveASCII(rest.substring(0, 5), "bytes")) {
-            return RangeRaw.None
+        if (rest.size < 5 || !eqlCaseInsensitiveASCII(rest.subString(0, 5), "bytes")) {
+            return RangeRaw.Absent
         }
-        rest = rest.substring(5)
+        rest = rest.subString(5)
         rest = trim(rest, " \t")
 
         if (rest.size == 0 || rest[0] != '=') {
-            return RangeRaw.None
+            return RangeRaw.Absent
         }
-        rest = rest.substring(1)
+        rest = rest.subString(1)
 
         // 多范围 - 不支持，返回完整 body
         if (rest.indexOf(",") >= 0) {
-            return RangeRaw.None
+            return RangeRaw.Absent
         }
 
         let dashIdx = rest.indexOf("-")
         if (dashIdx < 0) {
-            return RangeRaw.None
+            return RangeRaw.Absent
         }
 
-        let startS = trim(rest.substring(0, dashIdx), " \t")
-        let endS = trim(rest.substring(dashIdx + 1), " \t")
+        let startS = trim(rest.subString(0, dashIdx), " \t")
+        let endS = trim(rest.subString(dashIdx + 1), " \t")
 
         // bytes=-N (后缀范围)
         if (startS.size == 0) {
             let n = parseUnsigned(endS)
             match (n) {
                 case Some(v) => return RangeRaw.Suffix(v)
-                case None => return RangeRaw.None
+                case None => return RangeRaw.Absent
             }
         }
 
@@ -145,12 +145,12 @@ public class RangeRequest {
                 // 如果 end 解析失败且不为空，返回 None
                 if (endS.size > 0) {
                     match (end) {
-                        case None => return RangeRaw.None
+                        case None => return RangeRaw.Absent
                         case _ => ()
                     }
                 }
                 return RangeRaw.Bounded(RangeBounded(s, end))
-            case None => return RangeRaw.None
+            case None => return RangeRaw.Absent
         }
     }
 
@@ -165,7 +165,7 @@ public class RangeRequest {
     public static func rawFromRequest(headers: HashMap<String, String>): RangeRaw {
         match (headers.get("range")) {
             case Some(h) => parseRaw(h)
-            case None => RangeRaw.None
+            case None => RangeRaw.Absent
         }
     }
 
@@ -217,7 +217,7 @@ public class RangeRequest {
         while (end > start && chars.contains(s[end - 1].toString())) {
             end--
         }
-        return s.substring(start, end)
+        return s.subString(start, end)
     }
 
     /// 解析无符号整数

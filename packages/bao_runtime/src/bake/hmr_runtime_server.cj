@@ -164,13 +164,13 @@ func serverRegisterUpdate(
     // replaceModules(moduleMap)
 
     if (componentManifestAdd.isSome()) {
-        for (uid in componentManifestAdd.get()) {
+        for (uid in componentManifestAdd.getOrThrow()) {
             // 更新 server manifest
         }
     }
 
     if (componentManifestDelete.isSome()) {
-        for (fileName in componentManifestDelete.get()) {
+        for (fileName in componentManifestDelete.getOrThrow()) {
             // 从 manifest 中删除
         }
     }

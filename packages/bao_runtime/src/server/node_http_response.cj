@@ -8,6 +8,7 @@ package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // NodeHTTPResponseFlags - 响应标志位
@@ -67,13 +68,23 @@ public class NodeHTTPResponseFlags {
 
 /// Body 读取状态
 public enum BodyReadState {
-    | None      // 未开始
+    | NotStarted // 未开始
     | Pending   // 正在读取
     | Done      // 已完成
 
+    public operator func ==(right: BodyReadState): Bool {
+        match (this) {
+            case BodyReadState.NotStarted => match (right) { case BodyReadState.NotStarted => true case _ => false }
+            case BodyReadState.Pending => match (right) { case BodyReadState.Pending => true case _ => false }
+            case BodyReadState.Done => match (right) { case BodyReadState.Done => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: BodyReadState): Bool { !(this == right) }
+
     /// 默认值
     public static func `default`(): BodyReadState {
-        BodyReadState.None
+        BodyReadState.NotStarted
     }
 }
 
@@ -85,9 +96,17 @@ public enum BodyReadState {
 
 /// 中止事件类型
 public enum AbortEvent {
-    | None      // 无事件
+    | NoEvent // 无事件
     | Abort     // 连接中止
     | Timeout   // 超时
+
+    public operator func ==(right: AbortEvent): Bool {
+        match (this) {
+            case AbortEvent.NoEvent => match (right) { case AbortEvent.NoEvent => true case _ => false }
+            case AbortEvent.Abort => match (right) { case AbortEvent.Abort => true case _ => false }
+            case AbortEvent.Timeout => match (right) { case AbortEvent.Timeout => true case _ => false }
+        }
+    }
 }
 
 // ============================================================================
@@ -200,7 +219,7 @@ public class NodeHTTPResponse {
         rawResponse = None
         flags = NodeHTTPResponseFlags()
         pollRef = PollRef()
-        bodyReadState = BodyReadState.None
+        bodyReadState = BodyReadState.NotStarted
         bodyReadRef = PollRef()
         promise = None
         server = None
@@ -274,13 +293,13 @@ public class NodeHTTPResponse {
     /// 对应 Bun: pub fn get_this_value(&self) -> JsValue
     public func getThisValue(): JsValue {
         if (flags.socketClosed || flags.upgraded) {
-            return JsValue.zero
+            return JsValue.UNDEFINED
         }
         match (rawResponse) {
             case Some(r) =>
                 return r.getNodeHTTPResponseThisValue()
             case None =>
-                return JsValue.zero
+                return JsValue.UNDEFINED
         }
     }
 
@@ -288,13 +307,13 @@ public class NodeHTTPResponse {
     /// 对应 Bun: pub fn get_server_socket_value(&self) -> JsValue
     public func getServerSocketValue(): JsValue {
         if (flags.socketClosed || flags.upgraded) {
-            return JsValue.zero
+            return JsValue.UNDEFINED
         }
         match (rawResponse) {
             case Some(r) =>
                 return r.getNodeHTTPServerSocketThisValue()
             case None =>
-                return JsValue.zero
+                return JsValue.UNDEFINED
         }
     }
 
@@ -450,7 +469,7 @@ public class NodeHTTPResponse {
         if (!flags.requestHasCompleted) {
             clearOnDataCallback(thisValue, globalObject)
         }
-        return JsValue.undefined
+        return JsValue.undefined()
     }
 
     // ========================================================================
@@ -540,7 +559,7 @@ public class NodeHTTPResponse {
                 Array<JsValue>(JsValue.jsNumber(Int64(event.ordinal())))
             )
             if (event == AbortEvent.Abort) {
-                jsThis.setCachedOnAborted(JsValue.zero)
+                jsThis.setCachedOnAborted(JsValue.UNDEFINED)
             }
         }
 
@@ -564,7 +583,7 @@ public class NodeHTTPResponse {
     /// 超时回调
     /// 对应 Bun: pub fn on_timeout(&self, _resp: uws::AnyResponse)
     public func onTimeout(resp: ResponseRef): Unit {
-        handleAbortOrTimeout(AbortEvent.Timeout, JsValue.zero)
+        handleAbortOrTimeout(AbortEvent.Timeout, JsValue.UNDEFINED)
     }
 
     /// 设置已关闭
@@ -600,7 +619,7 @@ public class NodeHTTPResponse {
     public func drainRequestBody(globalObject: JSGlobalObject): JsValue {
         match (drainBufferedRequestBodyFromPause(globalObject)) {
             case Some(v) => v
-            case None => JsValue.undefined
+            case None => JsValue.undefined()
         }
     }
 
@@ -672,10 +691,10 @@ public class NodeHTTPResponse {
         match (rawResponse) {
             case Some(raw) =>
                 if (flags.socketClosed || flags.upgraded) {
-                    return JsValue.undefined
+                    return JsValue.undefined()
                 }
             case None =>
-                return JsValue.undefined
+                return JsValue.undefined()
         }
 
         let raw = rawResponse.get()
@@ -686,13 +705,13 @@ public class NodeHTTPResponse {
             return None
         }
 
-        let statusCodeValue: JsValue = if (arguments.size > 0) { arguments[0] } else { JsValue.undefined }
+        let statusCodeValue: JsValue = if (arguments.size > 0) { arguments[0] } else { JsValue.undefined() }
         let statusMessageValue: JsValue = if (arguments.size > 1 && !arguments[1].isNull()) {
             arguments[1]
-        } else { JsValue.undefined }
+        } else { JsValue.undefined() }
         let headersObjectValue: JsValue = if (arguments.size > 2 && !arguments[2].isNull()) {
             arguments[2]
-        } else { JsValue.undefined }
+        } else { JsValue.undefined() }
 
         // 解析状态码
         var statusCode: Int32 = 200
@@ -741,21 +760,21 @@ public class NodeHTTPResponse {
 
         // 写入头
         raw.writeHead(finalMessage, headersObjectValue)
-        return JsValue.undefined
+        return JsValue.undefined()
     }
 
     /// 写入 Continue (100)
     /// 对应 Bun: pub fn write_continue(&self, global_object, frame) -> JsResult<JsValue>
     public func writeContinue(globalObject: JSGlobalObject): JsValue {
         if (isDone()) {
-            return JsValue.undefined
+            return JsValue.undefined()
         }
         match (rawResponse) {
             case Some(raw) =>
                 raw.writeContinue()
             case None => ()
         }
-        return JsValue.undefined
+        return JsValue.undefined()
     }
 
     /// 写入或结束响应体
@@ -768,7 +787,7 @@ public class NodeHTTPResponse {
         }
 
         if (flags.socketClosed || rawResponse.isNone()) {
-            return if (isEnd) { JsValue.undefined } else { JsValue.jsNumber(0) }
+            return if (isEnd) { JsValue.undefined() } else { JsValue.jsNumber(0) }
         }
 
         let raw = rawResponse.get()
@@ -778,11 +797,11 @@ public class NodeHTTPResponse {
             return None
         }
 
-        let inputValue: JsValue = if (arguments.size > 0) { arguments[0] } else { JsValue.undefined }
-        var encodingValue: JsValue = if (arguments.size > 1) { arguments[1] } else { JsValue.undefined }
+        let inputValue: JsValue = if (arguments.size > 0) { arguments[0] } else { JsValue.undefined() }
+        var encodingValue: JsValue = if (arguments.size > 1) { arguments[1] } else { JsValue.undefined() }
         let callbackValue: JsValue = if (arguments.size > 2 && !arguments[2].isUndefined()) {
             arguments[2]
-        } else { JsValue.undefined }
+        } else { JsValue.undefined() }
 
         // 编码处理
         let encoding: Encoding = if (!encodingValue.isUndefinedOrNull()) {
@@ -808,11 +827,11 @@ public class NodeHTTPResponse {
             if (bodyReadRef.has && bodyReadState == BodyReadState.Pending
                 && !flags.hasCustomOnData) {
                 bodyReadRef.unref()
-                bodyReadState = BodyReadState.None
+                bodyReadState = BodyReadState.NotStarted
             }
 
             if (!thisValue.isEmpty()) {
-                thisValue.setCachedOnAborted(JsValue.zero)
+                thisValue.setCachedOnAborted(JsValue.UNDEFINED)
             }
 
             raw.clearAborted()
@@ -864,7 +883,7 @@ public class NodeHTTPResponse {
     /// 对应 Bun: pub fn abort(&self, global, frame) -> JsResult<JsValue>
     public func abort(globalObject: JSGlobalObject): JsValue {
         if (isDone()) {
-            return JsValue.undefined
+            return JsValue.undefined()
         }
 
         flags.socketClosed = true
@@ -872,7 +891,7 @@ public class NodeHTTPResponse {
             case Some(raw) =>
                 let state = raw.state()
                 if (state.isHttpEndCalled()) {
-                    return JsValue.undefined
+                    return JsValue.undefined()
                 }
             case None => ()
         }
@@ -887,7 +906,7 @@ public class NodeHTTPResponse {
             case None => ()
         }
         onRequestComplete()
-        return JsValue.undefined
+        return JsValue.undefined()
     }
 
     // ========================================================================
@@ -927,7 +946,7 @@ public class NodeHTTPResponse {
         if (chunk.size > 0) {
             return JsValue.createBuffer(globalThis, chunk)
         }
-        return JsValue.undefined
+        return JsValue.undefined()
     }
 
     /// 数据或中止回调
@@ -947,7 +966,7 @@ public class NodeHTTPResponse {
             vm.eventLoop.runCallback(
                 onCallback.get(),
                 globalThis,
-                JsValue.undefined,
+                JsValue.undefined(),
                 Array<JsValue>(bytes, JsValue.jsBoolean(last),
                                JsValue.jsNumber(Int64(event.ordinal())))
             )
@@ -965,7 +984,7 @@ public class NodeHTTPResponse {
     /// 数据回调
     /// 对应 Bun: pub fn on_data(&self, chunk, last)
     public func onData(chunk: Array<Byte>, last: Bool): Unit {
-        onDataOrAborted(chunk, last, AbortEvent.None, getThisValue())
+        onDataOrAborted(chunk, last, AbortEvent.NoEvent, getThisValue())
     }
 
     /// 可排写回调 (corked)
@@ -986,7 +1005,7 @@ public class NodeHTTPResponse {
         vm.eventLoop.runCallback(
             onWritable.get(),
             globalThis,
-            JsValue.undefined,
+            JsValue.undefined(),
             Array<JsValue>(JsValue.jsNumber(offset))
         )
 
@@ -1037,7 +1056,7 @@ public class NodeHTTPResponse {
     public func getHasBody(): JsValue {
         var result: Int32 = 0
         match (bodyReadState) {
-            case BodyReadState.None => ()
+            case BodyReadState.NotStarted => ()
             case BodyReadState.Pending => result |= 1 << 1
             case BodyReadState.Done => result |= 1 << 2
         }
@@ -1070,7 +1089,7 @@ public class NodeHTTPResponse {
         if (!isDone()) {
             pollRef.ref()
         }
-        return JsValue.undefined
+        return JsValue.undefined()
     }
 
     /// JS unref
@@ -1079,7 +1098,7 @@ public class NodeHTTPResponse {
         if (!isDone()) {
             pollRef.unref()
         }
-        return JsValue.undefined
+        return JsValue.undefined()
     }
 
     // ========================================================================
@@ -1099,16 +1118,16 @@ public class NodeHTTPResponse {
     /// 获取可写回调
     /// 对应 Bun: pub fn get_on_writable(&self, this_value, _global) -> JsValue
     public func getOnWritable(thisValue: JsValue): JsValue {
-        thisValue.getCachedOnWritable() ?? JsValue.undefined
+        thisValue.getCachedOnWritable() ?? JsValue.undefined()
     }
 
     /// 获取中止回调
     /// 对应 Bun: pub fn get_on_abort(&self, this_value, _global) -> JsValue
     public func getOnAbort(thisValue: JsValue): JsValue {
         if (flags.socketClosed || flags.upgraded) {
-            return JsValue.undefined
+            return JsValue.undefined()
         }
-        thisValue.getCachedOnAborted() ?? JsValue.undefined
+        thisValue.getCachedOnAborted() ?? JsValue.undefined()
     }
 
     /// 设置中止回调
@@ -1118,7 +1137,7 @@ public class NodeHTTPResponse {
             return
         }
         if (isRequestedCompletedOrEnded() || value.isUndefined()) {
-            thisValue.setCachedOnAborted(JsValue.zero)
+            thisValue.setCachedOnAborted(JsValue.UNDEFINED)
         } else {
             thisValue.setCachedOnAborted(value)
         }
@@ -1127,7 +1146,7 @@ public class NodeHTTPResponse {
     /// 获取数据回调
     /// 对应 Bun: pub fn get_on_data(&self, this_value, _global) -> JsValue
     public func getOnData(thisValue: JsValue): JsValue {
-        thisValue.getCachedOnData() ?? JsValue.undefined
+        thisValue.getCachedOnData() ?? JsValue.undefined()
     }
 
     /// 获取是否有自定义 onData
@@ -1164,7 +1183,7 @@ public class NodeHTTPResponse {
                         }
                     }
                     bodyReadState = BodyReadState.Done
-                case BodyReadState.None => ()
+                case BodyReadState.NotStarted => ()
             }
             if (bodyReadRef.has) {
                 bodyReadRef.unref()
@@ -1185,7 +1204,7 @@ public class NodeHTTPResponse {
     /// 清除数据回调
     /// 对应 Bun: fn clear_on_data_callback(&self, this_value, global_object)
     public func clearOnDataCallback(thisValue: JsValue, globalObject: JSGlobalObject): Unit {
-        if (bodyReadState != BodyReadState.None) {
+        if (bodyReadState != BodyReadState.NotStarted) {
             if (!thisValue.isEmpty()) {
                 thisValue.setCachedOnData(JsValue.undefined)
             }
@@ -1351,106 +1370,6 @@ public class StringOrBuffer {
     }
 }
 
-/// 虚拟机
-public class VirtualMachine {
-    public var global: JSGlobalObject
-    public var eventLoop: EventLoop
-
-    public static func get(): VirtualMachine {
-        VirtualMachine()
-    }
-
-    public init() {
-        global = JSGlobalObject()
-        eventLoop = EventLoop()
-    }
-}
-
-/// 事件循环
-public class EventLoop {
-    public func runCallback(callback: JsValue, global: JSGlobalObject,
-                             thisValue: JsValue, args: Array<JsValue>): Unit {}
-}
-
-/// JsValue 简化
-public class JsValue {
-    public static let zero = JsValue()
-    public static let undefined = JsValue()
-    public static let `true` = JsValue()
-    public static let `false` = JsValue()
-
-    public init() {}
-
-    public func isUndefined(): Bool { true }
-    public func isEmpty(): Bool { true }
-    public func isNull(): Bool { false }
-    public func isUndefinedOrNull(): Bool { false }
-    public func isString(): Bool { false }
-    public func isCallable(): Bool { false }
-    public func isNumber(): Bool { false }
-    public func isBoolean(): Bool { false }
-    public func toBoolean(): Bool { false }
-    public func toInt32(): Int32 { 0 }
-    public func toString(global: JSGlobalObject): String { "" }
-    public func asArrayBuffer(global: JSGlobalObject): ?Array<Byte> { None }
-
-    public static func jsBoolean(b: Bool): JsValue { JsValue() }
-    public static func jsNumber(n: Int64): JsValue { JsValue() }
-    public static func createBuffer(global: JSGlobalObject, bytes: Array<Byte>): JsValue { JsValue() }
-
-    // 缓存属性访问
-    public func getCachedOnData(): ?JsValue { None }
-    public func getCachedOnAborted(): ?JsValue { None }
-    public func getCachedOnWritable(): ?JsValue { None }
-    public func setCachedOnData(v: JsValue): Unit {}
-    public func setCachedOnAborted(v: JsValue): Unit {}
-    public func setCachedOnWritable(v: JsValue): Unit {}
-}
-
-/// 全局对象
-public class JSGlobalObject {
-    public init() {}
-
-    public func hasException(): Bool { false }
-    public func throwError(code: String, msg: String): Unit {}
-    public func throwInvalidArguments(msg: String): Unit {}
-}
-
-/// HTTP 状态文本前向声明
-public class HTTPStatusText {
-    public static func get(status: UInt16): ?String { None }
-}
-
-/// 响应引用
-public class ResponseRef {
-    public init() {}
-
-    public func state(): ResponseState { ResponseState() }
-    public func pause(): Unit {}
-    public func resume(): Unit {}
-    public func flush(): Unit {}
-    public func corked(f: () -> Unit): Unit { f() }
-    public func end(bytes: Array<Byte>, close: Bool): Unit {}
-    public func endStream(close: Bool): Unit {}
-    public func endWithoutBody(close: Bool): Unit {}
-    public func write(bytes: Array<Byte>): WriteResult { WriteResult.wantMore(bytes.size) }
-    public func writeHead(msg: String, headers: JsValue): Unit {}
-    public func writeContinue(): Unit {}
-    public func clearOnData(): Unit {}
-    public func clearOnWritable(): Unit {}
-    public func clearAborted(): Unit {}
-    public func clearTimeout(): Unit {}
-    public func onTimeout(ctx: NodeHTTPResponse, cb: (NodeHTTPResponse, ResponseRef) -> Unit): Unit {}
-    public func onData(ctx: NodeHTTPResponse, cb: (NodeHTTPResponse, Array<Byte>, Bool) -> Unit): Unit {}
-    public func onWritable(ctx: NodeHTTPResponse, cb: (NodeHTTPResponse, Int64, ResponseRef) -> Bool): Unit {}
-    public func getBufferedAmount(): Int64 { 0 }
-    public func isConnectRequest(): Bool { false }
-    public func upgrade(ws: ServerWebSocket, key: String, proto: String, ext: String,
-                         ctx: ?WebSocketUpgradeContext): Unit {}
-    public func getNodeHTTPResponseThisValue(): JsValue { JsValue() }
-    public func getNodeHTTPServerSocketThisValue(): JsValue { JsValue() }
-}
-
 /// 响应状态
 public class ResponseState {
     public func isResponsePending(): Bool { true }
@@ -1466,36 +1385,5 @@ public enum WriteResult {
     | Backpressure(Int64) // 已写入但背压
 }
 
-/// 服务器引用 (扩展)
-public class ServerRef {
-    public var id: String
-
-    public init(id: String) {
-        this.id = id
-    }
-
-    public func onRequestComplete(): Unit {}
-    public func getWebSocketHandler(): ?WebSocketServerHandler { None }
-}
-
 /// WebSocket 服务器处理器
 public class WebSocketServerHandler {}
-
-/// WebSocket 升级上下文
-public class WebSocketUpgradeContext {}
-
-/// 原始请求引用
-public class RawRequestRef {
-    public func header(name: String): ?String { None }
-}
-
-/// ServerWebSocket 前向声明
-public class ServerWebSocket {
-    public static func `init`(handler: WebSocketServerHandler, dataValue: JsValue,
-                             signal: ?AnyRef): ServerWebSocket {
-        ServerWebSocket()
-    }
-}
-
-/// AnyRef
-public class AnyRef {}

@@ -3,9 +3,9 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.*
+import bao_jsc.{BunString, CallFrame, File, JSFunction, JSGlobalObject, JsValue, Log, Output, RegularExpression, Source, StringBuilder}
 import bao_collections.ArrayList
-import bao_collections.*  // std.collection.*
+import bao_collections.HashMap
 
 // ========== TestRunner 嵌套类型提取到顶层 ==========
 

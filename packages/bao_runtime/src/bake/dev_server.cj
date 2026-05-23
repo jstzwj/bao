@@ -12,6 +12,7 @@ import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
 import bao_jsc.*
+import bao_bun_alloc.Allocator
 import bao_bundler.Log
 import bao_bundler.Transpiler
 import bao_bundler.Source
@@ -42,6 +43,7 @@ import bao_collections.ArrayList
 
 public class AnyServer {} // stub: bun.jsc.API.AnyServer
 public class Timer {} // stub: std.time.Timer
+public func Timer_start(): Timer { Timer() }
 public type IncrementalGraphServerFileIndex = UInt32 // stub: IncrementalGraphServer.FileIndex
 
 // ============================================================================
@@ -50,28 +52,81 @@ public type IncrementalGraphServerFileIndex = UInt32 // stub: IncrementalGraphSe
 // ============================================================================
 
 /// 分配器作用域
-public class AllocationScope {} // stub: bun.allocators.AllocationScopeIn<bun.DefaultAllocator>
+public class AllocationScope { // stub: bun.allocators.AllocationScopeIn<bun.DefaultAllocator>
+    public init() {}
+    public static func initDefault(): AllocationScope { AllocationScope() }
+    public func allocator(): Allocator { Allocator() }
+    public func borrow(): DevAllocator { DevAllocator() }
+}
 public class DevAllocator {} // stub: AllocationScope.Borrowed
 public class JSPromiseStrong {
     public static let empty: JSPromiseStrong = JSPromiseStrong()
     public init() {}
+    public func deinit(): Unit {}
 }
 public class AutoArrayHashMapUnmanaged<K, V> {
     public init() {}
     public func put(k: K, v: V): Unit {}
+    public func put(alloc: Allocator, k: K, v: V): Unit {}
+    public func keys(): Array<K> { Array<K>() }
+    public func deinit(alloc: Allocator): Unit {}
+    public func clearRetainingCapacity(): Unit {}
+    public func count(): Int64 { 0 }
+    public func values(): Array<V> { Array<V>() }
+    public func getPtr(key: K): ?V { None }
 }
-public class RouteBundle {} // stub
+public class RouteBundle { // stub
+    public var serverState: RouteBundleState = RouteBundleState.unqueued
+    public var clientScriptGeneration: UInt32 = 0
+    public var data: RouteBundleData = RouteBundleData()
+    public var activeViewers: UInt32 = 0
+    public init() {}
+    public func deinit(alloc: Allocator): Unit {}
+} // stub
+
+/// RouteBundleIndex type alias - removed (class defined below)
+
+/// RouteBundle state - mirrors dev_server/route_bundle.cj State
+public enum RouteBundleState {
+    | unqueued
+    | bundling
+    | deferred_to_next_bundle
+    | possible_bundling_failures
+    | evaluation_failure
+    | loaded
+}
+
+/// RouteBundleData - stub
+public class RouteBundleData {
+    public init() {}
+    public var framework: RouteBundleFramework = RouteBundleFramework()
+    public var evaluateFailure: ?SerializedFailureRef = None
+}
+
+public class RouteBundleFramework {
+    public init() {}
+}
+
+public type SerializedFailureRef = Array<Byte>
 public class RouteBundleIndex {
     public var value: UInt32 = UInt32(0)
     public init() {}
     public init(v: UInt32) { value = v }
+    public func get(): UInt32 { value }
 }
 public class ArrayListUnmanaged<T> {
     public init() {}
     public func append(i: T): Unit {}
+    public func deinit(alloc: Allocator): Unit {}
+    public var items: Array<T>
+    public init(items: Array<T>) {
+        this.items = items
+    }
+    public func size(): Int64 { 0 }
+    public func initCapacity(alloc: Allocator, capacity: Int64): Unit {}
 }
 public class HotReloadEvent { public init() {} }
-public class State { public init() {} }
+// State is defined in hmr_module.cj as an enum with pending, stale, loaded, error
 
 // ============================================================================
 // 常量前缀
@@ -142,7 +197,7 @@ public class DeferredPromise {
 
     /// 设置路由Bundle状态
     /// 对应 Bun: pub fn setRouteBundleState(self, dev, state) void
-    public func setRouteBundleState(dev: DevServer, state: RouteBundle.State): Unit {
+    public func setRouteBundleState(dev: DevServer, state: RouteBundleState): Unit {
         for (routeBundleIndex in routeBundleIndices.keys()) {
             dev.routeBundlePtr(routeBundleIndex).serverState = state
         }
@@ -341,7 +396,7 @@ public class RequestEnsureRouteBundledCtx {
     /// 当请求被延迟时调用
     public func onDefer(bundleField: BundleQueueType): Unit {
         let requestsArray = match (bundleField) {
-            case current_bundle => dev.currentBundle.get().requests
+            case current_bundle => dev.currentBundle.getOrThrow().requests
             case next_bundle => dev.nextBundle.requests
         }
         dev.deferRequest(requestsArray, routeBundleIndex, kind, req, resp)
@@ -369,7 +424,7 @@ public class RequestEnsureRouteBundledCtx {
         dev.sendSerializedFailures(
             DevResponse.http(resp),
             Array<SerializedFailure>(
-                dev.routeBundlePtr(routeBundleIndex).data.framework.evaluateFailure.get()
+                dev.routeBundlePtr(routeBundleIndex).data.framework.evaluateFailure.getOrThrow()
             ),
             FailureKind.evaluation,
             None
@@ -653,7 +708,8 @@ public class DevServer {
         dev.assets = Assets()
         dev.sourceMaps = SourceMapStore.empty
         dev.pluginState = PluginState.unknown
-        devRouteBundle.State.bundlingFailures = ArrayHashMapUnmanaged<SerializedFailure, Unit>()
+        dev.routeBundles.items[0].serverState = RouteBundleState.bundling
+        dev.bundlingFailures = ArrayHashMapUnmanaged<SerializedFailureRef, Unit>()
         dev.assumePerfectIncrementalBundling = false
         dev.testingBatchEvents = TestingBatchEvents.disabled
         dev.broadcastConsoleLogFromBrowserToServer = options.broadcastConsoleLogFromBrowserToServer
@@ -692,7 +748,7 @@ public class DevServer {
             var i: Int64 = 0
             var it = activeWebsocketConnections.keyIterator()
             while (let item <- it.next()) {
-                sockets[i] = item.get()
+                sockets[i] = item.getOrThrow()
                 i += 1
             }
             for (s in sockets) {
@@ -732,7 +788,7 @@ public class DevServer {
         while (let entry <- it2.next()) {
             var inner = entry.value
             var innerIt = inner.keyIterator()
-            while (let k <- innerIt.next()) { alloc.free(k.get()) }
+            while (let k <- innerIt.next()) { alloc.free(k.getOrThrow()) }
             inner.deinit(alloc)
             alloc.free(entry.key)
         }
@@ -845,13 +901,13 @@ public class DevServer {
         if (fetchFunction.isNone()) {
             panic("Internal assertion failure: expected `interface` from HMR runtime to contain handleRequest")
         }
-        serverFetchFunctionCallback = Strong.create(fetchFunction.get(), vm.global)
+        serverFetchFunctionCallback = Strong.create(fetchFunction.getOrThrow(), vm.global)
 
         let registerUpdate = `interface`.get(vm.global, "registerUpdate")
         if (registerUpdate.isNone()) {
             panic("Internal assertion failure: expected `interface` from HMR runtime to contain registerUpdate")
         }
-        serverRegisterUpdateCallback = Strong.create(registerUpdate.get(), vm.global)
+        serverRegisterUpdateCallback = Strong.create(registerUpdate.getOrThrow(), vm.global)
     }
 
     // ========================================================================
@@ -878,7 +934,7 @@ public class DevServer {
     /// 对应 Bun: pub fn setRoutes(dev: *DevServer, server: anytype) !bool
     public func setRoutes(server: Any): Bool {
         this.server = AnyServer.from(server)
-        let app = server.app.get()
+        let app = server.app.getOrThrow()
 
         // 注册内部路由
         app.get("${CLIENT_PREFIX}/:route", this, wrapGenericRequestHandler(onJsRequest))
@@ -929,8 +985,8 @@ public class DevServer {
         if (id.isNone()) { return notFound(resp) }
 
         if (isMap) {
-            let sourceId: SourceMapStore.SourceId = id.get()
-            if (let entry <- sourceMaps.entries.getPtr(id.get())) {
+            let sourceId: UInt64 = id.getOrThrow()
+            if (let entry <- sourceMaps.entries.getPtr(id.getOrThrow())) {
                 let jsonBytes = entry.renderJSON(this, allocator(), sourceId.kind, allocator(), Side.client)
                 let response = StaticRoute.initFromAnyBlob(
                     Array<Blob>.fromOwnedSlice(allocator(), jsonBytes),
@@ -943,8 +999,8 @@ public class DevServer {
             return notFound(resp)
         }
 
-        let routeBundleIndex: RouteBundleIndex = RouteBundleIndex(id.get() & 0xFFFFFFFF)
-        let generation: UInt32 = UInt32(id.get() >> 32)
+        let routeBundleIndex: RouteBundleIndex = RouteBundleIndex(id.getOrThrow() & 0xFFFFFFFF)
+        let generation: UInt32 = UInt32(id.getOrThrow() >> 32)
 
         if (routeBundleIndex.get() >= routeBundles.items.size) { return notFound(resp) }
 
@@ -969,11 +1025,11 @@ public class DevServer {
         let hashOpt = parseHexToInt<UInt64>(hex)
         if (hashOpt.isNone()) { return notFound(resp) }
 
-        let asset = assets.get(hashOpt.get())
+        let asset = assets.get(hashOpt.getOrThrow())
         if (asset.isNone()) { return notFound(resp) }
 
         req.setYield(false)
-        asset.get().on(resp)
+        asset.getOrThrow().on(resp)
     }
 
     /// 处理框架请求
@@ -987,9 +1043,9 @@ public class DevServer {
         var params: FrameworkRouter.MatchedParams
         if (let routeIndex <- router.`match`(pathname, params)) {
             // 确保路由已bundle
-            let routeBundleIndex = findRouteBundleIndex(routeIndex.get())
+            let routeBundleIndex = findRouteBundleIndex(routeIndex.getOrThrow())
             if (let rbi <- routeBundleIndex) {
-                ensureRouteIsBundled(rbi.get(), req, resp)
+                ensureRouteIsBundled(rbi.getOrThrow(), req, resp)
             } else {
                 notFound(resp)
             }
@@ -1039,7 +1095,7 @@ public class DevServer {
     /// 获取路由Bundle指针
     /// 对应 Bun: pub fn routeBundlePtr(index: RouteBundleIndex) RouteBundle
     public func routeBundlePtr(index: RouteBundleIndex): RouteBundle {
-        routeBundles.items[index.get()]
+        routeBundles.items[index.getOrThrow()]
     }
 
     /// 启动异步Bundle
@@ -1068,23 +1124,23 @@ public class DevServer {
                 // 如果正在捆绑其他内容，延迟请求
                 if (currentBundle.isSome()) {
                     nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
-                    routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.deferred_to_next_bundle
+                    routeBundlePtr(routeBundleIndex).serverState = RouteBundleState.deferred_to_next_bundle
                     return
                 }
 
                 // 检查插件状态
                 match (pluginState) {
                     case unknown =>
-                        if (server.getOrLoadPlugins(PluginTarget.dev_server(this)) == PluginState.pending) {
+                        if (server.getOrLoadPlugins(PluginTarget(this)) == PluginState.pending) {
                             pluginState = PluginState.pending
                             nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
-                            routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.deferred_to_next_bundle
+                            routeBundlePtr(routeBundleIndex).serverState = RouteBundleState.deferred_to_next_bundle
                             return
                         }
-                        pluginState = RouteBundle.State.loaded
+                        pluginState = PluginState.loaded
                     case pending =>
                         nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
-                        routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.deferred_to_next_bundle
+                        routeBundlePtr(routeBundleIndex).serverState = RouteBundleState.deferred_to_next_bundle
                         return
                     case err =>
                         resp.end("Plugin Error", false)
@@ -1094,7 +1150,7 @@ public class DevServer {
 
                 // 准备bundle
                 nextBundle.routeQueue.put(allocator(), routeBundleIndex, ())
-                routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.bundling
+                routeBundlePtr(routeBundleIndex).serverState = RouteBundleState.bundling
 
                 startAsyncBundle(
                     EntryPointList.empty,
@@ -1110,7 +1166,7 @@ public class DevServer {
                 if (bundlingFailures.count() > 0) {
                     // 可能需要重新构建
                 }
-                routeBundlePtr(routeBundleIndex).serverState = RouteBundle.State.loaded
+                routeBundlePtr(routeBundleIndex).serverState = RouteBundleState.loaded
             case evaluation_failure =>
                 sendSerializedFailures(
                     DevResponse.http(resp),
@@ -1132,7 +1188,7 @@ public class DevServer {
     public func onFrameworkRequestWithBundle(routeBundleIndex: RouteBundleIndex,
                                               req: SavedRequestUnion, resp: AnyResponse): Unit {
         let routeBundle = routeBundlePtr(routeBundleIndex)
-        let serverRequestCallback = serverFetchFunctionCallback.get()
+        let serverRequestCallback = serverFetchFunctionCallback.getOrThrow()
         if (serverRequestCallback.isNone()) { return }
 
         // 提取URL参数
@@ -1144,7 +1200,7 @@ public class DevServer {
         } else { JsValue.null }
 
         // 调用服务器端fetch处理器
-        let responseValue = serverRequestCallback.get().call(
+        let responseValue = serverRequestCallback.getOrThrow().call(
             vm.global, JsValue.jsUndefined,
             Array<JsValue>(
                 getRouterTypeMain(routeBundleIndex),
@@ -1157,7 +1213,7 @@ public class DevServer {
         )
 
         // 处理响应
-        server.get().onSavedRequest(req, resp, serverRequestCallback, 8, Array<JsValue>())
+        server.getOrThrow().onSavedRequest(req, resp, serverRequestCallback, 8, Array<JsValue>())
     }
 
     /// 带有Bundle的HTML请求处理
@@ -1379,7 +1435,7 @@ func extractPathnameFromUrl(url: String): String {
     // 移除协议、主机、查询、哈希
     let pathStart = url.indexOf('/')
     if (pathStart.isNone()) { return "/" }
-    let path = url[pathStart.get()..]
+    let path = url[pathStart.getOrThrow()..]
     let queryStart = path.indexOf('?')
     if (queryStart.isSome()) { return path[0..queryStart.get()] }
     let hashStart = path.indexOf('#')

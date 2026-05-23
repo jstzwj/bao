@@ -7,6 +7,7 @@
 package bao_runtime.server
 
 import bao_core.*
+import bao_jsc.*
 import bao_collections.*
 
 // ============================================================================
@@ -724,64 +725,6 @@ public enum GetOrStartLoadResult {
     | Err
 }
 
-/// HTTP 方法
-public class HttpMethod {
-    public static let GET = HttpMethod("GET")
-    public static let HEAD = HttpMethod("HEAD")
-    public static let POST = HttpMethod("POST")
-    public static let PUT = HttpMethod("PUT")
-    public static let DELETE = HttpMethod("DELETE")
-    public static let PATCH = HttpMethod("PATCH")
-
-    public var name: String
-
-    public init(name: String) {
-        this.name = name
-    }
-
-    public static func which(method: String): ?HttpMethod {
-        if (method == "GET") { return GET }
-        if (method == "HEAD") { return HEAD }
-        if (method == "POST") { return POST }
-        if (method == "PUT") { return PUT }
-        if (method == "DELETE") { return DELETE }
-        if (method == "PATCH") { return PATCH }
-        if (method == "OPTIONS") { return HttpMethod("OPTIONS") }
-        return None
-    }
-}
-
-/// HTTP 方法集合
-public enum HttpMethodSet {
-    | All
-    | Specific(HttpMethod)
-}
-
-/// 静态路由 (前向声明)
-/// 完整实现在 static_route.cj
-public class StaticRoute {
-    public var blob: AnyBlob
-    public var headers: Headers
-
-    public init() {
-        blob = AnyBlob()
-        headers = Headers.`default`()
-    }
-
-    public init(blob: AnyBlob, headers: Headers) {
-        this.blob = blob
-        this.headers = headers
-    }
-
-    public func memoryCost(): Int64 { Int64(0) }
-    public func deref(): Unit {}
-    public func clone(global: JsGlobalObject): StaticRoute { StaticRoute() }
-    public func onRequest(req: AnyRequest, resp: AnyResponse): Unit {}
-    public func onHeadRequest(req: AnyRequest, resp: AnyResponse): Unit {}
-    public func onHead(resp: AnyResponse): Unit {}
-    public func on(resp: AnyResponse): Unit {}
-}
-
 /// AnyRequest (前向声明)
 public class AnyRequest {
     public func method(): String { "GET" }
@@ -825,64 +768,10 @@ public class Headers {
     }
 }
 
-/// ServerRef 扩展
-public class ServerRef {
-    public var id: String
-    public var config: ServerConfig
-    public var devServer: ?DevServerRef
-    public var global: JsGlobalObject
-
-    public init() {
-        id = ""
-        config = ServerConfig()
-        devServer = None
-        global = JsGlobalObject()
-    }
-
-    public func getOrLoadPlugins(cb: ServePluginCallback): GetOrStartLoadResult {
-        GetOrStartLoadResult.Ready(None)
-    }
-
-    public func appendStaticRoute(path: String, route: AnyRoute, method: MethodOptional): Unit {}
-    public func reloadStaticRoutes(): Bool { true }
-    public func onRequestComplete(): Unit {}
-}
-
-/// AnyRoute (前向声明)
-public enum AnyRoute {
-    | Static(?StaticRoute)
-    | File(?AnyRef)
-    | Html(?AnyRef)
-    | FrameworkRouter(Int32)
-
-    public static func `static`(route: StaticRoute): AnyRoute {
-        AnyRoute.Static(route)
-    }
-}
-
 /// MethodOptional
 public enum MethodOptional {
     | Any
     | Specific(HttpMethod)
-}
-
-/// DevServer 引用
-public class DevServerRef {
-    public func respondForHTMLBundle(route: HTMLBundleRoute, req: AnyRequest, resp: AnyResponse): Unit {}
-}
-
-/// JsGlobalObject (前向声明)
-public class JsGlobalObject {}
-
-/// JsValue (前向声明)
-public class JsValue {
-    public static func createHTMLBundle(bundle: HTMLBundle, global: JsGlobalObject): JsValue { JsValue() }
-    public static func createUTF8ForJS(global: JsGlobalObject, str: String): JsValue { JsValue() }
-}
-
-/// ServerConfig (前向声明)
-public class ServerConfig {
-    public func isDevelopment(): Bool { false }
 }
 
 /// Timespec
@@ -895,9 +784,6 @@ public class Timespec {
 
     public static func nowAllowMockedTime(): Timespec { Timespec() }
 }
-
-/// AnyRef
-public class AnyRef {}
 
 /// Pair
 public class Pair<K, V> {

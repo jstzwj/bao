@@ -3,6 +3,8 @@
 
 package bao_runtime.bake
 
+import bao_core.Output
+
 /// DEBUG 工具对象
 /// 对应 Bun: debug.ts — 在开发模式下提供断言功能
 public class Debug {

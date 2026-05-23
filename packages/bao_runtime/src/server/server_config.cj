@@ -90,12 +90,14 @@ public class RouteDeclaration {
 }
 
 /// 路由方法 - 任意或特定 HTTP 方法
+/* Duplicate: RouteMethod is defined in html_bundle.cj
 /// 对应 Bun: method: union(enum) { any: void, specific: HTTP.Method }
 /// Rust: pub enum RouteMethod { Any, Specific(Method) }
 public enum RouteMethod {
     | Any
     | Specific(String)   // HTTP 方法名: GET, POST, PUT, DELETE 等
 }
+*/
 
 /// 静态路由条目
 /// 对应 Bun: pub const StaticRouteEntry = struct { path, route, method }
@@ -192,6 +194,7 @@ public class UserRouteBuilder {
     }
 }
 
+/* Duplicate: AnyRoute is defined in server_body.cj
 /// AnyRoute 占位符 - 路由类型联合
 /// 对应 Bun: pub const AnyRoute = union(enum) { static, file, html, framework_router }
 /// Rust: AnyRoute enum from server_body
@@ -200,6 +203,7 @@ public enum AnyRoute {
     | File(FileRouteRef)
     | Html(HtmlBundleRouteRef)
 }
+*/
 
 /// StaticRoute 引用
 public class StaticRouteRef {
@@ -250,6 +254,7 @@ public class HtmlBundleRouteRef {
     }
 }
 
+/* Duplicate: ServerRef is defined in request_context.cj
 /// 服务器引用占位
 public class ServerRef {
     public var id: String
@@ -258,6 +263,7 @@ public class ServerRef {
         id = ""
     }
 }
+*/
 
 /// FromJSOptions
 /// 对应 Bun Rust: #[derive(Clone, Copy)] pub struct FromJSOptions
@@ -664,12 +670,14 @@ public class SslConfig {
     }
 }
 
+/* Duplicate: WebSocketServerContext is defined in websocket_server_context.cj
 /// WebSocket 服务器上下文 (占位)
 /// 对应 Bun: ?WebSocketServerContext
 /// Rust: Option<WebSocketServerContext>
 public class WebSocketServerContext {
     public init() {}
 }
+*/
 
 /// Bake 用户选项 (占位)
 /// 对应 Bun: ?bake.UserOptions
@@ -678,8 +686,10 @@ public class BakeUserOptions {
     public init() {}
 }
 
+/* Duplicate: ErrorHandler is defined in request_context.cj
 /// 错误处理回调类型
 public type ErrorHandler = (error: BaoError) -> Response
+*/
 
 // ========================================================================
 // Response / Request 类型定义 (引用 bao_http)
@@ -757,6 +767,7 @@ public enum HttpMethod {
     | PATCH
     | CONNECT
     | TRACE
+    | ANY
 
     public static func fromString(s: String): HttpMethod {
         let upper = s.toRuneArray().map({ r => r.toAsciiUpperCase() })
@@ -769,6 +780,7 @@ public enum HttpMethod {
         if (upper == "PATCH") { return HttpMethod.PATCH }
         if (upper == "CONNECT") { return HttpMethod.CONNECT }
         if (upper == "TRACE") { return HttpMethod.TRACE }
+        if (upper == "ANY") { return HttpMethod.ANY }
         return HttpMethod.GET
     }
 
@@ -777,7 +789,11 @@ public enum HttpMethod {
     /// Rust: impl Method { pub fn has_body(self) -> bool }
     public func hasBody(): Bool {
         match (this) {
-            case HttpMethod.GET | HttpMethod.HEAD | HttpMethod.DELETE | HttpMethod.OPTIONS | HttpMethod.TRACE => false
+            case HttpMethod.GET => false
+            case HttpMethod.HEAD => false
+            case HttpMethod.DELETE => false
+            case HttpMethod.OPTIONS => false
+            case HttpMethod.TRACE => false
             case _ => true
         }
     }
@@ -794,6 +810,25 @@ public enum HttpMethod {
             case PATCH => "PATCH"
             case CONNECT => "CONNECT"
             case TRACE => "TRACE"
+            case ANY => "ANY"
+        }
+    }
+
+    public func name(): String { asStr() }
+
+    public static func fromName(s: String): ?HttpMethod {
+        match (s) {
+            case "GET" => HttpMethod.GET
+            case "HEAD" => HttpMethod.HEAD
+            case "POST" => HttpMethod.POST
+            case "PUT" => HttpMethod.PUT
+            case "DELETE" => HttpMethod.DELETE
+            case "PATCH" => HttpMethod.PATCH
+            case "OPTIONS" => HttpMethod.OPTIONS
+            case "CONNECT" => HttpMethod.CONNECT
+            case "TRACE" => HttpMethod.TRACE
+            case "ANY" => HttpMethod.ANY
+            case _ => None
         }
     }
 }
@@ -801,6 +836,7 @@ public enum HttpMethod {
 /// 请求处理回调类型
 public type RequestHandler = (request: Request) -> Response
 
+/* Duplicate: BaoError is defined in request_context.cj
 /// BaoError 类型 (server_config 中也需要定义)
 public class BaoError {
     public var message: String
@@ -816,3 +852,4 @@ public class BaoError {
         this.code = 0
     }
 }
+*/

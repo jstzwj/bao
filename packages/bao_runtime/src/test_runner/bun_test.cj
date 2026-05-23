@@ -3,9 +3,9 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.*
+import bao_jsc.{CallFrame, EventLoopTimerState, JSFunction, JSGlobalObject, JsValue, Output, PromiseStatus, ConsoleObject, Formatter, StringBuilder, BunString, VirtualMachine}
 import bao_collections.ArrayList
-import bao_collections.*  // std.collection.*
+import bao_collections.HashMap
 
 // ========== 公共辅助函数 ==========
 

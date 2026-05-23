@@ -4,6 +4,7 @@
 package bao_runtime.server
 
 import bao_core.*
+import bao_jsc.*
 import bao_collections.*
 
 // ============================================================================

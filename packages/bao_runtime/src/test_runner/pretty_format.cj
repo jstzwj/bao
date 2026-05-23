@@ -3,8 +3,9 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.*
-import bao_collections.*  // std.collection.*
+import bao_jsc.{Formatter, JSGlobalObject, JsValue, Output}
+import bao_collections.ArrayList
+import bao_collections.HashMap
 
 // ========== EventType - 事件类型 ==========
 
@@ -47,10 +48,10 @@ public func initEventTypeMap(): Unit {
 ///
 /// 提供类似于Jest的pretty-format功能，将JS值格式化为人类可读的字符串。
 /// 支持颜色输出、缩进、循环引用检测等特性。
-public type Counter = HashMap<UInt64, UInt32>
+public type FormatCounter = HashMap<UInt64, UInt32>
 
 public class JestPrettyFormat {
-    public var counts: Counter = Counter()
+    public var counts: FormatCounter = FormatCounter()
 
     public init() {}
 }

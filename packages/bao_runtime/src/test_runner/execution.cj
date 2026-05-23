@@ -3,8 +3,9 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.*
-import bao_collections.*  // std.collection.*
+import bao_jsc.JSGlobalObject
+import bao_collections.ArrayList
+import bao_collections.HashMap
 
 // ========== Execution - 测试执行阶段 ==========
 

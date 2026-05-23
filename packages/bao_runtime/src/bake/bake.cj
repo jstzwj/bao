@@ -11,6 +11,7 @@ import bao_bundler.Define
 import bao_bundler.DefineData
 import bao_bundler.Plugin
 import bao_core.ArenaAllocator
+import bao_core.Output
 import bao_jsc.ZigStringSlice
 import bao_options.LoaderMap
 import bao_options.DotEnvBehavior
@@ -122,17 +123,23 @@ public class BuildConfigSubset {
 /// 由于许多字段具有默认值，可能指向静态内存，此结构体始终使用 arena 分配。
 public class Framework {
     public var is_built_in_react: Bool
-    public var file_system_router_types: Array<FileSystemRouterType>
-    public var server_components: ?ServerComponents = None
-    public var react_fast_refresh: ?ReactFastRefresh = None
+    public var fileSystemRouterTypes: Array<FileSystemRouterType>
+    public var serverComponents: ?ServerComponents = None
+    public var reactFastRefresh: ?ReactFastRefresh = None
+    public var react: FrameworkReactConfig = FrameworkReactConfig()
     public var built_in_modules: StringArrayHashMap<BuiltInModule> = StringArrayHashMap<BuiltInModule>()
 
     public init(is_built_in_react: Bool, file_system_router_types: Array<FileSystemRouterType>) {
         this.is_built_in_react = is_built_in_react
-        this.file_system_router_types = file_system_router_types
+        this.fileSystemRouterTypes = file_system_router_types
     }
 
     public static let react_install_command: String = "bun i react@experimental react-dom@experimental react-server-dom-bun react-refresh@experimental"
+}
+
+/// Framework react config
+public class FrameworkReactConfig {
+    public init() {}
 }
 
 /// 文件系统路由器类型

@@ -3,9 +3,9 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.*
+import bao_jsc.JsValue
 import bao_collections.ArrayList
-import bao_collections.*  // std.collection.*
+import bao_collections.HashMap
 
 // ========== Order - 测试排序 ==========
 

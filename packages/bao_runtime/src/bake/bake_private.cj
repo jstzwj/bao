@@ -13,6 +13,7 @@ import bao_jsc.Strong
 import bao_jsc.ZigStringSlice
 import bao_collections.*
 import bao_threading.*
+import bao_core.Output
 
 // ============================================================================
 // 全局类型声明
