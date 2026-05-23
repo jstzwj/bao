@@ -680,13 +680,15 @@ public class BundlerV2 {
 // ============================================================================
 
 /// Float64 保留指定小数位
-public func Float64.format(decimals: Int64): String {
-    let s = this.toString()
-    let dotIndex = s.indexOf('.')
-    if (dotIndex < 0) { return s }
-    let maxLen = dotIndex + 1 + Int64(decimals)
-    if (s.length <= maxLen) { return s }
-    return s.substring(0, maxLen)
+extend Float64 {
+    public func format(decimals: Int64): String {
+        let s = this.toString()
+        let dotIndex = s.indexOf('.')
+        if (dotIndex < 0) { return s }
+        let maxLen = dotIndex + 1 + Int64(decimals)
+        if (s.length <= maxLen) { return s }
+        return s.substring(0, maxLen)
+    }
 }
 
 // ============================================================================

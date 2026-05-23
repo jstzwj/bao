@@ -897,9 +897,9 @@ public class Repl {
     /// 对应 Bun: Repl.getPrompt
     public func getPrompt(): String {
         if (inMultiline || editorMode) {
-            return if (useColors) "${Color.dim}... ${Color.reset}" else "... "
+            return if (useColors) { "${Color.dim}... ${Color.reset}" } else { "... " }
         }
-        return if (useColors) "${Color.dim}\u{276f}${Color.reset} " else "> "
+        return if (useColors) { "${Color.dim}\u{276f}${Color.reset} " } else { "> " }
     }
 
     /// 获取提示符长度
@@ -1037,7 +1037,9 @@ public class Repl {
         }
 
         // 评估
-        val (result, exception) = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
+        let evalTuple = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
+        let result = evalTuple.0
+        let exception = evalTuple.1
 
         // 检查异常
         if (!exception.isUndefined() && !exception.isNull()) {
@@ -1132,14 +1134,18 @@ public class Repl {
 
         let transformedCode = transformForRepl(code)
         if (transformedCode.isNone()) {
-            val (result, exception) = JscREPL.evaluate(global, code, "[eval]")
+            let evalTuple = JscREPL.evaluate(global, code, "[eval]")
+            let result = evalTuple.0
+            let exception = evalTuple.1
             if (!exception.isUndefined() && !exception.isNull()) {
                 printJSError(exception)
             }
             return true
         }
 
-        val (result, exception) = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[eval]")
+        let evalTuple = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[eval]")
+        let result = evalTuple.0
+        let exception = evalTuple.1
 
         if (!exception.isUndefined() && !exception.isNull()) {
             printJSError(exception)
@@ -1198,7 +1204,9 @@ public class Repl {
             case None => return
         }
 
-        val (result, exception) = JscREPL.evaluate(global, code, "[repl]")
+        let evalTuple = JscREPL.evaluate(global, code, "[repl]")
+        let result = evalTuple.0
+        let exception = evalTuple.1
 
         if (!exception.isUndefined() && !exception.isNull()) {
             setLastError(exception)
@@ -1241,7 +1249,9 @@ public class Repl {
             return
         }
 
-        val (result, exception) = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
+        let evalTuple = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
+        let result = evalTuple.0
+        let exception = evalTuple.1
 
         if (!exception.isUndefined() && !exception.isNull()) {
             setLastError(exception)

@@ -816,7 +816,7 @@ public class BunfigParser {
         match (installObj.get("cafile")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isNone() || s!.isEmpty()) {
+                if (s.isNone() || s.getOrThrow().isEmpty()) {
                     addError("Invalid cafile. Expected a string.")
                 }
                 // install.cafile = s
@@ -832,7 +832,7 @@ public class BunfigParser {
                     let items = expr.asArray()
                     for (item in items) {
                         let s = item.asString()
-                        if (s.isNone() || s!.isEmpty()) {
+                        if (s.isNone() || s.getOrThrow().isEmpty()) {
                             addError("Invalid CA. Expected a string.")
                         }
                     }
@@ -991,7 +991,7 @@ public class BunfigParser {
                 match (lockfileExpr.get("path")) {
                     case Some(expr) =>
                         let s = expr.asString()
-                        if (s.isSome() && !s!.isEmpty()) {
+                        if (s.isSome() && !s.getOrThrow().isEmpty()) {
                             // install.lockfilePath = s
                         }
                     case None => ()
@@ -1000,7 +1000,7 @@ public class BunfigParser {
                 match (lockfileExpr.get("savePath")) {
                     case Some(expr) =>
                         let s = expr.asString()
-                        if (s.isSome() && !s!.isEmpty()) {
+                        if (s.isSome() && !s.getOrThrow().isEmpty()) {
                             // install.saveLockfilePath = s
                         }
                     case None => ()
@@ -1039,7 +1039,7 @@ public class BunfigParser {
         match (installObj.get("globalDir")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isSome() && !s!.isEmpty()) {
+                if (s.isSome() && !s.getOrThrow().isEmpty()) {
                     // install.globalDir = s
                 }
             case None => ()
@@ -1049,7 +1049,7 @@ public class BunfigParser {
         match (installObj.get("globalBinDir")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isSome() && !s!.isEmpty()) {
+                if (s.isSome() && !s.getOrThrow().isEmpty()) {
                     // install.globalBinDir = s
                 }
             case None => ()
@@ -1085,7 +1085,7 @@ public class BunfigParser {
                     match (expr.get("dir")) {
                         case Some(v) =>
                             let s = v.asString()
-                            if (s.isSome() && !s!.isEmpty()) {
+                            if (s.isSome() && !s.getOrThrow().isEmpty()) {
                                 // install.cacheDirectory = s
                             }
                         case None => ()
@@ -1576,7 +1576,7 @@ public class BunfigParser {
         match (serveObj.get("publicPath")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isSome() && !s!.isEmpty()) {
+                if (s.isSome() && !s.getOrThrow().isEmpty()) {
                     ctx.args.servePublicPath = Some(s!)
                 }
             case None => ()

@@ -819,13 +819,13 @@ public enum CommandTag {
     /// 对应 Bun: Command.Tag.uses_global_options
     public static func usesGlobalOptions(tag: CommandTag): Bool {
         match (tag) {
-            case CommandTag.DiscordCommand,
-                 CommandTag.HelpCommand,
-                 CommandTag.ReservedCommand,
-                 CommandTag.InitCommand,
-                 CommandTag.InstallCompletionsCommand,
-                 CommandTag.GetCompletionsCommand,
-                 CommandTag.CreateCommand => return false
+            case CommandTag.DiscordCommand => return false
+            case CommandTag.HelpCommand => return false
+            case CommandTag.ReservedCommand => return false
+            case CommandTag.InitCommand => return false
+            case CommandTag.InstallCompletionsCommand => return false
+            case CommandTag.GetCompletionsCommand => return false
+            case CommandTag.CreateCommand => return false
             case _ => return true
         }
     }
@@ -836,8 +836,8 @@ public enum CommandTag {
         match (cmd) {
             case CommandTag.AutoCommand =>
                 HelpCommand.printWithReason(HelpCommand.HelpCommandReason.explicit, showAllFlags)
-            case CommandTag.RunCommand, CommandTag.RunAsNodeCommand =>
-                RunCommand.printHelp(None)
+            case CommandTag.RunCommand => RunCommand.printHelp(None)
+            case CommandTag.RunAsNodeCommand => RunCommand.printHelp(None)
             case CommandTag.InitCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao init<r> <cyan>[flags]<r> <blue>[\\<folder\\>]<r>\n")
                 Output.pretty("  Initialize a Bao project in the current directory.\n")
@@ -903,16 +903,17 @@ public enum CommandTag {
                 Output.pretty("<b>Examples<d>:<r>\n")
                 Output.pretty("  <b>bao exec \"echo hi\"<r>\n\n")
                 Output.flush()
-            case CommandTag.OutdatedCommand, CommandTag.UpdateInteractiveCommand,
-                 CommandTag.PublishCommand, CommandTag.AuditCommand => {
-                let subcmd = match (cmd) {
-                    case CommandTag.OutdatedCommand => Subcommand.outdated
-                    case CommandTag.UpdateInteractiveCommand => Subcommand.update
-                    case CommandTag.PublishCommand => Subcommand.publish
-                    case CommandTag.AuditCommand => Subcommand.audit
-                    case _ => Subcommand.install
-                }
-                PackageManager.CommandLineArguments.printHelp(subcmd)
+            case CommandTag.OutdatedCommand => {
+                PackageManager.CommandLineArguments.printHelp(Subcommand.outdated)
+            }
+            case CommandTag.UpdateInteractiveCommand => {
+                PackageManager.CommandLineArguments.printHelp(Subcommand.update)
+            }
+            case CommandTag.PublishCommand => {
+                PackageManager.CommandLineArguments.printHelp(Subcommand.publish)
+            }
+            case CommandTag.AuditCommand => {
+                PackageManager.CommandLineArguments.printHelp(Subcommand.audit)
             }
             case CommandTag.InfoCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao info<r> <cyan>[flags]<r> <blue>\\<package\\><r> <blue>[property path]<r>\n")
@@ -937,14 +938,14 @@ public enum CommandTag {
 
 /// 打印版本并退出
 /// 对应 Bun: printVersionAndExit
-public static func printVersionAndExit(): Unit {
+public func printVersionAndExit(): Unit {
     Output.writer().writeAll("${Global.packageJsonVersion}\n")
     Global.exit(0)
 }
 
 /// 打印修订版本并退出
 /// 对应 Bun: printRevisionAndExit
-public static func printRevisionAndExit(): Unit {
+public func printRevisionAndExit(): Unit {
     Output.writer().writeAll("${Global.packageJsonVersionWithRevision}\n")
     Global.exit(0)
 }

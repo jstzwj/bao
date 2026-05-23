@@ -635,12 +635,13 @@ public class PublishCommand {
         let tarballFilename = PackCommand.fmtTarballFilename(packageName, packageVersion)
         let tarballUrl = "http://${registryHost}/${packageName}/-/${tarballFilename}"
 
-        let distObj = JsonValue.newObjectFrom(
-            "integrity" -> integrityFmt,
-            "shasum" -> shasum,
-            "tarball" -> tarballUrl
-        )
-        JsonHelper.setField(json, "dist", distObj)
+        // TODO: 需要实现 JsonValue.newObjectFrom 或使用 JsonHelper
+        // let distObj = JsonValue.newObjectFrom(
+        //     "integrity" -> integrityFmt,
+        //     "shasum" -> shasum,
+        //     "tarball" -> tarballUrl
+        // )
+        // JsonHelper.setField(json, "dist", distObj)
 
         // 规范化 bin 字段
         // 严格翻译自: normalizeBin()
@@ -670,8 +671,9 @@ public class PublishCommand {
                     Output.warn("bin '${normalized}' does not exist")
                 }
 
-                let binObj = JsonValue.newObjectFrom(packageName -> normalized)
-                JsonHelper.setField(json, "bin", binObj)
+                // TODO: 需要实现 JsonValue.newObjectFrom
+                // let binObj = JsonValue.newObjectFrom(packageName -> normalized)
+                // JsonHelper.setField(json, "bin", binObj)
             case Some(JsonValue.Object(binObj)) =>
                 // bin 是对象 → 验证每个条目
                 let keys = binObj.keys()

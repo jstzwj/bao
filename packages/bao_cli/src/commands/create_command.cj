@@ -744,11 +744,11 @@ public class GitHandler {
 
     /// 在后台线程中启动 git 初始化
     // 严格翻译自: create_command.zig 中 GitHandler.spawn
-    public func spawn(destination: String, path: String, verbose: Bool): Unit {
+    public func `spawn`(destination: String, path: String, verbose: Bool): Unit {
         // 严格翻译自: create_command.zig 中 std.Thread.spawn
         successValue = 0
         let self = this
-        backgroundThread = Some(Thread.`spawn`({
+        backgroundThread = Some(Thread.`spawn`({ =>
             self.spawnThread(destination, path, verbose)
         }))
     }
@@ -883,8 +883,8 @@ public class PrunePackages {
     // 严格翻译自: create_command.zig 中 Prune.prune
     public func prune(properties: ArrayList<JsonProperty>): ArrayList<JsonProperty> {
         var result = ArrayList<JsonProperty>()
-        for (prop in properties) {
-            let key = prop.key
+        for (`prop` in properties) {
+            let key = `prop`.key
             var doPrune = false
             for (pkg in PrunePackages.packages) {
                 if (key == pkg) {
@@ -894,7 +894,7 @@ public class PrunePackages {
             if (doPrune) {
                 pruneCount = pruneCount + 1
             } else {
-                result.append(prop)
+                result.append(`prop`)
             }
         }
         return result
@@ -1200,23 +1200,21 @@ public class CreateCommand {
         // 处理 gitignore 重命名
         // 严格翻译自: create_command.zig 中 linkat("gitignore", ".gitignore")
         // ====================================================================
-        {
-            let gitignorePath = Path.join([destination, "gitignore"])
-            let dotGitignorePath = Path.join([destination, ".gitignore"])
-            if (BaoFile.exists(gitignorePath)) {
-                BaoFile.rename(gitignorePath, dotGitignorePath)
-            }
-            // 删除 gitignore (重命名后的源文件)
-            // 严格翻译自: create_command.zig 中 unlinkat("gitignore")
-            if (BaoFile.exists(gitignorePath)) {
-                BaoFile.remove(gitignorePath)
-            }
-            // 删除 .npmignore
-            // 严格翻译自: create_command.zig 中 unlinkat(".npmignore")
-            let npmignorePath = Path.join([destination, ".npmignore"])
-            if (BaoFile.exists(npmignorePath)) {
-                BaoFile.remove(npmignorePath)
-            }
+        let gitignorePath = Path.join([destination, "gitignore"])
+        let dotGitignorePath = Path.join([destination, ".gitignore"])
+        if (BaoFile.exists(gitignorePath)) {
+            BaoFile.rename(gitignorePath, dotGitignorePath)
+        }
+        // 删除 gitignore (重命名后的源文件)
+        // 严格翻译自: create_command.zig 中 unlinkat("gitignore")
+        if (BaoFile.exists(gitignorePath)) {
+            BaoFile.remove(gitignorePath)
+        }
+        // 删除 .npmignore
+        // 严格翻译自: create_command.zig 中 unlinkat(".npmignore")
+        let npmignorePath = Path.join([destination, ".npmignore"])
+        if (BaoFile.exists(npmignorePath)) {
+            BaoFile.remove(npmignorePath)
         }
 
         // ====================================================================
@@ -1235,8 +1233,7 @@ public class CreateCommand {
 
         // process_package_json 块
         // 严格翻译自: create_command.zig 中 process_package_json 标签
-        {
-            if (createOptions.skipPackageJson) {
+        if (createOptions.skipPackageJson) {
                 packageJsonFile = None
             }
 
@@ -1405,7 +1402,7 @@ public class CreateCommand {
                                     }
 
                                     // 其他属性直接保留
-                                    propertiesOut.append(prop)
+                                    propertiesOut.append(`prop`)
                                 }
 
                                 // 设置 is_single_line = false
@@ -1421,7 +1418,6 @@ public class CreateCommand {
                     }
                 case None => ()
             }
-        }
 
         if (createOptions.verbose) {
             println("Has dependencies? ${hasDependencies}")

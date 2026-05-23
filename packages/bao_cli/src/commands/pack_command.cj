@@ -1111,7 +1111,7 @@ public class PackCommand {
                         } else {
                             entrySubpath
                         }
-                        if (GlobMatcher.match(includePattern.glob, matchPath)) {
+                        if (GlobMatcher.`match`(includePattern.glob, matchPath)) {
                             included = true
                         }
                     }
@@ -1129,7 +1129,7 @@ public class PackCommand {
                             entrySubpath
                         }
                         // 排除模式以 ! 开头, negate_no_match 表示未匹配排除 → 包含
-                        if (GlobMatcher.match(excludePattern.glob, matchPath)) {
+                        if (GlobMatcher.`match`(excludePattern.glob, matchPath)) {
                             // 不操作: 保留当前 included 状态
                         } else {
                             // 如果排除模式不匹配, 且模式为取反, 则排除

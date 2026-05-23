@@ -455,6 +455,7 @@ public class PatchCommitCommand {
             case Some(content) =>
                 // 简化: 实际需要 JSON 操作
                 // 添加 "patchedDependencies": { "<name>@<version>": "<patch-file-path>" }
+                ()
             case None => ()
         }
     }

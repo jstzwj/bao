@@ -59,6 +59,143 @@ public enum RunCommandFilter {
     | ScriptExclude
 }
 
+/// 配置运行时的环境选项
+/// 严格翻译自: RunCommand.ConfigureEnvForRunOptions
+public class ConfigureEnvForRunOptions {
+    public var loadTsconfigJson: Bool
+
+    public init() {
+        loadTsconfigJson = true
+    }
+}
+
+/// BunX 快速路径
+/// 严格翻译自: run_command.zig BunXFastPath
+public class BunXFastPath {
+    /// 尝试直接启动 bunx 文件
+    /// 严格翻译自: BunXFastPath.tryLaunch
+    public static func tryLaunch(
+        ctx: CommandContext,
+        pathToUse: String,
+        env: DotEnvLoader,
+        passthrough: ArrayList<String>
+    ): Unit {
+        // 在非 Windows 平台上不做任何事
+    }
+
+    /// 读取 package.json
+    private static func readPackageJson(dir: String): ?RunPackageJson {
+        let path = Path.join([dir, "package.json"])
+        let content = BaoFile.readAllText(path)
+        match (content) {
+            case Some(text) =>
+                let pkg = RunPackageJson()
+                pkg.path = path
+                parsePackageJsonScripts(text, pkg)
+                return Some(pkg)
+            case None => return None
+        }
+    }
+
+    /// 解析 package.json scripts
+    private static func parsePackageJsonScripts(content: String, pkg: RunPackageJson): Unit {
+        let parser = JsonParser()
+        match (parser.parse(content)) {
+            case Some(root) =>
+                match (JsonHelper.getField(root, "scripts")) {
+                    case Some(scripts) =>
+                        for (key in scripts.keys()) {
+                            match (scripts.get(key)) {
+                                case Some(v) => pkg.scripts.put(key, v.toString())
+                                case None => ()
+                            }
+                        }
+                    case None => ()
+                }
+                match (JsonHelper.getString(root, "name")) {
+                    case Some(n) => pkg.name = n
+                    case None => ()
+                }
+                match (JsonHelper.getString(root, "version")) {
+                    case Some(v) => pkg.version = v
+                    case None => ()
+                }
+                match (JsonHelper.getField(root, "config")) {
+                    case Some(config) =>
+                        for (key in config.keys()) {
+                            match (config.get(key)) {
+                                case Some(v) => pkg.config.put(key, v.toString())
+                                case None => ()
+                            }
+                        }
+                    case None => ()
+                }
+            case None => ()
+        }
+    }
+
+    /// 获取路径的默认 loader
+    private static func getDefaultLoaderForPath(path: String): String {
+        return detectLoader(path)
+    }
+
+    /// 获取扩展名的默认 loader
+    private static func getDefaultLoader(ext: String): ?String {
+        let jsExts = [".js", ".mjs", ".cjs"]
+        let tsExts = [".ts", ".tsx", ".jsx", ".mts", ".cts"]
+        for (e in jsExts) { if (ext == e) { return Some("js") } }
+        for (e in tsExts) { if (ext == e) { return Some("ts") } }
+        if (ext == ".html") { return Some("html") }
+        if (ext == ".md") { return Some("md") }
+        if (ext == ".json") { return Some("json") }
+        return None
+    }
+
+    /// 检查 loader 是否可被 Bun 运行
+    private static func isRunnableLoader(loader: String): Bool {
+        return loader == "js" || loader == "ts" || loader == "jsx" || loader == "tsx"
+    }
+
+    /// 检查字符串是否需要 shell 转义
+    private static func needsEscape(s: String): Bool {
+        for (c in s) {
+            if (c == ' ' || c == '\t' || c == '"' || c == '\'' || c == '\\' ||
+                c == '|' || c == '&' || c == ';' || c == '<' || c == '>' ||
+                c == '(' || c == ')' || c == '$' || c == '`' || c == '!' ||
+                c == '*' || c == '?' || c == '[' || c == ']' || c == '{' || c == '}') {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 8-bit 转义
+    private static func escape8Bit(s: String, singleQuote: Bool): String {
+        if (singleQuote) {
+            return "'${s.replace("'", "'\\''")}'"
+        }
+        return "\"${s.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$").replace("`", "\\`")}\""
+    }
+
+    /// 渲染 Markdown 到终端
+    private static func renderMarkdownToTerminal(content: String, columns: Int64): String {
+        return content
+    }
+
+    /// String 扩展: 从指定位置开始匹配
+    private static func startsWithFrom(s: String, prefix: String, fromIndex: Int64): Bool {
+        if (fromIndex < 0 || fromIndex + prefix.size > s.size) {
+            return false
+        }
+        for (i in 0..prefix.size) {
+            if (s[fromIndex + i] != prefix[i]) {
+                return false
+            }
+        }
+        return true
+    }
+}
+
 // ============================================================================
 // RunCommand — 主命令类
 // 严格翻译自: run_command.zig RunCommand struct
@@ -469,15 +606,7 @@ public class RunCommand {
         return configureEnvForRunWithOptions(ctx, env, logErrors, false, ConfigureEnvForRunOptions())
     }
 
-    /// 配置运行时的环境选项
-    /// 严格翻译自: RunCommand.ConfigureEnvForRunOptions
-    public class ConfigureEnvForRunOptions {
-        public var loadTsconfigJson: Bool
-
-        public init() {
-            loadTsconfigJson = true
-        }
-    }
+    /* 配置运行时的环境选项 — 已提取到顶层 ConfigureEnvForRunOptions */
 
     /// 配置运行环境 (带选项)
     /// 严格翻译自: RunCommand.configureEnvForRunWithOptions
@@ -1288,22 +1417,7 @@ public class RunCommand {
     // BunX 快速路径 (Windows)
     // ========================================================================
 
-    /// BunX 快速路径
-    /// 严格翻译自: run_command.zig BunXFastPath
-    public class BunXFastPath {
-        /// 尝试直接启动 bunx 文件
-        /// 严格翻译自: BunXFastPath.tryLaunch
-        public static func tryLaunch(
-            ctx: CommandContext,
-            pathToUse: String,
-            env: DotEnvLoader,
-            passthrough: ArrayList<String>
-        ): Unit {
-            // 在非 Windows 平台上不做任何事
-            // 在 Windows 上查找 .bunx 文件并直接启动
-            // 简化: 跳过 Windows 特定逻辑
-        }
-    }
+    /* BunX 快速路径 — 已提取到顶层 BunXFastPath */
 
     // ========================================================================
     // 辅助

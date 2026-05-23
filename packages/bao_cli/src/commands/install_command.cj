@@ -190,7 +190,7 @@ public class InstallCommand {
 
         // scoped package: @scope/name@version
         if (name.startsWith("@")) {
-            let secondAt = name.indexOfFrom('@', 1)
+            let secondAt = name.indexOfFrom("@", 1)
             match (secondAt) {
                 case Some(idx) =>
                     version = Some(name.substring(idx + 1))
@@ -378,15 +378,4 @@ public class InstallPackageManager {
     }
 }
 
-/// String.indexOf 从指定位置开始查找
-private func String.indexOfFrom(ch: Char, fromIndex: Int64): ?Int64 {
-    if (fromIndex < 0) { return None }
-    var i = fromIndex
-    while (i < this.length) {
-        if (this[i] == ch) {
-            return Some(i)
-        }
-        i += 1
-    }
-    return None
-}
+// indexOfFrom 已在 string_extensions.cj 中定义
