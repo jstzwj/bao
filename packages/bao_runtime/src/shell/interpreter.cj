@@ -384,68 +384,6 @@ public class Interpreter {
         return Script()
     }
 
-    // ========================================================================
-    // Shell错误
-    // ========================================================================
-
-    /// Shell错误类型
-    public enum ShellErrorKind {
-        | OutOfMemory
-        | Syscall
-    }
-
-    /// Shell错误上下文
-    public enum ShellErrorCtx {
-        | syscall(SyscallError)
-        | other(ShellErrorKind)
-    }
-
-    // ========================================================================
-    // 解释器子指针
-    // ========================================================================
-
-    /// 解释器子指针
-    public class InterpreterChildPtr {
-        public var ptr: Any
-
-        public static func initFunc(p: Any): InterpreterChildPtr {
-            let cptr = InterpreterChildPtr()
-            cptr.ptr = p
-            return cptr
-        }
-    }
-
-    // ========================================================================
-    // 系统调用封装
-    // ========================================================================
-
-    /// Shell系统调用封装
-    /// 为Windows提供兼容性：
-    /// - 返回uv文件描述符
-    /// - 有时Windows没有*at()函数
-    /// - 转换Posix绝对路径为Windows绝对路径
-    public class ShellSyscall {
-        /// 打开文件（at版本）
-        public static func openat(dir: FD, path: String, flags: Int32, perm: FileMode): Maybe<FD> {
-            return Syscall.openat(dir, path, flags, perm)
-        }
-
-        /// 打开文件
-        public static func open(filePath: String, flags: FileMode, perm: FileMode): Maybe<FD> {
-            return Syscall.open(filePath, flags, perm)
-        }
-
-        /// 复制文件描述符
-        public static func dup(fd: FD): Maybe<FD> {
-            return Syscall.dup(fd)
-        }
-
-        /// stat（at版本）
-        public static func statat(dir: FD, path: String): Maybe<Stat> {
-            return Syscall.fstatat(dir, path)
-        }
-    }
-
     /// 向Shell错误抛出
     public func throwShellErr(e: ShellErr, eventLoop: EventLoopHandle) {
         match (eventLoop) {
@@ -465,228 +403,270 @@ public class Interpreter {
     public func isPollable(fd: FD, mode: FileMode): Boolean {
         return S.isFifo(mode) || S.isSock(mode) || Posix.isatty(fd.native())
     }
+}
 
-    // ========================================================================
-    // 输出任务
-    // ========================================================================
+// ========================================================================
+// Shell错误
+// ========================================================================
 
-    /// 可以写入stdout和/或stderr的任务
-    public class OutputTask<Parent> {
-        public var parent: Parent
-        public var output: OutputSrc
-        public var state: OutputTaskState
+/// Shell错误类型
+public enum ShellErrorKind {
+    | OutOfMemory
+    | Syscall
+}
 
-        /// 去初始化
-        public func deinit(): Yield {
-            this.output.deinit()
-            return Yield.done
-        }
+/// Shell错误上下文
+public enum ShellErrorCtx {
+    | syscall(SyscallError)
+    | other(ShellErrorKind)
+}
 
-        /// 启动
-        public func start(errbuf: ?String): Yield {
-            return Yield.done
-        }
+/// 解释器子指针
+public class InterpreterChildPtr {
+    public var ptr: Any
 
-        /// 下一步
-        public func next(): Yield {
-            return Yield.done
-        }
+    public static func initFunc(p: Any): InterpreterChildPtr {
+        let cptr = InterpreterChildPtr()
+        cptr.ptr = p
+        return cptr
+    }
+}
 
-        /// IO写入器数据块回调
-        public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
-            return Yield.done
+/// Shell系统调用封装
+public class ShellSyscall {
+    /// 打开文件（at版本）
+    public static func openat(dir: FD, path: String, flags: Int32, perm: FileMode): Maybe<FD> {
+        return Syscall.openat(dir, path, flags, perm)
+    }
+
+    /// 打开文件
+    public static func open(filePath: String, flags: FileMode, perm: FileMode): Maybe<FD> {
+        return Syscall.open(filePath, flags, perm)
+    }
+
+    /// 复制文件描述符
+    public static func dup(fd: FD): Maybe<FD> {
+        return Syscall.dup(fd)
+    }
+
+    /// stat（at版本）
+    public static func statat(dir: FD, path: String): Maybe<Stat> {
+        return Syscall.fstatat(dir, path)
+    }
+}
+
+/// 输出任务状态
+public enum OutputTaskState {
+    | waitingWriteErr
+    | waitingWriteOut
+    | done
+}
+
+/// 输出源 - 所有内存使用bun.default_allocator分配
+public enum OutputSrc {
+    /// 数组列表
+    | arrlist(ArrayList<Byte>)
+    /// 拥有的缓冲区
+    | ownedBuf(Array<Byte>)
+    /// 借用的缓冲区
+    | borrowedBuf(Array<Byte>)
+
+    /// 获取切片
+    public func slice(): Array<Byte> {
+        match (this) {
+            case arrlist(list) =>
+                return list.toArray()
+            case ownedBuf(buf) =>
+                return buf
+            case borrowedBuf(buf) =>
+                return buf
         }
     }
 
-    /// 输出任务状态
-    public enum OutputTaskState {
-        | waitingWriteErr
-        | waitingWriteOut
-        | done
-    }
-
-    /// 输出源 - 所有内存使用bun.default_allocator分配
-    public enum OutputSrc {
-        /// 数组列表
-        | arrlist(ArrayList<Byte>)
-        /// 拥有的缓冲区
-        | ownedBuf(Array<Byte>)
-        /// 借用的缓冲区
-        | borrowedBuf(Array<Byte>)
-
-        /// 获取切片
-        public func slice(): Array<Byte> {
-            match (this) {
-                case arrlist(list) =>
-                    return list.toArray()
-                case ownedBuf(buf) =>
-                    return buf
-                case borrowedBuf(buf) =>
-                    return buf
-            }
-        }
-
-        /// 去初始化
-        public func deinit() {
-            match (this) {
-                case arrlist(list) =>
-                    list.clear()
-                case ownedBuf(_) =>
-                    () // 释放
-                case borrowedBuf(_) =>
-                    () // 不释放
-            }
+    /// 去初始化
+    public func deinit() {
+        match (this) {
+            case arrlist(list) =>
+                list.clear()
+            case ownedBuf(_) =>
+                () // 释放
+            case borrowedBuf(_) =>
+                () // 不释放
         }
     }
+}
 
-    // ========================================================================
-    // Shell执行环境
-    // ========================================================================
+/// 可以写入stdout和/或stderr的任务
+public class OutputTask<Parent> {
+    public var parent: Parent
+    public var output: OutputSrc
+    public var state: OutputTaskState
 
-    /// Shell执行环境
-    /// 包含环境变量、当前工作目录等
-    public class ShellExecEnv {
-        /// 类型
-        public var kind: Kind = Kind.normal
+    /// 去初始化
+    public func deinit(): Yield {
+        this.output.deinit()
+        return Yield.done
+    }
 
-        /// 缓冲的标准输出
-        public var bufferedStdout: ByteList
-        /// 缓冲的标准错误
-        public var bufferedStderr: ByteList
+    /// 启动
+    public func start(errbuf: ?String): Yield {
+        return Yield.done
+    }
 
-        /// Shell环境变量（展开用）
-        public var shellEnv: EnvMap
-        /// 命令局部环境变量（给子进程）
-        public var cmdLocalEnv: EnvMap
-        /// 导出的环境变量（包含系统变量）
-        public var exportEnv: EnvMap
+    /// 下一步
+    public func next(): Yield {
+        return Yield.done
+    }
 
-        /// 前一个工作目录
-        public var prevCwd: ArrayList<Byte>
-        /// 当前工作目录（以0结尾）
-        public var cwdArr: ArrayList<Byte>
-        /// 当前工作目录文件描述符
-        public var cwdFd: FD
+    /// IO写入器数据块回调
+    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+        return Yield.done
+    }
+}
 
-        /// 异步PID列表
-        public var asyncPids: ArrayList<Int32>
+/// Shell执行环境类型枚举
+public enum ShellExecEnvKind {
+    | normal
+    | cmdSubst
+    | subshell
+    | pipeline
+}
 
-        /// 类型枚举
-        public enum Kind {
-            | normal
-            | cmdSubst
-            | subshell
-            | pipeline
+/// Shell执行环境
+/// 包含环境变量、当前工作目录等
+public class ShellExecEnv {
+    /// 类型
+    public var kind: ShellExecEnvKind = ShellExecEnvKind.normal
+
+    /// 缓冲的标准输出
+    public var bufferedStdout: ByteList
+    /// 缓冲的标准错误
+    public var bufferedStderr: ByteList
+
+    /// Shell环境变量（展开用）
+    public var shellEnv: EnvMap
+    /// 命令局部环境变量（给子进程）
+    public var cmdLocalEnv: EnvMap
+    /// 导出的环境变量（包含系统变量）
+    public var exportEnv: EnvMap
+
+    /// 前一个工作目录
+    public var prevCwd: ArrayList<Byte>
+    /// 当前工作目录（以0结尾）
+    public var cwdArr: ArrayList<Byte>
+    /// 当前工作目录文件描述符
+    public var cwdFd: FD
+
+    /// 异步PID列表
+    public var asyncPids: ArrayList<Int32>
+
+    init() {
+        this.bufferedStdout = ByteList()
+        this.bufferedStderr = ByteList()
+        this.shellEnv = EnvMap(DefaultAllocator.instance)
+        this.cmdLocalEnv = EnvMap(DefaultAllocator.instance)
+        this.exportEnv = EnvMap(DefaultAllocator.instance)
+        this.prevCwd = ArrayList<Byte>()
+        this.cwdArr = ArrayList<Byte>()
+        this.asyncPids = ArrayList<Int32>()
+    }
+
+    /// 内存开销
+    public func memoryCost(): UInt64 {
+        var size: UInt64 = 0
+        size += this.shellEnv.memoryCost()
+        size += this.cmdLocalEnv.memoryCost()
+        size += this.exportEnv.memoryCost()
+        size += UInt64(this.cwdArr.size)
+        size += UInt64(this.prevCwd.size)
+        size += this.asyncPids.size * 4
+        return size
+    }
+
+    /// 获取当前工作目录
+    public func cwd(): String {
+        if (this.cwdArr.size == 0) {
+            return ""
         }
+        return String.fromBytes(this.cwdArr.toArray())
+    }
 
-        init() {
-            this.bufferedStdout = ByteList()
-            this.bufferedStderr = ByteList()
-            this.shellEnv = EnvMap(DefaultAllocator.instance)
-            this.cmdLocalEnv = EnvMap(DefaultAllocator.instance)
-            this.exportEnv = EnvMap(DefaultAllocator.instance)
-            this.prevCwd = ArrayList<Byte>()
-            this.cwdArr = ArrayList<Byte>()
-            this.asyncPids = ArrayList<Int32>()
+    /// 获取前一个工作目录
+    public func prevCwdStr(): String {
+        if (this.prevCwd.size == 0) {
+            return ""
         }
+        return String.fromBytes(this.prevCwd.toArray())
+    }
 
-        /// 内存开销
-        public func memoryCost(): UInt64 {
-            var size: UInt64 = 0
-            size += this.shellEnv.memoryCost()
-            size += this.cmdLocalEnv.memoryCost()
-            size += this.exportEnv.memoryCost()
-            size += UInt64(this.cwdArr.size)
-            size += UInt64(this.prevCwd.size)
-            size += this.asyncPids.size * 4
-            return size
-        }
+    /// 释放资源
+    public func deinit() {
+        this.shellEnv.deinit()
+        this.cmdLocalEnv.deinit()
+        this.exportEnv.deinit()
+        this.prevCwd.clear()
+        this.cwdArr.clear()
+        this.cwdFd.close()
+    }
 
-        /// 获取当前工作目录
-        public func cwd(): String {
-            if (this.cwdArr.size == 0) {
-                return ""
-            }
-            return String.fromBytes(this.cwdArr.toArray())
-        }
+    /// 为子shell复制
+    public func dupeForSubshell(allocScope: Any, alloc: Allocator, io: IO, kind: ShellExecEnvKind): Maybe<ShellExecEnv> {
+        let duped = ShellExecEnv()
+        duped.kind = kind
+        duped.shellEnv = this.shellEnv.clone()
+        duped.cmdLocalEnv = EnvMap(alloc)
+        duped.exportEnv = this.exportEnv.clone()
+        duped.prevCwd = ArrayList<Byte>(this.prevCwd.toArray().clone())
+        duped.cwdArr = ArrayList<Byte>(this.cwdArr.toArray().clone())
+        duped.cwdFd = Syscall.dup(this.cwdFd)
+        return Maybe<ShellExecEnv>.success(duped)
+    }
 
-        /// 获取前一个工作目录
-        public func prevCwdStr(): String {
-            if (this.prevCwd.size == 0) {
-                return ""
-            }
-            return String.fromBytes(this.prevCwd.toArray())
-        }
-
-        /// 释放资源
-        public func deinit() {
-            this.shellEnv.deinit()
-            this.cmdLocalEnv.deinit()
-            this.exportEnv.deinit()
-            this.prevCwd.clear()
-            this.cwdArr.clear()
-            this.cwdFd.close()
-        }
-
-        /// 为子shell复制
-        public func dupeForSubshell(allocScope: Any, alloc: Allocator, io: IO, kind: Kind): Maybe<ShellExecEnv> {
-            let duped = ShellExecEnv()
-            duped.kind = kind
-            duped.shellEnv = this.shellEnv.clone()
-            duped.cmdLocalEnv = EnvMap(alloc)
-            duped.exportEnv = this.exportEnv.clone()
-            duped.prevCwd = ArrayList<Byte>(this.prevCwd.toArray().clone())
-            duped.cwdArr = ArrayList<Byte>(this.cwdArr.toArray().clone())
-            duped.cwdFd = Syscall.dup(this.cwdFd)
-            return Maybe<ShellExecEnv>.success(duped)
-        }
-
-        /// 赋值变量
-        public func assignVar(interp: Interpreter, label: EnvStr, value: EnvStr, assignCtx: AssignCtx) {
-            match (assignCtx) {
-                case cmd =>
-                    this.cmdLocalEnv.insert(label, value)
-                case shell =>
-                    this.shellEnv.insert(label, value)
-                case exported =>
-                    this.exportEnv.insert(label, value)
-            }
-        }
-
-        /// 更改当前工作目录
-        public func changeCwd(interp: Interpreter, newCwd: String): Maybe<Unit> {
-            // 更改工作目录逻辑
-            let newCwdFd = Syscall.openat(this.cwdFd, newCwd, O.DIRECTORY | O.RDONLY, 0)
-            this.prevCwd.clear()
-            this.prevCwd.appendAll(this.cwdArr.toArray())
-            this.cwdArr.clear()
-            this.cwdArr.appendAll(newCwd.toByteArray())
-            this.cwdFd.close()
-            this.cwdFd = newCwdFd.result()
-            return Maybe<Unit>.success()
-        }
-
-        /// 获取主目录
-        public func getHomedir(): EnvStr {
-            return EnvStr.initSlice("/root".toByteArray())
-        }
-
-        /// 写入失败错误格式化
-        public func writeFailingErrorFmt(
-            ctx: Any,
-            enqueueCb: (Any) -> Unit,
-            fmt: String,
-            args: Array<Any>
-        ): Yield {
-            enqueueCb(ctx)
-            return Yield.done
+    /// 赋值变量
+    public func assignVar(interp: Interpreter, label: EnvStr, value: EnvStr, assignCtx: AssignCtx) {
+        match (assignCtx) {
+            case cmd =>
+                this.cmdLocalEnv.insert(label, value)
+            case shell =>
+                this.shellEnv.insert(label, value)
+            case exported =>
+                this.exportEnv.insert(label, value)
         }
     }
 
-    /// 赋值上下文
-    public enum AssignCtx {
-        | cmd
-        | shell
-        | exported
+    /// 更改当前工作目录
+    public func changeCwd(interp: Interpreter, newCwd: String): Maybe<Unit> {
+        // 更改工作目录逻辑
+        let newCwdFd = Syscall.openat(this.cwdFd, newCwd, O.DIRECTORY | O.RDONLY, 0)
+        this.prevCwd.clear()
+        this.prevCwd.appendAll(this.cwdArr.toArray())
+        this.cwdArr.clear()
+        this.cwdArr.appendAll(newCwd.toByteArray())
+        this.cwdFd.close()
+        this.cwdFd = newCwdFd.result()
+        return Maybe<Unit>.success()
     }
+
+    /// 获取主目录
+    public func getHomedir(): EnvStr {
+        return EnvStr.initSlice("/root".toByteArray())
+    }
+
+    /// 写入失败错误格式化
+    public func writeFailingErrorFmt(
+        ctx: Any,
+        enqueueCb: (Any) -> Unit,
+        fmt: String,
+        args: Array<Any>
+    ): Yield {
+        enqueueCb(ctx)
+        return Yield.done
+    }
+}
+
+/// 赋值上下文
+public enum AssignCtx {
+    | cmd
+    | shell
+    | exported
 }

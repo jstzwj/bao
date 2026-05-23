@@ -307,7 +307,7 @@ public class ServerInitContext {
     public var jsStringAllocations: StringRefList
     public var global: JSGlobalObject
     public var frameworkRouterList: ArrayList<FrameworkRouterType>
-    public var userRoutes: ArrayList<ServerConfig.StaticRouteEntry>
+    public var userRoutes: ArrayList<StaticRouteEntry>
 
     public init(global: JSGlobalObject) {
         this.arena = ArenaAllocator()
@@ -315,7 +315,7 @@ public class ServerInitContext {
         this.jsStringAllocations = StringRefList()
         this.global = global
         this.frameworkRouterList = ArrayList<FrameworkRouterType>()
-        this.userRoutes = ArrayList<ServerConfig.StaticRouteEntry>()
+        this.userRoutes = ArrayList<StaticRouteEntry>()
     }
 }
 
@@ -503,13 +503,13 @@ public class ServerFlags {
 }
 
 /// 用户路由
-/// 对应 Bun: pub const UserRoute = struct { id: u32, server: *ThisServer, route: ServerConfig.RouteDeclaration }
+/// 对应 Bun: pub const UserRoute = struct { id: u32, server: *ThisServer, route: RouteDeclaration }
 public class UserRoute {
     public var id: UInt32
     public var server: HttpServer
-    public var route: ServerConfig.RouteDeclaration
+    public var route: RouteDeclaration
 
-    public init(id: UInt32, server: HttpServer, route: ServerConfig.RouteDeclaration) {
+    public init(id: UInt32, server: HttpServer, route: RouteDeclaration) {
         this.id = id
         this.server = server
         this.route = route

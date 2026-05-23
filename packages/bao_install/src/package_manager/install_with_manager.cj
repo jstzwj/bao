@@ -1165,10 +1165,10 @@ public class InstallWithManager {
         if (manager.options.doSummary) {
             // 翻译自: Lockfile.Printer.Tree.print
             let printer = IwmLockfilePrinter(
-                lockfile: manager.lockfile,
-                options: manager.options,
-                updates: manager.updateRequests,
-                successfullyInstalled: installSummary.successfullyInstalled
+                manager.lockfile,
+                manager.options,
+                manager.updateRequests,
+                installSummary.successfullyInstalled
             )
             Output.flush()
             Output.enableBuffering()
@@ -1230,6 +1230,8 @@ public class InstallWithManager {
             Output.printStartEndStdout(ctx.startTime, Time.nanoTimestamp())
             Output.prettyln("<d> done<r>")
         }
+
+        Output.flush()
     }
 
     // ========================================================================
@@ -2631,6 +2633,15 @@ public enum IwmTextLockfileVersion {
     | V0
     | V1
     | Current
+
+    public operator func ==(right: IwmTextLockfileVersion): Bool {
+        match (this) {
+            case V0 => match (right) { case V0 => true case _ => false }
+            case V1 => match (right) { case V1 => true case _ => false }
+            case Current => match (right) { case Current => true case _ => false }
+        }
+    }
+    public operator func !=(right: IwmTextLockfileVersion): Bool { !(this == right) }
 }
 
 /// Lockfile Printer
