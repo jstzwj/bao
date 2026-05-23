@@ -6,41 +6,47 @@ package bao_runtime.bake
 /// 共享的 TextDecoder 实例
 /// 对应 Bun: shared.ts export const td = new TextDecoder()
 public class TextDecoder {
-    private var decoder: std.text.TextDecoder
 
-    public init() {
-        decoder = std.text.TextDecoder()
-    }
+    public init() {}
 
     /// 将字节数组解码为字符串
     public func decode(buffer: Array<Byte>): String {
-        return decoder.decode(buffer)
+        return String.fromUtf8(buffer)
     }
 
     /// 将缓冲区的子范围解码为字符串
     public func decode(buffer: Array<Byte>, start: Int64, length: Int64): String {
-        return decoder.decode(buffer.slice(start, start + length))
+        var sub = Array<Byte>()
+        var i = start
+        while (i < start + length && i < buffer.size) {
+            sub.append(buffer[Int64(i)])
+            i++
+        }
+        return String.fromUtf8(sub)
     }
 }
 
 /// 共享的 TextEncoder 实例
 /// 对应 Bun: shared.ts export const te = new TextEncoder()
 public class TextEncoder {
-    private var encoder: std.text.TextEncoder
 
-    public init() {
-        encoder = std.text.TextEncoder()
-    }
+    public init() {}
 
     /// 将字符串编码为字节数组
     public func encode(str: String): Array<Byte> {
-        return encoder.encode(str)
+        return str.toArray()
     }
 
     /// 将字符串编码到指定的目标缓冲区
     /// 返回实际写入的字节数和读取的字符数
     public func encodeInto(str: String, dest: Array<Byte>): EncodeResult {
-        return encoder.encodeInto(str, dest)
+        let bytes = str.toArray()
+        var i = 0
+        while (i < bytes.size && i < dest.size) {
+            dest[i] = bytes[i]
+            i++
+        }
+        return EncodeResult(read: Int64(str.size), written: Int64(i))
     }
 }
 

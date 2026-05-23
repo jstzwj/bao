@@ -240,22 +240,22 @@ public class FrameworkRouterEncodedPattern {
         while (let Some(item) <- it.next()) {
             match (item) {
                 case text(text_val) =>
-                    stack_space[pos] = '/'.toByte()
+                    stack_space[pos] = UInt8(47)
                     pos += 1
                     stack_space.write(pos, text_val)
                     pos += text_val.size
                 case param(_) =>
-                    stack_space[pos] = ':'.toByte()
+                    stack_space[pos] = UInt8(58)
                     pos += 1
                 case catch_all(_) =>
-                    stack_space[pos] = ':'.toByte()
+                    stack_space[pos] = UInt8(58)
                     pos += 1
-                    stack_space[pos] = '.'.toByte()
+                    stack_space[pos] = UInt8(46)
                     pos += 1
                 case catch_all_optional(_) =>
-                    stack_space[pos] = ':'.toByte()
+                    stack_space[pos] = UInt8(58)
                     pos += 1
-                    stack_space[pos] = '?'.toByte()
+                    stack_space[pos] = UInt8(46)
                     pos += 1
                 case group(_) => continue
             }

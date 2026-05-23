@@ -449,17 +449,17 @@ public class RequestEnsureRouteBundledCtx {
 /// HMR主题
 /// 对应 Bun: pub const HmrTopic = ...
 public enum HmrTopic {
-    | None
+    | none_
 }
 
 /// 消息ID
 public enum MessageId {
-    | None
+    | none_
 }
 
 /// 传入消息ID
 public enum IncomingMessageId {
-    | None
+    | none_
 }
 
 /// 控制台日志种类
@@ -999,8 +999,8 @@ public class DevServer {
             return notFound(resp)
         }
 
-        let routeBundleIndex: RouteBundleIndex = RouteBundleIndex(id.getOrThrow() & 0xFFFFFFFF)
-        let generation: UInt32 = UInt32(id.getOrThrow() >> 32)
+        let routeBundleIndex: RouteBundleIndex = RouteBundleIndex(id.get() & 0xFFFFFFFF)
+        let generation: UInt32 = UInt32(id.get() >> 32)
 
         if (routeBundleIndex.get() >= routeBundles.items.size) { return notFound(resp) }
 
@@ -1043,7 +1043,7 @@ public class DevServer {
         var params: FrameworkRouter.MatchedParams
         if (let routeIndex <- router.`match`(pathname, params)) {
             // 确保路由已bundle
-            let routeBundleIndex = findRouteBundleIndex(routeIndex.getOrThrow())
+            let routeBundleIndex = findRouteBundleIndex(routeIndex.get())
             if (let rbi <- routeBundleIndex) {
                 ensureRouteIsBundled(rbi.getOrThrow(), req, resp)
             } else {

@@ -728,7 +728,7 @@ public func frameworkInitTranspiler(
 
     return frameworkInitTranspilerWithOptions(
         fw, arena, log, mode, renderer, bundlerOptions,
-        sourceMap, None, None, None,
+        sourceMap, Option<Bool>.None, Option<Bool>.None, Option<Bool>.None,
     )
 }
 

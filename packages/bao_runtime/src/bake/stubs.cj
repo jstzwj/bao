@@ -5,7 +5,6 @@
 package bao_runtime.bake
 
 import bao_bun_alloc.Allocator
-import bao_bundler.Log
 import bao_bundler.Transpiler
 import bao_bundler.Source
 import bao_bundler.SourceMapOption
@@ -36,6 +35,8 @@ import bao_options.DotEnvBehavior
 import bao_options.SourceMapMode
 import bao_path.*
 import bao_watcher.Watcher
+import bao_runtime.bake.dev_server.SerializedFailure
+import bao_runtime.bake.dev_server.HmrSocket
 
 // ============================================================================
 // Types that are NOT defined anywhere else in bao_runtime.bake
@@ -492,6 +493,13 @@ public class PathRef {
 public class StringsRef {
     public init() {}
     public static func eqlComptime(a: String, b: String): Bool { a == b }
+    public static func eql(a: String, b: String): Bool { a == b }
+    public static func hasSuffix(s: String, suffix: String): Bool { s.endsWith(suffix) }
+    public static func hasPrefix(s: String, prefix: String): Bool { s.startsWith(prefix) }
+    public static func hasSuffixComptime(s: String, suffix: String): Bool { s.endsWith(suffix) }
+    public static func withoutTrailingSlashWindowsPath(s: String): String {
+        if (s.endsWith("/") || s.endsWith("\\")) { s[0..s.size - 1] } else { s }
+    }
 }
 
 public class JscRef {
