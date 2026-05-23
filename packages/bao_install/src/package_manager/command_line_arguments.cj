@@ -351,8 +351,13 @@ public class NegatableSet {
         }
     }
 
-    /// 合并结果
-    public func combine(): NpmArchitecture {
+    /// 合并结果 (os)
+    public func combineOs(): NpmOperatingSystem {
+        return NpmOperatingSystem()
+    }
+
+    /// 合并结果 (cpu)
+    public func combineCpu(): NpmArchitecture {
         return NpmArchitecture()
     }
 }
@@ -1882,7 +1887,7 @@ public class CommandLineArguments {
                     Global.crash()
                 }
             }
-            cli.cpu = cpuNegatable.combine()
+            cli.cpu = cpuNegatable.combineCpu()
         }
 
         // 翻译自: Zig line 997-1018
@@ -1906,7 +1911,7 @@ public class CommandLineArguments {
                     Global.crash()
                 }
             }
-            cli.os = osNegatable.combine()
+            cli.os = osNegatable.combineOs()
         }
 
         // 翻译自: Zig line 1020-1027

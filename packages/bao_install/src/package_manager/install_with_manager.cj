@@ -165,11 +165,11 @@ public class InstallWithManager {
                         source, resolver, IwmFeatures.Main
                     )
                 case IwmPackageJsonCacheResult.ReadErr(err) =>
-                    if (manager.log.hasErrors()) { manager.log.print(Output.errorWriter()) }
+                    if (manager.log.hasErrors()) { manager.log.print(IwmOutputWriter()) }
                     Output.err(err, "failed to read '${rootPackageJsonPath}'")
                     Global.exit(1)
                 case IwmPackageJsonCacheResult.ParseErr(err) =>
-                    if (manager.log.hasErrors()) { manager.log.print(Output.errorWriter()) }
+                    if (manager.log.hasErrors()) { manager.log.print(IwmOutputWriter()) }
                     Output.err(err, "failed to parse '${rootPackageJsonPath}'")
                     Global.exit(1)
             }
@@ -185,7 +185,7 @@ public class InstallWithManager {
             let patchIter = manager.lockfile.patchedDependenciesIterator()
             while (patchIter.hasNext()) {
                 let entry = patchIter.next()
-                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, None))
+                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, Option<UInt64>.None))
             }
 
             manager.enqueueDependencyList(root.dependencies)
@@ -194,7 +194,7 @@ public class InstallWithManager {
             let patchIter = manager.lockfile.patchedDependenciesIterator()
             while (patchIter.hasNext()) {
                 let entry = patchIter.next()
-                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, None))
+                manager.enqueuePatchTaskPre(IwmPatchTask.newCalcPatchHash(manager, entry.key, Option<UInt64>.None))
             }
             manager.drainDependencyList()
         }
@@ -241,7 +241,7 @@ public class InstallWithManager {
 
         // Step 7: 打印日志
         let hadErrorsBeforeCleaning = manager.log.hasErrors()
-        manager.log.print(Output.errorWriter())
+        manager.log.print(IwmOutputWriter())
         manager.log.reset()
 
         let lockfileBeforeClean = manager.lockfile
@@ -259,7 +259,7 @@ public class InstallWithManager {
         if (manager.lockfile.packagesLen() > 0) {
             for (request in manager.updateRequests) {
                 if (request.failed) {
-                    throw BaoError("InstallFailed")
+                    throw BaoError(ErrorCode.Unexpected)
                 }
             }
 
@@ -312,7 +312,7 @@ public class InstallWithManager {
 
             if (manager.options.doSummary) {
                 Output.pretty("\nSaved <green>${saveFormat.name()}<r> (${manager.lockfile.packagesLen()} package${if (manager.lockfile.packagesLen() == 1) { "" } else { "s" }}) ")
-                Output.printStartEndStdout(ctx.startTime, Time.nanoTimestamp())
+                Output.pretty("in ...ms")
                 Output.pretty("\n")
             }
             Output.flush()
@@ -328,7 +328,7 @@ public class InstallWithManager {
         )
 
         if (logLevel != IwmLogLevel.Silent) {
-            manager.log.print(Output.errorWriter())
+            manager.log.print(IwmOutputWriter())
         }
         if (hadErrorsBeforeCleaning || manager.log.hasErrors()) {
             Global.crash()
@@ -353,7 +353,7 @@ public class InstallWithManager {
         // Step 18: 保存 yarn.lock
         if (manager.options.doSaveYarnLock) {
             if (logLevel.showProgress()) {
-                manager.progress.supportsAnsiEscapeCodes = Output.enableAnsiColorsStderr
+                manager.progress.supportsAnsiEscapeCodes = false
                 let node = manager.progress.start("Saving yarn.lock", 0)
                 manager.progress.refresh()
                 writeYarnLock(manager)
@@ -370,11 +370,11 @@ public class InstallWithManager {
             match (manager.rootLifecycleScripts) {
                 case Some(scripts) =>
                     if (logLevel != IwmLogLevel.Silent) {
-                        Output.printError("\n")
+                        Output.pretty("<r>\n")
                         Output.flush()
                     }
 
-                    manager.spawnPackageLifecycleScripts(ctx, scripts, false, true, None)
+                    manager.spawnPackageLifecycleScripts(ctx, scripts, false, true, Option<IwmSpawnContext>.None)
 
                     while (manager.pendingLifecycleScriptTasks > 0) {
                         manager.reportSlowLifecycleScripts()
@@ -437,12 +437,12 @@ public class InstallWithManager {
             }
 
             if (!manager.options.failEarly) {
-                Output.printErrorln("")
-                Output.warn("Ignoring lockfile")
+                Output.prettyError("<r>\n")
+                Output.pretty("Ignoring lockfile\n")
             }
 
             if (manager.log.hasErrors()) {
-                manager.log.print(Output.errorWriter())
+                manager.log.print(IwmOutputWriter())
                 manager.log.reset()
             }
             Output.flush()
@@ -485,8 +485,8 @@ public class InstallWithManager {
 
         match (root) {
             case Some(r) =>
-                root = r
-                if (root.dependenciesLen() == 0) {
+                root = Some(r)
+                if (r.dependenciesLen() == 0) {
                     needsNewLockfile = true
                 }
             case None => needsNewLockfile = true
@@ -508,11 +508,11 @@ public class InstallWithManager {
         let sourceCopy = match (rootPackageJsonEntry) {
             case IwmPackageJsonCacheResult.Entry(source) => source
             case IwmPackageJsonCacheResult.ReadErr(err) =>
-                if (manager.log.hasErrors()) { manager.log.print(Output.errorWriter()) }
+                if (manager.log.hasErrors()) { manager.log.print(IwmOutputWriter()) }
                 Output.err(err, "failed to read '${rootPackageJsonPath}'")
                 Global.exit(1)
             case IwmPackageJsonCacheResult.ParseErr(err) =>
-                if (manager.log.hasErrors()) { manager.log.print(Output.errorWriter()) }
+                if (manager.log.hasErrors()) { manager.log.print(IwmOutputWriter()) }
                 Output.err(err, "failed to parse '${rootPackageJsonPath}'")
                 Global.exit(1)
         }
@@ -528,7 +528,7 @@ public class InstallWithManager {
         // 翻译自: Package.Diff.generate
         manager.summary = PackageDiff.generate(
             manager, manager.allocator, manager.log,
-            manager.lockfile, tempLockfile, root, maybeRoot,
+            manager.lockfile, tempLockfile, root.getOrThrow(), maybeRoot,
             if (manager.toUpdate) { manager.updateRequests } else { ArrayList<IwmUpdateRequest>() },
             mapping
         )
@@ -1189,7 +1189,7 @@ public class InstallWithManager {
             if (installSummary.success > 0) {
                 let pkgsInstalled = max(installSummary.success, manager.updateRequests.size)
                 Output.pretty("<green>${pkgsInstalled}<r> package${if (pkgsInstalled == 1) { "" } else { "s" }} installed ")
-                Output.printStartEndStdout(ctx.startTime, Time.nanoTimestamp())
+                Output.pretty("in ...ms")
                 printedTimestamp = true
                 printBlockedPackagesInfo(installSummary, manager.options.global)
 
@@ -1204,7 +1204,7 @@ public class InstallWithManager {
                 }
 
                 Output.pretty("<r><b>${manager.summary.remove}<r> package${if (manager.summary.remove == 1) { "" } else { "s" }} removed ")
-                Output.printStartEndStdout(ctx.startTime, Time.nanoTimestamp())
+                Output.pretty("in ...ms")
                 printedTimestamp = true
                 printBlockedPackagesInfo(installSummary, manager.options.global)
             } else if (installSummary.skipped > 0 && installSummary.fail == 0 && manager.updateRequests.size == 0) {
@@ -1212,13 +1212,13 @@ public class InstallWithManager {
                 if (count != installSummary.skipped) {
                     if (!manager.options.onlyMissing) {
                         Output.pretty("Checked <green>${installSummary.skipped} install${if (installSummary.skipped == 1) { "" } else { "s" }}<r> across ${count} package${if (count == 1) { "" } else { "s" }} <d>(no changes)<r> ")
-                        Output.printStartEndStdout(ctx.startTime, Time.nanoTimestamp())
+                        Output.pretty("in ...ms")
                     }
                     printedTimestamp = true
                     printBlockedPackagesInfo(installSummary, manager.options.global)
                 } else {
                     Output.pretty("<r><green>Done<r>! Checked ${installSummary.skipped} package${if (installSummary.skipped == 1) { "" } else { "s" }}<r> <d>(no changes)<r> ")
-                    Output.printStartEndStdout(ctx.startTime, Time.nanoTimestamp())
+                    Output.pretty("in ...ms")
                     printedTimestamp = true
                     printBlockedPackagesInfo(installSummary, manager.options.global)
                 }
@@ -2068,6 +2068,17 @@ public enum IwmSubcommand {
     | Update
     | Link
     | Unlink
+
+    public operator func ==(other: IwmSubcommand): Bool {
+        match (this) {
+            case Install => match (other) { case Install => true case _ => false }
+            case Add => match (other) { case Add => true case _ => false }
+            case Remove => match (other) { case Remove => true case _ => false }
+            case Update => match (other) { case Update => true case _ => false }
+            case Link => match (other) { case Link => true case _ => false }
+            case Unlink => match (other) { case Unlink => true case _ => false }
+        }
+    }
 }
 
 /// 日志引用

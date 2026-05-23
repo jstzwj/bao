@@ -2506,10 +2506,10 @@ public class EnvironmentRef {
     public func get(key: String): ?String { return None }
 }
 
-/// 分配器
-public class Allocator {
+/// 分配器 (duplicate, see bao_core for canonical definition)
+/* public class Allocator {
     public init() {}
-}
+} */
 
 /// 命令上下文
 public class CommandContext {

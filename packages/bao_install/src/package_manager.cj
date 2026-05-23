@@ -486,7 +486,7 @@ public class PackageManager {
     public static var verboseInstall: Bool = false
 
     public init() {
-        allocator = Allocator()
+        allocator = CAllocator()
         log = Log()
         rootDir = DirEntry()
         env = DotEnvLoader()
@@ -1108,15 +1108,15 @@ public class PackageManager {
 // 辅助类型
 // ============================================================================
 
-/// 分配器 (抽象)
-public class Allocator {
+/// 分配器 (duplicate, see bao_core for canonical definition)
+/* public class Allocator {
     public func alloc(size: Int64): Array<UInt8> {
         return Array<UInt8>(size, repeat: UInt8(0))
     }
-}
+} */
 
-/// 日志
-public class Log {
+/// 日志 (duplicate, see bao_core for canonical definition)
+/* public class Log {
     private var errors: ArrayList<String>
     private var warnings: ArrayList<String>
 
@@ -1145,7 +1145,7 @@ public class Log {
             Output.warn(w)
         }
     }
-}
+} */
 
 /// 目录条目
 public class DirEntry {

@@ -329,7 +329,7 @@ public func initPackageManagerFromResolver(
     //   bun_http.http_thread.`init`({})
     //   let pm = PackageManager.initWithRuntime(log, bun_install, allocator, {}, env)
     //   return NonNull::new(pm as *mut dyn AutoInstaller)
-    return PackageManager.initWithRuntime(log, Allocator(), CommandLineArguments(), env)
+    return PackageManager.initWithRuntime(log, CAllocator(), CommandLineArguments(), env)
 }
 
 /// Bun 安装配置
