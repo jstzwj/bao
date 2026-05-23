@@ -41,7 +41,7 @@ public class UdpSocketConfig {
 
         let config = UdpSocketConfig()
 
-        match (options.objectData) {
+        match (options.getObject()) {
             case Some(obj) =>
                 let hostname = obj.get("hostname")
                 if (hostname.valueType == JsValueType.String) {
@@ -61,15 +61,15 @@ public class UdpSocketConfig {
                 // 连接配置
                 let connectObj = obj.get("connect")
                 if (connectObj.valueType == JsValueType.Object) {
-                    match (connectObj.objectData) {
+                    match (connectObj.getObject()) {
                         case Some(conn) =>
                             let addr = conn.get("address")
                             let port = conn.get("port")
                             if (addr.valueType == JsValueType.String &&
                                 port.valueType == JsValueType.Number) {
                                 config.connect = Some(UdpConnectConfig(
-                                    address: addr.toString(),
-                                    port: UInt16(port.toNumber())
+                                    addr.toString(),
+                                    UInt16(port.toNumber())
                                 ))
                             }
                         case None => ()
@@ -197,7 +197,7 @@ public class UdpSocket {
         // 创建 UDP socket, 绑定到 config.hostname:config.port
         fd = createUdpSocket()
         if (fd < 0) {
-            throw BaoError("Failed to create UDP socket")
+            throw Exception("Failed to create UDP socket")
         }
 
         // 绑定地址
@@ -337,17 +337,20 @@ public class UdpSocket {
         if (bytes.size < 16) {
             return "::"
         }
-        // 简化实现
-        var groups = ArrayList<String>()
+        // 简化实现 — 返回占位
+        var result = ""
         var i: Int64 = 0
         while (i < 16) {
-            let hi = bytes[i].toInt()
-            let lo = bytes[i + 1].toInt()
+            if (i > 0) {
+                result = result + ":"
+            }
+            let hi = Int64(bytes[i])
+            let lo = Int64(bytes[i + 1])
             let val = (hi << 8) | lo
-            groups.append(val.toHexString())
+            result = result + val.toString()
             i += 2
         }
-        return groups.join(":")
+        return result
     }
 
     // ========================================================================

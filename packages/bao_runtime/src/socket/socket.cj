@@ -118,6 +118,19 @@ public enum NativeCallback {
 /// HTTP/2 帧解析器占位
 public class H2FrameParser {
     public init() {}
+
+    /// 处理可写事件
+    public func onWritable(): Bool {
+        return true
+    }
+
+    /// 处理原生读取
+    public func onNativeRead(data: Array<UInt8>): Bool {
+        return true
+    }
+
+    /// 处理原生关闭
+    public func onNativeClose(): Unit {}
 }
 
 // ============================================================================

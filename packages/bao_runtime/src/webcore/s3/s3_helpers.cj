@@ -6,6 +6,7 @@ package bao_runtime.webcore.s3
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 
 // ============================================================================
 // S3Error - S3 错误
@@ -31,12 +32,26 @@ public class S3Error {
         requestId = ""
     }
 
+    public init() {
+        code = ""
+        message = ""
+        resource = ""
+        requestId = ""
+    }
+
+    public init(code: String, message: String, resource: String, requestId: String) {
+        this.code = code
+        this.message = message
+        this.resource = resource
+        this.requestId = requestId
+    }
+
     /// 转为 JsValue
     public func toJsValue(): JsValue {
         let obj = JsObject()
-        obj.set("code", JsValue(BaoString(code)))
-        obj.set("message", JsValue(BaoString(message)))
-        obj.set("name", JsValue(BaoString("S3Error")))
+        obj.set("code", JsValue(code))
+        obj.set("message", JsValue(message))
+        obj.set("name", JsValue("S3Error"))
         return JsValue(obj)
     }
 
@@ -53,28 +68,9 @@ public class S3Error {
 // 对应 Bun: s3/list_objects.zig S3ListObjectsOptions
 // ============================================================================
 
-/// S3 列出对象选项
-/// 对应 Bun: S3ListObjectsOptions
-public class S3ListObjectsOptions {
-    /// 前缀
-    public var prefix: String
-    /// 分隔符
-    public var delimiter: String
-    /// 最大数量
-    public var maxKeys: Int64
-    /// 续 token
-    public var continuationToken: String
-    /// 起始 key
-    public var startAfter: String
-
-    public init() {
-        prefix = ""
-        delimiter = "/"
-        maxKeys = 1000
-        continuationToken = ""
-        startAfter = ""
-    }
-}
+/* -- DUPLICATE: S3ListObjectsOptions defined in list_objects.cj (more complete)
+public class S3ListObjectsOptions { ... }
+-- END DUPLICATE */
 
 // ============================================================================
 // S3ListObjectsResult - 列出对象结果
@@ -129,58 +125,9 @@ public class S3ObjectInfo {
 // 对应 Bun: s3/download_stream.zig
 // ============================================================================
 
-/// S3 下载流任务
-/// 对应 Bun: s3/download_stream.zig S3HttpDownloadStreamingTask
-public class S3HttpDownloadStreamingTask {
-    /// S3 路径
-    public var path: String
-    /// 凭证
-    public var credentials: S3Credentials
-    /// 目标流
-    public var targetStream: ?ByteStream
-    /// 是否完成
-    public var done: Bool
-    /// 已下载字节
-    public var downloadedBytes: Int64
-    /// 总大小
-    public var totalSize: Int64
-
-    public init(credentials: S3Credentials, path: String) {
-        this.path = path
-        this.credentials = credentials
-        targetStream = None
-        done = false
-        downloadedBytes = 0
-        totalSize = 0
-    }
-
-    /// 启动下载
-    /// 对应 Bun: S3HttpDownloadStreamingTask 执行逻辑
-    public func execute(): Unit {
-        // 简化: 实际实现会使用流式 HTTP 下载
-        let client = S3Client(credentials)
-        match (client.download(path)) {
-            case Some(bytes) =>
-                match (targetStream) {
-                    case Some(stream) =>
-                        let data = ArrayList<UInt8>()
-                        for (b in bytes) {
-                            data.append(b)
-                        }
-                        stream.onData(data, true)
-                        downloadedBytes = bytes.size
-                    case None => ()
-                }
-            case None => ()
-        }
-        done = true
-    }
-
-    /// 中止下载
-    public func abort(): Unit {
-        done = true
-    }
-}
+/* -- DUPLICATE: S3HttpDownloadStreamingTask defined in download_stream.cj (more complete)
+public class S3HttpDownloadStreamingTask { ... }
+-- END DUPLICATE */
 
 // ============================================================================
 // S3SimpleRequest - S3 简单请求

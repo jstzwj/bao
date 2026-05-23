@@ -99,7 +99,7 @@ public class SSLConfig {
 
         let config = SSLConfig()
 
-        match (value.objectData) {
+        match (value.getObject()) {
             case Some(obj) =>
                 // 读取服务器名称
                 let sni = obj.get("serverName")
@@ -260,16 +260,16 @@ public class SSLConfig {
     /// 判断两个配置是否相同
     /// 对应 Bun: pub fn isSame(`this`: *const SSLConfig, other: *const SSLConfig) bool
     public func isSame(other: SSLConfig): Bool {
-        if (this.serverName != other.serverName) { return false }
-        if (this.keyFileName != other.keyFileName) { return false }
-        if (this.certFileName != other.certFileName) { return false }
-        if (this.caFileName != other.caFileName) { return false }
-        if (this.dhParamsFileName != other.dhParamsFileName) { return false }
-        if (this.passphrase != other.passphrase) { return false }
+        if (!optStringEq(this.serverName, other.serverName)) { return false }
+        if (!optStringEq(this.keyFileName, other.keyFileName)) { return false }
+        if (!optStringEq(this.certFileName, other.certFileName)) { return false }
+        if (!optStringEq(this.caFileName, other.caFileName)) { return false }
+        if (!optStringEq(this.dhParamsFileName, other.dhParamsFileName)) { return false }
+        if (!optStringEq(this.passphrase, other.passphrase)) { return false }
         if (this.secureOptions != other.secureOptions) { return false }
         if (this.requestCert != other.requestCert) { return false }
         if (this.rejectUnauthorized != other.rejectUnauthorized) { return false }
-        if (this.sslCiphers != other.sslCiphers) { return false }
+        if (!optStringEq(this.sslCiphers, other.sslCiphers)) { return false }
         if (this.lowMemoryMode != other.lowMemoryMode) { return false }
         return true
     }
@@ -278,12 +278,30 @@ public class SSLConfig {
     /// 对应 Bun: pub fn contentHash(`this`: *SSLConfig) u64
     public func contentHash(): UInt64 {
         var h: UInt64 = 0
-        if (let sn <- this.serverName) { h = h * 31 + UInt64(sn.hash()) }
-        if (let kf <- this.keyFileName) { h = h * 31 + UInt64(kf.hash()) }
-        if (let cf <- this.certFileName) { h = h * 31 + UInt64(cf.hash()) }
-        if (let ca <- this.caFileName) { h = h * 31 + UInt64(ca.hash()) }
-        if (let dp <- this.dhParamsFileName) { h = h * 31 + UInt64(dp.hash()) }
-        if (let pp <- this.passphrase) { h = h * 31 + UInt64(pp.hash()) }
+        match (this.serverName) {
+            case Some(sn) => h = h * 31 + UInt64(sn.size)
+            case None => ()
+        }
+        match (this.keyFileName) {
+            case Some(kf) => h = h * 31 + UInt64(kf.size)
+            case None => ()
+        }
+        match (this.certFileName) {
+            case Some(cf) => h = h * 31 + UInt64(cf.size)
+            case None => ()
+        }
+        match (this.caFileName) {
+            case Some(ca) => h = h * 31 + UInt64(ca.size)
+            case None => ()
+        }
+        match (this.dhParamsFileName) {
+            case Some(dp) => h = h * 31 + UInt64(dp.size)
+            case None => ()
+        }
+        match (this.passphrase) {
+            case Some(pp) => h = h * 31 + UInt64(pp.size)
+            case None => ()
+        }
         h = h * 31 + UInt64(this.secureOptions)
         h = h * 31 + UInt64(this.requestCert)
         h = h * 31 + UInt64(this.rejectUnauthorized)
@@ -305,6 +323,26 @@ public class SSLConfig {
     public func asUSocketsForClientVerification(): BunSocketContextOptions {
         let config = this.forClientVerification()
         return config.asUSockets()
+    }
+}
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/// 比较 Option<String> 是否相等
+func optStringEq(a: ?String, b: ?String): Bool {
+    match (a) {
+        case Some(sa) =>
+            match (b) {
+                case Some(sb) => sa == sb
+                case None => false
+            }
+        case None =>
+            match (b) {
+                case Some(_) => false
+                case None => true
+            }
     }
 }
 
@@ -333,8 +371,8 @@ public class BunSocketContextOptions {
 
     /// 创建 SSL 上下文
     /// 对应 Zig: createSSLContext
-    public func createSSLContext(): ?SslContext {
+    public func createSSLContext(): ?SslCtx {
         // 通过 bao_sys 创建 SSL_CTX
-        return SslContext()
+        return SslCtx()
     }
 }

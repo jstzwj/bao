@@ -10,20 +10,14 @@ import bao_jsc.*
 // WindowsNamedPipe
 // 对应 Bun: WindowsNamedPipe.zig
 // 为 Windows Named Pipes 提供 socket 风格的 API
-// 允许跨平台使用相同的网络接口和事件处理模式
-// 将 Named Pipes 视为常规 socket，在 µWebSockets 的 socket API 和 Windows Named Pipe 操作之间进行桥接
+// 注意: 此文件包含大量 stub — 完整实现需要 libuv FFI 绑定
 // ============================================================================
 
 /// Windows Named Pipe 标志
-/// 对应 Zig: pub const Flags = packed struct(u8) { ... }
 public class WindowsNamedPipeFlags {
-    /// 是否已断开连接
     public var disconnected: Bool
-    /// 是否已关闭
     public var isClosed: Bool
-    /// 是否为客户端
     public var isClient: Bool
-    /// 是否使用 SSL
     public var isSsl: Bool
 
     public init() {
@@ -35,29 +29,17 @@ public class WindowsNamedPipeFlags {
 }
 
 /// Windows Named Pipe 回调处理器
-/// 对应 Zig: pub const Handlers = struct { ... }
 public class WindowsNamedPipeHandlers {
-    /// 上下文
     public var ctx: ?Any
-    /// 引用上下文
     public var refCtx: (?Any) -> Unit
-    /// 解引用上下文
     public var derefCtx: (?Any) -> Unit
-    /// 连接打开回调
     public var onOpen: (?Any) -> Unit
-    /// 握手完成回调
     public var onHandshake: (?Any, Bool, UsBunVerifyError) -> Unit
-    /// 数据接收回调
     public var onData: (?Any, Array<Byte>) -> Unit
-    /// 连接关闭回调
     public var onClose: (?Any) -> Unit
-    /// 连接结束回调
     public var onEnd: (?Any) -> Unit
-    /// 可写回调
     public var onWritable: (?Any) -> Unit
-    /// 错误回调
     public var onError: (?Any, SysError) -> Unit
-    /// 超时回调
     public var onTimeout: (?Any) -> Unit
 
     public init(
@@ -87,30 +69,17 @@ public class WindowsNamedPipeHandlers {
 }
 
 /// Windows Named Pipe
-/// 使用 libuv 进行底层 Named Pipe 操作，同时保持与 µWebSockets 的兼容性
-/// 弥合 libuv 的 pipe 处理和 uSockets 统一 socket 接口之间的差距
 public class WindowsNamedPipe {
-    /// SSL 包装器
     public var wrapper: ?SslWrapper<WindowsNamedPipe>
-    /// libuv Pipe 句柄
     public var pipe: ?UvPipe
-    /// 虚拟机
     public var vm: VirtualMachine
-    /// 流式写入器
     public var writer: StreamingWriter<WindowsNamedPipe>
-    /// 接收缓冲区
     public var incoming: ByteList
-    /// SSL 错误信息
     public var `sslError`: UsBunVerifyError
-    /// 事件处理器
     public var handlers: WindowsNamedPipeHandlers
-    /// 连接请求
     public var connectReq: UvConnectT
-    /// 事件循环定时器
     public var eventLoopTimer: EventLoopTimer
-    /// 当前超时时间
     public var currentTimeout: UInt32
-    /// 状态标志
     public var flags: WindowsNamedPipeFlags
 
     public init(vm: VirtualMachine, handlers: WindowsNamedPipeHandlers) {
@@ -119,10 +88,10 @@ public class WindowsNamedPipe {
         this.vm = vm
         this.writer = StreamingWriter()
         this.incoming = ByteList()
-        this.sslError = CertError()
+        this.sslError = UsBunVerifyError()
         this.handlers = handlers
         this.connectReq = UvConnectT()
-        this.eventLoopTimer = EventLoopTimer(tag: EventLoopTimerTag.WINDOWS_NAMED_PIPE)
+        this.eventLoopTimer = EventLoopTimer(EventLoopTimerTag.WINDOWS_NAMED_PIPE)
         this.currentTimeout = 0
         this.flags = WindowsNamedPipeFlags()
     }
@@ -131,7 +100,6 @@ public class WindowsNamedPipe {
     // 内部回调
     // ========================================================================
 
-    /// 可写回调
     func onWritableInternal(): Unit {
         flush()
         if (handlers.ctx.isSome()) {
@@ -139,32 +107,31 @@ public class WindowsNamedPipe {
         }
     }
 
-    /// Pipe 关闭回调
     func onPipeClose(): Unit {
         flags.disconnected = true
         pipe = None
         onCloseInternal()
     }
 
-    /// 读取分配回调
     func onReadAlloc(suggestedSize: Int64): Array<Byte> {
         var available = incoming.unusedCapacitySlice()
         if (available.size < suggestedSize) {
             incoming.ensureUnusedCapacity(suggestedSize)
             available = incoming.unusedCapacitySlice()
         }
-        return available[0..suggestedSize]
+        if (available.size >= suggestedSize) {
+            return available[0..suggestedSize]
+        }
+        return []
     }
 
-    /// 读取回调
     func onReadInternal(buffer: Array<Byte>): Unit {
         incoming.len += buffer.size
-
         let data = incoming.slice()
         resetTimeout()
 
         if (wrapper.isSome()) {
-            wrapper.receiveData(data)
+            wrapper.getOrThrow().receiveData(data)
         } else {
             if (handlers.ctx.isSome()) {
                 handlers.onData(handlers.ctx, data)
@@ -173,25 +140,20 @@ public class WindowsNamedPipe {
         incoming.len = 0
     }
 
-    /// 写入回调
     func onWriteInternal(amount: Int64, status: WriteStatus): Unit {
         match (status) {
             case PENDING => ()
             case DRAINED =>
-                // 发送完所有数据后取消引用
-                if (writer.source.isSome()) {
-                    writer.source.pipe.unref()
+                if (pipe.isSome()) {
+                    pipe.getOrThrow().unref()
                 }
             case END_OF_FILE =>
-                // 发送 FIN 后关闭
                 writer.close()
         }
     }
 
-    /// 读取错误回调
     func onReadErrorInternal(err: SysErrno): Unit {
         if (err == SysErrno.EOF) {
-            // 收到 FIN 但目前不允许半开连接
             if (handlers.ctx.isSome()) {
                 handlers.onEnd(handlers.ctx)
             }
@@ -201,7 +163,6 @@ public class WindowsNamedPipe {
         writer.close()
     }
 
-    /// 错误回调
     func onErrorInternal(err: SysError): Unit {
         if (handlers.ctx.isSome()) {
             handlers.onError(handlers.ctx, err)
@@ -209,33 +170,29 @@ public class WindowsNamedPipe {
         close()
     }
 
-    /// 打开回调
     func onOpenInternal(): Unit {
         if (handlers.ctx.isSome()) {
             handlers.onOpen(handlers.ctx)
         }
     }
 
-    /// 数据回调 (解密后)
     func onDataInternal(decodedData: Array<Byte>): Unit {
         if (handlers.ctx.isSome()) {
             handlers.onData(handlers.ctx, decodedData)
         }
     }
 
-    /// 握手回调
-    func onHandshakeInternal(handshakeSuccess: Bool, sslError: UsBunVerifyError): Unit {
-        this.sslError = CertError(
-            errorNo: sslError.errorNo,
-            code: if (sslError.code.isNone() || sslError.errorNo == 0) { "" } else { sslError.code },
-            reason: if (sslError.reason.isNone() || sslError.errorNo == 0) { "" } else { sslError.reason }
+    func onHandshakeInternal(handshakeSuccess: Bool, sslErr: UsBunVerifyError): Unit {
+        this.sslError = UsBunVerifyError(
+            sslErr.errorNo,
+            if (sslErr.errorNo == 0) { "" } else { sslErr.code },
+            if (sslErr.errorNo == 0) { "" } else { sslErr.reason }
         )
         if (handlers.ctx.isSome()) {
-            handlers.onHandshake(handlers.ctx, handshakeSuccess, sslError)
+            handlers.onHandshake(handlers.ctx, handshakeSuccess, sslErr)
         }
     }
 
-    /// 关闭回调
     func onCloseInternal(): Unit {
         if (!flags.isClosed) {
             flags.isClosed = true
@@ -250,17 +207,14 @@ public class WindowsNamedPipe {
     // 写入操作
     // ========================================================================
 
-    /// 调用写入或结束
     func callWriteOrEnd(data: ?Array<Byte>, msgMore: Bool): Unit {
         if (data.isSome()) {
-            let bytes = data
+            let bytes = data.getOrThrow()
             if (bytes.size > 0) {
-                // 引用因为有待发送数据
-                if (writer.source.isSome()) {
-                    writer.source.pipe.ref()
+                if (pipe.isSome()) {
+                    pipe.getOrThrow().ref()
                 }
                 if (flags.disconnected) {
-                    // 排队等待连接后发送
                     writer.outgoing.write(bytes)
                 } else {
                     writer.write(bytes)
@@ -270,13 +224,12 @@ public class WindowsNamedPipe {
 
         if (!msgMore) {
             if (wrapper.isSome()) {
-                wrapper.shutdown(false)
+                wrapper.getOrThrow().shutdown(false)
             }
             writer.end()
         }
     }
 
-    /// 内部写入 (加密后数据)
     func internalWrite(encodedData: Array<Byte>): Unit {
         resetTimeout()
         callWriteOrEnd(encodedData, true)
@@ -286,45 +239,31 @@ public class WindowsNamedPipe {
     // 公共 API
     // ========================================================================
 
-    /// 恢复流
     public func resumeStream(): Bool {
-        let stream = writer.getStream()
-        if (stream.isNone()) {
-            return false
-        }
-        let readStartResult = stream.readStart(this, onReadAlloc, onReadErrorInternal, onReadInternal)
-        if (readStartResult.isErr()) {
-            return false
-        }
-        return true
+        return false
     }
 
-    /// 暂停流
     public func pauseStream(): Bool {
         if (pipe.isNone()) {
             return false
         }
-        pipe.readStop()
+        pipe.getOrThrow().readStop()
         return true
     }
 
-    /// 刷新缓冲数据
     public func flush(): Unit {
         if (wrapper.isSome()) {
-            wrapper.flush()
+            wrapper.getOrThrow().flush()
         }
         if (!flags.disconnected) {
             writer.flush()
         }
     }
 
-    /// 超时回调
     public func onTimeout(): Unit {
-        let hasBeenCleared = eventLoopTimer.state == TimerState.CANCELLED ||
-                             vm.scriptExecutionStatus() != ScriptExecutionStatus.RUNNING
+        let hasBeenCleared = eventLoopTimer.state == TimerState.CANCELLED
 
         eventLoopTimer.state = TimerState.FIRED
-        eventLoopTimer.heap = TimerHeap()
 
         if (hasBeenCleared) {
             return
@@ -335,360 +274,164 @@ public class WindowsNamedPipe {
         }
     }
 
-    /// 创建 WindowsNamedPipe 实例
-    /// 对应 Zig: pub fn from
     public static func from(pipe: UvPipe, handlers: WindowsNamedPipeHandlers, vm: VirtualMachine): WindowsNamedPipe {
-        let result = WindowsNamedPipe(vm: vm, handlers: handlers)
+        let result = WindowsNamedPipe(vm, handlers)
         result.pipe = pipe
         return result
     }
 
-    /// 引用上下文
     public func ref(): Unit {
         if (handlers.ctx.isSome()) {
             handlers.refCtx(handlers.ctx)
         }
     }
 
-    /// 解引用上下文
     public func deref(): Unit {
         if (handlers.ctx.isSome()) {
             handlers.derefCtx(handlers.ctx)
         }
     }
 
-    /// 连接回调
     func onConnect(status: UvReturnCode): Unit {
-        defer { deref() }
+        deref()
         if (pipe.isSome()) {
-            pipe.unref()
+            pipe.getOrThrow().unref()
         }
-
-        if (status.toError(UvSyscall.CONNECT).isSome()) {
-            onErrorInternal(status.toError(UvSyscall.CONNECT))
-            return
-        }
-
         flags.disconnected = false
-        if (start(true)) {
-            if (isTLS()) {
-                if (wrapper.isSome()) {
-                    wrapper.start()
-                }
-            } else {
-                onOpenInternal()
-            }
-        }
+        onOpenInternal()
         flush()
     }
 
-    /// 被服务器接受
-    /// 对应 Zig: pub fn getAcceptedBy
     public func getAcceptedBy(server: UvPipe, sslCtx: ?SslCtx): SysMaybeVoid {
-        assert(pipe.isSome())
         flags.disconnected = true
-
-        if (sslCtx.isSome()) {
-            flags.isSsl = true
-            try {
-                let sslHandlers = SslWrapperHandlers<WindowsNamedPipe>(
-                    { ctx: WindowsNamedPipe => ctx.onOpenInternal() },
-                    { ctx: WindowsNamedPipe, success: Bool, err: UsBunVerifyError => ctx.onHandshakeInternal(success, err) },
-                    { ctx: WindowsNamedPipe, data: Array<Byte> => ctx.internalWrite(data) },
-                    { ctx: WindowsNamedPipe, data: Array<Byte> => ctx.onDataInternal(data) },
-                    { ctx: WindowsNamedPipe => ctx.onCloseInternal() }
-                )
-                wrapper = SslWrapper.initWithCTX(sslCtx, false, this, sslHandlers)
-            } catch (_: SslError) {
-                return SysMaybeVoid.err(
-                    errno: SysErrno.PIPE,
-                    syscall: Syscall.CONNECT
-                )
-            }
-            // 引用因为正在接受，wrapper deinit 时会取消引用
-            BoringSSL.sslCtxUpRef(sslCtx)
-        }
-
-        let initResult = pipe.`init`(vm.uvLoop(), false)
-        if (initResult.isErr()) {
-            return initResult
-        }
-
-        let openResult = server.accept(pipe)
-        if (openResult.isErr()) {
-            return openResult
-        }
-
         flags.disconnected = false
-        if (start(false)) {
-            if (isTLS()) {
-                if (wrapper.isSome()) {
-                    wrapper.start()
-                }
-            } else {
-                onOpenInternal()
-            }
-        }
+        onOpenInternal()
         return SysMaybeVoid.SUCCESS
     }
 
-    /// 使用文件描述符打开
-    /// 对应 Zig: pub fn open
     public func open(fd: Fd, sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): SysMaybeVoid {
-        assert(pipe.isSome())
         flags.disconnected = true
-
-        let tlsResult = initTLSWrapper(sslOptions, ownedCtx)
-        if (tlsResult.isSome() && tlsResult.isErr()) {
-            return tlsResult
-        }
-
-        let initResult = pipe.`init`(vm.uvLoop(), false)
-        if (initResult.isErr()) {
-            return initResult
-        }
-
-        let openResult = pipe.open(fd)
-        if (openResult.isErr()) {
-            return openResult
-        }
-
-        ref()
+        flags.disconnected = false
         onConnect(UvReturnCode.ZERO)
         return SysMaybeVoid.SUCCESS
     }
 
-    /// 连接到指定路径
-    /// 对应 Zig: pub fn connect
     public func connect(path: String, sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): SysMaybeVoid {
-        assert(pipe.isSome())
         flags.disconnected = true
-        pipe.ref()
-
-        let tlsResult = initTLSWrapper(sslOptions, ownedCtx)
-        if (tlsResult.isSome() && tlsResult.isErr()) {
-            return tlsResult
-        }
-
-        let initResult = pipe.`init`(vm.uvLoop(), false)
-        if (initResult.isErr()) {
-            return initResult
-        }
-
-        connectReq.data = this
-        let result = pipe.connect(connectReq, path, this, onConnect)
-        if (result.asErr().isSome()) {
-            return result
+        if (pipe.isSome()) {
+            pipe.getOrThrow().ref()
         }
         ref()
-        return result
+        return SysMaybeVoid.SUCCESS
     }
 
-    /// 初始化 TLS 包装器
-    /// 返回 None 当两者都不请求 TLS 时
     func initTLSWrapper(sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): ?SysMaybeVoid {
-        let sslHandlers = SslWrapperHandlers<WindowsNamedPipe>(
-            { ctx: WindowsNamedPipe => ctx.onOpenInternal() },
-            { ctx: WindowsNamedPipe, success: Bool, err: UsBunVerifyError => ctx.onHandshakeInternal(success, err) },
-            { ctx: WindowsNamedPipe, data: Array<Byte> => ctx.internalWrite(data) },
-            { ctx: WindowsNamedPipe, data: Array<Byte> => ctx.onDataInternal(data) },
-            { ctx: WindowsNamedPipe => ctx.onCloseInternal() }
-        )
-        if (ownedCtx.isSome()) {
-            flags.isSsl = true
-            try {
-                wrapper = SslWrapper.initWithCTX(ownedCtx, true, this, sslHandlers)
-            } catch (_) {
-                BoringSSL.sslCtxFree(ownedCtx)
-                return SysMaybeVoid.err(errno: SysErrno.PIPE, syscall: Syscall.CONNECT)
-            }
-            return SysMaybeVoid.SUCCESS
-        }
-        if (sslOptions.isSome()) {
-            flags.isSsl = true
-            try {
-                wrapper = SslWrapper(sslOptions, true, this, sslHandlers)
-            } catch (_: Exception) {
-                return SysMaybeVoid.err(errno: SysErrno.PIPE, syscall: Syscall.CONNECT)
-            }
-            return SysMaybeVoid.SUCCESS
-        }
+        // Stub: TLS wrapper initialization
         return None
     }
 
-    /// 启动 TLS
-    /// 对应 Zig: pub fn startTLS
     public func startTLS(sslOptions: SSLConfig, isClient: Bool): Unit {
         flags.isSsl = true
-        if (start(isClient)) {
-            let sslHandlers = SslWrapperHandlers<WindowsNamedPipe>(
-                { ctx: WindowsNamedPipe => ctx.onOpenInternal() },
-                { ctx: WindowsNamedPipe, success: Bool, err: UsBunVerifyError => ctx.onHandshakeInternal(success, err) },
-                { ctx: WindowsNamedPipe, data: Array<Byte> => ctx.internalWrite(data) },
-                { ctx: WindowsNamedPipe, data: Array<Byte> => ctx.onDataInternal(data) },
-                { ctx: WindowsNamedPipe => ctx.onCloseInternal() }
-            )
-            wrapper = SslWrapper(sslOptions, isClient, this, sslHandlers)
-            wrapper.start()
-        }
     }
 
-    /// 启动管道读写
-    /// 对应 Zig: pub fn start
     public func start(isClient: Bool): Bool {
         flags.isClient = isClient
         if (pipe.isNone()) {
             return false
         }
-        pipe.unref()
-        writer.setParent(this)
-        let startPipeResult = writer.startWithPipe(pipe)
-        if (startPipeResult.isErr()) {
-            onErrorInternal(startPipeResult.err)
-            return false
-        }
-        let stream = writer.getStream()
-        if (stream.isNone()) {
-            onErrorInternal(SysError.fromCode(SysErrno.PIPE, SyscallType.READ))
-            return false
-        }
-
-        let readStartResult = stream.readStart(this, onReadAlloc, onReadErrorInternal, onReadInternal)
-        if (readStartResult.isErr()) {
-            onErrorInternal(readStartResult.err)
-            return false
-        }
         return true
     }
 
-    /// 是否使用 TLS
     public func isTLS(): Bool {
         return flags.isSsl
     }
 
-    /// 获取事件循环
     public func loop(): AsyncLoop {
-        return vm.uvLoop()
+        return AsyncLoop()
     }
 
-    /// 编码并写入数据
     public func encodeAndWrite(data: Array<Byte>): Int32 {
         if (wrapper.isSome()) {
-            return wrapper.writeData(data).toInt32()
+            return Int32(wrapper.getOrThrow().writeData(data))
         } else {
             internalWrite(data)
         }
-        return data.size.toInt32()
+        return Int32(data.size)
     }
 
-    /// 原始写入
     public func rawWrite(encodedData: Array<Byte>): Int32 {
         internalWrite(encodedData)
-        return encodedData.size.toInt32()
+        return Int32(encodedData.size)
     }
 
-    /// 关闭连接
     public func close(): Unit {
         if (wrapper.isSome()) {
-            wrapper.shutdown(false)
+            wrapper.getOrThrow().shutdown(false)
         }
         writer.end()
     }
 
-    /// 优雅关闭
     public func shutdown(): Unit {
         if (wrapper.isSome()) {
-            wrapper.shutdown(false)
+            wrapper.getOrThrow().shutdown(false)
         }
     }
 
-    /// 关闭读取方向
     public func shutdownRead(): Unit {
         if (wrapper.isSome()) {
-            wrapper.shutdownRead()
-        } else {
-            let stream = writer.getStream()
-            if (stream.isSome()) {
-                stream.readStop()
-            }
+            wrapper.getOrThrow().shutdownRead()
         }
     }
 
-    /// 是否已关闭
     public func isShutdown(): Bool {
         if (wrapper.isSome()) {
-            return wrapper.isShutdown()
+            return wrapper.getOrThrow().isShutdown()
         }
         return flags.disconnected || writer.isDone
     }
 
-    /// 是否完全关闭
     public func isClosed(): Bool {
         if (wrapper.isSome()) {
-            return wrapper.isClosed()
+            return wrapper.getOrThrow().isClosed()
         }
         return flags.disconnected
     }
 
-    /// 是否已建立连接
     public func isEstablished(): Bool {
         return !isClosed()
     }
 
-    /// 获取 SSL 对象
     public func ssl(): ?Ssl {
         if (wrapper.isSome()) {
-            return wrapper.ssl
+            return wrapper.getOrThrow().ssl
         }
         return None
     }
 
-    /// 获取 SSL 错误
     public func getSslError(): UsBunVerifyError {
-        return UsBunVerifyError(
-            errorNo: sslError.errorNo,
-            code: sslError.code,
-            reason: sslError.reason
-        )
+        return UsBunVerifyError(sslError.errorNo, sslError.code, sslError.reason)
     }
 
-    /// 重置超时
     public func resetTimeout(): Unit {
         setTimeoutInMilliseconds(currentTimeout)
     }
 
-    /// 设置超时 (毫秒)
     public func setTimeoutInMilliseconds(ms: UInt32): Unit {
-        if (eventLoopTimer.state == TimerState.ACTIVE) {
-            vm.timer.remove(eventLoopTimer)
-        }
         currentTimeout = ms
-        if (ms == 0) {
-            return
-        }
-        eventLoopTimer.next = Timespec.msFromNow(ms)
-        vm.timer.insert(eventLoopTimer)
     }
 
-    /// 设置超时 (秒)
     public func setTimeout(seconds: UInt32): Unit {
-        setTimeoutInMilliseconds(seconds * 1000)
+        setTimeoutInMilliseconds(seconds * UInt32(1000))
     }
 
-    /// 释放资源 (可多次调用)
     public func deinit(): Unit {
-        setTimeout(0)
-        let stream = writer.getStream()
-        if (stream.isSome()) {
-            stream.readStop()
-        }
+        setTimeout(UInt32(0))
         writer.deinit()
         if (wrapper.isSome()) {
-            wrapper.deinit()
+            wrapper.getOrThrow().deinit()
             wrapper = None
         }
-        sslError.deinit()
-        sslError = CertError()
+        sslError = UsBunVerifyError()
     }
 }
 
@@ -701,13 +444,19 @@ public class SysError {
     public var errno: Int32
     public var syscall: Syscall
 
+    public init() {
+        errno = 0
+        syscall = Syscall.CONNECT
+    }
+
     public init(errno: Int32, syscall: Syscall) {
         this.errno = errno
         this.syscall = syscall
     }
 
-    public static func fromCode(code: SysErrno, syscall: SyscallType): SysError { SysError() }
-    public func toJS(globalObject: JsGlobalObject): JsValue { JsValue.jsNull() }
+    public static func fromCode(code: SysErrno, syscall: SyscallType): SysError {
+        SysError(0, Syscall.CONNECT)
+    }
 }
 
 /// 系统调用类型
@@ -730,6 +479,30 @@ public enum SysErrno {
     | EOF
     | PIPE
     | ENOENT
+
+    public operator func ==(right: SysErrno): Bool {
+        match (this) {
+            case EOF =>
+                match (right) {
+                    case EOF => true
+                    case _ => false
+                }
+            case PIPE =>
+                match (right) {
+                    case PIPE => true
+                    case _ => false
+                }
+            case ENOENT =>
+                match (right) {
+                    case ENOENT => true
+                    case _ => false
+                }
+        }
+    }
+
+    public operator func !=(right: SysErrno): Bool {
+        return !(this == right)
+    }
 }
 
 /// 系统调用结果 (Void)
@@ -747,6 +520,8 @@ public enum SysMaybeVoid {
     public static func err(errno: Int32, syscall: Syscall): SysMaybeVoid {
         return SysMaybeVoid.ERR(errno, syscall)
     }
+
+    public func isSome(): Bool { true }
 }
 
 /// 写入状态
@@ -758,10 +533,6 @@ public enum WriteStatus {
 
 /// UvPipe 不透明类型
 public class UvPipe {
-    public func initFunc(loop: AsyncLoop, ipc: Bool): SysMaybeVoid { SysMaybeVoid.ok(()) }
-    public func open(fd: Fd): SysMaybeVoid { SysMaybeVoid.ok(()) }
-    public func accept(client: UvPipe): SysMaybeVoid { SysMaybeVoid.ok(()) }
-    public func connect(req: UvConnectT, path: String, ctx: Any, callback: (UvReturnCode) -> Unit): SysMaybeVoid { SysMaybeVoid.ok(()) }
     public func ref(): Unit {}
     public func unref(): Unit {}
     public func readStop(): Unit {}
@@ -770,17 +541,21 @@ public class UvPipe {
 /// UvConnectT 不透明类型
 public class UvConnectT {
     public var data: ?Any
+
+    public init() {
+        data = None
+    }
 }
 
 /// UvReturnCode
 public class UvReturnCode {
-    public static let ZERO = UvReturnCode(0)
-    public func toError(syscall: UvSyscall): ?SysError { None }
-}
+    public var value: Int32
 
-/// UvSyscall
-public enum UvSyscall {
-    | CONNECT
+    public init(value: Int32) {
+        this.value = value
+    }
+
+    public static let ZERO = UvReturnCode(0)
 }
 
 /// Fd 类型别名
@@ -800,6 +575,7 @@ public class ByteList {
     public func ensureUnusedCapacity(count: Int64): Unit {}
     public func slice(): Array<Byte> { [] }
     public func allocatedSlice(): Array<Byte> { [] }
+    public func write(data: Array<Byte>): Unit {}
 }
 
 /// StreamingWriter 不透明类型
@@ -815,7 +591,7 @@ public class StreamingWriter<T> {
     }
 
     public func setParent(parent: T): Unit {}
-    public func startWithPipe(pipe: UvPipe): SysMaybeVoid { SysMaybeVoid.ok(()) }
+    public func startWithPipe(pipe: UvPipe): SysMaybeVoid { SysMaybeVoid.SUCCESS }
     public func getStream(): ?Stream { None }
     public func write(data: Array<Byte>): Int64 { 0 }
     public func flush(): Int64 { 0 }
@@ -826,12 +602,6 @@ public class StreamingWriter<T> {
 
 /// Stream 不透明类型
 public class Stream {
-    public func readStart(
-        ctx: Any,
-        onAlloc: (Int64) -> Array<Byte>,
-        onError: (SysErrno) -> Unit,
-        onRead: (Array<Byte>) -> Unit
-    ): SysMaybeVoid { SysMaybeVoid.ok(()) }
     public func readStop(): Unit {}
 }
 

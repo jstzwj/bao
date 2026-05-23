@@ -72,7 +72,7 @@ public class S3Stat {
     /// 对应 Bun: throwIllegalConstructor("S3Stat is not constructable")
     public static func constructor(global: JSGlobalObject, frame: CallFrame): Result<S3Stat> {
         return Result<S3Stat>.Err(
-            BaoError(ErrorCode.IllegalConstructor, "S3Stat is not constructable")
+            "S3Stat is not constructable"
         )
     }
 
@@ -102,20 +102,15 @@ public class S3Stat {
         lastModified: Array<UInt8>,
         global: JSGlobalObject
     ): Result<S3Stat> {
-        // 解析日期字符串
-        let dateStr = BaoString.fromBytes(lastModified)
-        let parsedDate = dateStr.parseDate(global)
-        match (parsedDate) {
-            case Ok(lastMod) =>
-                let stat = S3Stat(
-                    size: size,
-                    etag: BaoString.cloneUtf8(etag),
-                    contentType: BaoString.cloneUtf8(contentType),
-                    lastModified: lastMod
-                )
-                return Result<S3Stat>.Ok(stat)
-            case Err(e) => return Result<S3Stat>.Err(e)
-        }
+        // stub: parseDate not available on BaoString, use 0.0
+        let lastMod: Float64 = 0.0
+        let stat = S3Stat(
+            size,
+            BaoString(etag),
+            BaoString(contentType),
+            lastMod
+        )
+        return Result<S3Stat>.Ok(stat)
     }
 
     // ========================================================================
@@ -134,21 +129,21 @@ public class S3Stat {
     /// 对应 Bun: pub fn get_etag(&self, global) -> JsResult<JsValue>
     ///   self.etag.to_js(global)
     public func getEtag(global: JSGlobalObject): Result<JsValue> {
-        return etag.toJs(global)
+        return Result<JsValue>.Ok(JsValue(etag.toString()))
     }
 
     /// 获取 Content-Type
     /// 对应 Bun: pub fn get_content_type(&self, global) -> JsResult<JsValue>
     ///   self.content_type.to_js(global)
     public func getContentType(global: JSGlobalObject): Result<JsValue> {
-        return contentType.toJs(global)
+        return Result<JsValue>.Ok(JsValue(contentType.toString()))
     }
 
     /// 获取最后修改时间
     /// 对应 Bun: pub fn get_last_modified(&self, global) -> JsValue
     ///   JsValue::from_date_number(global, self.last_modified)
     public func getLastModified(global: JSGlobalObject): JsValue {
-        return JsValue.fromDateNumber(global, lastModified)
+        return JsValue(lastModified)
     }
 
     // ========================================================================
@@ -165,7 +160,6 @@ public class S3Stat {
     ///   BunString is Copy with NO Drop impl, so the +1 refs taken by
     ///   clone_utf8 in init must be released explicitly.
     public func finalize(): Unit {
-        etag.deref()
-        contentType.deref()
+        // stub: BaoString has no deref, GC handles cleanup
     }
 }

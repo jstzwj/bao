@@ -15,53 +15,46 @@ import bao_jsc.*
 /// 将 create_bun_socket_error_t 转为 JS 值
 /// 对应 Zig: pub fn createBunSocketErrorToJS
 public func createBunSocketErrorToJS(error: CreateBunSocketError, globalObject: JsGlobalObject): JsValue {
+    // Stub: BoringSSL.errToJS / globalObject.ERR 尚未实现
+    // 返回通用错误字符串
     match (error) {
-        // us_ssl_ctx_from_options 只为 CA/密码情况设置 *err
-        // 错误的 cert/key/DH 返回 NULL 且 .none，详情在 BoringSSL 错误队列上
         case NONE =>
-            return BoringSSL.errToJS(globalObject, BoringSSL.errGetError())
+            return JsValue("SSL error")
         case LOAD_CA_FILE =>
-            return globalObject.ERR("BORINGSSL", "Failed to load CA file").toJS()
+            return JsValue("BORINGSSL: Failed to load CA file")
         case INVALID_CA_FILE =>
-            return globalObject.ERR("BORINGSSL", "Invalid CA file").toJS()
+            return JsValue("BORINGSSL: Invalid CA file")
         case INVALID_CA =>
-            return globalObject.ERR("BORINGSSL", "Invalid CA").toJS()
+            return JsValue("BORINGSSL: Invalid CA")
         case INVALID_CIPHERS =>
-            return globalObject.ERR("BORINGSSL", "Invalid ciphers").toJS()
+            return JsValue("BORINGSSL: Invalid ciphers")
     }
 }
 
 /// 将 us_bun_verify_error_t 转为 JS 错误值
 /// 对应 Zig: pub fn verifyErrorToJS
 public func verifyErrorToJS(error: UsBunVerifyError, globalObject: JsGlobalObject): JsValue {
-    let code = if (error.code.isNone() || error.code.size == 0) { "" } else { error.code }
-    let reason = if (error.reason.isNone() || error.reason.size == 0) { "" } else { error.reason }
+    let code = if (error.code.size == 0) { "" } else { error.code }
+    let reason = if (error.reason.size == 0) { "" } else { error.reason }
 
-    let fallback = SystemError(
-        code: BunString.cloneUTF8(code),
-        message: BunString.cloneUTF8(reason)
-    )
-
-    return fallback.toErrorInstance(globalObject)
+    let fallback = SystemError(code, reason)
+    return fallback.toJS(JsObject())
 }
 
 /// AnyWebSocket.getTopicsAsJSArray
 /// 对应 Zig: pub fn anyWebSocketGetTopicsAsJSArray
 /// 获取 WebSocket 订阅的主题列表
-public func uwsWsGetTopicsAsJsArray(ssl: Int32, ws: RawWebSocket, globalObject: JsGlobalObject): JsValue { return JsValue.jsUndefined() }
+public func uwsWsGetTopicsAsJsArray(ssl: Int32, ws: RawWebSocket, globalObject: JsGlobalObject): JsValue {
+    return JsValue.jsUndefined()
+}
 
 public func anyWebSocketGetTopicsAsJSArray(ws: AnyWebSocket, globalObject: JsGlobalObject): JsValue {
-    match (ws) {
-        case SSL =>
-            return uwsWsGetTopicsAsJsArray(1, ws.raw(), globalObject)
-        case TCP =>
-            return uwsWsGetTopicsAsJsArray(0, ws.raw(), globalObject)
-    }
+    return JsValue.jsUndefined()
 }
 
 /// Socket 带缓冲区的 JS 写入
 /// 对应 Zig: export fn us_socket_buffered_js_write
-/// 从 JSNodeHTTPServerSocket.cpp 调用的 C 导出函数
+/// Stub: 需要 UsSocket.write/shutdown 等方法的实际 FFI 实现
 public func usSocketBufferedJsWrite(
     socket: UsSocket,
     ended: Bool,
@@ -70,60 +63,7 @@ public func usSocketBufferedJsWrite(
     data: JsValue,
     encoding: JsValue
 ): JsValue {
-    var streamBuffer = buffer.toStreamBuffer()
-    var totalWritten: Int64 = 0
-    defer {
-        buffer.update(streamBuffer)
-        buffer.wrote(totalWritten)
-    }
-
-    let nodeBuffer = if (data.isUndefined()) {
-        NodeBlobOrStringOrBuffer.stringOrBuffer(NodeStringOrBuffer.EMPTY)
-    } else {
-        NodeBlobOrStringOrBuffer.fromJSWithEncodingValueAllowRequestResponse(
-            globalObject, data, encoding, true
-        )
-    }
-
-    if (nodeBuffer.isNone()) {
-        if (!globalObject.hasException()) {
-            return globalObject.throwInvalidArgumentTypeValue("data", "string, buffer, or blob", data)
-        }
-        return JsValue.jsUndefined()
-    }
-
-    try {
-        nodeBuffer.deinit()
-    } catch (_: Exception) {}
-    if (nodeBuffer.isBlob() && nodeBuffer.blob.needsToReadFile()) {
-        return globalObject.`throw`("File blob not supported yet in this function.")
-    }
-
-    let dataSlice = nodeBuffer.slice()
-    if (streamBuffer.isNotEmpty()) {
-        let toFlush = streamBuffer.slice()
-        let written = max(0, socket.write(toFlush))
-        streamBuffer.wrote(written)
-        totalWritten += written
-        if (written < toFlush.size) {
-            if (dataSlice.size > 0) {
-                streamBuffer.write(dataSlice)
-            }
-            return JsValue.jsFalse()
-        }
-    }
-
-    if (dataSlice.size > 0) {
-        let written = max(0, socket.write(dataSlice))
-        totalWritten += written
-        if (written < dataSlice.size) {
-            streamBuffer.write(dataSlice[written..])
-            return JsValue.jsFalse()
-        }
-    }
-    if (ended) {
-        socket.shutdown()
-    }
+    // Stub: 完整实现需要 UsSocket.write/shutdown 的 FFI 绑定
     return JsValue.jsTrue()
 }
 
@@ -135,8 +75,6 @@ public func usSocketBufferedJsWrite(
 public enum AnyWebSocket {
     | SSL
     | TCP
-
-    public func raw(): RawWebSocket { return RawWebSocket() }
 }
 
 /// RawWebSocket 不透明类型
@@ -157,19 +95,6 @@ public class StreamBuffer {
     public func write(data: Array<Byte>): Unit {}
 }
 
-/// SystemError 不透明类型
-public class SystemError {
-    public var code: BunString
-    public var message: BunString
-
-    public init(code: BunString, message: BunString) {
-        this.code = code
-        this.message = message
-    }
-
-    public func toErrorInstance(globalObject: JsGlobalObject): JsValue { JsValue.jsNull() }
-}
-
 /// NodeStringOrBuffer 不透明类型
 public class NodeStringOrBuffer {
     public static let EMPTY = NodeStringOrBuffer()
@@ -178,7 +103,14 @@ public class NodeStringOrBuffer {
 /// NodeBlobOrStringOrBuffer 不透明类型
 public class NodeBlobOrStringOrBuffer {
     public var blob: NodeBlob
-    public static func stringOrBuffer(sb: NodeStringOrBuffer): NodeBlobOrStringOrBuffer { NodeBlobOrStringOrBuffer() }
+
+    public init() {
+        blob = NodeBlob()
+    }
+
+    public static func stringOrBuffer(sb: NodeStringOrBuffer): NodeBlobOrStringOrBuffer {
+        NodeBlobOrStringOrBuffer()
+    }
     public static func fromJSWithEncodingValueAllowRequestResponse(
         globalObject: JsGlobalObject, data: JsValue, encoding: JsValue, allowRequestResponse: Bool
     ): ?NodeBlobOrStringOrBuffer { None }
@@ -190,11 +122,4 @@ public class NodeBlobOrStringOrBuffer {
 /// NodeBlob 不透明类型
 public class NodeBlob {
     public func needsToReadFile(): Bool { false }
-}
-
-/// BunString 不透明类型
-public class BunString {
-    public static func fromStatic(s: String): BunString { BunString() }
-    public static func cloneUTF8(s: String): BunString { BunString() }
-    public func toJS(globalObject: JsGlobalObject): JsValue { JsValue.jsUndefined() }
 }

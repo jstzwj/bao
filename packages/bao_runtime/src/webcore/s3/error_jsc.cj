@@ -103,9 +103,7 @@ public class JSS3Error {
     /// 对应 Bun: pub fn deinit(`this`: *const @This()) void
     /// 对 path, code, message 调用 deref
     public func deinit(): Unit {
-        path.deref()
-        code.deref()
-        message.deref()
+        // Cangjie GC manages memory - no manual deref needed
     }
 
     // ========================================================================
@@ -117,8 +115,9 @@ public class JSS3Error {
     /// 对应 Bun: pub fn toErrorInstance(`this`: *const @This(), global: *jsc.JSGlobalObject) jsc.JsValue
     /// 调用 C 端 S3Error__toErrorInstance 后 deinit
     public func toErrorInstance(global: JsGlobalObject): JsValue {
-        defer { deinit() }
-        return S3ErrorNative.toErrorInstance(this, global)
+        let result = S3ErrorNative.toErrorInstance(this, global)
+        deinit()
+        return result
     }
 }
 
@@ -134,17 +133,17 @@ public class JSS3Error {
 public func getJSSignError(err: S3ErrorCode, globalThis: JsGlobalObject): JsValue {
     match (err) {
         case S3ErrorCode.MissingCredentials =>
-            return globalThis.createError("S3_MISSING_CREDENTIALS", err.getMessage())
+            return globalThis.createErrorInstance("S3_MISSING_CREDENTIALS: " + err.getMessage())
         case S3ErrorCode.InvalidMethod =>
-            return globalThis.createError("S3_INVALID_METHOD", err.getMessage())
+            return globalThis.createErrorInstance("S3_INVALID_METHOD: " + err.getMessage())
         case S3ErrorCode.InvalidPath =>
-            return globalThis.createError("S3_INVALID_PATH", err.getMessage())
+            return globalThis.createErrorInstance("S3_INVALID_PATH: " + err.getMessage())
         case S3ErrorCode.InvalidEndpoint =>
-            return globalThis.createError("S3_INVALID_ENDPOINT", err.getMessage())
+            return globalThis.createErrorInstance("S3_INVALID_ENDPOINT: " + err.getMessage())
         case S3ErrorCode.InvalidSessionToken =>
-            return globalThis.createError("S3_INVALID_SESSION_TOKEN", err.getMessage())
+            return globalThis.createErrorInstance("S3_INVALID_SESSION_TOKEN: " + err.getMessage())
         case S3ErrorCode.SignError =>
-            return globalThis.createError("S3_INVALID_SIGNATURE", err.getMessage())
+            return globalThis.createErrorInstance("S3_INVALID_SIGNATURE: " + err.getMessage())
     }
 }
 
@@ -190,7 +189,7 @@ public func s3ErrorToJS(err: S3Error, globalObject: JsGlobalObject, path: ?Strin
 /// 适用于在 HTTP 回调中拒绝 promise 的场景
 public func s3ErrorToJSWithAsyncStack(err: S3Error, globalObject: JsGlobalObject, path: ?String, promise: JsPromise): JsValue {
     let value = s3ErrorToJS(err, globalObject, path)
-    value.attachAsyncStackFromPromise(globalObject, promise)
+    // Stub: attachAsyncStackFromPromise not available - async stack traces omitted
     return value
 }
 
@@ -206,10 +205,10 @@ public class S3ErrorNative {
     public static func toErrorInstance(err: JSS3Error, global: JsGlobalObject): JsValue {
         // FFI: S3Error__toErrorInstance
         let obj = JsObject()
-        obj.set("code", JsValue(err.code))
-        obj.set("message", JsValue(err.message))
+        obj.set("code", JsValue(err.code.toString()))
+        obj.set("message", JsValue(err.message.toString()))
         if (!err.path.isEmpty()) {
-            obj.set("path", JsValue(err.path))
+            obj.set("path", JsValue(err.path.toString()))
         }
         return JsValue(obj)
     }

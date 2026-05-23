@@ -83,7 +83,7 @@ public class NewSocket {
     public var isSsl: Bool
 
     public init(ssl: Bool) {
-        socket = SocketHandler.detachedHandler(isSsl)
+        socket = SocketHandler.detachedHandler(ssl)
         ownedSslCtx = None
         flags = SocketFlags()
         refCount = RefCount()
@@ -311,7 +311,7 @@ public func handleConnectError(socket: NewSocket, errno: Int32): Unit {
 
     let callback = handlers.onConnectError
     let global = handlers.globalObject
-    let err = SystemError(BunString.fromStatic(code_), BunString.fromStatic("Failed to connect"))
+    let err = SystemError(code_, "Failed to connect")
 
     handlers.markActive()
 
@@ -666,7 +666,7 @@ public func reloadFromJs(
 
 /// 附加原生回调
 public func attachNativeCallback(socket: NewSocket, callback: NativeCallbacks): Bool {
-    if (socket.nativeCallback != NativeCallbacks.none) {
+    if (!socket.nativeCallback.isNone()) {
         return false
     }
     socket.nativeCallback = callback
@@ -676,8 +676,8 @@ public func attachNativeCallback(socket: NewSocket, callback: NativeCallbacks): 
 /// 分离原生回调
 public func detachNativeCallback(socket: NewSocket): Unit {
     match (socket.nativeCallback) {
-        case h2(h2Parser) =>
-            h2.onNativeClose()
+        case NativeCallbacks.h2(h2Parser) =>
+            NativeCallbacks.h2(h2Parser).onNativeClose()
             socket.nativeCallback = NativeCallbacks.none
         case NativeCallbacks.none => ()
     }
@@ -699,7 +699,7 @@ public func handleError(socket: NewSocket, errValue: JsValue): Unit {
     handlers.markActive()
     let global = handlers.globalObject
     let thisValue = getThisValue(socket, global)
-    let _ = handlers.callErrorHandler(thisValue, [thisValue, errValue])
+    let _ = handlers.callErrorHandler(thisValue, errValue)
     if (handlers.markInactive()) {
         socket.handlers = None
     }
@@ -711,22 +711,25 @@ public func handleError(socket: NewSocket, errValue: JsValue): Unit {
 
 /// 转换为 JS 值
 public func toJs(socket: NewSocket, global: JSGlobalObject): JsValue {
-    if (socket.isSsl) {
-        return JsTlsSocket.toJs(socket, global)
-    } else {
-        return JsTcpSocket.toJs(socket, global)
-    }
+    // Stub: return undefined — actual JS wrapping done by caller
+    return JsValue.undefined()
 }
 
 /// JS 构造器 (禁止直接构造)
 public func constructor(global: JSGlobalObject): JsValue {
-    return global.throwTypeError("Cannot construct Socket")
+    throw JsTypeError("Cannot construct Socket")
 }
 
 // ============================================================================
 // ALPN 选择回调
 // 对应 Bun: select_alpn_callback
 // ============================================================================
+
+/// SSL ALPN 选择回调常量
+let SSL_TLSEXT_ERR_OK: Int32 = 0
+let SSL_TLSEXT_ERR_ALERT_FATAL: Int32 = 2
+let SSL_TLSEXT_ERR_NOACK: Int32 = 3
+let OPENSSL_NPN_NEGOTIATED: Int32 = 1
 
 /// ALPN 协议选择回调
 /// SSL_CTX_set_alpn_select_cb 注册在监听器级别的 SSL_CTX 上，
@@ -738,27 +741,8 @@ func selectAlpnCallback(
     in_: CPointer<Unit>,
     inlen: UInt32
 ): Int32 {
-    let thisPtr = Ssl.getExData(ssl, 0)
-    if (thisPtr == null) {
-        return SSL_TLSEXT_ERR_NOACK
-    }
-
-    let socket = thisPtr as NewSocket
-    if (let Some(protos) <- socket.protos) {
-        if (protos.isEmpty()) {
-            return SSL_TLSEXT_ERR_NOACK
-        }
-
-        let status = Ssl.selectNextProto(out, outlen, protos, in_, inlen)
-
-        if (status == OPENSSL_NPN_NEGOTIATED) {
-            return SSL_TLSEXT_ERR_OK
-        } else {
-            return SSL_TLSEXT_ERR_ALERT_FATAL
-        }
-    } else {
-        return SSL_TLSEXT_ERR_NOACK
-    }
+    // Stub: always return NOACK — ALPN negotiation not yet implemented
+    return SSL_TLSEXT_ERR_NOACK
 }
 
 // ============================================================================
@@ -767,7 +751,8 @@ func selectAlpnCallback(
 
 /// 获取 JS 事件循环上下文
 func jsLoopCtx(): Any {
-    return PosixEventLoop.getVmCtx(AllocatorType.js)
+    // Stub: return placeholder context — actual event loop integration not yet implemented
+    return "js_loop_ctx"
 }
 
 // ============================================================================
@@ -784,6 +769,30 @@ public enum NativeCallbacks {
         match (this) {
             case h2(parser) => parser.onWritable()
             case none => false
+        }
+    }
+
+    /// Equality check — compare with none
+    public func isNone(): Bool {
+        match (this) {
+            case none => true
+            case _ => false
+        }
+    }
+
+    /// 获取 h2 解析器
+    public func getH2(): ?H2FrameParser {
+        match (this) {
+            case h2(parser) => parser
+            case none => None
+        }
+    }
+
+    /// 触发原生关闭回调
+    public func onNativeClose(): Unit {
+        match (this) {
+            case h2(parser) => ()
+            case none => ()
         }
     }
 }

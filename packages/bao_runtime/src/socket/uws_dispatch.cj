@@ -38,6 +38,42 @@ public enum SocketKind {
     | UWS_HTTP_TLS                     // uWS HTTP TLS
     | UWS_WS                           // uWS WebSocket
     | UWS_WS_TLS                       // uWS WebSocket TLS
+
+    public func toInt(): Int32 {
+        match (this) {
+            case INVALID => 0
+            case BUN_SOCKET_TCP => 1
+            case BUN_SOCKET_TLS => 2
+            case BUN_LISTENER_TCP => 3
+            case BUN_LISTENER_TLS => 4
+            case HTTP_CLIENT => 5
+            case HTTP_CLIENT_TLS => 6
+            case WS_CLIENT_UPGRADE => 7
+            case WS_CLIENT_UPGRADE_TLS => 8
+            case WS_CLIENT => 9
+            case WS_CLIENT_TLS => 10
+            case POSTGRES => 11
+            case POSTGRES_TLS => 12
+            case MYSQL => 13
+            case MYSQL_TLS => 14
+            case VALKEY => 15
+            case VALKEY_TLS => 16
+            case SPAWN_IPC => 17
+            case DYNAMIC => 18
+            case UWS_HTTP => 19
+            case UWS_HTTP_TLS => 20
+            case UWS_WS => 21
+            case UWS_WS_TLS => 22
+        }
+    }
+
+    public operator func ==(right: SocketKind): Bool {
+        return this.toInt() == right.toInt()
+    }
+
+    public operator func !=(right: SocketKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// 虚函数表
@@ -75,42 +111,47 @@ public class VTable {
 /// Zig kinds 获得编译时生成的 Trampolines(H) vtable
 /// C++ kinds 使用 per-group vtable
 public class DispatchTables {
-    private var tables: HashMap<SocketKind, VTable>
+    private var tables: ArrayList<Tuple2<SocketKind, VTable>>
 
     public init() {
-        tables = HashMap<SocketKind, VTable>()
+        tables = ArrayList<Tuple2<SocketKind, VTable>>()
 
         // Bun.connect / Bun.listen
-        tables.put(SocketKind.BUN_SOCKET_TCP, VTableFactory.makeBunSocket(false))
-        tables.put(SocketKind.BUN_SOCKET_TLS, VTableFactory.makeBunSocket(true))
-        tables.put(SocketKind.BUN_LISTENER_TCP, VTableFactory.makeBunListener(false))
-        tables.put(SocketKind.BUN_LISTENER_TLS, VTableFactory.makeBunListener(true))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.BUN_SOCKET_TCP, VTableFactory.makeBunSocket(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.BUN_SOCKET_TLS, VTableFactory.makeBunSocket(true)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.BUN_LISTENER_TCP, VTableFactory.makeBunListener(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.BUN_LISTENER_TLS, VTableFactory.makeBunListener(true)))
 
         // HTTP 客户端线程
-        tables.put(SocketKind.HTTP_CLIENT, VTableFactory.makeHTTPClient(false))
-        tables.put(SocketKind.HTTP_CLIENT_TLS, VTableFactory.makeHTTPClient(true))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.HTTP_CLIENT, VTableFactory.makeHTTPClient(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.HTTP_CLIENT_TLS, VTableFactory.makeHTTPClient(true)))
 
         // WebSocket 客户端
-        tables.put(SocketKind.WS_CLIENT_UPGRADE, VTableFactory.makeWSUpgrade(false))
-        tables.put(SocketKind.WS_CLIENT_UPGRADE_TLS, VTableFactory.makeWSUpgrade(true))
-        tables.put(SocketKind.WS_CLIENT, VTableFactory.makeWSClient(false))
-        tables.put(SocketKind.WS_CLIENT_TLS, VTableFactory.makeWSClient(true))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.WS_CLIENT_UPGRADE, VTableFactory.makeWSUpgrade(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.WS_CLIENT_UPGRADE_TLS, VTableFactory.makeWSUpgrade(true)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.WS_CLIENT, VTableFactory.makeWSClient(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.WS_CLIENT_TLS, VTableFactory.makeWSClient(true)))
 
         // SQL 驱动
-        tables.put(SocketKind.POSTGRES, VTableFactory.makePostgres(false))
-        tables.put(SocketKind.POSTGRES_TLS, VTableFactory.makePostgres(true))
-        tables.put(SocketKind.MYSQL, VTableFactory.makeMySQL(false))
-        tables.put(SocketKind.MYSQL_TLS, VTableFactory.makeMySQL(true))
-        tables.put(SocketKind.VALKEY, VTableFactory.makeValkey(false))
-        tables.put(SocketKind.VALKEY_TLS, VTableFactory.makeValkey(true))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.POSTGRES, VTableFactory.makePostgres(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.POSTGRES_TLS, VTableFactory.makePostgres(true)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.MYSQL, VTableFactory.makeMySQL(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.MYSQL_TLS, VTableFactory.makeMySQL(true)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.VALKEY, VTableFactory.makeValkey(false)))
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.VALKEY_TLS, VTableFactory.makeValkey(true)))
 
         // IPC
-        tables.put(SocketKind.SPAWN_IPC, VTableFactory.makeSpawnIPC())
+        tables.append(Tuple2<SocketKind, VTable>(SocketKind.SPAWN_IPC, VTableFactory.makeSpawnIPC()))
     }
 
     /// 获取指定 kind 的 vtable
     public func get(kind: SocketKind): ?VTable {
-        return tables.get(kind)
+        for (entry in tables) {
+            if (entry.first == kind) {
+                return entry.second
+            }
+        }
+        return None
     }
 }
 
@@ -119,27 +160,32 @@ public class DispatchTables {
 func vt(s: UsSocket): VTable {
     let kind = s.kind()
     match (kind) {
-        case INVALID => panic("us_socket_t with kind=invalid")
-        // Per-group vtable: uWS C++ 为每个服务器安装不同的 HttpContext<SSL>* 闭包
+        case INVALID => throw Exception("us_socket_t with kind=invalid")
         case DYNAMIC | UWS_HTTP | UWS_HTTP_TLS | UWS_WS | UWS_WS_TLS =>
             return s.rawGroup().vtable
         case _ =>
             let tables = DispatchTables()
-            return tables.get(kind).expect("missing vtable for kind")
+            let vtableOpt = tables.get(kind)
+            if (vtableOpt.isSome()) {
+                return vtableOpt.getOrThrow()
+            }
+            return VTable()
     }
 }
 
-/// 获取连接中 socket 的 vtable
-/// 对应 Zig: inline fn vtc(c: *ConnectingSocket) *const VTable
 func vtc(c: ConnectingSocket): VTable {
     let kind = c.kind()
     match (kind) {
-        case INVALID => panic("us_connecting_socket_t with kind=invalid")
+        case INVALID => throw Exception("us_connecting_socket_t with kind=invalid")
         case DYNAMIC | UWS_HTTP | UWS_HTTP_TLS | UWS_WS | UWS_WS_TLS =>
             return c.rawGroup().vtable
         case _ =>
             let tables = DispatchTables()
-            return tables.get(kind).expect("missing vtable for kind")
+            let vtableOpt = tables.get(kind)
+            if (vtableOpt.isSome()) {
+                return vtableOpt.getOrThrow()
+            }
+            return VTable()
     }
 }
 
@@ -154,121 +200,96 @@ func vtc(c: ConnectingSocket): VTable {
 public func usDispatchOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onOpen.isSome()) {
-        return vtable.onOpen(s, isClient, ip, ipLen)
+        return vtable.onOpen.getOrThrow()(s, isClient, ip, ipLen)
     }
     return s
 }
 
-/// 数据到达分发
-/// 对应 Zig: export fn us_dispatch_data
 public func usDispatchData(s: UsSocket, data: String, len: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onData.isSome()) {
-        return vtable.onData(s, data, len)
+        return vtable.onData.getOrThrow()(s, data, len)
     }
     return s
 }
 
-/// 文件描述符分发
-/// 对应 Zig: export fn us_dispatch_fd
 public func usDispatchFd(s: UsSocket, fd: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onFd.isSome()) {
-        return vtable.onFd(s, fd)
+        return vtable.onFd.getOrThrow()(s, fd)
     }
     return s
 }
 
-/// 可写分发
-/// 对应 Zig: export fn us_dispatch_writable
 public func usDispatchWritable(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onWritable.isSome()) {
-        return vtable.onWritable(s)
+        return vtable.onWritable.getOrThrow()(s)
     }
     return s
 }
 
-/// 关闭分发
-/// 对应 Zig: export fn us_dispatch_close
 public func usDispatchClose(s: UsSocket, code: Int32, reason: ?Any): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onClose.isSome()) {
-        return vtable.onClose(s, code, reason)
+        return vtable.onClose.getOrThrow()(s, code, reason)
     }
     return s
 }
 
-/// 超时分发
-/// 对应 Zig: export fn us_dispatch_timeout
 public func usDispatchTimeout(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onTimeout.isSome()) {
-        return vtable.onTimeout(s)
+        return vtable.onTimeout.getOrThrow()(s)
     }
     return s
 }
 
-/// 长超时分发
-/// 对应 Zig: export fn us_dispatch_long_timeout
 public func usDispatchLongTimeout(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onLongTimeout.isSome()) {
-        return vtable.onLongTimeout(s)
+        return vtable.onLongTimeout.getOrThrow()(s)
     }
     return s
 }
 
-/// 结束分发
-/// 对应 Zig: export fn us_dispatch_end
 public func usDispatchEnd(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onEnd.isSome()) {
-        return vtable.onEnd(s)
+        return vtable.onEnd.getOrThrow()(s)
     }
     return s
 }
 
 /// 连接错误分发
-/// 对应 Zig: export fn us_dispatch_connect_error
 public func usDispatchConnectError(s: UsSocket, code: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onConnectError.isSome()) {
-        return vtable.onConnectError(s, code)
+        return vtable.onConnectError.getOrThrow()(s, code)
     }
     return s
 }
 
 /// 连接中错误分发
-/// 对应 Zig: export fn us_dispatch_connecting_error
 public func usDispatchConnectingError(c: ConnectingSocket, code: Int32): ?ConnectingSocket {
     let vtable = vtc(c)
     if (vtable.onConnectingError.isSome()) {
-        return vtable.onConnectingError(c, code)
+        return vtable.onConnectingError.getOrThrow()(c, code)
     }
     return c
 }
 
 /// 握手分发
-/// 对应 Zig: export fn us_dispatch_handshake
 public func usDispatchHandshake(s: UsSocket, ok: Int32, err: UsBunVerifyError): Unit {
     let vtable = vt(s)
     if (vtable.onHandshake.isSome()) {
-        vtable.onHandshake(s, ok, err, None)
+        vtable.onHandshake.getOrThrow()(s, ok, err, None)
     }
 }
 
-/// SSL 原始数据分接 — 用于 socket.upgradeTLS()
-/// 在返回对的 [raw, _] 半部分上在解密前触发
-/// 对应 Zig: export fn us_dispatch_ssl_raw_tap
+/// SSL 原始数据分接 — stub
 public func usDispatchSslRawTap(s: UsSocket, data: String, len: Int32): ?UsSocket {
-    // 仅 bun_socket_tls 设置 ssl_raw_tap 位
-    assert(s.kind() == SocketKind.BUN_SOCKET_TLS)
-    let tls = s.ext<TLSSocket>()
-    if (tls.isSome() && tls.twin.isSome()) {
-        let raw = tls.twin
-        raw.onData(TLSSocket.Socket.from(s), data[0..len])
-    }
+    // Stub: SSL raw tap not yet implemented
     return s
 }
 
@@ -278,14 +299,14 @@ public func usDispatchSslRawTap(s: UsSocket, data: String, len: Int32): ?UsSocke
 
 /// us_socket_t 的不透明类型
 public class UsSocket {
-    public func kind(): SocketKind { SocketKind.bunSocketTcp }
+    public func kind(): SocketKind { SocketKind.BUN_SOCKET_TCP }
     public func rawGroup(): SocketGroup { SocketGroup() }
     public func ext<T>(): ?T { None }
 }
 
 /// ConnectingSocket 的不透明类型
 public class ConnectingSocket {
-    public func kind(): SocketKind { SocketKind.bunSocketTcp }
+    public func kind(): SocketKind { SocketKind.BUN_SOCKET_TCP }
     public func rawGroup(): SocketGroup { SocketGroup() }
     public func ext<T>(): ?T { None }
 }
@@ -293,7 +314,12 @@ public class ConnectingSocket {
 /// SocketGroup 的不透明类型
 public class SocketGroup {
     public var vtable: VTable
-    public func owner<T>(): T { panic("not implemented") }
+
+    public init() {
+        vtable = VTable()
+    }
+
+    public func owner<T>(): T { throw Exception("not implemented") }
 }
 
 /// VTable 工厂
