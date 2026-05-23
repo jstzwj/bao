@@ -58,8 +58,7 @@ public class IOWriter {
     /// 标志
     public var flags: Flags
 
-    /// 子指针类型 - moved to top level
-    // public typealias ChildPtr = IOWriterChildPtr
+    /// 子指针类型 - 已提取到顶层: IOWriterChildPtr
 
     /// 收缩阈值 ~128KB
     public static const SHRINK_THRESHOLD: UInt64 = 1024 * 128
@@ -251,7 +250,7 @@ public class IOWriter {
         }
 
         this.buf.appendAll(buf)
-        let writer = Writer(ptr: childptr, len: UInt64(buf.size), written: 0, bytelist: bytelist)
+        let writer = IOWriterWriter(ptr: childptr, len: UInt64(buf.size), written: 0, bytelist: bytelist)
         this.writers.append(writer)
         return this.enqueueInternal()
     }
@@ -267,7 +266,7 @@ public class IOWriter {
         this.buf.appendAll(fmt.toByteArray())
         let end = this.buf.size
         let childptr = IOWriterChildPtr(ptr)
-        let writer = Writer(ptr: childptr, len: UInt64(end - start), written: 0, bytelist: bytelist)
+        let writer = IOWriterWriter(ptr: childptr, len: UInt64(end - start), written: 0, bytelist: bytelist)
         this.writers.append(writer)
         return this.enqueueInternal()
     }
@@ -338,6 +337,146 @@ public class IOWriter {
     // ========================================================================
     // 写入器（类型已提取到顶层: IOWriterWriter, IOWriterWriters）
     // ========================================================================
+}
+
+// ============================================================================
+// 写入器条目（从IOWriter提取）
+// ============================================================================
+
+/// 写入器条目
+public struct IOWriterWriter {
+    public var ptr: IOWriterChildPtr
+    public var len: UInt64
+    public var written: UInt64 = 0
+    public var bytelist: ?ByteList
+
+    /// 是否写完所有数据
+    public func wroteEverything(): Boolean {
+        return this.written >= this.len
+    }
+
+    /// 是否死亡
+    public func isDead(): Boolean {
+        return false
+    }
+}
+
+// ============================================================================
+// 写入器列表（从IOWriter提取）
+// ============================================================================
+
+/// 写入器列表
+public class IOWriterWriters {
+    var items: ArrayList<IOWriterWriter>
+
+    init() {
+        this.items = ArrayList<IOWriterWriter>()
+    }
+
+    func len(): UInt64 {
+        return UInt64(this.items.size)
+    }
+
+    func append(writer: IOWriterWriter) {
+        this.items.append(writer)
+    }
+
+    func get(idx: UInt64): IOWriterWriter {
+        return this.items[Int64(idx)]
+    }
+
+    func slice(): Array<IOWriterWriter> {
+        return this.items.toArray()
+    }
+
+    func sliceMutable(): Array<IOWriterWriter> {
+        return this.items.toArray()
+    }
+
+    func clearRetainingCapacity() {
+        this.items.clear()
+    }
+
+    func truncate(idx: UInt64) {
+        // 从idx开始截断
+        while (UInt64(this.items.size) > idx) {
+            this.items.removeAt(this.items.size - 1)
+        }
+    }
+
+    func deinit() {
+        this.items.clear()
+    }
+
+    func memoryCost(): UInt64 {
+        return UInt64(this.items.size) * 8
+    }
+}
+
+// ============================================================================
+// IO写入器子指针（从IOWriter提取）
+// ============================================================================
+
+/// IO写入器子指针
+/// 注册所有需要使用IOWriter写入文件描述符的类型
+public class IOWriterChildPtr {
+    public var ptr: Any
+
+    init() {
+        this.ptr = None
+    }
+
+    public static func initFunc(p: Any): IOWriterChildPtr {
+        let cptr = IOWriterChildPtr()
+        cptr.ptr = p
+        return cptr
+    }
+
+    public func asAnyOpaque(): Any {
+        return this.ptr
+    }
+
+    public static func fromAnyOpaque(p: Any): IOWriterChildPtr {
+        let cptr = IOWriterChildPtr()
+        cptr.ptr = p
+        return cptr
+    }
+
+    /// IO写入器数据块写入完成回调
+    public func onIOWriterChunk(amount: UInt64, err: ?SystemError): Yield {
+        return Yield.done
+    }
+}
+
+// ============================================================================
+// 异步去初始化写入器（从IOWriter提取）
+// ============================================================================
+
+/// 异步去初始化写入器
+public class AsyncDeinitWriter {
+    public var ran: Boolean = false
+    public var writer: ?IOWriter = None
+
+    /// 排队到事件循环
+    public func enqueue() {
+        if (this.ran) {
+            return
+        }
+        this.ran = true
+        // 将任务排队到事件循环
+    }
+
+    /// 从主线程运行
+    public func runFromMainThread() {
+        if (let w <- this.writer) {
+            w.deinitOnMainThread()
+        }
+    }
+
+    /// 从主线程Mini运行
+    public func runFromMainThreadMini() {
+        this.runFromMainThread()
+    }
 }
 
 /// 写入状态

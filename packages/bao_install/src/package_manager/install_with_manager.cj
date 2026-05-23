@@ -2204,6 +2204,22 @@ public enum IwmDependencyVersionTag {
     | Workspace
     | Tarball
     | Catalog
+
+    public operator func ==(right: IwmDependencyVersionTag): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case NPM => match (right) { case NPM => true case _ => false }
+            case DistTag => match (right) { case DistTag => true case _ => false }
+            case Folder => match (right) { case Folder => true case _ => false }
+            case Git => match (right) { case Git => true case _ => false }
+            case GitHub => match (right) { case GitHub => true case _ => false }
+            case Symlink => match (right) { case Symlink => true case _ => false }
+            case Workspace => match (right) { case Workspace => true case _ => false }
+            case Tarball => match (right) { case Tarball => true case _ => false }
+            case Catalog => match (right) { case Catalog => true case _ => false }
+        }
+    }
+    public operator func !=(right: IwmDependencyVersionTag): Bool { !(this == right) }
 }
 
 /// 解析标签
@@ -2219,6 +2235,23 @@ public enum IwmResolutionTag {
     | LocalTarball
     | RemoteTarball
     | SingleFileModule
+
+    public operator func ==(right: IwmResolutionTag): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case NPM => match (right) { case NPM => true case _ => false }
+            case Git => match (right) { case Git => true case _ => false }
+            case GitHub => match (right) { case GitHub => true case _ => false }
+            case Root => match (right) { case Root => true case _ => false }
+            case Workspace => match (right) { case Workspace => true case _ => false }
+            case Symlink => match (right) { case Symlink => true case _ => false }
+            case Folder => match (right) { case Folder => true case _ => false }
+            case LocalTarball => match (right) { case LocalTarball => true case _ => false }
+            case RemoteTarball => match (right) { case RemoteTarball => true case _ => false }
+            case SingleFileModule => match (right) { case SingleFileModule => true case _ => false }
+        }
+    }
+    public operator func !=(right: IwmResolutionTag): Bool { !(this == right) }
 }
 
 /// 依赖引用
@@ -2290,6 +2323,9 @@ public class IwmSemverVersion {
 /// Semver 标签
 public class IwmSemverTag {
     public init() {}
+    public func preLen(): Int64 { return 0 }
+    public func buildLen(): Int64 { return 0 }
+    public func cloneInto(bytes: IwmStringBytes, buf: String): IwmSemverTag { return IwmSemverTag() }
 }
 
 /// 分配器

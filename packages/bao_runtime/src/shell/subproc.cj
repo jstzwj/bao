@@ -267,58 +267,6 @@ public class ShellSubprocess {
     }
 
     // ========================================================================
-    // 启动参数
-    // ========================================================================
-
-    /// 启动参数
-    public class SpawnArgs {
-        public var arena: ArenaAllocator
-        public var cmdParent: CmdState
-        public var overrideEnv: Boolean = false
-        public var envArray: ArrayList<?String>
-        public var cwd: String
-        public var stdio: Array<Stdio>
-        public var lazy: Boolean = false
-        public var path: String
-        public var detached: Boolean = false
-
-        /// 默认参数
-        public static func `default`(arena: ArenaAllocator, cmdParent: CmdState, eventLoop: EventLoopHandle, isSync: Boolean): SpawnArgs {
-            let out = SpawnArgs()
-            out.arena = arena
-            out.overrideEnv = false
-            out.envArray = ArrayList<?String>()
-            out.cwd = eventLoop.topLevelDir()
-            out.stdio = [
-                Stdio.ignore,
-                Stdio.pipe,
-                Stdio.inherit
-            ]
-            out.lazy = false
-            out.path = eventLoop.env().get("PATH") ?? ""
-            out.detached = false
-            out.cmdParent = cmdParent
-            if (isSync) {
-                out.stdio[1] = Stdio.pipe
-                out.stdio[2] = Stdio.pipe
-            }
-            return out
-        }
-
-        /// 从环境填充
-        public func fillEnv(envIter: EnvMap.Iterator, disablePathLookup: Boolean) {
-            let allocator = this.arena.allocator()
-            this.overrideEnv = true
-            while (let entry <- envIter.next()) {
-                let key = entry.key.slice()
-                let value = entry.value.slice()
-                let line = "${key}=${value}"
-                this.envArray.append(line)
-            }
-        }
-    }
-
-    // ========================================================================
     // 异步生成
     // ========================================================================
 
@@ -326,315 +274,367 @@ public class ShellSubprocess {
     public static func spawnAsync(
         eventLoop: EventLoopHandle,
         shellio: ShellIO,
-        spawnArgs: SpawnArgs,
+        spawnArgs: ShellSpawnArgs,
         out: ShellSubprocess,
         notifyCallerProcessAlreadyExited: Boolean
     ): Result<Unit> {
         return Result<Unit>.success()
     }
+}
 
-    // ========================================================================
-    // 可写入
-    // ========================================================================
+// ========================================================================
+// Shell启动参数
+// ========================================================================
 
-    /// 可写入端
-    public enum Writable {
-        | pipe(FileSink)
-        | fd(FD)
-        | buffer(StaticPipeWriter)
-        | memfd(FD)
-        | inherit
-        | ignore
+/// 启动参数
+public class ShellSpawnArgs {
+    public var arena: ArenaAllocator
+    public var cmdParent: CmdState
+    public var overrideEnv: Boolean = false
+    public var envArray: ArrayList<?String>
+    public var cwd: String
+    public var stdio: Array<Stdio>
+    public var lazy: Boolean = false
+    public var path: String
+    public var detached: Boolean = false
 
-        /// 是否有待处理活动
-        public func hasPendingActivity(): Boolean {
-            match (this) {
-                case pipe(_) =>
-                    return true
-                case buffer(_) =>
-                    return true
-                case fd => return false
-                case memfd => return false
-                case inherit => return false
-                case ignore => return false
-            }
+    /// 默认参数
+    public static func `default`(arena: ArenaAllocator, cmdParent: CmdState, eventLoop: EventLoopHandle, isSync: Boolean): ShellSpawnArgs {
+        let out = ShellSpawnArgs()
+        out.arena = arena
+        out.overrideEnv = false
+        out.envArray = ArrayList<?String>()
+        out.cwd = eventLoop.topLevelDir()
+        out.stdio = [
+            Stdio.ignore,
+            Stdio.pipe,
+            Stdio.inherit
+        ]
+        out.lazy = false
+        out.path = eventLoop.env().get("PATH") ?? ""
+        out.detached = false
+        out.cmdParent = cmdParent
+        if (isSync) {
+            out.stdio[1] = Stdio.pipe
+            out.stdio[2] = Stdio.pipe
         }
+        return out
+    }
 
-        /// 增加引用
-        public func ref() {
-            match (this) {
-                case pipe(pipe) =>
-                    pipe.updateRef(true)
-                case buffer(buffer) =>
-                    buffer.updateRef(true)
-                case fd => ()
-                case memfd => ()
-                case inherit => ()
-                case ignore => ()
-            }
+    /// 从环境填充
+    public func fillEnv(envIter: EnvMapIterator, disablePathLookup: Boolean) {
+        let allocator = this.arena.allocator()
+        this.overrideEnv = true
+        while (let entry <- envIter.next()) {
+            let key = entry.key.slice()
+            let value = entry.value.slice()
+            let line = "${key}=${value}"
+            this.envArray.append(line)
         }
+    }
+}
 
-        /// 减少引用
-        public func unref() {
-            match (this) {
-                case pipe(pipe) =>
-                    pipe.updateRef(false)
-                case buffer(buffer) =>
-                    buffer.updateRef(false)
-                case fd => ()
-                case memfd => ()
-                case inherit => ()
-                case ignore => ()
-            }
-        }
+// ========================================================================
+// 可写入
+// ========================================================================
 
-        /// 关闭
-        public mutating func close() {
-            match (this) {
-                case pipe(pipe) =>
-                    pipe.end(None)
-                case memfd(fd) =>
-                    fd.close()
-                    this = Writable.ignore
-                case fd(fd) =>
-                    fd.close()
-                    this = Writable.ignore
-                case buffer(buffer) =>
-                    buffer.close()
-                case inherit => ()
-                case ignore => ()
-            }
-        }
+/// 可写入端
+public enum Writable {
+    | pipe(FileSink)
+    | fd(FD)
+    | buffer(StaticPipeWriter)
+    | memfd(FD)
+    | inherit
+    | ignore
 
-        /// 关闭回调 - 防止use-after-free
-        /// 对应 Bun: pub fn onClose(`this`: *Writable, _: ?bun.sys.Error) void
-        public mutating func onClose(err: ?SystemError) {
-            match (this) {
-                case buffer(buffer) =>
-                    buffer.deref()
-                case pipe(pipe) =>
-                    pipe.deref()
-                case fd => ()
-                case memfd => ()
-                case inherit => ()
-                case ignore => ()
-            }
-            this = Writable.ignore
-        }
-
-        /// 就绪回调
-        /// 对应 Bun: pub fn onReady(_: *Writable, _: ?..., _: ?...) void {}
-        public func onReady(size: ?Int64, maybeSize: ?Int64) {
-            // 无操作
-        }
-
-        /// 开始回调
-        /// 对应 Bun: pub fn onStart(_: *Writable) void {}
-        public func onStart() {
-            // 无操作
-        }
-
-        /// 初始化可写入端
-        /// 对应 Bun: pub fn init(stdio: Stdio, event_loop: ..., subprocess: ..., result: ...) !Writable
-        public static func `init`(stdio: Stdio, eventLoop: EventLoopHandle, subprocess: ShellSubprocess, result: StdioResult): Writable {
-            assertStdioResult(result)
-            match (stdio) {
-                case dup2 =>
-                    // Shell不使用dup2作为stdin
-                    return Writable.ignore
-                case pipe =>
-                    // Shell不使用pipe作为stdin
-                    return Writable.ignore
-                case blob(blob) =>
-                    return Writable.buffer(StaticPipeWriter.create(eventLoop, subprocess, result, blob))
-                case arrayBuffer(arrayBuffer) =>
-                    return Writable.buffer(StaticPipeWriter.create(eventLoop, subprocess, result, arrayBuffer))
-                case memfd(memfd) =>
-                    return Writable.memfd(memfd)
-                case fd =>
-                    return Writable.fd(result)
-                case inherit =>
-                    return Writable.inherit
-                case path => return Writable.ignore
-                case ignore => return Writable.ignore
-                case ipc => return Writable.ignore
-                case capture => return Writable.ignore
-                case readableStream =>
-                    return Writable.ignore
-            }
-        }
-
-        /// 转为JS值
-        /// 对应 Bun: pub fn toJS(`this`: *Writable, globalThis: ..., subprocess: ...) JsValue
-        public func toJS(globalThis: JSGlobalObject, subprocess: ShellSubprocess): JsValue {
-            match (this) {
-                case fd(fd) =>
-                    return JsValue.jsNumber(fd)
-                case memfd => return JsValue.jsUndefined()
-                case ignore => return JsValue.jsUndefined()
-                case buffer => return JsValue.jsUndefined()
-                case inherit => return JsValue.jsUndefined()
-                case pipe(pipe) =>
-                    // 对应 Bun: pipe.toJSWithDestructor(...)
-                    return pipe.toJS(globalThis)
-            }
-        }
-
-        /// 终结化
-        /// 对应 Bun: pub fn finalize(`this`: *Writable) void
-        public mutating func finalize() {
-            match (this) {
-                case pipe(pipe) =>
-                    pipe.deref()
-                    this = Writable.ignore
-                case buffer(buffer) =>
-                    buffer.updateRef(false)
-                    buffer.deref()
-                case memfd(fd) =>
-                    fd.close()
-                    this = Writable.ignore
-                case fd => ()
-                case inherit => ()
-                case ignore => ()
-            }
+    /// 是否有待处理活动
+    public func hasPendingActivity(): Boolean {
+        match (this) {
+            case pipe(_) =>
+                return true
+            case buffer(_) =>
+                return true
+            case fd => return false
+            case memfd => return false
+            case inherit => return false
+            case ignore => return false
         }
     }
 
-    // ========================================================================
-    // 可读取
-    // ========================================================================
-
-    /// 可读取端
-    /// 对应 Bun: pub const Readable = union(enum) { ... }
-    public enum Readable {
-        | fd(FD)
-        | memfd(FD)
-        | pipe(PipeReader)
-        | inherit
-        | ignore
-        | closed
-        | buffer(Array<Byte>)
-
-        /// 初始化可读取端
-        /// 对应 Bun: pub fn init(out_type, stdio, shellio, event_loop, process, result, allocator, max_size, is_sync) Readable
-        public static func `init`(
-            outType: OutKind,
-            stdio: Stdio,
-            shellio: ?IOWriter,
-            eventLoop: EventLoopHandle,
-            process: ShellSubprocess,
-            result: StdioResult,
-            allocator: Allocator,
-            maxSize: UInt32,
-            isSync: Boolean
-        ): Readable {
-            assertStdioResult(result)
-            match (stdio) {
-                case inherit =>
-                    return Readable.inherit
-                case ipc => return Readable.ignore
-                case dup2 => return Readable.ignore
-                case ignore => return Readable.ignore
-                case path =>
-                    return Readable.ignore
-                case fd(fd) =>
-                    return Readable.fd(fd)
-                case blob =>
-                    // Blob是不可变的，应该只有带fd的情况
-                    return Readable.ignore
-                case memfd(memfd) =>
-                    return Readable.memfd(memfd)
-                case pipe =>
-                    return Readable.pipe(PipeReader.create(eventLoop, process, result, None, outType))
-                case arrayBuffer(arrayBuffer) =>
-                    let readable = Readable.pipe(PipeReader.create(eventLoop, process, result, None, outType))
-                    readable.pipe.setBufferedOutputArrayBuffer(arrayBuffer)
-                    return readable
-                case capture =>
-                    return Readable.pipe(PipeReader.create(eventLoop, process, result, shellio, outType))
-                case readableStream =>
-                    // Shell不使用readable_stream
-                    return Readable.ignore
-            }
+    /// 增加引用
+    public func ref() {
+        match (this) {
+            case pipe(pipe) =>
+                pipe.updateRef(true)
+            case buffer(buffer) =>
+                buffer.updateRef(true)
+            case fd => ()
+            case memfd => ()
+            case inherit => ()
+            case ignore => ()
         }
+    }
 
-        /// 增加引用
-        public func ref() {
-            match (this) {
-                case pipe(pipe) =>
-                    pipe.updateRef(true)
-                case fd => ()
-                case memfd => ()
-                case inherit => ()
-                case ignore => ()
-                case closed => ()
-                case buffer => ()
-            }
+    /// 减少引用
+    public func unref() {
+        match (this) {
+            case pipe(pipe) =>
+                pipe.updateRef(false)
+            case buffer(buffer) =>
+                buffer.updateRef(false)
+            case fd => ()
+            case memfd => ()
+            case inherit => ()
+            case ignore => ()
         }
+    }
 
-        /// 减少引用
-        public func unref() {
-            match (this) {
-                case pipe(pipe) =>
-                    pipe.updateRef(false)
-                case fd => ()
-                case memfd => ()
-                case inherit => ()
-                case ignore => ()
-                case closed => ()
-                case buffer => ()
-            }
+    /// 关闭
+    public mutating func close() {
+        match (this) {
+            case pipe(pipe) =>
+                pipe.end(None)
+            case memfd(fd) =>
+                fd.close()
+                this = Writable.ignore
+            case fd(fd) =>
+                fd.close()
+                this = Writable.ignore
+            case buffer(buffer) =>
+                buffer.close()
+            case inherit => ()
+            case ignore => ()
         }
+    }
 
-        /// 获取切片
-        public func toSlice(): ?String {
-            match (this) {
-                case fd =>
-                    return None
-                case pipe(pipe) =>
-                    return String.fromBytes(pipe.slice())
-                case buffer(buf) =>
-                    return String.fromBytes(buf)
-                case memfd =>
-                    return None
-                case inherit => return None
-                case ignore => return None
-                case closed => return None
-            }
+    /// 关闭回调 - 防止use-after-free
+    /// 对应 Bun: pub fn onClose(`this`: *Writable, _: ?bun.sys.Error) void
+    public mutating func onClose(err: ?SystemError) {
+        match (this) {
+            case buffer(buffer) =>
+                buffer.deref()
+            case pipe(pipe) =>
+                pipe.deref()
+            case fd => ()
+            case memfd => ()
+            case inherit => ()
+            case ignore => ()
         }
+        this = Writable.ignore
+    }
 
-        /// 关闭
-        public mutating func close() {
-            match (this) {
-                case memfd(fd) =>
-                    this = Readable.closed
-                    fd.close()
-                case fd =>
-                    this = Readable.closed
-                case pipe(pipe) =>
-                    pipe.close()
-                case inherit => ()
-                case ignore => ()
-                case closed => ()
-                case buffer => ()
-            }
+    /// 就绪回调
+    /// 对应 Bun: pub fn onReady(_: *Writable, _: ?..., _: ?...) void {}
+    public func onReady(size: ?Int64, maybeSize: ?Int64) {
+        // 无操作
+    }
+
+    /// 开始回调
+    /// 对应 Bun: pub fn onStart(_: *Writable) void {}
+    public func onStart() {
+        // 无操作
+    }
+
+    /// 初始化可写入端
+    /// 对应 Bun: pub fn init(stdio: Stdio, event_loop: ..., subprocess: ..., result: ...) !Writable
+    public static func `init`(stdio: Stdio, eventLoop: EventLoopHandle, subprocess: ShellSubprocess, result: StdioResult): Writable {
+        assertStdioResult(result)
+        match (stdio) {
+            case dup2 =>
+                // Shell不使用dup2作为stdin
+                return Writable.ignore
+            case pipe =>
+                // Shell不使用pipe作为stdin
+                return Writable.ignore
+            case blob(blob) =>
+                return Writable.buffer(StaticPipeWriter.create(eventLoop, subprocess, result, blob))
+            case arrayBuffer(arrayBuffer) =>
+                return Writable.buffer(StaticPipeWriter.create(eventLoop, subprocess, result, arrayBuffer))
+            case memfd(memfd) =>
+                return Writable.memfd(memfd)
+            case fd =>
+                return Writable.fd(result)
+            case inherit =>
+                return Writable.inherit
+            case path => return Writable.ignore
+            case ignore => return Writable.ignore
+            case ipc => return Writable.ignore
+            case capture => return Writable.ignore
+            case readableStream =>
+                return Writable.ignore
         }
+    }
 
-        /// 终结化
-        public mutating func finalize() {
-            match (this) {
-                case memfd(fd) =>
-                    this = Readable.closed
-                    fd.close()
-                case fd =>
-                    this = Readable.closed
-                case pipe(pipe) =>
-                    this = Readable.closed
-                case inherit => ()
-                case ignore => ()
-                case closed => ()
-                case buffer => ()
-            }
+    /// 转为JS值
+    /// 对应 Bun: pub fn toJS(`this`: *Writable, globalThis: ..., subprocess: ...) JsValue
+    public func toJS(globalThis: JSGlobalObject, subprocess: ShellSubprocess): JsValue {
+        match (this) {
+            case fd(fd) =>
+                return JsValue.jsNumber(fd)
+            case memfd => return JsValue.jsUndefined()
+            case ignore => return JsValue.jsUndefined()
+            case buffer => return JsValue.jsUndefined()
+            case inherit => return JsValue.jsUndefined()
+            case pipe(pipe) =>
+                // 对应 Bun: pipe.toJSWithDestructor(...)
+                return pipe.toJS(globalThis)
+        }
+    }
+
+    /// 终结化
+    /// 对应 Bun: pub fn finalize(`this`: *Writable) void
+    public mutating func finalize() {
+        match (this) {
+            case pipe(pipe) =>
+                pipe.deref()
+                this = Writable.ignore
+            case buffer(buffer) =>
+                buffer.updateRef(false)
+                buffer.deref()
+            case memfd(fd) =>
+                fd.close()
+                this = Writable.ignore
+            case fd => ()
+            case inherit => ()
+            case ignore => ()
+        }
+    }
+}
+
+// ========================================================================
+// 可读取
+// ========================================================================
+
+/// 可读取端
+/// 对应 Bun: pub const Readable = union(enum) { ... }
+public enum Readable {
+    | fd(FD)
+    | memfd(FD)
+    | pipe(PipeReader)
+    | inherit
+    | ignore
+    | closed
+    | buffer(Array<Byte>)
+
+    /// 初始化可读取端
+    /// 对应 Bun: pub fn init(out_type, stdio, shellio, event_loop, process, result, allocator, max_size, is_sync) Readable
+    public static func `init`(
+        outType: OutKind,
+        stdio: Stdio,
+        shellio: ?IOWriter,
+        eventLoop: EventLoopHandle,
+        process: ShellSubprocess,
+        result: StdioResult,
+        allocator: Allocator,
+        maxSize: UInt32,
+        isSync: Boolean
+    ): Readable {
+        assertStdioResult(result)
+        match (stdio) {
+            case inherit =>
+                return Readable.inherit
+            case ipc => return Readable.ignore
+            case dup2 => return Readable.ignore
+            case ignore => return Readable.ignore
+            case path =>
+                return Readable.ignore
+            case fd(fd) =>
+                return Readable.fd(fd)
+            case blob =>
+                // Blob是不可变的，应该只有带fd的情况
+                return Readable.ignore
+            case memfd(memfd) =>
+                return Readable.memfd(memfd)
+            case pipe =>
+                return Readable.pipe(PipeReader.create(eventLoop, process, result, None, outType))
+            case arrayBuffer(arrayBuffer) =>
+                let readable = Readable.pipe(PipeReader.create(eventLoop, process, result, None, outType))
+                readable.pipe.setBufferedOutputArrayBuffer(arrayBuffer)
+                return readable
+            case capture =>
+                return Readable.pipe(PipeReader.create(eventLoop, process, result, shellio, outType))
+            case readableStream =>
+                // Shell不使用readable_stream
+                return Readable.ignore
+        }
+    }
+
+    /// 增加引用
+    public func ref() {
+        match (this) {
+            case pipe(pipe) =>
+                pipe.updateRef(true)
+            case fd => ()
+            case memfd => ()
+            case inherit => ()
+            case ignore => ()
+            case closed => ()
+            case buffer => ()
+        }
+    }
+
+    /// 减少引用
+    public func unref() {
+        match (this) {
+            case pipe(pipe) =>
+                pipe.updateRef(false)
+            case fd => ()
+            case memfd => ()
+            case inherit => ()
+            case ignore => ()
+            case closed => ()
+            case buffer => ()
+        }
+    }
+
+    /// 获取切片
+    public func toSlice(): ?String {
+        match (this) {
+            case fd =>
+                return None
+            case pipe(pipe) =>
+                return String.fromBytes(pipe.slice())
+            case buffer(buf) =>
+                return String.fromBytes(buf)
+            case memfd =>
+                return None
+            case inherit => return None
+            case ignore => return None
+            case closed => return None
+        }
+    }
+
+    /// 关闭
+    public mutating func close() {
+        match (this) {
+            case memfd(fd) =>
+                this = Readable.closed
+                fd.close()
+            case fd =>
+                this = Readable.closed
+            case pipe(pipe) =>
+                pipe.close()
+            case inherit => ()
+            case ignore => ()
+            case closed => ()
+            case buffer => ()
+        }
+    }
+
+    /// 终结化
+    public mutating func finalize() {
+        match (this) {
+            case memfd(fd) =>
+                this = Readable.closed
+                fd.close()
+            case fd =>
+                this = Readable.closed
+            case pipe(pipe) =>
+                this = Readable.closed
+            case inherit => ()
+            case ignore => ()
+            case closed => ()
+            case buffer => ()
         }
     }
 }

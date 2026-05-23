@@ -11,7 +11,47 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.*
+import bao_jsc.{CallFrame, ComparisonResult, ConsoleObject, Formatter, JSGlobalObject, JsValue}
+import bao_collections.ArrayList
+import bao_collections.HashMap
+
+// ========== JSGlobalObject 扩展 - 测试运行器所需方法 ==========
+
+extend JSGlobalObject {
+    /// 抛出错误 - 简化版
+    public func throw_(message: String): JsValue {
+        throwError(message)
+        return JsValue.jsUndefined()
+    }
+
+    /// 抛出带格式化的错误
+    public func throwPretty(fmt: String, args: Array<Any>): JsValue {
+        let message = ConsoleObject.prettyFmt(fmt, false)
+        throwError(message)
+        return JsValue.jsUndefined()
+    }
+
+    /// throw 的别名（对应 scope_functions 中的 `throw`）
+    public func `throw`(message: String): JsValue {
+        return throw_(message)
+    }
+}
+
+// ========== ConsoleFormatter 扩展 ==========
+
+extend ConsoleFormatter {
+    /// 格式化单个值
+    public func formatValue(value: JsValue, global: JsObject): String {
+        return value.toString()
+    }
+}
+
+/// ConsoleFormatter 格式化工具
+public class ConsoleFormatterExtensions {
+    public static func formatValue(formatter: ConsoleFormatter, value: JsValue, global: JsObject): String {
+        return formatter.formatValue(value, global)
+    }
+}
 
 // ========== 格式化器工厂 ==========
 
@@ -283,15 +323,15 @@ public enum MockReturnType {
 /// 对应 Bun 中 expect.zig 中的 Mock 命名空间。
 public class MockHelpers {
     /// 获取 mock 函数的调用记录迭代器
-    public static func jestMockIterator(globalThis: JSGlobalObject, value: JsValue): MockResultIterator {
-        return MockResultIterator(globalThis: globalThis, returnValues: JSMockFunction.getReturnValues(globalThis: globalThis, value: value))
+    public static func jestMockIterator(globalThis: JsObject, value: JsValue): MockResultIterator {
+        return MockResultIterator(globalThis: globalThis, returnValues: JSMockFunction.getReturnValues(globalThis, value))
     }
 
     /// 获取 mock 返回对象的类型
-    public static func jestMockReturnObjectType(globalThis: JSGlobalObject, item: JsValue): MockReturnType {
+    public static func jestMockReturnObjectType(globalThis: JsObject, item: JsValue): MockReturnType {
         let typeValue = item.get(globalThis, "type")
         if (typeValue.isNone()) { return MockReturnType.incomplete }
-        let typeStr = typeValue.toSliceOrNull(globalThis: globalThis) ?? ""
+        let typeStr = typeValue.getOrThrow().toSliceOrNull(globalThis) ?? ""
         match (typeStr) {
             case "return" => return MockReturnType.return_
             case "throw" => return MockReturnType.throw_
