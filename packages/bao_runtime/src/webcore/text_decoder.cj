@@ -118,7 +118,7 @@ public class TextDecoder {
                     }
                 } else {
                     // 非流模式: 替换为 U+FFFD
-                    sb.append("\uFFFD")
+                    sb.append("\u{FFFD}")
                 }
                 break
             }
@@ -145,7 +145,7 @@ public class TextDecoder {
                     sb.append(Char(high))
                     sb.append(Char(low))
                 } else {
-                    sb.append("\uFFFD")
+                    sb.append("\u{FFFD}")
                 }
             }
 
@@ -191,7 +191,7 @@ public class TextDecoder {
                 if (fatal) {
                     // 抛出错误
                 } else {
-                    sb.append("\uFFFD")
+                    sb.append("\u{FFFD}")
                 }
                 i += 2
             } else if (codeUnit >= 0xDC00 && codeUnit <= 0xDFFF) {
@@ -199,7 +199,7 @@ public class TextDecoder {
                 if (fatal) {
                     // 抛出错误
                 } else {
-                    sb.append("\uFFFD")
+                    sb.append("\u{FFFD}")
                 }
                 i += 2
             } else {
