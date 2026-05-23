@@ -1615,10 +1615,12 @@ public class IwmPackageManagerRef {
 public class IwmLockfileRef {
     public var buffers: IwmLockfileBuffers
     public var metaHash: String
+    public var allocator: IwmAllocator
 
     public init() {
         buffers = IwmLockfileBuffers()
         metaHash = ""
+        allocator = IwmAllocator()
     }
 
     public func loadFromCwd(manager: IwmPackageManagerRef, log: IwmLogRef, b: Bool): IwmLoadResult { return IwmLoadResult.NotFound }
@@ -1675,6 +1677,8 @@ public class IwmDependencyList {
 public class IwmResolutionList {
     public var size: Int64
     public init() { size = 0 }
+    public func ensureUnusedCapacity(count: Int64): Unit {}
+    public func slice(off: Int64, end: Int64): IwmResolutionSlice { return IwmResolutionSlice() }
 }
 
 /// 字符串字节

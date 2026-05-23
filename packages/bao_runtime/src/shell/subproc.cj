@@ -211,11 +211,11 @@ public class ShellSubprocess {
                 let out: Readable = this.getIO(kind)
                 match (out) {
                     case pipe(pipe) =>
-                        if (pipe.state == done(let data)) {
-                            // 将管道输出转为buffer
-                            out = Readable.buffer(data)
-                        } else {
-                            out = Readable.ignore
+                        match (pipe.state) {
+                            case done(data) =>
+                                out = Readable.buffer(data)
+                            case _ =>
+                                out = Readable.ignore
                         }
                         pipe.deref()
                     case fd => ()
@@ -229,10 +229,11 @@ public class ShellSubprocess {
                 let out2: Readable = this.getIO(kind)
                 match (out2) {
                     case pipe(pipe) =>
-                        if (pipe.state == done(let data2)) {
-                            out2 = Readable.buffer(data2)
-                        } else {
-                            out2 = Readable.ignore
+                        match (pipe.state) {
+                            case done(data2) =>
+                                out2 = Readable.buffer(data2)
+                            case _ =>
+                                out2 = Readable.ignore
                         }
                         pipe.deref()
                     case fd => ()
@@ -348,10 +349,14 @@ public class ShellSubprocess {
         /// 是否有待处理活动
         public func hasPendingActivity(): Boolean {
             match (this) {
-                case pipe, .buffer =>
+                case pipe(_) =>
                     return true
-                case fd, .memfd, .inherit, .ignore =>
-                    return false
+                case buffer(_) =>
+                    return true
+                case fd => return false
+                case memfd => return false
+                case inherit => return false
+                case ignore => return false
             }
         }
 
@@ -362,8 +367,10 @@ public class ShellSubprocess {
                     pipe.updateRef(true)
                 case buffer(buffer) =>
                     buffer.updateRef(true)
-                case fd, .memfd, .inherit, .ignore =>
-                    () // 无操作
+                case fd => ()
+                case memfd => ()
+                case inherit => ()
+                case ignore => ()
             }
         }
 
@@ -374,8 +381,10 @@ public class ShellSubprocess {
                     pipe.updateRef(false)
                 case buffer(buffer) =>
                     buffer.updateRef(false)
-                case fd, .memfd, .inherit, .ignore =>
-                    () // 无操作
+                case fd => ()
+                case memfd => ()
+                case inherit => ()
+                case ignore => ()
             }
         }
 
@@ -384,13 +393,16 @@ public class ShellSubprocess {
             match (this) {
                 case pipe(pipe) =>
                     pipe.end(None)
-                case memfd(fd), .fd(let fd) =>
+                case memfd(fd) =>
+                    fd.close()
+                    this = Writable.ignore
+                case fd(fd) =>
                     fd.close()
                     this = Writable.ignore
                 case buffer(buffer) =>
                     buffer.close()
-                case inherit, .ignore =>
-                    () // 无操作
+                case inherit => ()
+                case ignore => ()
             }
         }
 
@@ -402,8 +414,10 @@ public class ShellSubprocess {
                     buffer.deref()
                 case pipe(pipe) =>
                     pipe.deref()
-                case fd, .memfd, .inherit, .ignore =>
-                    () // 无操作
+                case fd => ()
+                case memfd => ()
+                case inherit => ()
+                case ignore => ()
             }
             this = Writable.ignore
         }
@@ -441,10 +455,10 @@ public class ShellSubprocess {
                     return Writable.fd(result)
                 case inherit =>
                     return Writable.inherit
-                case path, .ignore =>
-                    return Writable.ignore
-                case ipc, .capture =>
-                    return Writable.ignore
+                case path => return Writable.ignore
+                case ignore => return Writable.ignore
+                case ipc => return Writable.ignore
+                case capture => return Writable.ignore
                 case readableStream =>
                     return Writable.ignore
             }
@@ -456,10 +470,10 @@ public class ShellSubprocess {
             match (this) {
                 case fd(fd) =>
                     return JsValue.jsNumber(fd)
-                case memfd, .ignore =>
-                    return JsValue.jsUndefined()
-                case buffer, .inherit =>
-                    return JsValue.jsUndefined()
+                case memfd => return JsValue.jsUndefined()
+                case ignore => return JsValue.jsUndefined()
+                case buffer => return JsValue.jsUndefined()
+                case inherit => return JsValue.jsUndefined()
                 case pipe(pipe) =>
                     // 对应 Bun: pipe.toJSWithDestructor(...)
                     return pipe.toJS(globalThis)
@@ -479,15 +493,9 @@ public class ShellSubprocess {
                 case memfd(fd) =>
                     fd.close()
                     this = Writable.ignore
-                case fd, .inherit, .ignore =>
-                    () // 无操作
-            }
-        }
-    }
-
-    // ========================================================================
-    // 可读取
-    // ========================================================================
+                case fd => ()
+                case inherit => ()
+                case ignore => ()
 
     /// 可读取端
     /// 对应 Bun: pub const Readable = union(enum) { ... }
