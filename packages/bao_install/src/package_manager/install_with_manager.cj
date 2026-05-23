@@ -1681,7 +1681,7 @@ public class IwmResolutionList {
     public func ensureUnusedCapacity(count: Int64): Unit {}
     public func slice(off: Int64, end: Int64): IwmResolutionBufferSlice { return IwmResolutionBufferSlice() }
     public operator func [](index: Int64): UInt32 { return UInt32(0) }
-    public operator func [](index: Int64, value: UInt32): Unit {}
+    public operator func [](index: Int64, value!: UInt32): Unit {}
 }
 
 /// Resolution Buffer Slice (mutable UInt32 slice from buffer)
@@ -1689,7 +1689,7 @@ public class IwmResolutionBufferSlice {
     public init() {}
     public func size(): Int64 { return 0 }
     public operator func [](index: Int64): UInt32 { return UInt32(0) }
-    public operator func [](index: Int64, value: UInt32): Unit {}
+    public operator func [](index: Int64, value!: UInt32): Unit {}
 }
 
 /// 字符串字节
@@ -1703,7 +1703,7 @@ public class IwmDependencySlice <: Iterable<IwmDependencyRef> {
     public func size(): Int64 { return 0 }
     public func get(list: IwmDependencyList): IwmDependencySlice { return this }
     public operator func [](index: Int64): IwmDependencyRef { return IwmDependencyRef() }
-    public operator func [](index: Int64, value: IwmDependencyRef): Unit {}
+    public operator func [](index: Int64, value!: IwmDependencyRef): Unit {}
     public func iterator(): Iterator<IwmDependencyRef> { return IwmDependencySliceIterator() }
 }
 
@@ -1821,6 +1821,7 @@ public class IwmMapping {
     public static func create(allocator: IwmAllocator, len: Int64): IwmMapping { return IwmMapping() }
     public func len(): Int64 { return 0 }
     public func get(index: Int64): UInt32 { return 0 }
+    public operator func [](index: Int64): UInt32 { return get(index) }
 }
 
 /// 差异摘要

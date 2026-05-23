@@ -8,6 +8,7 @@ import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
 import bao_event_loop.Timespec
+import bao_runtime.VirtualMachine
 
 // ========== 公共辅助函数 ==========
 

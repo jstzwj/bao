@@ -21,8 +21,10 @@ import bao_jsc.*
 /// 设置 quote_strings = true 以便在断言消息中正确显示字符串值。
 ///
 /// 对应 Bun: `pub fn make_formatter(global: &JSGlobalObject) -> Formatter<'_>`
-public func makeFormatter(global: JSGlobalObject): ConsoleObject.Formatter {
-    let formatter = ConsoleObject.Formatter(globalThis: global, quote_strings: true)
+public func makeFormatter(global: JSGlobalObject): ConsoleFormatter {
+    let formatter = ConsoleFormatter()
+    formatter.quoteStrings = true
+    formatter.globalThis = global.globalThis
     return formatter
 }
 
@@ -41,10 +43,10 @@ public enum BigIntCompare {
     /// 从 JsValue 的 ComparisonResult 转换
     public static func fromComparisonResult(result: ComparisonResult): BigIntCompare {
         match (result) {
-            case ComparisonResult.equal => BigIntCompare.equal
-            case ComparisonResult.greaterThan => BigIntCompare.greaterThan
-            case ComparisonResult.lessThan => BigIntCompare.lessThan
-            case ComparisonResult.undefined | ComparisonResult.invalidComparison => BigIntCompare.undefined
+            case ComparisonResult.Equal => BigIntCompare.equal
+            case ComparisonResult.GreaterThan => BigIntCompare.greaterThan
+            case ComparisonResult.LessThan => BigIntCompare.lessThan
+            case ComparisonResult.UndefinedResult | ComparisonResult.InvalidComparison => BigIntCompare.undefined
         }
     }
 }
@@ -136,13 +138,12 @@ public enum OrderingRelation {
 /// 四个 Zig 匹配器仅区别于名称、操作符和 BigIntCompare 判断，
 /// 此函数将它们统一为一个参数化的实现。
 public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callFrame: CallFrame, name: String, rel: OrderingRelation): JsValue {
-    defer { expect.postMatch(globalThis: global) }
-
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let argsBuf = callFrame.argumentsOld(1)
     let arguments = argsBuf.slice()
 
     if (arguments.size < 1) {
+        expect.postMatch(global)
         return global.throwInvalidArguments(name + "() requires 1 argument")
     }
 
@@ -151,49 +152,55 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
     let otherValue = arguments[0]
     otherValue.ensureStillAlive()
 
-    let value: JsValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: name, matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = expect.getValue(global, thisValue, name, "<green>expected<r>")
 
     if ((!value.isNumber() && !value.isBigInt()) || (!otherValue.isNumber() && !otherValue.isBigInt())) {
-        return global.throw_("Expected and actual values must be numbers or bigints")
+        expect.postMatch(global)
+        return global.throwError("Expected and actual values must be numbers or bigints")
     }
 
     let not = expect.flags.not
     var pass = false
 
     if (!value.isBigInt() && !otherValue.isBigInt()) {
-        // 两个都是普通数字
         pass = rel.cmpF64(value.asNumber(), otherValue.asNumber())
     } else if (value.isBigInt()) {
-        // 值是 BigInt
         pass = rel.cmpBigintFwd(BigIntCompare.fromComparisonResult(
-            value.asBigIntCompare(global: global, other: otherValue)))
+            value.asBigIntCompare(global.globalThis, otherValue)))
     } else {
-        // 其他值是 BigInt（操作数交换）
         pass = rel.cmpBigintRev(BigIntCompare.fromComparisonResult(
-            otherValue.asBigIntCompare(global: global, other: value)))
+            otherValue.asBigIntCompare(global.globalThis, value)))
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) {
+        expect.postMatch(global)
+        return JsValue.jsUndefined()
+    }
 
-    // 失败路径
-    let formatter1 = ConsoleObject.Formatter(globalThis: global, quote_strings: true)
-    let formatter2 = ConsoleObject.Formatter(globalThis: global, quote_strings: true)
-    let valueFmt = value.toFmt(formatter1)
-    let expectedFmt = otherValue.toFmt(formatter2)
+    let formatter1 = ConsoleFormatter()
+    formatter1.quoteStrings = true
+    formatter1.globalThis = global.globalThis
+    let formatter2 = ConsoleFormatter()
+    formatter2.quoteStrings = true
+    formatter2.globalThis = global.globalThis
+    let valueFmt = ConsoleFormatterExtensions.formatValue(formatter1, value, global.globalThis)
+    let expectedFmt = ConsoleFormatterExtensions.formatValue(formatter2, otherValue, global.globalThis)
     let glyph = rel.glyph()
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: name, args: "<green>expected<r>", not: true)
-        return expect.throw_(globalThis: global, signature: signature,
-            fmt: "\n\nExpected: not " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
-            args: [expectedFmt, valueFmt])
+        let signature = Expect.getSignature(name, "<green>expected<r>", true)
+        expect.postMatch(global)
+        return expect.throw_(global, signature,
+            "\n\nExpected: not " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
+            [expectedFmt, valueFmt])
     }
 
-    let signature = Expect.getSignature(matcherName: name, args: "<green>expected<r>", not: false)
-    return expect.throw_(globalThis: global, signature: signature,
-        fmt: "\n\nExpected: " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
-        args: [expectedFmt, valueFmt])
+    let signature = Expect.getSignature(name, "<green>expected<r>", false)
+    expect.postMatch(global)
+    return expect.throw_(global, signature,
+        "\n\nExpected: " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
+        [expectedFmt, valueFmt])
 }
 
 // ========== 一元谓词匹配器工具 ==========
@@ -210,10 +217,8 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
 /// @param predicate - 谓词函数，接收 JsValue 返回是否通过
 /// @return JsValue
 public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame: CallFrame, matcherName: String, predicate: (JsValue) -> Bool): JsValue {
-    defer { expect.postMatch(globalThis: global) }
-
-    let thisValue = callFrame.this_()
-    let value: JsValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: matcherName, matcherParamsFmt: "")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = expect.getValue(global, thisValue, matcherName, "")
 
     expect.incrementExpectCallCounter()
 
@@ -221,23 +226,29 @@ public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame:
 
     let not = expect.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
-
-    // 失败路径
-    let formatter = ConsoleObject.Formatter(globalThis: global, quote_strings: true)
-    let received = value.toFmt(formatter)
-
-    if (not) {
-        let signature = Expect.getSignature(matcherName: matcherName, args: "", not: true)
-        return expect.throw_(globalThis: global, signature: signature,
-            fmt: "\n\nExpected: not {f}\nReceived: <red>{f}<r>\n",
-            args: [received, received])
+    if (pass) {
+        expect.postMatch(global)
+        return JsValue.jsUndefined()
     }
 
-    let signature = Expect.getSignature(matcherName: matcherName, args: "", not: false)
-    return expect.throw_(globalThis: global, signature: signature,
-        fmt: "\n\nReceived: <red>{f}<r>\n",
-        args: [received])
+    let formatter = ConsoleFormatter()
+    formatter.quoteStrings = true
+    formatter.globalThis = global.globalThis
+    let received = ConsoleFormatterExtensions.formatValue(formatter, value, global.globalThis)
+
+    if (not) {
+        let signature = Expect.getSignature(matcherName, "", true)
+        expect.postMatch(global)
+        return expect.throw_(global, signature,
+            "\n\nExpected: not {f}\nReceived: <red>{f}<r>\n",
+            [received, received])
+    }
+
+    let signature = Expect.getSignature(matcherName, "", false)
+    expect.postMatch(global)
+    return expect.throw_(global, signature,
+        "\n\nReceived: <red>{f}<r>\n",
+        [received])
 }
 
 // ========== Formatter 扩展 ==========
@@ -248,8 +259,8 @@ public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame:
 /// 提供 builder 风格的配置方法。
 public class FormatterTestExt {
     /// 设置引用字符串选项
-    public static func withQuoteStrings(formatter: ConsoleObject.Formatter, quoteStrings: Bool): ConsoleObject.Formatter {
-        formatter.quote_strings = quoteStrings
+    public static func withQuoteStrings(formatter: ConsoleFormatter, quoteStrings: Bool): ConsoleFormatter {
+        formatter.quoteStrings = quoteStrings
         return formatter
     }
 }
@@ -293,20 +304,20 @@ public class MockHelpers {
 ///
 /// 遍历 mock 函数的所有返回结果。
 public class MockResultIterator {
-    private let globalThis: JSGlobalObject
+    private let globalThis: JsObject
     private let returnValues: JsValue
     private var index: Int32 = 0
     private let length: Int32
 
-    public init(globalThis: JSGlobalObject, returnValues: JsValue) {
+    public init(globalThis: JsObject, returnValues: JsValue) {
         this.globalThis = globalThis
         this.returnValues = returnValues
-        this.size = returnValues.getLength(globalThis: globalThis)
+        this.length = Int32(returnValues.getLength(globalThis))
     }
 
     public func next(): ?JsValue {
         if (index >= length) { return None }
-        let item = returnValues.getIndex(globalThis: globalThis, index: index)
+        let item = returnValues.getIndex(globalThis, UInt32(index))
         index += 1
         return item
     }
