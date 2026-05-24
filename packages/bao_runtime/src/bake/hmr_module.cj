@@ -242,9 +242,7 @@ public class HMRModule {
     /// invalidate — 使模块无效
     public func invalidate(): Unit {
         emitEvent("bun:invalidate", None)
-        // 通过立即抛错触发页面刷新，对应 Bun 上游当前行为。
-        // Bun 源码: throw new Error("TODO: implement ImportMetaHot.invalidate") (Bun original)
-        throw Error("TODO: implement ImportMetaHot.invalidate")
+        throw Error("ImportMetaHot.invalidate is not implemented in this Cangjie runtime build")
     }
 
     /// on — 注册事件处理器
@@ -273,8 +271,7 @@ public class HMRModule {
 
     /// send — 发送事件
     public func send(event: String, cb: HotEventHandler): Unit {
-        // Bun 源码: throw new Error("TODO: implement ImportMetaHot.send") (Bun original)
-        throw Error("TODO: implement ImportMetaHot.send")
+        throw Error("ImportMetaHot.send is not implemented in this Cangjie runtime build")
     }
 }
 

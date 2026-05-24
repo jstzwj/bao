@@ -171,11 +171,13 @@ public class CodecPng {
         spng_set_iccp(ctx, iccp)
     }
 
-    static func copyFromC(ptr: UIntNative, len: UInt64): Array<UInt8> {
-        let n = Int64(len)
-        var out = Array<UInt8>(Int64(n), { _: Int64 => UInt8(0) })
-        // stub: 实际 FFI 需要读取 C 内存
-        return out
+    static func copyFromC(ptr: UIntNative, len: UInt64): ?Array<UInt8> {
+        if (len == 0) { return Array<UInt8>() }
+        if (ptr == UIntNative(0)) { return None }
+        // bao_jsc.JsArrayBuffer.sliceFromPtr 目前返回零填充数组，ArrayBufferView.bytes()
+        // 也只读取 mock arrayData；没有真实 C 指针复制桥时不能返回伪造字节。
+        // 等 native pointer copy helper 接入后再启用 PNG 编解码返回值。
+        return None
     }
 
     // ========================================================================
@@ -193,6 +195,11 @@ public class CodecPng {
             let noneResult: ?DecodedImage = None
             return noneResult
         }
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> <-> native 指针桥接。
+        // 继续用 UIntNative(0) 作为输入/输出缓冲会在成功路径返回零填充图像，
+        // 因此在真正的 FFI 内存接入完成前显式报告不可用。
+        spngCtxFree(ctx)
+        return None
 
         // 2. 设置 PNG 缓冲区
         if (spngSetPngBuffer(ctx, UIntNative(0), UInt64(bytes.size)) != 0) {
@@ -317,6 +324,11 @@ public class CodecPng {
         // 4. 嵌入 ICC 配置
         embedIccp(ctx, iccProfile)
 
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> -> native 指针桥接。
+        // 不能把 UIntNative(0) 当成像素输入并返回伪造的编码成功。
+        spngCtxFree(ctx)
+        return None
+
         // 5. 编码
         if (spngEncodeImage(ctx, UIntNative(0), UInt64(rgba.size),
                              SPNG_FMT_PNG, SPNG_ENCODE_FINALIZE) != 0) {
@@ -331,11 +343,11 @@ public class CodecPng {
             return None
         }
 
-        // 简化: 直接返回空数组 (stub)
-        let bytes = Array<UInt8>(0, { _: Int64 => UInt8(0) })
+        // Cangjie 端尚未能从 libspng 返回的 C 缓冲区复制/托管字节；
+        // 不返回空 PNG 伪成功，诚实报告编码不可用。
         free(buf)
         spngCtxFree(ctx)
-        return EncodedImage(bytes, ImageFormat.png, "libcFree")
+        return None
     }
 
     // ========================================================================
@@ -384,6 +396,11 @@ public class CodecPng {
         // 4. 嵌入 ICC 配置
         embedIccp(ctx, iccProfile)
 
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> -> native 指针桥接。
+        // 不能把 UIntNative(0) 当成调色板/索引输入并返回伪造的编码成功。
+        spngCtxFree(ctx)
+        return None
+
         // 5. 设置 PLTE (调色板) 和 tRNS (透明度)
         var plte = SpngPlte()
         plte.nEntries = UInt32(q.colors)
@@ -423,10 +440,10 @@ public class CodecPng {
             return None
         }
 
-        // 简化: 直接返回空数组 (stub)
-        let bytes = Array<UInt8>(0, { _: Int64 => UInt8(0) })
+        // Cangjie 端尚未能从 libspng 返回的 C 缓冲区复制/托管字节；
+        // 不返回空 PNG 伪成功，诚实报告编码不可用。
         free(buf)
         spngCtxFree(ctx)
-        return EncodedImage(bytes, ImageFormat.png, "libcFree")
+        return None
     }
 }

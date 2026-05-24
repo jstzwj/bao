@@ -1755,8 +1755,13 @@ public class NpmPackageManifest {
         packageVersion: PackageVersionData,
         minimumReleaseAgeMs: Float64
     ): Bool {
-        let currentTimestampMs = Float64(Int64(0)) // TODO: TimeStamp.currentMillis()
+        if (packageVersion.publishTimestampMs <= Float64(0)) { return false }
+        let currentTimestampMs = currentTimeMillisFloat()
         return packageVersion.publishTimestampMs > currentTimestampMs - minimumReleaseAgeMs
+    }
+
+    private static func currentTimeMillisFloat(): Float64 {
+        return Float64(Time.now() / 1000)
     }
 
     /// 查找最佳版本 (含最低发布年龄过滤器)
@@ -1958,8 +1963,8 @@ public class NpmPackageManifest {
     ): FindVersionResult {
         var bestVersion: ?ManifestFindResult = None
         var prevBlockedFromAge: ?PackageVersionData = None
-        let currentTimestampMs = Float64(Int64(0)) // TODO: TimeStamp.currentMillis()
-        let sevenDaysMs: Float64 = 604800000.0 * 7.0
+        let currentTimestampMs = currentTimeMillisFloat()
+        let sevenDaysMs: Float64 = 604800000.0
         let stabilityWindowMs = if (minimumReleaseAgeMs < sevenDaysMs) {
             minimumReleaseAgeMs
         } else {
@@ -4799,11 +4804,68 @@ public class PackageManifestParser {
     }
 
     /// 解析 ES5 日期字符串为 Unix 时间戳 (毫秒)
-    /// 翻译自: bun.jsc.wtf.parseES5Date
+    /// 翻译自: bun.jsc.wtf.parseES5Date 的 npm time 字段实用子集
     private static func parseES5Date(dateStr: String): Float64 {
-        // ISO 8601 格式: "2024-01-15T10:30:00.000Z"
-        // 简化解析: 返回 0 (TODO: 实现完整日期解析)
-        return Float64(0)
+        // npm registry time 字段通常为 ISO 8601: "2024-01-15T10:30:00.000Z"
+        if (dateStr.size < 20) { return Float64(0) }
+        let year = parseFixedDigits(dateStr, 0, 4)
+        let month = parseFixedDigits(dateStr, 5, 2)
+        let day = parseFixedDigits(dateStr, 8, 2)
+        let hour = parseFixedDigits(dateStr, 11, 2)
+        let minute = parseFixedDigits(dateStr, 14, 2)
+        let second = parseFixedDigits(dateStr, 17, 2)
+        if (year < 1970 || month < 1 || month > 12 || day < 1 || day > 31 ||
+            hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 60) {
+            return Float64(0)
+        }
+
+        var millis: Int64 = 0
+        var fracStart: Int64 = 19
+        if (dateStr.size > 19 && dateStr[19] == '.') {
+            fracStart = 20
+            var factor: Int64 = 100
+            var idx: Int64 = fracStart
+            while (idx < dateStr.size && factor > 0) {
+                let ch = dateStr[idx]
+                if (ch < 48 || ch > 57) { break }
+                millis += Int64(ch - 48) * factor
+                factor = factor / 10
+                idx += 1
+            }
+        }
+
+        let days = daysBeforeYear(year) + daysBeforeMonth(year, month) + (day - 1)
+        let seconds = days * 86400 + hour * 3600 + minute * 60 + second
+        return Float64(seconds * 1000 + millis)
+    }
+
+    private static func parseFixedDigits(s: String, start: Int64, len: Int64): Int64 {
+        if (start < 0 || len <= 0 || start + len > s.size) { return Int64(-1) }
+        var value: Int64 = 0
+        var i: Int64 = 0
+        while (i < len) {
+            let ch = s[start + i]
+            if (ch < 48 || ch > 57) { return Int64(-1) }
+            value = value * 10 + Int64(ch - 48)
+            i += 1
+        }
+        return value
+    }
+
+    private static func isLeapYear(year: Int64): Bool {
+        return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    }
+
+    private static func daysBeforeYear(year: Int64): Int64 {
+        let y = year - 1
+        return 365 * (year - 1970) + (y / 4 - 1969 / 4) - (y / 100 - 1969 / 100) + (y / 400 - 1969 / 400)
+    }
+
+    private static func daysBeforeMonth(year: Int64, month: Int64): Int64 {
+        let normal = [0,31,59,90,120,151,181,212,243,273,304,334]
+        var days = Int64(normal[month - 1])
+        if (month > 2 && isLeapYear(year)) { days += 1 }
+        return days
     }
 
     /// 对版本切片进行确定性排序

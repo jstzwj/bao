@@ -308,7 +308,17 @@ public class AsyncHTTP {
         }
 
         // 初始化 HTTPClient
+        http.client.method = method.toString()
         http.client.url = url
+        http.client.headerEntries = ArrayList<HeaderPair>()
+        for (entry in headers.items()) {
+            http.client.headerEntries.append(HeaderPair(entry.name, entry.value))
+        }
+        http.client.headerBuf = headersBuf
+        http.client.httpProxy = options.httpProxy
+        http.client.resultCallback.fn_ = Some({ _: HTTPClient, result: HTTPClientResult =>
+            http.onCallback(http, result)
+        })
         http.client.flags.rejectUnauthorized = match (options.rejectUnauthorized) {
             case Some(v) => v
             case None => true
@@ -326,15 +336,32 @@ public class AsyncHTTP {
             case None => false
         }
         match (options.verbose) {
-            case Some(v) => http.verbose = v
+            case Some(v) =>
+                http.verbose = v
+                http.client.verbose = v
             case None => ()
         }
+        http.client.redirectType = match (redirectType) {
+            case FetchRedirect.follow => "follow"
+            case FetchRedirect.manual => "manual"
+            case FetchRedirect.error => "error"
+        }
+        http.client.signals.aborted = http.signals.aborted
+        http.client.signals.headerProgress = http.signals.headerProgress
         match (options.hostname) {
             case Some(h) => http.client.hostname = Some(h)
             case None => ()
         }
         match (options.unixSocketPath) {
-            case Some(_) => () // 设置 unix socket path
+            case Some(path) => http.client.unixSocketPath = path
+            case None => ()
+        }
+        match (options.proxyHeaders) {
+            case Some(h) => http.client.proxyHeaders = h
+            case None => ()
+        }
+        match (options.tlsProps) {
+            case Some(tls) => http.client.tlsProps = tls.clone()
             case None => ()
         }
 
@@ -377,8 +404,7 @@ public class AsyncHTTP {
         err = None
 
         // 启动 HTTPClient
-        let bodyOutStr = MutableString()
-        client.state = InternalState.initFunc(requestBody, bodyOutStr)
+        client.start(requestBody, responseBuffer)
     }
 
     /// AsyncHTTP 完成回调
@@ -397,6 +423,15 @@ public class AsyncHTTP {
             err = result.fail
             response = None
             state = AsyncHTTPState.fail
+        }
+
+        match (real) {
+            case Some(original) =>
+                original.redirected = redirected
+                original.err = err
+                original.response = response
+                original.state = state
+            case None => ()
         }
 
         // 调用用户回调

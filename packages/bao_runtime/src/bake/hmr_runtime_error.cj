@@ -174,7 +174,7 @@ public class BundlerMessageLocation {
     public init(line: UInt32, column: UInt32, length: UInt32, lineText: String) {
         this.line = line
         this.column = column
-        this.size = length
+        this.length = length
         this.lineText = lineText
     }
 }

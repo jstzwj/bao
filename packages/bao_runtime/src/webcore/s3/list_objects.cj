@@ -98,6 +98,7 @@ public class S3ListObjectsContents {
     /// 对象大小
     /// 对应 Bun: object_size: ?i64
     public var objectSize: Int64
+    public var hasObjectSize: Bool
 
     /// 存储类别
     /// 对应 Bun: storage_class: ?[]const u8
@@ -121,6 +122,7 @@ public class S3ListObjectsContents {
         checksumAlgorithme = ""
         lastModified = ""
         objectSize = 0
+        hasObjectSize = false
         storageClass = ""
         owner = None
         restoreStatus = None
@@ -162,10 +164,12 @@ public class S3ListObjectsV2Result {
     /// 键数量
     /// 对应 Bun: key_count: ?i64
     public var keyCount: Int64
+    public var hasKeyCount: Bool
 
     /// 最大键数
     /// 对应 Bun: max_keys: ?i64
     public var maxKeys: Int64
+    public var hasMaxKeys: Bool
 
     /// 分隔符
     /// 对应 Bun: delimiter: ?[]const u8
@@ -178,6 +182,7 @@ public class S3ListObjectsV2Result {
     /// 是否截断
     /// 对应 Bun: is_truncated: ?bool
     public var isTruncated: Bool
+    public var hasIsTruncated: Bool
 
     /// 续 token
     /// 对应 Bun: continuation_token: ?[]const u8
@@ -203,10 +208,13 @@ public class S3ListObjectsV2Result {
         name = ""
         prefix = ""
         keyCount = 0
+        hasKeyCount = false
         maxKeys = 0
+        hasMaxKeys = false
         delimiter = ""
         encodingType = ""
         isTruncated = false
+        hasIsTruncated = false
         continuationToken = ""
         nextContinuationToken = ""
         startAfter = ""
@@ -266,15 +274,15 @@ public class S3ListObjectsV2Result {
             jsResult.set("nextContinuationToken", JsValue(nextContinuationToken))
         }
 
-        if (isTruncated) {
-            jsResult.set("isTruncated", JsValue(true))
+        if (hasIsTruncated) {
+            jsResult.set("isTruncated", JsValue(isTruncated))
         }
 
-        if (keyCount > 0) {
+        if (hasKeyCount) {
             jsResult.set("keyCount", JsValue(keyCount))
         }
 
-        if (maxKeys > 0) {
+        if (hasMaxKeys) {
             jsResult.set("maxKeys", JsValue(maxKeys))
         }
 
@@ -301,7 +309,7 @@ public class S3ListObjectsV2Result {
                     objectInfo.set("lastModified", JsValue(item.lastModified.toString()))
                 }
 
-                if (item.objectSize > 0) {
+                if (item.hasObjectSize) {
                     objectInfo.set("size", JsValue(item.objectSize))
                 }
 
@@ -377,10 +385,12 @@ public class S3ListObjectsOptions {
     /// 是否获取所有者
     /// 对应 Bun: fetch_owner: ?bool
     public var fetchOwner: Bool
+    public var hasFetchOwner: Bool
 
     /// 最大键数
     /// 对应 Bun: max_keys: ?i64
     public var maxKeys: Int64
+    public var hasMaxKeys: Bool
 
     /// 前缀
     /// 对应 Bun: prefix: ?[]const u8
@@ -395,7 +405,9 @@ public class S3ListObjectsOptions {
         delimiter = ""
         encodingType = ""
         fetchOwner = false
+        hasFetchOwner = false
         maxKeys = 0
+        hasMaxKeys = false
         prefix = ""
         startAfter = ""
     }
@@ -424,10 +436,232 @@ public class S3ListObjectsOptions {
 /// MaxKeys, Delimiter, EncodingType, IsTruncated, ContinuationToken,
 /// NextContinuationToken, StartAfter, Contents, CommonPrefixes 等
 public func parseS3ListObjectsResult(xml: String): S3ListObjectsV2Result {
-    // Stub: full XML parser omitted due to missing String methods (indexOf returns Option, no substring)
-    // In real implementation: parse XML response from S3 ListObjectsV2 API
     let result = S3ListObjectsV2Result()
+    let rootStartOpt = xml.indexOf("<ListBucketResult")
+    if (!rootStartOpt.isSome()) {
+        return result
+    }
+
+    var i = rootStartOpt.getOrThrow()
+    while (i < xml.size) {
+        if (xml[i] != UInt8(60)) {
+            i += 1
+            continue
+        }
+        let closeOpt = xml[i + 1..].indexOf(">")
+        if (!closeOpt.isSome()) {
+            i += 1
+            continue
+        }
+        let tagEnd = i + 1 + closeOpt.getOrThrow()
+        let tagName = xml[(i + 1)..tagEnd]
+        i = tagEnd + 1
+
+        match (tagName) {
+            case "Contents" =>
+                let endOpt = xml[i..].indexOf("</Contents>")
+                if (endOpt.isSome()) {
+                    let blockEnd = i + endOpt.getOrThrow()
+                    parseContentsBlock(xml[i..blockEnd], result)
+                    i = blockEnd + 11
+                }
+            case "Name" =>
+                match (readTagValue(xml, i, "Name")) {
+                    case Some(value) =>
+                        result.name = value.value
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "Delimiter" =>
+                match (readTagValue(xml, i, "Delimiter")) {
+                    case Some(value) =>
+                        result.delimiter = value.value
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "NextContinuationToken" =>
+                match (readTagValue(xml, i, "NextContinuationToken")) {
+                    case Some(value) =>
+                        result.nextContinuationToken = value.value
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "ContinuationToken" =>
+                match (readTagValue(xml, i, "ContinuationToken")) {
+                    case Some(value) =>
+                        result.continuationToken = value.value
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "StartAfter" =>
+                match (readTagValue(xml, i, "StartAfter")) {
+                    case Some(value) =>
+                        result.startAfter = value.value
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "EncodingType" =>
+                match (readTagValue(xml, i, "EncodingType")) {
+                    case Some(value) =>
+                        result.encodingType = value.value
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "KeyCount" =>
+                match (readTagValue(xml, i, "KeyCount")) {
+                    case Some(value) =>
+                        result.keyCount = parseOptionalInt(value.value)
+                        result.hasKeyCount = true
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "MaxKeys" =>
+                match (readTagValue(xml, i, "MaxKeys")) {
+                    case Some(value) =>
+                        result.maxKeys = parseOptionalInt(value.value)
+                        result.hasMaxKeys = true
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "Prefix" =>
+                match (readTagValue(xml, i, "Prefix")) {
+                    case Some(value) =>
+                        if (value.value.size > 0) { result.prefix = value.value }
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "IsTruncated" =>
+                match (readTagValue(xml, i, "IsTruncated")) {
+                    case Some(value) =>
+                        if (value.value == "true") {
+                            result.isTruncated = true
+                            result.hasIsTruncated = true
+                        } else if (value.value == "false") {
+                            result.isTruncated = false
+                            result.hasIsTruncated = true
+                        }
+                        i = value.nextIndex
+                    case None => ()
+                }
+            case "CommonPrefixes" =>
+                let endOpt = xml[i..].indexOf("</CommonPrefixes>")
+                if (endOpt.isSome()) {
+                    let blockEnd = i + endOpt.getOrThrow()
+                    parseCommonPrefixesBlock(xml[i..blockEnd], result)
+                    i = blockEnd + 17
+                }
+            case _ => ()
+        }
+    }
+
     return result
+}
+
+private class XmlTagValue {
+    public var value: String
+    public var nextIndex: Int64
+
+    public init(value: String, nextIndex: Int64) {
+        this.value = value
+        this.nextIndex = nextIndex
+    }
+}
+
+private func readTagValue(xml: String, start: Int64, tag: String): ?XmlTagValue {
+    let close = "</${tag}>"
+    let endOpt = xml[start..].indexOf(close)
+    if (!endOpt.isSome()) { return None }
+    let end = start + endOpt.getOrThrow()
+    return Some(XmlTagValue(xml[start..end], end + close.size))
+}
+
+private func parseContentsBlock(block: String, result: S3ListObjectsV2Result): Unit {
+    let keyOpt = extractTag(block, "Key")
+    if (!keyOpt.isSome()) { return }
+
+    let item = S3ListObjectsContents()
+    item.key = keyOpt.getOrThrow()
+    item.lastModified = extractTag(block, "LastModified") ?? ""
+    item.storageClass = extractTag(block, "StorageClass") ?? ""
+    item.checksumType = extractTag(block, "ChecksumType") ?? ""
+    item.checksumAlgorithme = extractTag(block, "ChecksumAlgorithm") ?? ""
+    match (extractTag(block, "Size")) {
+        case Some(sizeValue) =>
+            item.objectSize = parseOptionalInt(sizeValue)
+            item.hasObjectSize = true
+        case None => ()
+    }
+
+    match (extractTag(block, "ETag")) {
+        case Some(etag) => item.etag = etag.replace("&quot;", "\"")
+        case None => ()
+    }
+
+    match (extractTag(block, "Owner")) {
+        case Some(ownerBlock) =>
+            let ownerId = extractTag(ownerBlock, "ID") ?? ""
+            let displayName = extractTag(ownerBlock, "DisplayName") ?? ""
+            if (ownerId.size > 0 || displayName.size > 0) {
+                item.owner = Some(ObjectOwner(ownerId, displayName))
+            }
+        case None => ()
+    }
+
+    match (extractTag(block, "RestoreStatus")) {
+        case Some(restoreBlock) =>
+            var hasRestore = false
+            var isRestoreInProgress = false
+            match (extractTag(restoreBlock, "IsRestoreInProgress")) {
+                case Some(value) =>
+                    if (value == "true") {
+                        isRestoreInProgress = true
+                        hasRestore = true
+                    } else if (value == "false") {
+                        isRestoreInProgress = false
+                        hasRestore = true
+                    }
+                case None => ()
+            }
+            let expiry = extractTag(restoreBlock, "RestoreExpiryDate") ?? ""
+            if (expiry.size > 0) { hasRestore = true }
+            if (hasRestore) {
+                item.restoreStatus = Some(ObjectRestoreStatus(isRestoreInProgress, expiry))
+            }
+        case None => ()
+    }
+
+    result.contents.append(item)
+}
+
+private func parseCommonPrefixesBlock(block: String, result: S3ListObjectsV2Result): Unit {
+    var i: Int64 = 0
+    while (i < block.size) {
+        let startOpt = block[i..].indexOf("<Prefix>")
+        if (!startOpt.isSome()) { break }
+        let valueStart = i + startOpt.getOrThrow() + 8
+        let endOpt = block[valueStart..].indexOf("</Prefix>")
+        if (!endOpt.isSome()) { break }
+        let valueEnd = valueStart + endOpt.getOrThrow()
+        result.commonPrefixes.append(block[valueStart..valueEnd])
+        i = valueEnd + 9
+    }
+}
+
+private func extractTag(xml: String, tag: String): ?String {
+    let open = "<${tag}>"
+    let startOpt = xml.indexOf(open)
+    if (!startOpt.isSome()) { return None }
+    let valueStart = startOpt.getOrThrow() + open.size
+    let close = "</${tag}>"
+    let endOpt = xml[valueStart..].indexOf(close)
+    if (!endOpt.isSome()) { return None }
+    let valueEnd = valueStart + endOpt.getOrThrow()
+    return Some(xml[valueStart..valueEnd])
+}
+
+private func parseOptionalInt(value: String): Int64 {
+    if (value.size == 0) { return 0 }
+    return Int64.parse(value) ?? 0
 }
 
 
@@ -484,7 +718,9 @@ public func getListObjectsOptionsFromJS(globalThis: JsGlobalObject, listOptions:
     // fetchOwner
     let foVal = listOptions.getBooleanLoose(globalThis.globalThis, "fetchOwner")
     match (foVal) {
-        case Some(val) => listObjectsOptions.fetchOwner = val
+        case Some(val) =>
+            listObjectsOptions.fetchOwner = val
+            listObjectsOptions.hasFetchOwner = true
         case None => ()
     }
 
@@ -494,6 +730,7 @@ public func getListObjectsOptionsFromJS(globalThis: JsGlobalObject, listOptions:
         case Some(val) =>
             if (val.isNumber()) {
                 listObjectsOptions.maxKeys = val.toInt64()
+                listObjectsOptions.hasMaxKeys = true
             }
         case None => ()
     }

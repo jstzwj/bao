@@ -179,23 +179,19 @@ public func doConnect(socket: NewSocket): ?Error {
 
     match (socket.connection) {
         case Some(ConnectionTarget.Host(host, port)) =>
-            // 去除 IPv6 方括号
-            var clean: String = host
-            if (host.size > 1 && host[0] == UInt8(91) && host[host.size - 1] == UInt8(93)) {
-                clean = host[1..host.size - 1]
-            }
-
-            let port_ = port
-
-            // 连接逻辑 (simplified stub)
             socket.socket = SocketHandler.detachedHandler(socket.isSsl)
+            deref(socket)
+            return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: TCP socket connect FFI is not implemented"))
 
         case Some(ConnectionTarget.Unix(u)) =>
             socket.socket = SocketHandler.detachedHandler(socket.isSsl)
+            deref(socket)
+            return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: Unix socket connect FFI is not implemented"))
 
         case Some(ConnectionTarget.Fd(f)) =>
             socket.socket = SocketHandler.detachedHandler(socket.isSsl)
-            onOpen(selfPtr, socket.socket)
+            deref(socket)
+            return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: socket adoption from fd is not implemented"))
 
         case None =>
             throw Exception("doConnect requires connection to be set")
@@ -247,7 +243,10 @@ public func onWritable(socket: NewSocket, socketHandler: SocketHandler): Unit {
 
     let global = handlers.globalObject
     let thisValue = getThisValue(socket, global)
-    // Callback invocation stub
+    let result = callback.call(global, thisValue, [thisValue])
+    if (result.isException()) {
+        handleError(socket, result)
+    }
     handlers.markInactive()
     deref(socket)
 }
@@ -270,7 +269,10 @@ public func onTimeout(socket: NewSocket, socketHandler: SocketHandler): Unit {
 
     let global = handlers.globalObject
     let thisValue = getThisValue(socket, global)
-    // Callback invocation stub
+    let result = callback.call(global, thisValue, [thisValue])
+    if (result.isException()) {
+        handleError(socket, result)
+    }
     handlers.markInactive()
 }
 
@@ -331,7 +333,10 @@ public func handleConnectError(socket: NewSocket, errno: Int32): Unit {
     socket.thisValue = JsRef()
 
     let errValue = JsValue("Connection error")
-    // stub: skip callback invocation
+    let result = callback.call(global, thisValue, [thisValue, errValue])
+    if (result.isException()) {
+        handleError(socket, result)
+    }
     handlers.markInactive()
 }
 
@@ -361,7 +366,10 @@ public func onOpen(socket: NewSocket, socketHandler: SocketHandler): Unit {
 
     // 保持 handlers 在回调期间存活
     handlers.markActive()
-    // Callback invocation stub
+    let result = callback.call(global, thisValue, [thisValue])
+    if (result.isException()) {
+        handleError(socket, result)
+    }
     handlers.markInactive()
     deref(socket)
 }
@@ -391,7 +399,10 @@ public func onEnd(socket: NewSocket, socketHandler: SocketHandler): Unit {
 
     let global = handlers.globalObject
     let thisValue = getThisValue(socket, global)
-    // Callback invocation stub
+    let result = callback.call(global, thisValue, [thisValue])
+    if (result.isException()) {
+        handleError(socket, result)
+    }
     handlers.markInactive()
     deref(socket)
 }
@@ -612,9 +623,16 @@ public func internalFlush(socket: NewSocket): Unit {
     }
 
     let result = socket.socket.write(data)
-    // Simplified write result handling
-    socket.bytesWritten += UInt64(data.size)
-    socket.bufferedDataForNodeNet = []
+    match (result) {
+        case WriteResult.Success(wrote, total) =>
+            socket.bytesWritten += UInt64(wrote)
+            if (wrote >= total) {
+                socket.bufferedDataForNodeNet = []
+            } else {
+                socket.bufferedDataForNodeNet = data[wrote..data.size]
+            }
+        case WriteResult.Fail => ()
+    }
 }
 
 /// JS: write(data)
@@ -627,8 +645,40 @@ public func writeFromJs(
         return JsValue(false)
     }
 
-    // Simplified write stub
+    let bytesOpt = socketWriteBytesFromJs(global, data)
+    if (bytesOpt.isNone()) {
+        throw JsTypeError("socket.write expects a string, Buffer, ArrayBuffer, DataView, or TypedArray backed by owned byte storage")
+    }
+
+    let bytes = bytesOpt.getOrThrow()
+    if (bytes.isEmpty()) {
+        return JsValue(true)
+    }
+
+    let wroteRaw = socket.socket.write(bytes)
+    if (wroteRaw < 0) {
+        return JsValue(false)
+    }
+
+    let wrote = Int64(wroteRaw)
+    socket.bytesWritten += UInt64(wrote)
+    if (wrote < bytes.size) {
+        socket.bufferedDataForNodeNet = bytes[wrote..bytes.size]
+        return JsValue(false)
+    }
+
     return JsValue(true)
+}
+
+func socketWriteBytesFromJs(global: JsObject, data: JsValue): ?Array<Byte> {
+    if (data.isString()) {
+        return Some(data.toString().toArray())
+    }
+
+    match (data.asArrayBuffer(global)) {
+        case Some(view) => return Some(view.bytes())
+        case None => return None
+    }
 }
 
 /// JS: end(data?)
@@ -656,8 +706,8 @@ public func reloadFromJs(
     global: JsObject,
     handlerObject: JsValue
 ): JsValue {
-    // Simplified reload stub
-    return JsValue(true)
+    // Handler reload parsing is not wired yet. Do not claim success.
+    return JsValue(false)
 }
 
 // ============================================================================
@@ -711,8 +761,7 @@ public func handleError(socket: NewSocket, errValue: JsValue): Unit {
 
 /// 转换为 JS 值
 public func toJs(socket: NewSocket, global: JSGlobalObject): JsValue {
-    // Stub: return undefined — actual JS wrapping done by caller
-    return JsValue.undefined()
+    throw JsTypeError("ENOSYS: socket JS wrapper creation is not implemented")
 }
 
 /// JS 构造器 (禁止直接构造)
@@ -741,7 +790,12 @@ func selectAlpnCallback(
     in_: CPointer<Unit>,
     inlen: UInt32
 ): Int32 {
-    // Stub: always return NOACK — ALPN negotiation not yet implemented
+    if (inlen == UInt32(0)) {
+        return SSL_TLSEXT_ERR_NOACK
+    }
+
+    // No protocol list is wired into the callback yet. Decline ALPN negotiation
+    // instead of pretending a protocol was selected.
     return SSL_TLSEXT_ERR_NOACK
 }
 

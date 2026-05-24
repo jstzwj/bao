@@ -1853,7 +1853,7 @@ public class IsolatedInstaller {
 
             // Posix 迁移路径:
             // 1. rename node_modules -> tmp
-            let randomHex = "" // TODO: MathUtil.randomHex(UInt64(8))
+            let randomHex = makeMigrationHex(cwd)
             let tmpName = "${cwd}/tmp_modules_${randomHex}"
             let renameSuccess = SysFs.rename(nodeModulesPath, tmpName)
             if (match (renameSuccess) { case SysMaybe<Unit>.Err(_) => true case _ => false }) {
@@ -1914,6 +1914,22 @@ public class IsolatedInstaller {
     //     6. 如果需要但缓存命中: 应用补丁, 开始安装
     //     7. 如果缓存未命中: 加入下载队列
     // ========================================================================
+
+    /// 生成迁移目录后缀
+    /// Bun 使用随机十六进制避免与既有 .old_modules 目录冲突; 这里用时间、cwd 和重试次数生成确定的候选。
+    private func makeMigrationHex(cwd: String): String {
+        var attempt: UInt64 = UInt64(0)
+        while (attempt < UInt64(32)) {
+            let seed = "${cwd}:${Time.now()}:${attempt}"
+            let hex = uint64ToHex(Wyhash.hash(seed))
+            let candidate = "${cwd}/node_modules/.old_modules-${hex}"
+            if (!SysFs.exists(candidate)) {
+                return hex
+            }
+            attempt += UInt64(1)
+        }
+        return uint64ToHex(Wyhash.hash("${cwd}:${Time.now()}:fallback"))
+    }
 
     /// 处理单个 entry
     /// 翻译自: isolated_install 中对每个 entry 的处理

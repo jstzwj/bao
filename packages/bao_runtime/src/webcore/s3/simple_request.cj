@@ -791,6 +791,7 @@ public class S3HttpSimpleTask {
 
         let metadataOpt = result.metadata
         if (metadataOpt.isNone()) {
+            fail("MissingResponseMetadata", "S3 response did not include HTTP metadata.")
             deinit()
             return
         }
@@ -808,12 +809,16 @@ public class S3HttpSimpleTask {
             case S3CallbackKind.Stat =>
                 match (httpResponse.statusCode) {
                     case 200 =>
-                        // stub: headers.get not available on HttpHeaders; use defaults
+                        let contentLength = metadata.get("content-length")
+                        let size = match (contentLength) {
+                            case Some(value) => Int64.parse(value) ?? 0
+                            case None => 0
+                        }
                         statCallback(S3StatResult.success(
-                            0,
-                            "",
-                            "",
-                            ""
+                            size,
+                            metadata.get("etag") ?? "",
+                            metadata.get("last-modified") ?? "",
+                            metadata.get("content-type") ?? ""
                         ), callbackContext)
                     case 404 => errorWithBody(true)
                     case _ => errorWithBody(false)
@@ -875,21 +880,21 @@ public class S3HttpSimpleTask {
                         let body = responseBuffer
                         responseBuffer = MutableString()
                         downloadCallback(S3DownloadResult.success(
-                            "",
+                            metadata.get("etag") ?? "",
                             body
                         ), callbackContext)
                     case 204 =>
                         let body = responseBuffer
                         responseBuffer = MutableString()
                         downloadCallback(S3DownloadResult.success(
-                            "",
+                            metadata.get("etag") ?? "",
                             body
                         ), callbackContext)
                     case 206 =>
                         let body = responseBuffer
                         responseBuffer = MutableString()
                         downloadCallback(S3DownloadResult.success(
-                            "",
+                            metadata.get("etag") ?? "",
                             body
                         ), callbackContext)
                     case 404 => errorWithBody(true)
@@ -911,8 +916,7 @@ public class S3HttpSimpleTask {
             // ----------------------------------------------------------------
             case S3CallbackKind.Part =>
                 if (!failIfContainsError(httpResponse.statusCode)) {
-                    // stub: headers.get not available; use empty etag
-                    let etag = ""
+                    let etag = metadata.get("etag") ?? ""
                     if (etag.size > 0) {
                         partCallback(S3PartResult.etagResult(etag), callbackContext)
                     } else {
@@ -964,9 +968,198 @@ public func executeSimpleS3Request(
     callbackKind: S3CallbackKind,
     callbackContext: UIntNative
 ): Unit {
-    // stub: S3 request signing and HTTP scheduling not yet implemented
-    // Requires: S3Credentials.signRequestFull, S3SignResult, AsyncHttp with full constructor
-    return
+    let task = prepareSimpleS3Task(credentials, options, callbackKind, callbackContext)
+    match (task) {
+        case Some(t) =>
+            if (callbackKind == S3CallbackKind.Delete || callbackKind == S3CallbackKind.ListObjects || callbackKind == S3CallbackKind.Upload) {
+                scheduleSimpleS3Task(t, options.method, options.body)
+                return
+            }
+            t.fail(
+                "NotImplemented",
+                simpleRequestNotImplementedMessage(callbackKind)
+            )
+            t.deinit()
+        case None => ()
+    }
+}
+
+public func executeSimpleS3StatRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3StatResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = prepareSimpleS3StatTask(credentials, options, callback, callbackContext)
+    match (task) {
+        case Some(t) =>
+            if (options.method != HttpMethod.HEAD) {
+                t.fail("InvalidMethod", "S3 stat requests must use HEAD.")
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, HttpMethod.HEAD, "")
+        case None => ()
+    }
+}
+
+private func scheduleSimpleS3Task(t: S3HttpSimpleTask, method: HttpMethod, requestBody: String): Unit {
+    let callback = BaoHTTPClientResultCallback()
+    callback.fn_ = Some({ _: BaoHTTPClient, result: BaoHTTPClientResult =>
+        t.result = HttpClientResult.fromBaoHttp(result)
+        if (!t.result.hasMore) {
+            t.onResponse()
+        }
+    })
+    let httpOptions = BaoAsyncHTTPOptions()
+    let realHttp = BaoAsyncHTTP.initFunc(
+        method.toBaoHttpMethod(),
+        BaoParsedUrl.parse(t.signResult.url),
+        t.headers.toBaoHeaderEntryList(),
+        "",
+        t.responseBuffer,
+        requestBody,
+        callback,
+        BaoFetchRedirect.follow,
+        httpOptions
+    )
+    t.pollRef.ref(t.vm)
+    let batch = BaoThreadPoolBatch()
+    realHttp.schedule(batch)
+    baoHttpThread.schedule(batch)
+}
+
+public func executeSimpleS3ListObjectsRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3ListObjectsResultEx, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.ListObjects
+    task.callbackContext = callbackContext
+    task.listObjectsCallback = callback
+    match (prepareSimpleS3TaskWithTask(task, credentials, options)) {
+        case Some(t) => scheduleSimpleS3Task(t, options.method, options.body)
+        case None => ()
+    }
+}
+
+public func executeSimpleS3DownloadRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3DownloadResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.Download
+    task.callbackContext = callbackContext
+    task.downloadCallback = callback
+    match (prepareSimpleS3TaskWithTask(task, credentials, options)) {
+        case Some(t) =>
+            if (options.method != HttpMethod.GET) {
+                t.fail("InvalidMethod", "S3 download requests must use GET.")
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, HttpMethod.GET, options.body)
+        case None => ()
+    }
+}
+
+private func prepareSimpleS3StatTask(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3StatResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): ?S3HttpSimpleTask {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.Stat
+    task.callbackContext = callbackContext
+    task.statCallback = callback
+    return prepareSimpleS3TaskWithTask(task, credentials, options)
+}
+
+private func prepareSimpleS3Task(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callbackKind: S3CallbackKind,
+    callbackContext: UIntNative
+): ?S3HttpSimpleTask {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = callbackKind
+    task.callbackContext = callbackContext
+    return prepareSimpleS3TaskWithTask(task, credentials, options)
+}
+
+private func prepareSimpleS3TaskWithTask(
+    task: S3HttpSimpleTask,
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions
+): ?S3HttpSimpleTask {
+    var signResult: S3SignResult
+    try {
+        signResult = buildSimpleS3SignResult(credentials, options)
+    } catch (e: Exception) {
+        let signErr = getSignErrorCodeAndMessage()
+        task.fail(signErr.code, signErr.message)
+        task.deinit()
+        return None
+    }
+
+    task.signResult = signResult
+    task.headers = buildSimpleS3Headers(signResult, options)
+    task.range = options.range
+    task.proxyUrl = options.proxyUrl
+    return Some(task)
+}
+
+private func buildSimpleS3SignResult(credentials: S3Credentials, options: S3SimpleRequestOptions): S3SignResult {
+    let contentType = if (options.contentType.size > 0) { options.contentType } else { "" }
+    let contentDisposition = if (options.contentDisposition.size > 0) { options.contentDisposition } else { "" }
+
+    return S3Signing.signRequestFull(
+        options.path,
+        options.method,
+        options.searchParams,
+        contentDisposition,
+        contentType,
+        None,
+        None,
+        options.requestPayer,
+        options.acl,
+        options.storageClass,
+        credentials
+    )
+}
+
+private func buildSimpleS3Headers(signResult: S3SignResult, options: S3SimpleRequestOptions): HttpHeaders {
+    var headers = signResult.toHttpHeaders()
+    if (options.range.size > 0) {
+        headers.set("range", options.range)
+    }
+    if (options.contentType.size > 0) {
+        headers.set("content-type", options.contentType)
+    }
+    if (options.contentDisposition.size > 0) {
+        headers.set("content-disposition", options.contentDisposition)
+    }
+    if (options.contentEncoding.size > 0) {
+        headers.set("content-encoding", options.contentEncoding)
+    }
+    return headers
+}
+
+private func simpleRequestNotImplementedMessage(callbackKind: S3CallbackKind): String {
+    match (callbackKind) {
+        case S3CallbackKind.Stat => "S3 stat request scheduling is not implemented in this Cangjie runtime build."
+        case S3CallbackKind.Download => "S3 download request scheduling is not implemented in this Cangjie runtime build."
+        case S3CallbackKind.Upload => "S3 upload request scheduling is not implemented in this Cangjie runtime build."
+        case S3CallbackKind.Delete => "S3 delete request scheduling is not implemented in this Cangjie runtime build."
+        case S3CallbackKind.ListObjects => "S3 listObjects request scheduling is not implemented in this Cangjie runtime build."
+        case S3CallbackKind.Commit => "S3 multipart commit request scheduling is not implemented in this Cangjie runtime build."
+        case S3CallbackKind.Part => "S3 multipart part request scheduling is not implemented in this Cangjie runtime build."
+    }
 }
 
 /// 获取签名错误码和消息

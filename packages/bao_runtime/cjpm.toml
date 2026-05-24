@@ -64,6 +64,7 @@ bao_boringssl = { path = "../bao_boringssl" }
 bao_ptr = { path = "../bao_ptr" }
 bao_watcher = { path = "../bao_watcher" }
 bao_http_types = { path = "../bao_http_types" }
+bao_http = { path = "../bao_http" }
 bao_uws_sys = { path = "../bao_uws_sys" }
 bao_options = { path = "../bao_options" }
 bao_simdutf_sys = { path = "../bao_simdutf_sys" }

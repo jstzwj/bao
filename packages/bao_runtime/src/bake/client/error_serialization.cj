@@ -43,7 +43,7 @@ public class BundlerMessageLocation {
     public init(line: UInt32, column: UInt32, length: UInt32, lineText: String) {
         this.line = line
         this.column = column
-        this.size = length
+        this.length = length
         this.lineText = lineText
     }
 }
@@ -63,9 +63,12 @@ public func decodeSerializedError(reader: DataViewReader): BundlerMessage {
     if (kind >= 0 && kind <= 4) {
         return readLogMsg(reader, BundlerMessageLevel.fromByte(kind))
     }
-    // Bun 原始 TODO: JS Errors 的错误反序列化尚未实现
-    // Bun: src/bake/client/error_serialization.ts
-    throw Error("TODO: JS Errors")
+    return BundlerMessage(
+        BundlerMessageLevel.err,
+        "Unsupported serialized JS error kind ${kind}",
+        None,
+        Array<BundlerNote>()
+    )
 }
 
 /// 第一个字节已由调用方读取。

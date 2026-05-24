@@ -166,7 +166,11 @@ public class CodecJpeg {
     public static func decode(bytes: Array<UInt8>, maxPixels: UInt64, hint: DecodeHint): ?DecodedImage {
         // 1. 创建解压缩器
         let h = tj3Init(1)
-        // 空指针检查已包含在 tj3Init 的返回值中
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> <-> native 指针桥接。
+        // 继续用空 CPointer 调用 TurboJPEG 会在成功路径返回零填充图像，
+        // 因此在真正的 FFI 内存接入完成前显式报告不可用。
+        tj3Destroy(h)
+        return None
 
         // 2. 请求 libjpeg-turbo 保留 APP2/ICC_PROFILE 标记
         //    必须在头部解析前设置
@@ -276,7 +280,11 @@ public class CodecJpeg {
 
         // 1. 创建压缩器
         let h = tj3Init(0)
-        // 空指针检查已包含在 tj3Init 的返回值中
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> <-> native 指针桥接。
+        // 继续用空 CPointer 调用 TurboJPEG 不能产生有效 JPEG 字节，
+        // 因此在真正的 FFI 内存接入完成前显式报告不可用。
+        tj3Destroy(h)
+        return None
 
         // 2. 设置质量参数
         let clampedQuality = clampQuality(quality)

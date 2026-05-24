@@ -295,17 +295,20 @@ public class S3Signer {
 
         // 解析路径
         var path = options.path
-        if (s3StartsWith(path, "/")) { path = path[1..] }
-        if (s3StartsWith(path, "\\")) { path = path[1..] }
+        while (s3StartsWith(path, "/") || s3StartsWith(path, "\\")) {
+            path = path[1..]
+        }
 
         var bucket = credentials.bucket
         if (!credentials.virtualHostedStyle && bucket.size == 0) {
-            // 从路径中提取 bucket
-            let slashIdxOpt = path.indexOf("/")
-            if (slashIdxOpt.isSome()) {
-                let slashIdx = slashIdxOpt.getOrThrow()
-                bucket = path[0..slashIdx]
-                path = path[(slashIdx + 1)..]
+            let sepIdxOpt = firstPathSeparator(path)
+            match (sepIdxOpt) {
+                case Some(sepIdx) =>
+                    bucket = path[0..sepIdx]
+                    path = path[(sepIdx + 1)..]
+                case None =>
+                    bucket = path
+                    path = ""
             }
         }
 
@@ -313,8 +316,8 @@ public class S3Signer {
         path = normalizePath(path)
         bucket = normalizePath(bucket)
 
-        if (path.size == 0) {
-            path = ""
+        if (bucket.size == 0) {
+            return Result<SignResult, BaoError>.Err(BaoError(ErrorCode.InvalidArgument, "Invalid S3 path: empty bucket"))
         }
 
         // URI 编码
@@ -428,7 +431,8 @@ public class S3Signer {
         result.amzDate = amzDate
         result.host = host
         result.authorization = authorization
-        result.url = "${protocol}://${host}${normalizedPath}"
+        let urlQueryString = if (queryString.size > 0) { "?${queryString}" } else { "" }
+        result.url = "${protocol}://${host}${normalizedPath}${urlQueryString}"
         result.storageClass = options.storageClass
         result.acl = options.acl
 
@@ -501,18 +505,55 @@ public class S3Signer {
         }
 
         var path = options.path
-        if (s3StartsWith(path, "/")) { path = path[1..] }
-        path = normalizePath(path)
-
-        let encodedPath = encodeURIComponent(path, false)
-
-        var host = if (credentials.endpoint.size > 0) {
-            credentials.endpoint
-        } else {
-            "s3.${region}.amazonaws.com"
+        while (s3StartsWith(path, "/") || s3StartsWith(path, "\\")) {
+            path = path[1..]
         }
 
-        let normalizedPath = "/${encodedPath}"
+        var bucket = credentials.bucket
+        if (!credentials.virtualHostedStyle && bucket.size == 0) {
+            let sepIdxOpt = firstPathSeparator(path)
+            match (sepIdxOpt) {
+                case Some(sepIdx) =>
+                    bucket = path[0..sepIdx]
+                    path = path[(sepIdx + 1)..]
+                case None =>
+                    bucket = path
+                    path = ""
+            }
+        }
+
+        path = normalizePath(path)
+        bucket = normalizePath(bucket)
+
+        if (bucket.size == 0) {
+            return Result<String, BaoError>.Err(BaoError(ErrorCode.InvalidArgument, "Invalid S3 path: empty bucket"))
+        }
+
+        let encodedBucket = encodeURIComponent(bucket, false)
+        let encodedPath = encodeURIComponent(path, false)
+
+        var host = credentials.endpoint
+        var extraPath = ""
+        if (host.size > 0) {
+            let slashPosOpt = host.indexOf("/")
+            if (slashPosOpt.isSome()) {
+                let slashPos = slashPosOpt.getOrThrow()
+                extraPath = host[slashPos..]
+                host = host[0..slashPos]
+            }
+        } else {
+            if (credentials.virtualHostedStyle) {
+                host = "${encodedBucket}.s3.${region}.amazonaws.com"
+            } else {
+                host = "s3.${region}.amazonaws.com"
+            }
+        }
+
+        let normalizedPath = if (credentials.virtualHostedStyle) {
+            "${extraPath}/${encodedPath}"
+        } else {
+            "${extraPath}/${encodedBucket}/${encodedPath}"
+        }
         let amzDate = getAmzDate()
         let amzDay = amzDate[0..8]
         let awsContentHash = "UNSIGNED-PAYLOAD"
@@ -521,24 +562,33 @@ public class S3Signer {
         // 派生签名密钥
         let signingKey = deriveSigningKey(credentials.secretAccessKey, amzDay, region)
 
-        // 构建 presigned URL 的 canonical request
-        // 查询参数按字母序排列
+        // 构建 presigned URL 的 canonical query. SigV4 query signing requires
+        // RFC3986-encoded name/value pairs sorted by encoded name then value.
         let credential = "${credentials.accessKeyId}/${amzDay}/${region}/${SERVICE_NAME}/aws4_request"
 
-        var queryParts = ArrayList<String>()
-        queryParts.append("X-Amz-Algorithm=AWS4-HMAC-SHA256")
-        queryParts.append("X-Amz-Credential=${encodeURIComponent(credential, true)}")
-        queryParts.append("X-Amz-Date=${amzDate}")
-        queryParts.append("X-Amz-Expires=${presignedOptions.expires}")
-        if (credentials.sessionToken.size > 0) {
-            queryParts.append("X-Amz-Security-Token=${encodeURIComponent(credentials.sessionToken, true)}")
+        var queryParams = ArrayList<S3QueryParam>()
+        appendSearchParams(queryParams, options.searchParams)
+        match (options.contentDisposition) {
+            case Some(cd) => if (cd.size > 0) { queryParams.append(S3QueryParam("response-content-disposition", cd)) }
+            case None => ()
         }
-        queryParts.append("X-Amz-SignedHeaders=host")
+        match (options.contentType) {
+            case Some(ct) => if (ct.size > 0) { queryParams.append(S3QueryParam("response-content-type", ct)) }
+            case None => ()
+        }
+        queryParams.append(S3QueryParam("X-Amz-Algorithm", "AWS4-HMAC-SHA256"))
+        queryParams.append(S3QueryParam("X-Amz-Credential", credential))
+        queryParams.append(S3QueryParam("X-Amz-Date", amzDate))
+        queryParams.append(S3QueryParam("X-Amz-Expires", "${presignedOptions.expires}"))
+        if (credentials.sessionToken.size > 0) {
+            queryParams.append(S3QueryParam("X-Amz-Security-Token", credentials.sessionToken))
+        }
+        queryParams.append(S3QueryParam("X-Amz-SignedHeaders", "host"))
 
-        // 构建查询字符串
-        let queryString = s3Join(queryParts, "&")
+        let queryString = canonicalQueryString(queryParams)
 
-        // Canonical request for presigned URL
+        // Canonical request for SigV4 presigned URL. Query presign signs only
+        // the host header here; payload is represented as UNSIGNED-PAYLOAD.
         let canonicalRequest = "${options.method}\n${normalizedPath}\n${queryString}\nhost:${host}\n\nhost\n${awsContentHash}"
 
         let canonicalHash = Sha256.hashHex(s3StringToBytes(canonicalRequest))
@@ -763,15 +813,27 @@ public class S3Signer {
         return result
     }
 
+    private static func firstPathSeparator(path: String): ?Int64 {
+        let slashIdxOpt = path.indexOf("/")
+        let bslashIdxOpt = path.indexOf("\\")
+        if (slashIdxOpt.isSome() && bslashIdxOpt.isSome()) {
+            let slashIdx = slashIdxOpt.getOrThrow()
+            let bslashIdx = bslashIdxOpt.getOrThrow()
+            return Some(if (slashIdx < bslashIdx) { slashIdx } else { bslashIdx })
+        }
+        if (slashIdxOpt.isSome()) { return slashIdxOpt }
+        return bslashIdxOpt
+    }
+
     /// 猜测区域
     /// 对应 Bun: guessRegion(endpoint)
     public static func guessRegion(endpoint: String): String {
         if (endpoint.size > 0) {
             if (s3EndsWith(endpoint, ".r2.cloudflarestorage.com")) { return "auto" }
-            let s3IdxOpt = endpoint.indexOf(".s3.")
+            let s3IdxOpt = endpoint.indexOf("s3.")
             let awsIdxOpt = endpoint.indexOf(".amazonaws.com")
             if (s3IdxOpt.isSome() && awsIdxOpt.isSome()) {
-                return endpoint[(s3IdxOpt.getOrThrow() + 4)..awsIdxOpt.getOrThrow()]
+                return endpoint[(s3IdxOpt.getOrThrow() + 3)..awsIdxOpt.getOrThrow()]
             }
             return "auto"
         }
@@ -814,6 +876,16 @@ public class S3Signer {
 // 工具函数
 // ============================================================================
 
+private class S3QueryParam {
+    public var name: String
+    public var value: String
+
+    public init(name: String, value: String) {
+        this.name = name
+        this.value = value
+    }
+}
+
 /// 字符串转字节数组
 private func s3StringToBytes(s: String): Array<UInt8> {
     let bytes = ArrayList<UInt8>()
@@ -838,4 +910,50 @@ private func s3Join(parts: ArrayList<String>, sep: String): String {
         sb.append(parts[Int64(i)])
     }
     return sb.toString()
+}
+
+private func appendSearchParams(params: ArrayList<S3QueryParam>, searchParams: ?String): Unit {
+    match (searchParams) {
+        case Some(raw) =>
+            var q = if (s3StartsWith(raw, "?")) { raw[1..] } else { raw }
+            while (q.size > 0) {
+                let ampOpt = q.indexOf("&")
+                let part = if (ampOpt.isSome()) { q[0..ampOpt.getOrThrow()] } else { q }
+                if (ampOpt.isSome()) {
+                    q = q[(ampOpt.getOrThrow() + 1)..]
+                } else {
+                    q = ""
+                }
+                if (part.size == 0) { continue }
+                let eqOpt = part.indexOf("=")
+                if (eqOpt.isSome()) {
+                    let eq = eqOpt.getOrThrow()
+                    params.append(S3QueryParam(part[0..eq], part[(eq + 1)..]))
+                } else {
+                    params.append(S3QueryParam(part, ""))
+                }
+            }
+        case None => ()
+    }
+}
+
+private func canonicalQueryString(params: ArrayList<S3QueryParam>): String {
+    var encoded = ArrayList<String>()
+    for (p in params) {
+        encoded.append("${S3Signer.encodeURIComponent(p.name, true)}=${S3Signer.encodeURIComponent(p.value, true)}")
+    }
+    sortQueryParts(encoded)
+    return s3Join(encoded, "&")
+}
+
+private func sortQueryParts(parts: ArrayList<String>): Unit {
+    for (i in 0..parts.size) {
+        for (j in (i + 1)..parts.size) {
+            if (parts[i] > parts[j]) {
+                let tmp = parts[i]
+                parts[i] = parts[j]
+                parts[j] = tmp
+            }
+        }
+    }
 }

@@ -157,9 +157,12 @@ public class JsUint8Array_ {
     public func toJsValue(): JsValue {
         let obj = JsObject.make()
         obj.className = "Uint8Array"
+        obj.byteStorage = slice()
         obj.set("byteLength", JsValue(byteLength))
         obj.set("byteOffset", JsValue(byteOffset))
         obj.set("length", JsValue(byteLength))
-        JsValue(obj)
+        let v = JsValue(obj)
+        v.valueType = JsValueType.TypedArray
+        v
     }
 }

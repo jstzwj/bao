@@ -420,7 +420,10 @@ public class JsArrayBuffer {
     // 从字节切片创建 ArrayBuffer 结构体
     public static func fromBytes(bytes: Array<UInt8>, typedArrayType: JSType): JsArrayBuffer {
         let ab = JsArrayBuffer()
+        ab.byteLen = Int64(bytes.size)
+        ab.len = Int64(bytes.size)
         ab.typedArrayType = typedArrayType
+        ab.value = createOwnedByteValue(bytes, typedArrayType)
         ab
     }
 
@@ -562,17 +565,21 @@ public class JsArrayBuffer {
     // FFI: Bun__createUint8ArrayForCopy(*JSGlobalObject, ?*const anyopaque, usize, bool) JSValue
     private static func createUint8ArrayForCopyFFI(globalThis: JsObject, bytes: Array<UInt8>, buffer: Bool): JsValue {
         // 真实实现: @CFFI 调用 Bun__createUint8ArrayForCopy
-        let arr = JsUint8Array_(bytes)
-        arr.toJsValue()
+        let obj = JsObject.make()
+        obj.className = if (buffer) { "Buffer" } else { "Uint8Array" }
+        obj.byteStorage = cloneBytes(bytes)
+        obj.set("byteLength", JsValue(Float64(bytes.size)))
+        obj.set("byteOffset", JsValue(Float64(0)))
+        obj.set("length", JsValue(Float64(bytes.size)))
+        let v = JsValue(obj)
+        v.valueType = JsValueType.TypedArray
+        v
     }
 
     // FFI: Bun__createArrayBufferForCopy(*JSGlobalObject, ?*const anyopaque, usize) JSValue
     private static func createArrayBufferForCopyFFI(globalThis: JsObject, bytes: Array<UInt8>): JsValue {
         // 真实实现: @CFFI 调用 Bun__createArrayBufferForCopy
-        let obj = JsObject.make()
-        obj.className = "ArrayBuffer"
-        obj.set("byteLength", JsValue(Float64(bytes.size)))
-        JsValue(obj)
+        createOwnedByteValue(bytes, JSType.ArrayBuffer)
     }
 
     // FFI: JSArrayBuffer__fromDefaultAllocator(*JSGlobalObject, [*]u8, usize) JSValue
@@ -627,13 +634,74 @@ public class JsArrayBuffer {
         true // 默认假设在堆中
     }
 
-    // 从裸指针创建字节切片
+    // 从裸指针创建字节切片。
+    // 当前仓库没有通用的、可校验生命周期/边界的裸指针复制桥；因此只允许从
+    // 仓颉侧创建并保存在 value.byteStorage 中的 ArrayBuffer/TypedArray 克隆字节读取。
+    // 不从未知 CPointer 读取，也不返回零填充的伪数据。
     private func sliceFromPtr(ptr: CPointer<UInt8>, len: Int64): Array<UInt8> {
-        // 真实实现需要 C 互操作
         if (len == 0) {
             return []
         }
-        Array<UInt8>(len, { _ => 0 })
+        if (!value.isEmptyOrUndefinedOrNull()) {
+            return bytesFromOwnedValue(value, len)
+        }
+        throw JsTypeError("ArrayBuffer bytes are unavailable: no safe native pointer read bridge is implemented")
+    }
+
+    private static func createOwnedByteValue(bytes: Array<UInt8>, typedArrayType: JSType): JsValue {
+        let obj = JsObject.make()
+        obj.byteStorage = cloneBytes(bytes)
+        obj.set("byteLength", JsValue(Float64(bytes.size)))
+        match (typedArrayType) {
+            case JSType.Uint8Array =>
+                obj.className = "Uint8Array"
+                obj.set("byteOffset", JsValue(Float64(0)))
+                obj.set("length", JsValue(Float64(bytes.size)))
+                let v = JsValue(obj)
+                v.valueType = JsValueType.TypedArray
+                v
+            case JSType.ArrayBuffer =>
+                obj.className = "ArrayBuffer"
+                let v = JsValue(obj)
+                v.valueType = JsValueType.ArrayBuffer
+                v
+            case _ =>
+                obj.className = "TypedArray"
+                let v = JsValue(obj)
+                v.valueType = JsValueType.TypedArray
+                v
+        }
+    }
+
+    private static func cloneBytes(bytes: Array<UInt8>): Array<UInt8> {
+        var result: Array<UInt8> = []
+        for (b in bytes) {
+            result.append(b)
+        }
+        result
+    }
+
+    private static func bytesFromOwnedValue(value: JsValue, expectedLen: Int64): Array<UInt8> {
+        match (value.getObject()) {
+            case Some(obj) =>
+                let stored = obj.byteStorage
+                if (stored.size == 0) {
+                    if (expectedLen == 0) {
+                        return []
+                    }
+                    throw JsTypeError("ArrayBuffer bytes are unavailable: value has no owned byte storage")
+                }
+                if (expectedLen > Int64(stored.size)) {
+                    throw JsRangeError("ArrayBuffer byteLength exceeds owned byte storage")
+                }
+                var result: Array<UInt8> = []
+                for (i in 0..expectedLen) {
+                    result.append(stored[Int64(i)])
+                }
+                result
+            case None =>
+                throw JsTypeError("ArrayBuffer bytes are unavailable: value has no owned byte storage")
+        }
     }
 
     // FFI: JSObjectMakeTypedArrayWithArrayBuffer

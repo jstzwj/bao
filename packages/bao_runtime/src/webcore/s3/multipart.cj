@@ -63,6 +63,31 @@ extend StreamBuffer {
     }
 }
 
+private func optionalHeader(value: ?String): String {
+    match (value) {
+        case Some(v) => v
+        case None => ""
+    }
+}
+
+private func parseUploadId(body: String): ?String {
+    let open = "<UploadId>"
+    let close = "</UploadId>"
+    match (body.indexOf(open)) {
+        case Some(startIdx) =>
+            let start = Int64(startIdx) + open.size
+            match (body[start..].indexOf(close)) {
+                case Some(endRel) =>
+                    let end = start + Int64(endRel)
+                    let uploadId = body[start..end]
+                    if (uploadId.size == 0 || uploadId.size > MAX_UPLOAD_ID_LEN) { return None }
+                    Some(uploadId)
+                case None => None
+            }
+        case None => None
+    }
+}
+
 // ============================================================================
 // MultipartUploadState - 分块上传状态
 // 严格翻译自: pub enum State (multipart.rs line 168-177)
@@ -367,7 +392,7 @@ public class UploadPart {
             ctx.credentials,
             options,
             S3CallbackKind.Part,
-            UIntNative(1)  // stub: opaque pointer
+            UIntNative(0)
         )
     }
 
@@ -664,24 +689,7 @@ public class MultiPartUpload {
                     let err = result.error.getOrThrow()
                     if (self.options.retry > 0) {
                         self.options.retry -= 1
-                        // 重试
-                        let options = S3SimpleRequestOptions()
-                        options.path = self.path
-                        options.method = HttpMethod.PUT
-                        options.proxyUrl = self.proxyUrl()
-                        options.body = ""  // stub: should be buffered bytes as string
-                        options.contentType = self.contentType.getOrThrow()
-                        options.contentDisposition = self.contentDisposition.getOrThrow()
-                        options.contentEncoding = self.contentEncoding.getOrThrow()
-                        options.acl = self.acl
-                        options.storageClass = self.storageClass
-
-                        executeSimpleS3Request(
-                            self.credentials,
-                            options,
-                            S3CallbackKind.Upload,
-                            UIntNative(1)  // stub: opaque pointer
-                        )
+                        self.fail(S3Error("RetryNotAvailable", "Cannot retry S3 single upload because request body ownership is not retained after dispatch"))
                     } else {
                         self.fail(err)
                     }
@@ -926,13 +934,12 @@ public class MultiPartUpload {
                     self.fail(S3Error("UnknownError", "Failed to initiate multipart upload"))
                 }
             case S3DownloadResultTag.Success =>
-                // Stub: simplified UploadId parsing (original used indexOf/substring on ArrayList<UInt8>)
-                self.uploadId = ""  // TODO: parse from result.body
                 self.uploadidBuffer = result.body
-
-                if (self.uploadId.size == 0 || self.uploadId.size > MAX_UPLOAD_ID_LEN) {
-                    self.fail(S3Error("UnknownError", "Failed to initiate multipart upload"))
-                    return
+                match (parseUploadId(result.body.toString())) {
+                    case Some(uploadId) => self.uploadId = uploadId
+                    case None =>
+                        self.fail(S3Error("InvalidMultipartResponse", "S3 CreateMultipartUpload response did not include a valid UploadId"))
+                        return
                 }
 
                 self.state = MultipartUploadState.MULTIPART_COMPLETED
@@ -1025,7 +1032,7 @@ public class MultiPartUpload {
             credentials,
             options,
             S3CallbackKind.Commit,
-            UIntNative(1)  // stub: opaque pointer
+            UIntNative(0)
         )
     }
 
@@ -1053,7 +1060,7 @@ public class MultiPartUpload {
             credentials,
             options,
             S3CallbackKind.Upload,
-            UIntNative(1)  // stub: opaque pointer
+            UIntNative(0)
         )
     }
 
@@ -1085,9 +1092,9 @@ public class MultiPartUpload {
             options.proxyUrl = proxyUrl()
             options.body = ""
             options.searchParams = "?uploads="
-            options.contentType = contentType.getOrThrow()
-            options.contentDisposition = contentDisposition.getOrThrow()
-            options.contentEncoding = contentEncoding.getOrThrow()
+            options.contentType = optionalHeader(contentType)
+            options.contentDisposition = optionalHeader(contentDisposition)
+            options.contentEncoding = optionalHeader(contentEncoding)
             options.acl = acl
             options.storageClass = storageClass
             options.requestPayer = requestPayer
@@ -1096,7 +1103,7 @@ public class MultiPartUpload {
                 credentials,
                 options,
                 S3CallbackKind.Download,
-                UIntNative(1)  // stub: opaque pointer
+                UIntNative(0)
             )
         } else if (state == MultipartUploadState.MULTIPART_COMPLETED) {
             part.start()
@@ -1137,7 +1144,7 @@ public class MultiPartUpload {
             // 如果是完整的一个缓冲块，直接传递所有权
             if (buffered.cursor == 0 && buffered.size() == actualLen) {
                 let allocatedSize = buffered.memoryCost()
-                let slice = ""  // stub: should be buffered data as string
+                let slice = buffered.slice()
 
                 if (enqueuePart(slice, allocatedSize, false)) {
                     // 队列未满，清空缓冲区
@@ -1193,9 +1200,9 @@ public class MultiPartUpload {
             options.method = HttpMethod.PUT
             options.proxyUrl = proxyUrl()
             options.body = buffered.slice()
-            options.contentType = contentType.getOrThrow()
-            options.contentDisposition = contentDisposition.getOrThrow()
-            options.contentEncoding = contentEncoding.getOrThrow()
+            options.contentType = optionalHeader(contentType)
+            options.contentDisposition = optionalHeader(contentDisposition)
+            options.contentEncoding = optionalHeader(contentEncoding)
             options.acl = acl
             options.storageClass = storageClass
             options.requestPayer = requestPayer
@@ -1204,7 +1211,7 @@ public class MultiPartUpload {
                 credentials,
                 options,
                 S3CallbackKind.Upload,
-                UIntNative(1)  // stub: opaque pointer
+                UIntNative(0)
             )
         } else {
             // 需要分割为多个分片

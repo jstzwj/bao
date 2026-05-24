@@ -159,9 +159,19 @@ public class CommandLineArguments {
         concurrentScripts = None
     }
 
-    /// stub: parse for publish command
-    public static func parseForPublish(opts: Any): CommandLineArguments {
-        return CommandLineArguments()
+    /// 解析 publish 命令需要的通用参数
+    /// 翻译自: CommandLineArguments.parseForPublish 的 publish 专用参数投影
+    public static func parseForPublish(opts: CommandLineArgumentsFull): CommandLineArguments {
+        let args = CommandLineArguments()
+        args.global = false
+        args.config = opts.config
+        args.positionals = opts.positionals
+        match (opts.networkConcurrency) {
+            case Some(n) => args.networkConcurrency = Some(Int64(n))
+            case None => ()
+        }
+        args.concurrentScripts = opts.concurrentScripts
+        return args
     }
 }
 
@@ -551,14 +561,57 @@ public class PackageManager {
 
     /// 简化安装方法 - 对应 CLI 命令中的调用
     public func install(opts: InstallOptions): ?InstallSummary {
-        // stub: perform install
-        return Some(InstallSummary())
+        if (opts.verbose) {
+            PackageManager.verboseInstall = true
+        }
+        if (opts.force) {
+            options.doInstall.enableForceInstall = true
+        }
+        match (opts.registry) {
+            case Some(registry) => registryScopes.put(NpmRegistryScope(registry))
+            case None => ()
+        }
+
+        // Bao install 尚未具备完整 lockfile 解析/链接流水线时, 不返回伪造成功。
+        if (!options.doInstall.installPackages) {
+            let summary = InstallSummary()
+            summary.added = this.summary.added
+            summary.removed = this.summary.removed
+            summary.changed = this.summary.changed
+            return Some(summary)
+        }
+        if (lockfile.getPackageCount() == Int64(0)) {
+            log.addError("install requires a parsed lockfile/package graph")
+            anyFailedToInstall = true
+            return None
+        }
+
+        runTasks()
+        if (anyFailedToInstall || log.hasErrors()) {
+            return None
+        }
+
+        let result = InstallSummary()
+        result.added = summary.added
+        result.removed = summary.removed
+        result.changed = summary.changed
+        return Some(result)
     }
 
-    /// stub: initialize for publish command
+    /// 初始化 publish 命令所需的包管理器和发布根目录
+    /// 翻译自: PackageManager.initForPublish 的实用子集: 初始化环境、缓存和 cwd。
     public static func initForPublish(cli: CommandLineArguments): ?Tuple<PackageManager, String> {
-        let pm = PackageManager()
-        return Some(Tuple<PackageManager, String>(pm, ""))
+        let env = DotEnvLoader()
+        env.loadProcess()
+        let pm = PackageManager.initFunc(CAllocator(), Log(), env, cli, PackageSubcommand.Publish)
+        let cwd = OS.getcwd()
+        if (cwd.size == 0) {
+            pm.log.addError("publish requires a current working directory")
+            return None
+        }
+        pm.originalPackageJsonPath = Path.join([cwd, "package.json"])
+        pm.rootPackageJsonFile = Some(pm.originalPackageJsonPath)
+        return Some(Tuple<PackageManager, String>(pm, cwd))
     }
 
     // ===== 初始化方法 =====
@@ -964,6 +1017,21 @@ public class PackageManager {
         context: TaskCallbackContext,
         patchHash: ?UInt64
     ): Unit {
+        let taskId = Int64(Wyhash.hash("git:${resolution}"))
+        match (taskQueue.get(taskId)) {
+            case Some(list) =>
+                list.append(context)
+                return
+            case None =>
+                let list = ArrayList<TaskCallbackContext>()
+                list.append(context)
+                taskQueue.put(taskId, list)
+        }
+
+        let task = NetworkTask(taskId)
+        task.taskType = NetworkTaskType.GitCheckout
+        task.urlBuf = resolution
+        networkTaskQueue.push(task)
         incrementPendingTasks(1)
     }
 
@@ -976,6 +1044,23 @@ public class PackageManager {
         context: TaskCallbackContext,
         patchHash: ?UInt64
     ): Unit {
+        let taskId = Int64(Wyhash.hash("tarball:${url}"))
+        match (taskQueue.get(taskId)) {
+            case Some(list) =>
+                list.append(context)
+                return
+            case None =>
+                let list = ArrayList<TaskCallbackContext>()
+                list.append(context)
+                taskQueue.put(taskId, list)
+        }
+
+        let task = NetworkTask(taskId)
+        let cb = ExtractTarballCallback("tarball", url)
+        cb.resolution = url
+        task.forTarball(cb, RegistryConfig(NPM_DEFAULT_REGISTRY), NetworkAuthorization.NoAuthorization)
+        networkDedupeMap.getOrInsert(taskId, true)
+        networkTaskQueue.push(task)
         incrementPendingTasks(1)
     }
 
@@ -988,6 +1073,23 @@ public class PackageManager {
         resolution: String,
         context: TaskCallbackContext
     ): Unit {
+        let taskId = Int64(Wyhash.hash("local-tarball:${resolution}"))
+        match (taskQueue.get(taskId)) {
+            case Some(list) =>
+                list.append(context)
+                return
+            case None =>
+                let list = ArrayList<TaskCallbackContext>()
+                list.append(context)
+                taskQueue.put(taskId, list)
+        }
+
+        let task = NetworkTask(taskId)
+        task.taskType = NetworkTaskType.LocalTarball
+        task.isLocalTarball = true
+        task.urlBuf = resolution
+        task.extractCallback = Some(ExtractTarballCallback(name, resolution))
+        networkTaskQueue.push(task)
         incrementPendingTasks(1)
     }
 

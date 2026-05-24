@@ -443,9 +443,11 @@ public class BunImage {
 
     /// 编码用于 HTTP body
     /// 对应 Bun: encodeForBody
-    public func encodeForBody(global: JsObject): EncodeResult {
-        // 简化实现
-        return EncodeResult(Array<Byte>(), "image/png")
+    public func encodeForBody(global: JsObject): ?EncodeResult {
+        // 当前管线尚未把解码/变换/编码结果接到 HTTP body，且 bao_jsc 还没有
+        // 真实的 JS/native 字节桥可安全交付 PNG/JPEG native 输出。
+        // 不返回空 PNG 伪成功，显式报告编码不可用。
+        return None
     }
 
     // ========================================================================

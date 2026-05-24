@@ -4,7 +4,7 @@
 //   - S3CredentialsExt trait: guessRegion, guessBucket, getCredentialsWithOptions
 //   - optJs: JsValue -> Option<JsValue> 辅助
 //   - writeFormatCredentials: 格式化凭证输出
-//   - S3Client struct: credentials, options, acl, storageClass, requestPayer
+//   - S3Client struct: credentials, this.options, acl, storageClass, requestPayer
 //   - Drop: credentials.deref()
 //   - constructor: 从 JS 参数解析凭证
 //   - writeFormat: 格式化 S3Client 输出
@@ -22,6 +22,23 @@ package bao_runtime.webcore.s3
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_http.AsyncHTTP as BaoAsyncHTTP
+import bao_http.AsyncHTTPOptions as BaoAsyncHTTPOptions
+import bao_http.AwsCredentials as BaoAwsCredentials
+import bao_http.FetchRedirect as BaoFetchRedirect
+import bao_http.HTTPClient as BaoHTTPClient
+import bao_http.HTTPClientResult as BaoHTTPClientResult
+import bao_http.HTTPClientResultCallback as BaoHTTPClientResultCallback
+import bao_http.HTTPResponseMetadata as BaoHTTPResponseMetadata
+import bao_http.HeaderEntryList as BaoHeaderEntryList
+import bao_http.HttpMethod as BaoHttpMethod
+import bao_http.ParsedUrl as BaoParsedUrl
+import bao_http.S3Acl as BaoHttpS3Acl
+import bao_http.S3SignOptions as BaoS3SignOptions
+import bao_http.S3Signer as BaoS3Signer
+import bao_http.S3StorageClass as BaoHttpS3StorageClass
+import bao_http.ThreadPoolBatch as BaoThreadPoolBatch
+import bao_http.httpThread as baoHttpThread
 
 // ============================================================================
 // Local S3Credentials - shadows the empty stub from bao_jsc
@@ -37,6 +54,8 @@ public class S3Credentials {
     public var region: String
     public var endpoint: String
     public var bucket: String
+    public var insecureHttp: Bool
+    public var virtualHostedStyle: Bool
 
     public init() {
         accessKey = ""
@@ -45,6 +64,8 @@ public class S3Credentials {
         region = ""
         endpoint = ""
         bucket = ""
+        insecureHttp = false
+        virtualHostedStyle = false
     }
     public func estimatedSize(): Int64 { return 0 }
 }
@@ -450,7 +471,7 @@ public class S3Client {
                 let options = args.values[1]
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
-                    credentials, options, acl, storageClass, requestPayer
+                    credentials, this.options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
                     case Ok(blob) =>
@@ -484,11 +505,11 @@ public class S3Client {
                 let options = args.values[1]
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
-                    credentials, options, acl, storageClass, requestPayer
+                    credentials, this.options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
                     case Ok(blob) =>
-                        return S3FileModule.getPresignUrlFrom(blob, global, options)
+                        return getPresignUrlFrom(blob, global, optJs(options))
                     case Err(e) => return Result<JsValue>.Err(e)
                 }
             case None =>
@@ -518,7 +539,7 @@ public class S3Client {
                 let options = args.values[1]
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
-                    credentials, options, acl, storageClass, requestPayer
+                    credentials, this.options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
                     case Ok(blob) =>
@@ -552,7 +573,7 @@ public class S3Client {
                 let options = args.values[1]
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
-                    credentials, options, acl, storageClass, requestPayer
+                    credentials, this.options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
                     case Ok(blob) =>
@@ -586,7 +607,7 @@ public class S3Client {
                 let options = args.values[1]
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
-                    credentials, options, acl, storageClass, requestPayer
+                    credentials, this.options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
                     case Ok(blob) =>
@@ -638,7 +659,7 @@ public class S3Client {
             case Some(p) =>
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, p, writeOptions,
-                    credentials, None, acl, storageClass, requestPayer
+                    credentials, this.options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
                     case Ok(blob) =>
@@ -678,12 +699,12 @@ public class S3Client {
 
         let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
             global, PathLike.default(), options,
-            credentials, options, None, None, requestPayer
+            credentials, this.options, None, None, requestPayer
         )
         match (blobResult) {
             case Ok(blob) =>
                 let store = blob.store.getOrThrow()
-                return Result<JsValue>.Ok(JsValue.undefined())  // stub: listObjects
+                return store.data().asS3().listObjects(store, global, objectKeys, options)
             case Err(e) => return Result<JsValue>.Err(e)
         }
     }
@@ -705,12 +726,12 @@ public class S3Client {
                 let options = args.values[1]
                 let blobResult = S3FileModule.constructS3FileWithS3CredentialsAndOptions(
                     global, path, options,
-                    credentials, options, acl, storageClass, requestPayer
+                    credentials, this.options, acl, storageClass, requestPayer
                 )
                 match (blobResult) {
                     case Ok(blob) =>
                         let store = blob.store.getOrThrow()
-                        return Result<JsValue>.Ok(JsValue.undefined())  // stub: asS3().unlink()
+                        return store.data().asS3().unlink(store, global, optJs(options))
                     case Err(e) => return Result<JsValue>.Err(e)
                 }
             case None =>
@@ -800,7 +821,7 @@ public class S3Client {
         match (blobResult) {
             case Ok(blob) =>
                 let store = blob.store.getOrThrow()
-                return Result<JsValue>.Ok(JsValue.undefined())  // stub: listObjects
+                return store.data().asS3().listObjects(store, global, objectKeys, options)
             case Err(e) => return Result<JsValue>.Err(e)
         }
     }
@@ -819,8 +840,156 @@ public class S3Client {
         proxy: ?String,
         requestPayer: Bool
     ): Unit {
-        // In Bun: sends HEAD request to S3, calls callback on response
-        // Simplified: no-op
+        let proxyUrl = match (proxy) {
+            case Some(value) => value
+            case None => ""
+        }
+        s3Stat(
+            credentials,
+            path,
+            { result: S3StatResult, _: UIntNative =>
+                let data = s3StatResultToData(result)
+                let _ = callback(data, task)
+            },
+            UIntNative(0),
+            proxyUrl,
+            requestPayer
+        )
+    }
+
+    public static func deleteRequest(
+        credentials: S3Credentials,
+        path: String,
+        callback: (S3DeleteResult, S3BlobDeleteTask) -> Result<Unit>,
+        task: S3BlobDeleteTask,
+        proxy: ?String,
+        requestPayer: Bool
+    ): Unit {
+        let proxyUrl = match (proxy) {
+            case Some(value) => value
+            case None => ""
+        }
+        s3Delete(
+            credentials,
+            path,
+            { result: S3DeleteResult, _: UIntNative =>
+                let _ = callback(result, task)
+            },
+            UIntNative(0),
+            proxyUrl,
+            requestPayer
+        )
+    }
+
+    public static func downloadRequest(
+        credentials: S3Credentials,
+        path: String,
+        callback: (S3DownloadResult, S3BlobDownloadTask) -> Result<Unit>,
+        task: S3BlobDownloadTask,
+        proxy: ?String,
+        requestPayer: Bool
+    ): Unit {
+        let proxyUrl = match (proxy) {
+            case Some(value) => value
+            case None => ""
+        }
+        s3Download(
+            credentials,
+            path,
+            { result: S3DownloadResult, _: UIntNative =>
+                let _ = callback(result, task)
+            },
+            UIntNative(0),
+            proxyUrl,
+            requestPayer
+        )
+    }
+
+    public static func listObjectsRequest(
+        credentials: S3Credentials,
+        listOptions: S3ListObjectsOptions,
+        callback: (S3ListObjectsResultEx, S3BlobListObjectsTask) -> Result<Unit>,
+        task: S3BlobListObjectsTask,
+        proxy: ?String
+    ): Unit {
+        let proxyUrl = match (proxy) {
+            case Some(value) => value
+            case None => ""
+        }
+        s3ListObjects(
+            credentials,
+            listOptions,
+            { result: S3ListObjectsResultEx, _: UIntNative =>
+                let _ = callback(result, task)
+            },
+            UIntNative(0),
+            proxyUrl
+        )
+    }
+
+    public static func uploadRequest(
+        credentials: S3Credentials,
+        path: String,
+        content: String,
+        bytesWritten: Int64,
+        contentType: String,
+        contentDisposition: String,
+        contentEncoding: String,
+        acl: ?S3Acl,
+        storageClass: ?S3StorageClass,
+        callback: (S3UploadResult, S3BlobUploadTask) -> Result<Unit>,
+        task: S3BlobUploadTask,
+        proxy: ?String,
+        requestPayer: Bool
+    ): Unit {
+        task.bytesWritten = bytesWritten
+        let proxyUrl = match (proxy) {
+            case Some(value) => value
+            case None => ""
+        }
+        s3Upload(
+            credentials,
+            path,
+            content,
+            contentType,
+            contentDisposition,
+            contentEncoding,
+            acl,
+            proxyUrl,
+            storageClass,
+            requestPayer,
+            { result: S3UploadResult, _: UIntNative =>
+                let _ = callback(result, task)
+            },
+            UIntNative(0)
+        )
+    }
+}
+
+private func s3StatResultToData(result: S3StatResult): S3StatResultData {
+    match (result.tag) {
+        case S3StatResultTag.Success =>
+            if (result.size < 0) {
+                return S3StatResultData.failure(S3Error("InvalidContentLength", "S3 stat response contained a negative content-length."))
+            }
+            return S3StatResultData.success(
+                UInt64(result.size),
+                result.etag.toArray(),
+                result.contentType.toArray(),
+                result.lastModified.toArray()
+            )
+        case S3StatResultTag.NotFound =>
+            let err = match (result.error) {
+                case Some(e) => e
+                case None => S3Error("NoSuchKey", "The specified key does not exist.")
+            }
+            return S3StatResultData.notFound(err)
+        case S3StatResultTag.Failure =>
+            let err = match (result.error) {
+                case Some(e) => e
+                case None => S3Error("RequestError", "S3 stat request failed.")
+            }
+            return S3StatResultData.failure(err)
     }
 }
 
@@ -831,21 +1000,11 @@ public class S3Client {
 /// S3Signing (对应 Bun: bun_s3_signing)
 public class S3Signing {
     public static func guessRegion(endpoint: String): String {
-        // From endpoint format: s3.<region>.amazonaws.com
-        let parts = endpoint.split(".")
-        if (parts.size >= 2) {
-            return parts[1]
-        }
-        return "us-east-1"
+        return BaoS3Signer.guessRegion(endpoint)
     }
 
     public static func guessBucket(endpoint: String): ?String {
-        // From virtual-hosted-style endpoint: <bucket>.s3.<region>.amazonaws.com
-        let parts = endpoint.split(".")
-        if (parts.size >= 1) {
-            return Some(parts[0])
-        }
-        return None
+        return BaoS3Signer.guessBucket(endpoint)
     }
 
     public static func signRequestFull(
@@ -861,10 +1020,95 @@ public class S3Signing {
         storageClass: ?S3StorageClass,
         credentials: S3Credentials
     ): S3SignResult {
-        let r = S3SignResult()
-        r.url = "${credentials.endpoint}${path}${searchParams}"
-        r.method = "GET"
-        return r
+        let signOptions = BaoS3SignOptions(path, httpMethodToSigningString(method))
+        if (searchParams.size > 0) { signOptions.searchParams = Some(searchParams) }
+        if (contentDisposition.size > 0) { signOptions.contentDisposition = Some(contentDisposition) }
+        if (contentType.size > 0) { signOptions.contentType = Some(contentType) }
+        signOptions.contentHash = contentHash
+        signOptions.contentMd5 = contentMd5
+        signOptions.requestPayer = requestPayer
+        signOptions.acl = toBaoHttpAcl(acl)
+        signOptions.storageClass = toBaoHttpStorageClass(storageClass)
+
+        match (BaoS3Signer.signRequest(toBaoAwsCredentials(credentials), signOptions)) {
+            case Ok(signed) =>
+                let r = S3SignResult()
+                r.url = signed.url
+                r.method = signOptions.method
+                for ((name, value) in signed.headers.iterator()) {
+                    r.headers.set(name, value)
+                }
+                return r
+            case Err(err) =>
+                throw Exception(err.message)
+        }
+    }
+
+    private static func toBaoAwsCredentials(credentials: S3Credentials): BaoAwsCredentials {
+        let sessionToken = match (credentials.sessionToken) {
+            case Some(token) => token
+            case None => ""
+        }
+        let awsCredentials = BaoAwsCredentials(
+            credentials.accessKey,
+            credentials.secretKey,
+            sessionToken,
+            credentials.region,
+            credentials.endpoint,
+            credentials.bucket
+        )
+        awsCredentials.insecureHttp = credentials.insecureHttp
+        awsCredentials.virtualHostedStyle = credentials.virtualHostedStyle
+        return awsCredentials
+    }
+
+    private static func httpMethodToSigningString(method: HttpMethod): String {
+        match (method) {
+            case HttpMethod.GET => "GET"
+            case HttpMethod.PUT => "PUT"
+            case HttpMethod.POST => "POST"
+            case HttpMethod.DELETE => "DELETE"
+            case HttpMethod.HEAD => "HEAD"
+            case HttpMethod.PATCH => "PATCH"
+            case HttpMethod.OPTIONS => "OPTIONS"
+            case HttpMethod.CONNECT => "CONNECT"
+            case HttpMethod.TRACE => "TRACE"
+        }
+    }
+
+    private static func toBaoHttpAcl(acl: ?S3Acl): ?BaoHttpS3Acl {
+        match (acl) {
+            case Some(value) =>
+                match (value) {
+                    case S3Acl.Private => return Some(BaoHttpS3Acl.Private)
+                    case S3Acl.PublicRead => return Some(BaoHttpS3Acl.PublicRead)
+                    case S3Acl.PublicReadWrite => return Some(BaoHttpS3Acl.PublicReadWrite)
+                    case S3Acl.AuthenticatedRead => return Some(BaoHttpS3Acl.AuthenticatedRead)
+                    case S3Acl.AwsExecRead => return Some(BaoHttpS3Acl.AwsExecRead)
+                    case S3Acl.BucketOwnerRead => return Some(BaoHttpS3Acl.BucketOwnerRead)
+                    case S3Acl.BucketOwnerFullControl => return Some(BaoHttpS3Acl.BucketOwnerFullControl)
+                    case S3Acl.LogDeliveryWrite => return None
+                }
+            case None => return None
+        }
+    }
+
+    private static func toBaoHttpStorageClass(storageClass: ?S3StorageClass): ?BaoHttpS3StorageClass {
+        match (storageClass) {
+            case Some(value) =>
+                match (value) {
+                    case S3StorageClass.Standard => return Some(BaoHttpS3StorageClass.Standard)
+                    case S3StorageClass.ReducedRedundancy => return Some(BaoHttpS3StorageClass.ReducedRedundancy)
+                    case S3StorageClass.StandardIa => return Some(BaoHttpS3StorageClass.StandardIa)
+                    case S3StorageClass.OnezoneIa => return Some(BaoHttpS3StorageClass.OnezoneIa)
+                    case S3StorageClass.IntelligentTiering => return Some(BaoHttpS3StorageClass.IntelligentTiering)
+                    case S3StorageClass.Glacier => return Some(BaoHttpS3StorageClass.Glacier)
+                    case S3StorageClass.DeepArchive => return Some(BaoHttpS3StorageClass.DeepArchive)
+                    case S3StorageClass.Outposts => return Some(BaoHttpS3StorageClass.Outposts)
+                    case S3StorageClass.GlacierIr => return None
+                }
+            case None => return None
+        }
     }
 }
 
@@ -879,26 +1123,76 @@ public class CredentialsJsc {
         defaultRequestPayer: Bool,
         global: JSGlobalObject
     ): Result<S3CredentialsWithOptions> {
-        // Simplified: return defaults
-        let result = S3CredentialsWithOptions(S3Credentials(), MultiPartUploadOptions())
-        result.credentials = defaultCredentials  // no clone needed in Cangjie
-        result.options = defaultOptions
-        result.acl = defaultAcl
-        result.storageClass = defaultStorageClass
-        result.requestPayer = defaultRequestPayer
-        return Result<S3CredentialsWithOptions>.Ok(result)
+        return Result<S3CredentialsWithOptions>.Ok(getCredentialsWithOptions(
+            defaultCredentials,
+            defaultOptions,
+            options,
+            defaultAcl,
+            defaultStorageClass,
+            defaultRequestPayer,
+            global
+        ))
     }
 }
 
 /// PathLike (对应 Bun: PathLike)
 public class PathLike {
     public static func fromJs(global: JSGlobalObject, args: Arguments): ?String {
-        return None
+        match (args.next()) {
+            case Some(value) =>
+                if (value.isUndefinedOrNull()) {
+                    return None
+                }
+                if (value.isString()) {
+                    return Some(value.toString())
+                }
+                return None
+            case None => return None
+        }
     }
 
     public static func default(): String {
         return ""
     }
+}
+
+private func s3FileConstructWithOptions(
+    global: JSGlobalObject,
+    path: String,
+    options: ?JsValue,
+    defaultCredentials: S3Credentials,
+    defaultOptions: MultiPartUploadOptions,
+    defaultAcl: ?S3Acl,
+    defaultStorageClass: ?S3StorageClass,
+    defaultRequestPayer: Bool
+): Result<BlobRef> {
+    return constructS3FileWithS3CredentialsAndOptions(
+        global,
+        path,
+        options,
+        defaultCredentials,
+        defaultOptions,
+        defaultAcl,
+        defaultStorageClass,
+        defaultRequestPayer
+    )
+}
+
+private func s3FileConstructWithCredentials(
+    global: JSGlobalObject,
+    path: String,
+    options: ?JsValue,
+    existingCredentials: S3Credentials
+): Result<BlobRef> {
+    return constructS3FileWithS3Credentials(global, path, options, existingCredentials)
+}
+
+private func s3FileConstructInternalJs(global: JSGlobalObject, path: String, options: ?JsValue): Result<JsValue> {
+    return constructInternalJs(global, path, options)
+}
+
+private func s3FileWrite(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
+    return write(global, callframe)
 }
 
 /// S3FileModule — 对 S3File 模块自由函数的引用
@@ -909,13 +1203,21 @@ public class S3FileModule {
         path: String,
         options: ?JsValue,
         defaultCredentials: S3Credentials,
-        defaultOptions: ?JsValue,
+        defaultOptions: MultiPartUploadOptions,
         defaultAcl: ?S3Acl,
         defaultStorageClass: ?S3StorageClass,
         defaultRequestPayer: Bool
     ): Result<BlobRef> {
-        // Delegate to the S3File module's implementation
-        return Result<BlobRef>.Ok(BlobRef())
+        return s3FileConstructWithOptions(
+            global,
+            path,
+            options,
+            defaultCredentials,
+            defaultOptions,
+            defaultAcl,
+            defaultStorageClass,
+            defaultRequestPayer
+        )
     }
 
     public static func constructS3FileWithS3Credentials(
@@ -924,39 +1226,39 @@ public class S3FileModule {
         options: ?JsValue,
         existingCredentials: S3Credentials
     ): Result<BlobRef> {
-        return Result<BlobRef>.Ok(BlobRef())
+        return s3FileConstructWithCredentials(global, path, options, existingCredentials)
     }
 
     public static func constructInternalJs(global: JSGlobalObject, path: String, options: ?JsValue): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return s3FileConstructInternalJs(global, path, options)
     }
 
     public static func getPresignUrlFrom(blob: BlobRef, global: JSGlobalObject, options: ?JsValue): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return getPresignUrlFrom(blob, global, options)
     }
 
     public static func presign(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return presign(global, callframe)
     }
 
     public static func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return unlink(global, callframe)
     }
 
     public static func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return s3FileWrite(global, callframe)
     }
 
     public static func size(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return size(global, callframe)
     }
 
     public static func exists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return exists(global, callframe)
     }
 
     public static func stat(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return stat(global, callframe)
     }
 }
 
@@ -1011,8 +1313,7 @@ public class BlobRef {
     }
 
     public func toJs(global: JSGlobalObject): JsValue {
-        // In Bun: creates JSS3File wrapper
-        return JsValue(0)
+        return createJSS3FileUnsafely(global, this)
     }
 
     public func isS3(): Bool {
@@ -1027,7 +1328,10 @@ public class BlobRef {
     }
 
     public func getExists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue(true))
+        if (!isS3()) {
+            return Result<JsValue>.Err("S3 exists is only possible for s3:// files")
+        }
+        return S3BlobStatTask.exists(global, this)
     }
 
     public func setContentTypeWasSet(v: Bool): Unit {
@@ -1067,13 +1371,18 @@ public class BlobStoreRef {
     public static func initS3(path: String, range: ?String, credentials: S3Credentials): BlobStoreRef {
         let s = BlobStoreRef()
         s.dataTag = StoreDataTagForBlob.S3
-        s.s3Data = Some(S3Store())
+        s.s3Data = Some(S3Store(path, range, credentials))
         return s
+    }
+
+    public static func initS3WithReferencedCredentials(path: String, range: ?String, credentials: S3Credentials): BlobStoreRef {
+        return BlobStoreRef.initS3(path, range, credentials)
     }
 
     public func data(): StoreDataForBlob {
         let d = StoreDataForBlob()
         d.tag = dataTag
+        d.s3 = s3Data
         return d
     }
 }
@@ -1101,13 +1410,18 @@ public enum StoreDataTagForBlob {
 /// StoreDataForBlob
 public class StoreDataForBlob {
     public var tag: StoreDataTagForBlob
+    public var s3: ?S3Store
 
     public init() {
         tag = StoreDataTagForBlob.None
+        s3 = None
     }
 
     public func asS3(): S3Store {
-        return S3Store()
+        match (s3) {
+            case Some(store) => return store
+            case None => return S3Store()
+        }
     }
 }
 
@@ -1119,6 +1433,7 @@ public class S3Store {
     public var requestPayer: Bool
     private var credentials: S3Credentials
     private var pathStr: String
+    public var range: ?String
 
     public init() {
         options = MultiPartUploadOptions()
@@ -1127,6 +1442,17 @@ public class S3Store {
         requestPayer = false
         credentials = S3Credentials()
         pathStr = ""
+        range = None
+    }
+
+    public init(path: String, range: ?String, credentials: S3Credentials) {
+        options = MultiPartUploadOptions()
+        acl = None
+        storageClass = None
+        requestPayer = false
+        this.credentials = credentials
+        this.pathStr = normalizeS3Path(path)
+        this.range = range
     }
 
     public func getCredentials(): S3Credentials {
@@ -1137,16 +1463,35 @@ public class S3Store {
         return pathStr
     }
 
+    private static func normalizeS3Path(path: String): String {
+        var normalized = path
+        while (normalized.startsWith("/")) {
+            normalized = normalized[1..]
+        }
+        while (normalized.endsWith("/") || normalized.endsWith("\\")) {
+            normalized = normalized[0..(normalized.size - 1)]
+        }
+        return normalized
+    }
+
     public func getCredentialsWithOptions(options: ?JsValue, global: JSGlobalObject): Result<S3CredentialsWithOptions> {
         return Result<S3CredentialsWithOptions>.Ok(S3CredentialsWithOptions(S3Credentials(), MultiPartUploadOptions()))
     }
 
     public func listObjects(store: BlobStoreRef, global: JSGlobalObject, objectKeys: JsValue, options: ?JsValue): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return S3BlobListObjectsTask.listObjects(global, store, options)
     }
 
     public func unlink(store: BlobStoreRef, global: JSGlobalObject, options: ?JsValue): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        return S3BlobDeleteTask.unlink(global, store)
+    }
+
+    public func download(store: BlobStoreRef, global: JSGlobalObject): Result<JsValue> {
+        return S3BlobDownloadTask.download(global, store)
+    }
+
+    public func upload(store: BlobStoreRef, global: JSGlobalObject, content: String, bytesWritten: Int64, contentType: String): Result<JsValue> {
+        return S3BlobUploadTask.upload(global, store, content, bytesWritten, contentType)
     }
 }
 
@@ -1204,8 +1549,21 @@ public class PathOrBlob {
     }
 
     public static func fromJsNoCopy(global: JSGlobalObject, args: Arguments): PathOrBlob {
-        // In Bun: parses JS args into path or blob
-        return PathOrBlob()
+        match (args.next()) {
+            case Some(value) =>
+                if (let blob <- value.asBlob()) {
+                    return PathOrBlob.fromBlob(blob)
+                }
+                if (value.isString()) {
+                    let p = PathOrBlob()
+                    p.tag = PathOrBlobTag.Path
+                    p.path.tag = PathOrFileDescriptorTag.Path
+                    p.path.pathString = value.toString()
+                    return p
+                }
+                return PathOrBlob()
+            case None => return PathOrBlob()
+        }
     }
 }
 
@@ -1228,6 +1586,35 @@ public class WriteFileOptions {
     }
 }
 
+private class S3WriteBody {
+    public var content: String
+    public var bytesWritten: Int64
+
+    public init(content: String, bytesWritten: Int64) {
+        this.content = content
+        this.bytesWritten = bytesWritten
+    }
+}
+
+private func s3WriteBodyFromJs(global: JSGlobalObject, data: JsValue): ?S3WriteBody {
+    if (data.isString()) {
+        let content = data.toString()
+        return Some(S3WriteBody(content, Int64(content.toArray().size)))
+    }
+
+    if (let blob <- data.asBlob()) {
+        let bytes = blob.sharedView()
+        return Some(S3WriteBody(String.fromUtf8(bytes), Int64(bytes.size)))
+    }
+
+    if (let arrayBuffer <- data.asArrayBuffer(global)) {
+        let bytes = arrayBuffer.slice()
+        return Some(S3WriteBody(String.fromUtf8(bytes), Int64(bytes.size)))
+    }
+
+    return None
+}
+
 /// WriteFileModule (对应 Bun: blob::write_file_internal)
 public class WriteFileModule {
     public static func writeFileInternal(
@@ -1236,7 +1623,16 @@ public class WriteFileModule {
         data: JsValue,
         options: WriteFileOptions
     ): Result<JsValue> {
-        return Result<JsValue>.Ok(JsValue.undefined())
+        if (pathOrBlob.tag != PathOrBlobTag.Blob || !pathOrBlob.blob.isS3()) {
+            return Result<JsValue>.Err("S3 writeFileInternal requires an S3 destination blob")
+        }
+        let body = match (s3WriteBodyFromJs(global, data)) {
+            case Some(value) => value
+            case None => return Result<JsValue>.Err("S3 writeFileInternal supports string, Buffer, ArrayBuffer, DataView, TypedArray, or in-memory Blob uploads")
+        }
+        let store = pathOrBlob.blob.store.getOrThrow()
+        let contentType = pathOrBlob.blob.contentType
+        return store.data().asS3().upload(store, global, body.content, body.bytesWritten, contentType)
     }
 }
 
@@ -1264,18 +1660,22 @@ public class ConsoleFormatter {
 public class S3SignResult {
     public var url: String
     public var method: String
+    public var headers: HttpHeaders
 
     public init() {
         url = ""
         method = ""
+        headers = HttpHeaders()
     }
 
     public func toHttpHeaders(): HttpHeaders {
-        return HttpHeaders()
+        return headers
     }
 
     public func mixWithHeader(key: String, value: String): HttpHeaders {
-        return HttpHeaders()
+        let mixed = headers.clone()
+        mixed.set(key, value)
+        return mixed
     }
 
     public func deinit(): Unit {}
@@ -1360,9 +1760,77 @@ public class GlobalRef {
 
 /// HttpHeaders (对应 Bun: bun.http.Headers)
 public class HttpHeaders {
-    public init() {}
-    public func deinit(): Unit {}
+    private var entries: ArrayList<HttpHeaderEntry>
     public var response: HttpResponse = HttpResponse()
+
+    public init() {
+        entries = ArrayList<HttpHeaderEntry>()
+    }
+
+    public func deinit(): Unit {
+        entries.clear()
+    }
+
+    public func set(name: String, value: String): Unit {
+        let lower = name.toLower()
+        for (i in 0..entries.size) {
+            if (entries[i].name == lower) {
+                entries[i].value = value
+                return
+            }
+        }
+        entries.append(HttpHeaderEntry(lower, value))
+    }
+
+    public func get(name: String): ?String {
+        let lower = name.toLower()
+        for (entry in entries) {
+            if (entry.name == lower) {
+                return Some(entry.value)
+            }
+        }
+        return None
+    }
+
+    public func toBaoHeaderEntryList(): BaoHeaderEntryList {
+        let list = BaoHeaderEntryList()
+        for (entry in entries) {
+            list.append(entry.name, entry.value)
+        }
+        return list
+    }
+
+    public func clone(): HttpHeaders {
+        let cloned = HttpHeaders()
+        cloned.response.statusCode = response.statusCode
+        for (entry in entries) {
+            cloned.set(entry.name, entry.value)
+        }
+        return cloned
+    }
+
+    public static func fromBaoHttpMetadata(metadata: BaoHTTPResponseMetadata): HttpHeaders {
+        let headers = HttpHeaders()
+        match (metadata.response) {
+            case Some(response) =>
+                headers.response.statusCode = UInt32(response.statusCode)
+                for (entry in response.headers) {
+                    headers.set(entry.name, entry.value)
+                }
+            case None => ()
+        }
+        return headers
+    }
+}
+
+public class HttpHeaderEntry {
+    public var name: String
+    public var value: String
+
+    public init(name: String, value: String) {
+        this.name = name
+        this.value = value
+    }
 }
 
 /// HttpResponse (stub for response metadata)
@@ -1536,6 +2004,18 @@ public class HttpClientResult {
     public var fail: Bool = false
     public var metadata: ?HttpHeaders = None
     public var body: ?MutableString = None
+
+    public static func fromBaoHttp(result: BaoHTTPClientResult): HttpClientResult {
+        let converted = HttpClientResult()
+        converted.hasMore = result.hasMore
+        converted.fail = result.fail.isSome()
+        converted.body = result.body
+        match (result.metadata) {
+            case Some(metadata) => converted.metadata = Some(HttpHeaders.fromBaoHttpMetadata(metadata))
+            case None => converted.metadata = None
+        }
+        return converted
+    }
 }
 
 /// HttpMethod (对应 Bun: bun_http::Method)
@@ -1549,6 +2029,20 @@ public enum HttpMethod {
     | OPTIONS
     | CONNECT
     | TRACE
+
+    public func toBaoHttpMethod(): BaoHttpMethod {
+        match (this) {
+            case GET => BaoHttpMethod.GET
+            case PUT => BaoHttpMethod.PUT
+            case POST => BaoHttpMethod.POST
+            case DELETE => BaoHttpMethod.DELETE
+            case HEAD => BaoHttpMethod.HEAD
+            case PATCH => BaoHttpMethod.PATCH
+            case OPTIONS => BaoHttpMethod.OPTIONS
+            case CONNECT => BaoHttpMethod.CONNECT
+            case TRACE => BaoHttpMethod.TRACE
+        }
+    }
 }
 
 // ============================================================================

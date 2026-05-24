@@ -917,6 +917,8 @@ public class HTTPThread {
 
         if (hasAwoken) {
             loop.wakeup()
+        } else {
+            drainEvents()
         }
     }
 

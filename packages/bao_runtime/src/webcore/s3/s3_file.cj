@@ -28,6 +28,7 @@ package bao_runtime.webcore.s3
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_http.*
 import bao_http_types.*
 
 // ============================================================================
@@ -477,9 +478,9 @@ public func constructS3FileWithS3CredentialsAndOptions(
                 store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
             } else {
                 // PORT NOTE: Zig `initS3WithReferencedCredentials` bumps the
-                // intrusive ref on `default_credentials`. The Rust deep-clones
-                // the value instead and lets init_s3 Arc::new it.
-                store = BlobStoreRef.initS3(path, None, defaultCredentials)
+                // intrusive ref on `default_credentials`. Cangjie keeps the same
+                // public construction split while storing the referenced value.
+                store = BlobStoreRef.initS3WithReferencedCredentials(path, None, defaultCredentials)
             }
 
             // Set S3 options on the store
@@ -712,13 +713,25 @@ public class S3BlobStatTask {
 
         match (result.tag) {
             case S3StatResultTag.Success =>
-                let stat = S3Stat(
+                let statResult = S3Stat.`init`(
                     result.size,
-                    BaoString(result.etag),
-                    BaoString(result.contentType),
-                    0.0
+                    result.etag,
+                    result.contentType,
+                    result.lastModified,
+                    global
                 )
-                task.promise.resolve(global, JsValue(0))
+                match (statResult) {
+                    case Ok(stat) =>
+                        task.promise.resolve(global, s3StatToJs(stat, global))
+                    case Err(_) =>
+                        let value = s3ErrorToJSWithAsyncStack(
+                            S3Error("InvalidMetadata", "Failed to construct S3 stat metadata."),
+                            global,
+                            Some(task.store.data().asS3().path()),
+                            task.promise.get()
+                        )
+                        task.promise.reject(global, value)
+                }
             case S3StatResultTag.NotFound | S3StatResultTag.Failure =>
                 let value = s3ErrorToJSWithAsyncStack(
                     result.err,
@@ -729,6 +742,21 @@ public class S3BlobStatTask {
                 task.promise.reject(global, value)
         }
         return Result<Unit>.Ok(())
+    }
+
+    private static func s3StatToJs(stat: S3Stat, global: JSGlobalObject): JsValue {
+        let obj = JsObject.make()
+        obj.set("size", stat.getSize(global))
+        match (stat.getEtag(global)) {
+            case Ok(value) => obj.set("etag", value)
+            case Err(_) => obj.set("etag", JsValue(""))
+        }
+        match (stat.getContentType(global)) {
+            case Ok(value) => obj.set("type", value)
+            case Err(_) => obj.set("type", JsValue(""))
+        }
+        obj.set("lastModified", stat.getLastModified(global))
+        return JsValue(obj)
     }
 
     // ========================================================================
@@ -753,8 +781,14 @@ public class S3BlobStatTask {
         let credentials = s3Store.getCredentials()
         let path = s3Store.path()
 
-        // stub: S3Client.stat needs instance, but we don't have one here
-        // S3Client.stat(credentials, path, callback, task, proxy, requestPayer)
+        S3Client.statRequest(
+            credentials,
+            path,
+            S3BlobStatTask.onS3ExistsResolved,
+            task,
+            None,
+            s3Store.requestPayer
+        )
 
         return Result<JsValue>.Ok(promise)
     }
@@ -779,8 +813,14 @@ public class S3BlobStatTask {
         let credentials = s3Store.getCredentials()
         let path = s3Store.path()
 
-        // stub: S3Client.stat
-        // S3Client.stat(credentials, path, callback, task, proxy, requestPayer)
+        S3Client.statRequest(
+            credentials,
+            path,
+            S3BlobStatTask.onS3StatResolved,
+            task,
+            None,
+            s3Store.requestPayer
+        )
 
         return Result<JsValue>.Ok(promise)
     }
@@ -805,14 +845,273 @@ public class S3BlobStatTask {
         let credentials = s3Store.getCredentials()
         let path = s3Store.path()
 
-        // stub: S3Client.stat
-        // S3Client.stat(credentials, path, callback, task, proxy, requestPayer)
+        S3Client.statRequest(
+            credentials,
+            path,
+            S3BlobStatTask.onS3SizeResolved,
+            task,
+            None,
+            s3Store.requestPayer
+        )
 
         return Result<JsValue>.Ok(promise)
     }
 
     // deinit: store.deref() + promise.deinit() + bun.destroy(this) —
     // all handled by GC in Cangjie
+}
+
+// ============================================================================
+// S3BlobListObjectsTask - 列出 S3 对象异步任务
+// ============================================================================
+
+public class S3BlobUploadTask {
+    public var promise: JSPromiseStrong
+    public var global: BackRef
+    public var store: BlobStoreRef
+    public var bytesWritten: Int64
+
+    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef, bytesWritten: Int64) {
+        this.promise = promise
+        this.global = global
+        this.store = store
+        this.bytesWritten = bytesWritten
+    }
+
+    public func getGlobal(): JSGlobalObject {
+        return global.get()
+    }
+
+    public static func onS3UploadResolved(result: S3UploadResult, task: S3BlobUploadTask): Result<Unit> {
+        let global = task.getGlobal()
+        match (result.tag) {
+            case S3UploadResultTag.Success =>
+                task.promise.resolve(global, JsValue(task.bytesWritten))
+            case S3UploadResultTag.Failure =>
+                let err = match (result.error) {
+                    case Some(e) => e
+                    case None => S3Error("RequestError", "S3 upload request failed.")
+                }
+                let value = s3ErrorToJSWithAsyncStack(
+                    err,
+                    global,
+                    Some(task.store.data().asS3().path()),
+                    task.promise.get()
+                )
+                task.promise.reject(global, value)
+        }
+        return Result<Unit>.Ok(())
+    }
+
+    public static func upload(global: JSGlobalObject, store: BlobStoreRef, content: String, bytesWritten: Int64, contentType: String): Result<JsValue> {
+        let task = S3BlobUploadTask(
+            JSPromiseStrong(global),
+            BackRef.new(global),
+            store,
+            bytesWritten
+        )
+        let promise = task.promise.value()
+        let s3Store = store.data().asS3()
+        S3Client.uploadRequest(
+            s3Store.getCredentials(),
+            s3Store.path(),
+            content,
+            bytesWritten,
+            contentType,
+            "",
+            "",
+            s3Store.acl,
+            s3Store.storageClass,
+            S3BlobUploadTask.onS3UploadResolved,
+            task,
+            None,
+            s3Store.requestPayer
+        )
+        return Result<JsValue>.Ok(promise)
+    }
+}
+
+public class S3BlobDownloadTask {
+    public var promise: JSPromiseStrong
+    public var global: BackRef
+    public var store: BlobStoreRef
+
+    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef) {
+        this.promise = promise
+        this.global = global
+        this.store = store
+    }
+
+    public func getGlobal(): JSGlobalObject {
+        return global.get()
+    }
+
+    public static func onS3DownloadResolved(result: S3DownloadResult, task: S3BlobDownloadTask): Result<Unit> {
+        let global = task.getGlobal()
+        match (result.tag) {
+            case S3DownloadResultTag.Success =>
+                task.promise.resolve(global, JsValue(result.body.toString()))
+            case S3DownloadResultTag.NotFound | S3DownloadResultTag.Failure =>
+                let err = match (result.error) {
+                    case Some(e) => e
+                    case None => S3Error("RequestError", "S3 download request failed.")
+                }
+                let value = s3ErrorToJSWithAsyncStack(
+                    err,
+                    global,
+                    Some(task.store.data().asS3().path()),
+                    task.promise.get()
+                )
+                task.promise.reject(global, value)
+        }
+        return Result<Unit>.Ok(())
+    }
+
+    public static func download(global: JSGlobalObject, store: BlobStoreRef): Result<JsValue> {
+        let task = S3BlobDownloadTask(
+            JSPromiseStrong(global),
+            BackRef.new(global),
+            store
+        )
+        let promise = task.promise.value()
+        let s3Store = store.data().asS3()
+        S3Client.downloadRequest(
+            s3Store.getCredentials(),
+            s3Store.path(),
+            S3BlobDownloadTask.onS3DownloadResolved,
+            task,
+            None,
+            s3Store.requestPayer
+        )
+        return Result<JsValue>.Ok(promise)
+    }
+}
+
+public class S3BlobListObjectsTask {
+    public var promise: JSPromiseStrong
+    public var global: BackRef
+    public var store: BlobStoreRef
+
+    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef) {
+        this.promise = promise
+        this.global = global
+        this.store = store
+    }
+
+    public func getGlobal(): JSGlobalObject {
+        return global.get()
+    }
+
+    public static func onS3ListObjectsResolved(result: S3ListObjectsResultEx, task: S3BlobListObjectsTask): Result<Unit> {
+        let global = task.getGlobal()
+        match (result.tag) {
+            case S3ListObjectsResultTag.Success =>
+                match (result.listResult) {
+                    case Some(listResult) => task.promise.resolve(global, listResult.toJS(global))
+                    case None => task.promise.reject(global, s3ErrorToJSWithAsyncStack(
+                        S3Error("InvalidResponse", "S3 listObjects response did not include a parsed result."),
+                        global,
+                        Some(task.store.data().asS3().path()),
+                        task.promise.get()
+                    ))
+                }
+            case S3ListObjectsResultTag.NotFound | S3ListObjectsResultTag.Failure =>
+                let err = match (result.error) {
+                    case Some(e) => e
+                    case None => S3Error("RequestError", "S3 listObjects request failed.")
+                }
+                let value = s3ErrorToJSWithAsyncStack(
+                    err,
+                    global,
+                    Some(task.store.data().asS3().path()),
+                    task.promise.get()
+                )
+                task.promise.reject(global, value)
+        }
+        return Result<Unit>.Ok(())
+    }
+
+    public static func listObjects(global: JSGlobalObject, store: BlobStoreRef, options: ?JsValue): Result<JsValue> {
+        let task = S3BlobListObjectsTask(
+            JSPromiseStrong(global),
+            BackRef.new(global),
+            store
+        )
+        let promise = task.promise.value()
+        let s3Store = store.data().asS3()
+        let listOptions = match (options) {
+            case Some(value) => getListObjectsOptionsFromJS(global, value)
+            case None => S3ListObjectsOptions()
+        }
+        S3Client.listObjectsRequest(
+            s3Store.getCredentials(),
+            listOptions,
+            S3BlobListObjectsTask.onS3ListObjectsResolved,
+            task,
+            None
+        )
+        return Result<JsValue>.Ok(promise)
+    }
+}
+
+// ============================================================================
+// S3BlobDeleteTask - 删除 S3 对象异步任务
+// ============================================================================
+
+public class S3BlobDeleteTask {
+    public var promise: JSPromiseStrong
+    public var global: BackRef
+    public var store: BlobStoreRef
+
+    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef) {
+        this.promise = promise
+        this.global = global
+        this.store = store
+    }
+
+    public func getGlobal(): JSGlobalObject {
+        return global.get()
+    }
+
+    public static func onS3DeleteResolved(result: S3DeleteResult, task: S3BlobDeleteTask): Result<Unit> {
+        let global = task.getGlobal()
+        match (result.tag) {
+            case S3DeleteResultTag.Success =>
+                task.promise.resolve(global, JsValue.jsUndefined())
+            case S3DeleteResultTag.NotFound | S3DeleteResultTag.Failure =>
+                let err = match (result.error) {
+                    case Some(e) => e
+                    case None => S3Error("RequestError", "S3 delete request failed.")
+                }
+                let value = s3ErrorToJSWithAsyncStack(
+                    err,
+                    global,
+                    Some(task.store.data().asS3().path()),
+                    task.promise.get()
+                )
+                task.promise.reject(global, value)
+        }
+        return Result<Unit>.Ok(())
+    }
+
+    public static func unlink(global: JSGlobalObject, store: BlobStoreRef): Result<JsValue> {
+        let task = S3BlobDeleteTask(
+            JSPromiseStrong(global),
+            BackRef.new(global),
+            store
+        )
+        let promise = task.promise.value()
+        let s3Store = store.data().asS3()
+        S3Client.deleteRequest(
+            s3Store.getCredentials(),
+            s3Store.path(),
+            S3BlobDeleteTask.onS3DeleteResolved,
+            task,
+            None,
+            s3Store.requestPayer
+        )
+        return Result<JsValue>.Ok(promise)
+    }
 }
 
 // ============================================================================
@@ -842,8 +1141,122 @@ public func getPresignUrlFrom(
             "Error: presign is only possible for s3:// files"
         )
     }
-    // stub: presign URL generation not yet implemented
-    return Result<JsValue>.Err("Error: presign not implemented")
+    let store = blob.store.getOrThrow()
+    let s3Store = store.data().asS3()
+
+    var method = HttpMethod.GET
+    var expiresIn = Int64(86400)
+
+    match (parsePresignOptions(global, extraOptions)) {
+        case Ok(options) =>
+            method = options.method
+            expiresIn = options.expiresIn
+        case Err(e) => return Result<JsValue>.Err(e)
+    }
+
+    let signOptions = S3SignOptions(s3Store.path(), httpMethodToString(method))
+    let presignOptions = PresignedUrlOptions(expiresIn)
+    match (S3Signer.presignedUrl(awsCredentialsFromRuntime(s3Store.getCredentials()), signOptions, presignOptions)) {
+        case Ok(url) => return Result<JsValue>.Ok(JsValue(url))
+        case Err(err) => return Result<JsValue>.Err("Error: ${err.message}")
+    }
+}
+
+private func awsCredentialsFromRuntime(credentials: S3Credentials): AwsCredentials {
+    let sessionToken = match (credentials.sessionToken) {
+        case Some(token) => token
+        case None => ""
+    }
+    return AwsCredentials(
+        credentials.accessKey,
+        credentials.secretKey,
+        sessionToken,
+        credentials.region,
+        credentials.endpoint,
+        credentials.bucket
+    )
+}
+
+private class ParsedPresignOptions {
+    public var method: HttpMethod
+    public var expiresIn: Int64
+
+    public init() {
+        method = HttpMethod.GET
+        expiresIn = 86400
+    }
+}
+
+private func parsePresignOptions(global: JSGlobalObject, extraOptions: ?JsValue): Result<ParsedPresignOptions> {
+    let parsed = ParsedPresignOptions()
+
+    match (extraOptions) {
+        case Some(options) =>
+            if (options.isEmptyOrUndefinedOrNull()) {
+                return Result<ParsedPresignOptions>.Ok(parsed)
+            }
+            if (!options.isObject()) {
+                return Result<ParsedPresignOptions>.Err("Error: S3 presign options must be an object")
+            }
+
+            match (options.getTruthy(global.globalThis, "method")) {
+                case Some(methodValue) =>
+                    if (!methodValue.isString()) {
+                        return Result<ParsedPresignOptions>.Err("Error: S3 presign option 'method' must be a string")
+                    }
+                    match (parsePresignMethod(methodValue.toString())) {
+                        case Some(method) => parsed.method = method
+                        case None => return Result<ParsedPresignOptions>.Err("Error: S3 presign option 'method' must be one of GET, PUT, POST, DELETE, HEAD, PATCH, OPTIONS")
+                    }
+                case None => ()
+            }
+
+            match (options.getTruthy(global.globalThis, "expiresIn")) {
+                case Some(expiresValue) =>
+                    if (!expiresValue.isNumber() || !expiresValue.isFinite()) {
+                        return Result<ParsedPresignOptions>.Err("Error: S3 presign option 'expiresIn' must be a finite number of seconds")
+                    }
+                    let expires = expiresValue.toInt64()
+                    if (expires <= 0) {
+                        return Result<ParsedPresignOptions>.Err("Error: S3 presign option 'expiresIn' must be greater than 0 seconds")
+                    }
+                    if (expires > 604800) {
+                        return Result<ParsedPresignOptions>.Err("Error: S3 presign option 'expiresIn' must be less than or equal to 604800 seconds")
+                    }
+                    parsed.expiresIn = expires
+                case None => ()
+            }
+        case None => ()
+    }
+
+    return Result<ParsedPresignOptions>.Ok(parsed)
+}
+
+private func parsePresignMethod(method: String): ?HttpMethod {
+    match (Strings.copyLowercase(method)) {
+        case "get" => Some(HttpMethod.GET)
+        case "put" => Some(HttpMethod.PUT)
+        case "post" => Some(HttpMethod.POST)
+        case "delete" => Some(HttpMethod.DELETE)
+        case "head" => Some(HttpMethod.HEAD)
+        case "patch" => Some(HttpMethod.PATCH)
+        case "options" => Some(HttpMethod.OPTIONS)
+        case _ => None
+    }
+}
+
+private func httpMethodToString(method: HttpMethod): String {
+    match (method) {
+        case HttpMethod.GET => "GET"
+        case HttpMethod.PUT => "PUT"
+        case HttpMethod.POST => "POST"
+        case HttpMethod.DELETE => "DELETE"
+        case HttpMethod.HEAD => "HEAD"
+        case HttpMethod.PATCH => "PATCH"
+        case HttpMethod.OPTIONS => "OPTIONS"
+        case HttpMethod.CONNECT => "CONNECT"
+        case HttpMethod.TRACE => "TRACE"
+    }
 }
 
 // ============================================================================
@@ -908,8 +1321,7 @@ public func getPresignUrl(blob: BlobRef, global: JSGlobalObject, callframe: Call
 /// 获取 stat (JS getter)
 /// 对应 Bun: pub fn get_stat(`this`: &Blob, global, _callframe) -> JsResult<JsValue>
 public func getStat(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-    // stub: S3BlobStatTask.stat
-    return Result<JsValue>.Ok(JsValue.undefined())
+    return S3BlobStatTask.stat(global, blob)
 }
 
 // ============================================================================
@@ -950,9 +1362,7 @@ public func stat(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> 
             }
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, options)
             match (blobResult) {
-                case Ok(blob) =>
-                    // stub: S3BlobStatTask.stat
-    return Result<JsValue>.Ok(JsValue.undefined())
+                case Ok(blob) => return S3BlobStatTask.stat(global, blob)
                 case Err(e) => return Result<JsValue>.Err(e)
             }
         case PathOrBlobTag.Blob =>
@@ -1208,7 +1618,7 @@ public class JSPromiseStrong {
     }
 
     public func get(): JsPromise {
-        return JsPromise()  // stub: rejectedPromise
+        return JsPromise()
     }
 
     public func resolve(global: JSGlobalObject, value: JsValue): Result<Unit> {
@@ -1294,7 +1704,7 @@ public class HttpMethodJsc {
 /// BunStringJsc (对应 Bun: bun_jsc::bun_string_jsc)
 public class BunStringJsc {
     public static func createUtf8ForJs(global: JSGlobalObject, s: String): JsValue {
-        return JsValue(0)
+        return JsValue(s)
     }
 }
 
@@ -1308,13 +1718,24 @@ public class FetchModule { ... }
 /// FFI: createJSS3File
 /// 对应 Bun: BUN__createJSS3File(global, callframe) -> JsValue
 public func createJSS3File(global: JSGlobalObject, callframe: CallFrame): JsValue {
-    return JsValue(0)
+    match (construct(global, callframe)) {
+        case Some(blob) => return toJsUnchecked(global, blob)
+        case None => return JsValue.jsUndefined()
+    }
 }
 
 /// FFI: createJSS3FileUnsafely
 /// 对应 Bun: BUN__createJSS3FileUnsafely(global, blob) -> JsValue
 public func createJSS3FileUnsafely(global: JSGlobalObject, blob: BlobRef): JsValue {
-    return JsValue(0)
+    let obj = JsObject.make()
+    obj.className = "S3File"
+    obj.set("type", JsValue(blob.contentType))
+    obj.set("size", blob.getSize(global))
+    match (getBucket(blob, global)) {
+        case Ok(bucket) => obj.set("bucket", bucket)
+        case Err(_) => obj.set("bucket", JsValue.jsUndefined())
+    }
+    return JsValue(obj)
 }
 
 // ported from: src/runtime/webcore/S3File.rs

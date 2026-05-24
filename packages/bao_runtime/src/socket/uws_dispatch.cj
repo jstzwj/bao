@@ -287,10 +287,9 @@ public func usDispatchHandshake(s: UsSocket, ok: Int32, err: UsBunVerifyError): 
     }
 }
 
-/// SSL 原始数据分接 — stub
+/// SSL 原始数据分接 — unavailable until the native raw-tap bridge is wired.
 public func usDispatchSslRawTap(s: UsSocket, data: String, len: Int32): ?UsSocket {
-    // Stub: SSL raw tap not yet implemented
-    return s
+    return None
 }
 
 // ============================================================================

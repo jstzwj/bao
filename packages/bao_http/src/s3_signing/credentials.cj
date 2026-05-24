@@ -555,17 +555,39 @@ public class CanonicalRequest {
 /// RFC 3986 非保留字符: A-Z a-z 0-9 - _ . ~
 /// 其他字符百分号编码, 可选编码斜杠
 public func encodeURIComponent(input: String, encodeSlash: Bool): String {
-    if (!encodeSlash) {
-        return input.replace("\\", "/")
+    let sb = StringBuilder()
+    for (i in 0..input.size) {
+        let c = input[Int64(i)]
+        let v = Int64(c)
+        if ((c >= UInt8(65) && c <= UInt8(90)) ||
+            (c >= UInt8(97) && c <= UInt8(122)) ||
+            (c >= UInt8(48) && c <= UInt8(57)) ||
+            c == UInt8(45) || c == UInt8(95) || c == UInt8(46) || c == UInt8(126)) {
+            sb.append(Rune(UInt32(c)))
+        } else if (!encodeSlash && (c == UInt8(47) || c == UInt8(92))) {
+            sb.append(Rune(UInt32(UInt8(47))))
+        } else {
+            let high = (v >> 4) & 0x0F
+            let low = v & 0x0F
+            sb.append(Rune(UInt32(UInt8(37))))
+            sb.append(toHexRune(high))
+            sb.append(toHexRune(low))
+        }
     }
-    return input
+    return sb.toString()
 }
 
 /// hex 字符转换
 /// 对应 Bun: toHexChar(value) -> '0'-'9' or 'A'-'F'
 private func toHexChar(v: Int64): String {
     if (v >= 0 && v <= 9) { return "${v}" }
-    return "A"
+    if (v >= 10 && v <= 15) { return String(Rune(UInt32(UInt8(v + 55)))) }
+    return "0"
+}
+
+private func toHexRune(v: Int64): Rune {
+    if (v >= 0 && v <= 9) { return Rune(UInt32(UInt8(v + 48))) }
+    return Rune(UInt32(UInt8(v + 55)))
 }
 
 /// 猜测区域

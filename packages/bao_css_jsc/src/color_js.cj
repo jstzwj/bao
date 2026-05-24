@@ -106,12 +106,98 @@ public func jsFunctionColor(globalThis: JSGlobalObject, callFrame: CallFrame): J
     return JsValue.jsUndefined()
 }
 
-/// 从 JS 值获取颜色整数 (stub)
+/// 从 JS 值获取颜色整数
 public func colorIntFromJS(globalThis: JSGlobalObject, input: JsValue, property: String): Int32 {
-    return 0
+    if (input.isUndefinedOrNull() || !input.isNumber()) {
+        globalThis.throwInvalidArgumentType("color", property, "integer")
+        return 0
+    }
+
+    let intValue = input.toInt32()
+    if (intValue < 0) {
+        return 0
+    }
+    if (intValue > 255) {
+        return 255
+    }
+    return intValue
 }
 
-/// 格式化颜色 (stub)
+/// 格式化颜色
 public func formatColor(colorStr: String, format: OutputColorFormat): String {
-    return colorStr
+    let rgba = parseHexColor(colorStr)
+    match (rgba) {
+        case Some(color) => return formatRGBA(color, format)
+        case None => return colorStr
+    }
+}
+
+private class RGBAColor {
+    public let r: UInt32
+    public let g: UInt32
+    public let b: UInt32
+    public let a: UInt32
+
+    public init(r: UInt32, g: UInt32, b: UInt32, a: UInt32) {
+        this.r = r
+        this.g = g
+        this.b = b
+        this.a = a
+    }
+}
+
+private func parseHexNibble(c: UInt8): ?UInt32 {
+    if (c >= UInt8(48) && c <= UInt8(57)) { return Some(UInt32(c - UInt8(48))) }
+    if (c >= UInt8(65) && c <= UInt8(70)) { return Some(UInt32(c - UInt8(65)) + UInt32(10)) }
+    if (c >= UInt8(97) && c <= UInt8(102)) { return Some(UInt32(c - UInt8(97)) + UInt32(10)) }
+    return None
+}
+
+private func parseHexByte(s: String, index: Int64): ?UInt32 {
+    let hi = parseHexNibble(s[index])
+    let lo = parseHexNibble(s[index + 1])
+    if (hi.isNone() || lo.isNone()) { return None }
+    return Some(hi.getOrThrow() * UInt32(16) + lo.getOrThrow())
+}
+
+private func parseHexColor(input: String): ?RGBAColor {
+    if (input.size != 7 && input.size != 9) { return None }
+    if (input[0] != UInt8(35)) { return None }
+    let r = parseHexByte(input, 1)
+    let g = parseHexByte(input, 3)
+    let b = parseHexByte(input, 5)
+    if (r.isNone() || g.isNone() || b.isNone()) { return None }
+    let a = if (input.size == 9) { parseHexByte(input, 7) } else { Some(UInt32(255)) }
+    if (a.isNone()) { return None }
+    return Some(RGBAColor(r.getOrThrow(), g.getOrThrow(), b.getOrThrow(), a.getOrThrow()))
+}
+
+private func hexDigit(v: UInt32, uppercase: Bool): String {
+    let chars = if (uppercase) { "0123456789ABCDEF" } else { "0123456789abcdef" }
+    return String(Rune(chars[Int64(v & UInt32(0xF))]))
+}
+
+private func hexByte(v: UInt32, uppercase: Bool): String {
+    return hexDigit(v >> UInt32(4), uppercase) + hexDigit(v, uppercase)
+}
+
+private func formatRGBA(color: RGBAColor, format: OutputColorFormat): String {
+    match (format) {
+        case hex => return "#" + hexByte(color.r, false) + hexByte(color.g, false) + hexByte(color.b, false)
+        case HEX => return "#" + hexByte(color.r, true) + hexByte(color.g, true) + hexByte(color.b, true)
+        case rgb => return "rgb(" + color.r.toString() + ", " + color.g.toString() + ", " + color.b.toString() + ")"
+        case rgba => return "rgba(" + color.r.toString() + ", " + color.g.toString() + ", " + color.b.toString() + ", " + (Float64(color.a) / 255.0).toString() + ")"
+        case number => return ((color.a << UInt32(24)) | (color.r << UInt32(16)) | (color.g << UInt32(8)) | color.b).toString()
+        case ansi256 => return "\u{1b}[38;5;" + Ansi256.get(color.r, color.g, color.b).toString() + "m"
+        case ansi16 => return "\u{1b}[3" + Ansi256.get16(color.r, color.g, color.b).toString() + "m"
+        case ansi16m => return "\u{1b}[38;2;" + color.r.toString() + ";" + color.g.toString() + ";" + color.b.toString() + "m"
+        case arrayRgb => return "[" + color.r.toString() + "," + color.g.toString() + "," + color.b.toString() + "]"
+        case arrayRgba => return "[" + color.r.toString() + "," + color.g.toString() + "," + color.b.toString() + "," + color.a.toString() + "]"
+        case objectRgb => return "{\"r\":" + color.r.toString() + ",\"g\":" + color.g.toString() + ",\"b\":" + color.b.toString() + "}"
+        case objectRgba => return "{\"r\":" + color.r.toString() + ",\"g\":" + color.g.toString() + ",\"b\":" + color.b.toString() + ",\"a\":" + (Float64(color.a) / 255.0).toString() + "}"
+        case css => return "rgb(" + color.r.toString() + " " + color.g.toString() + " " + color.b.toString() + ")"
+        case hsl => return "rgb(" + color.r.toString() + " " + color.g.toString() + " " + color.b.toString() + ")"
+        case lab => return "rgb(" + color.r.toString() + " " + color.g.toString() + " " + color.b.toString() + ")"
+        case ansi => return "\u{1b}[38;5;" + Ansi256.get(color.r, color.g, color.b).toString() + "m"
+    }
 }

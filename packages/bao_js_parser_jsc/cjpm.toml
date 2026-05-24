@@ -13,5 +13,6 @@ target-dir = ""
 
 [dependencies]
 bao_parser = { path = "../bao_parser" }
+bao_ast = { path = "../bao_ast" }
 bao_jsc = { path = "../bao_jsc" }
 bao_core = { path = "../bao_core" }

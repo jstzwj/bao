@@ -442,7 +442,16 @@ public class TimerHeap {
     }
 
     public func remove(id: Int64): Unit {
-        // stub
+        var i: Int64 = 0
+        while (i < heap.size) {
+            if (heap[i].id == id) {
+                let timer = heap.removeAt(i)
+                timer.state = TimerState.CANCELLED
+                timer.inHeap = InHeap.NONE
+                return
+            }
+            i += 1
+        }
     }
 }
 
@@ -455,7 +464,10 @@ public class EventLoopTimer {
 
     public init() {}
 
-    public func fire(now: Timespec, vm: Any): Unit {}
+    public func fire(now: Timespec, vm: Any): Unit {
+        state = TimerState.DONE
+        inHeap = InHeap.NONE
+    }
 }
 
 /// 定时器状态

@@ -44,7 +44,7 @@ public class TlsSocketFunctions {
 
     /// 获取 TLS 版本
     public func getTLSVersion(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsNull()
+        return JsValue.jsUndefined()
     }
 
     /// 设置最大发送分片大小
@@ -69,12 +69,12 @@ public class TlsSocketFunctions {
 
     /// 获取共享的签名算法
     public func getSharedSigalgs(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsNull()
+        return JsValue.jsUndefined()
     }
 
     /// 获取密码套件信息
     public func getCipher(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsNull()
+        return JsValue.jsUndefined()
     }
 
     /// 获取 TLS 对端 Finished 消息
@@ -89,12 +89,12 @@ public class TlsSocketFunctions {
 
     /// 获取临时密钥信息
     public func getEphemeralKeyInfo(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsNull()
+        return JsValue.jsUndefined()
     }
 
     /// 获取 ALPN 协议
     public func getALPNProtocol(globalObject: JsGlobalObject): JsValue {
-        return JsValue.jsFalse()
+        return JsValue.jsUndefined()
     }
 
     /// 获取会话
@@ -124,7 +124,7 @@ public class TlsSocketFunctions {
 
     /// 是否会话重用
     public func isSessionReused(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsFalse()
+        return JsValue.jsUndefined()
     }
 
     /// 设置验证模式

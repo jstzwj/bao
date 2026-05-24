@@ -106,6 +106,9 @@ public class JsObject {
     public var internalNumberValue: Float64 = 0.0
     // 原始指针 (JSC C API)
     public var rawPtr: CPointer<UInt8> = CPointer<UInt8>()
+    // ArrayBuffer/TypedArray/Buffer 的拥有字节存储。
+    // 仅用于仓颉侧已拥有或已复制的数据；不要用它表示未知裸指针内存。
+    public var byteStorage: Array<UInt8> = []
 
     public init() {}
 

@@ -65,8 +65,8 @@ public class S3CredentialsWithOptions {
     private var _contentEncodingSlice: String
 
     public init(credentials: S3Credentials, options: MultiPartUploadOptions) {
-        this.credentials = credentials
-        this.options = options
+        this.credentials = cloneCredentials(credentials)
+        this.options = cloneMultipartOptions(options)
         acl = None
         storageClass = None
         requestPayer = false
@@ -241,11 +241,170 @@ public func getCredentialsWithOptions(
     defaultRequestPayer: Bool,
     globalObject: JsGlobalObject
 ): S3CredentialsWithOptions {
-    // Stub: simplified implementation - full version requires complex JS value parsing
-    // that causes issues with Cangjie's Option pattern matching
     var result = S3CredentialsWithOptions(credentials, defaultOptions)
     result.acl = defaultAcl
     result.storageClass = defaultStorageClass
     result.requestPayer = defaultRequestPayer
+
+    match (options) {
+        case Some(opts) =>
+            if (!opts.isObject()) {
+                return result
+            }
+            parseCredentialString(opts, globalObject, "accessKeyId", result, CredentialField.accessKeyId)
+            parseCredentialString(opts, globalObject, "secretAccessKey", result, CredentialField.secretAccessKey)
+            parseCredentialString(opts, globalObject, "region", result, CredentialField.region)
+            parseCredentialString(opts, globalObject, "endpoint", result, CredentialField.endpoint)
+            parseCredentialString(opts, globalObject, "bucket", result, CredentialField.bucket)
+            parseCredentialString(opts, globalObject, "sessionToken", result, CredentialField.sessionToken)
+            parseCredentialBool(opts, globalObject, "virtualHostedStyle", result)
+            parseAcl(opts, globalObject, result)
+            parseStorageClass(opts, globalObject, result)
+            parseBoolOption(opts, globalObject, "requestPayer", { value: Bool => result.requestPayer = value })
+            parseMultipartInt(opts, globalObject, "partSize", { value: Int64 => result.options.partSize = value })
+            parseMultipartInt(opts, globalObject, "queueSize", { value: Int64 => result.options.queueSize = UInt8(value) })
+            parseMultipartInt(opts, globalObject, "retry", { value: Int64 => result.options.retry = UInt8(value) })
+            parseHeaderString(opts, globalObject, "contentDisposition", { value: String => result.contentDisposition = value })
+            parseHeaderString(opts, globalObject, "type", { value: String => result.contentType = value })
+            parseHeaderString(opts, globalObject, "contentType", { value: String => result.contentType = value })
+            parseHeaderString(opts, globalObject, "contentEncoding", { value: String => result.contentEncoding = value })
+        case None => ()
+    }
+
+    result.options.clamp()
     return result
+}
+
+private enum CredentialField {
+    | accessKeyId
+    | secretAccessKey
+    | region
+    | endpoint
+    | bucket
+    | sessionToken
+}
+
+private func cloneCredentials(credentials: S3Credentials): S3Credentials {
+    let cloned = S3Credentials()
+    cloned.accessKey = credentials.accessKey
+    cloned.secretKey = credentials.secretKey
+    cloned.sessionToken = credentials.sessionToken
+    cloned.region = credentials.region
+    cloned.endpoint = credentials.endpoint
+    cloned.bucket = credentials.bucket
+    cloned.insecureHttp = credentials.insecureHttp
+    cloned.virtualHostedStyle = credentials.virtualHostedStyle
+    return cloned
+}
+
+private func cloneMultipartOptions(options: MultiPartUploadOptions): MultiPartUploadOptions {
+    return MultiPartUploadOptions(options.queueSize, options.partSize, options.retry)
+}
+
+private func parseCredentialString(options: JsValue, globalObject: JsGlobalObject, name: String, result: S3CredentialsWithOptions, field: CredentialField): Unit {
+    match (options.getTruthy(globalObject, name)) {
+        case Some(value) =>
+            if (!value.isString()) { return }
+            let str = value.toString()
+            match (field) {
+                case accessKeyId => result.credentials.accessKey = str
+                case secretAccessKey => result.credentials.secretKey = str
+                case region => result.credentials.region = str
+                case endpoint => setNormalizedEndpoint(result.credentials, str)
+                case bucket => result.credentials.bucket = str
+                case sessionToken => result.credentials.sessionToken = Some(str)
+            }
+            result.changedCredentials = true
+        case None => ()
+    }
+}
+
+private func parseCredentialBool(options: JsValue, globalObject: JsGlobalObject, name: String, result: S3CredentialsWithOptions): Unit {
+    match (options.getBooleanStrict(globalObject, name)) {
+        case Some(value) =>
+            if (name == "virtualHostedStyle") {
+                result.credentials.virtualHostedStyle = value
+            }
+            result.changedCredentials = true
+        case None => ()
+    }
+}
+
+private func setNormalizedEndpoint(credentials: S3Credentials, endpoint: String): Unit {
+    if (endpoint.startsWith("http://")) {
+        credentials.insecureHttp = true
+        credentials.endpoint = stripUrlScheme(endpoint[7..])
+    } else if (endpoint.startsWith("https://")) {
+        credentials.insecureHttp = false
+        credentials.endpoint = stripUrlScheme(endpoint[8..])
+    } else {
+        credentials.endpoint = stripUrlScheme(endpoint)
+    }
+}
+
+private func stripUrlScheme(endpoint: String): String {
+    let hashIdxOpt = endpoint.indexOf("#")
+    var normalized = match (hashIdxOpt) {
+        case Some(idx) => endpoint[0..idx]
+        case None => endpoint
+    }
+    let queryIdxOpt = normalized.indexOf("?")
+    if (queryIdxOpt.isSome()) {
+        normalized = normalized[0..queryIdxOpt.getOrThrow()]
+    }
+    while (normalized.endsWith("/")) {
+        normalized = normalized[0..(normalized.size - 1)]
+    }
+    return normalized
+}
+
+private func parseBoolOption(options: JsValue, globalObject: JsGlobalObject, name: String, setter: (Bool) -> Unit): Unit {
+    match (options.getBooleanStrict(globalObject, name)) {
+        case Some(value) => setter(value)
+        case None => ()
+    }
+}
+
+private func parseMultipartInt(options: JsValue, globalObject: JsGlobalObject, name: String, setter: (Int64) -> Unit): Unit {
+    match (options.getOptionalInt(globalObject, name)) {
+        case Some(value) =>
+            if (value >= 0) { setter(value) }
+        case None => ()
+    }
+}
+
+private func parseHeaderString(options: JsValue, globalObject: JsGlobalObject, name: String, setter: (String) -> Unit): Unit {
+    match (options.getTruthy(globalObject, name)) {
+        case Some(value) =>
+            if (!value.isString()) { return }
+            let str = value.toString()
+            if (!containsNewlineOrCR(str)) {
+                setter(str)
+            }
+        case None => ()
+    }
+}
+
+private func parseAcl(options: JsValue, globalObject: JsGlobalObject, result: S3CredentialsWithOptions): Unit {
+    match (options.getTruthy(globalObject, "acl")) {
+        case Some(value) =>
+            if (!value.isString()) { return }
+            match (S3Acl.fromString(value.toString())) {
+                case Some(acl) => result.acl = Some(acl)
+                case None => ()
+            }
+        case None => ()
+    }
+}
+
+private func parseStorageClass(options: JsValue, globalObject: JsGlobalObject, result: S3CredentialsWithOptions): Unit {
+    match (options.getTruthy(globalObject, "storageClass")) {
+        case Some(value) =>
+            if (!value.isString()) { return }
+            match (S3StorageClass.fromString(value.toString())) {
+                case Some(storageClass) => result.storageClass = Some(storageClass)
+                case None => ()
+            }
+        case None => ()
+    }
 }

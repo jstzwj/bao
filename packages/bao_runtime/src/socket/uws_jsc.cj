@@ -63,8 +63,8 @@ public func usSocketBufferedJsWrite(
     data: JsValue,
     encoding: JsValue
 ): JsValue {
-    // Stub: 完整实现需要 UsSocket.write/shutdown 的 FFI 绑定
-    return JsValue.jsTrue()
+    // Native write/shutdown FFI is not wired yet. Report failure instead of dropping data.
+    return JsValue.jsFalse()
 }
 
 // ============================================================================

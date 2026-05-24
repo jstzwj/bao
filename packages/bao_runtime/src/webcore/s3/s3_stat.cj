@@ -102,8 +102,7 @@ public class S3Stat {
         lastModified: Array<UInt8>,
         global: JSGlobalObject
     ): Result<S3Stat> {
-        // stub: parseDate not available on BaoString, use 0.0
-        let lastMod: Float64 = 0.0
+        let lastMod = parseLastModified(lastModified)
         let stat = S3Stat(
             size,
             BaoString(etag),
@@ -111,6 +110,13 @@ public class S3Stat {
             lastMod
         )
         return Result<S3Stat>.Ok(stat)
+    }
+
+    private static func parseLastModified(lastModified: Array<UInt8>): Float64 {
+        match (WtfDateParser.parseES5Date(lastModified)) {
+            case Some(ms) => return ms
+            case None => return 0.0
+        }
     }
 
     // ========================================================================

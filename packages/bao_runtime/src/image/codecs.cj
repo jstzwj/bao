@@ -352,19 +352,9 @@ public class Codecs {
             if (systemOut.isSome()) { return systemOut }
         }
 
-        let outSize = UInt64(dw) * UInt64(dh) * 4
-        let scratchSize = unsafe { bun_image_resize_scratch_size(Int32(sw), Int32(sh), Int32(dw), Int32(dh), f.toInt32()) }
-        var block = Array<UInt8>(Int64(outSize + scratchSize), { _: Int64 => UInt8(0) })
-
-        let resizeResult = unsafe { bun_image_resize_rgba8(CPointer<Unit>(), Int32(sw), Int32(sh), CPointer<Unit>(),
-                                   Int32(dw), Int32(dh), f.toInt32(), CPointer<Unit>()) }
-        if (resizeResult != 0) {
-            return None
-        }
-
-        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
-        for (i in 0..Int64(outSize)) { out[i] = block[i] }
-        return out
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> <-> native 指针桥接。
+        // 继续用空 CPointer 调用 native resize 会返回零填充图像伪成功。
+        return None
     }
 
     /// 旋转图像
@@ -373,12 +363,9 @@ public class Codecs {
     ///   支持 0/90/180/270 度旋转, 调用 bun_image_rotate_rgba8
     public static func rotate(src: Array<UInt8>, w: UInt32, h: UInt32, degrees: UInt32): ?DecodedImage {
         if (degrees != 0 && degrees != 90 && degrees != 180 && degrees != 270) { return None }
-        let dw: UInt32 = if (degrees == 90 || degrees == 270) { h } else { w }
-        let dh: UInt32 = if (degrees == 90 || degrees == 270) { w } else { h }
-        let outSize = UInt64(dw) * UInt64(dh) * 4
-        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
-        unsafe { bun_image_rotate_rgba8(CPointer<Unit>(), Int32(w), Int32(h), CPointer<Unit>(), Int32(degrees)) }
-        return DecodedImage(out, dw, dh)
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> <-> native 指针桥接。
+        // 继续用空 CPointer 调用 native rotate 会返回零填充图像伪成功。
+        return None
     }
 
     /// 翻转图像
@@ -386,10 +373,9 @@ public class Codecs {
     ///   pub fn flip(src: []const u8, w: u32, h: u32, horizontal: bool) Error![]u8
     ///   调用 bun_image_flip_rgba8
     public static func flip(src: Array<UInt8>, w: UInt32, h: UInt32, horizontal: Bool): ?Array<UInt8> {
-        let outSize = UInt64(w) * UInt64(h) * 4
-        var out = Array<UInt8>(Int64(outSize), { _: Int64 => UInt8(0) })
-        unsafe { bun_image_flip_rgba8(CPointer<Unit>(), Int32(w), Int32(h), CPointer<Unit>(), if (horizontal) { Int32(1) } else { Int32(0) }) }
-        return out
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> <-> native 指针桥接。
+        // 继续用空 CPointer 调用 native flip 会返回零填充图像伪成功。
+        return None
     }
 
     /// 调制 (亮度/饱和度)
@@ -397,7 +383,8 @@ public class Codecs {
     ///   pub fn modulate(rgba: []u8, brightness: f32, saturation: f32) void
     ///   调用 bun_image_modulate_rgba8
     public static func modulate(rgba: Array<UInt8>, brightness: Float32, saturation: Float32): Unit {
-        unsafe { bun_image_modulate_rgba8(CPointer<Unit>(), UIntNative(rgba.size), brightness, saturation) }
+        // bao_jsc 当前只有零填充/元数据型指针存根，没有可用的 Array<UInt8> -> native 指针桥接。
+        // 不用空 CPointer 调用 native modulate；保持输入不变比伪装已处理更安全。
     }
 
     static func readUInt32BE(b: Array<UInt8>, off: Int64): UInt32 {

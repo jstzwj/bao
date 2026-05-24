@@ -304,34 +304,25 @@ public class WindowsNamedPipe {
 
     public func getAcceptedBy(server: UvPipe, sslCtx: ?SslCtx): SysMaybeVoid {
         flags.disconnected = true
-        flags.disconnected = false
-        onOpenInternal()
-        return SysMaybeVoid.SUCCESS
+        return SysMaybeVoid.err(38, Syscall.CONNECT)
     }
 
     public func open(fd: Fd, sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): SysMaybeVoid {
         flags.disconnected = true
-        flags.disconnected = false
-        onConnect(UvReturnCode.ZERO)
-        return SysMaybeVoid.SUCCESS
+        return SysMaybeVoid.err(38, Syscall.CONNECT)
     }
 
     public func connect(path: String, sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): SysMaybeVoid {
         flags.disconnected = true
-        if (pipe.isSome()) {
-            pipe.getOrThrow().ref()
-        }
-        ref()
-        return SysMaybeVoid.SUCCESS
+        return SysMaybeVoid.err(38, Syscall.CONNECT)
     }
 
     func initTLSWrapper(sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): ?SysMaybeVoid {
-        // Stub: TLS wrapper initialization
-        return None
+        return Some(SysMaybeVoid.err(38, Syscall.CONNECT))
     }
 
     public func startTLS(sslOptions: SSLConfig, isClient: Bool): Unit {
-        flags.isSsl = true
+        throw Exception("ENOSYS: Windows named pipe TLS wrapper is not implemented")
     }
 
     public func start(isClient: Bool): Bool {
@@ -351,6 +342,9 @@ public class WindowsNamedPipe {
     }
 
     public func encodeAndWrite(data: Array<Byte>): Int32 {
+        if (flags.disconnected || pipe.isNone()) {
+            return -38
+        }
         if (wrapper.isSome()) {
             return Int32(wrapper.getOrThrow().writeData(data))
         } else {
@@ -360,6 +354,9 @@ public class WindowsNamedPipe {
     }
 
     public func rawWrite(encodedData: Array<Byte>): Int32 {
+        if (flags.disconnected || pipe.isNone()) {
+            return -38
+        }
         internalWrite(encodedData)
         return Int32(encodedData.size)
     }
@@ -591,10 +588,10 @@ public class StreamingWriter<T> {
     }
 
     public func setParent(parent: T): Unit {}
-    public func startWithPipe(pipe: UvPipe): SysMaybeVoid { SysMaybeVoid.SUCCESS }
+    public func startWithPipe(pipe: UvPipe): SysMaybeVoid { SysMaybeVoid.err(38, Syscall.CONNECT) }
     public func getStream(): ?Stream { None }
-    public func write(data: Array<Byte>): Int64 { 0 }
-    public func flush(): Int64 { 0 }
+    public func write(data: Array<Byte>): Int64 { -38 }
+    public func flush(): Int64 { -38 }
     public func end(): Unit {}
     public func close(): Unit {}
     public func deinit(): Unit {}

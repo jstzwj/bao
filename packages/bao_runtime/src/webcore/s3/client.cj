@@ -71,10 +71,10 @@ public func s3Stat(
     options.body = ""
     options.requestPayer = requestPayer
 
-    executeSimpleS3Request(
+    executeSimpleS3StatRequest(
         credentials,
         options,
-        S3CallbackKind.Stat,
+        callback,
         callbackContext
     )
 }
@@ -108,10 +108,10 @@ public func s3Download(
     options.body = ""
     options.requestPayer = requestPayer
 
-    executeSimpleS3Request(
+    executeSimpleS3DownloadRequest(
         credentials,
         options,
-        S3CallbackKind.Download,
+        callback,
         callbackContext
     )
 }
@@ -166,10 +166,10 @@ public func s3DownloadSlice(
     options.range = range
     options.requestPayer = requestPayer
 
-    executeSimpleS3Request(
+    executeSimpleS3DownloadRequest(
         credentials,
         options,
-        S3CallbackKind.Download,
+        callback,
         callbackContext
     )
 }
@@ -267,13 +267,14 @@ public func s3ListObjects(
     }
 
     // fetch-owner
-    if (listOptions.fetchOwner) {
+    if (listOptions.hasFetchOwner) {
+        let ownerValue = if (listOptions.fetchOwner) { "true" } else { "false" }
         if (listOptions.continuationToken.size > 0 ||
             listOptions.delimiter.size > 0 ||
             listOptions.encodingType.size > 0) {
-            searchParams.append("&fetch-owner=true")
+            searchParams.append("&fetch-owner=${ownerValue}")
         } else {
-            searchParams.append("fetch-owner=true")
+            searchParams.append("fetch-owner=${ownerValue}")
         }
     }
 
@@ -281,14 +282,14 @@ public func s3ListObjects(
     if (listOptions.continuationToken.size > 0 ||
         listOptions.delimiter.size > 0 ||
         listOptions.encodingType.size > 0 ||
-        listOptions.fetchOwner) {
+        listOptions.hasFetchOwner) {
         searchParams.append("&list-type=2")
     } else {
         searchParams.append("list-type=2")
     }
 
     // max-keys
-    if (listOptions.maxKeys > 0) {
+    if (listOptions.hasMaxKeys) {
         searchParams.append("&max-keys=${listOptions.maxKeys}")
     }
 
@@ -304,62 +305,18 @@ public func s3ListObjects(
         searchParams.append("&start-after=${encoded}")
     }
 
-    let searchParamsStr = searchParams.toString()
+    let options = S3SimpleRequestOptions()
+    options.path = ""
+    options.method = HttpMethod.GET
+    options.searchParams = searchParams.toString()
+    options.proxyUrl = proxyUrl
 
-    // 签名请求
-    var signResult: S3SignResult
-    try {
-        signResult = S3Signing.signRequestFull(
-            "",
-            HttpMethod.GET,
-            searchParamsStr,
-            "",
-            "",
-            None,
-            None,
-            false,
-            None,
-            None,
-            credentials
-        )
-    } catch (e: Exception) {
-        let err = S3Error("SigningError", "Failed to sign request")
-        callback(S3ListObjectsResultEx.failure(err), callbackContext)
-        return
-    }
-
-    let httpHeaders = signResult.toHttpHeaders()
-
-    // 创建任务
-    let vm = VirtualMachine.get()
-    let task = S3HttpSimpleTask(vm)
-    task.signResult = signResult
-    task.callbackContext = callbackContext
-    task.callbackKind = S3CallbackKind.ListObjects
-    task.headers = httpHeaders
-
-    task.pollRef.ref(vm)
-
-    let proxy = proxyUrl
-    task.proxyUrl = proxy
-
-    // 配置 AsyncHTTP
-    let url = UrlParser.parse(signResult.url)
-    task.http = AsyncHttp(
-        HttpMethod.GET,
-        url.toString(),
-        task.headers,
-        task.responseBuffer.toString(),
-        "",
-        SignalStore(),
-        HttpSignals()
+    executeSimpleS3ListObjectsRequest(
+        credentials,
+        options,
+        callback,
+        callbackContext
     )
-
-    // 调度 HTTP 请求
-    HTTPThread()
-    let batch = ThreadPoolBatch()
-    task.http.schedule(batch)
-    HTTPThread.schedule(batch)
 }
 
 // ============================================================================
@@ -765,13 +722,12 @@ public func s3UploadStream(
 
     // 检查 ReadableStream 是否已被消费
     if (readableStream.isDisturbed(globalThis)) {
-        // stub: JSPromise.rejectedPromise not available
-        return JsValue.undefined()
+        return S3Error("NotImplemented", "S3 uploadStream cannot consume a disturbed ReadableStream in this Cangjie runtime build").toJsValue()
     }
 
     // 检查流是否无效
     if (readableStream.ptr().isNone()) {
-        return JsValue.undefined()
+        return S3Error("NotImplemented", "S3 uploadStream cannot consume an invalid ReadableStream in this Cangjie runtime build").toJsValue()
     }
 
     // 创建 MultiPartUpload 任务
@@ -951,11 +907,12 @@ public func s3DownloadStream(
     // 启用流式响应
     task.http.enableResponseBodyStreaming()
 
-    // 调度 HTTP 请求
-    HTTPThread()
-    let batch = ThreadPoolBatch()
-    task.http.schedule(batch)
-    HTTPThread.schedule(batch)
+    callback(
+        MutableString(),
+        false,
+        Some(S3Error("NotImplemented", "S3 download stream request scheduling is not implemented in this Cangjie runtime build")),
+        callbackContext
+    )
 }
 
 // ============================================================================
@@ -1108,20 +1065,14 @@ public class S3DownloadStreamWrapper {
         self_.callback(chunk, hasMore, err)
     }
 
-    /// 转为不透明指针 (stub - uses static last-instance)
-    private static var _lastWrapper: ?S3DownloadStreamWrapper = None
-
+    /// 转为不透明指针
     public func toOpaque(): UIntNative {
-        S3DownloadStreamWrapper._lastWrapper = Some(this)
-        return UIntNative(1)
+        return UIntNative(0)
     }
 
     /// 从不透明指针恢复
     public static func fromOpaque(opaque: UIntNative): S3DownloadStreamWrapper {
-        match (S3DownloadStreamWrapper._lastWrapper) {
-            case Some(w) => return w
-            case None => return S3DownloadStreamWrapper()
-        }
+        return S3DownloadStreamWrapper()
     }
 }
 
@@ -1132,8 +1083,22 @@ public class S3DownloadStreamWrapper {
 /// URI 组件编码
 /// 对应 Bun: encode_uri_component
 private func encodeURIComponent(input: String): String {
-    // Stub: proper URI encoding would use stdlib encoding
-    return input
+    let hex = "0123456789ABCDEF"
+    let encoded = StringBuilder()
+    for (ch in input) {
+        let b = UInt8(ch)
+        if ((b >= UInt8(65) && b <= UInt8(90)) ||
+            (b >= UInt8(97) && b <= UInt8(122)) ||
+            (b >= UInt8(48) && b <= UInt8(57)) ||
+            b == UInt8(45) || b == UInt8(95) || b == UInt8(46) || b == UInt8(126)) {
+            encoded.append(String.fromUtf8([b]))
+        } else {
+            encoded.append("%")
+            encoded.append(hex[Int64(b / UInt8(16))].toString())
+            encoded.append(hex[Int64(b % UInt8(16))].toString())
+        }
+    }
+    return encoded.toString()
 }
 
 /// 获取签名错误码和消息

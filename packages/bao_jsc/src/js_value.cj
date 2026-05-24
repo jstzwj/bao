@@ -2110,12 +2110,13 @@ extend JsValue {
     public static func createBuffer(global: JsObject, bytes: Array<UInt8>): JsValue {
         let obj = JsObject()
         obj.className = "Buffer"
+        obj.byteStorage = cloneByteArray(bytes)
         obj.arrayStorage = []
         for (b in bytes) {
             obj.arrayStorage.append(JsValue(Float64(b)))
         }
         let v = JsValue(obj)
-        v.valueType = JsValueType.Object
+        v.valueType = JsValueType.TypedArray
         v
     }
 
@@ -2124,7 +2125,11 @@ extend JsValue {
     public static func createUninitializedUint8Array(global: JsObject, len: Int64): JsValue {
         let obj = JsObject()
         obj.className = "Uint8Array"
+        obj.byteStorage = Array<UInt8>(len, { _: Int64 => UInt8(0) })
         obj.arrayStorage = Array<JsValue>(len, { _: Int64 => JsValue(0.0) })
+        obj.set("byteLength", JsValue(Float64(len)))
+        obj.set("byteOffset", JsValue(Float64(0)))
+        obj.set("length", JsValue(Float64(len)))
         let v = JsValue(obj)
         v.valueType = JsValueType.TypedArray
         v
@@ -2785,19 +2790,52 @@ public class ArrayBufferView {
 
     public init(jsValue: JsValue) {
         this.jsValue = jsValue
+        match (jsValue.getObject()) {
+            case Some(obj) =>
+                let byteLengthValue = obj.get("byteLength")
+                if (!byteLengthValue.isUndefined()) {
+                    this.byteLength = byteLengthValue.toInt64()
+                } else {
+                    this.byteLength = Int64(obj.byteStorage.size)
+                }
+                let byteOffsetValue = obj.get("byteOffset")
+                if (!byteOffsetValue.isUndefined()) {
+                    this.byteOffset = byteOffsetValue.toInt64()
+                }
+            case None => ()
+        }
     }
 
+    /// Return bytes only for ArrayBuffer/TypedArray values backed by Cangjie-owned
+    /// byteStorage. Unknown native pointers are intentionally unsupported because
+    /// the current runtime has no safe pointer-copy API with lifetime/bounds checks.
     public func bytes(): Array<UInt8> {
-        var result = ArrayList<UInt8>()
-        if (jsValue.isArray()) {
-            if (let Some(arr) <- jsValue.arrayData) {
-                for (v in arr) {
-                    result.append(UInt8(v.toInt32()))
+        match (jsValue.getObject()) {
+            case Some(obj) =>
+                if (obj.byteStorage.size > 0 || byteLength == 0) {
+                    let end = byteOffset + byteLength
+                    if (byteOffset < 0 || byteLength < 0 || end > Int64(obj.byteStorage.size)) {
+                        throw JsRangeError("ArrayBufferView byte range exceeds owned byte storage")
+                    }
+                    var result: Array<UInt8> = []
+                    for (i in byteOffset..end) {
+                        result.append(obj.byteStorage[Int64(i)])
+                    }
+                    return result
                 }
-            }
+                throw JsTypeError("ArrayBufferView bytes are unavailable: no safe native pointer read bridge is implemented")
+            case None =>
+                throw JsTypeError("ArrayBufferView bytes are unavailable: value is not backed by owned byte storage")
         }
-        result.items()
     }
+}
+
+private func cloneByteArray(bytes: Array<UInt8>): Array<UInt8> {
+    var result: Array<UInt8> = []
+    for (b in bytes) {
+        result.append(b)
+    }
+    result
 }
 
 // 注意: JsArrayIterator 已移至 js_array.cj

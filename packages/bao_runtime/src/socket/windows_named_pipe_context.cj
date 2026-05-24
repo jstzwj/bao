@@ -88,31 +88,61 @@ public class WindowsNamedPipeContext {
 
     func onOpen(): Unit {
         isOpen = true
-        // Stub: dispatch to TLS/TCP socket
+        match (socket) {
+            case WNP_TLS => if (tlsSocket.isSome()) { tlsSocket.getOrThrow().onOpen(namedPipe) }
+            case WNP_TCP => if (tcpSocket.isSome()) { tcpSocket.getOrThrow().onOpen(namedPipe) }
+            case NONE => ()
+        }
     }
 
     func onData(decodedData: Array<Byte>): Unit {
-        // Stub: dispatch to TLS/TCP socket
+        match (socket) {
+            case WNP_TLS => if (tlsSocket.isSome()) { tlsSocket.getOrThrow().onData(namedPipe, decodedData) }
+            case WNP_TCP => if (tcpSocket.isSome()) { tcpSocket.getOrThrow().onData(namedPipe, decodedData) }
+            case NONE => ()
+        }
     }
 
     func onHandshake(success: Bool, sslError: UsBunVerifyError): Unit {
-        // Stub: dispatch to TLS/TCP socket
+        let ok: Int32 = if (success) { 1 } else { 0 }
+        match (socket) {
+            case WNP_TLS => if (tlsSocket.isSome()) { tlsSocket.getOrThrow().onHandshake(namedPipe, ok, sslError) }
+            case WNP_TCP => if (tcpSocket.isSome()) { tcpSocket.getOrThrow().onHandshake(namedPipe, ok, sslError) }
+            case NONE => ()
+        }
     }
 
     func onEnd(): Unit {
-        // Stub: dispatch to TLS/TCP socket
+        match (socket) {
+            case WNP_TLS => if (tlsSocket.isSome()) { tlsSocket.getOrThrow().onEnd(namedPipe) }
+            case WNP_TCP => if (tcpSocket.isSome()) { tcpSocket.getOrThrow().onEnd(namedPipe) }
+            case NONE => ()
+        }
     }
 
     func onWritable(): Unit {
-        // Stub: dispatch to TLS/TCP socket
+        match (socket) {
+            case WNP_TLS => if (tlsSocket.isSome()) { tlsSocket.getOrThrow().onWritable(namedPipe) }
+            case WNP_TCP => if (tcpSocket.isSome()) { tcpSocket.getOrThrow().onWritable(namedPipe) }
+            case NONE => ()
+        }
     }
 
     func onError(err: SysError): Unit {
-        // Stub: dispatch to TLS/TCP socket
+        let errValue = JsValue("Windows named pipe error")
+        match (socket) {
+            case WNP_TLS => if (tlsSocket.isSome()) { tlsSocket.getOrThrow().handleError(errValue) }
+            case WNP_TCP => if (tcpSocket.isSome()) { tcpSocket.getOrThrow().handleError(errValue) }
+            case NONE => ()
+        }
     }
 
     func onTimeout(): Unit {
-        // Stub: dispatch to TLS/TCP socket
+        match (socket) {
+            case WNP_TLS => if (tlsSocket.isSome()) { tlsSocket.getOrThrow().onTimeout(namedPipe) }
+            case WNP_TCP => if (tcpSocket.isSome()) { tcpSocket.getOrThrow().onTimeout(namedPipe) }
+            case NONE => ()
+        }
     }
 
     func onClose(): Unit {

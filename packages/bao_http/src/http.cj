@@ -1332,15 +1332,21 @@ public class HTTPClient {
 
         cloneMetadata()
 
+        let bodyData = if (response.bytesRead < toRead.size) {
+            toRead[response.bytesRead..]
+        } else {
+            ""
+        }
+
         match (state.responseStage) {
             case body =>
-                let reportProgress = handleResponseBody(toRead, true)
+                let reportProgress = handleResponseBody(bodyData, true)
                 if (reportProgress) {
                     progressUpdate(isSsl, ctx, socketFd)
                 }
             case bodyChunk =>
                 setTimeout(socketFd)
-                let reportProgress = handleResponseBodyChunkedEncoding(toRead)
+                let reportProgress = handleResponseBodyChunkedEncoding(bodyData)
                 if (reportProgress) {
                     progressUpdate(isSsl, ctx, socketFd)
                 }
@@ -1391,8 +1397,9 @@ public class HTTPClient {
             }
         }
 
-        // 1xx/204/304 没有响应体
-        if ((response.statusCode >= 100 && response.statusCode < 200) ||
+        // HEAD/1xx/204/304 没有响应体
+        if (method == "HEAD" ||
+            (response.statusCode >= 100 && response.statusCode < 200) ||
             response.statusCode == 204 || response.statusCode == 304) {
             state.contentLength = Some(Int64(0))
         }
@@ -1682,19 +1689,106 @@ public class HTTPClient {
     // 辅助方法
     // ========================================================================
 
-    /// 解析 HTTP 响应 (简化)
+    /// 解析 HTTP 响应
     private func parseHttpResponse(data: String): RawResponse {
         let response = RawResponse()
-        let httpIdx = data.indexOf("HTTP/")
-        if (httpIdx.isSome()) {
-            let idx = httpIdx.getOrThrow()
-            let rest = data[idx..]
-            if (rest.size > 12) {
-                let codeStr = rest[9..12]
-                response.statusCode = parseInt64(codeStr)
+        let headerEndOpt = data.indexOf("\r\n\r\n")
+        if (!headerEndOpt.isSome()) {
+            return response
+        }
+
+        let headerEnd = headerEndOpt.getOrThrow()
+        let headerSection = data[0..headerEnd]
+        let lines = splitHttpLines(headerSection)
+        if (lines.size == 0) {
+            return response
+        }
+
+        let statusLine = lines[0]
+        if (!statusLine.startsWith("HTTP/")) {
+            return response
+        }
+
+        let statusParts = splitHttp(statusLine, " ")
+        if (statusParts.size < 2) {
+            return response
+        }
+
+        response.statusCode = parseInt64(statusParts[1])
+        if (statusParts.size > 2) {
+            let statusText = StringBuilder()
+            for (i in 2..statusParts.size) {
+                if (i > 2) { statusText.append(" ") }
+                statusText.append(statusParts[Int64(i)])
+            }
+            response.statusText = statusText.toString()
+        }
+        response.bytesRead = headerEnd + 4
+
+        for (i in 1..lines.size) {
+            let line = lines[Int64(i)]
+            let colonIdxOpt = line.indexOf(":")
+            if (colonIdxOpt.isSome()) {
+                let colonIdx = colonIdxOpt.getOrThrow()
+                let name = trimHttpAsciiWhitespace(line[0..colonIdx])
+                let value = trimHttpAsciiWhitespace(line[(colonIdx + 1)..])
+                response.headers.append(HeaderPair(name, value))
             }
         }
+
         return response
+    }
+
+    private func splitHttpLines(s: String): ArrayList<String> {
+        let lines = ArrayList<String>()
+        var current = StringBuilder()
+        var i: Int64 = 0
+        while (i < s.size) {
+            if (i + 1 < s.size && s[i] == UInt8(13) && s[i + 1] == UInt8(10)) {
+                lines.append(current.toString())
+                current = StringBuilder()
+                i += 2
+            } else {
+                current.append(s[i])
+                i += 1
+            }
+        }
+        if (current.toString().size > 0) {
+            lines.append(current.toString())
+        }
+        return lines
+    }
+
+    private func splitHttp(s: String, sep: String): ArrayList<String> {
+        let parts = ArrayList<String>()
+        var remaining = s
+        while (true) {
+            let idxOpt = remaining.indexOf(sep)
+            if (!idxOpt.isSome()) {
+                parts.append(remaining)
+                break
+            }
+            let idx = idxOpt.getOrThrow()
+            parts.append(remaining[0..idx])
+            remaining = remaining[(idx + sep.size)..]
+        }
+        return parts
+    }
+
+    private func trimHttpAsciiWhitespace(s: String): String {
+        var start: Int64 = 0
+        var end = s.size
+        while (start < end && isHttpAsciiWhitespace(s[start])) {
+            start += 1
+        }
+        while (end > start && isHttpAsciiWhitespace(s[end - 1])) {
+            end -= 1
+        }
+        return s[start..end]
+    }
+
+    private func isHttpAsciiWhitespace(c: UInt8): Bool {
+        return c == UInt8(32) || c == UInt8(9) || c == UInt8(10) || c == UInt8(13)
     }
 
     /// 解析 Int64 (简化)

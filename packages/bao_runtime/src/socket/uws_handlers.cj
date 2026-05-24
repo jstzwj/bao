@@ -31,6 +31,10 @@ public class PtrHandler<T> {
         ext = None
     }
 
+    public func unsupported(eventName: String): Unit {
+        throw Exception("ENOSYS: uWS pointer handler dispatch is not implemented for " + eventName)
+    }
+
     /// 连接打开
     public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
 
@@ -121,6 +125,10 @@ public class NsHandler<Owner, H> {
         ext = None
     }
 
+    public func unsupported(eventName: String): Unit {
+        throw Exception("ENOSYS: uWS namespace handler dispatch is not implemented for " + eventName)
+    }
+
     /// 连接打开
     public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
 
@@ -162,6 +170,10 @@ public class HTTPClientHandler {
 
     public init() {
         ext = None
+    }
+
+    public func unsupported(eventName: String): Unit {
+        throw Exception("ENOSYS: uWS HTTP client dispatch is not implemented for " + eventName)
     }
 
     /// 连接打开
@@ -245,6 +257,10 @@ public class SpawnIPCHandler {
 
     public init() {
         ext = None
+    }
+
+    public func unsupported(eventName: String): Unit {
+        throw Exception("ENOSYS: uWS spawn IPC dispatch is not implemented for " + eventName)
     }
 
     /// 连接打开 (IPC 不需要)
