@@ -388,10 +388,12 @@ public class UploadPart {
         options.searchParams = searchParams
         options.requestPayer = ctx.requestPayer
 
-        executeSimpleS3Request(
+        executeSimpleS3PartRequest(
             ctx.credentials,
             options,
-            S3CallbackKind.Part,
+            { result: S3PartResult, _: UIntNative =>
+                UploadPart.onPartResponse(result, this)
+            },
             UIntNative(0)
         )
     }
@@ -1028,10 +1030,12 @@ public class MultiPartUpload {
         options.searchParams = searchParams
         options.requestPayer = requestPayer
 
-        executeSimpleS3Request(
+        executeSimpleS3CommitRequest(
             credentials,
             options,
-            S3CallbackKind.Commit,
+            { result: S3CommitResult, _: UIntNative =>
+                MultiPartUpload.onCommitMultiPartRequest(result, this)
+            },
             UIntNative(0)
         )
     }
@@ -1056,10 +1060,12 @@ public class MultiPartUpload {
         options.searchParams = searchParams
         options.requestPayer = requestPayer
 
-        executeSimpleS3Request(
+        executeSimpleS3UploadRequest(
             credentials,
             options,
-            S3CallbackKind.Upload,
+            { result: S3UploadResult, _: UIntNative =>
+                MultiPartUpload.onRollbackMultiPartRequest(result, this)
+            },
             UIntNative(0)
         )
     }
@@ -1099,10 +1105,12 @@ public class MultiPartUpload {
             options.storageClass = storageClass
             options.requestPayer = requestPayer
 
-            executeSimpleS3Request(
+            executeSimpleS3MultipartStartRequest(
                 credentials,
                 options,
-                S3CallbackKind.Download,
+                { result: S3DownloadResult, _: UIntNative =>
+                    MultiPartUpload.startMultiPartRequestResult(result, this)
+                },
                 UIntNative(0)
             )
         } else if (state == MultipartUploadState.MULTIPART_COMPLETED) {
@@ -1207,10 +1215,12 @@ public class MultiPartUpload {
             options.storageClass = storageClass
             options.requestPayer = requestPayer
 
-            executeSimpleS3Request(
+            executeSimpleS3UploadRequest(
                 credentials,
                 options,
-                S3CallbackKind.Upload,
+                { result: S3UploadResult, _: UIntNative =>
+                    MultiPartUpload.singleSendUploadResponse(result, this)
+                },
                 UIntNative(0)
             )
         } else {

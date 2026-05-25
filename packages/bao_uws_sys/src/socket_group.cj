@@ -20,6 +20,8 @@ foreign func us_socket_group_loop(group: CPointer<Unit>): CPointer<Unit>
 @C
 foreign func us_socket_group_next(group: CPointer<Unit>): CPointer<Unit>
 @C
+foreign func us_socket_group_ext(group: CPointer<Unit>): CPointer<Unit>
+@C
 foreign func us_socket_group_listen(group: CPointer<Unit>, kind: UInt8, ssl_ctx: CPointer<Unit>, host: CPointer<Int8>, port: Int32, options: Int32, socket_ext_size: Int32, err: CPointer<Int32>): CPointer<Unit>
 @C
 foreign func us_socket_group_listen_unix(group: CPointer<Unit>, kind: UInt8, ssl_ctx: CPointer<Unit>, path: CPointer<UInt8>, pathlen: UIntNative, options: Int32, socket_ext_size: Int32, err: CPointer<Int32>): CPointer<Unit>
@@ -51,6 +53,11 @@ public class SocketGroup {
         return ptr
     }
 
+    /// 对应 Bun: pub fn ext(this: *SocketGroup) *anyopaque
+    public func ext(): CPointer<Unit> {
+        return unsafe { us_socket_group_ext(ptr) }
+    }
+
     /// 对应 Bun: pub fn init(self, loop_, vt, owner_ptr) void
     public static func initGroup(group: CPointer<Unit>, loop: CPointer<Unit>, vt: CPointer<Unit>, ext: CPointer<Unit>): Unit {
         unsafe { us_socket_group_init(group, loop, vt, ext) }
@@ -79,7 +86,7 @@ public class SocketGroup {
 
     /// 对应 Bun: pub fn listen(self, kind, ssl_ctx, host, port, options, socket_ext_size, err) ?*ListenSocket
     public func listen(kind: SocketKind, sslCtx: CPointer<Unit>, host: CPointer<Int8>, port: Int32, options: Int32, socketExtSize: Int32, err: CPointer<Int32>): ?ListenSocket {
-        let raw = unsafe { us_socket_group_listen(ptr, UInt8(0), sslCtx, host, port, options, socketExtSize, err) }
+        let raw = unsafe { us_socket_group_listen(ptr, kind.toUInt8(), sslCtx, host, port, options, socketExtSize, err) }
         if (raw.isNull()) {
             return None
         }
@@ -88,7 +95,7 @@ public class SocketGroup {
 
     /// 对应 Bun: pub fn listenUnix(self, kind, ssl_ctx, path, pathlen, options, socket_ext_size, err) ?*ListenSocket
     public func listenUnix(kind: SocketKind, sslCtx: CPointer<Unit>, path: CPointer<UInt8>, pathlen: UIntNative, options: Int32, socketExtSize: Int32, err: CPointer<Int32>): ?ListenSocket {
-        let raw = unsafe { us_socket_group_listen_unix(ptr, UInt8(0), sslCtx, path, pathlen, options, socketExtSize, err) }
+        let raw = unsafe { us_socket_group_listen_unix(ptr, kind.toUInt8(), sslCtx, path, pathlen, options, socketExtSize, err) }
         if (raw.isNull()) {
             return None
         }
@@ -99,16 +106,19 @@ public class SocketGroup {
     /// 对应 Bun: pub fn connect(self, kind, ssl_ctx, host, port, options, socket_ext_size) ConnectResult
     public func connect(kind: SocketKind, sslCtx: CPointer<Unit>, host: CPointer<Int8>, port: Int32, options: Int32, socketExtSize: Int32): ConnectResult {
         var hasDnsResolved: Int32 = 0
-        let raw = unsafe { us_socket_group_connect(ptr, UInt8(0), sslCtx, host, port, options, socketExtSize, CPointer<Int32>()) }
+        let raw = unsafe { us_socket_group_connect(ptr, kind.toUInt8(), sslCtx, host, port, options, socketExtSize, CPointer<Int32>(&hasDnsResolved)) }
         if (raw.isNull()) {
             return ConnectResultFailed()
         }
-        return ConnectResultSocket(raw)
+        if (hasDnsResolved == 1) {
+            return ConnectResultSocket(raw)
+        }
+        return ConnectResultConnecting(raw)
     }
 
     /// 对应 Bun: pub fn connectUnix(self, kind, ssl_ctx, path, pathlen, options, socket_ext_size) ?*us_socket_t
     public func connectUnix(kind: SocketKind, sslCtx: CPointer<Unit>, path: CPointer<UInt8>, pathlen: UIntNative, options: Int32, socketExtSize: Int32): ?UsSocket {
-        let raw = unsafe { us_socket_group_connect_unix(ptr, UInt8(0), sslCtx, path, pathlen, options, socketExtSize) }
+        let raw = unsafe { us_socket_group_connect_unix(ptr, kind.toUInt8(), sslCtx, path, pathlen, options, socketExtSize) }
         if (raw.isNull()) {
             return None
         }
@@ -117,7 +127,7 @@ public class SocketGroup {
 
     /// 对应 Bun: pub fn fromFd(self, kind, ssl_ctx, socket_ext_size, fd, ipc) ?*us_socket_t
     public func fromFd(kind: SocketKind, sslCtx: CPointer<Unit>, socketExtSize: Int32, fd: Int32, ipc: Bool): ?UsSocket {
-        let raw = unsafe { us_socket_from_fd(ptr, UInt8(0), sslCtx, socketExtSize, fd, if (ipc) { 1 } else { 0 }) }
+        let raw = unsafe { us_socket_from_fd(ptr, kind.toUInt8(), sslCtx, socketExtSize, fd, if (ipc) { 1 } else { 0 }) }
         if (raw.isNull()) {
             return None
         }
@@ -126,7 +136,7 @@ public class SocketGroup {
 
     /// 对应 Bun: pub fn pair(self, kind, ext_size, fds) ?*us_socket_t
     public func pair(kind: SocketKind, extSize: Int32, fds: CPointer<Int32>): ?UsSocket {
-        let raw = unsafe { us_socket_pair(ptr, UInt8(0), extSize, fds) }
+        let raw = unsafe { us_socket_pair(ptr, kind.toUInt8(), extSize, fds) }
         if (raw.isNull()) {
             return None
         }
@@ -144,7 +154,7 @@ public class SocketGroup {
 
     /// Helper: convert UInt8 to SocketKind
     public static func socketKindFromInt(v: UInt8): SocketKind {
-        return SocketKind.invalid
+        return SocketKind.fromUInt8(v)
     }
 }
 

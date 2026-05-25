@@ -372,7 +372,10 @@ public class BunSocketContextOptions {
     /// 创建 SSL 上下文
     /// 对应 Zig: createSSLContext
     public func createSSLContext(): ?SslCtx {
-        // 通过 bao_sys 创建 SSL_CTX
-        return SslCtx()
+        // Blocked: bao_runtime.socket.SslCtx is currently only an opaque Cangjie
+        // placeholder and does not own/expose a native BoringSSL SSL_CTX*.
+        // Do not return a fake context here: uSockets TLS connect requires the
+        // exact native SSL_CTX pointer and lifetime managed by BoringSSL.
+        return None
     }
 }

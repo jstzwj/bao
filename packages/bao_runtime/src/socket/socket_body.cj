@@ -16,6 +16,108 @@ import bao_ptr.*
 import bao_uws_sys.*
 import bao_sys.*
 
+private func socketKindForSsl(ssl: Bool): bao_uws_sys.SocketKind {
+    return if (ssl) { bao_uws_sys.SocketKind.bun_socket_tls } else { bao_uws_sys.SocketKind.bun_socket_tcp }
+}
+
+private func socketNullUwsGroup(group: bao_uws_sys.SocketGroup): Bool {
+    return group.getPtr().isNull() || group.getLoop().isNull()
+}
+
+private func socketSslCtxPointer(ctx: ?SslCtx): CPointer<Unit> {
+    // Audit result: bao_runtime.socket.SslCtx is still an opaque placeholder and
+    // socket/ssl_config.cj never constructs one. bao_http.SslContext has a real
+    // SSL_CTX* wrapper, but it is a separate HTTP-layer type with separate
+    // lifetime ownership and is not safely interchangeable with socket.SslCtx.
+    // Keep uWS TLS fail-closed until socket.SslCtx owns/exposes a real SSL_CTX*.
+    return CPointer<Unit>()
+}
+
+private func socketUnsafeNewCString(s: String): CPointer<Int8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len + 1))
+        let bytesPtr = CPointer<Int8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        (bytesPtr + Int64(len)).write(Int8(0))
+        return bytesPtr
+    }
+}
+
+private func socketUnsafeNewBytes(s: String): CPointer<UInt8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len))
+        let bytesPtr = CPointer<UInt8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(UInt8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        return bytesPtr
+    }
+}
+
+public type NewSocketHandle = UIntNative
+
+private let NEW_SOCKET_UWS_EXT_SIZE: Int32 = Int32(8)
+
+public class NewSocketHandleTable {
+    private static var nextId: UIntNative = UIntNative(1)
+    private static var sockets: HashMap<UIntNative, NewSocket> = HashMap<UIntNative, NewSocket>()
+
+    public static func allocate(socket: NewSocket): NewSocketHandle {
+        let id = nextId
+        nextId += UIntNative(1)
+        if (nextId == UIntNative(0)) {
+            nextId = UIntNative(1)
+        }
+        sockets.put(id, socket)
+        return id
+    }
+
+    public static func lookup(id: NewSocketHandle): ?NewSocket {
+        if (id == UIntNative(0)) {
+            return None
+        }
+        return sockets.get(id)
+    }
+
+    public static func release(id: NewSocketHandle): ?NewSocket {
+        if (id == UIntNative(0)) {
+            return None
+        }
+        let socket = sockets.remove(id)
+        if (let Some(sock) <- socket) {
+            if (sock.nativeHandle == id) {
+                sock.nativeHandle = UIntNative(0)
+            }
+        }
+        return socket
+    }
+
+    public static func stamp(handler: SocketHandler, socket: NewSocket): NewSocketHandle {
+        let existing = handler.loadExtRaw()
+        if (existing != UIntNative(0)) {
+            release(existing)
+        }
+        let id = allocate(socket)
+        handler.storeExtRaw(id)
+        socket.nativeHandle = id
+        return id
+    }
+
+    public static func release(handler: SocketHandler): ?NewSocket {
+        let id = handler.loadExtRaw()
+        handler.clearExtRaw()
+        return release(id)
+    }
+}
+
+private func socketExtSize(): Int32 {
+    return NEW_SOCKET_UWS_EXT_SIZE
+}
+
 // ============================================================================
 // IntrusiveRc — 侵入式引用计数指针
 // 用于 upgradeTLS 产生的双胞胎 Socket 共享
@@ -81,6 +183,8 @@ public class NewSocket {
 
     /// 是否为 TLS 模式
     public var isSsl: Bool
+    /// libus ext 中保存的稳定数字句柄；0 表示未绑定。
+    public var nativeHandle: NewSocketHandle
 
     public init(ssl: Bool) {
         socket = SocketHandler.detachedHandler(ssl)
@@ -99,6 +203,7 @@ public class NewSocket {
         nativeCallback = NativeCallbacks.none
         twin = None
         isSsl = ssl
+        nativeHandle = UIntNative(0)
     }
 
     /// 堆分配新 Socket
@@ -136,6 +241,10 @@ public func deref(socket: NewSocket): Unit {
 
 /// deinit 并销毁 — 引用计数归零时调用
 public func deinitAndDestroy(socket: NewSocket): Unit {
+    if (socket.nativeHandle != UIntNative(0)) {
+        NewSocketHandleTable.release(socket.nativeHandle)
+    }
+    socket.socket.clearExtRaw()
     socket.pollRef.disable()
     if (let Some(plugin) <- socket.handlers) {
         // 服务端: handlers 嵌入在 Listener 中，不释放
@@ -151,54 +260,89 @@ public func deinitAndDestroy(socket: NewSocket): Unit {
 
 /// 连接到 self.connection (必须已设置)。
 /// 对应 Bun: NewSocket.do_connect
-public func doConnect(socket: NewSocket): ?Error {
+public func doConnect(socket: NewSocket): ?BaoError {
     // 保持 socket 在重入连接路径中存活
     ref_(socket)
 
-    let selfPtr = socket
-    let vm = getHandlers(socket).vm
-    let group = SocketGroup()
-
-    let kind: SocketKind = if (socket.isSsl) {
-        SocketKind.BUN_SOCKET_TLS
-    } else {
-        SocketKind.BUN_SOCKET_TCP
+    let group = getHandlers(socket).socketGroup
+    if (socketNullUwsGroup(group)) {
+        socket.socket = SocketHandler.detachedHandler(socket.isSsl)
+        deref(socket)
+        return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: uWS socket group is not initialized for socket connect"))
     }
 
-    let flags: Int32 = if (socket.flags.allowHalfOpen) {
-        Int32(LIBUS_SOCKET_ALLOW_HALF_OPEN)
-    } else {
-        0
-    }
+    let kind = socketKindForSsl(socket.isSsl)
+    let flags: Int32 = if (socket.flags.allowHalfOpen) { Int32(LIBUS_SOCKET_ALLOW_HALF_OPEN) } else { 0 }
+    let sslCtx = socketSslCtxPointer(if (socket.isSsl) { socket.ownedSslCtx } else { None })
 
-    let sslCtx: ?SslCtx = if (socket.isSsl) {
-        socket.ownedSslCtx
-    } else {
-        None
+    if (socket.isSsl && sslCtx.isNull()) {
+        socket.socket = SocketHandler.detachedHandler(socket.isSsl)
+        deref(socket)
+        return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: TLS connect requires a native SSL_CTX FFI pointer"))
     }
 
     match (socket.connection) {
         case Some(ConnectionTarget.Host(host, port)) =>
+            let hostPtr = socketUnsafeNewCString(host)
+            let result = group.connect(kind, sslCtx, hostPtr, Int32(port), flags, socketExtSize())
+            unsafe { free(CPointer<Unit>(hostPtr)) }
+            if (result is ConnectResultSocket) {
+                let raw = (result as ConnectResultSocket).getOrThrow().socket
+                socket.socket = SocketHandler.fromConnected(socket.isSsl, bao_uws_sys.UsSocket(raw))
+                NewSocketHandleTable.stamp(socket.socket, socket)
+                markActive(socket)
+                deref(socket)
+                return None
+            }
+            if (result is ConnectResultConnecting) {
+                let raw = (result as ConnectResultConnecting).getOrThrow().connecting
+                socket.socket = SocketHandler.fromConnecting(socket.isSsl, bao_uws_sys.ConnectingSocket(raw))
+                NewSocketHandleTable.stamp(socket.socket, socket)
+                markActive(socket)
+                deref(socket)
+                return None
+            }
             socket.socket = SocketHandler.detachedHandler(socket.isSsl)
             deref(socket)
-            return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: TCP socket connect FFI is not implemented"))
+            return Some(BaoError(ErrorCode.Unexpected, "uWS TCP connect failed"))
 
-        case Some(ConnectionTarget.Unix(u)) =>
+        case Some(ConnectionTarget.Unix(path)) =>
+            let pathPtr = socketUnsafeNewBytes(path)
+            let maybeSocket = group.connectUnix(kind, sslCtx, pathPtr, UIntNative(path.size), flags, socketExtSize())
+            unsafe { free(CPointer<Unit>(pathPtr)) }
+            if (maybeSocket.isSome()) {
+                socket.socket = SocketHandler.fromConnected(socket.isSsl, maybeSocket.getOrThrow())
+                NewSocketHandleTable.stamp(socket.socket, socket)
+                markActive(socket)
+                deref(socket)
+                return None
+            }
             socket.socket = SocketHandler.detachedHandler(socket.isSsl)
             deref(socket)
-            return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: Unix socket connect FFI is not implemented"))
+            return Some(BaoError(ErrorCode.Unexpected, "uWS Unix socket connect failed"))
 
-        case Some(ConnectionTarget.Fd(f)) =>
+        case Some(ConnectionTarget.Fd(fd)) =>
+            if (fd < 0) {
+                socket.socket = SocketHandler.detachedHandler(socket.isSsl)
+                deref(socket)
+                return Some(BaoError(ErrorCode.InvalidArgument, "socket fd must be non-negative"))
+            }
+            let maybeSocket = group.fromFd(kind, sslCtx, socketExtSize(), Int32(fd), false)
+            if (maybeSocket.isSome()) {
+                socket.socket = SocketHandler.fromConnected(socket.isSsl, maybeSocket.getOrThrow())
+                NewSocketHandleTable.stamp(socket.socket, socket)
+                markActive(socket)
+                deref(socket)
+                return None
+            }
             socket.socket = SocketHandler.detachedHandler(socket.isSsl)
             deref(socket)
-            return Some(BaoError(ErrorCode.NotImplemented, "ENOSYS: socket adoption from fd is not implemented"))
+            return Some(BaoError(ErrorCode.InvalidArgument, "uWS socket adoption from fd failed"))
 
         case None =>
+            deref(socket)
             throw Exception("doConnect requires connection to be set")
     }
-
-    deref(socket)
-    return None
 }
 
 // ============================================================================
@@ -251,6 +395,30 @@ public func onWritable(socket: NewSocket, socketHandler: SocketHandler): Unit {
     deref(socket)
 }
 
+/// onData 回调 — 数据到达时调用
+/// 对应 Bun: NewSocket.on_data
+public func onData(socket: NewSocket, socketHandler: SocketHandler, data: Array<Byte>): Unit {
+    if (socket.socket.isDetached()) {
+        return
+    }
+    let handlers = getHandlers(socket)
+    let callback = handlers.onData
+    if (callback.isEmpty() || handlers.vm.isShuttingDown()) {
+        return
+    }
+
+    handlers.markActive()
+
+    let global = handlers.globalObject
+    let thisValue = getThisValue(socket, global)
+    let dataValue = JsValue.createBuffer(global, data)
+    let result = callback.call(global, thisValue, [thisValue, dataValue])
+    if (result.isException()) {
+        handleError(socket, result)
+    }
+    handlers.markInactive()
+}
+
 /// onTimeout 回调
 public func onTimeout(socket: NewSocket, socketHandler: SocketHandler): Unit {
     if (socket.socket.isDetached()) {
@@ -288,6 +456,7 @@ public func handleConnectError(socket: NewSocket, errno: Int32): Unit {
     socket.bufferedDataForNodeNet = []
 
     let needsDeref = !socket.socket.isDetached()
+    NewSocketHandleTable.release(socket.socket)
     socket.socket = SocketHandler.detachedHandler(socket.isSsl)
 
     let vm = handlers.vm
@@ -348,8 +517,15 @@ public func onOpen(socket: NewSocket, socketHandler: SocketHandler): Unit {
 
     // 更新内部 socket 实例
     socket.socket = socketHandler
+    NewSocketHandleTable.stamp(socket.socket, socket)
 
-    // TLS: stub — skip SNI and ALPN setup for now
+    // TLS must not silently skip Bun-compatible SNI/ALPN setup. Bun configures
+    // SNI and ALPN before the handshake finishes, then dispatches either
+    // onHandshake or onOpen from the native handshake callback. Bao currently
+    // lacks the SSL/uSockets bridge needed to do that safely, so fail closed.
+    if (socket.isSsl) {
+        failTlsHandshakeBridgeNotImplemented("NewSocket.onOpen TLS pre-handshake setup")
+    }
 
     let handlers = getHandlers(socket)
     let callback = handlers.onOpen
@@ -480,6 +656,7 @@ public func onClose(
 ): Unit {
     let handlers = getHandlers(socket)
 
+    NewSocketHandleTable.release(socketHandler)
     socket.socket = SocketHandler.detachedHandler(socket.isSsl)
 
     // upgradeTLS 的原始双胞胎共享同一个 us_socket_t
@@ -531,6 +708,7 @@ public func markInactive(socket: NewSocket): Unit {
 /// 关闭并分离
 public func closeAndDetach(socket: NewSocket, code: CloseCode): Unit {
     let s = socket.socket
+    NewSocketHandleTable.release(s)
     socket.bufferedDataForNodeNet = []
     socket.socket = SocketHandler.detachedHandler(socket.isSsl)
 }
@@ -761,7 +939,50 @@ public func handleError(socket: NewSocket, errValue: JsValue): Unit {
 
 /// 转换为 JS 值
 public func toJs(socket: NewSocket, global: JSGlobalObject): JsValue {
-    throw JsTypeError("ENOSYS: socket JS wrapper creation is not implemented")
+    let obj = JsObject()
+    let jsGlobal = JsObject()
+
+    obj.set("encrypted", JsValue(socket.isSsl && !socket.flags.bypassTls))
+    obj.set("connecting", JsValue(socket.flags.isConnecting))
+    obj.set("closed", JsValue(socket.socket.isClosed() || socket.socket.isDetached()))
+    obj.set("bytesWritten", JsValue(Float64(socket.bytesWritten)))
+
+    obj.set("resume", JsValue.nativeFunction(JsNativeFunction("resume") { _ =>
+        return resumeFromJs(socket, global)
+    }))
+    obj.set("pause", JsValue.nativeFunction(JsNativeFunction("pause") { _ =>
+        return pauseFromJs(socket, global)
+    }))
+    obj.set("write", JsValue.nativeFunction(JsNativeFunction("write") { args =>
+        if (args.isEmpty()) {
+            throw JsTypeError("socket.write expects data")
+        }
+        return writeFromJs(socket, jsGlobal, args[0])
+    }))
+    obj.set("end", JsValue.nativeFunction(JsNativeFunction("end") { args =>
+        let data: ?JsValue = if (args.isEmpty()) { None } else { Some(args[0]) }
+        return endFromJs(socket, jsGlobal, data)
+    }))
+    obj.set("flush", JsValue.nativeFunction(JsNativeFunction("flush") { _ =>
+        internalFlush(socket)
+        return JsValue.UNDEFINED
+    }))
+    obj.set("reload", JsValue.nativeFunction(JsNativeFunction("reload") { args =>
+        if (args.isEmpty()) {
+            return JsValue(false)
+        }
+        return reloadFromJs(socket, jsGlobal, args[0])
+    }))
+    obj.set("setKeepAlive", JsValue.nativeFunction(JsNativeFunction("setKeepAlive") { args =>
+        let enabled = if (args.isEmpty()) { true } else { args[0].toBoolean() }
+        return setKeepAliveFromJs(socket, global, enabled, 0)
+    }))
+    obj.set("setNoDelay", JsValue.nativeFunction(JsNativeFunction("setNoDelay") { args =>
+        let enabled = if (args.isEmpty()) { true } else { args[0].toBoolean() }
+        return setNoDelayFromJs(socket, global, enabled)
+    }))
+
+    return JsValue(obj)
 }
 
 /// JS 构造器 (禁止直接构造)
@@ -794,9 +1015,25 @@ func selectAlpnCallback(
         return SSL_TLSEXT_ERR_NOACK
     }
 
-    // No protocol list is wired into the callback yet. Decline ALPN negotiation
-    // instead of pretending a protocol was selected.
-    return SSL_TLSEXT_ERR_NOACK
+    // Bun reads the per-connection NewSocket from SSL ex_data slot 0, selects
+    // against socket.protos with SSL_select_next_proto, returns OK on match, and
+    // returns ALERT_FATAL on mismatch. Bao does not expose those SSL APIs yet;
+    // return ALERT_FATAL rather than silently accepting a TLS connection with an
+    // unnegotiated/incorrect ALPN protocol.
+    return SSL_TLSEXT_ERR_ALERT_FATAL
+}
+
+func failTlsHandshakeBridgeNotImplemented(context: String): Unit {
+    throw Exception(
+        "ENOSYS: " + context +
+        " requires TLS bridge APIs that are not implemented: " +
+        "SocketHandler.ssl() or equivalent access to the live SSL*, " +
+        "SSL_is_init_finished, SSL_set_tlsext_host_name, " +
+        "SSL_set_ex_data/SSL_get_ex_data, SSL_get_SSL_CTX, " +
+        "SSL_CTX_set_alpn_select_cb, SSL_set_alpn_protos, " +
+        "SSL_select_next_proto, and uWS handshake dispatch that carries the " +
+        "live NewSocket into NewSocket.onHandshake"
+    )
 }
 
 // ============================================================================

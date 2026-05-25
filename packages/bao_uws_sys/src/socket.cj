@@ -389,6 +389,34 @@ public class SocketHandler {
         socket.close(code)
     }
 
+    /// 读取 libus ext 中的 Bao NewSocket 数字句柄。
+    public func loadExtRaw(): UIntNative {
+        match (socket.tag) {
+            case InternalSocketTag.connected =>
+                if (let Some(s) <- socket.connectedSocket) { return s.loadExtRaw() }
+                return UIntNative(0)
+            case InternalSocketTag.connecting =>
+                if (let Some(cs) <- socket.connectingSocket) { return cs.loadExtRaw() }
+                return UIntNative(0)
+            case _ => return UIntNative(0)
+        }
+    }
+
+    /// 写入 libus ext 中的 Bao NewSocket 数字句柄。
+    public func storeExtRaw(value: UIntNative): Unit {
+        match (socket.tag) {
+            case InternalSocketTag.connected =>
+                if (let Some(s) <- socket.connectedSocket) { s.storeExtRaw(value) }
+            case InternalSocketTag.connecting =>
+                if (let Some(cs) <- socket.connectingSocket) { cs.storeExtRaw(value) }
+            case _ => ()
+        }
+    }
+
+    public func clearExtRaw(): Unit {
+        storeExtRaw(UIntNative(0))
+    }
+
     /// 对应 Bun: pub fn localPort(this) i32
     public func localPort(): Int32 {
         match (socket.tag) {

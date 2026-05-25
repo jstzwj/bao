@@ -77,6 +77,31 @@ public class ConnectingSocket {
         return unsafe { us_connecting_socket_ext(ptr) }
     }
 
+    /// 将 ext 视为一个 native-word handle 槽。
+    public func extRawSlot(): CPointer<UIntNative> {
+        return CPointer<UIntNative>(unsafe { us_connecting_socket_ext(ptr) })
+    }
+
+    public func loadExtRaw(): UIntNative {
+        let slot = extRawSlot()
+        if (slot.isNull()) {
+            return UIntNative(0)
+        }
+        return slot.read()
+    }
+
+    public func storeExtRaw(value: UIntNative): Unit {
+        let slot = extRawSlot()
+        if (slot.isNull()) {
+            return
+        }
+        slot.write(value)
+    }
+
+    public func clearExtRaw(): Unit {
+        storeExtRaw(UIntNative(0))
+    }
+
     /// 对应 Bun: pub fn getError(this: *ConnectingSocket) i32
     public func getError(): Int32 {
         return unsafe { us_connecting_socket_get_error(ptr) }

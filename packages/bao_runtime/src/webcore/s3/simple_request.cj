@@ -971,15 +971,23 @@ public func executeSimpleS3Request(
     let task = prepareSimpleS3Task(credentials, options, callbackKind, callbackContext)
     match (task) {
         case Some(t) =>
-            if (callbackKind == S3CallbackKind.Delete || callbackKind == S3CallbackKind.ListObjects || callbackKind == S3CallbackKind.Upload) {
-                scheduleSimpleS3Task(t, options.method, options.body)
+            if (!isSupportedSimpleRequestCallback(callbackKind)) {
+                t.fail(
+                    "NotImplemented",
+                    simpleRequestNotImplementedMessage(callbackKind)
+                )
+                t.deinit()
                 return
             }
-            t.fail(
-                "NotImplemented",
-                simpleRequestNotImplementedMessage(callbackKind)
-            )
-            t.deinit()
+            if (!isValidSimpleRequestMethod(callbackKind, options.method)) {
+                t.fail(
+                    "InvalidMethod",
+                    simpleRequestInvalidMethodMessage(callbackKind)
+                )
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, options.method, options.body)
         case None => ()
     }
 }
@@ -1067,6 +1075,116 @@ public func executeSimpleS3DownloadRequest(
     }
 }
 
+public func executeSimpleS3DeleteRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3DeleteResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.Delete
+    task.callbackContext = callbackContext
+    task.deleteCallback = callback
+    match (prepareSimpleS3TaskWithTask(task, credentials, options)) {
+        case Some(t) =>
+            if (options.method != HttpMethod.DELETE) {
+                t.fail("InvalidMethod", "S3 delete requests must use DELETE.")
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, HttpMethod.DELETE, options.body)
+        case None => ()
+    }
+}
+
+public func executeSimpleS3UploadRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3UploadResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.Upload
+    task.callbackContext = callbackContext
+    task.uploadCallback = callback
+    match (prepareSimpleS3TaskWithTask(task, credentials, options)) {
+        case Some(t) =>
+            if (options.method != HttpMethod.PUT && options.method != HttpMethod.DELETE) {
+                t.fail("InvalidMethod", "S3 upload requests must use PUT or DELETE.")
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, options.method, options.body)
+        case None => ()
+    }
+}
+
+public func executeSimpleS3MultipartStartRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3DownloadResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.Download
+    task.callbackContext = callbackContext
+    task.downloadCallback = callback
+    match (prepareSimpleS3TaskWithTask(task, credentials, options)) {
+        case Some(t) =>
+            if (options.method != HttpMethod.POST) {
+                t.fail("InvalidMethod", "S3 multipart start requests must use POST.")
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, HttpMethod.POST, options.body)
+        case None => ()
+    }
+}
+
+public func executeSimpleS3CommitRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3CommitResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.Commit
+    task.callbackContext = callbackContext
+    task.commitCallback = callback
+    match (prepareSimpleS3TaskWithTask(task, credentials, options)) {
+        case Some(t) =>
+            if (options.method != HttpMethod.POST) {
+                t.fail("InvalidMethod", "S3 multipart commit requests must use POST.")
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, HttpMethod.POST, options.body)
+        case None => ()
+    }
+}
+
+public func executeSimpleS3PartRequest(
+    credentials: S3Credentials,
+    options: S3SimpleRequestOptions,
+    callback: (S3PartResult, UIntNative) -> Unit,
+    callbackContext: UIntNative
+): Unit {
+    let task = S3HttpSimpleTask(VirtualMachine.get())
+    task.callbackKind = S3CallbackKind.Part
+    task.callbackContext = callbackContext
+    task.partCallback = callback
+    match (prepareSimpleS3TaskWithTask(task, credentials, options)) {
+        case Some(t) =>
+            if (options.method != HttpMethod.PUT) {
+                t.fail("InvalidMethod", "S3 multipart part requests must use PUT.")
+                t.deinit()
+                return
+            }
+            scheduleSimpleS3Task(t, HttpMethod.PUT, options.body)
+        case None => ()
+    }
+}
+
 private func prepareSimpleS3StatTask(
     credentials: S3Credentials,
     options: S3SimpleRequestOptions,
@@ -1148,6 +1266,47 @@ private func buildSimpleS3Headers(signResult: S3SignResult, options: S3SimpleReq
         headers.set("content-encoding", options.contentEncoding)
     }
     return headers
+}
+
+private func isSupportedSimpleRequestCallback(callbackKind: S3CallbackKind): Bool {
+    match (callbackKind) {
+        case S3CallbackKind.Stat => true
+        case S3CallbackKind.Download => true
+        case S3CallbackKind.Upload => true
+        case S3CallbackKind.Delete => true
+        case S3CallbackKind.ListObjects => true
+        case S3CallbackKind.Commit => true
+        case S3CallbackKind.Part => true
+    }
+}
+
+private func isValidSimpleRequestMethod(callbackKind: S3CallbackKind, method: HttpMethod): Bool {
+    match (callbackKind) {
+        case S3CallbackKind.Stat => match (method) { case HttpMethod.HEAD => true case _ => false }
+        case S3CallbackKind.Download => match (method) { case HttpMethod.GET => true case _ => false }
+        case S3CallbackKind.Upload => match (method) {
+            case HttpMethod.PUT => true
+            case HttpMethod.POST => true
+            case HttpMethod.DELETE => true
+            case _ => false
+        }
+        case S3CallbackKind.Delete => match (method) { case HttpMethod.DELETE => true case _ => false }
+        case S3CallbackKind.ListObjects => match (method) { case HttpMethod.GET => true case _ => false }
+        case S3CallbackKind.Commit => match (method) { case HttpMethod.POST => true case _ => false }
+        case S3CallbackKind.Part => match (method) { case HttpMethod.PUT => true case _ => false }
+    }
+}
+
+private func simpleRequestInvalidMethodMessage(callbackKind: S3CallbackKind): String {
+    match (callbackKind) {
+        case S3CallbackKind.Stat => "S3 stat requests must use HEAD."
+        case S3CallbackKind.Download => "S3 download requests must use GET."
+        case S3CallbackKind.Upload => "S3 upload requests must use PUT, POST, or DELETE."
+        case S3CallbackKind.Delete => "S3 delete requests must use DELETE."
+        case S3CallbackKind.ListObjects => "S3 listObjects requests must use GET."
+        case S3CallbackKind.Commit => "S3 multipart commit requests must use POST."
+        case S3CallbackKind.Part => "S3 multipart part requests must use PUT."
+    }
 }
 
 private func simpleRequestNotImplementedMessage(callbackKind: S3CallbackKind): String {

@@ -374,8 +374,7 @@ public class CryptoTimingSafe {
     // 对应 Bun: node_crypto_binding.zig - timingSafeEqual
     public static func timingSafeEqual(left: Array<UInt8>, right: Array<UInt8>): Bool {
         if (left.size != right.size) {
-            // 在 JS 绑定层应抛出错误，这里返回 false
-            return false
+            throw JsTypeError("Input buffers must have the same byte length")
         }
 
         var result: UInt8 = 0
@@ -383,6 +382,12 @@ public class CryptoTimingSafe {
             result = result | (left[i] ^ right[i])
         }
         return result == 0
+    }
+
+    public static func timingSafeEqual(globalObject: JsGlobalObject, left: JsValue, right: JsValue): Bool {
+        let leftBytes = NodeBufferConversions.assertBufferLike(globalObject, left, "buf1")
+        let rightBytes = NodeBufferConversions.assertBufferLike(globalObject, right, "buf2")
+        return timingSafeEqual(leftBytes, rightBytes)
     }
 }
 

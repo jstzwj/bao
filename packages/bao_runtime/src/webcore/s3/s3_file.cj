@@ -1314,8 +1314,8 @@ public func getBucket(blob: BlobRef, global: JSGlobalObject): Result<JsValue> {
 /// 获取预签名 URL (JS getter)
 /// 对应 Bun: pub fn get_presign_url(`this`: &Blob, global, callframe) -> JsResult<JsValue>
 public func getPresignUrl(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
-    // stub: presign URL options parsing not yet implemented
-    return getPresignUrlFrom(blob, global, Option<JsValue>.None)
+    let args = Arguments.fromCallFrame(callframe,1)
+    return getPresignUrlFrom(blob, global, optJs(args.values[0]))
 }
 
 /// 获取 stat (JS getter)

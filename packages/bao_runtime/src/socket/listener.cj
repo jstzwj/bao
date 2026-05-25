@@ -6,6 +6,8 @@ package bao_runtime.socket
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_uws_sys.*
+import bao_sys.*
 
 // ============================================================================
 // 监听器类型
@@ -33,30 +35,39 @@ public enum ListenerType {
 // uWS 监听套接字 (占位)
 // ============================================================================
 
-/// uWS 监听套接字占位
+/// uWS 监听套接字
 public class UwsListenSocket {
-    /// 文件描述符
-    public var fd: Int64
-    /// 本地端口
-    public var localPort: UInt16
+    public var socket: ?bao_uws_sys.ListenSocket
 
     public init() {
-        fd = -1
-        localPort = 0
+        socket = None
+    }
+
+    public init(socket: bao_uws_sys.ListenSocket) {
+        this.socket = Some(socket)
     }
 
     /// 关闭监听套接字
     public func close(): Unit {
-        fd = -1
+        if (let Some(s) <- socket) {
+            s.close()
+        }
+        socket = None
     }
 
     /// 获取本地端口
     public func getLocalPort(): UInt16 {
-        return localPort
+        if (let Some(s) <- socket) {
+            return UInt16(s.getLocalPort())
+        }
+        return 0
     }
 
     /// 获取本地地址
     public func getLocalAddress(buf: Array<UInt8>): ?Array<UInt8> {
+        if (let Some(s) <- socket) {
+            return s.getLocalAddress(buf)
+        }
         return None
     }
 
@@ -69,9 +80,63 @@ public class UwsListenSocket {
     public func removeServerName(name: String): Unit {}
 }
 
+public class ListenerHandleTable {
+    private static var nextId: UIntNative = UIntNative(1)
+    private static var listeners: HashMap<UIntNative, Listener> = HashMap<UIntNative, Listener>()
+
+    public static func allocate(listener: Listener): UIntNative {
+        let id = nextId
+        nextId += UIntNative(1)
+        if (nextId == UIntNative(0)) {
+            nextId = UIntNative(1)
+        }
+        listeners.put(id, listener)
+        return id
+    }
+
+    public static func lookup(id: UIntNative): ?Listener {
+        if (id == UIntNative(0)) {
+            return None
+        }
+        return listeners.get(id)
+    }
+
+    public static func release(id: UIntNative): ?Listener {
+        if (id == UIntNative(0)) {
+            return None
+        }
+        return listeners.remove(id)
+    }
+}
+
 /// SSL 上下文占位
 public class SslContext {
     public init() {}
+}
+
+private func listenerUnsafeNewCString(s: String): CPointer<Int8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len + 1))
+        let bytesPtr = CPointer<Int8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        (bytesPtr + Int64(len)).write(Int8(0))
+        return bytesPtr
+    }
+}
+
+private func listenerUnsafeNewBytes(s: String): CPointer<UInt8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len))
+        let bytesPtr = CPointer<UInt8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(UInt8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        return bytesPtr
+    }
 }
 
 /// 命名管道上下文占位
@@ -104,6 +169,8 @@ public class Listener {
     public var strongData: JsValue
     /// JS 自身引用 (防止 GC)
     public var strongSelf: JsValue
+    /// libus listener/group ext 中保存的稳定数字句柄；0 表示未绑定。
+    public var nativeHandle: UIntNative
 
     public init(handlers: Handlers) {
         this.handlers = handlers
@@ -114,6 +181,7 @@ public class Listener {
         this.secureCtx = None
         this.strongData = JsValue.UNDEFINED
         this.strongSelf = JsValue.UNDEFINED
+        this.nativeHandle = UIntNative(0)
     }
 
     // ========================================================================
@@ -144,15 +212,52 @@ public class Listener {
 
                 match (cfg.connection()) {
                     case ConnectionTarget.Host(host, port) =>
-                        // TCP/TLS 监听
-                        let listenSocket = UwsListenSocket()
-                        listenSocket.localPort = port
-                        listener.listener = ListenerType.Uws(listenSocket)
+                        if (listener.ssl) {
+                            return JsValue("ENOSYS: TLS listener requires native SSL_CTX FFI pointer")
+                        }
+                        let group = handlers.socketGroup
+                        if (group.getPtr().isNull() || group.getLoop().isNull()) {
+                            return JsValue("ENOSYS: uWS socket group is not initialized for listener")
+                        }
+                        let id = ListenerHandleTable.allocate(listener)
+                        listener.nativeHandle = id
+                        let hostPtr = listenerUnsafeNewCString(host)
+                        var err: Int32 = 0
+                        let listenSocket = group.listen(bao_uws_sys.SocketKind.bun_listener_tcp, CPointer<Unit>(), hostPtr, Int32(port), cfg.socketFlags(), 8, CPointer<Int32>(&err))
+                        unsafe { free(CPointer<Unit>(hostPtr)) }
+                        if (listenSocket.isNone()) {
+                            ListenerHandleTable.release(id)
+                            listener.nativeHandle = UIntNative(0)
+                            return JsValue("uWS TCP listen failed")
+                        }
+                        let rawListen = listenSocket.getOrThrow()
+                        let ext = CPointer<UIntNative>(rawListen.ext())
+                        ext.write(id)
+                        listener.listener = ListenerType.Uws(UwsListenSocket(rawListen))
                         listener.connection = ConnectionTarget.Host(host, port)
                     case ConnectionTarget.Unix(path) =>
-                        // Unix 域套接字监听
-                        let listenSocket = UwsListenSocket()
-                        listener.listener = ListenerType.Uws(listenSocket)
+                        if (listener.ssl) {
+                            return JsValue("ENOSYS: TLS listener requires native SSL_CTX FFI pointer")
+                        }
+                        let group = handlers.socketGroup
+                        if (group.getPtr().isNull() || group.getLoop().isNull()) {
+                            return JsValue("ENOSYS: uWS socket group is not initialized for listener")
+                        }
+                        let id = ListenerHandleTable.allocate(listener)
+                        listener.nativeHandle = id
+                        let pathPtr = listenerUnsafeNewBytes(path)
+                        var err: Int32 = 0
+                        let listenSocket = group.listenUnix(bao_uws_sys.SocketKind.bun_listener_tcp, CPointer<Unit>(), pathPtr, UIntNative(path.size), cfg.socketFlags(), 8, CPointer<Int32>(&err))
+                        unsafe { free(CPointer<Unit>(pathPtr)) }
+                        if (listenSocket.isNone()) {
+                            ListenerHandleTable.release(id)
+                            listener.nativeHandle = UIntNative(0)
+                            return JsValue("uWS Unix socket listen failed")
+                        }
+                        let rawListen = listenSocket.getOrThrow()
+                        let ext = CPointer<UIntNative>(rawListen.ext())
+                        ext.write(id)
+                        listener.listener = ListenerType.Uws(UwsListenSocket(rawListen))
                         listener.connection = ConnectionTarget.Unix(path)
                     case ConnectionTarget.Fd(fd) =>
                         // 不支持从 fd 监听
@@ -205,18 +310,15 @@ public class Listener {
 
     /// 当新连接创建时的回调
     /// 对应 Bun: pub fn onCreate(comptime ssl: bool, listener: *Listener, socket: uws.NewSocketHandler(ssl)) *NewSocket(ssl)
-    /// 在 uws 接受新连接后被调用，创建对应的 Socket 包装器
-    public func onCreate(socket: Any): Socket {
-        let sslEnabled = this.ssl
-        let newSocket = Socket(sslEnabled)
+    /// 在 uWS 接受新连接后创建对应的 NewSocket 包装器，并把 accepted socket ext 绑定到 NewSocket handle。
+    public func onCreate(socket: bao_uws_sys.UsSocket): NewSocket {
+        let newSocket = NewSocket(this.ssl)
         newSocket.handlers = Some(this.handlers)
-
-        // 设置连接信息
         newSocket.connection = Some(this.connection)
-
-        // 触发 onOpen 回调
-        this.handlers.callOnOpen(newSocket)
-
+        newSocket.thisValue = JsRef(this.strongSelf)
+        newSocket.socket = SocketHandler.fromConnected(this.ssl, socket)
+        NewSocketHandleTable.stamp(newSocket.socket, newSocket)
+        markActive(newSocket)
         return newSocket
     }
 
@@ -304,6 +406,10 @@ public class Listener {
         if (listener.isNone()) {
             return
         }
+        if (nativeHandle != UIntNative(0)) {
+            ListenerHandleTable.release(nativeHandle)
+            nativeHandle = UIntNative(0)
+        }
 
         // 取消 Unix 域套接字文件链接
         match (connection) {
@@ -333,6 +439,10 @@ public class Listener {
     /// GC finalize
     /// 对应 Zig: finalize
     public func finalize(): Unit {
+        if (nativeHandle != UIntNative(0)) {
+            ListenerHandleTable.release(nativeHandle)
+            nativeHandle = UIntNative(0)
+        }
         let current = listener
         listener = ListenerType.None
 
@@ -426,7 +536,11 @@ public class Listener {
     /// 对应 Zig: getFD
     public func getFD(): JsValue {
         match (listener) {
-            case ListenerType.Uws(socket) => return JsValue(Float64(socket.fd))
+            case ListenerType.Uws(socket) =>
+                if (let Some(s) <- socket.socket) {
+                    return JsValue(Float64(s.fd()))
+                }
+                return JsValue(-1.0)
             case _ => return JsValue(-1.0)
         }
     }

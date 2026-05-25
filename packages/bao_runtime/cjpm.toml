@@ -40,6 +40,7 @@ webview = [
   "native/webview/JSWebViewPrototype.cpp",
   "native/webview/ObjCRuntime.cpp",
   "native/webview/ObjCRuntime.h",
+  "native/webview/UWSSocketDispatch.cpp",
   "native/webview/WebKitBackend.cpp",
   "native/webview/WebKitBackend.h",
   "native/webview/WebViewEventTarget.h",
@@ -61,6 +62,7 @@ bao_collections = { path = "../bao_collections" }
 bao_bun_alloc = { path = "../bao_bun_alloc" }
 bao_bundler = { path = "../bao_bundler" }
 bao_boringssl = { path = "../bao_boringssl" }
+bao_base64 = { path = "../bao_base64" }
 bao_ptr = { path = "../bao_ptr" }
 bao_watcher = { path = "../bao_watcher" }
 bao_http_types = { path = "../bao_http_types" }

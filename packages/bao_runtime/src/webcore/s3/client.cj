@@ -203,10 +203,10 @@ public func s3Delete(
     options.body = ""
     options.requestPayer = requestPayer
 
-    executeSimpleS3Request(
+    executeSimpleS3DeleteRequest(
         credentials,
         options,
-        S3CallbackKind.Delete,
+        callback,
         callbackContext
     )
 }
@@ -361,10 +361,10 @@ public func s3Upload(
     options.storageClass = storageClass
     options.requestPayer = requestPayer
 
-    executeSimpleS3Request(
+    executeSimpleS3UploadRequest(
         credentials,
         options,
-        S3CallbackKind.Upload,
+        callback,
         callbackContext
     )
 }
@@ -447,7 +447,7 @@ public class S3UploadStreamWrapper {
     public func toOpaque(): UIntNative { return callbackContext }
 
     public static func fromOpaque(ctx: UIntNative): S3UploadStreamWrapper {
-        return S3UploadStreamWrapper(MultiPartUpload(), None, ctx, "", GlobalRef())
+        return S3UploadStreamRegistry.get(ctx)
     }
 
     // ========================================================================
@@ -594,10 +594,52 @@ public class S3UploadStreamWrapper {
     /// 释放资源
     /// 对应 Bun: deinit
     public func deinit(): Unit {
+        S3UploadStreamRegistry.unregister(callbackContext)
         detachSink()
         // task.deref() — 释放对 MultiPartUpload 的引用
         MultiPartUpload.deref(task)
         // endPromise 由 GC 管理
+    }
+}
+
+public class S3UploadStreamRegistryEntry {
+    public var id: UIntNative
+    public var wrapper: S3UploadStreamWrapper
+
+    public init(id: UIntNative, wrapper: S3UploadStreamWrapper) {
+        this.id = id
+        this.wrapper = wrapper
+    }
+}
+
+public class S3UploadStreamRegistry {
+    private static var nextId: UIntNative = UIntNative(1)
+    private static var entries = ArrayList<S3UploadStreamRegistryEntry>()
+
+    public static func register(wrapper: S3UploadStreamWrapper): UIntNative {
+        let id = nextId
+        nextId += UIntNative(1)
+        entries.append(S3UploadStreamRegistryEntry(id, wrapper))
+        return id
+    }
+
+    public static func unregister(id: UIntNative): Unit {
+        if (id == UIntNative(0)) { return }
+        for (i in 0..entries.size) {
+            if (entries[i].id == id) {
+                entries.removeAt(i)
+                return
+            }
+        }
+    }
+
+    public static func get(id: UIntNative): S3UploadStreamWrapper {
+        for (entry in entries) {
+            if (entry.id == id) {
+                return entry.wrapper
+            }
+        }
+        return S3UploadStreamWrapper(MultiPartUpload(), None, id, "", GlobalRef())
     }
 }
 
@@ -775,7 +817,9 @@ public func s3UploadStream(
     // +1 因为 ctx 引用了 sink
     ctx.sink = Some(ResumableS3UploadSink(GlobalRef.from(globalThis), readableStream, ctx, 2))
 
-    task.callbackContext = ctx.toOpaque()
+    let ctxId = S3UploadStreamRegistry.register(ctx)
+    ctx.callbackContext = ctxId
+    task.callbackContext = ctxId
     task.onWritable = Some(uploadStreamOnWritableThunk)
 
     // 启动流处理
@@ -882,35 +926,10 @@ public func s3DownloadStream(
 
     task.pollRef.ref(task.vm)
 
-    // 配置 AsyncHTTP
-    let url = UrlParser.parse(signResult.url)
-    let httpProxy = if (task.proxyUrl.size > 0) {
-        Some(UrlParser.parse(task.proxyUrl))
-    } else {
-        None
-    }
-
-    let vm = VirtualMachine.get()
-    let verbose = vm.getVerboseFetch()
-    let rejectUnauthorized = vm.getTlsRejectUnauthorized()
-
-    task.http = AsyncHttp(
-        HttpMethod.GET,
-        url.toString(),
-        task.headers,
-        task.responseBuffer.toString(),
-        "",
-        SignalStore(),
-        HttpSignals()
-    )
-
-    // 启用流式响应
-    task.http.enableResponseBodyStreaming()
-
     callback(
         MutableString(),
         false,
-        Some(S3Error("NotImplemented", "S3 download stream request scheduling is not implemented in this Cangjie runtime build")),
+        Some(S3Error("NotImplemented", "S3 downloadStream requires AsyncHTTP streaming callbacks, which are not available in this Cangjie runtime build; use download() for strict buffered GET support.")),
         callbackContext
     )
 }
@@ -963,6 +982,7 @@ public func s3ReadableStream(
     reader.cancelCtx = Some(wrapper.toOpaque())
 
     // 启动下载流
+    let wrapperCtx = wrapper.toOpaque()
     s3DownloadStream(
         credentials,
         path,
@@ -971,7 +991,7 @@ public func s3ReadableStream(
         proxyUrl,
         requestPayer,
         S3DownloadStreamWrapper.opaqueCallback,
-        wrapper.toOpaque()
+        wrapperCtx
     )
 
     return readableValue
@@ -1010,9 +1030,31 @@ public class S3DownloadStreamWrapper {
     /// 对应 Bun: callback
     /// 处理下载的 chunk 数据或错误
     public func callback(chunk: MutableString, hasMore: Bool, requestErr: ?S3Error): Unit {
-        // Stub: original implementation uses StreamResult/StreamError which need complex types
-        // In real impl: forward chunk data to the ReadableStream's ByteStream
-        ()
+        match (requestErr) {
+            case Some(_) =>
+                clearStreamCancelHandler()
+                readableStreamRef.deinit()
+            case None =>
+                match (readableStreamRef.get(global)) {
+                    case Some(stream) =>
+                        match (stream.getByteStream()) {
+                            case Some(byteStream) =>
+                                let bytes = ArrayList<UInt8>()
+                                for (b in chunk.toString()) {
+                                    bytes.append(b)
+                                }
+                                byteStream.onData(bytes, !hasMore)
+                                if (!hasMore) {
+                                    clearStreamCancelHandler()
+                                    readableStreamRef.deinit()
+                                }
+                            case None =>
+                                clearStreamCancelHandler()
+                                readableStreamRef.deinit()
+                        }
+                    case None => ()
+                }
+        }
     }
 
     // ========================================================================
@@ -1024,8 +1066,7 @@ public class S3DownloadStreamWrapper {
     /// 对应 Bun: clearStreamCancelHandler
     /// 必须在释放 readableStreamRef 之前调用
     public func clearStreamCancelHandler(): Unit {
-        // Stub: clear the cancel handler on the underlying ByteStreamSource
-        ()
+        S3DownloadStreamRegistry.unregisterForWrapper(this)
     }
 
     // ========================================================================
@@ -1040,6 +1081,7 @@ public class S3DownloadStreamWrapper {
         match (ctx) {
             case Some(opaque) =>
                 let self_ = S3DownloadStreamWrapper.fromOpaque(opaque)
+                S3DownloadStreamRegistry.unregister(opaque)
                 // 释放 Strong 引用
                 self_.readableStreamRef.deinit()
             case None => ()
@@ -1067,11 +1109,66 @@ public class S3DownloadStreamWrapper {
 
     /// 转为不透明指针
     public func toOpaque(): UIntNative {
-        return UIntNative(0)
+        return S3DownloadStreamRegistry.register(this)
     }
 
     /// 从不透明指针恢复
     public static func fromOpaque(opaque: UIntNative): S3DownloadStreamWrapper {
+        return S3DownloadStreamRegistry.get(opaque)
+    }
+}
+
+public class S3DownloadStreamRegistryEntry {
+    public var id: UIntNative
+    public var wrapper: S3DownloadStreamWrapper
+
+    public init(id: UIntNative, wrapper: S3DownloadStreamWrapper) {
+        this.id = id
+        this.wrapper = wrapper
+    }
+}
+
+public class S3DownloadStreamRegistry {
+    private static var nextId: UIntNative = UIntNative(1)
+    private static var entries = ArrayList<S3DownloadStreamRegistryEntry>()
+
+    public static func register(wrapper: S3DownloadStreamWrapper): UIntNative {
+        for (entry in entries) {
+            if (entry.wrapper === wrapper) {
+                return entry.id
+            }
+        }
+        let id = nextId
+        nextId += UIntNative(1)
+        entries.append(S3DownloadStreamRegistryEntry(id, wrapper))
+        return id
+    }
+
+    public static func unregister(id: UIntNative): Unit {
+        if (id == UIntNative(0)) { return }
+        for (i in 0..entries.size) {
+            if (entries[i].id == id) {
+                entries.removeAt(i)
+                return
+            }
+        }
+    }
+
+    public static func unregisterForWrapper(wrapper: S3DownloadStreamWrapper): Unit {
+        for (i in 0..entries.size) {
+            if (entries[i].wrapper === wrapper) {
+                entries.removeAt(i)
+                return
+            }
+        }
+    }
+
+    public static func get(id: UIntNative): S3DownloadStreamWrapper {
+        for (entry in entries) {
+            if (entry.id == id) {
+                return entry.wrapper
+            }
+        }
         return S3DownloadStreamWrapper()
     }
 }

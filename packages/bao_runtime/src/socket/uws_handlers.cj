@@ -23,7 +23,7 @@ func swallow(result: Unit): Unit {
 /// 指针处理器适配器
 /// 对应 Zig: fn PtrHandler(comptime T: type, comptime ssl: bool) type
 /// Cangjie 泛型限制: 无法在 T 上调用方法
-/// 方法体为 stub — 实际调度由具体子类或运行时反射完成
+/// 方法体为 strict typed errors until specific typed bridges are wired.
 public class PtrHandler<T> {
     public var ext: ?T
 
@@ -36,43 +36,43 @@ public class PtrHandler<T> {
     }
 
     /// 连接打开
-    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
+    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit { unsupported("open") }
 
     /// 数据到达
-    public func onData(s: UsSocket, data: Array<Byte>): Unit {}
+    public func onData(s: UsSocket, data: Array<Byte>): Unit { unsupported("data") }
 
     /// 可写
-    public func onWritable(s: UsSocket): Unit {}
+    public func onWritable(s: UsSocket): Unit { unsupported("writable") }
 
     /// 关闭
-    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {}
+    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit { unsupported("close") }
 
     /// 超时
-    public func onTimeout(s: UsSocket): Unit {}
+    public func onTimeout(s: UsSocket): Unit { unsupported("timeout") }
 
     /// 长超时
-    public func onLongTimeout(s: UsSocket): Unit {}
+    public func onLongTimeout(s: UsSocket): Unit { unsupported("long_timeout") }
 
     /// 结束
-    public func onEnd(s: UsSocket): Unit {}
+    public func onEnd(s: UsSocket): Unit { unsupported("end") }
 
     /// 连接错误
-    public func onConnectError(s: UsSocket, code: Int32): Unit {}
+    public func onConnectError(s: UsSocket, code: Int32): Unit { unsupported("connect_error") }
 
     /// 连接中错误
-    public func onConnectingError(c: ConnectingSocket, code: Int32): Unit {}
+    public func onConnectingError(c: ConnectingSocket, code: Int32): Unit { unsupported("connecting_error") }
 
     /// 握手完成
-    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {}
+    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit { unsupported("handshake") }
 
     /// 文件描述符
-    public func onFd(s: UsSocket, fd: Int32): Unit {}
+    public func onFd(s: UsSocket, fd: Int32): Unit { unsupported("fd") }
 
     /// 包装 socket
-    func wrap(s: UsSocket): NewSocketHandler { return NewSocketHandler() }
+    func wrap(s: UsSocket): NewSocketHandler { return NewSocketHandler.from(s) }
 
     /// 包装连接中 socket
-    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { return NewSocketHandler() }
+    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { return NewSocketHandler.fromConnecting(c) }
 }
 
 /// Bun Socket 处理器 (Bun.connect / Bun.listen)
@@ -111,7 +111,9 @@ public class BunListenerHandler {
     public func onTimeout(s: UsSocket): Unit {}
 
     /// 握手完成
-    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {}
+    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
+        unsupported("handshake")
+    }
 }
 
 /// 命名空间处理器
@@ -157,7 +159,9 @@ public class NsHandler<Owner, H> {
     public func onConnectingError(c: ConnectingSocket, code: Int32): Unit {}
 
     /// 握手完成
-    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {}
+    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
+        unsupported("handshake")
+    }
 
     func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
     func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler() }
@@ -204,7 +208,9 @@ public class HTTPClientHandler {
     public func onConnectingError(cs: ConnectingSocket, code: Int32): Unit {}
 
     /// 握手完成
-    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {}
+    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
+        unsupported("handshake")
+    }
 
     func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
     func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler() }
@@ -267,24 +273,42 @@ public class SpawnIPCHandler {
     public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
 
     /// 数据到达
-    public func onData(s: UsSocket, data: Array<Byte>): Unit {}
+    public func onData(s: UsSocket, data: Array<Byte>): Unit {
+        if (ext.isNone()) { unsupported("data") }
+        IPCHandlers.posixSocketOnData(ext.getOrThrow(), wrap(s), data)
+    }
 
     /// 文件描述符
-    public func onFd(s: UsSocket, fd: Int32): Unit {}
+    public func onFd(s: UsSocket, fd: Int32): Unit {
+        if (ext.isNone()) { unsupported("fd") }
+        IPCHandlers.posixSocketOnFd(ext.getOrThrow(), wrap(s), fd)
+    }
 
     /// 可写
-    public func onWritable(s: UsSocket): Unit {}
+    public func onWritable(s: UsSocket): Unit {
+        if (ext.isNone()) { unsupported("writable") }
+        IPCHandlers.posixSocketOnWritable(ext.getOrThrow(), wrap(s))
+    }
 
     /// 关闭
-    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {}
+    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
+        if (ext.isNone()) { unsupported("close") }
+        IPCHandlers.posixSocketOnClose(ext.getOrThrow(), wrap(s), code, reason)
+    }
 
     /// 超时
-    public func onTimeout(s: UsSocket): Unit {}
+    public func onTimeout(s: UsSocket): Unit {
+        if (ext.isNone()) { unsupported("timeout") }
+        IPCHandlers.posixSocketOnTimeout(ext.getOrThrow(), wrap(s))
+    }
 
     /// 结束
-    public func onEnd(s: UsSocket): Unit {}
+    public func onEnd(s: UsSocket): Unit {
+        if (ext.isNone()) { unsupported("end") }
+        IPCHandlers.posixSocketOnEnd(ext.getOrThrow(), wrap(s))
+    }
 
-    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
+    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler.from(s) }
 }
 
 /// 关闭模式

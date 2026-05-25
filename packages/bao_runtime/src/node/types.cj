@@ -5,6 +5,7 @@ package bao_runtime.node
 
 import bao_core.*
 import bao_jsc.*
+import bao_base64.*
 import std.collection.ArrayList
 import std.convert.*
 
@@ -124,13 +125,20 @@ public enum Encoding {
             case Encoding.hex =>
                 return JsValue(EncodingUtils.hexEncode(input))
             case Encoding.base64 =>
-                // TODO: Base64Codec.encode not yet available
-                return JsValue(String.fromUtf8(input))
+                return JsValue(Base64.encode(input))
             case Encoding.base64url =>
-                // TODO: Base64Codec.encode not yet available
-                let b64 = String.fromUtf8(input)
-                return JsValue(b64.replace("+", "-").replace("/", "_").replace("=", ""))
-            case _ =>
+                return JsValue(Base64Url.encode(input))
+            case Encoding.latin1 =>
+                return JsValue(EncodingUtils.latin1Decode(input))
+            case Encoding.ascii =>
+                return JsValue(EncodingUtils.asciiDecode(input))
+            case Encoding.utf16le =>
+                return JsValue(EncodingUtils.utf16leDecode(input))
+            case Encoding.ucs2 =>
+                return JsValue(EncodingUtils.utf16leDecode(input))
+            case Encoding.buffer =>
+                return JsValue(String.fromUtf8(input))
+            case Encoding.utf8 =>
                 return JsValue(String.fromUtf8(input))
         }
     }
@@ -144,7 +152,7 @@ public class EncodingUtils {
     // 抛出编码错误
     // 对应 Bun: Encoding.throwEncodingError
     public static func throwEncodingError(globalObject: JsGlobalObject): Unit {
-        // TODO: throw encoding error
+        throw JsTypeError("Unknown encoding")
     }
 
     // Hex 编码
@@ -163,13 +171,72 @@ public class EncodingUtils {
     public static func hexDecode(hex: String): Array<UInt8> {
         let arr = Array<UInt8>(hex.size / 2, { _ => UInt8(0) })
         var i: Int64 = 0
-        while (i < hex.size) {
+        while (i + 1 < hex.size) {
             let high = hexCharToNibble(hex[i])
             let low = hexCharToNibble(hex[i + 1])
             arr[i / 2] = high * UInt8(16) + low
             i += 2
         }
         return arr
+    }
+
+    public static func encodeString(input: String, encoding: Encoding): Array<UInt8> {
+        match (encoding) {
+            case Encoding.hex => return hexDecode(input)
+            case Encoding.base64 => return Base64.decode(input)
+            case Encoding.base64url => return Base64Url.decode(input)
+            case Encoding.latin1 => return latin1Encode(input)
+            case Encoding.ascii => return asciiEncode(input)
+            case Encoding.utf16le => return utf16leEncode(input)
+            case Encoding.ucs2 => return utf16leEncode(input)
+            case _ => return utf8Encode(input)
+        }
+    }
+
+    public static func utf8Encode(input: String): Array<UInt8> {
+        return Array<UInt8>(input.size, { i => input[i] })
+    }
+
+    public static func latin1Encode(input: String): Array<UInt8> {
+        return Array<UInt8>(input.size, { i => input[i] & UInt8(0xFF) })
+    }
+
+    public static func asciiEncode(input: String): Array<UInt8> {
+        return Array<UInt8>(input.size, { i => input[i] & UInt8(0x7F) })
+    }
+
+    public static func utf16leEncode(input: String): Array<UInt8> {
+        let out = Array<UInt8>(input.size * 2, { _ => UInt8(0) })
+        var j: Int64 = 0
+        for (i in 0..input.size) {
+            let code = UInt16(input[i])
+            out[j] = UInt8(code & UInt16(0x00FF))
+            out[j + 1] = UInt8((code >> 8) & UInt16(0x00FF))
+            j += 2
+        }
+        return out
+    }
+
+    public static func latin1Decode(bytes: Array<UInt8>): String {
+        return String.fromUtf8(bytes)
+    }
+
+    public static func asciiDecode(bytes: Array<UInt8>): String {
+        let out = Array<UInt8>(bytes.size, { i => bytes[i] & UInt8(0x7F) })
+        return String.fromUtf8(out)
+    }
+
+    public static func utf16leDecode(bytes: Array<UInt8>): String {
+        let out = ArrayList<UInt8>()
+        var i: Int64 = 0
+        while (i + 1 < bytes.size) {
+            let lo = UInt16(bytes[i])
+            let hi = UInt16(bytes[i + 1])
+            let code = (hi << 8) | lo
+            out.add(UInt8(code & UInt16(0x00FF)))
+            i += 2
+        }
+        return String.fromUtf8(out.toArray())
     }
 
     private static func hexCharToNibble(c: UInt8): UInt8 {
@@ -500,7 +567,10 @@ public class PathLike {
             return PathLike(val.toString())
         }
         if (val.isObject()) {
-            // TODO: handle ArrayBuffer/TypedArray
+            let bytes = NodeBufferConversions.bytesFromJS(globalObject, val)
+            if (bytes.isSome()) {
+                return PathLike(NodeBufferConversions.bytesToString(bytes.getOrThrow()))
+            }
             return None
         }
         return None
@@ -556,8 +626,14 @@ public class StringOrBuffer {
         if (isBuffer) {
             return bufferValue
         }
-        // TODO: Utf8Codec.encode not available
-        return Array<UInt8>(stringValue.size, { i => stringValue[i] })
+        return EncodingUtils.utf8Encode(stringValue)
+    }
+
+    public func slice(encoding: Encoding): Array<UInt8> {
+        if (isBuffer) {
+            return bufferValue
+        }
+        return EncodingUtils.encodeString(stringValue, encoding)
     }
 
     // 获取字符串值
@@ -599,8 +675,7 @@ public class StringOrBuffer {
     // 对应 Bun: StringOrBuffer.toJS
     public func toJS(globalObject: JsGlobalObject): JsValue {
         if (isBuffer) {
-            // TODO: JsValue.fromArrayBuffer not available
-            return JsValue()
+            return JsArrayBuffer.createBuffer(globalObject.globalThis, bufferValue)
         }
         return JsValue(stringValue)
     }
@@ -615,7 +690,10 @@ public class StringOrBuffer {
             return StringOrBuffer(value.toString())
         }
         if (value.isObject()) {
-            // TODO: handle ArrayBuffer/TypedArray
+            let bytes = NodeBufferConversions.bytesFromJS(globalObject, value)
+            if (bytes.isSome()) {
+                return StringOrBuffer(bytes.getOrThrow())
+            }
             return None
         }
         return None
@@ -628,10 +706,18 @@ public class StringOrBuffer {
             return None
         }
         if (value.isString()) {
-            return StringOrBuffer(value.toString())
+            return StringOrBuffer(EncodingUtils.encodeString(value.toString(), encoding))
         }
         if (value.isObject()) {
-            // TODO: handle ArrayBuffer/TypedArray
+            let bytes = NodeBufferConversions.bytesFromJS(globalObject, value)
+            if (bytes.isNone()) {
+                let fallback = BufferBytes.fromJS(globalObject, value)
+                if (fallback.isSome()) {
+                    return StringOrBuffer(fallback.getOrThrow())
+                }
+            } else {
+                return StringOrBuffer(bytes.getOrThrow())
+            }
             return None
         }
         return None
@@ -649,11 +735,102 @@ public class StringOrBuffer {
     // 对应 Bun: StringOrBuffer.fromJSToOwnedSlice
     public static func fromJSToOwnedSlice(globalObject: JsGlobalObject, value: JsValue): Array<UInt8> {
         if (value.isObject()) {
-            // TODO: handle ArrayBuffer/TypedArray
-            return Array<UInt8>()
+            let bytes = NodeBufferConversions.bytesFromJS(globalObject, value)
+            if (bytes.isSome()) {
+                return bytes.getOrThrow()
+            }
+            throw JsTypeError("Expected string, Buffer, ArrayBuffer, or TypedArray")
         }
         let str = value.toString()
-        return Array<UInt8>(str.size, { i => str[i] })
+        return NodeBufferConversions.stringToBytes(str)
+    }
+}
+
+// ============================================================================
+// NodeBufferConversions — shared JS bytes/string conversion helpers
+// Reuses bao_jsc ArrayBuffer/TypedArray/Buffer APIs instead of open-coded stubs.
+// ============================================================================
+public class BufferBytes {
+    public static func fromJS(globalObject: JsGlobalObject, value: JsValue): ?Array<UInt8> {
+        if (value.arrayData.isSome()) {
+            let arr = value.arrayData.getOrThrow()
+            let bytes = Array<UInt8>(arr.size, { i => UInt8(arr[i].toInt32() & Int32(0xFF)) })
+            return bytes
+        }
+        if (value.objectData.isSome()) {
+            let obj = value.objectData.getOrThrow()
+            let data = obj.get("data")
+            if (data.arrayData.isSome()) {
+                let arr = data.arrayData.getOrThrow()
+                let bytes = Array<UInt8>(arr.size, { i => UInt8(arr[i].toInt32() & Int32(0xFF)) })
+                return bytes
+            }
+            let bytes = NodeBufferConversions.bytesFromJS(globalObject, value)
+            if (bytes.isSome()) {
+                return bytes
+            }
+            let byteLength = obj.get("byteLength")
+            if (byteLength.isNumber()) {
+                let len = byteLength.toInt64()
+                if (len >= 0) {
+                    return Array<UInt8>(len, { _ => UInt8(0) })
+                }
+            }
+            let length = obj.get("length")
+            if (length.isNumber()) {
+                let len = length.toInt64()
+                if (len >= 0) {
+                    let bytes = Array<UInt8>(len, { i => UInt8(obj.get(i.toString()).toInt32() & Int32(0xFF)) })
+                    return bytes
+                }
+            }
+        }
+        return None
+    }
+}
+
+public class NodeBufferConversions {
+    public static func bytesFromJS(globalObject: JsGlobalObject, value: JsValue): ?Array<UInt8> {
+        let view = value.asArrayBuffer(globalObject.globalThis)
+        if (view.isSome()) {
+            return view.getOrThrow().bytes()
+        }
+        return None
+    }
+
+    public static func bytesToJSBuffer(globalObject: JsGlobalObject, bytes: Array<UInt8>): JsValue {
+        return JsArrayBuffer.createBuffer(globalObject.globalThis, bytes)
+    }
+
+    public static func bytesToJSUint8Array(globalObject: JsGlobalObject, bytes: Array<UInt8>): JsValue {
+        return JsArrayBuffer.createUint8Array(globalObject.globalThis, bytes)
+    }
+
+    public static func bytesToJSArrayBuffer(globalObject: JsGlobalObject, bytes: Array<UInt8>): JsValue {
+        return JsArrayBuffer.create(globalObject.globalThis, bytes, JSType.ArrayBuffer)
+    }
+
+    public static func assertBufferLike(globalObject: JsGlobalObject, value: JsValue, name: String): Array<UInt8> {
+        let bytes = bytesFromJS(globalObject, value)
+        if (bytes.isSome()) {
+            return bytes.getOrThrow()
+        }
+        throw JsTypeError("The \"" + name + "\" argument must be an instance of Buffer, ArrayBuffer, TypedArray, or DataView")
+    }
+
+    public static func stringToBytes(value: String): Array<UInt8> {
+        return Array<UInt8>(value.size, { i => value[i] })
+    }
+
+    public static func bytesToString(bytes: Array<UInt8>): String {
+        return String.fromUtf8(bytes)
+    }
+
+    public static func decodeString(value: String, encoding: Encoding): String {
+        match (encoding) {
+            case Encoding.hex => return bytesToString(EncodingUtils.hexDecode(value))
+            case _ => return value
+        }
     }
 }
 
@@ -974,15 +1151,39 @@ public class VectorArrayBuffer {
 
     // 从 JS 值解析
     // 对应 Bun: VectorArrayBuffer.fromJS
-    // TODO: VectorArrayBuffer.fromJS - many JsValue methods unavailable (isArrayLike, getLength, getIndex, isCell, toArrayBuffer, throwTypeError)
     public static func fromJS(globalObject: JsGlobalObject, val: JsValue): ?VectorArrayBuffer {
-        if (!val.isObject()) {
-            // TODO: globalObject.throwTypeError("Expected ArrayBufferView[]")
-            return None
-        }
         let result = VectorArrayBuffer()
-        // TODO: need JsValue.getLength(), getIndex(), isCell(), toArrayBuffer() for full implementation
-        return result
+        if (val.arrayData.isSome()) {
+            let arr = val.arrayData.getOrThrow()
+            let vectors = ArrayList<IoVec>()
+            let flat = ArrayList<UInt8>()
+            for (item in arr) {
+                let bytes = BufferBytes.fromJS(globalObject, item)
+                if (bytes.isNone()) {
+                    return None
+                }
+                let data = bytes.getOrThrow()
+                let vec = IoVec()
+                vec.data = data
+                vectors.add(vec)
+                for (b in data) {
+                    flat.add(b)
+                }
+            }
+            result.buffers = vectors.toArray()
+            result.value = flat.toArray()
+            return result
+        }
+        let bytes = BufferBytes.fromJS(globalObject, val)
+        if (bytes.isSome()) {
+            let data = bytes.getOrThrow()
+            let vec = IoVec()
+            vec.data = data
+            result.buffers = [vec]
+            result.value = data
+            return result
+        }
+        return None
     }
 }
 
@@ -1037,11 +1238,14 @@ public class Buffer {
     }
 
     public static func fromString(s: String): Buffer {
-        let arr = Array<UInt8>(s.size, { i => s[i] })
-        return Buffer(arr)
+        return Buffer(NodeBufferConversions.stringToBytes(s))
     }
 
     public static func fromBytes(bytes: Array<UInt8>): Buffer {
         return Buffer(bytes)
+    }
+
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        return NodeBufferConversions.bytesToJSBuffer(globalObject, bytes)
     }
 }

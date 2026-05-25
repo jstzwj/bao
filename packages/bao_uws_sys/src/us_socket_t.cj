@@ -68,7 +68,7 @@ foreign func us_socket_sendfile_needs_more(s: CPointer<Unit>): Unit
 @C
 foreign func us_socket_get_fd(s: CPointer<Unit>): Int32
 @C
-foreign func us_socket_verify_error(s: CPointer<Unit>): CPointer<Unit>
+foreign func us_socket_verify_error(s: CPointer<Unit>): UsBunVerifyErrorRaw
 @C
 foreign func us_socket_get_error(s: CPointer<Unit>): Int32
 @C
@@ -169,22 +169,60 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn localAddress(this: *us_socket_t, buf: []u8) ![]const u8
     public func localAddress(buf: Array<UInt8>): ?Array<UInt8> {
-        var length: Int32 = Int32(buf.size)
-        unsafe { us_socket_local_address(ptr, CPointer<UInt8>(), CPointer<Int32>()) }
-        if (length < 0) {
-            return None
+        unsafe {
+            let cap = Int32(buf.size)
+            let bufPtr = malloc(UIntNative(buf.size))
+            let lengthPtrRaw = malloc(UIntNative(4))
+            let lengthPtr = CPointer<Int32>(lengthPtrRaw)
+            lengthPtr.write(cap)
+
+            us_socket_local_address(ptr, CPointer<UInt8>(bufPtr), lengthPtr)
+            let length = lengthPtr.read()
+
+            if (length < 0) {
+                free(bufPtr)
+                free(lengthPtrRaw)
+                return None
+            }
+
+            let count = Int64(length)
+            for (i in 0..count) {
+                buf[i] = UInt8(Int32((CPointer<Int8>(bufPtr) + i).read()) & 0xFF)
+            }
+
+            free(bufPtr)
+            free(lengthPtrRaw)
+            return buf[0..count]
         }
-        return buf[0..Int64(length)]
     }
 
     /// 对应 Bun: pub fn remoteAddress(this: *us_socket_t, buf: []u8) ![]const u8
     public func remoteAddress(buf: Array<UInt8>): ?Array<UInt8> {
-        var length: Int32 = Int32(buf.size)
-        unsafe { us_socket_remote_address(ptr, CPointer<UInt8>(), CPointer<Int32>()) }
-        if (length < 0) {
-            return None
+        unsafe {
+            let cap = Int32(buf.size)
+            let bufPtr = malloc(UIntNative(buf.size))
+            let lengthPtrRaw = malloc(UIntNative(4))
+            let lengthPtr = CPointer<Int32>(lengthPtrRaw)
+            lengthPtr.write(cap)
+
+            us_socket_remote_address(ptr, CPointer<UInt8>(bufPtr), lengthPtr)
+            let length = lengthPtr.read()
+
+            if (length < 0) {
+                free(bufPtr)
+                free(lengthPtrRaw)
+                return None
+            }
+
+            let count = Int64(length)
+            for (i in 0..count) {
+                buf[i] = UInt8(Int32((CPointer<Int8>(bufPtr) + i).read()) & 0xFF)
+            }
+
+            free(bufPtr)
+            free(lengthPtrRaw)
+            return buf[0..count]
         }
-        return buf[0..Int64(length)]
     }
 
     /// 对应 Bun: pub fn setTimeout(this: *us_socket_t, seconds: u32) void
@@ -221,8 +259,43 @@ public class UsSocket {
     }
 
     /// 对应 Bun: pub fn ext(this: *us_socket_t, comptime T: type) *T
+    /// 返回 libus 为 socket 分配的原始 ext 存储地址。
+    ///
+    /// 安全说明: Bun/Zig 将这里按 `*?*T` 使用，即 ext 存储的是一个机器字
+    /// 指针槽，槽内保存堆上 owner 的稳定地址。仓颉对象由 GC 管理，目前没有
+    /// pinned/稳定对象地址或已实现的句柄表，因此本层只暴露原始字节/指针槽；
+    /// 不允许直接把仓颉对象引用强转后写入该槽。
     public func ext(): CPointer<Unit> {
         return unsafe { us_socket_ext(ptr) }
+    }
+
+    /// 将 ext 视为一个 native-word handle 槽。
+    /// Bao 不把 GC 管理的 Cangjie 对象指针写入 libus ext；这里只保存 NewSocketHandleTable 的稳定数字句柄。
+    public func extRawSlot(): CPointer<UIntNative> {
+        return CPointer<UIntNative>(unsafe { us_socket_ext(ptr) })
+    }
+
+    /// 读取 raw ext 槽中的句柄值。
+    public func loadExtRaw(): UIntNative {
+        let slot = extRawSlot()
+        if (slot.isNull()) {
+            return UIntNative(0)
+        }
+        return slot.read()
+    }
+
+    /// 写入 raw ext 槽中的句柄值。
+    public func storeExtRaw(value: UIntNative): Unit {
+        let slot = extRawSlot()
+        if (slot.isNull()) {
+            return
+        }
+        slot.write(value)
+    }
+
+    /// 清空 raw ext 槽。
+    public func clearExtRaw(): Unit {
+        storeExtRaw(UIntNative(0))
     }
 
     /// 对应 Bun: pub fn extPtr(this: *us_socket_t) [*]align(16) u8
@@ -242,17 +315,17 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn kind(this: *us_socket_t) SocketKind
     public func kind(): SocketKind {
-        return SocketKind.invalid
+        return SocketKind.fromUInt8(unsafe { us_socket_kind(ptr) })
     }
 
     /// 对应 Bun: pub fn setKind(this: *us_socket_t, k: SocketKind) void
     public func setKind(k: SocketKind): Unit {
-        unsafe { us_socket_set_kind(ptr, UInt8(0)) }
+        unsafe { us_socket_set_kind(ptr, k.toUInt8()) }
     }
 
     /// 对应 Bun: pub fn adopt(this, g, k, old_ext, new_ext) ?*us_socket_t
     public func adopt(g: SocketGroup, k: SocketKind, oldExt: Int32, newExt: Int32): ?UsSocket {
-        let raw = unsafe { us_socket_adopt(ptr, g.getPtr(), UInt8(0), oldExt, newExt) }
+        let raw = unsafe { us_socket_adopt(ptr, g.getPtr(), k.toUInt8(), oldExt, newExt) }
         if (raw .isNull()) {
             return None
         }
@@ -261,7 +334,7 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn adoptTLS(this, g, k, ssl_ctx, sni, old_ext, new_ext) ?*us_socket_t
     public func adoptTLS(g: SocketGroup, k: SocketKind, sslCtx: CPointer<Unit>, sni: CPointer<Int8>, oldExt: Int32, newExt: Int32): ?UsSocket {
-        let raw = unsafe { us_socket_adopt_tls(ptr, g.getPtr(), UInt8(0), sslCtx, sni, oldExt, newExt) }
+        let raw = unsafe { us_socket_adopt_tls(ptr, g.getPtr(), k.toUInt8(), sslCtx, sni, oldExt, newExt) }
         if (raw .isNull()) {
             return None
         }
@@ -280,22 +353,49 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn write(this: *us_socket_t, data: []const u8) i32
     public func write(data: Array<UInt8>): Int32 {
-        return unsafe { us_socket_write(ptr, CPointer<UInt8>(), Int32(data.size)) }
+        unsafe {
+            let dataPtr = malloc(UIntNative(data.size))
+            copyBytesToNative(data, dataPtr)
+            let rc = us_socket_write(ptr, CPointer<UInt8>(dataPtr), Int32(data.size))
+            free(dataPtr)
+            return rc
+        }
     }
 
     /// 对应 Bun: pub fn writeFd(this, data, file_descriptor) i32
     public func writeFd(data: Array<UInt8>, fileDescriptor: Int32): Int32 {
-        return unsafe { us_socket_ipc_write_fd(ptr, CPointer<UInt8>(), Int32(data.size), fileDescriptor) }
+        unsafe {
+            let dataPtr = malloc(UIntNative(data.size))
+            copyBytesToNative(data, dataPtr)
+            let rc = us_socket_ipc_write_fd(ptr, CPointer<UInt8>(dataPtr), Int32(data.size), fileDescriptor)
+            free(dataPtr)
+            return rc
+        }
     }
 
     /// 对应 Bun: pub fn write2(this, first, second) i32
     public func write2(first: Array<UInt8>, second: Array<UInt8>): Int32 {
-        return unsafe { us_socket_write2(ptr, CPointer<UInt8>(), UIntNative(first.size), CPointer<UInt8>(), UIntNative(second.size)) }
+        unsafe {
+            let firstPtr = malloc(UIntNative(first.size))
+            let secondPtr = malloc(UIntNative(second.size))
+            copyBytesToNative(first, firstPtr)
+            copyBytesToNative(second, secondPtr)
+            let rc = us_socket_write2(ptr, CPointer<UInt8>(firstPtr), UIntNative(first.size), CPointer<UInt8>(secondPtr), UIntNative(second.size))
+            free(firstPtr)
+            free(secondPtr)
+            return rc
+        }
     }
 
     /// 对应 Bun: pub fn rawWrite(this: *us_socket_t, data: []const u8) i32
     public func rawWrite(data: Array<UInt8>): Int32 {
-        return unsafe { us_socket_raw_write(ptr, CPointer<UInt8>(), Int32(data.size)) }
+        unsafe {
+            let dataPtr = malloc(UIntNative(data.size))
+            copyBytesToNative(data, dataPtr)
+            let rc = us_socket_raw_write(ptr, CPointer<UInt8>(dataPtr), Int32(data.size))
+            free(dataPtr)
+            return rc
+        }
     }
 
     /// 对应 Bun: pub fn flush(this: *us_socket_t) void
@@ -315,7 +415,7 @@ public class UsSocket {
 
     /// 对应 Bun: pub fn getVerifyError(this: *us_socket_t) us_bun_verify_error_t
     public func getVerifyError(): UsBunVerifyError {
-        return UsBunVerifyError()
+        return UsBunVerifyError(unsafe { us_socket_verify_error(ptr) })
     }
 
     /// 对应 Bun: pub fn getError(this: *us_socket_t) i32
@@ -329,20 +429,56 @@ public class UsSocket {
     }
 }
 
+func copyBytesToNative(data: Array<UInt8>, dest: CPointer<Unit>): Unit {
+    for (i in 0..data.size) {
+        (CPointer<Int8>(dest) + i).write(Int8(Int32(data[i])))
+    }
+}
+
 // ============================================================================
 // UsBunVerifyError - TLS 验证错误
 // 严格翻译自: us_socket_t.zig us_bun_verify_error_t
 // ============================================================================
-public class UsBunVerifyError {
-    public var error_no: Int32 = 0
-    public var code: Int32 = 0
-    public var depth: Int32 = 0
+public struct UsBunVerifyErrorRaw {
+    public var error: Int32 = 0
+    public var code: CPointer<Int8> = CPointer<Int8>()
+    public var reason: CPointer<Int8> = CPointer<Int8>()
 
     public init() {}
-    public init(errorNo: Int32, code: Int32, depth: Int32) {
+}
+
+private func verifyErrorCString(ptr: CPointer<Int8>): String {
+    if (ptr.isNull()) {
+        return ""
+    }
+    var out = ""
+    var i: Int64 = 0
+    while (true) {
+        let b = (ptr + i).read()
+        if (b == Int8(0)) {
+            return out
+        }
+        out += Rune(Int32(b)).toString()
+        i += 1
+    }
+    return out
+}
+
+public class UsBunVerifyError {
+    public var error_no: Int32 = 0
+    public var code: String = ""
+    public var reason: String = ""
+
+    public init() {}
+    public init(errorNo: Int32, code: String, reason: String) {
         this.error_no = errorNo
         this.code = code
-        this.depth = depth
+        this.reason = reason
+    }
+    public init(raw: UsBunVerifyErrorRaw) {
+        this.error_no = raw.error
+        this.code = verifyErrorCString(raw.code)
+        this.reason = verifyErrorCString(raw.reason)
     }
 }
 

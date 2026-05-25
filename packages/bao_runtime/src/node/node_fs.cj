@@ -91,7 +91,107 @@ public class Maybe<T> {
         if (hasError) {
             return error.toJS(globalObject)
         }
-        return JsValue()  // TODO: JsValue.from(globalObject, result) 需要正确的 JsValue 转换
+        if (result.isNone()) {
+            return JsValue()
+        }
+        return FsJSValue.from(globalObject, result.getOrThrow())
+    }
+}
+
+public class FsJSValue {
+    public static func from<T>(globalObject: JsGlobalObject, value: T): JsValue {
+        return JsValue()
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: Bool): JsValue {
+        return JsValue(value)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: Int32): JsValue {
+        return JsValue(Int64(value))
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: Int64): JsValue {
+        return JsValue(value)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: String): JsValue {
+        return JsValue(value)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: Unit): JsValue {
+        return JsValue()
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: Buffer): JsValue {
+        return JsValue(value)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: ReadFileResult): JsValue {
+        return value.toJS(globalObject)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: ReadResult): JsValue {
+        let obj = JsObject()
+        obj.set("bytesRead", JsValue(value.bytesRead))
+        return JsValue(obj)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: WriteResult): JsValue {
+        let obj = JsObject()
+        obj.set("bytesWritten", JsValue(value.bytesWritten))
+        return JsValue(obj)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: ReadPromiseResult): JsValue {
+        let obj = JsObject()
+        obj.set("bytesRead", JsValue(value.bytesRead))
+        obj.set("buffer", value.buffer)
+        return JsValue(obj)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: WritePromiseResult): JsValue {
+        let obj = JsObject()
+        obj.set("bytesWritten", JsValue(value.bytesWritten))
+        obj.set("buffer", value.buffer)
+        return JsValue(obj)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: StatOrNotFound): JsValue {
+        return value.toJS(globalObject)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: StringOrUndefined): JsValue {
+        return value.toJS(globalObject)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: Stats): JsValue {
+        return value.toJS(globalObject)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: StatFS): JsValue {
+        let obj = JsObject()
+        obj.set("type", JsValue(Int64(value.fstype)))
+        obj.set("bsize", JsValue(Int64(value.bsize)))
+        obj.set("blocks", JsValue(Int64(value.blocks)))
+        obj.set("bfree", JsValue(Int64(value.bfree)))
+        obj.set("bavail", JsValue(Int64(value.bavail)))
+        obj.set("files", JsValue(Int64(value.files)))
+        obj.set("ffree", JsValue(Int64(value.ffree)))
+        return JsValue(obj)
+    }
+
+    public static func from(globalObject: JsGlobalObject, value: ReaddirResult): JsValue {
+        let arr = ArrayList<JsValue>()
+        match (value.tag) {
+            case ReaddirTag.with_file_types =>
+                for (entry in value.withFileTypes) { arr.add(entry.toJS(globalObject)) }
+            case ReaddirTag.buffers =>
+                for (buf in value.buffers) { arr.add(JsValue(buf)) }
+            case ReaddirTag.files =>
+                for (file in value.files) { arr.add(JsValue(file)) }
+        }
+        return JsValue.array(arr)
     }
 }
 
@@ -592,6 +692,22 @@ public class ReadPromiseResult {
     }
 }
 
+/// ReadFile result with encoding-aware Buffer/string conversion
+/// 对应 Bun: Return.ReadFile
+public class ReadFileResult {
+    public var buffer: Buffer
+    public var encoding: Encoding
+
+    public init(buffer: Buffer, encoding: Encoding) {
+        this.buffer = buffer
+        this.encoding = encoding
+    }
+
+    public func toJS(globalObject: JsGlobalObject): JsValue {
+        return encoding.encodeToJS(globalObject, buffer.slice())
+    }
+}
+
 /// WritePromise result with bytesWritten and buffer
 /// 对应 Bun: Return.WritePromise
 public class WritePromiseResult {
@@ -727,7 +843,7 @@ public class NodeFS {
     // 对应 Bun: NodeFS.appendFile
     // ========================================================================
     public func appendFile(args: WriteFileArgs, flavor: Flavor): Maybe<Unit> {
-        let data = args.data.slice()
+        let data = args.data.slice(args.encoding)
         if (args.file.isFd) {
             var remaining = data
             while (remaining.size > 0) {
@@ -803,7 +919,7 @@ public class NodeFS {
     // 对应 Bun: NodeFS.write
     // ========================================================================
     public func write(args: WriteArgs, flavor: Flavor): Maybe<WriteResult> {
-        let data = args.buffer.slice()
+        let data = args.buffer.slice(args.encoding)
         let offset = Int64(args.offset)
         let length = Int64(args.length)
         let buf = if (offset > 0) { data[offset..] } else { data }
@@ -823,18 +939,18 @@ public class NodeFS {
     // readFile — 读取整个文件
     // 对应 Bun: NodeFS.readFile
     // ========================================================================
-    public func readFile(args: ReadFileArgs, flavor: Flavor): Maybe<Buffer> {
+    public func readFile(args: ReadFileArgs, flavor: Flavor): Maybe<ReadFileResult> {
         let result = match (args.path.isFd) {
             case true => NodeFsSystem.readFileFd(args.path.fd)
             case false => NodeFsSystem.readFile(args.path.path.slice())
         }
         if (result.isNone() && !args.path.isFd) {
-            return Maybe<Buffer>.err("ENOENT", "open", args.path.path.slice())
+            return Maybe<ReadFileResult>.err("ENOENT", "open", args.path.path.slice())
         }
         if (result.isSome()) {
-            return Maybe<Buffer>(Buffer(result.getOrThrow()))
+            return Maybe<ReadFileResult>(ReadFileResult(Buffer(result.getOrThrow()), args.encoding))
         }
-        return Maybe<Buffer>(Buffer(Array<UInt8>()))
+        return Maybe<ReadFileResult>(ReadFileResult(Buffer(Array<UInt8>()), args.encoding))
     }
 
     // ========================================================================
@@ -842,7 +958,7 @@ public class NodeFS {
     // 对应 Bun: NodeFS.writeFile
     // ========================================================================
     public func writeFile(args: WriteFileArgs, flavor: Flavor): Maybe<Unit> {
-        let data = args.data.slice()
+        let data = args.data.slice(args.encoding)
         if (args.file.isFd) {
             var remaining = data
             while (remaining.size > 0) {
@@ -1678,14 +1794,11 @@ public class Async {
 public class WorkPool {
     /// 在工作线程执行任务并返回 Promise
     public static func schedulePromise<T>(globalObject: JsGlobalObject, work: () -> Maybe<T>): JsValue {
-        let promise = JsPromise()
-        // 在 Cangjie 中使用协程模拟线程池
-        spawn {
-            let result = work()
-            // 在 JS 线程 resolve/reject
-            // TODO: promise.resolve(result.toJS(globalObject))
+        let result = work()
+        if (result.hasError) {
+            return JsValue(JsPromise.reject(result.error.toJS(globalObject)))
         }
-        return promise.toJsValue()
+        return JsValue(JsPromise.resolve(result.toJS(globalObject)))
     }
 }
 
@@ -1702,43 +1815,221 @@ public func mkdirp(path: String): Bool {
 // 所有方法通过 FFI 调用实际系统调用，此处为编译占位
 // ============================================================================
 public class NodeFsSystem {
-    public static func access(path: String, mode: UInt32): Bool { false }
-    public static func chmod(path: String, mode: UInt32): Bool { false }
-    public static func chown(path: String, uid: UInt32, gid: UInt32): Bool { false }
-    public static func close(fd: Int32): Unit {}
-    public static func copyFile(src: String, dest: String, flags: Int32): Int32 { -1 }
+    private static func okUnit(result: SysMaybe<Unit>): Bool {
+        match (result) {
+            case Ok(_) => return true
+            case Err(_) => return false
+        }
+    }
+
+    private static func unitCode(result: SysMaybe<Unit>): Int32 {
+        return if (okUnit(result)) { 0 } else { -1 }
+    }
+
+    private static func toStats(stat: PosixStat): Stats {
+        let atimeMs = Float64(stat.atimeSec) * 1000.0 + Float64(stat.atimeNsec) / 1000000.0
+        let mtimeMs = Float64(stat.mtimeSec) * 1000.0 + Float64(stat.mtimeNsec) / 1000000.0
+        let ctimeMs = Float64(stat.ctimeSec) * 1000.0 + Float64(stat.ctimeNsec) / 1000000.0
+        return Stats(stat.dev, stat.ino, UInt64(stat.mode), stat.nlink,
+                     UInt64(stat.uid), UInt64(stat.gid), stat.rdev, stat.size,
+                     stat.blksize, stat.blocks,
+                     atimeMs, mtimeMs, ctimeMs, ctimeMs)
+    }
+
+    private static func toEntryKind(kind: DirEntryType): EntryKind {
+        match (kind) {
+            case DirEntryType.File => return EntryKind.file
+            case DirEntryType.Directory => return EntryKind.directory
+            case DirEntryType.Symlink => return EntryKind.sym_link
+            case DirEntryType.Block => return EntryKind.block_device
+            case DirEntryType.Char => return EntryKind.character_device
+            case DirEntryType.Fifo => return EntryKind.named_pipe
+            case DirEntryType.Socket => return EntryKind.unix_domain_socket
+            case _ => return EntryKind.unknown
+        }
+    }
+
+    public static func access(path: String, mode: UInt32): Bool { okUnit(SysFs.access(path, Int64(mode))) }
+    public static func chmod(path: String, mode: UInt32): Bool { okUnit(SysFs.chmod(path, mode)) }
+    public static func chown(path: String, uid: UInt32, gid: UInt32): Bool { okUnit(SysImpl.chown(path, uid, gid)) }
+    public static func close(fd: Int32): Unit { let _ = SysFs.close(Int64(fd)) }
+
+    public static func copyFile(src: String, dest: String, flags: Int32): Int32 {
+        let data = readFile(src)
+        if (data.isNone()) { return -1 }
+        return writeFile(dest, data.getOrThrow(), UInt32(0o666))
+    }
+
     public static func cpRecursive(src: String, dest: String, force: Bool): Bool { false }
-    public static func fchmod(fd: Int32, mode: UInt32): Bool { false }
-    public static func fchown(fd: Int32, uid: UInt32, gid: UInt32): Bool { false }
-    public static func fdatasync(fd: Int32): Int32 { 0 }
-    public static func fstat(fd: Int32): ?Stats { None }
-    public static func fsync(fd: Int32): Int32 { 0 }
-    public static func ftruncate(fd: Int32, len: Int64): Int32 { 0 }
-    public static func futimes(fd: Int32, atime: Float64, mtime: Float64): Int32 { 0 }
+    public static func fchmod(fd: Int32, mode: UInt32): Bool { okUnit(SysImpl.fchmod(Int64(fd), mode)) }
+    public static func fchown(fd: Int32, uid: UInt32, gid: UInt32): Bool { okUnit(SysImpl.fchown(Int64(fd), uid, gid)) }
+    public static func fdatasync(fd: Int32): Int32 { -1 }
+
+    public static func fstat(fd: Int32): ?Stats {
+        match (SysImpl.fstat(Int64(fd))) {
+            case Ok(s) => return Some(toStats(s))
+            case Err(_) => return None
+        }
+    }
+
+    public static func fsync(fd: Int32): Int32 { unitCode(SysFs.fsync(Int64(fd))) }
+    public static func ftruncate(fd: Int32, len: Int64): Int32 { unitCode(SysFs.ftruncate(Int64(fd), len)) }
+    public static func futimes(fd: Int32, atime: Float64, mtime: Float64): Int32 { -1 }
     public static func lchown(path: String, uid: UInt32, gid: UInt32): Bool { false }
     public static func link(oldPath: String, newPath: String): Int32 { -1 }
-    public static func lstat(path: String): ?Stats { None }
-    public static func lutimes(path: String, atime: Float64, mtime: Float64): Int32 { 0 }
-    public static func mkdir(path: String, mode: UInt32): Int32 { -1 }
-    public static func mkdirRecursive(path: String, mode: UInt32): Bool { false }
+
+    public static func lstat(path: String): ?Stats {
+        match (SysImpl.lstat(path)) {
+            case Ok(s) => return Some(toStats(s))
+            case Err(_) => return None
+        }
+    }
+
+    public static func lutimes(path: String, atime: Float64, mtime: Float64): Int32 { -1 }
+    public static func mkdir(path: String, mode: UInt32): Int32 { unitCode(SysFs.mkdir(path, mode)) }
+    public static func mkdirRecursive(path: String, mode: UInt32): Bool { okUnit(DirHelper.mkdirRecursiveAt(FdUtils.atCwd(), path)) }
     public static func mkdtemp(prefix: String): ?String { None }
-    public static func open(path: String, flags: Int32, mode: UInt32): Int32 { -1 }
-    public static func readdir(path: String): Array<String> { Array<String>() }
-    public static func readdirWithTypes(path: String): Array<DirIteratorResult> { Array<DirIteratorResult>() }
-    public static func readFd(fd: Int32, buffer: Array<UInt8>, offset: Int64, length: Int64, position: Int64): Int64 { -1 }
-    public static func readFile(path: String): ?Array<UInt8> { None }
-    public static func readFileFd(fd: Int32): ?Array<UInt8> { None }
-    public static func readlink(path: String): ?String { None }
-    public static func realpath(path: String): ?String { None }
-    public static func rename(oldPath: String, newPath: String): Int32 { -1 }
-    public static func rmdir(path: String): Int32 { -1 }
-    public static func rmRecursive(path: String): Bool { false }
-    public static func stat(path: String): ?Stats { None }
+
+    public static func open(path: String, flags: Int32, mode: UInt32): Int32 {
+        match (SysFs.open(path, Int64(flags), mode)) {
+            case Ok(fd) => return Int32(fd)
+            case Err(_) => return -1
+        }
+    }
+
+    public static func readdir(path: String): Array<String> {
+        match (DirUtils.listDir(path)) {
+            case Err(_) => return Array<String>()
+            case Ok(entries) =>
+                let files = ArrayList<String>()
+                for (entry in entries) {
+                    files.add(entry.name)
+                }
+                return files.toArray()
+        }
+    }
+
+    public static func readdirWithTypes(path: String): Array<DirIteratorResult> {
+        match (DirUtils.listDir(path)) {
+            case Err(_) => return Array<DirIteratorResult>()
+            case Ok(entries) =>
+                let files = ArrayList<DirIteratorResult>()
+                for (entry in entries) {
+                    let result = DirIteratorResult()
+                    result.name = entry.name
+                    result.kind = toEntryKind(entry.entryType)
+                    files.add(result)
+                }
+                return files.toArray()
+        }
+    }
+
+    public static func readFd(fd: Int32, buffer: Array<UInt8>, offset: Int64, length: Int64, position: Int64): Int64 {
+        if (length <= 0 || offset < 0 || offset >= Int64(buffer.size)) { return 0 }
+        let maxLen = Int64(buffer.size) - offset
+        let readLen = if (length < maxLen) { length } else { maxLen }
+        let temp = Array<UInt8>(readLen, { _ => UInt8(0) })
+        let readResult = if (position >= 0) {
+            SysImpl.pread(Int64(fd), temp.pointer(), UIntNative(readLen), position)
+        } else {
+            SysFs.read(Int64(fd), temp)
+        }
+        match (readResult) {
+            case Err(_) => return -1
+            case Ok(n) =>
+                for (i in 0..n) {
+                    buffer[offset + i] = temp[i]
+                }
+                return n
+        }
+    }
+
+    public static func readFile(path: String): ?Array<UInt8> {
+        match (SysFile.openRead(path)) {
+            case Err(_) => return None
+            case Ok(file) =>
+                let data = file.readToEnd()
+                let _ = file.close()
+                match (data) {
+                    case Ok(bytes) => return Some(bytes)
+                    case Err(_) => return None
+                }
+        }
+    }
+
+    public static func readFileFd(fd: Int32): ?Array<UInt8> {
+        let file = SysFile.fromFd(Int64(fd))
+        match (file.readToEnd()) {
+            case Ok(bytes) => return Some(bytes)
+            case Err(_) => return None
+        }
+    }
+
+    public static func readlink(path: String): ?String {
+        match (SysFs.readlink(path)) {
+            case Ok(target) => return Some(target)
+            case Err(_) => return None
+        }
+    }
+
+    public static func realpath(path: String): ?String {
+        match (SysFs.realpath(path)) {
+            case Ok(resolved) => return Some(resolved)
+            case Err(_) => return None
+        }
+    }
+
+    public static func rename(oldPath: String, newPath: String): Int32 { unitCode(SysFs.rename(oldPath, newPath)) }
+    public static func rmdir(path: String): Int32 { unitCode(SysFs.rmdir(path)) }
+    public static func rmRecursive(path: String): Bool { okUnit(DirHelper.deleteTree(FdUtils.atCwd(), path)) }
+
+    public static func stat(path: String): ?Stats {
+        match (SysImpl.stat(path)) {
+            case Ok(s) => return Some(toStats(s))
+            case Err(_) => return None
+        }
+    }
+
     public static func statfs(path: String): ?StatFS { None }
-    public static func symlink(target: String, path: String): Int32 { -1 }
-    public static func truncate(path: String, len: Int64): Int32 { 0 }
-    public static func unlink(path: String): Int32 { -1 }
-    public static func utimes(path: String, atime: Float64, mtime: Float64): Int32 { 0 }
-    public static func writeFd(fd: Int32, buffer: Array<UInt8>, offset: Int64, length: Int64, position: Int64): Int64 { -1 }
-    public static func writeFile(path: String, data: Array<UInt8>, mode: UInt32): Int32 { -1 }
+    public static func symlink(target: String, path: String): Int32 { unitCode(SysFs.symlink(target, path)) }
+
+    public static func truncate(path: String, len: Int64): Int32 {
+        match (SysFs.open(path, OpenFlags.WRONLY, UInt32(0))) {
+            case Err(_) => return -1
+            case Ok(fd) =>
+                let rc = unitCode(SysFs.ftruncate(fd, len))
+                let _ = SysFs.close(fd)
+                return rc
+        }
+    }
+
+    public static func unlink(path: String): Int32 { unitCode(SysFs.unlink(path)) }
+    public static func utimes(path: String, atime: Float64, mtime: Float64): Int32 { -1 }
+
+    public static func writeFd(fd: Int32, buffer: Array<UInt8>, offset: Int64, length: Int64, position: Int64): Int64 {
+        if (length <= 0 || offset < 0 || offset >= Int64(buffer.size)) { return 0 }
+        let maxLen = Int64(buffer.size) - offset
+        let writeLen = if (length < maxLen) { length } else { maxLen }
+        let temp = Array<UInt8>(writeLen, { i => buffer[offset + i] })
+        let writeResult = if (position >= 0) {
+            SysImpl.pwrite(Int64(fd), temp.pointer(), UIntNative(writeLen), position)
+        } else {
+            SysFs.write(Int64(fd), temp)
+        }
+        match (writeResult) {
+            case Ok(n) => return n
+            case Err(_) => return -1
+        }
+    }
+
+    public static func writeFile(path: String, data: Array<UInt8>, mode: UInt32): Int32 {
+        match (SysFs.open(path, OpenFlags.WRONLY | OpenFlags.CREAT | OpenFlags.TRUNC, mode)) {
+            case Err(_) => return -1
+            case Ok(fd) =>
+                let file = SysFile.fromFd(fd)
+                let result = file.writeAll(data)
+                let _ = file.close()
+                return unitCode(result)
+        }
+    }
 }

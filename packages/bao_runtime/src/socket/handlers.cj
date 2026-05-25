@@ -6,6 +6,8 @@ package bao_runtime.socket
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import bao_uws_sys.*
+import bao_sys.*
 
 // ============================================================================
 // 二进制数据类型
@@ -57,6 +59,30 @@ public enum SocketMode {
 /// Socket 事件处理器
 /// 管理所有 JS 回调的生命周期: onOpen, onClose, onData, onWritable 等
 /// 对应 Zig: const Handlers = @This()
+private let SOCKET_GROUP_NATIVE_SIZE: UIntNative = UIntNative(88)
+
+private func allocateSocketGroupStorage(): CPointer<Unit> {
+    let ptr = unsafe { malloc(SOCKET_GROUP_NATIVE_SIZE) }
+    if (!ptr.isNull()) {
+        unsafe { memset(ptr, 0, SOCKET_GROUP_NATIVE_SIZE) }
+    }
+    return ptr
+}
+
+@C
+foreign func bao_us_socket_dispatch_vtable(): CPointer<Unit>
+
+private func initSocketGroupIfPossible(groupStorage: CPointer<Unit>): Unit {
+    if (groupStorage.isNull()) {
+        return
+    }
+    let loop = bao_uws_sys.PosixLoop.get()
+    if (loop.isNull()) {
+        return
+    }
+    bao_uws_sys.SocketGroup.initGroup(groupStorage, loop, unsafe { bao_us_socket_dispatch_vtable() }, CPointer<Unit>())
+}
+
 public class Handlers {
     /// 连接打开回调
     public var onOpen: JsValue
@@ -90,11 +116,17 @@ public class Handlers {
     public var mode: SocketMode
     /// 关联的 Promise
     public var promise: JsValue
+    /// Native uWS socket group used for client connects/adopted fds.
+    public var socketGroup: bao_uws_sys.SocketGroup
+    private var socketGroupStorage: CPointer<Unit>
 
     public init(vm: VirtualMachine, globalObject: JsObject, mode: SocketMode) {
         this.vm = vm
         this.globalObject = globalObject
         this.mode = mode
+        this.socketGroupStorage = allocateSocketGroupStorage()
+        this.socketGroup = bao_uws_sys.SocketGroup(this.socketGroupStorage)
+        initSocketGroupIfPossible(this.socketGroupStorage)
         this.onOpen = JsValue.UNDEFINED
         this.onClose = JsValue.UNDEFINED
         this.onData = JsValue.UNDEFINED
@@ -258,6 +290,12 @@ public class Handlers {
     /// 释放资源
     /// 对应 Zig: deinit
     public func deinit(): Unit {
+        if (!socketGroupStorage.isNull()) {
+            socketGroup.deinit()
+            unsafe { free(socketGroupStorage) }
+            socketGroupStorage = CPointer<Unit>()
+            socketGroup = bao_uws_sys.SocketGroup(CPointer<Unit>())
+        }
         onOpen = JsValue.UNDEFINED
         onClose = JsValue.UNDEFINED
         onData = JsValue.UNDEFINED
