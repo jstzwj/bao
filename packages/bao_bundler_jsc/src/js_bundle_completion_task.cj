@@ -4,6 +4,7 @@ package bao_bundler_jsc
 
 import bao_jsc.*
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // JSBundleCompletionTask - JS Bundle 完成任务

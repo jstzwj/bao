@@ -14,24 +14,7 @@ import bao_sys.*
 // 严格翻译自: src/cli/bunfig.zig (Bunfig, Parser)
 // ============================================================================
 
-/// 日志级别
-/// 严格翻译自: src/cli/bunfig.zig loadLogLevel
-public enum LogLevel {
-    | Debug
-    | Error
-    | Warn
-    | Info
-
-    public static func fromString(s: String): ?LogLevel {
-        match (s.toLower()) {
-            case "debug" => Some(LogLevel.Debug)
-            case "error" => Some(LogLevel.Error)
-            case "warn" => Some(LogLevel.Warn)
-            case "info" => Some(LogLevel.Info)
-            case _ => None
-        }
-    }
-}
+/// 日志级别 (定义在 logger.cj 中)
 
 /// 目标平台
 /// 严格翻译自: src/options.zig Target

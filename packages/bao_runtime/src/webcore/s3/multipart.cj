@@ -80,7 +80,7 @@ private func parseUploadId(body: String): ?String {
                 case Some(endRel) =>
                     let end = start + Int64(endRel)
                     let uploadId = body[start..end]
-                    if (uploadId.size == 0 || uploadId.size > MAX_UPLOAD_ID_LEN) { return None }
+                    if (uploadId.size == 0 || uploadId.size > 2000) { return None }
                     Some(uploadId)
                 case None => None
             }

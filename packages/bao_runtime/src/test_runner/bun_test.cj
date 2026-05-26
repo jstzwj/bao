@@ -8,6 +8,8 @@ import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
 import bao_event_loop.Timespec
+import bao_hash.WyHash
+import bao_path.Path
 
 // ========== 公共辅助函数 ==========
 
@@ -45,10 +47,27 @@ public enum Signature {
     | scopeFunctions(ScopeFunctions)
     | str(String)
 
+    public operator func ==(other: Signature): Bool {
+        match (this) {
+            case scopeFunctions(a) => match (other) {
+                case scopeFunctions(b) => a == b
+                case _ => false
+            }
+            case str(a) => match (other) {
+                case str(b) => a == b
+                case _ => false
+            }
+        }
+    }
+
+    public operator func !=(other: Signature): Bool {
+        !(this == other)
+    }
+
     /// 格式化为字符串
     public func format(): String {
         match (this) {
-            | scopeFunctions(sf) => return sf.format()
+            case scopeFunctions(sf) => return sf.format()
             case str(s) => return s
         }
     }
@@ -100,6 +119,20 @@ public enum GenericHookTag {
     | afterEach
     | afterAll
     | onTestFinished
+
+    public operator func ==(other: GenericHookTag): Bool {
+        match (this) {
+            case beforeAll => match (other) { case beforeAll => true; case _ => false }
+            case beforeEach => match (other) { case beforeEach => true; case _ => false }
+            case afterEach => match (other) { case afterEach => true; case _ => false }
+            case afterAll => match (other) { case afterAll => true; case _ => false }
+            case onTestFinished => match (other) { case onTestFinished => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: GenericHookTag): Bool {
+        !(this == other)
+    }
 
     /// 转换为DescribeScope的HookTag
     public func asHookTag(): ?DescribeScope.HookTag {
@@ -440,7 +473,10 @@ public class BunTestRoot {
     /// 否则返回当前活跃的BunTest文件的可变引用。
     public func getActiveFileUnlessInPreload(vm: Any): ?BunTest {
         // VirtualMachine type not accessible from sub-package
-        return activeFile?.get()
+        if (let Some(ptr) <- activeFile) {
+            return ptr.get()
+        }
+        return None
     }
 
     /// 克隆活跃文件
@@ -526,7 +562,7 @@ public class BunTest {
 
     public func deinit() {
         // 如果定时器还在激活状态，需要移除以防止UAF
-        if (timer.state == EventLoopTimerState.active) {
+        if (timer.state == TimerState.ACTIVE) {
             vmTimer().remove(ref: timer)
         }
 
@@ -608,7 +644,7 @@ public class BunTest {
         if (inRunLoop) { return }
         inRunLoop = true
 
-        var minTimeout = Timespec.epoch
+        var minTimeout = Timespec.EPOCH
 
         while (let Some(result) <- resultQueue.readItem() ){
             globalThis.clearTerminationException()
@@ -621,7 +657,12 @@ public class BunTest {
 
             match (stepResult) {
                 case waiting(timeout) =>
-                    minTimeout = Timespec.minIgnoreEpoch(a: minTimeout, b: timeout)
+                    // minIgnoreEpoch: pick the earlier non-epoch timeout
+                    if (minTimeout.isZero()) {
+                        minTimeout = timeout
+                    } else if (!timeout.isZero() && timeout.lessThan(other: minTimeout)) {
+                        minTimeout = timeout
+                    }
                 case complete =>
                     if (advance(globalThis: globalThis) == AdvanceResult.exit) {
                         inRunLoop = false
@@ -641,12 +682,14 @@ public class BunTest {
     /// 遗憾的是无法取消不必要的定时器。
     public func updateMinTimeout(globalThis: JSGlobalObject, minTimeout: Timespec) {
         // 只在新超时早于当前超时时更新
-        if (Timespec.orderIgnoreEpoch(a: minTimeout, b: timer.next) == Ordering.lt) {
-            if (timer.next != Timespec.epoch) {
+        // orderIgnoreEpoch: if minTimeout is not epoch and minTimeout < timer.next
+        let shouldUpdate = !minTimeout.isZero() && minTimeout.lessThan(other: timer.next)
+        if (shouldUpdate) {
+            if (!timer.next.isZero()) {
                 vmTimer().remove(ref: timer)
             }
             timer.next = minTimeout
-            if (timer.next != Timespec.epoch) {
+            if (!timer.next.isZero()) {
                 vmTimer().insert(ref: timer)
             }
         }
@@ -683,7 +726,7 @@ public class BunTest {
                     if (let Some(seed) <- reporter.jest.randomizeSeed) {
                         let path = reporter.jest.files[fileId].source.path.text
                         perFilePrng = DefaultPrng(
-                            seed: WyHash.hash(data: Path.basename(path: path)).wrappingAdd(UInt64(seed))
+                            seed: WyHash.hash(s: Path.basename(path: path)) + UInt64(seed)
                         )
                     }
                 }
@@ -768,7 +811,7 @@ public class BunTest {
         while (true) {
             if (!result.isEmpty()) {
                 if (let Some(promise) <- result.asPromise()) {
-                    if (promise.status() == PromiseStatus.rejected) {
+                    if (promise.status() == PromiseStatus.Rejected) {
                         promise.setHandled()
                     }
                 }
@@ -885,6 +928,18 @@ public enum TestPhase {
     | execution
     | done
 
+    public operator func ==(other: TestPhase): Bool {
+        match (this) {
+            case collection => match (other) { case collection => true; case _ => false }
+            case execution => match (other) { case execution => true; case _ => false }
+            case done => match (other) { case done => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: TestPhase): Bool {
+        !(this == other)
+    }
+
     public func toString(): String {
         match (this) {
             case collection => return "collection"
@@ -937,7 +992,7 @@ public enum RefDataValue {
     public func entry(buntest: BunTest): ?ExecutionEntry {
         match (this) {
             case execution =>
-                if (buntest.phase != execution) { return None }
+                if (buntest.phase != TestPhase.execution) { return None }
                 let result = buntest.execution.getCurrentAndValidExecutionSequence(data: this)
                 if (result.isNone()) { return None }
                 let (sequence, _) = result.getOrThrow()
@@ -1040,6 +1095,19 @@ public enum HandleUncaughtExceptionResult {
     | showHandledError               // 显示已处理的错误
     | showUnhandledErrorBetweenTests // 显示测试间的未处理错误
     | showUnhandledErrorInDescribe   // 显示describe中的未处理错误
+
+    public operator func ==(other: HandleUncaughtExceptionResult): Bool {
+        match (this) {
+            case hideError => match (other) { case hideError => true; case _ => false }
+            case showHandledError => match (other) { case showHandledError => true; case _ => false }
+            case showUnhandledErrorBetweenTests => match (other) { case showUnhandledErrorBetweenTests => true; case _ => false }
+            case showUnhandledErrorInDescribe => match (other) { case showUnhandledErrorInDescribe => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: HandleUncaughtExceptionResult): Bool {
+        !(this == other)
+    }
 }
 
 // ========== ResultQueue - 结果队列 ==========
@@ -1055,8 +1123,8 @@ public class ResultQueue {
     }
 
     public func readItem(): ?RefDataValue {
-        if (items.size() > 0) {
-            return items.removeAt(0)
+        if (items.size > 0) {
+            return Some(items.removeAt(0))
         }
         return None
     }
@@ -1075,7 +1143,7 @@ public enum StepResult {
 
     /// 默认值
     public init() {
-        this = .waiting(Timespec.epoch)
+        this = .waiting(Timespec.EPOCH)
     }
 }
 
@@ -1085,6 +1153,17 @@ public enum StepResult {
 public enum AdvanceResult {
     | cont  // 继续到下一阶段
     | exit  // 退出运行循环
+
+    public operator func ==(other: AdvanceResult): Bool {
+        match (this) {
+            case cont => match (other) { case cont => true; case _ => false }
+            case exit => match (other) { case exit => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: AdvanceResult): Bool {
+        !(this == other)
+    }
 }
 
 // ========== ConcurrentMode - 并发模式 ==========
@@ -1094,6 +1173,18 @@ public enum ConcurrentMode {
     | inherit  // 继承父级
     | no       // 串行
     | yes      // 并发
+
+    public operator func ==(other: ConcurrentMode): Bool {
+        match (this) {
+            case inherit => match (other) { case inherit => true; case _ => false }
+            case no => match (other) { case no => true; case _ => false }
+            case yes => match (other) { case yes => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: ConcurrentMode): Bool {
+        !(this == other)
+    }
 }
 
 // ========== BaseScopeCfg - 基础作用域配置 ==========
@@ -1152,6 +1243,20 @@ public enum ScopeMode {
     | failing
     | filteredOut
 
+    public operator func ==(other: ScopeMode): Bool {
+        match (this) {
+            case normal => match (other) { case normal => true; case _ => false }
+            case skip => match (other) { case skip => true; case _ => false }
+            case todo => match (other) { case todo => true; case _ => false }
+            case failing => match (other) { case failing => true; case _ => false }
+            case filteredOut => match (other) { case filteredOut => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: ScopeMode): Bool {
+        !(this == other)
+    }
+
     public func toString(): String {
         match (this) {
             case normal => return "normal"
@@ -1170,6 +1275,18 @@ public enum OnlyMode {
     | no
     | contains
     | yes
+
+    public operator func ==(other: OnlyMode): Bool {
+        match (this) {
+            case no => match (other) { case no => true; case _ => false }
+            case contains => match (other) { case contains => true; case _ => false }
+            case yes => match (other) { case yes => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: OnlyMode): Bool {
+        !(this == other)
+    }
 }
 
 // ========== BaseScope - 基础作用域 ==========
@@ -1319,11 +1436,11 @@ public class DescribeScope {
 
     /// 获取钩子条目列表
     public func getHookEntries(tag: HookTag): ArrayList<ExecutionEntry> {
-        switch tag {
-        case beforeAll => return beforeAll
-        case beforeEach => return beforeEach
-        case afterEach => return afterEach
-        case afterAll => return afterAll
+        match (tag) {
+            case beforeAll => return beforeAll
+            case beforeEach => return beforeEach
+            case afterEach => return afterEach
+            case afterAll => return afterAll
         }
     }
 
@@ -1355,7 +1472,7 @@ public class ExecutionEntry {
     public var callback: ?JsValue = None
     public var timeout: UInt32 = 0
     public var hasDoneParameter: Bool = false
-    public var timespec: Timespec = Timespec.epoch
+    public var timespec: Timespec = Timespec.EPOCH
     public var addedInPhase: AddedInPhase = AddedInPhase.preload
     public var retryCount: UInt32 = 0
     public var repeatCount: UInt32 = 0
@@ -1388,13 +1505,16 @@ public class ExecutionEntry {
 
     /// 评估超时
     public func evaluateTimeout(sequence: ExecutionSequence, now: Timespec): Bool {
-        if (!timespec.isEpoch() && timespec.order(other: now) == lt) {
+        if (!timespec.isZero() && timespec.lessThan(other: now)) {
             // 超时
-            let isTestEntry = sequence.testEntry?.base == self.base
+            let isTestEntry = match (sequence.testEntry) {
+                case Some(entry) => entry.base === self.base
+                case None => false
+            }
             if (isTestEntry) {
-                sequence.result = hasDoneParameter ? .failBecauseTimeoutWithDoneCallback : .failBecauseTimeout
+                sequence.result = hasDoneParameter ? Result.failBecauseTimeoutWithDoneCallback : Result.failBecauseTimeout
             } else {
-                sequence.result = hasDoneParameter ? .failBecauseHookTimeoutWithDoneCallback : .failBecauseHookTimeout
+                sequence.result = hasDoneParameter ? Result.failBecauseHookTimeoutWithDoneCallback : Result.failBecauseHookTimeout
             }
             sequence.maybeSkip = true
             return true
@@ -1417,17 +1537,17 @@ public enum TestScheduleEntry {
 
     /// 销毁
     public func deinit(gpa: Allocator) {
-        switch this {
-        | describe(scope) => scope.destroy(gpa => gpa)
-        case testCallback(entry) => entry.destroy(gpa => gpa)
+        match (this) {
+            case describe(scope) => scope.destroy(gpa: gpa)
+            case testCallback(entry) => entry.destroy(gpa: gpa)
         }
     }
 
     /// 获取基础作用域
     public func base(): BaseScope {
-        switch this {
-        case describe(scope) => return scope.base
-        case testCallback(entry) => return entry.base
+        match (this) {
+            case describe(scope) => return scope.base
+            case testCallback(entry) => return entry.base
         }
     }
 }
@@ -1450,8 +1570,51 @@ public type ScopeFunctionsType = ScopeFunctions
 public type OrderType = Order
 public type DebugType = Debug
 
+/// 事件循环定时器管理桩
+public class EventLoopTimers {
+    public init() {}
+
+    public func remove(ref: EventLoopTimer): Unit {
+        // stub - should interact with VM timer heap
+    }
+
+    public func insert(ref: EventLoopTimer): Unit {
+        // stub - should interact with VM timer heap
+    }
+}
+
 /// 获取VM定时器
 public func vmTimer(): EventLoopTimers {
     // VirtualMachine type not accessible from sub-package
     return EventLoopTimers()
+}
+
+/// 默认PRNG桩
+public class DefaultPrng {
+    public var seed: UInt64 = 0
+
+    public init() {}
+
+    public init(seed: UInt64) {
+        this.seed = seed
+    }
+}
+
+/// 命令行报告器桩
+/// 完整实现在 bao_cli 中
+public class CommandLineReporter {
+    public var jest: Jest
+    public var reporters: ReporterFlags = ReporterFlags()
+    public var lastPrintedDot: Bool = false
+
+    public init() {
+        this.jest = Jest()
+    }
+}
+
+/// 报告器标志
+public class ReporterFlags {
+    public var dots: Bool = false
+
+    public init() {}
 }

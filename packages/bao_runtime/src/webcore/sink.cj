@@ -135,20 +135,20 @@ public class SinkVTable {
     public static func wrap<T>(handler: T): SinkVTable where T <: SinkHandler {
         // 创建 VTable, 每个函数通过类型擦除调用 SinkHandler 方法
         SinkVTable(
-            connect: { (ptr: UIntNative, signal: StreamSignal): ?SyscallError =>
+            connect: { ptr: UIntNative, signal: StreamSignal =>
                 // 恢复类型化引用并调用 handler 方法
                 handler.connect(signal)
             },
-            write: { (ptr: UIntNative, data: StreamResult): StreamResultWritable =>
+            write: { ptr: UIntNative, data: StreamResult =>
                 handler.write(data)
             },
-            writeLatin1: { (ptr: UIntNative, data: StreamResult): StreamResultWritable =>
+            writeLatin1: { ptr: UIntNative, data: StreamResult =>
                 handler.writeLatin1(data)
             },
-            writeUTF16: { (ptr: UIntNative, data: StreamResult): StreamResultWritable =>
+            writeUTF16: { ptr: UIntNative, data: StreamResult =>
                 handler.writeUTF16(data)
             },
-            end: { (ptr: UIntNative, err: ?SyscallError): ?SyscallError =>
+            end: { ptr: UIntNative, err: ?SyscallError =>
                 handler.end(err)
             }
         )
@@ -208,7 +208,7 @@ public class Sink {
 
     /// init — 初始化 (initWithType 的别名)
     /// 对应 Bun: init<T: SinkHandler>() (Sink.rs:173-177)
-    public static func init<T>(handler: T): Sink where T <: SinkHandler {
+    public static func `init`<T>(handler: T): Sink where T <: SinkHandler {
         return initWithType<T>(handler)
     }
 
@@ -557,35 +557,35 @@ public class FromJsResult {
 public interface JsSinkType {
     /// 名称
     /// 对应 Bun: JsSinkType::NAME
-    prop name: String { get }
+    prop name: String
 
     /// 是否有 construct 声明
     /// 对应 Bun: @hasDecl(SinkType, "construct")
-    prop hasConstruct: Bool { get }
+    prop hasConstruct: Bool
 
     /// 是否有 signal 字段
     /// 对应 Bun: @hasField(SinkType, "signal")
-    prop hasSignal: Bool { get }
+    prop hasSignal: Bool
 
     /// 是否有 done 字段
     /// 对应 Bun: @hasField(SinkType, "done")
-    prop hasDone: Bool { get }
+    prop hasDone: Bool
 
     /// 是否有 flushFromJS 声明
     /// 对应 Bun: @hasDecl(SinkType, "flushFromJS")
-    prop hasFlushFromJs: Bool { get }
+    prop hasFlushFromJs: Bool
 
     /// 是否有 protectJSWrapper 声明
     /// 对应 Bun: @hasDecl(SinkType, "protectJSWrapper")
-    prop hasProtectJsWrapper: Bool { get }
+    prop hasProtectJsWrapper: Bool
 
     /// 是否有 updateRef 声明
     /// 对应 Bun: @hasDecl(SinkType, "updateRef")
-    prop hasUpdateRef: Bool { get }
+    prop hasUpdateRef: Bool
 
     /// 是否有 getFd 声明
     /// 对应 Bun: @hasDecl(SinkType, "getFd")
-    prop hasGetFd: Bool { get }
+    prop hasGetFd: Bool
 
     /// 内存开销
     /// 对应 Bun: JsSinkType::memory_cost()
@@ -667,14 +667,14 @@ public interface JsSinkType {
 /// JsSinkType 的默认实现, 各 SinkType 可继承并覆盖
 /// 对应 Bun: JsSinkType 默认方法体
 public class DefaultJsSinkType <: JsSinkType {
-    public prop name: String { get => "Sink" }
-    public prop hasConstruct: Bool { get => false }
-    public prop hasSignal: Bool { get => false }
-    public prop hasDone: Bool { get => false }
-    public prop hasFlushFromJs: Bool { get => false }
-    public prop hasProtectJsWrapper: Bool { get => false }
-    public prop hasUpdateRef: Bool { get => false }
-    public prop hasGetFd: Bool { get => false }
+    public prop name: String { get() { "Sink" } }
+    public prop hasConstruct: Bool { get() { false } }
+    public prop hasSignal: Bool { get() { false } }
+    public prop hasDone: Bool { get() { false } }
+    public prop hasFlushFromJs: Bool { get() { false } }
+    public prop hasProtectJsWrapper: Bool { get() { false } }
+    public prop hasUpdateRef: Bool { get() { false } }
+    public prop hasGetFd: Bool { get() { false } }
 
     public func memoryCost(): Int64 { return 0 }
     public func finalize(): Unit {}
@@ -882,7 +882,7 @@ public class JSSinkHelper {
 
         // 保护 JS 包装器, 防止异步操作期间被 GC
         if (sink.hasProtectJsWrapper && sink.pendingStateIsPending()) {
-            sink.protectJsWrapper(global, frame.this())
+            sink.protectJsWrapper(global, frame.`this`())
         }
 
         return result
@@ -966,15 +966,15 @@ public class SinkSignal<T> where T <: JsSinkAbi {
     /// 对应 Bun: SinkSignal::init() (Sink.rs:699-733)
     public static func `init`(cpp: JsValue): StreamSignal {
         let vtable = SignalVTable(
-            onClose: { (err: ?SyscallError): Unit =>
+            onClose: { err: ?SyscallError =>
                 // onClose: 调用 T.onCloseExtern(cpp, JsValue.UNDEFINED)
                 T.onCloseExtern(cpp, JsValue.undefined())
             },
-            onReady: { (amount: ?BlobSizeType, offset: ?BlobSizeType): Unit =>
+            onReady: { amount: ?BlobSizeType, offset: ?BlobSizeType =>
                 // onReady: 调用 T.onReadyExtern(cpp, JsValue.UNDEFINED, JsValue.UNDEFINED)
                 T.onReadyExtern(cpp, JsValue.undefined(), JsValue.undefined())
             },
-            onStart: { (): Unit => }
+            onStart: { => }
         )
         return StreamSignal(vtable)
     }
@@ -1125,7 +1125,7 @@ public class CallFrame {
     }
 
     /// 获取 this
-    public func this(): JsValue {
+    public func `this`(): JsValue {
         return thisValue
     }
 

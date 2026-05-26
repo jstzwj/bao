@@ -307,19 +307,34 @@ function destroyer(stream, err) {
     err = $makeAbortError();
   }
 
-  // TODO: Remove isRequest branches.
+  // Server request handling: null out socket and destroy
   if (isServerRequest(stream)) {
     stream.socket = null;
     stream.destroy(err);
   } else if (isRequest(stream)) {
-    stream.abort();
+    // Legacy HTTP request: abort it, propagating the error if possible
+    if (typeof stream.destroy === "function") {
+      stream.destroy(err);
+    } else {
+      stream.abort();
+    }
   } else if (isRequest(stream.req)) {
-    stream.req.abort();
+    // Legacy HTTP response with a request reference
+    if (typeof stream.req.destroy === "function") {
+      stream.req.destroy(err);
+    } else {
+      stream.req.abort();
+    }
   } else if (typeof stream.destroy === "function") {
     stream.destroy(err);
   } else if (typeof stream.close === "function") {
-    // TODO: Don't lose err?
-    stream.close();
+    // Pass the error via callback-style close if supported, otherwise
+    // emit the error before closing to avoid silently swallowing it.
+    if (err) {
+      emitErrorCloseLegacy(stream, err);
+    } else {
+      stream.close();
+    }
   } else if (err) {
     ProcessNextTick(emitErrorCloseLegacy, stream, err);
   } else {

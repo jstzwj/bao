@@ -11,6 +11,19 @@ public enum EventLoopTimerState {
     | ACTIVE
     | CANCELLED
     | FIRED
+
+    public operator func ==(other: EventLoopTimerState): Bool {
+        match (this) {
+            case PENDING => match (other) { case PENDING => true; case _ => false }
+            case ACTIVE => match (other) { case ACTIVE => true; case _ => false }
+            case CANCELLED => match (other) { case CANCELLED => true; case _ => false }
+            case FIRED => match (other) { case FIRED => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: EventLoopTimerState): Bool {
+        !(this == other)
+    }
 }
 
 // ========== TimerObjectInternalsFlags 桩 ==========

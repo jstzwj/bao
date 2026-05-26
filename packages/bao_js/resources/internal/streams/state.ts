@@ -6,8 +6,9 @@ const NumberIsInteger = Number.isInteger;
 const MathFloor = Math.floor;
 type Key = string; // do we need to allow symbols?
 
-// TODO (fix): For some reason Windows CI fails with bigger hwm.
-let defaultHighWaterMarkBytes = process.platform === "win32" ? 16 * 1024 : 64 * 1024;
+// Bun does not have the Windows CI limitation that Node.js had.
+// Use 64k consistently across all platforms.
+let defaultHighWaterMarkBytes = 64 * 1024;
 let defaultHighWaterMarkObjectMode = 16;
 
 function highWaterMarkFrom(

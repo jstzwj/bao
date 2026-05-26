@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toSatisfy() - 检查值是否满足自定义谓词
 /// 用法: expect(received).toSatisfy(predicate)
 public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -45,7 +45,7 @@ public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
 
     if (not) {
         let signature = Expect.getSignature(matcherName: "toSatisfy", args: "<green>expected<r>", not: true)

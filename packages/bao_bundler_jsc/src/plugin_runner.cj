@@ -4,7 +4,7 @@ package bao_bundler_jsc
 
 import bao_jsc.*
 import bao_core.*
-import bao_bundler.*
+import bao_bundler.{PluginResolveResult, PluginLoadResult}
 
 // ============================================================================
 // MacroJSCtx - 宏 JS 上下文类型别名
@@ -56,8 +56,9 @@ public class PluginRunner {
     /// 提取命名空间
     /// 严格翻译自 Bun: PluginRunner.extractNamespace(specifier)
     public static func extractNamespace(specifier: String): String {
-        let colon = specifier.indexOf(':')
-        if (colon < 0) { return "" }
+        let colonOpt = specifier.indexOf(':')
+        if (colonOpt.isNone()) { return "" }
+        let colon = colonOpt.getOrThrow()
 
         if (isWindowsDriveSpecifier(specifier, colon)) {
             return ""
@@ -69,15 +70,17 @@ public class PluginRunner {
     /// 判断是否可能是插件
     /// 严格翻译自 Bun: PluginRunner.couldBePlugin(specifier)
     public static func couldBePlugin(specifier: String): Bool {
-        let lastDot = specifier.lastIndexOf('.')
-        if (lastDot >= 0 && lastDot + 1 < specifier.size) {
-            let firstExt = specifier[lastDot + 1]
-            if (isAsciiLetter(firstExt) || firstExt > UInt8(127)) {
-                return true
+        let lastDotOpt = specifier.lastIndexOf('.')
+        if (let Some(lastDot) <- lastDotOpt) {
+            if (lastDot + 1 < specifier.size) {
+                let firstExt = specifier[lastDot + 1]
+                if (isAsciiLetter(firstExt) || firstExt > UInt8(127)) {
+                    return true
+                }
             }
         }
 
-        return !isAbsolutePath(specifier) && specifier.indexOf(':') >= 0
+        return !isAbsolutePath(specifier) && specifier.indexOf(':').isSome()
     }
 
     /// 解析时回调

@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toContainAnyKeys() - 检查对象是否包含任一指定键
 /// 用法: expect(received).toContainAnyKeys(expected)
 public func toContainAnyKeys(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -51,7 +51,7 @@ public func toContainAnyKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
     if (not) {

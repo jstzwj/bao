@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveBeenNthCalledWith() - 检查mock函数第N次调用的参数
 /// 用法: expect(mockFn).toHaveBeenNthCalledWith(n, ...expected)
 public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.arguments()
@@ -19,7 +19,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenNthCalledWith", args: "<green>n<r>, <green>...expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nMatcher error: <red>received<r> value must be a mock function\nReceived: {f}",
@@ -67,7 +67,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
 
     let expectedArgsSlice = arguments.slice(from: 1)
     let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: expectedArgsSlice.size)

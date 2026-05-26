@@ -76,8 +76,8 @@ function duplexify(body, name?) {
 
     if (isIterable(value)) {
       return from(Duplexify, value, {
-        // TODO (ronag): highWaterMark?
         objectMode: true,
+        highWaterMark: 1,
         write,
         final,
         destroy,
@@ -101,8 +101,8 @@ function duplexify(body, name?) {
       );
 
       return (d = new Duplexify({
-        // TODO (ronag): highWaterMark?
         objectMode: true,
+        highWaterMark: 1,
         readable: false,
         write,
         final(cb) {
@@ -128,8 +128,8 @@ function duplexify(body, name?) {
 
   if (isIterable(body)) {
     return from(Duplexify, body, {
-      // TODO (ronag): highWaterMark?
       objectMode: true,
+      highWaterMark: 1,
       writable: false,
     });
   }
@@ -258,11 +258,14 @@ function _duplexify(pair) {
     }
   }
 
-  // TODO(ronag): Avoid double buffering.
-  // Implement Writable/Readable/Duplex traits.
+  // NOTE: Double buffering is inherent in the current duplexify architecture.
+  // The inner readable/writable streams buffer independently from the outer Duplex.
+  // This can only be resolved by implementing Writable/Readable/Duplex traits.
   // See, https://github.com/nodejs/node/pull/33515.
   d = new Duplexify({
-    // TODO (ronag): highWaterMark?
+    // Propagate highWaterMark from the underlying streams when available,
+    // otherwise use the default highWaterMark from the stream state module.
+    highWaterMark: r?.highWaterMark ?? w?.highWaterMark,
     readableObjectMode: !!r?.readableObjectMode,
     writableObjectMode: !!w?.writableObjectMode,
     readable,

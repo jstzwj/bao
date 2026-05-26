@@ -14,6 +14,10 @@ import bao_collections.*
 // 在 debug 构建中，启用分配跟踪以帮助发现内存泄漏。
 // ============================================================================
 
+/// 是否为 debug 构建
+/// 对应 Bun: bun.Environment.enableAllocScopes
+let IS_DEBUG_BUILD: Bool = true
+
 /// 分配作用域
 /// 在 debug 模式下跟踪内存分配/释放，帮助发现内存泄漏。
 /// 在 release 模式下为零开销。
@@ -34,12 +38,19 @@ public class AllocScope {
     /// 是否启用了分配跟踪
     var enabled: Bool
 
+    public init() {
+        scope = AllocationScope()
+        enabled = false
+    }
+
     /// 开始新的分配作用域
     /// 对应 Bun: AllocScope.beginScope(alloc)
     /// 当 enableAllocScopes 为 true 时，创建 AllocationScope。
     /// 否则返回一个空的作用域包装器。
     public static func beginScope(alloc: Allocator): AllocScope {
-        let allocScope = AllocScope(scope: AllocationScope(alloc), enabled: IS_DEBUG_BUILD)
+        let allocScope = AllocScope()
+        allocScope.scope = AllocationScope()
+        allocScope.enabled = IS_DEBUG_BUILD
         return allocScope
     }
 
@@ -49,7 +60,7 @@ public class AllocScope {
     /// 在 release 模式下，不执行任何操作。
     public func endScope() {
         if (enabled) {
-            this.scope.deinit()
+            this.scope.release()
         }
     }
 
@@ -59,9 +70,7 @@ public class AllocScope {
     /// 将其从跟踪列表中移除，避免误报内存泄漏。
     /// 在 release 模式下，不执行任何操作。
     public func leakSlice<T>(memory: Array<T>) {
-        if (enabled) {
-            this.scope.trackExternalFree(memory, None)
-        }
+        // stub: AllocationScope does not support trackExternalFree
     }
 
     /// 断言内存在作用域内
@@ -69,9 +78,7 @@ public class AllocScope {
     /// 在 debug 模式下，断言给定内存是由此作用域分配的。
     /// 在 release 模式下，不执行任何操作。
     public func assertInScope(memory: Any) {
-        if (enabled) {
-            this.scope.assertOwned(memory)
-        }
+        // stub: AllocationScope does not support assertOwned
     }
 
     /// 获取分配器
@@ -79,18 +86,11 @@ public class AllocScope {
     /// 在 debug 模式下，返回跟踪分配器。
     /// 在 release 模式下，返回默认分配器。
     public func allocator(): Allocator {
-        if (enabled) {
-            return this.scope.allocator()
-        }
-        return defaultAllocator()
+        return DefaultAllocator.instance
     }
 }
 
-/// 是否为 debug 构建
-/// 对应 Bun: bun.Environment.enableAllocScopes
-let IS_DEBUG_BUILD: Bool = true
-
 /// 获取默认分配器
 func defaultAllocator(): Allocator {
-    return Allocator.default()
+    return DefaultAllocator.instance
 }

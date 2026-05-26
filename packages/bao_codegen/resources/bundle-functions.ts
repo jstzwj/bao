@@ -255,7 +255,7 @@ async function processFileSplit(filename: string): Promise<{ functions: BundledB
       const fnname = contents.match(/^function ([a-zA-Z0-9]+)\(([^)]*)\)(?:\s*:\s*([^{\n]+))?\s*{?/)![1];
       throw new SyntaxError("All top level functions must be exported: " + fnname);
     } else {
-      throw new Error("TODO: parse " + match[1]);
+      throw new Error("Unsupported top-level construct: parse " + match[1]);
     }
   }
 

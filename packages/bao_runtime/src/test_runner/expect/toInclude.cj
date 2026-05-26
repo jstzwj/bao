@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toInclude() - 检查值是否包含期望子串
 /// 用法: expect(received).toInclude(expected)
 public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -32,9 +32,9 @@ public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     var pass = value.isString()
     if (pass) {
         let valueString = value.toSliceOrNull(globalThis: globalThis)
-        defer { valueString.deinit() }
+        // defer { valueString.deinit() }
         let expectedString = expected.toSliceOrNull(globalThis: globalThis)
-        defer { expectedString.deinit() }
+        // defer { expectedString.deinit() }
         pass = strings.contains(valueString.slice(), expectedString.slice()) || expectedString.size == 0
     }
 
@@ -44,7 +44,7 @@ public func toInclude(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
 

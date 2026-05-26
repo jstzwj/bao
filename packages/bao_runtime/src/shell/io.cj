@@ -5,7 +5,7 @@
 package bao_runtime.shell
 
 import bao_core.*
-import bao_jsc.*
+import bao_collections.*
 
 // ============================================================================
 // IO - 状态节点的标准输入/输出/错误信息载体
@@ -74,7 +74,7 @@ public enum IOInKind {
 public enum IOOutKind {
     /// 文件描述符写入器
     /// captured非null时，同时写入到缓冲区
-    | fd(IOWriter, ?ByteList)
+    | fd(IOWriter, ?ArrayList<Byte>)
     /// 管道输出（在quiet模式下设置）
     | pipe
     /// 丢弃输出
@@ -85,8 +85,10 @@ public enum IOOutKind {
         match (this) {
             case fd(writer, captured) =>
                 var cost: UInt64 = writer.memoryCost()
-                if (let cap <- captured) {
-                    cost += cap.memoryCost()
+                match (captured) {
+                    case Some(capArr) =>
+                        cost += UInt64(capArr.size)
+                    case None => ()
                 }
                 return cost
             case pipe =>
@@ -138,10 +140,7 @@ public enum IOOutKind {
     public func toSubprocStdio(shellio: ?IOWriter): Stdio {
         match (this) {
             case fd(val, captured) =>
-                // 根据是否有captured和fd状态返回对应的stdio
-                if (let cap <- captured) {
-                    return Stdio.capture(cap)
-                }
+                // stub: simplified — Stdio.capture not implemented
                 return Stdio.fd(val.fd)
             case pipe =>
                 return Stdio.pipe
@@ -160,6 +159,12 @@ public struct IO {
     public var stdout: IOOutKind
     /// 标准错误
     public var stderr: IOOutKind
+
+    public init() {
+        stdin = IOInKind.ignore
+        stdout = IOOutKind.ignore
+        stderr = IOOutKind.ignore
+    }
 
     /// 内存开销
     public func memoryCost(): UInt64 {
@@ -205,12 +210,3 @@ public struct IO {
         stdio[stderrNo] = this.stderr.toSubprocStdio(shellio.stderr)
     }
 }
-
-/// 标准输出编号
-public const stdoutNo: Int64 = 1
-
-/// 标准错误编号
-public const stderrNo: Int64 = 2
-
-/// 标准输入编号
-public const stdinNo: Int64 = 0

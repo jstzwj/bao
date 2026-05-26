@@ -3,7 +3,6 @@
 package bao_install_jsc
 
 import bao_jsc.*
-import bao_core.*
 import bao_install.*
 
 // ============================================================================
@@ -14,8 +13,8 @@ import bao_install.*
 public func dependencyVersionToJS(dep: DependencyVersion, buf: Array<Byte>, globalThis: JSGlobalObject): JsValue {
     let object = JsObject.make()
     object.set("literal", JsValue(dep.literal))
-    object.set("tag", JsValue(dependencyTagToString(dep.tag)))
-    object.set("tagValue", JsValue(dep.tag.toInt()))
+    object.set("tag", JsValue(versionTagToString(dep.tag)))
+    object.set("tagValue", JsValue(versionTagToInt(dep.tag)))
     setOptionalString(object, "distTagName", dep.distTagName)
     setOptionalString(object, "npmName", dep.npmName)
     setOptionalString(object, "gitUrl", dep.gitUrl)
@@ -75,5 +74,31 @@ private func dependencyTagToString(tag: DependencyVersionTag): String {
         case DependencyVersionTag.Github => "github"
         case DependencyVersionTag.Catalog => "catalog"
         case DependencyVersionTag.Root => "root"
+    }
+}
+
+private func versionTagToString(tag: VersionTag): String {
+    match (tag) {
+        case VersionTag.Npm => "npm"
+        case VersionTag.DistTag => "dist_tag"
+        case VersionTag.Git => "git"
+        case VersionTag.Github => "github"
+        case VersionTag.Tarball => "tarball"
+        case VersionTag.File => "file"
+        case VersionTag.Link => "link"
+        case VersionTag.Workspace => "workspace"
+    }
+}
+
+private func versionTagToInt(tag: VersionTag): Int64 {
+    match (tag) {
+        case VersionTag.Npm => 1
+        case VersionTag.DistTag => 2
+        case VersionTag.Git => 7
+        case VersionTag.Github => 8
+        case VersionTag.Tarball => 3
+        case VersionTag.File => 4
+        case VersionTag.Link => 5
+        case VersionTag.Workspace => 6
     }
 }

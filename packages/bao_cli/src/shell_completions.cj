@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ShellCompletions — Shell 自动补全

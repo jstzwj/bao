@@ -201,17 +201,17 @@ public class Request {
         internalEventCallback = RequestInternalJSEventCallback()
     }
 
-    public init(url: String, init: RequestInit) {
+    public init(url: String, `init`: RequestInit) {
         this.url = url
-        headers = init.headers
-        signal = init.signal
-        body = match (init.body) {
+        headers = `init`.headers
+        signal = `init`.signal
+        body = match (`init`.body) {
             case Some(b) => b
             case None => Body()
         }
         jsRef = JsRef.empty()
-        method = init.method
-        flags = Flags(redirect: init.redirect, cache: init.cache, mode: init.mode, https: false)
+        method = `init`.method
+        flags = Flags(redirect: `init`.redirect, cache: `init`.cache, mode: `init`.mode, https: false)
         requestContext = AnyRequestContext.NULL
         weakPtrData = WeakPtrData()
         reportedEstimatedSize = 0
@@ -797,7 +797,7 @@ public class Request {
     /// do_clone — JS host fn method.
     /// 对应 Bun: Request::do_clone (Request.rs:1548-1562)
     public func doClone(global: JsGlobalObject, callframe: CallFrame): JsValue {
-        let thisValue = callframe.this()
+        let thisValue = callframe.`this`()
         let cloned = clone(global)
         if (cloned.isSome()) {
             let jsWrapper = cloned.getOrThrow().toJs(global)
@@ -1022,10 +1022,7 @@ public class Request {
                 if (initResult.isSome()) {
                     let responseInit = initResult.getOrThrow()
 
-                    let headerCheck = !explicitCheck || {
-                        let h = value.fastGet(global, BuiltinName.headers)
-                        h.isSome()
-                    }
+                    let headerCheck = !explicitCheck || value.fastGet(global, BuiltinName.headers).isSome()
                     if (headerCheck) {
                         if (responseInit.headers.isSome()) {
                             if (!fields.contains(Fields.Headers)) {
@@ -1035,10 +1032,7 @@ public class Request {
                         }
                     }
 
-                    let methodCheck = !explicitCheck || {
-                        let m = value.fastGet(global, BuiltinName.method)
-                        m.isSome()
-                    }
+                    let methodCheck = !explicitCheck || value.fastGet(global, BuiltinName.method).isSome()
                     if (methodCheck) {
                         if (!fields.contains(Fields.Method)) {
                             req.method = responseInit.method

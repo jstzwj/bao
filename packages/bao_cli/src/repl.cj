@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 import bao_jsc.*
 import bao_install.*
 
@@ -1038,8 +1039,8 @@ public class Repl {
 
         // 评估
         let evalTuple = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
-        let result = evalTuple.0
-        let exception = evalTuple.1
+        let result = evalTuple[0]
+        let exception = evalTuple[1]
 
         // 检查异常
         if (!exception.isUndefined() && !exception.isNull()) {
@@ -1135,8 +1136,8 @@ public class Repl {
         let transformedCode = transformForRepl(code)
         if (transformedCode.isNone()) {
             let evalTuple = JscREPL.evaluate(global, code, "[eval]")
-            let result = evalTuple.0
-            let exception = evalTuple.1
+            let result = evalTuple[0]
+            let exception = evalTuple[1]
             if (!exception.isUndefined() && !exception.isNull()) {
                 printJSError(exception)
             }
@@ -1144,8 +1145,8 @@ public class Repl {
         }
 
         let evalTuple = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[eval]")
-        let result = evalTuple.0
-        let exception = evalTuple.1
+        let result = evalTuple[0]
+        let exception = evalTuple[1]
 
         if (!exception.isUndefined() && !exception.isNull()) {
             printJSError(exception)
@@ -1205,8 +1206,8 @@ public class Repl {
         }
 
         let evalTuple = JscREPL.evaluate(global, code, "[repl]")
-        let result = evalTuple.0
-        let exception = evalTuple.1
+        let result = evalTuple[0]
+        let exception = evalTuple[1]
 
         if (!exception.isUndefined() && !exception.isNull()) {
             setLastError(exception)
@@ -1250,8 +1251,8 @@ public class Repl {
         }
 
         let evalTuple = JscREPL.evaluate(global, transformedCode.getOrThrow(), "[repl]")
-        let result = evalTuple.0
-        let exception = evalTuple.1
+        let result = evalTuple[0]
+        let exception = evalTuple[1]
 
         if (!exception.isUndefined() && !exception.isNull()) {
             setLastError(exception)
@@ -1305,7 +1306,7 @@ public class Repl {
 
         // 检查是否可能为对象字面量
         let isObjectLiteral = isLikelyObjectLiteral(code)
-        let processedCode = if (isObjectLiteral) "(${code})" else code
+        let processedCode = if (isObjectLiteral) { "(${code})" } else { code }
 
         // 解析并转换
         // 对应 Bun: 使用 js_parser 并启用 repl_mode
@@ -1480,16 +1481,28 @@ public class Repl {
                 case Key.ctrlE =>
                     lineEditor.moveToEnd()
                     refreshLine()
-                case Key.ctrlB, Key.arrowLeft =>
+                case Key.ctrlB =>
                     lineEditor.moveLeft()
                     refreshLine()
-                case Key.ctrlF, Key.arrowRight =>
+                case Key.arrowLeft =>
+                    lineEditor.moveLeft()
+                    refreshLine()
+                case Key.ctrlF =>
                     lineEditor.moveRight()
                     refreshLine()
-                case Key.altB, Key.altLeft =>
+                case Key.arrowRight =>
+                    lineEditor.moveRight()
+                    refreshLine()
+                case Key.altB =>
                     lineEditor.moveWordLeft()
                     refreshLine()
-                case Key.altF, Key.altRight =>
+                case Key.altLeft =>
+                    lineEditor.moveWordLeft()
+                    refreshLine()
+                case Key.altF =>
+                    lineEditor.moveWordRight()
+                    refreshLine()
+                case Key.altRight =>
                     lineEditor.moveWordRight()
                     refreshLine()
                 case Key.ctrlU =>
@@ -1498,7 +1511,10 @@ public class Repl {
                 case Key.ctrlK =>
                     lineEditor.deleteToEnd()
                     refreshLine()
-                case Key.ctrlW, Key.altBackspace =>
+                case Key.ctrlW =>
+                    lineEditor.backspaceWord()
+                    refreshLine()
+                case Key.altBackspace =>
                     lineEditor.backspaceWord()
                     refreshLine()
                 case Key.altD =>
@@ -1513,13 +1529,27 @@ public class Repl {
                 case Key.delete =>
                     lineEditor.deleteChar()
                     refreshLine()
-                case Key.arrowUp, Key.ctrlP =>
+                case Key.arrowUp =>
                     let prevLine = history.prev(lineEditor.getLine())
                     if (prevLine.isSome()) {
                         lineEditor.set(prevLine.getOrThrow())
                         refreshLine()
                     }
-                case Key.arrowDown, Key.ctrlN =>
+                case Key.ctrlP =>
+                    let prevLine2 = history.prev(lineEditor.getLine())
+                    if (prevLine2.isSome()) {
+                        lineEditor.set(prevLine2.getOrThrow())
+                        refreshLine()
+                    }
+                case Key.arrowDown =>
+                    let nextLine = history.next()
+                    if (nextLine.isSome()) {
+                        lineEditor.set(nextLine.getOrThrow())
+                    } else {
+                        lineEditor.clear()
+                    }
+                    refreshLine()
+                case Key.ctrlN =>
                     let nextLine = history.next()
                     if (nextLine.isSome()) {
                         lineEditor.set(nextLine.getOrThrow())
@@ -1704,8 +1734,8 @@ public class Repl {
                 refreshLine()
             } else if (matches.size > 1) {
                 print("\n")
-                for (match in matches) {
-                    print("  ${Color.cyan}${match}${Color.reset}\n")
+                for (`match` in matches) {
+                    print("  ${Color.cyan}${`match`}${Color.reset}\n")
                 }
                 refreshLine()
             }

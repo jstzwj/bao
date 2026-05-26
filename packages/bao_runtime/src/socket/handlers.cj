@@ -6,8 +6,16 @@ package bao_runtime.socket
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
-import bao_uws_sys.*
-import bao_sys.*
+import bao_uws_sys.{SocketGroup as UwsSocketGroup, SocketKind, PosixLoop, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError}
+
+// C FFI declarations for memory management (needed because foreign func
+// declarations are package-private and cannot be imported across packages)
+@C
+foreign func malloc(size: UIntNative): CPointer<Unit>
+@C
+foreign func free(ptr: CPointer<Unit>): Unit
+@C
+foreign func memset(s: CPointer<Unit>, c: Int32, n: UIntNative): CPointer<Unit>
 
 // ============================================================================
 // 二进制数据类型
@@ -76,11 +84,11 @@ private func initSocketGroupIfPossible(groupStorage: CPointer<Unit>): Unit {
     if (groupStorage.isNull()) {
         return
     }
-    let loop = bao_uws_sys.PosixLoop.get()
+    let loop = PosixLoop.get()
     if (loop.isNull()) {
         return
     }
-    bao_uws_sys.SocketGroup.initGroup(groupStorage, loop, unsafe { bao_us_socket_dispatch_vtable() }, CPointer<Unit>())
+    UwsSocketGroup.initGroup(groupStorage, loop, unsafe { bao_us_socket_dispatch_vtable() }, CPointer<Unit>())
 }
 
 public class Handlers {
@@ -117,7 +125,7 @@ public class Handlers {
     /// 关联的 Promise
     public var promise: JsValue
     /// Native uWS socket group used for client connects/adopted fds.
-    public var socketGroup: bao_uws_sys.SocketGroup
+    public var socketGroup: UwsSocketGroup
     private var socketGroupStorage: CPointer<Unit>
 
     public init(vm: VirtualMachine, globalObject: JsObject, mode: SocketMode) {
@@ -125,7 +133,7 @@ public class Handlers {
         this.globalObject = globalObject
         this.mode = mode
         this.socketGroupStorage = allocateSocketGroupStorage()
-        this.socketGroup = bao_uws_sys.SocketGroup(this.socketGroupStorage)
+        this.socketGroup = UwsSocketGroup(this.socketGroupStorage)
         initSocketGroupIfPossible(this.socketGroupStorage)
         this.onOpen = JsValue.UNDEFINED
         this.onClose = JsValue.UNDEFINED
@@ -294,7 +302,7 @@ public class Handlers {
             socketGroup.deinit()
             unsafe { free(socketGroupStorage) }
             socketGroupStorage = CPointer<Unit>()
-            socketGroup = bao_uws_sys.SocketGroup(CPointer<Unit>())
+            socketGroup = UwsSocketGroup(CPointer<Unit>())
         }
         onOpen = JsValue.UNDEFINED
         onClose = JsValue.UNDEFINED
@@ -317,8 +325,10 @@ public class Handlers {
 /// Socket 配置选项
 /// 对应 Zig: pub const SocketConfig = struct { ... }
 public class SocketConfig {
-    /// 主机名或 Unix 路径
-    public var hostnameOrUnix: String
+    /// 主机名
+    public var hostname: String
+    /// Unix 路径
+    public var unixPath: ?String
     /// 端口号
     public var port: UInt16
     /// 文件描述符
@@ -339,7 +349,8 @@ public class SocketConfig {
     public var ipv6Only: Bool
 
     public init(handlers: Handlers) {
-        this.hostnameOrUnix = ""
+        this.hostname = ""
+        this.unixPath = None
         this.port = 0
         this.fd = -1
         this.ssl = None
@@ -357,10 +368,10 @@ public class SocketConfig {
         if (fd >= 0) {
             return ConnectionTarget.Fd(fd)
         }
-        if (hostnameOrUnix.size > 0 && port == 0) {
-            return ConnectionTarget.Unix(hostnameOrUnix)
+        if (let Some(path) <- unixPath) {
+            return ConnectionTarget.Unix(path)
         }
-        return ConnectionTarget.Host(hostnameOrUnix, port)
+        return ConnectionTarget.Host(hostname, port)
     }
 
     /// 获取 Socket 标志位
@@ -403,12 +414,12 @@ public class SocketConfig {
                         // 读取 hostname/unix
                         let hostname = obj.get("hostname")
                         if (hostname.valueType == JsValueType.String) {
-                            config.hostnameOrUnix = hostname.toString()
+                            config.hostname = hostname.toString()
                         }
 
                         let unix = obj.get("unix")
                         if (unix.valueType == JsValueType.String) {
-                            config.hostnameOrUnix = unix.toString()
+                            config.unixPath = Some(unix.toString())
                         }
 
                         // 读取端口
@@ -467,14 +478,16 @@ public class SocketConfig {
     /// 对应 Zig: deinit
     public func deinit(): Unit {
         handlers.deinit()
-        hostnameOrUnix = ""
+        hostname = ""
+        unixPath = None
         ssl = None
     }
 
     /// 释放资源但保留 Handlers
     /// 对应 Zig: deinitExcludingHandlers
     public func deinitExcludingHandlers(): Unit {
-        hostnameOrUnix = ""
+        hostname = ""
+        unixPath = None
         ssl = None
     }
 }

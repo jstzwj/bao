@@ -65,7 +65,7 @@ public class Snapshots {
     /// - Return: 已存在的快照值, 如果不存在返回None
     public func getOrPut(expect: Expect, targetValue: String, hint: String): ?String {
         let buntestStrong = expect.bunTest() ?? return None
-        defer { buntestStrong.deinit() }
+        // defer { buntestStrong.deinit() }
         let bunTest = buntestStrong.get()
 
         // 获取快照文件

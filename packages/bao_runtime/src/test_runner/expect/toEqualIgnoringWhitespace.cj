@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toEqualIgnoringWhitespace() - 检查去除空白后是否相等
 /// 用法: expect(received).toEqualIgnoringWhitespace(expected)
 public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -31,14 +31,14 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
 
     if (!value.isString()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return globalThis.throw_("Received value must be a string: {f}", args: [value.toFmt(formatter)])
     }
 
     let valueStr = value.toSliceOrNull(globalThis: globalThis)
-    defer { valueStr.deinit() }
+    // defer { valueStr.deinit() }
     let expectedStr = expected.toSliceOrNull(globalThis: globalThis)
-    defer { expectedStr.deinit() }
+    // defer { expectedStr.deinit() }
 
     // 去除空白后比较
     let normalizedValue = strings.normalizeWhitespace(valueStr.slice())
@@ -51,7 +51,7 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
 

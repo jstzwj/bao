@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveReturned() - 检查mock函数是否有返回
 /// 用法: expect(mockFn).toHaveReturned()
 public func toHaveReturned(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.arguments()
@@ -58,7 +58,7 @@ public func toHaveReturned(`this`: Expect, globalThis: JSGlobalObject, callFrame
 /// toHaveReturnedTimes() - 检查mock函数返回的次数
 /// 用法: expect(mockFn).toHaveReturnedTimes(times)
 public func toHaveReturnedTimes(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.arguments()

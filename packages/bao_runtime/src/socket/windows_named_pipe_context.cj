@@ -4,7 +4,8 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
-import bao_jsc.*
+import bao_jsc.{JsValue, JsGlobalObject}
+import bao_uws_sys.{UsBunVerifyError}
 
 // ============================================================================
 // WindowsNamedPipeContext

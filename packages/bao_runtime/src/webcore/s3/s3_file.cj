@@ -28,8 +28,10 @@ package bao_runtime.webcore.s3
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
-import bao_http.*
-import bao_http_types.*
+import bao_http.S3SignOptions
+import bao_http.S3Signer
+import bao_http.PresignedUrlOptions
+import bao_http.AwsCredentials
 
 // ============================================================================
 // S3Ref 格式化输出
@@ -460,7 +462,7 @@ public func constructS3FileWithS3CredentialsAndOptions(
     defaultStorageClass: ?S3StorageClass,
     defaultRequestPayer: Bool
 ): Result<BlobRef> {
-    let awsOptions = S3CredentialsExt.getCredentialsWithOptions(
+    let awsOpts = S3CredentialsExt.getCredentialsWithOptions(
         defaultCredentials,
         defaultOptions,
         options,
@@ -470,48 +472,44 @@ public func constructS3FileWithS3CredentialsAndOptions(
         global
     )
 
-    match (awsOptions) {
-        case Err(e) => return Result<BlobRef>.Err(e)
-        case Ok(awsOpts) =>
-            let store: BlobStoreRef
-            if (awsOpts.changedCredentials) {
-                store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
-            } else {
-                // PORT NOTE: Zig `initS3WithReferencedCredentials` bumps the
-                // intrusive ref on `default_credentials`. Cangjie keeps the same
-                // public construction split while storing the referenced value.
-                store = BlobStoreRef.initS3WithReferencedCredentials(path, None, defaultCredentials)
-            }
-
-            // Set S3 options on the store
-            store.data().asS3().options = awsOpts.options
-            store.data().asS3().acl = awsOpts.acl
-            store.data().asS3().storageClass = awsOpts.storageClass
-            store.data().asS3().requestPayer = awsOpts.requestPayer
-
-            let blob = BlobRef.initWithStore(store, global)
-
-            // Handle content-type option
-            match (options) {
-                case Some(opts) =>
-                    if (opts.isObject()) {
-                        match (opts.getTruthy(global.globalThis, "type")) {
-                            case Some(fileType) =>
-                                if (fileType.isString()) {
-                                    let str = fileType.toString()
-                                    if (Strings.isAllAscii(str)) {
-                                        blob.setContentTypeWasSet(true)
-                                        blob.setContentType(str)
-                                    }
-                                }
-                            case None => ()
-                        }
-                    }
-                case None => ()
-            }
-
-            return Result<BlobRef>.Ok(blob)
+    let store: BlobStoreRef
+    if (awsOpts.changedCredentials) {
+        store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
+    } else {
+        // PORT NOTE: Zig `initS3WithReferencedCredentials` bumps the
+        // intrusive ref on `default_credentials`. Cangjie keeps the same
+        // public construction split while storing the referenced value.
+        store = BlobStoreRef.initS3WithReferencedCredentials(path, None, defaultCredentials)
     }
+
+    // Set S3 options on the store
+    store.data().asS3().options = awsOpts.options
+    store.data().asS3().acl = awsOpts.acl
+    store.data().asS3().storageClass = awsOpts.storageClass
+    store.data().asS3().requestPayer = awsOpts.requestPayer
+
+    let blob = BlobRef.initWithStore(store, global)
+
+    // Handle content-type option
+    match (options) {
+        case Some(opts) =>
+            if (opts.isObject()) {
+                match (opts.getTruthy(global.globalThis, "type")) {
+                    case Some(fileType) =>
+                        if (fileType.isString()) {
+                            let str = fileType.toString()
+                            if (Strings.isAllAscii(str)) {
+                                blob.setContentTypeWasSet(true)
+                                blob.setContentType(str)
+                            }
+                        }
+                    case None => ()
+                }
+            }
+        case None => ()
+    }
+
+    return Result<BlobRef>.Ok(blob)
 }
 
 // ============================================================================
@@ -536,7 +534,7 @@ public func constructS3FileWithS3Credentials(
     options: ?JsValue,
     existingCredentials: S3Credentials
 ): Result<BlobRef> {
-    let awsOptions = S3CredentialsExt.getCredentialsWithOptions(
+    let awsOpts = S3CredentialsExt.getCredentialsWithOptions(
         existingCredentials,
         MultiPartUploadOptions(),
         options,
@@ -546,40 +544,36 @@ public func constructS3FileWithS3Credentials(
         global
     )
 
-    match (awsOptions) {
-        case Err(e) => return Result<BlobRef>.Err(e)
-        case Ok(awsOpts) =>
-            let store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
+    let store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
 
-            // Set S3 options on the store
-            store.data().asS3().options = awsOpts.options
-            store.data().asS3().acl = awsOpts.acl
-            store.data().asS3().storageClass = awsOpts.storageClass
-            store.data().asS3().requestPayer = awsOpts.requestPayer
+    // Set S3 options on the store
+    store.data().asS3().options = awsOpts.options
+    store.data().asS3().acl = awsOpts.acl
+    store.data().asS3().storageClass = awsOpts.storageClass
+    store.data().asS3().requestPayer = awsOpts.requestPayer
 
-            let blob = BlobRef.initWithStore(store, global)
+    let blob = BlobRef.initWithStore(store, global)
 
-            // Handle content-type option
-            match (options) {
-                case Some(opts) =>
-                    if (opts.isObject()) {
-                        match (opts.getTruthy(global.globalThis, "type")) {
-                            case Some(fileType) =>
-                                if (fileType.isString()) {
-                                    let str = fileType.toString()
-                                    if (Strings.isAllAscii(str)) {
-                                        blob.setContentTypeWasSet(true)
-                                        blob.setContentType(str)
-                                    }
-                                }
-                            case None => ()
+    // Handle content-type option
+    match (options) {
+        case Some(opts) =>
+            if (opts.isObject()) {
+                match (opts.getTruthy(global.globalThis, "type")) {
+                    case Some(fileType) =>
+                        if (fileType.isString()) {
+                            let str = fileType.toString()
+                            if (Strings.isAllAscii(str)) {
+                                blob.setContentTypeWasSet(true)
+                                blob.setContentType(str)
+                            }
                         }
-                    }
-                case None => ()
+                    case None => ()
+                }
             }
-
-            return Result<BlobRef>.Ok(blob)
+        case None => ()
     }
+
+    return Result<BlobRef>.Ok(blob)
 }
 
 // ============================================================================
@@ -1156,9 +1150,16 @@ public func getPresignUrlFrom(
 
     let signOptions = S3SignOptions(s3Store.path(), httpMethodToString(method))
     let presignOptions = PresignedUrlOptions(expiresIn)
-    match (S3Signer.presignedUrl(awsCredentialsFromRuntime(s3Store.getCredentials()), signOptions, presignOptions)) {
-        case Ok(url) => return Result<JsValue>.Ok(JsValue(url))
-        case Err(err) => return Result<JsValue>.Err("Error: ${err.message}")
+    let presignResult = S3Signer.presignedUrl(awsCredentialsFromRuntime(s3Store.getCredentials()), signOptions, presignOptions)
+    if (presignResult.isOk()) {
+        return Result<JsValue>.Ok(JsValue(presignResult.unwrap()))
+    } else {
+        let err = presignResult.asErr()
+        let msg = match (err) {
+            case Some(e) => e.message
+            case None => "presigned URL failed"
+        }
+        return Result<JsValue>.Err("Error: ${msg}")
     }
 }
 
@@ -1731,9 +1732,10 @@ public func createJSS3FileUnsafely(global: JSGlobalObject, blob: BlobRef): JsVal
     obj.className = "S3File"
     obj.set("type", JsValue(blob.contentType))
     obj.set("size", blob.getSize(global))
-    match (getBucket(blob, global)) {
-        case Ok(bucket) => obj.set("bucket", bucket)
-        case Err(_) => obj.set("bucket", JsValue.jsUndefined())
+    let bucketName = getBucketName(blob)
+    match (bucketName) {
+        case Some(name) => obj.set("bucket", BunStringJsc.createUtf8ForJs(global, name))
+        case None => obj.set("bucket", JsValue.jsUndefined())
     }
     return JsValue(obj)
 }

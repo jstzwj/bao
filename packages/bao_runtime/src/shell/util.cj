@@ -28,7 +28,21 @@ public enum OutKind {
 
 /// 标准IO配置
 /// 对应 Bun: util.zig Stdio = bun.spawn.Stdio
-public type Stdio = bao_spawn.Stdio
+/// 注意: bao_spawn 未作为依赖引入，此处用本地枚举替代
+public enum Stdio {
+    | ignore
+    | pipe
+    | inherit
+    | fd(FD)
+    | capture
+    | dup2
+    | path
+    | memfd(FD)
+    | ipc
+    | blob
+    | arrayBuffer
+    | readableStream
+}
 
 /// 监视文件描述符类型
 /// 对应 Bun: util.zig WatchFd
@@ -42,10 +56,10 @@ public type WatchFd = Int32
 /// 生成不可达状态错误
 /// 对应 Bun: bun.shell.unreachableState
 public func unreachableState(context: String, message: String): Unit {
-    panic("[${context}] Unreachable state: ${message}")
+    throw Exception("[${context}] Unreachable state: ${message}")
 }
 
 /// 生成未实现错误
 public func unimplemented(context: String, feature: String): Unit {
-    panic("[${context}] Not implemented: ${feature}")
+    throw Exception("[${context}] Not implemented: ${feature}")
 }

@@ -4,6 +4,7 @@ package bao_bundler_jsc
 
 import bao_jsc.*
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // AnalyzeJSC - 模块分析 JSC 桥接

@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveBeenCalled() - 检查mock函数是否被调用
 /// 用法: expect(mockFn).toHaveBeenCalled()
 public func toHaveBeenCalled(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let firstArgument = callFrame.argumentsAsArray(1)[0]
@@ -23,7 +23,7 @@ public func toHaveBeenCalled(`this`: Expect, globalThis: JSGlobalObject, callFra
     this.incrementExpectCallCounter()
     if (!calls.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 

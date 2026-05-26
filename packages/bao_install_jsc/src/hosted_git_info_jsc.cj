@@ -3,7 +3,6 @@
 package bao_install_jsc
 
 import bao_jsc.*
-import bao_core.*
 import bao_install.*
 
 // ============================================================================
@@ -40,7 +39,6 @@ public func jsParseUrl(go: JSGlobalObject, callframe: CallFrame): JsValue {
             let obj = JsObject.make()
             obj.set("url", JsValue(pair.urlSlice()))
             obj.set("protocol", JsValue(urlProtocolToString(pair.protocol)))
-            obj.set("corrected", JsValue(pair.wasCorrected))
             return JsValue(obj)
         case None => return JsValue.jsUndefined()
     }

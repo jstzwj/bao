@@ -6,6 +6,8 @@ package bao_runtime.test_runner
 import bao_jsc.JSGlobalObject
 import bao_collections.ArrayList
 import bao_collections.HashMap
+import bao_event_loop.Timespec
+import bao_core.Allocator
 
 // ========== Execution - 测试执行阶段 ==========
 
@@ -70,7 +72,7 @@ public class Execution {
                 // 确定活跃的序列和组
                 let result = getCurrentAndValidExecutionSequence(data: data)
                 if (result.isNone()) {
-                    return StepResult.waiting(timeout: Timespec.epoch)
+                    return StepResult.waiting(timeout: Timespec.EPOCH)
                 }
                 let (sequencePtr, groupPtr) = result.getOrThrow()
 
@@ -125,7 +127,7 @@ public class Execution {
                 if (groupPtr.remainingIncompleteEntries == 0) {
                     return stepGroup(buntestStrong: buntestStrong, globalThis: globalThis, now: now)
                 }
-                return StepResult.waiting(timeout: Timespec.epoch)
+                return StepResult.waiting(timeout: Timespec.EPOCH)
         }
     }
 
@@ -202,7 +204,7 @@ public class Execution {
                 case execute(timeout) =>
                     let prevTimeout: Timespec = match (finalStatus) {
                         case execute(t) => t
-                        case _ => Timespec.epoch
+                        case _ => Timespec.EPOCH
                     }
                     finalStatus = AdvanceStatus.execute(timeout: Timespec.minIgnoreEpoch(a: prevTimeout, b: timeout))
                     activeCount += 1
@@ -240,7 +242,7 @@ public class Execution {
             let activeEntry = sequence.activeEntry
             if (activeEntry.isNone()) {
                 // 序列正在执行但没有活跃条目
-                return AdvanceSequenceStatus.execute(timeout: Timespec.epoch)
+                return AdvanceSequenceStatus.execute(timeout: Timespec.EPOCH)
             }
 
             let entry = activeEntry.getOrThrow()
@@ -353,7 +355,7 @@ public class Execution {
             // 重试逻辑: 测试失败且还有重试次数
             if (testFailed && sequence.remainingRetryCount > 0) {
                 if (sequence.flakyAttemptCount < ExecutionSequence.MAX_FLAKY_ATTEMPTS) {
-                    let elapsedNs: UInt64 = if (sequence.startedAt.isEpoch()) {
+                    let elapsedNs: UInt64 = if (sequence.startedAt.isZero()) {
                         0
                     } else {
                         sequence.startedAt.sinceNowForceRealTime()
@@ -423,7 +425,7 @@ public class Execution {
         if (entry.timeout != 0) {
             entry.timespec = Timespec.msFromNowForceRealTime(interval: entry.timeout)
         } else {
-            entry.timespec = Timespec.epoch
+            entry.timespec = Timespec.EPOCH
         }
     }
 
@@ -434,7 +436,7 @@ public class Execution {
 
     /// 序列完成回调 - 处理断言计数、报告测试完成
     public func onSequenceCompleted(buntest: BunTest, sequence: ExecutionSequence) {
-        let elapsedNs: UInt64 = if (sequence.startedAt.isEpoch()) {
+        let elapsedNs: UInt64 = if (sequence.startedAt.isZero()) {
             0
         } else {
             sequence.startedAt.sinceNowForceRealTime()
@@ -494,7 +496,7 @@ public class Execution {
                 }
                 entryPtr.next = next.next
             }
-            entryPtr.timespec = Timespec.epoch
+            entryPtr.timespec = Timespec.EPOCH
             currentEntry = entryPtr.next
         }
 
@@ -506,7 +508,7 @@ public class Execution {
         sequence.activeEntry = sequence.firstEntry
         sequence.result = Result.pending
         sequence.executing = false
-        sequence.startedAt = Timespec.epoch
+        sequence.startedAt = Timespec.EPOCH
         sequence.expectCallCount = 0
         sequence.expectAssertions = ExpectAssertions.notSet
         sequence.maybeSkip = false
@@ -611,7 +613,7 @@ public class Execution {
                 let sequence = groupSequences[0]
                 if (let Some(entry) <- sequence.activeEntry) {
                     let now = Timespec.nowForceRealTime()
-                    if (entry.timespec.order(other: now) == Ordering.lt) {
+                    if (!entry.timespec.isZero() && entry.timespec.lessThan(other: now)) {
                         // 杀死悬挂进程
                     }
                 }
@@ -672,7 +674,7 @@ public class ExecutionSequence {
     public var flakyAttemptsBuf: Array<FlakyAttempt> = Array<FlakyAttempt>()
     public var result: Result = Result.pending
     public var executing: Bool = false
-    public var startedAt: Timespec = Timespec.epoch
+    public var startedAt: Timespec = Timespec.EPOCH
     public var expectCallCount: UInt32 = 0
     public var expectAssertions: ExpectAssertions = ExpectAssertions.notSet
     public var maybeSkip: Bool = false
@@ -770,6 +772,29 @@ public enum Result {
     public func isFail(): Bool {
         return !isPass(pendingIs: PendingIs.pendingIsPass)
     }
+
+    public operator func ==(other: Result): Bool {
+        match (this) {
+            case pending => match (other) { case pending => true; case _ => false }
+            case pass => match (other) { case pass => true; case _ => false }
+            case skip => match (other) { case skip => true; case _ => false }
+            case skippedBecauseLabel => match (other) { case skippedBecauseLabel => true; case _ => false }
+            case todo => match (other) { case todo => true; case _ => false }
+            case fail => match (other) { case fail => true; case _ => false }
+            case failBecauseTimeout => match (other) { case failBecauseTimeout => true; case _ => false }
+            case failBecauseTimeoutWithDoneCallback => match (other) { case failBecauseTimeoutWithDoneCallback => true; case _ => false }
+            case failBecauseHookTimeout => match (other) { case failBecauseHookTimeout => true; case _ => false }
+            case failBecauseHookTimeoutWithDoneCallback => match (other) { case failBecauseHookTimeoutWithDoneCallback => true; case _ => false }
+            case failBecauseFailingTestPassed => match (other) { case failBecauseFailingTestPassed => true; case _ => false }
+            case failBecauseTodoPassed => match (other) { case failBecauseTodoPassed => true; case _ => false }
+            case failBecauseExpectedHasAssertions => match (other) { case failBecauseExpectedHasAssertions => true; case _ => false }
+            case failBecauseExpectedAssertionCount => match (other) { case failBecauseExpectedAssertionCount => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: Result): Bool {
+        !(this == other)
+    }
 }
 
 /// 基础结果类型
@@ -779,12 +804,37 @@ public enum ResultBasic {
     | fail
     | skip
     | todo
+
+    public operator func ==(other: ResultBasic): Bool {
+        match (this) {
+            case pending => match (other) { case pending => true; case _ => false }
+            case pass => match (other) { case pass => true; case _ => false }
+            case fail => match (other) { case fail => true; case _ => false }
+            case skip => match (other) { case skip => true; case _ => false }
+            case todo => match (other) { case todo => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: ResultBasic): Bool {
+        !(this == other)
+    }
 }
 
 /// Pending处理方式
 public enum PendingIs {
     | pendingIsPass
     | pendingIsFail
+
+    public operator func ==(other: PendingIs): Bool {
+        match (this) {
+            case pendingIsPass => match (other) { case pendingIsPass => true; case _ => false }
+            case pendingIsFail => match (other) { case pendingIsFail => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: PendingIs): Bool {
+        !(this == other)
+    }
 }
 
 // ========== AdvanceStatus ==========
@@ -819,4 +869,16 @@ public enum AddedInPhase {
     | preload
     | collection
     | execution
+
+    public operator func ==(other: AddedInPhase): Bool {
+        match (this) {
+            case preload => match (other) { case preload => true; case _ => false }
+            case collection => match (other) { case collection => true; case _ => false }
+            case execution => match (other) { case execution => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: AddedInPhase): Bool {
+        !(this == other)
+    }
 }

@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeOneOf() - 检查值是否在给定集合中
 /// 用法: expect(received).toBeOneOf(list)
 public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -52,7 +52,7 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = listValue.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
     if (not) {

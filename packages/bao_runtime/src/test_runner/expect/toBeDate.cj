@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeDate() - 检查值是否为Date实例
 /// 用法: expect(received).toBeDate()
 public func toBeDate(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeDate", matcherParamsFmt: "")
@@ -21,7 +21,7 @@ public func toBeDate(`this`: Expect, globalThis: JSGlobalObject, callFrame: Call
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
     if (not) {

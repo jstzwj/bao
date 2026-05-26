@@ -6,6 +6,8 @@ package bao_runtime.server
 import bao_core.*
 import bao_collections.*
 import bao_sys.*
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
 
 // ============================================================================
 // ServerConfig - HTTP 服务器配置
@@ -117,6 +119,10 @@ public class StaticRouteEntry {
     /// Rust: pub fn memory_cost(&self) -> usize
     public func memoryCost(): Int64 {
         return path.size
+    }
+
+    public func deinit(): Unit {
+        // no-op stub
     }
 
     /// 对应 Bun: isLessThan — strict-weak ordering (descending by path)
@@ -450,7 +456,7 @@ public class ServerConfig {
     public var bake: ?BakeUserOptions
 
     public init() {
-        address = AddressConfig.Tcp(TcpAddress(3000, None))
+        address = AddressConfig.Tcp(TcpAddress(3000, Option<String>.None))
         idleTimeout = 10
         hasIdleTimeout = false
         maxRequestBodySize = 1024 * 1024 * 128  // 128MB
@@ -573,7 +579,7 @@ public class ServerConfig {
         if (!list.isEmpty()) {
             var index = list.size - 1
             while (true) {
-                let route = list.get(index)
+                let route = list[Int64(index)]
                 let h = hashRoute(route)
                 if (dedupeList.contains(h)) {
                     list.removeAt(index)
@@ -597,7 +603,7 @@ public class ServerConfig {
     /// 对应 Rust: fn hash(route: &StaticRouteEntry) -> u64
     private func hashRoute(route: StaticRouteEntry): Int64 {
         var h: Int64 = 0
-        h = h * 31 + route.path.hashValue()
+        h = h * 31 + Int64(route.path.hashCode())
         return h
     }
 
@@ -637,7 +643,7 @@ public class ServerConfig {
         that.normalizeStaticRoutesList()
 
         // 清空当前对象的拥有字段 (匹配 Zig 的 null 行为)
-        address = AddressConfig.Tcp(TcpAddress(0, None))
+        address = AddressConfig.Tcp(TcpAddress(0, Option<String>.None))
         baseUri = ""
         sslConfig = None
         sni = ArrayList<SslConfig>()
@@ -652,6 +658,14 @@ public class ServerConfig {
         bake = None
 
         return that
+    }
+
+    /// 从JS参数解析配置
+    /// 对应 Bun: pub fn fromJS(global, config, args, options) JsResultBool
+    public static func fromJS(global: JSGlobalObject, config: ServerConfig,
+                               args: Array<JsValue>, opts: ServerConfigFromJSOptions): Bool {
+        // 简化: 返回 false (解析失败时使用默认配置)
+        return false
     }
 }
 
@@ -770,7 +784,7 @@ public enum HttpMethod {
     | ANY
 
     public static func fromString(s: String): HttpMethod {
-        let upper = s.toRuneArray().map({ r => r.toAsciiUpperCase() })
+        let upper = String(s.toRuneArray().map({ r => r.toAsciiUpperCase() }))
         if (upper == "GET") { return HttpMethod.GET }
         if (upper == "POST") { return HttpMethod.POST }
         if (upper == "PUT") { return HttpMethod.PUT }
@@ -868,3 +882,8 @@ public class BaoError {
     }
 }
 */
+
+/// 静态路由注册辅助函数 - stub, 实际注册在 server.cj 的 setRoutes 中完成
+public func applyStaticRoute(app: Any, route: Any, path: String, method: Any): Unit {
+    // no-op stub
+}

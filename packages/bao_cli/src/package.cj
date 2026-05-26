@@ -88,11 +88,11 @@ import bao_path.*
 // ============================================================================
 
 /// CLI 命令类型 (简化版, 实际命令路由在 cli.cj 中)
-public enum Command {
+public enum CliCommand {
     | Run(RunOptions)         // bun run
     | Build(BuildOptions)     // bun build
     | Install(InstallCliOptions) // bun install
-    | Test(TestOptions)       // bun test
+    | Test(SimpleTestOptions)       // bun test
     | Init(InitOptions)       // bun init
     | Version                 // --version
     | Help                    // --help
@@ -134,7 +134,7 @@ public class BuildOptions {
 }
 
 /// test 命令选项
-public class TestOptions {
+public class SimpleTestOptions {
     public var patterns: ArrayList<String>
     public var watch: Bool
     public var coverage: Bool
@@ -184,9 +184,9 @@ public class InstallCliOptions {
 /// 命令行参数解析器
 public class CliParser {
     /// 解析命令行参数
-    public static func parse(args: ArrayList<String>): Command {
+    public static func parse(args: ArrayList<String>): CliCommand {
         if (args.size == 0) {
-            return Command.Repl
+            return CliCommand.Repl
         }
 
         let first = args[0]
@@ -207,7 +207,7 @@ public class CliParser {
                     }
                     i++
                 }
-                return Command.Run(options)
+                return CliCommand.Run(options)
             case "build" =>
                 let options = BuildOptions()
                 var i = 1
@@ -228,7 +228,7 @@ public class CliParser {
                     }
                     i++
                 }
-                return Command.Build(options)
+                return CliCommand.Build(options)
             case "install" | "i" =>
                 let options = InstallCliOptions()
                 var i = 1
@@ -247,9 +247,9 @@ public class CliParser {
                     }
                     i++
                 }
-                return Command.Install(options)
+                return CliCommand.Install(options)
             case "test" =>
-                let options = TestOptions()
+                let options = SimpleTestOptions()
                 var i = 1
                 while (i < args.size) {
                     match (args[i]) {
@@ -260,7 +260,7 @@ public class CliParser {
                     }
                     i++
                 }
-                return Command.Test(options)
+                return CliCommand.Test(options)
             case "init" =>
                 let options = InitOptions()
                 var i = 1
@@ -276,9 +276,9 @@ public class CliParser {
                     }
                     i++
                 }
-                return Command.Init(options)
-            case "--version" | "-v" => return Command.Version
-            case "--help" | "-h" => return Command.Help
+                return CliCommand.Init(options)
+            case "--version" | "-v" => return CliCommand.Version
+            case "--help" | "-h" => return CliCommand.Help
             case _ =>
                 // 直接运行脚本
                 let options = RunOptions()
@@ -286,7 +286,7 @@ public class CliParser {
                 for (i in 1..args.size) {
                     options.args.append(args[i])
                 }
-                return Command.Run(options)
+                return CliCommand.Run(options)
         }
     }
 }
@@ -305,14 +305,14 @@ main(): Unit {
     let command = CliParser.parse(args)
 
     match (command) {
-        case Command.Run(opts) => executeRun(opts)
-        case Command.Build(opts) => executeBuild(opts)
-        case Command.Install(opts) => executeInstall(opts)
-        case Command.Test(opts) => executeTest(opts)
-        case Command.Init(opts) => executeInit(opts)
-        case Command.Version => printVersion()
-        case Command.Help => printHelp()
-        case Command.Repl => executeRepl()
+        case CliCommand.Run(opts) => executeRun(opts)
+        case CliCommand.Build(opts) => executeBuild(opts)
+        case CliCommand.Install(opts) => executeInstall(opts)
+        case CliCommand.Test(opts) => executeTest(opts)
+        case CliCommand.Init(opts) => executeInit(opts)
+        case CliCommand.Version => printVersion()
+        case CliCommand.Help => printHelp()
+        case CliCommand.Repl => executeRepl()
     }
 }
 
@@ -455,7 +455,7 @@ private func executeInstall(opts: InstallCliOptions): Unit {
 
 /// 执行 test 命令
 /// 对应 Bun: bun test
-private func executeTest(opts: TestOptions): Unit {
+private func executeTest(opts: SimpleTestOptions): Unit {
     println("Running tests...")
 
     let vm = VirtualMachine()

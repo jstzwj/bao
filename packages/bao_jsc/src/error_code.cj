@@ -9,7 +9,7 @@ package bao_jsc
 // 支持从 anyerror 转换和到 anyerror 的转换
 public type ErrorCodeInt = UInt16
 
-public class ErrorCode {
+public class JscErrorCode {
     // 内部错误码值
     public var value: UInt16
 
@@ -23,8 +23,8 @@ public class ErrorCode {
 
     // 严格翻译自 ErrorCode.from
     // 从错误码整数创建
-    public static func from(code: Int64): ErrorCode {
-        ErrorCode(UInt16(code % 65536))
+    public static func from(code: Int64): JscErrorCode {
+        JscErrorCode(UInt16(code % 65536))
     }
 
     // 严格翻译自 ErrorCode.toError
@@ -40,18 +40,18 @@ public class ErrorCode {
 
     // 严格翻译自 ErrorCode.ParserError
     // 解析器错误常量
-    public static func parserError(): ErrorCode {
-        ErrorCode(UInt16(1))
+    public static func parserError(): JscErrorCode {
+        JscErrorCode(UInt16(1))
     }
 
     // 严格翻译自 ErrorCode.JSErrorObject
     // JS 错误对象常量
-    public static func jsErrorObject(): ErrorCode {
-        ErrorCode(UInt16(2))
+    public static func jsErrorObject(): JscErrorCode {
+        JscErrorCode(UInt16(2))
     }
 
     // 判断是否相等
-    public func equals(other: ErrorCode): Bool {
+    public func equals(other: JscErrorCode): Bool {
         value == other.value
     }
 

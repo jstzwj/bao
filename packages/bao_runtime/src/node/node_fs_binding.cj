@@ -117,6 +117,7 @@ public interface FsCallback {
 
 // ============================================================================
 // 文件系统实现（底层调用）
+// 所有操作委托给 NodeFsSystem 完成实际的系统调用
 // ============================================================================
 public class NodeFsImpl {
     // 同步执行
@@ -137,13 +138,30 @@ public class NodeFsImpl {
             case "copyFile" => return copyFile(args)
             case "access" => return access(args)
             case "chmod" => return chmod(args)
+            case "fchmod" => return fchmod(args)
             case "chown" => return chown(args)
+            case "fchown" => return fchown(args)
+            case "lchown" => return lchown(args)
+            case "lchmod" => return lchmod(args)
             case "utimes" => return utimes(args)
+            case "lutimes" => return lutimes(args)
+            case "futimes" => return futimes(args)
+            case "fdatasync" => return fdatasync(args)
+            case "fsync" => return fsync(args)
+            case "ftruncate" => return ftruncate(args)
+            case "truncate" => return truncate(args)
             case "readlink" => return readlink(args)
             case "symlink" => return symlink(args)
             case "realpath" => return realpath(args)
-            case "truncate" => return truncate(args)
             case "appendFile" => return appendFile(args)
+            case "readFile" => return readFile(args)
+            case "writeFile" => return writeFile(args)
+            case "exists" => return exists(args)
+            case "statfs" => return statfs(args)
+            case "mkdtemp" => return mkdtemp(args)
+            case "link" => return link(args)
+            case "rm" => return rm(args)
+            case "cp" => return cp(args)
             case _ =>
                 let r = FsResult()
                 r.success = false
@@ -159,6 +177,7 @@ public class NodeFsImpl {
     }
 
     // 各文件系统操作的具体实现
+
     private static func open(args: FsArgs): FsResult {
         let fd = NodeFsSystem.open(args.path, args.flags, args.mode)
         if (fd < 0) {
@@ -173,14 +192,30 @@ public class NodeFsImpl {
     }
 
     private static func read(args: FsArgs): FsResult {
-        return FsResult.withData(Array<UInt8>())
-
-
+        let bufSize = if (args.length > 0) { Int64(args.length) } else { Int64(16384) }
+        let buffer = Array<UInt8>(bufSize, { _ => UInt8(0) })
+        let pos = if (args.position >= 0) { args.position } else { Int64(-1) }
+        let bytesRead = NodeFsSystem.readFd(args.fd, buffer, 0, bufSize, pos)
+        if (bytesRead < 0) {
+            return FsResult(NodeError("EIO", "Read failed", 0, ""))
+        }
+        let resultData = if (Int64(bytesRead) < Int64(buffer.size)) {
+            buffer[0..bytesRead]
+        } else {
+            buffer
+        }
+        let r = FsResult.withData(resultData)
+        r.int64Value = bytesRead
+        return r
     }
 
     private static func write(args: FsArgs): FsResult {
-        let written = NodeFsSystem.writeFd(args.fd, args.data, 0, Int64(args.data.size), -1)
-        return FsResult.withInt64(Int64(written))
+        let pos = if (args.position >= 0) { args.position } else { Int64(-1) }
+        let written = NodeFsSystem.writeFd(args.fd, args.data, args.offset, Int64(args.data.size), pos)
+        if (written < 0) {
+            return FsResult(NodeError("EIO", "Write failed", 0, ""))
+        }
+        return FsResult.withInt64(written)
     }
 
     private static func stat(args: FsArgs): FsResult {
@@ -216,16 +251,24 @@ public class NodeFsImpl {
     }
 
     private static func mkdir(args: FsArgs): FsResult {
-        let ok = NodeFsSystem.mkdir(args.path, args.mode)
-        if (ok < 0) {
+        let ok = if (args.recursive) {
+            NodeFsSystem.mkdirRecursive(args.path, args.mode)
+        } else {
+            NodeFsSystem.mkdir(args.path, args.mode) >= 0
+        }
+        if (!ok) {
             return FsResult(NodeError("EEXIST", "Directory already exists: ${args.path}", 0, ""))
         }
         return FsResult.ok()
     }
 
     private static func rmdir(args: FsArgs): FsResult {
-        let ok = NodeFsSystem.rmdir(args.path)
-        if (ok < 0) {
+        let ok = if (args.recursive) {
+            NodeFsSystem.rmRecursive(args.path)
+        } else {
+            NodeFsSystem.rmdir(args.path) >= 0
+        }
+        if (!ok) {
             return FsResult(NodeError("ENOENT", "No such directory: ${args.path}", 0, ""))
         }
         return FsResult.ok()
@@ -271,11 +314,95 @@ public class NodeFsImpl {
         return FsResult.ok()
     }
 
-    private static func chown(args: FsArgs): FsResult {
+    private static func fchmod(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.fchmod(args.fd, args.mode)
+        if (!ok) {
+            return FsResult(NodeError("EBADF", "Bad file descriptor", 0, ""))
+        }
         return FsResult.ok()
     }
 
+    private static func chown(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.chown(args.path, UInt32(0), UInt32(0))
+        if (!ok) {
+            return FsResult(NodeError("EPERM", "Permission denied", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func fchown(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.fchown(args.fd, UInt32(0), UInt32(0))
+        if (!ok) {
+            return FsResult(NodeError("EBADF", "Bad file descriptor", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func lchown(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.lchown(args.path, UInt32(0), UInt32(0))
+        if (!ok) {
+            return FsResult(NodeError("EPERM", "Permission denied", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func lchmod(args: FsArgs): FsResult {
+        return FsResult(NodeError("ENOTSUP", "lchmod not supported", 0, ""))
+    }
+
     private static func utimes(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.utimes(args.path, Float64(args.offset), Float64(args.length))
+        if (ok < 0) {
+            return FsResult(NodeError("ENOENT", "utimes failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func lutimes(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.lutimes(args.path, Float64(args.offset), Float64(args.length))
+        if (ok < 0) {
+            return FsResult(NodeError("ENOENT", "lutimes failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func futimes(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.futimes(args.fd, Float64(args.offset), Float64(args.length))
+        if (ok < 0) {
+            return FsResult(NodeError("EBADF", "futimes failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func fdatasync(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.fdatasync(args.fd)
+        if (ok < 0) {
+            return FsResult(NodeError("EBADF", "fdatasync failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func fsync(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.fsync(args.fd)
+        if (ok < 0) {
+            return FsResult(NodeError("EBADF", "fsync failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func ftruncate(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.ftruncate(args.fd, args.length)
+        if (ok < 0) {
+            return FsResult(NodeError("EBADF", "ftruncate failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func truncate(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.truncate(args.path, args.length)
+        if (ok < 0) {
+            return FsResult(NodeError("ENOENT", "truncate failed", 0, ""))
+        }
         return FsResult.ok()
     }
 
@@ -303,21 +430,83 @@ public class NodeFsImpl {
         return FsResult.withString(resolved.getOrThrow())
     }
 
-    private static func truncate(args: FsArgs): FsResult {
-        let ok = NodeFsSystem.truncate(args.path, args.length)
-        if (ok < 0) {
-            return FsResult(NodeError("ENOENT", "Truncate failed", 0, ""))
-        }
-        return FsResult.ok()
-    }
-
     private static func appendFile(args: FsArgs): FsResult {
-        let fd = NodeFsSystem.open(args.path, args.flags, args.mode)
+        let fd = NodeFsSystem.open(args.path, Int32(FsOpenConstants.O_WRONLY) | Int32(FsOpenConstants.O_APPEND) | Int32(FsOpenConstants.O_CREAT), args.mode)
         if (fd < 0) {
             return FsResult(NodeError("ENOENT", "Cannot open file for append", 0, ""))
         }
         NodeFsSystem.writeFd(fd, args.data, 0, Int64(args.data.size), -1)
         NodeFsSystem.close(fd)
+        return FsResult.ok()
+    }
+
+    private static func readFile(args: FsArgs): FsResult {
+        let data = NodeFsSystem.readFile(args.path)
+        if (data.isNone()) {
+            return FsResult(NodeError("ENOENT", "Cannot read file: ${args.path}", 0, ""))
+        }
+        return FsResult.withData(data.getOrThrow())
+    }
+
+    private static func writeFile(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.writeFile(args.path, args.data, UInt32(0o666))
+        if (ok < 0) {
+            return FsResult(NodeError("EIO", "Write file failed: ${args.path}", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func exists(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.access(args.path, 0)
+        let r = FsResult()
+        r.success = true
+        r.int64Value = if (ok) { Int64(1) } else { Int64(0) }
+        return r
+    }
+
+    private static func statfs(args: FsArgs): FsResult {
+        let result = NodeFsSystem.statfs(args.path)
+        if (result.isNone()) {
+            return FsResult(NodeError("ENOENT", "statfs failed", 0, ""))
+        }
+        let r = FsResult()
+        r.success = true
+        return r
+    }
+
+    private static func mkdtemp(args: FsArgs): FsResult {
+        let result = NodeFsSystem.mkdtemp(args.path)
+        if (result.isNone()) {
+            return FsResult(NodeError("EIO", "mkdtemp failed", 0, ""))
+        }
+        return FsResult.withString(result.getOrThrow())
+    }
+
+    private static func link(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.link(args.path, args.path)
+        if (ok < 0) {
+            return FsResult(NodeError("EPERM", "link failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func rm(args: FsArgs): FsResult {
+        let ok = if (args.recursive) {
+            NodeFsSystem.rmRecursive(args.path)
+        } else {
+            NodeFsSystem.unlink(args.path) >= 0
+        }
+        if (!ok) {
+            return FsResult(NodeError("ENOENT", "rm failed", 0, ""))
+        }
+        return FsResult.ok()
+    }
+
+    private static func cp(args: FsArgs): FsResult {
+        let ok = NodeFsSystem.cpRecursive(args.path, args.path, true)
+        if (!ok) {
+            return FsResult(NodeError("ENOENT", "cp failed", 0, ""))
+        }
         return FsResult.ok()
     }
 }

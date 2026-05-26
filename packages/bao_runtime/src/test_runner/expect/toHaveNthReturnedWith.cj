@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveNthReturnedWith() - 检查mock函数第N次返回的值
 /// 用法: expect(mockFn).toHaveNthReturnedWith(n, expected)
 public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveNthReturnedWith", matcherParamsFmt: "<green>n<r>, <green>expected<r>")
@@ -29,7 +29,7 @@ public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, ca
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
     if (!returns.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
@@ -49,7 +49,7 @@ public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, ca
             let resultType = nthResult.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
-                defer { typeStr.deref() }
+                // defer { typeStr.deref() }
                 if (typeStr.eqlComptime("return")) {
                     nthReturnValue = nthResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
                     if (nthReturnValue.jestDeepEquals(expected, globalThis: globalThis)) {
@@ -69,7 +69,7 @@ public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, ca
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
 
     let signature = Expect.getSignature(matcherName: "toHaveNthReturnedWith", args: "<green>n<r>, <green>expected<r>", not: false)
 

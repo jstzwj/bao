@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // ColonListType — 冒号/等号分隔列表类型

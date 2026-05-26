@@ -81,85 +81,90 @@ public class StmtState {
     /// 下一步
     public func next(): Yield {
         if (this.idx >= this.node.exprs.size) {
-            return this.parent.childDone(this, this.lastExitCode ?? 0)
+            return this.parent.childDone(this, this.lastExitCode ?? ExitCode.exited(0))
         }
 
         let child = this.node.exprs[this.idx]
-        match (child) {
-            case binary =>
-                let binary = BinaryState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.binary,
-                    parent: BinaryParentPtr.initFunc(this),
-                    io: this.io.copy()
+        match (child.tag) {
+            case ExprTag.binary =>
+                let binNode = child.binary.getOrThrow()
+                let binaryState = BinaryState.initFunc(
+                    this.base.interpreter,
+                    this.base.shell,
+                    binNode,
+                    BinaryParentPtr.initFunc(this),
+                    this.io.copy()
                 )
-                this.currentlyExecuting = StmtChildPtr.initFunc(binary)
-                return binary.start()
-            case cmd =>
-                let cmd = CmdState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.cmd,
-                    parent: CmdParentPtr.initFunc(this),
-                    io: this.io.copy()
+                this.currentlyExecuting = StmtChildPtr.initFunc(binaryState)
+                return binaryState.start()
+            case ExprTag.cmd =>
+                let cmdState = CmdState.initFunc(
+                    this.base.interpreter,
+                    this.base.shell,
+                    child.cmd,
+                    CmdParentPtr.initFunc(this),
+                    this.io.copy()
                 )
-                this.currentlyExecuting = StmtChildPtr.initFunc(cmd)
-                return cmd.start()
-            case pipeline =>
-                let pipeline = PipelineState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.pipeline,
-                    parent: PipelineParentPtr.initFunc(this),
-                    io: this.io.copy()
+                this.currentlyExecuting = StmtChildPtr.initFunc(cmdState)
+                return cmdState.start()
+            case ExprTag.pipeline =>
+                let pipeNode = child.pipeline.getOrThrow()
+                let pipeState = PipelineState.initFunc(
+                    this.base.interpreter,
+                    this.base.shell,
+                    pipeNode,
+                    PipelineParentPtr.initFunc(this),
+                    this.io.copy()
                 )
-                this.currentlyExecuting = StmtChildPtr.initFunc(pipeline)
-                return pipeline.start()
-            case assign =>
+                this.currentlyExecuting = StmtChildPtr.initFunc(pipeState)
+                return pipeState.start()
+            case ExprTag.assign =>
                 let assignMachine = AssignsState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.assign,
-                    ctx: AssignCtx.shell,
-                    parent: AssignsParentPtr.initFunc(this),
-                    io: this.io.copy()
+                    this.base.interpreter,
+                    this.base.shell,
+                    child.assign,
+                    AssignCtx.shell,
+                    AssignsParentPtr.initFunc(this),
+                    this.io.copy()
                 )
                 return assignMachine.start()
-            case subshell =>
-                let subshell = SubshellState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.subshell,
-                    parent: SubshellParentPtr.initFunc(this),
-                    io: this.io.copy()
+            case ExprTag.subshell =>
+                let subNode = child.subshell.getOrThrow()
+                let subshellState = SubshellState.initFunc(
+                    this.base.interpreter,
+                    this.base.shell,
+                    subNode,
+                    SubshellParentPtr.initFunc(this),
+                    this.io.copy()
                 )
-                return subshell.start()
-            case ifClause =>
-                let ifClause = IfState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.ifClause,
-                    parent: IfParentPtr.initFunc(this),
-                    io: this.io.copy()
+                return subshellState.start()
+            case ExprTag.`if` =>
+                let ifNode = child.`if`.getOrThrow()
+                let ifState = IfState.initFunc(
+                    this.base.interpreter,
+                    this.base.shell,
+                    ifNode,
+                    IfParentPtr.initFunc(this),
+                    this.io.copy()
                 )
-                return ifClause.start()
-            case condexpr =>
-                let condexpr = CondExprState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.condexpr,
-                    parent: CondExprParentPtr.initFunc(this),
-                    io: this.io.copy()
+                return ifState.start()
+            case ExprTag.condexpr =>
+                let condState = CondExprState.initFunc(
+                    this.base.interpreter,
+                    this.base.shell,
+                    child.condexpr,
+                    CondExprParentPtr.initFunc(this),
+                    this.io.copy()
                 )
-                return condexpr.start()
-            case async =>
+                return condState.start()
+            case ExprTag.async =>
+                let asyncNode = child.asyncExpr.getOrThrow()
                 let asyncCmd = AsyncState.initFunc(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: child.async,
-                    parent: AsyncParentPtr.initFunc(this),
-                    io: this.io.copy()
+                    this.base.interpreter,
+                    this.base.shell,
+                    asyncNode,
+                    AsyncParentPtr.initFunc(this),
+                    this.io.copy()
                 )
                 return asyncCmd.start()
         }

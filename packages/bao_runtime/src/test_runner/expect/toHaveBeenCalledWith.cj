@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveBeenCalledWith() - 检查mock函数是否以指定参数被调用
 /// 用法: expect(mockFn).toHaveBeenCalledWith(...expected)
 public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.arguments()
@@ -19,7 +19,7 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenCalledWith", args: "<green>...expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nMatcher error: <red>received<r> value must be a mock function\nReceived: {f}",
@@ -62,7 +62,7 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
 
     let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: arguments.size)
     for ((arg, i) in arguments) {

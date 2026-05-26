@@ -239,7 +239,7 @@ public func getCredentialsWithOptions(
     defaultAcl: ?S3Acl,
     defaultStorageClass: ?S3StorageClass,
     defaultRequestPayer: Bool,
-    globalObject: JsGlobalObject
+    globalObject: JSGlobalObject
 ): S3CredentialsWithOptions {
     var result = S3CredentialsWithOptions(credentials, defaultOptions)
     result.acl = defaultAcl
@@ -260,14 +260,42 @@ public func getCredentialsWithOptions(
             parseCredentialBool(opts, globalObject, "virtualHostedStyle", result)
             parseAcl(opts, globalObject, result)
             parseStorageClass(opts, globalObject, result)
-            parseBoolOption(opts, globalObject, "requestPayer", { value: Bool => result.requestPayer = value })
-            parseMultipartInt(opts, globalObject, "partSize", { value: Int64 => result.options.partSize = value })
-            parseMultipartInt(opts, globalObject, "queueSize", { value: Int64 => result.options.queueSize = UInt8(value) })
-            parseMultipartInt(opts, globalObject, "retry", { value: Int64 => result.options.retry = UInt8(value) })
-            parseHeaderString(opts, globalObject, "contentDisposition", { value: String => result.contentDisposition = value })
-            parseHeaderString(opts, globalObject, "type", { value: String => result.contentType = value })
-            parseHeaderString(opts, globalObject, "contentType", { value: String => result.contentType = value })
-            parseHeaderString(opts, globalObject, "contentEncoding", { value: String => result.contentEncoding = value })
+            if (let Some(rp) <- opts.getBooleanStrict(globalObject.globalThis, "requestPayer")) {
+                result.requestPayer = rp
+            }
+            if (let Some(ps) <- opts.getOptionalInt(globalObject.globalThis, "partSize")) {
+                if (ps >= 0) { result.options.partSize = ps }
+            }
+            if (let Some(qs) <- opts.getOptionalInt(globalObject.globalThis, "queueSize")) {
+                if (qs >= 0) { result.options.queueSize = UInt8(qs) }
+            }
+            if (let Some(rt) <- opts.getOptionalInt(globalObject.globalThis, "retry")) {
+                if (rt >= 0) { result.options.retry = UInt8(rt) }
+            }
+            if (let Some(cd) <- opts.getTruthy(globalObject.globalThis, "contentDisposition")) {
+                if (cd.isString()) {
+                    let str = cd.toString()
+                    if (!containsNewlineOrCR(str)) { result.contentDisposition = str }
+                }
+            }
+            if (let Some(ct) <- opts.getTruthy(globalObject.globalThis, "type")) {
+                if (ct.isString()) {
+                    let str = ct.toString()
+                    if (!containsNewlineOrCR(str)) { result.contentType = str }
+                }
+            }
+            if (let Some(ct2) <- opts.getTruthy(globalObject.globalThis, "contentType")) {
+                if (ct2.isString()) {
+                    let str = ct2.toString()
+                    if (!containsNewlineOrCR(str)) { result.contentType = str }
+                }
+            }
+            if (let Some(ce) <- opts.getTruthy(globalObject.globalThis, "contentEncoding")) {
+                if (ce.isString()) {
+                    let str = ce.toString()
+                    if (!containsNewlineOrCR(str)) { result.contentEncoding = str }
+                }
+            }
         case None => ()
     }
 
@@ -301,8 +329,8 @@ private func cloneMultipartOptions(options: MultiPartUploadOptions): MultiPartUp
     return MultiPartUploadOptions(options.queueSize, options.partSize, options.retry)
 }
 
-private func parseCredentialString(options: JsValue, globalObject: JsGlobalObject, name: String, result: S3CredentialsWithOptions, field: CredentialField): Unit {
-    match (options.getTruthy(globalObject, name)) {
+private func parseCredentialString(options: JsValue, globalObject: JSGlobalObject, name: String, result: S3CredentialsWithOptions, field: CredentialField): Unit {
+    match (options.getTruthy(globalObject.globalThis, name)) {
         case Some(value) =>
             if (!value.isString()) { return }
             let str = value.toString()
@@ -319,8 +347,8 @@ private func parseCredentialString(options: JsValue, globalObject: JsGlobalObjec
     }
 }
 
-private func parseCredentialBool(options: JsValue, globalObject: JsGlobalObject, name: String, result: S3CredentialsWithOptions): Unit {
-    match (options.getBooleanStrict(globalObject, name)) {
+private func parseCredentialBool(options: JsValue, globalObject: JSGlobalObject, name: String, result: S3CredentialsWithOptions): Unit {
+    match (options.getBooleanStrict(globalObject.globalThis, name)) {
         case Some(value) =>
             if (name == "virtualHostedStyle") {
                 result.credentials.virtualHostedStyle = value
@@ -358,23 +386,23 @@ private func stripUrlScheme(endpoint: String): String {
     return normalized
 }
 
-private func parseBoolOption(options: JsValue, globalObject: JsGlobalObject, name: String, setter: (Bool) -> Unit): Unit {
-    match (options.getBooleanStrict(globalObject, name)) {
+private func parseBoolOption(options: JsValue, globalObject: JSGlobalObject, name: String, setter: (Bool) -> Unit): Unit {
+    match (options.getBooleanStrict(globalObject.globalThis, name)) {
         case Some(value) => setter(value)
         case None => ()
     }
 }
 
-private func parseMultipartInt(options: JsValue, globalObject: JsGlobalObject, name: String, setter: (Int64) -> Unit): Unit {
-    match (options.getOptionalInt(globalObject, name)) {
+private func parseMultipartInt(options: JsValue, globalObject: JSGlobalObject, name: String, setter: (Int64) -> Unit): Unit {
+    match (options.getOptionalInt(globalObject.globalThis, name)) {
         case Some(value) =>
             if (value >= 0) { setter(value) }
         case None => ()
     }
 }
 
-private func parseHeaderString(options: JsValue, globalObject: JsGlobalObject, name: String, setter: (String) -> Unit): Unit {
-    match (options.getTruthy(globalObject, name)) {
+private func parseHeaderString(options: JsValue, globalObject: JSGlobalObject, name: String, setter: (String) -> Unit): Unit {
+    match (options.getTruthy(globalObject.globalThis, name)) {
         case Some(value) =>
             if (!value.isString()) { return }
             let str = value.toString()
@@ -385,8 +413,8 @@ private func parseHeaderString(options: JsValue, globalObject: JsGlobalObject, n
     }
 }
 
-private func parseAcl(options: JsValue, globalObject: JsGlobalObject, result: S3CredentialsWithOptions): Unit {
-    match (options.getTruthy(globalObject, "acl")) {
+private func parseAcl(options: JsValue, globalObject: JSGlobalObject, result: S3CredentialsWithOptions): Unit {
+    match (options.getTruthy(globalObject.globalThis, "acl")) {
         case Some(value) =>
             if (!value.isString()) { return }
             match (S3Acl.fromString(value.toString())) {
@@ -397,8 +425,8 @@ private func parseAcl(options: JsValue, globalObject: JsGlobalObject, result: S3
     }
 }
 
-private func parseStorageClass(options: JsValue, globalObject: JsGlobalObject, result: S3CredentialsWithOptions): Unit {
-    match (options.getTruthy(globalObject, "storageClass")) {
+private func parseStorageClass(options: JsValue, globalObject: JSGlobalObject, result: S3CredentialsWithOptions): Unit {
+    match (options.getTruthy(globalObject.globalThis, "storageClass")) {
         case Some(value) =>
             if (!value.isString()) { return }
             match (S3StorageClass.fromString(value.toString())) {

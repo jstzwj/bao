@@ -780,7 +780,7 @@ public class GitHandler {
     /// 同步执行 git 初始化
     // 严格翻译自: create_command.zig 中 GitHandler.run
     public func run(destination: String, path: String, verbose: Bool): Bool {
-        let gitStart = Time.nowNanos()
+        let gitStart = CreateTime.nowNanos()
 
         // 查找 git 可执行文件
         // 严格翻译自: create_command.zig 中 which(&bun_path_buf, PATH, destination, "git")
@@ -807,10 +807,10 @@ public class GitHandler {
                     Process.`spawn`(command, destination)
                 }
 
-                let gitEnd = Time.nowNanos()
+                let gitEnd = CreateTime.nowNanos()
                 let elapsed = (gitEnd - gitStart) / 1000000
                 println("")
-                Time.printStartEnd(gitStart, gitEnd)
+                CreateTime.printStartEnd(gitStart, gitEnd)
                 println(" git")
                 return true
             case None => return false
@@ -1298,13 +1298,13 @@ public class CreateCommand {
                                 let properties = root.properties()
                                 var propertiesOut = ArrayList<JsonProperty>()
 
-                                for (prop in properties) {
-                                    let key = prop.key
+                                for (`prop` in properties) {
+                                    let key = `prop`.key
 
                                     // 处理 scripts
                                     // 严格翻译自: create_command.zig 中 scripts pruning
                                     if (key == "scripts") {
-                                        match (prop.value.getObject()) {
+                                        match (`prop`.value.getObject()) {
                                             case Some(scriptsObj) =>
                                                 let scriptKeys = scriptsObj.keys()
                                                 var scriptsOut = ArrayList<JsonProperty>()
@@ -1340,7 +1340,7 @@ public class CreateCommand {
                                                     newScripts.setString(sp.key, sp.stringValue())
                                                 }
                                                 propertiesOut.append(JsonProperty("scripts", newScripts))
-                                            case None => propertiesOut.append(prop)
+                                            case None => propertiesOut.append(`prop`)
                                         }
                                         continue
                                     }
@@ -1348,7 +1348,7 @@ public class CreateCommand {
                                     // 处理 "bun-create" 属性
                                     // 严格翻译自: create_command.zig 中 bun-create 处理
                                     if (key == "bun-create") {
-                                        let value = prop.value
+                                        let value = `prop`.value
 
                                         // postinstall 任务
                                         // 严格翻译自: create_command.zig 中 postinstall 处理
@@ -1475,7 +1475,7 @@ public class CreateCommand {
         // ====================================================================
         match (npmClient_) {
             case Some(npmClient) =>
-                let startTime = Time.nowNanos()
+                let startTime = CreateTime.nowNanos()
                 let installArgs = [npmClient.bin, "install"]
                 print("\n$ ")
                 print(npmClient.bin)
@@ -1485,9 +1485,9 @@ public class CreateCommand {
                 // 严格翻译自: create_command.zig 中 bun.spawnSync install
                 let result = Process.`spawn`(installArgs, destination)
 
-                let endTime = Time.nowNanos()
+                let endTime = CreateTime.nowNanos()
                 println("")
-                Time.printStartEnd(startTime, endTime)
+                CreateTime.printStartEnd(startTime, endTime)
                 println(" ${npmClient.bin} install")
                 println("")
             case None => ()
@@ -1615,21 +1615,19 @@ public class CreateCommand {
         // 检查本地文件 (.jsx/.tsx)
         // 严格翻译自: create_command.zig 中 existsAtType == .file 检查
         // ====================================================================
-        {
-            let absPath = Path.resolve(positional)
-            if (BaoFile.exists(absPath) && !BaoFile.isDirectory(absPath)) {
-                let extension = Path.extension(positional)
-                let tag = Example.fromFileExtension(extension)
-                match (tag) {
-                    case Some(t) =>
-                        return (t, absPath)
-                    case None =>
-                        // 不是 .jsx/.tsx 文件但存在本地文件
-                        // 严格翻译自: create_command.zig 中扩展名警告
-                        if (extension.length > 0 && extension != ".js") {
-                            println("warn: bao create [local file] only supports .jsx and .tsx files currently")
-                        }
-                }
+        let absPath0 = Path.resolve(positional)
+        if (BaoFile.exists(absPath0) && !BaoFile.isDirectory(absPath0)) {
+            let extension = Path.extension(positional)
+            let tag = Example.fromFileExtension(extension)
+            match (tag) {
+                case Some(t) =>
+                    return (t, absPath0)
+                case None =>
+                    // 不是 .jsx/.tsx 文件但存在本地文件
+                    // 严格翻译自: create_command.zig 中扩展名警告
+                    if (extension.length > 0 && extension != ".js") {
+                        println("warn: bao create [local file] only supports .jsx and .tsx files currently")
+                    }
             }
         }
 
@@ -1697,6 +1695,7 @@ public class CreateCommand {
                         match (positional.indexOfFrom(firstSlashIndex + 1, '/')) {
                             case Some(secondSlashIndex) =>
                                 // 包含两个斜杠 — 不确定是否是 GitHub
+                                ()
                             case None =>
                                 // 只有一个斜杠, 且两边都有内容
                                 if (firstSlashIndex > 0 && positional.length > firstSlashIndex + 1) {
@@ -2147,7 +2146,7 @@ public class Thread {
     }
 
     /// 启动后台线程
-    public static func spawn(runnable: () -> Unit): Thread {
+    public static func `spawn`(runnable: () -> Unit): Thread {
         let t = Thread(runnable)
         t.start()
         return t
@@ -2163,14 +2162,14 @@ public class Thread {
     public func join(): Unit {
         // 等待线程完成
         while (!finished) {
-            Time.sleepMs(1)
+            CreateTime.sleepMs(1)
         }
     }
 }
 
 /// Time 工具
 // 严格翻译自: create_command.zig 中 std.time 引用
-public class Time {
+public class CreateTime {
     /// 获取当前纳秒时间戳
     public static func nowNanos(): Int64 {
         return Sys.nanoTime()

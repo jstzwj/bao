@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveProperty() - 检查对象是否具有指定属性
 /// 用法: expect(obj).toHaveProperty(path) / expect(obj).toHaveProperty(path, value)
 public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
@@ -50,7 +50,7 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     if (not) {
         if (expectedProperty.isSome()) {
             let signature = Expect.getSignature(matcherName: "toHaveProperty", args: "<green>path<r><d>, <r><green>value<r>", not: true)

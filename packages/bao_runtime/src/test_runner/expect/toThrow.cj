@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toThrow() - 检查函数是否抛出异常
 /// 用法: expect(fn).toThrow() / expect(fn).toThrow("message") / expect(fn).toThrow(ErrorClass)
 public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments = callFrame.argumentsAsArray(1)
@@ -22,7 +22,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
         expectedValue = JsValue.zero
     } else if (value.isUndefinedOrNull() || (!value.isObject() && !value.isString())) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         expectedValue = globalThis.throw_("Expected value must be string or Error: {f}", args: [value.toFmt(formatter)])
     } else if (value.isObject()) {
         if (ExpectAny.fromJSDirect(value)) {
@@ -59,7 +59,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
         let result = result_
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
 
         // expected 为空或 undefined
         if (expectedValue == JsValue.zero || expectedValue.isUndefined() ){
@@ -90,9 +90,9 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
             // partial match
             let expectedSlice = expectedValue.toSliceOrNull(globalThis: globalThis)
-            defer { expectedSlice.deinit() }
+            // defer { expectedSlice.deinit() }
             let receivedSlice = receivedMessage.toSliceOrNull(globalThis: globalThis)
-            defer { receivedSlice.deinit() }
+            // defer { receivedSlice.deinit() }
             if (!strings.contains(receivedSlice.slice(), expectedSlice.slice()) ){
                 return JsValue.jsUndefined
             }
@@ -191,16 +191,16 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
             if (let Some(recvMsg) <- receivedMessage) {
                 // partial match
                 let expectedSlice = expectedValue.toSliceOrNull(globalThis: globalThis)
-                defer { expectedSlice.deinit() }
+                // defer { expectedSlice.deinit() }
                 let receivedSlice = recvMsg.toSlice(globalThis: globalThis, allocator: globalThis.allocator())
-                defer { receivedSlice.deinit() }
+                // defer { receivedSlice.deinit() }
                 if (strings.contains(receivedSlice.slice(), expectedSlice.slice()) ){
                     return JsValue.jsUndefined
                 }
             }
 
             let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-            defer { formatter.deinit() }
+            // defer { formatter.deinit() }
 
             let signature = Expect.getSignature(matcherName: "toThrow", args: "<green>expected<r>", not: false)
 
@@ -227,7 +227,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
             }
 
             let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-            defer { formatter.deinit() }
+            // defer { formatter.deinit() }
 
             if (let Some(recvMsg) <- receivedMessage) {
                 let signature = Expect.getSignature(matcherName: "toThrow", args: "<green>expected<r>", not: false)
@@ -256,7 +256,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
             }
 
             let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-            defer { formatter.deinit() }
+            // defer { formatter.deinit() }
             return this.throw_(globalThis: globalThis, signature: signature,
                 fmt: "\n\nExpected value: <green>{f}<r>\nReceived value: <red>{f}<r>\n",
                 args: [expectedValue.toFmt(formatter), result.toFmt(formatter)])
@@ -273,7 +273,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
             }
 
             let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-            defer { formatter.deinit() }
+            // defer { formatter.deinit() }
 
             if (let Some(recvMsg) <- receivedMessage) {
                 return this.throw_(globalThis: globalThis, signature: signature,
@@ -293,7 +293,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
         // 构造函数不匹配
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         var expectedClass = ZigString.Empty
         var receivedClass = ZigString.Empty
         expectedValue.getClassName(globalThis: globalThis, result: expectedClass)
@@ -313,7 +313,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     // ========== 未抛出异常 ==========
     let result = returnValueFromFunction
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let receivedLine = "Received function did not throw\nReceived value: <red>{f}<r>\n"
 
     if (expectedValue == JsValue.zero || expectedValue.isUndefined() ){

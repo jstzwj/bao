@@ -18,6 +18,21 @@ public enum EventType {
     | OpenEvent
     | Unknown
 
+    public operator func ==(other: EventType): Bool {
+        match (this) {
+            case Event => match (other) { case Event => true; case _ => false }
+            case MessageEvent => match (other) { case MessageEvent => true; case _ => false }
+            case CloseEvent => match (other) { case CloseEvent => true; case _ => false }
+            case ErrorEvent => match (other) { case ErrorEvent => true; case _ => false }
+            case OpenEvent => match (other) { case OpenEvent => true; case _ => false }
+            case Unknown => match (other) { case Unknown => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: EventType): Bool {
+        !(this == other)
+    }
+
     /// 获取标签
     public func label(): String {
         match (this) {
@@ -65,6 +80,20 @@ public enum MessageLevel {
     | error     // 2
     | debug_    // 3
     | info      // 4
+
+    public operator func ==(other: MessageLevel): Bool {
+        match (this) {
+            case log => match (other) { case log => true; case _ => false }
+            case warning => match (other) { case warning => true; case _ => false }
+            case error => match (other) { case error => true; case _ => false }
+            case debug_ => match (other) { case debug_ => true; case _ => false }
+            case info => match (other) { case info => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: MessageLevel): Bool {
+        !(this == other)
+    }
 }
 
 // ========== MessageType - 消息类型 ==========
@@ -85,6 +114,29 @@ public enum MessageType {
     | profile       // 11
     | profileEnd    // 12
     | image         // 13
+
+    public operator func ==(other: MessageType): Bool {
+        match (this) {
+            case log => match (other) { case log => true; case _ => false }
+            case dir => match (other) { case dir => true; case _ => false }
+            case dirXML => match (other) { case dirXML => true; case _ => false }
+            case table => match (other) { case table => true; case _ => false }
+            case trace => match (other) { case trace => true; case _ => false }
+            case startGroup => match (other) { case startGroup => true; case _ => false }
+            case startGroupCollapsed => match (other) { case startGroupCollapsed => true; case _ => false }
+            case endGroup => match (other) { case endGroup => true; case _ => false }
+            case clear => match (other) { case clear => true; case _ => false }
+            case assert_ => match (other) { case assert_ => true; case _ => false }
+            case timing => match (other) { case timing => true; case _ => false }
+            case profile => match (other) { case profile => true; case _ => false }
+            case profileEnd => match (other) { case profileEnd => true; case _ => false }
+            case image => match (other) { case image => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: MessageType): Bool {
+        !(this == other)
+    }
 }
 
 // ========== FormatOptions - 格式化选项 ==========
@@ -201,6 +253,40 @@ public enum Tag {
     | arrayBuffer
     | jsx
     | event
+
+    public operator func ==(other: Tag): Bool {
+        match (this) {
+            case stringPossiblyFormatted => match (other) { case stringPossiblyFormatted => true; case _ => false }
+            case string => match (other) { case string => true; case _ => false }
+            case undefined => match (other) { case undefined => true; case _ => false }
+            case double_ => match (other) { case double_ => true; case _ => false }
+            case integer => match (other) { case integer => true; case _ => false }
+            case null_ => match (other) { case null_ => true; case _ => false }
+            case boolean => match (other) { case boolean => true; case _ => false }
+            case array => match (other) { case array => true; case _ => false }
+            case object => match (other) { case object => true; case _ => false }
+            case function => match (other) { case function => true; case _ => false }
+            case class_ => match (other) { case class_ => true; case _ => false }
+            case error => match (other) { case error => true; case _ => false }
+            case typedArray => match (other) { case typedArray => true; case _ => false }
+            case map => match (other) { case map => true; case _ => false }
+            case set => match (other) { case set => true; case _ => false }
+            case symbol => match (other) { case symbol => true; case _ => false }
+            case bigInt => match (other) { case bigInt => true; case _ => false }
+            case globalObject => match (other) { case globalObject => true; case _ => false }
+            case private_ => match (other) { case private_ => true; case _ => false }
+            case promise => match (other) { case promise => true; case _ => false }
+            case json => match (other) { case json => true; case _ => false }
+            case nativeCode => match (other) { case nativeCode => true; case _ => false }
+            case arrayBuffer => match (other) { case arrayBuffer => true; case _ => false }
+            case jsx => match (other) { case jsx => true; case _ => false }
+            case event => match (other) { case event => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: Tag): Bool {
+        !(this == other)
+    }
 
     /// 是否为原始类型
     public func isPrimitive(): Bool {

@@ -1161,6 +1161,7 @@ public class BunfigParser {
         match (installObj.get("publicHoistPattern")) {
             case Some(expr) =>
                 // 解析 pnpm matcher 模式
+                ()
             case None => ()
         }
 
@@ -1169,6 +1170,7 @@ public class BunfigParser {
         match (installObj.get("hoistPattern")) {
             case Some(expr) =>
                 // 解析 pnpm matcher 模式
+                ()
             case None => ()
         }
     }
@@ -1240,9 +1242,9 @@ public class BunfigParser {
             case Some(expr) =>
                 let s = expr.asString()
                 if (s.isSome()) {
-                    if (s! == "bun") {
+                    if (s.getOrThrow() == "bun") {
                         ctx.debug.useSystemShell = false
-                    } else if (s! == "system") {
+                    } else if (s.getOrThrow() == "system") {
                         ctx.debug.useSystemShell = true
                     } else {
                         addError("Invalid shell, only 'bun' and 'system' are supported")
@@ -1577,7 +1579,7 @@ public class BunfigParser {
             case Some(expr) =>
                 let s = expr.asString()
                 if (s.isSome() && !s.getOrThrow().isEmpty()) {
-                    ctx.args.servePublicPath = Some(s!)
+                    ctx.args.servePublicPath = Some(s.getOrThrow())
                 }
             case None => ()
         }
@@ -2200,26 +2202,5 @@ public class BunfigJsonParser {
         // 简化的 JSON 解析 - 将 JSON 转为 BunfigExpr
         // 实际实现应调用 bao_parsers 的 JSON 解析器
         return Err("JSON parser not yet implemented for bunfig")
-    }
-}
-
-/// TOML 表 (内部辅助)
-private class TomlTable {
-    private var entries: HashMap<String, String>
-
-    public init() {
-        entries = HashMap<String, String>()
-    }
-
-    public func set(key: String, value: String): Unit {
-        entries.put(key, value)
-    }
-
-    public func get(key: String): ?String {
-        entries.get(key)
-    }
-
-    public func keys(): ArrayList<String> {
-        return entries.keys()
     }
 }

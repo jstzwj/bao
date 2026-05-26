@@ -466,6 +466,26 @@ public enum ResolutionTag {
     | LocalTarball
     | RemoteTarball
     | SingleFileModule
+
+    public operator func ==(right: ResolutionTag): Bool {
+        match (this) {
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case NPM => match (right) { case NPM => true case _ => false }
+            case Git => match (right) { case Git => true case _ => false }
+            case GitHub => match (right) { case GitHub => true case _ => false }
+            case Root => match (right) { case Root => true case _ => false }
+            case Workspace => match (right) { case Workspace => true case _ => false }
+            case Symlink => match (right) { case Symlink => true case _ => false }
+            case Folder => match (right) { case Folder => true case _ => false }
+            case LocalTarball => match (right) { case LocalTarball => true case _ => false }
+            case RemoteTarball => match (right) { case RemoteTarball => true case _ => false }
+            case SingleFileModule => match (right) { case SingleFileModule => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ResolutionTag): Bool {
+        return !(this == right)
+    }
 }
 
 /// Fn 类型

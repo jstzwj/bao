@@ -3,8 +3,20 @@
 package bao_js_parser_jsc
 
 import bao_ast.*
-import bao_core.*
-import bao_jsc.*
+import bao_core.Result
+import bao_core.BaoError
+import bao_core.ErrorCode
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
+import bao_jsc.JsObject
+import bao_jsc.BunVirtualMachine
+import bao_jsc.BunVirtualMachineOptions
+import bao_jsc.JsArrayIterator_
+import bao_jsc.JSPromiseStatus
+import bao_jsc.JsValueType
+import bao_jsc.JsVirtualMachine
+import bao_collections.ArrayList
+import bao_collections.HashMap
 
 // ============================================================================
 // 宏模块常量
@@ -70,14 +82,14 @@ public class MacroContext {
         functionName: String
     ): Result<ASTNode, BaoError> {
         let importRecordPathWithoutMacroPrefix = if (isMacroPath(importRecordPath)) {
-            importRecordPath[MACRO_NAMESPACE_WITH_COLON.size...]
+            importRecordPath[Int64(MACRO_NAMESPACE_WITH_COLON.size)..importRecordPath.size]
         } else {
             importRecordPath
         }
 
         let inputSpecifier = importRecordPathWithoutMacroPrefix
         let hash = MacroEntryPoint.generateID(inputSpecifier, functionName)
-        var macro = match (macros.get(hash)) {
+        var `macro` = match (macros.get(hash)) {
             case Some(existing) => existing
             case None =>
                 let created = Macro.initFunc(inputSpecifier, functionName, inputSpecifier, hash)
@@ -85,14 +97,14 @@ public class MacroContext {
                 created
         }
 
-        if (macro.disabled) {
+        if (`macro`.disabled) {
             return Result<ASTNode, BaoError>.Ok(caller)
         }
 
-        let vm = macro.vm
+        let vm = `macro`.vm
         vm.enableMacroMode()
         let result = MacroRunner.run(
-            macro,
+            `macro`,
             functionName,
             caller,
             hash,
@@ -158,16 +170,16 @@ public class Macro {
     }
 
     public static func initFunc(inputSpecifier: String, functionName: String, specifier: String, hash: Int64): Macro {
-        let macro = Macro()
-        macro.disabled = false
-        macro.resolved = inputSpecifier
-        macro.vm.enableMacroMode()
-        let loaded = macro.vm.loadMacroEntryPoint(inputSpecifier, functionName, specifier, hash)
+        let `macro` = Macro()
+        `macro`.disabled = false
+        `macro`.resolved = inputSpecifier
+        `macro`.vm.enableMacroMode()
+        let loaded = `macro`.vm.loadMacroEntryPoint(inputSpecifier, functionName, specifier, hash)
         if (loaded.isNone()) {
-            macro.disabled = true
+            `macro`.disabled = true
         }
-        macro.vm.disableMacroMode()
-        return macro
+        `macro`.vm.disableMacroMode()
+        return `macro`
     }
 }
 
@@ -175,23 +187,23 @@ public class MacroRunner {
     public init() {}
 
     public static func runAsync(
-        macro: Macro,
+        `macro`: Macro,
         functionName: String,
         caller: ASTNode,
         args: Array<JsValue>,
         id: Int64
     ): Result<ASTNode, MacroError> {
-        let callback = match (macro.vm.macros.get(id)) {
+        let callback = match (`macro`.vm.macros.get(id)) {
             case Some(cb) => cb
             case None => return Result<ASTNode, MacroError>.Ok(caller)
         }
         let result = callback.get(functionName)
-        let runner = MacroRun(macro, functionName, caller)
+        let runner = MacroRun(`macro`, functionName, caller)
         return runner.run(result)
     }
 
     public static func run(
-        macro: Macro,
+        `macro`: Macro,
         functionName: String,
         caller: ASTNode,
         id: Int64,
@@ -202,7 +214,7 @@ public class MacroRunner {
         match (caller.value) {
             case call: ECall =>
                 for (arg in call.args) {
-                    match (exprToJS(arg, JSGlobalObject(macro.vm))) {
+                    match (exprToJS(arg, JSGlobalObject(`macro`.vm))) {
                         case Ok(value) => jsArgs.append(value)
                         case Err(err) => return Result<ASTNode, MacroError>.Err(MacroError.ToJS(err))
                     }
@@ -217,19 +229,19 @@ public class MacroRunner {
             jsArgs.append(javascriptObject)
         }
 
-        return runAsync(macro, functionName, caller, jsArgs.toArray(), id)
+        return runAsync(`macro`, functionName, caller, jsArgs.items(), id)
     }
 }
 
 public class MacroRun {
     public var caller: ASTNode
     public var functionName: String
-    public var macro: Macro
+    public var `macro`: Macro
     public var visited: HashMap<Int64, ASTNode>
     public var isTopLevel: Bool
 
-    public init(macro: Macro, functionName: String, caller: ASTNode) {
-        this.macro = macro
+    public init(`macro`: Macro, functionName: String, caller: ASTNode) {
+        this.`macro` = `macro`
         this.functionName = functionName
         this.caller = caller
         this.visited = HashMap<Int64, ASTNode>()
@@ -243,8 +255,8 @@ public class MacroRun {
         if (value.isNumber()) { return Result<ASTNode, MacroError>.Ok(ASTNode(ExprTag.Number, caller.loc, ENumber(value.asNumber()))) }
         if (value.isString()) { return Result<ASTNode, MacroError>.Ok(ASTNode(ExprTag.StringExpr, caller.loc, EString(value.toString()))) }
         if (value.isArray()) { return coerceArray(value) }
-        if (value.isError() || value.isAggregateError(macro.vm.globalObject) || value.isException()) {
-            let _ = macro.vm.uncaughtException(macro.vm.globalObject, value, false)
+        if (value.isError() || value.isAggregateError(`macro`.vm.globalObject) || value.isException()) {
+            let _ = `macro`.vm.uncaughtException(`macro`.vm.globalObject, value, false)
             return Result<ASTNode, MacroError>.Err(MacroError.MacroFailed)
         }
         if (value.valueType == JsValueType.Promise) { return coercePromise(value) }
@@ -272,7 +284,7 @@ public class MacroRun {
         let expr = ASTNode(ExprTag.Array, caller.loc, array)
         visited.put(identity, expr)
 
-        var iter = JsArrayIterator_.initFunc(value, macro.vm.globalObject)
+        var iter = JsArrayIterator_.initFunc(value, `macro`.vm.globalObject)
         while (let Some(item) <- iter.next()) {
             match (run(item)) {
                 case Ok(elem) =>
@@ -305,10 +317,8 @@ public class MacroRun {
             let propValue = raw.get(key)
             match (run(propValue)) {
                 case Ok(objectValue) =>
-                    let prop = Property()
-                    prop.key = ASTNode(ExprTag.StringExpr, caller.loc, key)
-                    prop.value = objectValue
-                    object.properties.append(prop)
+                    let `prop` = GProperty(ASTNode(ExprTag.StringExpr, caller.loc, key), objectValue)
+                    object.properties.append(`prop`)
                 case Err(err) => return Result<ASTNode, MacroError>.Err(err)
             }
         }
@@ -320,11 +330,15 @@ public class MacroRun {
             case Some(p) => p
             case None => return Result<ASTNode, MacroError>.Err(MacroError.MacroFailed)
         }
-        macro.vm.waitForPromise(JsObject.make())
+        `macro`.vm.waitForPromise(JsObject.make())
         let result = promise.result(JsVirtualMachine())
-        if (promise.status() == JSPromiseStatus.Rejected || result.isError() ||
-            result.isAggregateError(macro.vm.globalObject) || result.isException()) {
-            macro.vm.unhandledRejection(macro.vm.globalObject, result, value)
+        let isRejected = match (promise.status()) {
+            case JSPromiseStatus.Rejected => true
+            case _ => false
+        }
+        if (isRejected || result.isError() ||
+            result.isAggregateError(`macro`.vm.globalObject) || result.isException()) {
+            `macro`.vm.unhandledRejection(`macro`.vm.globalObject, result, value)
             return Result<ASTNode, MacroError>.Err(MacroError.MacroFailed)
         }
         return run(result)

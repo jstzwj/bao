@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toEqual() - 深度相等比较
 /// 用法: expect(received).toEqual(expected)
 public func toEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)

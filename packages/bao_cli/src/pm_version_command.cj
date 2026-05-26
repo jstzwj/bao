@@ -11,6 +11,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 import bao_install.*
 
 // ============================================================================
@@ -444,7 +445,7 @@ public class SemVer {
 }
 
 /// VersionOptions 的扩展字段
-public class VersionOptions {
+public class VersionOptionsExt {
     public var versionArg: ?String = None  // 版本参数
 
     public init() {}

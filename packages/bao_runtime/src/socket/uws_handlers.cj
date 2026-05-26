@@ -4,6 +4,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_uws_sys.{SocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError, CloseCode}
 
 // ============================================================================
 // Socket 种类处理器适配器
@@ -112,7 +113,7 @@ public class BunListenerHandler {
 
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
-        unsupported("handshake")
+        throw Exception("ENOSYS: uWS handshake is not implemented for BunListenerHandler")
     }
 }
 

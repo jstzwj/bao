@@ -69,9 +69,9 @@ function eos(stream, options, callback) {
     }
   };
 
-  // TODO (ronag): Improve soft detection to include core modules and
-  // common ecosystem modules that do properly emit 'close' but fail
-  // this generic check.
+  // NOTE (ronag): Soft detection of 'close' emitting streams could be
+  // improved to include core modules and common ecosystem modules that
+  // do properly emit 'close' but fail this generic check.
   let willEmitClose =
     _willEmitClose(stream) && isReadableNodeStream(stream) === readable && isWritableNodeStream(stream) === writable;
 

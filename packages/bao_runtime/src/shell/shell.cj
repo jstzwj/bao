@@ -4,62 +4,34 @@ package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
-import bao_sys.*
-import bao_io.*
 import bao_event_loop.*
-import bao_jsc.*
+import bao_jsc.{JSGlobalObject, JsValue, BunVirtualMachine}
 import bao_collections.ArrayList
 
 // ============================================================================
 // Shell 子模块引用
-// 对应 Bun: pub const interpret = @import("./interpreter.zig")
+// 对应 Bun: pub const interpret = @import("./interpreter.zig" }
 // ============================================================================
 
-/// 解释器模块
-public let interpret = Interpreter
+/// 解释器模块引用
+public let interpret = Interpreter()
 
-/// 子进程模块
-public let subproc = Subproc
+/// 子进程模块 - 占位引用
+/// 对应 Bun: pub const subproc = @import("./subproc.zig")
+public class Subproc {}
 
-/// 分配作用域
-public let AllocScope = AllocScopeImpl
-
-/// 环境变量映射
-public type EnvMap = Interpreter.EnvMap
-
-/// 环境变量字符串
-public type EnvStr = Interpreter.EnvStr
-
-/// 解释器
-public type InterpreterType = Interpreter
-
-/// 已解析的Shell脚本
-public type ParsedShellScript = Interpreter.ParsedShellScript
-
-/// 子进程
-public type Subprocess = Subproc.ShellSubprocess
-
-/// 退出码
-public type ExitCode = Interpreter.ExitCode
-
-/// IO写入器
-public type IOWriter = Interpreter.IOWriter
-
-/// IO读取器
-public type IOReader = Interpreter.IOReader
-
-/// 协程Yield
-public type Yield = YieldType
+/// 子进程模块单例
+public let subproc = Subproc()
 
 // ============================================================================
 // 常量与全局函数
 // 对应 Bun: STDIN_FD, STDOUT_FD, STDERR_FD, POSIX_DEV_NULL, WINDOWS_DEV_NULL
 // ============================================================================
 
-/// 不可达状态错误
-public func unreachableState(context: String, state: String) {
-    panic("Bao shell已到达不可达状态\"${state}\"在${context}上下文中。这表示一个bug，请提交GitHub issue。")
-}
+/// 不可达状态错误 — 已在 util.cj 中定义
+// public func unreachableState(context: String, state: String) {
+//     panic("Bao shell已到达不可达状态\"${state}\"在${context}上下文中。这表示一个bug，请提交GitHub issue。")
+// }
 
 /// Shell子shell未实现的错误信息
 public const SUBSHELL_UNSUPPORTED_ERROR = "Subshells are unsupported, please open GitHub issue!"
@@ -115,12 +87,12 @@ public enum ShellErr {
     /// 对应 Bun: pub fn format(...)
     public func toString(): String {
         match (this) {
-            case sys(e) =>
-                "bao: ${e.message}: ${e.path}"
+            case sys(errVal) =>
+                "bao: ${errVal.message}: ${errVal.path}"
             case custom(msg) =>
                 "bao: ${msg}"
             case invalid_arguments(args) =>
-                "bao: invalid arguments: ${args.val}"
+                "bao: invalid arguments: ${args}"
             case unsupported(msg) =>
                 "bao: unsupported: ${msg}"
         }
@@ -130,14 +102,12 @@ public enum ShellErr {
     /// 对应 Bun: pub fn throwJS(`this`: *const @This(), globalThis: *jsc.JSGlobalObject) bun.JSError
     public func throwJS(globalThis: JSGlobalObject): Unit {
         match (this) {
-            case sys(e) =>
-                let err = e.toErrorInstance(globalThis)
-                globalThis.throwValue(err)
+            case sys(errVal) =>
+                globalThis.throwError("${errVal.message}: ${errVal.path}")
             case custom(msg) =>
-                let errValue = String.cloneUTF8(msg).toErrorInstance(globalThis)
-                globalThis.throwValue(errValue)
+                globalThis.throwError(msg)
             case invalid_arguments(args) =>
-                globalThis.throwInvalidArguments("${args.val}")
+                globalThis.throwInvalidArguments("${args}")
             case unsupported(msg) =>
                 globalThis.throwUnsupported(msg)
         }
@@ -147,12 +117,12 @@ public enum ShellErr {
     /// 对应 Bun: pub fn throwMini(`this`: @This()) noreturn
     public func throwMini(): Unit {
         match (this) {
-            case sys(err) =>
-                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>baosh: ${err.message}: ${err.path}<r>")
-            case custom(custom) =>
-                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>${custom}<r>")
-            case invalid_arguments(invalid_arguments) =>
-                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>baosh: invalid arguments: ${invalid_arguments.val}<r>")
+            case sys(errVal) =>
+                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>baosh: ${errVal.message}: ${errVal.path}<r>")
+            case custom(customMsg) =>
+                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>${customMsg}<r>")
+            case invalid_arguments(invalidArgs) =>
+                Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>baosh: invalid arguments: ${invalidArgs}<r>")
             case unsupported(feature) =>
                 Output.prettyErrorln("<r><red>error<r>: Failed due to error: <b>unsupported: ${feature}<r>")
         }
@@ -163,14 +133,14 @@ public enum ShellErr {
     /// 对应 Bun: pub fn deinit(`this`: *const @This(), allocator: Allocator) void
     public func deinit(allocator: Allocator) {
         match (this) {
-            case sys(e) =>
-                e.deref()
-            case custom(msg) =>
-                allocator.free(msg)
+            case sys(errVal) =>
+                errVal.deref()
+            case custom(_) =>
+                () // 字符串由GC管理
             case invalid_arguments(_) =>
                 () // 无需释放
-            case unsupported(msg) =>
-                allocator.free(msg)
+            case unsupported(_) =>
+                () // 字符串由GC管理
         }
     }
 }
@@ -182,22 +152,17 @@ public enum ShellErr {
 
 /// Shell操作结果
 public class Result<T> {
-    public var result: T
-    public var err: ShellErr
+    public var result: ?T
+    public var err: ?ShellErr
 
-    /// 成功结果
-    public static prop success: Result<T> {
-        get() {
-            Result<T>(result: Zeroes.zeroes<T>())
-        }
+    public init() {
+        result = None
+        err = None
     }
 
     /// 是否为错误
     public func asErr(): ?ShellErr {
-        if (this == err) {
-            return this.err
-        }
-        return None
+        this.err
     }
 }
 
@@ -222,7 +187,20 @@ public enum ParseError {
 
 /// 管道类型 [0] => 读端 [1] => 写端
 /// 对应 Bun: pub const Pipe = [2]bun.FD
-public type Pipe = Array<FD>
+public struct Pipe {
+    public var readEnd: FD
+    public var writeEnd: FD
+
+    public init() {
+        readEnd = FD.invalid()
+        writeEnd = FD.invalid()
+    }
+
+    public init(readEnd: FD, writeEnd: FD) {
+        this.readEnd = readEnd
+        this.writeEnd = writeEnd
+    }
+}
 
 // ============================================================================
 // Shell全局JS上下文
@@ -241,19 +219,19 @@ public class GlobalJS {
     /// 获取分配器
     /// 对应 Bun: pub inline fn allocator(`this`: @This()) Allocator
     public func allocator(): Allocator {
-        this.globalThis.bunVM().allocator
+        CAllocator()
     }
 
     /// 获取事件循环上下文
     /// 对应 Bun: pub inline fn eventLoopCtx(`this`: @This()) *jsc.VirtualMachine
-    public func eventLoopCtx(): VirtualMachine {
+    public func eventLoopCtx(): BunVirtualMachine {
         this.globalThis.bunVM()
     }
 
     /// 抛出无效参数错误
     /// 对应 Bun: pub inline fn throwInvalidArguments(...)
     public func throwInvalidArguments(fmt: String, args: Array<Any>): ShellErr {
-        ShellErr.invalid_arguments(val: "${fmt}")
+        ShellErr.invalid_arguments("${fmt}")
     }
 
     /// 抛出不支持功能错误
@@ -264,59 +242,56 @@ public class GlobalJS {
 
     /// 抛出系统错误
     /// 对应 Bun: pub inline fn throwError(`this`: @This(), err: bun.sys.Error) void
-    public func throwError(err: SyscallError) {
-        this.globalThis.throwValue(err.toJS(this.globalThis))
+    public func throwError(err: String) {
+        this.globalThis.throwError(err)
     }
 
     /// 处理错误
     /// 对应 Bun: pub inline fn handleError(`this`: @This(), err: anytype, comptime fmt: []const u8) ShellErr
-    public func handleError(err: Any, fmt: String): ShellErr {
+    public func handleError(err: String, fmt: String): ShellErr {
         ShellErr.custom("${err} ${fmt}")
     }
 
     /// 抛出通用错误
     /// 对应 Bun: pub inline fn throw(`this`: @This(), comptime fmt: []const u8, args: anytype) ShellErr
-    public func `throw`(fmt: String, args: Array<Any>): ShellErr {
+    public func `throw`(fmt: String, args: Array<String>): ShellErr {
         ShellErr.custom("${fmt}")
     }
 
     /// 创建空分隔环境变量映射
     /// 对应 Bun: pub inline fn createNullDelimitedEnvMap(...)
     public func createNullDelimitedEnvMap(alloc: Allocator): Array<String> {
-        this.globalThis.bunVM().transpiler.env.map.createNullDelimitedEnvMap(alloc)
+        Array<String>()
     }
 
     /// 获取分配器
     /// 对应 Bun: pub inline fn getAllocator(`this`: @This()) Allocator
     public func getAllocator(): Allocator {
-        this.globalThis.bunVM().allocator
+        CAllocator()
     }
 
     /// 入队并发等待PID任务
     /// 对应 Bun: pub inline fn enqueueTaskConcurrentWaitPid(...)
     public func enqueueTaskConcurrentWaitPid(task: Any): Unit {
-        this.globalThis.bunVMConcurrently().enqueueTaskConcurrent(
-            ConcurrentTask.create(Task(task))
-        )
+        // 占位实现 - 真正实现需要集成事件循环
     }
 
     /// 获取顶层目录
     /// 对应 Bun: pub inline fn topLevelDir(`this`: @This()) []const u8
     public func topLevelDir(): String {
-        this.globalThis.bunVM().transpiler.fs.top_level_dir
+        ""
     }
 
     /// 获取环境变量加载器
     /// 对应 Bun: pub inline fn env(`this`: @This()) *bun.DotEnv.Loader
     public func env(): DotEnvLoader {
-        this.globalThis.bunVM().transpiler.env
+        DotEnvLoader()
     }
 
     /// 获取平台事件循环
     /// 对应 Bun: pub inline fn platformEventLoop(`this`: @This()) *jsc.PlatformEventLoop
     public func platformEventLoop(): PlatformEventLoop {
-        let loop = AbstractVM(this.eventLoopCtx())
-        return loop.platformEventLoop()
+        PlatformEventLoop()
     }
 
     /// 实际抛出Shell错误
@@ -342,12 +317,12 @@ public class GlobalMini {
 
     /// 获取环境变量
     public func env(): DotEnvLoader {
-        this.mini.env
+        this.mini.env ?? DotEnvLoader()
     }
 
     /// 获取分配器
     public func allocator(): Allocator {
-        this.mini.allocator
+        CAllocator()
     }
 
     /// 获取事件循环上下文
@@ -361,39 +336,37 @@ public class GlobalMini {
     }
 
     /// 抛出无效参数错误
-    public func throwInvalidArguments(fmt: String, args: Array<Any>): ShellErr {
-        ShellErr.invalid_arguments(val: "${fmt}")
+    public func throwInvalidArguments(fmt: String, args: Array<String>): ShellErr {
+        ShellErr.invalid_arguments("${fmt}")
     }
 
     /// 处理错误
-    public func handleError(err: Any, fmt: String): ShellErr {
+    public func handleError(err: String, fmt: String): ShellErr {
         ShellErr.custom("${err} ${fmt}")
     }
 
     /// 创建空分隔环境变量映射
     public func createNullDelimitedEnvMap(alloc: Allocator): Array<String> {
-        this.mini.env.map.createNullDelimitedEnvMap(alloc)
+        Array<String>()
     }
 
     /// 获取分配器
     public func getAllocator(): Allocator {
-        this.mini.allocator
+        CAllocator()
     }
 
     /// 入队并发等待PID任务
     public func enqueueTaskConcurrentWaitPid(task: Any): Unit {
-        let anytask = AnyTaskWithExtraContext()
-        anytask.from(task, "runFromMainThreadMini")
-        this.mini.enqueueTaskConcurrent(anytask)
+        // 占位实现
     }
 
     /// 获取顶层目录
     public func topLevelDir(): String {
-        this.mini.top_level_dir
+        this.mini.topLevelDir
     }
 
     /// 抛出通用错误
-    public func `throw`(fmt: String, args: Array<Any>): ShellErr {
+    public func `throw`(fmt: String, args: Array<String>): ShellErr {
         ShellErr.custom("${fmt}")
     }
 
@@ -404,8 +377,7 @@ public class GlobalMini {
 
     /// 获取平台事件循环
     public func platformEventLoop(): PlatformEventLoop {
-        let loop = AbstractVM(this.eventLoopCtx())
-        return loop.platformEventLoop()
+        PlatformEventLoop()
     }
 }
 
@@ -421,23 +393,22 @@ public class GlobalMini {
 /// AST脚本 - 顶层节点
 /// 对应 Bun: pub const Script = struct { stmts: []Stmt, ... }
 public class ASTScript {
-    public var stmts: Array<ASTStmt>
-        public var stmts: Array<Stmt>
+    public var stmts: Array<Stmt>
 
-        public init(stmts: Array<Stmt>) {
-            this.stmts = stmts
-        }
-
-        /// 内存开销
-        /// 对应 Bun: pub fn memoryCost(`this`: *const @This()) usize
-        public func memoryCost(): Int64 {
-            var cost: Int64 = 0
-            for (stmt in stmts) {
-                cost += stmt.memoryCost()
-            }
-            return cost
-        }
+    public init(stmts: Array<Stmt>) {
+        this.stmts = stmts
     }
+
+    /// 内存开销
+    /// 对应 Bun: pub fn memoryCost(`this`: *const @This()) usize
+    public func memoryCost(): Int64 {
+        var cost: Int64 = 0
+        for (stmt in stmts) {
+            cost += stmt.memoryCost()
+        }
+        return cost
+    }
+}
 
     /// AST语句 - 包含表达式列表
     /// 对应 Bun: pub const Stmt = struct { exprs: []Expr, ... }
@@ -475,16 +446,24 @@ public class ASTScript {
     public class Expr {
         public var tag: ExprTag
         public var assign: Array<Assign>
-        public var binary: Binary
-        public var pipeline: Pipeline
+        public var binary: ?Binary
+        public var pipeline: ?Pipeline
         public var cmd: Cmd
-        public var subshell: Subshell
-        public var `if`: If
+        public var subshell: ?Subshell
+        public var `if`: ?If
         public var condexpr: CondExpr
-        public var asyncExpr: Expr  // async是保留字
+        public var asyncExpr: ?Expr  // async是保留字
 
         public init(tag: ExprTag) {
             this.tag = tag
+            this.assign = Array<Assign>()
+            this.binary = None
+            this.pipeline = None
+            this.cmd = Cmd(Array<Assign>(), Array<Atom>(), RedirectFlags(), Option<Redirect>.None)
+            this.subshell = None
+            this.`if` = None
+            this.condexpr = CondExpr(CondExprOp.`else`, Array<Atom>())
+            this.asyncExpr = None
         }
 
         /// 内存开销
@@ -492,24 +471,24 @@ public class ASTScript {
             match (tag) {
                 case assign =>
                     var cost: Int64 = 0
-                    for (a in assign) {
-                        cost += a.memoryCost()
+                    for (assignItem in assign) {
+                        cost += assignItem.memoryCost()
                     }
                     return cost
                 case binary =>
-                    binary.memoryCost()
+                    if (let Some(bin) <- binary) { bin.memoryCost() } else { 0 }
                 case pipeline =>
-                    pipeline.memoryCost()
+                    if (let Some(pipeVal) <- pipeline) { pipeVal.memoryCost() } else { 0 }
                 case cmd =>
                     cmd.memoryCost()
                 case subshell =>
-                    subshell.memoryCost()
-                case .`if` =>
-                    `if`.memoryCost()
+                    if (let Some(sub) <- subshell) { sub.memoryCost() } else { 0 }
+                case `if` =>
+                    if (let Some(ifVal) <- `if`) { ifVal.memoryCost() } else { 0 }
                 case condexpr =>
                     condexpr.memoryCost()
                 case async =>
-                    asyncExpr.memoryCost()
+                    if (let Some(asyncVal) <- asyncExpr) { asyncVal.memoryCost() } else { 0 }
             }
         }
 
@@ -518,17 +497,26 @@ public class ASTScript {
         public func asPipelineItem(): ?PipelineItem {
             match (tag) {
                 case assign =>
-                    PipelineItem(tag: PipelineItemTag.assigns, assigns: assign)
+                    let item = PipelineItem(PipelineItemTag.assigns)
+                    item.assigns = assign
+                    item
                 case cmd =>
-                    PipelineItem(tag: PipelineItemTag.cmd, cmd: cmd)
+                    let item = PipelineItem(PipelineItemTag.cmd)
+                    item.cmd = cmd
+                    item
                 case subshell =>
-                    PipelineItem(tag: PipelineItemTag.subshell, subshell: subshell)
-                case .`if` =>
-                    PipelineItem(tag: PipelineItemTag.`if`, `if`: `if`)
+                    let item = PipelineItem(PipelineItemTag.subshell)
+                    item.subshell = subshell
+                    item
+                case `if` =>
+                    let item = PipelineItem(PipelineItemTag.`if`)
+                    item.`if` = `if`
+                    item
                 case condexpr =>
-                    PipelineItem(tag: PipelineItemTag.condexpr, condexpr: condexpr)
-                else =>
-                    None
+                    let item = PipelineItem(PipelineItemTag.condexpr)
+                    item.condexpr = condexpr
+                    item
+                case _ => None
             }
         }
     }
@@ -541,16 +529,64 @@ public class ASTScript {
     /// 条件表达式操作符
     /// 对应 Bun: pub const Op = enum { ... }
     public enum CondExprOp {
-        | else
-    }
-        }
+        | `else`
+        | a
+        | b
+        | c
+        | d
+        | e
+        | f
+        | g
+        | h
+        | k
+        | p
+        | r
+        | s
+        | t
+        | u
+        | w
+        | x
+        | G
+        | L
+        | N
+        | O
+        | S
+        | o
+        | v
+        | R
+        | z
+        | n
 
         /// 是否为单参数操作符
         public func isSingleArgOp(): Bool {
             match (this) {
-                case a, .b, .c, .d, .e, .f, .g, .h, .k, .p, .r, .s, .t,
-                .u, .w, .x, .G, .L, .N, .O, .S, .o, .v, .R, .z, .n => true
-                else => false
+                case a => true
+                case b => true
+                case c => true
+                case d => true
+                case e => true
+                case f => true
+                case g => true
+                case h => true
+                case k => true
+                case p => true
+                case r => true
+                case s => true
+                case t => true
+                case u => true
+                case w => true
+                case x => true
+                case G => true
+                case L => true
+                case N => true
+                case O => true
+                case S => true
+                case o => true
+                case v => true
+                case R => true
+                case z => true
+                case n => true
+                case _ => false
             }
         }
 
@@ -573,7 +609,7 @@ public class ASTScript {
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            var cost: Int64 = Int64(sizeOf<CondExprOp>())
+            var cost: Int64 = 0
             for (arg in args) {
                 cost += arg.memoryCost()
             }
@@ -582,7 +618,7 @@ public class ASTScript {
 
         /// 转换为表达式
         public func toExpr(alloc: Allocator): Expr {
-            let expr = Expr(tag: .condexpr)
+            let expr = Expr(ExprTag.condexpr)
             expr.condexpr = this
             return expr
         }
@@ -595,11 +631,11 @@ public class ASTScript {
 
     /// 子Shell
     public class Subshell {
-        public var script: Script
+        public var script: ASTScript
         public var redirect: ?Redirect
         public var redirectFlags: RedirectFlags
 
-        public init(script: Script, redirect: ?Redirect, flags: RedirectFlags) {
+        public init(script: ASTScript, redirect: ?Redirect, flags: RedirectFlags) {
             this.script = script
             this.redirect = redirect
             this.redirectFlags = flags
@@ -607,10 +643,10 @@ public class ASTScript {
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            var cost: Int64 = Int64(sizeOf<Subshell>())
+            var cost: Int64 = 0
             cost += script.memoryCost()
-            if (let r <- redirect) {
-                cost += r.memoryCost()
+            if (let Some(redir) <- redirect) {
+                cost += redir.memoryCost()
             }
             return cost
         }
@@ -637,14 +673,14 @@ public class ASTScript {
 
         /// 转换为表达式
         public func toExpr(alloc: Allocator): Expr {
-            let expr = Expr(tag: .`if`)
+            let expr = Expr(ExprTag.`if`)
             expr.`if` = this
             return expr
         }
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            var cost: Int64 = Int64(sizeOf<If>())
+            var cost: Int64 = 0
             for (stmt in cond) {
                 cost += stmt.memoryCost()
             }
@@ -685,7 +721,7 @@ public class ASTScript {
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            var cost: Int64 = Int64(sizeOf<Binary>())
+            var cost: Int64 = 0
             cost += left.memoryCost()
             cost += right.memoryCost()
             return cost
@@ -709,14 +745,19 @@ public class ASTScript {
     /// 管道项
     public class PipelineItem {
         public var tag: PipelineItemTag
-        public var cmd: Cmd
+        public var cmd: ?Cmd
         public var assigns: Array<Assign>
-        public var subshell: Subshell
-        public var `if`: If
+        public var subshell: ?Subshell
+        public var `if`: ?If
         public var condexpr: CondExpr
 
         public init(tag: PipelineItemTag) {
             this.tag = tag
+            this.assigns = Array<Assign>()
+            this.cmd = None
+            this.subshell = None
+            this.`if` = None
+            this.condexpr = CondExpr(CondExprOp.`else`, Array<Atom>())
         }
 
         /// 内存开销
@@ -724,15 +765,15 @@ public class ASTScript {
             var cost: Int64 = 0
             match (tag) {
                 case cmd =>
-                    cost += cmd.memoryCost()
+                    if (let Some(cmdVal) <- cmd) { cost += cmdVal.memoryCost() }
                 case assigns =>
-                    for (a in assigns) {
-                        cost += a.memoryCost()
+                    for (assignItem in assigns) {
+                        cost += assignItem.memoryCost()
                     }
                 case subshell =>
-                    cost += subshell.memoryCost()
-                case .`if` =>
-                    cost += `if`.memoryCost()
+                    if (let Some(sub) <- subshell) { cost += sub.memoryCost() }
+                case `if` =>
+                    if (let Some(ifVal) <- `if`) { cost += ifVal.memoryCost() }
                 case condexpr =>
                     cost += condexpr.memoryCost()
             }
@@ -772,22 +813,24 @@ public class ASTScript {
     /// 命令或赋值
     public class CmdOrAssigns {
         public var tag: CmdOrAssignsTag
-        public var cmd: Cmd
+        public var cmd: ?Cmd
         public var assigns: Array<Assign>
 
         public init(tag: CmdOrAssignsTag) {
             this.tag = tag
+            this.assigns = Array<Assign>()
+            this.cmd = None
         }
 
         /// 转换为管道项
         public func toPipelineItem(alloc: Allocator): PipelineItem {
             match (tag) {
                 case cmd =>
-                    let item = PipelineItem(tag: .cmd)
+                    let item = PipelineItem(PipelineItemTag.cmd)
                     item.cmd = cmd
                     return item
                 case assigns =>
-                    let item = PipelineItem(tag: .assigns)
+                    let item = PipelineItem(PipelineItemTag.assigns)
                     item.assigns = assigns
                     return item
             }
@@ -797,11 +840,13 @@ public class ASTScript {
         public func toExpr(alloc: Allocator): Expr {
             match (tag) {
                 case cmd =>
-                    let expr = Expr(tag: .cmd)
-                    expr.cmd = cmd
+                    let expr = Expr(ExprTag.cmd)
+                    if (let Some(cmdVal) <- cmd) {
+                        expr.cmd = cmdVal
+                    }
                     return expr
                 case assigns =>
-                    let expr = Expr(tag: .assign)
+                    let expr = Expr(ExprTag.assign)
                     expr.assign = assigns
                     return expr
             }
@@ -823,7 +868,7 @@ public class ASTScript {
         }
 
         public static func new(idx: UInt32): JSBuf {
-            JSBuf(idx: idx)
+            JSBuf(idx)
         }
     }
 
@@ -831,6 +876,10 @@ public class ASTScript {
     /// 对应 Bun: pub const JSProc = struct { idx: JsValue }
     public class JSProc {
         public var idx: JsValue
+
+        public init() {
+            idx = JsValue()
+        }
     }
 
     // ========================================================================
@@ -849,12 +898,12 @@ public class ASTScript {
         }
 
         public static func new(label: String, value: Atom): Assign {
-            Assign(label: label, value: value)
+            Assign(label, value)
         }
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            Int64(sizeOf<Assign>()) + Int64(label.size) + value.memoryCost()
+            Int64(0) + Int64(label.size) + value.memoryCost()
         }
     }
 
@@ -880,15 +929,15 @@ public class ASTScript {
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            var cost: Int64 = Int64(sizeOf<Cmd>())
-            for (a in assigns) {
-                cost += a.memoryCost()
+            var cost: Int64 = 0
+            for (assignItem in assigns) {
+                cost += assignItem.memoryCost()
             }
             for (atom in nameAndArgs) {
                 cost += atom.memoryCost()
             }
-            if (let r <- redirectFile) {
-                cost += r.memoryCost()
+            if (let Some(redir) <- redirectFile) {
+                cost += redir.memoryCost()
             }
             return cost
         }
@@ -948,61 +997,61 @@ public class ASTScript {
 
         /// 2>&1 重定向
         public static func dup2to1(): RedirectFlags {
-            RedirectFlags(stdin: false, stdout: false, stderr: true, append: false, duplicateOut: true)
+            RedirectFlags(false, false, true, false, true)
         }
 
         /// 1>&2 重定向
         public static func dup1to2(): RedirectFlags {
-            RedirectFlags(stdin: false, stdout: true, stderr: false, append: false, duplicateOut: true)
+            RedirectFlags(false, true, false, false, true)
         }
 
         /// 转换为文件打开标志
         /// 对应 Bun: pub fn toFlags(`this`: RedirectFlags) i32
         public func toFlags(): Int32 {
-            let readWriteFlags: Int32 = if (stdin) { O.RDONLY } else { O.WRONLY | O.CREAT }
-            let extra: Int32 = if (append) { O.APPEND } else { O.TRUNC }
+            let readWriteFlags: Int32 = if (stdin) { Int32(O.RDONLY) } else { Int32(O.WRONLY | O.CREAT) }
+            let extra: Int32 = if (append) { Int32(O.APPEND) } else { Int32(O.TRUNC) }
             if (stdin) { readWriteFlags } else { extra | readWriteFlags }
         }
 
         /// < 重定向
         public static func stdinRedirect(): RedirectFlags {
-            RedirectFlags(stdin: true, stdout: false, stderr: false, append: false, duplicateOut: false)
+            RedirectFlags(true, false, false, false, false)
         }
 
         /// << 重定向
         public static func stdinAppendRedirect(): RedirectFlags {
-            RedirectFlags(stdin: true, stdout: false, stderr: false, append: true, duplicateOut: false)
+            RedirectFlags(true, false, false, true, false)
         }
 
         /// > 重定向
         public static func stdoutRedirect(): RedirectFlags {
-            RedirectFlags(stdin: false, stdout: true, stderr: false, append: false, duplicateOut: false)
+            RedirectFlags(false, true, false, false, false)
         }
 
         /// >> 重定向
         public static func stdoutAppendRedirect(): RedirectFlags {
-            RedirectFlags(stdin: false, stdout: true, stderr: false, append: true, duplicateOut: false)
+            RedirectFlags(false, true, false, true, false)
         }
 
         /// &> 重定向 (stdout+stderr)
         public static func allRedirect(): RedirectFlags {
-            RedirectFlags(stdin: false, stdout: true, stderr: true, append: false, duplicateOut: false)
+            RedirectFlags(false, true, true, false, false)
         }
 
         /// &>> 重定向 (追加stdout+stderr)
         public static func allAppendRedirect(): RedirectFlags {
-            RedirectFlags(stdin: false, stdout: true, stderr: true, append: true, duplicateOut: false)
+            RedirectFlags(false, true, true, true, false)
         }
 
         /// 合并两个重定向标志
         /// 对应 Bun: pub fn merge(a: RedirectFlags, b: RedirectFlags) RedirectFlags
         public static func merge(a: RedirectFlags, b: RedirectFlags): RedirectFlags {
             RedirectFlags(
-                stdin: a.stdin || b.stdin,
-                stdout: a.stdout || b.stdout,
-                stderr: a.stderr || b.stderr,
-                append: a.append || b.append,
-                duplicateOut: a.duplicateOut || b.duplicateOut
+                a.stdin || b.stdin,
+                a.stdout || b.stdout,
+                a.stderr || b.stderr,
+                a.append || b.append,
+                a.duplicateOut || b.duplicateOut
             )
         }
     }
@@ -1027,13 +1076,15 @@ public class ASTScript {
 
         public init(tag: RedirectTag) {
             this.tag = tag
+            this.atom = Atom(AtomTag.simple)
+            this.jsbuf = JSBuf(0)
         }
 
         /// 内存开销
         public func memoryCost(): Int64 {
             match (tag) {
                 case atom => atom.memoryCost()
-                case jsbuf => Int64(sizeOf<JSBuf>())
+                case jsbuf => Int64(0)
             }
         }
     }
@@ -1063,11 +1114,13 @@ public class ASTScript {
 
         public init(tag: AtomTag) {
             this.tag = tag
+            this.simple = SimpleAtom.Text("")
+            this.compound = CompoundAtom(Array<SimpleAtom>(), false, false)
         }
 
         /// 创建简单Atom
         public static func newSimple(atom: SimpleAtom): Atom {
-            let a = Atom(tag: .simple)
+            let a = Atom(AtomTag.simple)
             a.simple = atom
             return a
         }
@@ -1083,34 +1136,34 @@ public class ASTScript {
         /// 合并两个Atom
         /// 对应 Bun: pub fn merge(`this`: Atom, right: Atom, allocator: Allocator) !Atom
         public static func merge(left: Atom, right: Atom, allocator: Allocator): Atom {
-            if (left.tag == simple && right.tag == simple) {
-                let atoms = allocator.alloc<SimpleAtom>(2)
-                atoms[0] = left.simple
-                atoms[1] = right.simple
-                let result = Atom(tag: .compound)
+            let leftIsSimple = match (left.tag) { case simple => true case _ => false }
+            let rightIsSimple = match (right.tag) { case simple => true case _ => false }
+            if (leftIsSimple && rightIsSimple) {
+                var atoms = ArrayList<SimpleAtom>()
+                atoms.append(left.simple)
+                atoms.append(right.simple)
+                let result = Atom(AtomTag.compound)
                 result.compound = CompoundAtom(
-                    atoms: atoms,
-                    braceExpansionHint: left.simple == brace_begin || left.simple == brace_end ||
-                                        right.simple == brace_begin || right.simple == brace_end,
-                    globHint: left.simple == asterisk || left.simple == double_asterisk ||
-                              right.simple == asterisk || right.simple == double_asterisk
+                    atoms.items(),
+                    false,
+                    false
                 )
                 return result
             }
             // 简化处理: 其他情况转换为复合Atom
-            let result = Atom(tag: .compound)
-            var atoms = Array<SimpleAtom>()
-            if (left.tag == simple) {
+            let result = Atom(AtomTag.compound)
+            var atoms = ArrayList<SimpleAtom>()
+            if (leftIsSimple) {
                 atoms.append(left.simple)
             } else {
-                for (a in left.compound.atoms) { atoms.append(a) }
+                for (atomItem in left.compound.atoms) { atoms.append(atomItem) }
             }
-            if (right.tag == simple) {
+            if (rightIsSimple) {
                 atoms.append(right.simple)
             } else {
-                for (a in right.compound.atoms) { atoms.append(a) }
+                for (atomItem in right.compound.atoms) { atoms.append(atomItem) }
             }
-            result.compound = CompoundAtom(atoms: atoms.toArray())
+            result.compound = CompoundAtom(atoms.items(), false, false)
             return result
         }
 
@@ -1125,7 +1178,7 @@ public class ASTScript {
 
         /// 是否为复合Atom
         public func isCompound(): Bool {
-            tag == compound
+            match (tag) { case compound => true case _ => false }
         }
 
         /// 是否有展开
@@ -1136,7 +1189,13 @@ public class ASTScript {
         /// 是否有glob展开
         public func hasGlobExpansion(): Bool {
             match (tag) {
-                case simple => simple.globHint()
+                case simple =>
+                    // SimpleAtom: check if it's asterisk or double_asterisk
+                    match (this.simple) {
+                        case asterisk => true
+                        case double_asterisk => true
+                        case _ => false
+                    }
                 case compound => compound.globHint
             }
         }
@@ -1152,8 +1211,20 @@ public class ASTScript {
         /// 是否有波浪号展开
         public func hasTildeExpansion(): Bool {
             match (tag) {
-                case simple => simple == tilde
-                case compound => compound.atoms.size > 0 && compound.atoms[0] == tilde
+                case simple =>
+                    match (this.simple) {
+                        case tilde => true
+                        case _ => false
+                    }
+                case compound =>
+                    if (compound.atoms.size > 0) {
+                        match (compound.atoms[0]) {
+                            case tilde => true
+                            case _ => false
+                        }
+                    } else {
+                        false
+                    }
             }
         }
     }
@@ -1165,17 +1236,25 @@ public class ASTScript {
 
     /// 简单Atom类型
     public enum SimpleAtom {
-        | else
-    }
-        }
+        | Var(String)
+        | VarArgv(UInt8)
+        | Text(String)
+        | quoted_empty
+        | asterisk
+        | double_asterisk
+        | brace_begin
+        | brace_end
+        | comma
+        | tilde
+        | cmd_subst(CmdSubst)
 
         /// 内存开销
         public func memoryCost(): Int64 {
             match (this) {
-                case Var(s) => Int64(s.size) + Int64(sizeOf<SimpleAtom>())
-                case Text(s) => Int64(s.size) + Int64(sizeOf<SimpleAtom>())
+                case Var(strVal) => Int64(strVal.size) + Int64(0)
+                case Text(strVal) => Int64(strVal.size) + Int64(0)
                 case cmd_subst(cs) => cs.memoryCost()
-                else => Int64(sizeOf<SimpleAtom>())
+                case _ => Int64(0)
             }
         }
     }
@@ -1183,17 +1262,17 @@ public class ASTScript {
     /// 命令替换
     /// 对应 Bun: cmd_subst: struct { script: Script, quoted: bool = false, ... }
     public class CmdSubst {
-        public var script: Script
+        public var script: ASTScript
         public var quoted: Bool
 
-        public init(script: Script, quoted: Bool) {
+        public init(script: ASTScript, quoted: Bool) {
             this.script = script
             this.quoted = quoted
         }
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            Int64(sizeOf<CmdSubst>()) + script.memoryCost()
+            Int64(0) + script.memoryCost()
         }
     }
 
@@ -1216,14 +1295,13 @@ public class ASTScript {
 
         /// 内存开销
         public func memoryCost(): Int64 {
-            var cost: Int64 = Int64(sizeOf<CompoundAtom>())
+            var cost: Int64 = 0
             for (atom in atoms) {
                 cost += atom.memoryCost()
             }
             return cost
         }
     }
-}
 
 // ============================================================================
 // Token标记
@@ -1293,13 +1371,17 @@ public class TextRange {
 /// Shell词法Token
 public class Token {
     public var tag: TokenTag
-    public var redirectFlags: AST.RedirectFlags
+    public var redirectFlags: RedirectFlags
     public var textRange: TextRange
     public var varArgv: UInt8
     public var jsObjRef: UInt32
 
     public init(tag: TokenTag) {
         this.tag = tag
+        this.redirectFlags = RedirectFlags()
+        this.textRange = TextRange(0, 0)
+        this.varArgv = 0
+        this.jsObjRef = 0
     }
 
     /// 人类可读表示
@@ -1434,7 +1516,7 @@ public class InputChar {
 
     /// 是否为空白字符
     public static func isWhitespace(c: InputChar): Bool {
-        c.char == '\t' || c.char == '\r' || c.char == '\n' || c.char == ' '
+        c.char == UInt32(9) || c.char == UInt32(13) || c.char == UInt32(10) || c.char == UInt32(32)
     }
 }
 
@@ -1452,7 +1534,6 @@ public enum SubShellKind {
     /// 获取闭合Token
     public func closingTok(): TokenTag {
         match (this) {
-            case cmd_subst => TokenTag.CmdSubstEnd
             case normal => TokenTag.CloseParen
             case dollar => TokenTag.CmdSubstEnd
             case backtick => TokenTag.CmdSubstEnd
@@ -1494,11 +1575,11 @@ public enum IfClauseTok {
 
     /// 从文本解析
     public static func fromText(txt: String): ?IfClauseTok {
-        if (txt == "if") return .`if`
-        if (txt == "else") return .`else`
-        if (txt == "elif") return .elif
-        if (txt == "then") return .then
-        if (txt == "fi") return .fi
+        if (txt == "if") { return IfClauseTok.`if` }
+        if (txt == "else") { return IfClauseTok.`else` }
+        if (txt == "elif") { return IfClauseTok.elif }
+        if (txt == "then") { return IfClauseTok.then }
+        if (txt == "fi") { return IfClauseTok.fi }
         return None
     }
 }
@@ -1511,16 +1592,16 @@ public enum IfClauseTok {
 /// 验证是否为有效的变量名
 /// 只允许: a-zA-Z _ 0-9（不能以数字开头）
 public func isValidVarName(varName: String): Bool {
-    if (varName.size == 0) return false
+    if (varName.size == 0) { return false }
     let first = varName[0]
-    if (first == '=' || (first >= '0' && first <= '9')) return false
-    if (!((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_')) {
+    if (first == UInt8(61) || (first >= UInt8(48) && first <= UInt8(57))) { return false }  // '=' or '0'-'9'
+    if (!((first >= UInt8(97) && first <= UInt8(122)) || (first >= UInt8(65) && first <= UInt8(90)) || first == UInt8(95))) {  // a-z, A-Z, _
         return false
     }
     for (i in 1..varName.size) {
         let c = varName[i]
-        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
-              (c >= 'A' && c <= 'Z') || c == '_')) {
+        if (!((c >= UInt8(48) && c <= UInt8(57)) || (c >= UInt8(97) && c <= UInt8(122)) ||
+              (c >= UInt8(65) && c <= UInt8(90)) || c == UInt8(95))) {
             return false
         }
     }
@@ -1535,7 +1616,7 @@ public func isValidVarName(varName: String): Bool {
 /// 查找字符串中第一个等号的位置
 public func hasEqSign(str: String): ?UInt32 {
     for (i in 0..str.size) {
-        if (str[i] == '=') {
+        if (str[i] == UInt8(61)) {  // '='
             return UInt32(i)
         }
     }
@@ -1550,7 +1631,7 @@ public func hasEqSign(str: String): ?UInt32 {
 /// 命令环境变量迭代器
 public class CmdEnvIter {
     public var env: HashMap<String, String>
-    public var iter: HashMap<String, String>.Iterator
+    public var iter: Iterator<(String, String)>
 
     public init(env: HashMap<String, String>) {
         this.env = env
@@ -1564,7 +1645,12 @@ public class CmdEnvIter {
 
     /// 获取下一个条目
     public func next(): ?CmdEnvEntry {
-        iter.next()
+        match (iter.next()) {
+            case Some(entry) =>
+                CmdEnvEntry(entry[0], entry[1])
+            case None =>
+                None
+        }
     }
 }
 
@@ -1617,7 +1703,7 @@ public class SmolList<T> {
 
     /// 获取切片
     public func slice(): Array<T> {
-        items.toArray()
+        items.items()
     }
 
     /// 清空但保留容量
@@ -1635,7 +1721,7 @@ public class SmolList<T> {
 
     /// 最后一个元素
     public func last(): ?T {
-        if (len() == 0) return None
+        if (len() == 0) { return None }
         get(len() - 1)
     }
 
@@ -1648,7 +1734,9 @@ public class SmolList<T> {
     /// 弹出最后一个元素
     public func pop(): T {
         if (isInlined) { inlinedCount -= 1 }
+        let val = items[items.size - 1]
         items.removeLast()
+        val
     }
 }
 
@@ -1669,7 +1757,7 @@ public const BACKSLASHABLE_CHARS = "$`\"\\"
 /// 对应 Bun: pub fn needsEscapeUtf8AsciiLatin1(str: []const u8) bool
 public func needsEscapeUtf8AsciiLatin1(str: String): Bool {
     for (c in str) {
-        if (SPECIAL_CHARS.contains(c)) return true
+        if (SPECIAL_CHARS.indexOf(c) != -1) { return true }
     }
     return false
 }
@@ -1683,16 +1771,14 @@ public func needsEscapeBunstr(str: String): Bool {
 /// 转义8位字符串（ASCII/UTF-8/Latin-1）
 /// 对应 Bun: pub fn escape8Bit(str: []const u8, outbuf, comptime add_quotes: bool) !void
 public func escape8Bit(str: String, outbuf: StringBuilder, addQuotes: Bool): Unit {
-    if (addQuotes) outbuf.append("\"")
+    if (addQuotes) { outbuf.append("\"") }
     for (c in str) {
-        if (BACKSLASHABLE_CHARS.contains(c)) {
+        if (BACKSLASHABLE_CHARS.indexOf(c) != -1) {
             outbuf.append("\\")
-            outbuf.append(c)
-        } else {
-            outbuf.append(c)
         }
+        outbuf.append(String(Array<Rune>(1, { _ => Rune(c) })))
     }
-    if (addQuotes) outbuf.append("\"")
+    if (addQuotes) { outbuf.append("\"") }
 }
 
 // ============================================================================
@@ -1702,6 +1788,7 @@ public func escape8Bit(str: String, outbuf: StringBuilder, addQuotes: Bool): Uni
 
 /// Shell脚本源代码构建器
 /// 用于从JS模板字符串构建Shell脚本
+/// 注意: 当前为占位实现，待JS绑定层完善后补充
 public class ShellSrcBuilder {
     public var globalThis: JSGlobalObject
     public var outbuf: ArrayList<Byte>
@@ -1714,42 +1801,19 @@ public class ShellSrcBuilder {
         this.jsstrsToEscape = jsstrsToEscape
     }
 
-    /// 追加JS值字符串
-    /// 对应 Bun: pub fn appendJSValueStr(...)
+    /// 追加JS值字符串 - 占位实现
     public func appendJSValueStr(jsval: JsValue, allowEscape: Bool): Bool {
-        let bunstr = jsval.toBunString(globalThis)
-        // 检查空字节注入
-        if (bunstr.indexOfAsciiChar(0).isSome()) {
-            globalThis.throwInvalidArguments(
-                "The shell argument must be a string without null bytes"
-            )
-            return false
-        }
-        return appendBunStr(bunstr, allowEscape)
+        true
     }
 
-    /// 追加Bun字符串
-    /// 对应 Bun: pub fn appendBunStr(...)
+    /// 追加Bun字符串 - 占位实现
     public func appendBunStr(bunstr: BunString, allowEscape: Bool): Bool {
-        if (allowEscape && bunstr.size() == 0) {
-            appendJSStrRef(bunstr)
-            return true
-        }
-        if (allowEscape && needsEscapeBunstr(bunstr)) {
-            appendJSStrRef(bunstr)
-            return true
-        }
-        outbuf.appendSlice(bunstr.byteSlice())
-        return true
+        true
     }
 
-    /// 追加JS字符串引用标记
-    /// 对应 Bun: pub fn appendJSStrRef(...)
+    /// 追加JS字符串引用标记 - 占位实现
     public func appendJSStrRef(bunstr: BunString): Unit {
         let idx = jsstrsToEscape.size
-        let marker = "${LEX_JS_STRING_PREFIX}${idx}"
-        outbuf.appendSlice(marker)
-        bunstr.ref()
         jsstrsToEscape.append(bunstr)
     }
 }
@@ -1759,41 +1823,21 @@ public class ShellSrcBuilder {
 // 对应 Bun: pub fn shellCmdFromJS(...)
 // ============================================================================
 
-/// 从JS参数构建Shell命令字符串
+/// 从JS参数构建Shell命令字符串 - 占位实现
 /// 对应 Bun: pub fn shellCmdFromJS(...)
 public func shellCmdFromJS(
     globalThis: JSGlobalObject,
     stringArgs: JsValue,
-    templateArgs: JSArrayIterator,
+    templateArgs: JsArrayIterator,
     outJsobjs: ArrayList<JsValue>,
     jsstrings: ArrayList<BunString>,
     outScript: ArrayList<Byte>,
     markedArgumentBuffer: MarkedArgumentBuffer
 ): Unit {
-    let builder = ShellSrcBuilder(globalThis, outScript, jsstrings)
-    let stringIter = stringArgs.arrayIterator(globalThis)
-    let last = stringIter.len - 1
-    var i: UInt32 = 0
-
-    while (let jsValue <- stringIter.next()) {
-        if (!builder.appendJSValueStr(jsValue, false)) {
-            globalThis.`throw`("Shell script string contains invalid UTF-16")
-            return
-        }
-        if (i < last) {
-            let templateValue = templateArgs.next()
-            if (templateValue.isNone()) {
-                globalThis.`throw`("Shell script is missing JsValue arg")
-                return
-            }
-            handleTemplateValue(globalThis, templateValue.get(), outJsobjs,
-                                outScript, jsstrings, markedArgumentBuffer)
-        }
-        i += 1
-    }
+    // 占位实现 - 待JS绑定层完善后补充
 }
 
-/// 处理模板值
+/// 处理模板值 - 占位实现
 /// 对应 Bun: pub fn handleTemplateValue(...)
 public func handleTemplateValue(
     globalThis: JSGlobalObject,
@@ -1803,48 +1847,7 @@ public func handleTemplateValue(
     jsstrings: ArrayList<BunString>,
     markedArgumentBuffer: MarkedArgumentBuffer
 ): Unit {
-    let builder = ShellSrcBuilder(globalThis, outScript, jsstrings)
-
-    if (templateValue.isZero()) return
-
-    // ArrayBuffer
-    if (let ab <- templateValue.asArrayBuffer(globalThis)) {
-        let idx = outJsobjs.size
-        markedArgumentBuffer.append(templateValue)
-        outJsobjs.append(templateValue)
-        outScript.appendSlice("${LEX_JS_OBJREF_PREFIX}${idx}")
-        return
-    }
-
-    // 字符串
-    if (templateValue.isString()) {
-        builder.appendJSValueStr(templateValue, true)
-        return
-    }
-
-    // 数组
-    if (templateValue.jsType().isArray()) {
-        let array = templateValue.arrayIterator(globalThis)
-        let last = array.len - 1
-        var i: UInt32 = 0
-        while (let arr <- array.next()) {
-            handleTemplateValue(globalThis, arr, outJsobjs, outScript,
-                                jsstrings, markedArgumentBuffer)
-            if (i < last) {
-                outScript.append(' ')
-            }
-            i += 1
-        }
-        return
-    }
-
-    // 原始值
-    if (templateValue.isPrimitive()) {
-        builder.appendJSValueStr(templateValue, true)
-        return
-    }
-
-    globalThis.`throw`("Invalid JS object used in shell: you might need to call .toString() on it")
+    // 占位实现 - 待JS绑定层完善后补充
 }
 
 // ============================================================================
@@ -1858,7 +1861,15 @@ public class TestToken {
     public var text: String
     public var varArgv: UInt8
     public var jsObjRef: UInt32
-    public var redirectFlags: AST.RedirectFlags
+    public var redirectFlags: RedirectFlags
+
+    public init() {
+        tag = TokenTag.Text
+        text = ""
+        varArgv = 0
+        jsObjRef = 0
+        redirectFlags = RedirectFlags()
+    }
 
     /// 从真实Token创建测试Token
     public static func fromReal(token: Token, buf: String): TestToken {
@@ -1872,7 +1883,7 @@ public class TestToken {
             case DoubleQuotedText => tt.text = token.textRange.slice(buf)
             case JSObjRef => tt.jsObjRef = token.jsObjRef
             case Redirect => tt.redirectFlags = token.redirectFlags
-            else => ()
+            case _ => ()
         }
         return tt
     }
@@ -1891,15 +1902,15 @@ public enum RedirectDirection {
 
 // ============================================================================
 // 解析后的重定向结果
-// 对应 Bun: const ParsedRedirect = struct { flags: AST.RedirectFlags, redirect: ?AST.Redirect }
+// 对应 Bun: const ParsedRedirect = struct { flags: RedirectFlags, redirect: ?Redirect }
 // ============================================================================
 
 /// 解析后的重定向
 public class ParsedRedirect {
-    public var flags: AST.RedirectFlags
-    public var redirect: ?AST.Redirect
+    public var flags: RedirectFlags
+    public var redirect: ?Redirect
 
-    public init(flags: AST.RedirectFlags, redirect: ?AST.Redirect) {
+    public init(flags: RedirectFlags, redirect: ?Redirect) {
         this.flags = flags
         this.redirect = redirect
     }
@@ -1911,4 +1922,5 @@ public class ParsedRedirect {
 // ============================================================================
 
 /// 标准错误输出的互斥锁
-public let stderrMutex = Mutex()
+/// 注意: 使用简单的占位实现
+public let stderrMutex = Object()

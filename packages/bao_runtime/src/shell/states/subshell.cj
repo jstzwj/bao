@@ -52,7 +52,7 @@ public class SubshellState {
     /// 基类
     public var base: Base
     /// AST节点
-    public var node: SubshellAst
+    public var node: Subshell
     /// 父节点
     public var parent: SubshellParentPtr
     /// IO
@@ -62,13 +62,18 @@ public class SubshellState {
     /// 重定向文件
     public var redirectionFile: ArrayList<Byte>
     /// 退出码
-    public var exitCode: ExitCode = 0
+    public var exitCode: ExitCode = ExitCode.exited(0)
+
+    public init() {
+        this.redirectionFile = ArrayList<Byte>()
+        this.state = SubshellStateKind.`idle`
+    }
 
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
-        node: SubshellAst,
+        node: Subshell,
         parent: SubshellParentPtr,
         io: IO
     ): SubshellState {
@@ -86,7 +91,7 @@ public class SubshellState {
     public static func initDupeShellState(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
-        node: SubshellAst,
+        node: Subshell,
         parent: SubshellParentPtr,
         io: IO
     ): SubshellState {
@@ -104,44 +109,47 @@ public class SubshellState {
     /// 启动
     public func start(): Yield {
         let script = ScriptState.initFunc(
-            interpreter: this.base.interpreter,
-            shellState: this.base.shell,
-            node: this.node.script,
-            parent: ScriptParentPtr.initFunc(this),
-            io: this.io.copy()
+            this.base.interpreter,
+            this.base.shell,
+            this.node.script,
+            ScriptParentPtr.initFunc(this),
+            this.io.copy()
         )
         return script.start()
     }
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != SubshellStateKind.done) {
+        var done = false
+        while (!done) {
             match (this.state) {
                 case SubshellStateKind.`idle` =>
-                    this.state = SubshellStateKind.expandingRedirect(0, expansion: ExpansionState())
+                    this.state = SubshellStateKind.expandingRedirect(0, ExpansionState())
                     return Yield.subshell(this)
-                case SubshellStateKind.expandingRedirect(idx, expansion) =>
+                case SubshellStateKind.expandingRedirect(idx, expState) =>
                     if (idx >= 1) {
                         return this.transitionToExec()
                     }
                     return this.transitionToExec()
-                case SubshellStateKind.waitWriteErr | SubshellStateKind.`exec` =>
+                case SubshellStateKind.waitWriteErr =>
+                    return Yield.suspended
+                case SubshellStateKind.`exec` =>
                     return Yield.suspended
                 case SubshellStateKind.done =>
-                    panic("不可达状态")
+                    done = true
             }
         }
-        return this.parent.childDone(this, 0)
+        return this.parent.childDone(this, ExitCode.exited(0))
     }
 
     /// 转换到执行状态
     func transitionToExec(): Yield {
         let script = ScriptState.initFunc(
-            interpreter: this.base.interpreter,
-            shellState: this.base.shell,
-            node: this.node.script,
-            parent: ScriptParentPtr.initFunc(this),
-            io: this.io.copy()
+            this.base.interpreter,
+            this.base.shell,
+            this.node.script,
+            ScriptParentPtr.initFunc(this),
+            this.io.copy()
         )
         this.state = SubshellStateKind.`exec`
         return script.start()
@@ -150,8 +158,8 @@ public class SubshellState {
     /// 子节点完成
     public func childDone(child: SubshellChildPtr, exitCode: ExitCode): Yield {
         this.exitCode = exitCode
-        if (childPtr.`is`(ScriptState())) {
-            childPtr.deinit()
+        if (child.`is`(ScriptState())) {
+            child.deinit()
             return this.parent.childDone(this, exitCode)
         }
         unreachableState("Subshell.childDone", "expected Script or Expansion")
@@ -176,6 +184,6 @@ public class SubshellState {
 
     /// 写入失败错误
     public func writeFailingError(s: String): Yield {
-        return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
+        return this.base.shell.writeFailingErrorFmt(this, { _ => () }, s, [])
     }
 }

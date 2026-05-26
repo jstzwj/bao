@@ -4,10 +4,9 @@
 package bao_runtime.socket
 
 import bao_core.*
-import bao_collections.*
+import bao_collections.{HashMap as CollectionHashMap, ArrayList as CollectionArrayList}
 import bao_jsc.*
-import bao_uws_sys.*
-import bao_sys.*
+import bao_uws_sys.{SocketGroup as UwsSocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError, SocketHandler}
 
 // ============================================================================
 // 监听器类型
@@ -37,13 +36,13 @@ public enum ListenerType {
 
 /// uWS 监听套接字
 public class UwsListenSocket {
-    public var socket: ?bao_uws_sys.ListenSocket
+    public var socket: ?ListenSocket
 
     public init() {
         socket = None
     }
 
-    public init(socket: bao_uws_sys.ListenSocket) {
+    public init(socket: ListenSocket) {
         this.socket = Some(socket)
     }
 
@@ -82,7 +81,7 @@ public class UwsListenSocket {
 
 public class ListenerHandleTable {
     private static var nextId: UIntNative = UIntNative(1)
-    private static var listeners: HashMap<UIntNative, Listener> = HashMap<UIntNative, Listener>()
+    private static var listeners: CollectionHashMap<UIntNative, Listener> = CollectionHashMap<UIntNative, Listener>()
 
     public static func allocate(listener: Listener): UIntNative {
         let id = nextId
@@ -222,8 +221,11 @@ public class Listener {
                         let id = ListenerHandleTable.allocate(listener)
                         listener.nativeHandle = id
                         let hostPtr = listenerUnsafeNewCString(host)
-                        var err: Int32 = 0
-                        let listenSocket = group.listen(bao_uws_sys.SocketKind.bun_listener_tcp, CPointer<Unit>(), hostPtr, Int32(port), cfg.socketFlags(), 8, CPointer<Int32>(&err))
+                        let errPtr = unsafe { malloc(UIntNative(4)) }
+                        unsafe { CPointer<Int32>(errPtr).write(Int32(0)) }
+                        let listenSocket = group.listen(SocketKind.bun_listener_tcp, CPointer<Unit>(), hostPtr, Int32(port), cfg.socketFlags(), 8, CPointer<Int32>(errPtr))
+                        let err = unsafe { CPointer<Int32>(errPtr).read() }
+                        unsafe { free(errPtr) }
                         unsafe { free(CPointer<Unit>(hostPtr)) }
                         if (listenSocket.isNone()) {
                             ListenerHandleTable.release(id)
@@ -232,7 +234,7 @@ public class Listener {
                         }
                         let rawListen = listenSocket.getOrThrow()
                         let ext = CPointer<UIntNative>(rawListen.ext())
-                        ext.write(id)
+                        unsafe { ext.write(id) }
                         listener.listener = ListenerType.Uws(UwsListenSocket(rawListen))
                         listener.connection = ConnectionTarget.Host(host, port)
                     case ConnectionTarget.Unix(path) =>
@@ -246,8 +248,11 @@ public class Listener {
                         let id = ListenerHandleTable.allocate(listener)
                         listener.nativeHandle = id
                         let pathPtr = listenerUnsafeNewBytes(path)
-                        var err: Int32 = 0
-                        let listenSocket = group.listenUnix(bao_uws_sys.SocketKind.bun_listener_tcp, CPointer<Unit>(), pathPtr, UIntNative(path.size), cfg.socketFlags(), 8, CPointer<Int32>(&err))
+                        let errPtr = unsafe { malloc(UIntNative(4)) }
+                        unsafe { CPointer<Int32>(errPtr).write(Int32(0)) }
+                        let listenSocket = group.listenUnix(SocketKind.bun_listener_tcp, CPointer<Unit>(), pathPtr, UIntNative(path.size), cfg.socketFlags(), 8, CPointer<Int32>(errPtr))
+                        let err = unsafe { CPointer<Int32>(errPtr).read() }
+                        unsafe { free(errPtr) }
                         unsafe { free(CPointer<Unit>(pathPtr)) }
                         if (listenSocket.isNone()) {
                             ListenerHandleTable.release(id)
@@ -256,7 +261,7 @@ public class Listener {
                         }
                         let rawListen = listenSocket.getOrThrow()
                         let ext = CPointer<UIntNative>(rawListen.ext())
-                        ext.write(id)
+                        unsafe { ext.write(id) }
                         listener.listener = ListenerType.Uws(UwsListenSocket(rawListen))
                         listener.connection = ConnectionTarget.Unix(path)
                     case ConnectionTarget.Fd(fd) =>
@@ -278,7 +283,7 @@ public class Listener {
     /// 重新加载 SSL 配置
     /// 对应 Bun: pub fn reload(`this`: *Listener, globalObject: *jsc.JSGlobalObject, callframe: *jsc.CallFrame) bun.JSError!JsValue
     /// 允许在不重启服务器的情况下更新 TLS 证书
-    public func reload(globalObject: JsObject, args: ArrayList<JsValue>): JsValue {
+    public func reload(globalObject: JsObject, args: CollectionArrayList<JsValue>): JsValue {
         // 验证是否有SSL
         if (!ssl) {
             throw JsTypeError("Cannot reload() on a non-SSL listener")
@@ -311,7 +316,7 @@ public class Listener {
     /// 当新连接创建时的回调
     /// 对应 Bun: pub fn onCreate(comptime ssl: bool, listener: *Listener, socket: uws.NewSocketHandler(ssl)) *NewSocket(ssl)
     /// 在 uWS 接受新连接后创建对应的 NewSocket 包装器，并把 accepted socket ext 绑定到 NewSocket handle。
-    public func onCreate(socket: bao_uws_sys.UsSocket): NewSocket {
+    public func onCreate(socket: UsSocket): NewSocket {
         let newSocket = NewSocket(this.ssl)
         newSocket.handlers = Some(this.handlers)
         newSocket.connection = Some(this.connection)
@@ -354,25 +359,25 @@ public class Listener {
                 let promise = JsValue.UNDEFINED  // 实际创建 JSPromise
 
                 // 创建 Socket
-                let socket = Socket(sslEnabled)
+                let socket = NewSocket(sslEnabled)
                 socket.handlers = Some(handlers)
+                socket.flags.allowHalfOpen = cfg.allowHalfOpen
+                socket.connection = Some(cfg.connection())
+                if (let Some(sslConfig) <- cfg.ssl) {
+                    let ctx = sslConfig.asUSocketsForClientVerification().createSSLContext()
+                    if (ctx.isNone()) {
+                        return JsValue("TLS context creation failed")
+                    }
+                    socket.ownedSslCtx = ctx
+                }
 
-                match (cfg.connection()) {
-                    case ConnectionTarget.Host(_, _) | ConnectionTarget.Unix(_) =>
-                        // TCP/TLS 连接
-                        match (cfg.connection()) {
-                            case ConnectionTarget.Host(host, port) =>
-                                socket.connection = Some(ConnectionTarget.Host(host, port))
-                                socket.doConnect(ConnectionTarget.Host(host, port))
-                            case ConnectionTarget.Unix(path) =>
-                                socket.connection = Some(ConnectionTarget.Unix(path))
-                                socket.doConnect(ConnectionTarget.Unix(path))
-                            case _ => ()
-                        }
-                    case ConnectionTarget.Fd(fd) =>
-                        socket.fd = fd
-                        socket.connection = Some(ConnectionTarget.Fd(fd))
-                        socket.doConnect(ConnectionTarget.Fd(fd))
+                let err = doConnect(socket)
+                if (let Some(e) <- err) {
+                    if (let Some(ctx) <- socket.ownedSslCtx) {
+                        socket.ownedSslCtx = None
+                        BoringSSL.sslCtxFree(ctx)
+                    }
+                    return JsValue(e.message)
                 }
 
                 return promise

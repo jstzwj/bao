@@ -134,7 +134,7 @@ public class Expect {
         let buntestStrongOpt = parent.bunTest()
         if (buntestStrongOpt.isNone()) { return }
         let buntestStrong = buntestStrongOpt.getOrThrow()
-        defer { buntestStrong.deinit() }
+        // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
         if (let Some(sequence) <- parent.phase.sequence(buntest)) {
             // 找到活跃序列
@@ -243,7 +243,7 @@ public class Expect {
                         if (resolution == PromiseMode.rejects) {
                             if (!silent) {
                                 let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-                                defer { formatter.deinit() }
+                                // defer { formatter.deinit() }
                                 let message = "Expected promise that rejects<r>\nReceived promise that resolved: <red>{f}<r>\n"
                                 return throwPrettyMatcherError(globalThis: globalThis, customLabel: customLabel, matcherName: matcherName, matcherParams: matcherParams, flags: flags, messageFmt: message, messageArgs: [value.toFmt(formatter)])
                             }
@@ -253,7 +253,7 @@ public class Expect {
                         if (resolution == PromiseMode.resolves) {
                             if (!silent) {
                                 let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-                                defer { formatter.deinit() }
+                                // defer { formatter.deinit() }
                                 let message = "Expected promise that resolves<r>\nReceived promise that rejected: <red>{f}<r>\n"
                                 return throwPrettyMatcherError(globalThis: globalThis, customLabel: customLabel, matcherName: matcherName, matcherParams: matcherParams, flags: flags, messageFmt: message, messageArgs: [value.toFmt(formatter)])
                             }
@@ -266,7 +266,7 @@ public class Expect {
                 } else {
                     if (!silent) {
                         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-                        defer { formatter.deinit() }
+                        // defer { formatter.deinit() }
                         let message = "Expected promise<r>\nReceived: <red>{f}<r>\n"
                         return throwPrettyMatcherError(globalThis: globalThis, customLabel: customLabel, matcherName: matcherName, matcherParams: matcherParams, flags: flags, messageFmt: message, messageArgs: [value.toFmt(formatter)])
                     }
@@ -323,7 +323,7 @@ public class Expect {
     public func getSnapshotName(allocator: Allocator, hint: String): String {
         let parent = this.parent ?? return ""
         let buntestStrong = parent.bunTest() ?? return ""
-        defer { buntestStrong.deinit() }
+        // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
         let executionEntry = parent.phase.entry(buntest) ?? return ""
 
@@ -380,7 +380,7 @@ public class Expect {
         expect.customLabel = customLabel
 
         let activeExecutionEntryRef = BunTest.cloneActiveStrong().map({ buntestStrong =>
-            defer { buntestStrong.deinit() }
+            // defer { buntestStrong.deinit() }
             return BunTest.ref(buntestStrong, buntestStrong.get().getCurrentStateData())
         })
         expect.parent = activeExecutionEntryRef
@@ -414,7 +414,7 @@ public class Expect {
 
     /// pass断言
     public func pass(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-        defer { postMatch(globalThis: globalThis) }
+        // defer { postMatch(globalThis: globalThis) }
         incrementExpectCallCounter()
 
         let not = flags.not
@@ -429,7 +429,7 @@ public class Expect {
 
     /// fail断言
     public func fail(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-        defer { postMatch(globalThis: globalThis) }
+        // defer { postMatch(globalThis: globalThis) }
         incrementExpectCallCounter()
 
         let not = flags.not
@@ -443,7 +443,7 @@ public class Expect {
 
         if (arguments.size > 0) {
             let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-            defer { formatter.deinit() }
+            // defer { formatter.deinit() }
             message = arguments[0].toFmt(formatter)
         }
 
@@ -457,7 +457,7 @@ public class Expect {
     public func getValueAsToThrow(globalThis: JSGlobalObject, value: JsValue): Tuple2<?JsValue, JsValue> {
         if (!value.isFunction() && !value.isObject()) {
             let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-            defer { formatter.deinit() }
+            // defer { formatter.deinit() }
             globalThis.throw_("expect(value).toThrow() requires a function or class but received: {f}", args: [value.toFmt(formatter)])
             return Tuple2<?JsValue, JsValue>(None, JsValue.zero)
         }
@@ -481,7 +481,7 @@ public class Expect {
 
     /// 行内快照
     public func inlineSnapshot(globalThis: JSGlobalObject, callFrame: CallFrame, value: JsValue, propertyMatchers: ?JsValue, result: ?String, fnName: String): JsValue {
-        defer { postMatch(globalThis: globalThis) }
+        // defer { postMatch(globalThis: globalThis) }
         incrementExpectCallCounter()
 
         var prettyValue = StringWriter()
@@ -511,7 +511,7 @@ public class Expect {
         let targetValue = prettyValue.written()
 
         let buntestStrong = bunTest() ?? return JsValue.zero
-        defer { buntestStrong.deinit() }
+        // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
 
         let snapshots = buntest.snapshots
@@ -538,7 +538,7 @@ public class Expect {
     /// hasAssertions断言
     public static func hasAssertions(globalThis: JSGlobalObject): JsValue {
         let buntestStrong = BunTest.cloneActiveStrong() ?? return globalThis.throw_("hasAssertions must be called in a test")
-        defer { buntestStrong.deinit() }
+        // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
         let reporter = buntest.reporter ?? return JsValue.jsUndefined
         let summary = reporter.summary()
@@ -556,7 +556,7 @@ public class Expect {
         }
         let expected = arguments[0].asNumber()
         let buntestStrong = BunTest.cloneActiveStrong() ?? return globalThis.throw_("assertions must be called in a test")
-        defer { buntestStrong.deinit() }
+        // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
         let reporter = buntest.reporter ?? return JsValue.jsUndefined
         let summary = reporter.summary()
@@ -656,7 +656,7 @@ public class Expect {
     /// 抛出无效匹配器错误 - 对应 Bun throwInvalidMatcherError
     static func throwInvalidMatcherError(globalThis: JSGlobalObject, matcherName: String, result: JsValue): Bool {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         let fmt = "Unexpected return from matcher function `" + matcherName + "`.\n" +
             "Matcher functions should return an object in the following format:\n" +
             "  {message?: string | function, pass: boolean}\n" +
@@ -977,7 +977,7 @@ public class ExpectMatcherUtils {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) { return JsValue.jsUndefined }
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return JsValue.jsString(arguments[0].toFmt(formatter))
     }
 
@@ -986,7 +986,7 @@ public class ExpectMatcherUtils {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) { return JsValue.jsUndefined }
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return JsValue.jsString("<green>" + arguments[0].toFmt(formatter) + "<r>")
     }
 
@@ -995,7 +995,7 @@ public class ExpectMatcherUtils {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) { return JsValue.jsUndefined }
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return JsValue.jsString("<red>" + arguments[0].toFmt(formatter) + "<r>")
     }
 

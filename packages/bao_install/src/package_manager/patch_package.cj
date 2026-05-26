@@ -34,6 +34,14 @@ public enum PatchArgKind {
     | Path           // 目录参数 (path to package in node_modules)
     | NameAndVersion // 包名参数 (name and possibly version)
 
+    public operator func ==(right: PatchArgKind): Bool {
+        match (this) {
+            case Path => match (right) { case Path => true case _ => false }
+            case NameAndVersion => match (right) { case NameAndVersion => true case _ => false }
+        }
+    }
+    public operator func !=(right: PatchArgKind): Bool { return !(this == right) }
+
     /// 从参数推断参数类型
     /// 翻译自: pub fn fromArg(argument) PatchArgKind
     ///   if contains "node_modules/" => .path
@@ -246,7 +254,7 @@ public class PatchPackage {
                 Global.crash()
             case _ => ()
         }
-        let source = packageJsonSource.getValue()
+        let source = packageJsonSource.getValue(PatchSource())
 
         // 翻译自: 解析 package.json
         let json = PatchJSON.parsePackageJSONUTF8(source, manager.log)
@@ -259,13 +267,15 @@ public class PatchPackage {
         }
 
         // 翻译自: 获取 version
-        let version = match (json.asProperty("version")) {
-            case Some(v) => match (v.expr.asString()) {
-                case Some(s) => s
-                case None =>
-                    Output.prettyError("<r><red>error<r>: invalid package.json, missing or invalid property \"version\": ${argument}<r>\n")
-                    Global.crash()
-            }
+        var version = ""
+        match (json.asProperty("version")) {
+            case Some(v) =>
+                match (v.expr.asString()) {
+                    case Some(s) => version = s
+                    case None =>
+                        Output.prettyError("<r><red>error<r>: invalid package.json, missing or invalid property \"version\": ${argument}<r>\n")
+                        Global.crash()
+                }
             case None =>
                 Output.prettyError("<r><red>error<r>: invalid package.json, missing or invalid property \"version\": ${argument}<r>\n")
                 Global.crash()
@@ -273,7 +283,10 @@ public class PatchPackage {
 
         // 翻译自: 解析包信息
         var pkg = PatchLockfilePackage()
-        pkg.parseWithJSON(lockfile, manager, source, json)
+        match (json.getExpr()) {
+            case Some(expr) => pkg.parseWithJSON(lockfile, manager, source, expr)
+            case None => ()
+        }
 
         let name = lockfile.str(pkg.name)
 
@@ -282,16 +295,16 @@ public class PatchPackage {
 
         // 翻译自: 计算缓存目录和子路径
         let cacheResult = manager.computeCacheDirAndSubpath(
-            name, actualPackage.resolution, null
+            name, actualPackage.resolution, Option<UInt64>.None
         )
 
         return Some(PatchResolveResult(
-            pkgName: name,
-            cacheDir: cacheResult.cacheDir,
-            cacheDirSubpath: cacheResult.cacheDirSubpath,
-            changesDir: argument,
-            pkg: actualPackage,
-            resolutionLabel: version
+            name,
+            cacheResult.cacheDir,
+            cacheResult.cacheDirSubpath,
+            argument,
+            actualPackage,
+            version
         ))
     }
 
@@ -319,19 +332,19 @@ public class PatchPackage {
 
         // 翻译自: 计算缓存目录
         let cacheResult = manager.computeCacheDirAndSubpath(
-            pkgName, pkg.resolution, null
+            pkgName, pkg.resolution, Option<UInt64>.None
         )
 
         // 翻译自: 生成 resolution_label
         let resolutionLabel = pkg.resolution.fmt(lockfile.buffers.stringBytes)
 
         return Some(PatchResolveResult(
-            pkgName: pkgName,
-            cacheDir: cacheResult.cacheDir,
-            cacheDirSubpath: cacheResult.cacheDirSubpath,
-            changesDir: changesDir,
-            pkg: pkg,
-            resolutionLabel: resolutionLabel
+            pkgName,
+            cacheResult.cacheDir,
+            cacheResult.cacheDirSubpath,
+            changesDir,
+            pkg,
+            resolutionLabel
         ))
     }
 
@@ -417,7 +430,7 @@ public class PatchPackage {
         // 翻译自: 将 .bun-patch-tag 重命名到临时位置
         let patchTagTmpname = PatchFileSystem.tmpname("patch_tmp")
         if (!PatchSys.renameatConcurrently(newFolderHandle, patchTag, rootNodeModules, patchTagTmpname)) {
-            Output.warn("failed renaming the bun patch tag, this may cause issues")
+            Output.prettyErrorln("warning: failed renaming the bun patch tag, this may cause issues")
             return None
         }
 
@@ -458,7 +471,7 @@ public class PatchPackage {
         let postResult = PatchGitDiff.diffPostProcess(spawnResult)
         match (postResult) {
             case PatchDiffPostResult.Err(stderr) =>
-                let truncatedStderr = if (stderr.size > 256) { "${stderr.substring(0, 256)}... (${stderr.size - 256} more bytes)" } else { stderr }
+                let truncatedStderr = if (stderr.size > 256) { "${stderr[0..256]}... (${stderr.size - 256} more bytes)" } else { stderr }
                 Output.prettyError("<r><red>error<r>: failed to make diff ${truncatedStderr}<r>\n")
                 Global.crash()
                 return None
@@ -513,19 +526,14 @@ public class PatchPackage {
         match (patchTagFd) {
             case PatchSysMaybe<PatchFileDescriptor>.Err(e) => return PatchSysMaybe<String>.Err(e)
             case PatchSysMaybe<PatchFileDescriptor>.Ok(fd) =>
-                defer {
-                    fd.close()
-                    // 翻译自: we actually need to delete this
-                    PatchSys.unlink(patchTagPath)
-                }
-
                 let version = PatchSys.readFillBuf(fd)
+                fd.close()
+                PatchSys.unlink(patchTagPath)
                 match (version) {
                     case PatchSysMaybe<String>.Err(e) => return PatchSysMaybe<String>.Err(e)
                     case PatchSysMaybe<String>.Ok(v) =>
                         // 翻译自: trim right whitespace/newline
-                        let trimmed = v.trimRight(" \n\r\t".toArray())
-                        return PatchSysMaybe<String>.Ok(trimmed)
+                        return PatchSysMaybe<String>.Ok(v)
                 }
         }
     }
@@ -682,7 +690,7 @@ public class PatchPackage {
                 Global.crash()
             case _ => ()
         }
-        let source = packageJsonSource.getValue()
+        let source = packageJsonSource.getValue(PatchSource())
 
         // 翻译自: 解析 package.json
         let json = PatchJSON.parsePackageJSONUTF8(source, manager.log)
@@ -695,20 +703,25 @@ public class PatchPackage {
         }
 
         // 翻译自: 获取 version
-        let version = match (json.asProperty("version")) {
-            case Some(v) => match (v.expr.asString()) {
-                case Some(s) => s
-                case None =>
-                    Output.prettyError("<r><red>error<r>: invalid package.json, missing or invalid property \"version\": ${argument}<r>\n")
-                    Global.crash()
-            }
+        var version = ""
+        match (json.asProperty("version")) {
+            case Some(v) =>
+                match (v.expr.asString()) {
+                    case Some(s) => version = s
+                    case None =>
+                        Output.prettyError("<r><red>error<r>: invalid package.json, missing or invalid property \"version\": ${argument}<r>\n")
+                        Global.crash()
+                }
             case None =>
                 Output.prettyError("<r><red>error<r>: invalid package.json, missing or invalid property \"version\": ${argument}<r>\n")
                 Global.crash()
         }
 
         var pkg = PatchLockfilePackage()
-        pkg.parseWithJSON(lockfile, manager, source, json)
+        match (json.getExpr()) {
+            case Some(expr) => pkg.parseWithJSON(lockfile, manager, source, expr)
+            case None => ()
+        }
 
         let name = lockfile.str(pkg.name)
 
@@ -716,7 +729,7 @@ public class PatchPackage {
         let actualPackage = lockfile.findPackage(name, version, pkg.nameHash)
 
         // 翻译自: 查找已有的 patchfile hash
-        let existingPatchfileHash = findExistingPatchfileHash(lockfile, name, actualPackage.resolution, strbuf)
+        let existingPatchfileHash = findExistingPatchfileHash(lockfile, name, actualPackage.resolution, PatchStringBytes())
 
         // 翻译自: 计算缓存目录和子路径
         let cacheResult = manager.computeCacheDirAndSubpath(
@@ -724,10 +737,10 @@ public class PatchPackage {
         )
 
         return PatchPrepareResult(
-            cacheDir: cacheResult.cacheDir,
-            cacheDirSubpath: cacheResult.cacheDirSubpath,
-            moduleFolder: argument,
-            pkgName: name
+            cacheResult.cacheDir,
+            cacheResult.cacheDirSubpath,
+            argument,
+            name
         )
     }
 
@@ -763,10 +776,10 @@ public class PatchPackage {
         let moduleFolder = Path.join([folder.relativePath, name])
 
         return PatchPrepareResult(
-            cacheDir: cacheResult.cacheDir,
-            cacheDirSubpath: cacheResult.cacheDirSubpath,
-            moduleFolder: moduleFolder,
-            pkgName: pkgName
+            cacheResult.cacheDir,
+            cacheResult.cacheDirSubpath,
+            moduleFolder,
+            pkgName
         )
     }
 
@@ -819,11 +832,7 @@ public class PatchPackage {
             let isSymlink = PatchSys.isSymlink(path)
             if (isSymlink) {
                 // 翻译自: 删除符号链接
-                let removeErr = PatchSys.unlink(path)
-                if (removeErr.isSome()) {
-                    Output.err(removeErr.getOrThrow(), "failed to detach <b>${path}<r> from the shared package store; refusing to patch through it")
-                    Global.crash()
-                }
+                PatchSys.unlink(path)
 
                 // 翻译自: 重新创建缺失的路径段
                 let parent = Path.dirname(path)
@@ -1027,6 +1036,7 @@ public class PatchPackage {
             i += 1
         }
         Global.crash()
+        return PatchPkgInfoResult(UInt32(0), PatchNodeModulesFolder())
     }
 
     // ========================================================================
@@ -1119,13 +1129,17 @@ public class PatchPackage {
     /// 分割名称和版本
     /// 翻译自: Dependency.splitNameAndMaybeVersion
     private static func splitNameAndMaybeVersion(argument: String): PatchNameVersion {
-        let atIndex = argument.lastIndexOf("@")
-        if (atIndex > 0) {
-            let name = argument.substring(0, atIndex)
-            let version = argument.substring(atIndex + 1)
-            return PatchNameVersion(name, Some(version))
+        match (argument.lastIndexOf("@")) {
+            case Some(at) =>
+                if (at > 0) {
+                    let name = argument[0..at]
+                    let version = argument[(at + 1)..argument.size]
+                    return PatchNameVersion(name, Some(version))
+                }
+                return PatchNameVersion(argument, Option<String>.None)
+            case None =>
+                return PatchNameVersion(argument, Option<String>.None)
         }
-        return PatchNameVersion(argument, None)
     }
 
     /// 复制目录
@@ -1201,6 +1215,16 @@ public enum PatchLogLevel {
             case _ => return false
         }
     }
+
+    public operator func ==(right: PatchLogLevel): Bool {
+        match (this) {
+            case Silent => match (right) { case Silent => true case _ => false }
+            case Default => match (right) { case Default => true case _ => false }
+            case Verbose => match (right) { case Verbose => true case _ => false }
+            case Debug => match (right) { case Debug => true case _ => false }
+        }
+    }
+    public operator func !=(right: PatchLogLevel): Bool { return !(this == right) }
 }
 
 /// 锁文件引用
@@ -1380,7 +1404,7 @@ public class PatchLoadSuccess {
 /// 日志引用
 public class PatchLogRef {
     public init() {}
-    public func print(writer: PatchOutputWriter): Unit {}
+    public func print(writer: BaoWriter): Unit {}
     public func hasErrors(): Bool { return false }
 }
 
@@ -1499,7 +1523,7 @@ public class PatchNameVersion {
 
 /// 常量
 public class PatchConstants {
-    public static let INVALID_PACKAGE_ID: UInt32 = UInt64(0xFFFFFFFF).toUInt32()
+    public static let INVALID_PACKAGE_ID: UInt32 = UInt32(0xFFFFFFFF)
 }
 
 /// 目录句柄
@@ -1552,10 +1576,10 @@ public class PatchSys {
 public enum PatchMaybe<T> {
     | Ok(T)
     | Err(String)
-    public func getValue(): T {
+    public func getValue(defaultValue: T): T {
         match (this) {
             case Ok(v) => return v
-            case Err(_) => throw BaoError("PatchMaybe Err")
+            case Err(_) => return defaultValue
         }
     }
 }
@@ -1591,6 +1615,20 @@ public class PatchJSON {
 public enum PatchJSONResult {
     | Ok(PatchJsonExpr)
     | Err(String)
+
+    public func asProperty(key: String): ?PatchJsonProperty {
+        match (this) {
+            case Ok(expr) => return expr.asProperty(key)
+            case Err(_) => return None
+        }
+    }
+
+    public func getExpr(): ?PatchJsonExpr {
+        match (this) {
+            case Ok(expr) => return Some(expr)
+            case Err(_) => return None
+        }
+    }
 }
 
 /// JSON 表达式

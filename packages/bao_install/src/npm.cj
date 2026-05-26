@@ -4821,7 +4821,7 @@ public class PackageManifestParser {
 
         var millis: Int64 = 0
         var fracStart: Int64 = 19
-        if (dateStr.size > 19 && dateStr[19] == '.') {
+        if (dateStr.size > 19 && dateStr[19] == UInt8(46)) {
             fracStart = 20
             var factor: Int64 = 100
             var idx: Int64 = fracStart

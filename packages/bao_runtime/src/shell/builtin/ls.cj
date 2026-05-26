@@ -514,23 +514,23 @@ public class ShellLsTask {
     public static func formatPermissions(n: UInt32): String {
         var perms = StringBuilder()
         // Owner permissions
-        perms.append(if ((mode & S.IRUSR) != 0) 'r' else '-')
-        perms.append(if ((mode & S.IWUSR) != 0) 'w' else '-')
-        let ownerExec = (mode & S.IXUSR) != 0
-        let setuid = (mode & S.ISUID) != 0
-        perms.append(if (setuid) { if (ownerExec) 's' else 'S' } else { if (ownerExec) 'x' else '-' })
+        perms.append(if ((n & S.IRUSR) != 0) { "r" } else { "-" })
+        perms.append(if ((n & S.IWUSR) != 0) { "w" } else { "-" })
+        let ownerExec = (n & S.IXUSR) != 0
+        let setuid = (n & S.ISUID) != 0
+        perms.append(if (setuid) { if (ownerExec) { "s" } else { "S" } } else { if (ownerExec) { "x" } else { "-" } })
         // Group permissions
-        perms.append(if ((mode & S.IRGRP) != 0) 'r' else '-')
-        perms.append(if ((mode & S.IWGRP) != 0) 'w' else '-')
-        let groupExec = (mode & S.IXGRP) != 0
-        let setgid = (mode & S.ISGID) != 0
-        perms.append(if (setgid) { if (groupExec) 's' else 'S' } else { if (groupExec) 'x' else '-' })
+        perms.append(if ((n & S.IRGRP) != 0) { "r" } else { "-" })
+        perms.append(if ((n & S.IWGRP) != 0) { "w" } else { "-" })
+        let groupExec = (n & S.IXGRP) != 0
+        let setgid = (n & S.ISGID) != 0
+        perms.append(if (setgid) { if (groupExec) { "s" } else { "S" } } else { if (groupExec) { "x" } else { "-" } })
         // Other permissions
-        perms.append(if ((mode & S.IROTH) != 0) 'r' else '-')
-        perms.append(if ((mode & S.IWOTH) != 0) 'w' else '-')
-        let otherExec = (mode & S.IXOTH) != 0
-        let sticky = (mode & S.ISVTX) != 0
-        perms.append(if (sticky) { if (otherExec) 't' else 'T' } else { if (otherExec) 'x' else '-' })
+        perms.append(if ((n & S.IROTH) != 0) { "r" } else { "-" })
+        perms.append(if ((n & S.IWOTH) != 0) { "w" } else { "-" })
+        let otherExec = (n & S.IXOTH) != 0
+        let sticky = (n & S.ISVTX) != 0
+        perms.append(if (sticky) { if (otherExec) { "t" } else { "T" } } else { if (otherExec) { "x" } else { "-" } })
         return perms.toString()
     }
 

@@ -6,6 +6,7 @@ package bao_runtime.shell.states
 
 import bao_core.*
 import bao_runtime.shell.*
+import bao_event_loop.*
 
 // ============================================================================
 // 状态节点基类
@@ -57,7 +58,7 @@ public class Base {
 
     /// 抛出Shell错误
     public func `throw`(err: ShellErr) {
-        throwShellErr(err, this.eventLoop())
+        this.interpreter.throwShellErr(err, this.eventLoop())
     }
 
     /// 获取根IO

@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeFalsy() - 检查值是否为假值
 /// 用法: expect(received).toBeFalsy()
 public func toBeFalsy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeFalsy", matcherParamsFmt: "")
@@ -26,7 +26,7 @@ public func toBeFalsy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     if (not) {
         let receivedLine = "Received: <red>{f}<r>\n"

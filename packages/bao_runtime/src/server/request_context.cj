@@ -6,7 +6,6 @@ package bao_runtime.server
 import bao_core.*
 import bao_jsc.JsValue
 import bao_jsc.JSGlobalObject
-import bao_jsc.BunString
 import bao_jsc.Strong
 import bao_collections.*
 import bao_sys.*
@@ -644,7 +643,7 @@ public class RequestContext {
             case Some(s) =>
                 if (isDebugMode) {
                     // 调试模式: 渲染 HTML 错误页
-                    let msg = "${method} ${pathname} failed"
+                    let msg = "${pathname} failed"
                     renderDefaultError(status, msg)
                     return
                 }
@@ -675,7 +674,10 @@ public class RequestContext {
         match (resp) {
             case Some(r) =>
                 var status = response.status
-                var size = response.body.size
+                var size = match (response.body) {
+                    case Some(b) => b.size
+                    case None => Int64(0)
+                }
 
                 // 200 + 0 body -> 204
                 // 对应 Bun: if status == 200 && size == 0 && !blob.isDetached => 204
@@ -713,7 +715,7 @@ public class RequestContext {
                 if (flags.needsContentLength) {
                     r.writeHeaderInt("Content-Length", size)
                     flags.needsContentLength = false
-                } else if (!response.headers.has("content-length") && !blobData.isDetached) {
+                } else if (!response.headers.contains("content-length") && !blobData.isDetached) {
                     r.writeHeaderInt("Content-Length", size)
                 }
 
@@ -879,10 +881,15 @@ public class RequestContext {
             return
         }
 
-        // 追加数据
-        for (b in chunk) {
-            requestBodyBuf.append(b)
+        // 追加数据 - 使用 ArrayList 代替 Array
+        let tmp = ArrayList<UInt8>()
+        for (b in requestBodyBuf) {
+            tmp.append(b)
         }
+        for (b in chunk) {
+            tmp.append(b)
+        }
+        requestBodyBuf = tmp.items()
 
         if (last) {
             // 完成请求体读取
@@ -1399,7 +1406,7 @@ public class RequestContext {
         let bytes = blobData.slice()
         match (resp) {
             case Some(r) =>
-                r.end(bytes, shouldCloseConnection())
+                r.end(bytes)
             case None => ()
         }
         detachResponse()
@@ -1417,7 +1424,7 @@ public class RequestContext {
         let bytes = blobData.slice()
         match (resp) {
             case Some(r) =>
-                let remaining = bytes.drop(writeOffset)
+                let remaining = bytes[Int64(writeOffset)..Int64(bytes.size)]
                 if (r.tryEnd(remaining, bytes.size, shouldCloseConnection())) {
                     detachResponse()
                     endRequestStreamingAndDrain()
@@ -1518,7 +1525,7 @@ public class ResponseRef {
         return true
     }
 
-    public func write(data: Array<UInt8>): Unit {
+    public func writeData(data: Array<UInt8>): Unit {
         // 对应 Bun: resp.write(chunk) -> WriteResult
     }
 
@@ -1545,6 +1552,24 @@ public class ResponseRef {
     public func clearOnData(): Unit { }
     public func clearAborted(): Unit { }
     public func clearTimeout(): Unit { }
+    public func setAbortHandlerForStream(stream: Any): Unit { }
+    public func onWritableForStream(stream: Any): Unit { }
+    public func clearOnWritable(): Unit { }
+    public func onData(callback: Any, ctx: Any): Unit { }
+    public func getNodeHTTPResponseThisValue(): JsValue { JsValue.undefined() }
+    public func getNodeHTTPServerSocketThisValue(): JsValue { JsValue.undefined() }
+    public func isConnectRequest(): Bool { false }
+    public func pause(): Unit { }
+    public func resume(): Unit { }
+    public func upgrade(ws: Any, key: String, protocol_: String, extensions: String, ctx: Any): Unit { }
+    public func onTimeout(ctx: Any, callback: Any): Unit { }
+    public func writeContinue(): Unit { }
+    public func state(): ResponseState { return ResponseState() }
+    public func writeHead(statusLine: String, headers: JsValue): Unit { }
+    public func end(data: Array<UInt8>): Unit { }
+    public func write(data: Array<UInt8>): WriteResult { return WriteResult.WantMore(Int64(data.size)) }
+    public func getBufferedAmount(): Int64 { return 0 }
+    public func flush(): Unit { }
     public func shouldCloseConnection(): Bool { return closeConnection }
     public func getRemoteSocketInfo(): ?SocketAddress { return None }
     public func cork(): Unit { }
@@ -1564,6 +1589,10 @@ public class RawRequestRef {
         method = "GET"
         url = "/"
         headers = HashMap<String, String>()
+    }
+
+    public func header(name: String): ?String {
+        headers.get(name)
     }
 }
 
@@ -1818,16 +1847,28 @@ public class ServerRef {
     public var id: String
     public var config: ServerConfig
     public var terminated: Bool
+    public var devServer: ?DevServer
 
     public init() {
         id = ""
         config = ServerConfig()
         terminated = false
+        devServer = None
     }
 
     public func onRequestComplete(): Unit {
         // 对应 Bun: release request back to pool
     }
+
+    public func onStaticRequestComplete(): Unit {
+        // 对应 Bun: static route request complete
+    }
+
+    public func getOrLoadPlugins(target: Any): GetOrStartLoadResult {
+        return GetOrStartLoadResult.Err
+    }
+
+    public func getWebSocketHandler(): ?Any { None }
 
     public func vm(): VirtualMachineRef {
         return VirtualMachineRef()
@@ -1845,7 +1886,7 @@ public class ServerRef {
         return JsValueRef()
     }
 
-    public func devServer(): ?DevServerRef {
+    public func getDevServerRef(): ?DevServerRef {
         return None
     }
 
@@ -1923,16 +1964,16 @@ public class RangeRequest {
         if (spec.startsWith("-")) {
             // 对应: bytes=-N (suffix)
             let suffixStr = spec[1..]
-            let suffix = Int64.parse(suffixStr) ?? 0
+            let suffix = parseContentLength(suffixStr)
             return RangeRaw.Suffix(suffix)
         }
         // 对应: bytes=N-[M] (bounded)
         let parts = spec.split("-")
         if (parts.size >= 1) {
-            let start = Int64.parse(parts[0]) ?? 0
+            let start = parseContentLength(parts[0])
             var endVal: ?Int64 = None
             if (parts.size >= 2 && parts[1].size > 0) {
-                endVal = Int64.parse(parts[1])
+                endVal = Some(parseContentLength(parts[1]))
             }
             return RangeRaw.Bounded(RangeBounded(start, endVal))
         }

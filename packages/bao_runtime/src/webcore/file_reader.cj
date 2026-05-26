@@ -40,13 +40,32 @@ public enum ReadDuringJSOnPullKind {
     | UseBuffered
 
     public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (None, None) => true
-            case (Js, Js) => true
-            case (AmountRead, AmountRead) => true
-            case (Temporary, Temporary) => true
-            case (UseBuffered, UseBuffered) => true
-            case _ => false
+        match (this) {
+            case None =>
+                match (right) {
+                    case None => true
+                    case _ => false
+                }
+            case Js =>
+                match (right) {
+                    case Js => true
+                    case _ => false
+                }
+            case AmountRead =>
+                match (right) {
+                    case AmountRead => true
+                    case _ => false
+                }
+            case Temporary =>
+                match (right) {
+                    case Temporary => true
+                    case _ => false
+                }
+            case UseBuffered =>
+                match (right) {
+                    case UseBuffered => true
+                    case _ => false
+                }
         }
     }
 }
@@ -130,10 +149,17 @@ public enum LazyKind {
     | Blob
 
     public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (None, None) => true
-            case (Blob, Blob) => true
-            case _ => false
+        match (this) {
+            case None =>
+                match (right) {
+                    case None => true
+                    case _ => false
+                }
+            case Blob =>
+                match (right) {
+                    case Blob => true
+                    case _ => false
+                }
         }
     }
 }
@@ -319,12 +345,27 @@ public enum IOFileType {
     | NonblockingPipe
 
     public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (File, File) => true
-            case (Pipe, Pipe) => true
-            case (Socket, Socket) => true
-            case (NonblockingPipe, NonblockingPipe) => true
-            case _ => false
+        match (this) {
+            case File =>
+                match (right) {
+                    case File => true
+                    case _ => false
+                }
+            case Pipe =>
+                match (right) {
+                    case Pipe => true
+                    case _ => false
+                }
+            case Socket =>
+                match (right) {
+                    case Socket => true
+                    case _ => false
+                }
+            case NonblockingPipe =>
+                match (right) {
+                    case NonblockingPipe => true
+                    case _ => false
+                }
         }
     }
 }
@@ -402,10 +443,17 @@ public enum PendingState {
     | Pending
 
     public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (None, None) => true
-            case (Pending, Pending) => true
-            case _ => false
+        match (this) {
+            case None =>
+                match (right) {
+                    case None => true
+                    case _ => false
+                }
+            case Pending =>
+                match (right) {
+                    case Pending => true
+                    case _ => false
+                }
         }
     }
 }
@@ -437,7 +485,7 @@ public class PosixFlags {
         if (on) {
             value = value | flag
         } else {
-            value = value & ~flag
+            value = value & (!flag)
         }
     }
 
@@ -600,11 +648,22 @@ public enum IOReadState {
     | Drained
 
     public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (Progress, Progress) => true
-            case (Eof, Eof) => true
-            case (Drained, Drained) => true
-            case _ => false
+        match (this) {
+            case Progress =>
+                match (right) {
+                    case Progress => true
+                    case _ => false
+                }
+            case Eof =>
+                match (right) {
+                    case Eof => true
+                    case _ => false
+                }
+            case Drained =>
+                match (right) {
+                    case Drained => true
+                    case _ => false
+                }
         }
     }
 }
@@ -658,14 +717,37 @@ public enum StreamStartTag {
     | Done
 
     public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (Empty, Empty) => true
-            case (Err, Err) => true
-            case (ChunkSize, ChunkSize) => true
-            case (Ready, Ready) => true
-            case (OwnedAndDone, OwnedAndDone) => true
-            case (Done, Done) => true
-            case _ => false
+        match (this) {
+            case Empty =>
+                match (right) {
+                    case Empty => true
+                    case _ => false
+                }
+            case Err =>
+                match (right) {
+                    case Err => true
+                    case _ => false
+                }
+            case ChunkSize =>
+                match (right) {
+                    case ChunkSize => true
+                    case _ => false
+                }
+            case Ready =>
+                match (right) {
+                    case Ready => true
+                    case _ => false
+                }
+            case OwnedAndDone =>
+                match (right) {
+                    case OwnedAndDone => true
+                    case _ => false
+                }
+            case Done =>
+                match (right) {
+                    case Done => true
+                    case _ => false
+                }
         }
     }
 }
@@ -738,17 +820,52 @@ public enum StreamResultTag {
     | IntoArrayAndDone
 
     public operator func ==(right: Self): Bool {
-        match (this, right) {
-            case (Pending, Pending) => true
-            case (Err, Err) => true
-            case (Done, Done) => true
-            case (Owned, Owned) => true
-            case (OwnedAndDone, OwnedAndDone) => true
-            case (TemporaryAndDone, TemporaryAndDone) => true
-            case (Temporary, Temporary) => true
-            case (IntoArray, IntoArray) => true
-            case (IntoArrayAndDone, IntoArrayAndDone) => true
-            case _ => false
+        match (this) {
+            case Pending =>
+                match (right) {
+                    case Pending => true
+                    case _ => false
+                }
+            case Err =>
+                match (right) {
+                    case Err => true
+                    case _ => false
+                }
+            case Done =>
+                match (right) {
+                    case Done => true
+                    case _ => false
+                }
+            case Owned =>
+                match (right) {
+                    case Owned => true
+                    case _ => false
+                }
+            case OwnedAndDone =>
+                match (right) {
+                    case OwnedAndDone => true
+                    case _ => false
+                }
+            case TemporaryAndDone =>
+                match (right) {
+                    case TemporaryAndDone => true
+                    case _ => false
+                }
+            case Temporary =>
+                match (right) {
+                    case Temporary => true
+                    case _ => false
+                }
+            case IntoArray =>
+                match (right) {
+                    case IntoArray => true
+                    case _ => false
+                }
+            case IntoArrayAndDone =>
+                match (right) {
+                    case IntoArrayAndDone => true
+                    case _ => false
+                }
         }
     }
 }

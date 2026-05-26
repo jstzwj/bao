@@ -50,9 +50,9 @@ const kCallback = Symbol("kCallback");
 function Transform(options): void {
   if (!(this instanceof Transform)) return new Transform(options);
 
-  // TODO (ronag): This should preferably always be
-  // applied but would be semver-major. Or even better;
-  // make Transform a Readable with the Writable interface.
+  // NOTE (ronag): The highWaterMark adjustment when readableHighWaterMark is 0
+  // should preferably always be applied but would be semver-major.
+  // Or even better: make Transform a Readable with the Writable interface.
   const readableHighWaterMark = options ? getHighWaterMark(this, options, "readableHighWaterMark", true) : null;
   if (readableHighWaterMark === 0) {
     // A Duplex will buffer both on the writable and readable side while

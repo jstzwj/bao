@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBePositive() - 检查值是否为正数
 /// 用法: expect(received).toBePositive()
 public func toBePositive(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBePositive", matcherParamsFmt: "")
@@ -21,7 +21,7 @@ public func toBePositive(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
     if (not) {

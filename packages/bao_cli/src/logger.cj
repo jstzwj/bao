@@ -124,6 +124,17 @@ public enum LogLevel {
             case Silent => 4
         }
     }
+
+    public static func fromString(s: String): ?LogLevel {
+        match (s.toLower()) {
+            case "debug" => Some(LogLevel.Debug)
+            case "error" => Some(LogLevel.Error)
+            case "warn" => Some(LogLevel.Warn)
+            case "info" => Some(LogLevel.Info)
+            case "silent" => Some(LogLevel.Silent)
+            case _ => None
+        }
+    }
 }
 
 /// CLI 日志器

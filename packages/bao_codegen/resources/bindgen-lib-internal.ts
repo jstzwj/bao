@@ -132,7 +132,8 @@ export class TypeImpl<K extends TypeKind = TypeKind> {
     let h = `${this.kind}:`;
     switch (this.kind) {
       case "ref":
-        throw new Error("TODO");
+        h += this.data;
+        break;
       case "sequence":
         h += this.data.element.hash();
         break;
@@ -163,7 +164,7 @@ export class TypeImpl<K extends TypeKind = TypeKind> {
   lowersToNamedType() {
     switch (this.kind) {
       case "ref":
-        throw new Error("TODO");
+        return true;
       case "sequence":
       case "record":
       case "oneOf":
@@ -180,7 +181,7 @@ export class TypeImpl<K extends TypeKind = TypeKind> {
     let kind = this.kind;
     switch (kind) {
       case "ref":
-        throw new Error("TODO");
+        return null;
       case "any":
         return "JSValue";
       case "ByteString":
@@ -209,7 +210,9 @@ export class TypeImpl<K extends TypeKind = TypeKind> {
       case "stringEnum":
         return cAbiTypeForEnum(this.data.length);
       case "zigEnum":
-        throw new Error("TODO");
+        // zigEnum references an external enum by file:impl, so its size is not
+        // known here. It cannot be directly mapped without resolving the reference.
+        return null;
       case "undefined":
         return "u0";
       case "oneOf": // `union(enum)`
@@ -218,7 +221,6 @@ export class TypeImpl<K extends TypeKind = TypeKind> {
       case "sequence": // []const T
         return null;
       case "externalClass":
-        throw new Error("TODO");
         return "*anyopaque";
       case "dictionary": {
         let existing = typeHashToStruct.get(this.hash());
@@ -317,7 +319,7 @@ export class TypeImpl<K extends TypeKind = TypeKind> {
 
     switch (this.kind) {
       case "ref":
-        throw new Error("TODO");
+        break;
       case "sequence":
         this.data.element.markReachable();
         break;
@@ -497,7 +499,13 @@ export class TypeImpl<K extends TypeKind = TypeKind> {
     const direct = this.canDirectlyMapToCAbi();
     assert(typeof direct !== "string");
     if (direct) return direct;
-    throw new Error("TODO: generate non-extern struct for representing this data type");
+    // Non-extern structs (oneOf, sequence, record, dictionaries with complex fields)
+    // require communication buffer marshaling and do not support default values.
+    throw new Error(
+      `Cannot generate struct for ${this.kind} type "${this.nameDeduplicated ?? this.kind}". ` +
+      `Types with complex fields (optional, nested, sequences, unions) cannot be directly ` +
+      `mapped to a C ABI struct and do not support default value emission.`
+    );
   }
 
   isIgnoredUndefinedType() {

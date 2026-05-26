@@ -9,7 +9,7 @@ import bao_collections.ArrayList
 /// toHaveReturnedWith() - 检查mock函数是否以指定值返回
 /// 用法: expect(mockFn).toHaveReturnedWith(expected)
 public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveReturnedWith", matcherParamsFmt: "<green>expected<r>")
@@ -20,7 +20,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
     if (!returns.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
@@ -28,7 +28,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     var pass = false
 
     var successfulReturns = ArrayList<JsValue>(allocator: globalThis.bunVM().allocator)
-    defer { successfulReturns.deinit() }
+    // defer { successfulReturns.deinit() }
 
     var hasErrors = false
 
@@ -41,7 +41,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
             let resultType = result.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
-                defer { typeStr.deref() }
+                // defer { typeStr.deref() }
 
                 if (typeStr.eqlComptime("return")) {
                     let resultValue = result.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
@@ -67,7 +67,7 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
 
     let signature = Expect.getSignature(matcherName: "toHaveReturnedWith", args: "<green>expected<r>", not: false)
 

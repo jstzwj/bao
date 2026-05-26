@@ -5,6 +5,18 @@ package bao_runtime.webcore.s3
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import std.convert.*
+import bao_http.HTTPClient as BaoHTTPClient
+import bao_http.HTTPClientResult as BaoHTTPClientResult
+import bao_http.HTTPClientResultCallback as BaoHTTPClientResultCallback
+import bao_http.AsyncHTTPOptions as BaoAsyncHTTPOptions
+import bao_http.AsyncHTTP as BaoAsyncHTTP
+import bao_http.ParsedUrl as BaoParsedUrl
+import bao_http.FetchRedirect as BaoFetchRedirect
+import bao_http.HeaderEntryList as BaoHeaderEntryList
+import bao_http.MutableString as BaoMutableString
+import bao_http.ThreadPoolBatch as BaoThreadPoolBatch
+import bao_http.httpThread as baoHttpThread
 
 // ============================================================================
 // S3StatResult - S3 Stat 操作结果
@@ -811,7 +823,7 @@ public class S3HttpSimpleTask {
                     case 200 =>
                         let contentLength = metadata.get("content-length")
                         let size = match (contentLength) {
-                            case Some(value) => Int64.parse(value) ?? 0
+                            case Some(value) => parseInt64OrDefault(value, 0)
                             case None => 0
                         }
                         statCallback(S3StatResult.success(
@@ -1020,12 +1032,13 @@ private func scheduleSimpleS3Task(t: S3HttpSimpleTask, method: HttpMethod, reque
         }
     })
     let httpOptions = BaoAsyncHTTPOptions()
+    let baoResponseBuffer = BaoMutableString()
     let realHttp = BaoAsyncHTTP.initFunc(
         method.toBaoHttpMethod(),
         BaoParsedUrl.parse(t.signResult.url),
         t.headers.toBaoHeaderEntryList(),
         "",
-        t.responseBuffer,
+        baoResponseBuffer,
         requestBody,
         callback,
         BaoFetchRedirect.follow,
@@ -1325,4 +1338,13 @@ private func simpleRequestNotImplementedMessage(callbackKind: S3CallbackKind): S
 /// 对应 Bun: getSignErrorCodeAndMessage
 private func getSignErrorCodeAndMessage(): S3Error {
     return S3Error("SignError", "Failed to sign the request.")
+}
+
+/// Parse Int64 with default fallback
+private func parseInt64OrDefault(s: String, default: Int64): Int64 {
+    try {
+        return Int64.parse(s)
+    } catch (_: Exception) {
+        return default
+    }
 }

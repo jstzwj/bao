@@ -3002,7 +3002,7 @@ public func formatSize(bytes: Int64): String {
         let mb = Float64(bytes) / (1024.0 * 1024.0)
         return "${mb.toFixed(1)} MB"
     }
-    if (bytes < 1024LL * 1024LL * 1024LL * 1024LL) {
+    if (bytes < 1024 * 1024 * 1024 * 1024) {
         let gb = Float64(bytes) / (1024.0 * 1024.0 * 1024.0)
         return "${gb.toFixed(1)} GB"
     }

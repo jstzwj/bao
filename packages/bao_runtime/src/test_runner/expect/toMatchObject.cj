@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toMatchObject() - 检查对象是否深度匹配
 /// 用法: expect(received).toMatchObject(expected)
 public func toMatchObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let args = callFrame.argumentsOld(1).slice()

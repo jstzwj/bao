@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toThrowErrorMatchingInlineSnapshot() - 检查抛出的错误是否匹配行内快照
 /// 用法: expect(fn).toThrowErrorMatchingInlineSnapshot(snapshot?)
 public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
@@ -41,7 +41,7 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
     }
 
     var expected = expectedString.toSlice(allocator: default_allocator)
-    defer { expected.deinit() }
+    // defer { expected.deinit() }
 
     let expectedSlice: ?String = if (hasExpected) { expected.slice() } else { None }
 

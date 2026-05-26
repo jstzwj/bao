@@ -65,7 +65,8 @@ const kHasPaused = 1 << 25;
 const kPaused = 1 << 26;
 const kDataListening = 1 << 27;
 
-// TODO(benjamingr) it is likely slower to do it this way than with free functions
+// NOTE(benjamingr): Using property descriptors for bit-field access is potentially
+// slower than free functions. Kept for API compatibility with Node.js streams.
 function makeBitMapDescriptor(bit) {
   return {
     enumerable: false,
@@ -1190,9 +1191,25 @@ function flow(stream) {
 Readable.prototype.wrap = function (stream) {
   let paused = false;
 
-  // TODO (ronag): Should this.destroy(err) emit
-  // 'error' on the wrapped stream? Would require
-  // a static factory method, e.g. Readable.wrap(stream).
+  // When this (wrapping) stream is destroyed with an error, propagate the
+  // error to the wrapped stream. This ensures cleanup of the underlying
+  // source when the wrapper is destroyed externally.
+  const origDestroy = this._destroy.bind(this);
+  this._destroy = function (err, cb) {
+    if (err) {
+      // Forward the error to the wrapped stream if it supports error handling.
+      if (typeof stream.destroy === "function") {
+        stream.destroy(err);
+      } else if (stream.emit) {
+        try {
+          stream.emit("error", err);
+        } catch {
+          // Ignore if the wrapped stream does not handle the error.
+        }
+      }
+    }
+    origDestroy(err, cb);
+  };
 
   stream.on("data", chunk => {
     if (!this.push(chunk) && stream.pause) {

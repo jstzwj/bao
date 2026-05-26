@@ -248,7 +248,7 @@ public class FileResponseStream {
     /// 调用者先写入 status + headers，然后调用 start() 交出 body 流式传输。
     /// on_complete / on_error 恰好触发一次。
     public static func start(opts: FileResponseStreamStartOptions): FileResponseStream {
-        let useSendfile = canSendfile(opts.resp, opts.fileType, opts.size)
+        let useSendfile = canSendfile(opts.resp, opts.fileType, opts.length)
 
         let stream = FileResponseStream()
         stream.resp = opts.resp
@@ -279,7 +279,7 @@ public class FileResponseStream {
             // 对应 Bun: sendfile path
             stream.sendfile.socketFd = -1 // 需要从 resp 获取 native handle
             stream.sendfile.offset = opts.offset
-            match (opts.size) {
+            match (opts.length) {
                 case Some(len) => stream.sendfile.remain = len
                 case None => stream.sendfile.remain = 0
             }
@@ -288,7 +288,7 @@ public class FileResponseStream {
             stream.onSendfile()
         } else {
             // BufferedReader 路径
-            stream.maxSize = opts.size
+            stream.maxSize = opts.length
             // 对应 Bun: reader.start(fd, pollable) or reader.start_file_offset
             // 简化: 不实际启动 BufferedReader
         }
@@ -435,7 +435,8 @@ public class FileResponseStream {
         // 简化: 调用平台 sendfile
         // 对应 Bun: std.os.linux.sendfile / std.c.sendfile (macOS)
         // 对应 Rust: cfg(target_os = "linux") / cfg(target_os = "macos") / else unreachable
-        while (true) {
+        var done = false
+        while (!done) {
             let adjusted = if (sendfile.remain < 2147483647) {
                 sendfile.remain
             } else {
@@ -445,8 +446,9 @@ public class FileResponseStream {
             // 对应 Bun: sendfile(socket_fd, fd, offset, count)
             // 简化: 直接标记完成
             endSendfile()
-            return false
+            done = true
         }
+        return false
     }
 
     /// 设置 sendfile 的 onWritable 回调
@@ -634,7 +636,7 @@ public class FileResponseStream {
     private static func bytesToString(bytes: Array<UInt8>): String {
         let sb = StringBuilder()
         for (b in bytes) {
-            sb.append(Char(Int32(b)))
+            sb.append(b)
         }
         return sb.toString()
     }

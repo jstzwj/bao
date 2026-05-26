@@ -7,6 +7,35 @@ import bao_core.*
 import bao_collections.*
 import bao_jsc.*
 
+// Note: SSL_CTX_new, SSL_CTX_free, TLS_method are declared in ssl_wrapper.cj (same sub-package)
+@C
+foreign func SSL_CTX_set_verify(ctx: CPointer<Unit>, mode: Int32, callback: CPointer<Unit>): Unit
+@C
+foreign func SSL_CTX_set_verify_depth(ctx: CPointer<Unit>, depth: Int32): Unit
+@C
+foreign func SSL_CTX_load_verify_locations(ctx: CPointer<Unit>, caFile: CPointer<Int8>, caPath: CPointer<Int8>): Int32
+@C
+foreign func SSL_CTX_use_certificate_chain_file(ctx: CPointer<Unit>, file: CPointer<Int8>): Int32
+@C
+foreign func SSL_CTX_use_PrivateKey_file(ctx: CPointer<Unit>, file: CPointer<Int8>, type_: Int32): Int32
+
+private let SSL_FILETYPE_PEM: Int32 = 1
+private let SSL_VERIFY_PEER: Int32 = 1
+private let SSL_VERIFY_NONE: Int32 = 0
+
+private func sslConfigUnsafeNewCString(s: String): CPointer<Int8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len + 1))
+        let bytesPtr = CPointer<Int8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        (bytesPtr + Int64(len)).write(Int8(0))
+        return bytesPtr
+    }
+}
+
 // ============================================================================
 // SSL 配置
 // 对应 Bun: SSLConfig struct
@@ -372,10 +401,55 @@ public class BunSocketContextOptions {
     /// 创建 SSL 上下文
     /// 对应 Zig: createSSLContext
     public func createSSLContext(): ?SslCtx {
-        // Blocked: bao_runtime.socket.SslCtx is currently only an opaque Cangjie
-        // placeholder and does not own/expose a native BoringSSL SSL_CTX*.
-        // Do not return a fake context here: uSockets TLS connect requires the
-        // exact native SSL_CTX pointer and lifetime managed by BoringSSL.
-        return None
+        if (passphrase.size > 0 || dhParamsFileName.size > 0) {
+            return None
+        }
+        if ((certFileName.size > 0 && keyFileName.size == 0) || (certFileName.size == 0 && keyFileName.size > 0)) {
+            return None
+        }
+
+        let method = unsafe { TLS_method() }
+        if (method.isNull()) {
+            return None
+        }
+        let ctx = unsafe { SSL_CTX_new(method) }
+        if (ctx.isNull()) {
+            return None
+        }
+
+        unsafe {
+            SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, CPointer<Unit>())
+            SSL_CTX_set_verify_depth(ctx, 100)
+        }
+
+        if (caFileName.size > 0) {
+            let caPtr = sslConfigUnsafeNewCString(caFileName)
+            let rc = unsafe { SSL_CTX_load_verify_locations(ctx, caPtr, CPointer<Int8>()) }
+            unsafe { free(CPointer<Unit>(caPtr)) }
+            if (rc != 1) {
+                unsafe { SSL_CTX_free(ctx) }
+                return None
+            }
+        }
+
+        if (certFileName.size > 0) {
+            let certPtr = sslConfigUnsafeNewCString(certFileName)
+            let certRc = unsafe { SSL_CTX_use_certificate_chain_file(ctx, certPtr) }
+            unsafe { free(CPointer<Unit>(certPtr)) }
+            if (certRc != 1) {
+                unsafe { SSL_CTX_free(ctx) }
+                return None
+            }
+
+            let keyPtr = sslConfigUnsafeNewCString(keyFileName)
+            let keyRc = unsafe { SSL_CTX_use_PrivateKey_file(ctx, keyPtr, SSL_FILETYPE_PEM) }
+            unsafe { free(CPointer<Unit>(keyPtr)) }
+            if (keyRc != 1) {
+                unsafe { SSL_CTX_free(ctx) }
+                return None
+            }
+        }
+
+        return Some(SslCtx(ctx))
     }
 }

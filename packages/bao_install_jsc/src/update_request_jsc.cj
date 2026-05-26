@@ -3,7 +3,6 @@
 package bao_install_jsc
 
 import bao_jsc.*
-import bao_core.*
 import bao_collections.*
 import bao_install.*
 
@@ -21,7 +20,7 @@ public func updateRequestFromJS(globalThis: JSGlobalObject, input: JsValue): JsV
     let pair = parseNameVersion(first)
     let obj = JsObject.make()
     obj.set("name", JsValue(pair.name))
-    obj.set("version", JsValue(dependencyVersionObject(globalThis, pair.version)))
+    obj.set("version", dependencyVersionObject(globalThis, pair.version))
     obj.set("input", JsValue(first))
     obj.set("failed", JsValue(false))
     return JsValue(obj)
@@ -58,15 +57,17 @@ private class NameVersionPair {
 
 private func parseNameVersion(input: String): NameVersionPair {
     if (input.startsWith("@")) {
-        let slash = input.indexOf('/')
-        if (slash >= 0) {
-            let at = input[slash + 1..].lastIndexOf('@')
-            match (at) {
-                case Some(idx) =>
-                    let split = slash + 1 + idx
-                    return NameVersionPair(input[0..split], input[split + 1..])
-                case None => return NameVersionPair(input, "latest")
-            }
+        let slashOpt = input.indexOf('/')
+        match (slashOpt) {
+            case Some(slash) =>
+                let at = input[slash + 1..].lastIndexOf('@')
+                match (at) {
+                    case Some(idx) =>
+                        let split = slash + 1 + idx
+                        return NameVersionPair(input[0..split], input[split + 1..])
+                    case None => return NameVersionPair(input, "latest")
+                }
+            case None => ()
         }
     }
 

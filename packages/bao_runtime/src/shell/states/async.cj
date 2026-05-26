@@ -6,6 +6,7 @@ package bao_runtime.shell.states
 
 import bao_core.*
 import bao_runtime.shell.*
+import bao_event_loop.*
 
 // ============================================================================
 // 异步命令状态
@@ -28,7 +29,6 @@ public class AsyncParentPtr {
         return pp
     }
     public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-    public func create<T>(): T { T() }
     public func destroy<T>(ptr: T) {}
 }
 
@@ -61,6 +61,10 @@ public class AsyncState {
     /// 并发任务
     public var concurrentTask: EventLoopTask
 
+    public init() {
+        this.state = AsyncStateKind.`idle`
+    }
+
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
@@ -83,25 +87,26 @@ public class AsyncState {
     /// 启动
     public func start(): Yield {
         this.enqueueSelf()
-        return this.parent.childDone(this, 0)
+        return this.parent.childDone(this, ExitCode.exited(0))
     }
 
     /// 下一步
     public func next(): Yield {
         match (this.state) {
             case AsyncStateKind.`idle` =>
-                this.state = AsyncStateKind.`exec`(None)
+                this.state = AsyncStateKind.`exec`(Option<AsyncChildPtr>.None)
                 this.enqueueSelf()
                 return Yield.suspended
-            case AsyncStateKind.`exec`(child) =>
-                if (let Some(c) <- child) {
-                    return c.start()
+            case AsyncStateKind.`exec`(childOpt) =>
+                if (let Some(childPtr) <- childOpt) {
+                    return childPtr.start()
                 }
                 // 创建子状态
                 this.enqueueSelf()
                 return Yield.suspended
             case AsyncStateKind.done(exitCode) =>
-                this.base.interpreter.asyncCmdDone(this)
+                let asyncRef: AsyncState = this
+                this.base.interpreter.asyncCmdDone(asyncRef)
                 return Yield.done
         }
     }
@@ -113,7 +118,7 @@ public class AsyncState {
 
     /// 子节点完成
     public func childDone(child: AsyncChildPtr, exitCode: ExitCode): Yield {
-        childPtr.deinit()
+        child.deinit()
         this.state = AsyncStateKind.done(exitCode)
         this.enqueueSelf()
         return Yield.suspended

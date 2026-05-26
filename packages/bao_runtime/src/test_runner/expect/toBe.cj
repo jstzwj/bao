@@ -9,7 +9,7 @@ import bao_jsc.*
 /// toBe() - Object.is()严格相等比较
 /// 用法: expect(received).toBe(expected)
 public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     this.incrementExpectCallCounter()
 

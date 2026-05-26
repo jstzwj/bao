@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // Open — URL 打开器和编辑器检测

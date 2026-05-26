@@ -126,10 +126,7 @@ public interface ResumableSinkContext {
 /// onEnd 在流结束或出错时总是被调用
 /// 调用 cancel 将取消流, onEnd 会被调用并传入 reason
 /// 与 JSSink 不同, 这不打算暴露给用户
-public class ResumableSink<Js, Context>
-    where Js <: ResumableSinkJs
-    where Context <: ResumableSinkContext
-{
+public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: ResumableSinkContext {
     /// 引用计数
     /// 对应 Bun: ref_count: Cell<u32>
     public var refCount: Cell<UInt32>
@@ -738,10 +735,7 @@ public interface PipeHandler {
 /// ResumableSink 实现管道处理
 /// 对应 Bun: impl<Js, Context> PipeHandler for ResumableSink<Js, Context>
 /// 将 Zig 的 comptime fn-ptr 参数 on_stream_pipe 重塑为 trait 方法
-public class ResumableSinkPipeHandler<Js, Context>
-    where Js <: ResumableSinkJs
-    where Context <: ResumableSinkContext
-{
+public class ResumableSinkPipeHandler<Js, Context> where Js <: ResumableSinkJs, Context <: ResumableSinkContext {
     public var sink: ResumableSink<Js, Context>
 
     public init(sink: ResumableSink<Js, Context>) {
@@ -990,7 +984,7 @@ public class Cell<T> {
 }
 
 /// UIntNative — 原始大小无符号整数
-public type UIntNative = UInt64
+type UIntNative = UInt64
 
 // ============================================================================
 // 辅助函数

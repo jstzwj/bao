@@ -160,7 +160,7 @@ public class YesCmd {
         if (this.state == YesState.waitingWriteErr) {
             return this.bltn().done(1)
         }
-        return this.bltn().stdout.enqueue(this, this.buffer[0..this.bufferUsed.toInt()], .outputNeedsIO)
+        return this.bltn().stdout.enqueue(this, this.buffer[0..this.bufferUsed.toInt()])
     }
 
     /// 去初始化

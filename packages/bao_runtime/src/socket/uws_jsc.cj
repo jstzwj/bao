@@ -4,7 +4,8 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
-import bao_jsc.*
+import bao_jsc.{JsValue, JsGlobalObject, JsObject, JsError}
+import bao_uws_sys.{UsSocket, ConnectingSocket, SocketGroup as UwsSocketGroup, SocketKind, CloseCode, UsBunVerifyError, ListenSocket}
 
 // ============================================================================
 // JSC 桥接
@@ -37,8 +38,8 @@ public func verifyErrorToJS(error: UsBunVerifyError, globalObject: JsGlobalObjec
     let code = if (error.code.size == 0) { "" } else { error.code }
     let reason = if (error.reason.size == 0) { "" } else { error.reason }
 
-    let fallback = SystemError(code, reason)
-    return fallback.toJS(JsObject())
+    let message = "OpenSSL SSL_ERROR_SSL: ${code}: ${reason}"
+    return JsValue(message)
 }
 
 /// AnyWebSocket.getTopicsAsJSArray

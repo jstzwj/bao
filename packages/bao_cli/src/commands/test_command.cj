@@ -1754,37 +1754,37 @@ class TestEnvLoader {
 public func fmtStatusTextLine(status: TestResultStatus, emojiOrColor: Bool): String {
     if (emojiOrColor) {
         return match (status) {
-            case Pending => "...",
-            case Pass => "✓",
-            case Fail => "✗",
-            case Skip => "»",
-            case Todo => "✎",
-            case FailBecauseFailingTestPassed => "✗",
-            case FailBecauseExpectedAssertionCount => "✗",
-            case FailBecauseTodoPassed => "✗",
-            case FailBecauseExpectedHasAssertions => "✗",
-            case FailBecauseTimeout => "✗",
-            case FailBecauseTimeoutWithDoneCallback => "✗",
-            case FailBecauseHookTimeout => "✗",
-            case FailBecauseHookTimeoutWithDoneCallback => "✗",
-            case SkippedBecauseLabel => "»",
+            case Pending => "..."
+            case Pass => "✓"
+            case Fail => "✗"
+            case Skip => "»"
+            case Todo => "✎"
+            case FailBecauseFailingTestPassed => "✗"
+            case FailBecauseExpectedAssertionCount => "✗"
+            case FailBecauseTodoPassed => "✗"
+            case FailBecauseExpectedHasAssertions => "✗"
+            case FailBecauseTimeout => "✗"
+            case FailBecauseTimeoutWithDoneCallback => "✗"
+            case FailBecauseHookTimeout => "✗"
+            case FailBecauseHookTimeoutWithDoneCallback => "✗"
+            case SkippedBecauseLabel => "»"
         }
     } else {
         return match (status) {
-            case Pending => "(pending)",
-            case Pass => "(pass)",
-            case Fail => "(fail)",
-            case Skip => "(skip)",
-            case Todo => "(todo)",
-            case FailBecauseFailingTestPassed => "(fail)",
-            case FailBecauseExpectedAssertionCount => "(fail)",
-            case FailBecauseTodoPassed => "(fail)",
-            case FailBecauseExpectedHasAssertions => "(fail)",
-            case FailBecauseTimeout => "(fail)",
-            case FailBecauseTimeoutWithDoneCallback => "(fail)",
-            case FailBecauseHookTimeout => "(fail)",
-            case FailBecauseHookTimeoutWithDoneCallback => "(fail)",
-            case SkippedBecauseLabel => "(skip)",
+            case Pending => "(pending)"
+            case Pass => "(pass)"
+            case Fail => "(fail)"
+            case Skip => "(skip)"
+            case Todo => "(todo)"
+            case FailBecauseFailingTestPassed => "(fail)"
+            case FailBecauseExpectedAssertionCount => "(fail)"
+            case FailBecauseTodoPassed => "(fail)"
+            case FailBecauseExpectedHasAssertions => "(fail)"
+            case FailBecauseTimeout => "(fail)"
+            case FailBecauseTimeoutWithDoneCallback => "(fail)"
+            case FailBecauseHookTimeout => "(fail)"
+            case FailBecauseHookTimeoutWithDoneCallback => "(fail)"
+            case SkippedBecauseLabel => "(skip)"
         }
     }
 }

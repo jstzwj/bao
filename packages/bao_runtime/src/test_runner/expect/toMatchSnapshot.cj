@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toMatchSnapshot() - 快照匹配
 /// 用法: expect(received).toMatchSnapshot() / expect(received).toMatchSnapshot(hint) / expect(received).toMatchSnapshot(properties, hint)
 public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
@@ -29,7 +29,7 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used outside of a test\n", args: [])
     }
-    defer { buntestStrong.deinit() }
+    // defer { buntestStrong.deinit() }
 
     var hintString = ZigString.Empty
     var propertyMatchers: ?JsValue = None
@@ -62,7 +62,7 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
     }
 
     var hint = hintString.toSlice(allocator: default_allocator)
-    defer { hint.deinit() }
+    // defer { hint.deinit() }
 
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
 

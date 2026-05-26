@@ -475,6 +475,18 @@ public enum TimerState {
     | ACTIVE
     | CANCELLED
     | DONE
+
+    public operator func ==(other: TimerState): Bool {
+        match (this) {
+            case ACTIVE => match (other) { case ACTIVE => true; case _ => false }
+            case CANCELLED => match (other) { case CANCELLED => true; case _ => false }
+            case DONE => match (other) { case DONE => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: TimerState): Bool {
+        !(this == other)
+    }
 }
 
 /// InHeap 标记

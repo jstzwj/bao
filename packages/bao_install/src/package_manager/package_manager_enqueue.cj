@@ -93,6 +93,26 @@ public enum ResolutionTagEnqueue {
     | Root
     | Uninitialized
     | SingleFileModule
+
+    public operator func ==(right: ResolutionTagEnqueue): Bool {
+        match (this) {
+            case NPM => match (right) { case NPM => true case _ => false }
+            case Git => match (right) { case Git => true case _ => false }
+            case GitHub => match (right) { case GitHub => true case _ => false }
+            case LocalTarball => match (right) { case LocalTarball => true case _ => false }
+            case RemoteTarball => match (right) { case RemoteTarball => true case _ => false }
+            case Workspace => match (right) { case Workspace => true case _ => false }
+            case Folder => match (right) { case Folder => true case _ => false }
+            case Symlink => match (right) { case Symlink => true case _ => false }
+            case Root => match (right) { case Root => true case _ => false }
+            case Uninitialized => match (right) { case Uninitialized => true case _ => false }
+            case SingleFileModule => match (right) { case SingleFileModule => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: ResolutionTagEnqueue): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -212,8 +232,8 @@ public class PackageManagerEnqueue {
             dep,
             resolution,
             installPeer,
-            None,
-            None
+            Option<SuccessFn>.None,
+            Option<FailFn>.None
         )
     }
 
@@ -253,10 +273,10 @@ public class PackageManagerEnqueue {
         }
 
         match (version.tag) {
-            case DependencyVersionTag.DistTag | DependencyVersionTag.NPM => enqueueNPMPackage(manager, depId, dep, installPeer, successFn, failFn)
+            case DependencyVersionTag.DistTag | DependencyVersionTag.Npm => enqueueNPMPackage(manager, depId, dep, installPeer, successFn, failFn)
             case DependencyVersionTag.Folder => enqueueFolderPackage(manager, depId, dep, installPeer, successFn, failFn)
             case DependencyVersionTag.Git => enqueueGitPackage(manager, depId, dep, installPeer, successFn, failFn)
-            case DependencyVersionTag.GitHub => enqueueGitHubPackage(manager, depId, dep, installPeer, successFn, failFn)
+            case DependencyVersionTag.Github => enqueueGitHubPackage(manager, depId, dep, installPeer, successFn, failFn)
             case DependencyVersionTag.Symlink => enqueueSymlinkPackage(manager, depId, dep, installPeer, successFn, failFn)
             case DependencyVersionTag.Workspace => enqueueWorkspacePackage(manager, depId, dep, installPeer, successFn, failFn)
             case DependencyVersionTag.Tarball => enqueueTarballPackage(manager, depId, dep, installPeer, successFn, failFn)
@@ -546,7 +566,7 @@ public class PackageManagerEnqueue {
         let task = manager.preallocatedResolveTasks.getEnqueueTask()
         task.setTag(TaskTagEnqueue.Extract)
         task.setPackageManager(manager)
-        task.setId(networkTask.taskId())
+        task.setIdFromTask(networkTask.taskId)
         task.setExtractRequest(networkTask, tarball)
         task.setSkipVerify(!manager.options.doVerifyIntegrity)
         return task
@@ -717,7 +737,7 @@ public class PackageManagerEnqueue {
                 manager.updatingPackages.contains(name))
 
         // 翻译自: 检查包是否已存在
-        let existingPkgId = manager.lockfile.getPackageID(nameHash, None, makeNpmResolution(findResult))
+        let existingPkgId = manager.lockfile.getPackageID(nameHash, Option<DependencyVersionInfo>.None, makeNpmResolution(findResult))
         match (existingPkgId) {
             case Some(id) =>
                 match (successFn) {
@@ -760,7 +780,7 @@ public class PackageManagerEnqueue {
                     behavior.isRequired(),
                     depId,
                     pkg,
-                    None,
+                    Option<UInt64>.None,
                     NetworkAuthorization.AllowAuthorization
                 )
                 match (networkTask) {
@@ -821,9 +841,9 @@ public class PackageManagerEnqueue {
                     // 翻译自: 检查 tag 匹配 (npm/git/github)
                     let resTag = existingResolution.tag
                     let verTag = version.tag
-                    if ((resTag == ResolutionTagEnqueue.NPM && verTag == DependencyVersionTag.NPM) ||
+                    if ((resTag == ResolutionTagEnqueue.NPM && verTag == DependencyVersionTag.Npm) ||
                         (resTag == ResolutionTagEnqueue.Git && verTag == DependencyVersionTag.Git) ||
-                        (resTag == ResolutionTagEnqueue.GitHub && verTag == DependencyVersionTag.GitHub)) {
+                        (resTag == ResolutionTagEnqueue.GitHub && verTag == DependencyVersionTag.Github)) {
                         // 不匹配但类型相同, 记录警告
                         match (successFn) {
                             case Some(fn) => fn(depId, existingId)
@@ -843,7 +863,7 @@ public class PackageManagerEnqueue {
 
         // 根据 version.tag 分支处理
         match (version.tag) {
-            case DependencyVersionTag.NPM | DependencyVersionTag.DistTag =>
+            case DependencyVersionTag.Npm | DependencyVersionTag.DistTag =>
                 return getOrPutResolvedPackageNPM(
                     manager, nameHash, name, dep, version,
                     depId, behavior, installPeer, successFn
@@ -882,7 +902,7 @@ public class PackageManagerEnqueue {
     ): ?ResolvedPackageResult {
         // 翻译自: resolve_from_workspace
         // 检查 workspace 中是否有匹配的包
-        if (version.tag == DependencyVersionTag.NPM) {
+        if (version.tag == DependencyVersionTag.Npm) {
             let workspacePath = manager.lockfile.getWorkspacePathByNameHash(nameHash)
             let workspaceVersion = manager.lockfile.getWorkspaceVersion(nameHash)
             if (manager.options.linkWorkspacePackages &&
@@ -972,7 +992,7 @@ public class PackageManagerEnqueue {
         // 翻译自: FolderResolution.getOrPut
         let folderPath = version.folderPath
         let res = FolderResolutionRef.getOrPut(
-            FolderKindRef(FolderKind.RelativeFolder),
+            FolderKindRef.RelativeFolder,
             version,
             folderPath,
             manager
@@ -1016,7 +1036,7 @@ public class PackageManagerEnqueue {
         }
 
         let res = FolderResolutionRef.getOrPut(
-            FolderKindRef(FolderKind.RelativeWorkspace),
+            FolderKindRef.RelativeWorkspace,
             version,
             path,
             manager
@@ -1054,7 +1074,7 @@ public class PackageManagerEnqueue {
     ): ?ResolvedPackageResult {
         let globalLinkDir = manager.globalLinkDirPath()
         let res = FolderResolutionRef.getOrPut(
-            FolderKindRef(FolderKind.Global(globalLinkDir)),
+            FolderKindRef.Global(globalLinkDir),
             version,
             version.symlinkPath,
             manager
@@ -1090,7 +1110,7 @@ public class PackageManagerEnqueue {
         resolution: EnqueueResolutionData,
         dependency: DependencyVersionInfo
     ): Bool {
-        if (resolution.tag == ResolutionTagEnqueue.NPM && dependency.tag == DependencyVersionTag.NPM) {
+        if (resolution.tag == ResolutionTagEnqueue.NPM && dependency.tag == DependencyVersionTag.Npm) {
             return dependency.npmVersionSatisfies(resolution)
         }
 
@@ -1098,7 +1118,7 @@ public class PackageManagerEnqueue {
             return dependency.gitEql(resolution)
         }
 
-        if (resolution.tag == ResolutionTagEnqueue.GitHub && dependency.tag == DependencyVersionTag.GitHub) {
+        if (resolution.tag == ResolutionTagEnqueue.GitHub && dependency.tag == DependencyVersionTag.Github) {
             return dependency.githubEql(resolution)
         }
 
@@ -1120,11 +1140,11 @@ public class PackageManagerEnqueue {
         match (newVersion.tag) {
             case DependencyVersionTag.DistTag =>
                 return NameAndHash(newVersion.distTagName, lockfile.stringHash(newVersion.distTagName))
-            case DependencyVersionTag.NPM =>
+            case DependencyVersionTag.Npm =>
                 return NameAndHash(newVersion.npmName, lockfile.stringHash(newVersion.npmName))
             case DependencyVersionTag.Git =>
                 return NameAndHash(newVersion.gitPackageName, originalNameHash)
-            case DependencyVersionTag.GitHub =>
+            case DependencyVersionTag.Github =>
                 return NameAndHash(newVersion.githubPackageName, originalNameHash)
             case DependencyVersionTag.Tarball =>
                 return NameAndHash(newVersion.tarballPackageName, originalNameHash)
@@ -1194,7 +1214,7 @@ public class PackageManagerEnqueue {
         res.tag = ResolutionTagEnqueue.Git
 
         // 翻译自: 检查 lockfile 中是否已存在
-        let existingPkgId = manager.lockfile.getPackageID(depVer.nameHash, None, res)
+        let existingPkgId = manager.lockfile.getPackageID(depVer.nameHash, Option<DependencyVersionInfo>.None, res)
         match (existingPkgId) {
             case Some(pkgId) =>
                 match (successFn) {
@@ -1210,7 +1230,7 @@ public class PackageManagerEnqueue {
         let cloneId = manager.taskIdForGitClone(url)
 
         // 翻译自: git_repositories.get(clone_id)
-        let repoFd = manager.gitRepositories.get(cloneId)
+        let repoFd = manager.gitRepositories.get(cloneId.value)
         match (repoFd) {
             case Some(fd) =>
                 // 仓库已克隆, 执行 checkout
@@ -1235,7 +1255,7 @@ public class PackageManagerEnqueue {
                 // 创建 checkout 任务
                 let task = enqueueGitCheckout(
                     manager, checkoutId, fd, depId, alias,
-                    res, resolved, None
+                    res, resolved, Option<UInt64>.None
                 )
                 manager.taskBatch.push(task)
             case None =>
@@ -1258,7 +1278,7 @@ public class PackageManagerEnqueue {
                 let repository = RepositoryRef(depVer.gitRepo, depVer.gitCommittish)
                 let task = enqueueGitClone(
                     manager, cloneId, alias, repository,
-                    depId, depVer, res, None
+                    depId, DependencyRef(), res, Option<UInt64>.None
                 )
                 manager.taskBatch.push(task)
         }
@@ -1283,7 +1303,7 @@ public class PackageManagerEnqueue {
         res.tag = ResolutionTagEnqueue.GitHub
 
         // 翻译自: 检查 lockfile 中是否已存在
-        let existingPkgId = manager.lockfile.getPackageID(depVer.nameHash, None, res)
+        let existingPkgId = manager.lockfile.getPackageID(depVer.nameHash, Option<DependencyVersionInfo>.None, res)
         match (existingPkgId) {
             case Some(pkgId) =>
                 match (successFn) {
@@ -1314,8 +1334,8 @@ public class PackageManagerEnqueue {
             url,
             depVer.behavior.isRequired(),
             depId,
-            None,
-            None,
+            Option<EnqueuePackageInfo>.None,
+            Option<UInt64>.None,
             NetworkAuthorization.NoAuthorization
         )
         match (networkTask) {
@@ -1427,7 +1447,7 @@ public class PackageManagerEnqueue {
         }
 
         // 翻译自: 检查 lockfile 中是否已存在
-        let existingPkgId = manager.lockfile.getPackageID(dep.nameHash, None, res)
+        let existingPkgId = manager.lockfile.getPackageID(dep.nameHash, Option<DependencyVersionInfo>.None, res)
         match (existingPkgId) {
             case Some(pkgId) =>
                 match (successFn) {
@@ -1466,8 +1486,8 @@ public class PackageManagerEnqueue {
                 url,
                 dep.behavior.isRequired(),
                 depId,
-                None,
-                None,
+                Option<EnqueuePackageInfo>.None,
+                Option<UInt64>.None,
                 NetworkAuthorization.NoAuthorization
             )
             match (networkTask) {
@@ -1560,6 +1580,9 @@ public class DependencyRef {
 public class DependencyVersionInfo {
     public var tag: DependencyVersionTag
     public var literal: String
+    public var nameHash: UInt64
+    public var name: String
+    public var behavior: DependencyBehaviorRef
     // dist_tag
     public var distTagName: String
     public var distTagTag: String
@@ -1592,6 +1615,9 @@ public class DependencyVersionInfo {
     public init() {
         tag = DependencyVersionTag.Uninitialized
         literal = ""
+        nameHash = UInt64(0)
+        name = ""
+        behavior = DependencyBehaviorRef()
         distTagName = ""
         distTagTag = ""
         npmName = ""
@@ -1622,7 +1648,7 @@ public class DependencyVersionInfo {
     /// NPM 版本是否满足 resolution
     /// 翻译自: dependency.value.npm.version.satisfies(resolution.value.npm.version)
     public func npmVersionSatisfies(resolution: EnqueueResolutionData): Bool {
-        return tag == DependencyVersionTag.NPM && resolution.tag == ResolutionTagEnqueue.NPM
+        return tag == DependencyVersionTag.Npm && resolution.tag == ResolutionTagEnqueue.NPM
     }
 
     /// Git 信息是否相等
@@ -1634,13 +1660,13 @@ public class DependencyVersionInfo {
     /// GitHub 信息是否相等
     /// 翻译自: resolution.value.github.eql(&dependency.value.github)
     public func githubEql(resolution: EnqueueResolutionData): Bool {
-        return tag == DependencyVersionTag.GitHub && resolution.tag == ResolutionTagEnqueue.GitHub
+        return tag == DependencyVersionTag.Github && resolution.tag == ResolutionTagEnqueue.GitHub
     }
 
     /// 是否为 NPM 类标签
     /// 翻译自: version.tag.isNPM()
     public func isNPM(): Bool {
-        return tag == DependencyVersionTag.NPM || tag == DependencyVersionTag.DistTag
+        return tag == DependencyVersionTag.Npm || tag == DependencyVersionTag.DistTag
     }
 
     // additional stubs for run_tasks usage
@@ -1952,6 +1978,7 @@ public class EnqueueTaskRef {
     public func setTag(tag: TaskTagEnqueue): Unit { this.tag = tag }
     public func setPackageManager(manager: EnqueuePackageManagerState): Unit {}
     public func setId(taskId: TaskIdRef): Unit { this.id = taskId }
+    public func setIdFromTask(taskId: TaskId): Unit { this.id = TaskIdRef() }
     public func setSkipVerify(skip: Bool): Unit { skipVerify = skip }
     public func setApplyPatchTask(task: PatchTaskRef): Unit { applyPatchTask = Some(task) }
 
@@ -2071,6 +2098,7 @@ public class EnqueueTaskQueue {
 
     public func getOrPut(taskId: TaskIdRef): EnqueueTaskQueueEntry { return EnqueueTaskQueueEntry() }
     public func getOrPutContext(taskId: TaskIdRef): EnqueueTaskQueueEntry { return EnqueueTaskQueueEntry() }
+    public func ensureUnusedCapacity(count: Int64): Unit {}
 }
 
 /// 任务队列条目

@@ -106,7 +106,7 @@ public class SocketGroup {
     /// 对应 Bun: pub fn connect(self, kind, ssl_ctx, host, port, options, socket_ext_size) ConnectResult
     public func connect(kind: SocketKind, sslCtx: CPointer<Unit>, host: CPointer<Int8>, port: Int32, options: Int32, socketExtSize: Int32): ConnectResult {
         var hasDnsResolved: Int32 = 0
-        let raw = unsafe { us_socket_group_connect(ptr, kind.toUInt8(), sslCtx, host, port, options, socketExtSize, CPointer<Int32>(&hasDnsResolved)) }
+        let raw = unsafe { us_socket_group_connect(ptr, kind.toUInt8(), sslCtx, host, port, options, socketExtSize, inout hasDnsResolved) }
         if (raw.isNull()) {
             return ConnectResultFailed()
         }

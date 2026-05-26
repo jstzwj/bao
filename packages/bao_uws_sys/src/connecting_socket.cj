@@ -87,7 +87,7 @@ public class ConnectingSocket {
         if (slot.isNull()) {
             return UIntNative(0)
         }
-        return slot.read()
+        return unsafe { slot.read() }
     }
 
     public func storeExtRaw(value: UIntNative): Unit {
@@ -95,7 +95,7 @@ public class ConnectingSocket {
         if (slot.isNull()) {
             return
         }
-        slot.write(value)
+        unsafe { slot.write(value) }
     }
 
     public func clearExtRaw(): Unit {

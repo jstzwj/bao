@@ -731,6 +731,21 @@ foreign func clock_gettime(clockId: Int32, tp: CPointer<Unit>): Int32
 foreign func nanosleep(req: CPointer<Unit>, rem: CPointer<Unit>): Int32
 @C
 foreign func environPtr(index: Int64): CPointer<Int8>
+@C
+foreign func fdatasync(fd: Int32): Int32
+@C
+foreign func link(oldpath: CPointer<Int8>, newpath: CPointer<Int8>): Int32
+@C
+foreign func lchown(path: CPointer<Int8>, uid: UInt32, gid: UInt32): Int32
+@C
+foreign func mkdtemp(template: CPointer<Int8>): CPointer<Int8>
+@C
+foreign func utimes(path: CPointer<Int8>, times: CPointer<Unit>): Int32
+@C
+foreign func lutimes(path: CPointer<Int8>, times: CPointer<Unit>): Int32
+@C
+foreign func futimes(fd: Int32, times: CPointer<Unit>): Int32
+// errno_location 已在 linux_syscall.cj 中声明
 
 // ============================================================================
 // OS 接口

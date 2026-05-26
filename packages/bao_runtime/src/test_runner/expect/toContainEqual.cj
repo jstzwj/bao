@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toContainEqual() - 检查数组是否深度包含期望值
 /// 用法: expect(received).toContainEqual(expected)
 public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -43,9 +43,9 @@ public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame
             pass = false
         } else {
             let valueString = value.toSliceOrNull(globalThis: globalThis)
-            defer { valueString.deinit() }
+            // defer { valueString.deinit() }
             let expectedString = expected.toSliceOrNull(globalThis: globalThis)
-            defer { expectedString.deinit() }
+            // defer { expectedString.deinit() }
 
             // jest does not have a `typeof === "string"` check for `toContainEqual`.
             // it immediately spreads the value into an array.
@@ -76,7 +76,7 @@ public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
     if (not) {

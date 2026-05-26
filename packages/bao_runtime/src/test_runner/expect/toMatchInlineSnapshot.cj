@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toMatchInlineSnapshot() - 行内快照匹配
 /// 用法: expect(received).toMatchInlineSnapshot(snapshot) / expect(received).toMatchInlineSnapshot(properties, hint)
 public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
@@ -54,7 +54,7 @@ public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, ca
     }
 
     var expected = expectedString.toSlice(allocator: default_allocator)
-    defer { expected.deinit() }
+    // defer { expected.deinit() }
 
     let expectedSlice: ?String = if (hasExpected) { expected.slice() } else { None }
 

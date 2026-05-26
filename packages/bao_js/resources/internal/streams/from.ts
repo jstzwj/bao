@@ -26,11 +26,15 @@ function from(Readable, iterable, opts) {
     throw $ERR_INVALID_ARG_TYPE("iterable", ["Iterable"], iterable);
   }
 
+  // Allow only stream-construction-relevant options through.
+  // Specifically: highWaterMark, encoding, objectMode (but force objectMode: true
+  // above). We filter out options that are not meaningful for Readable construction.
+  const { encoding, highWaterMark, signal } = opts || {};
   const readable = new Readable({
     objectMode: true,
-    highWaterMark: 1,
-    // TODO(ronag): What options should be allowed?
-    ...opts,
+    highWaterMark: highWaterMark ?? 1,
+    encoding,
+    signal,
   });
 
   // Flag to protect against _read

@@ -8,6 +8,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 import bao_bundler.*
 import bao_install.*
 
@@ -144,8 +145,8 @@ public class Analyzer {
         cli.positionals = newPositionals.toArray()
         let ctx = CommandContext.fromPointer(ctxPtr)
 
-        let result = updatePackageJsonAndInstallWithCli(ctx, subcommand, cli)
-        match (result) {
+        let installResult = updatePackageJsonAndInstallWithCli(ctx, subcommand, cli)
+        match (installResult) {
             case Ok(_) => Global.exit(0)
             case Err(e) =>
                 Output.prettyErrorLn("<r><red>error<r>: ${e.name}")

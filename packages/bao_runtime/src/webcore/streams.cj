@@ -309,10 +309,7 @@ public class StreamStart {
                     chunkSize: chunkSize,
                     inputPath: PathOrFileDescriptor.Fd(Fd.INVALID)
                 ))
-            | NetworkSink
-            | HTTPSResponseSink
-            | HTTPResponseSink
-            | H3ResponseSink => {
+            case NetworkSink | HTTPSResponseSink | HTTPResponseSink | H3ResponseSink => {
                 var empty = true
                 var chunkSize: BlobSizeType = 2048
 
@@ -841,8 +838,7 @@ public class WritableResult {
                     case Some(e) => JSPromise.rejectedPromise(global, e.toJS(global)).toJS()
                     case None => JsValue.NULL
                 }
-            case Owned | OwnedAndDone | TemporaryAndDone | Temporary
-            case IntoArray | IntoArrayAndDone => JsValue.jsNumber(size)
+            case Owned | OwnedAndDone | TemporaryAndDone | Temporary | IntoArray | IntoArrayAndDone => JsValue.jsNumber(size)
             // false == controller.close()
             case Done => JsValue.TRUE
             case Pending =>
@@ -1025,7 +1021,7 @@ public class SignalVTable {
         return SignalVTable(
             onClose: { _ => () },
             onReady: { _, _ => () },
-            onStart: { () => () }
+            onStart: { => () }
         )
     }
 
@@ -1035,7 +1031,7 @@ public class SignalVTable {
         return SignalVTable(
             onClose: { err => handler.onClose(err) },
             onReady: { amount, offset => handler.onReady(amount, offset) },
-            onStart: { () => handler.onStart() }
+            onStart: { => handler.onStart() }
         )
     }
 }

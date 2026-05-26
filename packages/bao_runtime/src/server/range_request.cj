@@ -3,6 +3,7 @@
 // 对应: 解析 HTTP Range: bytes=... 请求头
 package bao_runtime.server
 
+import bao_core.*
 import bao_collections.*
 
 // ============================================================================
@@ -109,20 +110,21 @@ public class RangeRequest {
         var rest = header
 
         // 检查 "bytes" 前缀，至少需要 5 个字符
-        if (rest.size < 5 || !eqlCaseInsensitiveASCII(rest.subString(0, 5), "bytes")) {
+        let prefix = rest[Int64(0)..Int64(5)]
+        if (rest.size < 5 || !eqlCaseInsensitiveASCII(prefix, "bytes")) {
             return RangeRaw.Absent
         }
-        rest = rest.subString(5)
+        rest = rest[Int64(5)..Int64(rest.size)]
         rest = trimWhiteSpace(rest)
 
         if (rest.size == 0) {
             return RangeRaw.Absent
         }
         let runes = rest.toRuneArray()
-        if (runes[0] != '=') {
+        if (runes[0] != r'=') {
             return RangeRaw.Absent
         }
-        rest = rest.subString(1)
+        rest = rest[Int64(1)..Int64(rest.size)]
 
         // 多范围 - 不支持，返回完整 body
         if (rest.contains(",")) {
@@ -135,8 +137,8 @@ public class RangeRequest {
         }
         let dashIdx = dashIdxOpt.getOrThrow()
 
-        let startS = trimWhiteSpace(rest.subString(0, dashIdx))
-        let endS = trimWhiteSpace(rest.subString(dashIdx + 1))
+        let startS = trimWhiteSpace(rest[Int64(0)..Int64(dashIdx)])
+        let endS = trimWhiteSpace(rest[Int64(dashIdx + 1)..Int64(rest.size)])
 
         // bytes=-N (后缀范围)
         if (startS.size == 0) {
@@ -215,11 +217,8 @@ public class RangeRequest {
 
     /// ASCII 字符转小写
     private static func toLowerASCIIRune(c: Rune): Rune {
-        let v = Int64(c)
-        if (v >= 65 && v <= 90) {
-            return Rune(v + 32)
-        }
-        return c
+        // 使用 Cangjie 内置的 toAsciiLowerCase 方法
+        return c.toAsciiLowerCase()
     }
 
     /// 去除两端空白字符
@@ -229,14 +228,14 @@ public class RangeRequest {
         let runes = s.toRuneArray()
         while (start < end) {
             let r = runes[Int64(start)]
-            if (r != ' ' && r != '\t') {
+            if (r != r' ' && r != r'\t') {
                 break
             }
             start++
         }
         while (end > start) {
             let r = runes[Int64(end - 1)]
-            if (r != ' ' && r != '\t') {
+            if (r != r' ' && r != r'\t') {
                 break
             }
             end--
@@ -244,7 +243,7 @@ public class RangeRequest {
         if (start == 0 && end == s.size) {
             return s
         }
-        return s.subString(start, end - start)
+        return s[Int64(start)..Int64(end)]
     }
 
     /// 解析无符号整数

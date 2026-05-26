@@ -13,6 +13,17 @@ import bao_collections.HashMap
 public enum ScopeFunctionsMode {
     | describe
     | test_
+
+    public operator func ==(other: ScopeFunctionsMode): Bool {
+        match (this) {
+            case describe => match (other) { case describe => true; case _ => false }
+            case test_ => match (other) { case test_ => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: ScopeFunctionsMode): Bool {
+        !(this == other)
+    }
 }
 
 // ========== ScopeFunctions - 作用域函数 ==========
@@ -664,12 +675,34 @@ public class ParseArgumentsCfg {
 public enum CallbackMode {
     | require
     | allow
+
+    public operator func ==(other: CallbackMode): Bool {
+        match (this) {
+            case require => match (other) { case require => true; case _ => false }
+            case allow => match (other) { case allow => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: CallbackMode): Bool {
+        !(this == other)
+    }
 }
 
 /// 函数类型
 public enum FunctionKind {
     | testOrDescribe
     | hook
+
+    public operator func ==(other: FunctionKind): Bool {
+        match (this) {
+            case testOrDescribe => match (other) { case testOrDescribe => true; case _ => false }
+            case hook => match (other) { case hook => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: FunctionKind): Bool {
+        !(this == other)
+    }
 }
 
 /// 解析参数结果

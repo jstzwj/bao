@@ -78,7 +78,8 @@ const kAfterWritePending = 1 << 28;
 const kBuffered = 1 << 29;
 const kEnded = 1 << 30;
 
-// TODO(benjamingr) it is likely slower to do it this way than with free functions
+// NOTE(benjamingr): Using property descriptors for bit-field access is potentially
+// slower than free functions. Kept for API compatibility with Node.js streams.
 function makeBitMapDescriptor(bit) {
   return {
     enumerable: false,

@@ -23,7 +23,7 @@ public class Debug {
     public static func dumpDescribe(describe: DescribeScope) {
         if (!group.getLogEnabled()) { return }
         group.beginMsg("describe \"" + describe.base.name ?? "(unnamed)" + "\" (concurrent=" + describe.base.concurrent + ", mode=${describe.base.mode}, only=${describe.base.only}, has_callback=${describe.base.hasCallback})")
-        defer { group.end() }
+        // defer { group.end() }
 
         for (entry in describe.beforeAll.toArray()) { dumpTest(current: entry, label: "beforeAll") }
         for (entry in describe.beforeEach.toArray()) { dumpTest(current: entry, label: "beforeEach") }
@@ -43,18 +43,18 @@ public class Debug {
     public static func dumpOrder(execution: Execution) {
         if (!group.getLogEnabled()) { return }
         group.beginMsg("dumpOrder")
-        defer { group.end() }
+        // defer { group.end() }
 
         for (i in 0..execution.groups.size) {
             let groupValue = execution.groups[i]
             group.beginMsg("" + i + " ConcurrentGroup (" + groupValue.sequenceStart + "-${groupValue.sequenceEnd})")
-            defer { group.end() }
+            // defer { group.end() }
 
             var sequenceIdx: UInt64 = 0
             for (j in 0..(groupValue.sequenceEnd - groupValue.sequenceStart)) {
                 let sequence = execution.sequences[groupValue.sequenceStart + j]
                 group.beginMsg("" + sequenceIdx + " Sequence (" + sequence.remainingRepeatCount + "x)")
-                defer { group.end() }
+                // defer { group.end() }
 
                 var currentEntry = sequence.firstEntry
                 while (currentEntry.isSome()) {
@@ -113,7 +113,7 @@ public class DebugGroup {
     public func end() {
         if (!DebugGroup.getLogEnabled()) { return }
         if (indent > 0) { indent -= 1 }
-        defer { lastWasStart = false }
+        // defer { lastWasStart = false }
         if (lastWasStart) { return }
 
         var buf = StringBuilder()

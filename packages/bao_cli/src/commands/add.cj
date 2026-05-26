@@ -378,3 +378,4 @@ public class AddCommand {
         println("  bao add lodash@npm:lodash-es@^4.0.0")
     }
 }
+

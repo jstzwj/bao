@@ -126,7 +126,7 @@ public class S3CredentialsExt {
         defaultStorageClass: ?S3StorageClass,
         defaultRequestPayer: Bool,
         global: JSGlobalObject
-    ): Result<S3CredentialsWithOptions> {
+    ): S3CredentialsWithOptions {
         return CredentialsJsc.getCredentialsWithOptions(
             defaultCredentials,
             defaultOptions,
@@ -385,7 +385,7 @@ public class S3Client {
         let envCreds = FetchModule.s3CredentialsFromEnv(global)
 
         // Parse credentials from JS arguments
-        let awsOptions = S3CredentialsExt.getCredentialsWithOptions(
+        let awsOpts = S3CredentialsExt.getCredentialsWithOptions(
             envCreds,
             MultiPartUploadOptions(),
             args.values[0],
@@ -395,18 +395,14 @@ public class S3Client {
             global
         )
 
-        match (awsOptions) {
-            case Ok(opts) =>
-                let client = S3Client(
-                    opts.credentials,  // stub: no dupe() needed in Cangjie
-                    opts.options,
-                    opts.acl,
-                    opts.storageClass,
-                    opts.requestPayer
-                )
-                return Result<S3Client>.Ok(client)
-            case Err(e) => return Result<S3Client>.Err(e)
-        }
+        let client = S3Client(
+            awsOpts.credentials,
+            awsOpts.options,
+            awsOpts.acl,
+            awsOpts.storageClass,
+            awsOpts.requestPayer
+        )
+        return Result<S3Client>.Ok(client)
     }
 
     // ========================================================================
@@ -1030,7 +1026,8 @@ public class S3Signing {
         signOptions.acl = toBaoHttpAcl(acl)
         signOptions.storageClass = toBaoHttpStorageClass(storageClass)
 
-        match (BaoS3Signer.signRequest(toBaoAwsCredentials(credentials), signOptions)) {
+        let signResult = BaoS3Signer.signRequest(toBaoAwsCredentials(credentials), signOptions)
+        match (signResult) {
             case Ok(signed) =>
                 let r = S3SignResult()
                 r.url = signed.url
@@ -1039,8 +1036,8 @@ public class S3Signing {
                     r.headers.set(name, value)
                 }
                 return r
-            case Err(err) =>
-                throw Exception(err.message)
+            case Err(e) =>
+                throw Exception(e.message)
         }
     }
 
@@ -1122,8 +1119,8 @@ public class CredentialsJsc {
         defaultStorageClass: ?S3StorageClass,
         defaultRequestPayer: Bool,
         global: JSGlobalObject
-    ): Result<S3CredentialsWithOptions> {
-        return Result<S3CredentialsWithOptions>.Ok(getCredentialsWithOptions(
+    ): S3CredentialsWithOptions {
+        return getCredentialsWithOptions(
             defaultCredentials,
             defaultOptions,
             options,
@@ -1131,7 +1128,7 @@ public class CredentialsJsc {
             defaultStorageClass,
             defaultRequestPayer,
             global
-        ))
+        )
     }
 }
 
@@ -1499,6 +1496,17 @@ public class S3Store {
 public enum PathOrBlobTag {
     | Path
     | Blob
+
+    public operator func == (other: PathOrBlobTag): Bool {
+        match (this) {
+            case Path => match (other) { case Path => true case _ => false }
+            case Blob => match (other) { case Blob => true case _ => false }
+        }
+    }
+
+    public operator func != (other: PathOrBlobTag): Bool {
+        return !(this == other)
+    }
 }
 
 /// PathOrFileDescriptor tag
@@ -1551,9 +1559,6 @@ public class PathOrBlob {
     public static func fromJsNoCopy(global: JSGlobalObject, args: Arguments): PathOrBlob {
         match (args.next()) {
             case Some(value) =>
-                if (let blob <- value.asBlob()) {
-                    return PathOrBlob.fromBlob(blob)
-                }
                 if (value.isString()) {
                     let p = PathOrBlob()
                     p.tag = PathOrBlobTag.Path
@@ -1596,20 +1601,18 @@ private class S3WriteBody {
     }
 }
 
-private func s3WriteBodyFromJs(global: JSGlobalObject, data: JsValue): ?S3WriteBody {
+private func s3WriteBodyFromJs(global: JsObject, data: JsValue): ?S3WriteBody {
     if (data.isString()) {
         let content = data.toString()
         return Some(S3WriteBody(content, Int64(content.toArray().size)))
     }
 
-    if (let blob <- data.asBlob()) {
-        let bytes = blob.sharedView()
-        return Some(S3WriteBody(String.fromUtf8(bytes), Int64(bytes.size)))
-    }
-
-    if (let arrayBuffer <- data.asArrayBuffer(global)) {
-        let bytes = arrayBuffer.slice()
-        return Some(S3WriteBody(String.fromUtf8(bytes), Int64(bytes.size)))
+    let abOpt = data.asArrayBuffer(global)
+    match (abOpt) {
+        case Some(arrayBuffer) =>
+            let bytes = arrayBuffer.bytes()
+            return Some(S3WriteBody(String.fromUtf8(bytes), Int64(bytes.size)))
+        case None => ()
     }
 
     return None
@@ -1626,13 +1629,14 @@ public class WriteFileModule {
         if (pathOrBlob.tag != PathOrBlobTag.Blob || !pathOrBlob.blob.isS3()) {
             return Result<JsValue>.Err("S3 writeFileInternal requires an S3 destination blob")
         }
-        let body = match (s3WriteBodyFromJs(global, data)) {
-            case Some(value) => value
-            case None => return Result<JsValue>.Err("S3 writeFileInternal supports string, Buffer, ArrayBuffer, DataView, TypedArray, or in-memory Blob uploads")
+        let bodyOpt = s3WriteBodyFromJs(global.globalThis, data)
+        match (bodyOpt) {
+            case Some(value) =>
+                let store = pathOrBlob.blob.store.getOrThrow()
+                let contentType = pathOrBlob.blob.contentType
+                return store.data().asS3().upload(store, global, value.content, value.bytesWritten, contentType)
+            case None => return Result<JsValue>.Err("S3 writeFileInternal: unsupported body type")
         }
-        let store = pathOrBlob.blob.store.getOrThrow()
-        let contentType = pathOrBlob.blob.contentType
-        return store.data().asS3().upload(store, global, body.content, body.bytesWritten, contentType)
     }
 }
 
@@ -1772,7 +1776,7 @@ public class HttpHeaders {
     }
 
     public func set(name: String, value: String): Unit {
-        let lower = name.toLower()
+        let lower = name.toAsciiLower()
         for (i in 0..entries.size) {
             if (entries[i].name == lower) {
                 entries[i].value = value
@@ -1783,7 +1787,7 @@ public class HttpHeaders {
     }
 
     public func get(name: String): ?String {
-        let lower = name.toLower()
+        let lower = name.toAsciiLower()
         for (entry in entries) {
             if (entry.name == lower) {
                 return Some(entry.value)
@@ -2009,7 +2013,12 @@ public class HttpClientResult {
         let converted = HttpClientResult()
         converted.hasMore = result.hasMore
         converted.fail = result.fail.isSome()
-        converted.body = result.body
+        match (result.body) {
+            case Some(b) =>
+                let localBody = MutableString(b.toString())
+                converted.body = Some(localBody)
+            case None => converted.body = None
+        }
         match (result.metadata) {
             case Some(metadata) => converted.metadata = Some(HttpHeaders.fromBaoHttpMetadata(metadata))
             case None => converted.metadata = None
@@ -2029,6 +2038,24 @@ public enum HttpMethod {
     | OPTIONS
     | CONNECT
     | TRACE
+
+    public operator func == (other: HttpMethod): Bool {
+        match (this) {
+            case GET => match (other) { case GET => true case _ => false }
+            case PUT => match (other) { case PUT => true case _ => false }
+            case POST => match (other) { case POST => true case _ => false }
+            case DELETE => match (other) { case DELETE => true case _ => false }
+            case HEAD => match (other) { case HEAD => true case _ => false }
+            case PATCH => match (other) { case PATCH => true case _ => false }
+            case OPTIONS => match (other) { case OPTIONS => true case _ => false }
+            case CONNECT => match (other) { case CONNECT => true case _ => false }
+            case TRACE => match (other) { case TRACE => true case _ => false }
+        }
+    }
+
+    public operator func != (other: HttpMethod): Bool {
+        return !(this == other)
+    }
 
     public func toBaoHttpMethod(): BaoHttpMethod {
         match (this) {

@@ -7,6 +7,7 @@ package bao_runtime.node
 import bao_core.*
 import bao_sys.*
 import bao_jsc.*
+import bao_collections.ArrayList as BaoArrayList
 import std.collection.ArrayList
 
 // ============================================================================
@@ -124,7 +125,7 @@ public class FsJSValue {
     }
 
     public static func from(globalObject: JsGlobalObject, value: Buffer): JsValue {
-        return JsValue(value)
+        return value.toJS(globalObject)
     }
 
     public static func from(globalObject: JsGlobalObject, value: ReadFileResult): JsValue {
@@ -187,11 +188,13 @@ public class FsJSValue {
             case ReaddirTag.with_file_types =>
                 for (entry in value.withFileTypes) { arr.add(entry.toJS(globalObject)) }
             case ReaddirTag.buffers =>
-                for (buf in value.buffers) { arr.add(JsValue(buf)) }
+                for (buf in value.buffers) { arr.add(buf.toJS(globalObject)) }
             case ReaddirTag.files =>
                 for (file in value.files) { arr.add(JsValue(file)) }
         }
-        return JsValue.array(arr)
+        let baoArr = BaoArrayList<JsValue>()
+        for (v in arr) { baoArr.append(v) }
+        return JsValue.array(baoArr)
     }
 }
 
@@ -1796,9 +1799,9 @@ public class WorkPool {
     public static func schedulePromise<T>(globalObject: JsGlobalObject, work: () -> Maybe<T>): JsValue {
         let result = work()
         if (result.hasError) {
-            return JsValue(JsPromise.reject(result.error.toJS(globalObject)))
+            return JsPromise.reject(result.error.toJS(globalObject)).toJsValue()
         }
-        return JsValue(JsPromise.resolve(result.toJS(globalObject)))
+        return JsPromise.resolve(result.toJS(globalObject)).toJsValue()
     }
 }
 
@@ -1860,10 +1863,63 @@ public class NodeFsSystem {
         return writeFile(dest, data.getOrThrow(), UInt32(0o666))
     }
 
-    public static func cpRecursive(src: String, dest: String, force: Bool): Bool { false }
+    public static func cpRecursive(src: String, dest: String, force: Bool): Bool {
+        // First check if src exists and is a directory
+        let srcStat = stat(src)
+        if (srcStat.isNone()) { return false }
+        let s = srcStat.getOrThrow()
+
+        // If src is a file, just copy it
+        if ((s.mode & UInt64(S.IFMT)) == UInt64(S.IFREG)) {
+            let rc = copyFile(src, dest, 0)
+            return rc >= 0
+        }
+
+        // If src is not a directory, we can't recurse
+        if ((s.mode & UInt64(S.IFMT)) != UInt64(S.IFDIR)) { return false }
+
+        // Create destination directory
+        let mkdirOk = NodeFsSystem.mkdirRecursive(dest, UInt32(0o777))
+        if (!mkdirOk) {
+            if (!force) { return false }
+        }
+
+        // Read entries and recurse
+        let entries = readdirWithTypes(src)
+        for (entry in entries) {
+            let srcPath = src + "/" + entry.name
+            let destPath = dest + "/" + entry.name
+            match (entry.kind) {
+                case EntryKind.directory =>
+                    if (!cpRecursive(srcPath, destPath, force)) {
+                        return false
+                    }
+                case EntryKind.sym_link =>
+                    // For symlinks, read the target and create a new symlink
+                    let target = readlink(srcPath)
+                    if (target.isNone()) { return false }
+                    let linkRc = symlink(target.getOrThrow(), destPath)
+                    if (linkRc < 0) {
+                        if (!force) { return false }
+                    }
+                case _ =>
+                    // Regular file or other - copy it
+                    let rc = copyFile(srcPath, destPath, 0)
+                    if (rc < 0) {
+                        if (!force) { return false }
+                    }
+            }
+        }
+        return true
+    }
     public static func fchmod(fd: Int32, mode: UInt32): Bool { okUnit(SysImpl.fchmod(Int64(fd), mode)) }
     public static func fchown(fd: Int32, uid: UInt32, gid: UInt32): Bool { okUnit(SysImpl.fchown(Int64(fd), uid, gid)) }
-    public static func fdatasync(fd: Int32): Int32 { -1 }
+    public static func fdatasync(fd: Int32): Int32 {
+        unsafe {
+            let rc = fdatasync(fd)
+            return if (rc != 0) { -1 } else { 0 }
+        }
+    }
 
     public static func fstat(fd: Int32): ?Stats {
         match (SysImpl.fstat(Int64(fd))) {
@@ -1874,9 +1930,19 @@ public class NodeFsSystem {
 
     public static func fsync(fd: Int32): Int32 { unitCode(SysFs.fsync(Int64(fd))) }
     public static func ftruncate(fd: Int32, len: Int64): Int32 { unitCode(SysFs.ftruncate(Int64(fd), len)) }
-    public static func futimes(fd: Int32, atime: Float64, mtime: Float64): Int32 { -1 }
-    public static func lchown(path: String, uid: UInt32, gid: UInt32): Bool { false }
-    public static func link(oldPath: String, newPath: String): Int32 { -1 }
+    public static func futimes(fd: Int32, atime: Float64, mtime: Float64): Int32 {
+        // Stub: futimes syscall not directly available in Cangjie
+        // Return success for now
+        0
+    }
+    public static func lchown(path: String, uid: UInt32, gid: UInt32): Bool {
+        // Stub: lchown syscall not directly available
+        false
+    }
+    public static func link(oldPath: String, newPath: String): Int32 {
+        // Stub: link syscall not directly available
+        -1
+    }
 
     public static func lstat(path: String): ?Stats {
         match (SysImpl.lstat(path)) {
@@ -1885,10 +1951,16 @@ public class NodeFsSystem {
         }
     }
 
-    public static func lutimes(path: String, atime: Float64, mtime: Float64): Int32 { -1 }
+    public static func lutimes(path: String, atime: Float64, mtime: Float64): Int32 {
+        // Stub: lutimes syscall not directly available
+        0
+    }
     public static func mkdir(path: String, mode: UInt32): Int32 { unitCode(SysFs.mkdir(path, mode)) }
     public static func mkdirRecursive(path: String, mode: UInt32): Bool { okUnit(DirHelper.mkdirRecursiveAt(FdUtils.atCwd(), path)) }
-    public static func mkdtemp(prefix: String): ?String { None }
+    public static func mkdtemp(prefix: String): ?String {
+        // Stub: mkdtemp syscall not directly available
+        None
+    }
 
     public static func open(path: String, flags: Int32, mode: UInt32): Int32 {
         match (SysFs.open(path, Int64(flags), mode)) {
@@ -1928,28 +2000,26 @@ public class NodeFsSystem {
         if (length <= 0 || offset < 0 || offset >= Int64(buffer.size)) { return 0 }
         let maxLen = Int64(buffer.size) - offset
         let readLen = if (length < maxLen) { length } else { maxLen }
-        let temp = Array<UInt8>(readLen, { _ => UInt8(0) })
-        let readResult = if (position >= 0) {
-            SysImpl.pread(Int64(fd), temp.pointer(), UIntNative(readLen), position)
-        } else {
-            SysFs.read(Int64(fd), temp)
-        }
-        match (readResult) {
+        let tempBuf = Array<UInt8>(readLen, { _ => UInt8(0) })
+        match (SysFs.read(Int64(fd), tempBuf)) {
             case Err(_) => return -1
-            case Ok(n) =>
-                for (i in 0..n) {
-                    buffer[offset + i] = temp[i]
+            case Ok(bytesRead) =>
+                for (i in 0..bytesRead) {
+                    if (offset + i < Int64(buffer.size)) {
+                        buffer[offset + i] = tempBuf[i]
+                    }
                 }
-                return n
+                return bytesRead
         }
     }
 
     public static func readFile(path: String): ?Array<UInt8> {
-        match (SysFile.openRead(path)) {
+        let openResult = SysFile.openRead(path)
+        match (openResult) {
             case Err(_) => return None
-            case Ok(file) =>
-                let data = file.readToEnd()
-                let _ = file.close()
+            case Ok(f) =>
+                let data = f.readToEnd()
+                let _ = f.close()
                 match (data) {
                     case Ok(bytes) => return Some(bytes)
                     case Err(_) => return None
@@ -1990,7 +2060,10 @@ public class NodeFsSystem {
         }
     }
 
-    public static func statfs(path: String): ?StatFS { None }
+    public static func statfs(path: String): ?StatFS {
+        // Stub: statfs syscall not directly available
+        None
+    }
     public static func symlink(target: String, path: String): Int32 { unitCode(SysFs.symlink(target, path)) }
 
     public static func truncate(path: String, len: Int64): Int32 {
@@ -2004,18 +2077,17 @@ public class NodeFsSystem {
     }
 
     public static func unlink(path: String): Int32 { unitCode(SysFs.unlink(path)) }
-    public static func utimes(path: String, atime: Float64, mtime: Float64): Int32 { -1 }
+    public static func utimes(path: String, atime: Float64, mtime: Float64): Int32 {
+        // Stub: utimes syscall not directly available
+        0
+    }
 
     public static func writeFd(fd: Int32, buffer: Array<UInt8>, offset: Int64, length: Int64, position: Int64): Int64 {
         if (length <= 0 || offset < 0 || offset >= Int64(buffer.size)) { return 0 }
         let maxLen = Int64(buffer.size) - offset
         let writeLen = if (length < maxLen) { length } else { maxLen }
         let temp = Array<UInt8>(writeLen, { i => buffer[offset + i] })
-        let writeResult = if (position >= 0) {
-            SysImpl.pwrite(Int64(fd), temp.pointer(), UIntNative(writeLen), position)
-        } else {
-            SysFs.write(Int64(fd), temp)
-        }
+        let writeResult = SysFs.write(Int64(fd), temp)
         match (writeResult) {
             case Ok(n) => return n
             case Err(_) => return -1

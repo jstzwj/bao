@@ -93,7 +93,7 @@ public enum HTTPRequestBody {
     /// 对应 Bun: HTTPRequestBody.has_body()
     public func hasBody(): Bool {
         match (this) {
-            | AnyBlob(b) => !b.isDefinitelyEmpty()
+            case AnyBlob(b) => !b.isDefinitelyEmpty()
             case ReadableStream(_) => true
             case Sendfile(_) => true
             case None => false
@@ -129,7 +129,7 @@ public enum HTTPRequestBody {
 
     /// 获取可变的 SendFile
     /// 对应 Bun: HTTPRequestBody.sendfile_mut()
-    public mutating func sendfileMut(): ?SendFile {
+    public func sendfileMut(): ?SendFile {
         match (this) {
             case Sendfile(sf) => Some(sf)
             case _ => None
@@ -161,7 +161,7 @@ public enum HTTPRequestBody {
     }
 
     /// 获取可变 AnyBlob
-    public mutating func getAnyBlob(): ?AnyBlob {
+    public func getAnyBlob(): ?AnyBlob {
         match (this) {
             case AnyBlob(b) => Some(b)
             case _ => None
@@ -775,16 +775,16 @@ public class S3StreamWrapper {
         match (result) {
             case S3UploadResult.Success =>
                 let response = Response()
-                response.init.statusCode = 200
-                response.init.statusText = "OK"
-                response.init.method = HttpMethod.PUT
+                response.`init`.statusCode = 200
+                response.`init`.statusText = "OK"
+                response.`init`.method = HttpMethod.PUT
                 response.url = url.href
                 promise.resolve(global, response.toJsValue())
             case S3UploadResult.Failure(errCode, errMsg) =>
                 let response = Response()
-                response.init.statusCode = 500
-                response.init.statusText = errMsg
-                response.init.method = HttpMethod.PUT
+                response.`init`.statusCode = 500
+                response.`init`.statusText = errMsg
+                response.`init`.method = HttpMethod.PUT
                 response.url = url.href
                 let bodyBytes = Utf8Codec.encode(errMsg)
                 let bodyValue = BodyValue(bodyBytes)
@@ -967,8 +967,8 @@ public func dataUrlResponse(dataUrl: DataURL, globalThis: JsGlobalObject): JsVal
             let blob = Blob.initFromBytes(data, dataUrl.mimeType)
 
             let response = Response()
-            response.init.statusCode = 200
-            response.init.statusText = "OK"
+            response.`init`.statusCode = 200
+            response.`init`.statusText = "OK"
             response.body = Body(value: BodyValue(blob))
             response.url = dataUrl.url
 
@@ -983,7 +983,7 @@ public func dataUrlResponse(dataUrl: DataURL, globalThis: JsGlobalObject): JsVal
 
 /// 预连接到指定 URL
 /// 对应 Bun: Bun__fetchPreconnect / bun_fetch_preconnect()
-public func fetchPreconnect(JsGlobalObject, callFrame: CallFrame): JsResult<JsValue> {
+public func fetchPreconnect(global: JsGlobalObject, callFrame: CallFrame): JsResult<JsValue> {
     let arguments = callFrame.argumentsOld(1)
     if (arguments.size < 1) {
         return JsResult.Err("fetch.preconnect expects 1 argument, got 0")
@@ -1329,7 +1329,7 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
                 case Some(blob) =>
                     urlString = "blob:${urlPathDecoded}"
                     let response = Response()
-                    response.init.statusCode = 200
+                    response.`init`.statusCode = 200
                     response.body = Body(value: BodyValue(blob))
                     response.url = urlString
                     return JsResult.Ok(JsPromise.resolved(globalThis, response.toJsValue()))
@@ -1346,7 +1346,7 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
         urlString = "file://${tempFilePath}"
 
         let response = Response()
-        response.init.statusCode = 200
+        response.`init`.statusCode = 200
         response.body = Body(value: BodyValue(blobToUse))
         response.url = urlString
         return JsResult.Ok(JsPromise.resolved(globalThis, response.toJsValue()))
@@ -1576,7 +1576,7 @@ public func fetch(url: String, init: RequestInit): Response {
 
 /// fetch(url, options) — 发送 HTTP 请求 (简化版)
 public func fetch(url: String, method: String): Response {
-    let init = RequestInit()
+    let `init` = RequestInit()
     init.method = method
     let request = Request(url, init)
     return fetchWithRequest(request)
@@ -2675,8 +2675,8 @@ public class HttpClient {
         // 查找 header 与 body 的分隔符 \r\n\r\n
         let headerEndIdx = text.indexOf("\r\n\r\n")
         if (headerEndIdx < 0) {
-            resp.init.statusCode = 0
-            resp.init.statusText = "Invalid HTTP response"
+            resp.`init`.statusCode = 0
+            resp.`init`.statusText = "Invalid HTTP response"
             return resp
         }
 
@@ -2690,9 +2690,9 @@ public class HttpClient {
             let statusParts = statusLine.split(" ")
             if (statusParts.size >= 2) {
                 try {
-                    resp.init.statusCode = Int64.parse(statusParts[1])
+                    resp.`init`.statusCode = Int64.parse(statusParts[1])
                 } catch (_: Exception) {
-                    resp.init.statusCode = 0
+                    resp.`init`.statusCode = 0
                 }
                 // 状态文本: 取状态码之后的部分
                 if (statusParts.size >= 3) {
@@ -2701,7 +2701,7 @@ public class HttpClient {
                         if (i > 2) { sb.append(" ") }
                         sb.append(statusParts[Int64(i)])
                     }
-                    resp.init.statusText = sb.toString()
+                    resp.`init`.statusText = sb.toString()
                 }
             }
         }
@@ -2713,7 +2713,7 @@ public class HttpClient {
             if (colonIdx >= 0) {
                 let name = line.substring(0, colonIdx).trimAscii()
                 let value = line.substring(colonIdx + 1).trimAscii()
-                resp.init.headers.append(name, value)
+                resp.`init`.headers.append(name, value)
             }
         }
 
@@ -3481,7 +3481,7 @@ public class FetchModule {
             let url = Interpreter.jsToString(args[0])
 
             let response = if (args.size >= 2) {
-                let init = RequestInit()
+                let `init` = RequestInit()
                 match (args[1].objectData) {
                     case Some(obj) =>
                         // method
@@ -3642,7 +3642,7 @@ public class FetchModule {
             if (args.size >= 1) {
                 let url = Interpreter.jsToString(args[0])
                 if (args.size >= 2) {
-                    let init = RequestInit()
+                    let `init` = RequestInit()
                     match (args[1].objectData) {
                         case Some(obj) =>
                             let method = obj.get("method")
@@ -3700,7 +3700,7 @@ public class FetchModule {
                 let bodyBytes = Utf8Codec.encode(bodyText)
                 let bodyValue = BodyValue(bodyBytes)
                 let body = Body(value: bodyValue)
-                let resp = Response(init: ResponseInit(200, "OK"), body: body, url: "", redirected: false)
+                let resp = Response(`init`: ResponseInit(200, "OK"), body: body, url: "", redirected: false)
                 return resp.toJsValue()
             }
             let resp = Response()

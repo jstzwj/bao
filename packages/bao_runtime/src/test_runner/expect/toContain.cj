@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toContain() - 检查值是否包含期望值
 /// 用法: expect(received).toContain(expected)
 public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -37,9 +37,9 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         }
     } else if (value.isStringLiteral() && expected.isStringLiteral()) {
         let valueString = value.toSlice(globalThis: globalThis, allocator: default_allocator)
-        defer { valueString.deinit() }
+        // defer { valueString.deinit() }
         let expectedString = expected.toSlice(globalThis: globalThis, allocator: default_allocator)
-        defer { expectedString.deinit() }
+        // defer { expectedString.deinit() }
 
         if (expectedString.size == 0) { // 空字符串边界情况
             pass = true
@@ -65,7 +65,7 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
     if (not) {

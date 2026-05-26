@@ -6,7 +6,7 @@ package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
-import bao_jsc.*
+import bao_jsc.{JSGlobalObject, JsValue}
 import bao_collections.ArrayList
 
 // ============================================================================
@@ -24,7 +24,7 @@ public class ParsedShellScript {
     /// 导出的环境变量
     public var exportEnv: ?EnvMap = None
     /// 是否静默模式
-    public var quiet: Boolean = false
+    public var quiet: Bool = false
     /// 当前工作目录
     public var cwd: ?BunString = None
     /// JS值
@@ -34,17 +34,17 @@ public class ParsedShellScript {
 
     init() {
         this.jsobjs = ArrayList<JsValue>()
-        this.thisJsvalue = JsValue.zero
+        this.thisJsvalue = JsValue.jsUndefined()
     }
 
     /// 计算GC估算大小
     func computeEstimatedSizeForGC(): UInt64 {
         var size: UInt64 = 0
-        if (let a <- this.args) {
-            size += a.memoryCost()
+        if (let Some(argsVal) <- this.args) {
+            size += argsVal.memoryCost()
         }
-        if (let env <- this.exportEnv) {
-            size += env.memoryCost()
+        if (let Some(envVal) <- this.exportEnv) {
+            size += envVal.memoryCost()
         }
         return size
     }
@@ -60,46 +60,40 @@ public class ParsedShellScript {
     }
 
     /// 取出所有数据（转移所有权）
-    public func take(
-        outArgs: ShellArgs,
-        outJsobjs: ArrayList<JsValue>,
-        outQuiet: Boolean,
-        outCwd: ?BunString,
-        outExportEnv: ?EnvMap
-    ) {
-        outArgs = this.args.getOrThrow()
-        // ... 转移所有权
+    public func take(): ShellArgs {
+        let result = this.args.getOrThrow()
         this.args = None
         this.quiet = false
         this.cwd = None
         this.exportEnv = None
+        return result
     }
 
     /// 终结化
     public func finalize() {
-        this.thisJsvalue = JsValue.zero
-        if (let env <- this.exportEnv) {
-            env.deinit()
+        this.thisJsvalue = JsValue.jsUndefined()
+        if (let Some(envVal) <- this.exportEnv) {
+            envVal.deinit()
         }
-        if (let a <- this.args) {
-            a.deinit()
+        if (let Some(argsVal) <- this.args) {
+            argsVal.deinit()
         }
     }
 
     /// 设置当前工作目录
     public func setCwd(globalThis: JSGlobalObject, str: String) {
-        this.cwd = BunString.from(str)
+        this.cwd = str
     }
 
     /// 设置静默模式
-    public func setQuiet(quiet: Boolean) {
+    public func setQuiet(quiet: Bool) {
         this.quiet = quiet
     }
 
     /// 设置环境变量
     public func setEnv(globalThis: JSGlobalObject, value: JsValue) {
         // 从JS对象中提取环境变量
-        var env = EnvMap(DefaultAllocator.instance)
+        var env = EnvMap.initFunc(DefaultAllocator.instance)
         this.exportEnv = env
     }
 
@@ -116,20 +110,25 @@ public class ShellArgs {
     /// 根AST节点
     public var scriptAst: Script
 
+    public init() {
+        arena = ArenaAllocator()
+        scriptAst = Script()
+    }
+
     /// Arena分配器
     public func arenaAllocator(): Allocator {
-        return this.arena.allocator()
+        return DefaultAllocator.instance
     }
 
     /// 释放资源
     public func deinit() {
-        this.arena.deinit()
+        this.arena.reset()
     }
 
     /// 初始化
     public static func initFunc(): ShellArgs {
         let args = ShellArgs()
-        args.arena = ArenaAllocator(DefaultAllocator.instance)
+        args.arena = ArenaAllocator(1024)
         return args
     }
 

@@ -99,6 +99,20 @@ public enum CppWebSocketState {
     | connected
     | closed
     | failed
+
+    public operator func ==(right: CppWebSocketState): Bool {
+        match (this) {
+            case detached => match (right) { case detached => true case _ => false }
+            case connecting => match (right) { case connecting => true case _ => false }
+            case connected => match (right) { case connected => true case _ => false }
+            case closed => match (right) { case closed => true case _ => false }
+            case failed => match (right) { case failed => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: CppWebSocketState): Bool {
+        return !(this == right)
+    }
 }
 
 public func wsErrorCodeMessage(code: WsErrorCode): String {

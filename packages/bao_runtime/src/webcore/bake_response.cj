@@ -55,10 +55,10 @@ public class BakeResponse {
     public func toResponse(): Response {
         let bodyValue = BodyValue(body)
         let body = Body(value: bodyValue)
-        let init = ResponseInit(statusCode, ResponseInit.statusCodeToText(statusCode))
+        let `init` = ResponseInit(statusCode, ResponseInit.statusCodeToText(statusCode))
         for ((key, val) in headers.entries()) {
-            init.headers.set(key, val)
+            `init`.headers.set(key, val)
         }
-        return Response(init: init, body: body, url: "", redirected: false)
+        return Response(`init`: `init`, body: body, url: "", redirected: false)
     }
 }

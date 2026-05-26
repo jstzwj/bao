@@ -19,14 +19,14 @@ public func sourceMapModeFromJS(global: JSGlobalObject, value: JsValue): JsValue
 }
 
 public func sourceMapModeValueFromJS(global: JSGlobalObject, value: JsValue): ?SourceMapMode {
-    if (!value.isString()) { return None }
+    if (!value.isString()) { return Option<SourceMapMode>.None }
 
     match (value.toString()) {
         case "none" => Some(SourceMapMode.None)
         case "inline" => Some(SourceMapMode.Inline)
         case "external" => Some(SourceMapMode.External)
         case "linked" => Some(SourceMapMode.Linked)
-        case _ => None
+        case _ => Option<SourceMapMode>.None
     }
 }
 

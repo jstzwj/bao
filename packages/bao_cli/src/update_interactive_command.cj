@@ -894,6 +894,7 @@ public class UpdateInteractiveCommand {
                     }
                 case WorkspaceFilterKind.all =>
                     // 匹配所有
+                    ()
             }
         }
         return true
@@ -1425,7 +1426,6 @@ public class UpdateInteractiveCommand {
             }
 
             // 渲染主体
-            {
                 if (!initialDraw) {
                     Output.cursorUp(totalLines)
                     Output.print("[1G")
@@ -1719,14 +1719,13 @@ public class UpdateInteractiveCommand {
 
                 totalLines = linesDisplayed + 1
                 Output.clearToEnd()
-            }
             Output.flush()
 
             // 读取输入
             let input = Terminal.readByte()
 
             match (input) {
-                case '\n' | '\r' =>
+                case '\n' =>
                     // 确认选择, 恢复终端并返回
                     if (colors) {
                         Output.print("[?25h")    // 显示光标
@@ -1749,8 +1748,39 @@ public class UpdateInteractiveCommand {
                     Output.flush()
 
                     return state.selected
-                case 3 | 4 =>
-                    // Ctrl+C, Ctrl+D - 取消
+                case '\r' =>
+                    // 确认选择 (回车) - 同 '\n'
+                    if (colors) {
+                        Output.print("\u{1b}[?25h")
+                        Output.print("\u{1b}[?1000l")
+                        Output.print("\u{1b}[?1006l")
+                    }
+
+                    if (!initialDraw) {
+                        Output.cursorUp(totalLines)
+                    }
+                    Output.clearToEnd()
+
+                    var count2: Int64 = 0
+                    for (sel in state.selected) {
+                        if (sel) { count2 += 1 }
+                    }
+                    Output.prettyLn("<r><green>✓<r> Selected ${count2} package${if (count2 == 1) { "" } else { "s" }} to update")
+                    Output.flush()
+
+                    return state.selected
+                case 3 =>
+                    // Ctrl+C - 取消
+                    if (colors) {
+                        Output.print("\u{1b}[?25h")
+                        Output.print("\u{1b}[?1000l")
+                        Output.print("\u{1b}[?1006l")
+                    }
+                    Output.flush()
+                    Output.prettyLn("\n<r><red>x<r> Cancelled")
+                    Global.exit(0)
+                case 4 =>
+                    // Ctrl+D - 取消
                     if (colors) {
                         Output.print("[?25h")
                         Output.print("[?1000l")
@@ -1768,7 +1798,7 @@ public class UpdateInteractiveCommand {
                         state.packages[idx].useLatest = true
                     }
                     state.toggleAll = false
-                case 'a' | 'A' =>
+                case 'a' =>
                     // 选择所有
                     for (i in 0..state.selected.length) {
                         state.selected[i] = true
@@ -1780,19 +1810,43 @@ public class UpdateInteractiveCommand {
                         }
                     }
                     state.toggleAll = true
-                case 'n' | 'N' =>
+                case 'A' =>
+                    // 选择所有
+                    for (i in 0..state.selected.length) {
+                        state.selected[i] = true
+                    }
+                    // 对于 current == update 版本的包, 自动设置 use_latest
+                    for (i in 0..state.packages.size) {
+                        if (state.packages[i].currentVersion == state.packages[i].updateVersion) {
+                            state.packages[i].useLatest = true
+                        }
+                    }
+                    state.toggleAll = true
+                case 'n' =>
                     // 取消选择所有
                     for (i in 0..state.selected.length) {
                         state.selected[i] = false
                     }
                     state.toggleAll = false
-                case 'i' | 'I' =>
+                case 'N' =>
+                    // 取消选择所有
+                    for (i in 0..state.selected.length) {
+                        state.selected[i] = false
+                    }
+                    state.toggleAll = false
+                case 'i' =>
                     // 反选
                     for (i in 0..state.selected.length) {
                         state.selected[i] = !state.selected[i]
                     }
                     state.toggleAll = false
-                case 'l' | 'L' =>
+                case 'I' =>
+                    // 反选
+                    for (i in 0..state.selected.length) {
+                        state.selected[i] = !state.selected[i]
+                    }
+                    state.toggleAll = false
+                case 'l' =>
                     // 切换 latest 模式
                     if (state.toggleAll) {
                         // 所有包用 'a' 选中, 切换所有选中包的 latest 状态
@@ -1805,6 +1859,21 @@ public class UpdateInteractiveCommand {
                         }
                     } else {
                         // 单个选择模式, 切换当前光标处的包并选中
+                        let idx = state.cursor.toInt()
+                        state.packages[idx].useLatest = !state.packages[idx].useLatest
+                        state.selected[idx] = true
+                    }
+                case 'L' =>
+                    // 切换 latest 模式 (大写)
+                    if (state.toggleAll) {
+                        let idx = state.cursor.toInt()
+                        let newLatestState = !state.packages[idx].useLatest
+                        for (j in 0..state.packages.size) {
+                            if (state.selected[j]) {
+                                state.packages[j].useLatest = newLatestState
+                            }
+                        }
+                    } else {
                         let idx = state.cursor.toInt()
                         state.packages[idx].useLatest = !state.packages[idx].useLatest
                         state.selected[idx] = true

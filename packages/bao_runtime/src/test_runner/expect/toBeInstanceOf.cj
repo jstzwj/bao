@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeInstanceOf() - 检查值是否为指定类的实例
 /// 用法: expect(received).toBeInstanceOf(Expected)
 public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -20,7 +20,7 @@ public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     this.incrementExpectCallCounter()
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
 
     let expectedValue = arguments[0]
     if (!expectedValue.isConstructor()) {

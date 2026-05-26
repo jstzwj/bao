@@ -4,7 +4,9 @@
 package bao_runtime.server
 
 import bao_core.*
-import bao_jsc.*
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
+import bao_jsc.CallFrame
 import bao_collections.*
 
 // ============================================================================
@@ -98,6 +100,16 @@ public class ServerWebSocket {
         data = None
         subscriptions = HashSet<String>()
         bufferedAmount = 0
+    }
+
+    public init(handler: Any, data: JsValue, signal: ?AbortSignalRef) {
+        this.handler = None
+        this.flags = ServerWebSocketFlags()
+        this.signal = signal
+        this.socketFd = -1
+        this.data = None
+        this.subscriptions = HashSet<String>()
+        this.bufferedAmount = 0
     }
 
     /// 初始化
@@ -474,7 +486,7 @@ public class ServerWebSocket {
 }
 
 /// HashSet 简化实现 (用于订阅管理)
-public class HashSet<T> {
+public class HashSet<T> where T <: ToString {
     private var map: HashMap<T, Bool>
 
     public init() {
@@ -494,7 +506,12 @@ public class HashSet<T> {
     }
 
     public func toList(): ArrayList<T> {
-        return ArrayList<T>(map.keys())
+        let arr = map.keys()
+        let result = ArrayList<T>()
+        for (item in arr) {
+            result.append(item)
+        }
+        return result
     }
 
     public prop size: Int64 {

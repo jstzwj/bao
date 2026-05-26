@@ -757,8 +757,8 @@ public class BufferBytes {
             let bytes = Array<UInt8>(arr.size, { i => UInt8(arr[i].toInt32() & Int32(0xFF)) })
             return bytes
         }
-        if (value.objectData.isSome()) {
-            let obj = value.objectData.getOrThrow()
+        if (value.isObject()) {
+            let obj = value.toObject()
             let data = obj.get("data")
             if (data.arrayData.isSome()) {
                 let arr = data.arrayData.getOrThrow()

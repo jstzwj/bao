@@ -127,6 +127,21 @@ public class EventLoopHandle {
         return miniLoop
     }
 
+    /// 获取顶级目录 - 对应 Bun EventLoopHandle.top_level_dir()
+    public func topLevelDir(): String {
+        return ""
+    }
+
+    /// 获取环境变量加载器 - 对应 Bun EventLoopHandle.env()
+    public func env(): EnvLoaderStub {
+        return EnvLoaderStub()
+    }
+
+    /// 获取事件循环关联的 AsyncLoop
+    public func loop(): AsyncLoopStub {
+        return AsyncLoopStub()
+    }
+
     // ========================================================================
     // wakeup - 唤醒事件循环
     // 严格翻译自: EventLoopHandle.wakeup()
@@ -486,4 +501,18 @@ public class EventLoopTaskPtr {
         ptr.miniTask = Some(task)
         return ptr
     }
+}
+
+/// 环境变量加载器桩 - 用于 EventLoopHandle.env()
+public class EnvLoaderStub {
+    public init() {}
+
+    public func get(key: String): ?String {
+        return None
+    }
+}
+
+/// 异步循环桩 - 用于 EventLoopHandle.loop()
+public class AsyncLoopStub {
+    public init() {}
 }

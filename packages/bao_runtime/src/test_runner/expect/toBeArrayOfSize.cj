@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeArrayOfSize() - 检查值是否为指定大小的数组
 /// 用法: expect(received).toBeArrayOfSize(size)
 public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -36,7 +36,7 @@ public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFram
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
     if (not) {

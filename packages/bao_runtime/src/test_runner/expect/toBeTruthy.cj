@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeTruthy() - 检查值是否为真值
 /// 用法: expect(received).toBeTruthy()
 public func toBeTruthy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeTruthy", matcherParamsFmt: "")
@@ -26,7 +26,7 @@ public func toBeTruthy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     if (not) {
         let receivedLine = "Received: <red>{f}<r>\n"

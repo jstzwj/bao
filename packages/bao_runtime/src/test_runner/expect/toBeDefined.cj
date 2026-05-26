@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeDefined() - 检查值是否已定义（非undefined）
 /// 用法: expect(received).toBeDefined()
 public func toBeDefined(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeDefined", matcherParamsFmt: "")
@@ -22,7 +22,7 @@ public func toBeDefined(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     if (not) {
         let receivedLine = "Received: <red>{f}<r>\n"

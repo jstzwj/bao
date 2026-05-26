@@ -2,7 +2,7 @@
 //! `fromJS` bridges for `bun.options.{Target,Format,Loader}` and `CompileTarget`.
 package bao_bundler_jsc
 
-import bao_jsc.*
+import bao_jsc.{JSGlobalObject, JsValue, JsObject}
 import bao_core.*
 import bao_bundler.*
 

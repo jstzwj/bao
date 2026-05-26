@@ -1006,6 +1006,10 @@ public func s3ReadableStream(
 /// 对应 Bun: client.rs S3DownloadStreamWrapper
 /// 管理 ReadableStream 和下载回调之间的桥接
 public class S3DownloadStreamWrapper {
+    /// 唯一标识用于引用比较
+    private static var nextIdentity: UIntNative = UIntNative(1)
+    public let identity: UIntNative
+
     /// ReadableStream 强引用
     public var readableStreamRef: ReadableStreamStrong
 
@@ -1015,7 +1019,13 @@ public class S3DownloadStreamWrapper {
     /// 全局对象引用
     public var global: GlobalRef
 
+    public operator func ==(right: S3DownloadStreamWrapper): Bool {
+        return this.identity == right.identity
+    }
+
     public init() {
+        identity = S3DownloadStreamWrapper.nextIdentity
+        S3DownloadStreamWrapper.nextIdentity += UIntNative(1)
         readableStreamRef = ReadableStreamStrong()
         path = ""
         global = GlobalRef()
@@ -1035,9 +1045,11 @@ public class S3DownloadStreamWrapper {
                 clearStreamCancelHandler()
                 readableStreamRef.deinit()
             case None =>
-                match (readableStreamRef.get(global)) {
-                    case Some(stream) =>
-                        match (stream.getByteStream()) {
+                let streamOpt = readableStreamRef.get(global)
+                match (streamOpt) {
+                    case Some(rs) =>
+                        let bsOpt = rs.getByteStream()
+                        match (bsOpt) {
                             case Some(byteStream) =>
                                 let bytes = ArrayList<UInt8>()
                                 for (b in chunk.toString()) {
@@ -1134,7 +1146,7 @@ public class S3DownloadStreamRegistry {
 
     public static func register(wrapper: S3DownloadStreamWrapper): UIntNative {
         for (entry in entries) {
-            if (entry.wrapper === wrapper) {
+            if (entry.wrapper == wrapper) {
                 return entry.id
             }
         }
@@ -1156,7 +1168,7 @@ public class S3DownloadStreamRegistry {
 
     public static func unregisterForWrapper(wrapper: S3DownloadStreamWrapper): Unit {
         for (i in 0..entries.size) {
-            if (entries[i].wrapper === wrapper) {
+            if (entries[i].wrapper == wrapper) {
                 entries.removeAt(i)
                 return
             }

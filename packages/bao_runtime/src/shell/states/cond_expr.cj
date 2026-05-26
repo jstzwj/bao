@@ -32,7 +32,6 @@ public class CondExprParentPtr {
         return pp
     }
     public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-    public func create<T>(): T { T() }
     public func destroy<T>(ptr: T) {}
 }
 
@@ -45,7 +44,6 @@ public class CondExprChildPtr {
         return cp
     }
     public func `is`(`type`: Any): Bool { true }
-    public func `as`<T>(): T { this.ptr as T }
     public func deinit() {}
 }
 
@@ -54,7 +52,7 @@ public class CondExprState {
     /// 基类
     public var base: Base
     /// AST节点
-    public var node: CondExprAst
+    public var node: CondExpr
     /// 父节点
     public var parent: CondExprParentPtr
     /// IO
@@ -64,11 +62,16 @@ public class CondExprState {
     /// 参数
     public var args: ArrayList<String>
 
+    public init() {
+        this.args = ArrayList<String>()
+        this.state = CondExprStateKind.`idle`
+    }
+
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
-        node: CondExprAst,
+        node: CondExpr,
         parent: CondExprParentPtr,
         io: IO
     ): CondExprState {
@@ -89,76 +92,68 @@ public class CondExprState {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != CondExprStateKind.done) {
+        var done = false
+        while (!done) {
             match (this.state) {
                 case CondExprStateKind.`idle` =>
                     this.state = CondExprStateKind.expandingArgs(
                         0,
                         ExpansionState(),
-                        0
+                        ExitCode.exited(0)
                     )
                     continue
-                case CondExprStateKind.expandingArgs(idx, expansion, lastExitCode) =>
-                    if (idx >= this.node.args.size) {
+                case CondExprStateKind.expandingArgs(idx, expState, lastExitCode) =>
+                    if (Int64(idx) >= this.node.args.size) {
                         return this.commandImplStart()
                     }
                     this.state = CondExprStateKind.expandingArgs(
                         idx + 1,
-                        expansion,
+                        expState,
                         lastExitCode
                     )
-                    return expansion.start()
+                    return expState.start()
                 case CondExprStateKind.waitingStat =>
                     return Yield.suspended
                 case CondExprStateKind.statComplete(stat) => ()
                     // 根据操作符和stat结果返回退出码
                     match (this.node.op) {
-                        case "-f" => ()
+                        case CondExprOp.f => ()
                             // 检查是否为普通文件
-                            return this.parent.childDone(this, 0)
-                        case "-d" => ()
+                            return this.parent.childDone(this, ExitCode.exited(0))
+                        case CondExprOp.d => ()
                             // 检查是否为目录
-                            return this.parent.childDone(this, 0)
-                        case "-c" => ()
+                            return this.parent.childDone(this, ExitCode.exited(0))
+                        case CondExprOp.c => ()
                             // 检查是否为字符设备
-                            return this.parent.childDone(this, 0)
-                        case "-z" | "-n" | "==" | "!=" =>
-                            panic("此条件表达式操作符不需要stat()")
+                            return this.parent.childDone(this, ExitCode.exited(0))
+                        case CondExprOp.z | CondExprOp.n =>
+                            throw Exception("此条件表达式操作符不需要stat()")
                         case _ =>
-                            panic("无效的条件表达式操作符")
+                            throw Exception("无效的条件表达式操作符")
                     }
                 case CondExprStateKind.waitingWriteErr =>
                     return Yield.suspended
                 case CondExprStateKind.done =>
-                    panic("不可达状态")
+                    done = true
             }
         }
-        return this.parent.childDone(this, 0)
+        return this.parent.childDone(this, ExitCode.exited(0))
     }
 
     /// 命令实现启动
     func commandImplStart(): Yield {
         match (this.node.op) {
-            case "-f" | "-d" | "-c" =>
+            case CondExprOp.f | CondExprOp.d | CondExprOp.c =>
                 this.state = CondExprStateKind.waitingStat
                 return this.doStat()
-            case "-z" =>
-                let exitCode = if (this.args.size == 0 || this.args[0].size == 0) { 0 } else { 1 }
+            case CondExprOp.z =>
+                let exitCode = if (this.args.size == 0 || this.args[0].size == 0) { ExitCode.exited(0) } else { ExitCode.exited(1) }
                 return this.parent.childDone(this, exitCode)
-            case "-n" =>
-                let exitCode = if (this.args.size > 0 && this.args[0].size != 0) { 0 } else { 1 }
-                return this.parent.childDone(this, exitCode)
-            case "==" =>
-                let isEq = this.args.size == 0 ||
-                    (this.args.size >= 2 && this.args[0] == this.args[1])
-                let exitCode = if (isEq) { 0 } else { 1 }
-                return this.parent.childDone(this, exitCode)
-            case "!=" =>
-                let isNeq = this.args.size >= 2 && this.args[0] != this.args[1]
-                let exitCode = if (isNeq) { 0 } else { 1 }
+            case CondExprOp.n =>
+                let exitCode = if (this.args.size > 0 && this.args[0].size != 0) { ExitCode.exited(0) } else { ExitCode.exited(1) }
                 return this.parent.childDone(this, exitCode)
             case _ =>
-                panic("无效的条件表达式操作符")
+                throw Exception("无效的条件表达式操作符")
         }
     }
 
@@ -180,7 +175,7 @@ public class CondExprState {
 
     /// 子节点完成
     public func childDone(child: CondExprChildPtr, exitCode: ExitCode): Yield {
-        if (exitCode != 0) {
+        if (!exitCode.isZero()) {
             return this.writeFailingError("error\n")
         }
         child.deinit()
@@ -189,23 +184,25 @@ public class CondExprState {
 
     /// stat任务完成
     public func onStatTaskComplete(val: Maybe<Stat>) {
-        this.state = CondExprStateKind.statComplete(result)
+        this.state = CondExprStateKind.statComplete(val)
         this.next().run()
     }
 
     /// 写入失败错误
     public func writeFailingError(s: String): Yield {
-        return this.base.shell.writeFailingErrorFmt(this, { _ => Yield.done }, fmt, [])
+        return this.base.shell.writeFailingErrorFmt(this, { _ => () }, s, [])
     }
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
         if (err.isSome()) {
-            let exitCode: ExitCode = 1
+            let exitCode: ExitCode = ExitCode.exited(1)
             return this.parent.childDone(this, exitCode)
         }
-        if (this.state == CondExprStateKind.waitingWriteErr) {
-            return this.parent.childDone(this, 1)
+        match (this.state) {
+            case CondExprStateKind.waitingWriteErr =>
+                return this.parent.childDone(this, ExitCode.exited(1))
+            case _ => ()
         }
         unreachableState("CondExpr.onIOWriterChunk", "unexpected state")
     }

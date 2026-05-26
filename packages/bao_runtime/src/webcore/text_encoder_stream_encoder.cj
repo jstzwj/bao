@@ -211,8 +211,8 @@ public class TextEncoderStreamEncoder {
 
         var prependLen: Int64 = 0
         match (prepend) {
-            Some(pre) => prependLen = pre.size
-            None => ()
+            case Some(pre) => prependLen = pre.size
+            case None => ()
         }
 
         // 分配输出缓冲区

@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeObject() - 检查值是否为对象类型
 /// 用法: expect(received).toBeObject()
 public func toBeObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeObject", matcherParamsFmt: "")
@@ -21,7 +21,7 @@ public func toBeObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     if (pass) { return thisValue }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
     if (not) {

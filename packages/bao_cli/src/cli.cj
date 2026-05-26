@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 import bao_install.*
 
 // ============================================================================
@@ -903,18 +904,14 @@ public enum CommandTag {
                 Output.pretty("<b>Examples<d>:<r>\n")
                 Output.pretty("  <b>bao exec \"echo hi\"<r>\n\n")
                 Output.flush()
-            case CommandTag.OutdatedCommand => {
+            case CommandTag.OutdatedCommand =>
                 PackageManager.CommandLineArguments.printHelp(Subcommand.outdated)
-            }
-            case CommandTag.UpdateInteractiveCommand => {
+            case CommandTag.UpdateInteractiveCommand =>
                 PackageManager.CommandLineArguments.printHelp(Subcommand.update)
-            }
-            case CommandTag.PublishCommand => {
+            case CommandTag.PublishCommand =>
                 PackageManager.CommandLineArguments.printHelp(Subcommand.publish)
-            }
-            case CommandTag.AuditCommand => {
+            case CommandTag.AuditCommand =>
                 PackageManager.CommandLineArguments.printHelp(Subcommand.audit)
-            }
             case CommandTag.InfoCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao info<r> <cyan>[flags]<r> <blue>\\<package\\><r> <blue>[property path]<r>\n")
                 Output.pretty("  Display package metadata from the registry.\n\n")

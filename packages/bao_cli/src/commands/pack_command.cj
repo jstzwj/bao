@@ -1645,7 +1645,7 @@ public class PackCommand {
 
             // 根目录默认忽略 (不可覆盖)
             for (pattern in ROOT_IGNORE_PATTERNS) {
-                if (GlobMatcher.match(pattern, entryName)) {
+                if (GlobMatcher.`match`(pattern, entryName)) {
                     return ExclusionInfo(pattern, IgnoreKind.defaultIgnore)
                 }
             }
@@ -1659,7 +1659,7 @@ public class PackCommand {
         for (entry in DEFAULT_IGNORE_ENTRIES) {
             let pattern = entry.first
             let canOverride = entry.second
-            if (GlobMatcher.match(pattern, entryName)) {
+            if (GlobMatcher.`match`(pattern, entryName)) {
                 if (canOverride) {
                     // 可覆盖: 记录但继续检查
                     ignored = true
@@ -1678,12 +1678,15 @@ public class PackCommand {
             var rel = entrySubpath
             if (ignore.hasRelPath) {
                 // 裁剪到忽略文件所在目录的相对路径
-                for (_ in 0..<ignore.depth - 1) {
+                let depthMinusOne: Int64 = ignore.depth - 1
+                var stripIdx: Int64 = 0
+                while (stripIdx < depthMinusOne) {
                     let sepIndex = rel.indexOf('/')
                     match (sepIndex) {
-                        case Some(idx) => rel = rel.substring(idx + 1)
+                        case Some(si) => rel = rel.substring(si + 1)
                         case None => break
                     }
+                    stripIdx += 1
                 }
             }
             for (pattern in ignore.list) {
@@ -1691,7 +1694,7 @@ public class PackCommand {
                     continue
                 }
                 let matchPath = if (pattern.relPath) { rel } else { entryName }
-                if (GlobMatcher.match(pattern.glob, matchPath)) {
+                if (GlobMatcher.`match`(pattern.glob, matchPath)) {
                     ignored = true
                     ignorePattern = pattern.glob
                     ignoreKind = ignore.kind
@@ -1863,7 +1866,7 @@ public class PackCommand {
                             return result
                     }
                 }
-            case Some(JsonValue.Bool(b)) =>
+            case Some(JsonValue.`Bool`(b)) =>
                 if (b) {
                     // true 意味着将所有 dependencies 打包
                     match (JsonHelper.getField(root, "dependencies")) {
@@ -2422,41 +2425,41 @@ public class PackCommand {
 //   - 解析 .tgz 文件
 //   - 返回包含 entries, size, shasum, integrity 的对象
 // ============================================================================
+/// Tarball 条目信息
+// 严格翻译自: src/cli/pack_command.zig bindings.jsReadTarball → EntryInfo
+public class TarballEntryInfo {
+    public var pathname: String
+    public var kind: String   // "file", "directory", etc.
+    public var perm: Int64
+    public var size: ?Int64
+    public var contents: ?String
+
+    public init(pathname: String, kind: String, perm: Int64) {
+        this.pathname = pathname
+        this.kind = kind
+        this.perm = perm
+        this.size = None
+        this.contents = None
+    }
+}
+
+/// Tarball 读取结果
+// 严格翻译自: src/cli/pack_command.zig bindings.jsReadTarball → result
+public class TarballResult {
+    public var entries: ArrayList<TarballEntryInfo>
+    public var size: Int64
+    public var shasum: String
+    public var integrity: String
+
+    public init() {
+        entries = ArrayList<TarballEntryInfo>()
+        size = 0
+        shasum = ""
+        integrity = ""
+    }
+}
+
 public class PackBindings {
-
-    /// Tarball 条目信息
-    // 严格翻译自: src/cli/pack_command.zig bindings.jsReadTarball → EntryInfo
-    public class TarballEntryInfo {
-        public var pathname: String
-        public var kind: String   // "file", "directory", etc.
-        public var perm: Int64
-        public var size: ?Int64
-        public var contents: ?String
-
-        public init(pathname: String, kind: String, perm: Int64) {
-            this.pathname = pathname
-            this.kind = kind
-            this.perm = perm
-            this.size = None
-            this.contents = None
-        }
-    }
-
-    /// Tarball 读取结果
-    // 严格翻译自: src/cli/pack_command.zig bindings.jsReadTarball → result
-    public class TarballResult {
-        public var entries: ArrayList<TarballEntryInfo>
-        public var size: Int64
-        public var shasum: String
-        public var integrity: String
-
-        public init() {
-            entries = ArrayList<TarballEntryInfo>()
-            size = 0
-            shasum = ""
-            integrity = ""
-        }
-    }
 
     /// 从文件路径读取 tarball 信息
     // 严格翻译自: src/cli/pack_command.zig bindings.jsReadTarball

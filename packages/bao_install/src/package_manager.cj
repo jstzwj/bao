@@ -581,7 +581,7 @@ public class PackageManager {
             return Some(summary)
         }
         if (lockfile.getPackageCount() == Int64(0)) {
-            log.addError("install requires a parsed lockfile/package graph")
+            log.addError(Option<SourceLocation>.None, "install requires a parsed lockfile/package graph")
             anyFailedToInstall = true
             return None
         }
@@ -606,7 +606,7 @@ public class PackageManager {
         let pm = PackageManager.initFunc(CAllocator(), Log(), env, cli, PackageSubcommand.Publish)
         let cwd = OS.getcwd()
         if (cwd.size == 0) {
-            pm.log.addError("publish requires a current working directory")
+            pm.log.addError(Option<SourceLocation>.None, "publish requires a current working directory")
             return None
         }
         pm.originalPackageJsonPath = Path.join([cwd, "package.json"])

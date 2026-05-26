@@ -2,7 +2,10 @@
 //! Test-only host fns for `bun.ini`.
 package bao_install_jsc
 
-import bao_jsc.*
+import bao_jsc.JsObject
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
+import bao_jsc.CallFrame
 import bao_core.*
 import bao_collections.*
 
@@ -25,9 +28,9 @@ public class IniTestingAPIs {
     public static func parse(globalThis: JSGlobalObject, callframe: CallFrame): JsValue {
         let parsed = parseIniString(callframe.argument(0).toString())
         let obj = JsObject.make()
-        for ((key, value) in parsed) {
+        parsed.forEach({key: String, value: String =>
             obj.set(key, JsValue(value))
-        }
+        })
         return JsValue(obj)
     }
 
@@ -57,8 +60,9 @@ public class IniTestingAPIs {
         if (line.size == 0 || line.startsWith("#") || line.startsWith(";")) { return }
         if (line.startsWith("[")) { return }
 
-        let eq = line.indexOf('=')
-        if (eq < 0) { return }
+        let eqOpt = line.indexOf('=')
+        if (eqOpt.isNone()) { return }
+        let eq = eqOpt.getOrThrow()
         let key = trim(line[0..eq])
         var value = trim(line[eq + 1..])
         if (value.size >= 2) {

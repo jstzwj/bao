@@ -319,19 +319,23 @@ public class S3HttpDownloadStreamingTask {
         let shouldEnqueue = !waitUntilDone || isDone
 
         if (shouldEnqueue) {
-            if (let Some(body) <- result.body) {
-                responseBuffer = body
-                if (body.size() > 0) {
-                    reportedResponseBuffer.write(body.slice())
-                }
-                responseBuffer.reset()
-                if (reportedResponseBuffer.size() == 0 && !isDone) {
-                    mutex.unlock()
-                    return false
-                }
-            } else if (!isDone) {
-                mutex.unlock()
-                return false
+            let bodyOpt = result.body
+            match (bodyOpt) {
+                case Some(bodyVal) =>
+                    responseBuffer = bodyVal
+                    if (bodyVal.size() > 0) {
+                        reportedResponseBuffer.write(bodyVal.slice())
+                    }
+                    responseBuffer.reset()
+                    if (reportedResponseBuffer.size() == 0 && !isDone) {
+                        mutex.unlock()
+                        return false
+                    }
+                case None =>
+                    if (!isDone) {
+                        mutex.unlock()
+                        return false
+                    }
             }
             if (hasScheduleCallback) {
                 mutex.unlock()

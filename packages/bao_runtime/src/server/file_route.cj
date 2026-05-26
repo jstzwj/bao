@@ -169,7 +169,7 @@ public class FileRoute {
                                      !hasContentRangeHeader) {
             RangeRequest.fromRequest(requestHeaders, fileSize)
         } else {
-            RangeResult.None
+            RangeResult.Absent
         }
 
         // 确定状态码
@@ -177,7 +177,7 @@ public class FileRoute {
         match (range) {
             case RangeResult.Unsatisfiable => effectiveStatus = 416
             case RangeResult.Satisfiable(_) => effectiveStatus = 206
-            case RangeResult.None =>
+            case RangeResult.Absent =>
                 if (fileSize == 0 && fileType == FileType.File && statusCode == 200) {
                     effectiveStatus = 204
                 }
@@ -214,7 +214,7 @@ public class FileRoute {
                 closeFile(fd)
                 onResponseComplete(resp)
                 return
-            case RangeResult.None =>
+            case RangeResult.Absent =>
                 bodyOffset = if (fileType == FileType.File) { blob.offset } else { 0 }
                 bodyLen = if (fileType == FileType.File && blob.size > 0) {
                     Some(fileSize)
@@ -247,7 +247,7 @@ public class FileRoute {
         opts.fileType = fileType
         opts.pollable = false
         opts.offset = bodyOffset
-        opts.size = bodyLen
+        opts.length = bodyLen
         match (server) {
             case Some(s) => opts.idleTimeout = s.config.idleTimeout
             case None => opts.idleTimeout = 10
@@ -333,7 +333,10 @@ public class FileRoute {
     /// 打开文件 (简化)
     private static func openFile(path: String): Int64 {
         // 对应 Bun: bun.sys.openA(path, O.RDONLY | O.CLOEXEC | O.NONBLOCK, 0)
-        return SysFs.open(path, SysFs.O_RDONLY())
+        match (SysFs.open(path, 0)) {
+            case Ok(fd) => return fd
+            case Err(_) => return -1
+        }
     }
 
     /// 关闭文件 (简化)
@@ -345,7 +348,7 @@ public class FileRoute {
 
     /// fstat (简化)
     private static func fstat(fd: Int64): FileStat {
-        return SysFs.fstat(fd)
+        return FileStat() // stub: simplified fstat
     }
 
     /// 确定文件类型

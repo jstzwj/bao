@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeCloseTo() - 检查浮点数是否近似相等
 /// 用法: expect(received).toBeCloseTo(expected, precision?)
 public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let thisArguments = callFrame.argumentsOld(2)
@@ -64,7 +64,7 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
 
     let expectedFmt = expected_.toFmt(formatter)
     let receivedFmt = received_.toFmt(formatter)

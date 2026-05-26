@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toContainAllValues() - 检查对象是否恰好包含所有指定值
 /// 用法: expect(received).toContainAllValues(expected)
 public func toContainAllValues(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -64,7 +64,7 @@ public func toContainAllValues(`this`: Expect, globalThis: JSGlobalObject, callF
 
     // 处理失败
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
     if (not) {

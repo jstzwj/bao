@@ -10,6 +10,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 import bao_install.*
 
 // ============================================================================

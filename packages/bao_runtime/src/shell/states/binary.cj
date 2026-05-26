@@ -55,6 +55,8 @@ public class BinaryState {
     /// 当前执行的子节点
     public var currentlyExecuting: ?BinaryChildPtr = None
 
+    public init() {}
+
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
@@ -77,11 +79,15 @@ public class BinaryState {
     /// 启动
     public func start(): Yield {
         this.currentlyExecuting = this.makeChild(true)
-        if (this.currentlyExecuting.isNone()) {
-            this.currentlyExecuting = this.makeChild(false)
-            this.left = 0
+        if (let Some(child) <- this.currentlyExecuting) {
+            return child.start()
         }
-        return this.currentlyExecuting.getOrThrow().start()
+        this.currentlyExecuting = this.makeChild(false)
+        this.left = ExitCode.exited(0)
+        if (let Some(child) <- this.currentlyExecuting) {
+            return child.start()
+        }
+        return Yield.done
     }
 
     /// 创建子节点
@@ -98,15 +104,20 @@ public class BinaryState {
         if (this.left.isNone()) {
             this.left = exitCode
             // && 和 || 的短路逻辑
-            if ((this.node.op == BinaryOp.and && exitCode != 0) || (this.node.op == BinaryOp.or && exitCode == 0)) {
+            var isShortCircuit = false
+            match (this.node.op) {
+                case BinaryOp.And => isShortCircuit = !exitCode.isZero()
+                case BinaryOp.Or => isShortCircuit = exitCode.isZero()
+            }
+            if (isShortCircuit) {
                 return this.parent.childDone(this, exitCode)
             }
             this.currentlyExecuting = this.makeChild(false)
-            if (this.currentlyExecuting.isNone()) {
-                this.right = 0
-                return this.parent.childDone(this, 0)
+            if (let Some(child) <- this.currentlyExecuting) {
+                return child.start()
             }
-            return this.currentlyExecuting.getOrThrow().start()
+            this.right = ExitCode.exited(0)
+            return this.parent.childDone(this, ExitCode.exited(0))
         }
 
         this.right = exitCode

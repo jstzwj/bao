@@ -38,7 +38,11 @@ export default function compose(...streams) {
 
   for (let n = 0; n < streams.length; ++n) {
     if (!isNodeStream(streams[n]) && !isWebStream(streams[n])) {
-      // TODO(ronag): Add checks for non streams.
+      // Non-stream values must be at the edges (already converted from functions above).
+      // Intermediate values must be streams.
+      if (n > 0 && n < streams.length - 1) {
+        throw $ERR_INVALID_ARG_TYPE(`streams[${n}]`, ["ReadableStream", "WritableStream", "Stream"], orgStreams[n]);
+      }
       continue;
     }
     if (
@@ -77,11 +81,13 @@ export default function compose(...streams) {
   const writable = !!(isWritable(head) || isWritableStream(head) || isTransformStream(head));
   const readable = !!(isReadable(tail) || isReadableStream(tail) || isTransformStream(tail));
 
-  // TODO(ronag): Avoid double buffering.
-  // Implement Writable/Readable/Duplex traits.
+  // NOTE: Double buffering is inherent in the current compose architecture.
+  // The inner streams buffer independently from the outer Duplex.
+  // This can only be resolved by implementing Writable/Readable/Duplex traits.
   // See, https://github.com/nodejs/node/pull/33515.
   d = new Duplex({
-    // TODO (ronag): highWaterMark?
+    // Propagate highWaterMark from the underlying streams when available.
+    highWaterMark: tail?.highWaterMark ?? head?.highWaterMark,
     writableObjectMode: !!head?.writableObjectMode,
     readableObjectMode: !!tail?.readableObjectMode,
     writable,

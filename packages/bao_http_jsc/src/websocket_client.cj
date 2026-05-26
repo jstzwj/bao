@@ -17,6 +17,22 @@ public enum WebSocketOpcode {
     | Ping
     | Pong
     | Reserved
+
+    public operator func ==(right: WebSocketOpcode): Bool {
+        match (this) {
+            case Continue => match (right) { case Continue => true case _ => false }
+            case Text => match (right) { case Text => true case _ => false }
+            case Binary => match (right) { case Binary => true case _ => false }
+            case Close => match (right) { case Close => true case _ => false }
+            case Ping => match (right) { case Ping => true case _ => false }
+            case Pong => match (right) { case Pong => true case _ => false }
+            case Reserved => match (right) { case Reserved => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: WebSocketOpcode): Bool {
+        return !(this == right)
+    }
 }
 
 public enum WebSocketReceiveState {
@@ -29,6 +45,24 @@ public enum WebSocketReceiveState {
     | pong
     | close
     | fail
+
+    public operator func ==(right: WebSocketReceiveState): Bool {
+        match (this) {
+            case needHeader => match (right) { case needHeader => true case _ => false }
+            case needMask => match (right) { case needMask => true case _ => false }
+            case needBody => match (right) { case needBody => true case _ => false }
+            case extendedPayloadLength16 => match (right) { case extendedPayloadLength16 => true case _ => false }
+            case extendedPayloadLength64 => match (right) { case extendedPayloadLength64 => true case _ => false }
+            case ping => match (right) { case ping => true case _ => false }
+            case pong => match (right) { case pong => true case _ => false }
+            case close => match (right) { case close => true case _ => false }
+            case fail => match (right) { case fail => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: WebSocketReceiveState): Bool {
+        return !(this == right)
+    }
 
     public func needControlFrame(): Bool {
         return this != WebSocketReceiveState.needBody

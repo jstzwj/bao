@@ -259,10 +259,9 @@ public class ReadableStreamStrong {
     /// 对应 Bun: Strong.get(global) -> Option<ReadableStream>
     public func get(global: JsGlobalObject): ?ReadableStream {
         match (held.get()) {
-            Some(value) => {
+            case Some(value) =>
                 ReadableStream.fromJsValue(value)
-            }
-            None => None
+            case None => None
         }
     }
 
@@ -279,7 +278,7 @@ public class ReadableStreamStrong {
                         held.set(global, first.value)
                         return Some(second)
                 }
-            None => None
+            case None => None
         }
     }
 }
@@ -346,13 +345,13 @@ public class ReadableStream {
 
     /// 转为 JS 值
     /// 对应 Bun: ReadableStream.to_js() -> JsValue
-    pub func toJs(): JsValue {
+    public func toJs(): JsValue {
         value
     }
 
     /// 重新加载标签 — 从 JS 值重新解析源类型
     /// 对应 Bun: ReadableStream.reload_tag(global_this) -> JsResult<()>
-    pub func reloadTag(): Unit {
+    public func reloadTag(): Unit {
         let reloaded = ReadableStream.fromJsValue(value)
         match (reloaded) {
             case Some(stream) =>
@@ -371,7 +370,7 @@ public class ReadableStream {
     /// Attempts to convert the stream to an AnyBlob without streaming.
     /// Returns None if the stream is already disturbed or the source
     /// type does not support direct conversion.
-    pub func toAnyBlob(): ?AnyBlob {
+    public func toAnyBlob(): ?AnyBlob {
         if (isDisturbed()) {
             return None
         }
@@ -430,7 +429,7 @@ public class ReadableStream {
     /// Done is called when we are done consuming the stream.
     /// Cancel actually marks the stream source as done.
     /// This will resolve any pending promises to done: true.
-    pub func done(): Unit {
+    public func done(): Unit {
         match (source.getTag()) {
             case Blob =>
                 match (source.blobSource()) {
@@ -457,7 +456,7 @@ public class ReadableStream {
     /// 取消流
     /// 对应 Bun: ReadableStream.cancel(global_this)
     /// Cancel the stream — calls the FFI cancel and then done().
-    pub func cancel(): Unit {
+    public func cancel(): Unit {
         // 对应 Bun: ReadableStream__cancel(self.value, global_this) FFI
         source.cancel()
         // Mark the stream source as done
@@ -470,7 +469,7 @@ public class ReadableStream {
     /// source's cancel algorithm (the spec's ReadableStreamCancel). Unlike
     /// cancel(), this does not synthesize a DOMException — fetch() uses it
     /// to surface AbortSignal.reason to the request body's cancel callback.
-    pub func cancelWithReason(reason: JsValue): Unit {
+    public func cancelWithReason(reason: JsValue): Unit {
         // 对应 Bun: ReadableStream__cancelWithReason(self.value, global_this, reason) FFI
         source.cancel()
         disturbed = true
@@ -480,13 +479,13 @@ public class ReadableStream {
     /// 中止流
     /// 对应 Bun: ReadableStream.abort(global_this)
     /// For now we are just calling cancel — should be fine.
-    pub func abort(): Unit {
+    public func abort(): Unit {
         cancel()
     }
 
     /// 强制分离流
     /// 对应 Bun: ReadableStream.force_detach(global_object)
-    pub func forceDetach(): Unit {
+    public func forceDetach(): Unit {
         // 对应 Bun: ReadableStream__detach(self.value, global_object) FFI
         source = ReadableStreamSource()
         disturbed = true
@@ -497,13 +496,13 @@ public class ReadableStream {
     /// Decrement Source ref count and detach the underlying stream if ref count is zero.
     /// Be careful, this can invalidate the stream — do not call multiple times.
     /// This is meant to be called only once when done consuming or from Strong.deinit.
-    pub func detachIfPossible(): Unit {
+    public func detachIfPossible(): Unit {
         // (intentionally empty in Zig)
     }
 
     /// 检查流是否已被消费
     /// 对应 Bun: ReadableStream.is_disturbed(global_object) -> bool
-    pub func isDisturbed(): Bool {
+    public func isDisturbed(): Bool {
         if (disturbed) {
             return true
         }
@@ -513,21 +512,21 @@ public class ReadableStream {
 
     /// 检查流是否已锁定
     /// 对应 Bun: ReadableStream.is_locked(global_object) -> bool
-    pub func isLocked(): Bool {
+    public func isLocked(): Bool {
         // 对应 Bun: ReadableStream__isLocked(self.value, global_object) FFI
         locked
     }
 
     /// 标记流为已消费
     /// 对应 Bun: mark disturbed
-    pub func markDisturbed(): Unit {
+    public func markDisturbed(): Unit {
         disturbed = true
     }
 
     /// 分流 (tee)
     /// 对应 Bun: ReadableStream.tee(global_this) -> JsResult<Option<(ReadableStream, ReadableStream)>>
     /// 对应 Web API: readableStream.tee()
-    pub func tee(): (ReadableStream, ReadableStream) {
+    public func tee(): (ReadableStream, ReadableStream) {
         // 对应 Bun: ReadableStream__tee(self.value, global_this, &out1, &out2) FFI
         let stream1 = ReadableStream(ReadableStreamSource(source.tag))
         let stream2 = ReadableStream(ReadableStreamSource(source.tag))
@@ -557,13 +556,13 @@ public class ReadableStream {
 
     /// 从 JS 值解析 ReadableStream
     /// 对应 Bun: ReadableStream::from_js(value, global_this) -> JsResult<Option<ReadableStream>>
-    pub static func fromJs(value: JsValue, global: JsGlobalObject): ?ReadableStream {
+    public static func fromJs(value: JsValue, global: JsGlobalObject): ?ReadableStream {
         fromJsValue(value)
     }
 
     /// 从 JS 值解析 ReadableStream (简化接口)
     /// 对应 Bun: ReadableStream::from_js
-    pub static func fromJsValue(value: JsValue): ?ReadableStream {
+    public static func fromJsValue(value: JsValue): ?ReadableStream {
         if (value.isEmptyOrUndefinedOrNull()) {
             return None
         }
@@ -601,13 +600,13 @@ public class ReadableStream {
 
     /// 从原生值创建可读流
     /// 对应 Bun: ReadableStream::from_native(global_this, native) -> JsResult<JsValue>
-    pub static func fromNative(global: JsGlobalObject, native: JsValue): JsValue {
+    public static func fromNative(global: JsGlobalObject, native: JsValue): JsValue {
         // 对应 Bun: ZigGlobalObject__createNativeReadableStream(global_this, native) FFI
         createNativeReadableStream(native)
     }
 
     /// 从原生值创建可读流 (简化)
-    pub static func fromNative(native: JsValue): JsValue {
+    public static func fromNative(native: JsValue): JsValue {
         createNativeReadableStream(native)
     }
 
@@ -620,7 +619,7 @@ public class ReadableStream {
     /// 从已拥有的字节切片创建可读流
     /// 对应 Bun: ReadableStream::from_owned_slice(global_this, bytes, recommended_chunk_size)
     /// bytes: owned slice; accept Vec<u8>/Box<[u8]> alike.
-    pub static func fromOwnedSlice(
+    public static func fromOwnedSlice(
         global: JsGlobalObject,
         bytes: Array<UInt8>,
         recommendedChunkSize: BlobSizeType
@@ -631,7 +630,7 @@ public class ReadableStream {
 
     /// 从 Blob 创建可读流 (复制引用)
     /// 对应 Bun: ReadableStream::from_blob_copy_ref(global_this, blob, recommended_chunk_size)
-    pub static func fromBlobCopyRef(
+    public static func fromBlobCopyRef(
         global: JsGlobalObject,
         blob: Blob,
         recommendedChunkSize: BlobSizeType
@@ -668,7 +667,7 @@ public class ReadableStream {
 
     /// 从 Blob 创建可读流 (便捷方法，无需 global)
     /// 对应 Bun: ReadableStream.fromBlobCopyRef (simplified)
-    pub static func fromBlobCopyRef(blob: Blob): ReadableStream {
+    public static func fromBlobCopyRef(blob: Blob): ReadableStream {
         let source = ReadableStreamSource(ReadableStreamSourceTag.Blob)
         let bytes = blob.sharedView()
         for (b in bytes) {
@@ -686,7 +685,7 @@ public class ReadableStream {
 
     /// 从 File Blob 创建带偏移的可读流
     /// 对应 Bun: ReadableStream::from_file_blob_with_offset(global_this, blob, offset)
-    pub static func fromFileBlobWithOffset(
+    public static func fromFileBlobWithOffset(
         global: JsGlobalObject,
         blob: Blob,
         offset: Int64
@@ -712,7 +711,7 @@ public class ReadableStream {
     /// 对应 Bun: ReadableStream::from_pipe(global_this, _parent, buffered_reader)
     /// Zig's `buffered_reader: anytype` — only ever instantiated with the
     /// platform PipeReader/PosixBufferedReader.
-    pub static func fromPipe(global: JsGlobalObject): JsValue {
+    public static func fromPipe(global: JsGlobalObject): JsValue {
         let source = ReadableStreamSource(ReadableStreamSourceTag.File)
         let reader = FileReader()
         source.fileReader = Some(reader)
@@ -723,7 +722,7 @@ public class ReadableStream {
     /// 创建空流
     /// 对应 Bun: ReadableStream::empty(global_this) -> JsResult<JsValue>
     /// 对应 FFI: ReadableStream__empty(global)
-    pub static func empty(): ReadableStream {
+    public static func empty(): ReadableStream {
         let stream = ReadableStream()
         stream.source.hasReceivedLastChunk = true
         stream
@@ -732,7 +731,7 @@ public class ReadableStream {
     /// 创建已使用的流
     /// 对应 Bun: ReadableStream::used(global_this) -> JsResult<JsValue>
     /// 对应 FFI: ReadableStream__used(global)
-    pub static func used(): ReadableStream {
+    public static func used(): ReadableStream {
         let stream = ReadableStream()
         stream.disturbed = true
         stream.source.hasReceivedLastChunk = true
@@ -741,7 +740,7 @@ public class ReadableStream {
 
     /// 从字节数组创建可读流
     /// 对应 Bun: ReadableStream.from_owned_slice
-    pub static func fromBytes(bytes: Array<UInt8>): ReadableStream {
+    public static func fromBytes(bytes: Array<UInt8>): ReadableStream {
         let source = ReadableStreamSource(ReadableStreamSourceTag.Bytes)
         for (b in bytes) {
             source.buffer.append(b)
@@ -751,12 +750,12 @@ public class ReadableStream {
     }
 
     /// 从 Blob 创建可读流 (便捷方法)
-    pub static func fromBlob(blob: Blob): ReadableStream {
+    public static func fromBlob(blob: Blob): ReadableStream {
         fromBlobCopyRef(blob)
     }
 
     /// 转为 JsValue (完整 JS 绑定)
-    pub func toJsValue(): JsValue {
+    public func toJsValue(): JsValue {
         if (has()) {
             return value
         }
@@ -965,7 +964,7 @@ public class NewSource {
     public func getGlobalThis(): JsGlobalObject {
         match (globalThis) {
             case Some(g) => g
-            None => throw Exception("NewSource.globalThis used before init")
+            case None => throw Exception("NewSource.globalThis used before init")
         }
     }
 
@@ -1106,7 +1105,7 @@ public class NewSource {
 
     /// Convert to ReadableStream JS value
     /// 对应 Bun: pub fn to_readable_stream(&self, global_this) -> JsResult<JsValue>
-    pub func toReadableStream(): JsValue {
+    public func toReadableStream(): JsValue {
         let outValue = if (thisJsvalue != JsValue.ZERO) {
             thisJsvalue
         } else {
@@ -1117,7 +1116,7 @@ public class NewSource {
     }
 
     /// Convert to ReadableStream JS value (with global)
-    pub func toReadableStream(global: JsGlobalObject): JsValue {
+    public func toReadableStream(global: JsGlobalObject): JsValue {
         let outValue = if (thisJsvalue != JsValue.ZERO) {
             thisJsvalue
         } else {
@@ -1159,7 +1158,7 @@ public class NewSource {
 
     /// Memory cost
     /// 对应 Bun: pub fn memory_cost(&self) -> usize
-    pub func memoryCost(): Int64 {
+    public func memoryCost(): Int64 {
         context.memoryCostFn() + 128  // approximate sizeof(Self)
     }
 
@@ -1173,7 +1172,7 @@ public class NewSource {
     /// Pull from JS entry point (codegen thunk)
     /// 对应 Bun: pub fn pull_from_js(&self, global_this, call_frame)
     public func pullFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        let thisJsvalue = callFrame.this()
+        let thisJsvalue = callFrame.`this`()
         let arguments = callFrame.arguments(2)
         let view = arguments[0]
         this.thisJsvalue = thisJsvalue
@@ -1191,7 +1190,7 @@ public class NewSource {
     /// 对应 Bun: pub fn start_from_js(&self, global_this, call_frame)
     public func startFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
         globalThis = Some(global)
-        thisJsvalue = callFrame.this()
+        thisJsvalue = callFrame.`this`()
         let startResult = context.onStart()
         match (startResult.tag) {
             case StreamStartTag.Empty => JsValue.jsNumber(0.0)
@@ -1253,7 +1252,7 @@ public class NewSource {
     /// Cancel from JS entry point (codegen thunk)
     /// 对应 Bun: pub fn cancel_from_js(&self, _global_object, call_frame)
     public func cancelFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        thisJsvalue = callFrame.this()
+        thisJsvalue = callFrame.`this`()
         cancel()
         JsValue.UNDEFINED
     }
@@ -1315,7 +1314,7 @@ public class NewSource {
     /// Update ref from JS entry point
     /// 对应 Bun: pub fn update_ref_from_js(&self, _global_object, call_frame)
     public func updateRefFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        thisJsvalue = callFrame.this()
+        thisJsvalue = callFrame.`this`()
         let refOrUnref = callFrame.argument(0).toBoolean()
         setRef(refOrUnref)
         JsValue.UNDEFINED
@@ -1336,7 +1335,7 @@ public class NewSource {
     /// a deallocator which frees on GC. Suppress Vec::Drop so the same allocation
     /// isn't freed twice.
     public func drainFromJs(global: JsGlobalObject, callFrame: CallFrame): JsValue {
-        thisJsvalue = callFrame.this()
+        thisJsvalue = callFrame.`this`()
         let list = drain()
         if (list.size > 0) {
             JsValue.arrayBuffer(list)
@@ -1386,7 +1385,7 @@ public class NewSource {
     /// 对应 Bun: fn to_buffered_value_from_js(global, call_frame, action)
     /// When toBufferedValue is not available, Bun throws TODO via globalThis.throwTODO
     private func toBufferedValueFromJs(global: JsGlobalObject, callFrame: CallFrame, action: BufferActionTag): JsValue {
-        thisJsvalue = callFrame.this()
+        thisJsvalue = callFrame.`this`()
         match (context.toBufferedValue(action)) {
             case Some(v) => v
             // Bun original - not implemented in upstream: globalThis.throwTODO("This is not implemented yet"); return .zero

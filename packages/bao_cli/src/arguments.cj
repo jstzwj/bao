@@ -1575,6 +1575,7 @@ public class Arguments {
         match (parsed.getOption("user-agent")) {
             case Some(ua) =>
                 // 设置全局 overridden_default_user_agent
+                ()
             case None => ()
         }
 
@@ -1751,7 +1752,8 @@ public class Arguments {
         let useOpenSSLCA = parsed.hasFlag("use-openssl-ca")
         let useBundledCA = parsed.hasFlag("use-bundled-ca")
 
-        if ((useSystemCa ? 1 : 0) + (useOpenSSLCA ? 1 : 0) + (useBundledCA ? 1 : 0) > 1) {
+        let countCA = (if (useSystemCa) { 1 } else { 0 }) + (if (useOpenSSLCA) { 1 } else { 0 }) + (if (useBundledCA) { 1 } else { 0 })
+        if (countCA > 1) {
             Output.errGeneric("Choose exactly one of --use-system-ca, --use-openssl-ca, or --use-bundled-ca", [])
             Sys.exit(1)
         }
@@ -2484,33 +2486,5 @@ public class Arguments {
     }
 }
 
-// ============================================================================
-// CommandTag — 子命令标签
-// 严格翻译自: Command.Tag
-// ============================================================================
-public enum CommandTag {
-    | AutoCommand
-    | RunCommand
-    | BuildCommand
-    | TestCommand
-    | BunxCommand
-    | RunAsNodeCommand
-    | CreateCommand
-    | InitCommand
-    | InstallCommand
-    | AddCommand
-    | RemoveCommand
-    | UpdateCommand
-    | PatchCommand
-    | OutdatedCommand
-    | PackageManagerCommand
-    | ReplCommand
-    | HelpCommand
-    | CustomCommand
-}
-
-// ============================================================================
-// 版本常量
-// ============================================================================
-public const BAO_VERSION: String = "1.2.0"
+// BAO_VERSION defined in package.cj
 public const BAO_GIT_SHA: String = "latest"

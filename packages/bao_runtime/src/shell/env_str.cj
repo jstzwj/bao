@@ -30,6 +30,18 @@ public enum EnvStrTag {
     | refcounted
     /// 内存由其他地方管理，不需要释放
     | slice
+
+    public operator func ==(rhs: EnvStrTag): Bool {
+        match (this) {
+            case empty => match (rhs) { case empty => true; case _ => false }
+            case refcounted => match (rhs) { case refcounted => true; case _ => false }
+            case slice => match (rhs) { case slice => true; case _ => false }
+        }
+    }
+
+    public operator func !=(rhs: EnvStrTag): Bool {
+        !(this == rhs)
+    }
 }
 
 /// 环境变量字符串
@@ -48,6 +60,10 @@ public struct EnvStr {
     /// 数据
     public var data: Array<Byte>
 
+    public init() {
+        data = Array<Byte>()
+    }
+
     // ========================================================================
     // 初始化方法
     // ========================================================================
@@ -58,9 +74,17 @@ public struct EnvStr {
     public static func initSlice(str: Array<Byte>): EnvStr {
         if (str.size == 0) {
             // 零长度字符串可能有无效指针，导致错误的整数转换。
-            return EnvStr(tag: EnvStrTag.empty, len: 0, data: Array<Byte>())
+            var es = EnvStr()
+            es.tag = EnvStrTag.empty
+            es.len = 0
+            es.data = Array<Byte>()
+            return es
         }
-        return EnvStr(tag: EnvStrTag.slice, len: UInt64(str.size), data: str)
+        var es = EnvStr()
+        es.tag = EnvStrTag.slice
+        es.len = UInt64(str.size)
+        es.data = str
+        return es
     }
 
     /// 从引用计数字符串初始化
@@ -68,10 +92,18 @@ public struct EnvStr {
     /// 创建一个 RefCountedStr 来管理字符串的生命周期。
     public static func initRefCounted(str: Array<Byte>): EnvStr {
         if (str.size == 0) {
-            return EnvStr(tag: EnvStrTag.empty, len: 0, data: Array<Byte>())
+            var es = EnvStr()
+            es.tag = EnvStrTag.empty
+            es.len = 0
+            es.data = Array<Byte>()
+            return es
         }
         let refc = RefCountedStr.initFunc(str)
-        return EnvStr(tag: EnvStrTag.refcounted, len: UInt64(str.size), data: refc.byteSlice())
+        var es = EnvStr()
+        es.tag = EnvStrTag.refcounted
+        es.len = UInt64(str.size)
+        es.data = refc.byteSlice()
+        return es
     }
 
     /// 复制并创建引用计数字符串
@@ -80,11 +112,19 @@ public struct EnvStr {
     /// 适用于字符串生命周期不确定的情况。
     public static func dupeRefCounted(oldStr: Array<Byte>): EnvStr {
         if (oldStr.size == 0) {
-            return EnvStr(tag: EnvStrTag.empty, len: 0, data: Array<Byte>())
+            var es = EnvStr()
+            es.tag = EnvStrTag.empty
+            es.len = 0
+            es.data = Array<Byte>()
+            return es
         }
         let str = oldStr.clone()
         let refc = RefCountedStr.initFunc(str)
-        return EnvStr(tag: EnvStrTag.refcounted, len: UInt64(str.size), data: refc.byteSlice())
+        var es = EnvStr()
+        es.tag = EnvStrTag.refcounted
+        es.len = UInt64(str.size)
+        es.data = refc.byteSlice()
+        return es
     }
 
     // ========================================================================
@@ -105,13 +145,13 @@ public struct EnvStr {
                 if (this.len == 0) {
                     Array<Byte>()
                 } else {
-                    this.data[0..this.len]
+                    this.data[0..Int64(this.len)]
                 }
             case refcounted =>
                 if (this.len == 0) {
                     Array<Byte>()
                 } else {
-                    this.data[0..this.len]
+                    this.data[0..Int64(this.len)]
                 }
         }
     }

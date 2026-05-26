@@ -4,7 +4,6 @@
 
 package bao_runtime.shell.states
 
-import bao_core.*
 import bao_runtime.shell.*
 import bao_collections.*  // std.collection.*
 
@@ -57,7 +56,6 @@ public class ExpansionChildPtr {
         return cp
     }
     public func `is`(`type`: Any): Bool { true }
-    public func `as`<T>(): T { this.ptr as T }
     public func deinit() {}
 }
 
@@ -81,13 +79,20 @@ public class ExpansionState {
     /// 子状态
     public var childState: ExpansionChildStateKind
     /// 输出退出码
-    public var outExitCode: ExitCode = 0
+    public var outExitCode: ExitCode = ExitCode.exited(0)
     /// 输出结果
     public var out: ExpansionResult
     /// 输出索引
     public var outIdx: UInt32 = 0
     /// 是否包含引号空字符串
     public var hasQuotedEmpty: Bool = false
+
+    public init() {
+        this.currentOut = ArrayList<Byte>()
+        this.state = ExpansionStateKind.`normal`
+        this.childState = ExpansionChildStateKind.`idle`
+        this.out = ExpansionResult.single(ArrayList<Byte>(), false)
+    }
 
     /// 初始化
     public static func initFunc(
@@ -126,7 +131,9 @@ public class ExpansionState {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != ExpansionStateKind.done && this.state != ExpansionStateKind.err) {
+        var isDone = false
+        var isErr = false
+        while (!isDone && !isErr) {
             match (this.state) {
                 case ExpansionStateKind.`normal` =>
                     while (this.wordIdx < this.node.atomsLen()) {
@@ -137,23 +144,25 @@ public class ExpansionState {
                     if (this.wordIdx >= this.node.atomsLen()) {
                         this.pushCurrentOut()
                         this.state = ExpansionStateKind.done
+                        isDone = true
                         continue
                     }
                     return Yield.suspended
                 case ExpansionStateKind.braces => ()
                     // 大括号展开
                     this.state = ExpansionStateKind.done
+                    isDone = true
                     continue
                 case ExpansionStateKind.glob =>
                     return this.transitionToGlobState()
-                case ExpansionStateKind.done | ExpansionStateKind.err => ()
-                    // 不可达
+                case ExpansionStateKind.done => isDone = true
+                case ExpansionStateKind.err(errVal) => isErr = true
             }
         }
-        if (this.state == ExpansionStateKind.done) {
-            return this.parent.childDone(this, 0)
+        if (isDone) {
+            return this.parent.childDone(this, ExitCode.exited(0))
         }
-        return this.parent.childDone(this, 1)
+        return this.parent.childDone(this, ExitCode.exited(1))
     }
 
     /// 展开变量和命令替换
@@ -167,7 +176,7 @@ public class ExpansionState {
     /// 子节点完成
     public func childDone(child: ExpansionChildPtr, exitCode: ExitCode): Yield {
         // 命令替换完成
-        if (exitCode != 0) {
+        if (!exitCode.isZero()) {
             this.outExitCode = exitCode
         }
         this.wordIdx += 1
@@ -186,8 +195,8 @@ public class ExpansionState {
 
     /// 展开变量
     func expandVar(s: String): String {
-        let value = this.base.shell.shellEnv.get(EnvStr.initSlice(label.toByteArray())) ??
-            this.base.shell.exportEnv.get(EnvStr.initSlice(label.toByteArray())) ?? ""
+        let value = this.base.shell.shellEnv.get(EnvStr.initSlice(s.toArray())) ??
+            this.base.shell.exportEnv.get(EnvStr.initSlice(s.toArray())) ?? ""
         return value.slice().toString()
     }
 

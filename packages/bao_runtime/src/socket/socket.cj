@@ -34,6 +34,8 @@ public class SocketFlags {
     public var allowHalfOpen: Bool
     /// 是否绕过 TLS (raw 半)
     public var bypassTls: Bool
+    /// 是否正在连接中
+    public var isConnecting: Bool
 
     public init() {
         isActive = false
@@ -46,6 +48,7 @@ public class SocketFlags {
         isPaused = false
         allowHalfOpen = false
         bypassTls = false
+        isConnecting = false
     }
 }
 
@@ -219,6 +222,8 @@ public class Socket {
     public var nativeCallback: NativeCallback
     /// TLS 双胞胎 (upgradeTLS 时使用)
     public var twin: ?Socket
+    /// 此客户端连接拥有的 SSL_CTX* 引用
+    public var ownedSslCtx: ?SslCtx
 
     /// 文件描述符 (非 Windows)
     public var fd: Int64
@@ -241,6 +246,7 @@ public class Socket {
         bytesWritten = 0
         nativeCallback = NativeCallback.None
         twin = None
+        ownedSslCtx = None
         fd = -1
         localAddress = None
         remoteAddress = None
@@ -964,6 +970,10 @@ public class Socket {
         detachNativeCallback()
         thisValue = JsValue.UNDEFINED
         bufferedData.clear()
+        if (let Some(ctx) <- ownedSslCtx) {
+            ownedSslCtx = None
+            BoringSSL.sslCtxFree(ctx)
+        }
 
         if (flags.ownedProtos) {
             protos = None

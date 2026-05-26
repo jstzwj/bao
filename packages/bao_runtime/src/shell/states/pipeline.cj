@@ -72,6 +72,10 @@ public class PipelineState {
     /// 状态
     public var state: PipelineStateKind
 
+    public init() {
+        this.state = PipelineStateKind.startingCmds(0)
+    }
+
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
@@ -96,7 +100,7 @@ public class PipelineState {
     public func start(): Yield {
         // 设置命令
         if (this.cmds.isNone()) {
-            this.state = PipelineStateKind.done(0)
+            this.state = PipelineStateKind.done(ExitCode.exited(0))
             return Yield.done
         }
         return Yield.pipeline(this)
@@ -106,14 +110,15 @@ public class PipelineState {
     public func next(): Yield {
         match (this.state) {
             case PipelineStateKind.startingCmds(idx) =>
-                let cmds = this.cmds.getOrThrow()
-                if (idx >= cmds.size) {
-                    this.state = PipelineStateKind.pending
-                    return Yield.suspended
+                if (let Some(cmds) <- this.cmds) {
+                    if (idx >= cmds.size) {
+                        this.state = PipelineStateKind.pending
+                        return Yield.suspended
+                    }
+                    this.state = PipelineStateKind.startingCmds(idx + 1)
+                    return Yield.pipeline(this)
                 }
-                this.state = PipelineStateKind.startingCmds(idx + 1)
-                let cmdOrResult = cmds[idx]
-                return Yield.pipeline(this)
+                return Yield.suspended
             case PipelineStateKind.pending =>
                 unreachableState("Pipeline.next", "pending")
             case PipelineStateKind.waitingWriteErr =>
@@ -129,16 +134,18 @@ public class PipelineState {
             this.base.`throw`(ShellErr.newSys(e))
             return Yield.failed
         }
-        return this.parent.childDone(this, 1)
+        return this.parent.childDone(this, ExitCode.exited(1))
     }
 
     /// 子节点完成
     public func childDone(child: PipelineChildPtr, exitCode: ExitCode): Yield {
         child.deinit()
         this.exitedCount += 1
-        if (this.exitedCount >= this.cmds.getOrThrow().size) {
-            this.state = PipelineStateKind.done(exitCode)
-            return Yield.pipeline(this)
+        if (let Some(cmds) <- this.cmds) {
+            if (this.exitedCount >= cmds.size) {
+                this.state = PipelineStateKind.done(exitCode)
+                return Yield.pipeline(this)
+            }
         }
         return Yield.suspended
     }

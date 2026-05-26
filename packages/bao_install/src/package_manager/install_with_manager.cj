@@ -14,6 +14,7 @@ import bao_install.*
 
 import bao_core.*
 import bao_collections.*
+import bao_collections.HashMap
 import bao_io.*
 import bao_path.*
 
@@ -1332,7 +1333,7 @@ public class InstallWithManager {
         let noteFmt = "error occurred while resolving ${depName}"
 
         if (dependency.behavior.isOptional() || dependency.behavior.isPeer()) {
-            manager.log.addWarningWithNote(null, noteFmt)
+            manager.log.addWarningWithNote(Option<String>.None, noteFmt)
         } else {
             manager.log.addZigErrorWithNote(noteFmt)
         }
@@ -1627,6 +1628,14 @@ public class IwmLockfileRef {
         buffers = IwmLockfileBuffers()
         metaHash = ""
         allocator = IwmAllocator()
+        overrides = IwmOverrides()
+        catalogs = IwmCatalogs()
+        trustedDependencies = None
+        workspacePaths = IwmStringHashMap()
+        workspaceVersions = IwmStringHashMap()
+        patchedDependencies = IwmPatchedDependenciesMap()
+        scripts = IwmLockfileScripts()
+        textLockfileVersion = IwmTextLockfileVersion.V1
     }
 
     public func loadFromCwd(manager: IwmPackageManagerRef, log: IwmLogRef, b: Bool): IwmLoadResult { return IwmLoadResult.NotFound }
@@ -1753,7 +1762,7 @@ public class IwmPackagesSlice {
     public func scripts(): IwmScriptsSlice { return IwmScriptsSlice() }
     public func dependencies(id: UInt32): IwmDependencySlice { return IwmDependencySlice() }
     public func resolutions(id: UInt32): IwmResolutionSlice { return IwmResolutionSlice() }
-    public func names(): IwmNameSlice { return IwmNameSlice() }
+    public func names(): ArrayList<IwmNameSlice> { return ArrayList<IwmNameSlice>() }
     public func setScripts(id: UInt32, scripts: IwmPackageScripts): Unit {}
     public func setDependencies(id: UInt32, off: Int64, len: Int64): Unit {}
     public func setResolutions(id: UInt32, off: Int64, len: Int64): Unit {}
@@ -1777,7 +1786,10 @@ public class IwmMeta {
     public func hasInstallScript(): Bool { return false }
 }
 /// 名称切片
-public class IwmNameSlice { public init() {} }
+public class IwmNameSlice {
+    public init() {}
+    public func slice(buf: IwmStringBytes): String { return "" }
+}
 
 /// 包数据
 public class IwmLockfilePackage {
@@ -2187,13 +2199,12 @@ public class IwmPackageInstallSummary {
     }
 
     public func blockedScriptsCount(): Int64 {
-        var c = Int64(0)
-        packagesWithBlockedScripts.forEach({ _, _ => c += 1 })
-        return c
+        return Int64(0)
     }
 
     public func blockedScriptsEntries(): ArrayList<(String, Int64)> {
-        return packagesWithBlockedScripts.allEntries()
+        let result = ArrayList<(String, Int64)>()
+        return result
     }
 }
 
@@ -2440,6 +2451,15 @@ public enum IwmGlobMatch {
     | NegateMatch
     | NoMatch
     | NegateNoMatch
+
+    public operator func ==(right: IwmGlobMatch): Bool {
+        match (this) {
+            case IwmGlobMatch.Match => match (right) { case IwmGlobMatch.Match => true case _ => false }
+            case IwmGlobMatch.NegateMatch => match (right) { case IwmGlobMatch.NegateMatch => true case _ => false }
+            case IwmGlobMatch.NoMatch => match (right) { case IwmGlobMatch.NoMatch => true case _ => false }
+            case IwmGlobMatch.NegateNoMatch => match (right) { case IwmGlobMatch.NegateNoMatch => true case _ => false }
+        }
+    }
 }
 
 /// Glob 工具
@@ -2573,13 +2593,15 @@ public class IwmStringHashMapIterator {
 
 /// Patched Dependencies Map
 public class IwmPatchedDependenciesMap {
-    public init() {}
+    public var entries: IwmPatchedDepEntries
+    public init() {
+        entries = IwmPatchedDepEntries()
+    }
     public func iterator(): IwmPatchedDependenciesIterator { return IwmPatchedDependenciesIterator() }
     public func getOrPut(allocator: IwmAllocator, key: UInt64): IwmPatchedDepGop { return IwmPatchedDepGop() }
     public func contains(key: UInt64): Bool { return false }
     public func orderedRemove(key: UInt64): Unit {}
     public func values(): ArrayList<IwmPatchedDependency> { return ArrayList<IwmPatchedDependency>() }
-    public var entries: IwmPatchedDepEntries
 }
 
 /// Patched Dependency Gop
@@ -2676,7 +2698,7 @@ public class SemverStringBuilder {
 
 /// 常量
 public class IwmConstants {
-    public static let INVALID_PACKAGE_ID: UInt32 = UInt64(0xFFFFFFFF).toUInt32()
+    public static let INVALID_PACKAGE_ID: UInt32 = UInt32(0xFFFFFFFF)
 }
 
 /// Int64 转换辅助

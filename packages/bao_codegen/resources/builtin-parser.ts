@@ -120,7 +120,7 @@ export function sliceSourceCode(
       }
     } else {
       console.error(contents.slice(0, 100));
-      throw new Error("TODO");
+      throw new Error("Unexpected token in sliceSourceCode: " + contents.slice(0, 40));
     }
     result += contents.slice(0, i);
     contents = contents.slice(i);
@@ -147,7 +147,7 @@ function sliceTemplateLiteralSourceCode(contents: string, replace: boolean) {
       contents = rest;
       continue;
     } else {
-      throw new Error("TODO");
+      throw new Error("Unexpected character in template literal: " + contents.slice(0, 20));
     }
   }
 
@@ -179,7 +179,7 @@ function sliceRegularExpressionSourceCode(contents: string, replace: boolean) {
       contents = contents.slice(end + 1);
       continue;
     } else {
-      throw new Error("TODO");
+      throw new Error("Unexpected character in regular expression: " + contents.slice(0, 20));
     }
   }
 

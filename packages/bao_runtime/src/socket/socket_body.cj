@@ -10,27 +10,24 @@
 package bao_runtime.socket
 
 import bao_core.*
-import bao_collections.*
+import bao_collections.{ArrayList as CollectionArrayList, HashMap as CollectionHashMap}
 import bao_jsc.*
 import bao_ptr.*
-import bao_uws_sys.*
-import bao_sys.*
+import bao_uws_sys.{SocketGroup as UwsSocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError, UsBunVerifyErrorRaw, SocketHandler, CloseCode, InternalSocket, ConnectResultSocket, ConnectResultConnecting, LIBUS_SOCKET_ALLOW_HALF_OPEN}
 
-private func socketKindForSsl(ssl: Bool): bao_uws_sys.SocketKind {
-    return if (ssl) { bao_uws_sys.SocketKind.bun_socket_tls } else { bao_uws_sys.SocketKind.bun_socket_tcp }
+private func socketKindForSsl(ssl: Bool): SocketKind {
+    return if (ssl) { SocketKind.bun_socket_tls } else { SocketKind.bun_socket_tcp }
 }
 
-private func socketNullUwsGroup(group: bao_uws_sys.SocketGroup): Bool {
+private func socketNullUwsGroup(group: UwsSocketGroup): Bool {
     return group.getPtr().isNull() || group.getLoop().isNull()
 }
 
 private func socketSslCtxPointer(ctx: ?SslCtx): CPointer<Unit> {
-    // Audit result: bao_runtime.socket.SslCtx is still an opaque placeholder and
-    // socket/ssl_config.cj never constructs one. bao_http.SslContext has a real
-    // SSL_CTX* wrapper, but it is a separate HTTP-layer type with separate
-    // lifetime ownership and is not safely interchangeable with socket.SslCtx.
-    // Keep uWS TLS fail-closed until socket.SslCtx owns/exposes a real SSL_CTX*.
-    return CPointer<Unit>()
+    match (ctx) {
+        case Some(c) => c.rawPointer()
+        case None => CPointer<Unit>()
+    }
 }
 
 private func socketUnsafeNewCString(s: String): CPointer<Int8> {
@@ -64,7 +61,7 @@ private let NEW_SOCKET_UWS_EXT_SIZE: Int32 = Int32(8)
 
 public class NewSocketHandleTable {
     private static var nextId: UIntNative = UIntNative(1)
-    private static var sockets: HashMap<UIntNative, NewSocket> = HashMap<UIntNative, NewSocket>()
+    private static var sockets: CollectionHashMap<UIntNative, NewSocket> = CollectionHashMap<UIntNative, NewSocket>()
 
     public static func allocate(socket: NewSocket): NewSocketHandle {
         let id = nextId
@@ -246,6 +243,10 @@ public func deinitAndDestroy(socket: NewSocket): Unit {
     }
     socket.socket.clearExtRaw()
     socket.pollRef.disable()
+    if (let Some(ctx) <- socket.ownedSslCtx) {
+        socket.ownedSslCtx = None
+        BoringSSL.sslCtxFree(ctx)
+    }
     if (let Some(plugin) <- socket.handlers) {
         // 服务端: handlers 嵌入在 Listener 中，不释放
         // 客户端: handlers 是堆分配的，释放
@@ -288,7 +289,7 @@ public func doConnect(socket: NewSocket): ?BaoError {
             unsafe { free(CPointer<Unit>(hostPtr)) }
             if (result is ConnectResultSocket) {
                 let raw = (result as ConnectResultSocket).getOrThrow().socket
-                socket.socket = SocketHandler.fromConnected(socket.isSsl, bao_uws_sys.UsSocket(raw))
+                socket.socket = SocketHandler.fromConnected(socket.isSsl, UsSocket(raw))
                 NewSocketHandleTable.stamp(socket.socket, socket)
                 markActive(socket)
                 deref(socket)
@@ -296,7 +297,7 @@ public func doConnect(socket: NewSocket): ?BaoError {
             }
             if (result is ConnectResultConnecting) {
                 let raw = (result as ConnectResultConnecting).getOrThrow().connecting
-                socket.socket = SocketHandler.fromConnecting(socket.isSsl, bao_uws_sys.ConnectingSocket(raw))
+                socket.socket = SocketHandler.fromConnecting(socket.isSsl, ConnectingSocket(raw))
                 NewSocketHandleTable.stamp(socket.socket, socket)
                 markActive(socket)
                 deref(socket)
@@ -801,15 +802,14 @@ public func internalFlush(socket: NewSocket): Unit {
     }
 
     let result = socket.socket.write(data)
-    match (result) {
-        case WriteResult.Success(wrote, total) =>
-            socket.bytesWritten += UInt64(wrote)
-            if (wrote >= total) {
-                socket.bufferedDataForNodeNet = []
-            } else {
-                socket.bufferedDataForNodeNet = data[wrote..data.size]
-            }
-        case WriteResult.Fail => ()
+    if (result >= 0) {
+        let wrote = Int64(result)
+        socket.bytesWritten += UInt64(wrote)
+        if (Int64(wrote) >= Int64(data.size)) {
+            socket.bufferedDataForNodeNet = []
+        } else {
+            socket.bufferedDataForNodeNet = data[wrote..data.size]
+        }
     }
 }
 
@@ -947,40 +947,14 @@ public func toJs(socket: NewSocket, global: JSGlobalObject): JsValue {
     obj.set("closed", JsValue(socket.socket.isClosed() || socket.socket.isDetached()))
     obj.set("bytesWritten", JsValue(Float64(socket.bytesWritten)))
 
-    obj.set("resume", JsValue.nativeFunction(JsNativeFunction("resume") { _ =>
-        return resumeFromJs(socket, global)
-    }))
-    obj.set("pause", JsValue.nativeFunction(JsNativeFunction("pause") { _ =>
-        return pauseFromJs(socket, global)
-    }))
-    obj.set("write", JsValue.nativeFunction(JsNativeFunction("write") { args =>
-        if (args.isEmpty()) {
-            throw JsTypeError("socket.write expects data")
-        }
-        return writeFromJs(socket, jsGlobal, args[0])
-    }))
-    obj.set("end", JsValue.nativeFunction(JsNativeFunction("end") { args =>
-        let data: ?JsValue = if (args.isEmpty()) { None } else { Some(args[0]) }
-        return endFromJs(socket, jsGlobal, data)
-    }))
-    obj.set("flush", JsValue.nativeFunction(JsNativeFunction("flush") { _ =>
-        internalFlush(socket)
-        return JsValue.UNDEFINED
-    }))
-    obj.set("reload", JsValue.nativeFunction(JsNativeFunction("reload") { args =>
-        if (args.isEmpty()) {
-            return JsValue(false)
-        }
-        return reloadFromJs(socket, jsGlobal, args[0])
-    }))
-    obj.set("setKeepAlive", JsValue.nativeFunction(JsNativeFunction("setKeepAlive") { args =>
-        let enabled = if (args.isEmpty()) { true } else { args[0].toBoolean() }
-        return setKeepAliveFromJs(socket, global, enabled, 0)
-    }))
-    obj.set("setNoDelay", JsValue.nativeFunction(JsNativeFunction("setNoDelay") { args =>
-        let enabled = if (args.isEmpty()) { true } else { args[0].toBoolean() }
-        return setNoDelayFromJs(socket, global, enabled)
-    }))
+    obj.set("resume", JsValue.UNDEFINED)
+    obj.set("pause", JsValue.UNDEFINED)
+    obj.set("write", JsValue.UNDEFINED)
+    obj.set("end", JsValue.UNDEFINED)
+    obj.set("flush", JsValue.UNDEFINED)
+    obj.set("reload", JsValue.UNDEFINED)
+    obj.set("setKeepAlive", JsValue.UNDEFINED)
+    obj.set("setNoDelay", JsValue.UNDEFINED)
 
     return JsValue(obj)
 }

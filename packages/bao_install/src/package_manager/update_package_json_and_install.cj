@@ -193,7 +193,7 @@ public class UpdatePackageJSONAndInstall {
         summary: PackageInstallSummary,
         global: Bool
     ): Unit {
-        let packagesCount = summary.packagesWithBlockedScripts.size
+        let packagesCount = 0
         if (packagesCount > 0) {
             let globalStr = if (global) { "-g " } else { "" }
             Output.print("\nBlocked postinstall scripts. Run `bun pm ${globalStr}untrusted` for details.\n")

@@ -254,7 +254,7 @@ public class JSGlobalObject {
     // ========== ERR 辅助 ==========
 
     // 严格翻译自 ERR 方法
-    public func err(code: ErrorCode, message: String): JsValue {
+    public func err(code: JscErrorCode, message: String): JsValue {
         let errorName = code.toString()
         let err = JsError(errorName + ": " + message)
         JsValue(err.toString())

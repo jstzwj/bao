@@ -6,6 +6,7 @@ package bao_runtime.test_runner
 import bao_jsc.JsValue
 import bao_collections.ArrayList
 import bao_collections.HashMap
+import bao_core.Allocator
 
 // ========== Order - 测试排序 ==========
 
@@ -125,7 +126,12 @@ public class Order {
         var failureSkipPast: ?ExecutionEntry = current
         while (let Some(entry) <- index ){
             entry.failureSkipPast = failureSkipPast
-            if (entry == failureSkipPast) {
+            // Compare by checking if they share the same base scope
+            let isSameEntry = match (failureSkipPast) {
+                case Some(fsp) => entry.base.testIdForDebugger == fsp.base.testIdForDebugger && entry.base.testIdForDebugger != 0
+                case None => false
+            }
+            if (isSameEntry) {
                 failureSkipPast = None
             }
             index = entry.next
@@ -143,7 +149,7 @@ public class Order {
 
     /// 追加或扩展并发组
     public func appendOrExtendConcurrentGroup(concurrent: Bool, sequencesStart: UInt64, sequencesEnd: UInt64) {
-        defer { previousGroupWasConcurrent = concurrent }
+        // defer { previousGroupWasConcurrent = concurrent }
         if (concurrent && groups.size > 0) {
             let previousGroup = groups[groups.size - 1]
             if (previousGroupWasConcurrent) {

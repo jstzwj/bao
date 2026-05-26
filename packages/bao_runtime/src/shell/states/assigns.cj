@@ -29,7 +29,6 @@ public class AssignsParentPtr {
         return pp
     }
     public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-    public func create<T>(): T { T() }
     public func destroy<T>(ptr: T) {}
 }
 
@@ -42,7 +41,6 @@ public class AssignsChildPtr {
         return cp
     }
     public func `is`(`type`: Any): Bool { true }
-    public func `as`<T>(): T { this.ptr as T }
     public func deinit() {}
 }
 
@@ -63,6 +61,11 @@ public class AssignsState {
     /// IO
     public var io: IO
 
+    public init() {
+        this.node = Array<Assign>()
+        this.state = AssignsStateKind.`idle`
+    }
+
     /// 启动
     public func start(): Yield {
         return Yield.assigns(this)
@@ -77,41 +80,43 @@ public class AssignsState {
         parent: AssignsParentPtr,
         io: IO
     ): AssignsState {
-        let self_ = AssignsState()
-        this.base = Base.initWithNewAllocScope(StateKind.assign, interpreter, shellState)
-        this.node = node
-        this.parent = parent
-        this.state = AssignsStateKind.`idle`
-        this.ctx = ctx
-        this.io = io
-        return this
+        let state = AssignsState()
+        state.base = Base.initWithNewAllocScope(StateKind.assign, interpreter, shellState)
+        state.node = node
+        state.parent = parent
+        state.state = AssignsStateKind.`idle`
+        state.ctx = ctx
+        state.io = io
+        return state
     }
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != AssignsStateKind.done) {
+        var done = false
+        while (!done) {
             match (this.state) {
                 case AssignsStateKind.`idle` =>
                     this.state = AssignsStateKind.expanding(0, ExpansionState())
                     continue
-                case AssignsStateKind.expanding(idx, expansion) =>
-                    if (idx >= this.node.size) {
+                case AssignsStateKind.expanding(idx, expState) =>
+                    if (Int64(idx) >= this.node.size) {
                         this.state = AssignsStateKind.done
+                        done = true
                         continue
                     }
-                    return expansion.start()
+                    return expState.start()
                 case AssignsStateKind.done =>
-                    ()
-                case AssignsStateKind.err =>
-                    return this.parent.childDone(this, 1)
+                    done = true
+                case AssignsStateKind.err(errVal) =>
+                    return this.parent.childDone(this, ExitCode.exited(1))
             }
         }
-        return this.parent.childDone(this, 0)
+        return this.parent.childDone(this, ExitCode.exited(0))
     }
 
     /// 子节点完成
     public func childDone(child: AssignsChildPtr, exitCode: ExitCode): Yield {
-        if (exitCode != 0) {
+        if (!exitCode.isZero()) {
             this.state = AssignsStateKind.err(ShellErr.custom("expansion error"))
             return Yield.failed
         }

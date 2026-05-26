@@ -6,6 +6,9 @@ package bao_runtime.test_runner
 import bao_jsc.{BunString, CallFrame, File, JSFunction, JSGlobalObject, JsValue, Log, Output, RegularExpression, Source}
 import bao_collections.ArrayList
 import bao_collections.HashMap
+import bao_core.Allocator
+import bao_core.defaultAllocator
+import bao_event_loop.Timespec
 
 // ========== TestRunner 嵌套类型提取到顶层 ==========
 
@@ -80,7 +83,7 @@ public class TestRunner {
     public var bunTestRoot: BunTestRoot
 
     public init() {
-        this.allocator = Allocator.default
+        this.allocator = defaultAllocator
         this.snapshots = Snapshots()
         this.bunTestRoot = BunTestRoot(gpa: allocator)
     }
@@ -92,15 +95,15 @@ public class TestRunner {
     public func getActiveTimeout(): Timespec {
         let activeFile = bunTestRoot.activeFile
         if (activeFile.isNone()) {
-            return Timespec.epoch
+            return Timespec.EPOCH
         }
         let activeFileVal = activeFile.getOrThrow()
         let fileOpt = activeFileVal.get()
-        if (fileOpt.isNone()) { return Timespec.epoch }
+        if (fileOpt.isNone()) { return Timespec.EPOCH }
         let file = fileOpt.getOrThrow()
 
-        if (file.timer.state != TimerState.active || file.timer.next == Timespec.epoch) {
-            return Timespec.epoch
+        if (file.timer.state != TimerState.ACTIVE || file.timer.next.isZero()) {
+            return Timespec.EPOCH
         }
         return file.timer.next
     }
@@ -119,7 +122,7 @@ public class TestRunner {
         }
         let fileVal = file.getOrThrow()
 
-        if (fileVal.timer.state != TimerState.active || fileVal.timer.next == Timespec.epoch) {
+        if (fileVal.timer.state != TimerState.ACTIVE || fileVal.timer.next.isZero()) {
             return
         }
         // 从事件循环定时器堆中移除
@@ -678,4 +681,10 @@ public func errorInCI(globalObject: JSGlobalObject, message: String): ?JsValue {
         return None
     }
     return JsValue.jsUndefined
+}
+
+/// TestOptions桩
+/// 完整实现在 bao_options 中
+public class TestOptions {
+    public init() {}
 }

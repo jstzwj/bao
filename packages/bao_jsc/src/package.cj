@@ -73,7 +73,7 @@ public type JscArgumentsSlice = ArgumentsSlice
 // JS 类型系统
 public type JscType = JSType
 public type JscRuntimeType = JSRuntimeType
-public type JscErrorCode_ = ErrorCode
+public type JscErrorCode_ = JscErrorCode
 public type JscPromiseRejectionOp = JSPromiseRejectionOperation
 
 // 数组/集合

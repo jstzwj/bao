@@ -40,9 +40,6 @@ public enum EncodingLabel {
     | GBK                // "GBK"
     | GB18030            // "GB18030"
 
-    /// Latin1 别名
-    public static let latin1 = EncodingLabel.Windows1252
-
     /// 获取标签字符串
     /// 对应 Bun: EncodingLabel.getLabel()
     public func getLabel(): String {
@@ -230,6 +227,9 @@ public enum EncodingLabel {
         return None
     }
 }
+
+/// Latin1 别名 (cannot be inside enum in Cangjie)
+public let latin1 = EncodingLabel.Windows1252
 
 // ============================================================================
 // EncodingLabel 工具类

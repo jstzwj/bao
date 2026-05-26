@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toIncludeRepeated() - 检查字符串是否包含期望子串指定次数
 /// 用法: expect(received).toIncludeRepeated(substring, count)
 public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
@@ -50,9 +50,9 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
     var pass = false
 
     let expectStringAsStr = expectString.toSliceOrNull(globalThis: globalThis)
-    defer { expectStringAsStr.deinit() }
+    // defer { expectStringAsStr.deinit() }
     let subStringAsStr = substring.toSliceOrNull(globalThis: globalThis)
-    defer { subStringAsStr.deinit() }
+    // defer { subStringAsStr.deinit() }
 
     if (subStringAsStr.slice().size == 0) {
         return globalThis.throw_("toIncludeRepeated() requires the first argument to be a non-empty string")
@@ -65,7 +65,7 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let expectStringFmt = expectString.toFmt(formatter)
     let substringFmt = substring.toFmt(formatter)
     let timesFmt = count.toFmt(formatter)

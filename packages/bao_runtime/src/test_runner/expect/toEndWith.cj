@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toEndWith() - 检查字符串是否以指定后缀结尾
 /// 用法: expect(received).toEndWith(expected)
 public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -32,9 +32,9 @@ public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     var pass = value.isString()
     if (pass) {
         let valueString = value.toSliceOrNull(globalThis: globalThis)
-        defer { valueString.deinit() }
+        // defer { valueString.deinit() }
         let expectedString = expected.toSliceOrNull(globalThis: globalThis)
-        defer { expectedString.deinit() }
+        // defer { expectedString.deinit() }
         pass = strings.endsWith(valueString.slice(), expectedString.slice()) || expectedString.size == 0
     }
 
@@ -44,7 +44,7 @@ public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)
 

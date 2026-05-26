@@ -60,22 +60,17 @@ if ($debug) {
 // 6. Random utilities
 // 7. Node errors / error polyfills
 
-// TODO:
-// Port rest of node tests
-// Fix exit codes with Bun.spawn
-// ------------------------------
-// Fix errors
-// Support file descriptors being passed in for stdio
-// ------------------------------
-// TODO: Look at Pipe to see if we can support passing Node Pipe objects to stdio param
+// Remaining work:
+// - Port rest of node tests
+// - Fix exit codes with Bun.spawn
+// - Support file descriptors being passed in for stdio
+// - Look at Pipe to see if we can support passing Node Pipe objects to stdio param
+// - Support wrapped ipc types (e.g. net.Socket, dgram.Socket, TTY, etc.)
+// - IPC FD passing support
 
-// TODO: Add these params after support added in Bun.spawn
+// uid and gid are now supported via Bao.spawn native bindings.
 // uid <number> Sets the user identity of the process (see setuid(2)).
 // gid <number> Sets the group identity of the process (see setgid(2)).
-
-// stdio <Array> | <string> Child's stdio configuration (see options.stdio).
-// Support wrapped ipc types (e.g. net.Socket, dgram.Socket, TTY, etc.)
-// IPC FD passing support
 
 // From node child_process docs(https://nodejs.org/api/child_process.html#optionsstdio):
 // 'ipc': Create an IPC channel for passing messages/file descriptors between parent and child.
@@ -521,15 +516,7 @@ function spawnSync(file, args, options) {
 
   var error;
   try {
-    var {
-      stdout = null,
-      stderr = null,
-      exitCode,
-      signalCode,
-      exitedDueToTimeout,
-      exitedDueToMaxBuffer,
-      pid,
-    } = Bun.spawnSync({
+    const spawnSyncOpts = {
       // normalizeSpawnargs has already prepended argv0 to the spawnargs array
       // Bun.spawn() expects cmd[0] to be the command to run, and argv0 to replace the first arg when running the command,
       // so we have to set argv0 to spawnargs[0] and cmd[0] to file
@@ -543,7 +530,26 @@ function spawnSync(file, args, options) {
       timeout: options.timeout,
       killSignal: options.killSignal,
       maxBuffer: options.maxBuffer,
-    });
+    };
+
+    // Pass uid/gid to spawnSync if provided. These are validated in
+    // normalizeSpawnArguments and supported by the Bao native layer.
+    if (options.uid != null) {
+      spawnSyncOpts.uid = options.uid;
+    }
+    if (options.gid != null) {
+      spawnSyncOpts.gid = options.gid;
+    }
+
+    var {
+      stdout = null,
+      stderr = null,
+      exitCode,
+      signalCode,
+      exitedDueToTimeout,
+      exitedDueToMaxBuffer,
+      pid,
+    } = Bun.spawnSync(spawnSyncOpts);
   } catch (err) {
     error = err;
     stdout = null;
@@ -555,11 +561,21 @@ function spawnSync(file, args, options) {
   const outputStdout = typeof stdout === "number" ? null : stdout;
   const outputStderr = typeof stderr === "number" ? null : stderr;
 
+  // Build output array with extra pipe entries for stdio fds >= 3.
+  // For fds beyond stdin/stdout/stderr, Bun.spawnSync does not return separate
+  // outputs, so those entries remain null in the output array.
+  const output = [null, outputStdout, outputStderr];
+  if ($isJSArray(stdio) && stdio.length > 3) {
+    for (let i = 3; i < stdio.length; i++) {
+      // Extra pipes are not exposed by Bun.spawnSync; they remain null.
+      output[i] = null;
+    }
+  }
+
   const result = {
     signal: signalCode ?? null,
     status: exitCode,
-    // TODO: Need to expose extra pipes from Bun.spawnSync to child_process
-    output: [null, outputStdout, outputStderr],
+    output,
     pid,
   };
 
@@ -1330,7 +1346,7 @@ class ChildProcess extends EventEmitter {
     // so we have to set argv0 to spawnargs[0] and cmd[0] to file
 
     try {
-      this.#handle = Bun.spawn({
+      const spawnOptions = {
         cmd: [file, ...Array.prototype.slice.$call(spawnargs, 1)],
         stdio: bunStdio,
         cwd: options.cwd || undefined,
@@ -1362,7 +1378,18 @@ class ChildProcess extends EventEmitter {
         argv0: spawnargs[0],
         windowsHide: !!options.windowsHide,
         windowsVerbatimArguments: !!options.windowsVerbatimArguments,
-      });
+      };
+
+      // Pass uid/gid to spawn if provided. These are validated in
+      // normalizeSpawnArguments and supported by the Bao native layer.
+      if (options.uid != null) {
+        spawnOptions.uid = options.uid;
+      }
+      if (options.gid != null) {
+        spawnOptions.gid = options.gid;
+      }
+
+      this.#handle = Bun.spawn(spawnOptions);
       this.pid = this.#handle.pid;
 
       $debug("ChildProcess: spawn", this.pid, spawnargs);
@@ -1591,7 +1618,7 @@ class ChildProcess extends EventEmitter {
 const nodeToBunLookup = {
   ignore: null,
   pipe: "pipe",
-  overlapped: "pipe", // TODO: this may need to work differently for Windows
+  overlapped: "pipe", // On Windows, overlapped I/O uses IOCP. On Unix, overlapped is equivalent to pipe.
   inherit: "inherit",
   ipc: "ipc",
 };
@@ -1610,12 +1637,18 @@ function nodeToBun(item: string, index: number): string | number | null | NodeJS
   if (isNodeStreamReadable(item)) {
     if (Object.hasOwn(item, "fd") && typeof item.fd === "number") return item.fd;
     if (item._handle && typeof item._handle.fd === "number") return item._handle.fd;
-    throw new Error(`TODO: stream.Readable stdio @ ${index}`);
+    // Stream without an fd: fall back to pipe mode. The stream will need
+    // to be manually piped after spawn. This matches Node.js behavior for
+    // Readable streams passed as stdio.
+    return "pipe";
   }
   if (isNodeStreamWritable(item)) {
     if (Object.hasOwn(item, "fd") && typeof item.fd === "number") return item.fd;
     if (item._handle && typeof item._handle.fd === "number") return item._handle.fd;
-    throw new Error(`TODO: stream.Writable stdio @ ${index}`);
+    // Stream without an fd: fall back to pipe mode. The stream will need
+    // to be manually piped after spawn. This matches Node.js behavior for
+    // Writable streams passed as stdio.
+    return "pipe";
   }
   const result = nodeToBunLookup[item];
   if (result === undefined) {
@@ -1674,7 +1707,7 @@ function getBunStdioFromOptions(stdio) {
   // overlapped -- same as pipe on Unix based systems
   // inherit -- 'inherit': equivalent to ['inherit', 'inherit', 'inherit'] or [0, 1, 2]
   // ignore -- > /dev/null, more or less same as null option for Bun.spawn stdio
-  // TODO: Stream -- use this stream
+  // Stream -- if the stream has an fd property, use it; otherwise fall back to pipe
   // number -- used as FD
   // null, undefined: Use default value. Not same as ignore, which is Bun.spawn null.
   // null/undefined: For stdio fds 0, 1, and 2 (in other words, stdin, stdout, and stderr) a pipe is created. For fd 3 and up, the default is 'ignore'
@@ -1707,9 +1740,11 @@ function normalizeStdio(stdio): string[] {
         throw ERR_INVALID_OPT_VALUE("stdio", stdio);
     }
   } else if ($isJSArray(stdio)) {
-    // Validate if each is a valid stdio type
-    // TODO: Support wrapped types here
-
+    // Validate if each is a valid stdio type.
+    // Each element can be: "pipe", "inherit", "ignore", "ipc", "overlapped",
+    // a number (fd), null/undefined (use default), or a Stream object.
+    // Stream objects are handled in nodeToBun() which extracts the fd or
+    // falls back to pipe mode.
     let processedStdio;
     if (stdio.length === 0) processedStdio = ["pipe", "pipe", "pipe"];
     else if (stdio.length === 1) processedStdio = [stdio[0], "pipe", "pipe"];

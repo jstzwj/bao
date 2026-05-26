@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveLength() - 检查值是否具有指定长度
 /// 用法: expect(received).toHaveLength(expected)
 public func toHaveLength(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)

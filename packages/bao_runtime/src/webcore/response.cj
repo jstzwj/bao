@@ -361,9 +361,9 @@ public class Response {
         reportedEstimatedSize = 0
     }
 
-    public init(init: ResponseInit, body: Body, url: String, redirected: Bool) {
+    public init(`init`: ResponseInit, body: Body, url: String, redirected: Bool) {
         this.body = body
-        this.`init` = init
+        this.`init` = `init`
         this.url = url
         this.redirected = redirected
         refCount = 1
@@ -375,7 +375,7 @@ public class Response {
     /// 对应 Bun: Response::init (factory method)
     /// 对应 Bun: Response.rs:292-300
     public static func create(responseInit: ResponseInit, body: Body, url: String, redirected: Bool): Response {
-        return Response(init: responseInit, body: body, url: url, redirected: redirected)
+        return Response(`init`: responseInit, body: body, url: url, redirected: redirected)
     }
 
     // ========================================================================
@@ -740,7 +740,7 @@ public class Response {
     public func cloneValue(global: JsGlobalObject): Response {
         let clonedBody = Body(value: body.value.clone())
         let clonedInit = `init`.clone(global)
-        let result = Response(init: clonedInit, body: clonedBody, url: url, redirected: redirected)
+        let result = Response(`init`: clonedInit, body: clonedBody, url: url, redirected: redirected)
         return result
     }
 
@@ -754,7 +754,7 @@ public class Response {
     /// do_clone — JS host fn method.
     /// 对应 Bun: Response::do_clone (Response.rs:846-857)
     public func doClone(global: JsGlobalObject, callframe: CallFrame): JsValue {
-        let thisValue = callframe.this()
+        let thisValue = callframe.`this`()
         let cloned = clone(global)
         let jsWrapper = cloned.toJsValue()
         syncClonedBodyStreamCaches(thisValue, jsWrapper, global)
@@ -1055,7 +1055,7 @@ public class Response {
             }
         }
 
-        let response = Response(init: initVal, body: bodyVal, url: "", redirected: false)
+        let response = Response(`init`: initVal, body: bodyVal, url: "", redirected: false)
         response.jsRef = JsRef.initWeak(jsThis)
         response.calculateEstimatedByteSize()
         response.checkBodyStreamRef(global)
@@ -1077,8 +1077,8 @@ public class Response {
     /// 创建指定状态码的空响应
     /// 对应 Bun: empty_with_status (Response.rs:1498-1510)
     public static func emptyWithStatus(global: JsGlobalObject, status: UInt16): Response {
-        let init = ResponseInit(status)
-        return Response(init: init, body: Body(), url: "", redirected: false)
+        let `init` = ResponseInit(status)
+        return Response(`init`: `init`, body: Body(), url: "", redirected: false)
     }
 
     /// 转为 JsValue

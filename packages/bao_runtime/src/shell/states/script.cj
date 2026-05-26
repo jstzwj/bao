@@ -48,7 +48,7 @@ public class ScriptState {
     /// 基类
     public var base: Base
     /// AST节点
-    public var node: Script
+    public var node: ASTScript
     /// IO
     public var io: IO
     /// 父节点指针
@@ -56,11 +56,15 @@ public class ScriptState {
     /// 状态
     public var state: ScriptStateKind
 
+    public init() {
+        this.state = ScriptStateKind.`normal`(0)
+    }
+
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
-        node: Script,
+        node: ASTScript,
         parentPtr: ScriptParentPtr,
         io: IO
     ): ScriptState {
@@ -90,12 +94,12 @@ public class ScriptState {
                 }
                 let stmtNode = this.node.stmts[idx]
                 this.state = ScriptStateKind.`normal`(idx + 1)
-                let stmt = StmtState(
-                    interpreter: this.base.interpreter,
-                    shellState: this.base.shell,
-                    node: stmtNode,
-                    parent: StmtParentPtr(this),
-                    io: this.io.ref()
+                let stmt = StmtState.initFunc(
+                    this.base.interpreter,
+                    this.base.shell,
+                    stmtNode,
+                    this,
+                    this.io.ref()
                 )
                 return stmt.start()
         }

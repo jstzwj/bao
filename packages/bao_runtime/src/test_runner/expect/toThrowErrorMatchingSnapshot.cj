@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toThrowErrorMatchingSnapshot() - 检查抛出的错误是否匹配快照
 /// 用法: expect(fn).toThrowErrorMatchingSnapshot(hint?)
 public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
@@ -29,7 +29,7 @@ public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObj
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used outside of a test\n", args: [])
     }
-    defer { buntestStrong.deinit() }
+    // defer { buntestStrong.deinit() }
 
     var hintString = ZigString.Empty
     if (arguments.size == 0) {
@@ -47,7 +47,7 @@ public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObj
     }
 
     var hint = hintString.toSlice(allocator: default_allocator)
-    defer { hint.deinit() }
+    // defer { hint.deinit() }
 
     let valueOrNull: ?JsValue = this.fnToErrStringOrUndefined(globalThis: globalThis,
         value: this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toThrowErrorMatchingSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")

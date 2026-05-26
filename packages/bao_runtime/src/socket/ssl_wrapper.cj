@@ -4,6 +4,20 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_uws_sys.{UsBunVerifyError}
+
+@C
+foreign func SSL_CTX_new(method: CPointer<Unit>): CPointer<Unit>
+@C
+foreign func SSL_CTX_free(ctx: CPointer<Unit>): Unit
+@C
+foreign func SSL_CTX_up_ref(ctx: CPointer<Unit>): Int32
+@C
+foreign func TLS_method(): CPointer<Unit>
+@C
+foreign func SSL_new(ctx: CPointer<Unit>): CPointer<Unit>
+@C
+foreign func SSL_free(ssl: CPointer<Unit>): Unit
 
 // ============================================================================
 // SSL 包装器
@@ -85,26 +99,6 @@ public interface SslHandlers<T> {
     func onData(ctx: T, data: Array<Byte>): Unit
     /// 连接关闭回调
     func onClose(ctx: T): Unit
-}
-
-/// SSL 验证错误
-/// 对应 Zig: us_bun_verify_error_t
-public class UsBunVerifyError {
-    public var errorNo: Int32
-    public var code: String
-    public var reason: String
-
-    public init() {
-        errorNo = 0
-        code = ""
-        reason = ""
-    }
-
-    public init(errorNo: Int32, code: String, reason: String) {
-        this.errorNo = errorNo
-        this.code = code
-        this.reason = reason
-    }
 }
 
 /// SSL 包装器
@@ -826,9 +820,44 @@ public enum SSLRenegotiateMode {
 
 /// BoringSSL FFI 桥接
 public class BoringSSL {
-    public static func sslNew(ctx: SslCtx): ?Ssl { None }
-    public static func sslFree(ssl: Ssl): Unit {}
-    public static func sslCtxFree(ctx: SslCtx): Unit {}
+    public static func sslNew(ctx: SslCtx): ?Ssl {
+        let rawCtx = ctx.rawPointer()
+        if (rawCtx.isNull()) {
+            return None
+        }
+        let rawSsl = unsafe { SSL_new(rawCtx) }
+        if (rawSsl.isNull()) {
+            return None
+        }
+        return Some(Ssl(rawSsl))
+    }
+
+    public static func sslFree(ssl: Ssl): Unit {
+        let rawSsl = ssl.rawPointer()
+        if (rawSsl.isNull()) {
+            return
+        }
+        unsafe { SSL_free(rawSsl) }
+        ssl.clear()
+    }
+
+    public static func sslCtxFree(ctx: SslCtx): Unit {
+        let rawCtx = ctx.rawPointer()
+        if (rawCtx.isNull()) {
+            return
+        }
+        unsafe { SSL_CTX_free(rawCtx) }
+        ctx.clear()
+    }
+
+    public static func sslCtxUpRef(ctx: SslCtx): Unit {
+        let rawCtx = ctx.rawPointer()
+        if (rawCtx.isNull()) {
+            return
+        }
+        unsafe { SSL_CTX_up_ref(rawCtx) }
+    }
+
     public static func sslSetRenegotiateMode(ssl: Ssl, mode: SSLRenegotiateMode): Unit {}
     public static func sslSetConnectState(ssl: Ssl): Unit {}
     public static func sslSetAcceptState(ssl: Ssl): Unit {}
@@ -854,7 +883,6 @@ public class BoringSSL {
     public static func sslGetShutdown(ssl: Ssl): Int32 { 0 }
     public static func sslDoHandshake(ssl: Ssl): Int32 { 0 }
     public static func sslRenegotiate(ssl: Ssl): Int32 { 0 }
-    public static func sslCtxUpRef(ctx: SslCtx): Unit {}
     public static func getSslVerifyError(ssl: Ssl): UsBunVerifyError { UsBunVerifyError() }
 
     public static let SSL_RECEIVED_SHUTDOWN: Int32 = 4
@@ -864,9 +892,55 @@ public class BoringSSL {
 }
 
 /// SSL 对象的不透明类型
-public class Ssl {}
+public class Ssl {
+    private var ptr: CPointer<Unit>
+
+    public init() {
+        ptr = CPointer<Unit>()
+    }
+
+    public init(ptr: CPointer<Unit>) {
+        this.ptr = ptr
+    }
+
+    public func rawPointer(): CPointer<Unit> {
+        return ptr
+    }
+
+    public func isNull(): Bool {
+        return ptr.isNull()
+    }
+
+    public func clear(): Unit {
+        ptr = CPointer<Unit>()
+    }
+}
+
 /// SSL_CTX 对象的不透明类型
-public class SslCtx {}
+public class SslCtx {
+    private var ptr: CPointer<Unit>
+
+    public init() {
+        ptr = CPointer<Unit>()
+    }
+
+    public init(ptr: CPointer<Unit>) {
+        this.ptr = ptr
+    }
+
+    public func rawPointer(): CPointer<Unit> {
+        return ptr
+    }
+
+    public func isNull(): Bool {
+        return ptr.isNull()
+    }
+
+    public func clear(): Unit {
+        ptr = CPointer<Unit>()
+    }
+}
+
 /// BIO 对象的不透明类型
 public class Bio {}
 /// BIO 方法的不透明类型

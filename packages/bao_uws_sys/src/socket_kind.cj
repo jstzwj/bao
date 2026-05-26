@@ -54,6 +54,11 @@ public enum SocketKind {
         }
     }
 
+    /// Equality comparison
+    public operator func ==(right: SocketKind): Bool {
+        this.toUInt8() == right.toUInt8()
+    }
+
     /// Numeric kind value stamped into native us_socket_t/us_socket_group APIs.
     public func toUInt8(): UInt8 {
         match (this) {
@@ -84,31 +89,52 @@ public enum SocketKind {
     }
 
     public static func fromUInt8(value: UInt8): SocketKind {
-        match (value) {
-            case UInt8(1) => SocketKind.dynamic
-            case UInt8(2) => SocketKind.bun_socket_tcp
-            case UInt8(3) => SocketKind.bun_socket_tls
-            case UInt8(4) => SocketKind.bun_listener_tcp
-            case UInt8(5) => SocketKind.bun_listener_tls
-            case UInt8(6) => SocketKind.http_client
-            case UInt8(7) => SocketKind.http_client_tls
-            case UInt8(8) => SocketKind.ws_client_upgrade
-            case UInt8(9) => SocketKind.ws_client_upgrade_tls
-            case UInt8(10) => SocketKind.ws_client
-            case UInt8(11) => SocketKind.ws_client_tls
-            case UInt8(12) => SocketKind.postgres
-            case UInt8(13) => SocketKind.postgres_tls
-            case UInt8(14) => SocketKind.mysql
-            case UInt8(15) => SocketKind.mysql_tls
-            case UInt8(16) => SocketKind.valkey
-            case UInt8(17) => SocketKind.valkey_tls
-            case UInt8(18) => SocketKind.spawn_ipc
-            case UInt8(19) => SocketKind.uws_http
-            case UInt8(20) => SocketKind.uws_http_tls
-            case UInt8(21) => SocketKind.uws_ws
-            case UInt8(22) => SocketKind.uws_ws_tls
-            case _ => SocketKind.invalid
+        if (value == 1) {
+            return SocketKind.dynamic
+        } else if (value == 2) {
+            return SocketKind.bun_socket_tcp
+        } else if (value == 3) {
+            return SocketKind.bun_socket_tls
+        } else if (value == 4) {
+            return SocketKind.bun_listener_tcp
+        } else if (value == 5) {
+            return SocketKind.bun_listener_tls
+        } else if (value == 6) {
+            return SocketKind.http_client
+        } else if (value == 7) {
+            return SocketKind.http_client_tls
+        } else if (value == 8) {
+            return SocketKind.ws_client_upgrade
+        } else if (value == 9) {
+            return SocketKind.ws_client_upgrade_tls
+        } else if (value == 10) {
+            return SocketKind.ws_client
+        } else if (value == 11) {
+            return SocketKind.ws_client_tls
+        } else if (value == 12) {
+            return SocketKind.postgres
+        } else if (value == 13) {
+            return SocketKind.postgres_tls
+        } else if (value == 14) {
+            return SocketKind.mysql
+        } else if (value == 15) {
+            return SocketKind.mysql_tls
+        } else if (value == 16) {
+            return SocketKind.valkey
+        } else if (value == 17) {
+            return SocketKind.valkey_tls
+        } else if (value == 18) {
+            return SocketKind.spawn_ipc
+        } else if (value == 19) {
+            return SocketKind.uws_http
+        } else if (value == 20) {
+            return SocketKind.uws_http_tls
+        } else if (value == 21) {
+            return SocketKind.uws_ws
+        } else if (value == 22) {
+            return SocketKind.uws_ws_tls
         }
+        return SocketKind.invalid
     }
 }
 

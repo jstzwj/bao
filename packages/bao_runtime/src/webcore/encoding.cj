@@ -1205,14 +1205,14 @@ public class Strings {
         var start: Int64 = 0
         var i: Int64 = 0
         while (i <= input.size - sep.size) {
-            var match = true
+            var `match` = true
             for (j in 0..sep.size) {
                 if (input[i + j] != sep[j]) {
-                    match = false
+                    `match` = false
                     break
                 }
             }
-            if (match) {
+            if (`match`) {
                 result.add(Bytes.subArray(input, start, i - start))
                 start = i + sep.size
                 i = start

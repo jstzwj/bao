@@ -3,7 +3,6 @@
 package bao_install_jsc
 
 import bao_jsc.*
-import bao_core.*
 import bao_collections.*
 import bao_install.*
 

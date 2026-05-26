@@ -32,7 +32,7 @@ public struct IfExecState {
     public var execState: IfInnerState
     public var stmts: Array<Stmt>
     public var stmtIdx: UInt32 = 0
-    public var lastExitCode: ExitCode = 0
+    public var lastExitCode: ExitCode = ExitCode.exited(0)
 
     public init(execState: IfInnerState, stmts: Array<Stmt>, stmtIdx: UInt32, lastExitCode: ExitCode) {
         this.execState = execState
@@ -69,7 +69,7 @@ public class IfState {
     /// 基类
     public var base: Base
     /// AST节点
-    public var node: IfAst
+    public var node: If
     /// 父节点
     public var parent: IfParentPtr
     /// IO
@@ -77,11 +77,15 @@ public class IfState {
     /// 状态
     public var state: IfStateKind
 
+    public init() {
+        this.state = IfStateKind.`idle`
+    }
+
     /// 初始化
     public static func initFunc(
         interpreter: Interpreter,
         shellState: ShellExecEnv,
-        node: IfAst,
+        node: If,
         parent: IfParentPtr,
         io: IO
     ): IfState {
@@ -101,32 +105,33 @@ public class IfState {
 
     /// 下一步
     public func next(): Yield {
-        while (this.state != IfStateKind.done) {
+        var done = false
+        while (!done) {
             match (this.state) {
                 case IfStateKind.`idle` =>
                     this.state = IfStateKind.execKind(IfExecState(
-                        execState: IfInnerState.cond,
-                        stmts: this.node.cond,
-                        stmtIdx: 0,
-                        lastExitCode: 0
+                        IfInnerState.cond,
+                        this.node.cond,
+                        UInt32(0),
+                        ExitCode.exited(0)
                     ))
                 case IfStateKind.execKind(execState) =>
                     let stmts = execState.stmts
-                    if (execState.stmtIdx >= stmts.size) {
+                    if (Int64(execState.stmtIdx) >= stmts.size) {
                         match (execState.execState) {
                             case IfInnerState.cond =>
-                                if (execState.lastExitCode == 0) {
+                                if (execState.lastExitCode.isZero()) {
                                     execState.execState = IfInnerState.then
                                     execState.stmtIdx = 0
                                     execState.stmts = this.node.then
                                     continue
                                 }
                                 // 检查else/elif
-                                return this.parent.childDone(this, 0)
+                                return this.parent.childDone(this, ExitCode.exited(0))
                             case IfInnerState.then =>
                                 return this.parent.childDone(this, execState.lastExitCode)
-                            case IfInnerState.elif =>
-                                return this.parent.childDone(this, 0)
+                            case IfInnerState.elif(idx) =>
+                                return this.parent.childDone(this, ExitCode.exited(0))
                             case IfInnerState.`else` =>
                                 return this.parent.childDone(this, execState.lastExitCode)
                         }
@@ -134,21 +139,21 @@ public class IfState {
                     let idx = execState.stmtIdx
                     execState.stmtIdx += 1
                     let stmt = stmts[idx]
-                    let newStmt = StmtState(
-                        interpreter: this.base.interpreter,
-                        shellState: this.base.shell,
-                        node: stmt,
-                        parent: StmtParentPtr(this),
-                        io: this.io.copy()
+                    let newStmt = StmtState.initFunc(
+                        this.base.interpreter,
+                        this.base.shell,
+                        stmt,
+                        this,
+                        this.io.copy()
                     )
                     return newStmt.start()
                 case IfStateKind.waitingWriteErr =>
                     return Yield.suspended
                 case IfStateKind.done =>
-                    panic("不可达状态")
+                    done = true
             }
         }
-        return this.parent.childDone(this, 0)
+        return this.parent.childDone(this, ExitCode.exited(0))
     }
 
     /// 去初始化

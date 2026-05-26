@@ -38,7 +38,7 @@ public class Errorable<T> {
     }
 
     // 严格翻译自 Errorable.err
-    public static func err(code: ErrorCode, errValue: JsValue): Errorable<T> {
+    public static func err(code: JscErrorCode, errValue: JsValue): Errorable<T> {
         let e = Errorable<T>()
         e.result = ErrorableResult<T>.fromError(errValue)
         e.success = false

@@ -2150,6 +2150,15 @@ public class Output {
         BaoConsole.print(text)
     }
 
+    public static func print(text: String): Unit {
+        BaoConsole.print(text)
+    }
+
+    public static func printErrorln(text: String): Unit {
+        BaoConsole.printErr(text)
+        BaoConsole.printErr("\n")
+    }
+
     public static func simpleHelp(command: String): Unit {
         BaoConsole.print("  [help for " + command + "]")
     }
@@ -2180,6 +2189,15 @@ public class Output {
 
     public static func enableBuffering(): Unit {}
 
+    public static func printElapsed(elapsed: Float64): Unit {
+        let ms = elapsed
+        if (ms < 1500.0) {
+            prettyError("<r><d>[<b>${ms.toString()}ms<r><d>]<r>")
+        } else {
+            prettyError("<r><d>[<b>${(ms / 1000.0).toString()}s<r><d>]<r>")
+        }
+    }
+
     public static func note(msg: String): Unit {
         BaoConsole.printErr("note: " + msg)
     }
@@ -2209,6 +2227,14 @@ public class Path {
     public static func join(parts: Array<String>): String {
         return BaoPath.join(parts)
     }
+
+    public static func relative(from: String, to: String): String {
+        return BaoPath.relative(from, to)
+    }
+
+    public static func dirname(path: String): String {
+        return ""
+    }
 }
 
 /// 文件工具
@@ -2224,6 +2250,16 @@ public class BaoFile {
     public static func exists(path: String): Bool {
         return false
     }
+
+    public static func writeAllText(path: String, content: String): Unit {}
+
+    public static func mkdir(path: String, recursive: Bool): Unit {}
+
+    public static func readdir(path: String): ArrayList<String> { return ArrayList<String>() }
+
+    public static func isDirectory(path: String): Bool { return false }
+
+    public static func copy(src: String, dest: String): Unit {}
 }
 
 /// 包管理器命令打印帮助
@@ -2272,6 +2308,10 @@ public class BaoWriter {}
 public class BaoPath {
     public static func join(parts: Array<String>): String {
         return ""
+    }
+
+    public static func relative(from: String, to: String): String {
+        return to
     }
 }
 

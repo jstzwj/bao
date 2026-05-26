@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeWithin() - 检查值是否在指定范围内 [start, end)
 /// 用法: expect(received).toBeWithin(start, end)
 public func toBeWithin(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(2)
@@ -45,7 +45,7 @@ public func toBeWithin(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let startFmt = startValue.toFmt(formatter)
     let endFmt = endValue.toFmt(formatter)
     let receivedFmt = value.toFmt(formatter)

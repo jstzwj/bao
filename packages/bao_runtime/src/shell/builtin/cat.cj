@@ -226,18 +226,18 @@ public struct CatOpts {
             for (c in arg.substring(1)) {
                 if (c == 'b' || c == 'e' || c == 'n' || c == 's' || c == 't' || c == 'u' || c == 'v') {
                     // 当前不支持这些选项
-                    return ParseResult.err(.unsupported(arg))
+                    return ParseResult.err(ParseError.unsupported(arg))
                 } else {
-                    return ParseResult.err(.illegalOption(arg))
+                    return ParseResult.err(ParseError.illegalOption(arg))
                 }
             }
             idx++
         }
 
         if (idx >= args.size) {
-            return ParseResult.ok(None)
+            return ParseResult.ok(Option<Array<String>>.None)
         }
-        return ParseResult.ok(args[idx..])
+        return ParseResult.ok(args[Int64(idx)..])
     }
 }
 

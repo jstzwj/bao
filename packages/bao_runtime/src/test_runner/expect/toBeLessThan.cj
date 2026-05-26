@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toBeLessThan() - 检查值是否小于期望值
 /// 用法: expect(received).toBeLessThan(expected)
 public func toBeLessThan(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let arguments_ = callFrame.argumentsOld(1)
@@ -38,7 +38,7 @@ public func toBeLessThan(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     if (pass) { return JsValue.jsUndefined }
 
     let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-    defer { formatter.deinit() }
+    // defer { formatter.deinit() }
     let expectedFmt = expected.toFmt(formatter)
     let valueFmt = value.toFmt(formatter)
 

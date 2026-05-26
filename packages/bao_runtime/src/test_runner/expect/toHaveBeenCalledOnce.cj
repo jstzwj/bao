@@ -8,7 +8,7 @@ import bao_jsc.*
 /// toHaveBeenCalledOnce() - 检查mock函数是否只被调用一次
 /// 用法: expect(mockFn).toHaveBeenCalledOnce()
 public func toHaveBeenCalledOnce(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    defer { this.postMatch(globalThis: globalThis) }
+    // defer { this.postMatch(globalThis: globalThis) }
 
     let thisValue = callFrame.this_()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalledOnce", matcherParamsFmt: "<green>expected<r>")
@@ -18,7 +18,7 @@ public func toHaveBeenCalledOnce(`this`: Expect, globalThis: JSGlobalObject, cal
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
         let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
-        defer { formatter.deinit() }
+        // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 

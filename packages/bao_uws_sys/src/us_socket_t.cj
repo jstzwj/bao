@@ -171,17 +171,16 @@ public class UsSocket {
     public func localAddress(buf: Array<UInt8>): ?Array<UInt8> {
         unsafe {
             let cap = Int32(buf.size)
-            let bufPtr = malloc(UIntNative(buf.size))
-            let lengthPtrRaw = malloc(UIntNative(4))
-            let lengthPtr = CPointer<Int32>(lengthPtrRaw)
+            let bufPtr = LibC.malloc<UInt8>(count: buf.size)
+            let lengthPtr = LibC.malloc<Int32>(count: 1)
             lengthPtr.write(cap)
 
             us_socket_local_address(ptr, CPointer<UInt8>(bufPtr), lengthPtr)
             let length = lengthPtr.read()
 
             if (length < 0) {
-                free(bufPtr)
-                free(lengthPtrRaw)
+                LibC.free(bufPtr)
+                LibC.free(lengthPtr)
                 return None
             }
 
@@ -190,8 +189,8 @@ public class UsSocket {
                 buf[i] = UInt8(Int32((CPointer<Int8>(bufPtr) + i).read()) & 0xFF)
             }
 
-            free(bufPtr)
-            free(lengthPtrRaw)
+            LibC.free(bufPtr)
+            LibC.free(lengthPtr)
             return buf[0..count]
         }
     }
@@ -200,17 +199,16 @@ public class UsSocket {
     public func remoteAddress(buf: Array<UInt8>): ?Array<UInt8> {
         unsafe {
             let cap = Int32(buf.size)
-            let bufPtr = malloc(UIntNative(buf.size))
-            let lengthPtrRaw = malloc(UIntNative(4))
-            let lengthPtr = CPointer<Int32>(lengthPtrRaw)
+            let bufPtr = LibC.malloc<UInt8>(count: buf.size)
+            let lengthPtr = LibC.malloc<Int32>(count: 1)
             lengthPtr.write(cap)
 
             us_socket_remote_address(ptr, CPointer<UInt8>(bufPtr), lengthPtr)
             let length = lengthPtr.read()
 
             if (length < 0) {
-                free(bufPtr)
-                free(lengthPtrRaw)
+                LibC.free(bufPtr)
+                LibC.free(lengthPtr)
                 return None
             }
 
@@ -219,8 +217,8 @@ public class UsSocket {
                 buf[i] = UInt8(Int32((CPointer<Int8>(bufPtr) + i).read()) & 0xFF)
             }
 
-            free(bufPtr)
-            free(lengthPtrRaw)
+            LibC.free(bufPtr)
+            LibC.free(lengthPtr)
             return buf[0..count]
         }
     }
@@ -281,7 +279,7 @@ public class UsSocket {
         if (slot.isNull()) {
             return UIntNative(0)
         }
-        return slot.read()
+        return unsafe { slot.read() }
     }
 
     /// 写入 raw ext 槽中的句柄值。
@@ -290,7 +288,7 @@ public class UsSocket {
         if (slot.isNull()) {
             return
         }
-        slot.write(value)
+        unsafe { slot.write(value) }
     }
 
     /// 清空 raw ext 槽。
@@ -354,10 +352,10 @@ public class UsSocket {
     /// 对应 Bun: pub fn write(this: *us_socket_t, data: []const u8) i32
     public func write(data: Array<UInt8>): Int32 {
         unsafe {
-            let dataPtr = malloc(UIntNative(data.size))
-            copyBytesToNative(data, dataPtr)
-            let rc = us_socket_write(ptr, CPointer<UInt8>(dataPtr), Int32(data.size))
-            free(dataPtr)
+            let dataPtr = LibC.malloc<UInt8>(count: data.size)
+            copyBytesToNative(data, CPointer<Unit>(dataPtr))
+            let rc = us_socket_write(ptr, dataPtr, Int32(data.size))
+            LibC.free(dataPtr)
             return rc
         }
     }
@@ -365,10 +363,10 @@ public class UsSocket {
     /// 对应 Bun: pub fn writeFd(this, data, file_descriptor) i32
     public func writeFd(data: Array<UInt8>, fileDescriptor: Int32): Int32 {
         unsafe {
-            let dataPtr = malloc(UIntNative(data.size))
-            copyBytesToNative(data, dataPtr)
-            let rc = us_socket_ipc_write_fd(ptr, CPointer<UInt8>(dataPtr), Int32(data.size), fileDescriptor)
-            free(dataPtr)
+            let dataPtr = LibC.malloc<UInt8>(count: data.size)
+            copyBytesToNative(data, CPointer<Unit>(dataPtr))
+            let rc = us_socket_ipc_write_fd(ptr, dataPtr, Int32(data.size), fileDescriptor)
+            LibC.free(dataPtr)
             return rc
         }
     }
@@ -376,13 +374,13 @@ public class UsSocket {
     /// 对应 Bun: pub fn write2(this, first, second) i32
     public func write2(first: Array<UInt8>, second: Array<UInt8>): Int32 {
         unsafe {
-            let firstPtr = malloc(UIntNative(first.size))
-            let secondPtr = malloc(UIntNative(second.size))
-            copyBytesToNative(first, firstPtr)
-            copyBytesToNative(second, secondPtr)
-            let rc = us_socket_write2(ptr, CPointer<UInt8>(firstPtr), UIntNative(first.size), CPointer<UInt8>(secondPtr), UIntNative(second.size))
-            free(firstPtr)
-            free(secondPtr)
+            let firstPtr = LibC.malloc<UInt8>(count: first.size)
+            let secondPtr = LibC.malloc<UInt8>(count: second.size)
+            copyBytesToNative(first, CPointer<Unit>(firstPtr))
+            copyBytesToNative(second, CPointer<Unit>(secondPtr))
+            let rc = us_socket_write2(ptr, firstPtr, UIntNative(first.size), secondPtr, UIntNative(second.size))
+            LibC.free(firstPtr)
+            LibC.free(secondPtr)
             return rc
         }
     }
@@ -390,10 +388,10 @@ public class UsSocket {
     /// 对应 Bun: pub fn rawWrite(this: *us_socket_t, data: []const u8) i32
     public func rawWrite(data: Array<UInt8>): Int32 {
         unsafe {
-            let dataPtr = malloc(UIntNative(data.size))
-            copyBytesToNative(data, dataPtr)
-            let rc = us_socket_raw_write(ptr, CPointer<UInt8>(dataPtr), Int32(data.size))
-            free(dataPtr)
+            let dataPtr = LibC.malloc<UInt8>(count: data.size)
+            copyBytesToNative(data, CPointer<Unit>(dataPtr))
+            let rc = us_socket_raw_write(ptr, dataPtr, Int32(data.size))
+            LibC.free(dataPtr)
             return rc
         }
     }
@@ -430,8 +428,10 @@ public class UsSocket {
 }
 
 func copyBytesToNative(data: Array<UInt8>, dest: CPointer<Unit>): Unit {
-    for (i in 0..data.size) {
-        (CPointer<Int8>(dest) + i).write(Int8(Int32(data[i])))
+    unsafe {
+        for (i in 0..data.size) {
+            (CPointer<Int8>(dest) + i).write(Int8(Int32(data[i])))
+        }
     }
 }
 
@@ -439,12 +439,11 @@ func copyBytesToNative(data: Array<UInt8>, dest: CPointer<Unit>): Unit {
 // UsBunVerifyError - TLS 验证错误
 // 严格翻译自: us_socket_t.zig us_bun_verify_error_t
 // ============================================================================
+@C
 public struct UsBunVerifyErrorRaw {
     public var error: Int32 = 0
     public var code: CPointer<Int8> = CPointer<Int8>()
     public var reason: CPointer<Int8> = CPointer<Int8>()
-
-    public init() {}
 }
 
 private func verifyErrorCString(ptr: CPointer<Int8>): String {
@@ -453,13 +452,15 @@ private func verifyErrorCString(ptr: CPointer<Int8>): String {
     }
     var out = ""
     var i: Int64 = 0
-    while (true) {
-        let b = (ptr + i).read()
-        if (b == Int8(0)) {
-            return out
+    unsafe {
+        while (true) {
+            let b = (ptr + i).read()
+            if (b == Int8(0)) {
+                return out
+            }
+            out += Rune(Int32(b)).toString()
+            i += 1
         }
-        out += Rune(Int32(b)).toString()
-        i += 1
     }
     return out
 }
@@ -468,6 +469,11 @@ public class UsBunVerifyError {
     public var error_no: Int32 = 0
     public var code: String = ""
     public var reason: String = ""
+
+    /// Alias for error_no (camelCase accessor)
+    public prop errorNo: Int32 {
+        get() { error_no }
+    }
 
     public init() {}
     public init(errorNo: Int32, code: String, reason: String) {

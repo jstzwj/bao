@@ -4,7 +4,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
-import bao_uws_sys.*
+import bao_uws_sys.{SocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError, UsBunVerifyErrorRaw, CloseCode, PosixLoop, SocketHandler}
 
 // ============================================================================
 // Socket 事件分发
@@ -16,17 +16,17 @@ import bao_uws_sys.*
 /// 虚函数表
 /// 对应 Zig: VTable struct
 public class VTable {
-    public var onOpen: ?(bao_uws_sys.UsSocket, Int32, String, Int32) -> bao_uws_sys.UsSocket
-    public var onData: ?(bao_uws_sys.UsSocket, String, Int32) -> bao_uws_sys.UsSocket
-    public var onFd: ?(bao_uws_sys.UsSocket, Int32) -> bao_uws_sys.UsSocket
-    public var onWritable: ?(bao_uws_sys.UsSocket) -> bao_uws_sys.UsSocket
-    public var onClose: ?(bao_uws_sys.UsSocket, Int32, ?Any) -> bao_uws_sys.UsSocket
-    public var onTimeout: ?(bao_uws_sys.UsSocket) -> bao_uws_sys.UsSocket
-    public var onLongTimeout: ?(bao_uws_sys.UsSocket) -> bao_uws_sys.UsSocket
-    public var onEnd: ?(bao_uws_sys.UsSocket) -> bao_uws_sys.UsSocket
-    public var onConnectError: ?(bao_uws_sys.UsSocket, Int32) -> bao_uws_sys.UsSocket
-    public var onConnectingError: ?(bao_uws_sys.ConnectingSocket, Int32) -> bao_uws_sys.ConnectingSocket
-    public var onHandshake: ?(bao_uws_sys.UsSocket, Int32, bao_uws_sys.UsBunVerifyError, ?Any) -> Unit
+    public var onOpen: ?(UsSocket, Int32, String, Int32) -> UsSocket
+    public var onData: ?(UsSocket, String, Int32) -> UsSocket
+    public var onFd: ?(UsSocket, Int32) -> UsSocket
+    public var onWritable: ?(UsSocket) -> UsSocket
+    public var onClose: ?(UsSocket, Int32, ?Any) -> UsSocket
+    public var onTimeout: ?(UsSocket) -> UsSocket
+    public var onLongTimeout: ?(UsSocket) -> UsSocket
+    public var onEnd: ?(UsSocket) -> UsSocket
+    public var onConnectError: ?(UsSocket, Int32) -> UsSocket
+    public var onConnectingError: ?(ConnectingSocket, Int32) -> ConnectingSocket
+    public var onHandshake: ?(UsSocket, Int32, UsBunVerifyError, ?Any) -> Unit
 
     public init() {
         onOpen = None
@@ -94,7 +94,7 @@ public class DispatchTables {
 
 /// 获取 socket 的 vtable
 /// 对应 Zig: inline fn vt(s: *us_socket_t) *const VTable
-func vt(s: bao_uws_sys.UsSocket): VTable {
+func vt(s: UsSocket): VTable {
     let kind = s.kind()
     match (kind) {
         case invalid => throw Exception("us_socket_t with kind=invalid")
@@ -110,7 +110,7 @@ func vt(s: bao_uws_sys.UsSocket): VTable {
     }
 }
 
-func vtc(c: bao_uws_sys.ConnectingSocket): VTable {
+func vtc(c: ConnectingSocket): VTable {
     let kind = c.kind()
     match (kind) {
         case invalid => throw Exception("us_connecting_socket_t with kind=invalid")
@@ -138,14 +138,16 @@ private func dispatchStringFromCString(ptr: CPointer<Int8>, len: Int32): String 
     }
     var out = ""
     for (i in 0..Int64(len)) {
-        out += Rune(Int32((ptr + i).read())).toString()
+        unsafe {
+            out += Rune(Int32((ptr + i).read())).toString()
+        }
     }
     return out
 }
 
 /// 连接打开分发
 /// 对应 Zig: export fn us_dispatch_open
-public func usDispatchOpen(s: bao_uws_sys.UsSocket, isClient: Int32, ip: String, ipLen: Int32): ?bao_uws_sys.UsSocket {
+public func usDispatchOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onOpen.isSome()) {
         return vtable.onOpen.getOrThrow()(s, isClient, ip, ipLen)
@@ -153,7 +155,7 @@ public func usDispatchOpen(s: bao_uws_sys.UsSocket, isClient: Int32, ip: String,
     return s
 }
 
-public func usDispatchData(s: bao_uws_sys.UsSocket, data: String, len: Int32): ?bao_uws_sys.UsSocket {
+public func usDispatchData(s: UsSocket, data: String, len: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onData.isSome()) {
         return vtable.onData.getOrThrow()(s, data, len)
@@ -161,7 +163,7 @@ public func usDispatchData(s: bao_uws_sys.UsSocket, data: String, len: Int32): ?
     return s
 }
 
-public func usDispatchFd(s: bao_uws_sys.UsSocket, fd: Int32): ?bao_uws_sys.UsSocket {
+public func usDispatchFd(s: UsSocket, fd: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onFd.isSome()) {
         return vtable.onFd.getOrThrow()(s, fd)
@@ -169,7 +171,7 @@ public func usDispatchFd(s: bao_uws_sys.UsSocket, fd: Int32): ?bao_uws_sys.UsSoc
     return s
 }
 
-public func usDispatchWritable(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocket {
+public func usDispatchWritable(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onWritable.isSome()) {
         return vtable.onWritable.getOrThrow()(s)
@@ -177,7 +179,7 @@ public func usDispatchWritable(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocket {
     return s
 }
 
-public func usDispatchClose(s: bao_uws_sys.UsSocket, code: Int32, reason: ?Any): ?bao_uws_sys.UsSocket {
+public func usDispatchClose(s: UsSocket, code: Int32, reason: ?Any): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onClose.isSome()) {
         return vtable.onClose.getOrThrow()(s, code, reason)
@@ -185,7 +187,7 @@ public func usDispatchClose(s: bao_uws_sys.UsSocket, code: Int32, reason: ?Any):
     return s
 }
 
-public func usDispatchTimeout(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocket {
+public func usDispatchTimeout(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onTimeout.isSome()) {
         return vtable.onTimeout.getOrThrow()(s)
@@ -193,7 +195,7 @@ public func usDispatchTimeout(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocket {
     return s
 }
 
-public func usDispatchLongTimeout(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocket {
+public func usDispatchLongTimeout(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onLongTimeout.isSome()) {
         return vtable.onLongTimeout.getOrThrow()(s)
@@ -201,7 +203,7 @@ public func usDispatchLongTimeout(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocke
     return s
 }
 
-public func usDispatchEnd(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocket {
+public func usDispatchEnd(s: UsSocket): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onEnd.isSome()) {
         return vtable.onEnd.getOrThrow()(s)
@@ -210,7 +212,7 @@ public func usDispatchEnd(s: bao_uws_sys.UsSocket): ?bao_uws_sys.UsSocket {
 }
 
 /// 连接错误分发
-public func usDispatchConnectError(s: bao_uws_sys.UsSocket, code: Int32): ?bao_uws_sys.UsSocket {
+public func usDispatchConnectError(s: UsSocket, code: Int32): ?UsSocket {
     let vtable = vt(s)
     if (vtable.onConnectError.isSome()) {
         return vtable.onConnectError.getOrThrow()(s, code)
@@ -219,7 +221,7 @@ public func usDispatchConnectError(s: bao_uws_sys.UsSocket, code: Int32): ?bao_u
 }
 
 /// 连接中错误分发
-public func usDispatchConnectingError(c: bao_uws_sys.ConnectingSocket, code: Int32): ?bao_uws_sys.ConnectingSocket {
+public func usDispatchConnectingError(c: ConnectingSocket, code: Int32): ?ConnectingSocket {
     let vtable = vtc(c)
     if (vtable.onConnectingError.isSome()) {
         return vtable.onConnectingError.getOrThrow()(c, code)
@@ -228,7 +230,7 @@ public func usDispatchConnectingError(c: bao_uws_sys.ConnectingSocket, code: Int
 }
 
 /// 握手分发
-public func usDispatchHandshake(s: bao_uws_sys.UsSocket, ok: Int32, err: bao_uws_sys.UsBunVerifyError): Unit {
+public func usDispatchHandshake(s: UsSocket, ok: Int32, err: UsBunVerifyError): Unit {
     let vtable = vt(s)
     if (vtable.onHandshake.isSome()) {
         vtable.onHandshake.getOrThrow()(s, ok, err, None)
@@ -248,7 +250,7 @@ public func usDispatchHandshake(s: bao_uws_sys.UsSocket, ok: Int32, err: bao_uws
 }
 
 /// SSL 原始数据分接 — unavailable until the native raw-tap bridge is wired.
-public func usDispatchSslRawTap(s: bao_uws_sys.UsSocket, data: String, len: Int32): ?bao_uws_sys.UsSocket {
+public func usDispatchSslRawTap(s: UsSocket, data: String, len: Int32): ?UsSocket {
     return None
 }
 
@@ -258,7 +260,7 @@ public func usDispatchSslRawTap(s: bao_uws_sys.UsSocket, data: String, len: Int3
 
 @C
 public func bao_us_dispatch_open(raw: CPointer<Unit>, isClient: Int32, ip: CPointer<Int8>, ipLen: Int32): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchOpen(socket, isClient, dispatchStringFromCString(ip, ipLen), ipLen)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -268,7 +270,7 @@ public func bao_us_dispatch_open(raw: CPointer<Unit>, isClient: Int32, ip: CPoin
 
 @C
 public func bao_us_dispatch_data(raw: CPointer<Unit>, data: CPointer<Int8>, len: Int32): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchData(socket, dispatchStringFromCString(data, len), len)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -278,7 +280,7 @@ public func bao_us_dispatch_data(raw: CPointer<Unit>, data: CPointer<Int8>, len:
 
 @C
 public func bao_us_dispatch_fd(raw: CPointer<Unit>, fd: Int32): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchFd(socket, fd)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -288,7 +290,7 @@ public func bao_us_dispatch_fd(raw: CPointer<Unit>, fd: Int32): CPointer<Unit> {
 
 @C
 public func bao_us_dispatch_writable(raw: CPointer<Unit>): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchWritable(socket)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -298,7 +300,7 @@ public func bao_us_dispatch_writable(raw: CPointer<Unit>): CPointer<Unit> {
 
 @C
 public func bao_us_dispatch_close(raw: CPointer<Unit>, code: Int32, reason: CPointer<Unit>): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchClose(socket, code, if (reason.isNull()) { None } else { Some(reason) })
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -308,7 +310,7 @@ public func bao_us_dispatch_close(raw: CPointer<Unit>, code: Int32, reason: CPoi
 
 @C
 public func bao_us_dispatch_timeout(raw: CPointer<Unit>): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchTimeout(socket)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -318,7 +320,7 @@ public func bao_us_dispatch_timeout(raw: CPointer<Unit>): CPointer<Unit> {
 
 @C
 public func bao_us_dispatch_long_timeout(raw: CPointer<Unit>): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchLongTimeout(socket)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -328,7 +330,7 @@ public func bao_us_dispatch_long_timeout(raw: CPointer<Unit>): CPointer<Unit> {
 
 @C
 public func bao_us_dispatch_end(raw: CPointer<Unit>): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchEnd(socket)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -338,7 +340,7 @@ public func bao_us_dispatch_end(raw: CPointer<Unit>): CPointer<Unit> {
 
 @C
 public func bao_us_dispatch_connect_error(raw: CPointer<Unit>, code: Int32): CPointer<Unit> {
-    let socket = bao_uws_sys.UsSocket(raw)
+    let socket = UsSocket(raw)
     let next = usDispatchConnectError(socket, code)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -348,7 +350,7 @@ public func bao_us_dispatch_connect_error(raw: CPointer<Unit>, code: Int32): CPo
 
 @C
 public func bao_us_dispatch_connecting_error(raw: CPointer<Unit>, code: Int32): CPointer<Unit> {
-    let socket = bao_uws_sys.ConnectingSocket(raw)
+    let socket = ConnectingSocket(raw)
     let next = usDispatchConnectingError(socket, code)
     if (next.isSome()) {
         return next.getOrThrow().getPtr()
@@ -357,8 +359,8 @@ public func bao_us_dispatch_connecting_error(raw: CPointer<Unit>, code: Int32): 
 }
 
 @C
-public func bao_us_dispatch_handshake(raw: CPointer<Unit>, ok: Int32, err: bao_uws_sys.UsBunVerifyErrorRaw, customData: CPointer<Unit>): Unit {
-    usDispatchHandshake(bao_uws_sys.UsSocket(raw), ok, bao_uws_sys.UsBunVerifyError(err))
+public func bao_us_dispatch_handshake(raw: CPointer<Unit>, ok: Int32, err: UsBunVerifyErrorRaw, customData: CPointer<Unit>): Unit {
+    usDispatchHandshake(UsSocket(raw), ok, UsBunVerifyError(err))
 }
 
 /// BunSocket TCP dispatch adapter.
@@ -370,7 +372,7 @@ public class BunSocketDispatch {
         return Exception("ENOSYS: BunSocket TCP " + eventName + " dispatch requires native us_socket_t ext handle bridge")
     }
 
-    private static func lookup(s: bao_uws_sys.UsSocket, eventName: String): NewSocket {
+    private static func lookup(s: UsSocket, eventName: String): NewSocket {
         let handle = s.loadExtRaw()
         let socket = NewSocketHandleTable.lookup(handle)
         if (socket.isNone()) {
@@ -379,7 +381,7 @@ public class BunSocketDispatch {
         return socket.getOrThrow()
     }
 
-    private static func lookup(c: bao_uws_sys.ConnectingSocket, eventName: String): NewSocket {
+    private static func lookup(c: ConnectingSocket, eventName: String): NewSocket {
         let handle = c.loadExtRaw()
         let socket = NewSocketHandleTable.lookup(handle)
         if (socket.isNone()) {
@@ -388,37 +390,37 @@ public class BunSocketDispatch {
         return socket.getOrThrow()
     }
 
-    public static func onOpen(s: bao_uws_sys.UsSocket, isClient: Int32, ip: String, ipLen: Int32): bao_uws_sys.UsSocket {
+    public static func onOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int32): UsSocket {
         let socket = lookup(s, "onOpen")
         onOpen(socket, SocketHandler.fromConnected(false, s))
         return s
     }
 
-    public static func onData(s: bao_uws_sys.UsSocket, data: String, len: Int32): bao_uws_sys.UsSocket {
+    public static func onData(s: UsSocket, data: String, len: Int32): UsSocket {
         let socket = lookup(s, "onData")
         onData(socket, SocketHandler.fromConnected(false, s), data.toArray()[0..Int64(len)])
         return s
     }
 
-    public static func onWritable(s: bao_uws_sys.UsSocket): bao_uws_sys.UsSocket {
+    public static func onWritable(s: UsSocket): UsSocket {
         let socket = lookup(s, "onWritable")
         onWritable(socket, SocketHandler.fromConnected(false, s))
         return s
     }
 
-    public static func onClose(s: bao_uws_sys.UsSocket, code: Int32, reason: ?Any): bao_uws_sys.UsSocket {
+    public static func onClose(s: UsSocket, code: Int32, reason: ?Any): UsSocket {
         let socket = lookup(s, "onClose")
-        onClose(socket, SocketHandler.fromConnected(false, s), code, None)
+        onClose(socket, SocketHandler.fromConnected(false, s), code, Option<CPointer<Unit>>.None)
         return s
     }
 
-    public static func onConnectError(s: bao_uws_sys.UsSocket, code: Int32): bao_uws_sys.UsSocket {
+    public static func onConnectError(s: UsSocket, code: Int32): UsSocket {
         let socket = lookup(s, "onConnectError")
         handleConnectError(socket, code)
         return s
     }
 
-    public static func onConnectingError(c: bao_uws_sys.ConnectingSocket, code: Int32): bao_uws_sys.ConnectingSocket {
+    public static func onConnectingError(c: ConnectingSocket, code: Int32): ConnectingSocket {
         let socket = lookup(c, "onConnectingError")
         handleConnectError(socket, code)
         return c
@@ -432,19 +434,19 @@ public class BunListenerDispatch {
         return Exception("ENOSYS: BunListener TCP open dispatch requires native us_listen_socket_t ext handle bridge")
     }
 
-    private static func lookupListener(s: bao_uws_sys.UsSocket): Listener {
+    private static func lookupListener(s: UsSocket): Listener {
         let listenExt = CPointer<UIntNative>(s.rawGroup().ext())
         if (listenExt.isNull()) {
             throw missingListener()
         }
-        let listener = ListenerHandleTable.lookup(listenExt.read())
+        let listener = ListenerHandleTable.lookup(unsafe { listenExt.read() })
         if (listener.isNone()) {
             throw missingListener()
         }
         return listener.getOrThrow()
     }
 
-    public static func onOpen(s: bao_uws_sys.UsSocket, isClient: Int32, ip: String, ipLen: Int32): bao_uws_sys.UsSocket {
+    public static func onOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int32): UsSocket {
         let listener = lookupListener(s)
         let socket = listener.onCreate(s)
         onOpen(socket, SocketHandler.fromConnected(false, s))
@@ -455,16 +457,16 @@ public class BunListenerDispatch {
 public class VTableFactory {
     private static func makeUnsupported(name: String): VTable {
         let table = VTable()
-        table.onOpen = { s: bao_uws_sys.UsSocket, isClient: Int32, ip: String, ipLen: Int32 => throw Exception("ENOSYS: uWS " + name + " open dispatch is not wired") }
-        table.onData = { s: bao_uws_sys.UsSocket, data: String, len: Int32 => throw Exception("ENOSYS: uWS " + name + " data dispatch is not wired") }
-        table.onWritable = { s: bao_uws_sys.UsSocket => throw Exception("ENOSYS: uWS " + name + " writable dispatch is not wired") }
-        table.onClose = { s: bao_uws_sys.UsSocket, code: Int32, reason: ?Any => throw Exception("ENOSYS: uWS " + name + " close dispatch is not wired") }
-        table.onTimeout = { s: bao_uws_sys.UsSocket => throw Exception("ENOSYS: uWS " + name + " timeout dispatch is not wired") }
-        table.onLongTimeout = { s: bao_uws_sys.UsSocket => throw Exception("ENOSYS: uWS " + name + " long-timeout dispatch is not wired") }
-        table.onEnd = { s: bao_uws_sys.UsSocket => throw Exception("ENOSYS: uWS " + name + " end dispatch is not wired") }
-        table.onConnectError = { s: bao_uws_sys.UsSocket, code: Int32 => throw Exception("ENOSYS: uWS " + name + " connect-error dispatch is not wired") }
-        table.onConnectingError = { c: bao_uws_sys.ConnectingSocket, code: Int32 => throw Exception("ENOSYS: uWS " + name + " connecting-error dispatch is not wired") }
-        table.onHandshake = { s: bao_uws_sys.UsSocket, ok: Int32, err: bao_uws_sys.UsBunVerifyError, ctx: ?Any => throw Exception("ENOSYS: uWS " + name + " handshake dispatch is not wired") }
+        table.onOpen = { s: UsSocket, isClient: Int32, ip: String, ipLen: Int32 => throw Exception("ENOSYS: uWS " + name + " open dispatch is not wired") }
+        table.onData = { s: UsSocket, data: String, len: Int32 => throw Exception("ENOSYS: uWS " + name + " data dispatch is not wired") }
+        table.onWritable = { s: UsSocket => throw Exception("ENOSYS: uWS " + name + " writable dispatch is not wired") }
+        table.onClose = { s: UsSocket, code: Int32, reason: ?Any => throw Exception("ENOSYS: uWS " + name + " close dispatch is not wired") }
+        table.onTimeout = { s: UsSocket => throw Exception("ENOSYS: uWS " + name + " timeout dispatch is not wired") }
+        table.onLongTimeout = { s: UsSocket => throw Exception("ENOSYS: uWS " + name + " long-timeout dispatch is not wired") }
+        table.onEnd = { s: UsSocket => throw Exception("ENOSYS: uWS " + name + " end dispatch is not wired") }
+        table.onConnectError = { s: UsSocket, code: Int32 => throw Exception("ENOSYS: uWS " + name + " connect-error dispatch is not wired") }
+        table.onConnectingError = { c: ConnectingSocket, code: Int32 => throw Exception("ENOSYS: uWS " + name + " connecting-error dispatch is not wired") }
+        table.onHandshake = { s: UsSocket, ok: Int32, err: UsBunVerifyError, ctx: ?Any => throw Exception("ENOSYS: uWS " + name + " handshake dispatch is not wired") }
         return table
     }
 
@@ -473,12 +475,12 @@ public class VTableFactory {
             return makeUnsupported("BunSocketTLS")
         }
         let table = VTable()
-        table.onOpen = { s: bao_uws_sys.UsSocket, isClient: Int32, ip: String, ipLen: Int32 => BunSocketDispatch.onOpen(s, isClient, ip, ipLen) }
-        table.onData = { s: bao_uws_sys.UsSocket, data: String, len: Int32 => BunSocketDispatch.onData(s, data, len) }
-        table.onWritable = { s: bao_uws_sys.UsSocket => BunSocketDispatch.onWritable(s) }
-        table.onClose = { s: bao_uws_sys.UsSocket, code: Int32, reason: ?Any => BunSocketDispatch.onClose(s, code, reason) }
-        table.onConnectError = { s: bao_uws_sys.UsSocket, code: Int32 => BunSocketDispatch.onConnectError(s, code) }
-        table.onConnectingError = { c: bao_uws_sys.ConnectingSocket, code: Int32 => BunSocketDispatch.onConnectingError(c, code) }
+        table.onOpen = { s: UsSocket, isClient: Int32, ip: String, ipLen: Int32 => BunSocketDispatch.onOpen(s, isClient, ip, ipLen) }
+        table.onData = { s: UsSocket, data: String, len: Int32 => BunSocketDispatch.onData(s, data, len) }
+        table.onWritable = { s: UsSocket => BunSocketDispatch.onWritable(s) }
+        table.onClose = { s: UsSocket, code: Int32, reason: ?Any => BunSocketDispatch.onClose(s, code, reason) }
+        table.onConnectError = { s: UsSocket, code: Int32 => BunSocketDispatch.onConnectError(s, code) }
+        table.onConnectingError = { c: ConnectingSocket, code: Int32 => BunSocketDispatch.onConnectingError(c, code) }
         return table
     }
     public static func makeBunListener(ssl: Bool): VTable {
@@ -486,10 +488,10 @@ public class VTableFactory {
             return makeUnsupported("BunListenerTLS")
         }
         let table = VTable()
-        table.onOpen = { s: bao_uws_sys.UsSocket, isClient: Int32, ip: String, ipLen: Int32 => BunListenerDispatch.onOpen(s, isClient, ip, ipLen) }
-        table.onData = { s: bao_uws_sys.UsSocket, data: String, len: Int32 => BunSocketDispatch.onData(s, data, len) }
-        table.onWritable = { s: bao_uws_sys.UsSocket => BunSocketDispatch.onWritable(s) }
-        table.onClose = { s: bao_uws_sys.UsSocket, code: Int32, reason: ?Any => BunSocketDispatch.onClose(s, code, reason) }
+        table.onOpen = { s: UsSocket, isClient: Int32, ip: String, ipLen: Int32 => BunListenerDispatch.onOpen(s, isClient, ip, ipLen) }
+        table.onData = { s: UsSocket, data: String, len: Int32 => BunSocketDispatch.onData(s, data, len) }
+        table.onWritable = { s: UsSocket => BunSocketDispatch.onWritable(s) }
+        table.onClose = { s: UsSocket, code: Int32, reason: ?Any => BunSocketDispatch.onClose(s, code, reason) }
         return table
     }
     public static func makeHTTPClient(ssl: Bool): VTable { makeUnsupported(if (ssl) { "HTTPClientTLS" } else { "HTTPClient" }) }
@@ -501,27 +503,27 @@ public class VTableFactory {
     public static func makeSpawnIPC(): VTable {
         let table = VTable()
         let h = SpawnIPCHandler()
-        table.onData = { s: bao_uws_sys.UsSocket, data: String, len: Int32 =>
+        table.onData = { s: UsSocket, data: String, len: Int32 =>
             h.onData(s, data.toArray()[0..Int64(len)])
             s
         }
-        table.onFd = { s: bao_uws_sys.UsSocket, fd: Int32 =>
+        table.onFd = { s: UsSocket, fd: Int32 =>
             h.onFd(s, fd)
             s
         }
-        table.onWritable = { s: bao_uws_sys.UsSocket =>
+        table.onWritable = { s: UsSocket =>
             h.onWritable(s)
             s
         }
-        table.onClose = { s: bao_uws_sys.UsSocket, code: Int32, reason: ?Any =>
+        table.onClose = { s: UsSocket, code: Int32, reason: ?Any =>
             h.onClose(s, code, reason)
             s
         }
-        table.onTimeout = { s: bao_uws_sys.UsSocket =>
+        table.onTimeout = { s: UsSocket =>
             h.onTimeout(s)
             s
         }
-        table.onEnd = { s: bao_uws_sys.UsSocket =>
+        table.onEnd = { s: UsSocket =>
             h.onEnd(s)
             s
         }

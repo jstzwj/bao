@@ -9,7 +9,6 @@ import bao_collections.*
 import bao_jsc.JsValue
 import bao_jsc.JsObject
 import bao_jsc.JSGlobalObject
-import bao_jsc.BunString
 import bao_jsc.CallFrame
 import bao_collections.ArrayList
 import bao_sys.*
@@ -129,25 +128,25 @@ public class ServerApp {
     /// 注册 GET 路由
     /// 对应 Bun: AppRouteExt::get_ctx
     public func get(pattern: String, handler: RouteHandler): Unit {
-        routes.append(RouteEntry(pattern: pattern, method: HttpMethod.GET, handler: handler))
+        routes.append(RouteEntry(pattern, HttpMethod.GET, handler))
     }
 
     /// 注册 HEAD 路由
     /// 对应 Bun: AppRouteExt::head_ctx
     public func head(pattern: String, handler: RouteHandler): Unit {
-        routes.append(RouteEntry(pattern: pattern, method: HttpMethod.HEAD, handler: handler))
+        routes.append(RouteEntry(pattern, HttpMethod.HEAD, handler))
     }
 
     /// 注册所有方法路由
     /// 对应 Bun: AppRouteExt::any_ctx
     public func any(pattern: String, handler: RouteHandler): Unit {
-        routes.append(RouteEntry(pattern: pattern, method: HttpMethod.ANY, handler: handler))
+        routes.append(RouteEntry(pattern, HttpMethod.ANY, handler))
     }
 
     /// 注册特定方法路由
     /// 对应 Bun: AppRouteExt::method_ctx
     public func methodFunc(m: HttpMethod, pattern: String, handler: RouteHandler): Unit {
-        routes.append(RouteEntry(pattern: pattern, method: m, handler: handler))
+        routes.append(RouteEntry(pattern, m, handler))
     }
 }
 
@@ -184,12 +183,28 @@ public class MethodSet {
 
     /// 插入方法
     public func insert(method: HttpMethod): Unit {
-        bits = bits | (1 << method.ordinal())
+        bits = bits | (1 << methodToOrdinal(method))
     }
 
     /// 检查是否包含
     public func contains(method: HttpMethod): Bool {
-        return (bits & (1 << method.ordinal())) != 0
+        return (bits & (1 << methodToOrdinal(method))) != 0
+    }
+
+    /// HttpMethod 到位偏移的映射
+    private static func methodToOrdinal(method: HttpMethod): UInt32 {
+        match (method) {
+            case HttpMethod.GET => 0
+            case HttpMethod.POST => 1
+            case HttpMethod.PUT => 2
+            case HttpMethod.DELETE => 3
+            case HttpMethod.PATCH => 4
+            case HttpMethod.HEAD => 5
+            case HttpMethod.OPTIONS => 6
+            case HttpMethod.CONNECT => 7
+            case HttpMethod.TRACE => 8
+            case HttpMethod.ANY => 9
+        }
     }
 
     /// 是否为空
@@ -209,7 +224,7 @@ public class MethodSet {
 public class ServerInitContext {
     /// HTML bundle 去重映射
     /// 对应 Bun: pub dedupe_html_bundle_map: HashMap<*const HTMLBundle, RefPtr<html_bundle::Route>>
-    public var dedupeHtmlBundleMap: HashMap<HTMLBundle, HtmlBundleRoute>
+    public var dedupeHtmlBundleMap: HashMap<HTMLBundle, HTMLBundleRoute>
 
     /// JS 字符串分配列表
     /// 对应 Bun: pub js_string_allocations: bake::StringRefList
@@ -228,7 +243,7 @@ public class ServerInitContext {
     public var userRoutes: ArrayList<StaticRouteEntry>
 
     public init(global: JsObject) {
-        this.dedupeHtmlBundleMap = HashMap<HTMLBundle, HtmlBundleRoute>()
+        this.dedupeHtmlBundleMap = HashMap<HTMLBundle, HTMLBundleRoute>()
         this.jsStringAllocations = ArrayList<BaoString>()
         this.global = global
         this.frameworkRouterList = ArrayList<FileSystemRouterType>()
@@ -326,13 +341,13 @@ public enum ServePluginsState {
 public class ServePluginsPendingData {
     public var plugin: JsBundlerPlugin
     public var promise: JsPromiseStrong
-    public var htmlBundleRoutes: ArrayList<HtmlBundleRoute>
+    public var htmlBundleRoutes: ArrayList<HTMLBundleRoute>
     public var devServer: ?DevServer
 
     public init(plugin: JsBundlerPlugin, promise: JsPromiseStrong) {
         this.plugin = plugin
         this.promise = promise
-        this.htmlBundleRoutes = ArrayList<HtmlBundleRoute>()
+        this.htmlBundleRoutes = ArrayList<HTMLBundleRoute>()
         this.devServer = None
     }
 }
@@ -351,7 +366,7 @@ public enum GetOrStartLoadResult {
 /// 服务器插件回调
 /// 对应 Bun: pub enum ServePluginsCallback<'a>
 public enum ServePluginsCallback {
-    | HtmlBundleRoute(HtmlBundleRoute)
+    | HTMLBundleRoute(HTMLBundleRoute)
     | DevServer(DevServer)
 }
 */
@@ -368,7 +383,7 @@ public class ServePluginsRef {
     /// 释放时递减引用计数
     /// 对应 Bun: impl Drop for ServePluginsRef
     public func deinit(): Unit {
-        plugins.deref_()
+        plugins.deref()
     }
 }
 
@@ -414,7 +429,7 @@ public class PlatformInfo {
 public enum AnyRoute {
     | Static(StaticRoute)
     | File(FileRoute)
-    | HtmlBundle(HtmlBundleRoute)
+    | HtmlBundle(HTMLBundleRoute)
 
     /// 从选项创建路由
     /// 对应 Bun: pub fn from_options(global, headers, path) -> JsResult<AnyRoute>
@@ -533,12 +548,24 @@ public class RequestRef {
 /// 对应 Bun: jsc::CallFrame
 public class CallFrame {
     public init() {}
+    public func arguments(): Array<JsValue> { Array<JsValue>() }
 }
 
 /// DevServer
 /// 对应 Bun: bake::dev_server::DevServer
 public class DevServer {
     public init() {}
+    public func respondForHTMLBundle(route: Any, req: Any, resp: Any): Unit {}
+    public func setRoutes(server: Any): Unit {}
+    public func deinit(): Unit {}
+    public var htmlRouter: HTMLRouter = HTMLRouter()
+}
+
+/// HTML路由器
+public class HTMLRouter {
+    public init() {}
+    public func put(allocator: Any, path: String, route: Any): Unit {}
+    public func clear(): Unit {}
 }
 
 /// 路径或文件描述符

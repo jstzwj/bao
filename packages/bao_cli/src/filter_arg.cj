@@ -2,6 +2,7 @@
 package bao_cli
 
 import bao_core.*
+import bao_collections.*
 
 // ============================================================================
 // FilterArg — 工作区过滤参数

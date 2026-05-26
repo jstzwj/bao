@@ -9,24 +9,24 @@ package bao_jsc
 // 在 Bun 中用于表示 Zig 错误到 JS 错误的映射
 public class ZigErrorType {
     // 错误码
-    public var code: ErrorCode = ErrorCode(0)
+    public var code: JscErrorCode = JscErrorCode(0)
     // 对应的 JS 值
     public var value: JsValue = JsValue.undefined()
 
     public init() {}
 
-    public init(code: ErrorCode, value: JsValue) {
+    public init(code: JscErrorCode, value: JsValue) {
         this.code = code
         this.value = value
     }
 
     // 从错误码创建
-    public static func fromCode(code: ErrorCode): ZigErrorType {
+    public static func fromCode(code: JscErrorCode): ZigErrorType {
         ZigErrorType(code, JsValue.undefined())
     }
 
     // 从错误码和值创建
-    public static func fromCodeAndValue(code: ErrorCode, value: JsValue): ZigErrorType {
+    public static func fromCodeAndValue(code: JscErrorCode, value: JsValue): ZigErrorType {
         ZigErrorType(code, value)
     }
 

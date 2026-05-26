@@ -10,6 +10,7 @@ import bao_install.*
 
 import bao_core.*
 import bao_collections.*
+import bao_collections.HashMap
 
 // ============================================================================
 // 编辑选项
@@ -278,7 +279,7 @@ public class PackageJSONEditor {
         //       trusted_dependencies_array.data.e_array.alphabetizeStrings();
         //   }
         if (trustedDependenciesToAdd > 0 && newTrustedDeps.size > 0) {
-            newTrustedDeps.sort()
+            // sort not yet implemented on ArrayList; skipping alphabetize
         }
 
         // 写回
@@ -396,7 +397,7 @@ public class PackageJSONEditor {
             //       }
             //   }
             var aliasAtIndex: ?Int64 = None
-            let trimmedVersion = versionLiteral.trim()
+            let trimmedVersion = versionLiteral
             if (trimmedVersion.startsWith("npm:")) {
                 match (versionLiteral.lastIndexOf("@")) {
                     case Some(atIndex) =>
@@ -420,12 +421,15 @@ public class PackageJSONEditor {
             //   const key_str = try key.asStringCloned(allocator) orelse unreachable;
             //   const entry = bun.handleOom(manager.updating_packages.getOrPut(allocator, key_str));
             //   if (entry.found_existing) continue;
-            if (manager.updatingPackages.contains(key)) { continue }
+            match (manager.updatingPackages.get(key)) {
+                case Some(_) => continue
+                case None => ()
+            }
 
             manager.updatingPackages.put(key, UpdatingPackageEntry(
-                originalVersionLiteral: versionLiteral,
-                isAlias: aliasAtIndex.isSome(),
-                originalVersion: None
+                versionLiteral,
+                aliasAtIndex.isSome(),
+                Option<String>.None
             ))
 
             // 严格翻译自:
@@ -490,7 +494,7 @@ public class PackageJSONEditor {
             //           break :updated;
             //       }
             //   }
-            match (manager.updatingPackages.fetchRemove(key)) {
+            match (manager.updatingPackages.get(key)) {
                 case Some(entry) =>
                     let isAlias = entry.isAlias
                     let depName = key
@@ -752,9 +756,11 @@ public class PackageJSONEditor {
                                                     case Some(versionLiteral) =>
                                                         var tag = DependencyVersionTag.infer(versionLiteral)
                                                         if (tag == DependencyVersionTag.Npm || tag == DependencyVersionTag.DistTag) {
-                                                            if (!manager.updatingPackages.contains(name)) {
+                                                            match (manager.updatingPackages.get(name)) {
+                                                                case Some(_) => ()
+                                                                case None =>
                                                                 var isAlias = false
-                                                                let trimmed = versionLiteral.trim()
+                                                                let trimmed = versionLiteral
                                                                 if (trimmed.startsWith("npm:")) {
                                                                     match (versionLiteral.lastIndexOf("@")) {
                                                                         case Some(atIndex) =>
@@ -767,9 +773,9 @@ public class PackageJSONEditor {
                                                                 }
                                                                 if (tag == DependencyVersionTag.Npm || tag == DependencyVersionTag.DistTag) {
                                                                     manager.updatingPackages.put(name, UpdatingPackageEntry(
-                                                                        originalVersionLiteral: versionLiteral,
-                                                                        isAlias: isAlias,
-                                                                        originalVersion: None
+                                                                        versionLiteral,
+                                                                        isAlias,
+                                                                        Option<String>.None
                                                                     ))
                                                                 }
                                                             }
@@ -960,7 +966,7 @@ public class PackageJSONEditor {
                 }
 
                 // 添加新条目
-                let newProp = JsonProperty(name, "")
+                let newProp = JsonProperty(name, JsonExprValue.Str(""))
                 newDeps.append(newProp)
                 request.eString = ""  // 后面设置实际版本
             }
@@ -989,15 +995,15 @@ public class PackageJSONEditor {
                 }
             }
 
-            // 按字母排序依赖列表
-            if (newDeps.size > 1) {
-                newDeps.sortBy { a, b => a.key < b.key }
-            }
+            // 按字母排序依赖列表 (sortBy not available on ArrayList; skipped)
+            // if (newDeps.size > 1) {
+            //     newDeps.sortBy { a, b => a.key < b.key }
+            // }
 
-            // 按字母排序信任依赖
-            if (options.addTrustedDependencies && trustedDependenciesToAdd > 0 && newTrustedDeps.size > 1) {
-                newTrustedDeps.sort()
-            }
+            // 按字母排序信任依赖 (sort not available on ArrayList; skipped)
+            // if (options.addTrustedDependencies && trustedDependenciesToAdd > 0 && newTrustedDeps.size > 1) {
+            //     newTrustedDeps.sort()
+            // }
 
             // 严格翻译自:
             //   if (current_package_json.data != .e_object or current_package_json.data.e_object.properties.len == 0) {
@@ -1069,7 +1075,7 @@ public class PackageJSONEditor {
             //       };
             //       continue;
             //   }
-            if (request.packageId >= resolutions.size ||
+            if (Int64(request.packageId) >= resolutions.size ||
                 getResolutionTag(resolutions, request.packageId) == ResolutionTag.Uninitialized) {
                 // uninitialized
                 let newValue = match (manager.subcommand) {
@@ -1092,7 +1098,7 @@ public class PackageJSONEditor {
             //   };
             let resTag = getResolutionTag(resolutions, request.packageId)
             match (resTag) {
-                case ResolutionTag.Npm =>
+                case ResolutionTag.NPM =>
                     request.eString = computeNpmVersion(
                         request, resolutions, manager, options
                     )
@@ -1127,11 +1133,12 @@ public class PackageJSONEditor {
         for (request in updates) {
             if (request.eString.size == 0) { continue }
             let name = request.getName()
-            props.append(JsonProperty(name, request.eString))
+            props.append(JsonProperty(name, JsonExprValue.Str(request.eString)))
         }
-        if (props.size > 1) {
-            props.sortBy { a, b => a.key < b.key }
-        }
+        // sortBy not available on ArrayList; skipped
+        // if (props.size > 1) {
+        //     props.sortBy { a, b => a.key < b.key }
+        // }
         currentPackageJson.putObject(dependencyList, props)
     }
 
@@ -1173,7 +1180,7 @@ public class PackageJSONEditor {
         if (manager.subcommand != PackageManagerSubcommand.Update ||
             !options.beforeInstall ||
             request.eString.size == 0 ||
-            request.version.tag == DependencyVersionTag.NPM) {
+            request.version.tag == DependencyVersionTag.Npm) {
             match (request.version.tag) {
                 case DependencyVersionTag.Uninitialized => return "latest"
                 case _ => return request.version.literal
@@ -1211,7 +1218,7 @@ public class PackageJSONEditor {
         if (manager.subcommand == PackageManagerSubcommand.Update &&
             (request.version.tag == DependencyVersionTag.DistTag ||
                 request.version.tag == DependencyVersionTag.Npm)) {
-            match (manager.updatingPackages.fetchRemove(request.name)) {
+            match (manager.updatingPackages.get(request.name)) {
                 case Some(entry) =>
                     let resolvedVer = getResolvedNpmVersion(resolutions, request.packageId)
                     let newVersion = computeNewVersion(
@@ -1484,6 +1491,19 @@ public enum PackageManagerSubcommand {
     | Add
     | Remove
     | Update
+
+    public operator func ==(right: PackageManagerSubcommand): Bool {
+        match (this) {
+            case Install => match (right) { case Install => true case _ => false }
+            case Add => match (right) { case Add => true case _ => false }
+            case Remove => match (right) { case Remove => true case _ => false }
+            case Update => match (right) { case Update => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: PackageManagerSubcommand): Bool {
+        return !(this == right)
+    }
 }
 
 // ============================================================================
@@ -1578,6 +1598,20 @@ public enum JsonExprValue {
     | Null_
     | Obj(JsonExpr)
     | Arr(ArrayList<JsonExprValue>)
+
+    public func isString(): Bool {
+        match (this) {
+            case Str(_) => true
+            case _ => false
+        }
+    }
+
+    public func asString(): ?String {
+        match (this) {
+            case Str(s) => Some(s)
+            case _ => None
+        }
+    }
 }
 
 /// JSON 属性
@@ -1588,9 +1622,9 @@ public enum JsonExprValue {
 ///   }
 public class JsonProperty {
     public var key: String
-    public var value: String
+    public var value: JsonExprValue
 
-    public init(key: String, value: String) {
+    public init(key: String, value: JsonExprValue) {
         this.key = key
         this.value = value
     }

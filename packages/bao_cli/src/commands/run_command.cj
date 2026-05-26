@@ -1741,20 +1741,22 @@ class Ref<T> {
 }
 
 /// String 扩展: 从指定位置获取子串
-private func String.substringFrom(fromIndex: Int64): String {
-    if (fromIndex >= this.length) { return "" }
-    return this.substring(fromIndex)
-}
-
-/// String 扩展: 从指定位置开始匹配
-private func String.startsWithFrom(prefix: String, fromIndex: Int64): Bool {
-    if (fromIndex < 0 || fromIndex + prefix.length > this.length) {
-        return false
+extend String {
+    public func substringFrom(fromIndex: Int64): String {
+        if (fromIndex >= this.length) { return "" }
+        return this.substring(fromIndex)
     }
-    for (i in 0..prefix.length) {
-        if (this[fromIndex + i] != prefix[i]) {
+
+    /// String 扩展: 从指定位置开始匹配
+    public func startsWithFrom(prefix: String, fromIndex: Int64): Bool {
+        if (fromIndex < 0 || fromIndex + prefix.length > this.length) {
             return false
         }
+        for (i in 0..prefix.length) {
+            if (this[fromIndex + i] != prefix[i]) {
+                return false
+            }
+        }
+        return true
     }
-    return true
 }

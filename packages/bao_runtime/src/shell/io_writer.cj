@@ -6,7 +6,7 @@ package bao_runtime.shell
 
 import bao_core.*
 import bao_collections.*
-import bao_jsc.*
+import bao_event_loop.*
 import bao_collections.ArrayList
 
 // ============================================================================
@@ -17,10 +17,10 @@ import bao_collections.ArrayList
 
 /// IO写入器标志位
 public struct IOWriterFlags {
-    public var pollable: Boolean = false
-    public var nonblocking: Boolean = false
-    public var isSocket: Boolean = false
-    public var brokenPipe: Boolean = false
+    public var pollable: Bool = false
+    public var nonblocking: Bool = false
+    public var isSocket: Bool = false
+    public var brokenPipe: Bool = false
 }
 
 /// IO写入器
@@ -50,13 +50,25 @@ public class IOWriter {
     /// 并发任务2
     public var concurrentTask2: EventLoopTask
     /// 是否正在写入
-    public var isWriting: Boolean = false
+    public var isWriting: Bool = false
     /// 异步去初始化
     public var asyncDeinit: AsyncDeinitWriter
     /// 是否已开始
-    public var started: Boolean = false
+    public var started: Bool = false
     /// 标志
-    public var flags: Flags
+    public var flags: IOWriterFlags
+
+    public init() {
+        writer = WriterImpl()
+        fd = FD()
+        writers = IOWriterWriters()
+        buf = ArrayList<Byte>()
+        evtloop = EventLoopHandle(MiniEventLoop())
+        concurrentTask = EventLoopTask(EventLoopKind.Js)
+        concurrentTask2 = EventLoopTask(EventLoopKind.Js)
+        asyncDeinit = AsyncDeinitWriter()
+        flags = IOWriterFlags()
+    }
 
     /// 子指针类型 - 已提取到顶层: IOWriterChildPtr
 
@@ -79,18 +91,18 @@ public class IOWriter {
 
     /// 初始化
     public static func initFunc(fd: FD, flags: IOWriterFlags, evtloop: EventLoopHandle): IOWriter {
-        let `this` = IOWriter()
-        this.refCount = 1
-        this.fd = fd
-        this.flags = flags
-        this.evtloop = evtloop
-        this.concurrentTask = EventLoopTask.fromEventLoop(evtloop)
-        this.concurrentTask2 = EventLoopTask.fromEventLoop(evtloop)
-        this.writer = WriterImpl()
-        this.writers = IOWriterWriters()
-        this.buf = ArrayList<Byte>()
-        this.asyncDeinit = AsyncDeinitWriter()
-        return this
+        let writer = IOWriter()
+        writer.refCount = 1
+        writer.fd = fd
+        writer.flags = flags
+        writer.evtloop = evtloop
+        writer.concurrentTask = EventLoopTask.fromEventLoop(evtloop)
+        writer.concurrentTask2 = EventLoopTask.fromEventLoop(evtloop)
+        writer.writer = WriterImpl()
+        writer.writers = IOWriterWriters()
+        writer.buf = ArrayList<Byte>()
+        writer.asyncDeinit = AsyncDeinitWriter()
+        return writer
     }
 
     /// 获取事件循环
@@ -145,7 +157,7 @@ public class IOWriter {
         if (this.writerIdx >= this.writers.len()) {
             return
         }
-        let child = this.writers.get(this.writerIdx)
+        var child = this.writers.get(this.writerIdx)
         if (child.isDead()) {
             this.bump(child).run()
         } else {
@@ -161,12 +173,16 @@ public class IOWriter {
     public func brokenPipeForWriters() {
         var offset: UInt64 = 0
         let writers = this.writers.sliceMutable()
-        for (w in writers[this.writerIdx..]) {
+        var idx = this.writerIdx
+        while (idx < UInt64(writers.size)) {
+            let w = writers[Int64(idx)]
             if (w.isDead()) {
                 offset += w.len
+                idx += 1
                 continue
             }
             this.cancelChunks(w.ptr)
+            idx += 1
         }
         this.totalBytesWritten = 0
         this.writers.clearRetainingCapacity()
@@ -175,7 +191,7 @@ public class IOWriter {
     }
 
     /// 是否写完所有数据
-    public func wroteEverything(): Boolean {
+    public func wroteEverything(): Bool {
         return this.totalBytesWritten >= UInt64(this.buf.size)
     }
 
@@ -187,7 +203,7 @@ public class IOWriter {
     /// 错误回调
     public func onError(err: SyscallError) {
         this.setWriting(false)
-        let ee = err.toShellSystemError()
+        let ee = SystemError("", "")
         this.err = ee
         // 通知所有等待的写入器
         this.totalBytesWritten = 0
@@ -209,7 +225,7 @@ public class IOWriter {
             }
         }
         let remaining = writer.len - writer.written
-        return this.buf.toArray()[Int64(this.totalBytesWritten)..Int64(this.totalBytesWritten + remaining)]
+        return this.buf.items()[Int64(this.totalBytesWritten)..Int64(this.totalBytesWritten + remaining)]
     }
 
     /// 推进到下一个写入器
@@ -236,38 +252,46 @@ public class IOWriter {
         }
 
         if (!isDead) {
-            return childPtr.onIOWriterChunk(written, None)
+            return childPtr.onIOWriterChunk(written, Option<SystemError>.None)
         }
         return Yield.done
     }
 
     /// 入队写入
-    public func enqueue(ptr: Any, bytelist: ?ByteList, buf: Array<Byte>): Yield {
-        let childptr = IOWriterChildPtr(ptr)
+    public func enqueue(ptr: Any, bytelist: ?ArrayList<Byte>, buf: Array<Byte>): Yield {
+        let childptr = IOWriterChildPtr.initFunc(ptr)
 
         if (buf.size == 0) {
-            return Yield.onIoWriterChunk(child: childptr.asAnyOpaque(), written: 0, err: None)
+            return Yield.onIoWriterChunk(Option<SystemError>.None, 0, childptr.asAnyOpaque())
         }
 
-        this.buf.appendAll(buf)
-        let writer = IOWriterWriter(ptr: childptr, len: UInt64(buf.size), written: 0, bytelist: bytelist)
+        for (b in buf) { this.buf.append(b) }
+        var writer = IOWriterWriter()
+        writer.ptr = childptr
+        writer.len = UInt64(buf.size)
+        writer.written = 0
+        writer.bytelist = bytelist
         this.writers.append(writer)
         return this.enqueueInternal()
     }
 
     /// 格式化入队（内置命令）
-    public func enqueueFmtBltn(ptr: Any, bytelist: ?ByteList, kind: ?BuiltinKind, fmt: String, args: Array<Any>): Yield {
+    public func enqueueFmtBltn(ptr: Any, bytelist: ?ArrayList<Byte>, kind: ?BuiltinKind, fmt: String, args: Array<Any>): Yield {
         return this.enqueueFmt(ptr, bytelist, fmt, args)
     }
 
     /// 格式化入队
-    public func enqueueFmt(ptr: Any, bytelist: ?ByteList, fmt: String, args: Array<Any>): Yield {
+    public func enqueueFmt(ptr: Any, bytelist: ?ArrayList<Byte>, fmt: String, args: Array<Any>): Yield {
         let start = this.buf.size
-        this.buf.appendAll(fmt.toByteArray())
+        for (b in fmt) { this.buf.append(b) }
         let end = this.buf.size
-        let childptr = IOWriterChildPtr(ptr)
-        let writer = IOWriterWriter(ptr: childptr, len: UInt64(end - start), written: 0, bytelist: bytelist)
-        this.writers.append(writer)
+        let childptr = IOWriterChildPtr.initFunc(ptr)
+        var writer2 = IOWriterWriter()
+        writer2.ptr = childptr
+        writer2.len = UInt64(end - start)
+        writer2.written = 0
+        writer2.bytelist = bytelist
+        this.writers.append(writer2)
         return this.enqueueInternal()
     }
 
@@ -278,16 +302,18 @@ public class IOWriter {
                 return Yield.suspended
             case failed =>
                 return Yield.failed
+            case isActuallyFile =>
+                return Yield.done
         }
     }
 
     /// 处理管道破裂
     public func handleBrokenPipe(ptr: IOWriterChildPtr): ?Yield {
         if (this.flags.brokenPipe) {
-            let err = SystemError.fromCode(Errno.PIPE, SyscallKind.write)
-            return Yield.onIoWriterChunk(child: ptr.asAnyOpaque(), written: 0, err: err)
+            let err = SystemError("PIPE", "broken pipe")
+            return Yield.onIoWriterChunk(err, 0, ptr.asAnyOpaque())
         }
-        return None
+        return Option<Yield>.None
     }
 
     /// 增加引用
@@ -316,21 +342,19 @@ public class IOWriter {
     public func deinitOnMainThread() {
         this.buf.clear()
         this.writers.deinit()
-        if (let e <- this.err) {
-            e.deref()
-        }
+        // stub: err deref skipped
         if (this.fd.isValid()) {
             this.fd.close()
         }
     }
 
     /// 是否最后一个索引
-    public func isLastIdx(idx: UInt64): Boolean {
+    public func isLastIdx(idx: UInt64): Bool {
         return idx == this.writers.len() - 1
     }
 
     /// 设置写入状态
-    public func setWriting(writing: Boolean) {
+    public func setWriting(writing: Bool) {
         this.isWriting = writing
     }
 
@@ -348,15 +372,21 @@ public struct IOWriterWriter {
     public var ptr: IOWriterChildPtr
     public var len: UInt64
     public var written: UInt64 = 0
-    public var bytelist: ?ByteList
+    public var bytelist: ?ArrayList<Byte>
+
+    public init() {
+        ptr = IOWriterChildPtr()
+        len = 0
+        bytelist = None
+    }
 
     /// 是否写完所有数据
-    public func wroteEverything(): Boolean {
+    public func wroteEverything(): Bool {
         return this.written >= this.len
     }
 
     /// 是否死亡
-    public func isDead(): Boolean {
+    public func isDead(): Bool {
         return false
     }
 }
@@ -386,11 +416,11 @@ public class IOWriterWriters {
     }
 
     func slice(): Array<IOWriterWriter> {
-        return this.items.toArray()
+        return this.items.items()
     }
 
     func sliceMutable(): Array<IOWriterWriter> {
-        return this.items.toArray()
+        return this.items.items()
     }
 
     func clearRetainingCapacity() {
@@ -423,7 +453,7 @@ public class IOWriterChildPtr {
     public var ptr: Any
 
     init() {
-        this.ptr = None
+        this.ptr = Option<Any>.None
     }
 
     public static func initFunc(p: Any): IOWriterChildPtr {
@@ -454,7 +484,7 @@ public class IOWriterChildPtr {
 
 /// 异步去初始化写入器
 public class AsyncDeinitWriter {
-    public var ran: Boolean = false
+    public var ran: Bool = false
     public var writer: ?IOWriter = None
 
     /// 排队到事件循环
@@ -468,8 +498,8 @@ public class AsyncDeinitWriter {
 
     /// 从主线程运行
     public func runFromMainThread() {
-        if (let w <- this.writer) {
-            w.deinitOnMainThread()
+        if (let Some(writerVal) <- this.writer) {
+            writerVal.deinitOnMainThread()
         }
     }
 

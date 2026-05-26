@@ -168,8 +168,8 @@ public struct CpOpts {
     /// 解析参数
     public func parse(arr: Array<String>): CpParseResult {
         var idx: UInt32 = 0
-        while (idx < args.size) {
-            let arg = args[idx]
+        while (idx < arr.size) {
+            let arg = arr[idx]
             if (arg.size == 0 || arg[0] != '-') {
                 break
             }
@@ -182,18 +182,18 @@ public struct CpOpts {
                     this.overwriteExistingFile = true
                     this.removeAndCreateNewFileIfNotFound = false
                 } else if (c == 'f' || c == 'H' || c == 'i' || c == 'L' || c == 'P' || c == 'p') {
-                    return .err(.unsupported("-${c}"))
+                    return CpParseResult.err(CpParseError.unsupported("-${c}"))
                 } else {
-                    return .err(.illegalOption("-${c}"))
+                    return CpParseResult.err(CpParseError.illegalOption("-${c}"))
                 }
             }
             idx++
         }
 
-        if (idx >= args.size) {
-            return .ok(None)
+        if (idx >= arr.size) {
+            return CpParseResult.ok(None)
         }
-        return .ok(args[idx..])
+        return CpParseResult.ok(arr[Int64(idx)..])
     }
 }
 

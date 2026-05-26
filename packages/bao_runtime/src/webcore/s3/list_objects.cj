@@ -6,6 +6,7 @@ package bao_runtime.webcore.s3
 import bao_core.*
 import bao_collections.*
 import bao_jsc.*
+import std.convert.*
 
 // ============================================================================
 // ObjectOwner - S3 对象所有者
@@ -661,7 +662,11 @@ private func extractTag(xml: String, tag: String): ?String {
 
 private func parseOptionalInt(value: String): Int64 {
     if (value.size == 0) { return 0 }
-    return Int64.parse(value) ?? 0
+    try {
+        return Int64.parse(value)
+    } catch (_: Exception) {
+        return 0
+    }
 }
 
 
