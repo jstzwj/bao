@@ -3,9 +3,10 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{BunString, CallFrame, ConsoleObject, Formatter, JSFunction, JSGlobalObject, JsValue}
+import bao_jsc.{BunString, CallFrame, ConsoleFormatter, ConsoleObject, Formatter, JSFunction, JSFunctionCreateOptions, JSGlobalObject, JsValue}
 import bao_collections.ArrayList
 import bao_collections.HashMap
+import bao_core.Allocator
 
 // ========== ScopeFunctions Mode ==========
 
@@ -128,7 +129,7 @@ public class ScopeFunctions {
         let array = arguments[0]
 
         if (array.isUndefinedOrNull() || !array.isArray()) {
-            let formatter = ConsoleObject.Formatter(global: globalThis)
+            let formatter = ConsoleFormatter(globalThis: globalThis)
             globalThis.`throw`(message: "Expected array, got " + formatter.format(value: array))
             return JsValue.jsUndefined
         }
@@ -185,7 +186,7 @@ public class ScopeFunctions {
         if (!each.isEmpty()) {
             // 参数化测试 (.each模式)
             if (each.isUndefinedOrNull() || !each.isArray()) {
-                let formatter = ConsoleObject.Formatter(global: globalThis)
+                let formatter = ConsoleFormatter(globalThis: globalThis)
                 globalThis.`throw`(message: "Expected array, got " + formatter.format(value: each))
                 return JsValue.jsUndefined
             }
@@ -280,7 +281,7 @@ public class ScopeFunctions {
                 ScopeFunctions.maxTestIdForDebugger = id
 
                 let name = description ?? "(unnamed)"
-                let parent = bunTest.collection.activeScope
+                let parent = bunTest.collection_.activeScope
                 let parentId = if (parent.base.testIdForDebugger != 0) {
                     parent.base.testIdForDebugger
                 } else {
@@ -316,10 +317,10 @@ public class ScopeFunctions {
 
         match (mode) {
             case ScopeFunctionsMode.describe =>
-                let newScope = bunTest.collection.activeScope.appendDescribe(
+                let newScope = bunTest.collection_.activeScope.appendDescribe(
                     name: description, base: base
                 )
-                bunTest.collection.enqueueDescribeCallback(
+                bunTest.collection_.enqueueDescribeCallback(
                     newScope: newScope, callback: callback
                 )
             case ScopeFunctionsMode.test_ =>
@@ -327,13 +328,13 @@ public class ScopeFunctions {
                 var matchesFilter = true
                 if (let Some(reporter) <- bunTest.reporter) {
                     if (let Some(filterRegex) <- reporter.jest.filterRegex) {
-                        let activeScope = bunTest.collection.activeScope
+                        let activeScope = bunTest.collection_.activeScope
 
                         // 构建完整测试名用于过滤匹配
                         let filterName = filterNames(description: description, parent: activeScope)
 
                         matchesFilter = filterRegex.matches(str: filterName)
-                        bunTest.collection.filterBuffer.clear()
+                        bunTest.collection_.filterBuffer.clear()
                     }
                 }
 
@@ -341,7 +342,7 @@ public class ScopeFunctions {
                     base.selfMode = ScopeMode.filteredOut
                 }
 
-                bunTest.collection.activeScope.appendTest(
+                bunTest.collection_.activeScope.appendTest(
                     name: description,
                     callback: if (matchesFilter) { callback } else { None },
                     cfg: ExecutionEntryCfg(
@@ -361,7 +362,7 @@ public class ScopeFunctions {
     /// 根据条件和invert参数决定使用conditionalCfg还是保持当前配置
     /// - invert=true: 条件!=invert时使用conditionalCfg（即条件为false时使用）
     /// - invert=false: 条件==invert(false)时保持当前配置（即条件为true时使用conditionalCfg）
-    private func genericIf(callFrame: CallFrame, conditionalCfg: BaseScopeCfg, name: String, invert: Bool, fnName: String): JsValue {
+    private func genericIf(callFrame!: CallFrame, conditionalCfg!: BaseScopeCfg, name!: String, invert!: Bool, fnName!: String): JsValue {
         let arguments = callFrame.arguments(max: 1)
         if (arguments.size == 0) {
             globalThis.`throw`(message: "Expected condition to be a boolean")
@@ -382,7 +383,7 @@ public class ScopeFunctions {
     /// 通用扩展
     ///
     /// 将当前配置与新配置合并，创建新的ScopeFunctions绑定
-    private func genericExtend(cfg: BaseScopeCfg, name: String, fnName: String): JsValue {
+    private func genericExtend(cfg!: BaseScopeCfg, name!: String, fnName!: String): JsValue {
         // failing不能用于describe
         if (cfg.selfMode == ScopeMode.failing && mode == ScopeFunctionsMode.describe) {
             globalThis.`throw`(message: "Cannot " + (name) + " on " + (format()))
@@ -422,7 +423,7 @@ public class ScopeFunctions {
     ///
     /// 创建一个绑定了当前ScopeFunctions作为this的JS函数
     public func bind(value: JsValue, globalThis: JSGlobalObject, name: String): JsValue {
-        let callFn = JSFunction.create(global: globalThis, name: name, hostFn: callAsFunction, argCount: 1)
+        let callFn = JSFunction.create(globalThis, name, callAsFunction, 1, JSFunctionCreateOptions())
         let bound = JSValueTestExt.bind(
             value: callFn, global: globalThis,
             thisValue: value, name: BunString.staticStr(name),
@@ -433,7 +434,7 @@ public class ScopeFunctions {
     }
 
     /// 创建已绑定的ScopeFunctions
-    public static func createBound(globalThis: JSGlobalObject, mode: Mode, each: JsValue, cfg: BaseScopeCfg, name: String): JsValue {
+    public static func createBound(globalThis!: JSGlobalObject, mode!: Mode, each!: JsValue, cfg!: BaseScopeCfg, name!: String): JsValue {
         let value = createUnbound(globalThis: globalThis, mode: mode, each: each, cfg: cfg)
         let scopeFunctions = ScopeFunctions(mode: mode, cfg: cfg, each: each)
         return scopeFunctions.bind(value: value, globalThis: globalThis, name: name)
@@ -450,7 +451,7 @@ public class ScopeFunctions {
     /// - ("description")
     ///
     /// options可以是数字(超时)或对象{timeout, retry, repeats}
-    public static func parseArguments(globalThis: JSGlobalObject, callFrame: CallFrame, signature: Signature, cfg: ParseArgumentsCfg): ParseArgumentsResult {
+    public static func parseArguments(globalThis!: JSGlobalObject, callFrame!: CallFrame, signature!: Signature, cfg!: ParseArgumentsCfg): ParseArgumentsResult {
         let arguments = callFrame.arguments(max: 3)
         let a1 = arguments[0]
         let a2 = arguments[1]

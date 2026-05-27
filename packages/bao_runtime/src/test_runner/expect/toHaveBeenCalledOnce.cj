@@ -17,7 +17,7 @@ public func toHaveBeenCalledOnce(`this`: Expect, globalThis: JSGlobalObject, cal
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }

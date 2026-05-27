@@ -77,19 +77,31 @@ public class ParsedArgs {
     public func toString(): String {
         var s = "ParsedArgs(command=${command}"
         if (positionals.size > 0) {
-            s += ", positionals=${positionals}"
+            s = s + ", positionals=["
+            var first = true
+            for (p in positionals) {
+                if (!first) { s = s + ", " }
+                first = false
+                s = s + p
+            }
+            s = s + "]"
         }
         if (!options.isEmpty()) {
-            s += ", options=${options}"
+            s = s + ", options={"
+            var first = true
+            let optKeys = options.keys()
+            for (k in optKeys) {
+                if (!first) { s = s + ", " }
+                first = false
+                let v = options.get(k)
+                match (v) {
+                    case Some(val) => s = s + "${k}=${val}"
+                    case None => s = s + "${k}=?"
+                }
+            }
+            s = s + "}"
         }
-        let trueFlags = ArrayList<String>()
-        for ((k, v) in flags) {
-            if (v) { trueFlags.append(k) }
-        }
-        if (trueFlags.size > 0) {
-            s += ", flags=${trueFlags}"
-        }
-        s += ")"
+        s = s + ")"
         return s
     }
 }
@@ -101,9 +113,21 @@ public class ParsedArgs {
 
 /// 参数规格类型
 public enum ArgType {
-    | Flag       // 布尔标志: --verbose
-    | Option     // 带值选项: --outdir <dir>
-    | Positional // 位置参数
+    | Flag
+    | Option
+    | Positional
+
+    public operator func ==(other: ArgType): Bool {
+        match (this) {
+            case ArgType.Flag => match (other) { case ArgType.Flag => true case _ => false }
+            case ArgType.Option => match (other) { case ArgType.Option => true case _ => false }
+            case ArgType.Positional => match (other) { case ArgType.Positional => true case _ => false }
+        }
+    }
+
+    public operator func !=(other: ArgType): Bool {
+        return !(this == other)
+    }
 }
 
 /// 单个参数规格定义
@@ -349,20 +373,20 @@ public class ArgParser {
     /// 解析长选项 (--key 或 --key=value)
     /// 对应 Bun: clap 长选项解析
     private func parseLongOption(arg: String, args: ArrayList<String>, i: Int64, result: ParsedArgs): Int64 {
-        var key = arg.substring(2)  // 去除 "--"
+        var key = arg[2..]  // 去除 "--"
 
         // 处理 --key=value 格式
-        let eqIdx = key.indexOf('=')
-        if (eqIdx >= 0) {
-            let value = key.substring(eqIdx + 1)
-            key = key.substring(0, eqIdx)
+        let eqIdxOpt = key.indexOf('=')
+        if (let Some(eqIdx) <- eqIdxOpt) {
+            let value = key[Int64(eqIdx) + 1..]
+            key = key[0..Int64(eqIdx)]
             result.options.put(key, value)
             return i + 1
         }
 
         // 处理 --no-flag
         if (key.startsWith("no-")) {
-            let flagName = key.substring(3)
+            let flagName = key[3..]
             result.flags.put(flagName, false)
             return i + 1
         }
@@ -405,19 +429,19 @@ public class ArgParser {
     /// 对应 Bun: clap 短选项解析
     /// 支持: -v, -abc (合并短选项), -ovalue
     private func parseShortOption(arg: String, args: ArrayList<String>, i: Int64, result: ParsedArgs): Int64 {
-        let key = arg.substring(1)  // 去除 "-"
+        let key = arg[1..]  // 去除 "-"
 
         // 处理合并短选项: -abc => -a -b -c
         if (key.length > 1) {
             // 检查第一个字符是否为已知的 option
-            let firstChar = key.substring(0, 1)
+            let firstChar = key[0..1]
             let spec = findSpecByShortName(firstChar)
             match (spec) {
                 case Some(s) =>
                     match (s.argType) {
                         case ArgType.Option =>
                             // -ovalue 格式
-                            let value = key.substring(1)
+                            let value = key[1..]
                             result.options.put(s.longName, value)
                             return i + 1
                         case ArgType.Flag | ArgType.Positional =>
@@ -565,19 +589,5 @@ public class ArgParser {
 // ============================================================================
 // String 辅助方法
 // ============================================================================
+// padEnd is provided by String built-in
 
-/// 字符串填充到指定长度
-extend String {
-    func padEnd(width: Int64): String {
-        if (this.size >= width) {
-            return this
-        }
-        var result = this
-        var i = this.size
-        while (i < width) {
-            result += " "
-            i += 1
-        }
-        return result
-    }
-}

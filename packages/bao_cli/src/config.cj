@@ -23,6 +23,18 @@ public enum BuildTarget {
     | Node
     | Bun
 
+    public operator func ==(other: BuildTarget): Bool {
+        match (this) {
+            case BuildTarget.Browser => match (other) { case BuildTarget.Browser => true case _ => false }
+            case BuildTarget.Node => match (other) { case BuildTarget.Node => true case _ => false }
+            case BuildTarget.Bun => match (other) { case BuildTarget.Bun => true case _ => false }
+        }
+    }
+
+    public operator func !=(other: BuildTarget): Bool {
+        return !(this == other)
+    }
+
     public static func fromString(s: String): ?BuildTarget {
         match (s.toLower()) {
             case "browser" => Some(BuildTarget.Browser)

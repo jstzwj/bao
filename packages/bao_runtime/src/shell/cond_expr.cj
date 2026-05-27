@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/CondExpr.zig
 // 严格翻译Bun shell条件表达式状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 import bao_collections.*  // std.collection.*
 
 // ============================================================================
@@ -25,7 +24,7 @@ public enum CondExprStateKind {
 
 /// 条件表达式父节点指针（提取到顶层）
 public class CondExprParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): CondExprParentPtr {
         let pp = CondExprParentPtr()
         pp.ptr = p
@@ -37,7 +36,7 @@ public class CondExprParentPtr {
 
 /// 条件表达式子节点指针（提取到顶层）
 public class CondExprChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): CondExprChildPtr {
         let cp = CondExprChildPtr()
         cp.ptr = p
@@ -50,22 +49,19 @@ public class CondExprChildPtr {
 /// 条件表达式状态
 public class CondExprState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: CondExpr
+    public var node: ?CondExpr = None
     /// 父节点
-    public var parent: CondExprParentPtr
+    public var parent: CondExprParentPtr = CondExprParentPtr()
     /// IO
-    public var io: IO
+    public var io: IO = IO()
     /// 状态
-    public var state: CondExprStateKind
+    public var state: CondExprStateKind = CondExprStateKind.`idle`
     /// 参数
-    public var args: ArrayList<String>
+    public var args: ArrayList<String> = ArrayList<String>()
 
-    public init() {
-        this.args = ArrayList<String>()
-        this.state = CondExprStateKind.`idle`
-    }
+    public init() {}
 
     /// 初始化
     public static func initFunc(
@@ -103,7 +99,7 @@ public class CondExprState {
                     )
                     continue
                 case CondExprStateKind.expandingArgs(idx, expState, lastExitCode) =>
-                    if (Int64(idx) >= this.node.args.size) {
+                    if (Int64(idx) >= this.node.getOrThrow().args.size) {
                         return this.commandImplStart()
                     }
                     this.state = CondExprStateKind.expandingArgs(
@@ -116,7 +112,7 @@ public class CondExprState {
                     return Yield.suspended
                 case CondExprStateKind.statComplete(stat) => ()
                     // 根据操作符和stat结果返回退出码
-                    match (this.node.op) {
+                    match (this.node.getOrThrow().op) {
                         case CondExprOp.f => ()
                             // 检查是否为普通文件
                             return this.parent.childDone(this, ExitCode.exited(0))
@@ -142,7 +138,7 @@ public class CondExprState {
 
     /// 命令实现启动
     func commandImplStart(): Yield {
-        match (this.node.op) {
+        match (this.node.getOrThrow().op) {
             case CondExprOp.f | CondExprOp.d | CondExprOp.c =>
                 this.state = CondExprStateKind.waitingStat
                 return this.doStat()
@@ -167,7 +163,8 @@ public class CondExprState {
     public func deinit() {
         this.io.deref()
         for (item in this.args) {
-            this.base.allocator().free(item)
+            // GC-managed strings, no manual free needed
+            ()
         }
         this.args.clear()
         this.base.endScope()
@@ -202,8 +199,14 @@ public class CondExprState {
         match (this.state) {
             case CondExprStateKind.waitingWriteErr =>
                 return this.parent.childDone(this, ExitCode.exited(1))
-            case _ => ()
+            case _ =>
+                return unreachableState("CondExpr.onIOWriterChunk", "unexpected state")
         }
-        unreachableState("CondExpr.onIOWriterChunk", "unexpected state")
+    }
+
+    /// stat 任务完成回调
+    /// 对应 Bun: CondExprState.onStatTaskDone
+    public static func onStatTaskDone(interp: Interpreter, cond: Any, stat: Any, path: Any): Unit {
+        // Stub: stat 任务完成时的回调处理
     }
 }

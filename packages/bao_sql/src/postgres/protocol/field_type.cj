@@ -25,6 +25,13 @@ public enum FieldType {
     | routine              // 'R' - 源代码例程名
     | unknown(UInt8)
 
+    public operator func == (other: FieldType): Bool {
+        this.toByte() == other.toByte()
+    }
+    public operator func != (other: FieldType): Bool {
+        !(this == other)
+    }
+
     /// 从字节值创建
     public static func fromByte(value: UInt8): FieldType {
         if (value == 83) { return FieldType.severity }

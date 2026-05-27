@@ -5,15 +5,16 @@ package bao_sql_jsc.postgres.protocol
 
 import bao_core.*
 import bao_jsc.*
-import bao_sql_jsc.postgres.*
+import bao_sql_jsc.postgres.JscErrorResponse
+import bao_sql_jsc.postgres.ErrorField
 
 /// 错误响应 JS 转换
 /// 对应 Bun: protocol/error_response_jsc.zig
-/// 将 PostgreSQL ErrorResponse 转换为 JS 错误对象
+/// 将 PostgreSQL JscErrorResponse 转换为 JS 错误对象
 
-/// ErrorResponse 转 JS 错误对象
-/// 对应 Bun: ErrorResponse.toJS
-public func errorResponseToJS(errorResponse: ErrorResponse,
+/// JscErrorResponse 转 JS 错误对象
+/// 对应 Bun: JscErrorResponse.toJS
+public func errorResponseToJS(errorResponse: JscErrorResponse,
                                 globalObject: JscJSGlobalObject): JscValue {
     var message = ""
     var code = ""

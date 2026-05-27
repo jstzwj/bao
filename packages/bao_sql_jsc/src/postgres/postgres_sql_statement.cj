@@ -139,7 +139,7 @@ public enum PostgresStatementStatus {
 /// Postgres 语句错误
 /// 对应 Bun: PostgresSQLStatement.Error
 public enum PostgresStatementError {
-    | Protocol(ErrorResponse)
+    | Protocol(JscErrorResponse)
     | PostgresError(AnyPostgresError)
 
     public func toJS(globalObject: JscJSGlobalObject): JscValue {
@@ -182,7 +182,7 @@ public enum PostgresNameOrIndex {
 
 /// 错误响应
 /// 对应 Bun: protocol.ErrorResponse
-public class ErrorResponse {
+public class JscErrorResponse {
     public var messages: ArrayList<ErrorField> = ArrayList<ErrorField>()
 
     public init() {}

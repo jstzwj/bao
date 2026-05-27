@@ -52,6 +52,48 @@ public enum HttpMethod {
     | UNLINK
     | UNLOCK
     | UNSUBSCRIBE
+
+    public operator func ==(other: HttpMethod): Bool {
+        match (this) {
+            case ACL => match (other) { case ACL => true case _ => false }
+            case BIND => match (other) { case BIND => true case _ => false }
+            case CHECKOUT => match (other) { case CHECKOUT => true case _ => false }
+            case CONNECT => match (other) { case CONNECT => true case _ => false }
+            case COPY => match (other) { case COPY => true case _ => false }
+            case DELETE => match (other) { case DELETE => true case _ => false }
+            case GET => match (other) { case GET => true case _ => false }
+            case HEAD => match (other) { case HEAD => true case _ => false }
+            case LINK => match (other) { case LINK => true case _ => false }
+            case LOCK => match (other) { case LOCK => true case _ => false }
+            case M_SEARCH => match (other) { case M_SEARCH => true case _ => false }
+            case MERGE => match (other) { case MERGE => true case _ => false }
+            case MKACTIVITY => match (other) { case MKACTIVITY => true case _ => false }
+            case MKADDRESSBOOK => match (other) { case MKADDRESSBOOK => true case _ => false }
+            case MKCALENDAR => match (other) { case MKCALENDAR => true case _ => false }
+            case MKCOL => match (other) { case MKCOL => true case _ => false }
+            case MOVE => match (other) { case MOVE => true case _ => false }
+            case NOTIFY => match (other) { case NOTIFY => true case _ => false }
+            case OPTIONS => match (other) { case OPTIONS => true case _ => false }
+            case PATCH => match (other) { case PATCH => true case _ => false }
+            case POST => match (other) { case POST => true case _ => false }
+            case PROPFIND => match (other) { case PROPFIND => true case _ => false }
+            case PROPPATCH => match (other) { case PROPPATCH => true case _ => false }
+            case PURGE => match (other) { case PURGE => true case _ => false }
+            case PUT => match (other) { case PUT => true case _ => false }
+            case QUERY => match (other) { case QUERY => true case _ => false }
+            case REBIND => match (other) { case REBIND => true case _ => false }
+            case REPORT => match (other) { case REPORT => true case _ => false }
+            case SEARCH => match (other) { case SEARCH => true case _ => false }
+            case SOURCE => match (other) { case SOURCE => true case _ => false }
+            case SUBSCRIBE => match (other) { case SUBSCRIBE => true case _ => false }
+            case TRACE => match (other) { case TRACE => true case _ => false }
+            case UNBIND => match (other) { case UNBIND => true case _ => false }
+            case UNLINK => match (other) { case UNLINK => true case _ => false }
+            case UNLOCK => match (other) { case UNLOCK => true case _ => false }
+            case UNSUBSCRIBE => match (other) { case UNSUBSCRIBE => true case _ => false }
+        }
+    }
+    public operator func !=(other: HttpMethod): Bool { !(this == other) }
 }
 
 // ============================================================================

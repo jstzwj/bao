@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Stmt.zig
 // 严格翻译Bun shell语句状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 
 // ============================================================================
 // 语句执行状态
@@ -13,18 +12,22 @@ import bao_runtime.shell.*
 
 /// 语句父节点指针（提取到顶层）
 public class StmtParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
 
     public static func initFunc(p: Any): StmtParentPtr {
         let pp = StmtParentPtr()
         pp.ptr = p
         return pp
     }
+
+    public func childDone(child: Any, exitCode: ExitCode): Yield {
+        return Yield.done
+    }
 }
 
 /// 语句子节点指针（提取到顶层）
 public class StmtChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
 
     public static func initFunc(p: Any): StmtChildPtr {
         let cp = StmtChildPtr()
@@ -40,11 +43,11 @@ public class StmtChildPtr {
 /// 语句状态
 public class StmtState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Stmt
+    public var node: Stmt = Stmt([])
     /// 父节点
-    public var parent: StmtParentPtr
+    public var parent: StmtParentPtr = StmtParentPtr()
     /// 索引
     public var idx: UInt64 = 0
     /// 上一个退出码
@@ -52,7 +55,7 @@ public class StmtState {
     /// 当前执行的子节点
     public var currentlyExecuting: ?StmtChildPtr = None
     /// IO
-    public var io: IO
+    public var io: IO = IO()
 
     /// 初始化
     public static func initFunc(
@@ -65,7 +68,7 @@ public class StmtState {
         let stmt = StmtState()
         stmt.base = Base.initWithNewAllocScope(StateKind.stmt, interpreter, shellState)
         stmt.node = node
-        stmt.parent = StmtParentPtr(parent)
+        stmt.parent = StmtParentPtr.initFunc(parent)
         stmt.idx = 0
         stmt.lastExitCode = None
         stmt.currentlyExecuting = None
@@ -80,11 +83,11 @@ public class StmtState {
 
     /// 下一步
     public func next(): Yield {
-        if (this.idx >= this.node.exprs.size) {
+        if (Int64(this.idx) >= this.node.exprs.size) {
             return this.parent.childDone(this, this.lastExitCode ?? ExitCode.exited(0))
         }
 
-        let child = this.node.exprs[this.idx]
+        let child = this.node.exprs[Int64(this.idx)]
         match (child.tag) {
             case ExprTag.binary =>
                 let binNode = child.binary.getOrThrow()

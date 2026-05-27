@@ -67,12 +67,10 @@ public class PmPkgCommand {
             case Some(v) => v
             case None => return
         }
-        let source = Source.initPathString("package.json", pkgContent.toByteArray())
-
         for (key in args) {
             let value = resolveJsonPath(json, key)
             if (value.isSome()) {
-                printValue(value.getOrThrow(), source)
+                printValue(value.getOrThrow())
             }
         }
     }
@@ -377,7 +375,7 @@ public class PmPkgCommand {
 
     /// 打印 JSON 值
     /// 对应 Bun: printValue — 根据类型输出
-    private static func printValue(value: JsonValue, source: Source): Unit {
+    private static func printValue(value: JsonValue): Unit {
         match (value) {
             case JsonValue.Str(s) => Output.println(s)
             case JsonValue.Num(n) => Output.println("${n}")

@@ -185,7 +185,11 @@ public class InstallCommand {
         // 严格翻译自: Bun 中 --development 参数处理
         if (name.startsWith("-D ") || name.startsWith("--dev ")) {
             isDev = true
-            name = name.substring(name.indexOf(' ') + 1)
+            let spaceIdx = name.indexOf(' ')
+            match (spaceIdx) {
+                case Some(idx) => name = name.substring(idx + 1)
+                case None => ()
+            }
         }
 
         // scoped package: @scope/name@version
@@ -199,10 +203,14 @@ public class InstallCommand {
             }
         } else {
             // 普通 package: name@version
-            let lastAt = name.lastIndexOf('@')
-            if (lastAt > 0) {
-                version = Some(name.substring(lastAt + 1))
-                name = name.substring(0, lastAt)
+            let lastAtOpt = name.lastIndexOf('@')
+            match (lastAtOpt) {
+                case Some(lastAt) =>
+                    if (lastAt > 0) {
+                        version = Some(name.substring(lastAt + 1))
+                        name = name.substring(0, lastAt)
+                    }
+                case None => ()
             }
         }
 
@@ -247,11 +255,12 @@ public enum InstallErrorKind {
 }
 
 /// 安装异常
-public class InstallException {
+public class InstallException <: Exception {
     public var kind: InstallErrorKind
     public var message: String
 
     public init(kind: InstallErrorKind, message: String) {
+        super(message)
         this.kind = kind
         this.message = message
     }

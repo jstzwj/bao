@@ -30,3 +30,5 @@ bao_ast = { path = "../bao_ast" }
 bao_options = { path = "../bao_options" }
 bao_parsers = { path = "../bao_parsers" }
 bao_bunfig = { path = "../bao_bunfig" }
+bao_event_loop = { path = "../bao_event_loop" }
+bao_spawn = { path = "../bao_spawn" }

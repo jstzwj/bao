@@ -6,6 +6,8 @@ import bao_core.*
 import bao_collections.*
 import bao_jsc.*
 
+// TLS bridge FFI 函数已在 ssl_wrapper.cj 中声明（同包），此处直接使用
+
 // ============================================================================
 // TLS Socket 函数
 // 对应 Bun: tls_socket_functions.zig
@@ -23,7 +25,10 @@ public class TlsSocketFunctions {
     }
 
     /// 获取服务器名称 (SNI)
+    /// 对应 Bun: tls_socket_functions.zig getServername
     public func getServername(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
+        // 需要从 socket 获取 SSL* — TLSSocket 是桩类型，暂时返回 undefined
+        // 完整实现需要 TLSSocket 持有 NewSocket 引用并通过 getSslPtr 获取 SSL*
         return JsValue.jsUndefined()
     }
 
@@ -137,4 +142,74 @@ public class TlsSocketFunctions {
 /// 对应 Zig: noinline fn getSSLException
 func getSSLException(globalObject: JsGlobalObject, defaultMessage: String): JsValue {
     return JsValue(defaultMessage)
+}
+
+// ============================================================================
+// 独立 TLS 工具函数 — 直接操作原始 SSL* 指针
+// 对应 Bun: tls_socket_functions.zig 中的独立函数
+// ============================================================================
+
+/// SSL_is_init_finished — 握手是否已完成
+/// 对应 Bun: tls_socket_functions.zig isInitFinished
+public func tlsIsInitFinished(sslPtr: CPointer<Unit>): Bool {
+    return unsafe { SSL_is_init_finished(sslPtr) } == 1
+}
+
+/// SSL_get_servername — 获取 SNI 服务器名称
+/// 对应 Bun: tls_socket_functions.zig getServername
+/// type_ = 0 for TLSEXT_NAMETYPE_host_name
+public func tlsGetServername(sslPtr: CPointer<Unit>): ?String {
+    let raw = unsafe { SSL_get_servername(sslPtr, 0) }
+    if (raw.isNull()) {
+        return None
+    }
+    return Some(CString(unsafe { CPointer<UInt8>(raw) }).toString())
+}
+
+/// SSL_get0_alpn_selected — 获取协商的 ALPN 协议
+/// 对应 Bun: tls_socket_functions.zig getALPNProtocol
+public func tlsGetAlpnProtocol(sslPtr: CPointer<Unit>): ?Array<Byte> {
+    var protoPtr: CPointer<UInt8> = CPointer<UInt8>()
+    var protoLen: UInt32 = 0
+    unsafe {
+        SSL_get0_alpn_selected(
+            sslPtr,
+            inout protoPtr,
+            inout protoLen
+        )
+    }
+    if (protoPtr.isNull() || protoLen == 0) {
+        return None
+    }
+    var result = Array<Byte>(Int64(protoLen), repeat: UInt8(0))
+    unsafe {
+        for (i in 0..Int64(protoLen)) {
+            result[i] = (protoPtr + i).read()
+        }
+    }
+    return Some(result)
+}
+
+/// SSL_get_current_cipher / SSL_CIPHER_get_name — 获取当前密码套件名称
+/// 对应 Bun: tls_socket_functions.zig getCipher
+public func tlsGetCipherName(sslPtr: CPointer<Unit>): ?String {
+    let cipher = unsafe { SSL_get_current_cipher(sslPtr) }
+    if (cipher.isNull()) {
+        return None
+    }
+    let namePtr = unsafe { SSL_CIPHER_get_name(cipher) }
+    if (namePtr.isNull()) {
+        return None
+    }
+    return Some(CString(unsafe { CPointer<UInt8>(namePtr) }).toString())
+}
+
+/// SSL_get_version — 获取 TLS 协议版本字符串
+/// 对应 Bun: tls_socket_functions.zig getTLSVersion
+public func tlsGetVersion(sslPtr: CPointer<Unit>): ?String {
+    let raw = unsafe { SSL_get_version(sslPtr) }
+    if (raw.isNull()) {
+        return None
+    }
+    return Some(CString(unsafe { CPointer<UInt8>(raw) }).toString())
 }

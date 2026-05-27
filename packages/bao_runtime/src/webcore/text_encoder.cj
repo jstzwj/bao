@@ -4,6 +4,8 @@
 package bao_runtime.webcore
 
 import bao_core.*
+import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // TextEncoder - UTF-8 编码器
@@ -87,7 +89,7 @@ public class TextEncoder {
                 result.append(UInt8(0x80 | (cp & 0x3F)))
             }
         }
-        return result.toArray()
+        return result.items()
     }
 
     /// 编码 UTF-16 字符串
@@ -101,9 +103,9 @@ public class TextEncoder {
         let obj = JsObject()
         let self = this
 
-        obj.set("encoding", JsValue(BaoString(self.encoding)))
+        obj.set("encoding", JsValue(self.encoding))
 
-        obj.set("encode", JsValue.nativeFunction(JsNativeFunction("encode") { args =>
+        obj.set("encode", JsValue(JsFunction.create("encode", { _, args =>
             let text = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
             let bytes = self.encode(text)
             let arr = ArrayList<JsValue>()
@@ -111,9 +113,9 @@ public class TextEncoder {
                 arr.append(JsValue(Float64(Int64(b))))
             }
             JsValue.array(arr)
-        }))
+        })))
 
-        obj.set("encodeInto", JsValue.nativeFunction(JsNativeFunction("encodeInto") { args =>
+        obj.set("encodeInto", JsValue(JsFunction.create("encodeInto", { _, args =>
             if (args.size >= 1) {
                 let text = Interpreter.jsToString(args[0])
                 let bytes = self.encode(text)
@@ -122,7 +124,7 @@ public class TextEncoder {
                 return result.toJsValue()
             }
             EncodeIntoResult().toJsValue()
-        }))
+        })))
 
         return JsValue(obj)
     }

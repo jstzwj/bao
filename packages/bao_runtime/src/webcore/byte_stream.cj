@@ -4,7 +4,8 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
+import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // ByteStream - 字节流
@@ -65,7 +66,7 @@ public class ByteStream {
             return StreamStartResult.Empty
         }
         if (hasReceivedLastChunk) {
-            return StreamStartResult.OwnedAndDone(buffer.toArray())
+            return StreamStartResult.OwnedAndDone(buffer.items())
         }
         if (highWaterMark == 0) {
             return StreamStartResult.Ready
@@ -91,7 +92,7 @@ public class ByteStream {
         // 如果有管道回调，直接传递
         match (pipeCallback) {
             case Some(cb) =>
-                cb.onPipe(data.toArray(), isDone)
+                cb.onPipe(data.items(), isDone)
                 return
             case None => ()
         }
@@ -119,7 +120,7 @@ public class ByteStream {
     /// 对应 Bun: ByteStream.toAnyBlob()
     public func toAnyBlob(): ?Blob {
         if (buffer.size > 0) {
-            let bytes = buffer.toArray()
+            let bytes = buffer.items()
             let blob = Blob(bytes, "")
             return Some(blob)
         }
@@ -195,7 +196,7 @@ public class ByteStreamSource {
 
     /// 转为 ReadableStream
     public func toReadableStream(): ReadableStream {
-        let source = ReadableStreamSource(ReadableStreamTag.Bytes)
+        let source = ReadableStreamSource(ReadableStreamSourceTag.Bytes)
         for (b in context.buffer) {
             source.buffer.append(b)
         }

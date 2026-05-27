@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Binary.zig
 // 严格翻译Bun shell二元表达式状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 
 // ============================================================================
 // 二元表达式状态
@@ -14,7 +13,7 @@ import bao_runtime.shell.*
 
 /// 二元父节点指针（提取到顶层）
 public class BinaryParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): BinaryParentPtr {
         let pp = BinaryParentPtr()
         pp.ptr = p
@@ -28,7 +27,7 @@ public class BinaryParentPtr {
 
 /// 二元子节点指针（提取到顶层）
 public class BinaryChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): BinaryChildPtr {
         let cp = BinaryChildPtr()
         cp.ptr = p
@@ -41,21 +40,19 @@ public class BinaryChildPtr {
 /// 二元表达式状态
 public class BinaryState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Binary
+    public var node: ?Binary = None
     /// 父节点
-    public var parent: BinaryParentPtr
+    public var parent: BinaryParentPtr = BinaryParentPtr()
     /// 左操作数退出码
     public var left: ?ExitCode = None
     /// 右操作数退出码
     public var right: ?ExitCode = None
     /// IO
-    public var io: IO
+    public var io: IO = IO()
     /// 当前执行的子节点
     public var currentlyExecuting: ?BinaryChildPtr = None
-
-    public init() {}
 
     /// 初始化
     public static func initFunc(
@@ -105,7 +102,7 @@ public class BinaryState {
             this.left = exitCode
             // && 和 || 的短路逻辑
             var isShortCircuit = false
-            match (this.node.op) {
+            match (this.node.getOrThrow().op) {
                 case BinaryOp.And => isShortCircuit = !exitCode.isZero()
                 case BinaryOp.Or => isShortCircuit = exitCode.isZero()
             }

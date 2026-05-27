@@ -51,7 +51,7 @@ extend StreamBuffer {
         cursor = 0
     }
     public func write(chunk: String): Unit {
-        for (b in chunk.toArray()) {
+        for (b in BaoString(chunk).utf8()) {
             list = list.concat([b])
         }
     }
@@ -215,7 +215,7 @@ public func sortUploadPartResults(list: ArrayList<UploadPartResult>): Unit {
 // UploadPart - 上传分片
 // 严格翻译自: pub struct UploadPart (multipart.rs line 214-224)
 // Bun: pub struct UploadPart {
-//   data: *const [u8], ctx: BackRef<MultiPartUpload>,
+//   data: *const [u8], ctx: S3BackRef<MultiPartUpload>,
 //   allocated_size: usize, state: PartState, part_number: u16,
 //   retry: u8, index: u8
 // }
@@ -233,7 +233,7 @@ public class UploadPart {
     public var ownsData: Bool
 
     /// 所属的 MultiPartUpload 引用
-    /// 对应 Bun: ctx: BackRef<MultiPartUpload>
+    /// 对应 Bun: ctx: S3BackRef<MultiPartUpload>
     public var ctx: MultiPartUpload
 
     /// 已分配大小
@@ -446,13 +446,13 @@ public class UploadPart {
 //   ended: bool, options: MultiPartUploadOptions,
 //   acl: Option<ACL>, storage_class: Option<StorageClass>,
 //   request_payer: bool, credentials: IntrusiveRc<S3Credentials>,
-//   poll_ref: KeepAlive, vm: &'static VirtualMachine,
+//   poll_ref: KeepAlive, vm: &'static S3VirtualMachine,
 //   global_this: GlobalRef, buffered: StreamBuffer,
 //   path: Box<[u8]>, proxy: Box<[u8]>,
 //   content_type: Option<Box<[u8]>>,
 //   content_disposition: Option<Box<[u8]>>,
 //   content_encoding: Option<Box<[u8]>>,
-//   upload_id: Box<[u8]>, uploadid_buffer: MutableString,
+//   upload_id: Box<[u8]>, uploadid_buffer: S3MutableString,
 //   multipart_etags: Vec<UploadPartResult>,
 //   multipart_upload_list: Vec<u8>,
 //   state: State,
@@ -509,8 +509,8 @@ public class MultiPartUpload {
     public var pollRef: KeepAlive
 
     /// 虚拟机引用
-    /// 对应 Bun: vm: &'static VirtualMachine
-    public var vm: VirtualMachine
+    /// 对应 Bun: vm: &'static S3VirtualMachine
+    public var vm: S3VirtualMachine
 
     /// 全局对象引用
     /// 对应 Bun: global_this: GlobalRef
@@ -546,8 +546,8 @@ public class MultiPartUpload {
     public var uploadId: String
 
     /// 上传 ID 缓冲区
-    /// 对应 Bun: uploadid_buffer: MutableString
-    public var uploadidBuffer: MutableString
+    /// 对应 Bun: uploadid_buffer: S3MutableString
+    public var uploadidBuffer: S3MutableString
 
     /// 已上传分片的 ETag 列表
     /// 对应 Bun: multipart_etags: Vec<UploadPartResult>
@@ -555,7 +555,7 @@ public class MultiPartUpload {
 
     /// 多部分上传列表 (XML body)
     /// 对应 Bun: multipart_upload_list: Vec<u8>
-    public var multipartUploadList: MutableString
+    public var multipartUploadList: S3MutableString
 
     /// 上传状态
     /// 对应 Bun: state: State
@@ -586,7 +586,7 @@ public class MultiPartUpload {
         requestPayer = false
         credentials = S3Credentials()
         pollRef = KeepAlive()
-        vm = VirtualMachine()
+        vm = S3VirtualMachine()
         globalThis = GlobalRef()
         buffered = StreamBuffer()
         path = ""
@@ -595,9 +595,9 @@ public class MultiPartUpload {
         contentDisposition = None
         contentEncoding = None
         uploadId = ""
-        uploadidBuffer = MutableString()
+        uploadidBuffer = S3MutableString()
         multipartEtags = ArrayList<UploadPartResult>()
-        multipartUploadList = MutableString()
+        multipartUploadList = S3MutableString()
         state = MultipartUploadState.WAIT_STREAM_CHECK
         callback = { _: S3UploadResult, _: UIntNative => }
         onWritable = None
@@ -665,7 +665,7 @@ public class MultiPartUpload {
         pollRef.unref(vm)
         // path, proxy, content_type, content_disposition, content_encoding — GC 管理
         // credentials — GC 管理
-        // uploadid_buffer: MutableString — GC 管理
+        // uploadid_buffer: S3MutableString — GC 管理
         // multipart_etags: Vec<UploadPartResult> — GC 管理
         // multipart_upload_list: Vec<u8> — GC 管理
     }

@@ -20,7 +20,7 @@ public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
     this.incrementExpectCallCounter()
 
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
 
     let expectedValue = arguments[0]

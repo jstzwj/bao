@@ -519,7 +519,7 @@ public class CopyFile {
                         destinationFd = resultFd
                     case BunSysResult<Fd>.Err(errno) =>
                         match (Blob.mkdirIfNotExists(
-                            this, errno.clone(), dest, dest.toArray()
+                            this, errno, dest, stringToBytes(dest)
                         )) {
                             case Retry.Continue => continue
                             case Retry.Fail =>

@@ -1136,26 +1136,55 @@ func setSpawnedStdio(spawned: PosixSpawnResult, i: Int64, fd: Int64): Unit {
     }
 }
 
-/// close fd FFI
+/// close fd FFI -- 真实 close(2) 系统调用
 public func closeFd(fd: Int64): Unit {
-    // FFI: close(fd)
+    let rc = close(Int32(fd))
+    // EINTR 重试
+    if (rc == -1 && getErrno() == 4) {
+        var retries = 0
+        while (retries < 100) {
+            let rc2 = close(Int32(fd))
+            if (rc2 == 0 || getErrno() != 4) {
+                return
+            }
+            retries++
+        }
+    }
 }
 
-/// set_close_on_exec FFI
+/// set_close_on_exec FFI -- fcntl(fd, F_SETFD, FD_CLOEXEC)
 public func setCloseOnExec(fd: Int64): Unit {
-    // FFI: fcntl(fd, F_SETFD, FD_CLOEXEC)
+    let rc = fcntlInt(Int32(fd), 2, 1)  // F_SETFD=2, FD_CLOEXEC=1
+    if (rc == -1) {
+        // 非致命错误，忽略
+    }
 }
 
-/// set_nonblocking FFI
+/// set_nonblocking FFI -- fcntl(fd, F_SETFL, O_NONBLOCK)
 public func setNonblocking(fd: Int64): SysMaybe<Unit> {
-    // FFI: fcntl(fd, F_SETFL, O_NONBLOCK)
+    // 先获取当前 flags
+    let flags = fcntlInt(Int32(fd), 3, 0)  // F_GETFL=3
+    if (flags == -1) {
+        return SysMaybe<Unit>.Err(SysError(UInt16(getErrno()), SysTag.Fcntl))
+    }
+    // 设置 O_NONBLOCK (0x800)
+    let rc = fcntlInt(Int32(fd), 4, flags | 0x800)  // F_SETFL=4
+    if (rc == -1) {
+        return SysMaybe<Unit>.Err(SysError(UInt16(getErrno()), SysTag.Fcntl))
+    }
     return SysMaybe<Unit>.Ok(())
 }
 
-/// socketpair FFI
+/// socketpair FFI -- 真实 socketpair(2)
 public func socketpair(domain: Int32): SysMaybe<Array<Int64>> {
-    // FFI: socketpair(domain, SOCK_STREAM, 0, sv)
-    return SysMaybe<Array<Int64>>.Err(SysError(UInt16(0), SysTag.Socketpair))
+    unsafe {
+        var sv = Array<Int32>(2, item: Int32(0))
+        let rc = socketpair(domain, 1, 0, sv.getCPointer())  // SOCK_STREAM=1
+        if (rc == -1) {
+            return SysMaybe<Array<Int64>>.Err(SysError(UInt16(getErrno()), SysTag.Socketpair))
+        }
+        return SysMaybe<Array<Int64>>.Ok([Int64(sv[0]), Int64(sv[1])])
+    }
 }
 
 /// socketpair for shell (no SO_NOSIGPIPE)
@@ -1168,13 +1197,20 @@ public func socketpairWithIpc(domain: Int32, isIpc: Bool): SysMaybe<Array<Int64>
     return socketpair(domain)
 }
 
-/// memfd_create FFI
+/// memfd_create FFI -- Linux memfd_create(2)
 /// 严格对应 Bun: sys.memfd_create(label, flags) -> Maybe(FD)
-/// Bun sys.Tag: memfd_create
 public func memfdCreate(label: String): SysMaybe<Int64> {
-    // FFI: memfd_create(label, flags)
-    // 默认返回 ENOSYS，实际由 FFI 层覆盖
-    return SysMaybe<Int64>.Err(SysError(UInt16(38), SysTag.MemfdCreate))
+    if (!Environment.IS_LINUX) {
+        return SysMaybe<Int64>.Err(SysError(UInt16(38), SysTag.MemfdCreate))
+    }
+    unsafe {
+        var labelArr = label.toArray()
+        let rc = memfd_create(labelArr.getCPointer(), UInt32(1))  // MFD_CLOEXEC=1
+        if (rc == -1) {
+            return SysMaybe<Int64>.Err(SysError(UInt16(getErrno()), SysTag.MemfdCreate))
+        }
+        return SysMaybe<Int64>.Ok(Int64(rc))
+    }
 }
 
 /// can_use_memfd 检查
@@ -1182,16 +1218,29 @@ public func canUseMemfd(): Bool {
     return Environment.IS_LINUX
 }
 
-/// pidfd_open FFI
+/// pidfd_open FFI -- Linux pidfd_open(2)
 /// 严格对应 Bun: sys.pidfd_open(pid, flags) -> Maybe(fd)
-/// Bun sys.Tag: pidfd_open
 public func pidfdOpen(pid: Int32, flags: UInt32): SysMaybe<Int32> {
-    // FFI: pidfd_open(pid, flags)
-    // 默认返回 ENOSYS，实际由 FFI 层覆盖
-    return SysMaybe<Int32>.Err(SysError(UInt16(38), SysTag.PidfdOpen))
+    if (!Environment.IS_LINUX) {
+        return SysMaybe<Int32>.Err(SysError(UInt16(38), SysTag.PidfdOpen))
+    }
+    let rc = pidfd_open(pid, flags)
+    if (rc == -1) {
+        return SysMaybe<Int32>.Err(SysError(UInt16(getErrno()), SysTag.PidfdOpen))
+    }
+    return SysMaybe<Int32>.Ok(rc)
 }
 
-/// setsockopt FFI
+/// setsockopt FFI -- 真实 setsockopt(2)
 public func setsockopt(fd: Int64, level: Int32, optname: Int32, value: Int32): Unit {
-    // FFI: setsockopt(fd, level, optname, &value, sizeof(value))
+    unsafe {
+        var v = value
+        let ptr = v.toCPointer()
+        // setsockopt from bao_sys socket.cj
+        bao_sys_setsockopt(Int32(fd), level, optname, ptr, UInt32(4))
+    }
 }
+
+@C
+foreign func bao_sys_setsockopt(fd: Int32, level: Int32, optname: Int32,
+    value: CPointer<Unit>, len: UInt32): Int32

@@ -7,12 +7,7 @@ package bao_runtime.shell
 import bao_core.*
 import bao_collections.*
 
-/// Pipeline状态枚举
-public enum PipelineStateKind {
-    | startingCmds
-    | running
-    | done
-}
+// PipelineStateKind 已在 pipeline.cj 中定义（同包），此处不再重复定义
 
 // ============================================================================
 // Yield - Shell解释器的"延续"值
@@ -65,14 +60,55 @@ public enum Yield {
 
     /// 运行Yield - 弹跳床驱动
     /// 充当"trampoline"来驱动执行而不爆栈
-    /// stub: simplified — full implementation requires Pipeline state types
+    /// 对应 Bun: Yield.zig - run() method
     public func run() {
-        // stub: simplified trampoline
-        // Full implementation would iterate through Yield states
+        var current = this
+        var iterations: Int64 = 0
+        let maxIterations: Int64 = 1000000 // 防止无限循环
+        while (!current.isDone() && iterations < maxIterations) {
+            iterations += 1
+            current = match (current) {
+                case script(state) =>
+                    let s = (state as ScriptState).getOrThrow()
+                    s.next()
+                case stmt(state) =>
+                    let s = (state as StmtState).getOrThrow()
+                    s.next()
+                case cmd(state) =>
+                    let s = (state as CmdState).getOrThrow()
+                    s.next()
+                case assigns(state) =>
+                    let s = (state as AssignsState).getOrThrow()
+                    s.next()
+                case expansion(state) =>
+                    let s = (state as ExpansionState).getOrThrow()
+                    s.next()
+                case ifClause(state) =>
+                    let s = (state as IfState).getOrThrow()
+                    s.next()
+                case subshell(state) =>
+                    let s = (state as SubshellState).getOrThrow()
+                    s.next()
+                case condExpr(state) =>
+                    let s = (state as CondExprState).getOrThrow()
+                    s.next()
+                case pipeline(state) =>
+                    let s = (state as PipelineState).getOrThrow()
+                    s.next()
+                case onIoWriterChunk(_, _, _) =>
+                    Yield.done
+                case suspended =>
+                    Yield.suspended
+                case failed =>
+                    Yield.done
+                case done =>
+                    Yield.done
+            }
+        }
     }
 
     /// 排空管道栈
-    public static func drainPipelines(pipelineStack: ArrayList<Pipeline>): ?Yield {
+    public static func drainPipelines(pipelineStack: ArrayList<PipelineState>): ?Yield {
         // stub: simplified
         return None
     }

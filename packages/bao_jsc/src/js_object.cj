@@ -453,6 +453,21 @@ public class JsObject {
         throw JsTypeError(msg)
     }
 
+    /// 是否为 rejected promise
+    public func isRejected(): Bool {
+        return false
+    }
+
+    /// 是否为 fulfilled promise
+    public func isFulfilled(): Bool {
+        return false
+    }
+
+    /// Promise 状态
+    public func promiseStatus(): PromiseStatus {
+        return PromiseStatus.Pending
+    }
+
     // 原型对象
     static let prototypeObject = JsObject()
     static let booleanPrototype = JsObject()

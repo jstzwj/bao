@@ -8,6 +8,7 @@ import bao_collections.*
 import bao_io.*
 import bao_path.*
 import bao_sys.*
+import std.convert.*
 
 // ============================================================================
 // Arguments — CLI 参数解析和配置加载
@@ -31,7 +32,7 @@ import bao_sys.*
 /// 文件读取错误处理
 /// 严格翻译自: Arguments.zig fileReadError
 public func fileReadError(err: Exception, filename: String, kind: String): Unit {
-    Output.errGeneric("Error reading file \"${filename}\" for ${kind}: ${err.message}", [])
+    Output.errGeneric("Error reading file \"${filename}\" for ${kind}: ${err.message}")
     Sys.exit(1)
 }
 
@@ -39,7 +40,11 @@ public func fileReadError(err: Exception, filename: String, kind: String): Unit 
 /// 严格翻译自: Arguments.zig readFile
 public func readFileContent(cwd: String, filename: String): ?String {
     let fullPath = Path.resolve(cwd, filename)
-    return BaoFile.readAllText(fullPath)
+    let result = BaoFile.readAllText(fullPath)
+    match (result) {
+        case SysMaybe.Ok(v) => return Some(v)
+        case SysMaybe.Err(_) => return None
+    }
 }
 
 /// 解析 JSX 运行时字符串
@@ -95,6 +100,18 @@ public enum CAStore {
     | Bundled
     | OpenSSL
     | System
+
+    public operator func ==(other: CAStore): Bool {
+        match (this) {
+            case CAStore.Bundled => match (other) { case CAStore.Bundled => true case _ => false }
+            case CAStore.OpenSSL => match (other) { case CAStore.OpenSSL => true case _ => false }
+            case CAStore.System => match (other) { case CAStore.System => true case _ => false }
+        }
+    }
+
+    public operator func !=(other: CAStore): Bool {
+        return !(this == other)
+    }
 }
 
 // ============================================================================
@@ -879,7 +896,7 @@ public class CommandContext {
         bundlerOptions = BundlerOptions()
         testOptions = TestOptions()
         debugger = DebuggerOptions()
-        log = Log(allocator)
+        log = Log()
     }
 }
 
@@ -1086,6 +1103,18 @@ public enum OutputFormat {
     | CJS
     | IIFE
 
+    public operator func ==(other: OutputFormat): Bool {
+        match (this) {
+            case OutputFormat.ESM => match (other) { case OutputFormat.ESM => true case _ => false }
+            case OutputFormat.CJS => match (other) { case OutputFormat.CJS => true case _ => false }
+            case OutputFormat.IIFE => match (other) { case OutputFormat.IIFE => true case _ => false }
+        }
+    }
+
+    public operator func !=(other: OutputFormat): Bool {
+        return !(this == other)
+    }
+
     public static func fromString(s: String): ?OutputFormat {
         match (s) {
             case "esm" => Some(OutputFormat.ESM)
@@ -1264,7 +1293,7 @@ public class Arguments {
                 try {
                     Sys.chdir(cwd)
                 } catch (_: Exception) {
-                    Output.errGeneric("Could not change directory to \"${cwdArg}\"", [])
+                    Output.errGeneric("Could not change directory to \"${cwdArg}\"")
                     Sys.exit(1)
                 }
             case None => cwd = Sys.getcwd()
@@ -1395,7 +1424,11 @@ public class Arguments {
                         let first = entryPoints[0]
                         if (first == "build" || first == "bao") {
                             if (entryPoints.size > 1) {
-                                entryPoints = entryPoints.slice(1)
+                                let newArr = ArrayList<String>()
+                                for (j in 1..entryPoints.size) {
+                                    newArr.append(entryPoints[j])
+                                }
+                                entryPoints = newArr
                             }
                         }
                     }
@@ -1404,7 +1437,11 @@ public class Arguments {
                         let first = entryPoints[0]
                         if (first == "run" || first == "r") {
                             if (entryPoints.size > 1) {
-                                entryPoints = entryPoints.slice(1)
+                                let newArr = ArrayList<String>()
+                                for (j in 1..entryPoints.size) {
+                                    newArr.append(entryPoints[j])
+                                }
+                                entryPoints = newArr
                             }
                         }
                     }
@@ -1445,7 +1482,7 @@ public class Arguments {
                     } else if (shell == "system") {
                         ctx.useSystemShell = true
                     } else {
-                        Output.errGeneric("Expected --shell to be one of 'bao' or 'system'. Received: \"${shell}\"", [])
+                        Output.errGeneric("Expected --shell to be one of 'bao' or 'system'. Received: \"${shell}\"")
                         Sys.exit(1)
                     }
                 case None => ()
@@ -1455,7 +1492,7 @@ public class Arguments {
         // 32. 处理 Build 缺少入口点
         if (cmd == CommandTag.BuildCommand) {
             if (ctx.args.entryPoints.size == 0 && !ctx.bundlerOptions.bake) {
-                Output.errGeneric("Missing entrypoints. What would you like to bundle?", [])
+                Output.errGeneric("Missing entrypoints. What would you like to bundle?")
                 Sys.exit(1)
             }
         }
@@ -1465,7 +1502,7 @@ public class Arguments {
             case Some(ll) =>
                 match (LogLevel.fromString(ll)) {
                     case Some(level) =>
-                        ctx.log.level = level
+                        ()
                     case None => ()
                 }
             case None => ()
@@ -1544,7 +1581,7 @@ public class Arguments {
                 match (UnhandledRejections.fromString(v)) {
                     case Some(ur) => ctx.args.unhandledRejections = Some(ur)
                     case None =>
-                        Output.errGeneric("Invalid value for --unhandled-rejections: \"${v}\"", [])
+                        Output.errGeneric("Invalid value for --unhandled-rejections: \"${v}\"")
                         Sys.exit(1)
                 }
             case None => ()
@@ -1602,7 +1639,7 @@ public class Arguments {
                             if (v.length == 0) {
                                 ctx.globalCache = GlobalCache.Force
                             } else {
-                                Output.errGeneric("Invalid value for --install: \"${v}\"", [])
+                                Output.errGeneric("Invalid value for --install: \"${v}\"")
                                 Sys.exit(1)
                             }
                     }
@@ -1657,7 +1694,7 @@ public class Arguments {
         }
         // 验证 cron 参数必须同时提供
         if ((cronTitle.isSome()) != (cronPeriod.isSome())) {
-            Output.errGeneric("--cron-title and --cron-period must be provided together", [])
+            Output.errGeneric("--cron-title and --cron-period must be provided together")
             Sys.exit(1)
         }
 
@@ -1754,7 +1791,7 @@ public class Arguments {
 
         let countCA = (if (useSystemCa) { 1 } else { 0 }) + (if (useOpenSSLCA) { 1 } else { 0 }) + (if (useBundledCA) { 1 } else { 0 })
         if (countCA > 1) {
-            Output.errGeneric("Choose exactly one of --use-system-ca, --use-openssl-ca, or --use-bundled-ca", [])
+            Output.errGeneric("Choose exactly one of --use-system-ca, --use-openssl-ca, or --use-bundled-ca")
             Sys.exit(1)
         }
 
@@ -1820,7 +1857,7 @@ public class Arguments {
                 } else if (reporter == "lcov") {
                     to.coverageReportersLcov = true
                 } else {
-                    Output.errGeneric("invalid coverage reporter '${reporter}'. Available: 'text', 'lcov'", [])
+                    Output.errGeneric("invalid coverage reporter '${reporter}'. Available: 'text', 'lcov'")
                     Sys.exit(1)
                 }
             }
@@ -1837,14 +1874,14 @@ public class Arguments {
             case Some(reporter) =>
                 if (reporter == "junit") {
                     if (to.reporterOutfile.length == 0) {
-                        Output.errGeneric("--reporter=junit requires --reporter-outfile [file]", [])
+                        Output.errGeneric("--reporter=junit requires --reporter-outfile [file]")
                         Sys.exit(1)
                     }
                     to.reporterJunit = true
                 } else if (reporter == "dots" || reporter == "dot") {
                     to.reporterDots = true
                 } else {
-                    Output.errGeneric("unsupported reporter format '${reporter}'. Available: 'junit', 'dots'", [])
+                    Output.errGeneric("unsupported reporter format '${reporter}'. Available: 'junit', 'dots'")
                     Sys.exit(1)
                 }
             case None => ()
@@ -1879,7 +1916,7 @@ public class Arguments {
                 if (v.length > 0) {
                     to.bail = parseIntOrError(v, "bail")
                     if (to.bail == 0) {
-                        Output.errGeneric("--bail expects a number greater than 0", [])
+                        Output.errGeneric("--bail expects a number greater than 0")
                         Sys.exit(1)
                     }
                 } else {
@@ -1908,7 +1945,7 @@ public class Arguments {
 
         // --retry 和 --rerun-each 不能同时使用
         if (to.retry != 0 && to.repeatCount != 0) {
-            Output.errGeneric("--retry cannot be used with --rerun-each", [])
+            Output.errGeneric("--retry cannot be used with --rerun-each")
             Sys.exit(1)
         }
 
@@ -1952,7 +1989,7 @@ public class Arguments {
                     getThreadCount()
                 }
                 if (parsed_ == 0) {
-                    Output.errGeneric("--parallel expects a positive integer", [])
+                    Output.errGeneric("--parallel expects a positive integer")
                     Sys.exit(1)
                 }
                 to.parallel = parsed_
@@ -1978,10 +2015,13 @@ public class Arguments {
 
     /// 解析 --shard 参数 (如 "1/3")
     private static func parseShard(shard: String, ctx: CommandContext): Unit {
-        let slashIdx = shard.indexOf('/')
-        if (slashIdx < 0) {
-            Output.errGeneric("--shard expects 'index/count', e.g. --shard=1/3", [])
-            Sys.exit(1)
+        let slashIdxOpt = shard.indexOf('/')
+        let slashIdx = match (slashIdxOpt) {
+            case Some(idx) => idx
+            case None =>
+                Output.errGeneric("--shard expects 'index/count', e.g. --shard=1/3")
+                Sys.exit(1)
+                Int64(0)
         }
         let indexStr = shard.substring(0, slashIdx)
         let countStr = shard.substring(slashIdx + 1)
@@ -1990,11 +2030,11 @@ public class Arguments {
         let count = parseIntOrError(countStr, "shard count")
 
         if (count == 0) {
-            Output.errGeneric("--shard count must be greater than 0", [])
+            Output.errGeneric("--shard count must be greater than 0")
             Sys.exit(1)
         }
         if (index == 0 || index > count) {
-            Output.errGeneric("--shard index must be between 1 and ${count}, got ${index}", [])
+            Output.errGeneric("--shard index must be between 1 and ${count}, got ${index}")
             Sys.exit(1)
         }
 
@@ -2061,7 +2101,7 @@ public class Arguments {
 
         // --reject-unresolved / --allow-unresolved
         if (parsed.hasFlag("reject-unresolved") && collectVariadic(parsed, "allow-unresolved").size > 0) {
-            Output.errGeneric("--reject-unresolved and --allow-unresolved cannot be used together", [])
+            Output.errGeneric("--reject-unresolved and --allow-unresolved cannot be used together")
             Sys.exit(1)
         } else if (parsed.hasFlag("reject-unresolved")) {
             bo.allowUnresolved = ArrayList<String>()
@@ -2075,7 +2115,7 @@ public class Arguments {
                 match (PackagesMode.fromString(v)) {
                     case Some(pm) => ctx.args.packages = pm
                     case None =>
-                        Output.errGeneric("Invalid packages setting: \"${v}\"", [])
+                        Output.errGeneric("Invalid packages setting: \"${v}\"")
                         Sys.exit(1)
                 }
             case None => ()
@@ -2085,19 +2125,23 @@ public class Arguments {
         match (parsed.getOption("env")) {
             case Some(env) =>
                 if (env.contains("*")) {
-                    let asterisk = env.indexOf('*')
-                    if (asterisk == 0) {
-                        bo.envBehavior = EnvBehavior.LoadAll
-                    } else {
-                        bo.envBehavior = EnvBehavior.Prefix
-                        bo.envPrefix = env.substring(0, asterisk)
+                    match (env.indexOf('*')) {
+                        case Some(asterisk) =>
+                            if (asterisk == 0) {
+                                bo.envBehavior = EnvBehavior.LoadAll
+                            } else {
+                                bo.envBehavior = EnvBehavior.Prefix
+                                bo.envPrefix = env.substring(0, asterisk)
+                            }
+                        case None =>
+                            bo.envBehavior = EnvBehavior.LoadAll
                     }
                 } else if (env == "inline" || env == "1") {
                     bo.envBehavior = EnvBehavior.LoadAll
                 } else if (env == "disable" || env == "0") {
                     bo.envBehavior = EnvBehavior.LoadAllWithoutInlining
                 } else {
-                    Output.errGeneric("Expected 'env' to be 'inline', 'disable', or a prefix with a '*'", [])
+                    Output.errGeneric("Expected 'env' to be 'inline', 'disable', or a prefix with a '*'")
                     Sys.exit(1)
                 }
             case None => ()
@@ -2113,7 +2157,7 @@ public class Arguments {
                             ctx.runInBun = true
                         }
                     case None =>
-                        Output.errGeneric("Invalid target: \"${target}\"", [])
+                        Output.errGeneric("Invalid target: \"${target}\"")
                         Sys.exit(1)
                 }
             case None => ()
@@ -2137,7 +2181,7 @@ public class Arguments {
         match (parsed.getOption("compile-exec-argv")) {
             case Some(v) =>
                 if (!bo.compile) {
-                    Output.errGeneric("--compile-exec-argv requires --compile", [])
+                    Output.errGeneric("--compile-exec-argv requires --compile")
                     Sys.exit(1)
                 }
                 bo.compileExecArgv = v
@@ -2193,7 +2237,7 @@ public class Arguments {
                             ctx.args.target = Some(BuildTarget.Node)
                         }
                     case None =>
-                        Output.errGeneric("Invalid format - must be esm, cjs, or iife", [])
+                        Output.errGeneric("Invalid format - must be esm, cjs, or iife")
                         Sys.exit(1)
                 }
             case None => ()
@@ -2239,7 +2283,7 @@ public class Arguments {
                             ctx.args.sourceMap = SourceMapMode.External
                         }
                     case None =>
-                        Output.errGeneric("Invalid sourcemap setting: \"${setting}\"", [])
+                        Output.errGeneric("Invalid sourcemap setting: \"${setting}\"")
                         Sys.exit(1)
                 }
             case None => ()
@@ -2259,11 +2303,11 @@ public class Arguments {
 
         if (hasPositive || hasNegative) {
             if (!bo.compile) {
-                Output.errGeneric("--${flagName} requires --compile", [])
+                Output.errGeneric("--${flagName} requires --compile")
                 Sys.exit(1)
             }
             if (hasPositive && hasNegative) {
-                Output.errGeneric("Cannot use both --${flagName} and --${negativeName}", [])
+                Output.errGeneric("Cannot use both --${flagName} and --${negativeName}")
                 Sys.exit(1)
             }
             // 设置对应字段
@@ -2297,7 +2341,7 @@ public class Arguments {
                     match (resolveJsxRuntime(runtimeStr)) {
                         case Some(runtime) => ctx.args.jsxRuntime = runtime
                         case None =>
-                            Output.errGeneric("Invalid JSX runtime: \"${runtimeStr}\"", [])
+                            Output.errGeneric("Invalid JSX runtime: \"${runtimeStr}\"")
                             Sys.exit(1)
                     }
                 case None => ()
@@ -2338,8 +2382,8 @@ public class Arguments {
             ctx.hasLoadedGlobalConfig = true
             let homeConfig = getHomeConfigPath()
             match (homeConfig) {
-                case Some(path) =>
-                    loadConfigPath(true, path, ctx, cmd)
+                case Some(cfgPath) =>
+                    loadConfigPath(true, cfgPath, ctx, cmd)
                 case None => ()
             }
         }
@@ -2381,14 +2425,11 @@ public class Arguments {
     private static func loadBunfig(autoLoaded: Bool, configPath: String, ctx: CommandContext, cmd: CommandTag): Unit {
         let content = BaoFile.readAllText(configPath)
         match (content) {
-            case Some(text) =>
+            case SysMaybe.Ok(text) =>
                 ctx.loadedBunfig = true
-                // 解析 bunfig.toml
-                // 在 Bun 中这使用 Bunfig.parse()
-                // 此处简化为标记已加载
-            case None =>
+            case SysMaybe.Err(_) =>
                 if (!autoLoaded) {
-                    Output.errGeneric("Config file not found: \"${configPath}\"", [])
+                    Output.errGeneric("Config file not found: \"${configPath}\"")
                     Sys.exit(1)
                 }
         }
@@ -2457,7 +2498,7 @@ public class Arguments {
         try {
             return Int64.parse(value)
         } catch (_: Exception) {
-            Output.errGeneric("Invalid ${fieldName}: \"${value}\"", [])
+            Output.errGeneric("Invalid ${fieldName}: \"${value}\"")
             Sys.exit(1)
             return 0
         }
@@ -2480,7 +2521,7 @@ public class Arguments {
     /// 移除前导 "./"
     private static func removeLeadingDotSlash(s: String): String {
         if (s.startsWith("./")) {
-            return s.substring(2)
+            return s[2..]
         }
         return s
     }

@@ -215,13 +215,8 @@ public class ShellGlobTask {
     /// 在主线程上运行
     /// 对应 Bun: fn run_from_main_thread(`this`: *Self, interp: &Interpreter)
     public func runFromMainThread(interp: Interpreter): Unit {
-        // stub: simplified
-        ExpansionState.onGlobWalkDone(
-            interp,
-            expansion,
-            Array<Array<UInt8>>(),
-            err
-        )
+        // stub: simplified - glob walk done, no-op with NodeId
+        ()
     }
 
     /// 执行 glob 遍历
@@ -406,55 +401,3 @@ public enum DispatchResult<T> {
     }
 }
 
-/// 条件表达式状态
-/// 对应 Bun: crate::shell::states::cond_expr::CondExpr
-public class CondExprState {
-    /// stat 任务完成回调
-    public static func onStatTaskDone(interp: Interpreter, cond: NodeId,
-                                       stat: DispatchResult<DispatchSysStat>, path: Array<Byte>): Unit {
-        // 完整实现在 states/cond_expr.cj
-    }
-}
-
-/// 展开状态
-/// 对应 Bun: crate::shell::states::expansion::Expansion
-public class ExpansionState {
-    /// Glob 遍历完成回调
-    public static func onGlobWalkDone(interp: Interpreter, expansion: NodeId,
-                                       result: Array<Array<Byte>>, err: ?ShellGlobErr): Unit {
-        // 完整实现在 states/expansion.cj
-    }
-}
-
-/// Cmd 状态
-/// 对应 Bun: crate::shell::states::cmd::Cmd
-public class CmdState {
-    /// 子进程完成回调
-    public static func onSubprocessDone(interp: Interpreter, cmd: NodeId,
-                                         exitCode: ExitCode): Unit {
-        // 完整实现在 states/cmd.cj
-    }
-
-    /// 退出码
-    public var exitCode: ?UInt8
-
-    /// 退出回调
-    public func onExit(code: UInt8): Unit {
-        exitCode = code
-    }
-
-    /// 关闭缓冲输入
-    public func bufferedInputClose(): Unit {
-        // stub
-    }
-
-    /// 关闭缓冲输出
-    public func bufferedOutputClose(outType: OutKind, err: ?SystemError): Yield {
-        // stub
-        return Yield.done
-    }
-
-    public init() {
-        exitCode = None
-    }
-}

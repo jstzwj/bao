@@ -33,7 +33,7 @@ public func toBeEmpty(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (not) { pass = !pass }
     if (pass) { return JsValue.jsUndefined }
 
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 

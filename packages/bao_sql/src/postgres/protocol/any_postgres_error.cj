@@ -40,6 +40,21 @@ public enum AnyPostgresError {
     | UnsupportedArrayFormat
     | UnsupportedNumericFormat
     | UnknownFormatCode
+
+    public func toString(): String {
+        match (this) {
+            case ConnectionClosed => "ConnectionClosed"
+            case ExpectedRequest => "ExpectedRequest"
+            case ExpectedStatement => "ExpectedStatement"
+            case InvalidBackendKeyData => "InvalidBackendKeyData"
+            case InvalidBinaryData => "InvalidBinaryData"
+            case InvalidByteSequence => "InvalidByteSequence"
+            case InvalidMessage => "InvalidMessage"
+            case InvalidMessageLength => "InvalidMessageLength"
+            case InvalidQueryBinding => "InvalidQueryBinding"
+            case _ => "PostgresError"
+        }
+    }
 }
 
 /// 创建 PostgresError 的选项

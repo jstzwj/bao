@@ -346,4 +346,17 @@ public class PostgresReader {
         offset = end + 1
         return s
     }
+
+    /// 获取当前偏移位置
+    public func currentOffset(): Int64 {
+        return offset
+    }
+
+    /// 获取从当前偏移到数据末尾的剩余字节
+    public func remainingBytes(): Array<UInt8> {
+        if (offset >= data.size) {
+            return []
+        }
+        return data[offset..data.size]
+    }
 }

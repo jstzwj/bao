@@ -7,7 +7,8 @@
 //   仓颉: 提供兼容的 WebAssembly 流式编译接口
 package bao_runtime.webcore
 
-import bao_core.*
+import bao_core.BaoError
+import bao_core.ErrorCode
 import bao_jsc.*
 
 // ============================================================================

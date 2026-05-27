@@ -127,6 +127,23 @@ public class EventLoopHandle {
         return miniLoop
     }
 
+    /// 运行事件循环
+    public func run(): Unit {
+        match (miniLoop) {
+            case Some(loop) => loop.run()
+            case None => ()
+        }
+    }
+
+    /// 唤醒事件循环
+    public func wakeup(): Unit {
+        match (miniLoop) {
+            case Some(loop) =>
+                loop.enqueue({ => () })
+            case None => ()
+        }
+    }
+
     /// 获取顶级目录 - 对应 Bun EventLoopHandle.top_level_dir()
     public func topLevelDir(): String {
         return ""
@@ -140,28 +157,6 @@ public class EventLoopHandle {
     /// 获取事件循环关联的 AsyncLoop
     public func loop(): AsyncLoopStub {
         return AsyncLoopStub()
-    }
-
-    // ========================================================================
-    // wakeup - 唤醒事件循环
-    // 严格翻译自: EventLoopHandle.wakeup()
-    //
-    // Bun (Rust):
-    //   pub fn wakeup(&mut self) {
-    //       unsafe { (*self.r#loop()).wakeup() }
-    //   }
-    //
-    // 用于从其他线程通知事件循环有新任务
-    // ========================================================================
-
-    /// 唤醒事件循环 - 对应 Bun EventLoopHandle.wakeup
-    /// 从任意线程安全调用, 通知事件循环检查新任务
-    public func wakeup(): Unit {
-        match (miniLoop) {
-            case Some(loop) =>
-                loop.enqueue({ => () })
-            case None => ()
-        }
     }
 
     // ========================================================================

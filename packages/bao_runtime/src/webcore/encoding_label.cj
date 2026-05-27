@@ -75,7 +75,7 @@ public enum EncodingLabel {
     /// 对应 Bun: EncodingLabel.string_map (ComptimeStringMap, case-insensitive)
     /// 严格翻译自 EncodingLabel.zig string_map 全部条目
     public static func fromString(label: String): ?EncodingLabel {
-        let lower = label.toLowerCase().trimAscii()
+        let lower = label.toAsciiLower().trimAscii()
 
         // ── Windows-1252 (Latin1) aliases ──
         // 对应 Bun: string_map "l1" ... "iso_8859-1:1987"

@@ -20,7 +20,7 @@ public func toBeString(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
 
     if (pass) { return JsValue.jsUndefined }
 
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 

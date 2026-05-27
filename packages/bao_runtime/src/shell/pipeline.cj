@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Pipeline.zig
 // 严格翻译Bun shell管道状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 
 // ============================================================================
 // 管道执行状态
@@ -23,18 +22,22 @@ public enum PipelineStateKind {
 
 /// 管道父节点指针（提取到顶层）
 public class PipelineParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
 
     public static func initFunc(p: Any): PipelineParentPtr {
         let pp = PipelineParentPtr()
         pp.ptr = p
         return pp
     }
+
+    public func childDone(child: Any, exitCode: ExitCode): Yield {
+        return Yield.done
+    }
 }
 
 /// 管道子节点指针（提取到顶层）
 public class PipelineChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
 
     public static func initFunc(p: Any): PipelineChildPtr {
         let cp = PipelineChildPtr()
@@ -56,11 +59,11 @@ public enum PipelineCmdOrResult {
 /// 管道状态
 public class PipelineState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Pipeline
+    public var node: ?Pipeline = None
     /// 父节点
-    public var parent: PipelineParentPtr
+    public var parent: PipelineParentPtr = PipelineParentPtr()
     /// 已退出的命令数
     public var exitedCount: UInt32 = 0
     /// 命令列表
@@ -68,9 +71,9 @@ public class PipelineState {
     /// 管道列表
     public var pipes: ?Array<Pipe> = None
     /// IO
-    public var io: IO
+    public var io: IO = IO()
     /// 状态
-    public var state: PipelineStateKind
+    public var state: PipelineStateKind = PipelineStateKind.startingCmds(0)
 
     public init() {
         this.state = PipelineStateKind.startingCmds(0)
@@ -111,7 +114,7 @@ public class PipelineState {
         match (this.state) {
             case PipelineStateKind.startingCmds(idx) =>
                 if (let Some(cmds) <- this.cmds) {
-                    if (idx >= cmds.size) {
+                    if (Int64(idx) >= cmds.size) {
                         this.state = PipelineStateKind.pending
                         return Yield.suspended
                     }
@@ -130,8 +133,8 @@ public class PipelineState {
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
-        if (let Some(e) <- err) {
-            this.base.`throw`(ShellErr.newSys(e))
+        if (err.isSome()) {
+            this.base.`throw`(ShellErr.newSys(err.getOrThrow()))
             return Yield.failed
         }
         return this.parent.childDone(this, ExitCode.exited(1))
@@ -142,7 +145,7 @@ public class PipelineState {
         child.deinit()
         this.exitedCount += 1
         if (let Some(cmds) <- this.cmds) {
-            if (this.exitedCount >= cmds.size) {
+            if (Int64(this.exitedCount) >= cmds.size) {
                 this.state = PipelineStateKind.done(exitCode)
                 return Yield.pipeline(this)
             }
@@ -152,12 +155,7 @@ public class PipelineState {
 
     /// 去初始化
     public func deinit() {
-        if (let Some(cmds) <- this.cmds) {
-            this.base.allocator().free(cmds)
-        }
-        if (let Some(pipes) <- this.pipes) {
-            this.base.allocator().free(pipes)
-        }
+        // GC-managed, no manual free needed
         this.io.deref()
         this.base.endScope()
     }

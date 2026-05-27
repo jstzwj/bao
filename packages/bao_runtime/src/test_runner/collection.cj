@@ -7,6 +7,7 @@ import bao_jsc.{JsObject, JSGlobalObject, JsValue}
 import bao_core.*
 import bao_collections.ArrayList
 import bao_collections.HashMap
+import bao_event_loop.Timespec
 
 // ========== Collection - 测试收集阶段 ==========
 
@@ -20,8 +21,8 @@ public class Collection {
     public var filterBuffer: ArrayList<UInt8> = ArrayList<UInt8>()
 
     public init(gpa: Allocator, bunTestRoot: BunTestRoot) {
-        rootScope = DescribeScope.create(gpa: gpa, base: BaseScope(
-            cfg: BaseScopeCfg(), gpa: gpa, name: None, parent: bunTestRoot.hookScope, hasCallback: false
+        rootScope = DescribeScope.create(gpa, BaseScope(
+            BaseScopeCfg(), gpa, Option<String>.None, bunTestRoot.hookScope, false
         ))
         activeScope = rootScope
     }
@@ -42,9 +43,7 @@ public class Collection {
     public func enqueueDescribeCallback(newScope: DescribeScope, callback: ?JsValue) {
         if (let Some(cb) <- callback) {
             currentScopeCallbackQueue.append(QueuedDescribe(
-                activeScope: activeScope,
-                callback: cb,
-                newScope: newScope
+                cb, activeScope, newScope
             ))
         }
     }
@@ -52,7 +51,7 @@ public class Collection {
     /// 单次完成回调 - 恢复活动作用域到调用前状态
     public func runOneCompleted(globalThis: JSGlobalObject, data: RefDataValue) {
         let prevScope: DescribeScope = match (data) {
-            case RefDataValue.collection(activeScope) => activeScope
+            case RefDataValue.collection(refData) => refData.activeScope
             case _ => activeScope // 不应发生
         }
 
@@ -70,12 +69,17 @@ public class Collection {
         let buntest = buntestStrong.get()
 
         if (!data.isStart()) {
-            runOneCompleted(globalThis: globalThis, data: data)
+            runOneCompleted(globalThis, data)
         }
 
         // 将当前作用域回调队列中的项逆序追加到主队列
         // 逆序因为items会从末尾pop
-        var items = currentScopeCallbackQueue.reversed()
+        var items = ArrayList<QueuedDescribe>()
+        var i = currentScopeCallbackQueue.size - 1
+        while (i >= 0) {
+            items.append(currentScopeCallbackQueue[Int64(i)])
+            i -= 1
+        }
         currentScopeCallbackQueue.clear()
         for (item in items ) {
             if (item.newScope.failed) {
@@ -87,13 +91,15 @@ public class Collection {
 
         // 处理主队列
         while (!describeCallbackQueue.isEmpty()) {
-            let first = describeCallbackQueue.removeLast()
+            let firstOpt = describeCallbackQueue.pop()
+            if (firstOpt.isNone()) { break }
+            let first = firstOpt.getOrThrow()
 
             if (first.activeScope.failed) {
                 continue // 不执行来自失败describe作用域的回调
             }
 
-            let callback = first.callback
+            let cb = first.callback
             let previousScope = first.activeScope
             let newScope = first.newScope
 
@@ -101,21 +107,24 @@ public class Collection {
             activeScope = newScope
 
             // 运行测试回调
-            let result = BunTest.runTestCallback(
-                strong: buntestStrong,
-                globalThis: globalThis,
-                callback: callback,
-                doneParameter: false,
-                data: RefDataValue.collection(RefDataCollection(activeScope: previousScope)),
-                timeout: Timespec.epoch
+            let result: ?RefDataValue = BunTest.runTestCallback(
+                buntestStrong,
+                globalThis,
+                cb,
+                false,
+                RefDataValue.collection(RefDataCollection(previousScope)),
+                Timespec.EPOCH
             )
 
             if (let Some(cfgData) <- result) {
                 // 结果立即可用；入队
-                buntestStrong.get().addResult(result: cfgData)
+                let btOpt = buntestStrong.get()
+                if (let Some(bt) <- btOpt) {
+                    bt.addResult(cfgData)
+                }
             }
 
-            return StepResult.waiting(timeout: Timespec.epoch)
+            return StepResult.waiting(Timespec.EPOCH)
         }
 
         return StepResult.complete

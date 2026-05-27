@@ -9,6 +9,7 @@ package bao_cli
 
 import bao_core.*
 import bao_install.*
+import bao_install.lockfile.ScriptsList
 import bao_collections.*
 
 // ============================================================================

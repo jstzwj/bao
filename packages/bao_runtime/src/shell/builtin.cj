@@ -231,7 +231,7 @@ public enum BuiltinOutput {
     }
 
     /// 入队
-    public func enqueue(ptr: Any, buf: Array<Byte>): Yield {
+    public func enqueue(ptr: Any, buf: Array<Byte>, safeguard: OutputNeedsIOSafeGuard): Yield {
         match (this) {
             case fd(writer, captured) =>
                 return writer.enqueue(ptr, captured, buf)
@@ -403,6 +403,21 @@ public class BuiltinImpl {
         return Yield.done
     }
 
+    /// 获取参数切片
+    public func getArgsSlice(): Array<String> {
+        if (this.argsSlice.isSome()) {
+            return this.argsSlice.getOrThrow()
+        }
+        var result = ArrayList<String>()
+        for (arg in this.args) {
+            if (arg.isSome()) {
+                result.append(arg.getOrThrow())
+            }
+        }
+        this.argsSlice = []
+        return []
+    }
+
     /// 获取父命令
     public func parentCmd(): CmdState {
         return CmdState()
@@ -414,7 +429,7 @@ public class BuiltinImpl {
     }
 
     /// 无IO写入
-    public func writeNoIO(ioKind: String, buf: Array<Byte>): Maybe<UInt64> {
+    public func writeNoIO(ioKind: OutKind, buf: Array<Byte>): Maybe<UInt64> {
         if (buf.size == 0) {
             return Maybe<UInt64>.success(0)
         }

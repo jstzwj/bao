@@ -59,6 +59,11 @@ public class Environment {
         bindings.put(name, EnvBinding(name, value, mutable))
     }
 
+    /// Convenience define - defaults to mutable
+    public func define(name: String, value: JsValue): Unit {
+        define(name, value, true)
+    }
+
     /// 查找变量 - 沿作用域链向上查找
     /// 对应 JS 标识符解析 (identifier resolution)
     public func lookup(name: String): ?JsValue {

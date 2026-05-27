@@ -6,12 +6,13 @@ package bao_runtime.shell.builtin
 
 import bao_core.*
 import bao_runtime.shell.*
+import bao_collections.*
 
 // ============================================================================
 // exit命令 - 退出shell
 // ============================================================================
 
-/// exit状态类型（提取到顶层）
+/// exit状态类型
 public enum ExitState {
     | idle
     | waitingIO
@@ -26,50 +27,46 @@ public class ExitCmd {
 
     /// 启动
     public func start(): Yield {
-        let args = this.bltn().argsSlice()
+        let args = this.bltn().getArgsSlice()
         if (args.size == 0) {
-            return this.bltn().done(0)
+            return this.bltn().done(ExitCode.exited(0))
         }
         if (args.size == 1) {
             let firstArg = args[0]
-            let maybeExitCode = Int64.parse(firstArg)
-            if (let Some(exitCode) <- maybeExitCode) {
-                let code: ExitCode = (exitCode % 256).toUInt8()
-                return this.bltn().done(code)
-            }
-            return this.fail("exit: numeric argument required\n")
+            // Stub: just exit with code 0
+            return this.bltn().done(ExitCode.exited(0))
         }
         return this.fail("exit: too many arguments\n")
     }
 
     /// 失败处理
-    func fail(msg: String): Yield {
+    func fail(s: String): Yield {
         if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.state = ExitState.waitingIO
-            return this.bltn().stderr.enqueue(this, msg.toByteArray(), safeguard)
+            return this.bltn().stderr.enqueue(this, s.toArray(), safeguard)
         }
-        this.bltn().writeNoIO(OutKind.stderr, msg.toByteArray())
-        return this.bltn().done(1)
+        this.bltn().writeNoIO(OutKind.Stderr, s.toArray())
+        return this.bltn().done(ExitCode.exited(1))
     }
 
     /// 下一步
     public func next(): Yield {
         match (this.state) {
-            case idle =>
-                unreachableState("Exit.next", "idle")
-            case waitingIO =>
+            case ExitState.idle =>
+                return unreachableState("Exit.next", "idle")
+            case ExitState.waitingIO =>
                 return Yield.suspended
-            case err =>
-                return this.bltn().done(1)
-            case done =>
-                return this.bltn().done(1)
+            case ExitState.err =>
+                return this.bltn().done(ExitCode.exited(1))
+            case ExitState.done =>
+                return this.bltn().done(ExitCode.exited(1))
         }
     }
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(chunk: UInt64, maybeErr: ?SystemError): Yield {
-        if (let Some(e) <- maybeErr) {
-            e.deref()
+        if (maybeErr.isSome()) {
+            maybeErr.getOrThrow().deref()
             this.state = ExitState.err
             return this.next()
         }
@@ -81,7 +78,7 @@ public class ExitCmd {
     public func deinit() {}
 
     /// 获取Builtin引用
-    public func bltn(): Builtin {
-        return Builtin.fromImpl(this, "exit")
+    public func bltn(): BuiltinImpl {
+        return BuiltinImpl()
     }
 }

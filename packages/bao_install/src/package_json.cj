@@ -539,22 +539,3 @@ public class DependencyEntry {
     }
 }
 
-/// StringBuilder 辅助
-public class StringBuilder {
-    private var parts: ArrayList<String>
-
-    public init() {
-        parts = ArrayList<String>()
-    }
-
-    public func append(s: String): Unit {
-        parts.append(s)
-    }
-
-    public func toString(): String {
-        var result = ""
-        for (p in parts) { result = result + p }
-        return result
-    }
-}
-

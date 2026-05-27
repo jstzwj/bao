@@ -3,7 +3,8 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{Formatter, JSGlobalObject, JsValue, Output}
+import bao_jsc.{JSGlobalObject, JsValue}
+import bao_core.Output
 import bao_collections.ArrayList
 import bao_collections.HashMap
 
@@ -163,7 +164,7 @@ extend JestPrettyFormat {
     /// 2. 否则，遍历所有值并格式化
     /// 3. 值之间用空格分隔
     /// 4. 可选地添加换行和flush
-    public static func format(level: MessageLevel, global: JSGlobalObject, vals: Array<JsValue>, len: UInt64, writer: StringWriter, options: FormatOptions) {
+    public static func format(level!: MessageLevel, global!: JSGlobalObject, vals!: Array<JsValue>, len!: UInt64, writer!: StringWriter, options!: FormatOptions) {
         if (len == 1) {
             let fmt = Formatter(globalThis: global)
             fmt.quoteStrings = options.quoteStrings
@@ -305,7 +306,7 @@ public enum Tag {
     /// 获取值的标签
     ///
     /// 通过JS值的类型判断其Tag类型
-    public static func get(value: JsValue, globalThis: JSGlobalObject): TagResult {
+    public static func get(value!: JsValue, globalThis!: JSGlobalObject): TagResult {
         if (value.isEmpty()) { return TagResult(tag: Tag.undefined) }
         if (value.isUndefined()) { return TagResult(tag: Tag.undefined) }
         if (value.isNull()) { return TagResult(tag: Tag.null_) }
@@ -342,7 +343,7 @@ public enum Tag {
 public class TagResult {
     public var tag: Tag
 
-    public init(tag: Tag) {
+    public init(tag!: Tag) {
         this.tag = tag
     }
 }
@@ -368,7 +369,7 @@ public class Formatter {
     public var alwaysNewlineScope: Bool = false
     public var mapNode: ?CounterNode = None
 
-    public init(globalThis: JSGlobalObject) {
+    public init(globalThis!: JSGlobalObject) {
         this.globalThis = globalThis
     }
 
@@ -393,7 +394,7 @@ public class Formatter {
 
 
     /// 写入缩进
-    public func writeIndent(writer: StringWriter) {
+    public func writeIndent(writer!: StringWriter) {
         let indentLevel = if (indent > 32) { 32 } else { indent }
         for (_ in 0..indentLevel ) {
             writer.write("  ")
@@ -401,7 +402,7 @@ public class Formatter {
     }
 
     /// 打印逗号
-    public func printComma(writer: StringWriter, enableAnsiColors: Bool) {
+    public func printComma(writer!: StringWriter, enableAnsiColors!: Bool) {
         writer.write(",")
         estimatedLineLength += 1
     }
@@ -409,7 +410,7 @@ public class Formatter {
     /// 按指定类型打印值
     ///
     /// 根据Tag类型将JS值格式化为字符串表示
-    public func printAs(format: Tag, writer: StringWriter, value: JsValue, enableAnsiColors: Bool) {
+    public func printAs(format!: Tag, writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         match (format) {
             case Tag.string | Tag.stringPossiblyFormatted =>
                 if (quoteStrings) {
@@ -483,7 +484,7 @@ public class Formatter {
     }
 
     /// 打印数组
-    private func printArray(writer: StringWriter, value: JsValue, enableAnsiColors: Bool) {
+    private func printArray(writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         writer.write("[ ")
         indent += 1
         let length = value.getLength(global: globalThis)
@@ -501,7 +502,7 @@ public class Formatter {
     }
 
     /// 打印对象
-    private func printObject(writer: StringWriter, value: JsValue, enableAnsiColors: Bool) {
+    private func printObject(writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         writer.write("{ ")
         indent += 1
         var first = true
@@ -523,7 +524,7 @@ public class Formatter {
     }
 
     /// 打印Map
-    private func printMap(writer: StringWriter, value: JsValue, enableAnsiColors: Bool) {
+    private func printMap(writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         writer.write("Map {")
         indent += 1
         let size = value.getLength(global: globalThis)
@@ -549,7 +550,7 @@ public class Formatter {
     }
 
     /// 打印Set
-    private func printSet(writer: StringWriter, value: JsValue, enableAnsiColors: Bool) {
+    private func printSet(writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         writer.write("Set {")
         indent += 1
         let size = value.getLength(global: globalThis)
@@ -566,7 +567,7 @@ public class Formatter {
     }
 
     /// 格式化值
-    public func format(result: TagResult, writer: StringWriter, value: JsValue, globalThis: JSGlobalObject, enableAnsiColors: Bool) {
+    public func format(result!: TagResult, writer!: StringWriter, value!: JsValue, globalThis!: JSGlobalObject, enableAnsiColors!: Bool) {
         printAs(format: result.tag, writer: writer, value: value, enableAnsiColors: enableAnsiColors)
     }
 }

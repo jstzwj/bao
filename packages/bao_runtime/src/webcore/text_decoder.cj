@@ -4,6 +4,7 @@
 package bao_runtime.webcore
 
 import bao_core.*
+import bao_jsc.*
 
 // ============================================================================
 // TextDecoder - 文本解码器
@@ -93,7 +94,7 @@ public class TextDecoder {
         for (b in input) {
             bytes.append(b)
         }
-        let data = bytes.toArray()
+        let data = bytes.items()
         buffered = Array<UInt8>()
 
         // 处理 BOM
@@ -224,11 +225,11 @@ public class TextDecoder {
         let obj = JsObject()
         let self = this
 
-        obj.set("encoding", JsValue(BaoString(self.encoding)))
+        obj.set("encoding", JsValue(self.encoding))
         obj.set("fatal", JsValue(self.fatal))
         obj.set("ignoreBOM", JsValue(self.ignoreBOM))
 
-        obj.set("decode", JsValue.nativeFunction(JsNativeFunction("decode") { args =>
+        obj.set("decode", JsValue(JsFunction.create("decode", { _, args =>
             let bytes = if (args.size >= 1) {
                 match (args[0].arrayData) {
                     case Some(arr) =>
@@ -236,7 +237,7 @@ public class TextDecoder {
                         for (v in arr) {
                             result.append(UInt8(Int64(Interpreter.jsToNumber(v))))
                         }
-                        result.toArray()
+                        result.items()
                     case None => Array<UInt8>()
                 }
             } else {
@@ -255,8 +256,8 @@ public class TextDecoder {
             }
 
             let result = self.decode(bytes, stream)
-            JsValue(BaoString(result))
-        }))
+            JsValue(result)
+        })))
 
         return JsValue(obj)
     }

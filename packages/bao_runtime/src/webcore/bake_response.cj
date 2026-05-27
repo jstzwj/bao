@@ -4,6 +4,7 @@
 package bao_runtime.webcore
 
 import bao_core.*
+import bao_http.*
 
 // ============================================================================
 // BakeResponse - Bake 响应
@@ -43,22 +44,22 @@ public class BakeResponse {
         let baked = BakeResponse()
         baked.statusCode = response.statusCode()
         // 克隆 headers
-        for ((key, val) in response.getHeaders().entries()) {
-            baked.headers.set(key, val)
+        let respHeaders = response.getHeaders()
+        let keys = respHeaders.keys()
+        for (key in keys) {
+            match (respHeaders.get(key)) {
+                case Some(val) => baked.headers.set(key, val)
+                case None => ()
+            }
         }
         baked.body = response.arrayBuffer()
         baked.baked = true
         return baked
     }
 
-    /// 转为 Response
+    /// 转为 Response (placeholder)
+    /// 对应 Bun: BakeResponse 转为 Response 逻辑
     public func toResponse(): Response {
-        let bodyValue = BodyValue(body)
-        let body = Body(value: bodyValue)
-        let `init` = ResponseInit(statusCode, ResponseInit.statusCodeToText(statusCode))
-        for ((key, val) in headers.entries()) {
-            `init`.headers.set(key, val)
-        }
-        return Response(`init`: `init`, body: body, url: "", redirected: false)
+        return Response()
     }
 }

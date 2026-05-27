@@ -43,7 +43,7 @@ public func toStartWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
 
     if (pass) { return JsValue.jsUndefined }
 
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

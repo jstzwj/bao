@@ -18,7 +18,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenNthCalledWith", args: "<green>n<r>, <green>...expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
@@ -66,7 +66,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
     }
 
     // 处理失败
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
 
     let expectedArgsSlice = arguments.slice(from: 1)

@@ -18,7 +18,7 @@ public func toHaveLastReturnedWith(`this`: Expect, globalThis: JSGlobalObject, c
 
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
     if (!returns.jsType().isArray()) {
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
@@ -57,7 +57,7 @@ public func toHaveLastReturnedWith(`this`: Expect, globalThis: JSGlobalObject, c
     }
 
     // 处理失败
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
 
     let signature = Expect.getSignature(matcherName: "toHaveBeenLastReturnedWith", args: "<green>expected<r>", not: false)

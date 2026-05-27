@@ -82,7 +82,7 @@ public class ArrayBufferSink {
     /// 获取当前缓冲区数据的副本
     /// 对应 Bun: ArrayBufferSink.flushFromJS()
     public func toBytes(): Array<UInt8> {
-        return bytes.toArray()
+        return bytes.items()
     }
 
     /// 释放资源

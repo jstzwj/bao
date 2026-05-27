@@ -3,6 +3,7 @@ package bao_cli
 
 import bao_core.*
 import bao_install.*
+import bao_collections.*
 
 // ============================================================================
 // InstallCompletionsCommand — 安装 shell 补全命令
@@ -387,7 +388,7 @@ public class InstallCompletionsCommand {
 
     /// 打开 .zshrc 文件
     /// 对应 Bun: 按优先级查找 ZDOTDIR/.zshrc, HOME/.zshrc, HOME/.zshenv
-    private static func openZshrc(outPath: StringBuilder): ?FileHandle {
+    private static func openZshrc(outPath: IccStringBuilder): ?FileHandle {
         // ZDOTDIR/.zshrc
         let zdotDir = EnvVar.ZDOTDIR.get()
         if (zdotDir.isSome()) {
@@ -421,5 +422,113 @@ public class InstallCompletionsCommand {
         }
 
         return None
+    }
+}
+
+// ============================================================================
+// 本地类型定义 — install_completions_command 所需的类型
+// ============================================================================
+
+/// 目录句柄 (本地 stub)
+/// 用于打开/创建目录中的文件
+public class DirectoryHandle {
+    private var dirPath: String
+    private var valid: Bool
+
+    private init(path: String, valid: Bool) {
+        this.dirPath = path
+        this.valid = valid
+    }
+
+    /// 打开绝对路径目录
+    public static func openDirAbsolute(path: String): ?DirectoryHandle {
+        // stub: 总是返回 None 表示目录未找到
+        return None
+    }
+
+    /// 在目录中创建文件
+    public func createFileZ(filename: String, truncate: Bool): ?FileHandle {
+        if (!valid) { return None }
+        return FileHandle.openReadWrite("${dirPath}/${filename}")
+    }
+
+    /// 关闭句柄
+    public func close(): Unit {
+        valid = false
+    }
+}
+
+/// 文件句柄 (本地 stub)
+/// 用于读写文件
+public class FileHandle {
+    private var filePath: String
+    private var valid: Bool
+    private var content: String
+
+    private init(path: String, valid: Bool) {
+        this.filePath = path
+        this.valid = valid
+        this.content = ""
+    }
+
+    /// 打开文件读写
+    public static func openReadWrite(path: String): ?FileHandle {
+        // stub: 总是返回 None 表示文件未找到
+        return None
+    }
+
+    /// 写入全部内容
+    public func writeAll(data: String): Result<Unit, String> {
+        if (!valid) { return Result.Err("file not open") }
+        content = data
+        return Result.Ok(())
+    }
+
+    /// 获取文件末尾位置
+    public func getEndPos(): Int64 {
+        return content.size
+    }
+
+    /// 从指定位置预读
+    public func preadAll(offset: Int64, length: Int64): ?String {
+        if (!valid) { return None }
+        return content
+    }
+
+    /// 从指定位置写入
+    public func pwriteAll(data: String, offset: Int64): Unit {
+        if (!valid) { return }
+        content = content.substring(0, offset) + data
+    }
+
+    /// 获取文件描述符路径
+    public func getFdPath(): String {
+        return filePath
+    }
+
+    /// 关闭文件
+    public func close(): Unit {
+        valid = false
+    }
+}
+
+/// 字符串构建器 (本地使用)
+public class IccStringBuilder {
+    private var parts: ArrayList<String>
+
+    public init() {
+        parts = ArrayList<String>()
+    }
+
+    public func append(s: String): Unit {
+        parts.append(s)
+    }
+
+    public func toString(): String {
+        var result = ""
+        for (p in parts) {
+            result = result + p
+        }
+        return result
     }
 }

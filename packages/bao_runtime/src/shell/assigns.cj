@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Assigns.zig
 // 严格翻译Bun shell赋值状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 
 // ============================================================================
 // 赋值展开状态
@@ -22,7 +21,7 @@ public enum AssignsStateKind {
 
 /// 赋值状态父节点指针（提取到顶层）
 public class AssignsParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): AssignsParentPtr {
         let pp = AssignsParentPtr()
         pp.ptr = p
@@ -34,7 +33,7 @@ public class AssignsParentPtr {
 
 /// 赋值状态子节点指针（提取到顶层）
 public class AssignsChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): AssignsChildPtr {
         let cp = AssignsChildPtr()
         cp.ptr = p
@@ -47,19 +46,19 @@ public class AssignsChildPtr {
 /// 赋值状态
 public class AssignsState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Array<Assign>
+    public var node: Array<Assign> = Array<Assign>()
     /// 父节点
-    public var parent: AssignsParentPtr
+    public var parent: AssignsParentPtr = AssignsParentPtr()
     /// 状态
-    public var state: AssignsStateKind
+    public var state: AssignsStateKind = AssignsStateKind.`idle`
     /// 赋值上下文
-    public var ctx: AssignCtx
+    public var ctx: AssignCtx = AssignCtx.shell
     /// 是否拥有
     public var owned: Bool = true
     /// IO
-    public var io: IO
+    public var io: IO = IO()
 
     public init() {
         this.node = Array<Assign>()

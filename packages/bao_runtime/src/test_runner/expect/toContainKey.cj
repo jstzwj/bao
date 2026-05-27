@@ -23,7 +23,7 @@ public func toContainKey(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     let expected = arguments[0]
     expected.ensureStillAlive()
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainKey", matcherParamsFmt: "<green>expected<r>")
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
 
     let not = this.flags.not

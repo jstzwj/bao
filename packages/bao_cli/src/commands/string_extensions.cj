@@ -55,4 +55,15 @@ extend String {
     public func trim(): String {
         return this.trimStart().trimEnd()
     }
+
+    public func lastIndexOf(ch: UInt8): ?Int64 {
+        var i = Int64(this.size) - 1
+        while (i >= 0) {
+            if (this[i] == ch) {
+                return Some(i)
+            }
+            i -= 1
+        }
+        return None
+    }
 }

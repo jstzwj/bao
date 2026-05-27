@@ -6,6 +6,7 @@ package bao_runtime.shell.builtin
 
 import bao_core.*
 import bao_runtime.shell.*
+import bao_collections.*
 
 // ============================================================================
 // dirname命令 - 返回路径的目录部分
@@ -18,69 +19,97 @@ public enum DirnameState {
     | done
 }
 
+/// dirname命令
 public class DirnameCmd {
     /// 状态
     public var state: DirnameState = DirnameState.idle
     /// 缓冲区
-    public var buf: ArrayList<Byte> = ArrayList<Byte>()
+    public var buf: ArrayList<UInt8> = ArrayList<UInt8>()
 
-    /// 状态类型
-
+    /// 内联dirname实现
+    public static func doDirname(path: String): String {
+        let bytes = path.toArray()
+        let slash: UInt8 = 47  // '/'
+        // Remove trailing slashes
+        var end = bytes.size
+        while (end > 1 && bytes[end - 1] == slash) {
+            end -= 1
+        }
+        // Find last slash
+        var lastSlash = -1
+        for (i in 0..end) {
+            if (bytes[i] == slash) {
+                lastSlash = i
+            }
+        }
+        if (lastSlash < 0) {
+            return "."
+        }
+        // Remove trailing slashes from result
+        var resultEnd = lastSlash
+        while (resultEnd > 1 && bytes[resultEnd - 1] == slash) {
+            resultEnd -= 1
+        }
+        if (resultEnd == 0) {
+            return "/"
+        }
+        return String.fromUtf8(bytes[0..resultEnd])
+    }
 
     /// 启动
     public func start(): Yield {
-        let args = this.bltn().argsSlice()
+        let args = this.bltn().getArgsSlice()
 
         if (args.size == 0) {
-            return this.fail(Builtin.Kind.usageString("dirname"))
+            return this.fail(BuiltinKind.dirname.usageString())
         }
 
         for (item in args) {
             let arg = item
-            this.print(PathUtils.dirname(arg))
-            this.print("\n")
+            this.printBuiltin(DirnameCmd.doDirname(arg))
+            this.printBuiltin("\n")
         }
 
         this.state = DirnameState.done
         if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
-            return this.bltn().stdout.enqueue(this, this.buf.toArray(), safeguard)
+            return this.bltn().stdout.enqueue(this, this.buf.items(), safeguard)
         }
-        return this.bltn().done(0)
+        return this.bltn().done(ExitCode.exited(0))
     }
 
     /// 失败处理
     func fail(s: String): Yield {
         if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.state = DirnameState.err
-            return this.bltn().stderr.enqueue(this, msg.toByteArray(), safeguard)
+            return this.bltn().stderr.enqueue(this, s.toArray(), safeguard)
         }
-        this.bltn().writeNoIO(OutKind.stderr, msg.toByteArray())
-        return this.bltn().done(1)
+        this.bltn().writeNoIO(OutKind.Stderr, s.toArray())
+        return this.bltn().done(ExitCode.exited(1))
     }
 
     /// 打印到缓冲区或直接输出
-    func print(s: String): Unit {
+    func printBuiltin(s: String): Unit {
         if (this.bltn().stdout.needsIO().isSome()) {
-            this.buf.appendAll(msg.toByteArray())
+            this.buf.appendSlice(s.toArray())
             return
         }
-        this.bltn().writeNoIO(OutKind.stdout, msg.toByteArray())
+        this.bltn().writeNoIO(OutKind.Stdout, s.toArray())
     }
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(chunk: UInt64, maybeErr: ?SystemError): Yield {
-        if (let Some(e) <- maybeErr) {
-            e.deref()
+        if (maybeErr.isSome()) {
+            maybeErr.getOrThrow().deref()
             this.state = DirnameState.err
-            return this.bltn().done(1)
+            return this.bltn().done(ExitCode.exited(1))
         }
         match (this.state) {
-            case done =>
-                return this.bltn().done(0)
-            case err =>
-                return this.bltn().done(1)
-            case idle =>
-                unreachableState("Dirname.onIOWriterChunk", "idle")
+            case DirnameState.done =>
+                return this.bltn().done(ExitCode.exited(0))
+            case DirnameState.err =>
+                return this.bltn().done(ExitCode.exited(1))
+            case DirnameState.idle =>
+                return unreachableState("Dirname.onIOWriterChunk", "idle")
         }
     }
 
@@ -90,7 +119,7 @@ public class DirnameCmd {
     }
 
     /// 获取Builtin引用
-    public func bltn(): Builtin {
-        return Builtin.fromImpl(this, "dirname")
+    public func bltn(): BuiltinImpl {
+        return BuiltinImpl()
     }
 }

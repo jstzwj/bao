@@ -408,6 +408,11 @@ public class Process {
     public func enableKeepingEventLoopAlive() {}
 
     public func disableKeepingEventLoopAlive() {}
+
+    /// 终止进程 — 对应 Bun: bun.outOfMemory() / Process.abort()
+    public static func abort(): Nothing {
+        exit(1)
+    }
 }
 
 // ============================================================================
@@ -442,19 +447,7 @@ public class Set<T> {
 
 /// 标准 IO 类型 — 已在 subproc.cj 中定义 StdioKind
 
-// ============================================================================
-// AsyncState - 异步命令状态 (前置声明，完整定义在 states/async.cj)
-// ============================================================================
-
-/// 异步命令状态
-/// 完整定义在 states/async.cj (bao_runtime.shell.states 包)
-/// 由于循环依赖，此处提供最小化的桩类型
-public class AsyncState {
-    public init() {}
-
-    /// 实际去初始化
-    public func actuallyDeinit() {}
-}
+// AsyncState 已在 async.cj 中定义（同包），此处不再重复定义
 
 // ============================================================================
 // SpawnStatus - 子进程退出状态
@@ -535,17 +528,8 @@ public enum StdioResult {
 // 这里只定义 shell.cj 中不存在的类型
 // ============================================================================
 
-/// 赋值状态
-public class Assigns {
-    public init() {}
-    public func next(): Yield { Yield.done }
-}
-
-/// 展开状态
-public class Expansion {
-    public init() {}
-    public func next(): Yield { Yield.done }
-}
+// Assigns 已在 assigns.cj 中定义（同包），此处不再重复定义
+// Expansion 已在 expansion.cj 中定义（同包），此处不再重复定义
 
 /// If条件状态 — 已在 shell.cj 中定义 If 类
 

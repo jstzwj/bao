@@ -18,7 +18,7 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenLastCalledWith", args: "<green>...expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
@@ -35,7 +35,7 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
         lastCallValue = calls.getIndex(globalThis: globalThis, index: totalCalls - 1)
 
         if (!lastCallValue.jsType().isArray()) {
-            let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
             // defer { formatter.deinit() }
             return globalThis.throw_("Expected value must be a mock function with calls: {f}", args: [value.toFmt(formatter)])
         }
@@ -58,7 +58,7 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
     }
 
     // 处理失败
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
 
     let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: arguments.size)

@@ -308,4 +308,20 @@ public class EventLoop {
         let entry = EventLoopEntry(EventLoopTag.Immediate, { => })
         immediateQueue = immediateQueue.concat([entry])
     }
+
+    /// 唤醒事件循环 (从其他线程)
+    public func wakeup(): Unit {
+        // stub: 通知事件循环有新任务
+        ()
+    }
+
+    /// 执行一次 tick (等价于 tick)
+    public func tickOnce(): Unit {
+        tick()
+    }
+
+    /// 入队并发任务 (接受闭包)
+    public func enqueueConcurrent(task: Task) {
+        enqueueTask(task)
+    }
 }

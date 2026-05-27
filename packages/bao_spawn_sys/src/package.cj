@@ -255,12 +255,20 @@ public class Pdeathsig {
 
 /// 运行时工具类
 public class RuntimeUtils {
-    /// 获取当前线程 ID
+    /// 获取当前线程 ID -- 通过 gettid(2) 或 pthread_self
     public static func threadId(): Int64 {
-        // 仓颉标准库或 FFI 获取线程 ID
-        return 0
+        return Int64(gettidFFI())
     }
 }
+
+@C
+foreign func gettidFFI(): Int64
+
+@C
+foreign func getpid(): Int32
+
+@C
+foreign func getppid(): Int32
 
 // ============================================================================
 // 公共表面 -- 扁平重导出

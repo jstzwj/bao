@@ -10,7 +10,7 @@ import bao_jsc.*
 /// 对应 Bun: AuthenticationState
 public enum AuthenticationState {
     | Pending
-    | None
+    | NoAuth
     | OK
     | SASL(PostgresSASL)
     | MD5

@@ -308,6 +308,31 @@ public class EventLoop {
     public func runCallback(callback: JsValue, globalThis: JsObject, thisValue: JsValue, args: ArrayList<JsValue>): Unit {
         ()
     }
+
+    /// 唤醒事件循环
+    public func wakeup(): Unit {
+        ()
+    }
+
+    /// 执行一次 tick
+    public func tickOnce(): Unit {
+        ()
+    }
+
+    /// 入队任务
+    public func enqueue(task: () -> Unit): Unit {
+        task()
+    }
+
+    /// 入队并发任务
+    public func enqueueConcurrent(task: AnyTask): Unit {
+        task.run()
+    }
+
+    /// 运行事件循环
+    public func run(): Unit {
+        ()
+    }
 }
 
 public class ParseResultError {

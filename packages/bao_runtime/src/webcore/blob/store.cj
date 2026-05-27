@@ -14,6 +14,30 @@ import bao_collections.ArrayList
 import bao_sys.*
 import bao_ptr.*
 
+/// Helper: convert String to Array<UInt8> (UTF-8 bytes)
+func stringToBytes(s: String): Array<UInt8> {
+    var arr = ArrayList<UInt8>()
+    for (c in s) {
+        let cp = Int64(c)
+        if (cp < 0x80) {
+            arr.append(UInt8(cp))
+        } else if (cp < 0x800) {
+            arr.append(UInt8(0xC0 | (cp >> 6)))
+            arr.append(UInt8(0x80 | (cp & 0x3F)))
+        } else if (cp < 0x10000) {
+            arr.append(UInt8(0xE0 | (cp >> 12)))
+            arr.append(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+            arr.append(UInt8(0x80 | (cp & 0x3F)))
+        } else {
+            arr.append(UInt8(0xF0 | (cp >> 18)))
+            arr.append(UInt8(0x80 | ((cp >> 12) & 0x3F)))
+            arr.append(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+            arr.append(UInt8(0x80 | (cp & 0x3F)))
+        }
+    }
+    arr.items()
+}
+
 
 // ============================================================================
 // Re-exports — 从 webcore_types::store 重新导出的规范数据类型
@@ -1049,7 +1073,7 @@ public class PathString {
     }
 
     public func slice(): Array<UInt8> {
-        return value.toArray().map({ b => b })
+        return stringToBytes(value)
     }
 
     public func clone(): PathString {
@@ -1075,7 +1099,7 @@ public class PathLike {
     }
 
     public func slice(): Array<UInt8> {
-        return value.toArray().map({ b => b })
+        return stringToBytes(value)
     }
 
     public func toThreadSafe(): Unit {
@@ -1517,15 +1541,21 @@ public enum SyscallErrno {
 public class SyscallError {
     public var errno: Int32
     public var syscall: SyscallTag
+    public var message: String
+    public var path: String
 
     public init() {
         errno = 0
         syscall = SyscallTag.read
+        message = ""
+        path = ""
     }
 
     public init(errno: Int32, syscall: SyscallTag) {
         this.errno = errno
         this.syscall = syscall
+        message = ""
+        path = ""
     }
 
     public static func fromErrno(errno: Int32, syscall: SyscallTag): SyscallError {
@@ -2165,6 +2195,6 @@ public class BaoString {
     }
 
     public func asBytes(): Array<UInt8> {
-        return value.toArray()
+        return stringToBytes(value)
     }
 }

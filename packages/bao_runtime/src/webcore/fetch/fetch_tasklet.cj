@@ -421,8 +421,8 @@ public class FetchTasklet {
                         // 扩展 urlProxyBuffer
                         tasklet.urlProxyBuffer.appendAll(proxyUrl.href.toByteArray())
                         // 更新 URL 引用
-                        url = URL.parse(tasklet.urlProxyBuffer.toArray()[0..oldUrlLen])
-                        proxy = Some(URL.parse(tasklet.urlProxyBuffer.toArray()[oldUrlLen..]))
+                        url = URL.parse(tasklet.urlProxyBuffer.items()[0..oldUrlLen])
+                        proxy = Some(URL.parse(tasklet.urlProxyBuffer.items()[oldUrlLen..]))
                     } else {
                         proxy = Some(proxyUrl)
                     }
@@ -1292,7 +1292,7 @@ public class FetchTasklet {
                     // chunked 编码
                     let sizeHex = data.size.toHexString()
                     let chunk = "${sizeHex}\r\n${data}\r\n"
-                    buffer.writeAssumeCapacity(chunk.toArray())
+                    buffer.writeAssumeCapacity(chunk.items())
                 }
 
                 let result = if (buffer.size() >= highWaterMark) {

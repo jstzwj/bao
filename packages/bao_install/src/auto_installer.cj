@@ -207,7 +207,7 @@ public enum EnqueueResult {
     | Resolution(UInt32, ResolutionValue)
     | Pending(UInt32)
     | NotFound
-    | Failure(Error)
+    | Failure(PkgError)
 }
 
 /// 预安装状态

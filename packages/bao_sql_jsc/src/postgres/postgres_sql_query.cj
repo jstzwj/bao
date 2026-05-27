@@ -20,6 +20,13 @@ public class PostgresSQLQuery {
 
     public init() {}
 
+    public operator func == (other: PostgresSQLQuery): Bool {
+        this.query == other.query && this.refCount == other.refCount
+    }
+    public operator func != (other: PostgresSQLQuery): Bool {
+        !(this == other)
+    }
+
     /// 引用计数增加
     public func ref(): Unit {
         refCount += 1

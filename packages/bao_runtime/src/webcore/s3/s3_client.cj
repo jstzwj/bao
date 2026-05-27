@@ -183,7 +183,7 @@ public func writeFormatCredentials(
     credentials: S3Credentials,
     options: MultiPartUploadOptions,
     acl: ?S3Acl,
-    formatter: ConsoleFormatter,
+    formatter: S3ConsoleFormatter,
     writer: StringBuilder,
     enableAnsiColors: Bool
 ): Unit {
@@ -382,7 +382,7 @@ public class S3Client {
         // for the process-singleton dotenv loader (set during init).
         // get_s3_credentials takes &self only to lazily memoize —
         // single-threaded JS event-loop discipline applies.
-        let envCreds = FetchModule.s3CredentialsFromEnv(global)
+        let envCreds = S3FetchModule.s3CredentialsFromEnv(global)
 
         // Parse credentials from JS arguments
         let awsOpts = S3CredentialsExt.getCredentialsWithOptions(
@@ -414,7 +414,7 @@ public class S3Client {
 
     /// 格式化 S3Client 输出
     /// 对应 Bun: write_format
-    public func writeFormat(formatter: ConsoleFormatter, writer: StringBuilder, enableAnsiColors: Bool): Unit {
+    public func writeFormat(formatter: S3ConsoleFormatter, writer: StringBuilder, enableAnsiColors: Bool): Unit {
         writer.append("S3Client")
 
         // detect virtual host style bucket name
@@ -659,7 +659,7 @@ public class S3Client {
                 )
                 match (blobResult) {
                     case Ok(blob) =>
-                        let blobInternal = PathOrBlob.fromBlob(blob)
+                        let blobInternal = S3PathOrBlob.fromBlob(blob)
                         return WriteFileModule.writeFileInternal(
                             global,
                             blobInternal,
@@ -809,7 +809,7 @@ public class S3Client {
 
         // Get credentials from env — Transpiler::env_mut is the safe accessor
         // for the process-singleton dotenv loader (set during init).
-        let existingCredentials = FetchModule.s3CredentialsFromEnv(global)
+        let existingCredentials = S3FetchModule.s3CredentialsFromEnv(global)
 
         let blobResult = S3FileModule.constructS3FileWithS3Credentials(
             global, PathLike.default(), options, existingCredentials
@@ -1295,7 +1295,7 @@ public class Arguments {
 
 /// BlobRef (对应 Bun: *Blob)
 public class BlobRef {
-    public var store: ?BlobStoreRef
+    public var store: ?S3BlobStoreRef
     public var contentType: String
     public var contentTypeAllocated: Bool
     public var contentTypeWasSet: Bool
@@ -1348,15 +1348,15 @@ public class BlobRef {
         return JSGlobalObject()
     }
 
-    public static func initWithStore(store: BlobStoreRef, global: JSGlobalObject): BlobRef {
+    public static func initWithStore(store: S3BlobStoreRef, global: JSGlobalObject): BlobRef {
         let b = BlobRef()
         b.store = Some(store)
         return b
     }
 }
 
-/// BlobStoreRef (对应 Bun: blob::StoreRef)
-public class BlobStoreRef {
+/// S3BlobStoreRef (对应 Bun: blob::StoreRef)
+public class S3BlobStoreRef {
     private var s3Data: ?S3Store
     private var dataTag: StoreDataTagForBlob
 
@@ -1365,15 +1365,15 @@ public class BlobStoreRef {
         dataTag = StoreDataTagForBlob.None
     }
 
-    public static func initS3(path: String, range: ?String, credentials: S3Credentials): BlobStoreRef {
-        let s = BlobStoreRef()
+    public static func initS3(path: String, range: ?String, credentials: S3Credentials): S3BlobStoreRef {
+        let s = S3BlobStoreRef()
         s.dataTag = StoreDataTagForBlob.S3
         s.s3Data = Some(S3Store(path, range, credentials))
         return s
     }
 
-    public static func initS3WithReferencedCredentials(path: String, range: ?String, credentials: S3Credentials): BlobStoreRef {
-        return BlobStoreRef.initS3(path, range, credentials)
+    public static func initS3WithReferencedCredentials(path: String, range: ?String, credentials: S3Credentials): S3BlobStoreRef {
+        return S3BlobStoreRef.initS3(path, range, credentials)
     }
 
     public func data(): StoreDataForBlob {
@@ -1475,24 +1475,24 @@ public class S3Store {
         return Result<S3CredentialsWithOptions>.Ok(S3CredentialsWithOptions(S3Credentials(), MultiPartUploadOptions()))
     }
 
-    public func listObjects(store: BlobStoreRef, global: JSGlobalObject, objectKeys: JsValue, options: ?JsValue): Result<JsValue> {
+    public func listObjects(store: S3BlobStoreRef, global: JSGlobalObject, objectKeys: JsValue, options: ?JsValue): Result<JsValue> {
         return S3BlobListObjectsTask.listObjects(global, store, options)
     }
 
-    public func unlink(store: BlobStoreRef, global: JSGlobalObject, options: ?JsValue): Result<JsValue> {
+    public func unlink(store: S3BlobStoreRef, global: JSGlobalObject, options: ?JsValue): Result<JsValue> {
         return S3BlobDeleteTask.unlink(global, store)
     }
 
-    public func download(store: BlobStoreRef, global: JSGlobalObject): Result<JsValue> {
+    public func download(store: S3BlobStoreRef, global: JSGlobalObject): Result<JsValue> {
         return S3BlobDownloadTask.download(global, store)
     }
 
-    public func upload(store: BlobStoreRef, global: JSGlobalObject, content: String, bytesWritten: Int64, contentType: String): Result<JsValue> {
+    public func upload(store: S3BlobStoreRef, global: JSGlobalObject, content: String, bytesWritten: Int64, contentType: String): Result<JsValue> {
         return S3BlobUploadTask.upload(global, store, content, bytesWritten, contentType)
     }
 }
 
-/// PathOrBlob (对应 Bun: PathOrBlob)
+/// S3PathOrBlob (对应 Bun: S3PathOrBlob)
 public enum PathOrBlobTag {
     | Path
     | Blob
@@ -1538,7 +1538,7 @@ public class PathLikeEntry {
     }
 }
 
-public class PathOrBlob {
+public class S3PathOrBlob {
     public var tag: PathOrBlobTag
     public var path: PathLikeEntry
     public var blob: BlobRef
@@ -1549,25 +1549,25 @@ public class PathOrBlob {
         blob = BlobRef()
     }
 
-    public static func fromBlob(blob: BlobRef): PathOrBlob {
-        let p = PathOrBlob()
+    public static func fromBlob(blob: BlobRef): S3PathOrBlob {
+        let p = S3PathOrBlob()
         p.tag = PathOrBlobTag.Blob
         p.blob = blob
         return p
     }
 
-    public static func fromJsNoCopy(global: JSGlobalObject, args: Arguments): PathOrBlob {
+    public static func fromJsNoCopy(global: JSGlobalObject, args: Arguments): S3PathOrBlob {
         match (args.next()) {
             case Some(value) =>
                 if (value.isString()) {
-                    let p = PathOrBlob()
+                    let p = S3PathOrBlob()
                     p.tag = PathOrBlobTag.Path
                     p.path.tag = PathOrFileDescriptorTag.Path
                     p.path.pathString = value.toString()
                     return p
                 }
-                return PathOrBlob()
-            case None => return PathOrBlob()
+                return S3PathOrBlob()
+            case None => return S3PathOrBlob()
         }
     }
 }
@@ -1622,7 +1622,7 @@ private func s3WriteBodyFromJs(global: JsObject, data: JsValue): ?S3WriteBody {
 public class WriteFileModule {
     public static func writeFileInternal(
         global: JSGlobalObject,
-        pathOrBlob: PathOrBlob,
+        pathOrBlob: S3PathOrBlob,
         data: JsValue,
         options: WriteFileOptions
     ): Result<JsValue> {
@@ -1640,16 +1640,16 @@ public class WriteFileModule {
     }
 }
 
-/// FetchModule (对应 Bun: crate::webcore::fetch)
-public class FetchModule {
+/// S3FetchModule (对应 Bun: crate::webcore::fetch)
+public class S3FetchModule {
     public static func s3CredentialsFromEnv(global: JSGlobalObject): S3Credentials {
         return S3Credentials()
     }
 }
 
-/// ConsoleFormatter (对应 Bun: bun_jsc::ConsoleFormatter)
-public class ConsoleFormatter {
-    public func indented(): ConsoleFormatter {
+/// S3ConsoleFormatter (对应 Bun: bun_jsc::S3ConsoleFormatter)
+public class S3ConsoleFormatter {
+    public func indented(): S3ConsoleFormatter {
         return this
     }
 
@@ -1695,7 +1695,7 @@ public class ResumableS3UploadSink {
         refCount = 0
     }
 
-    public init(global: GlobalRef, stream: ReadableStream, wrapper: S3UploadStreamWrapper, count: Int32) {
+    public init(global: GlobalRef, stream: S3ReadableStream, wrapper: S3UploadStreamWrapper, count: Int32) {
         this.global = global
         this.refCount = count
     }
@@ -1705,9 +1705,9 @@ public class ResumableS3UploadSink {
     public func cancel(err: JsValue): Unit {}
 }
 
-/// ReadableStream (对应 Bun: bun ReadableStream)
-/// ReadableStream (对应 Bun: bun ReadableStream)
-public class ReadableStream {
+/// S3ReadableStream (对应 Bun: bun S3ReadableStream)
+/// S3ReadableStream (对应 Bun: bun S3ReadableStream)
+public class S3ReadableStream {
     public var _ptr: ReadableStreamPtr
     public var _value: JsValue
 
@@ -1721,7 +1721,7 @@ public class ReadableStream {
     }
     public func isDisturbed(globalThis: JsGlobalObject): Bool { return false }
     public func ptr(): ?ReadableStreamPtr { return Some(_ptr) }
-    public func getByteStream(): ?ByteStream {
+    public func getByteStream(): ?S3ByteStream {
         match (_ptr) {
             case ReadableStreamPtr.BYTES(bs) => return Some(bs)
             case ReadableStreamPtr.INVALID => return None
@@ -1731,7 +1731,7 @@ public class ReadableStream {
 
 /// ReadableStreamPtr
 public enum ReadableStreamPtr {
-    | BYTES(ByteStream)
+    | BYTES(S3ByteStream)
     | INVALID
 }
 
@@ -1773,6 +1773,10 @@ public class HttpHeaders {
 
     public func deinit(): Unit {
         entries.clear()
+    }
+
+    public func toEntries(): ArrayList<HttpHeaderEntry> {
+        return entries
     }
 
     public func set(name: String, value: String): Unit {
@@ -1852,13 +1856,13 @@ public class AsyncHttp {
     public func clearData(): Unit {}
 }
 
-/// VirtualMachine (对应 Bun: jsc.VirtualMachine)
-public class VirtualMachine {
+/// S3VirtualMachine (对应 Bun: jsc.S3VirtualMachine)
+public class S3VirtualMachine {
     public init() {}
-    public static func get(): VirtualMachine { return VirtualMachine() }
+    public static func get(): S3VirtualMachine { return S3VirtualMachine() }
     public func getVerboseFetch(): Bool { return false }
     public func getTlsRejectUnauthorized(): Bool { return true }
-    public func eventLoop(): EventLoop { return EventLoop() }
+    public func eventLoop(): S3EventLoop { return S3EventLoop() }
 }
 
 /// UrlParser (对应 Bun: URL parser)
@@ -1885,27 +1889,27 @@ public class ThreadPoolBatch {
     public init() {}
 }
 
-/// NetworkSink (对应 Bun: NetworkSink)
-public class NetworkSink {
+/// S3NetworkSink (对应 Bun: S3NetworkSink)
+public class S3NetworkSink {
     public var task: ?MultiPartUpload
     public var globalThis: ?GlobalRef
     public var highWaterMark: Int64
-    public var signal: SinkSignal
+    public var signal: S3SinkSignal
 
     public init() {
         task = None
         globalThis = None
         highWaterMark = 0
-        signal = SinkSignal()
+        signal = S3SinkSignal()
     }
-    public static func fromOpaque(ctx: UIntNative): NetworkSink { return NetworkSink() }
+    public static func fromOpaque(ctx: UIntNative): S3NetworkSink { return S3NetworkSink() }
     public func toOpaque(): UIntNative { return 0 }
     public func toJS(globalThis: JsGlobalObject): JsValue { return JsValue(0) }
-    public static func onWritable(task: MultiPartUpload, sink: NetworkSink, flushed: UInt64): Unit {}
+    public static func onWritable(task: MultiPartUpload, sink: S3NetworkSink, flushed: UInt64): Unit {}
 }
 
-/// SinkSignal (对应 Bun: SinkSignal)
-public class SinkSignal {
+/// S3SinkSignal (对应 Bun: S3SinkSignal)
+public class S3SinkSignal {
     public init() {}
     public func clear(): Unit {}
 }
@@ -1918,20 +1922,20 @@ public class S3ErrorCodeAndMessage {
     public init(code: String, message: String) { this.code = code; this.message = message }
 }
 
-/// ReadableStreamStrong (对应 Bun: ReadableStream strong ref)
-public class ReadableStreamStrong {
-    private var stream: ?ReadableStream
+/// S3ReadableStreamStrong (对应 Bun: S3ReadableStream strong ref)
+public class S3ReadableStreamStrong {
+    private var stream: ?S3ReadableStream
     private var global: ?JsGlobalObject
 
     public init() {
         stream = None
         global = None
     }
-    public init(stream: ReadableStream, globalThis: JsGlobalObject) {
+    public init(stream: S3ReadableStream, globalThis: JsGlobalObject) {
         this.stream = Some(stream)
         this.global = Some(globalThis)
     }
-    public func get(ref: GlobalRef): ?ReadableStream {
+    public func get(ref: GlobalRef): ?S3ReadableStream {
         return stream
     }
     public func deinit(): Unit {
@@ -1953,8 +1957,8 @@ public class HttpSignals {
 /// KeepAlive (对应 Bun: bun.Async.KeepAlive)
 public class KeepAlive {
     public init() {}
-    public func ref(vm: VirtualMachine): Unit {}
-    public func unref(vm: VirtualMachine): Unit {}
+    public func ref(vm: S3VirtualMachine): Unit {}
+    public func unref(vm: S3VirtualMachine): Unit {}
 }
 
 /// ConcurrentTask (对应 Bun: jsc.ConcurrentTask)
@@ -1963,28 +1967,28 @@ public class ConcurrentTask {
     public func from(obj: Object): ConcurrentTask { return this }
 }
 
-/// EventLoop (stub)
-public class EventLoop {
+/// S3EventLoop (stub)
+public class S3EventLoop {
     public init() {}
     public func enqueueTaskConcurrent(task: ConcurrentTask): Unit {}
 }
 
-/// ByteStream (对应 Bun: ByteStream)
-public class ByteStream {
+/// S3ByteStream (对应 Bun: S3ByteStream)
+public class S3ByteStream {
     public init() {}
     public func onData(data: ArrayList<UInt8>, done: Bool): Unit {}
     public func setup(): Unit {}
 }
 
-/// ByteStreamSource (stub for bao_runtime.webcore.ByteStreamSource)
-public class ByteStreamSource {
-    public var context: ByteStream
+/// S3ByteStreamSource (stub for bao_runtime.webcore.S3ByteStreamSource)
+public class S3ByteStreamSource {
+    public var context: S3ByteStream
     public var globalThis: ?JsGlobalObject
     public var cancelHandler: ?((?UIntNative) -> Unit)
     public var cancelCtx: ?UIntNative
 
     public init() {
-        context = ByteStream()
+        context = S3ByteStream()
         globalThis = None
         cancelHandler = None
         cancelCtx = None
@@ -2007,7 +2011,7 @@ public class HttpClientResult {
     public var hasMore: Bool = true
     public var fail: Bool = false
     public var metadata: ?HttpHeaders = None
-    public var body: ?MutableString = None
+    public var body: ?S3MutableString = None
 
     public static func fromBaoHttp(result: BaoHTTPClientResult): HttpClientResult {
         let converted = HttpClientResult()
@@ -2015,7 +2019,7 @@ public class HttpClientResult {
         converted.fail = result.fail.isSome()
         match (result.body) {
             case Some(b) =>
-                let localBody = MutableString(b.toString())
+                let localBody = S3MutableString(b.toString())
                 converted.body = Some(localBody)
             case None => converted.body = None
         }

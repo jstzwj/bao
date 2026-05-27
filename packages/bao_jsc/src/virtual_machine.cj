@@ -610,12 +610,12 @@ public class BunVirtualMachine {
 
     // 严格翻译自 VirtualMachine.zig wakeup
     public func wakeup() {
-        // TODO: eventLoop.wakeup()
+        eventLoop.wakeup()
     }
 
     // 严格翻译自 VirtualMachine.zig tick
     public func tick() {
-        // TODO: eventLoop.tick()
+        eventLoop.tickOnce()
     }
 
     // 严格翻译自 VirtualMachine.zig waitFor
@@ -639,17 +639,21 @@ public class BunVirtualMachine {
 
     // 严格翻译自 VirtualMachine.zig enqueueTask
     public func enqueueTask(task: () -> Unit) {
-        // TODO: eventLoop.enqueueTask(task)
+        let entry = EventLoopEntry(EventLoopTag.Default, task)
+        eventLoop.enqueue(entry)
     }
 
     // 严格翻译自 VirtualMachine.zig enqueueImmediateTask
     public func enqueueImmediateTask(task: ImmediateObject) {
-        // TODO: eventLoop.enqueueImmediateTask(task)
+        let entry = EventLoopEntry(EventLoopTag.Immediate, { => task.run() })
+        eventLoop.enqueue(entry)
     }
 
     // 严格翻译自 VirtualMachine.zig enqueueTaskConcurrent
     public func enqueueTaskConcurrent(task: ConcurrentTask) {
-        // TODO: eventLoop.enqueueTaskConcurrent(task)
+        let t = Task()
+        t.callback = task.run
+        eventLoop.enqueueConcurrent(t)
     }
 
     // 严格翻译自 VirtualMachine.zig drainMicrotasks
@@ -664,15 +668,19 @@ public class BunVirtualMachine {
 
     // 严格翻译自 VirtualMachine.zig enterUWSLoop
     public func enterUWSLoop() {
-        // TODO: if (let Some(loop) <- eventLoopHandle) { // TODO: loop.run() }
+        match (eventLoopHandle) {
+            case Some(handle) => handle.run()
+            case None => eventLoop.run()
+        }
     }
 
     // ========== 初始化 ==========
 
     // 严格翻译自 VirtualMachine.zig getOriginTimestamp()
     static func getOriginTimestamp(): Int64 {
-        // TODO: use proper time API
-        0
+        // 使用系统时钟获取毫秒时间戳
+        // 对应 Bun: std.time.nanoTimestamp() / 1_000_000
+        return getNowMillis()
     }
 
     // 严格翻译自 VirtualMachine.zig init
@@ -861,7 +869,7 @@ public class BunVirtualMachine {
             }
         } else {
             if (let Some(p) <- pendingInternalPromise) {
-                if (true) { // TODO: p.isRejected()
+                if (p.isRejected()) {
                     return p
                 }
             }
@@ -1078,7 +1086,7 @@ public class BunVirtualMachine {
                 if (onUnhandledRejection.isSome()) { onUnhandledRejection.getOrThrow()(this, globalObject, reason) }
             case Throw=>
                 if (let Some(p) <- pendingInternalPromise) {
-                    if (true) { // TODO: p.isRejected()
+                    if (p.isRejected()) {
                         unhandledErrorCounter++
                         if (onUnhandledRejection.isSome()) { onUnhandledRejection.getOrThrow()(this, globalObject, reason) }
                         drainMicrotasks()
@@ -2126,24 +2134,27 @@ public class BunVirtualMachine {
     // 严格翻译自 VirtualMachine.zig enterUWSLoop (详细版)
     public func enterUWSLoopDetailed() {
         prepareLoop()
-        if (let Some(loop) <- eventLoopHandle) {
-            // TODO: loop.run()
+        match (eventLoopHandle) {
+            case Some(handle) => handle.run()
+            case None => eventLoop.run()
         }
     }
 
     // 严格翻译自 VirtualMachine.zig reload (详细版)
     public func reloadDetailed() {
         // 检查 pending promise 状态
-        if (let Some(p) <- pendingInternalPromise) {
-            let status = PromiseStatus.Pending // TODO: p.promiseStatus()
-            if (status == PromiseStatus.Pending) {
-                hotReloadDeferred = true
-                return
-            }
-            if (status == PromiseStatus.Rejected && pendingInternalPromiseReportedAt != hotReloadCounter) {
-                hotReloadDeferred = true
-                return
-            }
+        match (pendingInternalPromise) {
+            case Some(p) =>
+                let status = p.promiseStatus()
+                if (status == PromiseStatus.Pending) {
+                    hotReloadDeferred = true
+                    return
+                }
+                if (status == PromiseStatus.Rejected && pendingInternalPromiseReportedAt != hotReloadCounter) {
+                    hotReloadDeferred = true
+                    return
+                }
+            case None => ()
         }
 
         hotReloadDeferred = false
@@ -2655,3 +2666,12 @@ public func bunVMEventLoopRefConcurrently() {}
 public func bunVMEventLoopUnrefConcurrently() {}
 public func bunVMEnqueueDeferredWorkTask(task: JSCDeferredWorkTask) {}
 public func bunVMEventLoopTickWhilePaused(paused: Bool) {}
+
+// FFI 获取当前毫秒时间戳
+@C
+foreign func clock_gettime_ms(): Int64
+
+/// 获取当前毫秒时间戳 (用于 getOriginTimestamp 等)
+func getNowMillis(): Int64 {
+    return unsafe { clock_gettime_ms() }
+}

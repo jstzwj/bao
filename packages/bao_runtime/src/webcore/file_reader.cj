@@ -12,9 +12,8 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
-import bao_jsc.*
 import bao_collections.ArrayList
+import bao_jsc.*
 import bao_sys.*
 import bao_io.*
 
@@ -39,7 +38,7 @@ public enum ReadDuringJSOnPullKind {
     | Temporary
     | UseBuffered
 
-    public operator func ==(right: Self): Bool {
+    public operator func ==(right: ReadDuringJSOnPullKind): Bool {
         match (this) {
             case None =>
                 match (right) {
@@ -68,6 +67,7 @@ public enum ReadDuringJSOnPullKind {
                 }
         }
     }
+    public operator func !=(right: ReadDuringJSOnPullKind): Bool { !(this == right) }
 }
 
 /// JS pull 期间读取结果
@@ -81,18 +81,18 @@ public class ReadDuringJSOnPullResult {
     /// JS 缓冲区 (对应 .Js(&'static [u8]) — 剩余未填充部分)
     public var jsBuffer: Array<UInt8>
     /// 读取量 (对应 .AmountRead(usize))
-    public var amountRead: Int64
+    public var amountReadValue: Int64
     /// 临时数据 (对应 .Temporary(bun_ptr::RawSlice<u8>))
     public var temporaryData: Array<UInt8>
     /// 缓冲使用量 (对应 .UseBuffered(usize))
-    public var useBuffered: Int64
+    public var useBufferedValue: Int64
 
     public init() {
         kind = ReadDuringJSOnPullKind.None
         jsBuffer = Array<UInt8>()
-        amountRead = 0
+        amountReadValue = 0
         temporaryData = Array<UInt8>()
-        useBuffered = 0
+        useBufferedValue = 0
     }
 
     /// 是否为 None
@@ -115,7 +115,7 @@ public class ReadDuringJSOnPullResult {
     public static func amountRead(amount: Int64): ReadDuringJSOnPullResult {
         let r = ReadDuringJSOnPullResult()
         r.kind = ReadDuringJSOnPullKind.AmountRead
-        r.amountRead = amount
+        r.amountReadValue = amount
         return r
     }
 
@@ -129,7 +129,7 @@ public class ReadDuringJSOnPullResult {
     public static func useBuffered(amount: Int64): ReadDuringJSOnPullResult {
         let r = ReadDuringJSOnPullResult()
         r.kind = ReadDuringJSOnPullKind.UseBuffered
-        r.useBuffered = amount
+        r.useBufferedValue = amount
         return r
     }
 }
@@ -148,7 +148,7 @@ public enum LazyKind {
     | None
     | Blob
 
-    public operator func ==(right: Self): Bool {
+    public operator func ==(right: LazyKind): Bool {
         match (this) {
             case None =>
                 match (right) {
@@ -191,7 +191,9 @@ public class BlobStoreRef {
         if (bytesData.isSome()) {
             return StoreData.Bytes(bytesData.getOrThrow())
         }
-        return StoreData.None
+        let d = StoreData()
+        d.tag = StoreDataTag.None
+        return d
     }
 
     /// 递增引用计数
@@ -261,7 +263,7 @@ public class FileStoreData {
     public var isAtty: ?Bool
 
     public init() {
-        pathlike = PathOrFileDescriptor.Path(PathBuffer())
+        pathlike = PathOrFileDescriptor("")
         isAtty = None
     }
 }
@@ -344,7 +346,7 @@ public enum IOFileType {
     | Socket
     | NonblockingPipe
 
-    public operator func ==(right: Self): Bool {
+    public operator func ==(right: IOFileType): Bool {
         match (this) {
             case File =>
                 match (right) {
@@ -375,38 +377,6 @@ public enum IOFileType {
 public enum PathOrFileDescriptorTag {
     | Fd
     | Path
-}
-
-public class PathOrFileDescriptor {
-    public var tag: PathOrFileDescriptorTag
-    public var fd: Int64
-    public var path: PathBuffer
-
-    public init() {
-        tag = PathOrFileDescriptorTag.Fd
-        fd = -1
-        path = PathBuffer()
-    }
-
-    public static func Fd(fd: Int64): PathOrFileDescriptor {
-        let p = PathOrFileDescriptor()
-        p.tag = PathOrFileDescriptorTag.Fd
-        p.fd = fd
-        return p
-    }
-
-    public static func Path(buf: PathBuffer): PathOrFileDescriptor {
-        let p = PathOrFileDescriptor()
-        p.tag = PathOrFileDescriptorTag.Path
-        p.path = buf
-        return p
-    }
-
-    /// 获取路径切片
-    /// 对应 Bun: .path().slice()
-    public func pathSlice(): Array<UInt8> {
-        return path.bytes
-    }
 }
 
 /// PathBuffer - 路径缓冲区
@@ -441,8 +411,9 @@ public class PathBuffer {
 public enum PendingState {
     | None
     | Pending
+    | Used
 
-    public operator func ==(right: Self): Bool {
+    public operator func ==(right: PendingState): Bool {
         match (this) {
             case None =>
                 match (right) {
@@ -454,8 +425,14 @@ public enum PendingState {
                     case Pending => true
                     case _ => false
                 }
+            case Used =>
+                match (right) {
+                    case Used => true
+                    case _ => false
+                }
         }
     }
+    public operator func !=(right: PendingState): Bool { !(this == right) }
 }
 
 // ============================================================================
@@ -570,7 +547,7 @@ public class IOReaderState {
     /// 内存开销
     /// 对应 Bun: pub fn memory_cost(&self) -> usize
     public func memoryCost(): Int64 {
-        return buffer.capacity
+        return buffer.capacity()
     }
 
     /// 设置父对象
@@ -597,49 +574,6 @@ public class IOReaderState {
     }
 }
 
-// ============================================================================
-// SyscallError - 系统调用错误
-// ============================================================================
-
-/// 系统调用错误
-/// 对应 Bun: sys::Error
-public class SyscallError {
-    public var code: Int64
-    public var tag: String
-    public var path: ?Array<UInt8>
-    public var fd: Int64
-
-    public init() {
-        code = 0
-        tag = ""
-        path = None
-        fd = -1
-    }
-
-    public init(code: Int64, tag: String) {
-        this.code = code
-        this.tag = tag
-        path = None
-        fd = -1
-    }
-
-    public func withPath(p: Array<UInt8>): SyscallError {
-        let e = SyscallError(code, tag)
-        e.path = Some(p)
-        return e
-    }
-
-    public func withFd(fd: Int64): SyscallError {
-        let e = SyscallError(code, tag)
-        e.fd = fd
-        return e
-    }
-
-    public static func fromCode(code: Int64, tag: String): SyscallError {
-        return SyscallError(code, tag)
-    }
-}
-
 /// IO 读取状态
 /// 对应 Bun: bun_io::ReadState
 public enum IOReadState {
@@ -647,7 +581,7 @@ public enum IOReadState {
     | Eof
     | Drained
 
-    public operator func ==(right: Self): Bool {
+    public operator func ==(right: IOReadState): Bool {
         match (this) {
             case Progress =>
                 match (right) {
@@ -666,6 +600,7 @@ public enum IOReadState {
                 }
         }
     }
+    public operator func !=(right: IOReadState): Bool { !(this == right) }
 }
 
 // ============================================================================
@@ -698,7 +633,7 @@ public class StreamResultPending {
 
     /// 获取指针 (用于返回 Pending(ptr))
     public func asPtr(): UIntPtr {
-        return UIntPtr(this)
+        return 0
     }
 }
 
@@ -716,7 +651,7 @@ public enum StreamStartTag {
     | OwnedAndDone
     | Done
 
-    public operator func ==(right: Self): Bool {
+    public operator func ==(right: StreamStartTag): Bool {
         match (this) {
             case Empty =>
                 match (right) {
@@ -755,13 +690,15 @@ public enum StreamStartTag {
 /// 流启动结果
 public class StreamStart {
     public var tag: StreamStartTag
-    public var err: ?SyscallError
+    public var errValue: ?SyscallError
     public var ownedData: ArrayList<UInt8>
+    public var chunkSize: Int64
 
     public init() {
         tag = StreamStartTag.Empty
-        err = None
+        errValue = None
         ownedData = ArrayList<UInt8>()
+        chunkSize = 0
     }
 
     public static func empty(): StreamStart {
@@ -779,7 +716,7 @@ public class StreamStart {
     public static func err(e: SyscallError): StreamStart {
         let s = StreamStart()
         s.tag = StreamStartTag.Err
-        s.err = Some(e)
+        s.errValue = Some(e)
         return s
     }
 
@@ -819,7 +756,7 @@ public enum StreamResultTag {
     | IntoArray
     | IntoArrayAndDone
 
-    public operator func ==(right: Self): Bool {
+    public operator func ==(right: StreamResultTag): Bool {
         match (this) {
             case Pending =>
                 match (right) {
@@ -894,6 +831,14 @@ public class StreamError {
 
     public init(err: SyscallError) {
         this.err = err
+    }
+
+    public static func fromAbortReason(reason: CommonAbortReason): StreamError {
+        StreamError(SyscallError())
+    }
+
+    public static func fromJSValue(value: JsValue): StreamError {
+        StreamError(SyscallError())
     }
 }
 
@@ -972,30 +917,36 @@ public class StreamResult {
     public static func intoArray(len: Int64): StreamResult {
         let r = StreamResult()
         r.tag = StreamResultTag.IntoArray
-        r.intoArrayData = IntoArrayData(value: 0, len: UInt64(len))
+        r.intoArrayData = IntoArrayData(0, UInt64(len))
         return r
     }
 
     public static func intoArrayAndDone(len: Int64): StreamResult {
         let r = StreamResult()
         r.tag = StreamResultTag.IntoArrayAndDone
-        r.intoArrayData = IntoArrayData(value: 0, len: UInt64(len))
+        r.intoArrayData = IntoArrayData(0, UInt64(len))
         return r
     }
 
     public static func intoArrayWithValue(len: Int64, value: UIntPtr): StreamResult {
         let r = StreamResult()
         r.tag = StreamResultTag.IntoArray
-        r.intoArrayData = IntoArrayData(value: value, len: UInt64(len))
+        r.intoArrayData = IntoArrayData(value, UInt64(len))
         return r
     }
 
     public static func intoArrayAndDoneWithValue(len: Int64, value: UIntPtr): StreamResult {
         let r = StreamResult()
         r.tag = StreamResultTag.IntoArrayAndDone
-        r.intoArrayData = IntoArrayData(value: value, len: UInt64(len))
+        r.intoArrayData = IntoArrayData(value, UInt64(len))
         return r
     }
+
+    // ========== Stub methods ==========
+    public func slice(): ArrayList<UInt8> { ownedData }
+    public func slice16(): ArrayList<UInt16> { ArrayList<UInt16>() }
+    public func isDone(): Bool { tag == StreamResultTag.Done || tag == StreamResultTag.OwnedAndDone }
+    public func toJsValue(): JsValue { JsValue() }
 }
 
 // ============================================================================
@@ -1217,8 +1168,9 @@ public class FileReader {
         // on every path) so the StoreRef is owned locally.
         match (lazy.kind) {
             case Blob =>
-                match (lazy.blobStore) {
-                    case Some(store) =>
+                let _optTmp1 = lazy.blobStore
+                if (_optTmp1.isSome()) {
+                        let store = _optTmp1.getOrThrow()
                         // PORT NOTE: reshaped for borrowck — Zig `defer { deref; lazy = none }`
                         // is hoisted after the match below since both arms fall through.
                         match (store.data().tag) {
@@ -1226,7 +1178,7 @@ public class FileReader {
                                                 // panic!("Invalid state in FileReader: expected file ")
                                                 lazy = FileReaderLazy()
                                                 return StreamStart.err(
-                                                    SyscallError.fromCode(-1, "InvalidState")
+                                                    SyscallError(-1, "InvalidState", "")
                                                 )
                             case StoreDataTag.File =>
                                 // PORT NOTE: Lazy::open_file_blob in Bun does the actual file open
@@ -1234,22 +1186,22 @@ public class FileReader {
                                 let openResult = openFileBlob(store)
                                 lazy = FileReaderLazy()
                                 match (openResult) {
-                                    case Some(opened) =>
-                                        fd = opened.fd
-                                        pollable = opened.pollable
-                                        fileType = opened.fileType
-                                        reader.flags.set(PosixFlags.NONBLOCKING, opened.nonblocking)
+                                    case Some(fileBlob) =>
+                                        fd = fileBlob.fd
+                                        pollable = fileBlob.pollable
+                                        fileType = fileBlob.fileType
+                                        reader.flags.set(PosixFlags.NONBLOCKING, fileBlob.nonblocking)
                                         reader.flags.set(PosixFlags.POLLABLE, pollable)
                                     case None =>
                                         fd = -1
                                         return StreamStart.err(
-                                            SyscallError.fromCode(-1, "OpenFailed")
+                                            SyscallError(-1, "OpenFailed", "")
                                         )
                                 }
                             case _ =>
                                 lazy = FileReaderLazy()
                         }
-                    case None =>
+                } else {
                         lazy = FileReaderLazy()
                 }
             case None => ()
@@ -1266,14 +1218,15 @@ public class FileReader {
         if (wasLazy) {
             waitingForOnReaderDone = true
             // Start reading from offset or beginning
-            match (startOffset) {
-                case Some(offset) =>
+            let _optTmp2 = startOffset
+            if (_optTmp2.isSome()) {
+                    let offset = _optTmp2.getOrThrow()
                     let err = reader.startFileOffset(fd, pollable, offset)
                     match (err) {
                         case Some(e) => return StreamStart.err(e)
                         case None => ()
                     }
-                case None =>
+            } else {
                     let err = reader.start(fd, pollable)
                     match (err) {
                         case Some(e) => return StreamStart.err(e)
@@ -1391,10 +1344,12 @@ public class FileReader {
                     pendingView = pulled.jsBuffer
                     return StreamResult.pending(pending)
                 case Temporary =>
+                    let tmpList = ArrayList<UInt8>()
+                    tmpList.appendSlice(pulled.temporaryData)
                     if (reader.isDone()) {
-                        return StreamResult.temporaryAndDone(pulled.temporaryData)
+                        return StreamResult.temporaryAndDone(tmpList)
                     }
-                    return StreamResult.temporary(pulled.temporaryData)
+                    return StreamResult.temporary(tmpList)
                 case UseBuffered =>
                     let buf = buffered
                     buffered = ArrayList<UInt8>()
@@ -1405,6 +1360,7 @@ public class FileReader {
                 case AmountRead =>
                     // Should not be produced by on_read_chunk
                     // Fall through to set pending
+                    ()
                 case None =>
                     () // Should not happen — we just stored Js(buffer) above
             }
@@ -1448,8 +1404,9 @@ public class FileReader {
 
         // Handle max_size truncation
         if (workingBuf.size > 0) {
-            match (maxSize) {
-                case Some(max) =>
+            let _optTmp3 = maxSize
+            if (_optTmp3.isSome()) {
+                    let max = _optTmp3.getOrThrow()
                     if (totalReaded >= max) {
                         return false
                     }
@@ -1464,7 +1421,7 @@ public class FileReader {
                         close = true
                         hasMore = false
                     }
-                case None => ()
+            } else {
             }
         }
 
@@ -1487,7 +1444,7 @@ public class FileReader {
                         readInsideOnPull = ReadDuringJSOnPullResult.useBuffered(workingBuf.size)
                     }
                 case UseBuffered =>
-                    let original = readInsideOnPull.useBuffered
+                    let original = readInsideOnPull.useBufferedValue
                     for (b in workingBuf) {
                         buffered.append(b)
                     }
@@ -1518,7 +1475,7 @@ public class FileReader {
                     if (workingBuf.size == 0) {
                         if (buffered.size == 0) {
                             buffered = ArrayList<UInt8>() // clearAndFree
-                            buffered = ArrayList<UInt8>(reader.buffer.toArray()) // moveToUnmanaged
+                            buffered = ArrayList<UInt8>(reader.buffer.items()) // moveToUnmanaged
                         }
 
                         let buffer = buffered
@@ -1666,7 +1623,7 @@ public class FileReader {
     /// 严格翻译自 FileReader.on_reader_error()
     public func onReaderError(err: SyscallError): Unit {
         consumeReaderBuffer()
-        if (buffered.capacity > 0 && buffered.size == 0) {
+        if (buffered.capacity() > 0 && buffered.size == 0) {
             buffered = ArrayList<UInt8>()
         }
 
@@ -1715,7 +1672,7 @@ public class FileReader {
             return ArrayList<UInt8>()
         }
 
-        return ArrayList<UInt8>(reader.buffer.toArray())
+        return ArrayList<UInt8>(reader.buffer.items())
     }
 
     // ========================================================================
@@ -1805,7 +1762,7 @@ public class FileReader {
     /// 严格翻译自 FileReader.memory_cost()
     /// ReadableStreamSource covers @sizeOf(FileReader)
     public func memoryCost(): Int64 {
-        return reader.memoryCost() + buffered.capacity
+        return reader.memoryCost() + buffered.capacity()
     }
 
     // ========================================================================
@@ -1820,7 +1777,7 @@ public class FileReader {
     ///       }
     ///   }
     private func consumeReaderBuffer(): Unit {
-        if (buffered.capacity == 0) {
+        if (buffered.capacity() == 0) {
             buffered = reader.buffer
             reader.buffer = ArrayList<UInt8>()
         }
@@ -1853,7 +1810,7 @@ public class FileReader {
     public func readAll(): Array<UInt8> {
         done = true
         if (buffered.size > 0) {
-            return buffered.toArray()
+            return buffered.items()
         }
         return Array<UInt8>()
     }

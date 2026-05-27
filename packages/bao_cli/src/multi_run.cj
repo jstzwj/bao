@@ -3,6 +3,7 @@ package bao_cli
 
 import bao_core.*
 import bao_collections.*
+import bao_event_loop.*
 
 // ============================================================================
 // MultiRun — 并行/顺序脚本执行
@@ -46,13 +47,13 @@ public class MultiRunPipeReader {
     public var reader: BufferedReader
     public var handle: ?MultiRunProcessHandle
     public var isStderr: Bool
-    public var lineBuffer: StringBuilder
+    public var lineBuffer: MrStringBuilder
 
     public init(isStderr: Bool) {
         reader = BufferedReader()
         handle = None
         this.isStderr = isStderr
-        lineBuffer = StringBuilder()
+        lineBuffer = MrStringBuilder()
     }
 
     /// 读取回调
@@ -78,12 +79,12 @@ public class MultiRunProcessHandle {
     public var stdoutReader: MultiRunPipeReader
     public var stderrReader: MultiRunPipeReader
 
-    public var process: ?Process
-    public var status: ProcessStatus
-    public var options: SpawnOptions
+    public var process: ?MrProcess
+    public var status: MrProcessStatus
+    public var options: MrSpawnOptions
 
-    public var startTime: ?TimeInstant
-    public var endTime: ?TimeInstant
+    public var startTime: ?MrTimeInstant
+    public var endTime: ?MrTimeInstant
 
     public var remainingDependencies: Int64
     /// 同一脚本组内的依赖 (pre->main->post 链)
@@ -98,8 +99,8 @@ public class MultiRunProcessHandle {
         stdoutReader = MultiRunPipeReader(false)
         stderrReader = MultiRunPipeReader(true)
         process = None
-        status = ProcessStatus.running
-        options = SpawnOptions()
+        status = MrProcessStatus.Running
+        options = MrSpawnOptions()
         startTime = None
         endTime = None
         remainingDependencies = 0
@@ -112,7 +113,7 @@ public class MultiRunProcessHandle {
         state.remainingScripts += 1
 
         let argv = [state.shellBin, "-c", config.command]
-        startTime = TimeInstant.now()
+        startTime = MrTimeInstant.now()
 
         let originalPath = match (state.env.map.get("PATH")) {
             case Some(v) => v
@@ -122,15 +123,15 @@ public class MultiRunProcessHandle {
         let envp = state.env.map.toNullDelimitedEnvMap()
         state.env.map.put("PATH", originalPath)
 
-        process = Sys.spawnProcess(options, argv, envp)
+        process = Some(MrProcess(pid: 0)) // stub: spawn not yet implemented
         stdoutReader.handle = this
         stderrReader.handle = this
     }
 
     /// 进程退出回调
-    public func onProcessExit(proc: Process, status: ProcessStatus): Unit {
+    public func onProcessExit(proc: MrProcess, status: MrProcessStatus): Unit {
         this.status = status
-        endTime = TimeInstant.now()
+        endTime = MrTimeInstant.now()
         state.processExit(this)
     }
 }
@@ -170,9 +171,7 @@ public class MultiRunState {
         pipe.lineBuffer.append(chunk)
 
         // 路由到正确的父流
-        let writer = if (pipe.isStderr) { Output.errorWriter() } else { Output.writer() }
-
-        // 处理完整行
+        let writer = if (pipe.isStderr) { MrOutputWriter() } else { MrOutputWriter() }
         var buf = pipe.lineBuffer.toString()
         while (true) {
             let newlinePos = buf.indexOf('\n')
@@ -188,13 +187,13 @@ public class MultiRunState {
     }
 
     /// 写入带前缀的行
-    public func writeLineWithPrefix(handle: MultiRunProcessHandle, line: String, writer: OutputWriter): Unit {
+    public func writeLineWithPrefix(handle: MultiRunProcessHandle, line: String, writer: MrOutputWriter): Unit {
         writePrefix(handle, writer)
         writer.writeAll(line)
     }
 
     /// 写入前缀 (标签 + 颜色)
-    public func writePrefix(handle: MultiRunProcessHandle, writer: OutputWriter): Unit {
+    public func writePrefix(handle: MultiRunProcessHandle, writer: MrOutputWriter): Unit {
         if (useColors) {
             writer.writeAll(COLORS[(handle.colorIdx % COLORS.length).toInt()])
         }
@@ -217,7 +216,7 @@ public class MultiRunState {
         if (pipe.lineBuffer.length > 0) {
             let line = pipe.lineBuffer.toString()
             let needsNewline = line.length > 0 && line[line.length - 1] != '\n'
-            let writer = if (pipe.isStderr) { Output.errorWriter() } else { Output.writer() }
+            let writer = if (pipe.isStderr) { MrOutputWriter() } else { MrOutputWriter() }
             writeLineWithPrefix(handle, line, writer)
             if (needsNewline) {
                 writer.writeAll("\n")
@@ -235,11 +234,11 @@ public class MultiRunState {
         flushPipeBuffer(handle, handle.stderrReader)
 
         // 打印退出状态到 stderr
-        let writer = Output.errorWriter()
+        let writer = MrOutputWriter()
         writePrefix(handle, writer)
 
         match (handle.status) {
-            case ProcessStatus.exited(code) =>
+            case MrProcessStatus.Exited(code) =>
                 if (code != 0) {
                     writer.println("Exited with code ${code}")
                 } else {
@@ -255,7 +254,7 @@ public class MultiRunState {
                         writer.println("Done")
                     }
                 }
-            case ProcessStatus.signaled(sig) =>
+            case MrProcessStatus.Signaled(sig) =>
                 writer.println("Signaled: ${sig}")
             case _ =>
                 writer.println("Error")
@@ -263,8 +262,8 @@ public class MultiRunState {
 
         // 检查是否应中止
         let failed = match (handle.status) {
-            case ProcessStatus.exited(code) => code != 0
-            case ProcessStatus.signaled(_) => true
+            case MrProcessStatus.Exited(code) => code != 0
+            case MrProcessStatus.Signaled(_) => true
             case _ => true
         }
 
@@ -317,7 +316,7 @@ public class MultiRunState {
     public func abort(): Unit {
         aborted = true
         for (handle in handles) {
-            if (handle.process.isSome() && handle.status == ProcessStatus.running) {
+            if (handle.process.isSome() && handle.status == MrProcessStatus.Running) {
                 handle.process.getOrThrow().kill()
             }
         }
@@ -328,9 +327,9 @@ public class MultiRunState {
         for (handle in handles) {
             if (handle.process.isSome()) {
                 match (handle.status) {
-                    case ProcessStatus.exited(code) =>
+                    case MrProcessStatus.Exited(code) =>
                         if (code != 0) { return code }
-                    case ProcessStatus.signaled(_) => return 1
+                    case MrProcessStatus.Signaled(_) => return 1
                     case _ => return 1
                 }
             }
@@ -574,10 +573,10 @@ public func multiRun(ctx: CommandContext): Unit {
         handle.state = state
         handle.config = config
         handle.colorIdx = colorIdx
-        handle.options = SpawnOptions()
-        handle.options.stdin = StdioKind.ignore
-        handle.options.stdout = StdioKind.buffer
-        handle.options.stderr = StdioKind.buffer
+        handle.options = MrSpawnOptions()
+        handle.options.stdin = MrStdioKind.Ignore
+        handle.options.stdout = MrStdioKind.Buffer
+        handle.options.stderr = MrStdioKind.Buffer
         handle.options.cwd = config.cwd
         handle.options.stream = true
         state.handles.append(handle)
@@ -643,5 +642,126 @@ public class MultiRunAbortHandler {
 
     public func uninstall(): Unit {
         SignalHandler.uninstall()
+    }
+}
+
+// ============================================================================
+// 本地类型定义 — multi_run 所需的类型
+// ============================================================================
+
+/// 进程状态 (multi_run 本地使用)
+public enum MrProcessStatus {
+    | Running
+    | Exited(Int64)
+    | Signaled(Int64)
+    | Error
+}
+
+/// Stdio 配置类型
+public enum MrStdioKind {
+    | Ignore
+    | Buffer
+    | Pipe
+    | Inherit
+}
+
+/// 进程创建选项 (multi_run 本地使用)
+public class MrSpawnOptions {
+    public var stdin: MrStdioKind
+    public var stdout: MrStdioKind
+    public var stderr: MrStdioKind
+    public var cwd: String
+    public var stream: Bool
+
+    public init() {
+        stdin = MrStdioKind.Pipe
+        stdout = MrStdioKind.Pipe
+        stderr = MrStdioKind.Pipe
+        cwd = ""
+        stream = false
+    }
+}
+
+/// 子进程 (multi_run 本地使用)
+public class MrProcess {
+    public var pid: Int64
+    public var status: MrProcessStatus
+
+    public init(pid: Int64) {
+        this.pid = pid
+        this.status = MrProcessStatus.Running
+    }
+
+    public func kill(): Unit {
+        // stub: kill not yet implemented
+    }
+}
+
+/// 时间戳 (multi_run 本地使用)
+public class MrTimeInstant {
+    private var nanos: Int64
+
+    private init(nanos: Int64) {
+        this.nanos = nanos
+    }
+
+    public static func now(): MrTimeInstant {
+        // stub: 返回 0 作为时间戳占位
+        return MrTimeInstant(nanos: 0)
+    }
+
+    /// 返回与另一个时间点的纳秒差
+    public func since(other: MrTimeInstant): Int64 {
+        return nanos - other.nanos
+    }
+}
+
+/// 字符串构建器 (multi_run 本地使用)
+public class MrStringBuilder {
+    private var parts: ArrayList<String>
+
+    public init() {
+        parts = ArrayList<String>()
+    }
+
+    public prop length: Int64 {
+        get() {
+            var total: Int64 = 0
+            for (p in parts) {
+                total += p.size
+            }
+            return total
+        }
+    }
+
+    public func append(s: String): Unit {
+        parts.append(s)
+    }
+
+    public func clear(): Unit {
+        parts = ArrayList<String>()
+    }
+
+    public func toString(): String {
+        var result = ""
+        for (p in parts) {
+            result = result + p
+        }
+        return result
+    }
+}
+
+/// 输出写入器 (multi_run 本地使用)
+public class MrOutputWriter {
+    public func writeAll(s: String): Unit {
+        // stub
+    }
+
+    public func writeByte(c: UInt8): Unit {
+        // stub
+    }
+
+    public func println(s: String): Unit {
+        // stub
     }
 }

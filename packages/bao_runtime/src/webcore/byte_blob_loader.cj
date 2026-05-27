@@ -4,7 +4,13 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
+import bao_jsc.*
+import bao_collections.ArrayList
+
+// Local min helper for Int64
+func localMin(a: Int64, b: Int64): Int64 {
+    if (a < b) { a } else { b }
+}
 
 // ============================================================================
 // ByteBlobLoader - 字节 Blob 加载器
@@ -54,9 +60,9 @@ public class ByteBlobLoader {
                 s.ref()
                 store = Some(s)
                 offset = blob.offset
-                let blobSize = blob.getSizeForBindings()
-                chunkSize = min(
-                    if (userChunkSize > 0) { min(userChunkSize, blobSize) } else { blobSize },
+                let blobSize = Int64(blob.getSizeForBindings())
+                chunkSize = localMin(
+                    if (userChunkSize > 0) { localMin(userChunkSize, blobSize) } else { blobSize },
                     1024 * 1024 * 2
                 )
                 remain = blobSize
@@ -79,12 +85,12 @@ public class ByteBlobLoader {
         match (store) {
             case Some(s) =>
                 if (done) {
-                    return StreamResult.Done(Array<UInt8>())
+                    return StreamResult.done()
                 }
                 let view = s.sharedView()
                 if (offset >= view.size) {
                     done = true
-                    return StreamResult.Done(Array<UInt8>())
+                    return StreamResult.done()
                 }
                 // 计算本次读取大小
                 let readSize = min(chunkSize, remain)
@@ -100,10 +106,10 @@ public class ByteBlobLoader {
 
                 if (remain <= 0 || offset >= view.size) {
                     done = true
-                    return StreamResult.OwnedAndDone(result.toArray())
+                    return StreamResult.ownedAndDone(result)
                 }
-                return StreamResult.Owned(result.toArray())
-            case None => return StreamResult.Done(Array<UInt8>())
+                return StreamResult.owned(result)
+            case None => return StreamResult.done()
         }
     }
 
@@ -139,7 +145,7 @@ public class ByteBlobLoader {
                     }
                 case None => ()
             }
-            return Some(Blob(bytes.toArray(), contentType))
+            return Some(Blob(bytes.items(), contentType))
         }
         return None
     }

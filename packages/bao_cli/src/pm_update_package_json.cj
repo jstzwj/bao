@@ -9,7 +9,6 @@ package bao_cli
 
 import bao_core.*
 import bao_collections.*
-import bao_bundler.*
 import bao_install.*
 
 // ============================================================================
@@ -30,7 +29,7 @@ import bao_install.*
 public func updatePackageJsonAndInstallCatchError(
     ctx: CommandContext,
     subcommand: Subcommand
-): Result<Unit, Error> {
+): Result<Unit, String> {
     match (updatePackageJsonAndInstall(ctx, subcommand)) {
         case Ok(_) => return Ok(())
         case Err(e) =>
@@ -59,7 +58,7 @@ public func updatePackageJsonAndInstallCatchError(
 public func updatePackageJsonAndInstall(
     ctx: CommandContext,
     subcommand: Subcommand
-): Result<Unit, Error> {
+): Result<Unit, String> {
     var cli = CommandLineArguments.parse(subcommand)
 
     // 工作流程:
@@ -122,7 +121,7 @@ public class Analyzer {
     ///   2. 将位置参数重写为 ["add", "dep1", "dep2", ...]
     ///   3. 调用 updatePackageJsonAndInstallWithCli
     ///   4. 退出进程
-    public func onAnalyze(result: DependenciesScannerResult): Result<Unit, Error> {
+    public func onAnalyze(result: DependenciesScannerResult): Result<Unit, String> {
         // 收集所有依赖的 key
         var ownedKeys = ArrayList<ByteArray>()
         let keys = result.dependencies.keys()
@@ -347,7 +346,7 @@ public func updatePackageJsonAndInstallWithCli(
     ctx: CommandContext,
     subcommand: Subcommand,
     cli: CommandLineArguments
-): Result<Unit, Error> {
+): Result<Unit, String> {
     // 初始化 PackageManager
     let pm = PackageManager(ctx)
     return pm.updatePackageJsonAndInstall(cli, subcommand)

@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Script.zig
 // 严格翻译Bun shell脚本状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 
 // ============================================================================
 // 脚本执行状态
@@ -19,18 +18,22 @@ public enum ScriptStateKind {
 
 /// 脚本状态父节点指针（提取到顶层）
 public class ScriptParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
 
     public static func initFunc(p: Any): ScriptParentPtr {
         let pp = ScriptParentPtr()
         pp.ptr = p
         return pp
     }
+
+    public func childDone(child: Any, exitCode: ExitCode): Yield {
+        return Yield.done
+    }
 }
 
 /// 脚本状态子节点指针（提取到顶层）
 public class ScriptChildPtr {
-    public var val: StmtState
+    public var val: StmtState = StmtState()
 
     public static func initFunc(child: StmtState): ScriptChildPtr {
         let cp = ScriptChildPtr()
@@ -46,19 +49,17 @@ public class ScriptChildPtr {
 /// 脚本状态
 public class ScriptState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: ASTScript
+    public var node: ASTScript = ASTScript([])
     /// IO
-    public var io: IO
+    public var io: IO = IO()
     /// 父节点指针
-    public var parent: ScriptParentPtr
+    public var parent: ScriptParentPtr = ScriptParentPtr()
     /// 状态
-    public var state: ScriptStateKind
+    public var state: ScriptStateKind = ScriptStateKind.`normal`(0)
 
-    public init() {
-        this.state = ScriptStateKind.`normal`(0)
-    }
+    public init() {}
 
     /// 初始化
     public static func initFunc(
@@ -80,7 +81,7 @@ public class ScriptState {
     /// 启动
     public func start(): Yield {
         if (this.node.stmts.size == 0) {
-            return this.finish(0)
+            return this.finish(ExitCode.exited(0))
         }
         return Yield.script(this)
     }
@@ -89,10 +90,11 @@ public class ScriptState {
     public func next(): Yield {
         match (this.state) {
             case ScriptStateKind.`normal`(idx) =>
-                if (idx >= this.node.stmts.size) {
+                let idxI64 = Int64(idx)
+                if (idxI64 >= this.node.stmts.size) {
                     return Yield.suspended
                 }
-                let stmtNode = this.node.stmts[idx]
+                let stmtNode = this.node.stmts[idxI64]
                 this.state = ScriptStateKind.`normal`(idx + 1)
                 let stmt = StmtState.initFunc(
                     this.base.interpreter,
@@ -115,7 +117,7 @@ public class ScriptState {
         child.deinit()
         match (this.state) {
             case ScriptStateKind.`normal`(idx) =>
-                if (idx >= this.node.stmts.size) {
+                if (Int64(idx) >= this.node.stmts.size) {
                     return this.finish(exitCode)
                 }
                 return this.next()

@@ -3,18 +3,21 @@
 
 package bao_sql_jsc.postgres
 
-import bao_core.*
+import bao_core.Result as CoreResult
+import bao_core.Environment as CoreEnvironment
 import bao_event_loop.EventLoopTimer
 import bao_event_loop.TimerTag
 import bao_event_loop.AutoFlusher
 import bao_jsc.*
-import bao_sql.*
+import bao_sql.postgres.protocol.*
+import bao_sql.shared.ColumnIdentifier
+import bao_sql.shared.ColumnIdentifierKind
 import bao_sql_jsc.shared.*
 import bao_sql_jsc.mysql.AnySocket
 import bao_sql_jsc.mysql.OffsetByteList
 import bao_sql_jsc.mysql.SSLConfig
 import bao_sql_jsc.mysql.ConnectionFlags
-import bao_collections.ArrayList
+import bao_collections.ArrayList as BaoArrayList
 
 /// Postgres SQL 连接
 /// 对应 Bun: PostgresSQLConnection
@@ -50,7 +53,7 @@ public class PostgresSQLConnection {
 
     public var secure: UInt64 = 0
     public var tlsConfig: SSLConfig = SSLConfig()
-    public var tlsStatus: PostgresTLSStatus = PostgresTLSStatus.None
+    public var tlsStatus: PostgresTLSStatus = PostgresTLSStatus.NoTLS
     public var sslMode: PostgresSSLMode = PostgresSSLMode.Disable
 
     public var idleTimeoutIntervalMs: UInt32 = 0
@@ -107,21 +110,223 @@ public class PostgresSQLConnection {
             case Pending => ()
             case SASL(sasl) => sasl.processAuth(data)
             case MD5 => processMD5Auth(data)
-            case AuthenticationState.None => ()
+            case AuthenticationState.NoAuth => ()
             case OK => ()
             case _ => ()
         }
     }
 
     /// 处理 Postgres 消息
+    /// 对应 Bun: PostgresSQLConnection.on
     public func on(messageType: PostgresMessageType, reader: PostgresReader): Unit {
-        // Stub: dispatch message based on type
+        // 创建 StackReaderImpl 用于协议层 decode
+        let remaining = reader.remainingBytes()
+        let protoReader = StackReaderImpl(remaining)
+
+        match (messageType) {
+            case ReadyForQuery =>
+                let decoded = ReadyForQuery.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let ready = decoded.getOrThrow()
+                if (status == PostgresConnectionStatus.Authenticating) {
+                    status = PostgresConnectionStatus.Connected
+                    onConnectionEstablished()
+                }
+                requests.markAsReadyForQuery()
+                requests.advance(this)
+
+            case BindComplete =>
+                requests.markAsPrepared()
+
+            case ParseComplete =>
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    if (req.statement.isSome()) {
+                        req.statement.getOrThrow().status = PostgresStatementStatus.Prepared
+                    }
+                }
+
+            case RowDescription =>
+                let decoded = RowDescription.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let rowDesc = decoded.getOrThrow()
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    if (req.statement.isSome()) {
+                        let stmt = req.statement.getOrThrow()
+                        let fieldCount = rowDesc.fields.size
+                        stmt.fields = Array<FieldDescription>(fieldCount, { i =>
+                            let protoField = rowDesc.fields[i]
+                            let f = FieldDescription()
+                            // 从 ColumnIdentifier 转换为 PostgresNameOrIndex
+                            match (protoField.nameOrIndex.kind) {
+                                case ColumnIdentifierKind.nameKind =>
+                                    let nameBytes = protoField.nameOrIndex.nameData.slice()
+                                    let name = String.fromUtf8(nameBytes)
+                                    f.nameOrIndex = PostgresNameOrIndex.Name(name)
+                                case ColumnIdentifierKind.indexKind =>
+                                    f.nameOrIndex = PostgresNameOrIndex.Index(protoField.nameOrIndex.indexValue)
+                                case ColumnIdentifierKind.duplicateKind =>
+                                    f.nameOrIndex = PostgresNameOrIndex.Duplicate
+                            }
+                            f.typeOid = Int32(protoField.typeOid)
+                            f.binary = protoField.binary
+                            f
+                        })
+                        stmt.checkForDuplicateFields()
+                    }
+                }
+
+            case ParameterDescription =>
+                let decoded = ParameterDescription.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let paramDesc = decoded.getOrThrow()
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    if (req.statement.isSome()) {
+                        let stmt = req.statement.getOrThrow()
+                        stmt.parameters = Array<Int32>(paramDesc.parameters.size, { i =>
+                            Int32(paramDesc.parameters[i])
+                        })
+                    }
+                }
+
+            case ParameterStatus =>
+                let decoded = ParameterStatus.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let param = decoded.getOrThrow()
+                backendParameters.put(String.fromUtf8(param.name.slice()), String.fromUtf8(param.value.slice()))
+
+            case BackendKeyData =>
+                let decoded = BackendKeyData.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let keyData = decoded.getOrThrow()
+                backendKeyData.processId = keyData.processId
+                backendKeyData.secretKey = keyData.secretKey
+
+            case Authentication =>
+                let decoded = Authentication.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let auth = decoded.getOrThrow()
+                match (auth) {
+                    case Authentication.Ok =>
+                        authenticationState = AuthenticationState.OK
+                    case Authentication.MD5Password(salt) =>
+                        authenticationState = AuthenticationState.MD5
+                        onAuth(5, salt)
+                    case Authentication.SASL =>
+                        authenticationState = AuthenticationState.SASL(PostgresSASL())
+                    case Authentication.ClearTextPassword =>
+                        onAuth(3, [])
+                    case _ =>
+                        fail("Unsupported authentication method",
+                            AnyPostgresError.UnsupportedAuthenticationMethod)
+                }
+
+            case DataRow =>
+                onResultRow(reader, protoReader)
+
+            case ErrorResponse =>
+                let decoded = ErrorResponse.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let errResp = decoded.getOrThrow()
+                // 从 FieldMessage 列表中提取主消息
+                var errMsg: String = "Postgres error"
+                for (msg in errResp.messages) {
+                    if (msg.fieldType == FieldType.message) {
+                        errMsg = msg.value
+                        break
+                    }
+                }
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    let errVal = postgresErrorToJS(globalObject, errMsg, AnyPostgresError.JSError)
+                    req.rejectWithJSValue(JscValue.undefined(), errVal)
+                } else if (status == PostgresConnectionStatus.Authenticating) {
+                    fail(errMsg, AnyPostgresError.JSError)
+                }
+
+            case CommandComplete =>
+                let decoded = CommandComplete.decode(protoReader)
+                if (decoded.isNone()) { return }
+                let cmd = decoded.getOrThrow()
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    let result = PostgresQueryResult()
+                    req.resolve(JscValue.undefined(), result)
+                }
+
+            case NoData =>
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    req.status = PostgresQueryStatus.Running
+                }
+
+            case NoticeResponse =>
+                let _ = ErrorResponse.decode(protoReader)
+
+            case CloseComplete =>
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    let result = PostgresQueryResult()
+                    req.resolve(JscValue.undefined(), result)
+                }
+
+            case EmptyQueryResponse =>
+                let reqOpt = requests.current()
+                if (let Some(req) <- reqOpt) {
+                    let result = PostgresQueryResult()
+                    req.resolve(JscValue.undefined(), result)
+                }
+
+            case _ =>
+                // CopyData, CopyInResponse, CopyOutResponse, CopyDone,
+                // CopyBothResponse, PortalSuspended — stubs
+                reader.skipRemaining()
+        }
     }
 
     /// 处理查询结果行
-    public func onResultRow(request: PostgresSQLQuery, statement: PostgresSQLStatement,
-                             data: Array<UInt8>): Unit {
-        // 解码行数据
+    /// 对应 Bun: PostgresSQLConnection.onResultRow
+    func onResultRow(reader: PostgresReader, protoReader: StackReaderImpl): Unit {
+        let reqOpt = requests.current()
+        if (let None <- reqOpt) { return }
+        let request = reqOpt.getOrThrow()
+
+        if (let None <- request.statement) { return }
+        let statement = request.statement.getOrThrow()
+
+        let fields = statement.fields
+        let putter = DataCellPutter(fields, globalObject)
+        putter.binary = request.flags.binary
+        putter.bigint = request.flags.bigint
+
+        let err = DataRow.decode(protoReader, { index, dataOpt =>
+            if (dataOpt.isSome()) {
+                let data = dataOpt.getOrThrow()
+                let bytes = data.slice()
+                let _ = putter.put(UInt32(index), Some(bytes))
+            } else {
+                let _ = putter.put(UInt32(index), Option<Array<UInt8>>.None)
+            }
+            true
+        })
+
+        if (err.isSome()) {
+            let protoErr = err.getOrThrow()
+            let jsErr = JscValue(protoErr.toString())
+            request.rejectWithJSValue(JscValue.undefined(), jsErr)
+            return
+        }
+
+        if (putter.count > 0) {
+            let structure = statement.structure(JscValue.undefined(), globalObject)
+            let flags = statement.fieldsFlags
+            let jsRow = putter.toJS(globalObject, JscValue.undefined(),
+                JscValue.undefined(), flags,
+                request.flags.resultMode, structure)
+            // TODO: 将 jsRow 传递给请求的结果收集器
+        }
     }
 
     /// 错误处理
@@ -162,11 +367,22 @@ public enum PostgresConnectionStatus {
     | Connected
     | Failed
     | Disconnected
+
+    public operator func == (other: PostgresConnectionStatus): Bool {
+        match (this) {
+            case Connecting => match (other) { case Connecting => true case _ => false }
+            case Authenticating => match (other) { case Authenticating => true case _ => false }
+            case Connected => match (other) { case Connected => true case _ => false }
+            case Failed => match (other) { case Failed => true case _ => false }
+            case Disconnected => match (other) { case Disconnected => true case _ => false }
+        }
+    }
+    public operator func != (other: PostgresConnectionStatus): Bool { !(this == other) }
 }
 
 /// Postgres TLS 状态
 public enum PostgresTLSStatus {
-    | None
+    | NoTLS
     | Pending
     | MessageSent
     | SSLOk
@@ -183,8 +399,8 @@ public enum PostgresSSLMode {
     | VerifyFull
 }
 
-/// 后端密钥数据
-public class BackendKeyData {
+/// 后端密钥数据 (本地占位，避免遮蔽 bao_sql.postgres.protocol.BackendKeyData)
+public class JscBackendKeyData {
     public var processId: Int32 = 0
     public var secretKey: Int32 = 0
 
@@ -217,7 +433,7 @@ public class PostgresGetOrPutResult {
 
 /// Postgres 请求队列
 public class PostgresRequestQueue {
-    var requests: ArrayList<PostgresSQLQuery> = ArrayList<PostgresSQLQuery>()
+    var requests: BaoArrayList<PostgresSQLQuery> = BaoArrayList<PostgresSQLQuery>()
 
     public init() {}
 
@@ -233,18 +449,62 @@ public class PostgresRequestQueue {
         requests.append(request)
     }
 
+    /// 推进请求队列
+    /// 对应 Bun: PostgresRequestQueue.advance
     public func advance(connection: PostgresSQLConnection): Unit {
-        // 推进队列
+        if (requests.size == 0) {
+            return
+        }
+        let req = requests[0]
+        if (req.isCompleted()) {
+            markCurrentRequestAsFinished(req)
+            // 继续处理下一个请求
+            if (requests.size > 0) {
+                let next = requests[0]
+                if (next.isPending()) {
+                    next.status = PostgresQueryStatus.Running
+                }
+            }
+        }
     }
 
-    public func markAsReadyForQuery(): Unit {}
-    public func markAsPrepared(): Unit {}
+    /// 标记当前请求为就绪查询状态
+    /// 对应 Bun: PostgresRequestQueue.markAsReadyForQuery
+    public func markAsReadyForQuery(): Unit {
+        if (requests.size == 0) {
+            return
+        }
+        let req = requests[0]
+        if (req.isRunning() || req.isPending()) {
+            req.flags.isDone = true
+        }
+    }
 
-    public func markCurrentRequestAsFinished(request: PostgresSQLQuery): Unit {}
+    /// 标记当前请求的语句为已准备
+    /// 对应 Bun: PostgresRequestQueue.markAsPrepared
+    public func markAsPrepared(): Unit {
+        if (requests.size == 0) {
+            return
+        }
+        let req = requests[0]
+        if (req.statement.isSome()) {
+            req.statement.getOrThrow().status = PostgresStatementStatus.Prepared
+        }
+        req.status = PostgresQueryStatus.Running
+    }
+
+    /// 标记当前请求为已完成并出队
+    /// 对应 Bun: PostgresRequestQueue.markCurrentRequestAsFinished
+    public func markCurrentRequestAsFinished(request: PostgresSQLQuery): Unit {
+        if (requests.size > 0 && requests[0] == request) {
+            requests.removeAt(0)
+            request.deref()
+        }
+    }
 
     public func clean(reason: ?JscValue, queriesArray: JscValue): Unit {
         let oldRequests = requests
-        requests = ArrayList<PostgresSQLQuery>()
+        requests = BaoArrayList<PostgresSQLQuery>()
         for (req in oldRequests) {
             req.deref()
         }
@@ -254,6 +514,6 @@ public class PostgresRequestQueue {
         for (req in requests) {
             req.deref()
         }
-        requests = ArrayList<PostgresSQLQuery>()
+        requests = BaoArrayList<PostgresSQLQuery>()
     }
 }

@@ -64,7 +64,7 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
     if (not) { pass = !pass }
     if (pass) { return JsValue.jsUndefined }
 
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
     let expectStringFmt = expectString.toFmt(formatter)
     let substringFmt = substring.toFmt(formatter)

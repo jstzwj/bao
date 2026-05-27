@@ -223,10 +223,10 @@ public func stepName(step: Step): String {
 /// 安装失败信息
 /// 翻译自: PackageInstall.Failure
 public class Failure {
-    public var err: Error
+    public var err: PkgError
     public var step: Step
 
-    public init(err: Error, step: Step) {
+    public init(err: PkgError, step: Step) {
         this.err = err
         this.step = step
     }
@@ -249,7 +249,7 @@ public enum InstallResult {
 public class InstallResultHelper {
     /// 创建失败结果
     /// 翻译自: InstallResult.fail
-    public static func fail(err: Error, step: Step): InstallResult {
+    public static func fail(err: PkgError, step: Step): InstallResult {
         return InstallResult.InstallFailure(Failure(err, step))
     }
 
@@ -518,7 +518,7 @@ public class PackageInstall {
         // 打开缓存目录
         if (!BaoFile.isDirectory(sourcePath)) {
             return InstallResultHelper.fail(
-                Error.fileNotFound(),
+                PkgError.fileNotFound(),
                 Step.OpeningCacheDir
             )
         }
@@ -583,7 +583,7 @@ public class PackageInstall {
         // 打开缓存目录
         if (!BaoFile.isDirectory(sourcePath)) {
             return InstallResultHelper.fail(
-                Error.fileNotFound(),
+                PkgError.fileNotFound(),
                 Step.OpeningCacheDir
             )
         }
@@ -645,7 +645,7 @@ public class PackageInstall {
         // 打开缓存目录
         if (!BaoFile.isDirectory(sourcePath)) {
             return InstallResultHelper.fail(
-                Error.fileNotFound(),
+                PkgError.fileNotFound(),
                 Step.OpeningCacheDir
             )
         }
@@ -762,7 +762,7 @@ public class PackageInstall {
         let realPath = BaoFile.realpath(symlinkedPath)
         if (realPath.size == 0) {
             return InstallResultHelper.fail(
-                Error.fileNotFound(),
+                PkgError.fileNotFound(),
                 Step.LinkingDependency
             )
         }
@@ -797,13 +797,13 @@ public class PackageInstall {
                 BaoFile.remove(linkPath)
                 if (!BaoFile.createSymlink(relativePath, linkPath)) {
                     return InstallResultHelper.fail(
-                        Error.unexpected("Failed to create symlink"),
+                        PkgError.unexpected("Failed to create symlink"),
                         Step.LinkingDependency
                     )
                 }
             } else {
                 return InstallResultHelper.fail(
-                    Error.unexpected("Failed to create symlink"),
+                    PkgError.unexpected("Failed to create symlink"),
                     Step.LinkingDependency
                 )
             }
@@ -812,7 +812,7 @@ public class PackageInstall {
         // 检查符号链接是否有效
         if (PackageInstall.isDanglingSymlink(symlinkedPath)) {
             return InstallResultHelper.fail(
-                Error.unexpected("DanglingSymlink"),
+                PkgError.unexpected("DanglingSymlink"),
                 Step.LinkingDependency
             )
         }
@@ -949,7 +949,7 @@ public class Walker {
 
 /// 错误类型
 /// 翻译自: bun_core::Error
-public class Error {
+public class PkgError {
     public var message: String
     public var code: String
 
@@ -958,24 +958,24 @@ public class Error {
         this.code = code
     }
 
-    public static func fileNotFound(): Error {
-        return Error("FileNotFound", "ENOENT")
+    public static func fileNotFound(): PkgError {
+        return PkgError("FileNotFound", "ENOENT")
     }
 
-    public static func notSupported(): Error {
-        return Error("NotSupported", "ENOTSUP")
+    public static func notSupported(): PkgError {
+        return PkgError("NotSupported", "ENOTSUP")
     }
 
-    public static func notSameFileSystem(): Error {
-        return Error("NotSameFileSystem", "EXDEV")
+    public static func notSameFileSystem(): PkgError {
+        return PkgError("NotSameFileSystem", "EXDEV")
     }
 
-    public static func unexpected(msg: String): Error {
-        return Error(msg, "UNKNOWN")
+    public static func unexpected(msg: String): PkgError {
+        return PkgError(msg, "UNKNOWN")
     }
 
-    public static func fromErrno(errno: Errno): Error {
-        return Error("System error", errno.toString())
+    public static func fromErrno(errno: Errno): PkgError {
+        return PkgError("System error", errno.toString())
     }
 
     public func isNotFound(): Bool {

@@ -16,7 +16,7 @@ import bao_install.*
 
 /// 全局启动时间
 /// 对应 Bun: start_time
-public var startTime: Int128 = 0
+public var startTime: Int64 = 0
 
 /// Node.js 进程标题
 /// 对应 Bun: Bun__Node__ProcessTitle
@@ -76,12 +76,9 @@ public class DebugFlags {
         return false
     }
 
-    public static func hasPrintBreakpoint(path: FilePath): Bool {
+    public static func hasPrintBreakpoint(path: String): Bool {
         for (bp in printBreakpoints) {
-            if (path.pretty.contains(bp)) {
-                return true
-            }
-            if (path.text.contains(bp)) {
+            if (path.contains(bp)) {
                 return true
             }
         }
@@ -218,7 +215,7 @@ public class HelpCommand {
 
     /// 按原因执行帮助
     /// 对应 Bun: HelpCommand.execWithReason
-    public static func execWithReason(allocator: Allocator, reason: Reason): Unit {
+    public static func execWithReason(allocator: Allocator, reason: HelpCommandReason): Unit {
         printWithReason(reason, false)
 
         if (reason == HelpCommandReason.invalidCommand) {
@@ -815,6 +812,47 @@ public enum CommandTag {
     | InfoCommand
     | WhyCommand
     | UpdateInteractiveCommand
+
+    public operator func ==(other: CommandTag): Bool {
+        match (this) {
+            case CommandTag.AutoCommand => match (other) { case CommandTag.AutoCommand => true case _ => false }
+            case CommandTag.RunCommand => match (other) { case CommandTag.RunCommand => true case _ => false }
+            case CommandTag.RunAsNodeCommand => match (other) { case CommandTag.RunAsNodeCommand => true case _ => false }
+            case CommandTag.BuildCommand => match (other) { case CommandTag.BuildCommand => true case _ => false }
+            case CommandTag.TestCommand => match (other) { case CommandTag.TestCommand => true case _ => false }
+            case CommandTag.BunxCommand => match (other) { case CommandTag.BunxCommand => true case _ => false }
+            case CommandTag.InstallCommand => match (other) { case CommandTag.InstallCommand => true case _ => false }
+            case CommandTag.AddCommand => match (other) { case CommandTag.AddCommand => true case _ => false }
+            case CommandTag.RemoveCommand => match (other) { case CommandTag.RemoveCommand => true case _ => false }
+            case CommandTag.UpdateCommand => match (other) { case CommandTag.UpdateCommand => true case _ => false }
+            case CommandTag.PatchCommand => match (other) { case CommandTag.PatchCommand => true case _ => false }
+            case CommandTag.PatchCommitCommand => match (other) { case CommandTag.PatchCommitCommand => true case _ => false }
+            case CommandTag.LinkCommand => match (other) { case CommandTag.LinkCommand => true case _ => false }
+            case CommandTag.UnlinkCommand => match (other) { case CommandTag.UnlinkCommand => true case _ => false }
+            case CommandTag.CreateCommand => match (other) { case CommandTag.CreateCommand => true case _ => false }
+            case CommandTag.HelpCommand => match (other) { case CommandTag.HelpCommand => true case _ => false }
+            case CommandTag.ReservedCommand => match (other) { case CommandTag.ReservedCommand => true case _ => false }
+            case CommandTag.PackageManagerCommand => match (other) { case CommandTag.PackageManagerCommand => true case _ => false }
+            case CommandTag.InitCommand => match (other) { case CommandTag.InitCommand => true case _ => false }
+            case CommandTag.DiscordCommand => match (other) { case CommandTag.DiscordCommand => true case _ => false }
+            case CommandTag.UpgradeCommand => match (other) { case CommandTag.UpgradeCommand => true case _ => false }
+            case CommandTag.InstallCompletionsCommand => match (other) { case CommandTag.InstallCompletionsCommand => true case _ => false }
+            case CommandTag.GetCompletionsCommand => match (other) { case CommandTag.GetCompletionsCommand => true case _ => false }
+            case CommandTag.OutdatedCommand => match (other) { case CommandTag.OutdatedCommand => true case _ => false }
+            case CommandTag.PublishCommand => match (other) { case CommandTag.PublishCommand => true case _ => false }
+            case CommandTag.AuditCommand => match (other) { case CommandTag.AuditCommand => true case _ => false }
+            case CommandTag.ReplCommand => match (other) { case CommandTag.ReplCommand => true case _ => false }
+            case CommandTag.ExecCommand => match (other) { case CommandTag.ExecCommand => true case _ => false }
+            case CommandTag.FuzzilliCommand => match (other) { case CommandTag.FuzzilliCommand => true case _ => false }
+            case CommandTag.InfoCommand => match (other) { case CommandTag.InfoCommand => true case _ => false }
+            case CommandTag.WhyCommand => match (other) { case CommandTag.WhyCommand => true case _ => false }
+            case CommandTag.UpdateInteractiveCommand => match (other) { case CommandTag.UpdateInteractiveCommand => true case _ => false }
+        }
+    }
+
+    public operator func !=(other: CommandTag): Bool {
+        return !(this == other)
+    }
 
     /// 检查命令是否使用全局选项
     /// 对应 Bun: Command.Tag.uses_global_options

@@ -11,9 +11,10 @@
 //   仓颉: 提供兼容的 TextEncoderStream 编码器接口
 package bao_runtime.webcore
 
-import bao_core.*
+import bao_core.BaoError
+import bao_core.ErrorCode
 import bao_jsc.*
-import bao_simdutf_sys.simdutf
+import bao_simdutf_sys.*
 
 // ============================================================================
 // TextEncoderStreamEncoder - 文本编码流编码器
@@ -93,7 +94,7 @@ public class TextEncoderStreamEncoder {
 
     /// 无类型检查的编码
     /// 对应 Bun: pub fn encode_without_type_checks(&self, global, input) -> JsValue
-    public func encodeWithoutTypeChecks(global: JSGlobalObject, input: JSString): JsValue {
+    public func encodeWithoutTypeChecks(global: JSGlobalObject, input: ZigString): JsValue {
         let str = input.getZigString(global)
         if (str.is16Bit()) {
             return encodeUtf16(global, str.utf16SliceAligned())
@@ -117,7 +118,7 @@ public class TextEncoderStreamEncoder {
     ///   4. 返回 Uint8Array
     private func encodeLatin1(global: JSGlobalObject, input: Array<UInt8>): JsValue {
         if (input.size == 0) {
-            return JSUint8Array.createEmpty(global)
+            return JsValue.createBufferFromLength(global, 0)
         }
 
         // 处理暂存的 lead surrogate
@@ -129,7 +130,7 @@ public class TextEncoderStreamEncoder {
         }
 
         // 分配输出缓冲区
-        var buffer = Array<UInt8>()
+        var buffer = ArrayList<UInt8>()
         buffer.reserve(input.size + prependReplacementLen)
 
         if (prependReplacementLen > 0) {
@@ -152,7 +153,7 @@ public class TextEncoderStreamEncoder {
             remain = remain.slice(Int64(result.read))
         }
 
-        return JSUint8Array.fromBytes(global, buffer)
+        return JsValue.createBuffer(global, buffer)
     }
 
     // ========================================================================
@@ -172,7 +173,7 @@ public class TextEncoderStreamEncoder {
     ///   5. 检查最后是否留下新的 lead surrogate
     private func encodeUtf16(global: JSGlobalObject, input: Array<UInt16>): JsValue {
         if (input.size == 0) {
-            return JSUint8Array.createEmpty(global)
+            return JsValue.createBufferFromLength(global, 0)
         }
 
         var remain = input
@@ -230,7 +231,7 @@ public class TextEncoderStreamEncoder {
         // 尝试 simdutf 快速转换
         let result = SimdUtf.convertUtf16ToUtf8Le(remain, buf)
         if (result.status == SimdUtfStatus.SUCCESS) {
-            return JSUint8Array.fromBytes(global, buf)
+            return JsValue.createBuffer(global, buf)
         }
 
         // 慢路径: 有无效 UTF-16, 使用手动转换
@@ -239,12 +240,12 @@ public class TextEncoderStreamEncoder {
             case Some(pendingLead) =>
                 pendingLeadSurrogate = pendingLead
                 if (buf.size == 0) {
-                    return JSUint8Array.createEmpty(global)
+                    return JsValue.createBufferFromLength(global, 0)
                 }
             case None => ()
         }
 
-        return JSUint8Array.fromBytes(global, buf)
+        return JsValue.createBuffer(global, buf)
     }
 
     // ========================================================================
@@ -278,7 +279,7 @@ public class TextEncoderStreamEncoder {
                 let replacement: Array<UInt8> = [0xef, 0xbf, 0xbd]
                 return JSUint8Array.fromBytesCopy(global, replacement)
             case None =>
-                return JSUint8Array.createEmpty(global)
+                return JsValue.createBufferFromLength(global, 0)
         }
     }
 }

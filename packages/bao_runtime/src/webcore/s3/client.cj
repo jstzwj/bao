@@ -10,7 +10,7 @@ import bao_jsc.*
 import bao_collections.ArrayList
 
 // Local class to shadow ambiguous MutableString imports from bao_core and bao_jsc
-public class MutableString {
+public class S3MutableString {
     public var data: String
     public var list: ArrayList<UInt8>
     public init() { data = ""; list = ArrayList<UInt8>() }
@@ -397,8 +397,8 @@ public class S3UploadStreamWrapper {
     public var task: MultiPartUpload
 
     /// 结束 Promise
-    /// 对应 Bun: end_promise: jsc.JSPromise.Strong
-    public var endPromise: JSPromiseStrong
+    /// 对应 Bun: end_promise: jsc.S3JSPromise.Strong
+    public var endPromise: S3JSPromiseStrong
 
     /// 回调函数
     /// 对应 Bun: callback: ?*const fn (S3UploadResult, *anyopaque) void
@@ -426,7 +426,7 @@ public class S3UploadStreamWrapper {
         refCount = 2  // +1 for the stream sink
         sink = None
         this.task = task
-        endPromise = JSPromiseStrong()
+        endPromise = S3JSPromiseStrong()
         this.callback = callback
         this.callbackContext = callbackContext
         this.path = path
@@ -533,7 +533,7 @@ public class S3UploadStreamWrapper {
                 if (endPromise.hasValue() && !jsErr.isEmptyOrUndefinedOrNull()) {
                     // 如果有明确错误，拒绝 Promise
                     endPromise.reject(global.get(), jsErr)
-                    endPromise = JSPromiseStrong()
+                    endPromise = S3JSPromiseStrong()
                 }
                 if (!task.ended) {
                     task.fail(S3Error("UnknownError", "ReadableStream ended with an error"))
@@ -560,7 +560,7 @@ public class S3UploadStreamWrapper {
             case S3UploadResultTag.Success =>
                 if (self_.endPromise.hasValue()) {
                     self_.endPromise.resolve(self_.global.get(), JsValue(0.0))
-                    self_.endPromise = JSPromiseStrong()
+                    self_.endPromise = S3JSPromiseStrong()
                 }
             case S3UploadResultTag.Failure =>
                 match (self_.sink) {
@@ -573,7 +573,7 @@ public class S3UploadStreamWrapper {
                         if (self_.endPromise.hasValue()) {
                             let jsErr = s3ErrorToJS(result.error, self_.global.get(), Some(self_.path))
                             self_.endPromise.reject(self_.global.get(), jsErr)
-                            self_.endPromise = JSPromiseStrong()
+                            self_.endPromise = S3JSPromiseStrong()
                         }
                 }
         }
@@ -688,7 +688,7 @@ public func s3WritableStream(
     task.requestPayer = requestPayer
     task.credentials = credentials
     task.pollRef = KeepAlive()
-    task.vm = VirtualMachine.get()
+    task.vm = S3VirtualMachine.get()
     task.globalThis = GlobalRef.from(globalThis)
     task.buffered = StreamBuffer()
     task.path = path
@@ -697,9 +697,9 @@ public func s3WritableStream(
     task.contentDisposition = if (contentDisposition.size > 0) { Some(contentDisposition) } else { None }
     task.contentEncoding = if (contentEncoding.size > 0) { Some(contentEncoding) } else { None }
     task.uploadId = ""
-    task.uploadidBuffer = MutableString()
+    task.uploadidBuffer = S3MutableString()
     task.multipartEtags = ArrayList<UploadPartResult>()
-    task.multipartUploadList = MutableString()
+    task.multipartUploadList = S3MutableString()
     task.state = MultipartUploadState.NOT_STARTED
     task.callbackContext = 0
     task.onWritable = None
@@ -707,7 +707,7 @@ public func s3WritableStream(
     task.pollRef.ref(task.vm)
 
     // 创建 NetworkSink
-    let responseStream = NetworkSink()
+    let responseStream = S3NetworkSink()
     responseStream.task = Some(task)
     responseStream.globalThis = Some(GlobalRef.from(globalThis))
     responseStream.highWaterMark = options.partSize
@@ -716,7 +716,7 @@ public func s3WritableStream(
     task.onWritable = Some(onWritableThunk)
 
     // 初始化信号
-    responseStream.signal = SinkSignal()
+    responseStream.signal = S3SinkSignal()
     responseStream.signal.clear()
 
     return responseStream.toJS(globalThis)
@@ -725,8 +725,8 @@ public func s3WritableStream(
 /// onWritable thunk — 将类型化回调适配为擦除类型签名
 /// 对应 Bun: on_writable_thunk
 private func onWritableThunk(task: MultiPartUpload, ctx: UIntNative, flushed: UInt64): Unit {
-    let sink = NetworkSink.fromOpaque(ctx)
-    NetworkSink.onWritable(task, sink, flushed)
+    let sink = S3NetworkSink.fromOpaque(ctx)
+    S3NetworkSink.onWritable(task, sink, flushed)
 }
 
 // ============================================================================
@@ -747,7 +747,7 @@ private func onWritableThunk(task: MultiPartUpload, ctx: UIntNative, flushed: UI
 public func s3UploadStream(
     credentials: S3Credentials,
     path: String,
-    readableStream: ReadableStream,
+    readableStream: S3ReadableStream,
     globalThis: JsGlobalObject,
     options: MultiPartUploadOptions,
     acl: ?S3Acl,
@@ -786,7 +786,7 @@ public func s3UploadStream(
     task.requestPayer = requestPayer
     task.credentials = credentials
     task.pollRef = KeepAlive()
-    task.vm = VirtualMachine.get()
+    task.vm = S3VirtualMachine.get()
     task.globalThis = GlobalRef.from(globalThis)
     task.buffered = StreamBuffer()
     task.path = path
@@ -795,9 +795,9 @@ public func s3UploadStream(
     task.contentDisposition = if (contentDisposition.size > 0) { Some(contentDisposition) } else { None }
     task.contentEncoding = if (contentEncoding.size > 0) { Some(contentEncoding) } else { None }
     task.uploadId = ""
-    task.uploadidBuffer = MutableString()
+    task.uploadidBuffer = S3MutableString()
     task.multipartEtags = ArrayList<UploadPartResult>()
-    task.multipartUploadList = MutableString()
+    task.multipartUploadList = S3MutableString()
     task.state = MultipartUploadState.WAIT_STREAM_CHECK
     task.callbackContext = 0
     task.onWritable = None
@@ -812,7 +812,7 @@ public func s3UploadStream(
         path,
         GlobalRef.from(globalThis)
     )
-    ctx.endPromise = JSPromiseStrong(globalThis)
+    ctx.endPromise = S3JSPromiseStrong(globalThis)
 
     // +1 因为 ctx 引用了 sink
     ctx.sink = Some(ResumableS3UploadSink(GlobalRef.from(globalThis), readableStream, ctx, 2))
@@ -840,7 +840,7 @@ private func uploadStreamOnWritableThunk(task: MultiPartUpload, ctx: UIntNative,
 //   this: &S3Credentials, path: &[u8],
 //   offset: usize, size: Option<usize>,
 //   proxy_url: Option<&[u8]>, request_payer: bool,
-//   callback: fn(chunk: MutableString, has_more: bool, err: ?S3Error, ctx: *c_void),
+//   callback: fn(chunk: S3MutableString, has_more: bool, err: ?S3Error, ctx: *c_void),
 //   callback_context: *c_void,
 // )
 // Bun: 流式下载 S3 对象，逐块回调数据
@@ -856,7 +856,7 @@ public func s3DownloadStream(
     size: ?Int64,
     proxyUrl: String,
     requestPayer: Bool,
-    callback: (MutableString, Bool, ?S3Error, UIntNative) -> Unit,
+    callback: (S3MutableString, Bool, ?S3Error, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
     // 构造 Range 头
@@ -894,7 +894,7 @@ public func s3DownloadStream(
     } catch (e: Exception) {
         let errorCodeAndMessage = getSignErrorCodeAndMessage()
         callback(
-            MutableString(),
+            S3MutableString(),
             false,
             Some(S3Error(errorCodeAndMessage.code, errorCodeAndMessage.message)),
             callbackContext
@@ -911,23 +911,23 @@ public func s3DownloadStream(
     }
 
     // 创建流式下载任务
-    let task = S3HttpDownloadStreamingTask(VirtualMachine(), signResult)
+    let task = S3HttpDownloadStreamingTask(S3VirtualMachine(), signResult)
     task.signResult = signResult
     task.proxyUrl = proxyUrl
     task.callbackContext = callbackContext
     task.callback = callback
     task.range = range
     task.headers = httpHeaders
-    task.vm = VirtualMachine.get()
+    task.vm = S3VirtualMachine.get()
     task.hasScheduleCallback = false
     task.pollRef = KeepAlive()
-    task.responseBuffer = MutableString()
+    task.responseBuffer = S3MutableString()
     task.state = S3DownloadState(0, 0, true)
 
     task.pollRef.ref(task.vm)
 
     callback(
-        MutableString(),
+        S3MutableString(),
         false,
         Some(S3Error("NotImplemented", "S3 downloadStream requires AsyncHTTP streaming callbacks, which are not available in this Cangjie runtime build; use download() for strict buffered GET support.")),
         callbackContext
@@ -958,8 +958,8 @@ public func s3ReadableStream(
     globalThis: JsGlobalObject
 ): JsValue {
     // 创建 ByteStream Source
-    let reader = ByteStreamSource()
-    reader.context = ByteStream()
+    let reader = S3ByteStreamSource()
+    reader.context = S3ByteStream()
     reader.globalThis = Some(globalThis)
 
     reader.context.setup()
@@ -967,8 +967,8 @@ public func s3ReadableStream(
 
     // 创建 S3DownloadStreamWrapper
     let wrapper = S3DownloadStreamWrapper()
-    wrapper.readableStreamRef = ReadableStreamStrong(
-        ReadableStream(
+    wrapper.readableStreamRef = S3ReadableStreamStrong(
+        S3ReadableStream(
             ReadableStreamPtr.BYTES(reader.context),
             readableValue
         ),
@@ -1011,7 +1011,7 @@ public class S3DownloadStreamWrapper {
     public let identity: UIntNative
 
     /// ReadableStream 强引用
-    public var readableStreamRef: ReadableStreamStrong
+    public var readableStreamRef: S3ReadableStreamStrong
 
     /// 路径
     public var path: String
@@ -1026,7 +1026,7 @@ public class S3DownloadStreamWrapper {
     public init() {
         identity = S3DownloadStreamWrapper.nextIdentity
         S3DownloadStreamWrapper.nextIdentity += UIntNative(1)
-        readableStreamRef = ReadableStreamStrong()
+        readableStreamRef = S3ReadableStreamStrong()
         path = ""
         global = GlobalRef()
     }
@@ -1039,7 +1039,7 @@ public class S3DownloadStreamWrapper {
     /// 下载回调
     /// 对应 Bun: callback
     /// 处理下载的 chunk 数据或错误
-    public func callback(chunk: MutableString, hasMore: Bool, requestErr: ?S3Error): Unit {
+    public func callback(chunk: S3MutableString, hasMore: Bool, requestErr: ?S3Error): Unit {
         match (requestErr) {
             case Some(_) =>
                 clearStreamCancelHandler()
@@ -1103,14 +1103,14 @@ public class S3DownloadStreamWrapper {
     // ========================================================================
     // opaqueCallback - 不透明回调
     // 严格翻译自: pub fn opaque_callback(
-    //   chunk: MutableString, has_more: bool, err: ?S3Error, opaque_self: *c_void)
+    //   chunk: S3MutableString, has_more: bool, err: ?S3Error, opaque_self: *c_void)
     // ========================================================================
 
     /// 不透明回调
     /// 对应 Bun: opaqueCallback
     /// 将不透明指针转换为 S3DownloadStreamWrapper 并调用 callback
     public static func opaqueCallback(
-        chunk: MutableString,
+        chunk: S3MutableString,
         hasMore: Bool,
         err: ?S3Error,
         opaqueSelf: UIntNative

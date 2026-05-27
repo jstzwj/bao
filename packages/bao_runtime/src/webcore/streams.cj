@@ -8,7 +8,8 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
+import bao_jsc.*
+import bao_collections.ArrayList
 
 // ============================================================================
 // ByteListPoolNode - pooled buffer node type
@@ -66,30 +67,6 @@ public enum StartTag {
     }
 }
 
-/// FileSink options payload
-/// 对应 Bun: FileSinkOptions (jsc.WebCore.FileSink.Options)
-public class FileSinkOptions {
-    public var chunkSize: BlobSizeType
-    public var inputPath: PathOrFileDescriptor
-
-    public init() {
-        chunkSize = 0
-        inputPath = PathOrFileDescriptor.fd(Fd.INVALID)
-    }
-
-    public init(chunkSize: BlobSizeType, inputPath: PathOrFileDescriptor) {
-        this.chunkSize = chunkSize
-        this.inputPath = inputPath
-    }
-}
-
-/// Path or FileDescriptor
-/// 对应 Bun: crate::webcore::PathOrFileDescriptor
-public enum PathOrFileDescriptor {
-    | Path(ZigStringSlice)
-    | Fd(Fd)
-}
-
 /// ZigStringSlice - owned Zig string slice
 /// 对应 Bun: ZigStringSlice
 public class ZigStringSlice {
@@ -106,351 +83,11 @@ public class ZigStringSlice {
     public func getSlice(): Array<UInt8> { return slice }
 }
 
-/// File descriptor
-/// 对应 Bun: bun_sys::Fd
-public class Fd {
-    public var value: Int64
-
-    public init(value: Int64) {
-        this.value = value
-    }
-
-    public static let INVALID = Fd(-1)
-}
-
-/// 流启动结果
-/// 严格翻译自 streams.Start (tagged union)
-public class StreamStart {
-    public var tag: StartTag
-    /// 错误 (对应 .err)
-    public var err: ?SyscallError
-    /// 块大小 (对应 .chunk_size / ArrayBufferSink.chunk_size)
-    public var chunkSize: BlobSizeType
-    /// FileSink 选项 (对应 .FileSink)
-    public var fileSinkOptions: ?FileSinkOptions
-    /// ArrayBufferSink: asUint8Array flag
-    public var asUint8Array: Bool
-    /// ArrayBufferSink: stream flag
-    public var stream: Bool
-    /// owned_and_done 数据
-    public var ownedData: ArrayList<UInt8>
-    /// done 数据
-    public var doneData: ArrayList<UInt8>
-
-    public init() {
-        tag = StartTag.Empty
-        err = None
-        chunkSize = 0
-        fileSinkOptions = None
-        asUint8Array = false
-        stream = false
-        ownedData = ArrayList<UInt8>()
-        doneData = ArrayList<UInt8>()
-    }
-
-    public static func empty(): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.Empty
-        return s
-    }
-
-    public static func ready(): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.Ready
-        return s
-    }
-
-    public static func err(e: SyscallError): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.Err
-        s.err = Some(e)
-        return s
-    }
-
-    public static func chunkSize(size: BlobSizeType): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.ChunkSize
-        s.chunkSize = size
-        return s
-    }
-
-    public static func ownedAndDone(data: ArrayList<UInt8>): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.OwnedAndDone
-        s.ownedData = data
-        return s
-    }
-
-    public static func done(data: ArrayList<UInt8>): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.Done
-        s.doneData = data
-        return s
-    }
-
-    public static func arrayBufferSink(chunkSize: BlobSizeType, asUint8Array: Bool, stream: Bool): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.ArrayBufferSink
-        s.chunkSize = chunkSize
-        s.asUint8Array = asUint8Array
-        s.stream = stream
-        return s
-    }
-
-    public static func fileSink(options: FileSinkOptions): StreamStart {
-        let s = StreamStart()
-        s.tag = StartTag.FileSink
-        s.fileSinkOptions = Some(options)
-        return s
-    }
-
-    // Alias for backward compatibility
-    public static func httpServerWritable(chunkSize: BlobSizeType): StreamStart {
-        return chunkSize(chunkSize)
-    }
-
-    /// 对应 Bun: Start.fromJS
-    public static func fromJS(global: JSGlobalObject, value: JsValue): StreamStart {
-        if (value.isEmptyOrUndefinedOrNull() || !value.isObject()) {
-            return StreamStart.empty()
-        }
-
-        if (let Some(chunkSizeVal) <- value.get(global, "chunkSize")) {
-            if (chunkSizeVal.isNumber()) {
-                return StreamStart.chunkSize(chunkSizeVal.toInt64())
-            }
-        }
-
-        return StreamStart.empty()
-    }
-
-    /// 对应 Bun: Start.fromJSWithRuntimeTag
-    public static func fromJSWithRuntimeTag(global: JSGlobalObject, value: JsValue, tag: StartTag): StreamStart {
-        match (tag) {
-            case ArrayBufferSink => fromJSWithTag(global, value, tag)
-            case FileSink => fromJSWithTag(global, value, tag)
-            case NetworkSink => fromJSWithTag(global, value, tag)
-            case HTTPSResponseSink => fromJSWithTag(global, value, tag)
-            case HTTPResponseSink => fromJSWithTag(global, value, tag)
-            case H3ResponseSink => fromJSWithTag(global, value, tag)
-            case _ => fromJS(global, value)
-        }
-    }
-
-    /// 对应 Bun: Start.fromJSWithTag
-    public static func fromJSWithTag(global: JSGlobalObject, value: JsValue, tag: StartTag): StreamStart {
-        if (value.isEmptyOrUndefinedOrNull() || !value.isObject()) {
-            return StreamStart.empty()
-        }
-
-        match (tag) {
-            case ArrayBufferSink =>
-                var asUint8Array = false
-                var stream = false
-                var chunkSize: BlobSizeType = 0
-                var empty = true
-
-                if (let Some(val) <- value.get(global, "asUint8Array")) {
-                    if (val.isBoolean()) {
-                        asUint8Array = val.toBoolean()
-                        empty = false
-                    }
-                }
-
-                if (let Some(val) <- value.get(global, "stream")) {
-                    if (val.isBoolean()) {
-                        stream = val.toBoolean()
-                        empty = false
-                    }
-                }
-
-                if (let Some(chunkSizeVal) <- value.get(global, "highWaterMark")) {
-                    if (chunkSizeVal.isNumber()) {
-                        empty = false
-                        chunkSize = Math.max(0, chunkSizeVal.toInt64())
-                    }
-                }
-
-                if (!empty) {
-                    return StreamStart.arrayBufferSink(chunkSize, asUint8Array, stream)
-                }
-            case FileSink =>
-                var chunkSize: BlobSizeType = 0
-
-                if (let Some(chunkSizeVal) <- value.get(global, "highWaterMark")) {
-                    if (chunkSizeVal.isNumber()) {
-                        chunkSize = Math.max(0, chunkSizeVal.toInt64())
-                    }
-                }
-
-                if (let Some(path) <- value.get(global, "path")) {
-                    if (!path.isString()) {
-                        return StreamStart.err(SyscallError(errno: 22, syscall: "write")) // EINVAL
-                    }
-                    return StreamStart.fileSink(FileSinkOptions(
-                        chunkSize: chunkSize,
-                        inputPath: PathOrFileDescriptor.Path(path.toSlice(global))
-                    ))
-                } else if (let Some(fdValue) <- value.getTruthy(global, "fd")) {
-                    if (!fdValue.isAnyInt()) {
-                        return StreamStart.err(SyscallError(errno: 9, syscall: "write")) // EBADF
-                    }
-                    if (let Some(fd) <- FdJsc.fromJS(fdValue)) {
-                        return StreamStart.fileSink(FileSinkOptions(
-                            chunkSize: chunkSize,
-                            inputPath: PathOrFileDescriptor.Fd(fd)
-                        ))
-                    } else {
-                        return StreamStart.err(SyscallError(errno: 9, syscall: "write")) // EBADF
-                    }
-                }
-
-                return StreamStart.fileSink(FileSinkOptions(
-                    chunkSize: chunkSize,
-                    inputPath: PathOrFileDescriptor.Fd(Fd.INVALID)
-                ))
-            case NetworkSink | HTTPSResponseSink | HTTPResponseSink | H3ResponseSink => {
-                var empty = true
-                var chunkSize: BlobSizeType = 2048
-
-                if (let Some(chunkSizeVal) <- value.get(global, "highWaterMark")) {
-                    if (chunkSizeVal.isNumber()) {
-                        empty = false
-                        chunkSize = Math.max(256, chunkSizeVal.toInt64())
-                    }
-                }
-
-                if (!empty) {
-                    return StreamStart.chunkSize(chunkSize)
-                }
-            }
-            case _ =>
-                () // Unsupported tag
-        }
-
-        return StreamStart.empty()
-    }
-
-    /// 对应 Bun: Start.toJS
-    public func toJS(global: JSGlobalObject): JsValue {
-        match (tag) {
-            case Empty | Ready => JsValue.UNDEFINED
-            case ChunkSize => JsValue.jsNumber(chunkSize)
-            case Err =>
-                match (err) {
-                    case Some(e) => e.throwJS(global)
-                    case None => JsValue.UNDEFINED
-                }
-            case OwnedAndDone =>
-                let ab = ArrayBuffer.fromBytes(ownedData.toArray(), JSType.Uint8Array)
-                return ab.toJS(global)
-            case Done =>
-                return ArrayBuffer.create(global, doneData.toArray(), JSType.Uint8Array)
-            case _ => JsValue.UNDEFINED
-        }
-    }
-}
-
-// ============================================================================
-// StreamResult - 流结果
-// 严格翻译自: streams.Result (union(Tag))
-// ============================================================================
-
-/// 流结果标签
-/// 对应 Bun: ResultTag #[repr(u8)]
-public enum StreamResultTag {
-    | Pending
-    | Err
-    | Done
-    | Owned
-    | OwnedAndDone
-    | TemporaryAndDone
-    | Temporary
-    | IntoArray
-    | IntoArrayAndDone
-
-    public operator func == (rhs: StreamResultTag): Bool {
-        match (this) {
-            case Pending => match (rhs) { case Pending => true case _ => false }
-            case Err => match (rhs) { case Err => true case _ => false }
-            case Done => match (rhs) { case Done => true case _ => false }
-            case Owned => match (rhs) { case Owned => true case _ => false }
-            case OwnedAndDone => match (rhs) { case OwnedAndDone => true case _ => false }
-            case TemporaryAndDone => match (rhs) { case TemporaryAndDone => true case _ => false }
-            case Temporary => match (rhs) { case Temporary => true case _ => false }
-            case IntoArray => match (rhs) { case IntoArray => true case _ => false }
-            case IntoArrayAndDone => match (rhs) { case IntoArrayAndDone => true case _ => false }
-        }
-    }
-}
-
 /// WasStrong - tracks whether a JsValue reference was strong or weak
 /// 对应 Bun: WasStrong
 public enum WasStrong {
     | Strong
     | Weak
-}
-
-/// 流错误类型
-/// 对应 Bun: Result.StreamError
-public class StreamError {
-    public var kind: StreamErrorKind
-    public var syscallErr: ?SyscallError
-    public var abortReason: ?CommonAbortReason
-    public var jsValue: JsValue
-
-    public init(kind: StreamErrorKind) {
-        this.kind = kind
-        this.syscallErr = None
-        this.abortReason = None
-        this.jsValue = JsValue.NULL
-    }
-
-    public init(syscallErr: SyscallError) {
-        this.kind = StreamErrorKind.Error
-        this.syscallErr = Some(syscallErr)
-        this.abortReason = None
-        this.jsValue = JsValue.NULL
-    }
-
-    public init(abortReason: CommonAbortReason) {
-        this.kind = StreamErrorKind.AbortReason
-        this.syscallErr = None
-        this.abortReason = Some(abortReason)
-        this.jsValue = JsValue.NULL
-    }
-
-    public init(jsValue: JsValue) {
-        this.kind = StreamErrorKind.JsValue
-        this.syscallErr = None
-        this.abortReason = None
-        this.jsValue = jsValue
-    }
-
-    public init(weakJsValue: JsValue) {
-        this.kind = StreamErrorKind.WeakJSValue
-        this.syscallErr = None
-        this.abortReason = None
-        this.jsValue = weakJsValue
-    }
-
-    /// 对应 Bun: StreamError::to_js_weak
-    public func toJSWeak(global: JSGlobalObject): (JsValue, WasStrong) {
-        match (kind) {
-            case Error =>
-                match (syscallErr) {
-                    case Some(e) => (e.toJS(global), WasStrong.Weak)
-                    case None => (JsValue.NULL, WasStrong.Weak)
-                }
-            case JsValue => (jsValue, WasStrong.Strong)
-            case WeakJSValue => (jsValue, WasStrong.Weak)
-            case AbortReason =>
-                match (abortReason) {
-                    case Some(r) => (r.toJS(global), WasStrong.Weak)
-                    case None => (JsValue.NULL, WasStrong.Weak)
-                }
-        }
-    }
 }
 
 /// 流错误种类
@@ -479,222 +116,6 @@ public class IntoArray {
     }
 }
 
-/// 流结果
-/// 严格翻译自 streams.Result
-public class StreamResult {
-    public var tag: StreamResultTag
-    /// pending 指针
-    public var pendingPtr: ?StreamResultPending
-    /// 错误
-    public var err: ?StreamError
-    /// owned 数据
-    public var ownedData: ArrayList<UInt8>
-    /// temporary 数据
-    public var tempData: ArrayList<UInt8>
-    /// into_array 数据
-    public var intoArray: ?IntoArray
-
-    public init(tag: StreamResultTag) {
-        this.tag = tag
-        this.pendingPtr = None
-        this.err = None
-        this.ownedData = ArrayList<UInt8>()
-        this.tempData = ArrayList<UInt8>()
-        this.intoArray = None
-    }
-
-    /// 获取数据切片
-    /// 对应 Bun: Result.slice()
-    public func slice(): Array<UInt8> {
-        match (tag) {
-            case Owned => ownedData.toArray()
-            case OwnedAndDone => ownedData.toArray()
-            case TemporaryAndDone => tempData.toArray()
-            case Temporary => tempData.toArray()
-            case _ => Array<UInt8>()
-        }
-    }
-
-    /// 获取数据切片 (as u16 view)
-    /// 对应 Bun: Result.slice16()
-    public func slice16(): Array<UInt16> {
-        let bytes = slice()
-        let result = ArrayList<UInt16>()
-        var i: Int64 = 0
-        while (i + 1 < bytes.size) {
-            result.add(UInt16(bytes[i]) | (UInt16(bytes[i + 1]) << 8))
-            i += 2
-        }
-        return result.toArray()
-    }
-
-    /// 是否完成
-    /// 对应 Bun: Result.isDone()
-    public func isDone(): Bool {
-        match (tag) {
-            case OwnedAndDone | TemporaryAndDone | IntoArrayAndDone | Done | Err => true
-            case _ => false
-        }
-    }
-
-    /// 释放资源 (对应 Bun: Result.release)
-    /// Named release (not deinit) per PORTING.md
-    public func release(): Unit {
-        match (tag) {
-            case Owned => ownedData.clear()
-            case OwnedAndDone => ownedData.clear()
-            case Err =>
-                () // JsValue 类型的错误需要取消保护
-            case _ => ()
-        }
-    }
-
-    // ---- 静态工厂方法 ----
-
-    public static func pending(p: StreamResultPending): StreamResult {
-        let r = StreamResult(StreamResultTag.Pending)
-        r.pendingPtr = Some(p)
-        return r
-    }
-
-    public static func err(e: StreamError): StreamResult {
-        let r = StreamResult(StreamResultTag.Err)
-        r.err = Some(e)
-        return r
-    }
-
-    public static func done(): StreamResult {
-        return StreamResult(StreamResultTag.Done)
-    }
-
-    public static func owned(data: ArrayList<UInt8>): StreamResult {
-        let r = StreamResult(StreamResultTag.Owned)
-        r.ownedData = data
-        return r
-    }
-
-    public static func ownedAndDone(data: ArrayList<UInt8>): StreamResult {
-        let r = StreamResult(StreamResultTag.OwnedAndDone)
-        r.ownedData = data
-        return r
-    }
-
-    public static func temporary(data: ArrayList<UInt8>): StreamResult {
-        let r = StreamResult(StreamResultTag.Temporary)
-        r.tempData = data
-        return r
-    }
-
-    public static func temporaryAndDone(data: ArrayList<UInt8>): StreamResult {
-        let r = StreamResult(StreamResultTag.TemporaryAndDone)
-        r.tempData = data
-        return r
-    }
-
-    public static func intoArray(arr: IntoArray): StreamResult {
-        let r = StreamResult(StreamResultTag.IntoArray)
-        r.intoArray = Some(arr)
-        return r
-    }
-
-    public static func intoArrayAndDone(arr: IntoArray): StreamResult {
-        let r = StreamResult(StreamResultTag.IntoArrayAndDone)
-        r.intoArray = Some(arr)
-        return r
-    }
-
-    /// 对应 Bun: Result.fulfillPromise
-    public static func fulfillPromise(result: StreamResult, promise: JSPromise, global: JSGlobalObject): Unit {
-        match (result.tag) {
-            case Err =>
-                let (jsErr, wasStrong) = result.err.getOrThrow().toJSWeak(global)
-                if (wasStrong == WasStrong.Strong) {
-                    jsErr.unprotect()
-                }
-                promise.rejectWithAsyncStack(global, jsErr)
-            case Done =>
-                promise.resolve(global, JsValue.FALSE)
-            case _ =>
-                match (result.toJS(global)) {
-                    case Ok(v) =>
-                        v.ensureStillAlive()
-                        promise.resolve(global, v)
-                    case Err(e) =>
-                        promise.reject(global, e)
-                }
-        }
-    }
-
-    /// 对应 Bun: Result.toJS
-    public func toJS(global: JSGlobalObject): JsResult {
-        match (tag) {
-            case Owned =>
-                let ab = ArrayBuffer.fromBytes(ownedData.toArray(), JSType.Uint8Array)
-                return JsResult.ok(ab.toJS(global))
-            case OwnedAndDone =>
-                let ab = ArrayBuffer.fromBytes(ownedData.toArray(), JSType.Uint8Array)
-                return JsResult.ok(ab.toJS(global))
-            case TemporaryAndDone | Temporary =>
-                let ab = ArrayBuffer.create(global, tempData.toArray(), JSType.Uint8Array)
-                return JsResult.ok(ab)
-            case IntoArray =>
-                match (intoArray) {
-                    case Some(arr) => return JsResult.ok(JsValue.jsNumberFromUInt64(arr.len))
-                    case None => return JsResult.ok(JsValue.ZERO)
-                }
-            case IntoArrayAndDone =>
-                match (intoArray) {
-                    case Some(arr) => return JsResult.ok(JsValue.jsNumberFromUInt64(arr.len))
-                    case None => return JsResult.ok(JsValue.ZERO)
-                }
-            case Pending =>
-                match (pendingPtr) {
-                    case Some(p) =>
-                        let promise = p.promise(global)
-                        let promiseJS = promise.toJS()
-                        promiseJS.protect()
-                        return JsResult.ok(promiseJS)
-                    case None => return JsResult.ok(JsValue.ZERO)
-                }
-            case Err =>
-                match (err) {
-                    case Some(e) =>
-                        let (jsErr, wasStrong) = e.toJSWeak(global)
-                        if (wasStrong == WasStrong.Strong) {
-                            jsErr.unprotect()
-                        }
-                        jsErr.ensureStillAlive()
-                        return JsResult.ok(JSPromise.rejectedPromise(global, jsErr).toJS())
-                    case None => return JsResult.ok(JsValue.ZERO)
-                }
-            // false == controller.close()
-            // undefined == noop, but we probably won't send it
-            case Done => JsResult.ok(JsValue.FALSE)
-        }
-    }
-}
-
-// ============================================================================
-// WritablePending - 可写 Pending 状态
-// 严格翻译自: Result.Writable.Pending
-// ============================================================================
-
-/// Writable Pending 的状态
-/// 对应 Bun: PendingState #[repr(u8)]
-public enum PendingState {
-    | None
-    | Pending
-    | Used
-
-    public operator func == (rhs: PendingState): Bool {
-        match (this) {
-            case None => match (rhs) { case None => true case _ => false }
-            case Pending => match (rhs) { case Pending => true case _ => false }
-            case Used => match (rhs) { case Used => true case _ => false }
-        }
-    }
-}
-
 /// WritableFuture kinds
 /// 对应 Bun: WritableFuture enum
 public enum WritableFutureKind {
@@ -702,6 +123,15 @@ public enum WritableFutureKind {
     | Promise
     | Handler
 }
+
+/// Writable - type alias for WritableResult
+/// 对应 Bun: Result.Writable (union(Result.Tag))
+/// In the original Bun code, Writable is a tagged union nested inside Result.
+/// In Cangjie we use WritableResult as the class, with Writable as a convenient alias.
+public type Writable = WritableResult
+
+/// StreamResultWritable — alias used by SinkHandler interface
+public type StreamResultWritable = WritableResult
 
 /// WritablePending 的 handler callback
 /// 对应 Bun: WritableHandlerFn = fn(ctx: *c_void, result: Writable)
@@ -795,14 +225,14 @@ public class WritablePending {
 /// 严格翻译自 streams.Result.Writable
 public class WritableResult {
     public var tag: StreamResultTag
-    public var pending: ?WritablePending
-    public var err: ?SyscallError
+    public var pendingValue: ?WritablePending
+    public var errValue: ?SyscallError
     public var size: BlobSizeType
 
     public init(tag: StreamResultTag) {
         this.tag = tag
-        this.pending = None
-        this.err = None
+        this.pendingValue = None
+        this.errValue = None
         this.size = 0
     }
 
@@ -819,7 +249,7 @@ public class WritableResult {
     public static func fulfillPromise(result: WritableResult, promise: JSPromise, global: ?JSGlobalObject): Unit {
         match (result.tag) {
             case Err =>
-                match (result.err) {
+                match (result.errValue) {
                     case Some(e) => promise.reject(global.getOrThrow(), e.toJS(global.getOrThrow()))
                     case None => ()
                 }
@@ -840,7 +270,7 @@ public class WritableResult {
                 }
             case Owned | OwnedAndDone | TemporaryAndDone | Temporary | IntoArray | IntoArrayAndDone => JsValue.jsNumber(size)
             // false == controller.close()
-            case Done => JsValue.TRUE
+            case Done => JsValue(true)
             case Pending =>
                 match (pending) {
                     case Some(p) =>
@@ -855,13 +285,13 @@ public class WritableResult {
 
     public static func pending(p: WritablePending): WritableResult {
         let r = WritableResult(StreamResultTag.Pending)
-        r.pending = Some(p)
+        r.pendingValue = Some(p)
         return r
     }
 
     public static func err(e: SyscallError): WritableResult {
         let r = WritableResult(StreamResultTag.Err)
-        r.err = Some(e)
+        r.errValue = Some(e)
         return r
     }
 
@@ -902,91 +332,6 @@ public class WritableResult {
 /// Pending handler callback
 /// 对应 Bun: PendingHandlerFn = fn(ctx: *c_void, result: StreamResult)
 public type PendingHandlerFn = (StreamResult) -> Unit
-
-/// 流结果待处理
-/// 严格翻译自 streams.Result.Pending
-public class StreamResultPending {
-    public var futureKind: PendingFutureKind
-    public var result: StreamResult
-    public var state: PendingState
-    /// Promise reference (for futureKind == Promise)
-    public var promiseRef: ?JSPromise
-    /// Global reference — stored when promise() is called, passed to fulfillPromise.
-    /// 对应 Bun: Pending.Future.promise.globalThis (*jsc.JSGlobalObject)
-    public var globalRef: ?JSGlobalObject
-    /// Handler callback (for futureKind == Handler)
-    public var handler: ?PendingHandlerFn
-
-    public init() {
-        futureKind = PendingFutureKind.Handler
-        result = StreamResult.done()
-        state = PendingState.None
-        promiseRef = None
-        globalRef = None
-        handler = None
-    }
-
-    /// 设置状态为 Pending
-    /// 对应 Bun: Pending.set()
-    public func setStatePending(): Unit {
-        state = PendingState.Pending
-    }
-
-    /// 设置 handler
-    public func setHandler(h: PendingHandlerFn): Unit {
-        futureKind = PendingFutureKind.Handler
-        handler = Some(h)
-        state = PendingState.Pending
-    }
-
-    /// 运行 pending 回调
-    /// 对应 Bun: Pending.run()
-    public func run(): Unit {
-        if (state != PendingState.Pending) {
-            return
-        }
-        state = PendingState.Used
-
-        match (futureKind) {
-            case Promise =>
-                match (promiseRef) {
-                    case Some(prom) =>
-                        // 对应 Bun: Result.fulfillPromise(&this.result, p.promise, p.globalThis)
-                        let global = globalRef.getOrThrow()
-                        StreamResult.fulfillPromise(result, prom, global)
-                    case None => ()
-                }
-            case Handler =>
-                match (handler) {
-                    case Some(h) => h(StreamResult.done())
-                    case None => ()
-                }
-        }
-    }
-
-    /// 在下一个 tick 运行
-    /// 对应 Bun: Pending.runOnNextTick()
-    public func runOnNextTick(): Unit {
-        if (state != PendingState.Pending) {
-            return
-        }
-        // Enqueue to event loop
-        // In the real implementation this would enqueue the run() call
-        run()
-    }
-
-    /// 对应 Bun: Pending.promise()
-    /// Stores globalThis alongside the promise for later use in fulfillPromise,
-    /// matching Bun's Pending.Future.promise { .strong = ..., .global = globalThis }
-    public func promise(global: JSGlobalObject): JSPromise {
-        let prom = JSPromise.create(global)
-        promiseRef = Some(prom)
-        globalRef = Some(global)
-        futureKind = PendingFutureKind.Promise
-        state = PendingState.Pending
-        return prom
-    }
-}
 
 /// Pending Future 类型
 public enum PendingFutureKind {
@@ -1066,7 +411,7 @@ public class StreamSignal {
     /// 对应 Bun: Signal.init<T>(handler)
     public static func `init`(handler: SignalHandler): StreamSignal {
         let vt = SignalVTable.wrap(handler)
-        return StreamSignal(vtable: vt)
+        return StreamSignal(vt)
     }
 
     /// 清除信号
@@ -1127,7 +472,7 @@ public class StreamSignal {
 
 /// HTTP 服务器可写流
 /// 严格翻译自 HTTPServerWritable
-public class HTTPServerWritable <: SinkHandler {
+public open class HTTPServerWritable <: SinkHandler {
     /// SSL flag (runtime, replaces const generic)
     public var ssl: Bool
     /// HTTP/3 flag (runtime, replaces const generic)
@@ -1248,9 +593,9 @@ public class HTTPServerWritable <: SinkHandler {
         }
         let result = ArrayList<UInt8>()
         for (i in offset..buffer.size) {
-            result.add(buffer[Int64(i)])
+            result.append(buffer[Int64(i)])
         }
-        return result.toArray()
+        return result.items()
     }
 
     /// 处理已写入
@@ -1332,9 +677,9 @@ public class HTTPServerWritable <: SinkHandler {
         let slice = if (base < readable.size) {
             let result = ArrayList<UInt8>()
             for (i in base..readable.size) {
-                result.add(readable[Int64(i)])
+                result.append(readable[Int64(i)])
             }
-            result.toArray()
+            result.items()
         } else {
             Array<UInt8>()
         }
@@ -1376,7 +721,7 @@ public class HTTPServerWritable <: SinkHandler {
     /// 对应 Bun: HTTPServerWritable.start()
     public func start(streamStart: StreamStart): Unit {
         if (aborted) {
-            signal.close(None)
+            signal.close(Option<SyscallError>.None)
             markDone()
             return
         }
@@ -1404,7 +749,7 @@ public class HTTPServerWritable <: SinkHandler {
         if (buffer.capacity < highWaterMark) {
             let needed = highWaterMark - buffer.capacity
             for (_ in 0..needed) {
-                buffer.add(0)
+                buffer.append(0)
             }
             buffer.clear()
         }
@@ -1480,11 +825,11 @@ public class HTTPServerWritable <: SinkHandler {
         match (res) {
             case Some(r) => if (r.hasResponded()) {
                 markDone()
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
             }
             case None =>
                 markDone()
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
         }
     }
 
@@ -1532,12 +877,12 @@ public class HTTPServerWritable <: SinkHandler {
 
         match (res) {
             case Some(r) => if (r.hasResponded()) {
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
                 markDone()
                 return WritableResult.done()
             }
             case None =>
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
                 markDone()
                 return WritableResult.done()
         }
@@ -1591,12 +936,12 @@ public class HTTPServerWritable <: SinkHandler {
 
         match (res) {
             case Some(r) => if (r.hasResponded()) {
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
                 markDone()
                 return WritableResult.done()
             }
             case None =>
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
                 markDone()
                 return WritableResult.done()
         }
@@ -1669,7 +1014,7 @@ public class HTTPServerWritable <: SinkHandler {
         match (res) {
             case Some(r) => if (done || r.hasResponded()) {
                 requestedEnd = true
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
                 markDone()
                 finalize()
                 return JsValue.jsNumber(0.0)
@@ -1677,7 +1022,7 @@ public class HTTPServerWritable <: SinkHandler {
             case None =>
                 if (done) {
                     requestedEnd = true
-                    signal.close(None)
+                    signal.close(Option<SyscallError>.None)
                     markDone()
                     finalize()
                     return JsValue.jsNumber(0.0)
@@ -1700,7 +1045,7 @@ public class HTTPServerWritable <: SinkHandler {
 
         markDone()
         flushPromise()
-        signal.close(None)
+        signal.close(Option<SyscallError>.None)
         finalize()
 
         return JsValue.jsNumber(wrote)
@@ -1719,7 +1064,7 @@ public class HTTPServerWritable <: SinkHandler {
         res = None
         unregisterAutoFlusher()
         aborted = true
-        signal.close(None)
+        signal.close(Option<SyscallError>.None)
         flushPromise()
         finalize()
     }
@@ -1830,7 +1175,7 @@ public class HTTPServerWritable <: SinkHandler {
     public func onWritable(writeOffset: UInt64, res: UwsResponse): Bool {
         hasBackpressure = false
         if (aborted) {
-            signal.close(None)
+            signal.close(Option<SyscallError>.None)
             flushPromise()
             finalize()
             return false
@@ -1844,7 +1189,7 @@ public class HTTPServerWritable <: SinkHandler {
 
         if (chunkLen == 0) {
             if (done) {
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
                 flushPromise()
                 finalize()
                 return true
@@ -1860,7 +1205,7 @@ public class HTTPServerWritable <: SinkHandler {
                     case Some(r) => r.clearOnWritable()
                     case None => ()
                 }
-                signal.close(None)
+                signal.close(Option<SyscallError>.None)
                 flushPromise()
                 finalize()
                 return true
@@ -1880,9 +1225,8 @@ public class HTTPServerWritable <: SinkHandler {
 
     // ---- SinkHandler impl ----
 
-    public func write(data: StreamResult): StreamResultWritable {
-        return write(data)
-    }
+    // write() is already defined above with signature write(data: StreamResult): WritableResult
+    // Since StreamResultWritable = WritableResult, it satisfies SinkHandler.write
 
     public func writeLatin1Data(data: StreamResult): StreamResultWritable {
         return writeLatin1(data)
@@ -1906,14 +1250,14 @@ public class HTTPServerWritable <: SinkHandler {
 
     private func bufferWrite(bytes: Array<UInt8>): Unit {
         for (b in bytes) {
-            buffer.add(b)
+            buffer.append(b)
         }
     }
 
     private func bufferWriteUTF16(utf16: Array<UInt16>): Unit {
         for (u in utf16) {
-            buffer.add(UInt8(u & 0xFF))
-            buffer.add(UInt8((u >> 8) & 0xFF))
+            buffer.append(UInt8(u & 0xFF))
+            buffer.append(UInt8((u >> 8) & 0xFF))
         }
     }
 }
@@ -1922,7 +1266,7 @@ public class HTTPServerWritable <: SinkHandler {
 /// 对应 Bun: HTTPSResponseSink = HTTPServerWritable<true, false>
 public class HTTPSResponseSink <: HTTPServerWritable {
     public init() {
-        super(ssl: true, http3: false)
+        super(true, false)
     }
 }
 
@@ -1930,7 +1274,7 @@ public class HTTPSResponseSink <: HTTPServerWritable {
 /// 对应 Bun: HTTPResponseSink = HTTPServerWritable<false, false>
 public class HTTPResponseSink <: HTTPServerWritable {
     public init() {
-        super(ssl: false, http3: false)
+        super(false, false)
     }
 }
 
@@ -1938,7 +1282,7 @@ public class HTTPResponseSink <: HTTPServerWritable {
 /// 对应 Bun: H3ResponseSink = HTTPServerWritable<true, true>
 public class H3ResponseSink <: HTTPServerWritable {
     public init() {
-        super(ssl: true, http3: true)
+        super(true, true)
     }
 }
 
@@ -2104,7 +1448,7 @@ public class NetworkSink <: SinkHandler {
     public func abort(): Unit {
         ended = true
         done = true
-        signal.close(None)
+        signal.close(Option<SyscallError>.None)
         cancel = true
         finalize()
     }
@@ -2203,7 +1547,7 @@ public class NetworkSink <: SinkHandler {
                         case Some(t2) => t2.writeBytes(Array<UInt8>(), true)
                         case None => ()
                     }
-                    signal.close(None)
+                    signal.close(Option<SyscallError>.None)
                 }
                 return value
             case None => ()
@@ -2336,91 +1680,6 @@ public enum ReadResultKind {
     | Read
 }
 
-/// 读取结果
-/// 对应 Bun: ReadResult
-public class ReadResult {
-    public var kind: ReadResultKind
-    public var err: ?SyscallError
-    public var data: Array<UInt8>
-
-    public init(kind: ReadResultKind) {
-        this.kind = kind
-        this.err = None
-        this.data = Array<UInt8>()
-    }
-
-    public init(err: SyscallError) {
-        this.kind = ReadResultKind.Err
-        this.err = Some(err)
-        this.data = Array<UInt8>()
-    }
-
-    public init(data: Array<UInt8>) {
-        this.kind = ReadResultKind.Read
-        this.err = None
-        this.data = data
-    }
-
-    /// 转换为 StreamResult
-    /// 对应 Bun: ReadResult.toStream()
-    public func toStream(pending: StreamResultPending, buf: Array<UInt8>, view: JsValue, closeOnEmpty: Bool): StreamResult {
-        return toStreamWithIsDone(pending, buf, view, closeOnEmpty, false)
-    }
-
-    /// 转换为 StreamResult (带 isDone 标志)
-    /// 对应 Bun: ReadResult.toStreamWithIsDone()
-    public func toStreamWithIsDone(
-        pending: StreamResultPending,
-        buf: Array<UInt8>,
-        view: JsValue,
-        closeOnEmpty: Bool,
-        isDone: Bool
-    ): StreamResult {
-        match (kind) {
-            case Pending => StreamResult.pending(pending)
-            case Err =>
-                match (err) {
-                    case Some(e) => StreamResult.err(StreamError(e))
-                    case None => StreamResult.err(StreamError(StreamErrorKind.Error))
-                }
-            case Done => StreamResult.done()
-            case Read =>
-                let owned = data.size > 0 && !isSameBuffer(data, buf)
-                let doneFlag = isDone || (closeOnEmpty && data.size == 0)
-
-                if (owned && doneFlag) {
-                    return StreamResult.ownedAndDone(ArrayList<UInt8>(data))
-                } else if (owned) {
-                    return StreamResult.owned(ArrayList<UInt8>(data))
-                } else if (doneFlag) {
-                    return StreamResult.intoArrayAndDone(IntoArray(value: view, len: data.size))
-                } else {
-                    return StreamResult.intoArray(IntoArray(value: view, len: data.size))
-                }
-        }
-    }
-
-    /// Check if two buffers share the same underlying memory (simplified)
-    private static func isSameBuffer(a: Array<UInt8>, b: Array<UInt8>): Bool {
-        // In the real implementation this would check if the pointers are the same
-        return a.size == 0 && b.size == 0
-    }
-}
-
-// ============================================================================
-// DrainResult - 消耗结果
-// 对应 Bun: jsc.WebCore.DrainResult
-// ============================================================================
-
-/// 消耗结果
-/// 对应 Bun: DrainResult (enum)
-public enum DrainResult {
-    | Empty
-    | Aborted
-    | EstimatedSize(Int64)
-    | Owned(DrainedData)
-}
-
 /// 已消耗的数据
 public class DrainedData {
     public var list: ArrayList<UInt8>
@@ -2500,52 +1759,6 @@ public class S3BufferedData {
     }
 }
 
-/// CommonAbortReason
-public enum CommonAbortReason {
-    | UserAbort
-    | Timeout
-    | NetworkError
-
-    public func toJS(global: JSGlobalObject): JsValue {
-        return JsValue.NULL
-    }
-}
-
-/// SyscallError
-public class SyscallError {
-    public var errno: Int64
-    public var syscall: String
-    public var message: String
-
-    public init(errno: Int64, syscall: String) {
-        this.errno = errno
-        this.syscall = syscall
-        this.message = ""
-    }
-
-    public init(errno: Int64, syscall: String, message: String) {
-        this.errno = errno
-        this.syscall = syscall
-        this.message = message
-    }
-
-    public static func fromCode(code: Int64, syscall: String): SyscallError {
-        return SyscallError(code, syscall)
-    }
-
-    public static func oom(): SyscallError {
-        return SyscallError(12, "write") // ENOMEM
-    }
-
-    public func throwJS(global: JSGlobalObject): JsValue {
-        return JsValue.NULL
-    }
-
-    public func toJS(global: JSGlobalObject): JsValue {
-        return JsValue.NULL
-    }
-}
-
 /// JSPromise
 public class JSPromise {
     public static func create(global: JSGlobalObject): JSPromise {
@@ -2569,137 +1782,22 @@ public class JSPromise {
     public func unprotect(): Unit {}
 }
 
-/// JSPromiseStrong
-public class JSPromiseStrong {
-    private var promise: ?JSPromise
-    private var jsValue: ?JsValue
-
-    public init() {
-        promise = None
-        jsValue = None
-    }
-
-    public static func `init`(global: JSGlobalObject): JSPromiseStrong {
-        let s = JSPromiseStrong()
-        s.promise = Some(JSPromise.create(global))
-        return s
-    }
-
-    public func hasValue(): Bool { return promise.isSome() }
-    public func value(): JsValue { return jsValue.getOrThrow() }
-    public func get(): JSPromise { return promise.getOrThrow() }
-    public func swap(): JSPromise {
-        let p = promise.getOrThrow()
-        promise = None
-        jsValue = None
-        return p
-    }
-    public func resolve(global: JSGlobalObject, value: JsValue): Unit {
-        match (promise) {
-            case Some(p) => p.resolve(global, value)
-            case None => ()
-        }
-    }
-}
-
-/// JsResult
-public class JsResult {
-    public var value: ?JsValue
-    public var error: ?JsValue
-
-    private init(value: ?JsValue, error: ?JsValue) {
-        this.value = value
-        this.error = error
-    }
-
-    public static func ok(v: JsValue): JsResult {
-        return JsResult(value: Some(v), error: None)
-    }
-
-    public static func err(e: JsValue): JsResult {
-        return JsResult(value: None, error: Some(e))
-    }
-
-    public func isOk(): Bool { return error.isNone() }
-    public func getOrThrow(): JsValue { return value.getOrThrow() }
-}
-
-/// JsValue
-public class JsValue {
-    public static let ZERO = JsValue()
-    public static let UNDEFINED = JsValue()
-    public static let FALSE = JsValue()
-    public static let TRUE = JsValue()
-    public static let NULL = JsValue()
-
-    public init() {}
-
-    public static func jsNumber(n: BlobSizeType): JsValue { return JsValue() }
-    public static func jsNumber(n: Int64): JsValue { return JsValue() }
-    public static func jsNumber(n: Float64): JsValue { return JsValue() }
-    public static func jsNumberFromUInt64(n: BlobSizeType): JsValue { return JsValue() }
-
-    public func isEmptyOrUndefinedOrNull(): Bool { return true }
-    public func isObject(): Bool { return false }
-    public func isNumber(): Bool { return false }
-    public func isBoolean(): Bool { return false }
-    public func isString(): Bool { return false }
-    public func isAnyInt(): Bool { return false }
-    public func toBoolean(): Bool { return false }
-    public func toInt64(): Int64 { return 0 }
-    public func toJS(): JsValue { return this }
-    public func protect(): Unit {}
-    public func unprotect(): Unit {}
-    public func ensureStillAlive(): Unit {}
-
-    public func get(global: JSGlobalObject, name: String): ?JsValue { return None }
-    public func getTruthy(global: JSGlobalObject, name: String): ?JsValue { return None }
-    public func toSlice(global: JSGlobalObject): ZigStringSlice { return ZigStringSlice() }
-}
-
-/// JSGlobalObject
-public class JSGlobalObject {
-    public init() {}
-}
-
 /// JSType
 public enum JSType {
     | Uint8Array
 }
 
 /// ArrayBuffer
-public class ArrayBuffer {
-    public static func fromBytes(data: Array<UInt8>, type: JSType): ArrayBuffer {
-        return ArrayBuffer()
+/// NOTE: renamed to avoid shadowing bao_collections.ArrayBuffer
+public class ArrayBufferPlaceholder {
+    public static func fromBytes(data: Array<UInt8>, `type`: JSType): ArrayBufferPlaceholder {
+        return ArrayBufferPlaceholder()
     }
-    public static func create(global: JSGlobalObject, data: Array<UInt8>, type: JSType): JsValue {
+    public static func create(global: JSGlobalObject, data: Array<UInt8>, `type`: JSType): JsValue {
         return JsValue.NULL
     }
     public init() {}
     public func toJS(global: JSGlobalObject): JsValue { return JsValue.NULL }
-}
-
-/// AnyBlob
-public class AnyBlob {
-    public init() {}
-    public func wrap(promise: JSPromise, global: JSGlobalObject, tag: BufferActionKind): Unit {}
-}
-
-/// Sink
-public class Sink {
-    public static func `init`(handler: SinkHandler): Sink {
-        return Sink()
-    }
-    public init() {}
-}
-
-/// SinkHandler interface
-public interface SinkHandler {
-    func write(data: StreamResult): WritableResult
-    func writeLatin1Data(data: StreamResult): WritableResult
-    func writeUTF16Data(data: StreamResult): WritableResult
-    func endErr(err: ?SyscallError): ?SyscallError
-    func connectSignal(signal: StreamSignal): ?SyscallError
 }
 
 /// FdJsc
@@ -2710,10 +1808,7 @@ public class FdJsc {
 }
 
 /// UInt64
-public type UInt64 = Int64
-
-/// BlobSizeType alias
-public type BlobSizeType = Int64
+public type `UInt64` = Int64
 
 /// Math utility
 public class Math {
@@ -2722,25 +1817,6 @@ public class Math {
     }
     public static func min(a: Int64, b: Int64): Int64 {
         return if (a < b) { a } else { b }
-    }
-}
-
-/// Option helpers
-public extension Option<T> {
-    public func isSome(): Bool {
-        match (this) {
-            case Some(_) => true
-            case None => false
-        }
-    }
-    public func isNone(): Bool {
-        return !isSome()
-    }
-    public func getOrThrow(): T {
-        match (this) {
-            case Some(v) => v
-            case None => throw Exception("Option is None")
-        }
     }
 }
 

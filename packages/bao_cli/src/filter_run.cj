@@ -3,6 +3,14 @@ package bao_cli
 
 import bao_core.*
 import bao_collections.*
+import bao_event_loop.*
+import bao_spawn.{Process, ProcessStatus}
+import bao_io.*
+import bao_sys.*
+
+/// 依赖映射 - 对应 Bun DependencyMap (std.ArrayHashMapUnmanaged(String, Dependency, ...))
+/// 在仓颉中简化为 HashMap<String, String>
+public type DependencyMap = HashMap<String, String>
 
 // ============================================================================
 // FilterRun — 使用 --filter/--workspaces 运行脚本

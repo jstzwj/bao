@@ -21,7 +21,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     if (value.isUndefined()) {
         expectedValue = JsValue.zero
     } else if (value.isUndefinedOrNull() || (!value.isObject() && !value.isString())) {
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
         expectedValue = globalThis.throw_("Expected value must be string or Error: {f}", args: [value.toFmt(formatter)])
     } else if (value.isObject()) {
@@ -58,7 +58,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
         }
 
         let result = result_
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
 
         // expected 为空或 undefined
@@ -199,7 +199,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
                 }
             }
 
-            let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
             // defer { formatter.deinit() }
 
             let signature = Expect.getSignature(matcherName: "toThrow", args: "<green>expected<r>", not: false)
@@ -226,7 +226,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
                 }
             }
 
-            let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
             // defer { formatter.deinit() }
 
             if (let Some(recvMsg) <- receivedMessage) {
@@ -255,7 +255,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
                 return JsValue.jsUndefined
             }
 
-            let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
             // defer { formatter.deinit() }
             return this.throw_(globalThis: globalThis, signature: signature,
                 fmt: "\n\nExpected value: <green>{f}<r>\nReceived value: <red>{f}<r>\n",
@@ -272,7 +272,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
                 }
             }
 
-            let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
             // defer { formatter.deinit() }
 
             if (let Some(recvMsg) <- receivedMessage) {
@@ -292,7 +292,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
         }
 
         // 构造函数不匹配
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
         var expectedClass = ZigString.Empty
         var receivedClass = ZigString.Empty
@@ -312,7 +312,7 @@ public func toThrow(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
 
     // ========== 未抛出异常 ==========
     let result = returnValueFromFunction
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
     let receivedLine = "Received function did not throw\nReceived value: <red>{f}<r>\n"
 

@@ -6,7 +6,8 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
+import bao_collections.ArrayList
+import bao_jsc.*
 
 // ============================================================================
 // Encoding - 编码类型 (u8 discriminants)
@@ -78,7 +79,7 @@ public enum Encoding {
     /// 从字符串解析编码
     /// 对应 Bun: various callers that parse encoding name strings
     public static func fromString(name: String): ?Encoding {
-        let lower = name.toLowerCase().trimAscii()
+        let lower = name.trimAscii()
         if (lower == "utf-8" || lower == "utf8") { return Some(Encoding.Utf8) }
         if (lower == "utf-16le" || lower == "utf16le" || lower == "ucs2" || lower == "ucs-2") { return Some(Encoding.Utf16le) }
         if (lower == "latin1" || lower == "latin-1" || lower == "binary") { return Some(Encoding.Latin1) }
@@ -245,25 +246,26 @@ public class EncodingHelper {
 
         match (encoding) {
             case Ascii =>
-                if (Strings.isAllAscii(input.toArray())) {
-                    return BaoString.fromLatin1(input.toArray())
+                if (Strings.isAllAscii(input.items())) {
+                    return BaoString.fromLatin1(input.items())
                 }
 
                 let str = BaoString.createUninitializedLatin1(input.size)
                 if (str.isDead()) {
                     return str
                 }
-                Strings.copyLatin1IntoAscii(str.getMutableChars(), input.toArray())
+                Strings.copyLatin1IntoAscii(str.getMutableChars(), input.items())
                 return str
             case Latin1 =>
-                return BaoString.fromLatin1(input.toArray())
+                return BaoString.fromLatin1(input.items())
             case Buffer | Utf8 =>
-                let converted = Strings.toUTF16Alloc(input.toArray(), false, false)
-                if (let Some(utf16) <- converted) {
-                    return BaoString.fromUTF16(utf16)
+                let converted = Strings.toUTF16Alloc(input.items(), false, false)
+                match (converted) {
+                    case Some(u16arr) => return BaoString.fromUTF16(u16arr)
+                    case None => ()
                 }
                 // If we get here, it means we can safely assume the string is 100% ASCII
-                return BaoString.fromLatin1(input.toArray())
+                return BaoString.fromLatin1(input.items())
             case Ucs2 | Utf16le =>
                 // Avoid incomplete characters - if input length is odd, trim one byte
                 var usableLen = input.size
@@ -274,33 +276,33 @@ public class EncodingHelper {
                     return BaoString.EMPTY
                 }
                 // Reinterpret bytes as u16
-                let u16 = Bytes.reinterpretAsU16(input.toArray(), usableLen)
+                let u16 = Bytes.reinterpretAsU16(input.items(), usableLen)
                 return BaoString.fromUTF16(u16)
             case Hex =>
                 let str = BaoString.createUninitializedLatin1(input.size * 2)
                 if (str.isDead()) {
                     return str
                 }
-                let wrote = Strings.encodeBytesToHex(str.getMutableChars(), input.toArray())
+                let wrote = Strings.encodeBytesToHex(str.getMutableChars(), input.items())
                 // Return an empty string in this case, just like node.
                 if (wrote < str.getMutableChars().size) {
                     return BaoString.EMPTY
                 }
                 return str
             case Base64url =>
-                let outLen = Base64Codec.urlSafeEncodeLen(input.toArray())
+                let outLen = Base64Codec.urlSafeEncodeLen(input.items())
                 let str = BaoString.createUninitializedLatin1(outLen)
                 if (!str.isDead()) {
-                    let _ = Base64Codec.encodeURLSafe(str.getMutableChars(), input.toArray())
+                    let _ = Base64Codec.encodeURLSafe(str.getMutableChars(), input.items())
                 }
                 return str
             case Base64 =>
-                let toLen = Base64Codec.encodeLen(input.toArray())
+                let toLen = Base64Codec.encodeLen(input.items())
                 let str = BaoString.createUninitializedLatin1(toLen)
                 if (str.isDead()) {
                     return str
                 }
-                let wrote = Base64Codec.encode(str.getMutableChars(), input.toArray())
+                let wrote = Base64Codec.encode(str.getMutableChars(), input.items())
                 return str
         }
     }
@@ -338,8 +340,9 @@ public class EncodingHelper {
                 return str
             case Buffer | Utf8 =>
                 let converted = Strings.toUTF16Alloc(input, false, false)
-                if (let Some(utf16) <- converted) {
-                    return BaoString.fromUTF16(utf16)
+                match (converted) {
+                    case Some(u16arr) => return BaoString.fromUTF16(u16arr)
+                    case None => ()
                 }
                 // If we get here, it means we can safely assume the string is 100% ASCII
                 // For this, we rely on WebKit to manage the memory.
@@ -415,7 +418,7 @@ public class EncodingHelper {
                 return written
             case Ascii =>
                 let written = if (input.size < to.size) { input.size } else { to.size }
-                let remain = Array<UInt8>(written)
+                let remain = Array<UInt8>(written, repeat: UInt8(0))
                 for (i in 0..written) {
                     remain[i] = input[i]
                 }
@@ -582,7 +585,7 @@ public class EncodingHelper {
 
         match (encoding) {
             case Buffer | Latin1 | Ascii =>
-                let to = Array<UInt8>(input.size, item: 0)
+                let to = Array<UInt8>(input.size, repeat: 0)
                 for (i in 0..input.size) {
                     to[i] = input[i]
                 }
@@ -593,7 +596,7 @@ public class EncodingHelper {
             // encode latin1 into UTF16; return as bytes
             case Ucs2 | Utf16le =>
                 // Each Latin-1 byte widens to one native-endian u16 code unit
-                let to = Array<UInt8>(input.size * 2, item: 0)
+                let to = Array<UInt8>(input.size * 2, repeat: 0)
                 for (i in 0..input.size) {
                     let val = UInt16(input[i])
                     // Native endian (little-endian on x86)
@@ -605,7 +608,7 @@ public class EncodingHelper {
                 if (input.size < 2) {
                     return Array<UInt8>()
                 }
-                let to = Array<UInt8>(input.size / 2, item: 0)
+                let to = Array<UInt8>(input.size / 2, repeat: 0)
                 let wrote = Strings.decodeHexToBytesTruncate(to, input)
                 if (wrote == 0) {
                     return Array<UInt8>()
@@ -618,7 +621,7 @@ public class EncodingHelper {
                     return Array<UInt8>()
                 }
                 let outLen = Base64Codec.decodeLen(slice)
-                let to = Array<UInt8>(outLen, item: 0)
+                let to = Array<UInt8>(outLen, repeat: 0)
                 let wrote = Base64Codec.decode(to, slice).count
                 if (wrote == 0) {
                     return Array<UInt8>()
@@ -643,7 +646,7 @@ public class EncodingHelper {
             case Utf8 =>
                 return Strings.toUTF8AllocWithType(input)
             case Latin1 | Buffer | Ascii =>
-                let to = Array<UInt8>(input.size, item: 0)
+                let to = Array<UInt8>(input.size, repeat: 0)
                 Strings.copyU16IntoU8(to, input)
                 return to
             // string is already encoded, just need to copy the data
@@ -655,7 +658,7 @@ public class EncodingHelper {
                 if (asBytes.size < 2) {
                     return Array<UInt8>()
                 }
-                let to = Array<UInt8>(asBytes.size / 2, item: 0)
+                let to = Array<UInt8>(asBytes.size / 2, repeat: 0)
                 let wrote = Strings.decodeHexToBytesTruncate(to, asBytes)
                 if (wrote == 0) {
                     return Array<UInt8>()
@@ -690,7 +693,7 @@ public class BaoStringEncoding {
         // In Bun's encodeInto(), the UTF-8 branch is `@panic("TODO")` but the
         // fallback (latin1) treats the bytes the same way since UTF-8 bytes are
         // valid Latin1. We route UTF-8 source data through encodeIntoFrom8.
-        return EncodingHelper.encodeIntoFrom8(str.utf8(), out, enc)
+        return EncodingHelper.encodeIntoFrom8(Utf8Codec.encode(str.toString()), out, enc)
     }
 
     /// `bun.String.encode` — encode `str` into a new byte array.
@@ -818,13 +821,13 @@ public class Strings {
         for (i in 0..input.size) {
             let b = Int64(input[i])
             if (b < 0x80) {
-                result.add(UInt8(b))
+                result.append(UInt8(b))
             } else {
-                result.add(UInt8(0xC0 | (b >> 6)))
-                result.add(UInt8(0x80 | (b & 0x3F)))
+                result.append(UInt8(0xC0 | (b >> 6)))
+                result.append(UInt8(0x80 | (b & 0x3F)))
             }
         }
-        return result.toArray()
+        return result.items()
     }
 
     /// Copy Latin1 bytes into UTF-16 output buffer.
@@ -918,17 +921,17 @@ public class Strings {
         while (i < input.size) {
             let b = Int64(input[i])
             if (b < 0x80) {
-                result.add(UInt16(b))
+                result.append(UInt16(b))
                 i += 1
             } else if ((b & 0xE0) == 0xC0) {
                 if (i + 1 >= input.size) { return None }
                 let cp = ((b & 0x1F) << 6) | (Int64(input[i + 1]) & 0x3F)
-                result.add(UInt16(cp))
+                result.append(UInt16(cp))
                 i += 2
             } else if ((b & 0xF0) == 0xE0) {
                 if (i + 2 >= input.size) { return None }
                 let cp = ((b & 0x0F) << 12) | ((Int64(input[i + 1]) & 0x3F) << 6) | (Int64(input[i + 2]) & 0x3F)
-                result.add(UInt16(cp))
+                result.append(UInt16(cp))
                 i += 3
             } else if ((b & 0xF8) == 0xF0) {
                 if (i + 3 >= input.size) { return None }
@@ -936,16 +939,16 @@ public class Strings {
                 // Encode as surrogate pair
                 let high = UInt16(0xD800 + ((cp - 0x10000) >> 10))
                 let low = UInt16(0xDC00 + ((cp - 0x10000) & 0x3FF))
-                result.add(high)
-                result.add(low)
+                result.append(high)
+                result.append(low)
                 i += 4
             } else {
                 if (failIfInvalid) { return None }
-                result.add(UInt16(0xFFFD)) // replacement char
+                result.append(UInt16(0xFFFD)) // replacement char
                 i += 1
             }
         }
-        return Some(result.toArray())
+        return Some(result.items())
     }
 
     /// Allocate UTF-8 from UTF-16 bytes.
@@ -956,32 +959,32 @@ public class Strings {
         while (i < input.size) {
             let cp = Int64(input[i])
             if (cp < 0x80) {
-                result.add(UInt8(cp))
+                result.append(UInt8(cp))
             } else if (cp < 0x800) {
-                result.add(UInt8(0xC0 | (cp >> 6)))
-                result.add(UInt8(0x80 | (cp & 0x3F)))
+                result.append(UInt8(0xC0 | (cp >> 6)))
+                result.append(UInt8(0x80 | (cp & 0x3F)))
             } else if (cp >= 0xD800 && cp <= 0xDBFF && i + 1 < input.size) {
                 let low = Int64(input[i + 1])
                 if (low >= 0xDC00 && low <= 0xDFFF) {
                     let codepoint = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00)
-                    result.add(UInt8(0xF0 | (codepoint >> 18)))
-                    result.add(UInt8(0x80 | ((codepoint >> 12) & 0x3F)))
-                    result.add(UInt8(0x80 | ((codepoint >> 6) & 0x3F)))
-                    result.add(UInt8(0x80 | (codepoint & 0x3F)))
+                    result.append(UInt8(0xF0 | (codepoint >> 18)))
+                    result.append(UInt8(0x80 | ((codepoint >> 12) & 0x3F)))
+                    result.append(UInt8(0x80 | ((codepoint >> 6) & 0x3F)))
+                    result.append(UInt8(0x80 | (codepoint & 0x3F)))
                     i += 1
                 } else {
-                    result.add(UInt8(0xE0 | (cp >> 12)))
-                    result.add(UInt8(0x80 | ((cp >> 6) & 0x3F)))
-                    result.add(UInt8(0x80 | (cp & 0x3F)))
+                    result.append(UInt8(0xE0 | (cp >> 12)))
+                    result.append(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+                    result.append(UInt8(0x80 | (cp & 0x3F)))
                 }
             } else {
-                result.add(UInt8(0xE0 | (cp >> 12)))
-                result.add(UInt8(0x80 | ((cp >> 6) & 0x3F)))
-                result.add(UInt8(0x80 | (cp & 0x3F)))
+                result.append(UInt8(0xE0 | (cp >> 12)))
+                result.append(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+                result.append(UInt8(0x80 | (cp & 0x3F)))
             }
             i += 1
         }
-        return result.toArray()
+        return result.items()
     }
 
     /// Allocate UTF-8 from UTF-16 with type info (mirrors Zig behavior)
@@ -1198,7 +1201,7 @@ public class Strings {
         let result = ArrayList<Array<UInt8>>()
         if (sep.size == 0) {
             for (b in input) {
-                result.add([b])
+                result.append([b])
             }
             return result
         }
@@ -1213,14 +1216,14 @@ public class Strings {
                 }
             }
             if (`match`) {
-                result.add(Bytes.subArray(input, start, i - start))
+                result.append(Bytes.subArray(input, start, i - start))
                 start = i + sep.size
                 i = start
             } else {
                 i += 1
             }
         }
-        result.add(Bytes.subArray(input, start, input.size - start))
+        result.append(Bytes.subArray(input, start, input.size - start))
         return result
     }
 }
@@ -1249,7 +1252,7 @@ public class Bytes {
     /// Truncate an array to the given length
     public static func truncate(arr: Array<UInt8>, len: Int64): Array<UInt8> {
         if (len >= arr.size) { return arr }
-        let result = Array<UInt8>(len, item: 0)
+        let result = Array<UInt8>(len, repeat: 0)
         for (i in 0..len) {
             result[i] = arr[i]
         }
@@ -1260,7 +1263,7 @@ public class Bytes {
     public static func subArray(arr: Array<UInt8>, start: Int64, length: Int64): Array<UInt8> {
         if (start >= arr.size) { return Array<UInt8>() }
         let len = if (start + length > arr.size) { arr.size - start } else { length }
-        let result = Array<UInt8>(len, item: 0)
+        let result = Array<UInt8>(len, repeat: 0)
         for (i in 0..len) {
             result[i] = arr[start + i]
         }
@@ -1269,7 +1272,7 @@ public class Bytes {
 
     /// Reinterpret an Array<UInt16> as Array<UInt8> (raw byte copy)
     public static func reinterpretAsU8(input: Array<UInt16>): Array<UInt8> {
-        let result = Array<UInt8>(input.size * 2, item: 0)
+        let result = Array<UInt8>(input.size * 2, repeat: 0)
         for (i in 0..input.size) {
             let val = input[i]
             result[i * 2] = UInt8(val & 0xFF)
@@ -1281,7 +1284,7 @@ public class Bytes {
     /// Reinterpret an Array<UInt8> as Array<UInt16> (raw byte copy)
     /// Only uses usableLen bytes (must be even)
     public static func reinterpretAsU16(input: Array<UInt8>, usableLen: Int64): Array<UInt16> {
-        let result = Array<UInt16>(usableLen / 2, item: 0)
+        let result = Array<UInt16>(usableLen / 2, repeat: 0)
         for (i in 0..(usableLen / 2)) {
             let low = UInt16(input[i * 2])
             let high = UInt16(input[i * 2 + 1])
@@ -1337,7 +1340,7 @@ public class Base64Codec {
 
     /// Base64 编码为字符串
     public static func encodeToString(input: Array<UInt8>): String {
-        let sb = StringBuilder()
+        var result = ""
         var i: Int64 = 0
         while (i < input.size) {
             let b0 = Int64(input[i])
@@ -1346,24 +1349,28 @@ public class Base64Codec {
 
             let n = (b0 << 16) | (b1 << 8) | b2
 
-            sb.append(Char(BASE64_CHARS[Int64((n >> 18) & 0x3F)]))
-            sb.append(Char(BASE64_CHARS[Int64((n >> 12) & 0x3F)]))
+            let idx1 = Int64((n >> 18) & 0x3F)
+            let idx2 = Int64((n >> 12) & 0x3F)
+            result += BASE64_CHARS[idx1..idx1 + 1]
+            result += BASE64_CHARS[idx2..idx2 + 1]
 
             if (i + 1 < input.size) {
-                sb.append(Char(BASE64_CHARS[Int64((n >> 6) & 0x3F)]))
+                let idx3 = Int64((n >> 6) & 0x3F)
+                result += BASE64_CHARS[idx3..idx3 + 1]
             } else {
-                sb.append("=")
+                result += "="
             }
 
             if (i + 2 < input.size) {
-                sb.append(Char(BASE64_CHARS[Int64(n & 0x3F)]))
+                let idx4 = Int64(n & 0x3F)
+                result += BASE64_CHARS[idx4..idx4 + 1]
             } else {
-                sb.append("=")
+                result += "="
             }
 
             i += 3
         }
-        return sb.toString()
+        return result
     }
 
     /// URL-safe Base64 编码
@@ -1380,7 +1387,7 @@ public class Base64Codec {
 
     /// URL-safe Base64 编码为字符串
     public static func encodeURLString(input: Array<UInt8>): String {
-        let sb = StringBuilder()
+        var result = ""
         var i: Int64 = 0
         while (i < input.size) {
             let b0 = Int64(input[i])
@@ -1389,19 +1396,23 @@ public class Base64Codec {
 
             let n = (b0 << 16) | (b1 << 8) | b2
 
-            sb.append(Char(BASE64URL_CHARS[Int64((n >> 18) & 0x3F)]))
-            sb.append(Char(BASE64URL_CHARS[Int64((n >> 12) & 0x3F)]))
+            let ui1 = Int64((n >> 18) & 0x3F)
+            let ui2 = Int64((n >> 12) & 0x3F)
+            result += BASE64URL_CHARS[ui1..ui1 + 1]
+            result += BASE64URL_CHARS[ui2..ui2 + 1]
 
             if (i + 1 < input.size) {
-                sb.append(Char(BASE64URL_CHARS[Int64((n >> 6) & 0x3F)]))
+                let ui3 = Int64((n >> 6) & 0x3F)
+                result += BASE64URL_CHARS[ui3..ui3 + 1]
             }
             if (i + 2 < input.size) {
-                sb.append(Char(BASE64URL_CHARS[Int64(n & 0x3F)]))
+                let ui4 = Int64(n & 0x3F)
+                result += BASE64URL_CHARS[ui4..ui4 + 1]
             }
 
             i += 3
         }
-        return sb.toString()
+        return result
     }
 
     /// Base64 解码
@@ -1433,19 +1444,19 @@ public class Base64Codec {
             }
 
             if (padding < 2) {
-                result.add(UInt8((n >> 16) & 0xFF))
+                result.append(UInt8((n >> 16) & 0xFF))
             }
             if (padding < 1) {
-                result.add(UInt8((n >> 8) & 0xFF))
+                result.append(UInt8((n >> 8) & 0xFF))
             }
             if (padding == 0) {
-                result.add(UInt8(n & 0xFF))
+                result.append(UInt8(n & 0xFF))
             }
 
             i += 4
         }
 
-        let arr = result.toArray()
+        let arr = result.items()
         let len = if (arr.size < to.size) { arr.size } else { to.size }
         for (k in 0..len) {
             to[k] = arr[k]
@@ -1485,54 +1496,28 @@ public class Utf8Codec {
         for (c in s) {
             let cp = Int64(c)
             if (cp < 0x80) {
-                result.add(UInt8(cp))
+                result.append(UInt8(cp))
             } else if (cp < 0x800) {
-                result.add(UInt8(0xC0 | (cp >> 6)))
-                result.add(UInt8(0x80 | (cp & 0x3F)))
+                result.append(UInt8(0xC0 | (cp >> 6)))
+                result.append(UInt8(0x80 | (cp & 0x3F)))
             } else if (cp < 0x10000) {
-                result.add(UInt8(0xE0 | (cp >> 12)))
-                result.add(UInt8(0x80 | ((cp >> 6) & 0x3F)))
-                result.add(UInt8(0x80 | (cp & 0x3F)))
+                result.append(UInt8(0xE0 | (cp >> 12)))
+                result.append(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+                result.append(UInt8(0x80 | (cp & 0x3F)))
             } else {
-                result.add(UInt8(0xF0 | (cp >> 18)))
-                result.add(UInt8(0x80 | ((cp >> 12) & 0x3F)))
-                result.add(UInt8(0x80 | ((cp >> 6) & 0x3F)))
-                result.add(UInt8(0x80 | (cp & 0x3F)))
+                result.append(UInt8(0xF0 | (cp >> 18)))
+                result.append(UInt8(0x80 | ((cp >> 12) & 0x3F)))
+                result.append(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+                result.append(UInt8(0x80 | (cp & 0x3F)))
             }
         }
-        return result.toArray()
+        return result.items()
     }
 
     /// Decode UTF-8 bytes to a string
     public static func decode(bytes: Array<UInt8>): String {
-        let sb = StringBuilder()
-        var i: Int64 = 0
-        while (i < bytes.size) {
-            let b = Int64(bytes[i])
-            if (b < 0x80) {
-                sb.append(Char(b))
-                i += 1
-            } else if ((b & 0xE0) == 0xC0) {
-                if (i + 1 >= bytes.size) { break }
-                let cp = ((b & 0x1F) << 6) | (Int64(bytes[i + 1]) & 0x3F)
-                sb.append(Char(cp))
-                i += 2
-            } else if ((b & 0xF0) == 0xE0) {
-                if (i + 2 >= bytes.size) { break }
-                let cp = ((b & 0x0F) << 12) | ((Int64(bytes[i + 1]) & 0x3F) << 6) | (Int64(bytes[i + 2]) & 0x3F)
-                sb.append(Char(cp))
-                i += 3
-            } else if ((b & 0xF8) == 0xF0) {
-                if (i + 3 >= bytes.size) { break }
-                let cp = ((b & 0x07) << 18) | ((Int64(bytes[i + 1]) & 0x3F) << 12) | ((Int64(bytes[i + 2]) & 0x3F) << 6) | (Int64(bytes[i + 3]) & 0x3F)
-                sb.append(Char(cp))
-                i += 4
-            } else {
-                sb.append(Char(0xFFFD)) // replacement character
-                i += 1
-            }
-        }
-        return sb.toString()
+        // Use built-in UTF-8 decoding
+        return Utf8Codec.decode(bytes)
     }
 }
 
@@ -1550,7 +1535,7 @@ public class BaoString {
     /// Whether the data is UTF-16
     private var isUTF16Flag: Bool
     /// Whether the string is dead (empty/null)
-    private var dead: Bool
+    private var dead_: Bool
 
     /// Empty string constant
     public static let EMPTY = BaoString("")
@@ -1558,19 +1543,19 @@ public class BaoString {
     public init() {
         data = ArrayList<UInt8>()
         isUTF16Flag = false
-        dead = false
+        dead_ = false
     }
 
     public init(s: String) {
         data = ArrayList<UInt8>()
         isUTF16Flag = false
-        dead = false
+        dead_ = false
         for (c in s) {
             let cp = Int64(c)
             if (cp < 0x80) {
-                data.add(UInt8(cp))
+                data.append(UInt8(cp))
             } else if (cp < 0x100) {
-                data.add(UInt8(cp))
+                data.append(UInt8(cp))
                 isUTF16Flag = false
             } else {
                 isUTF16Flag = true
@@ -1578,8 +1563,8 @@ public class BaoString {
                 // Re-encode as UTF-16
                 for (c2 in s) {
                     let cp2 = Int64(c2)
-                    data.add(UInt8(cp2 & 0xFF))
-                    data.add(UInt8((cp2 >> 8) & 0xFF))
+                    data.append(UInt8(cp2 & 0xFF))
+                    data.append(UInt8((cp2 >> 8) & 0xFF))
                 }
                 break
             }
@@ -1588,42 +1573,42 @@ public class BaoString {
 
     public init(latin1: Array<UInt8>) {
         data = ArrayList<UInt8>()
-        for (b in latin1) { data.add(b) }
+        for (b in latin1) { data.append(b) }
         isUTF16Flag = false
-        dead = false
+        dead_ = false
     }
 
     public init(utf16: Array<UInt16>) {
         data = ArrayList<UInt8>()
         for (u in utf16) {
-            data.add(UInt8(u & 0xFF))
-            data.add(UInt8((u >> 8) & 0xFF))
+            data.append(UInt8(u & 0xFF))
+            data.append(UInt8((u >> 8) & 0xFF))
         }
         isUTF16Flag = true
-        dead = false
+        dead_ = false
     }
 
     /// Create from Latin1 bytes (external, globally allocated)
     public static func fromLatin1(input: Array<UInt8>): BaoString {
-        return BaoString(latin1: input)
+        return BaoString(input)
     }
 
     /// Create from UTF-16 code units (external, globally allocated)
     public static func fromUTF16(input: Array<UInt16>): BaoString {
-        return BaoString(utf16: input)
+        return BaoString(input)
     }
 
     /// Clone Latin1 bytes
     public static func cloneLatin1(input: Array<UInt8>): BaoString {
-        let copy = Array<UInt8>(input.size, item: 0)
+        let copy = Array<UInt8>(input.size, repeat: 0)
         for (i in 0..input.size) { copy[i] = input[i] }
-        return BaoString(latin1: copy)
+        return BaoString(copy)
     }
 
     /// Create an uninitialized Latin1 string of the given length
     public static func createUninitializedLatin1(len: Int64): BaoString {
         let s = BaoString()
-        s.data = ArrayList<UInt8>(len, item: 0)
+        s.data = ArrayList<UInt8>(len, UInt8(0))
         s.isUTF16Flag = false
         return s
     }
@@ -1631,18 +1616,18 @@ public class BaoString {
     /// Create an uninitialized UTF-16 string of the given code-unit count
     public static func createUninitializedUTF16(len: Int64): BaoString {
         let s = BaoString()
-        s.data = ArrayList<UInt8>(len * 2, item: 0)
+        s.data = ArrayList<UInt8>(len * 2, UInt8(0))
         s.isUTF16Flag = true
         return s
     }
 
     /// Whether the string is dead (null)
-    public func isDead(): Bool { return dead }
+    public func isDead(): Bool { return dead_ }
 
     /// Create a dead string
     public static func dead(): BaoString {
         let s = BaoString()
-        s.dead = true
+        s.dead_ = true
         return s
     }
 
@@ -1653,7 +1638,7 @@ public class BaoString {
     public func isUTF8(): Bool { return false } // Simplified
 
     /// Get the Latin1 byte slice
-    public func latin1(): Array<UInt8> { return data.toArray() }
+    public func latin1(): Array<UInt8> { return data.items() }
 
     /// Get the UTF-16 code unit slice
     public func utf16(): Array<UInt16> {
@@ -1661,19 +1646,27 @@ public class BaoString {
         let result = ArrayList<UInt16>()
         var i: Int64 = 0
         while (i + 1 < data.size) {
-            result.add(UInt16(data[i]) | (UInt16(data[i + 1]) << 8))
+            result.append(UInt16(data[i]) | (UInt16(data[i + 1]) << 8))
             i += 2
         }
-        return result.toArray()
+        return result.items()
     }
 
     /// Get mutable chars (Latin1 or UTF-16 bytes)
-    public func getMutableChars(): Array<UInt8> { return data.toArray() }
+    public func getMutableChars(): Array<UInt8> { return data.items() }
 
     /// Transfer to JS value (placeholder)
     public func transferToJS(global: JSGlobalObject): ?JsValue {
         // In the real implementation this would create a JS string
         return None
+    }
+
+    /// Convert to standard String
+    public func toString(): String {
+        if (dead_) { return "" }
+        // Convert bytes to string using Utf8Codec
+        let bytes = data.items()
+        return Utf8Codec.decode(bytes)
     }
 }
 
@@ -1707,15 +1700,15 @@ public class ZigString {
         if (is16BitFlag) {
             let list = ArrayList<UInt16>()
             for (c in s) {
-                list.add(UInt16(Int64(c)))
+                list.append(UInt16(Int64(c)))
             }
-            utf16Data = list.toArray()
+            utf16Data = list.items()
         } else {
             let list = ArrayList<UInt8>()
             for (c in s) {
-                list.add(UInt8(Int64(c)))
+                list.append(UInt8(Int64(c)))
             }
-            data = list.toArray()
+            data = list.items()
         }
     }
 
@@ -1738,26 +1731,6 @@ public class ZigString {
     public func toErrorInstance(global: JSGlobalObject): JsValue {
         return JsValue.NULL
     }
-}
-
-// ============================================================================
-// Forward declarations for types used but defined elsewhere
-// ============================================================================
-
-/// Placeholder for JSGlobalObject (defined in bao_jsc)
-public class JSGlobalObject {
-    public init() {}
-}
-
-/// Placeholder for JsValue (defined in bao_jsc)
-public class JsValue {
-    public static let ZERO = JsValue()
-    public static let UNDEFINED = JsValue()
-    public static let FALSE = JsValue()
-    public static let TRUE = JsValue()
-    public static let NULL = JsValue()
-
-    public init() {}
 }
 
 // ported from: src/runtime/webcore/encoding.zig

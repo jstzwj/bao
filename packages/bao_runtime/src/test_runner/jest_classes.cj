@@ -67,15 +67,15 @@ public class BindClassDef {
     }
 }
 
-private func `prop`(name: String, fn: String, length: ?UInt32): BindClassPropertyDef {
+private func `prop`(name!: String, fn!: String, length!: ?UInt32): BindClassPropertyDef {
     return BindClassPropertyDef(name, fn, None, length, false, false)
 }
 
-private func propNoLen(name: String, fn: String): BindClassPropertyDef {
+private func propNoLen(name!: String, fn!: String): BindClassPropertyDef {
     return BindClassPropertyDef(name, fn, None, None, false, false)
 }
 
-private func getter(name: String, getterName: String, this_: Bool, cache: Bool): BindClassPropertyDef {
+private func getter(name!: String, getterName!: String, this_!: Bool, cache!: Bool): BindClassPropertyDef {
     return BindClassPropertyDef(name, None, getterName, None, this_, cache)
 }
 

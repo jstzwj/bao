@@ -3,6 +3,9 @@ package bao_cli
 
 import bao_core.*
 import bao_collections.*
+import bao_io.*
+import bao_sys.*
+import bao_parsers.*
 
 // ============================================================================
 // FilterArg — 工作区过滤参数
@@ -41,59 +44,79 @@ public func getCandidatePackagePatterns(
     var currentDir = workdir
 
     while (true) {
-        let jsonPath = Path.join(currentDir, "package.json")
+        let jsonPath = Path.join([currentDir, "package.json"])
 
         log.clear()
 
         let jsonSource = BaoFile.readAllText(jsonPath)
-        if (jsonSource.isNone()) {
-            let parent = Path.dirname(currentDir)
-            if (parent == currentDir || parent.length == 0) {
-                break
-            }
-            currentDir = parent
-            continue
-        }
-
-        let json = JsonParser.parse(jsonSource.getOrThrow())
-
-        let workspacesProp = json?.getProperty("workspaces")
-        if (workspacesProp.isNone()) {
-            let parent = Path.dirname(currentDir)
-            if (parent == currentDir || parent.length == 0) {
-                break
-            }
-            currentDir = parent
-            continue
-        }
-
-        // workspaces 可以是数组或对象 { packages: [...] }
-        var jsonArr: ?Array<JsonValue> = None
-        if (workspacesProp.getOrThrow().isArray()) {
-            jsonArr = workspacesProp.getOrThrow().asArray()
-        } else if (workspacesProp.getOrThrow().isObject()) {
-            let packages = workspacesProp.getOrThrow().getProperty("packages")
-            if (packages.isSome() && packages.getOrThrow().isArray()) {
-                jsonArr = packages.getOrThrow().asArray()
-            }
-        }
-
-        if (jsonArr.isSome()) {
-            for (expr in jsonArr.getOrThrow()) {
-                if (expr.isString()) {
-                    let patternExpr = expr.asString()
-                    let pattern = patternExpr + "/package.json"
-                    outPatterns.append(pattern)
-                } else {
-                    Output.prettyErrorLn("error: Failed to parse \"workspaces\" property: all items must be strings")
-                    Global.exit(1)
+        match (jsonSource) {
+            case Err(_) =>
+                let parent = Path.dirname(currentDir)
+                if (parent == currentDir || parent.length == 0) {
+                    break
                 }
-            }
+                currentDir = parent
+                continue
+            case Ok(content) =>
+                let parser = JsonParser(content)
+                let parseResult = parser.parse()
+                match (parseResult.value) {
+                    case Some(root) =>
+                        // 检查 workspaces 属性
+                        let wsProp = root.get("workspaces")
+                        match (wsProp) {
+                            case Some(workspacesProp) =>
+                                // workspaces 可以是数组或对象 { packages: [...] }
+                                if (workspacesProp.isArray()) {
+                                    for (expr in workspacesProp.arrayValue) {
+                                        if (expr.isString()) {
+                                            match (expr.asString()) {
+                                                case Some(patternExpr) =>
+                                                    let pattern = patternExpr + "/package.json"
+                                                    outPatterns.append(pattern)
+                                                case None => ()
+                                            }
+                                        }
+                                    }
+                                } else if (workspacesProp.isObject()) {
+                                    let packages = workspacesProp.get("packages")
+                                    match (packages) {
+                                        case Some(pkgs) =>
+                                            if (pkgs.isArray()) {
+                                                for (expr in pkgs.arrayValue) {
+                                                    if (expr.isString()) {
+                                                        match (expr.asString()) {
+                                                            case Some(patternExpr) =>
+                                                                let pattern = patternExpr + "/package.json"
+                                                                outPatterns.append(pattern)
+                                                            case None => ()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        case None => ()
+                                    }
+                                }
+                                let parentTrimmed = Strings.withoutTrailingSlash(currentDir)
+                                rootBuf.append(parentTrimmed)
+                                return parentTrimmed
+                            case None =>
+                                let parent = Path.dirname(currentDir)
+                                if (parent == currentDir || parent.length == 0) {
+                                    break
+                                }
+                                currentDir = parent
+                                continue
+                        }
+                    case None =>
+                        let parent = Path.dirname(currentDir)
+                        if (parent == currentDir || parent.length == 0) {
+                            break
+                        }
+                        currentDir = parent
+                        continue
+                }
         }
-
-        let parentTrimmed = Strings.withoutTrailingSlash(currentDir)
-        rootBuf.append(parentTrimmed)
-        return parentTrimmed
     }
 
     // 未找到 workspace root, 使用通配符
@@ -284,4 +307,25 @@ public class PackageFilterIterator {
             }
         }
     }
+}
+
+/// Glob 遍历器 (本地 stub)
+/// 对应 Bun: bun.glob.BunGlobWalkerZ
+/// 完整实现在 bao_runtime.shell.dispatch_tasks.GlobWalker
+public class GlobWalker {
+    private var rootDir: String
+    private var pattern: String
+
+    public init(rootDir: String, pattern: String, a: Bool, b: Bool, c: Bool, d: Bool, e: Bool) {
+        this.rootDir = rootDir
+        this.pattern = pattern
+    }
+
+    public func `init`(): Unit {}
+
+    public func next(): ?String {
+        return None
+    }
+
+    public func deinit(): Unit {}
 }

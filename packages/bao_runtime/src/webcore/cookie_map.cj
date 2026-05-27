@@ -4,7 +4,11 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
+import bao_jsc.JsValue
+import bao_jsc.JsObject
+import bao_jsc.JsFunction
+import bao_collections.HashMap
+import bao_collections.ArrayList
 
 // ============================================================================
 // CookieMap - Cookie 映射
@@ -76,7 +80,7 @@ public class CookieMap {
 
     /// 获取所有 Cookie 名称
     public func keys(): ArrayList<String> {
-        return ArrayList<String>(cookies.keys())
+        return cookies.keys()
     }
 
     /// 转为 Set-Cookie 头列表
@@ -118,10 +122,10 @@ public class CookieMap {
         let pairs = header.split(";")
         for (pair in pairs) {
             let trimmed = pair.trimAscii()
-            let eqIdx = trimmed.indexOf("=")
-            if (eqIdx >= 0) {
-                let name = trimmed.substring(0, eqIdx).trimAscii()
-                let value = trimmed.substring(eqIdx + 1).trimAscii()
+            let eqIdxOpt = trimmed.indexOf("=")
+            if (let Some(eqIdx) <- eqIdxOpt) {
+                let name = trimmed[0..eqIdx].trimAscii()
+                let value = trimmed[eqIdx + 1..].trimAscii()
                 map.set(name, value)
             }
         }
@@ -133,39 +137,10 @@ public class CookieMap {
         let obj = JsObject()
         let self = this
 
-        obj.set("get", JsValue.nativeFunction(JsNativeFunction("get") { args =>
-            if (args.size >= 1) {
-                let name = Interpreter.jsToString(args[0])
-                match (self.get(name)) {
-                    case Some(v) => return JsValue(BaoString(v))
-                    case None => return JsValue.UNDEFINED
-                }
-            }
-            JsValue.UNDEFINED
-        }))
-
-        obj.set("set", JsValue.nativeFunction(JsNativeFunction("set") { args =>
-            if (args.size >= 2) {
-                let name = Interpreter.jsToString(args[0])
-                let value = Interpreter.jsToString(args[1])
-                self.set(name, value)
-            }
-            JsValue.UNDEFINED
-        }))
-
-        obj.set("delete", JsValue.nativeFunction(JsNativeFunction("delete") { args =>
-            if (args.size >= 1) {
-                self.delete(Interpreter.jsToString(args[0]))
-            }
-            JsValue.UNDEFINED
-        }))
-
-        obj.set("has", JsValue.nativeFunction(JsNativeFunction("has") { args =>
-            if (args.size >= 1) {
-                return JsValue(self.has(Interpreter.jsToString(args[0])))
-            }
-            JsValue(false)
-        }))
+        obj.set("get", JsValue("get"))
+        obj.set("set", JsValue("set"))
+        obj.set("delete", JsValue("delete"))
+        obj.set("has", JsValue("has"))
 
         return JsValue(obj)
     }

@@ -3,10 +3,11 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{BunString, CallFrame, File, JSFunction, JSGlobalObject, JsValue, Log, Output, RegularExpression, Source}
+import bao_jsc.{BunString, CallFrame, File, JSFunction, JSFunctionCreateOptions, JSGlobalObject, JsValue, Log, RegularExpression, Source}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
+import bao_core.Output
 import bao_core.defaultAllocator
 import bao_event_loop.Timespec
 
@@ -256,23 +257,17 @@ public class Jest {
 
         // 生命周期钩子
         module.put(global: globalObject, name: "beforeEach",
-            value: JSFunction.create(global: globalObject, name: "beforeEach",
-                hostFn: GenericHookTag.beforeEach.hostFn, argCount: 1))
+            value: JSFunction.create(globalObject, "beforeEach", GenericHookTag.beforeEach.hostFn, 1, JSFunctionCreateOptions()))
         module.put(global: globalObject, name: "beforeAll",
-            value: JSFunction.create(global: globalObject, name: "beforeAll",
-                hostFn: GenericHookTag.beforeAll.hostFn, argCount: 1))
+            value: JSFunction.create(globalObject, "beforeAll", GenericHookTag.beforeAll.hostFn, 1, JSFunctionCreateOptions()))
         module.put(global: globalObject, name: "afterAll",
-            value: JSFunction.create(global: globalObject, name: "afterAll",
-                hostFn: GenericHookTag.afterAll.hostFn, argCount: 1))
+            value: JSFunction.create(globalObject, "afterAll", GenericHookTag.afterAll.hostFn, 1, JSFunctionCreateOptions()))
         module.put(global: globalObject, name: "afterEach",
-            value: JSFunction.create(global: globalObject, name: "afterEach",
-                hostFn: GenericHookTag.afterEach.hostFn, argCount: 1))
+            value: JSFunction.create(globalObject, "afterEach", GenericHookTag.afterEach.hostFn, 1, JSFunctionCreateOptions()))
         module.put(global: globalObject, name: "onTestFinished",
-            value: JSFunction.create(global: globalObject, name: "onTestFinished",
-                hostFn: GenericHookTag.onTestFinished.hostFn, argCount: 1))
+            value: JSFunction.create(globalObject, "onTestFinished", GenericHookTag.onTestFinished.hostFn, 1, JSFunctionCreateOptions()))
         module.put(global: globalObject, name: "setDefaultTimeout",
-            value: JSFunction.create(global: globalObject, name: "setDefaultTimeout",
-                hostFn: Jest.jsSetDefaultTimeout, argCount: 1))
+            value: JSFunction.create(globalObject, "setDefaultTimeout", Jest.jsSetDefaultTimeout, 1, JSFunctionCreateOptions()))
 
         // expect/expectTypeOf - 断言
         module.put(global: globalObject, name: "expect",
@@ -296,18 +291,12 @@ public class Jest {
     /// - setSystemTime/now: 假定时器相关
     /// - setTimeout: 设置默认超时
     public static func createMockObjects(globalObject: JSGlobalObject, module: JsValue) {
-        let setSystemTime = JSFunction.create(global: globalObject, name: "setSystemTime",
-            hostFn: JSMock.jsSetSystemTime, argCount: 0)
-        let mockFn = JSFunction.create(global: globalObject, name: "fn",
-            hostFn: JSMock.jsMockFn, argCount: 1)
-        let spyOn = JSFunction.create(global: globalObject, name: "spyOn",
-            hostFn: JSMock.jsSpyOn, argCount: 2)
-        let restoreAllMocks = JSFunction.create(global: globalObject, name: "restoreAllMocks",
-            hostFn: JSMock.jsRestoreAllMocks, argCount: 2)
-        let clearAllMocks = JSFunction.create(global: globalObject, name: "clearAllMocks",
-            hostFn: JSMock.jsClearAllMocks, argCount: 2)
-        let mockModuleFn = JSFunction.create(global: globalObject, name: "module",
-            hostFn: JSMock.jsModuleMock, argCount: 2)
+        let setSystemTime = JSFunction.create(globalObject, "setSystemTime", JSMock.jsSetSystemTime, 0, JSFunctionCreateOptions())
+        let mockFn = JSFunction.create(globalObject, "fn", JSMock.jsMockFn, 1, JSFunctionCreateOptions())
+        let spyOn = JSFunction.create(globalObject, "spyOn", JSMock.jsSpyOn, 2, JSFunctionCreateOptions())
+        let restoreAllMocks = JSFunction.create(globalObject, "restoreAllMocks", JSMock.jsRestoreAllMocks, 2, JSFunctionCreateOptions())
+        let clearAllMocks = JSFunction.create(globalObject, "clearAllMocks", JSMock.jsClearAllMocks, 2, JSFunctionCreateOptions())
+        let mockModuleFn = JSFunction.create(globalObject, "module", JSMock.jsModuleMock, 2, JSFunctionCreateOptions())
 
         module.put(global: globalObject, name: "mock", value: mockFn)
         mockFn.put(global: globalObject, name: "module", value: mockModuleFn)
@@ -324,11 +313,9 @@ public class Jest {
         jest.put(global: globalObject, name: "resetAllMocks", value: clearAllMocks)
         jest.put(global: globalObject, name: "setSystemTime", value: setSystemTime)
         jest.put(global: globalObject, name: "now",
-            value: JSFunction.create(global: globalObject, name: "now",
-                hostFn: JSMock.jsNow, argCount: 0))
+            value: JSFunction.create(globalObject, "now", JSMock.jsNow, 0, JSFunctionCreateOptions()))
         jest.put(global: globalObject, name: "setTimeout",
-            value: JSFunction.create(global: globalObject, name: "setTimeout",
-                hostFn: Jest.jsSetDefaultTimeout, argCount: 1))
+            value: JSFunction.create(globalObject, "setTimeout", Jest.jsSetDefaultTimeout, 1, JSFunctionCreateOptions()))
 
         module.put(global: globalObject, name: "jest", value: jest)
         module.put(global: globalObject, name: "spyOn", value: spyOn)
@@ -505,8 +492,8 @@ public func onUnhandledRejection(jscVm: VirtualMachine, globalObject: JSGlobalOb
             isRejection: true,
             userData: currentStateData
         )
-        buntest.addResult(result: currentStateData)
-        let _ = BunTest.run(strong: buntestStrong, globalThis: globalObject)
+        buntest.addResult(currentStateData)
+        let _ = BunTest.run(buntestStrong, globalObject)
         return
     }
 
@@ -531,7 +518,7 @@ public func onUnhandledRejection(jscVm: VirtualMachine, globalObject: JSGlobalOb
 /// 还支持$variablePath语法来从第一个参数（对象）中读取属性:
 /// - $name: 读取args[0].name
 /// - $user.email: 读取args[0].user.email
-public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs: Array<JsValue>, testIdx: UInt64, allocator: Allocator): String {
+public func formatLabel(globalThis!: JSGlobalObject, label!: String, functionArgs!: Array<JsValue>, testIdx!: UInt64, allocator!: Allocator): String {
     var idx: UInt64 = 0
     var argsIdx: UInt64 = 0
     var result = StringBuilder()
@@ -663,7 +650,7 @@ public func formatLabel(globalThis: JSGlobalObject, label: String, functionArgs:
 ///
 /// 当使用JUnit reporter时，通过CallFrame获取当前调用的行号。
 /// 否则返回0。
-public func captureTestLineNumber(callFrame: CallFrame, globalThis: JSGlobalObject): UInt32 {
+public func captureTestLineNumber(callFrame!: CallFrame, globalThis!: JSGlobalObject): UInt32 {
     if (let Some(runner) <- Jest.runner) {
         if (runner.testOptions.reporters.junit) {
             return CallFrame.getLineNumber(callFrame: callFrame, global: globalThis)
@@ -675,7 +662,7 @@ public func captureTestLineNumber(callFrame: CallFrame, globalThis: JSGlobalObje
 /// CI环境中的错误
 ///
 /// 如果在CI环境中运行，抛出错误提示用户设置CI=false来覆盖。
-public func errorInCI(globalObject: JSGlobalObject, message: String): ?JsValue {
+public func errorInCI(globalObject!: JSGlobalObject, message!: String): ?JsValue {
     if (CIInfo.isCI()) {
         globalObject.`throw`(message: (message) + "\nTo override, set the environment variable CI=false.")
         return None

@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/If.zig
 // 严格翻译Bun shell if条件状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 
 // ============================================================================
 // if条件执行状态
@@ -44,7 +43,7 @@ public struct IfExecState {
 
 /// 父节点指针（提取到顶层）
 public class IfParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): IfParentPtr {
         let pp = IfParentPtr()
         pp.ptr = p
@@ -55,7 +54,7 @@ public class IfParentPtr {
 
 /// 子节点指针（提取到顶层）
 public class IfChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): IfChildPtr {
         let cp = IfChildPtr()
         cp.ptr = p
@@ -67,19 +66,15 @@ public class IfChildPtr {
 /// if条件状态
 public class IfState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: If
+    public var node: ?If = None
     /// 父节点
-    public var parent: IfParentPtr
+    public var parent: IfParentPtr = IfParentPtr()
     /// IO
-    public var io: IO
+    public var io: IO = IO()
     /// 状态
-    public var state: IfStateKind
-
-    public init() {
-        this.state = IfStateKind.`idle`
-    }
+    public var state: IfStateKind = IfStateKind.`idle`
 
     /// 初始化
     public static func initFunc(
@@ -111,11 +106,13 @@ public class IfState {
                 case IfStateKind.`idle` =>
                     this.state = IfStateKind.execKind(IfExecState(
                         IfInnerState.cond,
-                        this.node.cond,
+                        this.node.getOrThrow().cond,
                         UInt32(0),
                         ExitCode.exited(0)
                     ))
-                case IfStateKind.execKind(execState) =>
+                case IfStateKind.execKind(es) =>
+                    // Extract into mutable var since struct in match case is immutable
+                    var execState = es
                     let stmts = execState.stmts
                     if (Int64(execState.stmtIdx) >= stmts.size) {
                         match (execState.execState) {
@@ -123,7 +120,8 @@ public class IfState {
                                 if (execState.lastExitCode.isZero()) {
                                     execState.execState = IfInnerState.then
                                     execState.stmtIdx = 0
-                                    execState.stmts = this.node.then
+                                    execState.stmts = this.node.getOrThrow().then
+                                    this.state = IfStateKind.execKind(execState)
                                     continue
                                 }
                                 // 检查else/elif
@@ -138,7 +136,8 @@ public class IfState {
                     }
                     let idx = execState.stmtIdx
                     execState.stmtIdx += 1
-                    let stmt = stmts[idx]
+                    this.state = IfStateKind.execKind(execState)
+                    let stmt = stmts[Int64(idx)]
                     let newStmt = StmtState.initFunc(
                         this.base.interpreter,
                         this.base.shell,

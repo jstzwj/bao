@@ -89,7 +89,7 @@ public class PackageSpecifier {
         }
 
         // 处理剩余字符串中的 name@version
-        if (!spec.alias.isEmpty()) {
+        if (spec.alias.isSome()) {
             // 如果有 alias, remaining 现在是 protocol:... 或 package@version
             if (remaining.startsWith("npm:")) {
                 let npmPart = remaining.substring(4)
@@ -276,15 +276,8 @@ public class AddCommand {
 
         try {
             logger.info("Installing dependencies...")
-            let result = pm.install(installOpts)
-            match (result) {
-                case Some(summary) =>
-                    logger.success("Installed ${summary.added} packages")
-                    if (summary.removed > 0) {
-                        logger.info("Removed ${summary.removed} packages")
-                    }
-                case None => logger.warn("Install completed with warnings")
-            }
+            pm.install(CommandContext())
+            logger.info("Install completed")
         } catch (e: Exception) {
             logger.error("Install failed: ${e.message}")
             // 回滚: 恢复 package.json
@@ -314,7 +307,7 @@ public class AddCommand {
                     if (i < args.size) {
                         opts.registry = Some(args[i])
                     }
-                case "--verbose" | "-v" => logger.setLevel(LogLevel.DEBUG)
+                case "--verbose" | "-v" => logger.setLevel(0)
                 case "--help" | "-h" =>
                     printAddHelp()
                     return opts
@@ -342,14 +335,14 @@ public class AddCommand {
     private func readPackageJson(dir: String): ?MutablePackageJson {
         let content = BaoFile.readAllText(Path.join([dir, "package.json"]))
         match (content) {
-            case Some(text) =>
+            case Ok(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
                     case Some(root) => return MutablePackageJson.fromJson(root)
                     case None => return None
                 }
-            case None => return None
+            case Err(_) => return None
         }
     }
 

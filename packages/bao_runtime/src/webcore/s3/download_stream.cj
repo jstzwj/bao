@@ -57,8 +57,8 @@ public class S3HttpDownloadStreamingTask {
     public var http: AsyncHttp
 
     /// 虚拟机引用
-    /// 对应 Bun: vm: *jsc.VirtualMachine
-    public var vm: VirtualMachine
+    /// 对应 Bun: vm: *jsc.S3VirtualMachine
+    public var vm: S3VirtualMachine
 
     /// 签名结果
     /// 对应 Bun: sign_result: SignResult
@@ -73,8 +73,8 @@ public class S3HttpDownloadStreamingTask {
     public var callbackContext: UIntNative = 0
 
     /// 数据回调函数
-    /// 对应 Bun: callback: *const fn (chunk: bun.MutableString, has_more: bool, err: ?S3Error, *anyopaque) void
-    public var callback: (MutableString, Bool, ?S3Error, UIntNative) -> Unit
+    /// 对应 Bun: callback: *const fn (chunk: bun.S3MutableString, has_more: bool, err: ?S3Error, *anyopaque) void
+    public var callback: (S3MutableString, Bool, ?S3Error, UIntNative) -> Unit
 
     /// 是否已调度回调
     /// 对应 Bun: has_schedule_callback: std.atomic.Value(bool)
@@ -93,16 +93,16 @@ public class S3HttpDownloadStreamingTask {
     public var pollRef: KeepAlive
 
     /// 响应缓冲区
-    /// 对应 Bun: response_buffer: bun.MutableString
-    public var responseBuffer: MutableString
+    /// 对应 Bun: response_buffer: bun.S3MutableString
+    public var responseBuffer: S3MutableString
 
     /// 互斥锁 (保护并发访问)
     /// 对应 Bun: mutex: bun.Mutex
     public var mutex: Mutex
 
     /// 已报告的响应缓冲区
-    /// 对应 Bun: reported_response_buffer: bun.MutableString
-    public var reportedResponseBuffer: MutableString
+    /// 对应 Bun: reported_response_buffer: bun.S3MutableString
+    public var reportedResponseBuffer: S3MutableString
 
     /// 状态 (原子)
     /// 对应 Bun: state: State.AtomicType
@@ -120,13 +120,13 @@ public class S3HttpDownloadStreamingTask {
     /// 对应 Bun: proxy_url: []const u8
     public var proxyUrl: String
 
-    public init(vm: VirtualMachine, signResult: S3SignResult) {
+    public init(vm: S3VirtualMachine, signResult: S3SignResult) {
         this.vm = vm
         this.signResult = signResult
         http = AsyncHttp()
         headers = HttpHeaders()
-        responseBuffer = MutableString()
-        reportedResponseBuffer = MutableString()
+        responseBuffer = S3MutableString()
+        reportedResponseBuffer = S3MutableString()
         state = S3DownloadState()
         concurrentTask = ConcurrentTask()
         range = ""
@@ -135,7 +135,7 @@ public class S3HttpDownloadStreamingTask {
         pollRef = KeepAlive()
         signalStore = SignalStore()
         signals = HttpSignals()
-        callback = { _: MutableString, _: Bool, _: ?S3Error, _: UIntNative => }
+        callback = { _: S3MutableString, _: Bool, _: ?S3Error, _: UIntNative => }
     }
 
     // ========================================================================
@@ -229,7 +229,7 @@ public class S3HttpDownloadStreamingTask {
 
                 err = Some(S3Error(code, message))
             }
-            let emptyChunk = MutableString()
+            let emptyChunk = S3MutableString()
             if (!hasMore) {
                 callback(emptyChunk, false, err, callbackContext)
             }

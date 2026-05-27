@@ -111,6 +111,14 @@ public class EventLoopHandle {
             jsLoop.activeHandles -= 1
         }
     }
+
+    /// 运行事件循环
+    public func run(): Unit {
+        match (kind) {
+            case Js => jsLoop.run()
+            case Mini => miniLoop.run()
+        }
+    }
 }
 
 // ========== EventLoopTaskPtr ==========
@@ -141,6 +149,7 @@ public class MiniEventLoop {
     public func stderr(): BlobStore { BlobStore() }
     public func filePolls(): FilePollStore { FilePollStore() }
     public func enqueueTaskConcurrent(task: MiniEventLoopTask) {}
+    public func run(): Unit {}
 }
 
 // ========== MiniEventLoopTask ==========

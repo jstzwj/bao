@@ -132,13 +132,13 @@ public class S3DownloadResult {
     public var etag: String
 
     /// 下载体 (拥有，需释放)
-    /// 对应 Bun: success.body: bun.MutableString
-    public var body: MutableString
+    /// 对应 Bun: success.body: bun.S3MutableString
+    public var body: S3MutableString
 
     /// 错误 (不拥有)
     public var error: ?S3Error
 
-    public static func success(etag: String, body: MutableString): S3DownloadResult {
+    public static func success(etag: String, body: S3MutableString): S3DownloadResult {
         let r = S3DownloadResult()
         r.tag = S3DownloadResultTag.Success
         r.etag = etag
@@ -163,7 +163,7 @@ public class S3DownloadResult {
     private init() {
         tag = S3DownloadResultTag.Failure
         etag = ""
-        body = MutableString()
+        body = S3MutableString()
         error = None
     }
 }
@@ -500,8 +500,8 @@ public class S3HttpSimpleTask {
     public var http: AsyncHttp
 
     /// 虚拟机引用
-    /// 对应 Bun: vm: *jsc.VirtualMachine
-    public var vm: VirtualMachine
+    /// 对应 Bun: vm: *jsc.S3VirtualMachine
+    public var vm: S3VirtualMachine
 
     /// 签名结果
     /// 对应 Bun: sign_result: SignResult
@@ -535,8 +535,8 @@ public class S3HttpSimpleTask {
     public var partCallback: (S3PartResult, UIntNative) -> Unit
 
     /// 响应缓冲区
-    /// 对应 Bun: response_buffer: bun.MutableString
-    public var responseBuffer: MutableString
+    /// 对应 Bun: response_buffer: bun.S3MutableString
+    public var responseBuffer: S3MutableString
 
     /// HTTP 客户端结果
     /// 对应 Bun: result: bun.http.HTTPClientResult
@@ -558,13 +558,13 @@ public class S3HttpSimpleTask {
     /// 对应 Bun: poll_ref: bun.Async.KeepAlive
     public var pollRef: KeepAlive
 
-    public init(vm: VirtualMachine) {
+    public init(vm: S3VirtualMachine) {
         this.vm = vm
         http = AsyncHttp()
         signResult = S3SignResult()
         headers = HttpHeaders()
         callbackKind = S3CallbackKind.Stat
-        responseBuffer = MutableString()
+        responseBuffer = S3MutableString()
         result = HttpClientResult()
         concurrentTask = ConcurrentTask()
         range = ""
@@ -890,21 +890,21 @@ public class S3HttpSimpleTask {
                 match (httpResponse.statusCode) {
                     case 200 =>
                         let body = responseBuffer
-                        responseBuffer = MutableString()
+                        responseBuffer = S3MutableString()
                         downloadCallback(S3DownloadResult.success(
                             metadata.get("etag") ?? "",
                             body
                         ), callbackContext)
                     case 204 =>
                         let body = responseBuffer
-                        responseBuffer = MutableString()
+                        responseBuffer = S3MutableString()
                         downloadCallback(S3DownloadResult.success(
                             metadata.get("etag") ?? "",
                             body
                         ), callbackContext)
                     case 206 =>
                         let body = responseBuffer
-                        responseBuffer = MutableString()
+                        responseBuffer = S3MutableString()
                         downloadCallback(S3DownloadResult.success(
                             metadata.get("etag") ?? "",
                             body
@@ -1056,7 +1056,7 @@ public func executeSimpleS3ListObjectsRequest(
     callback: (S3ListObjectsResultEx, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.ListObjects
     task.callbackContext = callbackContext
     task.listObjectsCallback = callback
@@ -1072,7 +1072,7 @@ public func executeSimpleS3DownloadRequest(
     callback: (S3DownloadResult, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.Download
     task.callbackContext = callbackContext
     task.downloadCallback = callback
@@ -1094,7 +1094,7 @@ public func executeSimpleS3DeleteRequest(
     callback: (S3DeleteResult, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.Delete
     task.callbackContext = callbackContext
     task.deleteCallback = callback
@@ -1116,7 +1116,7 @@ public func executeSimpleS3UploadRequest(
     callback: (S3UploadResult, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.Upload
     task.callbackContext = callbackContext
     task.uploadCallback = callback
@@ -1138,7 +1138,7 @@ public func executeSimpleS3MultipartStartRequest(
     callback: (S3DownloadResult, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.Download
     task.callbackContext = callbackContext
     task.downloadCallback = callback
@@ -1160,7 +1160,7 @@ public func executeSimpleS3CommitRequest(
     callback: (S3CommitResult, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.Commit
     task.callbackContext = callbackContext
     task.commitCallback = callback
@@ -1182,7 +1182,7 @@ public func executeSimpleS3PartRequest(
     callback: (S3PartResult, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): Unit {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.Part
     task.callbackContext = callbackContext
     task.partCallback = callback
@@ -1204,7 +1204,7 @@ private func prepareSimpleS3StatTask(
     callback: (S3StatResult, UIntNative) -> Unit,
     callbackContext: UIntNative
 ): ?S3HttpSimpleTask {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = S3CallbackKind.Stat
     task.callbackContext = callbackContext
     task.statCallback = callback
@@ -1217,7 +1217,7 @@ private func prepareSimpleS3Task(
     callbackKind: S3CallbackKind,
     callbackContext: UIntNative
 ): ?S3HttpSimpleTask {
-    let task = S3HttpSimpleTask(VirtualMachine.get())
+    let task = S3HttpSimpleTask(S3VirtualMachine.get())
     task.callbackKind = callbackKind
     task.callbackContext = callbackContext
     return prepareSimpleS3TaskWithTask(task, credentials, options)

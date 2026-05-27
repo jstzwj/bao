@@ -86,6 +86,10 @@ public class JsRef {
         isProtected = false
     }
 
+    public func isStrong(): Bool {
+        return isProtected
+    }
+
     public func get(): JsValue {
         value
     }

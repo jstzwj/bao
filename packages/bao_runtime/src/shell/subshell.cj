@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Subshell.zig
 // 严格翻译Bun shell子Shell状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 import bao_collections.*  // std.collection.*
 
 // ============================================================================
@@ -23,51 +22,48 @@ public enum SubshellStateKind {
 
 /// 子Shell父节点指针（提取到顶层）
 public class SubshellParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): SubshellParentPtr {
         let pp = SubshellParentPtr()
         pp.ptr = p
         return pp
     }
     public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-    public func create<T>(): T { T() }
+    public func create<T>(): T { throw Exception("SubshellParentPtr.create not implemented") }
     public func destroy<T>(ptr: T) {}
 }
 
 /// 子Shell子节点指针（提取到顶层）
 public class SubshellChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): SubshellChildPtr {
         let cp = SubshellChildPtr()
         cp.ptr = p
         return cp
     }
     public func `is`(`type`: Any): Bool { true }
-    public func `as`<T>(): T { this.ptr as T }
+    public func `as`<T>(): T { throw Exception("SubshellChildPtr.as not implemented") }
     public func deinit() {}
 }
 
 /// 子Shell状态
 public class SubshellState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Subshell
+    public var node: ?Subshell = None
     /// 父节点
-    public var parent: SubshellParentPtr
+    public var parent: SubshellParentPtr = SubshellParentPtr()
     /// IO
-    public var io: IO
+    public var io: IO = IO()
     /// 状态
-    public var state: SubshellStateKind
+    public var state: SubshellStateKind = SubshellStateKind.`idle`
     /// 重定向文件
-    public var redirectionFile: ArrayList<Byte>
+    public var redirectionFile: ArrayList<Byte> = ArrayList<Byte>()
     /// 退出码
     public var exitCode: ExitCode = ExitCode.exited(0)
 
-    public init() {
-        this.redirectionFile = ArrayList<Byte>()
-        this.state = SubshellStateKind.`idle`
-    }
+    public init() {}
 
     /// 初始化
     public static func initFunc(
@@ -111,7 +107,7 @@ public class SubshellState {
         let script = ScriptState.initFunc(
             this.base.interpreter,
             this.base.shell,
-            this.node.script,
+            this.node.getOrThrow().script,
             ScriptParentPtr.initFunc(this),
             this.io.copy()
         )
@@ -147,7 +143,7 @@ public class SubshellState {
         let script = ScriptState.initFunc(
             this.base.interpreter,
             this.base.shell,
-            this.node.script,
+            this.node.getOrThrow().script,
             ScriptParentPtr.initFunc(this),
             this.io.copy()
         )
@@ -167,8 +163,8 @@ public class SubshellState {
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(chunk: UInt64, err: ?SystemError): Yield {
-        if (let Some(e) <- err) {
-            e.deref()
+        if (err.isSome()) {
+            err.getOrThrow().deref()
         }
         this.state = SubshellStateKind.done
         return this.parent.childDone(this, this.exitCode)

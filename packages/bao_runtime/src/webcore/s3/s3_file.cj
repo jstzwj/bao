@@ -55,7 +55,7 @@ import bao_http.AwsCredentials
 ///   }
 public func writeFormat(
     s3: S3Store,
-    formatter: ConsoleFormatter,
+    formatter: S3ConsoleFormatter,
     writer: StringBuilder,
     contentType: Array<UInt8>,
     offset: UInt64,
@@ -129,7 +129,7 @@ public func presign(global: JSGlobalObject, callframe: CallFrame): Result<JsValu
     let args = Arguments.fromCallFrame(callframe,3)
 
     // accept a path or a blob
-    let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
+    let pathOrBlob = S3PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
         case PathOrBlobTag.Blob =>
@@ -183,7 +183,7 @@ public func unlink(global: JSGlobalObject, callframe: CallFrame): Result<JsValue
     let args = Arguments.fromCallFrame(callframe,3)
 
     // accept a path or a blob
-    let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
+    let pathOrBlob = S3PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
         case PathOrBlobTag.Blob =>
@@ -240,7 +240,7 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue>
     let args = Arguments.fromCallFrame(callframe,3)
 
     // accept a path or a blob
-    let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
+    let pathOrBlob = S3PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
         case PathOrBlobTag.Blob =>
@@ -277,8 +277,8 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue>
             match (blobResult) {
                 case Ok(blob) =>
                     // PORT NOTE: reshaped for borrowck — match consumes pathOrBlob;
-                    // rebuild to pass PathOrBlob
-                    let blobInternal = PathOrBlob.fromBlob(blob)
+                    // rebuild to pass S3PathOrBlob
+                    let blobInternal = S3PathOrBlob.fromBlob(blob)
                     return WriteFileModule.writeFileInternal(
                         global,
                         blobInternal,
@@ -322,7 +322,7 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue>
 public func size(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = Arguments.fromCallFrame(callframe,3)
 
-    let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
+    let pathOrBlob = S3PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
         case PathOrBlobTag.Blob =>
@@ -372,7 +372,7 @@ public func size(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> 
 public func exists(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = Arguments.fromCallFrame(callframe,3)
 
-    let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
+    let pathOrBlob = S3PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
         case PathOrBlobTag.Blob =>
@@ -429,7 +429,7 @@ public func constructS3FileInternalStore(
 ): Result<BlobRef> {
     // Get credentials from env — Transpiler::env_mut is the safe accessor
     // for the process-singleton dotenv loader (set during init).
-    let existingCredentials = FetchModule.s3CredentialsFromEnv(global)
+    let existingCredentials = S3FetchModule.s3CredentialsFromEnv(global)
     return constructS3FileWithS3Credentials(global, path, options, existingCredentials)
 }
 
@@ -472,14 +472,14 @@ public func constructS3FileWithS3CredentialsAndOptions(
         global
     )
 
-    let store: BlobStoreRef
+    let store: S3BlobStoreRef
     if (awsOpts.changedCredentials) {
-        store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
+        store = S3BlobStoreRef.initS3(path, None, awsOpts.credentials)
     } else {
         // PORT NOTE: Zig `initS3WithReferencedCredentials` bumps the
         // intrusive ref on `default_credentials`. Cangjie keeps the same
         // public construction split while storing the referenced value.
-        store = BlobStoreRef.initS3WithReferencedCredentials(path, None, defaultCredentials)
+        store = S3BlobStoreRef.initS3WithReferencedCredentials(path, None, defaultCredentials)
     }
 
     // Set S3 options on the store
@@ -498,7 +498,7 @@ public func constructS3FileWithS3CredentialsAndOptions(
                     case Some(fileType) =>
                         if (fileType.isString()) {
                             let str = fileType.toString()
-                            if (Strings.isAllAscii(str)) {
+                            if (S3Strings.isAllAscii(str)) {
                                 blob.setContentTypeWasSet(true)
                                 blob.setContentType(str)
                             }
@@ -544,7 +544,7 @@ public func constructS3FileWithS3Credentials(
         global
     )
 
-    let store = BlobStoreRef.initS3(path, None, awsOpts.credentials)
+    let store = S3BlobStoreRef.initS3(path, None, awsOpts.credentials)
 
     // Set S3 options on the store
     store.data().asS3().options = awsOpts.options
@@ -562,7 +562,7 @@ public func constructS3FileWithS3Credentials(
                     case Some(fileType) =>
                         if (fileType.isString()) {
                             let str = fileType.toString()
-                            if (Strings.isAllAscii(str)) {
+                            if (S3Strings.isAllAscii(str)) {
                                 blob.setContentTypeWasSet(true)
                                 blob.setContentType(str)
                             }
@@ -598,8 +598,8 @@ public func constructS3FileInternal(
 // S3BlobStatTask - 异步 stat 任务
 // 严格翻译自: S3File.S3BlobStatTask (lines 525-728)
 //   Bun: pub struct S3BlobStatTask {
-//       promise: bun_jsc::JSPromiseStrong,
-//       global: bun_ptr::BackRef<JSGlobalObject>,
+//       promise: bun_jsc::S3JSPromiseStrong,
+//       global: bun_ptr::S3BackRef<JSGlobalObject>,
 //       store: StoreRef,
 //   }
 // ============================================================================
@@ -611,14 +611,14 @@ public func constructS3FileInternal(
 /// Each method creates a promise, sends the stat request, and resolves
 /// the promise when the response arrives.
 public class S3BlobStatTask {
-    /// Promise (对应 Bun: JSPromiseStrong)
-    public var promise: JSPromiseStrong
-    /// Global object back-reference (对应 Bun: BackRef<JSGlobalObject>)
-    public var global: BackRef
+    /// Promise (对应 Bun: S3JSPromiseStrong)
+    public var promise: S3JSPromiseStrong
+    /// Global object back-reference (对应 Bun: S3BackRef<JSGlobalObject>)
+    public var global: S3BackRef
     /// S3 Store 引用 (对应 Bun: StoreRef)
-    public var store: BlobStoreRef
+    public var store: S3BlobStoreRef
 
-    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef) {
+    public init(promise: S3JSPromiseStrong, global: S3BackRef, store: S3BlobStoreRef) {
         this.promise = promise
         this.global = global
         this.store = store
@@ -766,8 +766,8 @@ public class S3BlobStatTask {
     public static func exists(global: JSGlobalObject, blob: BlobRef): Result<JsValue> {
         let store = blob.store.getOrThrow()
         let task = S3BlobStatTask(
-            JSPromiseStrong(global),
-            BackRef.new(global),
+            S3JSPromiseStrong(global),
+            S3BackRef.new(global),
             store
         )
         let promise = task.promise.value()
@@ -798,8 +798,8 @@ public class S3BlobStatTask {
     public static func stat(global: JSGlobalObject, blob: BlobRef): Result<JsValue> {
         let store = blob.store.getOrThrow()
         let task = S3BlobStatTask(
-            JSPromiseStrong(global),
-            BackRef.new(global),
+            S3JSPromiseStrong(global),
+            S3BackRef.new(global),
             store
         )
         let promise = task.promise.value()
@@ -830,8 +830,8 @@ public class S3BlobStatTask {
     public static func size(global: JSGlobalObject, blob: BlobRef): Result<JsValue> {
         let store = blob.store.getOrThrow()
         let task = S3BlobStatTask(
-            JSPromiseStrong(global),
-            BackRef.new(global),
+            S3JSPromiseStrong(global),
+            S3BackRef.new(global),
             store
         )
         let promise = task.promise.value()
@@ -860,12 +860,12 @@ public class S3BlobStatTask {
 // ============================================================================
 
 public class S3BlobUploadTask {
-    public var promise: JSPromiseStrong
-    public var global: BackRef
-    public var store: BlobStoreRef
+    public var promise: S3JSPromiseStrong
+    public var global: S3BackRef
+    public var store: S3BlobStoreRef
     public var bytesWritten: Int64
 
-    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef, bytesWritten: Int64) {
+    public init(promise: S3JSPromiseStrong, global: S3BackRef, store: S3BlobStoreRef, bytesWritten: Int64) {
         this.promise = promise
         this.global = global
         this.store = store
@@ -897,10 +897,10 @@ public class S3BlobUploadTask {
         return Result<Unit>.Ok(())
     }
 
-    public static func upload(global: JSGlobalObject, store: BlobStoreRef, content: String, bytesWritten: Int64, contentType: String): Result<JsValue> {
+    public static func upload(global: JSGlobalObject, store: S3BlobStoreRef, content: String, bytesWritten: Int64, contentType: String): Result<JsValue> {
         let task = S3BlobUploadTask(
-            JSPromiseStrong(global),
-            BackRef.new(global),
+            S3JSPromiseStrong(global),
+            S3BackRef.new(global),
             store,
             bytesWritten
         )
@@ -926,11 +926,11 @@ public class S3BlobUploadTask {
 }
 
 public class S3BlobDownloadTask {
-    public var promise: JSPromiseStrong
-    public var global: BackRef
-    public var store: BlobStoreRef
+    public var promise: S3JSPromiseStrong
+    public var global: S3BackRef
+    public var store: S3BlobStoreRef
 
-    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef) {
+    public init(promise: S3JSPromiseStrong, global: S3BackRef, store: S3BlobStoreRef) {
         this.promise = promise
         this.global = global
         this.store = store
@@ -961,10 +961,10 @@ public class S3BlobDownloadTask {
         return Result<Unit>.Ok(())
     }
 
-    public static func download(global: JSGlobalObject, store: BlobStoreRef): Result<JsValue> {
+    public static func download(global: JSGlobalObject, store: S3BlobStoreRef): Result<JsValue> {
         let task = S3BlobDownloadTask(
-            JSPromiseStrong(global),
-            BackRef.new(global),
+            S3JSPromiseStrong(global),
+            S3BackRef.new(global),
             store
         )
         let promise = task.promise.value()
@@ -982,11 +982,11 @@ public class S3BlobDownloadTask {
 }
 
 public class S3BlobListObjectsTask {
-    public var promise: JSPromiseStrong
-    public var global: BackRef
-    public var store: BlobStoreRef
+    public var promise: S3JSPromiseStrong
+    public var global: S3BackRef
+    public var store: S3BlobStoreRef
 
-    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef) {
+    public init(promise: S3JSPromiseStrong, global: S3BackRef, store: S3BlobStoreRef) {
         this.promise = promise
         this.global = global
         this.store = store
@@ -1025,10 +1025,10 @@ public class S3BlobListObjectsTask {
         return Result<Unit>.Ok(())
     }
 
-    public static func listObjects(global: JSGlobalObject, store: BlobStoreRef, options: ?JsValue): Result<JsValue> {
+    public static func listObjects(global: JSGlobalObject, store: S3BlobStoreRef, options: ?JsValue): Result<JsValue> {
         let task = S3BlobListObjectsTask(
-            JSPromiseStrong(global),
-            BackRef.new(global),
+            S3JSPromiseStrong(global),
+            S3BackRef.new(global),
             store
         )
         let promise = task.promise.value()
@@ -1053,11 +1053,11 @@ public class S3BlobListObjectsTask {
 // ============================================================================
 
 public class S3BlobDeleteTask {
-    public var promise: JSPromiseStrong
-    public var global: BackRef
-    public var store: BlobStoreRef
+    public var promise: S3JSPromiseStrong
+    public var global: S3BackRef
+    public var store: S3BlobStoreRef
 
-    public init(promise: JSPromiseStrong, global: BackRef, store: BlobStoreRef) {
+    public init(promise: S3JSPromiseStrong, global: S3BackRef, store: S3BlobStoreRef) {
         this.promise = promise
         this.global = global
         this.store = store
@@ -1088,10 +1088,10 @@ public class S3BlobDeleteTask {
         return Result<Unit>.Ok(())
     }
 
-    public static func unlink(global: JSGlobalObject, store: BlobStoreRef): Result<JsValue> {
+    public static func unlink(global: JSGlobalObject, store: S3BlobStoreRef): Result<JsValue> {
         let task = S3BlobDeleteTask(
-            JSPromiseStrong(global),
-            BackRef.new(global),
+            S3JSPromiseStrong(global),
+            S3BackRef.new(global),
             store
         )
         let promise = task.promise.value()
@@ -1234,7 +1234,7 @@ private func parsePresignOptions(global: JSGlobalObject, extraOptions: ?JsValue)
 }
 
 private func parsePresignMethod(method: String): ?HttpMethod {
-    match (Strings.copyLowercase(method)) {
+    match (S3Strings.copyLowercase(method)) {
         case "get" => Some(HttpMethod.GET)
         case "put" => Some(HttpMethod.PUT)
         case "post" => Some(HttpMethod.POST)
@@ -1337,7 +1337,7 @@ public func getStat(blob: BlobRef, global: JSGlobalObject, callframe: CallFrame)
 public func stat(global: JSGlobalObject, callframe: CallFrame): Result<JsValue> {
     let args = Arguments.fromCallFrame(callframe,3)
 
-    let pathOrBlob = PathOrBlob.fromJsNoCopy(global, args)
+    let pathOrBlob = S3PathOrBlob.fromJsNoCopy(global, args)
 
     match (pathOrBlob.tag) {
         case PathOrBlobTag.Blob =>
@@ -1549,12 +1549,12 @@ public class S3Error { ... }
 // ============================================================================
 // 占位类型 — 来自其他模块的引用
 // 以下类型已在 s3_client.cj / credentials_jsc.cj 中定义，此处不再重复
-// 唯一类型 (SignOptions, SignQueryOptions, JSPromiseStrong, JSPromise, BackRef,
-// Strings, HttpMethodJsc, BunStringJsc) 保留定义
+// 唯一类型 (SignOptions, SignQueryOptions, S3JSPromiseStrong, S3JSPromise, S3BackRef,
+// S3Strings, HttpMethodJsc, BunStringJsc) 保留定义
 // ============================================================================
 
 /* -- DUPLICATE: moved to s3_client.cj
-PathOrFileDescriptorTag, PathOrBlob, PathLikeEntry, BlobRef, Arguments
+PathOrFileDescriptorTag, S3PathOrBlob, PathLikeEntry, BlobRef, Arguments
 all defined in s3_client.cj
 -- END DUPLICATE */
 
@@ -1605,13 +1605,13 @@ public class SignQueryOptions {
 public class S3CredentialsWithOptions { ... }
 -- END DUPLICATE */
 
-/// JSPromiseStrong (对应 Bun: bun_jsc::JSPromiseStrong)
-public class JSPromiseStrong {
+/// S3JSPromiseStrong (对应 Bun: bun_jsc::S3JSPromiseStrong)
+public class S3JSPromiseStrong {
     public init() {}
     public init(global: JsGlobalObject) {}
 
-    public static func `init`(global: JsGlobalObject): JSPromiseStrong {
-        return JSPromiseStrong()
+    public static func `init`(global: JsGlobalObject): S3JSPromiseStrong {
+        return S3JSPromiseStrong()
     }
 
     public func value(): JsValue {
@@ -1635,24 +1635,24 @@ public class JSPromiseStrong {
     }
 }
 
-/* -- DUPLICATE: JSPromise conflicts with bao_jsc.JsPromise
-/// JSPromise (对应 Bun: JsValue promise)
-public class JSPromise {
-    public static func rejectedPromise(global: JsGlobalObject, err: JsValue): JSPromise { return JSPromise() }
+/* -- DUPLICATE: S3JSPromise conflicts with bao_jsc.JsPromise
+/// S3JSPromise (对应 Bun: JsValue promise)
+public class S3JSPromise {
+    public static func rejectedPromise(global: JsGlobalObject, err: JsValue): S3JSPromise { return S3JSPromise() }
     public func toJS(): JsValue { return JsValue.undefined() }
 }
 -- END DUPLICATE */
 
-/// BackRef (对应 Bun: bun_ptr::BackRef<T>)
-public class BackRef {
+/// S3BackRef (对应 Bun: bun_ptr::S3BackRef<T>)
+public class S3BackRef {
     private var global: JSGlobalObject
 
     public init() {
         global = JSGlobalObject()
     }
 
-    public static func new(global: JSGlobalObject): BackRef {
-        let b = BackRef()
+    public static func new(global: JSGlobalObject): S3BackRef {
+        let b = S3BackRef()
         b.global = global
         return b
     }
@@ -1671,12 +1671,12 @@ public class WriteFileModule { ... }
 public class S3Store { ... }
 /// HttpMethod (对应 Bun: bun_http::Method)
 public enum HttpMethod { ... }
-/// ConsoleFormatter (对应 Bun: bun_jsc::ConsoleFormatter)
-public class ConsoleFormatter { ... }
+/// S3ConsoleFormatter (对应 Bun: bun_jsc::S3ConsoleFormatter)
+public class S3ConsoleFormatter { ... }
 -- END DUPLICATE */
 
-/// Strings utility (对应 Bun: bun_core::strings)
-public class Strings {
+/// S3Strings utility (对应 Bun: bun_core::strings)
+public class S3Strings {
     public static func isAllAscii(s: String): Bool {
         return true
     }
@@ -1712,8 +1712,8 @@ public class BunStringJsc {
 /* -- DUPLICATE: defined in s3_client.cj
 /// PathLike (对应 Bun: PathLike)
 public class PathLike { ... }
-/// FetchModule (对应 Bun: crate::webcore::fetch)
-public class FetchModule { ... }
+/// S3FetchModule (对应 Bun: crate::webcore::fetch)
+public class S3FetchModule { ... }
 -- END DUPLICATE */
 
 /// FFI: createJSS3File

@@ -41,14 +41,14 @@ public class JSMockFunction {
     /// @param globalThis - 全局对象
     /// @param value - mock 函数的 JsValue
     /// @return 调用记录数组
-    public static func getCalls(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getCalls(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunctionFFI.getCalls(globalThis: globalThis, value: value)
     }
 
     /// 获取 mock 函数的上下文记录数组
     ///
     /// 返回一个 JSArray，记录每次调用的 this 值。
-    public static func getContexts(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getContexts(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunctionFFI.getContexts(globalThis: globalThis, value: value)
     }
 
@@ -56,17 +56,17 @@ public class JSMockFunction {
     ///
     /// 对应 C++: `JSMockFunction__getReturns`
     /// 返回一个 JSArray，每个元素是 { type: "return"|"throw"|"incomplete", value: ... }
-    public static func getReturnValues(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getReturnValues(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunctionFFI.getReturnValues(globalThis: globalThis, value: value)
     }
 
     /// 获取 mock 函数的实例记录数组
-    public static func getInstances(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getInstances(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunctionFFI.getInstances(globalThis: globalThis, value: value)
     }
 
     /// 获取 mock 函数的调用顺序数组
-    public static func getInvocationCallOrder(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getInvocationCallOrder(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunctionFFI.getInvocationCallOrder(globalThis: globalThis, value: value)
     }
 }
@@ -81,29 +81,29 @@ public class JSMockFunctionFFI {
 
     /// 获取调用记录 - FFI 桥接
     /// 对应: `JSMockFunction__getCalls(JSGlobalObject*, EncodedJsValue)`
-    public static func getCalls(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getCalls(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         // FFI 调用 C++ 实现
         return JSMockFunction__getCalls(globalThis, value)
     }
 
     /// 获取上下文记录 - FFI 桥接
-    public static func getContexts(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getContexts(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunction__getContexts(globalThis, value)
     }
 
     /// 获取返回值记录 - FFI 桥接
     /// 对应: `JSMockFunction__getReturns(JSGlobalObject*, EncodedJsValue)`
-    public static func getReturnValues(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getReturnValues(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunction__getReturns(globalThis, value)
     }
 
     /// 获取实例记录 - FFI 桥接
-    public static func getInstances(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getInstances(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunction__getInstances(globalThis, value)
     }
 
     /// 获取调用顺序 - FFI 桥接
-    public static func getInvocationCallOrder(globalThis: JSGlobalObject, value: JsValue): JsValue {
+    public static func getInvocationCallOrder(globalThis!: JSGlobalObject, value!: JsValue): JsValue {
         return JSMockFunction__getInvocationCallOrder(globalThis, value)
     }
 }

@@ -186,7 +186,7 @@ public class ShellSubprocess {
         if (let Some(code) <- exitCode) {
             let cmd = this.cmdParent
             if (cmd.exitCode.isNone()) {
-                cmd.onExit(code)
+                cmd.onExit(ExitCode.exited(code))
             }
         }
     }

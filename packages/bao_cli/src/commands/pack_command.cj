@@ -220,18 +220,28 @@ public class IgnorePatterns {
         var patterns = ArrayList<GlobPattern>()
 
         // 先尝试 .npmignore
-        var ignoreContent = BaoFile.readAllText(Path.join([dir, ".npmignore"]))
-        if (ignoreContent.isEmpty()) {
-            // 再尝试 .gitignore
-            ignoreKind = IgnoreKind.gitIgnore
-            ignoreContent = BaoFile.readAllText(Path.join([dir, ".gitignore"]))
+        var ignoreContentOpt = BaoFile.readAllText(Path.join([dir, ".npmignore"]))
+        var ignoreContentStr = ""
+        match (ignoreContentOpt) {
+            case SysMaybe.Ok(v) => ignoreContentStr = v
+            case SysMaybe.Err(_) => ()
         }
 
-        if (ignoreContent.isEmpty()) {
+        if (ignoreContentStr.length == 0) {
+            // 再尝试 .gitignore
+            ignoreKind = IgnoreKind.gitIgnore
+            ignoreContentOpt = BaoFile.readAllText(Path.join([dir, ".gitignore"]))
+            match (ignoreContentOpt) {
+                case SysMaybe.Ok(v) => ignoreContentStr = v
+                case SysMaybe.Err(_) => ()
+            }
+        }
+
+        if (ignoreContentStr.length == 0) {
             return None
         }
 
-        let content = ignoreContent ?? ""
+        let content = ignoreContentStr
         var hasRelPath = false
 
         let lines = content.split("\n")
@@ -241,14 +251,14 @@ public class IgnorePatterns {
                 continue
             }
             // 去除尾部 \r
-            if (trimmed.length > 0 && trimmed[trimmed.length - 1] == '\r') {
-                trimmed = trimmed.substring(0, trimmed.length - 1)
+            if (trimmed.length > 0 && Int64(trimmed[Int64(trimmed.length) - 1]) == 13) {
+                trimmed = trimmed.substring(0, Int64(trimmed.length) - 1)
             }
             if (trimmed.isEmpty()) {
                 continue
             }
             // 注释行跳过
-            if (trimmed[0] == '#') {
+            if (trimmed.startsWith("#")) {
                 continue
             }
 
@@ -299,7 +309,7 @@ public class GlobPattern {
 
         // 剥离前导 ! 并记录
         var addNegate = false
-        while (remain.length > 0 && remain[0] == '!') {
+        while (remain.length > 0 && remain.startsWith("!")) {
             remain = remain.substring(1)
             addNegate = true
         }
@@ -319,9 +329,9 @@ public class GlobPattern {
 
         // 尾部斜杠 => 仅匹配目录
         var hasTrailingSlash = false
-        if (remain.length > 0 && remain[remain.length - 1] == '/') {
+        if (remain.length > 0 && remain.endsWith("/")) {
             hasTrailingSlash = true
-            remain = remain.substring(0, remain.length - 1)
+            remain = remain.substring(0, Int64(remain.length) - 1)
             if (remain.isEmpty()) {
                 return None
             }
@@ -329,7 +339,7 @@ public class GlobPattern {
 
         // 前导/中间斜杠 => 相对路径
         var hasLeadingOrMiddleSlash = false
-        if (remain.length > 0 && remain[0] == '/') {
+        if (remain.length > 0 && remain.startsWith("/")) {
             hasLeadingOrMiddleSlash = true
             remain = remain.substring(1)
             if (remain.isEmpty()) {
@@ -340,7 +350,7 @@ public class GlobPattern {
             let slashIndex = remain.indexOf('/')
             match (slashIndex) {
                 case Some(idx) =>
-                    if (idx != remain.length - 1) {
+                    if (idx != Int64(remain.length) - 1) {
                         hasLeadingOrMiddleSlash = true
                     }
                 case None => ()
@@ -405,7 +415,17 @@ public class PackQueue {
     public func add(item: PackQueueItem): Unit {
         items.append(item)
         // 简化: 添加后排序以模拟优先队列行为
-        items.sort({ a, b => a.path.compareTo(b.path) })
+        var j = items.size - 1
+        while (j > 0) {
+            if (items[Int64(j) - 1].path > items[Int64(j)].path) {
+                let tmp = items[Int64(j) - 1]
+                items[Int64(j) - 1] = items[Int64(j)]
+                items[Int64(j)] = tmp
+                j -= 1
+            } else {
+                break
+            }
+        }
     }
 
     /// 移除并返回最小项目
@@ -465,11 +485,11 @@ public class PackFormatter {
     // 作用域包 @scope/name → scope-name-version.tgz
     // 普通包 name → name-version.tgz
     public static func fmtTarballFilename(packageName: String, packageVersion: String): String {
-        if (packageName.length > 0 && packageName[0] == '@') {
+        if (packageName.length > 0 && packageName.startsWith("@")) {
             let slashIndex = packageName.indexOf('/')
             match (slashIndex) {
                 case Some(slash) =>
-                    if (slash > 1 && slash < packageName.length - 1) {
+                    if (slash > 1 && slash < Int64(packageName.length) - 1) {
                         let scope = packageName.substring(1, slash)
                         let name = packageName.substring(slash + 1)
                         return "${scope}-${name}-${packageVersion}.tgz"
@@ -649,20 +669,21 @@ public class PackCommand {
         // 读取并解析 package.json
         let absPackageJsonPath = Path.resolve("package.json")
         let pkgJsonContent = BaoFile.readAllText(absPackageJsonPath)
-        if (pkgJsonContent.isEmpty()) {
-            logger.error("failed to read package.json: \"${absPackageJsonPath}\"")
-            return 1
+        let content = match (pkgJsonContent) {
+            case SysMaybe.Ok(v) => v
+            case SysMaybe.Err(_) =>
+                logger.error("failed to read package.json: \"${absPackageJsonPath}\"")
+                return 1
         }
 
-        let content = pkgJsonContent ?? ""
         let parser = JsonParser()
         let json = parser.parse(content)
-        if (json.isEmpty()) {
+        if (json.isNone()) {
             logger.error("failed to parse package.json: \"${absPackageJsonPath}\"")
             return 1
         }
 
-        let root = json ?? JsonValue.Object(JsonObject())
+        let root = json.getOrThrow()
 
         // 获取包名和版本
         // 严格翻译自: PackCommand.pack → MissingPackageName/InvalidPackageName 检查
@@ -894,9 +915,9 @@ public class PackCommand {
     private func runLifecycleScripts(root: JsonValue, workspacePath: String, silent: Bool): ?String {
         let scriptsObj = JsonHelper.getField(root, "scripts")
         match (scriptsObj) {
-            case Some(JsonValue.Object(scripts)) =>
+            case Some(scripts) =>
                 // prepack
-                let prepack = JsonHelper.getString(JsonValue.Object(scripts), "prepack")
+                let prepack = JsonHelper.getString(scripts, "prepack")
                 match (prepack) {
                     case Some(script) =>
                         runScript(script, "prepack", workspacePath, silent)
@@ -904,7 +925,7 @@ public class PackCommand {
                 }
 
                 // prepare
-                let prepare = JsonHelper.getString(JsonValue.Object(scripts), "prepare")
+                let prepare = JsonHelper.getString(scripts, "prepare")
                 match (prepare) {
                     case Some(script) =>
                         runScript(script, "prepare", workspacePath, silent)
@@ -912,7 +933,7 @@ public class PackCommand {
                 }
 
                 // postpack (稍后运行)
-                return JsonHelper.getString(JsonValue.Object(scripts), "postpack")
+                return JsonHelper.getString(scripts, "postpack")
             case _ => return None
         }
     }
@@ -1542,14 +1563,14 @@ public class PackCommand {
             return
         }
 
-        let root = json ?? JsonValue.Object(JsonObject())
+        let root = json.getOrThrow()
 
         // 遍历 dependencies 和 optionalDependencies
         let dependencyGroups = ["dependencies", "optionalDependencies"]
         for (groupName in dependencyGroups) {
             let deps = JsonHelper.getField(root, groupName)
             match (deps) {
-                case Some(JsonValue.Object(depsObj)) =>
+                case Some(depsObj) =>
                     let keys = depsObj.keys()
                     for (depNameStr in keys) {
                         // 查找依赖: 先在当前 bundled 依赖的 node_modules 中找
@@ -1728,31 +1749,23 @@ public class PackCommand {
         // 检查 bin 字段
         let binField = JsonHelper.getField(root, "bin")
         match (binField) {
-            case Some(JsonValue.Str(binStr)) =>
-                let normalized = Path.normalizePosix(binStr)
-                bins.append(BinInfo(normalized, BinInfoType.File))
-                return bins
-            case Some(JsonValue.Object(binObj)) =>
-                let values = binObj.values()
-                for (`val` in values) {
-                    match (`val`) {
-                        case JsonValue.Str(binStr) =>
-                            let normalized = Path.normalizePosix(binStr)
-                            bins.append(BinInfo(normalized, BinInfoType.File))
-                        case _ => ()
-                    }
+            case Some(binVal) =>
+                let binStr = binVal.asString()
+                match (binStr) {
+                    case Some(s) =>
+                        let normalized = Path.normalizePosix(s)
+                        bins.append(BinInfo(normalized, BinInfoType.File))
+                        return bins
+                    case None => ()
                 }
-                if (bins.size > 0) {
-                    return bins
-                }
-            case _ => ()
+            case None => ()
         }
 
         // 检查 directories.bin
         let directoriesField = JsonHelper.getField(root, "directories")
         match (directoriesField) {
-            case Some(JsonValue.Object(dirsObj)) =>
-                let binDir = JsonHelper.getString(JsonValue.Object(dirsObj), "bin")
+            case Some(dirsObj) =>
+                let binDir = JsonHelper.getString(dirsObj, "bin")
                 match (binDir) {
                     case Some(binStr) =>
                         let normalized = Path.normalizePosix(binStr)
@@ -1781,7 +1794,7 @@ public class PackCommand {
                     let binWithoutTrailing = Path.withoutTrailingSlash(bin.path)
                     if (path.startsWith(binWithoutTrailing)) {
                         let remain = path.substring(binWithoutTrailing.length)
-                        if (remain.length > 1 && remain[0] == '/' && !remain.substring(1).contains("/")) {
+                        if (remain.length > 1 && remain.startsWith("/") && !remain.substring(1).contains("/")) {
                             return true
                         }
                     }
@@ -1870,7 +1883,7 @@ public class PackCommand {
                 if (b) {
                     // true 意味着将所有 dependencies 打包
                     match (JsonHelper.getField(root, "dependencies")) {
-                        case Some(JsonValue.Object(deps)) =>
+                        case Some(deps) =>
                             let keys = deps.keys()
                             for (key in keys) {
                                 result.append(BundledDep(key, true))

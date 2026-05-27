@@ -391,26 +391,42 @@ public class BunSocketDispatch {
     }
 
     public static func onOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int32): UsSocket {
+        return onOpen(s, isClient, ip, ipLen, false)
+    }
+
+    public static func onOpen(s: UsSocket, isClient: Int32, ip: String, ipLen: Int32, ssl: Bool): UsSocket {
         let socket = lookup(s, "onOpen")
-        onOpen(socket, SocketHandler.fromConnected(false, s))
+        onOpen(socket, SocketHandler.fromConnected(ssl, s))
         return s
     }
 
     public static func onData(s: UsSocket, data: String, len: Int32): UsSocket {
+        return onData(s, data, len, false)
+    }
+
+    public static func onData(s: UsSocket, data: String, len: Int32, ssl: Bool): UsSocket {
         let socket = lookup(s, "onData")
-        onData(socket, SocketHandler.fromConnected(false, s), data.toArray()[0..Int64(len)])
+        onData(socket, SocketHandler.fromConnected(ssl, s), data.toArray()[0..Int64(len)])
         return s
     }
 
     public static func onWritable(s: UsSocket): UsSocket {
+        return onWritable(s, false)
+    }
+
+    public static func onWritable(s: UsSocket, ssl: Bool): UsSocket {
         let socket = lookup(s, "onWritable")
-        onWritable(socket, SocketHandler.fromConnected(false, s))
+        onWritable(socket, SocketHandler.fromConnected(ssl, s))
         return s
     }
 
     public static func onClose(s: UsSocket, code: Int32, reason: ?Any): UsSocket {
+        return onClose(s, code, reason, false)
+    }
+
+    public static func onClose(s: UsSocket, code: Int32, reason: ?Any, ssl: Bool): UsSocket {
         let socket = lookup(s, "onClose")
-        onClose(socket, SocketHandler.fromConnected(false, s), code, Option<CPointer<Unit>>.None)
+        onClose(socket, SocketHandler.fromConnected(ssl, s), code, Option<CPointer<Unit>>.None)
         return s
     }
 
@@ -424,6 +440,11 @@ public class BunSocketDispatch {
         let socket = lookup(c, "onConnectingError")
         handleConnectError(socket, code)
         return c
+    }
+
+    public static func onHandshake(s: UsSocket, ok: Int32, err: UsBunVerifyError): Unit {
+        let socket = lookup(s, "onHandshake")
+        dispatchOnHandshake(socket, SocketHandler.fromConnected(true, s), ok, err)
     }
 }
 
@@ -471,16 +492,16 @@ public class VTableFactory {
     }
 
     public static func makeBunSocket(ssl: Bool): VTable {
-        if (ssl) {
-            return makeUnsupported("BunSocketTLS")
-        }
         let table = VTable()
-        table.onOpen = { s: UsSocket, isClient: Int32, ip: String, ipLen: Int32 => BunSocketDispatch.onOpen(s, isClient, ip, ipLen) }
-        table.onData = { s: UsSocket, data: String, len: Int32 => BunSocketDispatch.onData(s, data, len) }
-        table.onWritable = { s: UsSocket => BunSocketDispatch.onWritable(s) }
-        table.onClose = { s: UsSocket, code: Int32, reason: ?Any => BunSocketDispatch.onClose(s, code, reason) }
+        table.onOpen = { s: UsSocket, isClient: Int32, ip: String, ipLen: Int32 => BunSocketDispatch.onOpen(s, isClient, ip, ipLen, ssl) }
+        table.onData = { s: UsSocket, data: String, len: Int32 => BunSocketDispatch.onData(s, data, len, ssl) }
+        table.onWritable = { s: UsSocket => BunSocketDispatch.onWritable(s, ssl) }
+        table.onClose = { s: UsSocket, code: Int32, reason: ?Any => BunSocketDispatch.onClose(s, code, reason, ssl) }
         table.onConnectError = { s: UsSocket, code: Int32 => BunSocketDispatch.onConnectError(s, code) }
         table.onConnectingError = { c: ConnectingSocket, code: Int32 => BunSocketDispatch.onConnectingError(c, code) }
+        if (ssl) {
+            table.onHandshake = { s: UsSocket, ok: Int32, err: UsBunVerifyError, ctx: ?Any => BunSocketDispatch.onHandshake(s, ok, err) }
+        }
         return table
     }
     public static func makeBunListener(ssl: Bool): VTable {

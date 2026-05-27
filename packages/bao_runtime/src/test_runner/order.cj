@@ -18,7 +18,7 @@ public class Order {
     public var previousGroupWasConcurrent: Bool = false
     public var cfg: Config
 
-    public init(gpa: Allocator, arena: Allocator, cfg: Config) {
+    public init(gpa!: Allocator, arena!: Allocator, cfg!: Config) {
         this.arena = arena
         this.cfg = cfg
     }
@@ -29,7 +29,7 @@ public class Order {
     }
 
     /// 生成排序子条目
-    public func generateOrderSub(current: TestScheduleEntry) {
+    public func generateOrderSub(current!: TestScheduleEntry) {
         match (current) {
             case TestScheduleEntry.describe(describe) => generateOrderDescribe(current: describe)
             case TestScheduleEntry.testCallback(testCallback) => generateOrderTest(current: testCallback)
@@ -37,7 +37,7 @@ public class Order {
     }
 
     /// 生成所有排序
-    public func generateAllOrder(entries: Array<ExecutionEntry>): AllOrderResult {
+    public func generateAllOrder(entries!: Array<ExecutionEntry>): AllOrderResult {
         let start = groups.size
         for (entry in entries ) {
             entry.next = None
@@ -59,7 +59,7 @@ public class Order {
     }
 
     /// 生成describe排序
-    public func generateOrderDescribe(current: DescribeScope) {
+    public func generateOrderDescribe(current!: DescribeScope) {
         if (current.failed) { return }
         let useHooks = cfg.alwaysUseHooks || current.base.hasCallback
 
@@ -90,7 +90,7 @@ public class Order {
     /// 条目列表
 
     /// 生成test排序
-    public func generateOrderTest(current: ExecutionEntry) {
+    public func generateOrderTest(current!: ExecutionEntry) {
         let useEachHooks = current.base.hasCallback
         var list = EntryList()
 
@@ -148,7 +148,7 @@ public class Order {
     }
 
     /// 追加或扩展并发组
-    public func appendOrExtendConcurrentGroup(concurrent: Bool, sequencesStart: UInt64, sequencesEnd: UInt64) {
+    public func appendOrExtendConcurrentGroup(concurrent!: Bool, sequencesStart!: UInt64, sequencesEnd!: UInt64) {
         // defer { previousGroupWasConcurrent = concurrent }
         if (concurrent && groups.size > 0) {
             let previousGroup = groups[groups.size - 1]
@@ -186,7 +186,7 @@ public class Order {
     ///
     /// 精确移植自 Zig 的 std.Random.uintLessThan。
     /// 使用Lemire的去偏方法（debiased method）。
-    private func uintLessThan(lessThan: UInt64): UInt64 {
+    private func uintLessThan(lessThan!: UInt64): UInt64 {
         var x = DefaultPrng.next()
         var m = x * lessThan
         var l = m & UInt64.max
@@ -216,13 +216,13 @@ public class AllOrderResult {
 
     public static let empty: AllOrderResult = AllOrderResult(start: 0, end: 0)
 
-    public init(start: UInt64, end: UInt64) {
+    public init(start!: UInt64, end!: UInt64) {
         this.start = start
         this.end = end
     }
 
     /// 设置失败跳过位置
-    public func setFailureSkipTo(order: Order) {
+    public func setFailureSkipTo(order!: Order) {
         if (start == 0 && end == 0) { return }
         let skipTo = order.groups.size
         for (i in start..end) {

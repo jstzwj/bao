@@ -55,11 +55,11 @@ public type WatchFd = Int32
 
 /// 生成不可达状态错误
 /// 对应 Bun: bun.shell.unreachableState
-public func unreachableState(context: String, message: String): Unit {
+public func unreachableState(context: String, message: String): Nothing {
     throw Exception("[${context}] Unreachable state: ${message}")
 }
 
 /// 生成未实现错误
-public func unimplemented(context: String, feature: String): Unit {
+public func unimplemented(context: String, feature: String): Nothing {
     throw Exception("[${context}] Not implemented: ${feature}")
 }

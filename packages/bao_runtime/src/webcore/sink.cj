@@ -5,9 +5,9 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
-import bao_jsc.*
 import bao_collections.ArrayList
+import bao_collections.ArrayBuffer
+import bao_jsc.*
 import bao_sys.*
 import bao_ptr.*
 
@@ -35,6 +35,28 @@ public enum SinkStatus {
             case Ready => match (rhs) { case Ready => true case _ => false }
             case Closed => match (rhs) { case Closed => true case _ => false }
         }
+    }
+}
+
+// ============================================================================
+// SinkWriteResult - Sink 写入结果
+// 对应 ArrayBufferSink.write() 返回值
+// ============================================================================
+
+/// Sink 写入结果
+public enum SinkWriteResult {
+    | Done
+    | Error(String)
+
+    public operator func == (rhs: SinkWriteResult): Bool {
+        match (this) {
+            case Done => match (rhs) { case Done => true case _ => false }
+            case Error(msg1) => match (rhs) { case Error(msg2) => msg1 == msg2 case _ => false }
+        }
+    }
+
+    public operator func != (rhs: SinkWriteResult): Bool {
+        return !(this == rhs)
     }
 }
 
@@ -329,7 +351,7 @@ public class UTF8Fallback {
             replaceLatin1WithUTF8(buf)
 
             let borrowed = ArrayList<UInt8>()
-            for (b in buf.toArray()) {
+            for (b in buf.items()) {
                 borrowed.append(b)
             }
             if (input.isDone()) {
@@ -410,7 +432,7 @@ func replaceLatin1WithUTF8(buf: ArrayList<UInt8>): Unit {
     // Latin-1 (ISO 8859-1) 中 > 127 的字符映射到 Unicode 同位置
     // UTF-8 编码: 2 字节序列 110xxxxx 10xxxxxx
     var result = ArrayList<UInt8>()
-    for (b in buf.toArray()) {
+    for (b in buf.items()) {
         if (b < 128) {
             result.append(b)
         } else {
@@ -419,7 +441,7 @@ func replaceLatin1WithUTF8(buf: ArrayList<UInt8>): Unit {
         }
     }
     buf.clear()
-    for (b in result.toArray()) {
+    for (b in result.items()) {
         buf.append(b)
     }
 }
@@ -431,7 +453,7 @@ func utf16SliceFromBytes(bytes: Array<UInt8>): Array<UInt16> {
     if (len == 0) {
         return Array<UInt16>()
     }
-    var result = Array<UInt16>(len, item: 0)
+    var result = Array<UInt16>(len, repeat: 0)
     for (i in 0..len) {
         let lo = bytes[i * 2]
         let hi = bytes[i * 2 + 1]
@@ -446,14 +468,14 @@ func copyUTF16IntoUTF8(buf: ArrayList<UInt8>, utf16: Array<UInt16>): Int64 {
     buf.clear()
     for (ch in utf16) {
         if (ch < 0x80) {
-            buf.append(ch.toUInt8())
+            buf.append(UInt8(ch))
         } else if (ch < 0x800) {
-            buf.append((0xC0 | ((ch >> 6) & 0x1F)).toUInt8())
-            buf.append((0x80 | (ch & 0x3F)).toUInt8())
+            buf.append(UInt8(0xC0 | ((ch >> 6) & 0x1F)))
+            buf.append(UInt8(0x80 | (ch & 0x3F)))
         } else {
-            buf.append((0xE0 | ((ch >> 12) & 0x0F)).toUInt8())
-            buf.append((0x80 | ((ch >> 6) & 0x3F)).toUInt8())
-            buf.append((0x80 | (ch & 0x3F)).toUInt8())
+            buf.append(UInt8(0xE0 | ((ch >> 12) & 0x0F)))
+            buf.append(UInt8(0x80 | ((ch >> 6) & 0x3F)))
+            buf.append(UInt8(0x80 | (ch & 0x3F)))
         }
     }
     return buf.size
@@ -465,14 +487,14 @@ func toUTF8Alloc(utf16: Array<UInt16>): ArrayList<UInt8> {
     let buf = ArrayList<UInt8>()
     for (ch in utf16) {
         if (ch < 0x80) {
-            buf.append(ch.toUInt8())
+            buf.append(UInt8(ch))
         } else if (ch < 0x800) {
-            buf.append((0xC0 | ((ch >> 6) & 0x1F)).toUInt8())
-            buf.append((0x80 | (ch & 0x3F)).toUInt8())
+            buf.append(UInt8(0xC0 | ((ch >> 6) & 0x1F)))
+            buf.append(UInt8(0x80 | (ch & 0x3F)))
         } else {
-            buf.append((0xE0 | ((ch >> 12) & 0x0F)).toUInt8())
-            buf.append((0x80 | ((ch >> 6) & 0x3F)).toUInt8())
-            buf.append((0x80 | (ch & 0x3F)).toUInt8())
+            buf.append(UInt8(0xE0 | ((ch >> 12) & 0x0F)))
+            buf.append(UInt8(0x80 | ((ch >> 6) & 0x3F)))
+            buf.append(UInt8(0x80 | (ch & 0x3F)))
         }
     }
     return buf
@@ -759,10 +781,10 @@ public class JSSinkHelper {
     ): JsValue where T <: JsSinkType {
         if (!T().hasConstruct) {
             // throw illegal constructor
-            return JsValue.zero()
+            return JsValue.undefined()
         }
         // 创建新实例
-        return JsValue.zero()
+        return JsValue.undefined()
     }
 
     /// jsWrite — JS 写入宿主函数体
@@ -780,12 +802,12 @@ public class JSSinkHelper {
 
         let args = frame.args
         if (args.size == 0) {
-            return JsValue.zero() // throw type error
+            return JsValue.undefined() // throw type error
         }
 
         let arg = args[0]
         if (arg.isUndefined() || arg.isNull()) {
-            return JsValue.zero() // throw type error
+            return JsValue.undefined() // throw type error
         }
 
         // ArrayBuffer 路径
@@ -816,7 +838,7 @@ public class JSSinkHelper {
             return sink.writeLatin1(StreamResult.temporary(data)).toJs(global)
         }
 
-        return JsValue.zero() // throw type error
+        return JsValue.undefined() // throw type error
     }
 
     /// jsFlush — JS 刷新宿主函数体
@@ -837,7 +859,7 @@ public class JSSinkHelper {
         }
 
         match (sink.flush()) {
-            case Some(err) => JsValue.zero() // throw
+            case Some(err) => JsValue.undefined() // throw
             case None => JsValue.undefined()
         }
     }
@@ -861,7 +883,7 @@ public class JSSinkHelper {
         }
 
         match (sink.start(config)) {
-            case Some(err) => JsValue.zero() // throw
+            case Some(err) => JsValue.undefined() // throw
             case None => JsValue.undefined()
         }
     }
@@ -903,12 +925,12 @@ public class JSSinkHelper {
         match (sink.getPendingError()) {
             case Some(err) =>
                 // throw_error 设置待处理的 JS 异常
-                return JsValue.zero()
+                return JsValue.undefined()
             case None => ()
         }
 
         match (sink.end(None)) {
-            case Some(err) => JsValue.zero() // throw
+            case Some(err) => JsValue.undefined() // throw
             case None => JsValue.undefined()
         }
     }
@@ -921,7 +943,7 @@ public class JSSinkHelper {
     ): JsValue where T <: JsSinkType {
         match (sink.getPendingError()) {
             case Some(err) =>
-                return JsValue.zero() // throw value
+                return JsValue.undefined() // throw value
             case None => ()
         }
 
@@ -1103,186 +1125,6 @@ public func onSinkDestroyed(ptrValue: UIntNative, sinkPtr: UIntNative): Unit {
 }
 
 // ============================================================================
-// CallFrame - 调用帧
-// 对应 Bun: bun_jsc::CallFrame
-// ============================================================================
-
-/// 调用帧 — JS 函数调用的上下文
-public class CallFrame {
-    /// 参数列表
-    public var args: Array<JsValue>
-    /// this 值
-    public var thisValue: JsValue
-
-    public init() {
-        args = Array<JsValue>()
-        thisValue = JsValue.undefined()
-    }
-
-    public init(args: Array<JsValue>) {
-        this.args = args
-        thisValue = JsValue.undefined()
-    }
-
-    /// 获取 this
-    public func `this`(): JsValue {
-        return thisValue
-    }
-
-    /// 参数数量
-    public func argumentsCount(): Int64 {
-        return args.size
-    }
-
-    /// 获取第 N 个参数
-    public func argument(index: Int64): JsValue {
-        if (index < args.size) {
-            return args[index]
-        }
-        return JsValue.undefined()
-    }
-}
-
-// ============================================================================
-// JsValue - JS 值类型
-// 对应 Bun: bun_jsc::JsValue
-// ============================================================================
-
-/// JS 值
-public class JsValue {
-    /// 编码值
-    public var encoded: UInt64
-
-    public init() {
-        encoded = 0
-    }
-
-    public init(encoded: UInt64) {
-        this.encoded = encoded
-    }
-
-    /// 零值
-    public static func zero(): JsValue {
-        return JsValue(0)
-    }
-
-    /// undefined
-    public static func undefined(): JsValue {
-        return JsValue(0xA) // JSC undefined encoding
-    }
-
-    /// null
-    public static func null(): JsValue {
-        return JsValue(0x2) // JSC null encoding
-    }
-
-    /// TRUE
-    public static let TRUE = JsValue(0x7)
-    /// FALSE
-    public static let FALSE = JsValue(0x0)
-
-    /// 是否为 undefined
-    public func isUndefined(): Bool {
-        return encoded == 0xA
-    }
-
-    /// 是否为 null
-    public func isNull(): Bool {
-        return encoded == 0x2
-    }
-
-    /// 是否为布尔值
-    public func isBoolean(): Bool {
-        return (encoded & 0x1) == 0x1
-    }
-
-    /// 转布尔
-    public func toBoolean(): Bool {
-        return encoded != 0
-    }
-
-    /// 是否为字符串
-    public func isString(): Bool {
-        return false // 简化实现
-    }
-
-    /// 是否为 ArrayBuffer
-    public func isArrayBuffer(): Bool {
-        return false // 简化实现
-    }
-
-    /// 是否为对象
-    public func isObject(): Bool {
-        return false // 简化实现
-    }
-
-    /// 是否为可调用
-    public func isCallable(): Bool {
-        return false // 简化实现
-    }
-
-    /// ArrayBuffer 切片
-    public func arrayBufferSlice(): Array<UInt8> {
-        return Array<UInt8>()
-    }
-
-    /// 转字符串视图
-    public func toStringView(global: JSGlobalObject): StringView {
-        return StringView()
-    }
-
-    /// JS 数字
-    public static func jsNumber(v: Float64): JsValue {
-        return JsValue(v.toUInt64()) // 简化编码
-    }
-
-    /// 转为 JS
-    public func toJs(): JsValue {
-        return this
-    }
-
-    /// 确保仍然存活 (GC 保护)
-    public func ensureStillAlive(): Unit {
-        // 在实际实现中会保护 GC 引用
-    }
-
-    /// 取消保护
-    public func unprotect(): Unit {
-        // 在实际实现中会取消 GC 保护
-    }
-}
-
-// ============================================================================
-// JSGlobalObject - JS 全局对象
-// 对应 Bun: bun_jsc::JSGlobalObject
-// ============================================================================
-
-/// JS 全局对象
-public class JSGlobalObject {
-    public init() {}
-
-    /// 抛出非法构造函数错误
-    public func throwIllegalConstructor(name: String): JsValue {
-        return JsValue.zero()
-    }
-
-    /// 抛出无效参数错误
-    public func throwInvalidArguments(msg: String): JsValue {
-        return JsValue.zero()
-    }
-
-    /// 抛出值
-    public func throwValue(value: JsValue): JsValue {
-        return JsValue.zero()
-    }
-
-    /// 转类型错误
-    public func toTypeError(code: Int64, msg: String): JsValue {
-        return JsValue.zero()
-    }
-}
-
-// ============================================================================
 // StringView - 字符串视图
 // 对应 Bun: JSString::view
 // ============================================================================
@@ -1307,11 +1149,7 @@ public class StringView {
     }
 }
 
-// ============================================================================
-// BlobSizeType - Blob 大小类型
-// ============================================================================
-
-/// Blob 大小类型 (u52)
-public type BlobSizeType = Int64
+// BlobSizeType is defined in blob.cj
+// CallFrame, JsValue, JSGlobalObject are provided by bao_jsc
 
 // ported from: src/runtime/webcore/Sink.rs

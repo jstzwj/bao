@@ -27,9 +27,19 @@ import bao_core.Allocator
 ///   ],
 /// ]
 public class Execution {
-    public var groups: Array<ConcurrentGroup> = Array<ConcurrentGroup>()
-    public var sequences: Array<ExecutionSequence> = Array<ExecutionSequence>()
+    public var groups: ArrayList<ConcurrentGroup> = ArrayList<ConcurrentGroup>()
+    public var sequences: ArrayList<ExecutionSequence> = ArrayList<ExecutionSequence>()
     public var groupIndex: UInt64 = 0
+
+    /// Return the smaller of two Timespec values, treating epoch (zero) as "no timeout" (ignored).
+    /// If one is zero and the other is not, returns the non-zero one.
+    /// If both are zero, returns epoch.
+    public static func minIgnoreEpoch(a: Timespec, b: Timespec): Timespec {
+        if (a.isZero()) { return b }
+        if (b.isZero()) { return a }
+        if (a.lessThan(b)) { return a }
+        return b
+    }
 
     public init() {}
 
@@ -45,14 +55,14 @@ public class Execution {
 
     /// 获取活跃组
     public func activeGroup(): ?ConcurrentGroup {
-        if (groupIndex >= groups.size) { return None }
-        return groups[groupIndex]
+        if (Int64(groupIndex) >= groups.size) { return None }
+        return groups[Int64(groupIndex)]
     }
 
     /// 获取活跃组（只读引用）
     public func activeGroupRef(): ?ConcurrentGroup {
-        if (groupIndex >= groups.size) { return None }
-        return groups[groupIndex]
+        if (Int64(groupIndex) >= groups.size) { return None }
+        return groups[Int64(groupIndex)]
     }
 
     /// 步骤执行 - 执行阶段的主入口
@@ -61,28 +71,30 @@ public class Execution {
     /// - Start: 开始执行下一个组
     /// - 其他: 完成当前条目后推进序列
     public func step(buntestStrong: BunTestPtr, globalThis: JSGlobalObject, data: RefDataValue): StepResult {
-        let buntest = buntestStrong.get()
-        let execution = buntest.execution
+        let buntestOpt = buntestStrong.get()
+        if (buntestOpt.isNone()) { return StepResult.complete }
+        let buntest = buntestOpt.getOrThrow()
+        let execution = buntest.execution_
         var now = Timespec.nowForceRealTime()
 
         match (data) {
             case start =>
-                return stepGroup(buntestStrong: buntestStrong, globalThis: globalThis, now: now)
+                return stepGroup(buntestStrong, globalThis, now)
             case _ =>
                 // 确定活跃的序列和组
-                let result = getCurrentAndValidExecutionSequence(data: data)
+                let result = getCurrentAndValidExecutionSequence(data)
                 if (result.isNone()) {
-                    return StepResult.waiting(timeout: Timespec.EPOCH)
+                    return StepResult.waiting(Timespec.EPOCH)
                 }
                 let (sequencePtr, groupPtr) = result.getOrThrow()
 
                 let sequenceIndex: UInt64 = match (data) {
-                    case execution(entryData) => entryData?.sequenceIndex ?? 0
+                    case execution(entryData) => entryData.entryData?.sequenceIndex ?? UInt64(0)
                     case _ => 0
                 }
 
                 // 推进序列
-                advanceSequence(buntest: buntest, sequence: sequencePtr, group: groupPtr)
+                advanceSequence(buntest, sequencePtr, groupPtr)
 
                 // 步骤序列
                 let sequenceResult = stepSequence(
@@ -93,7 +105,7 @@ public class Execution {
                     case done =>
                         ()
                     case execute(timeout) =>
-                        return StepResult.waiting(timeout: timeout)
+                        return StepResult.waiting(timeout)
                 }
 
                 // 序列完成；执行下一个序列
@@ -105,7 +117,7 @@ public class Execution {
                         break
                     }
                     let nextIdx = group.nextSequenceIndex
-                    let absIdx = group.sequenceStart + nextIdx
+                    let absIdx = Int64(group.sequenceStart + nextIdx)
                     if (sequences[absIdx].executing) {
                         group.nextSequenceIndex += 1
                         continue
@@ -119,22 +131,24 @@ public class Execution {
                             groupPtr.nextSequenceIndex += 1
                             continue
                         case execute(timeout) =>
-                            return StepResult.waiting(timeout: timeout)
+                            return StepResult.waiting(timeout)
                     }
                 }
 
                 // 所有序列都已开始
                 if (groupPtr.remainingIncompleteEntries == 0) {
-                    return stepGroup(buntestStrong: buntestStrong, globalThis: globalThis, now: now)
+                    return stepGroup(buntestStrong, globalThis, now)
                 }
-                return StepResult.waiting(timeout: Timespec.EPOCH)
+                return StepResult.waiting(Timespec.EPOCH)
         }
     }
 
     /// 步骤组 - 循环处理所有并发组
     public func stepGroup(buntestStrong: BunTestPtr, globalThis: JSGlobalObject, now: Timespec): StepResult {
-        let buntest = buntestStrong.get()
-        let execution = buntest.execution
+        let buntestOpt = buntestStrong.get()
+        if (buntestOpt.isNone()) { return StepResult.complete }
+        let buntest = buntestOpt.getOrThrow()
+        let execution = buntest.execution_
 
         // 循环处理组
         while (true) {
@@ -153,7 +167,7 @@ public class Execution {
             let status = stepGroupOne(buntestStrong: buntestStrong, globalThis: globalThis, group: groupPtr, now: now)
             match (status) {
                 case execute(timeout) =>
-                    return StepResult.waiting(timeout: timeout)
+                    return StepResult.waiting(timeout)
                 case done =>
                     ()
             }
@@ -167,7 +181,7 @@ public class Execution {
             let failureSkipTo = groupPtr.failureSkipTo
             var allFailed = true
             for (i in start..end ) {
-                if (!sequences[i].result.isFail()) {
+                if (!sequences[Int64(i)].result.isFail()) {
                     allFailed = false
                     break
                 }
@@ -179,11 +193,14 @@ public class Execution {
                 groupIndex += 1
             }
         }
+        return StepResult.complete  // unreachable but satisfies type checker
     }
 
     /// 步骤组内单个 - 处理并发限制
-    public func stepGroupOne(buntestStrong: BunTestPtr, globalThis: JSGlobalObject, group: ConcurrentGroup, now: Timespec): AdvanceStatus {
-        let buntest = buntestStrong.get()
+    public func stepGroupOne(buntestStrong!: BunTestPtr, globalThis!: JSGlobalObject, group!: ConcurrentGroup, now!: Timespec): AdvanceStatus {
+        let buntestOpt = buntestStrong.get()
+        if (buntestOpt.isNone()) { return AdvanceStatus.done }
+        let buntest = buntestOpt.getOrThrow()
         var finalStatus: AdvanceStatus = AdvanceStatus.done
         let concurrentLimit: UInt32 = if (let Some(reporter) <- buntest.reporter) {
             reporter.jest.maxConcurrency
@@ -206,9 +223,9 @@ public class Execution {
                         case execute(t) => t
                         case _ => Timespec.EPOCH
                     }
-                    finalStatus = AdvanceStatus.execute(timeout: Timespec.minIgnoreEpoch(a: prevTimeout, b: timeout))
+                    finalStatus = AdvanceStatus.execute(Execution.minIgnoreEpoch(prevTimeout, timeout))
                     activeCount += 1
-                    if (concurrentLimit != 0 && activeCount >= concurrentLimit) {
+                    if (concurrentLimit != 0 && activeCount >= UInt64(concurrentLimit)) {
                         break
                     }
             }
@@ -217,42 +234,48 @@ public class Execution {
     }
 
     /// 步骤序列 - 循环执行序列中的条目
-    public func stepSequence(buntestStrong: BunTestPtr, globalThis: JSGlobalObject, group: ConcurrentGroup, sequenceIndex: UInt64, now: Timespec): AdvanceSequenceStatus {
+    public func stepSequence(buntestStrong!: BunTestPtr, globalThis!: JSGlobalObject, group!: ConcurrentGroup, sequenceIndex!: UInt64, now!: Timespec): AdvanceSequenceStatus {
         // 循环直到返回确定状态
-        while (true) {
-            if (let Some(r) <- stepSequenceOne(
+        var done = false
+        var status: AdvanceSequenceStatus = AdvanceSequenceStatus.done
+        while (!done) {
+            let result = stepSequenceOne(
                 buntestStrong: buntestStrong, globalThis: globalThis,
                 group: group, sequenceIndex: sequenceIndex, now: now
-            ) ){
-                return r
+            )
+            if (result.isSome()) {
+                status = result.getOrThrow()
+                done = true
             }
-            // 返回None表示应该继续循环
         }
+        return status
     }
 
     /// 步骤序列内单个 - 核心执行逻辑
     ///
     /// 返回None表示应该继续循环，返回Some表示得到了确定状态
-    public func stepSequenceOne(buntestStrong: BunTestPtr, globalThis: JSGlobalObject, group: ConcurrentGroup, sequenceIndex: UInt64, now: Timespec): ?AdvanceSequenceStatus {
-        let buntest = buntestStrong.get()
+    public func stepSequenceOne(buntestStrong!: BunTestPtr, globalThis!: JSGlobalObject, group!: ConcurrentGroup, sequenceIndex!: UInt64, now!: Timespec): ?AdvanceSequenceStatus {
+        let buntestOpt = buntestStrong.get()
+        if (buntestOpt.isNone()) { return AdvanceSequenceStatus.done }
+        let buntest = buntestOpt.getOrThrow()
         let seqAbs = group.sequenceStart + sequenceIndex
-        let sequence = sequences[seqAbs]
+        let sequence = sequences[Int64(seqAbs)]
 
         if (sequence.executing) {
             let activeEntry = sequence.activeEntry
             if (activeEntry.isNone()) {
                 // 序列正在执行但没有活跃条目
-                return AdvanceSequenceStatus.execute(timeout: Timespec.EPOCH)
+                return AdvanceSequenceStatus.execute(Timespec.EPOCH)
             }
 
             let entry = activeEntry.getOrThrow()
             // 评估超时
-            if (entry.evaluateTimeout(sequence: sequence, now: now)) {
-                advanceSequence(buntest: buntest, sequence: sequence, group: group)
+            if (entry.evaluateTimeout(sequence, now)) {
+                advanceSequence(buntest, sequence, group)
                 return None // 继续循环
             }
 
-            return AdvanceSequenceStatus.execute(timeout: entry.timespec)
+            return AdvanceSequenceStatus.execute(entry.timespec)
         }
 
         // 检查是否还有下一个条目
@@ -266,40 +289,41 @@ public class Execution {
         sequence.executing = true
 
         // 如果是序列的第一个条目，触发序列开始回调
-        if (nextItem == sequence.firstEntry) {
-            onSequenceStarted(sequence: sequence)
+        if (nextItem.isSome() && sequence.firstEntry.isSome() &&
+            nextItem.getOrThrow() == sequence.firstEntry.getOrThrow()) {
+            onSequenceStarted(sequence)
         }
-        onEntryStarted(entry: entry)
+        onEntryStarted(entry)
 
         if (let Some(cb) <- entry.callback) {
             // 有回调，需要执行
             let callbackData = RefDataValue.execution(RefDataExecution(
-                groupIndex: groupIndex,
-                entryData: RefDataEntry(
-                    sequenceIndex: sequenceIndex,
-                    entry: entry,
-                    remainingRepeatCount: sequence.remainingRepeatCount
+                groupIndex,
+                RefDataEntry(
+                    sequenceIndex,
+                    entry,
+                    Int64(sequence.remainingRepeatCount)
                 )
             ))
 
             let result = BunTest.runTestCallback(
-                strong: buntestStrong,
-                globalThis: globalThis,
-                callback: cb,
-                doneParameter: entry.hasDoneParameter,
-                data: callbackData,
-                timeout: entry.timespec
+                buntestStrong,
+                globalThis,
+                cb,
+                entry.hasDoneParameter,
+                callbackData,
+                entry.timespec
             )
 
             if (result.isSome()) {
                 // 同步完成
                 now = Timespec.nowForceRealTime()
-                let _ = entry.evaluateTimeout(sequence: sequence, now: now)
-                advanceSequence(buntest: buntest, sequence: sequence, group: group)
+                let _ = entry.evaluateTimeout(sequence, now)
+                advanceSequence(buntest, sequence, group)
                 return None // 继续循环
             }
 
-            return AdvanceSequenceStatus.execute(timeout: entry.timespec)
+            return AdvanceSequenceStatus.execute(entry.timespec)
         } else {
             // 没有回调，根据模式设置结果
             match (entry.base.mode) {
@@ -318,7 +342,7 @@ public class Execution {
                 case _ =>
                     ()
             }
-            advanceSequence(buntest: buntest, sequence: sequence, group: group)
+            advanceSequence(buntest, sequence, group)
             return None // 继续循环
         }
     }
@@ -332,7 +356,7 @@ public class Execution {
     /// 4. 如果序列完成，调用onSequenceCompleted
     public func advanceSequence(buntest: BunTest, sequence: ExecutionSequence, group: ConcurrentGroup) {
         if (let Some(entry) <- sequence.activeEntry) {
-            onEntryCompleted(entry: entry)
+            onEntryCompleted(entry)
 
             sequence.executing = false
             if (sequence.maybeSkip) {
@@ -350,7 +374,7 @@ public class Execution {
         if (sequence.activeEntry.isNone()) {
             // 序列刚完成
             let testFailed = sequence.result.isFail()
-            let testPassed = sequence.result.isPass(pendingIs: PendingIs.pendingIsPass)
+            let testPassed = sequence.result.isPass(PendingIs.pendingIsPass)
 
             // 重试逻辑: 测试失败且还有重试次数
             if (testFailed && sequence.remainingRetryCount > 0) {
@@ -358,27 +382,25 @@ public class Execution {
                     let elapsedNs: UInt64 = if (sequence.startedAt.isZero()) {
                         0
                     } else {
-                        sequence.startedAt.sinceNowForceRealTime()
+                        UInt64(sequence.startedAt.duration(Timespec.nowForceRealTime()).toMillis())
                     }
-                    sequence.flakyAttemptsBuf[sequence.flakyAttemptCount] = FlakyAttempt(
-                        result: sequence.result, elapsedNs: elapsedNs
-                    )
+                    sequence.flakyAttemptsBuf[Int64(sequence.flakyAttemptCount)] = FlakyAttempt(sequence.result, elapsedNs)
                     sequence.flakyAttemptCount += 1
                 }
                 sequence.remainingRetryCount -= 1
-                resetSequence(sequence: sequence)
+                resetSequence(sequence)
                 return
             }
 
             // 重复逻辑: 测试通过且还有重复次数
             if (testPassed && sequence.remainingRepeatCount > 0) {
                 sequence.remainingRepeatCount -= 1
-                resetSequence(sequence: sequence)
+                resetSequence(sequence)
                 return
             }
 
             // 所有重试/重复完成后报告最终结果
-            onSequenceCompleted(buntest: buntest, sequence: sequence)
+            onSequenceCompleted(buntest, sequence)
 
             // 减少组内未完成条目计数
             if (group.remainingIncompleteEntries == 0) {
@@ -389,12 +411,12 @@ public class Execution {
     }
 
     /// 组开始回调 - 启用auto_killer
-    public func onGroupStarted(group: ConcurrentGroup, globalThis: JSGlobalObject) {
+    public func onGroupStarted(group!: ConcurrentGroup, globalThis!: JSGlobalObject) {
         // 启用auto_killer以在超时时杀死悬挂进程
     }
 
     /// 组完成回调 - 禁用auto_killer
-    public func onGroupCompleted(group: ConcurrentGroup, globalThis: JSGlobalObject) {
+    public func onGroupCompleted(group!: ConcurrentGroup, globalThis!: JSGlobalObject) {
         // 禁用auto_killer
     }
 
@@ -423,7 +445,7 @@ public class Execution {
         }
 
         if (entry.timeout != 0) {
-            entry.timespec = Timespec.msFromNowForceRealTime(interval: entry.timeout)
+            entry.timespec = Timespec.nowForceRealTime().addMs(Int64(entry.timeout))
         } else {
             entry.timespec = Timespec.EPOCH
         }
@@ -439,17 +461,17 @@ public class Execution {
         let elapsedNs: UInt64 = if (sequence.startedAt.isZero()) {
             0
         } else {
-            sequence.startedAt.sinceNowForceRealTime()
+            UInt64(sequence.startedAt.duration(Timespec.nowForceRealTime()).toMillis())
         }
 
         // 检查断言期望
         match (sequence.expectAssertions) {
             case atLeastOne =>
-                if (sequence.expectCallCount == 0 && sequence.result.isPass(pendingIs: PendingIs.pendingIsPass)) {
+                if (sequence.expectCallCount == 0 && sequence.result.isPass(PendingIs.pendingIsPass)) {
                     sequence.result = Result.failBecauseExpectedHasAssertions
                 }
             case exact(expected) =>
-                if (sequence.expectCallCount != expected && sequence.result.isPass(pendingIs: PendingIs.pendingIsPass)) {
+                if (sequence.expectCallCount != expected && sequence.result.isPass(PendingIs.pendingIsPass)) {
                     sequence.result = Result.failBecauseExpectedAssertionCount
                 }
             case _ =>
@@ -527,27 +549,29 @@ public class Execution {
     /// 验证RefDataValue中的序列信息是否仍然有效（未被新的执行覆盖）
     public func getCurrentAndValidExecutionSequence(data: RefDataValue): ?(ExecutionSequence, ConcurrentGroup) {
         match (data) {
-            case execution(groupIdx, entryData) =>
+            case execution(refData) =>
+                let groupIdx = refData.groupIndex
+                let entryData = refData.entryData
                 if (entryData.isNone()) {
                     return None
                 }
                 let ed = entryData.getOrThrow()
 
                 // 验证组索引是否匹配
-                if (groupIndex >= groups.size || groupIdx != groupIndex) {
+                if (Int64(groupIndex) >= groups.size || groupIdx != groupIndex) {
                     return None
                 }
-                if (groupIdx >= groups.size) {
+                if (Int64(groupIdx) >= groups.size) {
                     return None
                 }
 
-                let group = groups[groupIdx]
+                let group = groups[Int64(groupIdx)]
                 let seqAbs = group.sequenceStart + ed.sequenceIndex
                 if (seqAbs >= group.sequenceEnd) {
                     return None
                 }
 
-                let sequence = sequences[seqAbs]
+                let sequence = sequences[Int64(seqAbs)]
 
                 // 验证repeat计数是否匹配
                 if (Int64(sequence.remainingRepeatCount) != ed.remainingRepeatCount) {
@@ -555,7 +579,7 @@ public class Execution {
                 }
 
                 // 验证active entry是否匹配
-                if (sequence.activeEntry != ed.entry) {
+                if (sequence.activeEntry.isNone() || sequence.activeEntry.getOrThrow() != ed.entry) {
                     return None
                 }
 
@@ -567,7 +591,7 @@ public class Execution {
 
     /// 处理未捕获异常
     public func handleUncaughtException(userData: RefDataValue): HandleUncaughtExceptionResult {
-        let result = getCurrentAndValidExecutionSequence(data: userData)
+        let result = getCurrentAndValidExecutionSequence(userData)
         if (result.isNone()) {
             return HandleUncaughtExceptionResult.showUnhandledErrorBetweenTests
         }
@@ -576,7 +600,9 @@ public class Execution {
         sequence.maybeSkip = true
 
         // 如果正在执行钩子（不是testEntry）
-        if (sequence.activeEntry != sequence.testEntry) {
+        if (sequence.activeEntry.isNone() != sequence.testEntry.isNone() ||
+            (sequence.activeEntry.isSome() && sequence.testEntry.isSome() &&
+             sequence.activeEntry.getOrThrow() != sequence.testEntry.getOrThrow())) {
             if (sequence.result == Result.pending) {
                 sequence.result = Result.fail
             }
@@ -608,12 +634,14 @@ public class Execution {
         // 如果并发组只有一个序列且活跃条目已超时
         // 杀死任何悬挂的进程
         if (let Some(currentGroup) <- activeGroup()) {
-            let groupSequences = sequences[currentGroup.sequenceStart..currentGroup.sequenceEnd]
-            if (groupSequences.size == 1) {
-                let sequence = groupSequences[0]
-                if (let Some(entry) <- sequence.activeEntry) {
+            let start = Int64(currentGroup.sequenceStart)
+            let end = Int64(currentGroup.sequenceEnd)
+            if (end - start == 1) {
+                let sequence = sequences[start]
+                if (sequence.activeEntry.isSome()) {
+                    let entry = sequence.activeEntry.getOrThrow()
                     let now = Timespec.nowForceRealTime()
-                    if (!entry.timespec.isZero() && entry.timespec.lessThan(other: now)) {
+                    if (!entry.timespec.isZero() && entry.timespec.lessThan(now)) {
                         // 杀死悬挂进程
                     }
                 }
@@ -621,7 +649,15 @@ public class Execution {
         }
 
         // 添加Start结果以触发下一步
-        buntest.addResult(result: RefDataValue.start)
+        if (let Some(runner) <- Jest.runner) {
+            let activeFile = runner.bunTestRoot.activeFile
+            if (activeFile.isSome()) {
+                let buntest = activeFile.getOrThrow().get()
+                if (buntest.isSome()) {
+                    buntest.getOrThrow().addResult(RefDataValue.start)
+                }
+            }
+        }
     }
 }
 
@@ -656,8 +692,15 @@ public class ConcurrentGroup {
     }
 
     /// 获取组内的序列
-    public func sequences(execution: Execution): Array<ExecutionSequence> {
-        return execution.sequences[sequenceStart..sequenceEnd]
+    public func sequences(execution: Execution): ArrayList<ExecutionSequence> {
+        var result = ArrayList<ExecutionSequence>()
+        var i = Int64(sequenceStart)
+        let end = Int64(sequenceEnd)
+        while (i < end) {
+            result.append(execution.sequences[i])
+            i += 1
+        }
+        return result
     }
 }
 
@@ -692,8 +735,15 @@ public class ExecutionSequence {
     }
 
     /// 获取不稳定测试的尝试记录
-    public func flakyAttempts(): Array<FlakyAttempt> {
-        return flakyAttemptsBuf[0..flakyAttemptCount]
+    public func flakyAttempts(): ArrayList<FlakyAttempt> {
+        var result = ArrayList<FlakyAttempt>()
+        var i: Int64 = 0
+        let count = Int64(flakyAttemptCount)
+        while (i < count) {
+            result.append(flakyAttemptsBuf[i])
+            i += 1
+        }
+        return result
     }
 
     /// 获取条目模式
@@ -723,6 +773,10 @@ public class FlakyAttempt {
     public var elapsedNs: UInt64 = 0
 
     public init() {}
+    public init(result: Result, elapsedNs: UInt64) {
+        this.result = result
+        this.elapsedNs = elapsedNs
+    }
 }
 
 // ========== Result - 执行结果 ==========
@@ -770,7 +824,7 @@ public enum Result {
 
     /// 是否失败
     public func isFail(): Bool {
-        return !isPass(pendingIs: PendingIs.pendingIsPass)
+        return !isPass(PendingIs.pendingIsPass)
     }
 
     public operator func ==(other: Result): Bool {
@@ -862,23 +916,4 @@ public enum ExpectAssertions {
     | exact(UInt32)
 }
 
-// ========== AddedInPhase ==========
-
-/// 添加阶段
-public enum AddedInPhase {
-    | preload
-    | collection
-    | execution
-
-    public operator func ==(other: AddedInPhase): Bool {
-        match (this) {
-            case preload => match (other) { case preload => true; case _ => false }
-            case collection => match (other) { case collection => true; case _ => false }
-            case execution => match (other) { case execution => true; case _ => false }
-        }
-    }
-
-    public operator func !=(other: AddedInPhase): Bool {
-        !(this == other)
-    }
-}
+// AddedInPhase moved to core_types.cj to avoid duplication

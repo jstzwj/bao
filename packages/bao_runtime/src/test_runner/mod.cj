@@ -25,6 +25,13 @@ extend JSGlobalObject {
     }
 
     /// 抛出带格式化的错误
+    public func throwPretty(fmt: String, args: ArrayList<Any>): JsValue {
+        let message = ConsoleObject.prettyFmt(fmt, false)
+        throwError(message)
+        return JsValue.jsUndefined()
+    }
+
+    /// 抛出带格式化的错误 (Array版本)
     public func throwPretty(fmt: String, args: Array<Any>): JsValue {
         let message = ConsoleObject.prettyFmt(fmt, false)
         throwError(message)
@@ -323,12 +330,12 @@ public enum MockReturnType {
 /// 对应 Bun 中 expect.zig 中的 Mock 命名空间。
 public class MockHelpers {
     /// 获取 mock 函数的调用记录迭代器
-    public static func jestMockIterator(globalThis: JsObject, value: JsValue): MockResultIterator {
+    public static func jestMockIterator(globalThis!: JsObject, value!: JsValue): MockResultIterator {
         return MockResultIterator(globalThis: globalThis, returnValues: JSMockFunction.getReturnValues(globalThis, value))
     }
 
     /// 获取 mock 返回对象的类型
-    public static func jestMockReturnObjectType(globalThis: JsObject, item: JsValue): MockReturnType {
+    public static func jestMockReturnObjectType(globalThis!: JsObject, item!: JsValue): MockReturnType {
         let typeValue = item.get(globalThis, "type")
         if (typeValue.isNone()) { return MockReturnType.incomplete }
         let typeStr = typeValue.getOrThrow().toSliceOrNull(globalThis) ?? ""

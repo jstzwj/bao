@@ -75,8 +75,9 @@ public enum CoroutineResult {
 }
 
 /// 内存不足处理
+/// 对应 Bun: bun.outOfMemory() — 立即终止进程
 public func oom(e: Exception) {
-    // stub: outOfMemory() not available
+    Process.abort()
 }
 
 /// IO安全保护类型
@@ -301,23 +302,60 @@ public class Interpreter {
     }
 
     /// 运行解释器
+    /// 对应 Bun: interpreter.zig line 1225
     public func run(): Maybe<Unit> {
         if (this.setupIOBeforeRun().isErr()) {
             return Maybe<Unit>.err()
         }
-        // stub: ScriptState in states subpackage (circular dependency)
-        // Full implementation creates ScriptState and runs it
+        // 创建 ScriptState 并启动执行
+        // 对应 Bun: Script.init(this, &this.root_shell, &this.args.script_ast, Script.ParentPtr.init(this), this.root_io.copy())
+        let scriptAst = ASTScript([])
+        let root = ScriptState.initFunc(
+            this,
+            this.rootShell,
+            scriptAst,
+            ScriptParentPtr.initFunc(this),
+            this.rootIo.copy()
+        )
         this.started.store(true)
+        // 对应 Bun: root.start().run()
+        let yieldResult = root.start()
+        yieldResult.run()
         return Maybe<Unit>.success(())
     }
 
     /// 从JS运行
+    /// 对应 Bun: interpreter.zig line 1238
     public func runFromJS(globalThis: JSGlobalObject): JsValue {
         if (this.setupIOBeforeRun().isErr()) {
+            // 对应 Bun: deref root shell/IO on error
+            this.rootIo.deref()
+            this.rootShell.deinit()
+            let errOpt = this.lastErr
+            if (errOpt.isSome()) {
+                let e = errOpt.getOrThrow()
+                this.throwShellErr(ShellErr.newSys(e.toSystemError()), this.eventLoop)
+            }
             return JsValue.jsUndefined()
         }
-        // stub: ScriptState in states subpackage (circular dependency)
+        // 创建 ScriptState 并启动执行
+        let scriptAst = ASTScript([])
+        let root = ScriptState.initFunc(
+            this,
+            this.rootShell,
+            scriptAst,
+            ScriptParentPtr.initFunc(this),
+            this.rootIo.copy()
+        )
         this.started.store(true)
+        this.hasPendingActivity.fetchAdd(1)
+        // 对应 Bun: root.start().run()
+        let yieldResult = root.start()
+        yieldResult.run()
+        // 检查JS异常
+        if (globalThis.hasException()) {
+            return JsValue.jsUndefined()
+        }
         return JsValue.jsUndefined()
     }
 
@@ -340,8 +378,10 @@ public class Interpreter {
     }
 
     /// 异步命令完成
-    public func asyncCmdDone(async: Any) {
-        // stub: actuallyDeinit would be called on the actual AsyncState
+    /// 对应 Bun: interpreter.zig line 1267
+    public func asyncCmdDone(async: AsyncState) {
+        // 释放异步状态的IO和分配作用域
+        async.actuallyDeinit()
         this.asyncCommandsExecuting -= 1
         if (this.asyncCommandsExecuting == 0 && this.exitCode.isSome()) {
             this.finish(this.exitCode.getOrThrow()).run()
@@ -401,13 +441,15 @@ public class Interpreter {
     }
 
     /// 向Shell错误抛出
+    /// 对应 Bun: interpreter.zig line 1802
     public func throwShellErr(e: ShellErr, eventLoop: EventLoopHandle) {
         match (eventLoop.getKind()) {
             case mini =>
                 e.throwMini()
             case js =>
-                // stub: eventLoop.js.global not available
-                e.throwMini()
+                // 对应 Bun: e.throwJS(event_loop.js.global)
+                // 使用解释器持有的 globalThis，因为 EventLoopHandle 尚未实现 JS 变体
+                e.throwJS(this.globalThis)
         }
     }
 

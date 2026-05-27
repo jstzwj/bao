@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Async.zig
 // 严格翻译Bun shell异步命令状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 import bao_event_loop.*
 
 // ============================================================================
@@ -22,7 +21,7 @@ public enum AsyncStateKind {
 
 /// 异步父节点指针（提取到顶层）
 public class AsyncParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): AsyncParentPtr {
         let pp = AsyncParentPtr()
         pp.ptr = p
@@ -34,7 +33,7 @@ public class AsyncParentPtr {
 
 /// 异步子节点指针（提取到顶层）
 public class AsyncChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): AsyncChildPtr {
         let cp = AsyncChildPtr()
         cp.ptr = p
@@ -47,23 +46,19 @@ public class AsyncChildPtr {
 /// 异步命令状态
 public class AsyncState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Expr
+    public var node: ?Expr = None
     /// 父节点
-    public var parent: AsyncParentPtr
+    public var parent: AsyncParentPtr = AsyncParentPtr()
     /// IO
-    public var io: IO
+    public var io: IO = IO()
     /// 状态
-    public var state: AsyncStateKind
+    public var state: AsyncStateKind = AsyncStateKind.`idle`
     /// 事件循环
-    public var eventLoop: EventLoopHandle
+    public var eventLoop: ?EventLoopHandle = None
     /// 并发任务
-    public var concurrentTask: EventLoopTask
-
-    public init() {
-        this.state = AsyncStateKind.`idle`
-    }
+    public var concurrentTask: ?EventLoopTask = None
 
     /// 初始化
     public static func initFunc(

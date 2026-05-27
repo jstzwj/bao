@@ -72,6 +72,7 @@ public class Config {
 /// 翻译自: src/cli/init_command.zig InitOptions
 public class InitOptions {
     public var name: String
+    public var template: String
     public var force: Bool
     public var interactive: Bool
     public var noGit: Bool
@@ -80,6 +81,7 @@ public class InitOptions {
 
     public init() {
         name = ""
+        template = ""
         force = false
         interactive = true
         noGit = false
@@ -129,7 +131,48 @@ public class MutablePackageJson {
 // ============================================================================
 
 /// JSON 值
-public class JsonValue {}
+public class JsonValue {
+    public static func fromString(s: String): JsonValue {
+        return JsonValue()
+    }
+
+    public func keys(): Array<String> {
+        return []
+    }
+
+    public func getObject(key: String): ?JsonValue {
+        return None
+    }
+
+    public func getObject(): ?JsonValue {
+        if (isObject()) {
+            return this
+        }
+        return None
+    }
+
+    public func getString(key: String): ?String {
+        return None
+    }
+
+    public func getArray(key: String): ?Array<JsonValue> {
+        return None
+    }
+
+    public func asString(): ?String {
+        return None
+    }
+
+    public func isObject(): Bool {
+        return false
+    }
+
+    public func properties(): ArrayList<JsonProperty> {
+        return ArrayList<JsonProperty>()
+    }
+
+    public func remove(key: String): Unit {}
+}
 
 /// JSON 解析器
 public class JsonParser {
@@ -158,4 +201,81 @@ public class PackageManager {
 /// 命令上下文 stub
 public class CommandContext {
     public init() {}
+}
+
+/// JSON 对象构建器
+public class JsonObject {
+    private var entries: ArrayList<Tuple<String, String>>
+
+    public init() {
+        entries = ArrayList<Tuple<String, String>>()
+    }
+
+    public func setString(key: String, value: String): Unit {
+        entries.append(Tuple(key, "\"${value}\""))
+    }
+
+    public func setBool(key: String, value: Bool): Unit {
+        entries.append(Tuple(key, "${value}"))
+    }
+
+    public func setObject(key: String, obj: JsonObject): Unit {
+        entries.append(Tuple(key, obj.serialize()))
+    }
+
+    public func setNumber(key: String, value: Int64): Unit {
+        entries.append(Tuple(key, "${value}"))
+    }
+
+    public func serialize(): String {
+        var result = "{"
+        var first = true
+        for (e in entries) {
+            if (!first) {
+                result = result + ","
+            }
+            first = false
+            result = result + "\"${e.first}\": ${e.second}"
+        }
+        result = result + "}"
+        return result
+    }
+}
+
+/// JSON 辅助工具
+public class JsonHelper {
+    public static func getString(obj: JsonValue, key: String): ?String {
+        return None
+    }
+
+    public static func getObject(obj: JsonValue, key: String): ?JsonValue {
+        return None
+    }
+
+    public static func setString(obj: JsonValue, key: String, value: String): Unit {}
+
+    public static func serialize(obj: JsonValue): String {
+        return "{}"
+    }
+
+    public static func removeField(obj: JsonValue, key: String): Unit {}
+
+    public static func setStringInObject(obj: JsonValue, key: String, value: String): Unit {}
+
+    public static func getField(obj: JsonValue, key: String): ?JsonValue {
+        return None
+    }
+
+    public static func getStringArray(obj: JsonValue, key: String): Array<String> {
+        return []
+    }
+}
+
+/// 字节转字符串
+public func bytesToString(bytes: Array<UInt8>): String {
+    var arr = ArrayList<UInt8>()
+    for (b in bytes) {
+        arr.append(b)
+    }
+    return String.fromUtf8(arr.items())
 }

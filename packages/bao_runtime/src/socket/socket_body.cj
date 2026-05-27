@@ -13,7 +13,8 @@ import bao_core.*
 import bao_collections.{ArrayList as CollectionArrayList, HashMap as CollectionHashMap}
 import bao_jsc.*
 import bao_ptr.*
-import bao_uws_sys.{SocketGroup as UwsSocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError, UsBunVerifyErrorRaw, SocketHandler, CloseCode, InternalSocket, ConnectResultSocket, ConnectResultConnecting, LIBUS_SOCKET_ALLOW_HALF_OPEN}
+import bao_uws_sys.{SocketGroup as UwsSocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError, UsBunVerifyErrorRaw, SocketHandler, CloseCode, InternalSocket, InternalSocketTag, ConnectResultSocket, ConnectResultConnecting, LIBUS_SOCKET_ALLOW_HALF_OPEN}
+import bao_sys.*
 
 private func socketKindForSsl(ssl: Bool): SocketKind {
     return if (ssl) { SocketKind.bun_socket_tls } else { SocketKind.bun_socket_tcp }
@@ -518,14 +519,35 @@ public func onOpen(socket: NewSocket, socketHandler: SocketHandler): Unit {
 
     // 更新内部 socket 实例
     socket.socket = socketHandler
-    NewSocketHandleTable.stamp(socket.socket, socket)
+    let handle = NewSocketHandleTable.stamp(socket.socket, socket)
 
-    // TLS must not silently skip Bun-compatible SNI/ALPN setup. Bun configures
-    // SNI and ALPN before the handshake finishes, then dispatches either
-    // onHandshake or onOpen from the native handshake callback. Bao currently
-    // lacks the SSL/uSockets bridge needed to do that safely, so fail closed.
+    // TLS open is pre-handshake. Public JS onOpen/onHandshake dispatch happens
+    // from the native handshake callback so authorization state is available.
     if (socket.isSsl) {
-        failTlsHandshakeBridgeNotImplemented("NewSocket.onOpen TLS pre-handshake setup")
+        // 服务端 TLS: 存储 socket handle 到 SSL ex_data slot 0，注册 ALPN 回调
+        // 对应 Bun: socket_body.rs lines 1131-1143
+        if (isServer(socket)) {
+            let sslPtr = getSslPtr(socket)
+            if (!sslPtr.isNull()) {
+                // 将 NewSocketHandle 存储为 CPointer (通过分配内存存储指针大小整数)
+                let handleStorage = unsafe { malloc(UIntNative(8)) }
+                unsafe { (CPointer<UIntNative>(handleStorage)).write(handle) }
+                let _ = unsafe { SSL_set_ex_data(sslPtr, 0, handleStorage) }
+                // 注册 ALPN 选择回调到 SSL_CTX
+                let ctxPtr = unsafe { SSL_get_SSL_CTX(sslPtr) }
+                if (!ctxPtr.isNull()) {
+                    unsafe {
+                        SSL_CTX_set_alpn_select_cb(
+                            ctxPtr,
+                            CPointer<Unit>(selectAlpnCallback),
+                            CPointer<Unit>()
+                        )
+                    }
+                }
+            }
+        }
+        deref(socket)
+        return
     }
 
     let handlers = getHandlers(socket)
@@ -586,7 +608,8 @@ public func onEnd(socket: NewSocket, socketHandler: SocketHandler): Unit {
 
 /// onHandshake 回调 — TLS 握手完成时调用
 /// 对应 Bun: NewSocket.on_handshake
-public func onHandshake(
+/// Also aliased as dispatchOnHandshake for use from BunSocketDispatch
+public func dispatchOnHandshake(
     socket: NewSocket,
     s: SocketHandler,
     success: Int32,
@@ -633,7 +656,7 @@ public func onHandshake(
             handlers.onOpen = JsValue.UNDEFINED
         }
     } else {
-        let authorizationError: JsValue = if (sslError.errorNo == 0) {
+        let authorizationError: JsValue = if (sslError.error_no == 0) {
             JsValue.jsNull()
         } else {
             JsValue("SSL verify error")
@@ -978,36 +1001,61 @@ let OPENSSL_NPN_NEGOTIATED: Int32 = 1
 /// ALPN 协议选择回调
 /// SSL_CTX_set_alpn_select_cb 注册在监听器级别的 SSL_CTX 上，
 /// 其 arg 在每个接受的连接间共享。
+/// 对应 Bun: socket_body.rs select_alpn_callback (lines 78-123)
+@C
 func selectAlpnCallback(
-    ssl: Ssl,
-    out: CPointer<Unit>,
-    outlen: CPointer<Unit>,
-    in_: CPointer<Unit>,
-    inlen: UInt32
+    sslPtr: CPointer<Unit>,
+    out: CPointer<CPointer<UInt8>>,
+    outlen: CPointer<UInt8>,
+    in_: CPointer<UInt8>,
+    inlen: UInt32,
+    _arg: CPointer<Unit>
 ): Int32 {
     if (inlen == UInt32(0)) {
         return SSL_TLSEXT_ERR_NOACK
     }
 
-    // Bun reads the per-connection NewSocket from SSL ex_data slot 0, selects
-    // against socket.protos with SSL_select_next_proto, returns OK on match, and
-    // returns ALERT_FATAL on mismatch. Bao does not expose those SSL APIs yet;
-    // return ALERT_FATAL rather than silently accepting a TLS connection with an
-    // unnegotiated/incorrect ALPN protocol.
-    return SSL_TLSEXT_ERR_ALERT_FATAL
-}
+    // 从 SSL ex_data slot 0 获取 NewSocketHandle
+    let handlePtr = unsafe { SSL_get_ex_data(sslPtr, 0) }
+    if (handlePtr.isNull()) {
+        return SSL_TLSEXT_ERR_NOACK
+    }
 
-func failTlsHandshakeBridgeNotImplemented(context: String): Unit {
-    throw Exception(
-        "ENOSYS: " + context +
-        " requires TLS bridge APIs that are not implemented: " +
-        "SocketHandler.ssl() or equivalent access to the live SSL*, " +
-        "SSL_is_init_finished, SSL_set_tlsext_host_name, " +
-        "SSL_set_ex_data/SSL_get_ex_data, SSL_get_SSL_CTX, " +
-        "SSL_CTX_set_alpn_select_cb, SSL_set_alpn_protos, " +
-        "SSL_select_next_proto, and uWS handshake dispatch that carries the " +
-        "live NewSocket into NewSocket.onHandshake"
-    )
+    // 从分配的内存中读取 NewSocketHandle (UIntNative)
+    let handle = unsafe { (CPointer<UIntNative>(handlePtr)).read() }
+    let socketOpt = NewSocketHandleTable.lookup(handle)
+    if (let None <- socketOpt) {
+        return SSL_TLSEXT_ERR_NOACK
+    }
+    let socket = socketOpt.getOrThrow()
+
+    // 获取 socket 的 ALPN 协议列表
+    if (let None <- socket.protos) {
+        return SSL_TLSEXT_ERR_NOACK
+    }
+    let protos = socket.protos.getOrThrow()
+    if (protos.isEmpty()) {
+        return SSL_TLSEXT_ERR_NOACK
+    }
+
+    // 调用 SSL_select_next_proto 进行 ALPN 协商
+    let protosPtr = unsafe { acquireArrayRawData<Byte>(protos) }
+    let status = unsafe {
+        SSL_select_next_proto(
+            out,
+            outlen,
+            CPointer<UInt8>(protosPtr.pointer),
+            UInt32(protos.size),
+            in_,
+            inlen
+        )
+    }
+    unsafe { releaseArrayRawData<Byte>(protosPtr) }
+
+    if (status == OPENSSL_NPN_NEGOTIATED) {
+        return SSL_TLSEXT_ERR_OK
+    }
+    return SSL_TLSEXT_ERR_ALERT_FATAL
 }
 
 // ============================================================================
@@ -1018,6 +1066,20 @@ func failTlsHandshakeBridgeNotImplemented(context: String): Unit {
 func jsLoopCtx(): Any {
     // Stub: return placeholder context — actual event loop integration not yet implemented
     return "js_loop_ctx"
+}
+
+/// 从 NewSocket 获取底层 SSL* 指针
+/// 对应 Bun: us_socket_t.ssl() — 通过 InternalSocket -> UsSocket -> ssl() 链
+func getSslPtr(socket: NewSocket): CPointer<Unit> {
+    let internalSocket = socket.socket.socket
+    match (internalSocket.tag) {
+        case InternalSocketTag.connected =>
+            if (let Some(usSocket) <- internalSocket.connectedSocket) {
+                return usSocket.ssl()
+            }
+            return CPointer<Unit>()
+        case _ => return CPointer<Unit>()
+    }
 }
 
 // ============================================================================

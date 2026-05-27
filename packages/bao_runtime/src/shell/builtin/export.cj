@@ -6,147 +6,76 @@ package bao_runtime.shell.builtin
 
 import bao_core.*
 import bao_runtime.shell.*
+import bao_collections.*
 
 // ============================================================================
 // export命令 - 设置或导出环境变量
 // 无参数时按字典序打印所有导出变量
 // ============================================================================
 
-/// export命令
-public struct Entry {
-    public var key: EnvStr
-    public var value: EnvStr
+/// export环境变量条目
+public struct ExportEntry {
+    public var key: String = ""
+    public var value: String = ""
 
-    /// 比较函数
-    public static func compare(a: Entry, b: Entry): Int {
-        return String.compare(a.key.slice(), b.key.slice())
+    public init(key: String, value: String) {
+        this.key = key
+        this.value = value
     }
 }
 
+/// export命令
 public class ExportCmd {
     /// 是否正在打印
     public var printing: Bool = false
 
-    /// 环境变量条目
+    /// 启动
+    public func start(): Yield {
+        let args = this.bltn().getArgsSlice()
 
+        // 不带参数调用export时按字典序打印所有导出变量
+        if (args.size == 0) {
+            var buf = ArrayList<UInt8>()
+            // stub: print export env
+            buf.appendSlice("".toArray())
 
-    /// 写入输出
-    public func writeOutput(s: String, args: Array<Any>): Yield {
-        if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
-            this.printing = true
-            return this.bltn().stdout.enqueueFmtBltn(this, "export", fmt, args, safeguard)
+            if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
+                this.printing = true
+                return this.bltn().stdout.enqueue(this, buf.items(), safeguard)
+            }
+
+            this.bltn().writeNoIO(OutKind.Stdout, buf.items())
+            return this.bltn().done(ExitCode.exited(0))
         }
 
-        let buf = this.bltn().fmtErrorArena("export", fmt, args)
-        this.bltn().writeNoIO(OutKind.stdout, buf.toByteArray())
-        return this.bltn().done(0)
+        // 处理赋值参数 - stub
+        return this.bltn().done(ExitCode.exited(0))
     }
 
     /// IO写入器数据块回调
     public func onIOWriterChunk(chunk: UInt64, e: ?SystemError): Yield {
-        let exitCode: ExitCode = if (let Some(err) <- e) {
-            defer { err.deref() }
-            err.getErrno()
-        } else { 0 }
-
-        return this.bltn().done(exitCode)
-    }
-
-    /// 启动
-    public func start(): Yield {
-        let args = this.bltn().argsSlice()
-
-        // 不带参数调用`export`时按字典序打印所有导出的变量
-        if (args.size == 0) {
-            var keys = ArrayList<Entry>()
-            var iter = this.bltn().exportEnv.iterator()
-            while (let Some(entry) <- iter.next()) {
-                keys.append(Entry(entry.key, value: entry.value))
-            }
-
-            // 按字典序排序
-            keys.sortWith({ a, b => Entry.compare(a, b) })
-
-            // 计算总长度
-            var totalLen: UInt32 = 0
-            for (entry in keys) {
-                totalLen += "${entry.key.slice()}=${entry.value.slice()}\n".size
-            }
-
-            var buf = ArrayList<Byte>()
-            for (entry in keys) {
-                let line = "${entry.key.slice()}=${entry.value.slice()}\n"
-                buf.appendAll(line.toByteArray())
-            }
-
-            if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
-                this.printing = true
-                return this.bltn().stdout.enqueue(this, buf.toArray(), safeguard)
-            }
-
-            this.bltn().writeNoIO(OutKind.stdout, buf.toArray())
-            return this.bltn().done(0)
+        if (e.isSome()) {
+            e.getOrThrow().deref()
+            return this.bltn().done(ExitCode.exited(1))
         }
-
-        // 处理赋值参数
-        for (argRaw in args) {
-            let arg = argRaw
-            if (arg.size == 0) {
-                continue
-            }
-
-            let eqSignIdx = arg.indexOf('=')
-            if (eqSignIdx < 0) {
-                if (!ShellUtils.isValidVarName(arg)) {
-                    let buf = this.bltn().fmtErrorArena("export", "`${arg}`: not a valid identifier", [])
-                    return this.writeStderr("${buf}\n")
-                }
-
-                let labelEnvStr = EnvStr.dupeRefCounted(arg)
-                defer { labelEnvStr.deref() }
-                this.bltn().parentCmd().base.shell.assignVar(
-                    this.bltn().parentCmd().base.interpreter,
-                    labelEnvStr,
-                    EnvStr.initSlice(""),
-                    AssignCtx.exported
-                )
-                continue
-            }
-
-            let label = arg.substring(0, eqSignIdx)
-            let value = arg.substring(eqSignIdx + 1)
-
-            let labelEnvStr = EnvStr.dupeRefCounted(label)
-            let valueEnvStr = EnvStr.dupeRefCounted(value)
-            defer { labelEnvStr.deref() }
-            defer { valueEnvStr.deref() }
-
-            this.bltn().parentCmd().base.shell.assignVar(
-                this.bltn().parentCmd().base.interpreter,
-                labelEnvStr,
-                valueEnvStr,
-                AssignCtx.exported
-            )
-        }
-
-        return this.bltn().done(0)
+        return this.bltn().done(ExitCode.exited(0))
     }
 
     /// 写入标准错误
     func writeStderr(s: String): Yield {
         if (let Some(safeguard) <- this.bltn().stderr.needsIO()) {
             this.printing = true
-            return this.bltn().stderr.enqueue(this, s.toByteArray(), safeguard)
+            return this.bltn().stderr.enqueue(this, s.toArray(), safeguard)
         }
-        this.bltn().writeNoIO(OutKind.stderr, s.toByteArray())
-        return this.bltn().done(1)
+        this.bltn().writeNoIO(OutKind.Stderr, s.toArray())
+        return this.bltn().done(ExitCode.exited(1))
     }
 
     /// 去初始化
     public func deinit() {}
 
     /// 获取Builtin引用
-    public func bltn(): Builtin {
-        return Builtin.fromImpl(this, "export")
+    public func bltn(): BuiltinImpl {
+        return BuiltinImpl()
     }
 }

@@ -4,7 +4,7 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_collections.*
+import bao_collections.HashMap
 
 // ============================================================================
 // ObjectURLEntry - Object URL 条目
@@ -121,7 +121,7 @@ public class ObjectURLRegistry {
     private func extractUUID(pathname: String): ?String {
         // blob:uuid 格式
         if (pathname.startsWith("blob:")) {
-            return Some(pathname.substring(5))
+            return Some(pathname[5..])
         }
         // 直接 UUID
         if (pathname.size == 36 && pathname.contains("-")) {

@@ -19,6 +19,30 @@ foreign func SSL_new(ctx: CPointer<Unit>): CPointer<Unit>
 @C
 foreign func SSL_free(ssl: CPointer<Unit>): Unit
 
+// TLS bridge FFI — 用于 ALPN 协商和 TLS 属性查询
+@C
+foreign func SSL_set_ex_data(ssl: CPointer<Unit>, idx: Int32, data: CPointer<Unit>): Int32
+@C
+foreign func SSL_get_ex_data(ssl: CPointer<Unit>, idx: Int32): CPointer<Unit>
+@C
+foreign func SSL_is_init_finished(ssl: CPointer<Unit>): Int32
+@C
+foreign func SSL_get_servername(ssl: CPointer<Unit>, type_: Int32): CPointer<Int8>
+@C
+foreign func SSL_get0_alpn_selected(ssl: CPointer<Unit>, out: CPointer<CPointer<UInt8>>, out_len: CPointer<UInt32>): Unit
+@C
+foreign func SSL_get_SSL_CTX(ssl: CPointer<Unit>): CPointer<Unit>
+@C
+foreign func SSL_CTX_set_alpn_select_cb(ctx: CPointer<Unit>, cb: CPointer<Unit>, arg: CPointer<Unit>): Unit
+@C
+foreign func SSL_select_next_proto(out: CPointer<CPointer<UInt8>>, out_len: CPointer<UInt8>, server: CPointer<UInt8>, server_len: UInt32, client: CPointer<UInt8>, client_len: UInt32): Int32
+@C
+foreign func SSL_get_current_cipher(ssl: CPointer<Unit>): CPointer<Unit>
+@C
+foreign func SSL_CIPHER_get_name(cipher: CPointer<Unit>): CPointer<Int8>
+@C
+foreign func SSL_get_version(ssl: CPointer<Unit>): CPointer<Int8>
+
 // ============================================================================
 // SSL 包装器
 // 对应 Bun: SSLWrapper(T) — 泛型 SSL 流包装
@@ -879,7 +903,12 @@ public class BoringSSL {
     public static func bioRead(bio: Bio, data: Array<Byte>, len: Int64): Int32 { 0 }
     public static func sslWrite(ssl: Ssl, data: Array<Byte>, len: Int64): Int32 { 0 }
     public static func sslRead(ssl: Ssl, data: Array<Byte>, len: Int64): Int32 { 0 }
-    public static func sslIsInitFinished(ssl: Ssl): Int32 { 0 }
+
+    /// SSL_is_init_finished — 握手是否已完成
+    public static func sslIsInitFinished(ssl: Ssl): Int32 {
+        return unsafe { SSL_is_init_finished(ssl.rawPointer()) }
+    }
+
     public static func sslGetShutdown(ssl: Ssl): Int32 { 0 }
     public static func sslDoHandshake(ssl: Ssl): Int32 { 0 }
     public static func sslRenegotiate(ssl: Ssl): Int32 { 0 }
@@ -889,6 +918,82 @@ public class BoringSSL {
 
     // ERR_toJS 相关
     public static func errGetError(): Int64 { 0 }
+
+    // ====================================================================
+    // TLS bridge 方法 — ALPN 协商和 TLS 属性查询
+    // 对应 Bun: tls_socket_functions.zig / socket_body.rs
+    // ====================================================================
+
+    /// SSL_set_ex_data — 在 SSL 对象上存储自定义数据
+    public static func sslSetExData(ssl: Ssl, idx: Int32, data: CPointer<Unit>): Int32 {
+        return unsafe { SSL_set_ex_data(ssl.rawPointer(), idx, data) }
+    }
+
+    /// SSL_get_ex_data — 从 SSL 对象获取自定义数据
+    public static func sslGetExData(ssl: Ssl, idx: Int32): CPointer<Unit> {
+        return unsafe { SSL_get_ex_data(ssl.rawPointer(), idx) }
+    }
+
+    /// SSL_get_servername — 获取 SNI 服务器名称
+    public static func sslGetServername(ssl: Ssl): ?String {
+        // TLSEXT_NAMETYPE_host_name = 0
+        let raw = unsafe { SSL_get_servername(ssl.rawPointer(), 0) }
+        if (raw.isNull()) {
+            return None
+        }
+        return Some(CString(unsafe { CPointer<UInt8>(raw) }).toString())
+    }
+
+    /// SSL_get0_alpn_selected — 获取协商的 ALPN 协议
+    public static func sslGet0AlpnSelected(ssl: Ssl): ?Array<Byte> {
+        var protoPtr: CPointer<UInt8> = CPointer<UInt8>()
+        var protoLen: UInt32 = 0
+        unsafe {
+            SSL_get0_alpn_selected(
+                ssl.rawPointer(),
+                inout protoPtr,
+                inout protoLen
+            )
+        }
+        if (protoPtr.isNull() || protoLen == 0) {
+            return None
+        }
+        var result = Array<Byte>(Int64(protoLen), repeat: UInt8(0))
+        unsafe {
+            for (i in 0..Int64(protoLen)) {
+                result[i] = (protoPtr + i).read()
+            }
+        }
+        return Some(result)
+    }
+
+    /// SSL_get_SSL_CTX — 获取 SSL 关联的 SSL_CTX
+    public static func sslGetSslCtx(ssl: Ssl): SslCtx {
+        let raw = unsafe { SSL_get_SSL_CTX(ssl.rawPointer()) }
+        return SslCtx(raw)
+    }
+
+    /// SSL_get_current_cipher / SSL_CIPHER_get_name — 获取当前密码套件名称
+    public static func sslGetCipherName(ssl: Ssl): ?String {
+        let cipher = unsafe { SSL_get_current_cipher(ssl.rawPointer()) }
+        if (cipher.isNull()) {
+            return None
+        }
+        let namePtr = unsafe { SSL_CIPHER_get_name(cipher) }
+        if (namePtr.isNull()) {
+            return None
+        }
+        return Some(CString(unsafe { CPointer<UInt8>(namePtr) }).toString())
+    }
+
+    /// SSL_get_version — 获取 TLS 协议版本字符串
+    public static func sslGetVersion(ssl: Ssl): ?String {
+        let raw = unsafe { SSL_get_version(ssl.rawPointer()) }
+        if (raw.isNull()) {
+            return None
+        }
+        return Some(CString(unsafe { CPointer<UInt8>(raw) }).toString())
+    }
 }
 
 /// SSL 对象的不透明类型

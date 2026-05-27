@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Cmd.zig
 // 严格翻译Bun shell命令状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 import bao_collections.*  // std.collection.*
 
 // ============================================================================
@@ -33,7 +32,7 @@ public enum CmdExec {
 
 /// 命令状态父节点指针（提取到顶层）
 public class CmdParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
 
     public static func initFunc(p: Any): CmdParentPtr {
         let pp = CmdParentPtr()
@@ -60,7 +59,7 @@ public class CmdParentPtr {
 
 /// 命令状态子节点指针（提取到顶层）
 public class CmdChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
 
     public static func initFunc(p: Any): CmdChildPtr {
         let cp = CmdChildPtr()
@@ -128,32 +127,30 @@ public class CmdBufferedIoState {
 
 /// 子进程状态（提取到顶层）
 public class CmdSubprocState {
-    public var child: ShellSubprocess
-    public var bufferedClosed: CmdBufferedIoClosed
+    public var child: ?ShellSubprocess = None
+    public var bufferedClosed: CmdBufferedIoClosed = CmdBufferedIoClosed()
 
-    public init() {
-        this.bufferedClosed = CmdBufferedIoClosed()
-    }
+    public init() {}
 }
 
 /// 命令状态
 public class CmdState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Cmd
+    public var node: ?Cmd = None
     /// 父节点
-    public var parent: CmdParentPtr
+    public var parent: CmdParentPtr = CmdParentPtr()
 
     /// spawn用的arena
-    public var spawnArena: ArenaAllocator
+    public var spawnArena: ArenaAllocator = ArenaAllocator()
     /// spawn arena是否已释放
     public var spawnArenaFreed: Bool = false
 
     /// 参数
-    public var args: ArrayList<?String>
+    public var args: ArrayList<?String> = ArrayList<?String>()
     /// 重定向文件
-    public var redirectionFile: ArrayList<Byte>
+    public var redirectionFile: ArrayList<Byte> = ArrayList<Byte>()
     /// 重定向文件描述符
     public var redirectionFd: ?CowFd = None
 
@@ -162,16 +159,12 @@ public class CmdState {
     /// 退出码
     public var exitCode: ?ExitCode = None
     /// IO
-    public var io: IO
+    public var io: IO = IO()
 
     /// 命令状态
-    public var state: CmdStateKind
+    public var state: CmdStateKind = CmdStateKind.`idle`
 
-    public init() {
-        this.args = ArrayList<?String>()
-        this.redirectionFile = ArrayList<Byte>()
-        this.state = CmdStateKind.`idle`
-    }
+    public init() {}
 
     /// 初始化
     public static func initFunc(
@@ -183,7 +176,7 @@ public class CmdState {
     ): CmdState {
         let cmd = CmdState()
         cmd.base = Base.initWithNewAllocScope(StateKind.cmd, interpreter, shellState)
-        cmd.node = node
+        cmd.node = Some(node)
         cmd.parent = parent
         cmd.spawnArena = ArenaAllocator(1024)
         cmd.args = ArrayList<?String>()
@@ -208,7 +201,7 @@ public class CmdState {
                     this.state = CmdStateKind.expandingArgs(0, ExpansionState())
                     continue
                 case CmdStateKind.expandingArgs(idx, expState) =>
-                    if (idx >= UInt32(this.node.nameAndArgs.size)) {
+                    if (idx >= UInt32(this.node.getOrThrow().nameAndArgs.size)) {
                         return this.transitionToExecStateAndYield()
                     }
                     this.state = CmdStateKind.expandingArgs(idx + 1, expState)
@@ -316,12 +309,13 @@ public class CmdState {
 
         match (this.exec) {
             case CmdExec.subproc(state) =>
-                let child = state.child
-                if (!child.hasExited()) {
-                    child.tryKill(9)
+                if (let Some(child) <- state.child) {
+                    if (!child.hasExited()) {
+                        child.tryKill(9)
+                    }
+                    child.unref()
+                    child.deinit()
                 }
-                child.unref()
-                child.deinit()
                 state.bufferedClosed.deinit()
             case CmdExec.bltn(impl) =>
                 impl.deinit()
@@ -329,11 +323,6 @@ public class CmdState {
         }
         this.exec = CmdExec.none
 
-        for (arg in this.args) {
-            if (let Some(a) <- arg) {
-                this.base.allocator().free(a)
-            }
-        }
         this.args.clear()
 
         if (!this.spawnArenaFreed) {
@@ -342,5 +331,17 @@ public class CmdState {
 
         this.io.deref()
         this.base.endScope()
+    }
+
+    /// 子进程完成回调
+    /// 对应 Bun: CmdState.onSubprocessDone
+    public static func onSubprocessDone(interp: Interpreter, cmd: NodeId, exitCode: ExitCode): Unit {
+        // Stub: 子进程完成时的回调处理
+    }
+
+    /// 关闭缓冲输入
+    /// 对应 Bun: CmdState.bufferedInputClose
+    public func bufferedInputClose(): Unit {
+        // Stub: 关闭缓冲输入
     }
 }

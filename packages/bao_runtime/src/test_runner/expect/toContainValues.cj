@@ -57,7 +57,7 @@ public func toContainValues(`this`: Expect, globalThis: JSGlobalObject, callFram
     if (pass) { return thisValue }
 
     // 处理失败
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

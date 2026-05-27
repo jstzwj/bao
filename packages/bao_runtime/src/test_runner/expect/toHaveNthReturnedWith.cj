@@ -28,7 +28,7 @@ public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, ca
     this.incrementExpectCallCounter()
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
     if (!returns.jsType().isArray()) {
-        let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
@@ -68,7 +68,7 @@ public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, ca
     }
 
     // 处理失败
-    let formatter = ConsoleObject.Formatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
     // defer { formatter.deinit() }
 
     let signature = Expect.getSignature(matcherName: "toHaveNthReturnedWith", args: "<green>n<r>, <green>expected<r>", not: false)

@@ -15,7 +15,6 @@ import bao_collections.*
 import bao_options.*
 import bao_ast.*
 import bao_parsers.*
-import bao_bundler.*
 import bao_install.*
 import bao_io.*
 import bao_path.*
@@ -2112,7 +2111,7 @@ public class BunfigLog {
 /// TOML 解析器 (bunfig 配置专用)
 // 对应 Bun: bun_parsers::toml::TOML::parse
 public class BunfigTomlParser {
-    public static func parse(content: String, log: BunfigLog): Result<BunfigExpr> {
+    public static func parse(content: String, log: BunfigLog): Result<BunfigExpr, String> {
         // 解析 TOML 为 BunfigExpr
         let table = TomlTable()
 
@@ -2198,7 +2197,7 @@ public class BunfigTomlParser {
 /// JSON 解析器 (bunfig 配置专用)
 // 对应 Bun: bun_parsers::json::parse_ts_config
 public class BunfigJsonParser {
-    public static func parse(content: String, log: BunfigLog): Result<BunfigExpr> {
+    public static func parse(content: String, log: BunfigLog): Result<BunfigExpr, String> {
         // 简化的 JSON 解析 - 将 JSON 转为 BunfigExpr
         // 实际实现应调用 bao_parsers 的 JSON 解析器
         return Err("JSON parser not yet implemented for bunfig")

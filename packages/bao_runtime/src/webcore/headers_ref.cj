@@ -8,6 +8,7 @@
 package bao_runtime.webcore
 
 import bao_core.*
+import bao_jsc.*
 
 // ============================================================================
 // headers_ref - Body Content-Type 辅助函数
@@ -22,7 +23,10 @@ import bao_core.*
 /// 对应 Bun: pub fn any_blob_content_type(b: &AnyBlob) -> Option<&[u8]>
 public func anyBlobContentType(b: AnyBlob): ?Array<UInt8> {
     if (b.hasContentTypeFromUser()) {
-        return b.contentType()
+        let ct = b.contentType()
+        if (ct.size > 0) {
+            return Utf8Codec.encode(ct)
+        }
     }
     return None
 }
@@ -31,7 +35,10 @@ public func anyBlobContentType(b: AnyBlob): ?Array<UInt8> {
 /// 对应 Bun: pub fn blob_content_type(b: &Blob) -> Option<&[u8]>
 public func blobContentType(b: Blob): ?Array<UInt8> {
     if (b.hasContentTypeFromUser()) {
-        return b.contentTypeSlice()
+        let ct = b.contentTypeStr()
+        if (ct.size > 0) {
+            return Utf8Codec.encode(ct)
+        }
     }
     return None
 }

@@ -2129,43 +2129,7 @@ public func writeProxyRequest(request: RawRequest, client: HTTPClient): String {
     return buf.toString()
 }
 
-// ============================================================================
-// StringBuilder - 简单字符串构建器
-// ============================================================================
-
-/// 简单字符串构建器
-public class StringBuilder {
-    private var parts: ArrayList<String>
-
-    public init() {
-        parts = ArrayList<String>()
-    }
-
-    public func append(s: String): Unit {
-        parts.append(s)
-    }
-
-    public func append(c: UInt8): Unit {
-        parts.append(String.fromUtf8([c]))
-    }
-
-    public func append(r: Rune): Unit {
-        parts.append(r.toString())
-    }
-
-    public func toString(): String {
-        var total: Int64 = 0
-        for (p in parts) {
-            total += p.size
-        }
-        // 简化: 拼接所有部分
-        var result = ""
-        for (p in parts) {
-            result = result + p
-        }
-        return result
-    }
-}
+// StringBuilder 已移至 package.cj 中统一定义，避免重复
 
 // ============================================================================
 // HeaderPair — 定义在 server.cj 中，此处不再重复

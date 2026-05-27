@@ -2,10 +2,9 @@
 // 对应 Bun: src/runtime/shell/states/Base.zig
 // 严格翻译Bun shell状态基类到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
 import bao_core.*
-import bao_runtime.shell.*
 import bao_event_loop.*
 
 // ============================================================================
@@ -17,16 +16,18 @@ import bao_event_loop.*
 /// 所有状态节点的公共头部
 public class Base {
     /// 状态类型
-    public var kind: StateKind
+    public var kind: StateKind = StateKind.script
     /// 所属解释器
-    public var interpreter: Interpreter
+    public var interpreter: Interpreter = Interpreter()
     /// Shell执行环境
     /// 当需要创建新的shell执行环境时拥有它（需要去初始化）
     /// 1. Script拥有自己的shell执行环境
     /// 2. Pipeline中的每个命令在自己的环境中执行
     /// 3. 子Shell
     /// 4. 命令替换
-    public var shell: ShellExecEnv
+    public var shell: ShellExecEnv = ShellExecEnv()
+
+    public init() {}
 
     /// 使用新的分配作用域初始化
     public static func initWithNewAllocScope(kind: StateKind, interpreter: Interpreter, shell: ShellExecEnv): Base {

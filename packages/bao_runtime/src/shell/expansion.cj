@@ -2,9 +2,8 @@
 // 对应 Bun: src/runtime/shell/states/Expansion.zig
 // 严格翻译Bun shell展开状态到仓颉
 
-package bao_runtime.shell.states
+package bao_runtime.shell
 
-import bao_runtime.shell.*
 import bao_collections.*  // std.collection.*
 
 // ============================================================================
@@ -37,19 +36,19 @@ public enum ExpansionResult {
 
 /// 展开状态父节点指针（提取到顶层）
 public class ExpansionParentPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): ExpansionParentPtr {
         let pp = ExpansionParentPtr()
         pp.ptr = p
         return pp
     }
     public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-    public func scopedAllocator(): Any { None }
+    public func scopedAllocator(): Any { Option<Any>.None }
 }
 
 /// 展开状态子节点指针（提取到顶层）
 public class ExpansionChildPtr {
-    public var ptr: Any
+    public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): ExpansionChildPtr {
         let cp = ExpansionChildPtr()
         cp.ptr = p
@@ -62,37 +61,32 @@ public class ExpansionChildPtr {
 /// 展开状态
 public class ExpansionState {
     /// 基类
-    public var base: Base
+    public var base: Base = Base()
     /// AST节点
-    public var node: Atom
+    public var node: ?Atom = None
     /// 父节点
-    public var parent: ExpansionParentPtr
+    public var parent: ExpansionParentPtr = ExpansionParentPtr()
     /// IO
-    public var io: IO
+    public var io: IO = IO()
 
     /// 单词索引
     public var wordIdx: UInt32 = 0
     /// 当前输出
-    public var currentOut: ArrayList<Byte>
+    public var currentOut: ArrayList<Byte> = ArrayList<Byte>()
     /// 状态
-    public var state: ExpansionStateKind
+    public var state: ExpansionStateKind = ExpansionStateKind.`normal`
     /// 子状态
-    public var childState: ExpansionChildStateKind
+    public var childState: ExpansionChildStateKind = ExpansionChildStateKind.`idle`
     /// 输出退出码
     public var outExitCode: ExitCode = ExitCode.exited(0)
     /// 输出结果
-    public var out: ExpansionResult
+    public var out: ExpansionResult = ExpansionResult.single(ArrayList<Byte>(), false)
     /// 输出索引
     public var outIdx: UInt32 = 0
     /// 是否包含引号空字符串
     public var hasQuotedEmpty: Bool = false
 
-    public init() {
-        this.currentOut = ArrayList<Byte>()
-        this.state = ExpansionStateKind.`normal`
-        this.childState = ExpansionChildStateKind.`idle`
-        this.out = ExpansionResult.single(ArrayList<Byte>(), false)
-    }
+    public init() {}
 
     /// 初始化
     public static func initFunc(
@@ -136,12 +130,12 @@ public class ExpansionState {
         while (!isDone && !isErr) {
             match (this.state) {
                 case ExpansionStateKind.`normal` =>
-                    while (this.wordIdx < this.node.atomsLen()) {
+                    while (this.wordIdx < this.node.getOrThrow().atomsLen()) {
                         if (let Some(y) <- this.expandVarAndCmdSubst(this.wordIdx)) {
                             return y
                         }
                     }
-                    if (this.wordIdx >= this.node.atomsLen()) {
+                    if (this.wordIdx >= this.node.getOrThrow().atomsLen()) {
                         this.pushCurrentOut()
                         this.state = ExpansionStateKind.done
                         isDone = true
@@ -170,7 +164,7 @@ public class ExpansionState {
         // 检查是否为命令替换
         // 如果是则创建子脚本执行
         this.wordIdx += 1
-        return None
+        return Option<Yield>.None
     }
 
     /// 子节点完成
@@ -196,8 +190,8 @@ public class ExpansionState {
     /// 展开变量
     func expandVar(s: String): String {
         let value = this.base.shell.shellEnv.get(EnvStr.initSlice(s.toArray())) ??
-            this.base.shell.exportEnv.get(EnvStr.initSlice(s.toArray())) ?? ""
-        return value.slice().toString()
+            this.base.shell.exportEnv.get(EnvStr.initSlice(s.toArray())) ?? EnvStr()
+        return String.fromUtf8(value.slice())
     }
 
     /// 转换到glob状态

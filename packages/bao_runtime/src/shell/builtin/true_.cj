@@ -6,6 +6,7 @@ package bao_runtime.shell.builtin
 
 import bao_core.*
 import bao_runtime.shell.*
+import bao_collections.*
 
 // ============================================================================
 // true命令 - 总是返回退出码0
@@ -15,7 +16,7 @@ import bao_runtime.shell.*
 public class TrueCmd {
     /// 启动
     public func start(): Yield {
-        return this.bltn().done(0)
+        return this.bltn().done(ExitCode.exited(0))
     }
 
     /// 去初始化
@@ -27,7 +28,7 @@ public class TrueCmd {
     }
 
     /// 获取Builtin引用
-    public func bltn(): Builtin {
-        return Builtin.fromImpl(this, "true")
+    public func bltn(): BuiltinImpl {
+        return BuiltinImpl()
     }
 }

@@ -233,9 +233,9 @@ public class BuildCommand {
         var outfile = options.outfile
         if (outfile.length == 0) {
             outfile = Path.basename(options.entryPoints[0])
-            let ext = Path.extension(outfile)
+            let ext = Path.extname(outfile)
             if (ext.length > 0) {
-                outfile = outfile.substring(0, outfile.length - ext.length)
+                outfile = outfile.substring(0, Int64(outfile.length - ext.length))
             }
             // index -> 目录名
             if (outfile == "index") {
@@ -277,7 +277,8 @@ public class BuildCommand {
         let outputDir = if (options.outdir.length > 0) {
             options.outdir
         } else if (options.outfile.length > 0) {
-            Path.dirname(options.outfile) ?? "."
+            let dn = Path.dirname(options.outfile)
+            if (dn.length > 0) { dn } else { "." }
         } else {
             "."
         }
@@ -314,9 +315,9 @@ public class BuildCommand {
             } else {
                 file.path
             }
-            let padding = maxPathLen - relPath.length + 2
+            let padding = maxPathLen - Int64(relPath.length) + 2
             let sizeStr = formatBytes(file.content.size)
-            let sizePad = maxFormatLen - sizeStr.length
+            let sizePad = maxFormatLen - Int64(sizeStr.length)
 
             Output.info("  ${relPath}${spaces(padding)}${sizeStr}${spaces(sizePad)}  (${file.kind})")
         }
@@ -342,7 +343,7 @@ public class BuildCommand {
             } else {
                 file.path
             }
-            if (relPath.length > maxLen) {
+            if (Int64(relPath.length) > maxLen) {
                 maxLen = Int64(relPath.length)
             }
         }
@@ -373,7 +374,12 @@ public class BuildCommand {
 
     /// 转译单个文件
     private func transpileFile(path: String): OutputFileInfo {
-        let content = BaoFile.readAllBytes(path)
+        let contentResult = BaoFile.readAllBytes(path)
+        var content = Array<UInt8>()
+        match (contentResult) {
+            case Ok(bytes_) => content = bytes_
+            case Err(_) => content = Array<UInt8>()
+        }
         return OutputFileInfo(Path.basename(path), content, "entry-point")
     }
 
@@ -683,11 +689,14 @@ public class BundlerV2 {
 extend Float64 {
     public func format(decimals: Int64): String {
         let s = this.toString()
-        let dotIndex = s.indexOf('.')
-        if (dotIndex < 0) { return s }
-        let maxLen = dotIndex + 1 + Int64(decimals)
-        if (s.length <= maxLen) { return s }
-        return s.substring(0, maxLen)
+        let dotIndexOpt = s.indexOf('.')
+        match (dotIndexOpt) {
+            case None => return s
+            case Some(dotIndex) =>
+                let maxLen = dotIndex + 1 + decimals
+                if (Int64(s.length) <= maxLen) { return s }
+                return s.substring(0, maxLen)
+        }
     }
 }
 
