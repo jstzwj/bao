@@ -36,7 +36,7 @@ public func toThrowErrorMatchingSnapshot(`this`: Expect, globalThis: JSGlobalObj
         // 无参数
     } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
-            hintString = arguments[0].toZigString(globalThis: globalThis)
+            hintString = arguments[0].toZigString(globalThis)
         } else {
             return this.throw_(globalThis: globalThis, signature: "",
                 fmt: "\n\nMatcher error: Expected first argument to be a string\n", args: [])

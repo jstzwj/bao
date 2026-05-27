@@ -2,7 +2,7 @@
 // Bunfig — bunfig.toml / tsconfig.json 配置文件解析器
 //
 // Bunfig::parse 和内部 Parser 通过 bun_parsers::toml/json 解析配置，
-// 解析结果写入 ctx.args (TransformOptions), ctx.install (BunInstall) 等。
+// 解析结果写入 args (TransformOptions), ctx.install (BunInstall) 等。
 //
 // 对应 Bun 源文件:
 //   src/bunfig/lib.rs      — 模块导出
@@ -44,7 +44,7 @@ public class Bunfig {
     //
     // 返回: 解析成功返回 Ok，失败抛出异常
     public static func parse(cmd: CommandTag, source: String, ctx: ContextData): Unit {
-        let log = ctx.log
+        let log = BunfigLog()
         let logCount = log.errorCount + log.warningCount
 
         // 确定文件扩展名
@@ -99,12 +99,15 @@ public class BunfigParser {
     private var log: BunfigLog
     /// 上下文数据
     private var ctx: ContextData
+    /// 转换选项 (TransformOptions)
+    private var args: BunfigTransformOptions
 
     public init(json: BunfigExpr, source: String, log: BunfigLog, ctx: ContextData) {
         this.json = json
         this.source = source
         this.log = log
         this.ctx = ctx
+        this.args = BunfigTransformOptions()
     }
 
     // ========================================================================
@@ -173,11 +176,11 @@ public class BunfigParser {
         }
 
         // ── define ──
-        // 对应 Bun: if let Some(expr) = json.get(b"define") { self.ctx.args.define = Some(self.parse_define_map(&expr)?) }
+        // 对应 Bun: if let Some(expr) = json.get(b"define") { self.args.define = Some(self.parse_define_map(&expr)?) }
         match (json.get("define")) {
             case Some(expr) =>
                 let defineMap = parseDefineMap(expr)
-                ctx.args.define = defineMap
+                args.define = defineMap
             case None => ()
         }
 
@@ -186,7 +189,7 @@ public class BunfigParser {
         match (json.get("origin")) {
             case Some(expr) =>
                 expectString(expr)
-                ctx.args.origin = expr.asString()
+                args.origin = expr.asString()
             case None => ()
         }
 
@@ -205,8 +208,8 @@ public class BunfigParser {
                     match (serveExpr.get("port")) {
                         case Some(portExpr) =>
                             expect(portExpr, BunfigExprTag.Number)
-                            let p = portExpr.asNumber().toInt()
-                            ctx.args.port = if (p == 0) { 3000 } else { p }
+                            let p = Int64(portExpr.asNumber())
+                            args.port = if (p == 0) { 3000 } else { p }
                         case None => ()
                     }
                 case None => ()
@@ -339,10 +342,10 @@ public class BunfigParser {
         expectString(expr)
         let level = expr.asString()
         match (level) {
-            case "debug" => ctx.args.logLevel = "debug"
-            case "error" => ctx.args.logLevel = "error"
-            case "warn" => ctx.args.logLevel = "warn"
-            case "info" => ctx.args.logLevel = "info"
+            case "debug" => args.logLevel = "debug"
+            case "error" => args.logLevel = "error"
+            case "warn" => args.logLevel = "warn"
+            case "info" => args.logLevel = "info"
             case _ => addError("Invalid log level, must be one of debug, error, or warn")
         }
     }
@@ -378,18 +381,18 @@ public class BunfigParser {
     private func loadEnvConfig(expr: BunfigExpr): Unit {
         if (expr.isNull()) {
             // env = null -> 禁用默认 .env 文件
-            ctx.args.disableDefaultEnvFiles = true
+            args.disableDefaultEnvFiles = true
         } else if (expr.isBoolean()) {
             if (!expr.asBool()) {
-                ctx.args.disableDefaultEnvFiles = true
+                args.disableDefaultEnvFiles = true
             }
         } else if (expr.isObject()) {
             match (expr.get("file")) {
                 case Some(fileExpr) =>
                     if (fileExpr.isNull()) {
-                        ctx.args.disableDefaultEnvFiles = true
+                        args.disableDefaultEnvFiles = true
                     } else if (fileExpr.isBoolean() && !fileExpr.asBool()) {
-                        ctx.args.disableDefaultEnvFiles = true
+                        args.disableDefaultEnvFiles = true
                     } else if (!fileExpr.isNull() && !fileExpr.isBoolean()) {
                         addError("Expected 'file' to be a boolean or null")
                     }
@@ -594,7 +597,7 @@ public class BunfigParser {
         match (testExpr.get("seed")) {
             case Some(expr) =>
                 expect(expr, BunfigExprTag.Number)
-                let seedValue = expr.asNumber().toInt()
+                let seedValue = Int64(expr.asNumber())
 
                 // 验证 randomize 为 true
                 let hasRandomizeTrue = match (randomizeFromConfig) {
@@ -619,7 +622,7 @@ public class BunfigParser {
                     addError("\"rerunEach\" cannot be used with \"retry\"")
                     return
                 }
-                ctx.testOptions.repeatCount = expr.asNumber().toInt()
+                ctx.testOptions.repeatCount = Int64(expr.asNumber())
             case None => ()
         }
 
@@ -633,7 +636,7 @@ public class BunfigParser {
                     addError("\"retry\" cannot be used with \"rerunEach\"")
                     return
                 }
-                ctx.testOptions.retry = expr.asNumber().toInt()
+                ctx.testOptions.retry = Int64(expr.asNumber())
             case None => ()
         }
 
@@ -924,7 +927,7 @@ public class BunfigParser {
         match (installObj.get("concurrentScripts")) {
             case Some(expr) =>
                 if (expr.isNumber()) {
-                    let n = expr.asNumber().toInt()
+                    let n = Int64(expr.asNumber())
                     // install.concurrentScripts = if (n == 0) { None } else { Some(n) }
                 }
             case None => ()
@@ -1228,7 +1231,7 @@ public class BunfigParser {
             case Some(expr) =>
                 if (expr.isNumber()) {
                     let n = expr.asNumber()
-                    ctx.bundlerOptions.elideLines = Some(n.toInt())
+                    ctx.bundlerOptions.elideLines = Some(Int64(n))
                 } else {
                     addError("Expected number")
                 }
@@ -1287,7 +1290,7 @@ public class BunfigParser {
             case Some(expr) =>
                 if (expr.isNumber()) {
                     let n = expr.asNumber()
-                    let depthValue = n.toInt()
+                    let depthValue = Int64(n)
                     // depth=0 视为无限深度 (最大值)
                     let consoleDepth = if (depthValue == 0) {
                         Int64(65535)  // maxInt for UInt16
@@ -1312,7 +1315,7 @@ public class BunfigParser {
             match (bundleExpr.get("outdir")) {
                 case Some(expr) =>
                     expectString(expr)
-                    ctx.args.outputDir = Some(expr.asString())
+                    args.outputDir = Some(expr.asString())
                 case None => ()
             }
         }
@@ -1335,7 +1338,7 @@ public class BunfigParser {
                         expectString(item)
                         names.append(item.asString())
                     }
-                    ctx.args.entryPoints = names
+                    args.entryPoints = names
                 case None => ()
             }
 
@@ -1414,8 +1417,8 @@ public class BunfigParser {
         }
 
         // 设置 JSX 配置
-        // 对应 Bun: if self.ctx.args.jsx.is_none() { ... } else { ... }
-        match (ctx.args.jsx) {
+        // 对应 Bun: if self.args.jsx.is_none() { ... } else { ... }
+        match (args.jsx) {
             case None =>
                 let jsx = JsxConfig()
                 jsx.factory = jsxFactory
@@ -1423,7 +1426,7 @@ public class BunfigParser {
                 jsx.importSource = jsxImportSource
                 jsx.runtime = jsxRuntime
                 jsx.development = jsxDev
-                ctx.args.jsx = Some(jsx)
+                args.jsx = Some(jsx)
             case Some(jsx) =>
                 if (!jsxFactory.isEmpty()) { jsx.factory = jsxFactory }
                 if (!jsxFragment.isEmpty()) { jsx.fragment = jsxFragment }
@@ -1440,7 +1443,7 @@ public class BunfigParser {
         if (expr.isString()) {
             let externals = ArrayList<String>()
             externals.append(expr.asString())
-            ctx.args.external = externals
+            args.external = externals
         } else if (expr.isArray()) {
             let items = expr.asArray()
             let externals = ArrayList<String>()
@@ -1448,7 +1451,7 @@ public class BunfigParser {
                 expectString(item)
                 externals.append(item.asString())
             }
-            ctx.args.external = externals
+            args.external = externals
         } else {
             addError("Expected string or array")
         }
@@ -1478,7 +1481,7 @@ public class BunfigParser {
         let loaderMap = BunfigLoaderMap()
         loaderMap.extensions = extensions
         loaderMap.loaders = loaderNames
-        ctx.args.loaders = Some(loaderMap)
+        args.loaders = Some(loaderMap)
     }
 
     /// 解析 serve.static 配置
@@ -1506,11 +1509,11 @@ public class BunfigParser {
                             expectString(item)
                             plugins.append(item.asString())
                         }
-                        ctx.args.servePlugins = Some(plugins)
+                        args.servePlugins = Some(plugins)
                     }
                 } else if (expr.isString()) {
                     plugins.append(expr.asString())
-                    ctx.args.servePlugins = Some(plugins)
+                    args.servePlugins = Some(plugins)
                 }
             case None => ()
         }
@@ -1519,7 +1522,7 @@ public class BunfigParser {
         match (serveObj.get("hmr")) {
             case Some(expr) =>
                 if (expr.isBoolean()) {
-                    ctx.args.serveHmr = Some(expr.asBool())
+                    args.serveHmr = Some(expr.asBool())
                 }
             case None => ()
         }
@@ -1531,28 +1534,28 @@ public class BunfigParser {
             case Some(expr) =>
                 if (expr.isBoolean()) {
                     let v = expr.asBool()
-                    ctx.args.serveMinifySyntax = Some(v)
-                    ctx.args.serveMinifyWhitespace = Some(v)
-                    ctx.args.serveMinifyIdentifiers = Some(v)
+                    args.serveMinifySyntax = Some(v)
+                    args.serveMinifyWhitespace = Some(v)
+                    args.serveMinifyIdentifiers = Some(v)
                 } else if (expr.isObject()) {
                     match (expr.get("syntax")) {
                         case Some(v) =>
                             if (v.isBoolean()) {
-                                ctx.args.serveMinifySyntax = Some(v.asBool())
+                                args.serveMinifySyntax = Some(v.asBool())
                             }
                         case None => ()
                     }
                     match (expr.get("whitespace")) {
                         case Some(v) =>
                             if (v.isBoolean()) {
-                                ctx.args.serveMinifyWhitespace = Some(v.asBool())
+                                args.serveMinifyWhitespace = Some(v.asBool())
                             }
                         case None => ()
                     }
                     match (expr.get("identifiers")) {
                         case Some(v) =>
                             if (v.isBoolean()) {
-                                ctx.args.serveMinifyIdentifiers = Some(v.asBool())
+                                args.serveMinifyIdentifiers = Some(v.asBool())
                             }
                         case None => ()
                     }
@@ -1565,20 +1568,20 @@ public class BunfigParser {
         // ── define ──
         match (serveObj.get("define")) {
             case Some(expr) =>
-                ctx.args.serveDefine = Some(parseDefineMap(expr))
+                args.serveDefine = Some(parseDefineMap(expr))
             case None => ()
         }
 
         // 设置 bunfig 路径
-        // 对应 Bun: self.ctx.args.bunfig_path = Box::<[u8]>::from(self.source.path.text)
-        ctx.args.bunfigPath = source
+        // 对应 Bun: self.args.bunfig_path = Box::<[u8]>::from(self.source.path.text)
+        args.bunfigPath = source
 
         // ── publicPath ──
         match (serveObj.get("publicPath")) {
             case Some(expr) =>
                 let s = expr.asString()
                 if (s.isSome() && !s.getOrThrow().isEmpty()) {
-                    ctx.args.servePublicPath = Some(s.getOrThrow())
+                    args.servePublicPath = Some(s.getOrThrow())
                 }
             case None => ()
         }
@@ -1589,19 +1592,19 @@ public class BunfigParser {
         match (serveObj.get("env")) {
             case Some(expr) =>
                 if (expr.isNull()) {
-                    ctx.args.serveEnvBehavior = "disable"
+                    args.serveEnvBehavior = "disable"
                 } else if (expr.isBoolean()) {
-                    ctx.args.serveEnvBehavior = if (expr.asBool()) { "load_all" } else { "disable" }
+                    args.serveEnvBehavior = if (expr.asBool()) { "load_all" } else { "disable" }
                 } else if (expr.isString()) {
                     let slice = expr.asString()
                     match (slice) {
-                        case "inline" => ctx.args.serveEnvBehavior = "inline"
-                        case "disable" => ctx.args.serveEnvBehavior = "disable"
+                        case "inline" => args.serveEnvBehavior = "inline"
+                        case "disable" => args.serveEnvBehavior = "disable"
                         case _ =>
                             // 检查是否包含 * 通配符
                             if (slice.contains("*")) {
-                                ctx.args.serveEnvBehavior = "prefix"
-                                ctx.args.serveEnvPrefix = Some(slice)
+                                args.serveEnvBehavior = "prefix"
+                                args.serveEnvPrefix = Some(slice)
                             } else {
                                 addError("Invalid env behavior, must be 'inline', 'disable', or a string with a '*' character")
                             }
@@ -1747,11 +1750,11 @@ public func loadConfigWithCmdArgs(cmd: CommandTag, args: ParsedArgs, ctx: Contex
 private func loadBunfig(cmd: CommandTag, autoLoaded: Bool, configPath: String, ctx: ContextData): Unit {
     let content = BaoFile.readAllText(configPath)
     match (content) {
-        case Some(text) =>
+        case Ok(text) =>
             // 临时设置日志级别为 Warn 以减少解析时的噪音
             ctx.debug.loadedBunfig = true
             Bunfig.parse(cmd, text, ctx)
-        case None =>
+        case Err(_) =>
             if (!autoLoaded) {
                 throw BaoError(ErrorCode.FileNotFound, "Config file not found: ${configPath}")
             }
@@ -1761,10 +1764,7 @@ private func loadBunfig(cmd: CommandTag, autoLoaded: Bool, configPath: String, c
 /// 报告 bunfig 加载失败
 // 严格翻译自: arguments.rs:125-134 - fn report_bunfig_load_failure
 private func reportBunfigLoadFailure(ctx: ContextData, err: Exception): Unit {
-    let log = ctx.log
-    if (log.errorCount > 0 || log.warningCount > 0) {
-        // 打印已收集的日志
-    }
+    // NOTE: ContextData does not have a log field; just report the error directly
     OutputFormatter.formatError("failed to load bunfig: ${err}")
 }
 
@@ -1806,6 +1806,21 @@ public enum BunfigExprTag {
     | Number
     | Boolean
     | Null_
+
+    public operator func ==(other: BunfigExprTag): Bool {
+        match (this) {
+            case Object => match (other) { case Object => true case _ => false }
+            case Array => match (other) { case Array => true case _ => false }
+            case String_ => match (other) { case String_ => true case _ => false }
+            case Number => match (other) { case Number => true case _ => false }
+            case Boolean => match (other) { case Boolean => true case _ => false }
+            case Null_ => match (other) { case Null_ => true case _ => false }
+        }
+    }
+
+    public operator func !=(other: BunfigExprTag): Bool {
+        return !(this == other)
+    }
 
     public func name(): String {
         match (this) {
@@ -2021,7 +2036,7 @@ public class JsxConfig {
     }
 }
 
-/// 转换选项 (TransformOptions) — ctx.args 的核心配置
+/// 转换选项 (TransformOptions) — args 的核心配置
 // 对应 Bun: api::TransformOptions
 public class BunfigTransformOptions {
     /// 日志级别

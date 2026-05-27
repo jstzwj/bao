@@ -79,7 +79,7 @@ public class BuildCommand {
 
         // 4. 验证输出配置
         // 严格翻译自: build_command.zig 中 outdir/outfile 验证
-        if (options.outdir.length == 0 && options.outfile.length == 0 && !options.compile) {
+        if (options.outdir.size == 0 && options.outfile.size == 0 && !options.compile) {
             if (options.entryPoints.size > 1) {
                 Output.err("Must use --outdir when specifying more than one entry point")
                 return 1
@@ -99,7 +99,7 @@ public class BuildCommand {
 
         // 6. external source map 检查
         // 严格翻译自: build_command.zig 中 external sourcemap 检查
-        if (options.sourceMap == "external" && options.outdir.length == 0 && !options.compile) {
+        if (options.sourceMap == "external" && options.outdir.size == 0 && !options.compile) {
             Output.err("cannot use an external source map without --outdir")
             return 1
         }
@@ -138,10 +138,10 @@ public class BuildCommand {
 
         // 11. 写入 metafile
         // 严格翻译自: build_command.zig 中 metafile 写入
-        if (options.metafile.length > 0 && result.metafile.length > 0) {
+        if (options.metafile.size > 0 && result.metafile.size > 0) {
             BaoFile.writeAllText(options.metafile, result.metafile)
         }
-        if (options.metafileMd.length > 0 && result.metafile.length > 0) {
+        if (options.metafileMd.size > 0 && result.metafile.size > 0) {
             // Markdown metafile 生成
             let md = generateMetafileMarkdown(result.metafile)
             BaoFile.writeAllText(options.metafileMd, md)
@@ -231,11 +231,11 @@ public class BuildCommand {
     // 严格翻译自: build_command.zig 中 StandaloneModuleGraph.toExecutable
     private func compileToExecutable(result: BundleV2Result): Int64 {
         var outfile = options.outfile
-        if (outfile.length == 0) {
+        if (outfile.size == 0) {
             outfile = Path.basename(options.entryPoints[0])
             let ext = Path.extname(outfile)
-            if (ext.length > 0) {
-                outfile = outfile.substring(0, Int64(outfile.length - ext.length))
+            if (ext.size > 0) {
+                outfile = outfile.substring(0, Int64(outfile.size - ext.size))
             }
             // index -> 目录名
             if (outfile == "index") {
@@ -264,7 +264,7 @@ public class BuildCommand {
     /// 写入输出文件
     // 严格翻译自: build_command.zig 中 writeToDisk 部分
     private func writeOutputFiles(result: BundleV2Result): Unit {
-        if (options.outdir.length == 0 && options.outfile.length == 0 && !options.compile) {
+        if (options.outdir.size == 0 && options.outfile.size == 0 && !options.compile) {
             // 输出到 stdout
             if (result.outputFiles.size == 1) {
                 let file = result.outputFiles[0]
@@ -274,23 +274,23 @@ public class BuildCommand {
         }
 
         // 确保输出目录存在
-        let outputDir = if (options.outdir.length > 0) {
+        let outputDir = if (options.outdir.size > 0) {
             options.outdir
-        } else if (options.outfile.length > 0) {
+        } else if (options.outfile.size > 0) {
             let dn = Path.dirname(options.outfile)
-            if (dn.length > 0) { dn } else { "." }
+            if (dn.size > 0) { dn } else { "." }
         } else {
             "."
         }
 
-        if (outputDir.length > 0) {
+        if (outputDir.size > 0) {
             BaoFile.mkdir(outputDir, true)
         }
 
         for (file in result.outputFiles) {
-            let outputPath = if (options.outdir.length > 0) {
+            let outputPath = if (options.outdir.size > 0) {
                 Path.join([options.outdir, file.path])
-            } else if (options.outfile.length > 0 && result.outputFiles.size == 1) {
+            } else if (options.outfile.size > 0 && result.outputFiles.size == 1) {
                 options.outfile
             } else {
                 file.path
@@ -315,9 +315,9 @@ public class BuildCommand {
             } else {
                 file.path
             }
-            let padding = maxPathLen - Int64(relPath.length) + 2
+            let padding = maxPathLen - Int64(relPath.size) + 2
             let sizeStr = formatBytes(file.content.size)
-            let sizePad = maxFormatLen - Int64(sizeStr.length)
+            let sizePad = maxFormatLen - Int64(sizeStr.size)
 
             Output.info("  ${relPath}${spaces(padding)}${sizeStr}${spaces(sizePad)}  (${file.kind})")
         }
@@ -343,8 +343,8 @@ public class BuildCommand {
             } else {
                 file.path
             }
-            if (Int64(relPath.length) > maxLen) {
-                maxLen = Int64(relPath.length)
+            if (Int64(relPath.size) > maxLen) {
+                maxLen = Int64(relPath.size)
             }
         }
         return maxLen
@@ -355,8 +355,8 @@ public class BuildCommand {
         var maxLen: Int64 = 0
         for (file in result.outputFiles) {
             let s = formatBytes(Int64(file.content.size))
-            if (Int64(s.length) > maxLen) {
-                maxLen = Int64(s.length)
+            if (Int64(s.size) > maxLen) {
+                maxLen = Int64(s.size)
             }
         }
         return maxLen
@@ -694,7 +694,7 @@ extend Float64 {
             case None => return s
             case Some(dotIndex) =>
                 let maxLen = dotIndex + 1 + decimals
-                if (Int64(s.length) <= maxLen) { return s }
+                if (Int64(s.size) <= maxLen) { return s }
                 return s.substring(0, maxLen)
         }
     }
@@ -708,6 +708,8 @@ extend Float64 {
 /// 输出工具
 public class Output {
     private static var verbose: Bool = false
+
+    public static let enableAnsiColorsStdout: Bool = true
 
     /// 打印信息行
     public static func info(msg: String): Unit {
@@ -724,9 +726,82 @@ public class Output {
         println("warn: ${msg}")
     }
 
+    /// 打印格式化行 (支持 ANSI 颜色标签)
+    public static func pretty(msg: String): Unit {
+        println(stripAnsiTags(msg))
+    }
+
+    /// 打印格式化行 (带换行)
+    public static func prettyLn(msg: String): Unit {
+        println(stripAnsiTags(msg))
+    }
+
+    /// 打印错误格式化行
+    public static func prettyError(msg: String): Unit {
+        print(stripAnsiTags(msg))
+    }
+
+    /// 打印错误格式化行 (带换行)
+    public static func prettyErrorLn(msg: String): Unit {
+        println(stripAnsiTags(msg))
+    }
+
+    /// 打印通用错误
+    public static func errGeneric(msg: String): Unit {
+        println("error: ${msg}")
+    }
+
+    /// 打印通用提示
+    public static func note(msg: String): Unit {
+        println(stripAnsiTags(msg))
+    }
+
+    /// 打印通用提示
+    public static func noteGeneric(msg: String): Unit {
+        println(stripAnsiTags(msg))
+    }
+
+    /// 打印命令
+    public static func command(msg: String): Unit {
+        println("  $ ${msg}")
+    }
+
+    /// 打印 (不换行)
+    public static func print(msg: String): Unit {
+        print(msg)
+    }
+
+    /// 打印 (带换行)
+    public static func println(msg: String): Unit {
+        println(msg)
+    }
+
+    /// 刷新输出
+    public static func flush(): Unit {
+        // no-op stub
+    }
+
+    /// 获取 writer
+    public static func writer(): OutputWriter {
+        return OutputWriter()
+    }
+
     /// 设置详细模式
     public static func setVerbose(v: Bool): Unit {
         verbose = v
+    }
+
+    /// 去除 ANSI 标签 (stub)
+    private static func stripAnsiTags(s: String): String {
+        // 简单实现: 去除 <...> 标签
+        return s
+    }
+}
+
+/// Output writer stub
+public class OutputWriter {
+    public func writeAll(s: String): Unit {
+        CorePrint.print(s)
     }
 }
 

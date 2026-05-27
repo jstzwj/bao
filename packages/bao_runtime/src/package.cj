@@ -242,12 +242,160 @@ public class JsValue {
     private func parseNumber(s: String): Float64 {
         return 0.0
     }
+
+    /// 是否为 null 或 undefined
+    public func isUndefinedOrNull(): Bool {
+        valueType == JsValueType.Undefined || valueType == JsValueType.Null
+    }
+
+    /// 别名: isEmptyOrUndefinedOrNull
+    public func isEmptyOrUndefinedOrNull(): Bool {
+        isUndefinedOrNull()
+    }
+
+    /// 是否为 undefined
+    public func isUndefined(): Bool {
+        valueType == JsValueType.Undefined
+    }
+
+    /// 是否为 null
+    public func isNull(): Bool {
+        valueType == JsValueType.Null
+    }
+
+    /// 是否为布尔值
+    public func isBoolean(): Bool {
+        valueType == JsValueType.Boolean
+    }
+
+    /// 是否为数字
+    public func isNumber(): Bool {
+        valueType == JsValueType.Number
+    }
+
+    /// 是否为字符串
+    public func isString(): Bool {
+        valueType == JsValueType.String
+    }
+
+    /// 是否为对象
+    public func isObject(): Bool {
+        valueType == JsValueType.Object
+    }
+
+    /// 是否为 ArrayBuffer
+    public func isArrayBuffer(): Bool {
+        if (valueType == JsValueType.Object) {
+            match (objectData) {
+                case Some(obj) => obj.className == "ArrayBuffer"
+                case None => false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// ArrayBuffer 切片
+    public func arrayBufferSlice(): Array<UInt8> {
+        Array<UInt8>()
+    }
+
+    /// 转为 Float64
+    public func asNumber(): Float64 {
+        toNumber()
+    }
+
+    /// 转为布尔值
+    public func asBoolean(): Bool {
+        toBoolean()
+    }
+
+    /// 转为 Int32
+    public func toInt32(): Int32 {
+        Int32(toNumber())
+    }
+
+    /// 转为 Int64
+    public func toInt64(): Int64 {
+        Int64(toNumber())
+    }
+
+    /// 取消保护 (GC 引用计数)
+    public func unprotect(): Unit {
+        // stub: 在真实 JSC 中减少引用计数
+    }
+
+    /// 确保仍活跃 (防止 GC 回收)
+    public func ensureStillAlive(): Unit {
+        // stub: 在真实 JSC 中防止编译器优化掉引用
+    }
+
+    /// 是否为 Response
+    public func isResponse(): Bool {
+        if (valueType == JsValueType.Object) {
+            match (objectData) {
+                case Some(obj) => obj.className == "Response"
+                case None => false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// 转为 Response (stub)
+    public func toResponse(): ?Any {
+        None
+    }
+
+    /// 静态工厂: null
+    public static func jsNull(): JsValue {
+        JsValue.NULL
+    }
+
+    /// 静态工厂: true
+    public static func jsTrue(): JsValue {
+        JsValue.TRUE
+    }
+
+    /// 静态工厂: false
+    public static func jsFalse(): JsValue {
+        JsValue.FALSE
+    }
+
+    /// 静态工厂: boolean
+    public static func jsBoolean(b: Bool): JsValue {
+        JsValue(b)
+    }
+
+    /// 静态工厂: number
+    public static func jsNumber(n: Float64): JsValue {
+        JsValue(n)
+    }
+
+    /// 静态工厂: number
+    public static func jsNumber(n: Int64): JsValue {
+        JsValue(Float64(n))
+    }
+
+    /// 静态常量: zero
+    public static let zero: JsValue = JsValue(0.0)
+
+    /// 调用此值为函数 (stub)
+    public func call(args: ArrayList<JsValue>): JsValue {
+        JsValue.UNDEFINED
+    }
+
+    /// 保护 (GC 引用计数)
+    public func protect(): Unit {
+        // stub
+    }
 }
 
 /// JavaScript 对象
 public class JsObject {
     private var properties: HashMap<String, JsValue>
     private var proto: ?JsObject
+    public var className: String = "Object"
 
     public init() {
         properties = HashMap<String, JsValue>()
@@ -287,6 +435,16 @@ public class JsObject {
     /// 获取所有键
     public func keys(): ArrayList<String> {
         return properties.keys()
+    }
+
+    /// 获取所有自有属性名
+    public func getOwnPropertyNames(): ArrayList<String> {
+        properties.keys()
+    }
+
+    /// 静态工厂
+    public static func make(): JsObject {
+        JsObject()
     }
 }
 

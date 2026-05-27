@@ -146,7 +146,7 @@ public class TestCommand {
         // 严格翻译自: test_command.zig 中 writeJUnitReportIfNeeded
         match (junitReporter) {
             case Some(jr) =>
-                if (options.reporterOutfile.length > 0) {
+                if (options.reporterOutfile.size > 0) {
                     jr.writeToFile(options.reporterOutfile)
                 }
             case None => ()
@@ -842,7 +842,7 @@ public class TestRunner {
     /// 判断文件是否应并发运行
     // 严格翻译自: TestRunner.shouldFileRunConcurrently
     public func shouldFileRunConcurrently(fileId: Int64): Bool {
-        if (concurrentTestGlob.length == 0) { return false }
+        if (concurrentTestGlob.size == 0) { return false }
         match (files.get(fileId)) {
             case Some(f) =>
                 let name = f.sourcePath
@@ -1069,7 +1069,7 @@ public class TestScanner {
 
             // 检查过滤器 (先绝对路径，后相对路径)
             if (!doesAbsolutePathMatchFilterEntry(absPath)) {
-                let relPath = if (topLevelDir.length > 0) {
+                let relPath = if (topLevelDir.size > 0) {
                     Path.relative(topLevelDir, absPath)
                 } else {
                     absPath
@@ -1089,9 +1089,9 @@ public class TestScanner {
     // 严格翻译自: Scanner.couldBeTestFile
     private func couldBeTestFileEntry(name: String, needsTestSuffix: Bool): Bool {
         let ext = Path.extension(name)
-        if (ext.length == 0 || !isJavaScriptLikeExtension(ext)) { return false }
+        if (ext.size == 0 || !isJavaScriptLikeExtension(ext)) { return false }
         if (!needsTestSuffix) { return true }
-        let nameWithoutExt = name.substring(0, name.length - ext.length)
+        let nameWithoutExt = name.substring(0, name.size - ext.size)
         for (suffix in TestScanner.testNameSuffixes) {
             if (nameWithoutExt.endsWith(suffix)) { return true }
         }
@@ -1122,7 +1122,7 @@ public class TestScanner {
     // 严格翻译自: Scanner.matchesPathIgnorePattern
     public func matchesPathIgnorePattern(absPath: String): Bool {
         if (pathIgnorePatterns.size == 0) { return false }
-        let relPath = if (topLevelDir.length > 0) {
+        let relPath = if (topLevelDir.size > 0) {
             Path.relative(topLevelDir, absPath)
         } else {
             absPath
@@ -1192,6 +1192,26 @@ public enum TestResultStatus {
     /// 因为标签跳过
     // 对应 Bun: skipped_because_label
     | SkippedBecauseLabel
+
+    public operator func ==(right: TestResultStatus): Bool {
+        return match (this) {
+            case Pass => match (right) { case Pass => true case _ => false }
+            case Fail => match (right) { case Fail => true case _ => false }
+            case Skip => match (right) { case Skip => true case _ => false }
+            case Todo => match (right) { case Todo => true case _ => false }
+            case Pending => match (right) { case Pending => true case _ => false }
+            case FailBecauseFailingTestPassed => match (right) { case FailBecauseFailingTestPassed => true case _ => false }
+            case FailBecauseExpectedAssertionCount => match (right) { case FailBecauseExpectedAssertionCount => true case _ => false }
+            case FailBecauseTodoPassed => match (right) { case FailBecauseTodoPassed => true case _ => false }
+            case FailBecauseExpectedHasAssertions => match (right) { case FailBecauseExpectedHasAssertions => true case _ => false }
+            case FailBecauseTimeout => match (right) { case FailBecauseTimeout => true case _ => false }
+            case FailBecauseTimeoutWithDoneCallback => match (right) { case FailBecauseTimeoutWithDoneCallback => true case _ => false }
+            case FailBecauseHookTimeout => match (right) { case FailBecauseHookTimeout => true case _ => false }
+            case FailBecauseHookTimeoutWithDoneCallback => match (right) { case FailBecauseHookTimeoutWithDoneCallback => true case _ => false }
+            case SkippedBecauseLabel => match (right) { case SkippedBecauseLabel => true case _ => false }
+        }
+    }
+    public operator func !=(right: TestResultStatus): Bool { !(this == right) }
 }
 
 /// JUnit 报告器
@@ -1263,7 +1283,7 @@ public class JUnitReporter {
     public func getHostname(): ?String {
         if (hostnameValue.isNone()) {
             let hostname = Sys.gethostname()
-            if (hostname.length > 0) {
+            if (hostname.size > 0) {
                 let escaped = StringBuilder()
                 escapeXmlTo(hostname, escaped)
                 hostnameValue = Some(escaped.toString())
@@ -1273,7 +1293,7 @@ public class JUnitReporter {
         }
 
         match (hostnameValue) {
-            case Some(h) => if (h.length > 0) { return hostnameValue }
+            case Some(h) => if (h.size > 0) { return hostnameValue }
             case None => ()
         }
         return None
@@ -1288,13 +1308,13 @@ public class JUnitReporter {
         let githubServerUrl = Sys.getenv("GITHUB_SERVER_URL")
         let githubRepository = Sys.getenv("GITHUB_REPOSITORY")
 
-        if (githubRunId.length > 0 && githubServerUrl.length > 0 && githubRepository.length > 0) {
+        if (githubRunId.size > 0 && githubServerUrl.size > 0 && githubRepository.size > 0) {
             ci = "${githubServerUrl}/${githubRepository}/actions/runs/${githubRunId}"
         }
 
-        if (ci.length == 0) {
+        if (ci.size == 0) {
             let ciJobUrl = Sys.getenv("CI_JOB_URL")
-            if (ciJobUrl.length > 0) {
+            if (ciJobUrl.size > 0) {
                 ci = ciJobUrl
             }
         }
@@ -1302,21 +1322,21 @@ public class JUnitReporter {
         // 获取 commit SHA
         var commit = ""
         let githubSha = Sys.getenv("GITHUB_SHA")
-        if (githubSha.length > 0) {
+        if (githubSha.size > 0) {
             commit = githubSha
         } else {
             let ciCommitSha = Sys.getenv("CI_COMMIT_SHA")
-            if (ciCommitSha.length > 0) {
+            if (ciCommitSha.size > 0) {
                 commit = ciCommitSha
             } else {
                 let gitSha = Sys.getenv("GIT_SHA")
-                if (gitSha.length > 0) {
+                if (gitSha.size > 0) {
                     commit = gitSha
                 }
             }
         }
 
-        if (ci.length == 0 && commit.length == 0) {
+        if (ci.size == 0 && commit.size == 0) {
             propertiesListToRepeat = Some("")
             return
         }
@@ -1324,12 +1344,12 @@ public class JUnitReporter {
         let buf = StringBuilder()
         buf.append("    <properties>\n")
 
-        if (ci.length > 0) {
+        if (ci.size > 0) {
             buf.append("      <property name=\"ci\" value=\"")
             escapeXmlTo(ci, buf)
             buf.append("\" />\n")
         }
-        if (commit.length > 0) {
+        if (commit.size > 0) {
             buf.append("      <property name=\"commit\" value=\"")
             escapeXmlTo(commit, buf)
             buf.append("\" />\n")
@@ -1345,7 +1365,7 @@ public class JUnitReporter {
         let spaces = "                                                                                "
         let indentSize: Int64 = 2
         let totalSpaces = (depth + 1) * indentSize
-        let count = if (totalSpaces > spaces.length) { spaces.length } else { totalSpaces }
+        let count = if (totalSpaces > spaces.size) { spaces.size } else { totalSpaces }
         return spaces.substring(0, count)
     }
 
@@ -1377,7 +1397,7 @@ public class JUnitReporter {
             content.append(" file=\"")
             escapeXml(name)
             content.append("\"")
-        } else if (currentFile.length > 0) {
+        } else if (currentFile.size > 0) {
             content.append(" file=\"")
             escapeXml(currentFile)
             content.append("\"")
@@ -1396,7 +1416,7 @@ public class JUnitReporter {
                 generatePropertiesList()
             }
             match (propertiesListToRepeat) {
-                case Some(pl) => if (pl.length > 0) { content.append(pl) }
+                case Some(pl) => if (pl.size > 0) { content.append(pl) }
                 case None => ()
             }
         }
@@ -1826,6 +1846,17 @@ public enum TestResultBasicStatus {
     | Skip
     | Todo
     | Pending
+
+    public operator func ==(right: TestResultBasicStatus): Bool {
+        return match (this) {
+            case Pass => match (right) { case Pass => true case _ => false }
+            case Fail => match (right) { case Fail => true case _ => false }
+            case Skip => match (right) { case Skip => true case _ => false }
+            case Todo => match (right) { case Todo => true case _ => false }
+            case Pending => match (right) { case Pending => true case _ => false }
+        }
+    }
+    public operator func !=(right: TestResultBasicStatus): Bool { !(this == right) }
 }
 
 /// 判断状态是否为失败
@@ -2053,19 +2084,19 @@ public class CommandLineReporter {
         var parent: ?DescribeScope = testEntry.parent
         while (parent.isSome()) {
             let scope = parent.getOrThrow()
-            if (scope.name.length > 0) {
+            if (scope.name.size > 0) {
                 scopes.append(scope.name)
             }
             parent = scope.parent
         }
 
-        let displayLabel = if (testEntry.name.length > 0) { testEntry.name } else { "(unnamed)" }
+        let displayLabel = if (testEntry.name.size > 0) { testEntry.name } else { "(unnamed)" }
 
         // 输出作用域路径
         for (i in 0..scopes.size) {
             let index = scopes.size - 1 - i
             let scopeName = scopes[index]
-            if (scopeName.length == 0) { continue }
+            if (scopeName.size == 0) { continue }
             writer.append(" ")
             writer.append(scopeName)
             writer.append(" >")
@@ -2147,7 +2178,7 @@ public class CommandLineReporter {
             parent = scope.parent
         }
 
-        let displayLabel = if (testEntry.name.length > 0) { testEntry.name } else { "(unnamed)" }
+        let displayLabel = if (testEntry.name.size > 0) { testEntry.name } else { "(unnamed)" }
 
         // 检查文件是否变更
         let filename = file
@@ -2156,7 +2187,7 @@ public class CommandLineReporter {
             while (junit.suiteStack.size > 0 && !junit.suiteStack[junit.suiteStack.size - 1].isFileSuite) {
                 junit.endTestSuite()
             }
-            if (junit.currentFile.length > 0) {
+            if (junit.currentFile.size > 0) {
                 junit.endTestSuite()
             }
             junit.beginTestSuite(filename)
@@ -2211,8 +2242,8 @@ public class CommandLineReporter {
         if (reporterOptions.junit.isNone()) { return }
         let junit = reporterOptions.junit.getOrThrow()
         let outfile = jest.testOptions.reporterOutfile
-        if (outfile.length > 0) {
-            if (junit.currentFile.length > 0) {
+        if (outfile.size > 0) {
+            if (junit.currentFile.size > 0) {
                 junit.endTestSuite()
             }
             junit.writeToFile(outfile)
@@ -2308,8 +2339,8 @@ public class CommandLineReporter {
                     if (shouldIgnore) { continue }
                 }
 
-                if (relativePath.length > maxFilepathLength) {
-                    maxFilepathLength = relativePath.length
+                if (relativePath.size > maxFilepathLength) {
+                    maxFilepathLength = relativePath.size
                 }
             }
         }
@@ -2513,6 +2544,15 @@ public enum ExpectAssertionsType {
     | None
     | Exact
     | AtLeast
+
+    public operator func ==(right: ExpectAssertionsType): Bool {
+        return match (this) {
+            case None => match (right) { case None => true case _ => false }
+            case Exact => match (right) { case Exact => true case _ => false }
+            case AtLeast => match (right) { case AtLeast => true case _ => false }
+        }
+    }
+    public operator func !=(right: ExpectAssertionsType): Bool { !(this == right) }
 }
 
 /// Flaky 尝试
@@ -2761,20 +2801,20 @@ public class ChangedFilesFilter {
 
         // 查找 git
         let gitPath = Sys.which("git")
-        if (gitPath.length == 0) {
+        if (gitPath.size == 0) {
             println("--changed: requires git to be installed and in PATH")
             return result
         }
 
         // 获取 git 仓库根目录
         let gitRoot = Sys.execAndWait(gitPath, ["rev-parse", "--show-toplevel"], topLevelDir)
-        if (gitRoot.length == 0) {
+        if (gitRoot.size == 0) {
             println("--changed requires running inside a git repository")
             return result
         }
 
         // 获取变更文件列表
-        if (since.length == 0) {
+        if (since.size == 0) {
             // 未提交的变更 (未暂存 + 已暂存)
             let diffOutput = Sys.execAndWait(gitPath, ["diff", "--name-only", "HEAD", "--"], topLevelDir)
             appendPaths(result, gitRoot, diffOutput)
@@ -2801,7 +2841,7 @@ public class ChangedFilesFilter {
         let lines = stdout.split("\n")
         for (line in lines) {
             let trimmed = line.trim()
-            if (trimmed.length == 0) { continue }
+            if (trimmed.size == 0) { continue }
             let absPath = Path.join(gitRoot, trimmed)
             // 跳过已删除的文件
             if (BaoFile.exists(absPath)) {
@@ -2950,7 +2990,7 @@ public class CodeCoverageReport_Text {
         relativeDir: String
     ): Unit {
         let relativePath = Path.relative(relativeDir, report.sourceUrl)
-        let padding = maxFilepathLength - relativePath.length
+        let padding = maxFilepathLength - relativePath.size
         let line = formatCoverageLine(relativePath, maxFilepathLength, fraction.functions, fraction.lines)
         println(line)
     }
@@ -3155,10 +3195,10 @@ public func isJavaScriptLikeExtension(ext: String): Bool {
 // 严格翻译自: Scanner.couldBeTestFile
 public func couldBeTestFile(name: String, needsTestSuffix: Bool): Bool {
     let extname = Path.extension(name)
-    if (extname.length == 0 || !isJavaScriptLikeExtension(extname)) { return false }
+    if (extname.size == 0 || !isJavaScriptLikeExtension(extname)) { return false }
     if (!needsTestSuffix) { return true }
 
-    let nameWithoutExtension = name.substring(0, name.length - extname.length)
+    let nameWithoutExtension = name.substring(0, name.size - extname.size)
     let testSuffixes = [".test", "_test", ".spec", "_spec"]
     for (suffix in testSuffixes) {
         if (nameWithoutExtension.endsWith(suffix)) { return true }
@@ -3229,13 +3269,13 @@ public func globMatch(pattern: String, path: String): Bool {
 
     // 前缀匹配
     if (pattern.endsWith("/*")) {
-        let prefix = pattern.substring(0, pattern.length - 2)
+        let prefix = pattern.substring(0, pattern.size - 2)
         if (path.startsWith(prefix)) { return true }
     }
 
     // 前缀匹配 (带 **)
     if (pattern.endsWith("/**")) {
-        let prefix = pattern.substring(0, pattern.length - 3)
+        let prefix = pattern.substring(0, pattern.size - 3)
         if (path.startsWith(prefix)) { return true }
     }
 
@@ -3259,7 +3299,7 @@ public func formatCoverageLine(
     functionsPct: Float64,
     linesPct: Float64
 ): String {
-    let padding = maxFilepathLength - name.length
+    let padding = maxFilepathLength - name.size
     let paddingStr = repeatChar(' ', padding)
     let fnPct = String.formatFloat(functionsPct * 100.0, 1)
     let linePct = String.formatFloat(linesPct * 100.0, 1)

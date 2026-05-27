@@ -28,47 +28,47 @@ public func toHaveNthReturnedWith(`this`: Expect, globalThis: JSGlobalObject, ca
     this.incrementExpectCallCounter()
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
     if (!returns.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
-    let callsCount: UInt32 = returns.getLength(globalThis: globalThis)
+    let callsCount: UInt32 = returns.getLength(globalThis)
     let index: UInt32 = UInt32(n - 1) // 转为 0-based index
 
     var pass = false
-    var nthReturnValue: JsValue = JsValue.jsUndefined
+    var nthReturnValue: JsValue = JsValue.jsUndefined()
     var nthCallThrew = false
-    var nthErrorValue: JsValue = JsValue.jsUndefined
+    var nthErrorValue: JsValue = JsValue.jsUndefined()
     var nthCallExists = false
 
     if (index < callsCount) {
         nthCallExists = true
         let nthResult = returns.getDirectIndex(globalThis: globalThis, index: index)
         if (nthResult.isObject()) {
-            let resultType = nthResult.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
+            let resultType = nthResult.get(globalThis, "type") ?? JsValue.jsUndefined()
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
                 // defer { typeStr.deref() }
                 if (typeStr.eqlComptime("return")) {
-                    nthReturnValue = nthResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
+                    nthReturnValue = nthResult.get(globalThis, "value") ?? JsValue.jsUndefined()
                     if (nthReturnValue.jestDeepEquals(expected, globalThis: globalThis)) {
                         pass = true
                     }
                 } else if (typeStr.eqlComptime("throw")) {
                     nthCallThrew = true
-                    nthErrorValue = nthResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
+                    nthErrorValue = nthResult.get(globalThis, "value") ?? JsValue.jsUndefined()
                 }
             }
         }
     }
 
     if (pass != this.flags.not) {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let signature = Expect.getSignature(matcherName: "toHaveNthReturnedWith", args: "<green>n<r>, <green>expected<r>", not: false)

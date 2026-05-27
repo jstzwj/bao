@@ -18,9 +18,9 @@ public func toBeArray(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     let not = this.flags.not
     let pass = value.jsType().isArray() != not
 
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 

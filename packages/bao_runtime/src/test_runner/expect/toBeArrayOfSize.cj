@@ -30,12 +30,12 @@ public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFram
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
-    var pass = value.jsType().isArray() && Int32(value.getLength(globalThis: globalThis)) == size.toInt32()
+    var pass = value.jsType().isArray() && Int32(value.getLength(globalThis)) == size.toInt32()
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 

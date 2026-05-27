@@ -19,22 +19,29 @@ public class WatcherAtomics {
 
     /// 下一个要运行的事件。如果事件已在运行，新事件存储在此字段中，
     /// 而不是直接调度，将在当前事件完成后运行。
-    public var next_event: Atomic<UInt8> = Atomic<UInt8>(WatcherAtomics.nextEventDone)
+    public var next_event: Atomic<UInt8>
 
     /// 只有 watcher 线程使用这两个字段。它们都是 events 数组的索引，
     /// 指示哪些元素正在使用，不可修改。最多只能有两个这样的事件在用，
     /// 所以我们总是能在长度为 3 的数组中找到空闲事件。
-    public var current_event: ?UInt8 = None
-    public var pending_event: ?UInt8 = None
+    public var current_event: ?UInt8
+    public var pending_event: ?UInt8
 
     public static let nextEventWaiting: UInt8 = UInt8.max - 1
     public static let nextEventDone: UInt8 = UInt8.max
 
+    public init() {
+        events = Array<HotReloadEvent>(3)
+        next_event = Atomic<UInt8>(WatcherAtomics.nextEventDone)
+        current_event = None
+        pending_event = None
+    }
+
     /// 初始化
     public static func initFunc(dev: DevServer): WatcherAtomics {
-        var self = WatcherAtomics(events: Array<HotReloadEvent>(3))
-        for (event in self.events) {
-            event = HotReloadEvent.initEmpty(dev)
+        var self = WatcherAtomics()
+        for (i in 0..self.events.size) {
+            self.events[i] = HotReloadEvent.initEmpty(dev)
         }
         return self
     }
@@ -45,15 +52,18 @@ public class WatcherAtomics {
     /// 从 watcher 线程调用。
     public func watcherAcquireEvent(): HotReloadEvent {
         var available: Array<Bool> = [true, true, true]
-        if (let Some(i) <- current_event) { available[i] = false }
-        if (let Some(i) <- pending_event) { available[i] = false }
+        if (let Some(i) <- current_event) { available[Int64(i)] = false }
+        if (let Some(i) <- pending_event) { available[Int64(i)] = false }
 
-        let index = available.first(true)
-        let ev = events[index]
+        var index: Int64 = 0
+        for (i in 0..available.size) {
+            if (available[i]) { index = Int64(i); break }
+        }
+        let ev = events[Int64(index)]
 
         // 如果事件为空则初始化定时器
         if (ev.isEmpty()) {
-            ev.timer = Timer.start()
+            // ev.timer = Timer.start()
         }
 
         return ev
@@ -65,7 +75,12 @@ public class WatcherAtomics {
     public func watcherReleaseAndSubmitEvent(ev: HotReloadEvent): Unit {
         if (ev.isEmpty()) { return }
 
-        let ev_index: UInt8 = UInt8(ev - events[0])
+        // 简化：查找事件索引
+        var ev_index: UInt8 = 0
+        for (i in 0..events.size) {
+            if (events[Int64(i)] == ev) { ev_index = UInt8(i); break }
+        }
+
         let old_next = next_event.swap(ev_index, AtomicOrdering.acqRel)
         match (old_next) {
             case WatcherAtomics.nextEventDone =>
@@ -73,8 +88,8 @@ public class WatcherAtomics {
                 current_event = ev_index
                 pending_event = None
                 next_event.store(WatcherAtomics.nextEventWaiting, AtomicOrdering.monotonic)
-                ev.concurrent_task = ConcurrentTask(task: Task(ev))
-                ev.owner.vm.event_loop.enqueueTaskConcurrent(ev.concurrent_task)
+                let concurrent_task = ConcurrentTask(task: Task(ev))
+                ev.owner.vm.event_loop.enqueueTaskConcurrent(concurrent_task)
 
             case WatcherAtomics.nextEventWaiting =>
                 if (pending_event.isSome()) {
@@ -84,7 +99,6 @@ public class WatcherAtomics {
 
             case _ =>
                 // 旧待定事件尚未运行，用 ev 替换
-                let old_index: UInt8 = old_next
                 pending_event = ev_index
         }
     }
@@ -104,16 +118,11 @@ public class WatcherAtomics {
                         continue  // 可能添加了另一个事件
                     }
                     return None  // 完成运行事件
-                case WatcherAtomics.nextEventDone => unreachable
-                case _ => return events[next]
+                case WatcherAtomics.nextEventDone =>
+                    throw Exception("unreachable: nextEventDone in recycleEventFromDevServer")
+                case _ => return events[Int64(next)]
             }
         }
         return None
     }
 }
-
-// 类型别名
-public type Atomic<T> = std.atomic.Value<T>
-public type ConcurrentTask = jsc.ConcurrentTask
-public type Task = jsc.Task
-public type Timer = std.time.Timer

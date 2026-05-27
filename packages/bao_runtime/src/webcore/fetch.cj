@@ -2679,9 +2679,16 @@ public class HttpClient {
         httpReq += connectionHeader
 
         // 添加自定义 headers
-        request.headers.forEach({ name: String, value: String =>
-            httpReq += "${name}: ${value}\r\n"
-        })
+        // PORT NOTE: use keys() + get() since entries() is not available and mutable capture in lambda is restricted
+        let headerKeys = request.headers.keys()
+        var headerPart = ""
+        for (name in headerKeys) {
+            let valOpt = request.headers.get(name)
+            if (valOpt.isSome()) {
+                headerPart = headerPart + "${name}: ${valOpt.getOrThrow()}\r\n"
+            }
+        }
+        httpReq = httpReq + headerPart
 
         // 添加 body (如果有)
         match (request.body) {
@@ -3204,13 +3211,7 @@ public class VirtualMachine {
 // ════════════════════════════════════════════════════════════════════════
 
 // JsGlobalObject is defined in sink.cj - use that version instead
-// Adding methods that fetch.cj needs
-extend JsGlobalObject {
-    /// 是否有异常
-    public func hasException(): Bool {
-        false
-    }
-}
+// hasException is already defined on JSGlobalObject
 
 // ════════════════════════════════════════════════════════════════════════
 // JsPromiseStrong — JS Promise 强引用
@@ -3260,11 +3261,6 @@ public enum JsResult<T> {
 
 /// JsValue 辅助扩展
 extend JsValue {
-    /// 是否为空
-    public func isEmpty(): Bool {
-        isUndefinedOrNull()
-    }
-
     /// 是否为 DOMWrapper
     public func isDomWrapper(): Bool {
         isObject()
@@ -3428,18 +3424,8 @@ extend Headers {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// Option<T> 扩展方法
+// Option<T> 扩展方法 - flatMap already available in stdlib
 // ════════════════════════════════════════════════════════════════════════
-
-/// Option<T> flatMap helper (not in stdlib)
-extend<T> Option<T> {
-    public func flatMap<U>(f: (T) -> ?U): ?U {
-        match (this) {
-            case Some(v) => f(v)
-            case None => None
-        }
-    }
-}
 
 // ════════════════════════════════════════════════════════════════════════
 // FetchModule — fetch 模块导出

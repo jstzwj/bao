@@ -18,46 +18,46 @@ public func toHaveLastReturnedWith(`this`: Expect, globalThis: JSGlobalObject, c
 
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
     if (!returns.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
-    let callsCount: UInt32 = returns.getLength(globalThis: globalThis)
+    let callsCount: UInt32 = returns.getLength(globalThis)
     var pass = false
-    var lastReturnValue: JsValue = JsValue.jsUndefined
+    var lastReturnValue: JsValue = JsValue.jsUndefined()
     var lastCallThrew = false
-    var lastErrorValue: JsValue = JsValue.jsUndefined
+    var lastErrorValue: JsValue = JsValue.jsUndefined()
 
     if (callsCount > 0) {
         let lastResult = returns.getDirectIndex(globalThis: globalThis, index: callsCount - 1)
 
         if (lastResult.isObject()) {
-            let resultType = lastResult.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
+            let resultType = lastResult.get(globalThis, "type") ?? JsValue.jsUndefined()
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
                 // defer { typeStr.deref() }
 
                 if (typeStr.eqlComptime("return")) {
-                    lastReturnValue = lastResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
+                    lastReturnValue = lastResult.get(globalThis, "value") ?? JsValue.jsUndefined()
 
                     if (lastReturnValue.jestDeepEquals(expected, globalThis: globalThis)) {
                         pass = true
                     }
                 } else if (typeStr.eqlComptime("throw")) {
                     lastCallThrew = true
-                    lastErrorValue = lastResult.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
+                    lastErrorValue = lastResult.get(globalThis, "value") ?? JsValue.jsUndefined()
                 }
             }
         }
     }
 
     if (pass != this.flags.not) {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let signature = Expect.getSignature(matcherName: "toHaveBeenLastReturnedWith", args: "<green>expected<r>", not: false)

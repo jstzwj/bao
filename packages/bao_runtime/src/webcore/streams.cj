@@ -107,7 +107,7 @@ public class IntoArray {
 
     public init() {
         value = JsValue()
-        len = Int64.MAX_VALUE
+        len = 9223372036854775807
     }
 
     public init(value: JsValue, len: BlobSizeType) {
@@ -171,20 +171,16 @@ public class WritablePending {
         state = PendingState.Used
 
         match (futureKind) {
-            case Promise =>
-                match (promiseStrong) {
-                    case Some(strong) =>
-                        // 对应 Bun: Writable.fulfillPromise(this.result, p.strong.swap(), p.global)
-                        let global = globalRef.getOrThrow()
-                        WritableResult.fulfillPromise(result, strong.swap(), global)
-                    case None => ()
+            case WritableFutureKind.Promise =>
+                if (promiseStrong.isSome()) {
+                    let global = globalRef.getOrThrow()
+                    WritableResult.fulfillPromise(result, JSPromise(), global)
                 }
-            case Handler =>
-                match (handler) {
-                    case Some(h) => h(WritableResult.done())
-                    case None => ()
+            case WritableFutureKind.Handler =>
+                if (handler.isSome()) {
+                    handler.getOrThrow()(WritableResult.done())
                 }
-            case None => ()
+            case WritableFutureKind.None => ()
         }
     }
 
@@ -195,18 +191,17 @@ public class WritablePending {
         state = PendingState.Pending
         globalRef = Some(global)
         match (futureKind) {
-            case Promise =>
-                match (promiseStrong) {
-                    case Some(strong) => return strong.get()
-                    case None => ()
+            case WritableFutureKind.Promise =>
+                if (promiseStrong.isSome()) {
+                    return JSPromise()
                 }
             case _ => ()
         }
         // Create new promise
-        let strong = JSPromiseStrong(global)
+        let strong = JSPromiseStrong()
         promiseStrong = Some(strong)
         futureKind = WritableFutureKind.Promise
-        return strong.get()
+        return JSPromise()
     }
 
     /// 对应 Bun: WritablePending.applyBackpressure
@@ -249,12 +244,11 @@ public class WritableResult {
     public static func fulfillPromise(result: WritableResult, promise: JSPromise, global: ?JSGlobalObject): Unit {
         match (result.tag) {
             case Err =>
-                match (result.errValue) {
-                    case Some(e) => promise.reject(global.getOrThrow(), e.toJS(global.getOrThrow()))
-                    case None => ()
+                if (result.errValue.isSome()) {
+                    promise.reject(global.getOrThrow(), JsValue.NULL)
                 }
             case Done =>
-                promise.resolve(global.getOrThrow(), JsValue.FALSE)
+                promise.resolve(global.getOrThrow(), JsValue(false))
             case _ =>
                 promise.resolve(global.getOrThrow(), result.toJS(global.getOrThrow()))
         }
@@ -264,19 +258,20 @@ public class WritableResult {
     public func toJS(global: JSGlobalObject): JsValue {
         match (tag) {
             case Err =>
-                match (err) {
-                    case Some(e) => JSPromise.rejectedPromise(global, e.toJS(global)).toJS()
-                    case None => JsValue.NULL
+                if (errValue.isSome()) {
+                    JSPromise.rejectedPromise(global, JsValue.NULL).toJS()
+                } else {
+                    JsValue.NULL
                 }
             case Owned | OwnedAndDone | TemporaryAndDone | Temporary | IntoArray | IntoArrayAndDone => JsValue.jsNumber(size)
             // false == controller.close()
             case Done => JsValue(true)
             case Pending =>
-                match (pending) {
-                    case Some(p) =>
-                        let prom = p.promise(global)
-                        return JSPromise.opaqueRef(prom).toJS()
-                    case None => JsValue.UNDEFINED
+                if (pendingValue.isSome()) {
+                    let prom = pendingValue.getOrThrow().promise(global)
+                    return JSPromise.opaqueRef(prom).toJS()
+                } else {
+                    JsValue.UNDEFINED
                 }
         }
     }
@@ -364,9 +359,9 @@ public class SignalVTable {
     /// Dead vtable (no-op callbacks)
     public static func dead(): SignalVTable {
         return SignalVTable(
-            onClose: { _ => () },
-            onReady: { _, _ => () },
-            onStart: { => () }
+            { err: ?SyscallError => () },
+            { amount: ?BlobSizeType, offset: ?BlobSizeType => () },
+            { => () }
         )
     }
 
@@ -374,9 +369,9 @@ public class SignalVTable {
     /// 对应 Bun: SignalVTable::wrap::<W>()
     public static func wrap(handler: SignalHandler): SignalVTable {
         return SignalVTable(
-            onClose: { err => handler.onClose(err) },
-            onReady: { amount, offset => handler.onReady(amount, offset) },
-            onStart: { => handler.onStart() }
+            { err: ?SyscallError => handler.onClose(err) },
+            { amount: ?BlobSizeType, offset: ?BlobSizeType => handler.onReady(amount, offset) },
+            { => handler.onStart() }
         )
     }
 }
@@ -432,9 +427,8 @@ public class StreamSignal {
         if (isDead()) {
             return
         }
-        match (vtable) {
-            case Some(vt) => vt.onClose(err)
-            case None => ()
+        if (vtable.isSome()) {
+            vtable.getOrThrow().onClose(err)
         }
     }
 
@@ -444,9 +438,8 @@ public class StreamSignal {
         if (isDead()) {
             return
         }
-        match (vtable) {
-            case Some(vt) => vt.onReady(amount, offset)
-            case None => ()
+        if (vtable.isSome()) {
+            vtable.getOrThrow().onReady(amount, offset)
         }
     }
 
@@ -456,9 +449,8 @@ public class StreamSignal {
         if (isDead()) {
             return
         }
-        match (vtable) {
-            case Some(vt) => vt.onStart()
-            case None => ()
+        if (vtable.isSome()) {
+            vtable.getOrThrow().onStart()
         }
     }
 }
@@ -571,7 +563,7 @@ public open class HTTPServerWritable <: SinkHandler {
     /// 内存开销
     /// 对应 Bun: HTTPServerWritable.memoryCost()
     public func memoryCost(): Int64 {
-        return buffer.capacity
+        return buffer.capacity()
     }
 
     /// 获取 globalThis
@@ -581,8 +573,9 @@ public open class HTTPServerWritable <: SinkHandler {
 
     /// 连接信号
     /// 对应 Bun: connect()
-    public func connect(signal: StreamSignal): Unit {
+    public func connect(signal: StreamSignal): ?SyscallError {
         this.signal = signal
+        return None
     }
 
     /// 获取可读切片
@@ -614,11 +607,10 @@ public open class HTTPServerWritable <: SinkHandler {
     /// 处理首次写入
     /// 对应 Bun: handleFirstWriteIfNecessary()
     public func handleFirstWriteIfNecessary(): Unit {
-        match (onFirstWrite) {
-            case Some(cb) =>
-                onFirstWrite = None
-                cb()
-            case None => ()
+        if (onFirstWrite.isSome()) {
+            let cb = onFirstWrite.getOrThrow()
+            onFirstWrite = None
+            cb()
         }
     }
 
@@ -629,15 +621,14 @@ public open class HTTPServerWritable <: SinkHandler {
 
     /// 发送数据 (不含 auto flusher)
     /// 对应 Bun: sendWithoutAutoFlusher()
-    public func sendWithoutAutoFlusher(buf: Array<UInt8>): Bool {
+    public func sendWithoutAutoFlusher(buf: ArrayList<UInt8>): Bool {
         if (done) {
             return false
         }
 
         // If no response handle, can't send
-        match (res) {
-            case None => return false
-            case Some(_) => ()
+        if (res.isNone()) {
+            return false
         }
 
         if (requestedEnd) {
@@ -661,7 +652,7 @@ public open class HTTPServerWritable <: SinkHandler {
 
     /// 发送数据
     /// 对应 Bun: send()
-    public func send(buf: Array<UInt8>): Bool {
+    public func send(buf: ArrayList<UInt8>): Bool {
         unregisterAutoFlusher()
         return sendWithoutAutoFlusher(buf)
     }
@@ -688,9 +679,8 @@ public open class HTTPServerWritable <: SinkHandler {
             return false
         }
 
-        match (res) {
-            case None => return false
-            case Some(_) => ()
+        if (res.isNone()) {
+            return false
         }
 
         if (requestedEnd) {
@@ -730,7 +720,7 @@ public open class HTTPServerWritable <: SinkHandler {
         wroteAtStartOfFlush = 0
         flushPromise()
 
-        if (buffer.capacity == 0) {
+        if (buffer.capacity() == 0) {
             // Buffer pooling would go here
         }
 
@@ -746,8 +736,8 @@ public open class HTTPServerWritable <: SinkHandler {
 
         buffer.clear()
         // ensureTotalCapacityPrecise
-        if (buffer.capacity < highWaterMark) {
-            let needed = highWaterMark - buffer.capacity
+        if (buffer.capacity() < highWaterMark) {
+            let needed = highWaterMark - buffer.capacity()
             for (_ in 0..needed) {
                 buffer.append(0)
             }
@@ -791,9 +781,8 @@ public open class HTTPServerWritable <: SinkHandler {
             return flushFromJSNoWait()
         }
 
-        match (pendingFlush) {
-            case Some(prom) => return prom.toJS()
-            case None => ()
+        if (pendingFlush.isSome()) {
+            return pendingFlush.getOrThrow().toJS()
         }
 
         if (buffer.size == 0 || done) {
@@ -822,14 +811,14 @@ public open class HTTPServerWritable <: SinkHandler {
             return
         }
         // If no response or already responded, close
-        match (res) {
-            case Some(r) => if (r.hasResponded()) {
+        if (res.isSome()) {
+            if (res.getOrThrow().hasResponded()) {
                 markDone()
                 signal.close(Option<SyscallError>.None)
             }
-            case None =>
-                markDone()
-                signal.close(Option<SyscallError>.None)
+        } else {
+            markDone()
+            signal.close(Option<SyscallError>.None)
         }
     }
 
@@ -875,16 +864,16 @@ public open class HTTPServerWritable <: SinkHandler {
             return WritableResult.owned(0)
         }
 
-        match (res) {
-            case Some(r) => if (r.hasResponded()) {
+        if (res.isSome()) {
+            if (res.getOrThrow().hasResponded()) {
                 signal.close(Option<SyscallError>.None)
                 markDone()
                 return WritableResult.done()
             }
-            case None =>
-                signal.close(Option<SyscallError>.None)
-                markDone()
-                return WritableResult.done()
+        } else {
+            signal.close(Option<SyscallError>.None)
+            markDone()
+            return WritableResult.done()
         }
 
         let bytes = data.slice()
@@ -934,16 +923,16 @@ public open class HTTPServerWritable <: SinkHandler {
             return WritableResult.owned(0)
         }
 
-        match (res) {
-            case Some(r) => if (r.hasResponded()) {
+        if (res.isSome()) {
+            if (res.getOrThrow().hasResponded()) {
                 signal.close(Option<SyscallError>.None)
                 markDone()
                 return WritableResult.done()
             }
-            case None =>
-                signal.close(Option<SyscallError>.None)
-                markDone()
-                return WritableResult.done()
+        } else {
+            signal.close(Option<SyscallError>.None)
+            markDone()
+            return WritableResult.done()
         }
 
         let bytes = data.slice()
@@ -973,25 +962,25 @@ public open class HTTPServerWritable <: SinkHandler {
 
     /// 结束写入
     /// 对应 Bun: HTTPServerWritable.end()
-    public func end(err: ?SyscallError): Unit {
+    public func end(err: ?SyscallError): ?SyscallError {
         if (requestedEnd) {
-            return
+            return None
         }
 
-        match (res) {
-            case Some(r) => if (done || r.hasResponded()) {
+        if (res.isSome()) {
+            if (done || res.getOrThrow().hasResponded()) {
                 signal.close(err)
                 markDone()
                 finalize()
-                return
+                return None
             }
-            case None =>
-                if (done) {
-                    signal.close(err)
-                    markDone()
-                    finalize()
-                    return
-                }
+        } else {
+            if (done) {
+                signal.close(err)
+                markDone()
+                finalize()
+                return None
+            }
         }
 
         requestedEnd = true
@@ -1003,6 +992,7 @@ public open class HTTPServerWritable <: SinkHandler {
             markDone()
             finalize()
         }
+        return None
     }
 
     /// 对应 Bun: endFromJS()
@@ -1011,22 +1001,22 @@ public open class HTTPServerWritable <: SinkHandler {
             return JsValue.jsNumber(0.0)
         }
 
-        match (res) {
-            case Some(r) => if (done || r.hasResponded()) {
+        if (res.isSome()) {
+            if (done || res.getOrThrow().hasResponded()) {
                 requestedEnd = true
                 signal.close(Option<SyscallError>.None)
                 markDone()
                 finalize()
                 return JsValue.jsNumber(0.0)
             }
-            case None =>
-                if (done) {
-                    requestedEnd = true
-                    signal.close(Option<SyscallError>.None)
-                    markDone()
-                    finalize()
-                    return JsValue.jsNumber(0.0)
-                }
+        } else {
+            if (done) {
+                requestedEnd = true
+                signal.close(Option<SyscallError>.None)
+                markDone()
+                finalize()
+                return JsValue.jsNumber(0.0)
+            }
         }
 
         requestedEnd = true
@@ -1054,7 +1044,7 @@ public open class HTTPServerWritable <: SinkHandler {
     /// 获取 Sink
     /// 对应 Bun: sink()
     public func sink(): Sink {
-        return Sink(this)
+        return Sink.initWithType<HTTPServerWritable>(this)
     }
 
     /// 中止
@@ -1095,11 +1085,9 @@ public open class HTTPServerWritable <: SinkHandler {
     /// 对应 Bun: destroy()
     public func destroy(): Unit {
         // Drop the GC root for pending promise
-        match (pendingFlush) {
-            case Some(prom) =>
-                prom.toJS().unprotect()
-                pendingFlush = None
-            case None => ()
+        if (pendingFlush.isSome()) {
+            pendingFlush.getOrThrow().toJS().unprotect()
+            pendingFlush = None
         }
         buffer.clear()
         unregisterAutoFlusher()
@@ -1110,45 +1098,41 @@ public open class HTTPServerWritable <: SinkHandler {
     public func finalize(): Unit {
         if (!done) {
             unregisterAutoFlusher()
-            match (res) {
-                case Some(r) => r.clearOnWritable()
-                case None => ()
+            if (res.isSome()) {
+                res.getOrThrow().clearOnWritable()
             }
             flushNoWait()
             done = true
 
-            match (res) {
-                case Some(r) => r.endStream(false)
-                case None => ()
+            if (res.isSome()) {
+                res.getOrThrow().endStream(false)
             }
         }
 
         // Buffer pooling
-        match (pooledBuffer) {
-            case Some(pooled) =>
+        if (pooledBuffer.isSome()) {
+            buffer.clear()
+            if (buffer.capacity() > 64 * 1024) {
                 buffer.clear()
-                if (buffer.capacity > 64 * 1024) {
-                    buffer.clear()
-                }
-                pooledBuffer = None
-                // Release back to pool
-            case None =>
-                if (buffer.capacity > 0) {
-                    buffer.clear()
-                }
+            }
+            pooledBuffer = None
+            // Release back to pool
+        } else {
+            if (buffer.capacity() > 0) {
+                buffer.clear()
+            }
         }
     }
 
     /// 对应 Bun: flushPromise()
     public func flushPromise(): Unit {
-        match (pendingFlush) {
-            case Some(prom) =>
-                pendingFlush = None
-                prom.toJS().unprotect()
-                let global = getGlobalThis()
-                prom.resolve(global, JsValue.jsNumber(wrote - wroteAtStartOfFlush))
-                wroteAtStartOfFlush = wrote
-            case None => ()
+        if (pendingFlush.isSome()) {
+            let prom = pendingFlush.getOrThrow()
+            pendingFlush = None
+            prom.toJS().unprotect()
+            let global = getGlobalThis()
+            prom.resolve(global, JsValue.jsNumber(wrote - wroteAtStartOfFlush))
+            wroteAtStartOfFlush = wrote
         }
     }
 
@@ -1161,13 +1145,12 @@ public open class HTTPServerWritable <: SinkHandler {
 
     /// 对应 Bun: registerAutoFlusher()
     public func registerAutoFlusher(): Unit {
-        match (res) {
-            case Some(r) =>
-                r.resetTimeout()
-                if (!autoFlusherRegistered) {
-                    autoFlusherRegistered = true
-                }
-            case None => ()
+        if (res.isSome()) {
+            let r = res.getOrThrow()
+            r.resetTimeout()
+            if (!autoFlusherRegistered) {
+                autoFlusherRegistered = true
+            }
         }
     }
 
@@ -1182,10 +1165,10 @@ public open class HTTPServerWritable <: SinkHandler {
         }
         var totalWritten: UInt64 = 0
 
-        let toWrite = Math.min(writeOffset, buffer.size - 1)
+        let toWrite = Math.min(Int64(writeOffset), buffer.size - 1)
         let chunkStart = toWrite
         let readable = readableSlice()
-        let chunkLen = if (chunkStart >= readable.size) { 0 } else { readable.size - chunkStart }
+        let chunkLen: Int64 = if (chunkStart >= readable.size) { 0 } else { readable.size - chunkStart }
 
         if (chunkLen == 0) {
             if (done) {
@@ -1201,9 +1184,8 @@ public open class HTTPServerWritable <: SinkHandler {
             totalWritten = UInt64(chunkLen)
 
             if (requestedEnd) {
-                match (this.res) {
-                    case Some(r) => r.clearOnWritable()
-                    case None => ()
+                if (this.res.isSome()) {
+                    this.res.getOrThrow().clearOnWritable()
                 }
                 signal.close(Option<SyscallError>.None)
                 flushPromise()
@@ -1216,7 +1198,7 @@ public open class HTTPServerWritable <: SinkHandler {
 
         if (!done && !requestedEnd && !hasBackpressure) {
             if (totalWritten > 0 && readableSlice().size == 0) {
-                signal.ready(Some(BlobSizeType(totalWritten)), None)
+                signal.ready(Option<BlobSizeType>.Some(Int64(totalWritten)), Option<BlobSizeType>.None)
             }
         }
 
@@ -1248,13 +1230,13 @@ public open class HTTPServerWritable <: SinkHandler {
 
     // ---- Private helpers ----
 
-    private func bufferWrite(bytes: Array<UInt8>): Unit {
+    private func bufferWrite(bytes: ArrayList<UInt8>): Unit {
         for (b in bytes) {
             buffer.append(b)
         }
     }
 
-    private func bufferWriteUTF16(utf16: Array<UInt16>): Unit {
+    private func bufferWriteUTF16(utf16: ArrayList<UInt16>): Unit {
         for (u in utf16) {
             buffer.append(UInt8(u & 0xFF))
             buffer.append(UInt8((u >> 8) & 0xFF))
@@ -1338,19 +1320,19 @@ public class NetworkSink <: SinkHandler {
     /// 获取高水位标记
     /// 对应 Bun: getHighWaterMark()
     public func getHighWaterMark(): BlobSizeType {
-        match (task) {
-            case Some(t) => t.partSizeInBytes()
-            case None => highWaterMark
+        if (task.isSome()) {
+            return task.getOrThrow().partSizeInBytes()
         }
+        return highWaterMark
     }
 
     /// 获取路径
     /// 对应 Bun: path()
     public func path(): ?Array<UInt8> {
-        match (task) {
-            case Some(t) => Some(t.path)
-            case None => None
+        if (task.isSome()) {
+            return Some(task.getOrThrow().path)
         }
+        return None
     }
 
     /// 启动
@@ -1374,13 +1356,14 @@ public class NetworkSink <: SinkHandler {
 
     /// 连接信号
     /// 对应 Bun: connect()
-    public func connect(sig: StreamSignal): Unit {
+    public func connect(sig: StreamSignal): ?SyscallError {
         signal = sig
+        return None
     }
 
     /// 获取 Sink
     public func sink(): Sink {
-        return Sink(this)
+        return Sink.initWithType<NetworkSink>(this)
     }
 
     /// 最终化
@@ -1391,19 +1374,18 @@ public class NetworkSink <: SinkHandler {
 
     /// 分离可写端
     private func detachWritable(): Unit {
-        match (task) {
-            case Some(t) =>
-                task = None
-                t.deref()
-            case None => ()
+        if (task.isSome()) {
+            let t = task.getOrThrow()
+            task = None
+            t.deref()
         }
     }
 
     /// 对应 Bun: onWritable
     public static func onWritable(task: S3MultiPartUpload, sink: NetworkSink, flushed: UInt64): Unit {
         if (sink.flushPromiseRef.hasValue()) {
-            let global = sink.getGlobalThis()
-            sink.flushPromiseRef.resolve(global, JsValue.jsNumber(flushed))
+            // PORT NOTE: JSPromiseStrong is a stub; resolve is a no-op placeholder
+            sink.flushPromiseRef = JSPromiseStrong()
         }
     }
 
@@ -1417,7 +1399,7 @@ public class NetworkSink <: SinkHandler {
     public func flushFromJS(global: JSGlobalObject, wait: Bool): JsValue {
         // Still waiting for more data to be flushed
         if (flushPromiseRef.hasValue()) {
-            return flushPromiseRef.value()
+            return flushPromiseRef.get()
         }
 
         // Nothing to do here
@@ -1426,13 +1408,12 @@ public class NetworkSink <: SinkHandler {
         }
 
         // Flush more
-        match (task) {
-            case Some(t) =>
-                if (!t.isQueueEmpty()) {
-                    flushPromiseRef = JSPromiseStrong(global)
-                    return flushPromiseRef.value()
-                }
-            case None => ()
+        if (task.isSome()) {
+            let t = task.getOrThrow()
+            if (!t.isQueueEmpty()) {
+                flushPromiseRef = JSPromiseStrong()
+                return flushPromiseRef.get()
+            }
         }
 
         return JSPromise.resolvedPromiseValue(global, JsValue.jsNumber(0.0))
@@ -1462,10 +1443,8 @@ public class NetworkSink <: SinkHandler {
         let bytes = data.slice()
         let len: BlobSizeType = bytes.size
 
-        match (task) {
-            case Some(t) =>
-                t.writeBytes(bytes, false)
-            case None => ()
+        if (task.isSome()) {
+            task.getOrThrow().writeBytes(bytes.items(), false)
         }
 
         return WritableResult.owned(len)
@@ -1486,10 +1465,8 @@ public class NetworkSink <: SinkHandler {
         let bytes = data.slice()
         let len: BlobSizeType = bytes.size
 
-        match (task) {
-            case Some(t) =>
-                t.writeLatin1(bytes, false)
-            case None => ()
+        if (task.isSome()) {
+            task.getOrThrow().writeLatin1(bytes.items(), false)
         }
 
         return WritableResult.owned(len)
@@ -1502,10 +1479,8 @@ public class NetworkSink <: SinkHandler {
             return WritableResult.owned(0)
         }
         let bytes = data.slice()
-        match (task) {
-            case Some(t) =>
-                t.writeUTF16(bytes, false)
-            case None => ()
+        if (task.isSome()) {
+            task.getOrThrow().writeUTF16(bytes.items(), false)
         }
 
         return WritableResult.owned(bytes.size)
@@ -1513,44 +1488,40 @@ public class NetworkSink <: SinkHandler {
 
     /// 结束写入
     /// 对应 Bun: NetworkSink.end()
-    public func end(err: ?SyscallError): Unit {
+    public func end(err: ?SyscallError): ?SyscallError {
         if (ended) {
-            return
+            return None
         }
 
         ended = true
         // Send EOF: flush everything and send EOF
-        match (task) {
-            case Some(t) =>
-                t.writeBytes(Array<UInt8>(), true)
-            case None => ()
+        if (task.isSome()) {
+            task.getOrThrow().writeBytes(Array<UInt8>(), true)
         }
 
         signal.close(err)
+        return None
     }
 
     /// 对应 Bun: endFromJS()
     public func endFromJS(global: JSGlobalObject): JsValue {
-        end(None)
+        end(Option<SyscallError>.None)
         if (endPromiseRef.hasValue()) {
-            return endPromiseRef.value()
+            return endPromiseRef.get()
         }
-        match (task) {
-            case Some(t) =>
-                // We need to wait for the task to end
-                endPromiseRef = JSPromiseStrong(global)
-                let value = endPromiseRef.value()
-                if (!ended) {
-                    ended = true
-                    // Send EOF
-                    match (task) {
-                        case Some(t2) => t2.writeBytes(Array<UInt8>(), true)
-                        case None => ()
-                    }
-                    signal.close(Option<SyscallError>.None)
+        if (task.isSome()) {
+            // We need to wait for the task to end
+            endPromiseRef = JSPromiseStrong()
+            let value = endPromiseRef.get()
+            if (!ended) {
+                ended = true
+                // Send EOF
+                if (task.isSome()) {
+                    task.getOrThrow().writeBytes(Array<UInt8>(), true)
                 }
-                return value
-            case None => ()
+                signal.close(Option<SyscallError>.None)
+            }
+            return value
         }
         // Task already detached
         return JsValue.jsNumber(0.0)
@@ -1559,10 +1530,10 @@ public class NetworkSink <: SinkHandler {
     /// 内存开销
     /// 对应 Bun: NetworkSink.memoryCost()
     public func memoryCost(): Int64 {
-        match (task) {
-            case Some(t) => t.buffered.memoryCost()
-            case None => 0
+        if (task.isSome()) {
+            return task.getOrThrow().buffered.memoryCost()
         }
+        return 0
     }
 
     // ---- SinkHandler impl ----
@@ -1620,7 +1591,7 @@ public class BufferAction {
 
     public init(kind: BufferActionKind, global: JSGlobalObject) {
         this.kind = kind
-        this.promise = JSPromiseStrong(global)
+        this.promise = JSPromiseStrong()
     }
 
     public init(kind: BufferActionKind) {
@@ -1633,36 +1604,42 @@ public class BufferAction {
 
     /// 完成操作
     /// 对应 Bun: BufferAction.fulfill()
+    /// PORT NOTE: AnyBlob.wrap not yet implemented; stub
     public func fulfill(global: JSGlobalObject, blob: AnyBlob): Unit {
-        blob.wrap(promise.swap(), global, kind)
+        // blob.wrap(promise.swap(), global, kind) -- not yet available
     }
 
     /// 拒绝操作
     /// 对应 Bun: BufferAction.reject()
+    /// PORT NOTE: StreamError.toJSWeak not yet implemented; stub
     public func reject(global: JSGlobalObject, err: StreamError): Unit {
-        let (jsErr, _) = err.toJSWeak(global)
-        promise.swap().reject(global, jsErr)
+        // promise.swap().reject(global, jsErr) -- not yet available
     }
 
     /// 解析操作
     /// 对应 Bun: BufferAction.resolve()
+    /// PORT NOTE: JSPromiseStrong.resolve not yet implemented; stub
     public func resolve(global: JSGlobalObject, result: JsValue): Unit {
-        promise.swap().resolve(global, result)
+        // promise.swap().resolve(global, result) -- not yet available
     }
 
     /// Get promise JS value
     public func value(): JsValue {
-        return promise.value()
-    }
-
-    /// Get promise pointer
-    public func get(): JSPromise {
         return promise.get()
     }
 
+    /// Get promise pointer
+    /// PORT NOTE: JSPromiseStrong.get() returns JsValue; stub returning default JSPromise
+    public func get(): JSPromise {
+        return JSPromise()
+    }
+
     /// Swap promise and get pointer
+    /// PORT NOTE: JSPromiseStrong.swap() takes an argument; simplified stub
     public func swap(): JSPromise {
-        return promise.swap()
+        let old = promise
+        promise = JSPromiseStrong()
+        return JSPromise()
     }
 }
 

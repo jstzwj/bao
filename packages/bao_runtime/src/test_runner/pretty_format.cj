@@ -164,45 +164,45 @@ extend JestPrettyFormat {
     /// 2. 否则，遍历所有值并格式化
     /// 3. 值之间用空格分隔
     /// 4. 可选地添加换行和flush
-    public static func format(level!: MessageLevel, global!: JSGlobalObject, vals!: Array<JsValue>, len!: UInt64, writer!: StringWriter, options!: FormatOptions) {
+    public static func format(level!: MessageLevel, globalObj!: JSGlobalObject, vals!: Array<JsValue>, len!: UInt64, writer!: StringWriter, options!: FormatOptions) {
         if (len == 1) {
-            let fmt = Formatter(globalThis: global)
+            let fmt = Formatter(globalThis: globalObj)
             fmt.quoteStrings = options.quoteStrings
-            let tag = Tag.get(value: vals[0], globalThis: global)
+            let tag = Tag.get(value: vals[0], globalThis: globalObj)
 
-            if (tag.tag == string) {
+            if (tag.tag == Tag.string) {
                 if (options.enableColors) {
-                    if (level == error) {
-                        writer.write(Output.prettyFmt("<r><red>"))
+                    if (level == MessageLevel.error) {
+                        writer.write(Output.prettyFmt("<r><red>", true))
                     }
-                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: global, enableAnsiColors: true)
-                    if (level == error) {
-                        writer.write(Output.prettyFmt("<r>"))
+                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: globalObj, enableAnsiColors: true)
+                    if (level == MessageLevel.error) {
+                        writer.write(Output.prettyFmt("<r>", true))
                     }
                 } else {
-                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: global, enableAnsiColors: false)
+                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: globalObj, enableAnsiColors: false)
                 }
                 if (options.addNewline) {
                     writer.write("\n")
                 }
             } else {
                 if (options.enableColors) {
-                    if (level == error) {
-                        writer.write(Output.prettyFmt("<r><red>"))
+                    if (level == MessageLevel.error) {
+                        writer.write(Output.prettyFmt("<r><red>", true))
                     }
-                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: global, enableAnsiColors: true)
-                    if (level == error) {
-                        writer.write(Output.prettyFmt("<r>"))
+                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: globalObj, enableAnsiColors: true)
+                    if (level == MessageLevel.error) {
+                        writer.write(Output.prettyFmt("<r>", true))
                     }
                 } else {
-                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: global, enableAnsiColors: false)
+                    fmt.format(result: tag, writer: writer, value: vals[0], globalThis: globalObj, enableAnsiColors: false)
                 }
                 if (options.addNewline) {
                     writer.write("\n")
                 }
             }
         } else {
-            let fmt = Formatter(globalThis: global)
+            let fmt = Formatter(globalThis: globalObj)
             fmt.quoteStrings = options.quoteStrings
 
             var i: UInt64 = 0
@@ -210,11 +210,11 @@ extend JestPrettyFormat {
                 if (i > 0) {
                     writer.write(" ")
                 }
-                let tag = Tag.get(value: vals[i], globalThis: global)
+                let tag = Tag.get(value: vals[i], globalThis: globalObj)
                 if (options.enableColors) {
-                    fmt.format(result: tag, writer: writer, value: vals[i], globalThis: global, enableAnsiColors: true)
+                    fmt.format(result: tag, writer: writer, value: vals[i], globalThis: globalObj, enableAnsiColors: true)
                 } else {
-                    fmt.format(result: tag, writer: writer, value: vals[i], globalThis: global, enableAnsiColors: false)
+                    fmt.format(result: tag, writer: writer, value: vals[i], globalThis: globalObj, enableAnsiColors: false)
                 }
                 i += 1
             }
@@ -307,7 +307,7 @@ public enum Tag {
     ///
     /// 通过JS值的类型判断其Tag类型
     public static func get(value!: JsValue, globalThis!: JSGlobalObject): TagResult {
-        if (value.isEmpty()) { return TagResult(tag: Tag.undefined) }
+        if (value.isUndefinedOrNull()) { return TagResult(tag: Tag.undefined) }
         if (value.isUndefined()) { return TagResult(tag: Tag.undefined) }
         if (value.isNull()) { return TagResult(tag: Tag.null_) }
         if (value.isBoolean()) { return TagResult(tag: Tag.boolean) }
@@ -321,18 +321,18 @@ public enum Tag {
         if (value.isString()) { return TagResult(tag: Tag.string) }
         if (value.isSymbol()) { return TagResult(tag: Tag.symbol) }
         if (value.isBigInt()) { return TagResult(tag: Tag.bigInt) }
-        if (value.isArray(global: globalThis)) { return TagResult(tag: Tag.array) }
+        if (value.isArray()) { return TagResult(tag: Tag.array) }
         if (value.isFunction()) { return TagResult(tag: Tag.function) }
         if (value.isObject()) {
             // 检查是否为特殊对象类型
-            if (value.isClass(global: globalThis)) { return TagResult(tag: Tag.class_) }
-            if (value.isError(global: globalThis)) { return TagResult(tag: Tag.error) }
-            if (value.isMap(global: globalThis)) { return TagResult(tag: Tag.map) }
-            if (value.isSet(global: globalThis)) { return TagResult(tag: Tag.set) }
-            if (value.isPromise(global: globalThis)) { return TagResult(tag: Tag.promise) }
-            if (value.isTypedArray(global: globalThis)) { return TagResult(tag: Tag.typedArray) }
-            if (value.isArrayBuffer(global: globalThis)) { return TagResult(tag: Tag.arrayBuffer) }
-            if (value.isRegExp(global: globalThis)) { return TagResult(tag: Tag.string) }
+            if (value.isClass(globalThis.globalThis)) { return TagResult(tag: Tag.class_) }
+            if (value.isError()) { return TagResult(tag: Tag.error) }
+            if (value.objectValue.getOrThrow().className == "Map") { return TagResult(tag: Tag.map) }
+            if (value.objectValue.getOrThrow().className == "Set") { return TagResult(tag: Tag.set) }
+            if (value.asAnyPromise().isSome()) { return TagResult(tag: Tag.promise) }
+            if (value.isTypedArray()) { return TagResult(tag: Tag.typedArray) }
+            if (value.isArrayBuffer()) { return TagResult(tag: Tag.arrayBuffer) }
+            if (value.isRegExp()) { return TagResult(tag: Tag.string) }
             return TagResult(tag: Tag.object)
         }
         return TagResult(tag: Tag.undefined)
@@ -395,7 +395,7 @@ public class Formatter {
 
     /// 写入缩进
     public func writeIndent(writer!: StringWriter) {
-        let indentLevel = if (indent > 32) { 32 } else { indent }
+        let indentLevel = if (indent > UInt32(32)) { UInt32(32) } else { indent }
         for (_ in 0..indentLevel ) {
             writer.write("  ")
         }
@@ -414,10 +414,10 @@ public class Formatter {
         match (format) {
             case Tag.string | Tag.stringPossiblyFormatted =>
                 if (quoteStrings) {
-                    let str = value.toSlice(global: globalThis)
+                    let str = value.toString()
                     writer.write("\"" + str + "\"")
                 } else {
-                    let str = value.toSlice(global: globalThis)
+                    let str = value.toString()
                     writer.write(str)
                 }
             case Tag.integer =>
@@ -433,20 +433,20 @@ public class Formatter {
             case Tag.undefined =>
                 writer.write("undefined")
             case Tag.symbol =>
-                let desc = value.getSymbolDescription(global: globalThis)
+                let desc = value.getSymbolDescription(globalThis.globalThis)
                 writer.write("Symbol(" + desc + ")")
             case Tag.bigInt =>
-                let str = value.toSlice(global: globalThis)
+                let str = value.toString()
                 writer.write("" + str + "n")
             case Tag.function =>
-                let name = value.getName(global: globalThis)
+                let name = value.getName(globalThis.globalThis)
                 if (name.size > 0) {
                     writer.write("[Function: " + name + "]")
                 } else {
                     writer.write("[Function (anonymous)]")
                 }
             case Tag.class_ =>
-                let name = value.getClassName(global: globalThis)
+                let name = value.getName(globalThis.globalThis)
                 writer.write("[class " + (name) + "]")
             case Tag.array =>
                 printArray(writer: writer, value: value, enableAnsiColors: enableAnsiColors)
@@ -457,8 +457,8 @@ public class Formatter {
             case Tag.set =>
                 printSet(writer: writer, value: value, enableAnsiColors: enableAnsiColors)
             case Tag.error =>
-                let name = value.getProperty(global: globalThis, name: "name")?.toSlice(global: globalThis) ?? "Error"
-                let message = value.getProperty(global: globalThis, name: "message")?.toSlice(global: globalThis) ?? ""
+                let name = value.get(globalThis.globalThis, "name")?.toString() ?? "Error"
+                let message = value.get(globalThis.globalThis, "message")?.toString() ?? ""
                 writer.write((name) + ": " + (message))
             case Tag.promise =>
                 writer.write("Promise { <pending> }")
@@ -467,14 +467,14 @@ public class Formatter {
             case Tag.arrayBuffer =>
                 writer.write("[ArrayBuffer]")
             case Tag.json =>
-                let str = value.jsonStringifyFast(global: globalThis)
+                let str = value.jsonStringifyFast(globalThis.globalThis)
                 writer.write(str)
             case Tag.nativeCode =>
                 writer.write("[native code]")
             case Tag.jsx =>
                 printObject(writer: writer, value: value, enableAnsiColors: enableAnsiColors)
             case Tag.event =>
-                let eventType = value.getProperty(global: globalThis, name: "type")?.toSlice(global: globalThis) ?? "event"
+                let eventType = value.get(globalThis.globalThis, "type")?.toString() ?? "event"
                 writer.write("Event { type: '" + (eventType) + "' }")
             case Tag.globalObject =>
                 writer.write("[Global]")
@@ -487,15 +487,15 @@ public class Formatter {
     private func printArray(writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         writer.write("[ ")
         indent += 1
-        let length = value.getLength(global: globalThis)
-        for (i in 0..size ) {
+        let length = value.getLength(globalThis.globalThis)
+        for (i in 0..length ) {
             if (i > 0) {
                 writer.write(", ")
             }
-            let element = value.getPropertyAtIndex(global: globalThis, index: i)
-            if (element.isNone()) { writer.write("undefined"); continue }
-            let tag = Tag.get(value: element.getOrThrow(), globalThis: globalThis)
-            format(result: tag, writer: writer, value: element.getOrThrow(), globalThis: globalThis, enableAnsiColors: enableAnsiColors)
+            let element = value.getIndex(globalThis.globalThis, UInt32(i))
+            if (element.isUndefined()) { writer.write("undefined"); continue }
+            let tag = Tag.get(value: element, globalThis: globalThis)
+            format(result: tag, writer: writer, value: element, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
         }
         indent -= 1
         writer.write(" ]")
@@ -506,15 +506,19 @@ public class Formatter {
         writer.write("{ ")
         indent += 1
         var first = true
-        let iter = value.propertyIterator(global: globalThis)
-        while (let Some((name, propValue)) <- iter.next() ){
-            if (!first) {
-                writer.write(", ")
+        if (value.isObject()) {
+            if (let Some(obj) <- value.objectValue) {
+                let entries = obj.entries()
+                for ((name, propValue) in entries) {
+                    if (!first) {
+                        writer.write(", ")
+                    }
+                    first = false
+                    writer.write((name) + ": ")
+                    let tag = Tag.get(value: propValue, globalThis: globalThis)
+                    format(result: tag, writer: writer, value: propValue, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
+                }
             }
-            first = false
-            writer.write((name) + ": ")
-            let tag = Tag.get(value: propValue, globalThis: globalThis)
-            format(result: tag, writer: writer, value: propValue, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
         }
         indent -= 1
         if (!first) {
@@ -527,20 +531,20 @@ public class Formatter {
     private func printMap(writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         writer.write("Map {")
         indent += 1
-        let size = value.getLength(global: globalThis)
-        for (i in 0..size ) {
+        let mapSize = value.getLength(globalThis.globalThis)
+        for (i in 0..mapSize ) {
             if (i > 0) { writer.write(",") }
             writer.write("\n")
             writeIndent(writer: writer)
-            let entry = value.getPropertyAtIndex(global: globalThis, index: i)
+            let entry = value.getIndex(globalThis.globalThis, UInt32(i))
             // Map entries are [key, value] arrays
-            if (let Some(e) <- entry) {
+            if (!entry.isUndefined()) {
                 writer.write("  ")
-                let keyTag = Tag.get(value: e, globalThis: globalThis)
-                format(result: keyTag, writer: writer, value: e, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
+                let keyTag = Tag.get(value: entry, globalThis: globalThis)
+                format(result: keyTag, writer: writer, value: entry, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
                 writer.write(" => ")
-                let valTag = Tag.get(value: e, globalThis: globalThis)
-                format(result: valTag, writer: writer, value: e, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
+                let valTag = Tag.get(value: entry, globalThis: globalThis)
+                format(result: valTag, writer: writer, value: entry, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
             }
         }
         indent -= 1
@@ -553,13 +557,13 @@ public class Formatter {
     private func printSet(writer!: StringWriter, value!: JsValue, enableAnsiColors!: Bool) {
         writer.write("Set {")
         indent += 1
-        let size = value.getLength(global: globalThis)
-        for (i in 0..size ) {
+        let setSize = value.getLength(globalThis.globalThis)
+        for (i in 0..setSize ) {
             if (i > 0) { writer.write(", ") }
-            let element = value.getPropertyAtIndex(global: globalThis, index: i)
-            if (let Some(e) <- element) {
-                let tag = Tag.get(value: e, globalThis: globalThis)
-                format(result: tag, writer: writer, value: e, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
+            let element = value.getIndex(globalThis.globalThis, UInt32(i))
+            if (!element.isUndefined()) {
+                let tag = Tag.get(value: element, globalThis: globalThis)
+                format(result: tag, writer: writer, value: element, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
             }
         }
         indent -= 1
@@ -567,7 +571,7 @@ public class Formatter {
     }
 
     /// 格式化值
-    public func format(result!: TagResult, writer!: StringWriter, value!: JsValue, globalThis!: JSGlobalObject, enableAnsiColors!: Bool) {
+    public func format(result!: TagResult, writer!: StringWriter, value!: JsValue, globalThis!: JSGlobalObject, enableAnsiColors!: Bool): Unit {
         printAs(format: result.tag, writer: writer, value: value, enableAnsiColors: enableAnsiColors)
     }
 }

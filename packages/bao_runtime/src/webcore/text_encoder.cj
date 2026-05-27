@@ -99,30 +99,18 @@ public class TextEncoder {
     }
 
     /// 转为 JsValue
+    /// PORT NOTE: toJsValue stubbed; Interpreter.jsToString not yet available
     public func toJsValue(): JsValue {
         let obj = JsObject()
         let self = this
 
         obj.set("encoding", JsValue(self.encoding))
 
-        obj.set("encode", JsValue(JsFunction.create("encode", { _, args =>
-            let text = if (args.size >= 1) { Interpreter.jsToString(args[0]) } else { "" }
-            let bytes = self.encode(text)
-            let arr = ArrayList<JsValue>()
-            for (b in bytes) {
-                arr.append(JsValue(Float64(Int64(b))))
-            }
-            JsValue.array(arr)
+        obj.set("encode", JsValue(JsFunction.create("encode", { thisObj: JsObject, args: Array<JsValue> =>
+            JsValue()
         })))
 
-        obj.set("encodeInto", JsValue(JsFunction.create("encodeInto", { _, args =>
-            if (args.size >= 1) {
-                let text = Interpreter.jsToString(args[0])
-                let bytes = self.encode(text)
-                let result = EncodeIntoResult(0, bytes.size)
-                result.read = text.size
-                return result.toJsValue()
-            }
+        obj.set("encodeInto", JsValue(JsFunction.create("encodeInto", { thisObj: JsObject, args: Array<JsValue> =>
             EncodeIntoResult().toJsValue()
         })))
 

@@ -142,7 +142,7 @@ public class FileSystemRouter {
             originStr.deinit()
             arena.deinit()
             globalThis.allocator().destroy(arena)
-            return globalThis.`throw`("Unable to find directory: \{rootDirPath.slice()}")
+            return globalThis.`throw`("Unable to find directory: ${rootDirPath.slice()}")
         }
 
         // 初始化路由器
@@ -288,7 +288,7 @@ public class FileSystemRouter {
         }
 
         let urlPath = URLPath.parse(path.slice()) catch { err =>
-            return globalThis.`throw`("\{err} parsing path: \{path.slice()}")
+            return globalThis.`throw`("${err} parsing path: ${path.slice()}")
         }
 
         var params = Router.Param.List{}
@@ -343,7 +343,7 @@ public class FileSystemRouter {
         } ?? {
             arena.deinit()
             globalThis.allocator().destroy(arena)
-            return globalThis.`throw`("Unable to find directory: \{this.router.config.dir}")
+            return globalThis.`throw`("Unable to find directory: ${this.router.config.dir}")
         }
 
         var router = Router(vm.transpiler.fs, allocator, RouterConfig{

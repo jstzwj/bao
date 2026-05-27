@@ -27,7 +27,7 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveProperty", matcherParamsFmt: "<green>path<r><d>, <r><green>value<r>")
 
-    if (!expectedPropertyPath.isString() && !expectedPropertyPath.isIterable(globalThis: globalThis) ){
+    if (!expectedPropertyPath.isString() && !expectedPropertyPath.isIterable(globalThis) ){
         return globalThis.throw_("Expected path must be a string or an array")
     }
 
@@ -46,10 +46,10 @@ public func toHaveProperty(`this`: Expect, globalThis: JSGlobalObject, callFrame
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     if (not) {
         if (expectedProperty.isSome()) {

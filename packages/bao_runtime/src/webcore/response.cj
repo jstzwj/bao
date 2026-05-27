@@ -343,6 +343,27 @@ public class JsRef {
     public func withMut(fn: (JsRef) -> Unit): Unit {
         fn(this)
     }
+
+    /// 是否为强引用
+    public func isStrong(): Bool {
+        match (value) {
+            case Some(_) => true
+            case None => false
+        }
+    }
+
+    /// 取消保护 (与 protect 配对)
+    public func unprotect(): Unit {
+        value = None
+    }
+
+    /// 获取值 (直接，非 Option)
+    public func get(): JsValue {
+        match (value) {
+            case Some(v) => v
+            case None => JsValue.undefined()
+        }
+    }
 }
 
 // ============================================================================

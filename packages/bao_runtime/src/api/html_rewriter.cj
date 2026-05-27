@@ -614,9 +614,10 @@ public class HTMLRewriterLoader {
         sizeHint: ?Int64,
         output: Sink,
     ): ?HTMLString {
-        let chunkSize = match (sizeHint) {
-            case Some(s) => if (s < 1024) { 1024 } else { s }
-            case None => 16384
+        let chunkSize = if (let Some(s) <- sizeHint) {
+            if (s < 1024) { 1024 } else { s }
+        } else {
+            16384
         }
 
         let memorySettings = MemorySettings(
@@ -1524,9 +1525,10 @@ public class TextChunk {
             return JsValue.UNDEFINED
         }
         let contentSlice = content.toSlice()
-        let isHtml = match (contentOptions) {
-            case Some(o) => o.html
-            case None => false
+        let isHtml = if (let Some(o) <- contentOptions) {
+            o.html
+        } else {
+            false
         }
         if (callback(textChunk, contentSlice, isHtml)) {
             return createLolhtmlError(globalObject)
@@ -1810,9 +1812,10 @@ public class DocEnd {
             return JsValue.NULL
         }
         let contentSlice = content.toSlice()
-        let isHtml = match (contentOptions) {
-            case Some(o) => o.html
-            case None => false
+        let isHtml = if (let Some(o) <- contentOptions) {
+            o.html
+        } else {
+            false
         }
         if (callback(docEnd, contentSlice, isHtml)) {
             return createLolhtmlError(globalObject)
@@ -1901,9 +1904,10 @@ public class HTMLComment {
             return JsValue.NULL
         }
         let contentSlice = content.toSlice()
-        let isHtml = match (contentOptions) {
-            case Some(o) => o.html
-            case None => false
+        let isHtml = if (let Some(o) <- contentOptions) {
+            o.html
+        } else {
+            false
         }
         if (callback(comment, contentSlice, isHtml)) {
             return createLolhtmlError(globalObject)
@@ -2080,9 +2084,10 @@ public class EndTag {
             return JsValue.NULL
         }
         let contentSlice = content.toSlice()
-        let isHtml = match (contentOptions) {
-            case Some(o) => o.html
-            case None => false
+        let isHtml = if (let Some(o) <- contentOptions) {
+            o.html
+        } else {
+            false
         }
         if (callback(endTag, contentSlice, isHtml)) {
             return createLolhtmlError(globalObject)
@@ -2439,9 +2444,10 @@ public class HTMLElement {
             return JsValue.UNDEFINED
         }
         let contentSlice = content.toSlice()
-        let isHtml = match (contentOptions) {
-            case Some(o) => o.html
-            case None => false
+        let isHtml = if (let Some(o) <- contentOptions) {
+            o.html
+        } else {
+            false
         }
         if (callback(element, contentSlice, isHtml)) {
             return createLolhtmlError(globalObject)

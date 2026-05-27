@@ -190,7 +190,7 @@ public class BunObject {
         if (Shell.needsEscapeBunstr(bunstr)) {
             let result = try Shell.escapeBunStr(bunstr, outbuf, true)
             if (!result) {
-                return globalThis.`throw`("String has invalid utf-16: \{bunstr.byteSlice()}")
+                return globalThis.`throw`("String has invalid utf-16: ${bunstr.byteSlice()}")
             }
             var str = BunString.cloneUTF8(outbuf.items)
             return str.transferToJS(globalThis)
@@ -461,7 +461,7 @@ public class BunObject {
 
         let milliseconds = try arg.coerceInt32(globalObject)
         if (milliseconds < 0) {
-            return globalObject.throwInvalidArguments("argument to sleepSync must not be negative, got \{milliseconds}")
+            return globalObject.throwInvalidArguments("argument to sleepSync must not be negative, got ${milliseconds}")
         }
 
         Thread.sleep(UInt64(milliseconds) * NS_PER_MS)
@@ -705,7 +705,7 @@ public class BunObject {
                         editorChoice = edit.editor
                         if (editorChoice.isNone()) {
                             edit = prev
-                            return globalThis.`throw`("Could not find editor \"\{sliced.slice()}\"")
+                            return globalThis.`throw`("Could not find editor \"${sliced.slice()}\"")
                         }
                     }
                 }
@@ -733,7 +733,7 @@ public class BunObject {
         }
 
         editor.open(edit.path, path, line, column, arguments.arena.allocator()) catch { err =>
-            return globalThis.`throw`("Opening editor failed \{err}")
+            return globalThis.`throw`("Opening editor failed ${err}")
         }
 
         return JsValue.jsUndefined()
@@ -1096,9 +1096,10 @@ public class BunObject {
     /// getTLSDefaultCiphers - 获取默认 TLS 密码套件
     public static func getTLSDefaultCiphers(globalThis: JsGlobalObject, object: JsObject): JsValue {
         let vm = globalThis.bunVM()
-        let bytes: Array<UInt8> = match (vm.rareData().tlsDefaultCiphers()) {
-            case Some(c) => c
-            case None => UWS.getDefaultCiphers().toBytes()
+        let bytes: Array<UInt8> = if (let Some(c) <- vm.rareData().tlsDefaultCiphers()) {
+            c
+        } else {
+            UWS.getDefaultCiphers().toBytes()
         }
         return BunString.createUTF8ForJS(globalThis, bytes) ?? JsValue.jsUndefined()
     }
@@ -1316,7 +1317,7 @@ public class BunObject {
             let allocator = stack.get()
             var arraylist = ArrayList<UInt8>.initCapacity(allocator, 1024) catch { unreachable }
             defer arraylist.deinit()
-            try arraylist.writer().print("\{errorable.result.value}\{queryString}")
+            try arraylist.writer().print("${errorable.result.value}${queryString}")
             return ZigString.initUTF8(arraylist.items).toJS(ctx)
         }
 
@@ -1578,9 +1579,10 @@ public class JSZlib {
                     return globalThis.throwInvalidArguments("Expected library to be a string")
                 }
 
-                library = match (LIBRARY_MAP.fromJS(globalThis, libraryValue)) {
-                    case Some(v) => v
-                    case None => return globalThis.throwInvalidArguments("Expected library to be one of 'zlib' or 'libdeflate'")
+                library = if (let Some(v) <- LIBRARY_MAP.fromJS(globalThis, libraryValue)) {
+                    v
+                } else {
+                    return globalThis.throwInvalidArguments("Expected library to be one of 'zlib' or 'libdeflate'")
                 }
             }
         }
@@ -1648,7 +1650,7 @@ public class JSZlib {
                 match (result.status) {
                     case Libdeflate.Status.Success => ()
                     case Libdeflate.Status.InsufficientSpace => return globalThis.throwOutOfMemory()
-                    case _ => return globalThis.`throw`("libdeflate returned an error: \{result.status}")
+                    case _ => return globalThis.`throw`("libdeflate returned an error: ${result.status}")
                 }
 
                 let leaked = list.leak()
@@ -1679,9 +1681,10 @@ public class JSZlib {
                     return globalThis.throwInvalidArguments("Expected library to be a string")
                 }
 
-                library = match (LIBRARY_MAP.fromJS(globalThis, libraryValue)) {
-                    case Some(v) => v
-                    case None => return globalThis.throwInvalidArguments("Expected library to be one of 'zlib' or 'libdeflate'")
+                library = if (let Some(v) <- LIBRARY_MAP.fromJS(globalThis, libraryValue)) {
+                    v
+                } else {
+                    return globalThis.throwInvalidArguments("Expected library to be one of 'zlib' or 'libdeflate'")
                 }
             }
 
@@ -1737,7 +1740,7 @@ public class JSZlib {
 
                 let result = compressorPtr.compressToVec(compressed, list, encoding)
                 if (result.status != Libdeflate.Status.Success) {
-                    return globalThis.`throw`("libdeflate error: \{result.status}")
+                    return globalThis.`throw`("libdeflate error: ${result.status}")
                 }
 
                 let leaked = list.leak()
@@ -1807,7 +1810,7 @@ public class JSZstd {
         let compressedSize = match (Zstd.compress(output, input, Some(level))) {
             case Zstd.Result.Success(size) => size
             case Zstd.Result.Err(err) =>
-                return globalThis.err(JsErrorCode.ZSTD, "\{err}").`throw`()
+                return globalThis.err(JsErrorCode.ZSTD, "${err}").`throw`()
         }
 
         // 调整到实际压缩大小
@@ -1828,7 +1831,7 @@ public class JSZstd {
         let output = match (Zstd.decompressAlloc(input)) {
             case Ok(v) => v
             case Err(err) =>
-                return globalThis.err(JsErrorCode.ZSTD, "Decompression failed: \{err}").`throw`()
+                return globalThis.err(JsErrorCode.ZSTD, "Decompression failed: ${err}").`throw`()
         }
 
         return JsValue.createBuffer(globalThis, output.leak())
@@ -1885,7 +1888,7 @@ public class JSZstd {
             if (let errMsg <- self.errorMessage) {
                 promise.rejectWithAsyncStack(
                     globalThis,
-                    globalThis.err(JsErrorCode.ZSTD, "\{errMsg}").toJS(),
+                    globalThis.err(JsErrorCode.ZSTD, "${errMsg}").toJS(),
                 )
                 return
             }

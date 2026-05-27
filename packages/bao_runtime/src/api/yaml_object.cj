@@ -69,7 +69,7 @@ public func parse(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsValue {
                 if (log.msgs.items.len > 0) {
                     let firstMsg = log.msgs.items[0]
                     let errorText = firstMsg.data.text
-                    return globalThis.throwValue(globalThis.createSyntaxErrorInstance("YAML Parse error: \{errorText}"))
+                    return globalThis.throwValue(globalThis.createSyntaxErrorInstance("YAML Parse error: ${errorText}"))
                 }
                 return globalThis.throwValue(globalThis.createSyntaxErrorInstance("YAML Parse error: Unable to parse YAML string"))
             }
@@ -112,14 +112,18 @@ public func stringify(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsVal
 
     stringifier.findAnchorsAndAliases(globalThis, value, AnchorOrigin.root) catch { err =>
         return match (err) {
-            case OutOfMemory, .JSError, .JSTerminated => js_err => js_err
+            case OutOfMemory => js_err => js_err
+            case .JSError => js_err => js_err
+            case .JSTerminated => js_err => js_err
             case StackOverflow => globalThis.throwStackOverflow()
         }
     }
 
     stringifier.stringify(globalThis, value) catch { err =>
         return match (err) {
-            case OutOfMemory, .JSError, .JSTerminated => js_err => js_err
+            case OutOfMemory => js_err => js_err
+            case .JSError => js_err => js_err
+            case .JSTerminated => js_err => js_err
             case StackOverflow => globalThis.throwStackOverflow()
         }
     }
@@ -395,7 +399,9 @@ public class Stringifier {
             match (this.space) {
                 case minified =>
                     this.builder.append(.lchar, ' ')
-                case number, .str =>
+                case number =>
+                    this.newline()
+                case .str =>
                     this.newline()
             }
             anchor.anchored = true
@@ -420,7 +426,19 @@ public class Stringifier {
                         try this.stringify(global, item)
                     }
                     this.builder.append(.lchar, ']')
-                case number, .str =>
+                case number =>
+                    this.builder.ensureUnusedCapacity(iter.len * "- ".size)
+                    var first = true
+                    while (let item <- try iter.next()) {
+                        if (item.isUndefined() || item.isSymbol() || item.isFunction()) { continue }
+                        if (!first) { this.newline() }
+                        first = false
+                        this.builder.append(.latin1, "- ")
+                        this.indent += 1
+                        try this.stringify(global, item)
+                        this.indent -= 1
+                    }
+                case .str =>
                     this.builder.ensureUnusedCapacity(iter.len * "- ".size)
                     var first = true
                     while (let item <- try iter.next()) {
@@ -463,7 +481,18 @@ public class Stringifier {
                     try this.stringify(global, iter.value)
                 }
                 this.builder.append(.lchar, '}')
-            case number, .str =>
+            case number =>
+                this.builder.ensureUnusedCapacity(iter.len * ": ".size)
+                var first = true
+                while (let propName <- try iter.next()) {
+                    if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) { continue }
+                    if (!first) { this.newline() }
+                    first = false
+                    this.appendString(propName)
+                    this.builder.append(.latin1, ": ")
+                    try this.stringify(global, iter.value)
+                }
+            case .str =>
                 this.builder.ensureUnusedCapacity(iter.len * ": ".size)
                 var first = true
                 while (let propName <- try iter.next()) {
@@ -534,7 +563,7 @@ public class Stringifier {
             else if (c == 0xa8) { this.builder.append(.latin1, "\\L") }
             else if (c == 0xa9) { this.builder.append(.latin1, "\\P") }
             else if (c < 0x20 || c == 0x22 || c == 0x7f) {
-                this.builder.appendFormat(.latin1, "\\x\{c:02x}")
+                this.builder.appendFormat(.latin1, "\\x{}", c.toHex(2))
             } else {
                 this.builder.append(.uchar, c)
             }
@@ -584,14 +613,20 @@ public class Stringifier {
         while (i < str.size()) {
             let c = str.charAt(i)
             match (c) {
-                case '{', '}', '[', ']', ',' => return true
+                case '{' => return true
+                case '}' => return true
+                case '[' => return true
+                case ']' => return true
+                case ',' => return true
                 case ':' =>
                     if (i + 1 < str.size()) {
                         let next = str.charAt(i + 1)
                         if (next == ' ' || next == '\t' || next == '\n' || next == '\r') { return true }
                     }
                     i += 1
-                case '#', '`', '\'' => return true
+                case '#' => return true
+                case '`' => return true
+                case '\'' => return true
                 case '-' =>
                     // 检查文档分隔符 ---
                     if (i + 2 < str.size() && str.charAt(i + 1) == '-' && str.charAt(i + 2) == '-') {
@@ -722,7 +757,8 @@ public class ParserCtx {
         ctx.result = ctx.toJS(args, ctx.root) catch { err =>
             return match (err) {
                 case OutOfMemory => { ctx.result = ctx.global.throwOutOfMemoryValue(); return }
-                case JSError, .JSTerminated => { ctx.result = JsValue.jsUndefined(); return }
+                case JSError => { ctx.result = JsValue.jsUndefined(); return }
+                case .JSTerminated => { ctx.result = JsValue.jsUndefined(); return }
                 case StackOverflow => { ctx.result = ctx.global.throwStackOverflow() ?? JsValue.jsUndefined(); return }
             }
         }

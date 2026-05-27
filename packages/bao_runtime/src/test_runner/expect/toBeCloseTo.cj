@@ -51,7 +51,7 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     }
 
     if (std.math.isPositiveInf(expected) && std.math.isPositiveInf(received)) {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     let expectedDiff = bun.pow(10.0, -precision) / 2.0
@@ -61,9 +61,9 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     let not = this.flags.not
     if (not) { pass = !pass }
 
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let expectedFmt = expected_.toFmt(formatter)

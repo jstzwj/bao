@@ -28,9 +28,9 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     var pass = false
 
     if (value.jsTypeLoose().isArrayLike()) {
-        var itr = value.arrayIterator(globalThis: globalThis)
+        var itr = value.arrayIterator(globalThis)
         while (let Some(item) <- itr.next()) {
-            if (item.isSameValue(expected, globalThis: globalThis)) {
+            if (item.isSameValue(expected, globalThis)) {
                 pass = true
                 break
             }
@@ -48,9 +48,9 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         } else if (valueString.size == 0 && expectedString.size == 0) { // 两个空字符串
             pass = true
         }
-    } else if (value.isIterable(globalThis: globalThis)) {
+    } else if (value.isIterable(globalThis)) {
         var expectedEntry = ExpectedEntry(globalThis: globalThis, expected: expected, pass: pass)
-        value.forEach(globalThis: globalThis, context: expectedEntry, callback: { vm, globalObject, entry_, item =>
+        value.forEach(globalThis, expectedEntry, { vm, globalObject, entry_, item =>
             let entry = entry_ as ExpectedEntry
             if (item.isSameValue(entry.expected, entry.globalThis)) {
                 entry.pass = true
@@ -61,10 +61,10 @@ public func toContain(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

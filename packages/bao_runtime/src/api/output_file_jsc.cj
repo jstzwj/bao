@@ -102,9 +102,10 @@ public class OutputFileJsc {
             case OutputFileValue.saved(_) =>
                 let pathToUse: String = ownedPathname ?? outputFile.srcPath.text
 
-                let storePath = match (ownedPathname) {
-                    case Some(p) => PathLike.string(PathString.initOwned(p))
-                    case None => dupePathLike(outputFile.srcPath.text)
+                let storePath = if (let Some(p) <- ownedPathname) {
+                    PathLike.string(PathString.initOwned(p))
+                } else {
+                    dupePathLike(outputFile.srcPath.text)
                 }
 
                 let fileBlob = match (
@@ -131,9 +132,10 @@ public class OutputFileJsc {
                 setBlobMime(blob, mime)
                 blob.size = bytesLen
 
-                let path: String = match (ownedPathname) {
-                    case Some(p) => p
-                    case None => outputFile.srcPath.text,
+                let path: String = if (let Some(p) <- ownedPathname) {
+                    p
+                } else {
+                    outputFile.srcPath.text
                 }
 
                 let buildOutput = BuildArtifact(

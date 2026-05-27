@@ -3,116 +3,129 @@
 
 package bao_runtime.bake.dev_server
 
-/// 路由 Bundle - 每个可导航路由的捆绑状态
-public struct Index {
+/// 路由 Bundle Index
+public struct RouteBundleIndex {
     public var value: UInt32
+    public init(value: UInt32) { this.value = value }
+    public func get(): UInt32 { value }
+    public static let Optional: IndexOptional = IndexOptional.none
 }
 
+/// Framework 路由数据
 public class Framework {
-    public var route_index: Route.Index
+    public var route_index: UInt32
     /// 缓存以避免每次请求重新创建数组
-    public var cached_module_list: Strong.Optional
+    public var cached_module_list: StrongOptional
     /// 缓存的客户端 bundle URL
-    public var cached_client_bundle_url: Strong.Optional
+    public var cached_client_bundle_url: StrongOptional
     /// 缓存的 CSS 文件数组
-    public var cached_css_file_array: Strong.Optional
+    public var cached_css_file_array: StrongOptional
     /// 当 state == evaluation_failure 时填充
-    public var evaluate_failure: ?SerializedFailure = None
+    public var evaluate_failure: ?SerializedFailure
+
+    public init() {
+        route_index = 0
+        cached_module_list = StrongOptional.empty
+        cached_client_bundle_url = StrongOptional.empty
+        cached_css_file_array = StrongOptional.empty
+        evaluate_failure = None
+    }
 }
 
+/// HTML 路由数据
 public class HTML {
-    public var html_bundle: RefPtr<HTMLBundleRoute>
-    public var bundled_file: IncrementalGraphClientFileIndex
-    /// 当 HTML 文件被修改（非其导入）时失效
+    public var html_bundle: IntPtr
+    public var bundled_file: FileIndex
+    /// 当 HTML 文件被修改时失效
     public var script_injection_offset: ByteOffset
     /// bundler 输出的 HTML 文本
-    public var bundled_html_text: ?String = None
-    /// 从 bundled_html_text + client_script_generation 派生
-    public var cached_response: ?StaticRoute = None
+    public var bundled_html_text: ?String
+    /// 从 bundled_html_text 派生
+    public var cached_response: ?StaticRoute
+
+    public init() {
+        html_bundle = IntPtr()
+        bundled_file = FileIndex(0)
+        script_injection_offset = ByteOffset(0)
+        bundled_html_text = None
+        cached_response = None
+    }
 }
 
 /// 字节偏移量
 public struct ByteOffset {
     public var value: UInt32
+    public init(value: UInt32) { this.value = value }
 }
 
+/// 路由 Bundle 状态
 public enum State {
-    | unqueued                    // 从未构建
-    | bundling                    // 正在捆绑
-    | deferred_to_next_bundle     // 将在下一个 bundle 中发生
-    | possible_bundling_failures  // 标记有捆绑失败
-    | evaluation_failure          // 运行时加载失败
-    | loaded                      // 已加载
+    | unqueued
+    | bundling
+    | deferred_to_next_bundle
+    | possible_bundling_failures
+    | evaluation_failure
+    | loaded
 }
 
+/// 未解析的索引
 public enum UnresolvedIndex {
-    | framework(Route.Index)      // FrameworkRouter 提供的路由
-    | html(HTMLBundleRoute)       // HTMLBundle 提供的路由
+    | framework(UInt32)
+    | html(IntPtr)
 }
 
+/// 路由 Bundle
 public class RouteBundle {
-
     public var server_state: State
     /// 有两种不同类型的路由 bundle
     public var data: RouteBundleData
     /// 当客户端 JS 被请求时懒生成。
-    /// 当下游客户端模块更新时失效。
-    public var client_bundle: ?StaticRoute = None
-
-    /// 如果客户端尝试加载错误 generation 的脚本，
-    /// 它将收到一个立即重新加载页面的 bundle
+    public var client_bundle: ?StaticRoute
+    /// 客户端脚本生成版本
     public var client_script_generation: UInt32
-
-    /// 有多少 HmrSocket 说它们在此路由上的引用计数
+    /// 活跃查看者数量
     public var active_viewers: UInt32
 
-    /// 框架路由数据
-
-    /// HTML 路由数据
-
-    /// 路由 Bundle 状态
-
-    /// 未解析的索引
+    public init() {
+        server_state = State.unqueued
+        data = RouteBundleData.framework(Framework())
+        client_bundle = None
+        client_script_generation = 0
+        active_viewers = 0
+    }
 
     /// 析构
     public func deinit(allocator: Allocator): Unit {
         if (let Some(blob) <- client_bundle) {
-            blob.deref()
+            // blob.deref()
         }
         match (data) {
-            case framework(fw) =>
+            case RouteBundleData.framework(fw) =>
                 fw.cached_client_bundle_url.deinit()
                 fw.cached_css_file_array.deinit()
                 fw.cached_module_list.deinit()
-            case html(html) =>
-                if (let Some(text) <- html.bundled_html_text) {
-                    allocator.free(text)
-                }
-                if (let Some(cached_response) <- html.cached_response) {
-                    cached_response.deref()
-                }
-                html.html_bundle.deref()
+            case RouteBundleData.html(html) =>
+                ()
         }
     }
 
     /// 获取 source map ID
-    public func sourceMapId(): SourceMapStore.Key {
-        return SourceMapStore.Key(UInt64(client_script_generation) << 32)
+    public func sourceMapId(): UInt64 {
+        return UInt64(client_script_generation) << 32
     }
 
     /// 使客户端 bundle 失效
     public func invalidateClientBundle(dev: DevServer): Unit {
         if (let Some(bundle) <- client_bundle) {
-            dev.source_maps.unref(sourceMapId())
-            bundle.deref()
+            // dev.source_maps.unref(sourceMapId())
+            // bundle.deref()
             client_bundle = None
         }
-        client_script_generation = random<UInt32>()
+        client_script_generation = UInt32(random<Int64>() as UInt32)
         match (data) {
-            case framework(fw) => fw.cached_client_bundle_url.clearWithoutDeallocation()
-            case html(html) =>
+            case RouteBundleData.framework(fw) => fw.cached_client_bundle_url.clearWithoutDeallocation()
+            case RouteBundleData.html(html) =>
                 if (let Some(cached_response) <- html.cached_response) {
-                    cached_response.deref()
                     html.cached_response = None
                 }
         }
@@ -124,29 +137,12 @@ public class RouteBundle {
         if (let Some(bundle) <- client_bundle) {
             cost += bundle.memoryCost()
         }
-        match (data) {
-            case html(html) =>
-                if (let Some(text) <- html.bundled_html_text) {
-                    cost += text.size
-                }
-                if (let Some(cached_response) <- html.cached_response) {
-                    cost += cached_response.memoryCost()
-                }
-            case framework(_) => ()
-        }
         return cost
     }
 }
 
 /// 路由 Bundle 数据联合类型
 public enum RouteBundleData {
-    | framework(RouteBundle.Framework)   // FrameworkRouter 路由
-    | html(RouteBundle.HTML)             // HTMLBundle 路由
+    | framework(Framework)
+    | html(HTML)
 }
-
-// 类型别名
-public type Strong = jsc.Strong
-public type RefPtr<T> = bun.ptr.RefPtr<T>
-public type HTMLBundleRoute = jsc.API.HTMLBundle.HTMLBundleRoute
-public type Route = framework_router.FrameworkRouter.Route
-public type IncrementalGraphClientFileIndex = FileIndex

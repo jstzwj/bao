@@ -359,7 +359,24 @@ public class Subprocess {
                         this.stdin = Writable.ignore()
                     else => ()
                 }
-            case stdout, .stderr =>
+            case stdout =>
+                let out: Readable = if (kind == stdout) {
+                    this.stdout
+                } else {
+                    this.stderr
+                }
+
+                if (out is Readable.pipe) {
+                    let pipe = out.replace(Readable.ignore())
+                    let pipeState = pipe.reader.state
+                    if (let done <- pipeState as PipeReaderState.done) {
+                        let taken = done.take()
+                        out = Readable.buffer(CowString.initOwned(taken))
+                    }
+                    // 否则 out 保持为 Readable::Ignore (由 replace 设置)
+                    pipe.deref()
+                }
+            case stderr =>
                 let out: Readable = if (kind == stdout) {
                     this.stdout
                 } else {
@@ -1015,7 +1032,8 @@ public class Subprocess {
         for (item in this.stdioPipes) {
             match (item) {
                 case owned_fd(fd) => fd.close()
-                case unowned_fd, .unavailable => ()
+                case unowned_fd => ()
+                case .unavailable => ()
             }
         }
         this.stdioPipes.clear()

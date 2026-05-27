@@ -18,7 +18,7 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenLastCalledWith", args: "<green>...expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
@@ -26,24 +26,24 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
             args: [value.toFmt(formatter)])
     }
 
-    let totalCalls: UInt32 = calls.getLength(globalThis: globalThis)
+    let totalCalls: UInt32 = calls.getLength(globalThis)
     var lastCallValue: JsValue = JsValue.zero
 
     var pass = totalCalls > 0
 
     if (pass) {
-        lastCallValue = calls.getIndex(globalThis: globalThis, index: totalCalls - 1)
+        lastCallValue = calls.getIndex(globalThis, totalCalls - 1)
 
         if (!lastCallValue.jsType().isArray()) {
-            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter()
             // defer { formatter.deinit() }
             return globalThis.throw_("Expected value must be a mock function with calls: {f}", args: [value.toFmt(formatter)])
         }
 
-        if (lastCallValue.getLength(globalThis: globalThis) != arguments.size) {
+        if (lastCallValue.getLength(globalThis) != arguments.size) {
             pass = false
         } else {
-            var itr = lastCallValue.arrayIterator(globalThis: globalThis)
+            var itr = lastCallValue.arrayIterator(globalThis)
             while (let Some(callArg) <- itr.next()) {
                 if (!callArg.jestDeepEquals(arguments[itr.i - 1], globalThis: globalThis) ){
                     pass = false
@@ -54,11 +54,11 @@ public func toHaveBeenLastCalledWith(`this`: Expect, globalThis: JSGlobalObject,
     }
 
     if (pass != this.flags.not) {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: arguments.size)

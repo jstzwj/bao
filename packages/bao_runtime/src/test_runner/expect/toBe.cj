@@ -18,10 +18,10 @@ public func toBe(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFram
     let left = this.getValue(globalThis: globalThis, thisValue: callFrame.this_(), matcherName: "toBe", matcherParamsFmt: "<green>expected<r>")
 
     let not = this.flags.not
-    var pass = right.isSameValue(left, globalThis: globalThis)
+    var pass = right.isSameValue(left, globalThis)
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败 - 输出差异信息
     if (not) {

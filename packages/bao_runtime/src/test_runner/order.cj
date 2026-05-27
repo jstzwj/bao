@@ -127,9 +127,10 @@ public class Order {
         while (let Some(entry) <- index ){
             entry.failureSkipPast = failureSkipPast
             // Compare by checking if they share the same base scope
-            let isSameEntry = match (failureSkipPast) {
-                case Some(fsp) => entry.base.testIdForDebugger == fsp.base.testIdForDebugger && entry.base.testIdForDebugger != 0
-                case None => false
+            let isSameEntry = if (let Some(fsp) <- failureSkipPast) {
+                entry.base.testIdForDebugger == fsp.base.testIdForDebugger && entry.base.testIdForDebugger != 0
+            } else {
+                false
             }
             if (isSameEntry) {
                 failureSkipPast = None

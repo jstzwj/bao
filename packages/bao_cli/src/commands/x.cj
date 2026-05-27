@@ -160,7 +160,7 @@ public class XCommand {
             installArgs.append("--verbose")
         }
 
-        let exitCode = Process.`spawn`(installArgs.toArray(), cacheDir)
+        let exitCode = Process.`spawn`(installArgs.items(), cacheDir)
         match (exitCode) {
             case Some(code) =>
                 if (code != 0) {
@@ -225,7 +225,7 @@ public class XCommand {
                         }
                     case _ =>
                         if (arg.startsWith("--package=")) {
-                            specifiedPackage = Some(arg.substring("--package=".length))
+                            specifiedPackage = Some(arg.substring("--package=".size))
                         } else if (!arg.startsWith("-")) {
                             foundPackageName = true
                             packageName = arg
@@ -369,7 +369,7 @@ public class XCommand {
         for (a in args) { allArgs.append(a) }
 
         // exec 替换当前进程 (或 spawn 等待)
-        let result = Process.exec(allArgs.toArray(), ".")
+        let result = Process.exec(allArgs.items(), ".")
         // exec 不应返回, 如果返回则出错
         logger.error("Failed to execute: ${binPath}")
     }

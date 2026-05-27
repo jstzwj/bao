@@ -19,7 +19,7 @@ public func toHaveBeenCalledTimes(`this`: Expect, globalThis: JSGlobalObject, ca
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
@@ -30,22 +30,22 @@ public func toHaveBeenCalledTimes(`this`: Expect, globalThis: JSGlobalObject, ca
 
     let times = arguments[0].coerceInt32(globalThis: globalThis)
 
-    var pass = Int32(calls.getLength(globalThis: globalThis)) == times
+    var pass = Int32(calls.getLength(globalThis)) == times
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
     if (not) {
         let signature = Expect.getSignature(matcherName: "toHaveBeenCalledTimes", args: "<green>expected<r>", not: true)
         return this.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected number of calls: not <green>{d}<r>\nReceived number of calls: <red>{d}<r>\n",
-            args: [times, calls.getLength(globalThis: globalThis)])
+            args: [times, calls.getLength(globalThis)])
     }
 
     let signature = Expect.getSignature(matcherName: "toHaveBeenCalledTimes", args: "<green>expected<r>", not: false)
     return this.throw_(globalThis: globalThis, signature: signature,
         fmt: "\n\nExpected number of calls: <green>{d}<r>\nReceived number of calls: <red>{d}<r>\n",
-        args: [times, calls.getLength(globalThis: globalThis)])
+        args: [times, calls.getLength(globalThis)])
 }

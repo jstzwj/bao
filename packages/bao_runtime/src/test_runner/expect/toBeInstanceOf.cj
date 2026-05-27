@@ -19,7 +19,7 @@ public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame
     }
 
     this.incrementExpectCallCounter()
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let expectedValue = arguments[0]
@@ -33,7 +33,7 @@ public func toBeInstanceOf(`this`: Expect, globalThis: JSGlobalObject, callFrame
     let not = this.flags.not
     var pass = value.isInstanceOf(globalThis: globalThis, expected: expectedValue)
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
     let expectedFmt = expectedValue.toFmt(formatter)

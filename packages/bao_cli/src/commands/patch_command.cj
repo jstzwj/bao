@@ -182,7 +182,7 @@ public class PatchCommand {
                         let editorArgs = ArrayList<String>()
                         editorArgs.append(editor)
                         editorArgs.append(patchDir)
-                        Process.`spawn`(editorArgs.toArray(), ".")
+                        Process.`spawn`(editorArgs.items(), ".")
                     case None =>
                         // 检查 $EDITOR / $VISUAL 环境变量
                         let editorEnv = Sys.getEnv("EDITOR") ?? Sys.getEnv("VISUAL")
@@ -192,7 +192,7 @@ public class PatchCommand {
                                     let edArgs = ArrayList<String>()
                                     edArgs.append(ed)
                                     edArgs.append(patchDir)
-                                    Process.`spawn`(edArgs.toArray(), ".")
+                                    Process.`spawn`(edArgs.items(), ".")
                                 }
                             case None => ()
                         }
@@ -396,7 +396,7 @@ public class PatchCommitCommand {
                                         let installArgs = ArrayList<String>()
                                         installArgs.append(Sys.getExecutablePath())
                                         installArgs.append("install")
-                                        let exitCode = Process.`spawn`(installArgs.toArray(), ".")
+                                        let exitCode = Process.`spawn`(installArgs.items(), ".")
                                         match (exitCode) {
                                             case Some(code) =>
                                                 if (code == 0) {
@@ -438,7 +438,7 @@ public class PatchCommitCommand {
         args.append(patchedPath)
 
         // 将 diff 输出重定向到文件
-        let result = Process.`spawnWithOutput`(args.toArray(), ".")
+        let result = Process.`spawnWithOutput`(args.items(), ".")
         match (result) {
             case Some(output) =>
                 BaoFile.writeAllText(outputPath, output)

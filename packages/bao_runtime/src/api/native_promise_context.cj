@@ -22,7 +22,7 @@ public class NativePromiseContext {
 
     /// Tag - 每个具体原生类型对应一个标签
     /// 通过 CompactPointerTuple 打包到指针的高位
-    public enum Tag: UInt8 {
+    public enum Tag {
         | httpServerRequestContext
         | httpsServerRequestContext
         | debugHttpServerRequestContext
@@ -30,6 +30,33 @@ public class NativePromiseContext {
         | bodyValueBufferer
         | httpsServerH3RequestContext
         | debugHttpsServerH3RequestContext
+
+        /// 获取标签的数值 (用于指针打包)
+        public func value(): UInt8 {
+            match (this) {
+                case httpServerRequestContext => 0
+                case httpsServerRequestContext => 1
+                case debugHttpServerRequestContext => 2
+                case debugHttpsServerRequestContext => 3
+                case bodyValueBufferer => 4
+                case httpsServerH3RequestContext => 5
+                case debugHttpsServerH3RequestContext => 6
+            }
+        }
+
+        /// 从数值构造标签
+        public static func fromValue(v: UInt8): Tag {
+            match (v) {
+                case 0 => httpServerRequestContext
+                case 1 => httpsServerRequestContext
+                case 2 => debugHttpServerRequestContext
+                case 3 => debugHttpsServerRequestContext
+                case 4 => bodyValueBufferer
+                case 5 => httpsServerH3RequestContext
+                case 6 => debugHttpsServerH3RequestContext
+                case _ => httpServerRequestContext
+            }
+        }
 
         /// 从类型推断标签
         public static func fromType<T>(type: T.Type): Tag {
@@ -87,13 +114,13 @@ public class NativePromiseContext {
 
             let addr = Int.fromPtr(ctx)
             var task = JsTask()
-            task.setUintptr(UInt64(addr) | UInt64(tag.rawValue))
+            task.setUintptr(UInt64(addr) | UInt64(tag.value()))
             vm.eventLoop().enqueueTask(task)
         }
 
         /// 从 JS 线程运行
         public static func runFromJSThread(packedPtr: UInt64): Unit {
-            let tag: Tag = Tag(rawValue: UInt8(packedPtr & tagMask))
+            let tag: Tag = Tag.fromValue(UInt8(packedPtr & tagMask))
             let ctx: Any = UnsafeMutableRawPointer(bitPattern: UInt(packedPtr & ~tagMask))
 
             match (tag) {

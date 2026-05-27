@@ -221,7 +221,7 @@ public func initializeStore(): Unit {
 // 严格翻译自: create_command.zig 中 execTask function
 public func execTask(task_: String, cwd: String, npmClient: ?NPMClient): Unit {
     let task = task_.trim()
-    if (task.length == 0) {
+    if (task.size == 0) {
         return
     }
 
@@ -330,11 +330,11 @@ public class Example {
             let appName = match (defaultAppName) {
                 case Some(name) => name
                 case None =>
-                    let len = if (Int64(example.name.length) < Int64(492)) { Int64(example.name.length) } else { Int64(492) }
+                    let len = if (Int64(example.name.size) < Int64(492)) { Int64(example.name.size) } else { Int64(492) }
                     "./${example.name.substring(0, len)}-app"
             }
 
-            if (example.description.length > 0) {
+            if (example.description.size > 0) {
                 println("  # ${example.description}")
                 println("  bao create ${example.name} ${appName}")
                 println("")
@@ -430,7 +430,7 @@ public class Example {
         let apiDomain = Sys.getEnv("GITHUB_API_DOMAIN")
         match (apiDomain) {
             case Some(d) =>
-                if (d.length > 0) {
+                if (d.size > 0) {
                     githubApiDomain = d
                 }
             case None => ()
@@ -444,14 +444,14 @@ public class Example {
         let token = Sys.getEnv("GITHUB_TOKEN")
         match (token) {
             case Some(t) =>
-                if (t.length > 0) {
+                if (t.size > 0) {
                     headers.append(Tuple("Authorization", "Bearer ${t}"))
                 }
             case None =>
                 let accessToken = Sys.getEnv("GITHUB_ACCESS_TOKEN")
                 match (accessToken) {
                     case Some(at) =>
-                        if (at.length > 0) {
+                        if (at.size > 0) {
                             headers.append(Tuple("Authorization", "Bearer ${at}"))
                         }
                     case None => ()
@@ -539,7 +539,7 @@ public class Example {
                         let tarballUrl = JsonHelper.getString(distObj, "tarball")
                         match (tarballUrl) {
                             case Some(url) =>
-                                if (url.length > 0 &&
+                                if (url.size > 0 &&
                                     (url.startsWith("https://") || url.startsWith("http://"))) {
                                     // 下载 tarball
                                     println("Downloading tarball")
@@ -885,7 +885,7 @@ public class ArchiverPlucker {
 
     /// 检查文件名是否匹配
     public func check(fileName: String, data: String): Unit {
-        if (fileName == targetFileName && Int64(data.length) <= maxLength) {
+        if (fileName == targetFileName && Int64(data.size) <= maxLength) {
             found = true
             contents = data
         }
@@ -922,7 +922,7 @@ public class CreateListExamplesCommand {
         // 提示本地模板路径
         // 严格翻译自: create_command.zig 中 homedir 提示
         let homeDir = Sys.getHomeDir()
-        if (homeDir.length > 0) {
+        if (homeDir.size > 0) {
             println("This command is completely optional. To add a new local template, create a folder in ${homeDir}/.bun-create/. To publish a new template, git clone https://github.com/oven-sh/bun, add a new folder to the \"examples\" folder, and submit a PR.")
         } else {
             println("This command is completely optional. To add a new local template, create a folder in $HOME/.bun-create/. To publish a new template, git clone https://github.com/oven-sh/bun, add a new folder to the \"examples\" folder, and submit a PR.")
@@ -1059,7 +1059,7 @@ public class CreateCommand {
                         println("")
                         for (path in filteredList) {
                             if (path.endsWith("/") || path.endsWith("\\")) {
-                                println("  ${path.substring(0, Int64(path.length) - 1)}/")
+                                println("  ${path.substring(0, Int64(path.size) - 1)}/")
                             } else {
                                 println("  ${path}")
                             }
@@ -1365,7 +1365,7 @@ public class CreateCommand {
                                         // 严格翻译自: create_command.zig 中 start 处理
                                         match (value.getString("start")) {
                                             case Some(startStr) =>
-                                                if (startStr.length > 0) {
+                                                if (startStr.size > 0) {
                                                     startCommand = startStr
                                                 }
                                             case None => ()
@@ -1540,7 +1540,7 @@ public class CreateCommand {
         // 提示启动命令
         // 严格翻译自: create_command.zig 中 rel_destination 输出
         let relDestination = Path.relative(Sys.getcwd(), destination)
-        let isEmptyDestination = relDestination.length == 0
+        let isEmptyDestination = relDestination.size == 0
 
         if (isEmptyDestination) {
             println("# To get started, run:")
@@ -1599,7 +1599,7 @@ public class CreateCommand {
                 case None =>
                     // 不是 .jsx/.tsx 文件但存在本地文件
                     // 严格翻译自: create_command.zig 中扩展名警告
-                    if (extension.length > 0 && extension != ".js") {
+                    if (extension.size > 0 && extension != ".js") {
                         println("warn: bao create [local file] only supports .jsx and .tsx files currently")
                     }
             }
@@ -1653,12 +1653,12 @@ public class CreateCommand {
 
             // "github.com/..." 前缀
             if (positional.startsWith("github.com/")) {
-                repoBegin = Int64("github.com/".length)
+                repoBegin = Int64("github.com/".size)
             }
 
             // "https://github.com/..." 前缀
             if (positional.startsWith("https://github.com/")) {
-                repoBegin = Int64("https://github.com/".length)
+                repoBegin = Int64("https://github.com/".size)
             }
 
             // user/repo 格式 (不包含额外斜杠)
@@ -1672,7 +1672,7 @@ public class CreateCommand {
                                 ()
                             case None =>
                                 // 只有一个斜杠, 且两边都有内容
-                                if (firstSlashIndex > 0 && Int64(positional.length) > firstSlashIndex + 1) {
+                                if (firstSlashIndex > 0 && Int64(positional.size) > firstSlashIndex + 1) {
                                     repoBegin = 0
                                 }
                         }
@@ -1686,7 +1686,7 @@ public class CreateCommand {
                 let remainder = positional.substring(repoBegin)
                 match (remainder.indexOf("/")) {
                     case Some(i) =>
-                        if (i > 0 && Int64(remainder.length) > i + 1) {
+                        if (i > 0 && Int64(remainder.size) > i + 1) {
                             // 检查第二个斜杠
                             let afterFirst = remainder.substring(i + 1)
                             match (afterFirst.indexOf("/")) {
@@ -1749,7 +1749,7 @@ public class CreateCommand {
                 for (line in lines) {
                     // 去掉第一层目录前缀 (strip-components=1)
                     let trimmed = line.trim()
-                    if (trimmed.length == 0) {
+                    if (trimmed.size == 0) {
                         continue
                     }
                     // tarball 中的路径格式: package/file → file
@@ -1757,7 +1757,7 @@ public class CreateCommand {
                     match (slashIdx) {
                         case Some(idx) =>
                             let relativePath = trimmed.substring(idx + 1)
-                            if (relativePath.length > 0) {
+                            if (relativePath.size > 0) {
                                 let targetPath = Path.join([destination, relativePath])
                                 if (BaoFile.exists(targetPath)) {
                                     result.append(relativePath)
@@ -1870,7 +1870,7 @@ public class CreateCommand {
                             case Some(createConfig) =>
                                 match (JsonHelper.getString(createConfig, "start")) {
                                     case Some(sc) =>
-                                        if (sc.length > 0) { startCommand = sc }
+                                        if (sc.size > 0) { startCommand = sc }
                                     case None => ()
                                 }
 

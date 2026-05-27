@@ -16,11 +16,11 @@ public func toBeEmptyObject(`this`: Expect, globalThis: JSGlobalObject, callFram
     this.incrementExpectCallCounter()
 
     let not = this.flags.not
-    let pass = value.isObject() && (value.getLength(globalThis: globalThis) == 0) != not
+    let pass = value.isObject() && (value.getLength(globalThis) == 0) != not
 
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 

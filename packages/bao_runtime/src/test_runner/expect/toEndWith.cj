@@ -41,9 +41,9 @@ public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     let not = this.flags.not
     if (not) { pass = !pass }
 
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

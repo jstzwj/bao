@@ -3,7 +3,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{CallFrame, ConsoleFormatter, ConsoleObject, Formatter, JSGlobalObject, JsValue, PromiseStatus}
+import bao_jsc.{AnyPromise, CallFrame, ConsoleFormatter, ConsoleObject, Formatter, JSGlobalObject, JsError, JsObject, JsValue, JSPromiseStatus, JsVirtualMachine}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
@@ -12,6 +12,16 @@ import bao_core.Output
 /// Stub for JSC capturedValueGetCached - returns the value directly from expect cache
 func capturedValueGetCached(value: JsValue): ?JsValue {
     Some(value)
+}
+
+/// Stub for JSC capturedValueSetCached - stores the value in expect cache (no-op stub)
+func capturedValueSetCached(expectValue: JsValue, globalThis: JSGlobalObject, value: JsValue): Unit {
+    // TODO: implement JSC binding to cache the captured value on the expect JSValue
+}
+
+/// Stub for JSC constructorValueSetCached - stores the constructor value in expect cache (no-op stub)
+func constructorValueSetCached(expectValue: JsValue, globalThis: JSGlobalObject, value: JsValue): Unit {
+    // TODO: implement JSC binding to cache the constructor value on the expect JSValue
 }
 
 // ========== Expect supporting types ==========
@@ -33,6 +43,18 @@ public enum PromiseMode {
     | none
     | resolves
     | rejects
+
+    public operator func ==(right: PromiseMode): Bool {
+        match (this) {
+            case none => match(right) { case none => true case _ => false }
+            case resolves => match(right) { case resolves => true case _ => false }
+            case rejects => match(right) { case rejects => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: PromiseMode): Bool {
+        !(this == right)
+    }
 }
 
 /// 非对称匹配器构造类型
@@ -239,26 +261,28 @@ public class Expect {
                 let promiseOpt = value.asAnyPromise()
                 if (promiseOpt.isSome()) {
                     let promise = promiseOpt.getOrThrow()
-                    let vm = globalThis.vm()
+                    let vm = JsVirtualMachine()
                     promise.setHandled(vm)
 
-                    globalThis.bunVM().waitForPromise(promise)
+                    globalThis.bunVM().waitForPromise(JsObject.make())
 
                     let newValue = promise.result(vm)
-                    if (promise.status() == PromiseStatus.Fulfilled) {
+                    if (promise.status() == JSPromiseStatus.Fulfilled) {
                         if (resolution == PromiseMode.rejects) {
                             if (!silent) {
-                                let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+                                let formatter = ConsoleFormatter()
+                                formatter.quoteStrings = true
                                 // defer { formatter.deinit() }
                                 let message = "Expected promise that rejects<r>\nReceived promise that resolved: <red>{f}<r>\n"
                                 return throwPrettyMatcherError(globalThis: globalThis, customLabel: customLabel, matcherName: matcherName, matcherParams: matcherParams, flags: flags, messageFmt: message, messageArgs: [value.toFmt(formatter)])
                             }
                             return JsValue.zero
                         }
-                    } else if (promise.status() == PromiseStatus.rejected) {
+                    } else if (promise.status() == JSPromiseStatus.Rejected) {
                         if (resolution == PromiseMode.resolves) {
                             if (!silent) {
-                                let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+                                let formatter = ConsoleFormatter()
+                                formatter.quoteStrings = true
                                 // defer { formatter.deinit() }
                                 let message = "Expected promise that resolves<r>\nReceived promise that rejected: <red>{f}<r>\n"
                                 return throwPrettyMatcherError(globalThis: globalThis, customLabel: customLabel, matcherName: matcherName, matcherParams: matcherParams, flags: flags, messageFmt: message, messageArgs: [value.toFmt(formatter)])
@@ -271,7 +295,8 @@ public class Expect {
                     return newValue
                 } else {
                     if (!silent) {
-                        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+                        let formatter = ConsoleFormatter()
+                        formatter.quoteStrings = true
                         // defer { formatter.deinit() }
                         let message = "Expected promise<r>\nReceived: <red>{f}<r>\n"
                         return throwPrettyMatcherError(globalThis: globalThis, customLabel: customLabel, matcherName: matcherName, matcherParams: matcherParams, flags: flags, messageFmt: message, messageArgs: [value.toFmt(formatter)])
@@ -304,7 +329,7 @@ public class Expect {
         if (let Some(instance) <- ExpectCustomAsymmetricMatcher.fromJS(instanceValue)) {
             flags = instance.flags
         } else if (let Some(instance) <- ExpectAny.fromJS(instanceValue)) {
-            anyConstructorType = instance.flags.asymmetricMatcherConstructorType.rawValue
+            anyConstructorType = instance.flags.asymmetricMatcherConstructorType.rawValue()
             flags = instance.flags
         } else if (let Some(instance) <- ExpectAnything.fromJS(instanceValue)) {
             flags = instance.flags
@@ -331,12 +356,12 @@ public class Expect {
         let buntestStrong = parent.bunTest() ?? return ""
         // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
-        let executionEntry = parent.phase.entry(buntest) ?? return ""
+        let executionEntry = parent.entry(buntest) ?? return ""
 
         let testName = executionEntry.base.name ?? "(unnamed)"
 
         var buf = StringBuilder()
-        var scopes = Array<String>()
+        var scopes = ArrayList<String>()
         var currScope = executionEntry.base.parent
         while (currScope.isSome()) {
             let scope = currScope.getOrThrow()
@@ -371,12 +396,12 @@ public class Expect {
     /// Expect调用
     public static func call(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsOld(2).slice()
-        let value = if (arguments.size < 1) { JsValue.jsUndefined } else { arguments[0] }
+        let value = if (arguments.size < 1) { JsValue.jsUndefined() } else { arguments[0] }
 
         var customLabel = ""
         if (arguments.size > 1) {
-            if (arguments[1].isString() || arguments[1].implementsToString(globalThis)) {
-                let label = arguments[1].toBunString(globalThis)
+            if (arguments[1].isString() || arguments[1].implementsToString(globalThis.globalThis)) {
+                let label = arguments[1].toString()
                 if (globalThis.hasException()) { return JsValue.zero }
                 customLabel = label
             }
@@ -385,15 +410,16 @@ public class Expect {
         let expect = Expect()
         expect.customLabel = customLabel
 
-        let activeExecutionEntryRef = BunTest.cloneActiveStrong().map({ buntestStrong =>
+        var activeExecutionEntryRef: ?RefData = None
+        if (let Some(buntestStrong) <- BunTest.cloneActiveStrong()) {
             // defer { buntestStrong.deinit() }
-            return BunTest.ref(buntestStrong, buntestStrong.get().getCurrentStateData())
-        })
+            activeExecutionEntryRef = BunTest.ref(buntestStrong, buntestStrong.get().getOrThrow().getCurrentStateData())
+        }
         expect.parent = activeExecutionEntryRef
 
         let expectJsValue = expect.toJS(globalThis)
         expectJsValue.ensureStillAlive()
-        capturedValueSetCached(expectJsValue, globalThis: globalThis, value: value)
+        capturedValueSetCached(expectJsValue, globalThis, value)
         expectJsValue.ensureStillAlive()
 
         expect.postMatch(globalThis: globalThis)
@@ -427,9 +453,9 @@ public class Expect {
         var pass = true
 
         if (not) { pass = !pass }
-        if (pass) { return JsValue.jsUndefined }
+        if (pass) { return JsValue.jsUndefined() }
 
-        let signature = getSignature(matcherName: "pass", args: "", not: not)
+        let signature = getSignature("pass", "", not)
         return throw_(globalThis: globalThis, signature: signature, fmt: "\n\nExpected: not to pass\n", args: [])
     }
 
@@ -442,13 +468,13 @@ public class Expect {
         var pass = false
 
         if (not) { pass = !pass }
-        if (pass) { return JsValue.jsUndefined }
+        if (pass) { return JsValue.jsUndefined() }
 
         let arguments = callFrame.argumentsOld(1).slice()
         var message = "expect.fail()"
 
         if (arguments.size > 0) {
-            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter()
             // defer { formatter.deinit() }
             message = arguments[0].toFmt(formatter)
         }
@@ -462,22 +488,23 @@ public class Expect {
     /// 获取用于toThrow的值
     public func getValueAsToThrow(globalThis!: JSGlobalObject, value!: JsValue): Tuple2<?JsValue, JsValue> {
         if (!value.isFunction() && !value.isObject()) {
-            let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+            let formatter = ConsoleFormatter()
             // defer { formatter.deinit() }
-            globalThis.throw_("expect(value).toThrow() requires a function or class but received: {f}", args: [value.toFmt(formatter)])
-            return Tuple2<?JsValue, JsValue>(None, JsValue.zero)
+            globalThis.throw_("expect(value).toThrow() requires a function or class but received: {f}".replace("{f}", value.toFmt(formatter)))
+            return Tuple2<?JsValue, JsValue>(Option<JsValue>.None, JsValue.zero)
         }
 
-        let result = value.call(globalThis: globalThis, thisValue: JsValue.jsUndefined, args: [])
+        let result = value.call(globalThis.globalThis, JsValue.jsUndefined(), [])
         let returnValue = result
         var threwResult: ?JsValue = None
 
         if (globalThis.hasException()) {
-            threwResult = globalThis.takeException()
+            threwResult = globalThis.takeException(JsError(""))
         } else {
-            if (let Some(promise) <- returnValue.asAnyPromise()) {
-                if (promise.status() == PromiseStatus.rejected) {
-                    threwResult = promise.result(globalThis.vm())
+            let anyPromiseOpt = returnValue.asAnyPromise()
+            if (let Some(anyPromise) <- anyPromiseOpt) {
+                if (anyPromise.status() == JSPromiseStatus.Rejected) {
+                    threwResult = anyPromise.result(JsVirtualMachine())
                 }
             }
         }
@@ -498,12 +525,16 @@ public class Expect {
 
     /// 匹配并格式化快照
     public func matchAndFmtSnapshot(globalThis!: JSGlobalObject, value!: JsValue, propertyMatchers!: ?JsValue, prettyValue!: StringWriter, fnName!: String) {
-        let fmtOptions = JestPrettyFormat.FormatOptions(enableColors: false, addNewline: false, flush: false, quoteStrings: true)
+        let fmtOptions = FormatOptions()
+        fmtOptions.enableColors = false
+        fmtOptions.addNewline = false
+        fmtOptions.flush = false
+        fmtOptions.quoteStrings = true
 
         if (propertyMatchers.isSome()) {
-            JestPrettyFormat.format(level: MessageLevel.debug_, global: globalThis, vals: [propertyMatchers.getOrThrow()], len: 1, writer: prettyValue, options: fmtOptions)
+            JestPrettyFormat.format(level: MessageLevel.debug_, globalObj: globalThis, vals: [propertyMatchers.getOrThrow()], len: 1, writer: prettyValue, options: fmtOptions)
         } else {
-            JestPrettyFormat.format(level: MessageLevel.debug_, global: globalThis, vals: [value], len: 1, writer: prettyValue, options: fmtOptions)
+            JestPrettyFormat.format(level: MessageLevel.debug_, globalObj: globalThis, vals: [value], len: 1, writer: prettyValue, options: fmtOptions)
         }
     }
 
@@ -530,10 +561,10 @@ public class Expect {
             if (not) {
                 return throw_(globalThis: globalThis, signature: signature, fmt: "\n\n{f}\n", args: [diffFormatter])
             }
-            return JsValue.jsUndefined // 新快照已添加
+            return JsValue.jsUndefined() // 新快照已添加
         }
 
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 静态not属性
@@ -546,12 +577,12 @@ public class Expect {
         let buntestStrong = BunTest.cloneActiveStrong() ?? return globalThis.throw_("hasAssertions must be called in a test")
         // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
-        let reporter = buntest.reporter ?? return JsValue.jsUndefined
+        let reporter = buntest.reporter ?? return JsValue.jsUndefined()
         let summary = reporter.summary()
         if (summary.expectations == 0) {
             return globalThis.throw_("Expected at least one assertion to be called, but no assertions were called")
         }
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// assertions断言
@@ -564,12 +595,12 @@ public class Expect {
         let buntestStrong = BunTest.cloneActiveStrong() ?? return globalThis.throw_("assertions must be called in a test")
         // defer { buntestStrong.deinit() }
         let buntest = buntestStrong.get()
-        let reporter = buntest.reporter ?? return JsValue.jsUndefined
+        let reporter = buntest.reporter ?? return JsValue.jsUndefined()
         let summary = reporter.summary()
         if (UInt32(expected) != summary.expectations) {
             return globalThis.throw_("Expected " + expected + " assertions to be called, but " + summary.expectations + " were called")
         }
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 扩展自定义匹配器
@@ -582,14 +613,14 @@ public class Expect {
         let keys = matchers.getOwnPropertyNames(globalThis)
         if (keys.isSome()) {
             for (key in keys.getOrThrow() ) {
-                let matcher = matchers.get(globalThis, key) ?? continue
+                let matcher = matchers.get(globalThis.globalThis, key) ?? continue
                 if (!matcher.isFunction()) {
                     return globalThis.throwInvalidArguments("expect.extend: `" + key + "` is not a valid matcher. Must be a function")
                 }
                 registerCustomMatcher(globalThis: globalThis, name: key, matcher: matcher)
             }
         }
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // ========================================================================
@@ -614,16 +645,17 @@ public class Expect {
         matcherContext.flags = flags
 
         // 调用自定义匹配器实现
-        var result = matcherFn.call(globalThis: globalThis, thisValue: matcherContext.toJS(globalThis), args: args)
+        var result = matcherFn.call(globalThis.globalThis, matcherContext.toJS(globalThis), args)
 
         // 支持异步匹配器结果
-        if (let Some(promise) <- result.asAnyPromise()) {
-            let vm = globalThis.vm()
-            promise.setHandled(vm)
-            globalThis.bunVM().waitForPromise(promise)
-            result = promise.result(vm)
+        let anyPromiseOpt2 = result.asAnyPromise()
+        if (let Some(anyPromise2) <- anyPromiseOpt2) {
+            let vm = JsVirtualMachine()
+            anyPromise2.setHandled(vm)
+            globalThis.bunVM().waitForPromise(JsObject.make())
+            result = anyPromise2.result(vm)
             result.ensureStillAlive()
-            if (promise.status() == PromiseStatus.rejected) {
+            if (anyPromise2.status() == JSPromiseStatus.Rejected) {
                 return false  // 简化: 实际应抛出错误
             }
         }
@@ -633,7 +665,7 @@ public class Expect {
             return throwInvalidMatcherError(globalThis: globalThis, matcherName: matcherName, result: result)
         }
 
-        let passValue = result.get(globalThis, "pass")
+        let passValue = result.get(globalThis.globalThis, "pass")
         if (passValue.isNone()) {
             return throwInvalidMatcherError(globalThis: globalThis, matcherName: matcherName, result: result)
         }
@@ -648,10 +680,10 @@ public class Expect {
         if (messageValue.isSome()) {
             let msg = messageValue.getOrThrow()
             if (msg.isString()) {
-                messageText = msg.toSliceOrNull(globalThis: globalThis) ?? messageText
+                messageText = msg.toSliceOrNull(globalThis.globalThis) ?? messageText
             } else if (msg.isCallable()) {
-                let msgResult = msg.callWithGlobalThis(globalThis, args: [])
-                messageText = msgResult.toSliceOrNull(globalThis: globalThis) ?? messageText
+                let msgResult = msg.callWithGlobalThis(globalThis.globalThis, [])
+                messageText = msgResult.toSliceOrNull(globalThis.globalThis) ?? messageText
             }
         }
 
@@ -661,7 +693,7 @@ public class Expect {
 
     /// 抛出无效匹配器错误 - 对应 Bun throwInvalidMatcherError
     static func throwInvalidMatcherError(globalThis!: JSGlobalObject, matcherName!: String, result!: JsValue): Bool {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         let fmt = "Unexpected return from matcher function `" + matcherName + "`.\n" +
             "Matcher functions should return an object in the following format:\n" +
@@ -692,7 +724,8 @@ public class Expect {
         let expect = expectOpt.getOrThrow()
 
         // 非静态调用: 执行对称匹配
-        let matcherName = matcherFn.getOrThrow().getName(globalThis: globalThis) ?? "custom"
+        let matcherNameRaw = matcherFn.getOrThrow().getName(globalThis.globalThis)
+        let matcherName = if (matcherNameRaw.size > 0) { matcherNameRaw } else { "custom" }
 
         // 获取捕获的期望值
         var value = capturedValueGetCached(thisValue) ?? return globalThis.throw_("Internal consistency error: failed to retrieve the captured value")
@@ -715,12 +748,32 @@ public class Expect {
     /// 获取自定义匹配器函数 - 对应 Bun getCustomMatcherFn
     static func getCustomMatcherFn(fn: JsValue, globalThis: JSGlobalObject): ?JsValue {
         // 从包装函数中提取用户匹配器函数
-        return fn.get(globalThis, "matcherFn")
+        return fn.get(globalThis.globalThis, "matcherFn")
     }
 
     /// addSnapshotSerializer - 对应 Bun Expect.addSnapshotSerializer (未实现)
     public static func addSnapshotSerializer(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
+    }
+
+    /// 从JsValue反序列化为Expect实例
+    public static func fromJS(value: JsValue): ?Expect {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return Expect()
+    }
+
+    /// 将Expect实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
+    }
+
+    /// 获取构造器（stub）
+    public static func getConstructor(global: JsObject): JsValue {
+        return JsValue.zero
     }
 }
 
@@ -761,6 +814,12 @@ public class ExpectStatic {
         newFlags.promise = PromiseMode.rejects
         return ExpectStatic.create(globalThis: globalThis, flags: newFlags)
     }
+
+    /// 将ExpectStatic实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
+    }
 }
 
 // ========== ExpectAnything ==========
@@ -775,6 +834,21 @@ public class ExpectAnything {
     public static func call(globalThis: JSGlobalObject): JsValue {
         let anything = ExpectAnything()
         return anything.toJS(globalThis)
+    }
+
+    /// 从JsValue反序列化为ExpectAnything实例
+    public static func fromJS(value: JsValue): ?ExpectAnything {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectAnything()
+    }
+
+    /// 将ExpectAnything实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -795,8 +869,23 @@ public class ExpectAny {
         let constructor = arguments[0]
         let any = ExpectAny()
         any.flags.asymmetricMatcherConstructorType = AsymmetricMatcherConstructorType.fromJS(globalThis, value: constructor) ?? AsymmetricMatcherConstructorType.none
-        constructorValueSetCached(any.toJS(globalThis), globalThis: globalThis, value: constructor)
+        constructorValueSetCached(any.toJS(globalThis), globalThis, constructor)
         return any.toJS(globalThis)
+    }
+
+    /// 从JsValue反序列化为ExpectAny实例
+    public static func fromJS(value: JsValue): ?ExpectAny {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectAny()
+    }
+
+    /// 将ExpectAny实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -815,8 +904,23 @@ public class ExpectStringMatching {
             return globalThis.throwInvalidArguments("expect.stringMatching() requires 1 argument")
         }
         let matcher = ExpectStringMatching()
-        capturedValueSetCached(matcher.toJS(globalThis), globalThis: globalThis, value: arguments[0])
+        capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
         return matcher.toJS(globalThis)
+    }
+
+    /// 从JsValue反序列化为ExpectStringMatching实例
+    public static func fromJS(value: JsValue): ?ExpectStringMatching {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectStringMatching()
+    }
+
+    /// 将ExpectStringMatching实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -835,8 +939,23 @@ public class ExpectCloseTo {
             return globalThis.throwInvalidArguments("expect.closeTo() requires at least 1 argument")
         }
         let matcher = ExpectCloseTo()
-        capturedValueSetCached(matcher.toJS(globalThis), globalThis: globalThis, value: arguments[0])
+        capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
         return matcher.toJS(globalThis)
+    }
+
+    /// 从JsValue反序列化为ExpectCloseTo实例
+    public static func fromJS(value: JsValue): ?ExpectCloseTo {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectCloseTo()
+    }
+
+    /// 将ExpectCloseTo实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -855,8 +974,23 @@ public class ExpectObjectContaining {
             return globalThis.throwInvalidArguments("expect.objectContaining() requires 1 argument")
         }
         let matcher = ExpectObjectContaining()
-        capturedValueSetCached(matcher.toJS(globalThis), globalThis: globalThis, value: arguments[0])
+        capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
         return matcher.toJS(globalThis)
+    }
+
+    /// 从JsValue反序列化为ExpectObjectContaining实例
+    public static func fromJS(value: JsValue): ?ExpectObjectContaining {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectObjectContaining()
+    }
+
+    /// 将ExpectObjectContaining实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -875,8 +1009,23 @@ public class ExpectStringContaining {
             return globalThis.throwInvalidArguments("expect.stringContaining() requires 1 argument")
         }
         let matcher = ExpectStringContaining()
-        capturedValueSetCached(matcher.toJS(globalThis), globalThis: globalThis, value: arguments[0])
+        capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
         return matcher.toJS(globalThis)
+    }
+
+    /// 从JsValue反序列化为ExpectStringContaining实例
+    public static func fromJS(value: JsValue): ?ExpectStringContaining {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectStringContaining()
+    }
+
+    /// 将ExpectStringContaining实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -895,8 +1044,23 @@ public class ExpectArrayContaining {
             return globalThis.throwInvalidArguments("expect.arrayContaining() requires 1 argument")
         }
         let matcher = ExpectArrayContaining()
-        capturedValueSetCached(matcher.toJS(globalThis), globalThis: globalThis, value: arguments[0])
+        capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
         return matcher.toJS(globalThis)
+    }
+
+    /// 从JsValue反序列化为ExpectArrayContaining实例
+    public static func fromJS(value: JsValue): ?ExpectArrayContaining {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectArrayContaining()
+    }
+
+    /// 将ExpectArrayContaining实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -912,15 +1076,30 @@ public class ExpectCustomAsymmetricMatcher {
     /// 创建
     public static func create(globalThis!: JSGlobalObject, callFrame!: CallFrame, matcherFn!: JsValue): JsValue {
         let matcher = ExpectCustomAsymmetricMatcher()
-        capturedValueSetCached(matcher.toJS(globalThis), globalThis: globalThis, value: matcherFn)
+        capturedValueSetCached(matcher.toJS(globalThis), globalThis, matcherFn)
         return matcher.toJS(globalThis)
     }
 
     /// 执行匹配
     public func execute(thisValue: JsValue, globalThis: JSGlobalObject, received: JsValue): Bool {
         let matcherFn = capturedValueGetCached(thisValue) ?? return false
-        let result = matcherFn.call(globalThis: globalThis, thisValue: JsValue.jsUndefined, args: [received])
+        let result = matcherFn.call(globalThis.globalThis, JsValue.jsUndefined(), [received])
         return result.toBoolean()
+    }
+
+    /// 从JsValue反序列化为ExpectCustomAsymmetricMatcher实例
+    public static func fromJS(value: JsValue): ?ExpectCustomAsymmetricMatcher {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        return ExpectCustomAsymmetricMatcher()
+    }
+
+    /// 将ExpectCustomAsymmetricMatcher实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -935,7 +1114,7 @@ public class ExpectMatcherContext {
 
     /// 获取工具对象
     public func getUtils(globalThis!: JSGlobalObject): JsValue {
-        return ExpectMatcherUtils.create(globalThis: globalThis)
+        return ExpectMatcherUtils.create(globalThis)
     }
 
     /// 获取isNot
@@ -948,7 +1127,7 @@ public class ExpectMatcherContext {
         match (flags.promise) {
             case PromiseMode.rejects => return JsValue.jsString("rejects")
             case PromiseMode.resolves => return JsValue.jsString("resolves")
-            case _ => return JsValue.jsUndefined
+            case _ => return JsValue.jsUndefined()
         }
     }
 
@@ -962,6 +1141,12 @@ public class ExpectMatcherContext {
         let arguments = callFrame.argumentsAsArray(2)
         if (arguments.size < 2) { return JsValue.jsFalse }
         return JsValue.jsBoolean(arguments[0].jestDeepEquals(arguments[1], globalThis: globalThis))
+    }
+
+    /// 将ExpectMatcherContext实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -981,8 +1166,8 @@ public class ExpectMatcherUtils {
     /// 序列化值
     public func stringify(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
-        if (arguments.size < 1) { return JsValue.jsUndefined }
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        if (arguments.size < 1) { return JsValue.jsUndefined() }
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return JsValue.jsString(arguments[0].toFmt(formatter))
     }
@@ -990,8 +1175,8 @@ public class ExpectMatcherUtils {
     /// 打印期望值
     public func printExpected(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
-        if (arguments.size < 1) { return JsValue.jsUndefined }
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        if (arguments.size < 1) { return JsValue.jsUndefined() }
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return JsValue.jsString("<green>" + arguments[0].toFmt(formatter) + "<r>")
     }
@@ -999,8 +1184,8 @@ public class ExpectMatcherUtils {
     /// 打印接收值
     public func printReceived(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
-        if (arguments.size < 1) { return JsValue.jsUndefined }
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        if (arguments.size < 1) { return JsValue.jsUndefined() }
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return JsValue.jsString("<red>" + arguments[0].toFmt(formatter) + "<r>")
     }
@@ -1008,9 +1193,15 @@ public class ExpectMatcherUtils {
     /// 匹配器提示
     public func matcherHint(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
-        if (arguments.size < 1) { return JsValue.jsUndefined }
-        let matcherName = arguments[0].toSliceOrNull(globalThis: globalThis) ?? ""
+        if (arguments.size < 1) { return JsValue.jsUndefined() }
+        let matcherName = arguments[0].toSliceOrNull(globalThis.globalThis) ?? ""
         return JsValue.jsString("expect(received)." + matcherName + "()")
+    }
+
+    /// 将ExpectMatcherUtils实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
     }
 }
 
@@ -1024,6 +1215,17 @@ public class ExpectTypeOf {
     public static func create(globalThis: JSGlobalObject): JsValue {
         let typeOf = ExpectTypeOf()
         return typeOf.toJS(globalThis)
+    }
+
+    /// 将ExpectTypeOf实例序列化为JsValue
+    public func toJS(globalThis: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
+    }
+
+    /// 获取构造器（stub）
+    public static func getConstructor(global: JsObject): JsValue {
+        return JsValue.zero
     }
 }
 

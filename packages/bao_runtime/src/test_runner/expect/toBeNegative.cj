@@ -18,9 +18,9 @@ public func toBeNegative(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     let not = this.flags.not
     let pass = value.isNumber() && value.asNumber() < 0 != not
 
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 

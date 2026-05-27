@@ -475,7 +475,7 @@ public func parsePatternArg(global: JsGlobalObject, arg: JsValue, apiName: Strin
         while (i < len) {
             let item = try arg.getIndex(global, i)
             if (!item.isString()) {
-                global.throwInvalidArguments("\{apiName}: \{name} array must contain only strings")
+                global.throwInvalidArguments("${apiName}: ${name} array must contain only strings")
                 return None
             }
             let strSlice = try item.toSlice(global, default_allocator)
@@ -494,7 +494,7 @@ public func parsePatternArg(global: JsGlobalObject, arg: JsValue, apiName: Strin
         return patterns.toArray()
     }
 
-    global.throwInvalidArguments("\{apiName}: \{name} must be a string or array of strings")
+    global.throwInvalidArguments("${apiName}: ${name} must be a string or array of strings")
     return None
 }
 
@@ -657,9 +657,10 @@ public class ExtractContext {
         // 如果有 glob 模式，使用过滤提取
         if (globPatterns.isSome()) {
             let count = extractToDiskFiltered(store.sharedView(), path, globPatterns)
-            match (count) {
-                case Some(c) => return ExtractResult.success(c)
-                case None => return ExtractResult.err(ExtractError.readError)
+            if (let Some(c) <- count) {
+                return ExtractResult.success(c)
+            } else {
+                return ExtractResult.err(ExtractError.readError)
             }
         }
 
@@ -670,9 +671,10 @@ public class ExtractContext {
             None,
             ExtractOptions.defaults(),
         )
-        match (count) {
-            case Some(c) => return ExtractResult.success(c)
-            case None => return ExtractResult.err(ExtractError.readError)
+        if (let Some(c) <- count) {
+            return ExtractResult.success(c)
+        } else {
+            return ExtractResult.err(ExtractError.readError)
         }
     }
 }
@@ -738,9 +740,10 @@ public class BlobContext {
     public func doRun(): Unit {
         match (compress) {
             case Compression.gzip(opts) =>
-                match (compressGzip(store.sharedView(), opts.level)) {
-                    case Some(data) => result = BlobResult.compressed(data)
-                    case None => result = BlobResult.err(BlobError.gzipCompressFailed)
+                if (let Some(data) <- compressGzip(store.sharedView(), opts.level)) {
+                    result = BlobResult.compressed(data)
+                } else {
+                    result = BlobResult.err(BlobError.gzipCompressFailed)
                 }
             case Compression.none => result = BlobResult.uncompressed
             case _ => result = BlobResult.uncompressed
@@ -853,9 +856,10 @@ public class WriteContext {
         var dataToWrite: Array<UInt8> = sourceData
         match (compress) {
             case Compression.gzip(opts) =>
-                match (compressGzip(sourceData, opts.level)) {
-                    case Some(compressed) => dataToWrite = compressed
-                    case None => return WriteResult.err(WriteError.gzipCompressFailed)
+                if (let Some(compressed) <- compressGzip(sourceData, opts.level)) {
+                    dataToWrite = compressed
+                } else {
+                    return WriteResult.err(WriteError.gzipCompressFailed)
                 }
             case _ => ()
         }
@@ -1673,13 +1677,13 @@ public class FilesTask {
 /// 格式化文件大小
 public func fmtSize(size: Int64): String {
     if (size < 1024) {
-        return "\{size} B"
+        return "${size} B"
     } else if (size < 1024 * 1024) {
-        return "\{size / 1024} KB"
+        return "${size / 1024} KB"
     } else if (size < 1024 * 1024 * 1024) {
-        return "\{size / (1024 * 1024)} MB"
+        return "${size / (1024 * 1024)} MB"
     } else {
-        return "\{size / (1024 * 1024 * 1024)} GB"
+        return "${size / (1024 * 1024 * 1024)} GB"
     }
 }
 
@@ -1754,7 +1758,7 @@ public class SysError {
     }
 
     public func toJS(global: JsGlobalObject): JsValue {
-        global.createErrorInstance("\{code}: \{message}")
+        global.createErrorInstance("${code}: ${message}")
     }
 }
 
@@ -1796,7 +1800,7 @@ public class SysFile {
     public static func openat(dirFd: Fd, path: String, flags: Int32, mode: UInt32): Result<Fd, SysError> {
         let fd = Sys.openat(dirFd.fd, path, flags, mode)
         if (fd < 0) {
-            return Result.err(SysError(code: "OpenError", message: "Failed to open \{path}"))
+            return Result.err(SysError(code: "OpenError", message: "Failed to open ${path}"))
         }
         return Result.ok(Fd(fd: fd))
     }

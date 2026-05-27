@@ -157,6 +157,10 @@ public class SysProcess {
     public static func run(command: String, args: ArrayList<String>): Int64 {
         return 0
     }
+
+    public static func runShell(script: String, cwd: String): Int64 {
+        return 0
+    }
 }
 
 public enum IoAction {

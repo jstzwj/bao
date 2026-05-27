@@ -1490,6 +1490,15 @@ public class DecodeResult {
 
 /// UTF-8 编解码器
 public class Utf8Codec {
+    /// Get the number of bytes in a UTF-8 code point given the leading byte
+    public static func codePointLength(byte: UInt8): Int64 {
+        if (byte < 0x80) { return 1 }
+        if ((byte & 0xE0) == 0xC0) { return 2 }
+        if ((byte & 0xF0) == 0xE0) { return 3 }
+        if ((byte & 0xF8) == 0xF0) { return 4 }
+        return 1 // fallback for invalid leading bytes
+    }
+
     /// Encode a string to UTF-8 bytes
     public static func encode(s: String): Array<UInt8> {
         let result = ArrayList<UInt8>()

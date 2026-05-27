@@ -50,6 +50,7 @@ public type JscTestType = TestType
 public type JscLifecycleAgent = LifecycleAgent
 public type JscDebuggerWait = DebuggerWait
 public type JscDebuggerMode = DebuggerMode
+public type JscPromiseStatus = JSPromiseStatus
 
 // FFI 类型
 public type JscContextRef = JSContextRef

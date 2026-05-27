@@ -24,28 +24,28 @@ public func toHaveLength(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveLength", matcherParamsFmt: "<green>expected<r>")
 
     if (!value.isObject() && !value.isString()) {
-        let fmt = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let fmt = ConsoleFormatter()
         return globalThis.throw_("Received value does not have a length property: {f}", args: [value.toFmt(fmt)])
     }
 
     if (!expected.isNumber()) {
-        let fmt = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let fmt = ConsoleFormatter()
         return globalThis.throw_("Expected value must be a non-negative integer: {f}", args: [expected.toFmt(fmt)])
     }
 
     let expectedLength: Float64 = expected.asNumber()
     if (Float64.round(expectedLength) != expectedLength || std.math.isInf(expectedLength) || std.math.isNan(expectedLength) || expectedLength < 0) {
-        let fmt = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let fmt = ConsoleFormatter()
         return globalThis.throw_("Expected value must be a non-negative integer: {f}", args: [expected.toFmt(fmt)])
     }
 
     let not = this.flags.not
     var pass = false
 
-    let actualLength = value.getLengthIfPropertyExistsInternal(globalThis: globalThis)
+    let actualLength = value.getLengthIfPropertyExistsInternal(globalThis)
 
     if (actualLength == Float64.PositiveInfinity) {
-        let fmt = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let fmt = ConsoleFormatter()
         return globalThis.throw_("Received value does not have a length property: {f}", args: [value.toFmt(fmt)])
     } else if (actualLength.isNaN()) {
         return globalThis.throw_("Received value has non-number length property: {}", args: [actualLength])
@@ -56,7 +56,7 @@ public func toHaveLength(`this`: Expect, globalThis: JSGlobalObject, callFrame: 
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
     if (not) {

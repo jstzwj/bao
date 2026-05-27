@@ -726,6 +726,11 @@ public class StreamStart {
         s.ownedData = data
         return s
     }
+
+    /// 从 JS 值创建 (stub)
+    public static func fromJs(global: JSGlobalObject, value: JsValue): StreamStart {
+        return StreamStart.ready()
+    }
 }
 
 // ============================================================================

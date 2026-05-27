@@ -38,14 +38,14 @@ public class UpgradeVersion {
     /// 从 tag 中提取可读版本号
     // 严格翻译自: Version.name()
     public func name(): ?String {
-        if (tag.length <= "bao-v".length || !tag.startsWith("bao-v")) {
+        if (tag.size <= "bao-v".size || !tag.startsWith("bao-v")) {
             if (tag == "canary") {
                 // canary 构建使用时间戳哈希
                 return "canary"
             }
             return Some(tag)
         }
-        return Some(tag.substring("bao-v".length))
+        return Some(tag.substring("bao-v".size))
     }
 
     /// 检查是否是当前版本
@@ -308,7 +308,7 @@ public class UpgradeCommand {
                                 case _ => ()
                             }
 
-                            if (tag.length > 0 && zipUrl.length > 0) {
+                            if (tag.size > 0 && zipUrl.size > 0) {
                                 let ver = UpgradeVersion(zipUrl, tag)
                                 ver.rawBody = resp.body
                                 ver.size = size

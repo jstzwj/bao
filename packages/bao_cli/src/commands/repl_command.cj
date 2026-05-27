@@ -192,10 +192,10 @@ public class ReplCommand {
                         case ".editor" => enterMultilineMode(vm)
                         case _ =>
                             if (line.startsWith(".load ")) {
-                                let filename = line.substring(".load ".length)
+                                let filename = line.substring(".load ".size)
                                 loadAndRunFile(vm, filename)
                             } else if (line.startsWith(".save ")) {
-                                let filename = line.substring(".save ".length)
+                                let filename = line.substring(".save ".size)
                                 saveHistory(filename)
                             } else if (line.startsWith(".")) {
                                 println("Unknown command: ${line}. Type .help for available commands.")

@@ -936,9 +936,10 @@ public class Terminal {
                 terminal.reader.read()
 
                 // 获取或创建 JS 包装器
-                let thisValue = match (existingJsValue) {
-                    case Some(v) => v
-                    case None => JsValue(terminal)
+                let thisValue = if (let Some(v) <- existingJsValue) {
+                    v
+                } else {
+                    JsValue(terminal)
                 }
 
                 // 存储 thisValue - 开始时使用强引用 (因为正在活跃读取)
@@ -1174,9 +1175,10 @@ public class Terminal {
         }
 
         var bytes: Array<UInt8> = []
-        match (stringOrBuffer) {
-            case Some(sob) => bytes = sob.slice()
-            case None => ()
+        if (let Some(sob) <- stringOrBuffer) {
+            bytes = sob.slice()
+        } else {
+            ()
         }
 
         if (bytes.size == 0) {
@@ -1463,18 +1465,18 @@ public class Terminal {
         if (thisJsvalue.isNone()) {
             return
         }
-        match (thisJsvalue) {
-            case Some(jsVal) =>
-                if (let Some(callback) <- GcAccessor.get(GcValue.Drain, jsVal)) {
-                    let globalThis = global()
-                    globalThis.bunVm().eventLoopMut().runCallback(
-                        callback,
-                        globalThis,
-                        jsVal,
-                        [jsVal]
-                    )
-                }
-            case None => ()
+        if (let Some(jsVal) <- thisJsvalue) {
+            if (let Some(callback) <- GcAccessor.get(GcValue.Drain, jsVal)) {
+                let globalThis = global()
+                globalThis.bunVm().eventLoopMut().runCallback(
+                    callback,
+                    globalThis,
+                    jsVal,
+                    [jsVal]
+                )
+            }
+        } else {
+            ()
         }
     }
 
@@ -1549,24 +1551,25 @@ public class Terminal {
         if (thisJsvalue.isNone()) {
             return
         }
-        match (thisJsvalue) {
-            case Some(jsVal) =>
-                if (let Some(callback) <- GcAccessor.get(GcValue.Exit, jsVal)) {
-                    let globalThis = global()
+        if (let Some(jsVal) <- thisJsvalue) {
+            if (let Some(callback) <- GcAccessor.get(GcValue.Exit, jsVal)) {
+                let globalThis = global()
 
-                    let signalValue: JsValue = match (signal) {
-                        case Some(s) => JsValue(s.toString())  // "SIGTERM" 等
-                        case None => JsValue.jsNull()
-                    }
-
-                    globalThis.bunVm().eventLoopMut().runCallback(
-                        callback,
-                        globalThis,
-                        jsVal,
-                        [jsVal, JsValue(Float64(exitCode)), signalValue]
-                    )
+                let signalValue: JsValue = if (let Some(s) <- signal) {
+                    JsValue(s.toString())  // "SIGTERM" 等
+                } else {
+                    JsValue.jsNull()
                 }
-            case None => ()
+
+                globalThis.bunVm().eventLoopMut().runCallback(
+                    callback,
+                    globalThis,
+                    jsVal,
+                    [jsVal, JsValue(Float64(exitCode)), signalValue]
+                )
+            }
+        } else {
+            ()
         }
     }
 
@@ -1594,23 +1597,23 @@ public class Terminal {
         if (thisJsvalue.isNone()) {
             return true
         }
-        match (thisJsvalue) {
-            case Some(jsVal) =>
-                if (let Some(callback) <- GcAccessor.get(GcValue.Data, jsVal)) {
-                    let globalThis = global()
+        if (let Some(jsVal) <- thisJsvalue) {
+            if (let Some(callback) <- GcAccessor.get(GcValue.Data, jsVal)) {
+                let globalThis = global()
 
-                    // 复制数据块以创建 ArrayBuffer
-                    let data = MarkedArrayBuffer.fromBytes(chunk, JSType.Uint8Array)
-                        .toNodeBuffer(globalThis)
+                // 复制数据块以创建 ArrayBuffer
+                let data = MarkedArrayBuffer.fromBytes(chunk, JSType.Uint8Array)
+                    .toNodeBuffer(globalThis)
 
-                    globalThis.bunVm().eventLoopMut().runCallback(
-                        callback,
-                        globalThis,
-                        jsVal,
-                        [jsVal, data]
-                    )
-                }
-            case None => ()
+                globalThis.bunVm().eventLoopMut().runCallback(
+                    callback,
+                    globalThis,
+                    jsVal,
+                    [jsVal, data]
+                )
+            }
+        } else {
+            ()
         }
 
         return true  // 继续读取

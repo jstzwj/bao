@@ -176,15 +176,35 @@ public class BinInfo {
 public enum BinInfoType {
     | File
     | Dir
+
+    public operator func ==(right: BinInfoType): Bool {
+        match (this) {
+            case File => match(right) { case File => true case _ => false }
+            case Dir => match(right) { case Dir => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: BinInfoType): Bool {
+        !(this == right)
+    }
 }
 
 /// 忽略模式来源类型
 /// 严格翻译自: src/cli/pack_command.zig IgnorePatterns.Kind
-public enum IgnoreKind {
+public enum IgnoreKind <: ToString {
     | defaultIgnore
     | npmIgnore
     | gitIgnore
     | packageJson
+
+    public func toString(): String {
+        match (this) {
+            case defaultIgnore => "defaultIgnore"
+            case npmIgnore => "npmIgnore"
+            case gitIgnore => "gitIgnore"
+            case packageJson => "packageJson"
+        }
+    }
 }
 
 /// 忽略模式集合
@@ -227,7 +247,7 @@ public class IgnorePatterns {
             case SysMaybe.Err(_) => ()
         }
 
-        if (ignoreContentStr.length == 0) {
+        if (ignoreContentStr.size == 0) {
             // 再尝试 .gitignore
             ignoreKind = IgnoreKind.gitIgnore
             ignoreContentOpt = BaoFile.readAllText(Path.join([dir, ".gitignore"]))
@@ -237,7 +257,7 @@ public class IgnorePatterns {
             }
         }
 
-        if (ignoreContentStr.length == 0) {
+        if (ignoreContentStr.size == 0) {
             return None
         }
 
@@ -251,8 +271,8 @@ public class IgnorePatterns {
                 continue
             }
             // 去除尾部 \r
-            if (trimmed.length > 0 && Int64(trimmed[Int64(trimmed.length) - 1]) == 13) {
-                trimmed = trimmed.substring(0, Int64(trimmed.length) - 1)
+            if (trimmed.size > 0 && trimmed[trimmed.size - 1] == UInt8(13)) {
+                trimmed = trimmed.substring(0, trimmed.size - 1)
             }
             if (trimmed.isEmpty()) {
                 continue
@@ -309,7 +329,7 @@ public class GlobPattern {
 
         // 剥离前导 ! 并记录
         var addNegate = false
-        while (remain.length > 0 && remain.startsWith("!")) {
+        while (remain.size > 0 && remain.startsWith("!")) {
             remain = remain.substring(1)
             addNegate = true
         }
@@ -329,9 +349,9 @@ public class GlobPattern {
 
         // 尾部斜杠 => 仅匹配目录
         var hasTrailingSlash = false
-        if (remain.length > 0 && remain.endsWith("/")) {
+        if (remain.size > 0 && remain.endsWith("/")) {
             hasTrailingSlash = true
-            remain = remain.substring(0, Int64(remain.length) - 1)
+            remain = remain.substring(0, remain.size - 1)
             if (remain.isEmpty()) {
                 return None
             }
@@ -339,7 +359,7 @@ public class GlobPattern {
 
         // 前导/中间斜杠 => 相对路径
         var hasLeadingOrMiddleSlash = false
-        if (remain.length > 0 && remain.startsWith("/")) {
+        if (remain.size > 0 && remain.startsWith("/")) {
             hasLeadingOrMiddleSlash = true
             remain = remain.substring(1)
             if (remain.isEmpty()) {
@@ -350,7 +370,7 @@ public class GlobPattern {
             let slashIndex = remain.indexOf('/')
             match (slashIndex) {
                 case Some(idx) =>
-                    if (idx != Int64(remain.length) - 1) {
+                    if (idx != remain.size - 1) {
                         hasLeadingOrMiddleSlash = true
                     }
                 case None => ()
@@ -374,7 +394,7 @@ public class GlobPattern {
     /// 将取反模式转换为正向模式 (去除前导 !)
     // 严格翻译自: src/cli/pack_command.zig Pattern.asPositive
     public func asPositive(): GlobPattern {
-        if (negated && glob.length > 1) {
+        if (negated && glob.size > 1) {
             return GlobPattern(
                 glob.substring(1),
                 relPath,
@@ -417,10 +437,10 @@ public class PackQueue {
         // 简化: 添加后排序以模拟优先队列行为
         var j = items.size - 1
         while (j > 0) {
-            if (items[Int64(j) - 1].path > items[Int64(j)].path) {
-                let tmp = items[Int64(j) - 1]
-                items[Int64(j) - 1] = items[Int64(j)]
-                items[Int64(j)] = tmp
+            if (items[j - 1].path > items[j].path) {
+                let tmp = items[j - 1]
+                items[j - 1] = items[j]
+                items[j] = tmp
                 j -= 1
             } else {
                 break
@@ -485,11 +505,11 @@ public class PackFormatter {
     // 作用域包 @scope/name → scope-name-version.tgz
     // 普通包 name → name-version.tgz
     public static func fmtTarballFilename(packageName: String, packageVersion: String): String {
-        if (packageName.length > 0 && packageName.startsWith("@")) {
+        if (packageName.size > 0 && packageName.startsWith("@")) {
             let slashIndex = packageName.indexOf('/')
             match (slashIndex) {
                 case Some(slash) =>
-                    if (slash > 1 && slash < Int64(packageName.length) - 1) {
+                    if (slash > 1 && slash < packageName.size - 1) {
                         let scope = packageName.substring(1, slash)
                         let name = packageName.substring(slash + 1)
                         return "${scope}-${name}-${packageVersion}.tgz"
@@ -627,7 +647,7 @@ public class PackCommand {
             println("bao pack v${BAO_VERSION}")
         }
 
-        let absPackageJsonPath = Path.resolve("package.json")
+        let absPackageJsonPath = Path.resolve(["package.json"])
 
         if (!BaoFile.exists(absPackageJsonPath)) {
             logger.error("failed to find a package.json in: \"${absPackageJsonPath}\"")
@@ -667,11 +687,11 @@ public class PackCommand {
         bundledDeps = ArrayList<BundledDep>()
 
         // 读取并解析 package.json
-        let absPackageJsonPath = Path.resolve("package.json")
+        let absPackageJsonPath = Path.resolve(["package.json"])
         let pkgJsonContent = BaoFile.readAllText(absPackageJsonPath)
         let content = match (pkgJsonContent) {
             case SysMaybe.Ok(v) => v
-            case SysMaybe.Err(_) =>
+            case _ =>
                 logger.error("failed to read package.json: \"${absPackageJsonPath}\"")
                 return 1
         }
@@ -764,47 +784,40 @@ public class PackCommand {
 
         // 根据 files 字段决定遍历策略
         let filesField = JsonHelper.getStringArray(root, "files")
-        match (filesField) {
-            case Some(files) =>
-                if (files.size > 0) {
-                    // 白名单模式: files 字段存在
-                    // 严格翻译自: iterateIncludedProjectTree
-                    let includes = ArrayList<GlobPattern>()
-                    let excludes = ArrayList<GlobPattern>()
-                    for (fileEntry in files) {
-                        let normalized = Path.normalizePosix(fileEntry)
-                        let parsed = GlobPattern.fromUTF8(normalized)
-                        match (parsed) {
-                            case Some(pattern) =>
-                                if (pattern.negated) {
-                                    excludes.append(pattern)
-                                } else {
-                                    includes.append(pattern)
-                                }
-                            case None => ()
+        if (filesField.size > 0) {
+            // 白名单模式: files 字段存在
+            // 严格翻译自: iterateIncludedProjectTree
+            let includes = ArrayList<GlobPattern>()
+            let excludes = ArrayList<GlobPattern>()
+            for (fileEntry in filesField) {
+                let normalized = Path.normalize(fileEntry)
+                let parsed = GlobPattern.fromUTF8(normalized)
+                match (parsed) {
+                    case Some(pattern) =>
+                        if (pattern.negated) {
+                            excludes.append(pattern)
+                        } else {
+                            includes.append(pattern)
                         }
-                    }
-                    iterateIncludedProjectTree(
-                        packQueue,
-                        bins,
-                        includes,
-                        excludes,
-                        ".",
-                        opts
-                    )
-                } else {
-                    // files 为空数组 → 不匹配文件, 但输出错误
-                    logger.error("expected `files` to be an array of string values")
-                    return 1
+                    case None => ()
                 }
-            case None =>
-                // 黑名单模式: 无 files 字段, 遍历整个项目
-                iterateProjectTree(
-                    packQueue,
-                    bins,
-                    DirInfo(".", "", 1),
-                    opts
-                )
+            }
+            iterateIncludedProjectTree(
+                packQueue,
+                bins,
+                includes,
+                excludes,
+                ".",
+                opts
+            )
+        } else {
+            // 黑名单模式: 无 files 字段或为空数组, 遍历整个项目
+            iterateProjectTree(
+                packQueue,
+                bins,
+                DirInfo(".", "", 1),
+                opts
+            )
         }
 
         // 处理 bundled 依赖
@@ -875,13 +888,10 @@ public class PackCommand {
 
         // 更新压缩后大小
         let fileSize = BaoFile.getFileSize(absTarballDest)
-        match (fileSize) {
-            case Some(s) => stats.packedSize = s
-            case None => ()
-        }
+        stats.packedSize = fileSize
 
         // 打印打包文件列表
-        printArchivedFiles(packList, editedPackageJson.length, opts)
+        printArchivedFiles(packList, editedPackageJson.size, opts)
 
         // 打印 tarball 路径
         if (opts.filename.isEmpty() && opts.destination.isEmpty()) {
@@ -955,7 +965,7 @@ public class PackCommand {
         if (!silent) {
             println("> ${scriptName}")
         }
-        let exitCode = Process.spawnShell(script, cwd)
+        let exitCode = SysProcess.runShell(script, cwd)
         if (exitCode != 0) {
             logger.warn("Script '${scriptName}' exited with code ${exitCode}")
         }
@@ -1132,7 +1142,7 @@ public class PackCommand {
                         } else {
                             entrySubpath
                         }
-                        if (GlobMatcher.`match`(includePattern.glob, matchPath)) {
+                        if (GlobMatcher.matchPattern(includePattern.glob, matchPath)) {
                             included = true
                         }
                     }
@@ -1150,7 +1160,7 @@ public class PackCommand {
                             entrySubpath
                         }
                         // 排除模式以 ! 开头, negate_no_match 表示未匹配排除 → 包含
-                        if (GlobMatcher.`match`(excludePattern.glob, matchPath)) {
+                        if (GlobMatcher.matchPattern(excludePattern.glob, matchPath)) {
                             // 不操作: 保留当前 included 状态
                         } else {
                             // 如果排除模式不匹配, 且模式为取反, 则排除
@@ -1184,7 +1194,7 @@ public class PackCommand {
                         if (subpathDedupe.contains(entrySubpath)) {
                             continue
                         }
-                        subpathDedupe.add(entrySubpath)
+                        subpathDedupe.insert(entrySubpath)
                         if (isBinEntry(bins, entrySubpath, BinInfoType.File)) {
                             continue
                         }
@@ -1295,7 +1305,7 @@ public class PackCommand {
                         if (dedupe.contains(entrySubpath)) {
                             continue
                         }
-                        dedupe.add(entrySubpath)
+                        dedupe.insert(entrySubpath)
                         if (isBinEntry(bins, entrySubpath, BinInfoType.File)) {
                             continue
                         }
@@ -1347,7 +1357,7 @@ public class PackCommand {
             }
 
             // @scope 包
-            if (entryName.length > 0 && entryName[0] == '@') {
+            if (entryName.size > 0 && entryName[0] == UInt8(64)) {
                 let scopedPath = Path.join([nodeModulesPath, entryName])
                 let scopedEntries = BaoFile.readdir(scopedPath)
                 for (subEntryName in scopedEntries) {
@@ -1366,7 +1376,7 @@ public class PackCommand {
                             break
                         }
 
-                        dedupe.add(entrySubpath)
+                        dedupe.insert(entrySubpath)
                         dep.wasPacked = true
                         addBundledDep(
                             depName,
@@ -1399,7 +1409,7 @@ public class PackCommand {
                         break
                     }
 
-                    dedupe.add(entrySubpath)
+                    dedupe.insert(entrySubpath)
                     dep.wasPacked = true
                     addBundledDep(
                         depName,
@@ -1424,8 +1434,8 @@ public class PackCommand {
 
             // 从路径中提取依赖名
             let lastSlash = dirSubpath.lastIndexOf('/')
-            let depName = if (lastSlash >= 0) {
-                dirSubpath.substring(lastSlash + 1)
+            let depName = if (lastSlash.getOrThrow() >= 0) {
+                dirSubpath.substring(lastSlash.getOrThrow() + 1)
             } else {
                 dirSubpath
             }
@@ -1552,14 +1562,15 @@ public class PackCommand {
         additionalBundledDeps: ArrayList<DirInfo>
     ): Unit {
         let pkgJsonPath = Path.join([depDir, "package.json"])
-        let content = BaoFile.readAllText(pkgJsonPath)
-        if (content.isEmpty()) {
-            return
+        let contentOpt = BaoFile.readAllText(pkgJsonPath)
+        let contentStr = match (contentOpt) {
+            case SysMaybe.Ok(v) => v
+            case _ => return
         }
 
         let parser = JsonParser()
-        let json = parser.parse(content ?? "")
-        if (json.isEmpty()) {
+        let json = parser.parse(contentStr)
+        if (json.isNone()) {
             return
         }
 
@@ -1615,12 +1626,13 @@ public class PackCommand {
         var depth = currentDepth
 
         while (true) {
-            let nmIndex = remain.lastIndexOf("node_modules")
-            if (nmIndex < 0) {
+            let nmIndexOpt = remain.lastIndexOf("node_modules")
+            if (nmIndexOpt.isNone()) {
                 break
             }
+            let nmIndex = nmIndexOpt.getOrThrow()
             depth -= 2
-            let nmEnd = nmIndex + "node_modules".length
+            let nmEnd = nmIndex + "node_modules".size
             let parentDepSubpath = "${remain.substring(0, nmEnd)}/${depName}"
             let parentDepFullPath = Path.join([rootDir, parentDepSubpath])
 
@@ -1666,7 +1678,7 @@ public class PackCommand {
 
             // 根目录默认忽略 (不可覆盖)
             for (pattern in ROOT_IGNORE_PATTERNS) {
-                if (GlobMatcher.`match`(pattern, entryName)) {
+                if (GlobMatcher.matchPattern(pattern, entryName)) {
                     return ExclusionInfo(pattern, IgnoreKind.defaultIgnore)
                 }
             }
@@ -1680,7 +1692,7 @@ public class PackCommand {
         for (entry in DEFAULT_IGNORE_ENTRIES) {
             let pattern = entry.first
             let canOverride = entry.second
-            if (GlobMatcher.`match`(pattern, entryName)) {
+            if (GlobMatcher.matchPattern(pattern, entryName)) {
                 if (canOverride) {
                     // 可覆盖: 记录但继续检查
                     ignored = true
@@ -1715,7 +1727,7 @@ public class PackCommand {
                     continue
                 }
                 let matchPath = if (pattern.relPath) { rel } else { entryName }
-                if (GlobMatcher.`match`(pattern.glob, matchPath)) {
+                if (GlobMatcher.matchPattern(pattern.glob, matchPath)) {
                     ignored = true
                     ignorePattern = pattern.glob
                     ignoreKind = ignore.kind
@@ -1750,13 +1762,13 @@ public class PackCommand {
         let binField = JsonHelper.getField(root, "bin")
         match (binField) {
             case Some(binVal) =>
-                let binStr = binVal.asString()
-                match (binStr) {
-                    case Some(s) =>
-                        let normalized = Path.normalizePosix(s)
+                let binStrOpt = binVal.asString()
+                if (let Some(binStr) <- binStrOpt) {
+                    if (binStr.size > 0) {
+                        let normalized = Path.normalize(binStr)
                         bins.append(BinInfo(normalized, BinInfoType.File))
                         return bins
-                    case None => ()
+                    }
                 }
             case None => ()
         }
@@ -1768,7 +1780,7 @@ public class PackCommand {
                 let binDir = JsonHelper.getString(dirsObj, "bin")
                 match (binDir) {
                     case Some(binStr) =>
-                        let normalized = Path.normalizePosix(binStr)
+                        let normalized = Path.normalize(binStr)
                         bins.append(BinInfo(normalized, BinInfoType.Dir))
                     case None => ()
                 }
@@ -1791,10 +1803,10 @@ public class PackCommand {
                         return true
                     }
                 case BinInfoType.Dir =>
-                    let binWithoutTrailing = Path.withoutTrailingSlash(bin.path)
+                    let binWithoutTrailing = withoutTrailingSlash(bin.path)
                     if (path.startsWith(binWithoutTrailing)) {
-                        let remain = path.substring(binWithoutTrailing.length)
-                        if (remain.length > 1 && remain.startsWith("/") && !remain.substring(1).contains("/")) {
+                        let remain = path.substring(binWithoutTrailing.size)
+                        if (remain.size > 1 && remain.startsWith("/") && !remain.substring(1).contains("/")) {
                             return true
                         }
                     }
@@ -1835,18 +1847,18 @@ public class PackCommand {
     //   - 扩展名变体: "README.md", "README.txt" (以 . 分隔)
     //   - 短于名称的不匹配
     private func isSpecialFileOrVariant(filename: String, name: String): Bool {
-        if (filename.length < name.length) {
+        if (filename.size < name.size) {
             return false
         }
-        if (filename.length == name.length) {
-            return filename.equalsIgnoreCase(name)
+        if (filename.size == name.size) {
+            return filename.toLower() == name.toLower()
         }
-        if (filename.length == name.length + 1) {
+        if (filename.size == name.size + 1) {
             return false
         }
-        // filename.length > name.length + 1
+        // filename.size > name.size + 1
         // 检查 name + . + extension
-        if (filename[name.length] == '.' && filename.substring(0, name.length).equalsIgnoreCase(name)) {
+        if (filename[name.size] == UInt8(46) && filename.substring(0, name.size).toLower() == name.toLower()) {
             return true
         }
         return false
@@ -1941,7 +1953,7 @@ public class PackCommand {
                             case JsonValue.Str(spec) =>
                                 // 处理 workspace: 协议
                                 if (spec.startsWith("workspace:")) {
-                                    let withoutWorkspace = spec.substring("workspace:".length)
+                                    let withoutWorkspace = spec.substring("workspace:".size)
                                     let replacement = resolveWorkspaceVersion(
                                         depName,
                                         withoutWorkspace,
@@ -1951,7 +1963,7 @@ public class PackCommand {
                                 }
                                 // 处理 catalog: 协议
                                 else if (spec.startsWith("catalog:")) {
-                                    let catalogName = spec.substring("catalog:".length)
+                                    let catalogName = spec.substring("catalog:".size)
                                     let replacement = resolveCatalogVersion(
                                         depName,
                                         catalogName,
@@ -1974,7 +1986,7 @@ public class PackCommand {
     // 严格翻译自: src/cli/pack_command.zig editRootPackageJSON → workspace: 分支
     private func resolveWorkspaceVersion(depName: String, withoutWorkspace: String, groupName: String): String {
         // 单字符特殊值: ^, ~, *
-        if (withoutWorkspace.length == 1) {
+        if (withoutWorkspace.size == 1) {
             let c = withoutWorkspace[0]
             if (c == '^' || c == '~' || c == '*') {
                 // 尝试从 lockfile 解析 workspace 版本
@@ -2016,11 +2028,14 @@ public class PackCommand {
     private func lookupWorkspaceVersion(depName: String): ?String {
         // 尝试读取 lockfile 中的 workspace_versions
         let lockfileContent = BaoFile.readAllText("bun.lockb")
-        if (lockfileContent.isEmpty()) {
-            let jsonLock = BaoFile.readAllText("bun.lock")
-            if (jsonLock.isEmpty()) {
-                return None
-            }
+        match (lockfileContent) {
+            case SysMaybe.Ok(_) => ()
+            case _ =>
+                let jsonLock = BaoFile.readAllText("bun.lock")
+                match (jsonLock) {
+                    case SysMaybe.Ok(_) => ()
+                    case _ => return None
+                }
         }
         // 简化: 实际应解析 lockfile 二进制格式
         // 这里仅返回 None 表示无法解析
@@ -2097,7 +2112,6 @@ public class PackCommand {
     ): Bool {
         try {
             // 创建输出目录
-            let parentDir = Path.dirname(outputPath)
             if (!parentDir.isEmpty() && !BaoFile.exists(parentDir)) {
                 BaoFile.mkdir(parentDir, true)
             }
@@ -2114,7 +2128,7 @@ public class PackCommand {
             // 写入编辑后的 package.json
             // 严格翻译自: archivePackageJSON
             BaoFile.writeAllText(Path.join([packageDir, "package.json"]), editedPackageJson)
-            stats.unpackedSize += editedPackageJson.length
+            stats.unpackedSize += editedPackageJson.size
 
             // 复制普通文件到 staging
             // 严格翻译自: addArchiveEntry
@@ -2129,7 +2143,7 @@ public class PackCommand {
                                 continue
                             }
                             logger.error("failed to open file: \"${srcPath}\"")
-                            BaoFile.removeTree(stagingDir)
+                            BaoFile.removeRecursive(stagingDir)
                             return false
                         }
 
@@ -2138,10 +2152,10 @@ public class PackCommand {
                         if (!BaoFile.exists(destDir)) {
                             BaoFile.mkdir(destDir, true)
                         }
-                        BaoFile.copyFile(srcPath, destPath)
+                        BaoFile.copy(srcPath, destPath)
 
                         // 记录文件大小
-                        let fileSize = BaoFile.getFileSize(srcPath) ?? 0
+                        let fileSize = BaoFile.getFileSize(srcPath)
                         packList.append(PackEntry(srcPath, fileSize))
                         stats.unpackedSize += fileSize
                     case None => break
@@ -2160,7 +2174,7 @@ public class PackCommand {
                                 continue
                             }
                             logger.error("failed to open file: \"${srcPath}\"")
-                            BaoFile.removeTree(stagingDir)
+                            BaoFile.removeRecursive(stagingDir)
                             return false
                         }
 
@@ -2169,9 +2183,9 @@ public class PackCommand {
                         if (!BaoFile.exists(destDir)) {
                             BaoFile.mkdir(destDir, true)
                         }
-                        BaoFile.copyFile(srcPath, destPath)
+                        BaoFile.copy(srcPath, destPath)
 
-                        let fileSize = BaoFile.getFileSize(srcPath) ?? 0
+                        let fileSize = BaoFile.getFileSize(srcPath)
                         stats.unpackedSize += fileSize
                     case None => break
                 }
@@ -2182,7 +2196,7 @@ public class PackCommand {
             for (bin in bins) {
                 let binPath = Path.join([packageDir, bin.path])
                 if (BaoFile.exists(binPath)) {
-                    BaoFile.setExecutable(binPath, true)
+                    BaoFile.setExecutable(binPath)
                 }
             }
 
@@ -2191,19 +2205,16 @@ public class PackCommand {
             let tarArgs = ArrayList<String>()
             tarArgs.append("tar")
             tarArgs.append("-czf")
-            tarArgs.append(Path.resolve(outputPath))
+            tarArgs.append(Path.resolve([outputPath]))
             tarArgs.append("-C")
             tarArgs.append(stagingDir)
             tarArgs.append("package")
 
-            let exitCode = Process.`spawn`(tarArgs.toArray(), ".")
+            let exitCode = SysProcess.run("tar", tarArgs)
             // 清理临时目录
-            BaoFile.removeTree(stagingDir)
+            BaoFile.removeRecursive(stagingDir)
 
-            match (exitCode) {
-                case Some(code) => return code == 0
-                case None => return false
-            }
+            return exitCode == 0
         } catch (e: Exception) {
             logger.error("Failed to create tarball: ${e.message}")
             return false
@@ -2222,9 +2233,9 @@ public class PackCommand {
     private func computeShasum(filePath: String): ?String {
         let content = BaoFile.readAllBytes(filePath)
         match (content) {
-            case Some(bytes) =>
-                return SHA1.hexDigest(bytes)
-            case None => return None
+            case SysMaybe.Ok(bytes) =>
+                return Sha1.hashHex(bytes)
+            case _ => return None
         }
     }
 
@@ -2236,9 +2247,10 @@ public class PackCommand {
     private func computeIntegrity(filePath: String): ?String {
         let content = BaoFile.readAllBytes(filePath)
         match (content) {
-            case Some(bytes) =>
-                return "sha512-${SHA512.base64Digest(bytes)}"
-            case None => return None
+            case SysMaybe.Ok(bytes) =>
+                let digest = Sha512.hash(bytes)
+                return "sha512-${PackBase64.encode(digest)}"
+            case _ => return None
         }
     }
 
@@ -2277,7 +2289,7 @@ public class PackCommand {
         bundledPackQueue: PackQueue
     ): Unit {
         // 统计 package.json
-        let pkgJsonSize = BaoFile.getFileSize("package.json") ?? 0
+        let pkgJsonSize = BaoFile.getFileSize("package.json")
         stats.unpackedSize += pkgJsonSize
         println("\npacked ${PackFormatter.formatSize(pkgJsonSize)} package.json")
 
@@ -2298,7 +2310,7 @@ public class PackCommand {
                     continue
                 }
             }
-            let size = BaoFile.getFileSize(item.path) ?? 0
+            let size = BaoFile.getFileSize(item.path)
             stats.unpackedSize += size
             println("packed ${PackFormatter.formatSize(size)} ${item.path}")
         }
@@ -2494,19 +2506,20 @@ public class PackBindings {
         // 读取文件内容
         let content = BaoFile.readAllBytes(tarballPath)
         match (content) {
-            case Some(bytes) =>
-                result.size = bytes.length
+            case SysMaybe.Ok(bytes) =>
+                result.size = bytes.size
 
                 // 计算 SHA1 shasum
-                result.shasum = SHA1.hexDigest(bytes) ?? ""
+                result.shasum = Sha1.hashHex(bytes)
 
                 // 计算 SHA512 integrity
-                result.integrity = "sha512-${SHA512.base64Digest(bytes) ?? ""}"
+                let digest = Sha512.hash(bytes)
+                result.integrity = "sha512-${PackBase64.encode(digest)}"
 
                 // 解析 tar 条目 (简化实现)
                 // 实际应使用 libarchive 读取
                 // 这里返回空条目列表
-            case None => return None
+            case _ => return None
         }
 
         return result
@@ -2516,11 +2529,12 @@ public class PackBindings {
     // 严格翻译自: src/cli/pack_command.zig bindings.jsReadTarball (内存模式)
     //
     // 用于 publish 流程中直接从内存中的 tarball 数据计算校验和
-    public static func computeChecksums(tarballBytes: Array<Byte>): TarballResult {
+    public static func computeChecksums(tarballBytes: Array<UInt8>): TarballResult {
         let result = TarballResult()
-        result.size = tarballBytes.length
-        result.shasum = SHA1.hexDigest(tarballBytes) ?? ""
-        result.integrity = "sha512-${SHA512.base64Digest(tarballBytes) ?? ""}"
+        result.size = tarballBytes.size
+        result.shasum = Sha1.hashHex(tarballBytes)
+        let digest = Sha512.hash(tarballBytes)
+        result.integrity = "sha512-${PackBase64.encode(digest)}"
         return result
     }
 }
@@ -2535,5 +2549,39 @@ public class Tuple2<T1, T2> {
     public init(first: T1, second: T2) {
         this.first = first
         this.second = second
+    }
+}
+
+// ============================================================================
+// PackBase64 辅助类 (用于 SHA512 integrity 编码)
+// ============================================================================
+public class PackBase64 {
+    private static let CHARS: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+    public static func encode(data: Array<UInt8>): String {
+        var result = ""
+        var i: Int64 = 0
+        while (i < data.size) {
+            let b0 = data[i]
+            let b1 = if (i + 1 < data.size) { data[i + 1] } else { UInt8(0) }
+            let b2 = if (i + 2 < data.size) { data[i + 2] } else { UInt8(0) }
+
+            let n = (UInt32(b0) << UInt32(16)) | (UInt32(b1) << UInt32(8)) | UInt32(b2)
+            result += CHARS[Int64((n >> UInt32(18)) & UInt32(63))].toString()
+            result += CHARS[Int64((n >> UInt32(12)) & UInt32(63))].toString()
+
+            if (i + 1 < data.size) {
+                result += CHARS[Int64((n >> UInt32(6)) & UInt32(63))].toString()
+            } else {
+                result += "="
+            }
+            if (i + 2 < data.size) {
+                result += CHARS[Int64(n & UInt32(63))].toString()
+            } else {
+                result += "="
+            }
+            i += 3
+        }
+        return result
     }
 }

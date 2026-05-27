@@ -61,7 +61,9 @@ public enum Readable {
 
         return match (stdio) {
             case inherit => Readable.inherit()
-            case ignore, .ipc, .path => Readable.ignore()
+            case ignore => Readable.ignore()
+            case .ipc => Readable.ignore()
+            case .path => Readable.ignore()
             case fd(fd) => if (Environment.isPosix) Readable.fd(result) else Readable.fd(fd)
             case memfd => if (Environment.isPosix) Readable.memfd(stdio.memfd) else Readable.ignore()
             case dup2(dup2) => if (Environment.isPosix) {

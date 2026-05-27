@@ -603,7 +603,7 @@ public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: 
                         // stub: reset pipe
                         match (err) {
                             case Some(_) => stream_.cancel(global)
-                            case None => stream_.done(global)
+                            case None => stream_.doDone(global)
                         }
                         // 清空流引用
                         stream.clear()

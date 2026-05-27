@@ -854,6 +854,68 @@ public enum CommandTag {
         return !(this == other)
     }
 
+    /// 是否为 NPM 相关命令
+    /// 对应 Bun Tag.isNPMRelated()
+    public func isNPMRelated(): Bool {
+        match (this) {
+            case BunxCommand => true
+            case LinkCommand => true
+            case UnlinkCommand => true
+            case PackageManagerCommand => true
+            case InstallCommand => true
+            case AddCommand => true
+            case RemoveCommand => true
+            case UpdateCommand => true
+            case PatchCommand => true
+            case PatchCommitCommand => true
+            case OutdatedCommand => true
+            case PublishCommand => true
+            case AuditCommand => true
+            case _ => false
+        }
+    }
+
+    /// 是否需要读取全局配置
+    /// 对应 Bun Tag.readGlobalConfig()
+    public func readGlobalConfig(): Bool {
+        match (this) {
+            case BunxCommand => true
+            case PackageManagerCommand => true
+            case InstallCommand => true
+            case AddCommand => true
+            case RemoveCommand => true
+            case UpdateCommand => true
+            case PatchCommand => true
+            case PatchCommitCommand => true
+            case OutdatedCommand => true
+            case PublishCommand => true
+            case AuditCommand => true
+            case _ => false
+        }
+    }
+
+    /// 是否始终加载配置
+    /// 对应 Bun Tag.alwaysLoadsConfig()
+    public func alwaysLoadsConfig(): Bool {
+        match (this) {
+            case BuildCommand => true
+            case TestCommand => true
+            case InstallCommand => true
+            case AddCommand => true
+            case RemoveCommand => true
+            case UpdateCommand => true
+            case PatchCommand => true
+            case PatchCommitCommand => true
+            case PackageManagerCommand => true
+            case BunxCommand => true
+            case OutdatedCommand => true
+            case UpdateInteractiveCommand => true
+            case PublishCommand => true
+            case AuditCommand => true
+            case _ => false
+        }
+    }
+
     /// 检查命令是否使用全局选项
     /// 对应 Bun: Command.Tag.uses_global_options
     public static func usesGlobalOptions(tag: CommandTag): Bool {

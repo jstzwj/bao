@@ -66,7 +66,7 @@ public class Glob {
             }
 
             if (cwdStr.len > MAX_PATH_BYTES) {
-                return globalThis.`throw`("\{fnName}: invalid `cwd`, longer than \{MAX_PATH_BYTES} bytes")
+                return globalThis.`throw`("${fnName}: invalid `cwd`, longer than ${MAX_PATH_BYTES} bytes")
             }
 
             return cwdStr
@@ -92,7 +92,7 @@ public class Glob {
                     }
                     return out
                 }
-                return globalThis.`throw`("\{fnName}: expected first argument to be an object")
+                return globalThis.`throw`("${fnName}: expected first argument to be an object")
             }
 
             if (let onlyFiles <- try optsObj.getTruthy(globalThis, "onlyFiles")) {
@@ -113,7 +113,7 @@ public class Glob {
 
             if (let cwdVal <- try optsObj.getTruthy(globalThis, "cwd")) {
                 if (!cwdVal.isString()) {
-                    return globalThis.`throw`("\{fnName}: invalid `cwd`, not a string")
+                    return globalThis.`throw`("${fnName}: invalid `cwd`, not a string")
                 }
 
                 let result = try parseCWD(globalThis, arena.allocator(), cwdVal, out.absolute, fnName)

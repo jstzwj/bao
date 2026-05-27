@@ -5,7 +5,6 @@
 package bao_runtime.bake.dev_server
 
 /// EndState - 结束状态
-/// 对应 Bun PackedMap.end_state: struct { original_line, original_column }
 public class EndState {
     public var original_line: Int32
     public var original_column: Int32
@@ -22,17 +21,17 @@ public class EndState {
 }
 
 /// LineCount - HTML/CSS/Assets 的行数计数
-/// 对应 Bun PackedMap.LineCount = bun.GenericIndex(u32, u8)
 public struct LineCount {
     public var value: UInt32
 
     public init(value: UInt32) {
         this.value = value
     }
+
+    public func get(): UInt32 { value }
 }
 
 /// PackedMap - 单个文件的打包源映射数据
-/// 对应 Bun PackedMap: vlq_, escaped_source, end_state
 public class PackedMap {
     public var vlqData: String
     public var escapedSource: String
@@ -78,14 +77,13 @@ public class PackedMap {
         return vlqData
     }
 
-    /// 对应 Bun PackedMap.quotedContents() (Bun 原始 TODO: rename to escapedSource)
+    /// 对应 Bun PackedMap.quotedContents()
     public func quotedContents(): String {
         return escapedSource
     }
 }
 
 /// PackedMapShared - PackedMap 的共享引用包装
-/// 对应 Bun PackedMap.Shared: union(enum) { some, none, line_count }
 public enum PackedMapShared {
     | Some(PackedMap)
     | None
@@ -100,11 +98,9 @@ public enum PackedMapShared {
     }
 
     /// 对应 Bun Shared.take()
-    public mutating func take(): ?PackedMap {
+    public func take(): ?PackedMap {
         match (this) {
-            case Some(map) =>
-                this = PackedMapShared.None
-                return map
+            case Some(map) => map
             case _ => None
         }
     }
@@ -118,11 +114,10 @@ public enum PackedMapShared {
     }
 
     /// 对应 Bun Shared.deinit()
-    public mutating func deinit(): Unit {
+    public func deinit(): Unit {
         match (this) {
             case Some(map) =>
                 map.deinit()
-                this = PackedMapShared.None
             case _ => ()
         }
     }
@@ -136,7 +131,7 @@ public enum PackedMapShared {
     }
 }
 
-/// SourceMapChunk - 源映射数据块（简化表示）
+/// SourceMapChunk - 源映射数据块
 public class SourceMapChunk {
     public var buffer: String
     public var endState: EndState

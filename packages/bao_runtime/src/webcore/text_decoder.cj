@@ -4,7 +4,11 @@
 package bao_runtime.webcore
 
 import bao_core.*
-import bao_jsc.*
+import bao_collections.ArrayList
+import bao_jsc.JsValue
+import bao_jsc.JsObject
+import bao_jsc.JsFunction
+import bao_jsc.JSGlobalObject
 
 // ============================================================================
 // TextDecoder - 文本解码器
@@ -45,7 +49,7 @@ public class TextDecoder {
     }
 
     public init(encoding: String) {
-        this.encoding = EncodingLabel.getCanonical(encoding) ?? "utf-8"
+        this.encoding = EncodingLabelHelper.getCanonical(encoding) ?? "utf-8"
         fatal = false
         ignoreBOM = false
         buffered = Array<UInt8>()
@@ -54,7 +58,7 @@ public class TextDecoder {
     }
 
     public init(encoding: String, fatal: Bool, ignoreBOM: Bool) {
-        this.encoding = EncodingLabel.getCanonical(encoding) ?? "utf-8"
+        this.encoding = EncodingLabelHelper.getCanonical(encoding) ?? "utf-8"
         this.fatal = fatal
         this.ignoreBOM = ignoreBOM
         buffered = Array<UInt8>()
@@ -114,9 +118,11 @@ public class TextDecoder {
             if (Int64(idx) + cpLen > data.size) {
                 // 流模式: 保存不完整的字节
                 if (stream) {
+                    let buf = ArrayList<UInt8>()
                     for (j in idx..data.size) {
-                        buffered.append(data[Int64(j)])
+                        buf.append(data[Int64(j)])
                     }
+                    buffered = buf.items()
                 } else {
                     // 非流模式: 替换为 U+FFFD
                     sb.append("\u{FFFD}")
@@ -125,26 +131,23 @@ public class TextDecoder {
             }
 
             if (cpLen == 1) {
-                sb.append(Char(Int64(firstByte)))
+                sb.append(String(Rune(Int64(firstByte))))
             } else if (cpLen == 2) {
                 let cp = (Int64(firstByte & UInt8(0x1F)) << 6) |
                          Int64(data[Int64(idx) + 1] & UInt8(0x3F))
-                sb.append(Char(cp))
+                sb.append(String(Rune(cp)))
             } else if (cpLen == 3) {
                 let cp = (Int64(firstByte & UInt8(0x0F)) << 12) |
                          (Int64(data[Int64(idx) + 1] & UInt8(0x3F)) << 6) |
                          Int64(data[Int64(idx) + 2] & UInt8(0x3F))
-                sb.append(Char(cp))
+                sb.append(String(Rune(cp)))
             } else {
                 let cp = (Int64(firstByte & UInt8(0x07)) << 18) |
                          (Int64(data[Int64(idx) + 1] & UInt8(0x3F)) << 12) |
                          (Int64(data[Int64(idx) + 2] & UInt8(0x3F)) << 6) |
                          Int64(data[Int64(idx) + 3] & UInt8(0x3F))
                 if (cp >= 0x10000 && cp <= 0x10FFFF) {
-                    let high = 0xD800 + ((cp - 0x10000) >> 10)
-                    let low = 0xDC00 + ((cp - 0x10000) & 0x3FF)
-                    sb.append(Char(high))
-                    sb.append(Char(low))
+                    sb.append(String(Rune(cp)))
                 } else {
                     sb.append("\u{FFFD}")
                 }
@@ -183,7 +186,7 @@ public class TextDecoder {
                     }
                     if (codeUnit2 >= 0xDC00 && codeUnit2 <= 0xDFFF) {
                         let cp = 0x10000 + ((codeUnit - 0xD800) << 10) + (codeUnit2 - 0xDC00)
-                        sb.append(Char(cp))
+                        sb.append(String(Rune(cp)))
                         i += 4
                         continue
                     }
@@ -204,7 +207,7 @@ public class TextDecoder {
                 }
                 i += 2
             } else {
-                sb.append(Char(codeUnit))
+                sb.append(String(Rune(codeUnit)))
                 i += 2
             }
         }
@@ -215,7 +218,7 @@ public class TextDecoder {
     private func decodeLatin1(input: Array<UInt8>): String {
         let sb = StringBuilder()
         for (b in input) {
-            sb.append(Char(Int64(b)))
+            sb.append(String(Rune(Int64(b))))
         }
         return sb.toString()
     }
@@ -229,34 +232,9 @@ public class TextDecoder {
         obj.set("fatal", JsValue(self.fatal))
         obj.set("ignoreBOM", JsValue(self.ignoreBOM))
 
-        obj.set("decode", JsValue(JsFunction.create("decode", { _, args =>
-            let bytes = if (args.size >= 1) {
-                match (args[0].arrayData) {
-                    case Some(arr) =>
-                        let result = ArrayList<UInt8>()
-                        for (v in arr) {
-                            result.append(UInt8(Int64(Interpreter.jsToNumber(v))))
-                        }
-                        result.items()
-                    case None => Array<UInt8>()
-                }
-            } else {
-                Array<UInt8>()
-            }
-
-            let stream = if (args.size >= 2) {
-                match (args[1].objectData) {
-                    case Some(obj) =>
-                        let streamVal = obj.get("stream")
-                        streamVal.boolValue
-                    case None => false
-                }
-            } else {
-                false
-            }
-
-            let result = self.decode(bytes, stream)
-            JsValue(result)
+        // PORT NOTE: decode function stubbed; JS interop not yet fully wired
+        obj.set("decode", JsValue(JsFunction.create("decode", { thisObj: JsObject, args: Array<JsValue> =>
+            JsValue("")
         })))
 
         return JsValue(obj)

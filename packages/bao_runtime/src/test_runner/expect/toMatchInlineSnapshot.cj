@@ -31,7 +31,7 @@ public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, ca
     } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
             hasExpected = true
-            arguments[0].toZigString(result: expectedString, globalThis: globalThis)
+            arguments[0].toZigString(expectedString, globalThis)
         } else if (arguments[0].isObject()) {
             propertyMatchers = arguments[0]
         } else {
@@ -49,7 +49,7 @@ public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, ca
 
         if (arguments[1].isString() ){
             hasExpected = true
-            arguments[1].toZigString(result: expectedString, globalThis: globalThis)
+            arguments[1].toZigString(expectedString, globalThis)
         }
     }
 

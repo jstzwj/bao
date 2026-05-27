@@ -57,6 +57,19 @@ public enum RunCommandFilter {
     | AllPlusBunJs
     | ScriptAndDescriptions
     | ScriptExclude
+
+    public operator func ==(right: RunCommandFilter): Bool {
+        return match (this) {
+            case Script => match (right) { case Script => true case _ => false }
+            case Bin => match (right) { case Bin => true case _ => false }
+            case All => match (right) { case All => true case _ => false }
+            case BunJs => match (right) { case BunJs => true case _ => false }
+            case AllPlusBunJs => match (right) { case AllPlusBunJs => true case _ => false }
+            case ScriptAndDescriptions => match (right) { case ScriptAndDescriptions => true case _ => false }
+            case ScriptExclude => match (right) { case ScriptExclude => true case _ => false }
+        }
+    }
+    public operator func !=(right: RunCommandFilter): Bool { !(this == right) }
 }
 
 /// 配置运行时的环境选项
@@ -282,7 +295,7 @@ public class RunCommand {
         var i: Int64 = 0
         var delimiter: UInt8 = UInt8(' ')
 
-        while (i < script.length) {
+        while (i < script.size) {
             let c = script[i]
 
             match (c) {
@@ -296,21 +309,21 @@ public class RunCommand {
                                 let yarnCmd = next.substring(0, spaceIdx)
                                 if (yarnCmd == "run") {
                                     sb.append(bunRun)
-                                    i += Int64("yarn run".length)
+                                    i += Int64("yarn run".size)
                                     delimiter = UInt8(0)
                                     continue
                                 }
                                 // yarn npm 是 yarn 2 子命令, 保持不变
                                 if (yarnCmd == "npm") {
                                     sb.append("yarn npm ")
-                                    i += Int64("yarn npm ".length)
+                                    i += Int64("yarn npm ".size)
                                     continue
                                 }
                                 // yarn -flags 保持不变
-                                if (yarnCmd.length > 0 && yarnCmd[0] == '-') {
+                                if (yarnCmd.size > 0 && yarnCmd[0] == '-') {
                                     sb.append("yarn ")
                                     sb.append(yarnCmd)
-                                    i += Int64("yarn ".length) + Int64(yarnCmd.length)
+                                    i += Int64("yarn ".size) + Int64(yarnCmd.size)
                                     continue
                                 }
                                 // 隐式 yarn 命令 (如果不在已知 yarn 命令列表中)
@@ -318,7 +331,7 @@ public class RunCommand {
                                     sb.append(bunRun)
                                     sb.append(' ')
                                     sb.append(yarnCmd)
-                                    i += Int64("yarn ".length) + Int64(yarnCmd.length)
+                                    i += Int64("yarn ".size) + Int64(yarnCmd.size)
                                     delimiter = UInt8(0)
                                     continue
                                 }
@@ -336,13 +349,13 @@ public class RunCommand {
                     if (delimiter > UInt8(0)) {
                         if (script.startsWithFrom("npm run ", i)) {
                             sb.append("${bunRun} ")
-                            i += Int64("npm run ".length)
+                            i += Int64("npm run ".size)
                             delimiter = UInt8(0)
                             continue
                         }
                         if (script.startsWithFrom("npx ", i)) {
                             sb.append("${bunBinName} x ")
-                            i += Int64("npx ".length)
+                            i += Int64("npx ".size)
                             delimiter = UInt8(0)
                             continue
                         }
@@ -352,19 +365,19 @@ public class RunCommand {
                     if (delimiter > UInt8(0)) {
                         if (script.startsWithFrom("pnpm run ", i)) {
                             sb.append("${bunRun} ")
-                            i += Int64("pnpm run ".length)
+                            i += Int64("pnpm run ".size)
                             delimiter = UInt8(0)
                             continue
                         }
                         if (script.startsWithFrom("pnpm dlx ", i)) {
                             sb.append("${bunBinName} x ")
-                            i += Int64("pnpm dlx ".length)
+                            i += Int64("pnpm dlx ".size)
                             delimiter = UInt8(0)
                             continue
                         }
                         if (script.startsWithFrom("pnpx ", i)) {
                             sb.append("${bunBinName} x ")
-                            i += Int64("pnpx ".length)
+                            i += Int64("pnpx ".size)
                             delimiter = UInt8(0)
                             continue
                         }
@@ -538,7 +551,7 @@ public class RunCommand {
         let silent = ctx.silent
 
         try {
-            let exitCode = Process.spawnWithEnv(executable, argv.toArray(), env.toEnvArray(), cwd)
+            let exitCode = Process.spawnWithEnv(executable, argv.items(), env.toEnvArray(), cwd)
 
             if (exitCode != 0) {
                 if (!silent) {
@@ -663,7 +676,7 @@ public class RunCommand {
         // 设置 npm_execpath
         if (envLoader.get("npm_execpath").isNone()) {
             let selfExe = Sys.getExecutablePath()
-            if (selfExe.length > 0) {
+            if (selfExe.size > 0) {
                 envLoader.putDefault("npm_execpath", selfExe)
             }
         }
@@ -673,10 +686,10 @@ public class RunCommand {
         match (pkgOpt) {
             case Some(pkg) =>
                 rootDirInfo.enclosingPackageJson = Some(pkg)
-                if (pkg.name.length > 0) {
+                if (pkg.name.size > 0) {
                     envLoader.putDefault(NpmArgs.packageName, pkg.name)
                 }
-                if (pkg.version.length > 0) {
+                if (pkg.version.size > 0) {
                     envLoader.putDefault(NpmArgs.packageVersion, pkg.version)
                 }
                 // 设置 npm_package_json
@@ -746,7 +759,7 @@ public class RunCommand {
         }
 
         // 注入 package.json 目录
-        if (packageJsonDir.length > 0) {
+        if (packageJsonDir.size > 0) {
             sb.append(packageJsonDir)
             sb.append(':')
         }
@@ -781,7 +794,7 @@ public class RunCommand {
     /// 在 /tmp/bun-node/ 创建指向 bao 的符号链接 node 和 bun
     public static func createFakeTemporaryNodeExecutable(pathBuilder: StringBuilder): Unit {
         let selfExe = Sys.getExecutablePath()
-        if (selfExe.length == 0) {
+        if (selfExe.size == 0) {
             return
         }
 
@@ -849,7 +862,7 @@ public class RunCommand {
         // 严格翻译自: run_command.zig 中 try_fast_run 检测
         var tryFastRun = false
         var skipScriptCheck = false
-        if (targetName.length > 0 && targetName[0] == '.') {
+        if (targetName.size > 0 && targetName[0] == '.') {
             tryFastRun = true
             skipScriptCheck = true
         } else if (Path.isAbsolute(targetName)) {
@@ -857,7 +870,7 @@ public class RunCommand {
             skipScriptCheck = true
         } else if (cfg.allowFastRunForExtensions) {
             let ext = Path.extension(targetName)
-            if (ext.length > 0) {
+            if (ext.size > 0) {
                 let defaultLoader = getDefaultLoader(ext)
                 if (defaultLoader.isSome()) {
                     let loader = defaultLoader ?? ""
@@ -900,7 +913,7 @@ public class RunCommand {
 
         // 空命令: 列出 scripts
         // 严格翻译自: run_command.zig 中 target_name.len == 0
-        if (targetName.length == 0) {
+        if (targetName.size == 0) {
             match (rootDirInfo.enclosingPackageJson) {
                 case Some(pkg) => printHelp(Some(pkg))
                 case None =>
@@ -912,7 +925,7 @@ public class RunCommand {
 
         // Stdin 模式: script == "-"
         // 严格翻译自: run_command.zig 中 stdin 检查
-        if (targetName.length == 1 && targetName[0] == '-') {
+        if (targetName.size == 1 && targetName[0] == '-') {
             return runStdin(ctx)
         }
 
@@ -956,14 +969,14 @@ public class RunCommand {
         let PATH = DotEnvLoader().get("PATH") ?? ""
         var pathForWhich = PATH
         if (binDirsOnly) {
-            if (originalPath.value.length < PATH.length) {
-                pathForWhich = PATH.substring(0, PATH.length - originalPath.value.length - 1)
+            if (originalPath.value.size < PATH.size) {
+                pathForWhich = PATH.substring(0, PATH.size - originalPath.value.size - 1)
             } else {
                 pathForWhich = ""
             }
         }
 
-        if (pathForWhich.length > 0) {
+        if (pathForWhich.size > 0) {
             let destination = whichBinary(pathForWhich, Sys.getcwd(), targetName)
             match (destination) {
                 case Some(binaryPath) =>
@@ -988,9 +1001,9 @@ public class RunCommand {
                     Output.noteGeneric("Bao cannot run ${info.loader} files directly", [])
                 case None =>
                     let ext = Path.extension(targetName)
-                    if (targetName.length > 0 && (targetName[0] == '.' || targetName[0] == '/' || Path.isAbsolute(targetName))) {
+                    if (targetName.size > 0 && (targetName[0] == '.' || targetName[0] == '/' || Path.isAbsolute(targetName))) {
                         Output.prettyErrorLn("error: Module not found \"${targetName}\"")
-                    } else if (ext.length > 0) {
+                    } else if (ext.size > 0) {
                         Output.prettyErrorLn("error: File not found \"${targetName}\"")
                     } else {
                         Output.prettyErrorLn("error: Script not found \"${targetName}\"")
@@ -1007,7 +1020,7 @@ public class RunCommand {
     /// 严格翻译自: RunCommand.execAsIfNode
     public static func execAsIfNode(ctx: CommandContext): Unit {
         // eval 模式
-        if (ctx.runtimeOptions.evalScript.length > 0) {
+        if (ctx.runtimeOptions.evalScript.size > 0) {
             let entryPath = "/[eval]"
             try {
                 bootRun(ctx, entryPath, None)
@@ -1328,7 +1341,7 @@ public class RunCommand {
                         commands.append(key)
                     }
 
-                    shellOut.commands = commands.toArray()
+                    shellOut.commands = commands.items()
                 case None => ()
             }
         }
@@ -1540,8 +1553,8 @@ public class RunCommand {
 
     /// 移除尾部斜杠
     public static func removeTrailingSlash(s: String): String {
-        if (s.length > 1 && s[s.length - 1] == '/') {
-            return s.substring(0, s.length - 1)
+        if (s.size > 1 && s[s.size - 1] == '/') {
+            return s.substring(0, s.size - 1)
         }
         return s
     }
@@ -1585,10 +1598,10 @@ public class RunCommand {
 
     /// String 扩展: 从指定位置开始匹配
     private static func startsWithFrom(s: String, prefix: String, fromIndex: Int64): Bool {
-        if (fromIndex < 0 || fromIndex + prefix.length > s.length) {
+        if (fromIndex < 0 || fromIndex + prefix.size > s.size) {
             return false
         }
-        for (i in 0..prefix.length) {
+        for (i in 0..prefix.size) {
             if (s[fromIndex + i] != prefix[i]) {
                 return false
             }
@@ -1702,7 +1715,7 @@ class DotEnvLoader {
         for ((k, v) in map) {
             result.append("${k}=${v}")
         }
-        return result.toArray()
+        return result.items()
     }
 }
 
@@ -1724,7 +1737,7 @@ class ShellInterpreter {
     public static func initAndRunFromSource(name: String, script: String, cwd: String): Int64 {
         // 在 Bun 中使用 bun.shell.Interpreter
         try {
-            return Process.spawnShell(script, cwd)
+            return SysProcess.runShell(script, cwd)
         } catch (e: Exception) {
             return 1
         }
@@ -1743,16 +1756,16 @@ class Ref<T> {
 /// String 扩展: 从指定位置获取子串
 extend String {
     public func substringFrom(fromIndex: Int64): String {
-        if (fromIndex >= this.length) { return "" }
+        if (fromIndex >= this.size) { return "" }
         return this.substring(fromIndex)
     }
 
     /// String 扩展: 从指定位置开始匹配
     public func startsWithFrom(prefix: String, fromIndex: Int64): Bool {
-        if (fromIndex < 0 || fromIndex + prefix.length > this.length) {
+        if (fromIndex < 0 || fromIndex + prefix.size > this.size) {
             return false
         }
-        for (i in 0..prefix.length) {
+        for (i in 0..prefix.size) {
             if (this[fromIndex + i] != prefix[i]) {
                 return false
             }

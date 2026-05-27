@@ -2518,6 +2518,12 @@ public class ReadableStreamStrong {
         stream = Some(s)
     }
 
+    /// 清空引用
+    /// 对应 Bun: ReadableStream.Strong.clear()
+    public func clear(): Unit {
+        stream = None
+    }
+
     /// 是否已被消费
     /// 对应 Bun: ReadableStream.Strong.is_disturbed()
     public func isDisturbed(): Bool {

@@ -35,9 +35,9 @@ public func toBeLessThanOrEqual(`this`: Expect, globalThis: JSGlobalObject, call
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let expectedFmt = expected.toFmt(formatter)
     let valueFmt = value.toFmt(formatter)

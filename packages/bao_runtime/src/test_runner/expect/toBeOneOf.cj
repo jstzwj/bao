@@ -27,7 +27,7 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     var pass = false
 
     if (listValue.jsTypeLoose().isArrayLike()) {
-        var itr = listValue.arrayIterator(globalThis: globalThis)
+        var itr = listValue.arrayIterator(globalThis)
         while (let Some(item) <- itr.next()) {
             // jest-extended uses `deepEqual`, instead of `toBe`
             if (item.jestDeepEquals(expected, globalThis: globalThis)) {
@@ -35,9 +35,9 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
                 break
             }
         }
-    } else if (listValue.isIterable(globalThis: globalThis)) {
+    } else if (listValue.isIterable(globalThis)) {
         var expectedEntry = ExpectedEntry(globalThis: globalThis, expected: expected)
-        listValue.forEach(globalThis: globalThis, context: expectedEntry, callback: { vm, globalObject, entry_, item =>
+        listValue.forEach(globalThis, expectedEntry, { vm, globalObject, entry_, item =>
             let entry = entry_ as ExpectedEntry
             if (item.jestDeepEquals(entry.expected, entry.globalThis)) {
                 entry.pass = true
@@ -48,10 +48,10 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = listValue.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

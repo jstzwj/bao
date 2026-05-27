@@ -27,7 +27,7 @@ public func toEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     var pass = value.jestDeepEquals(expected, globalThis: globalThis)
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
     let diffFormatter = DiffFormatter(received: value, expected: expected, globalThis: globalThis, not: not)

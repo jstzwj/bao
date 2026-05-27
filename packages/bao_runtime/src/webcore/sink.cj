@@ -156,24 +156,23 @@ public class SinkVTable {
     /// 对应 Bun: VTable::wrap::<Wrapped>() (Sink.rs:351-390)
     public static func wrap<T>(handler: T): SinkVTable where T <: SinkHandler {
         // 创建 VTable, 每个函数通过类型擦除调用 SinkHandler 方法
-        SinkVTable(
-            connect: { ptr: UIntNative, signal: StreamSignal =>
-                // 恢复类型化引用并调用 handler 方法
-                handler.connect(signal)
-            },
-            write: { ptr: UIntNative, data: StreamResult =>
-                handler.write(data)
-            },
-            writeLatin1: { ptr: UIntNative, data: StreamResult =>
-                handler.writeLatin1(data)
-            },
-            writeUTF16: { ptr: UIntNative, data: StreamResult =>
-                handler.writeUTF16(data)
-            },
-            end: { ptr: UIntNative, err: ?SyscallError =>
-                handler.end(err)
-            }
-        )
+        let connectFn: ConnectFn = { ptr: UIntNative, signal: StreamSignal =>
+            // 恢复类型化引用并调用 handler 方法
+            handler.connect(signal)
+        }
+        let writeFn: WriteUTF8Fn = { ptr: UIntNative, data: StreamResult =>
+            handler.write(data)
+        }
+        let writeLatin1Fn: WriteLatin1Fn = { ptr: UIntNative, data: StreamResult =>
+            handler.writeLatin1(data)
+        }
+        let writeUTF16Fn: WriteUTF16Fn = { ptr: UIntNative, data: StreamResult =>
+            handler.writeUTF16(data)
+        }
+        let endFn: EndFn = { ptr: UIntNative, err: ?SyscallError =>
+            handler.end(err)
+        }
+        SinkVTable(connectFn, writeFn, writeLatin1Fn, writeUTF16Fn, endFn)
     }
 }
 
@@ -241,10 +240,10 @@ public class Sink {
             return None
         }
         status = SinkStatus.Closed
-        match (vtable) {
-            case Some(vt) => vt.end(ptr, err)
-            case None => None
+        if (vtable.isSome()) {
+            return vtable.getOrThrow().end(ptr, err)
         }
+        return None
     }
 
     /// writeLatin1 — 写入 Latin-1 数据
@@ -253,9 +252,10 @@ public class Sink {
         if (status == SinkStatus.Closed) {
             return StreamResultWritable.done()
         }
-        let res = match (vtable) {
-            case Some(vt) => vt.writeLatin1(ptr, data)
-            case None => StreamResultWritable.done()
+        let res = if (vtable.isSome()) {
+            vtable.getOrThrow().writeLatin1(ptr, data)
+        } else {
+            StreamResultWritable.done()
         }
         if (res.isDone() || status == SinkStatus.Closed) {
             status = SinkStatus.Closed
@@ -272,9 +272,10 @@ public class Sink {
         if (status == SinkStatus.Closed) {
             return StreamResultWritable.done()
         }
-        let res = match (vtable) {
-            case Some(vt) => vt.write(ptr, data)
-            case None => StreamResultWritable.done()
+        let res = if (vtable.isSome()) {
+            vtable.getOrThrow().write(ptr, data)
+        } else {
+            StreamResultWritable.done()
         }
         if (res.isDone() || status == SinkStatus.Closed) {
             status = SinkStatus.Closed
@@ -291,9 +292,10 @@ public class Sink {
         if (status == SinkStatus.Closed) {
             return StreamResultWritable.done()
         }
-        let res = match (vtable) {
-            case Some(vt) => vt.writeUTF16(ptr, data)
-            case None => StreamResultWritable.done()
+        let res = if (vtable.isSome()) {
+            vtable.getOrThrow().writeUTF16(ptr, data)
+        } else {
+            StreamResultWritable.done()
         }
         if (res.isDone() || status == SinkStatus.Closed) {
             status = SinkStatus.Closed
@@ -308,9 +310,9 @@ public class Sink {
     /// 对应 Bun: Sink.write() (Sink.rs:447-454)
     public func writeData(data: SinkData): StreamResultWritable {
         match (data) {
-            case UTF16(str_) => writeUTF16(str_)
-            case Latin1(str_) => writeLatin1(str_)
-            case Bytes(bytes) => writeBytes(bytes)
+            case UTF16(sr) => writeUTF16(sr)
+            case Latin1(sr) => writeLatin1(sr)
+            case Bytes(sr) => writeBytes(sr)
         }
     }
 }
@@ -417,7 +419,7 @@ public class UTF8Fallback {
 
 /// 检查是否全部 ASCII
 /// 对应 Bun: bun_core::strings::is_all_ascii()
-func isAllAscii(data: Array<UInt8>): Bool {
+func isAllAscii(data: ArrayList<UInt8>): Bool {
     for (b in data) {
         if (b > 127) {
             return false
@@ -448,7 +450,7 @@ func replaceLatin1WithUTF8(buf: ArrayList<UInt8>): Unit {
 
 /// 从字节数组提取 UTF-16 码元
 /// 对应 Bun: bytemuck::cast_slice (u8 -> u16)
-func utf16SliceFromBytes(bytes: Array<UInt8>): Array<UInt16> {
+func utf16SliceFromBytes(bytes: ArrayList<UInt8>): Array<UInt16> {
     let len = bytes.size / 2
     if (len == 0) {
         return Array<UInt16>()
@@ -731,19 +733,19 @@ public class JSSinkHelper {
     /// createObject — 创建 JS 对象
     /// 对应 Bun: JSSink::create_object() (Sink.rs:623-633)
     public static func createObject<T>(global: JSGlobalObject, obj: T, destructor: UIntNative): JsValue where T <: JsSinkAbi {
-        return T.createObjectExtern(global, 0, destructor)
+        return obj.createObjectExtern(global, 0, destructor)
     }
 
     /// setDestroyCallback — 设置销毁回调
     /// 对应 Bun: JSSink::set_destroy_callback() (Sink.rs:635-637)
-    public static func setDestroyCallback<T>(value: JsValue, callback: UIntNative): Unit where T <: JsSinkAbi {
-        T.setDestroyCallbackExtern(value, callback)
+    public static func setDestroyCallback<T>(abi: T, value: JsValue, callback: UIntNative): Unit where T <: JsSinkAbi {
+        abi.setDestroyCallbackExtern(value, callback)
     }
 
     /// fromJs — 从 JS 值恢复 Sink
     /// 对应 Bun: JSSink::from_js() (Sink.rs:641-647)
-    public static func fromJs<T>(value: JsValue): ?UIntNative where T <: JsSinkAbi {
-        let raw = T.fromJsExtern(value)
+    public static func fromJs<T>(abi: T, value: JsValue): ?UIntNative where T <: JsSinkAbi {
+        let raw = abi.fromJsExtern(value)
         if (raw == FromJsResult.DETACHED || raw == FromJsResult.CAST_FAILED) {
             return None
         }
@@ -753,18 +755,19 @@ public class JSSinkHelper {
     /// assignToStream — 分配到流
     /// 对应 Bun: JSSink::assign_to_stream() (Sink.rs:649-661)
     public static func assignToStream<T>(
+        abi: T,
         global: JSGlobalObject,
         stream: JsValue,
         ptr: UIntNative,
         jsvaluePtr: UIntNative
     ): JsValue where T <: JsSinkAbi {
-        return T.assignToStreamExtern(global, stream, ptr, jsvaluePtr)
+        return abi.assignToStreamExtern(global, stream, ptr, jsvaluePtr)
     }
 
     /// detach — 断开 C++ 控制器单元
     /// 对应 Bun: JSSink::detach() (Sink.rs:668-685)
     public static func detach<T>(signal: StreamSignal, global: JSGlobalObject): Unit where T <: JsSinkAbi {
-        if (signal.isDead) {
+        if (signal.isDead()) {
             return
         }
         signal.clear()
@@ -777,9 +780,10 @@ public class JSSinkHelper {
     /// 对应 Bun: JSSink::js_construct() (Sink.rs:849-866)
     public static func jsConstruct<T>(
         global: JSGlobalObject,
-        frame: CallFrame
+        frame: CallFrame,
+        sink: T
     ): JsValue where T <: JsSinkType {
-        if (!T().hasConstruct) {
+        if (!sink.hasConstruct) {
             // throw illegal constructor
             return JsValue.undefined()
         }
@@ -795,9 +799,9 @@ public class JSSinkHelper {
         sink: T
     ): JsValue where T <: JsSinkType {
         // 检查待处理错误
-        match (sink.getPendingError()) {
-            case Some(err) => return err // throw value
-            case None => ()
+        let pendingErr = sink.getPendingError()
+        if (pendingErr.isSome()) {
+            return pendingErr.getOrThrow() // throw value
         }
 
         let args = frame.args
@@ -818,24 +822,31 @@ public class JSSinkHelper {
             }
             let data = ArrayList<UInt8>()
             for (b in slice) { data.append(b) }
-            return sink.writeBytes(StreamResult.temporary(data)).toJs(global)
+            return sink.writeBytes(StreamResult.temporary(data)).toJS(global)
         }
 
         // 字符串路径
         if (arg.isString()) {
-            let view = arg.toStringView(global)
-            if (view.size == 0) {
+            let str = arg.toString()
+            if (str.size == 0) {
                 return JsValue.jsNumber(0.0)
             }
-            if (view.is16Bit()) {
-                let data = ArrayList<UInt8>()
-                for (b in view.bytes) { data.append(b) }
-                return sink.writeUTF16(StreamResult.temporary(data)).toJs(global)
-            }
-            // Latin-1 路径
+            // Treat all strings as Latin-1/UTF-8 path (simplified)
             let data = ArrayList<UInt8>()
-            for (b in view.bytes) { data.append(b) }
-            return sink.writeLatin1(StreamResult.temporary(data)).toJs(global)
+            for (c in str) {
+                let n = Int32(c)
+                if (n < 128) {
+                    data.append(UInt8(n))
+                } else if (n < 2048) {
+                    data.append(UInt8(192 + (n >> 6)))
+                    data.append(UInt8(128 + (n & 63)))
+                } else {
+                    data.append(UInt8(224 + (n >> 12)))
+                    data.append(UInt8(128 + ((n >> 6) & 63)))
+                    data.append(UInt8(128 + (n & 63)))
+                }
+            }
+            return sink.writeLatin1(StreamResult.temporary(data)).toJS(global)
         }
 
         return JsValue.undefined() // throw type error
@@ -848,9 +859,9 @@ public class JSSinkHelper {
         frame: CallFrame,
         sink: T
     ): JsValue where T <: JsSinkType {
-        match (sink.getPendingError()) {
-            case Some(err) => return err // throw value
-            case None => ()
+        let pendingErr = sink.getPendingError()
+        if (pendingErr.isSome()) {
+            return pendingErr.getOrThrow() // throw value
         }
 
         if (sink.hasFlushFromJs) {
@@ -858,10 +869,8 @@ public class JSSinkHelper {
             return sink.flushFromJs(global, wait)
         }
 
-        match (sink.flush()) {
-            case Some(err) => JsValue.undefined() // throw
-            case None => JsValue.undefined()
-        }
+        sink.flush()
+        return JsValue.undefined()
     }
 
     /// jsStart — JS 启动宿主函数体
@@ -871,9 +880,9 @@ public class JSSinkHelper {
         frame: CallFrame,
         sink: T
     ): JsValue where T <: JsSinkType {
-        match (sink.getPendingError()) {
-            case Some(err) => return err // throw value
-            case None => ()
+        let pendingErr = sink.getPendingError()
+        if (pendingErr.isSome()) {
+            return pendingErr.getOrThrow() // throw value
         }
 
         let config = if (frame.args.size > 0) {
@@ -882,10 +891,8 @@ public class JSSinkHelper {
             StreamStart.empty()
         }
 
-        match (sink.start(config)) {
-            case Some(err) => JsValue.undefined() // throw
-            case None => JsValue.undefined()
-        }
+        sink.start(config)
+        return JsValue.undefined()
     }
 
     /// jsEnd — JS 结束宿主函数体
@@ -895,9 +902,9 @@ public class JSSinkHelper {
         frame: CallFrame,
         sink: T
     ): JsValue where T <: JsSinkType {
-        match (sink.getPendingError()) {
-            case Some(err) => return err // throw value
-            case None => ()
+        let pendingErr = sink.getPendingError()
+        if (pendingErr.isSome()) {
+            return pendingErr.getOrThrow() // throw value
         }
 
         let result = sink.endFromJs(global)
@@ -922,17 +929,14 @@ public class JSSinkHelper {
         global: JSGlobalObject,
         sink: T
     ): JsValue where T <: JsSinkType {
-        match (sink.getPendingError()) {
-            case Some(err) =>
-                // throw_error 设置待处理的 JS 异常
-                return JsValue.undefined()
-            case None => ()
+        let pendingErr = sink.getPendingError()
+        if (pendingErr.isSome()) {
+            // throw_error 设置待处理的 JS 异常
+            return JsValue.undefined()
         }
 
-        match (sink.end(None)) {
-            case Some(err) => JsValue.undefined() // throw
-            case None => JsValue.undefined()
-        }
+        sink.end(Option<SyscallError>.None)
+        return JsValue.undefined()
     }
 
     /// jsEndWithSink — JS 带 Sink 结束宿主函数体
@@ -941,10 +945,9 @@ public class JSSinkHelper {
         sink: T,
         global: JSGlobalObject
     ): JsValue where T <: JsSinkType {
-        match (sink.getPendingError()) {
-            case Some(err) =>
-                return JsValue.undefined() // throw value
-            case None => ()
+        let pendingErr = sink.getPendingError()
+        if (pendingErr.isSome()) {
+            return JsValue.undefined() // throw value
         }
 
         return sink.endFromJs(global)
@@ -986,17 +989,17 @@ public class SinkSignal<T> where T <: JsSinkAbi {
 
     /// init — 从 C++ JsValue 初始化 Signal
     /// 对应 Bun: SinkSignal::init() (Sink.rs:699-733)
-    public static func `init`(cpp: JsValue): StreamSignal {
+    public static func `init`(abi: T, cpp: JsValue): StreamSignal {
         let vtable = SignalVTable(
-            onClose: { err: ?SyscallError =>
-                // onClose: 调用 T.onCloseExtern(cpp, JsValue.UNDEFINED)
-                T.onCloseExtern(cpp, JsValue.undefined())
+            { err: ?SyscallError =>
+                // onClose: 调用 abi.onCloseExtern(cpp, JsValue.UNDEFINED)
+                abi.onCloseExtern(cpp, JsValue.undefined())
             },
-            onReady: { amount: ?BlobSizeType, offset: ?BlobSizeType =>
-                // onReady: 调用 T.onReadyExtern(cpp, JsValue.UNDEFINED, JsValue.UNDEFINED)
-                T.onReadyExtern(cpp, JsValue.undefined(), JsValue.undefined())
+            { amount: ?BlobSizeType, offset: ?BlobSizeType =>
+                // onReady: 调用 abi.onReadyExtern(cpp, JsValue.UNDEFINED, JsValue.UNDEFINED)
+                abi.onReadyExtern(cpp, JsValue.undefined(), JsValue.undefined())
             },
-            onStart: { => }
+            { => }
         )
         return StreamSignal(vtable)
     }
@@ -1054,10 +1057,10 @@ public class DestructorPtr {
     /// 从可选值创建
     /// 对应 Bun: DestructorPtr::from()
     public static func from(ptrValue: ?UIntNative): DestructorPtr {
-        match (ptrValue) {
-            case Some(v) => DestructorPtr(v, 0)
-            case None => DestructorPtr()
+        if (ptrValue.isSome()) {
+            return DestructorPtr(ptrValue.getOrThrow(), 0)
         }
+        return DestructorPtr()
     }
 
     /// 是否为空

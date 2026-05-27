@@ -231,12 +231,12 @@ public enum Status {
                 }
         }
 
-        if (exitCode != None) {
+        if (exitCode.isSome()) {
             return Status.Exited(ExitStatus(
                 code: exitCode ?? UInt8(0),
                 signal: SignalCode(signal ?? UInt8(0))
             ))
-        } else if (signal != None) {
+        } else if (signal.isSome()) {
             return Status.Signaled(SignalCode(signal ?? UInt8(0)))
         }
 
@@ -536,7 +536,7 @@ public class Process {
         var rusageResult = rusage
 
         var statusOpt: ?Status = Status.from(pid, waitpidResult)
-        if (statusOpt == None) {
+        if (statusOpt.isNone()) {
             // rewatch
             let rewatchResult = this.rewatchPosix()
             match (rewatchResult) {
@@ -551,7 +551,7 @@ public class Process {
                     }
                 case _ => ()
             }
-            if (statusOpt == None) { return }
+            if (statusOpt.isNone()) { return }
         }
 
         let status = statusOpt ?? return
@@ -949,7 +949,7 @@ public class WindowsSpawnResult {
     /// 关闭结果
     /// 严格翻译自: process.zig:1137-1145
     public func close() {
-        if (this.process != None) {
+        if (this.process.isSome()) {
             let proc = this.process ?? return
             this.process = None
             proc.close()
@@ -1017,7 +1017,7 @@ public func spawnProcessPosix(
     // 为每个 stdio 设置 posix_spawn_file_actions
 
     // 执行 spawn
-    let argv0 = options.argv0 ?? (argv.length > 0 ? argv[0] : "")
+    let argv0 = options.argv0 ?? (argv.size > 0 ? argv[0] : "")
     let spawnResult = posixSpawnp(argv0, cArgv, cEnvp)
 
     match (spawnResult) {
@@ -1291,7 +1291,7 @@ public func reapChild(child: PidT): Status {
     while (true) {
         let result = wait4(child, UInt32(0), Rusage.zeroes())
         let status = Status.from(child, result)
-        if (status != None) {
+        if (status.isSome()) {
             return status ?? Status.Running
         }
     }

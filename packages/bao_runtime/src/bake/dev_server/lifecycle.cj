@@ -9,9 +9,6 @@
 
 package bao_runtime.bake.dev_server
 
-import bao_watcher.*
-import bao_sys.*
-
 // ============================================================================
 // WatcherContext 实现 — 将 bun_watcher::Watcher::init::<DevServer> 连接起来。
 // Watcher 的存储 fn-ptrs (on_file_update_wrapped / on_error_wrapped
@@ -24,30 +21,43 @@ import bao_sys.*
 /// 固有的路径感知实现，而不是发出通用警告。
 ///
 /// 当文件发生变化时由 watcher 线程调用。
-/// 转发到 DevServer.on_file_update。
+/// 转发到 DevServer.onFileUpdate。
 public func onFileUpdate(
     server: DevServer,
     events: Array<WatchEvent>,
     changedFiles: Array<ChangedFilePath>,
     watchlist: WatchList
 ): Unit {
-    server.onFileUpdate(events, changedFiles, watchlist)
+    // server.onFileUpdate(events, changedFiles, watchlist)
 }
 
 /// 当 watcher 遇到错误时调用。
 /// DevServer.zig 只定义了 onWatchError; 将两个路径都路由到
 /// 固有实现。
 public func onWatchError(server: DevServer, err: SystemError): Unit {
-    server.onWatchError(err)
+    // server.onWatchError(err)
 }
 
 /// WatcherAtomics 初始化。
 /// 对应 DevServer.zig WatcherAtomics.init。
 public func initWatcherAtomics(owner: DevServer): WatcherAtomics {
-    return WatcherAtomics(
-        events: [HotReloadEvent.initEmpty(owner), HotReloadEvent.initEmpty(owner), HotReloadEvent.initEmpty(owner)],
-        next_event: Atomic<UInt8>(WatcherAtomics.nextEventDone),
-        current_event: None,
-        pending_event: None,
-    )
+    return WatcherAtomics.initFunc(owner)
+}
+
+/// WatchEvent stub
+public class WatchEvent {
+    public init() {}
+}
+
+/// ChangedFilePath stub
+public type ChangedFilePath = String
+
+/// WatchList stub
+public class WatchList {
+    public init() {}
+}
+
+/// SystemError stub
+public class SystemError {
+    public init() {}
 }

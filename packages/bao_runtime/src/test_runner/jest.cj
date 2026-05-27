@@ -165,14 +165,14 @@ public class TestRunner {
     /// 根据文件路径的hash查找已有的文件ID，如果不存在则创建新的文件条目
     public func getOrPutFile(filePath: String): FileIdResult {
         let hash = WyHash.hash(data: filePath)
-        let existing = index.get(key: hash)
+        let existing = index.get(hash)
         if (existing.isSome()) {
             return FileIdResult(fileId: existing.getOrThrow())
         }
 
         let fileId: UInt32 = UInt32(files.size)
         files.append(File(source: Source.initEmptyFile(path: filePath)))
-        index.put(key: hash, value: fileId)
+        index.put(hash, fileId)
         return FileIdResult(fileId: fileId)
     }
 
@@ -211,7 +211,7 @@ public class Jest {
     /// - jest/vi: Mock工具
     /// - spyOn: 间谍函数
     public static func createTestModule(globalObject: JSGlobalObject): ?JsValue {
-        let module = JsValue.createEmptyObject(global: globalObject, propertyCount: 23)
+        let module = JsValue.createEmptyObject(globalObject, 23)
 
         // test/it - 测试函数
         let testScopeFunctions = ScopeFunctions.createBound(
@@ -221,8 +221,8 @@ public class Jest {
             cfg: BaseScopeCfg(),
             name: "test"
         )
-        module.put(global: globalObject, name: "test", value: testScopeFunctions)
-        module.put(global: globalObject, name: "it", value: testScopeFunctions)
+        module.put(globalObject, "test", testScopeFunctions)
+        module.put(globalObject, "it", testScopeFunctions)
 
         // xtest/xit - 跳过的测试函数
         let xtestScopeFunctions = ScopeFunctions.createBound(
@@ -232,8 +232,8 @@ public class Jest {
             cfg: BaseScopeCfg(selfMode: ScopeMode.skip),
             name: "xtest"
         )
-        module.put(global: globalObject, name: "xtest", value: xtestScopeFunctions)
-        module.put(global: globalObject, name: "xit", value: xtestScopeFunctions)
+        module.put(globalObject, "xtest", xtestScopeFunctions)
+        module.put(globalObject, "xit", xtestScopeFunctions)
 
         // describe - 描述块
         let describeScopeFunctions = ScopeFunctions.createBound(
@@ -243,7 +243,7 @@ public class Jest {
             cfg: BaseScopeCfg(),
             name: "describe"
         )
-        module.put(global: globalObject, name: "describe", value: describeScopeFunctions)
+        module.put(globalObject, "describe", describeScopeFunctions)
 
         // xdescribe - 跳过的描述块
         let xdescribeScopeFunctions = ScopeFunctions.createBound(
@@ -253,27 +253,27 @@ public class Jest {
             cfg: BaseScopeCfg(selfMode: ScopeMode.skip),
             name: "xdescribe"
         )
-        module.put(global: globalObject, name: "xdescribe", value: xdescribeScopeFunctions)
+        module.put(globalObject, "xdescribe", xdescribeScopeFunctions)
 
         // 生命周期钩子
-        module.put(global: globalObject, name: "beforeEach",
-            value: JSFunction.create(globalObject, "beforeEach", GenericHookTag.beforeEach.hostFn, 1, JSFunctionCreateOptions()))
-        module.put(global: globalObject, name: "beforeAll",
-            value: JSFunction.create(globalObject, "beforeAll", GenericHookTag.beforeAll.hostFn, 1, JSFunctionCreateOptions()))
-        module.put(global: globalObject, name: "afterAll",
-            value: JSFunction.create(globalObject, "afterAll", GenericHookTag.afterAll.hostFn, 1, JSFunctionCreateOptions()))
-        module.put(global: globalObject, name: "afterEach",
-            value: JSFunction.create(globalObject, "afterEach", GenericHookTag.afterEach.hostFn, 1, JSFunctionCreateOptions()))
-        module.put(global: globalObject, name: "onTestFinished",
-            value: JSFunction.create(globalObject, "onTestFinished", GenericHookTag.onTestFinished.hostFn, 1, JSFunctionCreateOptions()))
-        module.put(global: globalObject, name: "setDefaultTimeout",
-            value: JSFunction.create(globalObject, "setDefaultTimeout", Jest.jsSetDefaultTimeout, 1, JSFunctionCreateOptions()))
+        module.put(globalObject, "beforeEach",
+            JSFunction.create(globalObject, "beforeEach", GenericHookTag.beforeEach.hostFn, 1, JSFunctionCreateOptions()))
+        module.put(globalObject, "beforeAll",
+            JSFunction.create(globalObject, "beforeAll", GenericHookTag.beforeAll.hostFn, 1, JSFunctionCreateOptions()))
+        module.put(globalObject, "afterAll",
+            JSFunction.create(globalObject, "afterAll", GenericHookTag.afterAll.hostFn, 1, JSFunctionCreateOptions()))
+        module.put(globalObject, "afterEach",
+            JSFunction.create(globalObject, "afterEach", GenericHookTag.afterEach.hostFn, 1, JSFunctionCreateOptions()))
+        module.put(globalObject, "onTestFinished",
+            JSFunction.create(globalObject, "onTestFinished", GenericHookTag.onTestFinished.hostFn, 1, JSFunctionCreateOptions()))
+        module.put(globalObject, "setDefaultTimeout",
+            JSFunction.create(globalObject, "setDefaultTimeout", Jest.jsSetDefaultTimeout, 1, JSFunctionCreateOptions()))
 
         // expect/expectTypeOf - 断言
-        module.put(global: globalObject, name: "expect",
-            value: Expect.getConstructor(global: globalObject))
-        module.put(global: globalObject, name: "expectTypeOf",
-            value: ExpectTypeOf.getConstructor(global: globalObject))
+        module.put(globalObject, "expect",
+            Expect.getConstructor(global: globalObject))
+        module.put(globalObject, "expectTypeOf",
+            ExpectTypeOf.getConstructor(global: globalObject))
 
         // 创建mock对象
         createMockObjects(globalObject, module: module)
@@ -298,39 +298,39 @@ public class Jest {
         let clearAllMocks = JSFunction.create(globalObject, "clearAllMocks", JSMock.jsClearAllMocks, 2, JSFunctionCreateOptions())
         let mockModuleFn = JSFunction.create(globalObject, "module", JSMock.jsModuleMock, 2, JSFunctionCreateOptions())
 
-        module.put(global: globalObject, name: "mock", value: mockFn)
-        mockFn.put(global: globalObject, name: "module", value: mockModuleFn)
-        mockFn.put(global: globalObject, name: "restore", value: restoreAllMocks)
-        mockFn.put(global: globalObject, name: "clearAllMocks", value: clearAllMocks)
+        module.put(globalObject, "mock", mockFn)
+        mockFn.put(globalObject, "module", mockModuleFn)
+        mockFn.put(globalObject, "restore", restoreAllMocks)
+        mockFn.put(globalObject, "clearAllMocks", clearAllMocks)
 
         // jest对象
-        let jest = JsValue.createEmptyObject(global: globalObject, propertyCount: 9 + FakeTimers.timerFnsCount)
-        jest.put(global: globalObject, name: "fn", value: mockFn)
-        jest.put(global: globalObject, name: "mock", value: mockModuleFn)
-        jest.put(global: globalObject, name: "spyOn", value: spyOn)
-        jest.put(global: globalObject, name: "restoreAllMocks", value: restoreAllMocks)
-        jest.put(global: globalObject, name: "clearAllMocks", value: clearAllMocks)
-        jest.put(global: globalObject, name: "resetAllMocks", value: clearAllMocks)
-        jest.put(global: globalObject, name: "setSystemTime", value: setSystemTime)
-        jest.put(global: globalObject, name: "now",
-            value: JSFunction.create(globalObject, "now", JSMock.jsNow, 0, JSFunctionCreateOptions()))
-        jest.put(global: globalObject, name: "setTimeout",
-            value: JSFunction.create(globalObject, "setTimeout", Jest.jsSetDefaultTimeout, 1, JSFunctionCreateOptions()))
+        let jest = JsValue.createEmptyObject(globalObject, 9 + FakeTimers.timerFnsCount)
+        jest.put(globalObject, "fn", mockFn)
+        jest.put(globalObject, "mock", mockModuleFn)
+        jest.put(globalObject, "spyOn", spyOn)
+        jest.put(globalObject, "restoreAllMocks", restoreAllMocks)
+        jest.put(globalObject, "clearAllMocks", clearAllMocks)
+        jest.put(globalObject, "resetAllMocks", clearAllMocks)
+        jest.put(globalObject, "setSystemTime", setSystemTime)
+        jest.put(globalObject, "now",
+            JSFunction.create(globalObject, "now", JSMock.jsNow, 0, JSFunctionCreateOptions()))
+        jest.put(globalObject, "setTimeout",
+            JSFunction.create(globalObject, "setTimeout", Jest.jsSetDefaultTimeout, 1, JSFunctionCreateOptions()))
 
-        module.put(global: globalObject, name: "jest", value: jest)
-        module.put(global: globalObject, name: "spyOn", value: spyOn)
-        module.put(global: globalObject, name: "expect",
-            value: Expect.getConstructor(global: globalObject))
+        module.put(globalObject, "jest", jest)
+        module.put(globalObject, "spyOn", spyOn)
+        module.put(globalObject, "expect",
+            Expect.getConstructor(global: globalObject))
 
         // vi对象 (Vitest兼容)
-        let vi = JsValue.createEmptyObject(global: globalObject, propertyCount: 6 + FakeTimers.timerFnsCount)
-        vi.put(global: globalObject, name: "fn", value: mockFn)
-        vi.put(global: globalObject, name: "mock", value: mockModuleFn)
-        vi.put(global: globalObject, name: "spyOn", value: spyOn)
-        vi.put(global: globalObject, name: "restoreAllMocks", value: restoreAllMocks)
-        vi.put(global: globalObject, name: "resetAllMocks", value: clearAllMocks)
-        vi.put(global: globalObject, name: "clearAllMocks", value: clearAllMocks)
-        module.put(global: globalObject, name: "vi", value: vi)
+        let vi = JsValue.createEmptyObject(globalObject, 6 + FakeTimers.timerFnsCount)
+        vi.put(globalObject, "fn", mockFn)
+        vi.put(globalObject, "mock", mockModuleFn)
+        vi.put(globalObject, "spyOn", spyOn)
+        vi.put(globalObject, "restoreAllMocks", restoreAllMocks)
+        vi.put(globalObject, "resetAllMocks", clearAllMocks)
+        vi.put(globalObject, "clearAllMocks", clearAllMocks)
+        module.put(globalObject, "vi", vi)
 
         // 添加假定时器函数到jest和vi对象
         FakeTimers.putTimersFns(globalObject, jest: jest, vi: vi)
@@ -380,7 +380,7 @@ public class Jest {
             testRunner.defaultTimeoutOverride = timeoutMs
         }
 
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 }
 
@@ -667,7 +667,7 @@ public func errorInCI(globalObject!: JSGlobalObject, message!: String): ?JsValue
         globalObject.`throw`(message: (message) + "\nTo override, set the environment variable CI=false.")
         return None
     }
-    return JsValue.jsUndefined
+    return JsValue.jsUndefined()
 }
 
 /// TestOptions桩

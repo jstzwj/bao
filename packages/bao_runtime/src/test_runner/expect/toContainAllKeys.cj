@@ -31,17 +31,17 @@ public func toContainAllKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     let not = this.flags.not
     var pass = false
 
-    let count = expected.getLength(globalThis: globalThis)
+    let count = expected.getLength(globalThis)
 
     let keys = value.keys(globalThis: globalThis)
-    if (keys.getLength(globalThis: globalThis) == count) {
-        var itr = keys.arrayIterator(globalThis: globalThis)
+    if (keys.getLength(globalThis) == count) {
+        var itr = keys.arrayIterator(globalThis)
         var allMatch = true
         while (let Some(item) <- itr.next()) {
             var i: UInt32 = 0
             var found = false
             while (i < count) {
-                let key = expected.getIndex(globalThis: globalThis, index: i)
+                let key = expected.getIndex(globalThis, i)
                 if (item.jestDeepEquals(key, globalThis: globalThis)) {
                     found = true
                     break
@@ -62,7 +62,7 @@ public func toContainAllKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     if (pass) { return thisValue }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let keysFmt = keys.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

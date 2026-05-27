@@ -18,10 +18,10 @@ public func toBeNull(`this`: Expect, globalThis: JSGlobalObject, callFrame: Call
     let not = this.flags.not
     var pass = value.isNull()
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     if (not) {

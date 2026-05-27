@@ -29,7 +29,7 @@ public func toContainValue(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     if (!value.isUndefinedOrNull()) {
         let values = value.values(globalThis: globalThis)
-        var itr = values.arrayIterator(globalThis: globalThis)
+        var itr = values.arrayIterator(globalThis)
         while (let Some(item) <- itr.next()) {
             if (item.jestDeepEquals(expected, globalThis: globalThis)) {
                 pass = true
@@ -42,7 +42,7 @@ public func toContainValue(`this`: Expect, globalThis: JSGlobalObject, callFrame
     if (pass) { return thisValue }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

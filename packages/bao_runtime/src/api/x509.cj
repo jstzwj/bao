@@ -21,7 +21,10 @@ public class X509Jsc {
     public static func isSafeAltName(name: String, utf8: Bool): Bool {
         for (c in name) {
             match (c) {
-                case '"', '\\', ',', '\'' => return false
+                case '"' => return false
+                case '\\' => return false
+                case ',' => return false
+                case '\'' => return false
                 case _ =>
                     if (utf8) {
                         if (c < ' ' || c == '\u{7f}') { return false }

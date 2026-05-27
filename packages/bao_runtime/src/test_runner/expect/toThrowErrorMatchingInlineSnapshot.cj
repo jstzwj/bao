@@ -30,7 +30,7 @@ public func toThrowErrorMatchingInlineSnapshot(`this`: Expect, globalThis: JSGlo
     } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
             hasExpected = true
-            arguments[0].toZigString(result: expectedString, globalThis: globalThis)
+            arguments[0].toZigString(expectedString, globalThis)
         } else {
             return this.throw_(globalThis: globalThis, signature: "",
                 fmt: "\n\nMatcher error: Expected first argument to be a string\n", args: [])

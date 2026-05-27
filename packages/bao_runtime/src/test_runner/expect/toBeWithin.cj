@@ -42,9 +42,9 @@ public func toBeWithin(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let startFmt = startValue.toFmt(formatter)
     let endFmt = endValue.toFmt(formatter)

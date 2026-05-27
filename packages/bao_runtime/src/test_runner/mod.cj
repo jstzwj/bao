@@ -24,6 +24,17 @@ extend JSGlobalObject {
         return JsValue.jsUndefined()
     }
 
+    /// 抛出错误 - 带 args 格式化（stub）
+    public func throw_(message: String, args!: Array<Any>): JsValue {
+        var result = message
+        for (arg in args) {
+            result = result.replace("{f}", arg.toString())
+        }
+        result = result.replace("{}", "")
+        throwError(result)
+        return JsValue.jsUndefined()
+    }
+
     /// 抛出带格式化的错误
     public func throwPretty(fmt: String, args: ArrayList<Any>): JsValue {
         let message = ConsoleObject.prettyFmt(fmt, false)
@@ -57,6 +68,15 @@ extend ConsoleFormatter {
 public class ConsoleFormatterExtensions {
     public static func formatValue(formatter: ConsoleFormatter, value: JsValue, global: JsObject): String {
         return formatter.formatValue(value, global)
+    }
+}
+
+// ========== ConsoleFormatter 扩展 - 便捷格式化方法 ==========
+
+extend ConsoleFormatter {
+    /// 单参数格式化（stub：委托给 formatValue）
+    public func format(value: JsValue): String {
+        return formatValue(value, globalThis)
     }
 }
 
@@ -238,16 +258,16 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
     if (not) {
         let signature = Expect.getSignature(name, "<green>expected<r>", true)
         expect.postMatch(global)
-        return expect.throw_(global, signature,
-            "\n\nExpected: not " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
-            [expectedFmt, valueFmt])
+        return expect.throw_(globalThis: global, signature: signature,
+            fmt: "\n\nExpected: not " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
+            args: [expectedFmt, valueFmt])
     }
 
     let signature = Expect.getSignature(name, "<green>expected<r>", false)
     expect.postMatch(global)
-    return expect.throw_(global, signature,
-        "\n\nExpected: " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
-        [expectedFmt, valueFmt])
+    return expect.throw_(globalThis: global, signature: signature,
+        fmt: "\n\nExpected: " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
+        args: [expectedFmt, valueFmt])
 }
 
 // ========== 一元谓词匹配器工具 ==========
@@ -286,16 +306,16 @@ public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame:
     if (not) {
         let signature = Expect.getSignature(matcherName, "", true)
         expect.postMatch(global)
-        return expect.throw_(global, signature,
-            "\n\nExpected: not {f}\nReceived: <red>{f}<r>\n",
-            [received, received])
+        return expect.throw_(globalThis: global, signature: signature,
+            fmt: "\n\nExpected: not {f}\nReceived: <red>{f}<r>\n",
+            args: [received, received])
     }
 
     let signature = Expect.getSignature(matcherName, "", false)
     expect.postMatch(global)
-    return expect.throw_(global, signature,
-        "\n\nReceived: <red>{f}<r>\n",
-        [received])
+    return expect.throw_(globalThis: global, signature: signature,
+        fmt: "\n\nReceived: <red>{f}<r>\n",
+        args: [received])
 }
 
 // ========== Formatter 扩展 ==========
@@ -367,5 +387,19 @@ public class MockResultIterator {
         let item = returnValues.getIndex(globalThis, UInt32(index))
         index += 1
         return item
+    }
+}
+
+// ========== String 扩展 - test_runner 所需的 toSlice (stub) ==========
+
+extend String {
+    /// 将 String 转为切片（stub，在 Cangjie 中 String 本身就是值类型）
+    public func toSlice(allocator!: Any): String {
+        this
+    }
+
+    /// 将 String 转为切片（stub，带 global 参数）
+    public func toSlice(global!: JsObject): String {
+        this
     }
 }

@@ -49,7 +49,7 @@ public enum PaddingStrategy {
 // 帧类型
 // ============================================================================
 
-public enum FrameType <: UInt8 {
+public enum FrameType {
     | data(UInt8)
     | headers(UInt8)
     | priority(UInt8)
@@ -103,7 +103,7 @@ public enum FrameType <: UInt8 {
 // Ping 帧标志
 // ============================================================================
 
-public enum PingFrameFlags <: UInt8 {
+public enum PingFrameFlags {
     | ack
 }
 
@@ -111,7 +111,7 @@ public enum PingFrameFlags <: UInt8 {
 // Data 帧标志
 // ============================================================================
 
-public enum DataFrameFlags <: UInt8 {
+public enum DataFrameFlags {
     | endStream
     | padded
 }
@@ -120,7 +120,7 @@ public enum DataFrameFlags <: UInt8 {
 // Headers 帧标志
 // ============================================================================
 
-public enum HeadersFrameFlags <: UInt8 {
+public enum HeadersFrameFlags {
     | endStream
     | endHeaders
     | padded
@@ -131,7 +131,7 @@ public enum HeadersFrameFlags <: UInt8 {
 // Settings 帧标志
 // ============================================================================
 
-public enum SettingsFlags <: UInt8 {
+public enum SettingsFlags {
     | ack
 }
 
@@ -493,7 +493,7 @@ public enum FlushState {
 // StreamState — 流状态
 // ============================================================================
 
-public enum StreamState <: UInt8 {
+public enum StreamState {
     | idle
     | reservedLocal
     | reservedRemote

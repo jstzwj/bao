@@ -240,6 +240,18 @@ public enum JSPromiseStatus {
     | Pending
     | Fulfilled
     | Rejected
+
+    public operator func ==(right: JSPromiseStatus): Bool {
+        match (this) {
+            case Pending => match(right) { case Pending => true case _ => false }
+            case Fulfilled => match(right) { case Fulfilled => true case _ => false }
+            case Rejected => match(right) { case Rejected => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: JSPromiseStatus): Bool {
+        !(this == right)
+    }
 }
 
 // ========== JsPromiseUnwrapped ==========

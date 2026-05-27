@@ -67,7 +67,7 @@ public enum Stdio {
         }
 
         public func throwJS(globalThis: JsGlobalObject): JsValue {
-            return globalThis.`throw`("\{this.toStr()}")
+            return globalThis.`throw`("${this.toStr()}")
         }
     }
 
@@ -112,7 +112,8 @@ public enum Stdio {
 
         return match (this) {
             case blob => !this.blob.needsToReadFile()
-            case memfd, .array_buffer => true
+            case memfd => true
+            case .array_buffer => true
             case pipe => isSync && !hasMaxBuffer
             else => false
         }
@@ -144,7 +145,7 @@ public enum Stdio {
             match (Sys.pwrite(fd, remain, written)) {
                 case err(err) =>
                     if (err.getErrno() == AGAIN) { continue }
-                    Output.debugWarn("Failed to write to memfd: \{err.getErrno()}")
+                    Output.debugWarn("Failed to write to memfd: ${err.getErrno()}")
                     fd.close()
                     return false
                 case result(result) =>
@@ -186,7 +187,11 @@ public enum Stdio {
                                             if (i == 1 || i == 2) {
                                                 return Result.err(.stdin_used_as_out)
                                             }
-                                        case std_out, .std_err =>
+                                        case std_out =>
+                                            if (i == 0) {
+                                                return Result.err(.out_used_as_stdin)
+                                            }
+                                        case std_err =>
                                             if (i == 0) {
                                                 return Result.err(.out_used_as_stdin)
                                             }
@@ -202,7 +207,10 @@ public enum Stdio {
                     }
                     return SpawnOptionsStdio.buffer()
                 case dup2(dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
-                case capture, .pipe, .array_buffer, .readable_stream => SpawnOptionsStdio.buffer()
+                case capture => SpawnOptionsStdio.buffer()
+                case .pipe => SpawnOptionsStdio.buffer()
+                case .array_buffer => SpawnOptionsStdio.buffer()
+                case .readable_stream => SpawnOptionsStdio.buffer()
                 case ipc => SpawnOptionsStdio.ipc()
                 case fd(fd) => SpawnOptionsStdio.pipe(fd)
                 case memfd(fd) => SpawnOptionsStdio.pipe(fd)
@@ -231,7 +239,11 @@ public enum Stdio {
                                             if (i == 1 || i == 2) {
                                                 return Result.err(.stdin_used_as_out)
                                             }
-                                        case std_out, .std_err =>
+                                        case std_out =>
+                                            if (i == 0) {
+                                                return Result.err(.out_used_as_stdin)
+                                            }
+                                        case std_err =>
                                             if (i == 0) {
                                                 return Result.err(.out_used_as_stdin)
                                             }
@@ -247,7 +259,10 @@ public enum Stdio {
                     }
                     return SpawnOptionsStdio.buffer(createZeroedPipe())
                 case ipc => SpawnOptionsStdio.ipc(createZeroedPipe())
-                case capture, .pipe, .array_buffer, .readable_stream => SpawnOptionsStdio.buffer(createZeroedPipe())
+                case capture => SpawnOptionsStdio.buffer(createZeroedPipe())
+                case .pipe => SpawnOptionsStdio.buffer(createZeroedPipe())
+                case .array_buffer => SpawnOptionsStdio.buffer(createZeroedPipe())
+                case .readable_stream => SpawnOptionsStdio.buffer(createZeroedPipe())
                 case fd(fd) => SpawnOptionsStdio.pipe(fd)
                 case dup2(dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
                 case path(pathlike) => SpawnOptionsStdio.path(pathlike.slice())
@@ -278,7 +293,11 @@ public enum Stdio {
     /// 是否使用管道
     public func isPiped(): Bool {
         return match (this) {
-            case capture, .array_buffer, .blob, .pipe, .readable_stream => true
+            case capture => true
+            case .array_buffer => true
+            case .blob => true
+            case .pipe => true
+            case .readable_stream => true
             case ipc => Environment.isWindows
             else => false
         }
@@ -319,7 +338,7 @@ public enum Stdio {
             }
 
             if (fileFd >= Int32.maxValue) {
-                return globalThis.throwInvalidArguments("file descriptor must be a valid integer, received: \{value}")
+                return globalThis.throwInvalidArguments("file descriptor must be a valid integer, received: ${value}")
             }
 
             if (let tag <- fd.stdioTag()) {
@@ -330,7 +349,18 @@ public enum Stdio {
                         }
                         outStdio = Stdio.inherit()
                         return
-                    case std_out, .std_err =>
+                    case std_out =>
+                        if (i == 0) {
+                            return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
+                        }
+                        if (i == 1 && tag == std_out) {
+                            outStdio = Stdio.inherit()
+                            return
+                        } else if (i == 2 && tag == std_err) {
+                            outStdio = Stdio.inherit()
+                            return
+                        }
+                    case std_err =>
                         if (i == 0) {
                             return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
                         }
@@ -367,11 +397,11 @@ public enum Stdio {
             }
 
             if (isSync) {
-                return globalThis.throwInvalidArguments("'\{name}' ReadableStream cannot be used in sync mode")
+                return globalThis.throwInvalidArguments("'${name}' ReadableStream cannot be used in sync mode")
             }
 
             if (stream.isDisturbed(globalThis)) {
-                return globalThis.ERR(.INVALID_STATE, "'\{name}' ReadableStream has already been used").`throw`()
+                return globalThis.ERR(.INVALID_STATE, "'${name}' ReadableStream has already been used").`throw`()
             }
             outStdio = Stdio.readable_stream(stream)
             return
@@ -409,7 +439,11 @@ public enum Stdio {
                                     if (i == 1 || i == 2) {
                                         return globalThis.throwInvalidArguments("stdin cannot be used for stdout or stderr")
                                     }
-                                case std_out, .std_err =>
+                                case std_out =>
+                                    if (i == 0) {
+                                        return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
+                                    }
+                                case std_err =>
                                     if (i == 0) {
                                         return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
                                     }
@@ -446,14 +480,19 @@ public enum Stdio {
         }
 
         match (body) {
-            case Null, .Empty =>
+            case Null =>
+                outStdio = Stdio.ignore()
+                return
+            case .Empty =>
                 outStdio = Stdio.ignore()
                 return
             case Used =>
                 return globalThis.ERR(.BODY_ALREADY_USED, "Body already used").`throw`()
             case Error =>
                 return globalThis.throwValue(body.Error.toJS(globalThis))
-            case Blob, .WTFStringImpl, .InternalBlob => unreachable // 上面已处理
+            case Blob => unreachable // 上面已处理
+            case .WTFStringImpl => unreachable
+            case .InternalBlob => unreachable
             case Locked =>
                 if (isSync) {
                     return globalThis.throwInvalidArguments("ReadableStream cannot be used in sync mode")

@@ -44,12 +44,12 @@ public class ScriptExecutionContextIdentifier {
     /// 获取 Bun VM 指针
     /// 对应 Bun: Identifier.bunVM() -> ?*VirtualMachine
     ///   定义在 bun_jsc 中
-    public func bunVM(): ?VirtualMachine {
+    public func bunVM(): ?BunVirtualMachine {
         let global = globalObject()
-        match (global) {
-            case Some(g) => return g.bunVM()
-            case None => return None
+        if (global.isSome()) {
+            return Some(global.getOrThrow().bunVM())
         }
+        return None
     }
 
     /// 是否有效 (上下文是否仍存活)
@@ -79,12 +79,8 @@ public class IdentifierExt {
     /// 对应 Bun: fn bun_vm_ref(self) -> Option<&'static VirtualMachine>
     ///   SAFETY: the VM outlives all ScriptExecutionContexts it owns; pointer is
     ///   non-null when global_object() is Some.
-    public static func bunVMRef(identifier: ScriptExecutionContextIdentifier): ?VirtualMachine {
-        let vmPtr = identifier.bunVM()
-        match (vmPtr) {
-            case Some(vm) => return vm  // VM outlives all contexts
-            case None => return None
-        }
+    public static func bunVMRef(identifier: ScriptExecutionContextIdentifier): ?BunVirtualMachine {
+        return identifier.bunVM()
     }
 
     /// 检查标识符是否有效

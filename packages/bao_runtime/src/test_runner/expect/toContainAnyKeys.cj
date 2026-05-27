@@ -31,12 +31,12 @@ public func toContainAnyKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     let not = this.flags.not
     var pass = false
 
-    let count = expected.getLength(globalThis: globalThis)
+    let count = expected.getLength(globalThis)
 
     if (value.isObject()) {
         var i: UInt32 = 0
         while (i < count) {
-            let key = expected.getIndex(globalThis: globalThis, index: i)
+            let key = expected.getIndex(globalThis, i)
 
             if (value.hasOwnPropertyValue(globalThis: globalThis, key: key)) {
                 pass = true
@@ -50,7 +50,7 @@ public func toContainAnyKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     if (pass) { return thisValue }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

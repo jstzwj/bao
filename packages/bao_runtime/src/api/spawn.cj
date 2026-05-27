@@ -12,11 +12,11 @@ import bao_sys.*
 // ============================================================================
 
 /// 文件操作动作
-public enum FileActionType: UInt8 {
-    | none = 0
-    case close = 1
-    case dup2 = 2
-    case open = 3
+public enum FileActionType {
+    | none
+    | close
+    | dup2
+    | open
 }
 
 /// 单个文件操作
@@ -457,7 +457,7 @@ public class BunSpawnRequest {
 
         let rc = posix_spawn_bun(pid, path, req, argv, envp)
         if (Environment.allow_assert) {
-            Sys.syslog("posix_spawn_bun(\{argv[0] ?? ""}) = \{rc} (\{pid})")
+            Sys.syslog("posix_spawn_bun(${argv[0] ?? ""}) = ${rc} (${pid})")
         }
 
         if (rc == 0) {

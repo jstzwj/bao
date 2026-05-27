@@ -465,9 +465,10 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
         // Metafile
         if (let Some(metafile) <- build.metafile) {
             let metafileJsStr = createUtf8ForJs(globalThis, metafile)
-            let metafileMdStr = match (build.metafileMarkdown) {
-                case Some(md) => createUtf8ForJs(globalThis, md)
-                case None => JsValue.undefined,
+            let metafileMdStr = if (let Some(md) <- build.metafileMarkdown) {
+                createUtf8ForJs(globalThis, md)
+            } else {
+                JsValue.undefined
             }
             setupLazyMetafile(globalThis, buildOutput, metafileJsStr, metafileMdStr)
         }

@@ -27,13 +27,13 @@ public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         return globalThis.throw_("toSatisfy() argument must be a function")
     }
 
-    let value = Expect.js.capturedValueGetCached(thisValue)
+    let value = capturedValueGetCached(thisValue)
     if (value.isNone()) {
         return globalThis.throw_("Internal consistency error: the expect(value) was garbage collected but it should not have been!")
     }
     value.ensureStillAlive()
 
-    let result = predicate.callWithCatch(globalThis: globalThis, thisValue: JsValue.jsUndefined, args: [value])
+    let result = predicate.callWithCatch(globalThis: globalThis, thisValue: JsValue.jsUndefined(), [value])
     if (let Some(e) <- result.exception) {
         let fmt = ZigString("toSatisfy() predicate threw an exception")
         return globalThis.throwValue(globalThis.createAggregateError(errors: [e], message: fmt))
@@ -42,9 +42,9 @@ public func toSatisfy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     let not = this.flags.not
     let pass = (result.value.isBoolean() && result.value.toBoolean()) != not
 
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     if (not) {

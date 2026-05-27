@@ -23,17 +23,17 @@ public func toBeEmpty(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         // defer { s.deinit() }
         pass = s.slice().size == 0
     } else if (value.jsType().isArray()) {
-        pass = value.getLength(globalThis: globalThis) == 0
+        pass = value.getLength(globalThis) == 0
     } else if (value.isObject()) {
-        pass = value.getLength(globalThis: globalThis) == 0
+        pass = value.getLength(globalThis) == 0
     } else {
         pass = value.isUndefinedOrNull()
     }
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 

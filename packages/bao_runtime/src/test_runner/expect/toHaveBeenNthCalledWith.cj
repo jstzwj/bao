@@ -18,7 +18,7 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenNthCalledWith", args: "<green>n<r>, <green>...expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
@@ -36,22 +36,22 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
     }
     let nthCallNum: UInt32 = UInt32(nthCallNumI32)
 
-    let totalCalls: UInt32 = calls.getLength(globalThis: globalThis)
+    let totalCalls: UInt32 = calls.getLength(globalThis)
     var pass = totalCalls >= nthCallNum
     var nthCallValue: JsValue = JsValue.zero
 
     if (pass) {
-        nthCallValue = calls.getIndex(globalThis: globalThis, index: nthCallNum - 1)
+        nthCallValue = calls.getIndex(globalThis, nthCallNum - 1)
         let expectedArgs = arguments.slice(from: 1)
 
         if (!nthCallValue.jsType().isArray()) {
             return globalThis.throw_("Internal error: expected mock call item to be an array of arguments.")
         }
 
-        if (nthCallValue.getLength(globalThis: globalThis) != expectedArgs.size) {
+        if (nthCallValue.getLength(globalThis) != expectedArgs.size) {
             pass = false
         } else {
-            var itr = nthCallValue.arrayIterator(globalThis: globalThis)
+            var itr = nthCallValue.arrayIterator(globalThis)
             while (let Some(callArg) <- itr.next()) {
                 if (!callArg.jestDeepEquals(expectedArgs[itr.i - 1], globalThis: globalThis) ){
                     pass = false
@@ -62,11 +62,11 @@ public func toHaveBeenNthCalledWith(`this`: Expect, globalThis: JSGlobalObject, 
     }
 
     if (pass != this.flags.not) {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let expectedArgsSlice = arguments.slice(from: 1)

@@ -30,7 +30,7 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
     let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqualIgnoringWhitespace", matcherParamsFmt: "<green>expected<r>")
 
     if (!value.isString()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return globalThis.throw_("Received value must be a string: {f}", args: [value.toFmt(formatter)])
     }
@@ -48,9 +48,9 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
     var pass = strings.eql(normalizedValue, normalizedExpected)
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

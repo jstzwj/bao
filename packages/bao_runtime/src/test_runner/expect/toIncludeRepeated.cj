@@ -36,7 +36,7 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
 
     let countAsNum = count.toU32()
 
-    let expectStringOpt = Expect.js.capturedValueGetCached(thisValue)
+    let expectStringOpt = capturedValueGetCached(thisValue)
     if (expectStringOpt.isNone()) {
         return globalThis.throw_("Internal consistency error: the expect(value) was garbage collected but it should not have been!")
     }
@@ -62,9 +62,9 @@ public func toIncludeRepeated(`this`: Expect, globalThis: JSGlobalObject, callFr
     pass = actualCount == countAsNum
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let expectStringFmt = expectString.toFmt(formatter)
     let substringFmt = substring.toFmt(formatter)

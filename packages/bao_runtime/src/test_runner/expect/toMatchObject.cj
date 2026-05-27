@@ -45,7 +45,7 @@ public func toMatchObject(`this`: Expect, globalThis: JSGlobalObject, callFrame:
     var pass = receivedObject.jestDeepMatch(propertyMatchers, globalThis: globalThis, partial: true)
 
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
     let diffFormatter = DiffFormatter(received: receivedObject, expected: propertyMatchers, globalThis: globalThis, not: not)

@@ -65,7 +65,13 @@ public func arrayBufferToString(globalThis: JsGlobalObject, callframe: JsCallFra
 
     let arrayBuffer = ArrayBuffer.fromTypedArray(globalThis, args[0])
     match (arrayBuffer.typed_array_type) {
-        case Uint16Array, .Int16Array =>
+        case Uint16Array =>
+            var zigStr = ZigString("")
+            zigStr._unsafe_ptr_do_not_use = arrayBuffer.ptr
+            zigStr.len = arrayBuffer.len
+            zigStr.markUTF16()
+            return zigStr.toJS(globalThis)
+        case .Int16Array =>
             var zigStr = ZigString("")
             zigStr._unsafe_ptr_do_not_use = arrayBuffer.ptr
             zigStr.len = arrayBuffer.len

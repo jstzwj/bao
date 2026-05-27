@@ -22,17 +22,17 @@ public func toHaveBeenCalled(`this`: Expect, globalThis: JSGlobalObject, callFra
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     this.incrementExpectCallCounter()
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
-    let callsLength = calls.getLength(globalThis: globalThis)
+    let callsLength = calls.getLength(globalThis)
     var pass = callsLength > 0
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
     if (not) {

@@ -6,6 +6,22 @@ package bao_cli.commands
 import bao_core.*
 import bao_collections.*
 
+/// Byte type alias
+public type Byte = UInt8
+
+/// BAO_VERSION - version constant for CLI output
+public let BAO_VERSION = "0.1.0"
+
+/// Global - global constants and utilities
+public class Global {
+    public static let packageJsonVersion = "0.1.0"
+    public static let packageJsonVersionWithSha = "0.1.0"
+    public static let packageJsonVersionWithRevision = "0.1.0"
+    public static let userAgent = "bao/0.1.0"
+    public static let osName = "linux"
+    public static let archName = "x64"
+}
+
 // ============================================================================
 // Logger - CLI logging utility
 // ============================================================================
@@ -189,9 +205,43 @@ public class JsonParser {
 
 /// 包管理器 stub
 public class PackageManager {
-    public init() {}
+    public var options: PackageManagerOptions
+    public var originalPackageJsonPath: String
+    public init() {
+        options = PackageManagerOptions()
+        originalPackageJsonPath = ""
+    }
     public func install(ctx: CommandContext): Unit {}
     public func addPackage(ctx: CommandContext, name: String, version: String): Unit {}
+}
+
+public class CommandLineArguments {
+    public static func parseForPublish(opts: PublishOptions): CommandLineArguments {
+        return CommandLineArguments()
+    }
+
+    public static func initForPublish(cli: CommandLineArguments): ?Tuple<PackageManager, String> {
+        return Some((PackageManager(), "."))
+    }
+}
+
+/// PackageManager options stub
+public class PackageManagerOptions {
+    public var logLevel: Int64
+    public var publishConfig: PublishConfig
+
+    public init() {
+        logLevel = 0
+        publishConfig = PublishConfig()
+    }
+}
+
+/// PublishConfig stub
+public class PublishConfig {
+    public var access: ?AccessLevel
+    public init() {
+        access = None
+    }
 }
 
 // ============================================================================
@@ -203,28 +253,39 @@ public class CommandContext {
     public init() {}
 }
 
+/// Tuple2 - simple pair
+public class Tuple2<A, B> {
+    public var _0: A
+    public var _1: B
+
+    public init(a: A, b: B) {
+        _0 = a
+        _1 = b
+    }
+}
+
 /// JSON 对象构建器
 public class JsonObject {
-    private var entries: ArrayList<Tuple<String, String>>
+    private var entries: ArrayList<Tuple2<String, String>>
 
     public init() {
-        entries = ArrayList<Tuple<String, String>>()
+        entries = ArrayList<Tuple2<String, String>>()
     }
 
     public func setString(key: String, value: String): Unit {
-        entries.append(Tuple(key, "\"${value}\""))
+        entries.append(Tuple2(key, "\"${value}\""))
     }
 
     public func setBool(key: String, value: Bool): Unit {
-        entries.append(Tuple(key, "${value}"))
+        entries.append(Tuple2(key, "${value}"))
     }
 
     public func setObject(key: String, obj: JsonObject): Unit {
-        entries.append(Tuple(key, obj.serialize()))
+        entries.append(Tuple2(key, obj.serialize()))
     }
 
     public func setNumber(key: String, value: Int64): Unit {
-        entries.append(Tuple(key, "${value}"))
+        entries.append(Tuple2(key, "${value}"))
     }
 
     public func serialize(): String {
@@ -278,4 +339,46 @@ public func bytesToString(bytes: Array<UInt8>): String {
         arr.append(b)
     }
     return String.fromUtf8(arr.items())
+}
+
+// ============================================================================
+// Process - stub for subprocess execution
+// Used by x.cj, patch_command.cj, run_command.cj, upgrade.cj, publish_command.cj
+// ============================================================================
+
+public class Process {
+    /// spawn - run a command and return exit code
+    public static func `spawn`(args: Array<String>, cwd: String): Int64 {
+        return 0
+    }
+
+    /// exec - run a command and return result
+    public static func exec(args: Array<String>, cwd: String): String {
+        return ""
+    }
+
+    /// spawnWithOutput - run a command and capture output
+    public static func `spawnWithOutput`(args: Array<String>, cwd: String): String {
+        return ""
+    }
+
+    /// spawnWithEnv - run a command with custom environment
+    public static func spawnWithEnv(exe: String, args: Array<String>, env: Array<String>, cwd: String): Int64 {
+        return 0
+    }
+}
+
+// ============================================================================
+// SysProcess - stub for system process operations
+// Used by pack_command.cj, run_command.cj
+// ============================================================================
+
+public class SysProcess {
+    public static func runShell(script: String, cwd: String): Int64 {
+        return 0
+    }
+
+    public static func run(command: String, args: ArrayList<String>): Int64 {
+        return 0
+    }
 }

@@ -32,16 +32,16 @@ public func toContainAllValues(`this`: Expect, globalThis: JSGlobalObject, callF
 
     if (!value.isUndefinedOrNull()) {
         let values = value.values(globalThis: globalThis)
-        var itr = expected.arrayIterator(globalThis: globalThis)
-        let count = values.getLength(globalThis: globalThis)
-        let expectedLength = expected.getLength(globalThis: globalThis)
+        var itr = expected.arrayIterator(globalThis)
+        let count = values.getLength(globalThis)
+        let expectedLength = expected.getLength(globalThis)
 
         if (count == expectedLength) {
             while (let Some(item) <- itr.next()) {
                 var i: UInt32 = 0
                 var found = false
                 while (i < count) {
-                    let key = values.getIndex(globalThis: globalThis, index: i)
+                    let key = values.getIndex(globalThis, i)
                     if (key.jestDeepEquals(item, globalThis: globalThis)) {
                         found = true
                         break
@@ -63,7 +63,7 @@ public func toContainAllValues(`this`: Expect, globalThis: JSGlobalObject, callF
     if (pass) { return thisValue }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
     let valueFmt = value.toFmt(formatter)
     let expectedFmt = expected.toFmt(formatter)

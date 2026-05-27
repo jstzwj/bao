@@ -18,7 +18,7 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
 
     let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
     if (!calls.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         let signature = Expect.getSignature(matcherName: "toHaveBeenCalledWith", args: "<green>...expected<r>", not: false)
         return this.throw_(globalThis: globalThis, signature: signature,
@@ -28,19 +28,19 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
 
     var pass = false
 
-    let callsCount: UInt32 = calls.getLength(globalThis: globalThis)
+    let callsCount: UInt32 = calls.getLength(globalThis)
     if (callsCount > 0) {
-        var itr = calls.arrayIterator(globalThis: globalThis)
+        var itr = calls.arrayIterator(globalThis)
         while (let Some(callItem) <- itr.next()) {
             if (callItem == JsValue.zero || !callItem.jsType().isArray()) {
                 return globalThis.throw_("Internal error: expected mock call item to be an array of arguments.")
             }
 
-            if (callItem.getLength(globalThis: globalThis) != arguments.size) {
+            if (callItem.getLength(globalThis) != arguments.size) {
                 continue
             }
 
-            var callItr = callItem.arrayIterator(globalThis: globalThis)
+            var callItr = callItem.arrayIterator(globalThis)
             var isMatch = true
             while (let Some(callArg) <- callItr.next()) {
                 if (!callArg.jestDeepEquals(arguments[callItr.i - 1], globalThis: globalThis) ) {
@@ -57,11 +57,11 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
     }
 
     if (pass != this.flags.not) {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let expectedArgsJsArray = JsValue.createEmptyArray(globalThis: globalThis, length: arguments.size)
@@ -86,7 +86,7 @@ public func toHaveBeenCalledWith(`this`: Expect, globalThis: JSGlobalObject, cal
 
     // 如果只有一次调用，提供漂亮的 diff
     if (callsCount == 1) {
-        let receivedCallArgs = calls.getIndex(globalThis: globalThis, index: 0)
+        let receivedCallArgs = calls.getIndex(globalThis, 0)
         let diffFormat = DiffFormatter(received: receivedCallArgs, expected: expectedArgsJsArray, globalThis: globalThis, not: false)
         return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n{f}\n", args: [diffFormat])
     }

@@ -19,12 +19,12 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
 
     let returns = JSMockFunction.getReturns(globalThis: globalThis, value: value)
     if (!returns.jsType().isArray()) {
-        let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+        let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
-    let callsCount: UInt32 = returns.getLength(globalThis: globalThis)
+    let callsCount: UInt32 = returns.getLength(globalThis)
     var pass = false
 
     var successfulReturns = ArrayList<JsValue>(allocator: globalThis.bunVM().allocator)
@@ -38,13 +38,13 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
         let result = returns.getDirectIndex(globalThis: globalThis, index: i)
 
         if (result.isObject()) {
-            let resultType = result.get(globalThis: globalThis, key: "type") ?? JsValue.jsUndefined
+            let resultType = result.get(globalThis, "type") ?? JsValue.jsUndefined()
             if (resultType.isString()) {
                 let typeStr = resultType.toBunString(globalThis: globalThis)
                 // defer { typeStr.deref() }
 
                 if (typeStr.eqlComptime("return")) {
-                    let resultValue = result.get(globalThis: globalThis, key: "value") ?? JsValue.jsUndefined
+                    let resultValue = result.get(globalThis, "value") ?? JsValue.jsUndefined()
                     successfulReturns.append(resultValue)
 
                     // 只在还没 pass 时检查
@@ -62,11 +62,11 @@ public func toHaveReturnedWith(`this`: Expect, globalThis: JSGlobalObject, callF
     }
 
     if (pass != this.flags.not) {
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     // 处理失败
-    let formatter = ConsoleFormatter(globalThis: globalThis, quote_strings: true)
+    let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
 
     let signature = Expect.getSignature(matcherName: "toHaveReturnedWith", args: "<green>expected<r>", not: false)

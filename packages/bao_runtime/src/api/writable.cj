@@ -13,9 +13,13 @@ import bao_io.*
 
 /// Writable 表示子进程的可写输入流 (stdin)
 public enum Writable {
+    | pipe(FileSink)
+    | buffer(StaticPipeWriter)
+    | fd(FD)
+    | memfd(FD)
+    | ignore
+    | inherit
     | else
-}
-    }
 
     /// 是否有待处理活动
     public func hasPendingActivity(): Bool {
@@ -85,7 +89,41 @@ public enum Writable {
 
         if (Environment.isWindows) {
             match (stdio) {
-                case pipe, .readable_stream =>
+                case pipe =>
+                    if (result == buffer) {
+                        let pipe = FileSink.createWithPipe(eventLoop, result.buffer)
+
+                        match (pipe.writer.startWithCurrentPipe()) {
+                            case result => ()
+                            case err =>
+                                pipe.deref()
+                                if (stdio == readable_stream) {
+                                    stdio.readable_stream.cancel(eventLoop.global)
+                                }
+                                throw Error.UnexpectedCreatingStdin
+                        }
+                        pipe.writer.setParent(pipe)
+                        subprocess.weakFileSinkStdinPtr = pipe
+                        subprocess.ref()
+                        subprocess.flags.derefOnStdinDestroyed = true
+                        subprocess.flags.hasStdinDestructorCalled = false
+
+                        if (stdio == readable_stream) {
+                            let assignResult = pipe.assignToStream(stdio.readable_stream, eventLoop.global)
+                            if (let err <- assignResult.toError()) {
+                                subprocess.weakFileSinkStdinPtr = null
+                                subprocess.flags.derefOnStdinDestroyed = false
+                                pipe.deref()
+                                subprocess.deref()
+                                return eventLoop.global.throwValue(err)
+                            }
+                            promiseForStream = assignResult
+                        }
+
+                        return Writable.pipe(pipe)
+                    }
+                    return Writable.inherit()
+                case .readable_stream =>
                     if (result == buffer) {
                         let pipe = FileSink.createWithPipe(eventLoop, result.buffer)
 
@@ -130,9 +168,15 @@ public enum Writable {
                     return Writable.fd(dup2.to.toFd())
                 case inherit =>
                     return Writable.inherit()
-                case memfd, .path, .ignore =>
+                case memfd =>
                     return Writable.ignore()
-                case ipc, .capture =>
+                case .path =>
+                    return Writable.ignore()
+                case .ignore =>
+                    return Writable.ignore()
+                case ipc =>
+                    return Writable.ignore()
+                case .capture =>
                     return Writable.ignore()
             }
         }
@@ -148,7 +192,41 @@ public enum Writable {
             case dup2(dup2) =>
                 // 严格翻译自 Bun src/runtime/api/bun/subprocess/Writable.zig Writable.init Windows dup2 arm: stdin exposes the target fd.
                 return Writable.fd(dup2.to.toFd())
-            case pipe, .readable_stream =>
+            case pipe =>
+                let pipe = FileSink.create(eventLoop, result)
+
+                match (pipe.writer.start(pipe.fd, true)) {
+                    case result => ()
+                    case err =>
+                        pipe.deref()
+                        if (stdio == readable_stream) {
+                            stdio.readable_stream.cancel(eventLoop.global)
+                        }
+                        throw Error.UnexpectedCreatingStdin
+                }
+
+                pipe.writer.handle.poll.flags.insert(.socket)
+
+                subprocess.weakFileSinkStdinPtr = pipe
+                subprocess.ref()
+                subprocess.flags.hasStdinDestructorCalled = false
+                subprocess.flags.derefOnStdinDestroyed = true
+
+                if (stdio == readable_stream) {
+                    let assignResult = pipe.assignToStream(stdio.readable_stream, eventLoop.global)
+                    if (let err <- assignResult.toError()) {
+                        subprocess.weakFileSinkStdinPtr = null
+                        subprocess.flags.derefOnStdinDestroyed = false
+                        pipe.deref()
+                        subprocess.deref()
+                        return eventLoop.global.throwValue(err)
+                    }
+                    promiseForStream = assignResult
+                }
+
+                return Writable.pipe(pipe)
+
+            case .readable_stream =>
                 let pipe = FileSink.create(eventLoop, result)
 
                 match (pipe.writer.start(pipe.fd, true)) {
@@ -193,9 +271,13 @@ public enum Writable {
                 return Writable.fd(result)
             case inherit =>
                 return Writable.inherit()
-            case path, .ignore =>
+            case path =>
                 return Writable.ignore()
-            case ipc, .capture =>
+            case .ignore =>
+                return Writable.ignore()
+            case ipc =>
+                return Writable.ignore()
+            case .capture =>
                 return Writable.ignore()
         }
     }
@@ -204,8 +286,10 @@ public enum Writable {
     public func toJS(globalThis: JsGlobalObject, subprocess: Subprocess): JsValue {
         return match (this) {
             case fd(fd) => fd.toJS(globalThis)
-            case memfd, .ignore => JsValue.jsUndefined()
-            case buffer, .inherit => JsValue.jsUndefined()
+            case memfd => JsValue.jsUndefined()
+            case .ignore => JsValue.jsUndefined()
+            case buffer => JsValue.jsUndefined()
+            case .inherit => JsValue.jsUndefined()
             case pipe(pipe) =>
                 this = .ignore()
                 if (subprocess.process.hasExited() && !subprocess.flags.hasStdinDestructorCalled) {
@@ -252,7 +336,8 @@ public enum Writable {
                 fd.close()
                 this = .ignore()
             case ignore => ()
-            case fd, .inherit => ()
+            case fd => ()
+            case .inherit => ()
         }
     }
 

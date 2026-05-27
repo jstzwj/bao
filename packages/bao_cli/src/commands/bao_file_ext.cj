@@ -22,6 +22,20 @@ extend BaoFile {
     public static func getFileSize(path: String): Int64 {
         return Int64(0)
     }
+
+    public static func getEntryKind(path: String): String {
+        if (BaoFile.isDirectory(path)) {
+            return "directory"
+        }
+        if (BaoFile.exists(path)) {
+            return "file"
+        }
+        return "unknown"
+    }
+
+    public static func setExecutable(path: String): Unit {
+        // stub - no-op
+    }
 }
 
 public class BaoFileExt {

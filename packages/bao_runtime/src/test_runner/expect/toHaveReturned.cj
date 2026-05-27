@@ -40,7 +40,7 @@ public func toHaveReturned(`this`: Expect, globalThis: JSGlobalObject, callFrame
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     let signature = Expect.getSignature(matcherName: "toHaveReturned", args: "<green>expected<r>", not: not)
     var str = ">= "
@@ -90,7 +90,7 @@ public func toHaveReturnedTimes(`this`: Expect, globalThis: JSGlobalObject, call
 
     let not = this.flags.not
     if (not) { pass = !pass }
-    if (pass) { return JsValue.jsUndefined }
+    if (pass) { return JsValue.jsUndefined() }
 
     let signature = Expect.getSignature(matcherName: "toHaveReturnedTimes", args: "<green>expected<r>", not: not)
     var str = "!= "

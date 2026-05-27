@@ -127,6 +127,11 @@ public class JsValue {
         this.objectValue = obj
     }
 
+    public init(fn: JsFunction) {
+        this.valueType = JsValueType.Object
+        this.objectValue = fn.closure
+    }
+
     public init(sym: JsSymbol) {
         this.valueType = JsValueType.Symbol
         this.symbolValue = sym
@@ -151,6 +156,7 @@ public class JsValue {
 
     // 数值常量
     public static let MAX_SAFE_INTEGER: Float64 = 9007199254740991.0  // 2^53 - 1
+    public static let zero: JsValue = JsValue(0.0)
 
     public static func jsUndefined(): JsValue {
         JsValue()
@@ -174,6 +180,10 @@ public class JsValue {
 
     public static func jsNumber(n: Float64): JsValue {
         JsValue(n)
+    }
+
+    public static func jsString(s: String): JsValue {
+        JsValue(s)
     }
 
     public static func array(arr: ArrayList<JsValue>): JsValue {
@@ -329,6 +339,11 @@ public class JsValue {
             case BigInt => bigIntValue + "n"
             case _ => stringValue
         }
+    }
+
+    // 格式化为字符串（用于测试输出）
+    public func toFmt(formatter: ConsoleFormatter): String {
+        return toString()
     }
 
     // ToObject - JS ToObject 抽象操作
@@ -2241,6 +2256,17 @@ extend JsValue {
         }
     }
 
+    /// 带 context 的 forEach（用于 test_runner 匹配器）
+    public func forEach(global: JsObject, context: Any, callback: (Any, JsObject, Any, JsValue) -> Unit): Unit {
+        if (isArray()) {
+            if (let Some(arr) <- arrayData) {
+                for (i in 0..arr.size) {
+                    callback(context, global, context, arr[i])
+                }
+            }
+        }
+    }
+
     // ========== forEachProperty ==========
     // 严格翻译自 JSValue.forEachProperty
     // 遍历对象的属性
@@ -2874,5 +2900,129 @@ public class StringFormatter {
 
     public func format(): String {
         value.toString()
+    }
+}
+
+// ========== JsValue 扩展: ArrayBuffer ==========
+extend JsValue {
+    /// 是否为 ArrayBuffer 类型
+    public func isArrayBuffer(): Bool {
+        if (valueType == JsValueType.Object) {
+            match (objectValue) {
+                case Some(obj) => obj.className == "ArrayBuffer"
+                case None => false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// ArrayBuffer 切片
+    /// 返回 ArrayBuffer 的底层数据副本
+    public func arrayBufferSlice(): Array<UInt8> {
+        // stub: 在真实 JSC 中调用 JSObjectGetArrayBufferBytesPtr
+        Array<UInt8>()
+    }
+
+    /// 获取 ArrayBuffer 的字节数据
+    public func getArrayBufferBytes(): ArrayList<UInt8> {
+        ArrayList<UInt8>()
+    }
+}
+
+// ========== JsValue 扩展: test_runner 所需方法 (stub) ==========
+
+extend JsValue {
+    /// 将 BigInt JsValue 转换为 Int64（stub）
+    public func toBigInt(globalThis!: JSGlobalObject): Int64 {
+        Int64(toNumber())
+    }
+
+    /// 获取对象上的 truthy 属性值（编译期安全 stub）
+    public func getTruthyComptime(globalThis!: JSGlobalObject, key!: String): ?JsValue {
+        match (objectValue) {
+            case Some(obj) =>
+                let v = obj.get(key)
+                if (v.isUndefinedOrNull()) { None } else { Some(v) }
+            case None => None
+        }
+    }
+
+    /// 安全调用函数，捕获异常（stub）
+    public func callWithCatch(globalThis!: JSGlobalObject, thisValue!: JsValue, args!: Array<JsValue>): JsValue {
+        // stub: simplified call
+        JsValue.UNDEFINED
+    }
+
+    /// Jest 深度相等比较（stub：使用简单相等）
+    public func jestDeepEquals(other: JsValue, globalThis!: JSGlobalObject): Bool {
+        // stub: 简单比较，真实实现需要递归深度比较
+        if (isNumber() && other.isNumber()) {
+            return toNumber() == other.toNumber()
+        }
+        if (isString() && other.isString()) {
+            return toString() == other.toString()
+        }
+        if (isBoolean() && other.isBoolean()) {
+            return toBoolean() == other.toBoolean()
+        }
+        // 对于对象/数组，stub 返回 false
+        false
+    }
+
+    /// Jest 深度匹配（部分匹配）（stub）
+    public func jestDeepMatch(other: JsValue, globalThis!: JSGlobalObject, partial!: Bool): Bool {
+        // stub: 委托给 jestDeepEquals
+        jestDeepEquals(other, globalThis: globalThis)
+    }
+
+    /// 将 JsValue 转为字符串切片（stub）
+    public func toSlice(global: JsObject): String {
+        toString()
+    }
+
+    /// 将 JsValue 转为字符串切片（stub，带 allocator）
+    public func toSlice(globalThis!: JSGlobalObject, allocator!: Any): String {
+        toString()
+    }
+
+    /// 沿路径获取属性值（stub）
+    public func getIfPropertyExistsFromPath(globalThis!: JSGlobalObject, path!: String): ?JsValue {
+        match (objectValue) {
+            case Some(obj) =>
+                let v = obj.get(path)
+                if (v.isUndefinedOrNull()) { None } else { Some(v) }
+            case None => None
+        }
+    }
+
+    /// 沿路径获取属性值（stub，带 global 参数）
+    public func getIfPropertyExistsFromPath(global: JsObject, path: JsValue): ?JsValue {
+        get(global, path.toString())
+    }
+
+    /// 是否为字符串字面量（stub：等同于 isString）
+    public func isStringLiteral(): Bool {
+        isString()
+    }
+
+    /// 获取宽松的 JS 类型（stub：委托给 jsType_）
+    public func jsTypeLoose(): JsType {
+        jsType_()
+    }
+
+    /// 沿路径获取属性值（带 global 和 String 参数）（stub）
+    public func getIfPropertyExistsFromPath(global: JsObject, path: String): ?JsValue {
+        get(global, path)
+    }
+
+    /// 获取属性路径的内部实现（stub）
+    public func getLengthIfPropertyExistsInternal(global: JsObject): Int64 {
+        Int64(getLength(global))
+    }
+
+    /// 将 JsValue 转为 ZigString 写入 result（stub）
+    public func toZigString(result: String, globalThis: JsObject): String {
+        toString()
     }
 }

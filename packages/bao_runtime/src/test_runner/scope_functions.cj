@@ -129,14 +129,14 @@ public class ScopeFunctions {
         let array = arguments[0]
 
         if (array.isUndefinedOrNull() || !array.isArray()) {
-            let formatter = ConsoleFormatter(globalThis: globalThis)
-            globalThis.`throw`(message: "Expected array, got " + formatter.format(value: array))
-            return JsValue.jsUndefined
+            let formatter = ConsoleFormatter()
+            globalThis.`throw`("Expected array, got " + formatter.format(value: array))
+            return JsValue.jsUndefined()
         }
 
         if (!each.isEmpty()) {
-            globalThis.`throw`(message: "Cannot each on " + format())
-            return JsValue.jsUndefined
+            globalThis.`throw`("Cannot each on " + format())
+            return JsValue.jsUndefined()
         }
 
         return ScopeFunctions.createBound(
@@ -161,8 +161,8 @@ public class ScopeFunctions {
                 signature: Signature.scopeFunctions(this),
                 allowInPreload: false
             )
-        ) ?? return JsValue.jsUndefined
-        let bunTest = buntestStrong.get() ?? return JsValue.jsUndefined
+        ) ?? return JsValue.jsUndefined()
+        let bunTest = buntestStrong.get() ?? return JsValue.jsUndefined()
 
         // 根据模式决定回调是否必须
         let callbackMode: CallbackMode = match (cfg.selfMode) {
@@ -186,13 +186,13 @@ public class ScopeFunctions {
         if (!each.isEmpty()) {
             // 参数化测试 (.each模式)
             if (each.isUndefinedOrNull() || !each.isArray()) {
-                let formatter = ConsoleFormatter(globalThis: globalThis)
-                globalThis.`throw`(message: "Expected array, got " + formatter.format(value: each))
-                return JsValue.jsUndefined
+                let formatter = ConsoleFormatter()
+                globalThis.`throw`("Expected array, got " + formatter.format(value: each))
+                return JsValue.jsUndefined()
             }
 
             var testIdx: UInt64 = 0
-            var iter = each.arrayIterator(global: globalThis)
+            var iter = each.arrayIterator(globalThis)
             while (let Some(item) <- iter.next() ){
                 if (item.isEmpty()) { break }
 
@@ -200,7 +200,7 @@ public class ScopeFunctions {
                 var argsList: Array<JsValue> = Array<JsValue>()
                 if (item.isArray()) {
                     // 展开数组作为参数列表
-                    var itemIter = item.arrayIterator(global: globalThis)
+                    var itemIter = item.arrayIterator(globalThis)
                     while (let Some(arrayItem) <- itemIter.next() ){
                         argsList.append(arrayItem)
                     }
@@ -252,7 +252,7 @@ public class ScopeFunctions {
             )
         }
 
-        return JsValue.jsUndefined
+        return JsValue.jsUndefined()
     }
 
     /// 入队describe或test回调
@@ -265,10 +265,10 @@ public class ScopeFunctions {
         match (bunTest.phase) {
             case TestPhase.collection => () // OK
             case TestPhase.execution =>
-                globalThis.`throw`(message: "Cannot call " + format() + "() inside a test. Call it inside describe() instead.")
+                globalThis.`throw`("Cannot call " + format() + "() inside a test. Call it inside describe() instead.")
                 return
             case TestPhase.done =>
-                globalThis.`throw`(message: "Cannot call " + format() + "() after the test run has completed")
+                globalThis.`throw`("Cannot call " + format() + "() after the test run has completed")
                 return
         }
 
@@ -365,8 +365,8 @@ public class ScopeFunctions {
     private func genericIf(callFrame!: CallFrame, conditionalCfg!: BaseScopeCfg, name!: String, invert!: Bool, fnName!: String): JsValue {
         let arguments = callFrame.arguments(max: 1)
         if (arguments.size == 0) {
-            globalThis.`throw`(message: "Expected condition to be a boolean")
-            return JsValue.jsUndefined
+            globalThis.`throw`("Expected condition to be a boolean")
+            return JsValue.jsUndefined()
         }
 
         let condition = arguments[0].toBoolean()
@@ -386,8 +386,8 @@ public class ScopeFunctions {
     private func genericExtend(cfg!: BaseScopeCfg, name!: String, fnName!: String): JsValue {
         // failing不能用于describe
         if (cfg.selfMode == ScopeMode.failing && mode == ScopeFunctionsMode.describe) {
-            globalThis.`throw`(message: "Cannot " + (name) + " on " + (format()))
-            return JsValue.jsUndefined
+            globalThis.`throw`("Cannot " + (name) + " on " + (format()))
+            return JsValue.jsUndefined()
         }
 
         // .only在CI环境中发出警告
@@ -402,8 +402,8 @@ public class ScopeFunctions {
                 mode: mode, each: each, cfg: extended, name: fnName
             )
         } else {
-            globalThis.`throw`(message: "Cannot " + (name) + " on " + (format()))
-            return JsValue.jsUndefined
+            globalThis.`throw`("Cannot " + (name) + " on " + (format()))
+            return JsValue.jsUndefined()
         }
     }
 
@@ -427,7 +427,7 @@ public class ScopeFunctions {
         let bound = JSValueTestExt.bind(
             value: callFn, global: globalThis,
             thisValue: value, name: BunString.staticStr(name),
-            length: 1.0, args: []
+            length: 1.0, []
         )
         bound.setPrototypeDirect(prototype: value.getPrototype(global: globalThis), global: globalThis)
         return bound
@@ -437,7 +437,7 @@ public class ScopeFunctions {
     public static func createBound(globalThis!: JSGlobalObject, mode!: Mode, each!: JsValue, cfg!: BaseScopeCfg, name!: String): JsValue {
         let value = createUnbound(globalThis: globalThis, mode: mode, each: each, cfg: cfg)
         let scopeFunctions = ScopeFunctions(mode: mode, cfg: cfg, each: each)
-        return scopeFunctions.bind(value: value, globalThis: globalThis, name: name)
+        return scopeFunctions.bind(value, globalThis, name)
     }
 
     /// 解析参数
@@ -498,7 +498,7 @@ public class ScopeFunctions {
             resultCallback = callback.withAsyncContextIfNeeded(global: globalThis)
         } else {
             let ordinal = if (cfg.kind == FunctionKind.hook) { "first" } else { "second" }
-            globalThis.`throw`(message: (signature) + " expects a function as the " + (ordinal) + " argument")
+            globalThis.`throw`((signature) + " expects a function as the " + (ordinal) + " argument")
             return ParseArgumentsResult()
         }
 
@@ -511,35 +511,35 @@ public class ScopeFunctions {
         if (options.isNumber()) {
             timeoutOption = options.asNumber()
         } else if (options.isFunction()) {
-            globalThis.`throw`(message: (signature) + "() expects options to be a number or object, not a function")
+            globalThis.`throw`((signature) + "() expects options to be a number or object, not a function")
             return ParseArgumentsResult()
         } else if (options.isObject()) {
             // 解析timeout
-            if (let Some(timeout) <- options.get(global: globalThis, name: "timeout")) {
+            if (let Some(timeout) <- options.get(globalThis, "timeout")) {
                 if (!timeout.isNumber()) {
-                    globalThis.`throw`(message: (signature) + "() expects timeout to be a number")
+                    globalThis.`throw`((signature) + "() expects timeout to be a number")
                     return ParseArgumentsResult()
                 }
                 timeoutOption = timeout.asNumber()
             }
 
             // 解析retry
-            if (let Some(retries) <- options.get(global: globalThis, name: "retry")) {
+            if (let Some(retries) <- options.get(globalThis, "retry")) {
                 if (!retries.isNumber()) {
-                    globalThis.`throw`(message: (signature) + "() expects retry to be a number")
+                    globalThis.`throw`((signature) + "() expects retry to be a number")
                     return ParseArgumentsResult()
                 }
                 result.options.retry = UInt32(retries.asNumber())
             }
 
             // 解析repeats
-            if (let Some(repeats) <- options.get(global: globalThis, name: "repeats")) {
+            if (let Some(repeats) <- options.get(globalThis, "repeats")) {
                 if (!repeats.isNumber()) {
-                    globalThis.`throw`(message: (signature) + "() expects repeats to be a number")
+                    globalThis.`throw`((signature) + "() expects repeats to be a number")
                     return ParseArgumentsResult()
                 }
                 if (result.options.retry.isSome() && result.options.retry.getOrThrow() != 0) {
-                    globalThis.`throw`(message: (signature) + "(): Cannot set both retry and repeats")
+                    globalThis.`throw`((signature) + "(): Cannot set both retry and repeats")
                     return ParseArgumentsResult()
                 }
                 result.options.repeats = UInt32(repeats.asNumber())
@@ -550,7 +550,7 @@ public class ScopeFunctions {
         if (description.isUndefinedOrNull()) {
             result.description = None
         } else {
-            result.description = getDescription(globalThis: globalThis, description: description, signature: signature)
+            result.description = getDescription(globalThis, description, signature)
         }
 
         // 设置默认retry
@@ -560,7 +560,7 @@ public class ScopeFunctions {
             }
         }
         if (result.options.retry ?? 0 != 0 && result.options.repeats != 0) {
-            globalThis.`throw`(message: (signature) + "(): Cannot set both retry and repeats")
+            globalThis.`throw`((signature) + "(): Cannot set both retry and repeats")
             return ParseArgumentsResult()
         }
 
@@ -610,7 +610,7 @@ public class ScopeFunctions {
             return description.toSlice(global: globalThis)
         }
 
-        globalThis.`throw`(message: (signature) + "() expects first argument to be a named class, named function, number, or string")
+        globalThis.`throw`((signature) + "() expects first argument to be a named class, named function, number, or string")
         return None
     }
 
@@ -656,6 +656,12 @@ public class ScopeFunctions {
 
     /// 用于debugger的全局测试ID计数器
     public static var maxTestIdForDebugger: Int32 = 0
+
+    /// 将ScopeFunctions实例序列化为JsValue
+    public func toJS(global: JSGlobalObject): JsValue {
+        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
+        return JsValue.zero
+    }
 }
 
 // ========== 辅助类型 ==========

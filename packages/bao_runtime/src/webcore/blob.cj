@@ -2469,6 +2469,21 @@ public class ReadableStream {
         consumed = true
         done = true
     }
+
+    /// Cancel the stream
+    /// 对应 Bun: ReadableStream.cancel()
+    public func cancel(global: JsGlobalObject): Unit {
+        consumed = true
+        done = true
+        isDisturbed = true
+    }
+
+    /// Mark stream as done (callable with global)
+    /// 对应 Bun: ReadableStream.done()
+    public func doDone(global: JsGlobalObject): Unit {
+        consumed = true
+        done = true
+    }
 }
 
 // ============================================================================

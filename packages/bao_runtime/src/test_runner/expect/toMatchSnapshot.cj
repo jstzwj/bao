@@ -37,7 +37,7 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
         // 无参数
     } else if (arguments.size == 1 ){
         if (arguments[0].isString() ){
-            hintString = arguments[0].toZigString(globalThis: globalThis)
+            hintString = arguments[0].toZigString(globalThis)
         } else if (arguments[0].isObject()) {
             propertyMatchers = arguments[0]
         } else {
@@ -54,7 +54,7 @@ public func toMatchSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFram
         propertyMatchers = arguments[0]
 
         if (arguments[1].isString() ){
-            arguments[1].toZigString(result: hintString, globalThis: globalThis)
+            arguments[1].toZigString(hintString, globalThis)
         } else {
             return this.throw_(globalThis: globalThis, signature: "",
                 fmt: "\n\nMatcher error: Expected second argument to be a string\n", args: [])
