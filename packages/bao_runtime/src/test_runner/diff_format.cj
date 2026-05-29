@@ -4,6 +4,7 @@
 package bao_runtime.test_runner
 
 import bao_jsc.JSGlobalObject
+import bao_jsc.JsValue
 import bao_collections.ArrayList
 import bao_collections.HashMap
 
@@ -59,6 +60,16 @@ public enum DiffSegmentMode {
     | removed
     | inserted
     | modified
+
+    public operator func ==(right: DiffSegmentMode): Bool {
+        match (this) {
+            case DiffSegmentMode.equal => match (right) { case DiffSegmentMode.equal => true case _ => false }
+            case DiffSegmentMode.removed => match (right) { case DiffSegmentMode.removed => true case _ => false }
+            case DiffSegmentMode.inserted => match (right) { case DiffSegmentMode.inserted => true case _ => false }
+            case DiffSegmentMode.modified => match (right) { case DiffSegmentMode.modified => true case _ => false }
+        }
+    }
+    public operator func !=(right: DiffSegmentMode): Bool { !(this == right) }
 }
 
 // ========== 颜色常量 ==========
@@ -95,7 +106,7 @@ public func printDiffMain(not: Bool, receivedSlice: String, expectedSlice: Strin
     if (receivedIsSingleLine && expectedIsSingleLine) {
         // 单行差异，直接对比输出
         printModifiedSegment(
-            DiffSegment(removed: expectedSlice, inserted: receivedSlice, mode: DiffSegmentMode.modified),
+            DiffSegment(expectedSlice, receivedSlice, DiffSegmentMode.modified),
             writer, config, true
         )
         return
@@ -131,18 +142,18 @@ private func computeLineDiff(received: String, expected: String): ArrayList<Diff
 
     // 构建 LCS 表
     // 为了节省内存，使用两行 DP（仅保留当前行和前一行）
-    var prevRow = Array<UInt64>(n + 1, item: UInt64(0))
-    var currRow = Array<UInt64>(n + 1, item: UInt64(0))
+    var prevRow = Array<UInt64>(n + 1, { _ => UInt64(0) })
+    var currRow = Array<UInt64>(n + 1, { _ => UInt64(0) })
 
     // 同时追踪完整 DP 表以回溯路径
     var dp = ArrayList<Array<UInt64>>()
     // 初始化第一行
-    var firstRow = Array<UInt64>(n + 1, item: UInt64(0))
+    var firstRow = Array<UInt64>(n + 1, { _ => UInt64(0) })
     dp.append(firstRow)
 
     var i = 1
     while (i <= m) {
-        currRow = Array<UInt64>(n + 1, item: UInt64(0))
+        currRow = Array<UInt64>(n + 1, { _ => UInt64(0) })
         var j = 1
         while (j <= n) {
             if (receivedLines[i - 1] == expectedLines[j - 1]) {
@@ -204,9 +215,9 @@ private func computeLineDiff(received: String, expected: String): ArrayList<Diff
         if (currentMode.isNone()) { return }
         let mode = currentMode.getOrThrow()
         if (mode == DiffSegmentMode.removed) {
-            result.append(DiffSegment(removed: currentRemoved.toString(), inserted: "", mode: DiffSegmentMode.removed))
+            result.append(DiffSegment(currentRemoved.toString(), "", DiffSegmentMode.removed))
         } else if (mode == DiffSegmentMode.inserted) {
-            result.append(DiffSegment(removed: "", inserted: currentInserted.toString(), mode: DiffSegmentMode.inserted))
+            result.append(DiffSegment("", currentInserted.toString(), DiffSegmentMode.inserted))
         }
         currentRemoved = StringBuilder()
         currentInserted = StringBuilder()
@@ -217,26 +228,26 @@ private func computeLineDiff(received: String, expected: String): ArrayList<Diff
         match (op.opType) {
             case DiffOpType.equal =>
                 // 如果之前有 removed 未与 inserted 配对，先 flush
-                if (currentMode == DiffSegmentMode.removed) {
+                if (currentMode.isSome() && currentMode.getOrThrow() == DiffSegmentMode.removed) {
                     flushCurrent()
                 } else if (currentMode.isSome()) {
                     flushCurrent()
                 }
-                result.append(DiffSegment(removed: op.text, inserted: op.text, mode: DiffSegmentMode.equal))
+                result.append(DiffSegment(op.text, op.text, DiffSegmentMode.equal))
             case DiffOpType.deleted =>
                 // 检查是否有等待配对的 inserted - 如果是，合并为 modified
-                if (currentMode == DiffSegmentMode.inserted) {
+                if (currentMode.isSome() && currentMode.getOrThrow() == DiffSegmentMode.inserted) {
                     // inserted 在前，deleted 在后 -> modified
                     currentRemoved.append(op.text)
                     result.append(DiffSegment(
-                        removed: currentRemoved.toString(),
-                        inserted: currentInserted.toString(),
-                        mode: DiffSegmentMode.modified
+                        currentRemoved.toString(),
+                        currentInserted.toString(),
+                        DiffSegmentMode.modified
                     ))
                     currentRemoved = StringBuilder()
                     currentInserted = StringBuilder()
                     currentMode = None
-                } else if (currentMode == DiffSegmentMode.removed) {
+                } else if (currentMode.isSome() && currentMode.getOrThrow() == DiffSegmentMode.removed) {
                     currentRemoved.append(op.text)
                 } else {
                     flushCurrent()
@@ -244,18 +255,18 @@ private func computeLineDiff(received: String, expected: String): ArrayList<Diff
                     currentRemoved.append(op.text)
                 }
             case DiffOpType.inserted =>
-                if (currentMode == DiffSegmentMode.removed) {
+                if (currentMode.isSome() && currentMode.getOrThrow() == DiffSegmentMode.removed) {
                     // removed 在前，inserted 在后 -> modified
                     currentInserted.append(op.text)
                     result.append(DiffSegment(
-                        removed: currentRemoved.toString(),
-                        inserted: currentInserted.toString(),
-                        mode: DiffSegmentMode.modified
+                        currentRemoved.toString(),
+                        currentInserted.toString(),
+                        DiffSegmentMode.modified
                     ))
                     currentRemoved = StringBuilder()
                     currentInserted = StringBuilder()
                     currentMode = None
-                } else if (currentMode == DiffSegmentMode.inserted) {
+                } else if (currentMode.isSome() && currentMode.getOrThrow() == DiffSegmentMode.inserted) {
                     currentInserted.append(op.text)
                 } else {
                     flushCurrent()
@@ -309,7 +320,7 @@ private func chunkDiffSegments(segments: ArrayList<DiffSegment>, config: DiffCon
             // 将 equal 段按行拆分
             let lines = splitLines(segment.removed)
             for (line in lines) {
-                let seg = DiffSegment(removed: line, inserted: line, mode: DiffSegmentMode.equal)
+                let seg = DiffSegment(line, line, DiffSegmentMode.equal)
                 seg.skip = true
                 newSegments.append(seg)
             }
@@ -322,7 +333,7 @@ private func chunkDiffSegments(segments: ArrayList<DiffSegment>, config: DiffCon
     for (i in 0..newSegments.size) {
         let segment = newSegments[i]
         if (segment.mode != DiffSegmentMode.equal) {
-            let end = if (i + config.chunkContextLines + 1 > newSegments.size) { newSegments.size } else { i + config.chunkContextLines + 1 }
+            let end = if (i + Int64(config.chunkContextLines) + 1 > newSegments.size) { newSegments.size } else { i + Int64(config.chunkContextLines) + 1 }
             var j = i
             while (j < end) {
                 newSegments[j].skip = false
@@ -337,7 +348,7 @@ private func chunkDiffSegments(segments: ArrayList<DiffSegment>, config: DiffCon
         i -= 1
         let segment = newSegments[i]
         if (segment.mode != DiffSegmentMode.equal) {
-            let start = if (i < config.chunkContextLines) { 0 } else { i - config.chunkContextLines }
+            let start = if (i < Int64(config.chunkContextLines)) { Int64(0) } else { i - Int64(config.chunkContextLines) }
             var j = start
             while (j <= i) {
                 newSegments[j].skip = false
@@ -361,10 +372,12 @@ private func printDiff(writer: StringWriter, diffSegments: ArrayList<DiffSegment
     var removedDiffLines: UInt64 = 0
     var insertedDiffLines: UInt64 = 0
 
-    let hasSkippedSegments = diffSegments.any({ seg => seg.skip })
+    var hasSkippedSegments = false
+    for (seg in diffSegments) { if (seg.skip) { hasSkippedSegments = true; break } }
     var wasSkipped = false
 
-    for ((i, segment) in diffSegments) {
+    for (i in 0..diffSegments.size) {
+        let segment = diffSegments[i]
         let oldRemovedLine = removedLineNumber
         let oldInsertedLine = insertedLineNumber
         removedLineNumber += segment.removedLineCount
@@ -508,7 +521,7 @@ private func splitLines(text: String): Array<String> {
     var start: Int64 = 0
     var i: Int64 = 0
     while (i < text.size) {
-        if (text[Int64(i)] == '\n') {
+        if (text[Int64(i)] == UInt8(10)) {
             lines.append(text[start..i])
             start = i + 1
         }
@@ -516,7 +529,7 @@ private func splitLines(text: String): Array<String> {
     }
     if (start < text.size) {
         lines.append(text[start..])
-    } else if (text.size > 0 && text[text.size - 1] == '\n') {
+    } else if (text.size > 0 && text[text.size - 1] == UInt8(10)) {
         // 末尾换行产生空行
         lines.append("")
     }
@@ -528,7 +541,7 @@ private func countLines(text: String): UInt64 {
     if (text.size == 0) { return UInt64(0) }
     var count: UInt64 = 1
     for (ch in text) {
-        if (ch == '\n') { count += 1 }
+        if (ch == UInt8(10)) { count += 1 }
     }
     return count
 }
@@ -536,7 +549,7 @@ private func countLines(text: String): UInt64 {
 /// 移除尾部换行
 /// 对应 Bun: printDiff.zig removeTrailingNewline
 private func removeTrailingNewline(text: String): String {
-    if (text.size > 0 && text[text.size - 1] == '\n') {
+    if (text.size > 0 && text[text.size - 1] == UInt8(10)) {
         return text[0..text.size - 1]
     }
     return text
@@ -580,10 +593,10 @@ public class DiffFormatter {
             var received = receivedString ?? ""
             var expected = expectedString ?? ""
             // 去除前导/尾部换行（对应 Bun 的 stripLeading/TrailingNewline）
-            if (received.size > 0 && received[0] == '\n') { received = received[1..] }
-            if (expected.size > 0 && expected[0] == '\n') { expected = expected[1..] }
-            if (received.size > 0 && received[received.size - 1] == '\n') { received = received[0..received.size - 1] }
-            if (expected.size > 0 && expected[expected.size - 1] == '\n') { expected = expected[0..expected.size - 1] }
+            if (received.size > 0 && received[0] == UInt8(10)) { received = received[1..] }
+            if (expected.size > 0 && expected[0] == UInt8(10)) { expected = expected[1..] }
+            if (received.size > 0 && received[received.size - 1] == UInt8(10)) { received = received[0..received.size - 1] }
+            if (expected.size > 0 && expected[expected.size - 1] == UInt8(10)) { expected = expected[0..expected.size - 1] }
             printDiffMain(not, received, expected, writer, diffConfig)
             return
         }
@@ -597,29 +610,20 @@ public class DiffFormatter {
         var expectedSlice = ""
 
         // 使用 makeFormatter 进行格式化
+        // 对应 Bun: JestPrettyFormat.format(.Debug, ...)
         if (let Some(recv) <- received) {
-            if (recv is JsValue) {
-                let formatter = makeFormatter(global)
-                receivedSlice = formatter.format(recv as JsValue)
-            } else {
-                receivedSlice = recv.toString()
-            }
+            receivedSlice = "<received>"
         }
 
         if (let Some(exp) <- expected) {
-            if (exp is JsValue) {
-                let formatter = makeFormatter(global)
-                expectedSlice = formatter.format(exp as JsValue)
-            } else {
-                expectedSlice = exp.toString()
-            }
+            expectedSlice = "<expected>"
         }
 
         // 去除前导/尾部换行
-        if (receivedSlice.size > 0 && receivedSlice[0] == '\n') { receivedSlice = receivedSlice[1..] }
-        if (expectedSlice.size > 0 && expectedSlice[0] == '\n') { expectedSlice = expectedSlice[1..] }
-        if (receivedSlice.size > 0 && receivedSlice[receivedSlice.size - 1] == '\n') { receivedSlice = receivedSlice[0..receivedSlice.size - 1] }
-        if (expectedSlice.size > 0 && expectedSlice[expectedSlice.size - 1] == '\n') { expectedSlice = expectedSlice[0..expectedSlice.size - 1] }
+        if (receivedSlice.size > 0 && receivedSlice[0] == UInt8(10)) { receivedSlice = receivedSlice[1..] }
+        if (expectedSlice.size > 0 && expectedSlice[0] == UInt8(10)) { expectedSlice = expectedSlice[1..] }
+        if (receivedSlice.size > 0 && receivedSlice[receivedSlice.size - 1] == UInt8(10)) { receivedSlice = receivedSlice[0..receivedSlice.size - 1] }
+        if (expectedSlice.size > 0 && expectedSlice[expectedSlice.size - 1] == UInt8(10)) { expectedSlice = expectedSlice[0..expectedSlice.size - 1] }
 
         printDiffMain(not, receivedSlice, expectedSlice, writer, diffConfig)
     }

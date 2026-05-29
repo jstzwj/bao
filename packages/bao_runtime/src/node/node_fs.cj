@@ -4,10 +4,13 @@
 // The top-level functions assume the arguments are already validated
 package bao_runtime.node
 
-import bao_core.*
+import bao_core.Output
+import bao_core.PathString
+import bao_core.MutableString
+import bao_core.BunString
+import bao_core.FeatureFlags
 import bao_sys.*
 import bao_jsc.*
-import bao_jsc.StringBuilder
 import bao_collections.ArrayList as BaoArrayList
 import std.collection.ArrayList
 
@@ -51,11 +54,11 @@ func fromCString(ptr: CPointer<Int8>): String {
         while ((ptr + Int64(len)).read() != Int8(0)) {
             len += 1
         }
-        var sb = StringBuilder()
+        var sb = ""
         for (i in 0..len) {
-            sb.append(Rune(Int32((ptr + Int64(i)).read())))
+            sb += String(Rune(Int32((ptr + Int64(i)).read())))
         }
-        return sb.toString()
+        return sb
     }
 }
 
@@ -2034,7 +2037,7 @@ public class NodeFsSystem {
         let result = unsafe { c_mkdtemp(cTemplate) }
         // 注意: mkdtemp 成功时会就地修改 cTemplate，不需要再释放 result
         // 但原始分配的 cTemplate 内存仍然需要释放
-        if (result == CPointer<Int8>()) {
+        if (result.isNull()) {
             freeCString(cTemplate)
             return None
         }

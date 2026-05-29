@@ -118,7 +118,7 @@ public struct CpOpts {
     public var overwriteExistingFile: Bool = true
 
     /// 解析参数
-    public func parse(arr: Array<String>): CpParseResult {
+    public mut func parse(arr: Array<String>): CpParseResult {
         var idx: Int64 = 0
         while (idx < arr.size) {
             let arg = arr[idx]
@@ -126,7 +126,7 @@ public struct CpOpts {
                 break
             }
             // 以 - 开头的是选项
-            if (arg[0] == '-') {
+            if (arg[0] == UInt8(45)) {
                 if (arg == "--") {
                     idx++
                     break

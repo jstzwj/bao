@@ -38,9 +38,10 @@ public class ScriptExecutionContextIdentifier {
     ///   返回 Some 仅当上下文仍存活
     public func globalObject(): ?JSGlobalObject {
         // 对应 Bun: 从 VM 注册表获取 JSGlobalObject
-        let vm = VirtualMachine.get()
-        if (vm.isNone()) { return None }
-        return Some(vm.getOrThrow().globalThis)
+        let vm = BunVirtualMachine.get()
+        let result = JSGlobalObject()
+        result.globalThis = vm.globalObject
+        return Some(result)
     }
 
     /// 获取 Bun VM 指针

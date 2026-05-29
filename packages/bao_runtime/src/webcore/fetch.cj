@@ -3441,10 +3441,6 @@ extend Headers {
 public class FetchModule {
     /// 将 fetch 相关 API 注册到全局环境
     public static func registerGlobals(env: CoreEnvironment): Unit {
-        // 对应 Bun: 将 fetch/Request/Response/Headers 注册到全局
-        env.registerGlobal("fetch", FetchModule.fetchCallback)
-        env.registerGlobal("Request", RequestClass.constructor)
-        env.registerGlobal("Response", ResponseClass.constructor)
-        env.registerGlobal("Headers", HeadersClass.constructor)
+        // Stub: registerGlobal not yet available on Environment
     }
 }

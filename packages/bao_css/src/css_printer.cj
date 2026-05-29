@@ -8,9 +8,7 @@
 //   对应: StyleContext - 样式上下文 (用于嵌套规则)
 package bao_css
 
-import bao_core.*
 import bao_collections.*
-
 // ============================================================================
 // 伪类替换映射
 // 严格翻译自: printer.zig PseudoClasses

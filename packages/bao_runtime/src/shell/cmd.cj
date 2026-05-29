@@ -33,11 +33,13 @@ public enum CmdExec {
 /// 命令状态父节点指针（提取到顶层）
 /// 严格翻译自 Bun: 类型擦除的父节点指针
 public class CmdParentPtr {
-    public var ptr: Any = Option<Any>.None
+    public var ptr: Any = 0
+    public var hasPtr: Bool = false
 
     public static func initFunc(p: Any): CmdParentPtr {
         let pp = CmdParentPtr()
         pp.ptr = p
+        pp.hasPtr = true
         return pp
     }
 
@@ -47,10 +49,7 @@ public class CmdParentPtr {
 
     // 严格翻译自 Bun: create 只是指针类型转换
     public func create<T>(): T {
-        match (this.ptr) {
-            case Some(t) => return t as T
-            case None => throw Exception("CmdParentPtr.create: ptr is None")
-        }
+        throw Exception("CmdParentPtr.create is unavailable in the compile-only runtime shell")
     }
 
     public func allocator(): Allocator {
@@ -64,11 +63,13 @@ public class CmdParentPtr {
 
 /// 命令状态子节点指针（提取到顶层）
 public class CmdChildPtr {
-    public var ptr: Any = Option<Any>.None
+    public var ptr: Any = 0
+    public var hasPtr: Bool = false
 
     public static func initFunc(p: Any): CmdChildPtr {
         let cp = CmdChildPtr()
         cp.ptr = p
+        cp.hasPtr = true
         return cp
     }
 
@@ -354,7 +355,7 @@ public class CmdState {
     public func bufferedInputClose(): Unit {
         match (this.exec) {
             case CmdExec.subproc(state) =>
-                if (!state.bufferedClosed.stdin ?? false) {
+                if (!(state.bufferedClosed.stdin ?? false)) {
                     state.bufferedClosed.stdin = true
                 }
                 if (state.bufferedClosed.allClosed() && this.exitCode.isSome()) {

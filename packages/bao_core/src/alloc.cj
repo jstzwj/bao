@@ -675,6 +675,11 @@ public class AllocationScope {
     }
 }
 
+/// DevAllocator - 开发环境分配器 stub
+public class DevAllocator {
+    public init() {}
+}
+
 // ============================================================================
 // Slice 工具函数
 // 严格翻译自: src/bun_alloc/bun_alloc.zig

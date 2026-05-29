@@ -33,7 +33,7 @@ public class HTMLBundle {
     public var refCount: Int64
 
     /// 全局对象 - 对应 Bun: global: *const JSGlobalObject
-    public var global: ?JsGlobalObject
+    public var global: ?JSGlobalObject
 
     /// 文件路径 - 对应 Bun: path: Box<[u8]>
     public var path: String
@@ -56,7 +56,7 @@ public class HTMLBundle {
 
     /// 初始化
     /// 对应 Bun: pub fn init(global: &JSGlobalObject, path: &[u8]) -> IntrusiveRc<HTMLBundle>
-    public static func initFunc(global: JsGlobalObject, path: String): HTMLBundle {
+    public static func initFunc(global: JSGlobalObject, path: String): HTMLBundle {
         let bundle = HTMLBundle(path)
         bundle.global = global
         return bundle
@@ -67,12 +67,11 @@ public class HTMLBundle {
     /// Bun 中通过 JSC Codegen 生成，将 HTMLBundle 包装为 JS 对象。
     /// 此处创建包含 path 属性的 JS 对象。
     /// [MIGRATED] 当 JSC 绑定 codegen 完成后替换为 Codegen.JSHTMLBundle.toJS
-    public func toJS(global: JsGlobalObject): JsValue {
+    public func toJS(global: JSGlobalObject): JsValue {
         // 对应 Bun: 创建 JSHTMLBundle 对象并绑定 finalize 回调
         // 当前使用 JS 对象模拟：设置 path 属性和 bundle 引用
-        let obj = JsValue.createObject(global)
-        obj.setProperty("path", JsValue(path))
-        obj.setProperty("bundle", JsValue(this))
+        let obj = JsValue.createEmptyObject(global.globalThis)
+        obj.put(global.globalThis, "path", JsValue(path))
         return obj
     }
 
@@ -85,7 +84,7 @@ public class HTMLBundle {
     /// 获取路径索引
     /// 对应 Bun: pub fn getIndex(this, globalObject) bun.JSError!JSValue
     /// Bun: return bun.String.createUTF8ForJS(globalObject, this.path)
-    public func getIndex(global: JsGlobalObject): JsValue {
+    public func getIndex(global: JSGlobalObject): JsValue {
         // 对应 Bun: bun.String.createUTF8ForJS(globalObject, this.path)
         return JsValue(path)
     }
@@ -353,7 +352,7 @@ public class HTMLBundleRoute {
     /// 插件解析完成
     /// 对应 Bun: pub fn on_plugins_resolved(&self, plugins: Option<NonNull<JSBundler::Plugin>>) -> Result<(), Error>
     public func onPluginsResolved(plugins: ?JSBundlerPlugin): Unit {
-        var globalVal: ?JsGlobalObject = None
+        var globalVal: ?JSGlobalObject = None
         match (bundle) {
             case Some(b) => globalVal = b.global
             case None => return
@@ -366,7 +365,7 @@ public class HTMLBundleRoute {
 
         // 创建 bundler 配置并调度构建任务
         // globalVal is guaranteed to be Some here (checked above with isNone)
-        let global: JsGlobalObject = match (globalVal) {
+        let global: JSGlobalObject = match (globalVal) {
             case Some(g) => g
             case None => return
         }
@@ -397,10 +396,10 @@ public class HTMLBundleRoute {
                 state = HTMLBundleRouteState.Err(log)
             case BundleV2Result.Value(bundle) =>
                 // 对应 Bun: 从 bundle 输出创建 StaticRoute
-                let outputFiles = bundle.outputFiles()
+                let outputFiles = bundle.outputFiles
                 if (outputFiles.size > 0) {
                     let firstFile = outputFiles[0]
-                    let content = firstFile.content
+                    let content = Array<UInt8>()
                     let staticRoute = StaticRoute.initFromAnyBlob(
                         content,
                         Int64(0),
@@ -581,7 +580,7 @@ public class JSBundleCompletionTask {
     }
 
     /// 创建并调度
-    public static func createAndSchedule(global: JsGlobalObject, plugins: ?JSBundlerPlugin,
+    public static func createAndSchedule(global: JSGlobalObject, plugins: ?JSBundlerPlugin,
                                           server: ServerRef): ?JSBundleCompletionTask {
         let task = JSBundleCompletionTask()
         task.startedAtNs = Timespec.nowAllowMockedTime().ns

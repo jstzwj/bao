@@ -6,6 +6,7 @@ package bao_sql_jsc.postgres
 import bao_core.*
 import bao_jsc.*
 import bao_collections.ArrayList
+import bao_sql_jsc.Codegen as SqlCodegen
 import bao_sql_jsc.SqlRareDataRegistry
 
 /// Postgres SQL 查询
@@ -308,9 +309,9 @@ public class PostgresSQLQuery {
     /// 对应 Bun: PostgresSQLQuery.getTarget
     /// 从 Codegen.targetGetCached 获取缓存的 target JS 值
     public func getTarget(globalObject: JscJSGlobalObject, cleanTarget: Bool): ?JscValue {
-        let target = Codegen.targetGetCached(thisValue)
+        let target = SqlCodegen.targetGetCached(thisValue)
         if (cleanTarget) {
-            Codegen.targetSetCached(thisValue, globalObject, JscValue.undefined())
+            SqlCodegen.targetSetCached(thisValue, globalObject, JscValue.undefined())
         }
         return target
     }
@@ -403,6 +404,9 @@ public func postgresErrorToJS(globalObject: JscJSGlobalObject, message: String,
         case AnyPostgresError.JSTerminated =>
             errObj.put(globalObject.globalThis, "name", JscValue("Terminated"))
             errObj.put(globalObject.globalThis, "message", JscValue("JavaScript was terminated"))
+        case _ =>
+            errObj.put(globalObject.globalThis, "name", JscValue("PostgresError"))
+            errObj.put(globalObject.globalThis, "message", JscValue(if (message.size > 0) { message } else { "Postgres error" }))
     }
     return errObj
 }

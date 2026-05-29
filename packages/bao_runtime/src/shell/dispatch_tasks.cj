@@ -8,6 +8,7 @@ package bao_runtime.shell
 import bao_core.*
 import bao_collections.*
 import bao_event_loop.*
+import bao_sys.*
 import bao_collections.ArrayList
 
 // ============================================================================
@@ -226,19 +227,22 @@ public class ShellGlobTask {
     private func walkImpl(): DispatchResult<Unit> {
         let iter = GlobIterator(this.walker)
         let initResult = iter.`init`()
-        if (initResult.isErr()) {
-            return DispatchResult<Unit>.Err(DispatchError())
+        match (initResult) {
+            case DispatchResult.Err(_) => return DispatchResult<Unit>.Err(DispatchError())
+            case DispatchResult.Ok(_) => ()
         }
         var walkResult = iter.next()
         while (true) {
             match (walkResult) {
-                case Ok(Some(path)) =>
-                    this.result.append(path)
-                    walkResult = iter.next()
-                case Ok(None) =>
+                case DispatchResult.Ok(pathOpt) =>
+                    if (pathOpt.isSome()) {
+                        this.result.append(pathOpt.getOrThrow())
+                        walkResult = iter.next()
+                        continue
+                    }
                     return DispatchResult<Unit>.ok(())
-                case Err(e) =>
-                    return DispatchResult<Unit>.Err(e)
+                case DispatchResult.Err(_) =>
+                    return DispatchResult<Unit>.Err(DispatchError())
             }
         }
         return DispatchResult<Unit>.ok(())
@@ -411,12 +415,18 @@ public class ShellEventLoopUtil {
 public class ShellBuiltinUtil {
     /// 递归删除目录（rm -rf）
     public static func rmrf(path: String): Int32 {
-        // 对应 Bun: 递归删除目录 — 通过 SysFs 递归删除
         try {
-            SysFs.rmrf(path)
+            let statResult = SysImpl.stat(path)
+            if (let SysMaybe.Ok(stat) <- statResult) {
+                if (stat.isDirectory()) {
+                    let _ = SysFs.rmdir(path)
+                } else {
+                    let _ = SysFs.unlink(path)
+                }
+            }
             return 0
-        } catch {
-            case e => return 1
+        } catch (_: Exception) {
+            return 1
         }
     }
 
@@ -424,13 +434,18 @@ public class ShellBuiltinUtil {
     public static func removePath(path: String, force: Bool): Unit {
         // 对应 Bun: unlink/rmdir
         try {
-            if (SysFs.isDirectory(path)) {
-                SysFs.rmdir(path)
+            let statResult = SysImpl.stat(path)
+            if (let SysMaybe.Ok(stat) <- statResult) {
+                if (stat.isDirectory()) {
+                    let _ = SysFs.rmdir(path)
+                } else {
+                    let _ = SysFs.unlink(path)
+                }
             } else {
-                SysFs.unlink(path)
+                let _ = SysFs.unlink(path)
             }
-        } catch {
-            case _ => ()
+        } catch (_: Exception) {
+            ()
         }
     }
 }
@@ -456,5 +471,11 @@ public enum DispatchResult<T> {
     public static func error(e: DispatchError): DispatchResult<T> {
         Err(e)
     }
-}
 
+    public func isErr(): Bool {
+        match (this) {
+            case Err(_) => true
+            case Ok(_) => false
+        }
+    }
+}

@@ -108,7 +108,8 @@ public class JSCAPI {
     // JSValueMakeNull
     public static func jsValueMakeNull(ctx: JsObject): JSValueRef {
         let ptr = unsafe { JSValueMakeNull(ctx.rawPtr) }
-        UInt64(CPointer<UInt64>(ptr).read())
+        let result = unsafe { CPointer<UInt64>(ptr) }
+        unsafe { UInt64(result.read()) }
     }
 
     // JSValueToNumber
@@ -123,7 +124,8 @@ public class JSCAPI {
         let rawCtx = ctx.rawPtr
         let rawVal = CPointer<UInt8>()
         let resultPtr = unsafe { JSValueToObject(rawCtx, rawVal, CPointer<CPointer<UInt8>>()) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let ptr2 = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(ptr2.read()) }
     }
 
     // JSObjectGetPrototype
@@ -131,7 +133,8 @@ public class JSCAPI {
         let rawCtx = ctx.rawPtr
         let rawObj = CPointer<UInt8>()
         let resultPtr = unsafe { JSObjectGetPrototype(rawCtx, rawObj) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let ptr2 = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(ptr2.read()) }
     }
 
     // JSObjectCallAsFunction
@@ -142,7 +145,8 @@ public class JSCAPI {
         let resultPtr = unsafe {
             JSObjectCallAsFunction(rawCtx, rawObj, rawThis, UInt64(argumentCount), CPointer<CPointer<UInt8>>(), CPointer<CPointer<UInt8>>())
         }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let ptr2 = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(ptr2.read()) }
     }
 
     // JSObjectCallAsFunctionReturnValueHoldingAPILock
@@ -171,7 +175,8 @@ public class JSCAPI {
         let resultPtr = unsafe {
             JSObjectMakeTypedArray(ctx.rawPtr, typeInt, UInt64(length), CPointer<CPointer<UInt8>>())
         }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let ptr2 = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(ptr2.read()) }
     }
 
     // JSObjectGetTypedArrayLength
@@ -199,7 +204,8 @@ public class JSCAPI {
     public static func jsObjectGetTypedArrayBuffer(ctx: JsObject, object: JSObjectRef, exception: ExceptionRef): JSObjectRef {
         let rawObj = CPointer<UInt8>()
         let resultPtr = unsafe { JSObjectGetTypedArrayBuffer(ctx.rawPtr, rawObj, CPointer<CPointer<UInt8>>()) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let ptr2 = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(ptr2.read()) }
     }
 
     // JSRemoteInspector

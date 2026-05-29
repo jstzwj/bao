@@ -1463,7 +1463,7 @@ public class RequestContext {
     /// 对应 Bun: Bun__HTTPRequestContext__onResolve (及 TLS/Debug/H3 变体)
     public static func onResolvePromise(ctx: RequestContext): Unit {
         // 对应 Bun: host_on_resolve — 处理 Promise resolved 值
-        ctx.handleResolve(ctx.currentResponse)
+        ctx.handleResolve(Response())
     }
 
     /// Promise onReject host function

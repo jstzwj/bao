@@ -166,7 +166,7 @@ public class SqlRareDataRegistry {
     /// 清除指定 globalObject 的注册
     public static func remove(globalObject: JscJSGlobalObject): Unit {
         if (entries.size > 0) {
-            entries.remove(0)
+            entries.remove(at: 0)
         }
     }
 }
@@ -537,6 +537,9 @@ public class MySQLContext {
 
 /// Postgres SQL 上下文（前端引用）
 public class PostgresSQLContext {
+    public var onQueryResolveFn: ?JscValue = None
+    public var onQueryRejectFn: ?JscValue = None
+
     public init() {}
 
     /// 初始化 PostgresSQL 的 JS 绑定

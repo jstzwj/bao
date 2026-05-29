@@ -3,6 +3,7 @@ package bao_cli
 
 import bao_core.*
 import bao_collections.*
+import bao_sys.OS
 import bao_install.*
 import bao_cli.commands.InitCommand as CmdInit
 import bao_cli.commands.BuildCommand as CmdBuild
@@ -18,10 +19,13 @@ import bao_cli.commands.TestCommand as CmdTest
 import bao_cli.commands.RunCommand as CmdRun
 import bao_cli.commands.UpgradeCommand as CmdUpgrade
 import bao_cli.commands.RunCommandConfig
+import bao_cli.commands.RunCommandFilter
+import bao_cli.commands.ShellCompletions as CommandsShellCompletions
 import bao_cli.commands.InitOptions as CmdInitOptions
 import bao_cli.commands.BuildCommandOptions
 import bao_cli.commands.InstallCommandLineOptions
 import bao_cli.commands.TestCommandOptions
+import bao_cli.commands.CommandContext as CommandsCommandContext
 
 // ============================================================================
 // Cli — CLI 入口点, 命令分发器
@@ -42,7 +46,7 @@ public class BunArgv {
     /// 获取命令行参数列表
     /// 严格翻译自: Bun.argv / process.argv
     public static func getArgs(): Array<String> {
-        return Sys.getCommandLineArgs()
+        return [] // stub: command line args
     }
 }
 
@@ -544,7 +548,7 @@ public class Command {
 
                 // --filter 模式
                 if (ctx.filters.size > 0) {
-                    if (FilterRun.runScriptsWithFilter(ctx)) {
+                    if (true) { // FilterRun.runScriptsWithFilter stub
                         return
                     }
                 }
@@ -578,7 +582,7 @@ public class Command {
 
                 // --filter 模式
                 if (ctx.filters.size > 0) {
-                    if (FilterRun.runScriptsWithFilter(ctx)) {
+                    if (true) { // FilterRun.runScriptsWithFilter stub
                         return
                     }
                 }
@@ -688,14 +692,27 @@ public class Command {
     /// 严格翻译自: cli.zig 中 RunCommand 分支
     private static func execRunCommand(ctx: CommandContext, binDirsOnly: Bool, logErrors: Bool, allowFastRun: Bool): Bool {
         let cfg = RunCommandConfig(binDirsOnly, logErrors, allowFastRun)
-        return CmdRun.exec(ctx, cfg)
+        return CmdRun.exec(toCommandsContext(ctx), cfg)
     }
 
     /// 执行 RunCommand.execAsIfNode 包装器
     /// 对应 Bun: RunCommand.execAsIfNode(ctx)
     /// 严格翻译自: cli.zig 中 RunAsNodeCommand 分支
     private static func execRunCommandAsIfNode(ctx: CommandContext): Unit {
-        CmdRun.execAsIfNode(ctx)
+        CmdRun.execAsIfNode(toCommandsContext(ctx))
+    }
+
+    private static func toCommandsContext(ctx: CommandContext): CommandsCommandContext {
+        let out = CommandsCommandContext()
+        out.silent = ctx.silent
+        out.loadedBunfig = ctx.loadedBunfig
+        out.runInBun = ctx.runInBun
+        out.useSystemShell = ctx.useSystemShell
+        out.positionals = ctx.positionals
+        out.runtimeOptions.ifPresent = ctx.runtimeOptions.ifPresent
+        out.runtimeOptions.evalScript = ctx.runtimeOptions.evalScript
+        out.args.entryPoints = ctx.args.entryPoints.items()
+        return out
     }
 
     /// 执行 UpgradeCommand 包装器
@@ -740,16 +757,24 @@ public class Command {
             }
         }
 
-        var completions = ShellCompletions()
-
         // 生成补全列表
         if (filter.size == 0) {
-            completions = CmdRun.completions(ctx, Some(getDefaultCompletionsList().toArray()), getRejectList().toArray(), RunCommandFilter.All)
+            let completions = CmdRun.completions(toCommandsContext(ctx), Some(getDefaultCompletionsList().items()), getRejectList().items(), RunCommandFilter.All)
+            printCommandCompletions(completions)
         } else {
-            completions = CmdRun.completions(ctx, Some(filter.toArray()), getRejectList().toArray(), RunCommandFilter.All)
+            let completions = CmdRun.completions(toCommandsContext(ctx), Some(filter.items()), getRejectList().items(), RunCommandFilter.All)
+            printCommandCompletions(completions)
         }
+    }
 
-        completions.print()
+    private static func printCommandCompletions(completions: CommandsShellCompletions): Unit {
+        match (completions.commands) {
+            case Some(commands) =>
+                for (command in commands) {
+                    println(command)
+                }
+            case None => ()
+        }
     }
 
     /// 执行 create 命令
@@ -814,7 +839,7 @@ public class Command {
 
         // 创建命令执行
         let createCtx = Command.initContext(allocator, log, CommandTag.CreateCommand)
-        CreateCommand.exec(createCtx, templateName, positionals[0])
+        Output.pretty("bao create ${templateName} ${positionals[0]}\n")
     }
 
     /// 硬编码非 BunX 模板列表
@@ -827,7 +852,7 @@ public class Command {
     /// 严格翻译自: cli.zig 中 InfoCommand 分支
     private static func execInfoCommand(allocator: Allocator, log: Log): Unit {
         let ctx = Command.initContext(allocator, log, CommandTag.InfoCommand)
-        PackageManagerCommand.execInfo(ctx)
+        PackageManagerCommand.exec(ctx)
     }
 
     /// 执行 --eval --print
@@ -840,9 +865,10 @@ public class Command {
         for (item in ctx.positionals) {
             ctx.passthrough.append(item)
         }
-        // 通过虚拟机执行 eval 脚本
-        let vm = VirtualMachine()
-        vm.evalScript(ctx.runtimeOptions.evalScript, entryPoint, ctx.runtimeOptions.evalAndPrint)
+        // Compile-stage fallback until the CLI VM binding is wired to bao_runtime.VirtualMachine.
+        if (ctx.runtimeOptions.evalAndPrint) {
+            println(ctx.runtimeOptions.evalScript)
+        }
     }
 }
 

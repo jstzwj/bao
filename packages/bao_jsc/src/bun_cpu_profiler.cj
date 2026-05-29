@@ -83,5 +83,5 @@ public class TimeUtils {
     public static func epochMicroseconds(): UInt64 { sysCurrentEpochMicroseconds() }
 }
 public class ProcessInfo {
-    public static let pid: UInt64 = UInt64(unsafe { c_getpid_profiler() })
+    public static let pid: UInt64 = UInt64(OS.pid())
 }

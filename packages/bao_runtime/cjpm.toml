@@ -80,3 +80,4 @@ bao_libarchive = { path = "../bao_libarchive" }
 bao_http_jsc = { path = "../bao_http_jsc" }
 bao_csrf = { path = "../bao_csrf" }
 bao_safety = { path = "../bao_safety" }
+bao_router = { path = "../bao_router" }

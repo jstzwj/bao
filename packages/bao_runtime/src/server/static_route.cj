@@ -5,6 +5,8 @@ package bao_runtime.server
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.JsValue
+import bao_jsc.JSGlobalObject
 
 // ============================================================================
 // StaticRoute - 静态路由
@@ -85,6 +87,13 @@ public class StaticRoute {
         return route
     }
 
+    public static func fromJS(global: JSGlobalObject, value: JsValue): ?StaticRoute {
+        match (Blob.get(global, value, false, true)) {
+            case Some(blob) => Some(initFromAnyBlob(blob.slice(), Int64(0), Option<String>.None, Option<ServerRef>.None))
+            case None => None
+        }
+    }
+
     // ========================================================================
     // 请求处理
     // ========================================================================
@@ -125,7 +134,7 @@ public class StaticRoute {
         if (statusCode == 200) {
             // 对应 Bun: render304NotModifiedIfNoneMatch — ETag 缓存验证
             if (headers.size > 0) {
-                match (headers["etag"]) {
+                match (headers.get("etag")) {
                     case Some(etag) =>
                         // 对应 Bun: 检查 If-None-Match 头
                         ()

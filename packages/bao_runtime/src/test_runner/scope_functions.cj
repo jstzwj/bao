@@ -244,7 +244,7 @@ public class ScopeFunctions {
                 let bound = if (let Some(cb) <- args.callback) {
                     // 对应 Bun: cb.bind(globalThis, item, &"cb", 0, args_list_raw)
                     // 将参数列表绑定到回调函数
-                    cb.bind(globalThis.globalThis, JsValue.zero, "cb", Float64(callbackLength - argsList.size), argsList.items())
+                    cb.bind(globalThis.globalThis, JsValue.zero, "cb", Float64(Int64(callbackLength) - Int64(argsList.size)), argsList.items())
                 } else {
                     Option<JsValue>.None
                 }
@@ -611,23 +611,24 @@ public class ScopeFunctions {
         if (description.isEmpty()) { return Option<String>.None }
 
         // 检查是否是类
-        if (description.isClass(globalThis)) {
-            let className = description.className(globalThis)
-            if (className.isSome() && className.getOrThrow().size > 0) {
-                return className.getOrThrow()
+        let globalObj = globalThis.globalThis
+        if (description.isClass(globalObj)) {
+            let className = description.className(globalObj)
+            if (className.size > 0) {
+                return className
             }
             // 尝试 getName
-            let funcName = description.getName(globalThis)
-            if (funcName.isSome()) {
+            let funcName = description.getName(globalObj)
+            if (funcName.size > 0) {
                 return funcName
             }
         }
 
         // 检查是否是函数
         if (description.isFunction()) {
-            let funcName = description.getName(globalThis)
-            if (funcName.isSome() && funcName.getOrThrow().size > 0) {
-                return funcName.getOrThrow()
+            let funcName = description.getName(globalObj)
+            if (funcName.size > 0) {
+                return funcName
             }
         }
 
@@ -707,18 +708,14 @@ public class ScopeFunctions {
     /// 创建 .if() 系列函数
     /// 对应 Bun: 通过 Codegen 生成的 JSFunction
     public static func createBoundIfFn(global: JSGlobalObject, sf: ScopeFunctions, ifMode: ScopeIfMode): JsValue {
-        let fn: () -> JsValue = {
-            JsValue.zero
-        }
-        return JSFunction.create(global, ifMode.toString(), fn, 1, JSFunctionCreateOptions())
+        let fn: () -> JsValue = { => JsValue.zero }
+        return JSFunction.create(global, ifMode.toString(), fn, UInt32(1), JSFunctionCreateOptions())
     }
 
     /// 创建 .each() 函数
     public static func createBoundEachFn(global: JSGlobalObject, sf: ScopeFunctions): JsValue {
-        let fn: () -> JsValue = {
-            JsValue.zero
-        }
-        return JSFunction.create(global, "each", fn, 1, JSFunctionCreateOptions())
+        let fn: () -> JsValue = { => JsValue.zero }
+        return JSFunction.create(global, "each", fn, UInt32(1), JSFunctionCreateOptions())
     }
 }
 

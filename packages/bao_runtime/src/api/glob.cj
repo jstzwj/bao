@@ -6,6 +6,20 @@ import bao_core.*
 import bao_sys.*
 import bao_io.*
 import bao_collections.*
+import bao_ptr.AtomicUInt64
+
+/// Arena stub for Glob - corresponds to Bun Arena allocator
+public class Arena {
+    private let alloc: Allocator
+    public init(alloc: Allocator) { this.alloc = alloc }
+    public func allocator(): Allocator { alloc }
+    public func deinit(): Unit {}
+}
+
+/// GlobWalker stub for Glob traversal
+public class GlobWalker {
+    public init() {}
+}
 
 // ============================================================================
 // Glob - 文件模式匹配

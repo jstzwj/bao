@@ -2,12 +2,16 @@
 package bao_runtime.api
 
 import bao_jsc.*
-import bao_collections.ArrayList
-import bao_core.*
+import bao_core.{Allocator, ArenaAllocator, BaoError, ErrorCode, Output}
 import bao_collections.*
 import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
+
+/// TLSSocket stub
+public class TLSSocket { public init() {} }
+/// TCPSocket stub
+public class TCPSocket { public init() {} }
 
 // ============================================================================
 // h2_frame_parser - HTTP/2 帧解析器

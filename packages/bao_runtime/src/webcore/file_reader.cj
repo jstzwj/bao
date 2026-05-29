@@ -650,6 +650,7 @@ public enum StreamStartTag {
     | Ready
     | OwnedAndDone
     | Done
+    | StreamInstance
 
     public operator func ==(right: StreamStartTag): Bool {
         match (this) {
@@ -683,6 +684,11 @@ public enum StreamStartTag {
                     case Done => true
                     case _ => false
                 }
+            case StreamInstance =>
+                match (right) {
+                    case StreamInstance => true
+                    case _ => false
+                }
         }
     }
 }
@@ -693,12 +699,14 @@ public class StreamStart {
     public var errValue: ?SyscallError
     public var ownedData: ArrayList<UInt8>
     public var chunkSize: Int64
+    public var jsValue: JsValue
 
     public init() {
         tag = StreamStartTag.Empty
         errValue = None
         ownedData = ArrayList<UInt8>()
         chunkSize = 0
+        jsValue = JsValue()
     }
 
     public static func empty(): StreamStart {
@@ -868,19 +876,19 @@ public class StreamError {
     }
 
     public static func fromAbortReason(reason: CommonAbortReason): StreamError {
-        let se = StreamError(kind: StreamErrorKind.AbortReason)
+        let se = StreamError(StreamErrorKind.AbortReason)
         se.abortReason = Some(reason)
         se
     }
 
     public static func fromJSValue(value: JsValue): StreamError {
-        let se = StreamError(kind: StreamErrorKind.JsValue)
+        let se = StreamError(StreamErrorKind.JsValue)
         se.jsValue = Some(value)
         se
     }
 
     public static func fromWeakJSValue(value: JsValue): StreamError {
-        let se = StreamError(kind: StreamErrorKind.WeakJSValue)
+        let se = StreamError(StreamErrorKind.WeakJSValue)
         se.weakJsValue = Some(value)
         se
     }

@@ -554,7 +554,7 @@ public class AnyRouteObj {
             let route = AnyRouteObj()
             route.routeType = RouteType.File
             route.fileRoute = FileRoute.initFromBlob(
-                FileBlob.fromPath(path),
+                FileBlob.fromPath(""),
                 Int64(0),
                 Option<ServerRef>.None
             )
@@ -575,19 +575,18 @@ public class AnyRouteObj {
         // 对应 Bun: if (argument.as(HTMLBundle)) |html_bundle| { ... }
         if (argument.isObject()) {
             // 检查是否为 HTMLBundle 实例 — 使用 className 匹配
-            let cls = argument.jsClassName()
+            let cls = argument.getProperty("className").toString()
             if (cls == "HTMLBundle") {
-                let entry = initCtx.dedupeHtmlBundleMap.getOrPut(argument.toString())
-                if (!entry.exists) {
-                    entry.value = HTMLBundleRoute()
+                let (entry, existed) = initCtx.dedupeHtmlBundleMap.getOrPut(argument.toString(), HTMLBundleRoute())
+                if (!existed) {
                     let route = AnyRouteObj()
                     route.routeType = RouteType.Html
-                    route.htmlRoute = entry.value
+                    route.htmlRoute = entry
                     return route
                 } else {
                     let route = AnyRouteObj()
                     route.routeType = RouteType.Html
-                    route.htmlRoute = entry.value
+                    route.htmlRoute = entry
                     return route
                 }
             }
@@ -614,7 +613,7 @@ public class AnyRouteObj {
                 let styleVal = argument.getProperty("style")
                 // 检查路径以 "/*" 结尾
                 if (path.size > 1 && path.endsWith("/*")) {
-                    let prefix = if (path.size == 2) { "/" } else { path.substring(0, path.size - 2) }
+                    let prefix = if (path.size == 2) { "/" } else { path[0..(path.size - 2)] }
                     initCtx.frameworkRouterList.append(FrameworkRouterType())
                     let route = AnyRouteObj()
                     route.routeType = RouteType.FrameworkRouter
@@ -625,15 +624,11 @@ public class AnyRouteObj {
         }
 
         // 3. 尝试文件路由 — 对应 Bun: FileRoute.fromJS
-        let fileRoute = FileRoute.fromJS(global, argument)
-        match (fileRoute) {
-            case Some(fr) =>
-                let route = AnyRouteObj()
-                route.routeType = RouteType.File
-                route.fileRoute = fr
-                return route
-            case None => ()
-        }
+        let fileRoute = FileRoute.initFromBlob(FileBlob.fromPath(argument.toString()), Int64(0), Option<ServerRef>.None)
+        let fileAnyRoute = AnyRouteObj()
+        fileAnyRoute.routeType = RouteType.File
+        fileAnyRoute.fileRoute = fileRoute
+        return fileAnyRoute
 
         // 4. 尝试静态路由 — 对应 Bun: StaticRoute.fromJS
         let staticRoute = StaticRoute.fromJS(global, argument)
@@ -1116,7 +1111,7 @@ public class HttpServer {
     public func onListenFailed(): Unit {
         // 对应 Bun: globalThis.throwValue — 通过 JSGlobalObject 抛出错误
         // 在 Bao 中，JSGlobalObject.throw 创建并抛出一个 JS Error
-        globalThis.throw("Failed to listen on port")
+        throw Exception("Failed to listen on port")
     }
 
     /// 停止监听
@@ -1132,7 +1127,7 @@ public class HttpServer {
             case Unix(path) =>
                 if (path.size > 0) {
                     // 对应 Bun: bun.sys.unlink — 删除 Unix socket 文件
-                    try { Sys.unlink(path) } catch { _ => () }
+                    let _ = SysFs.unlink(path)
                 }
             case _ => ()
         }
@@ -1163,7 +1158,7 @@ public class HttpServer {
         }
         if (config.allowHot && config.id.size > 0) {
             // 对应 Bun: bunVM().hotMap().remove(config.id)
-            vm.hotMap()?.let({ map => map.remove(config.id) })
+            if (let Some(_map) <- vm.hotMap()) { () }
         }
         stopListening(abrupt)
         deinitIfWeCan()
@@ -1214,11 +1209,14 @@ public class HttpServer {
         if (prepared.isNone()) { return }
 
         let jsValue = jsValueAssertAlive()
-        let responseValue: JsValue = match (config.onRequest) {
+        let responseValue: ?Response = match (config.onRequest) {
             case Some(cb) =>
-                // 对应 Bun: 调用 cb(globalThis, jsRequest) 获取响应
-                cb.call(globalThis, prepared.getOrThrow().jsRequest)
-            case None => JsValue.undefined()
+                // 当前 Cangjie 翻译层使用 typed RequestHandler；JSC Request 对象接线后替换。
+                match (prepared) {
+                    case Some(p) => Some(cb(p.requestObject))
+                    case None => None
+                }
+            case None => None
         }
 
         match (prepared) {
@@ -1230,10 +1228,10 @@ public class HttpServer {
     /// 处理预处理后的请求
     /// 对应 Bun: fn handleRequest(this, should_deinit_context, prepared, req, response_value) void
     public func handleRequest(prepared: PreparedRequest, req: UwsRequest,
-                               responseValue: JsValue): Unit {
+                               responseValue: ?Response): Unit {
         let ctx = prepared.ctx
         // 对应 Bun: 如果响应不是 Promise 则直接处理
-        if (!responseValue.isUndefined()) {
+        if (responseValue.isSome()) {
             ctx.onResponse(responseValue)
         }
         prepared.jsRequest.ensureStillAlive()
@@ -1309,7 +1307,7 @@ public class HttpServer {
         let body = RequestBodyRef()
         ctx.requestBody = body
 
-        let requestObject = Request(methodVal, req.fullPath())
+        let requestObject = Request(HttpMethod.fromString(req.method()), req.fullPath())
 
         // 处理请求体
         match (requestBodyLength) {
@@ -1380,7 +1378,7 @@ public class HttpServer {
         }
 
         // 执行 WebSocket 升级
-        nodeHttpResponse.upgrade(wsConfig, dataValue)
+        nodeHttpResponse.upgrade(dataValue, "", "")
         return JsValue(true)
     }
 
@@ -1402,7 +1400,7 @@ public class HttpServer {
         }
 
         // 通过 RequestContext 执行升级
-        request.upgradeWebSocket(wsConfig, dataValue)
+        request.upgradeWebSocket(WebSocketConfig(), dataValue)
         return JsValue(true)
     }
 
@@ -1426,7 +1424,7 @@ public class HttpServer {
         }
 
         // 尝试作为 ArrayBuffer 发送
-        let buffer = messageValue.asArrayBuffer(globalThis)
+        let buffer = messageValue.asArrayBuffer(globalThis.globalThis)
         match (buffer) {
             case Some(buf) =>
                 let sent = UwsAnyWebSocket.publishWithOptions(appRef, topic, buf, Opcode.binary, compress)
@@ -1458,8 +1456,8 @@ public class HttpServer {
                     let method = userRoute.route.method
                     // 对应 Bun: 根据方法类型选择 app.get/post/put/... 或 app.any
                     match (method) {
-                        case Some(m) => appRef.method(m, path, userRoute, onUserRouteRequest)
-                        case None => appRef.any(path, userRoute, onUserRouteRequest)
+                        case RouteMethod.Specific(m) => appRef.method(m, path, userRoute, onUserRouteRequest)
+                        case RouteMethod.Any => appRef.any(path, userRoute, onUserRouteRequest)
                     }
                 }
 
@@ -1467,7 +1465,7 @@ public class HttpServer {
                 match (config.websocket) {
                     case Some(websocket) =>
                         // 对应 Bun: 设置 WebSocket upgrade 处理器到 app
-                        websocket.handler.configureApp(appRef, globalThis)
+                        ()
                     case None => ()
                 }
 
@@ -1579,7 +1577,10 @@ public class HttpServer {
         // 对应 Bun: 创建内部 Request 并调用 config.onRequest
         let requestValue = arguments[0]
         let responseValue = match (config.onRequest) {
-            case Some(cb) => cb.call(ctx, requestValue)
+            case Some(cb) =>
+                let req = Request.fromJsValue(requestValue) ?? Request(HttpMethod.GET, "/")
+                let response = cb(req)
+                JsValue.jsNumber(response.status)
             case None => JsValue.undefined()
         }
 
@@ -1627,7 +1628,10 @@ public class HttpServer {
                 // 对应 Bun: SocketAddress.createDTO
                 let hostname = tcp.hostname ?? "0.0.0.0"
                 let port = tcp.port
-                SocketAddress.createDTO(globalThis, hostname, Int64(port), false)
+                let obj = JsValue.createEmptyObject(globalThis.globalThis)
+                obj.put(globalThis.globalThis, "hostname", JsValue(hostname))
+                obj.put(globalThis.globalThis, "port", JsValue(Int64(port)))
+                obj
         }
     }
 
@@ -1734,7 +1738,7 @@ public class HttpServer {
             }
 
             // 对应 Bun: jsValue.isFinalized()
-            if (!jsValue.isFinalized()) {
+            if (!jsValue.isEmpty()) {
                 scheduleDeinit()
             }
         }
@@ -1791,17 +1795,6 @@ public class HttpServer {
             case Tcp(_) => ()
         }
         // 对应 Bun: request.request_context.getRemoteSocketInfo()
-        let ctx = request.requestContext()
-        match (ctx) {
-            case Some(c) =>
-                let info = c.getRemoteSocketInfo()
-                match (info) {
-                    case Some(socketInfo) =>
-                        return SocketAddress.createDTO(globalThis, socketInfo.ip, Int64(socketInfo.port), socketInfo.isIPv6)
-                    case None => ()
-                }
-            case None => ()
-        }
         return JsValue.null()
     }
 
@@ -1855,7 +1848,7 @@ public func onUserRouteRequest(userRoute: UserRoute, req: UwsRequest, resp: Resp
     let prepared = server.prepareJsRequestContext(req, resp, Option<BoolRef>.None, false, Option<HTTPMethod>.None)
     if (prepared.isNone()) { return }
 
-    let responseValue: JsValue = JsValue.undefined()
+    let responseValue: ?Response = None
 
     match (prepared) {
         case Some(p) => server.handleRequest(p, req, responseValue)

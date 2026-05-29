@@ -8,11 +8,8 @@
 //   对应: Location - 行列位置
 package bao_css
 
-import bao_core.*
 import bao_collections.*
 import bao_hash.*
-
-// ============================================================================
 // 依赖分析选项
 // 严格翻译自: dependencies.zig DependencyOptions
 // ============================================================================

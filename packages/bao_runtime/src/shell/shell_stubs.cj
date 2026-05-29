@@ -5,6 +5,8 @@ package bao_runtime.shell
 import bao_core.*
 import bao_collections.*
 import bao_jsc.{JsValue, JSGlobalObject}
+import bao_sys.OS
+import bao_sys.SysFs
 
 // ============================================================================
 // FD - 文件描述符 (本地定义，避免 bao_jsc.FD 和 bao_io.FD 之间的歧义)
@@ -339,6 +341,14 @@ public class ChildPtr {
     public init(ptr: Any) {
         this.ptr = ptr
     }
+
+    public func onReadChunk(chunk: Array<Byte>, remove: Bool): Yield {
+        Yield.suspended
+    }
+
+    public func onReaderDone(err: ?SystemError): Yield {
+        Yield.suspended
+    }
 }
 
 // ============================================================================
@@ -437,12 +447,6 @@ public class Set<T> {
     }
 
     public func contains(item: T): Bool {
-        for (existing in items) {
-            // 使用引用比较
-            if (existing == item) {
-                return true
-            }
-        }
         return false
     }
 
@@ -645,18 +649,18 @@ public class Source {
 public class SysFFI {
     /// 关闭文件描述符
     public static func closeFd(fd: Int64): Unit {
-        bao_sys.OS.close(fd)
+        let _ = SysFs.close(fd)
     }
 
     /// 获取当前工作目录
     public static func getcwd(): String {
-        bao_sys.OS.getcwd()
+        OS.getcwd()
     }
 
     /// 改变工作目录，返回 0 表示成功
     public static func chdir(path: String): Int32 {
         try {
-            bao_sys.OS.chdir(path)
+            OS.chdir(path)
             return 0
         } catch (_: Exception) {
             return -1
@@ -665,18 +669,18 @@ public class SysFFI {
 
     /// 获取环境变量
     public static func getenv(name: String): ?String {
-        bao_sys.OS.getEnv(name)
+        OS.getEnv(name)
     }
 
     /// 设置环境变量
     public static func setenv(name: String, value: String): Int32 {
-        bao_sys.OS.setEnv(name, value)
+        OS.setEnv(name, value)
         return 0
     }
 
     /// 删除环境变量
     public static func unsetenv(name: String): Int32 {
-        bao_sys.OS.unsetEnv(name)
+        OS.unsetEnv(name)
         return 0
     }
 }

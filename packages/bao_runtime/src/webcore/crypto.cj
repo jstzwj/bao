@@ -7,6 +7,10 @@ import bao_core.*
 import bao_jsc.*
 import bao_sys.*
 
+@C foreign func malloc(size: UIntNative): CPointer<Unit>
+@C foreign func free(ptr: CPointer<Unit>): Unit
+@C foreign func getrandom(buf: CPointer<Unit>, buflen: UIntNative, flags: UInt32): Int64
+
 // ============================================================================
 // Crypto - Web Crypto API
 // 对应 Bun: src/runtime/webcore/Crypto.zig Crypto
@@ -150,7 +154,7 @@ func getCurrentTimeMillis(): Int64 {
     // CLOCK_REALTIME = 0
     // struct timespec { tv_sec: i64, tv_nsec: i64 } on 64-bit Linux
     let buf = Array<Byte>(16, repeat: UInt8(0))
-    let ret = unsafe { clock_gettime_crypto(0, CPointerUtils.fromArray(buf)) }
+    let ret = unsafe { clock_gettime_crypto(0, CPointer<Byte>()) } // stub: simplified
     if (ret == 0) {
         let sec = Int64(buf[0]) |
             (Int64(buf[1]) << 8) |

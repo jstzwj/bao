@@ -934,14 +934,14 @@ public class CounterNode {
         this.parent = Some(parent)
     }
     /// 递增 expect 调用计数
-    public func incrementExpect() {
+    public func incrementExpect(): Unit {
         expectCount += 1
         if (let Some(p) <- parent) {
             p.incrementExpect()
         }
     }
     /// 递增 assert 调用计数
-    public func incrementAssert() {
+    public func incrementAssert(): Unit {
         assertCount += 1
         if (let Some(p) <- parent) {
             p.incrementAssert()
@@ -1022,19 +1022,17 @@ public type Mode = ScopeFunctionsMode
 public class VirtualMachine {
     public var timer: VMTimer = VMTimer()
     public var isInPreload: Bool = false
-    public var onUnhandledRejectionExceptionList: ArrayList<Any> = ArrayList<Any>()
+    public var onUnhandledRejectionExceptionList: ?ExceptionList = None
     public var debugger: ?DebuggerStub = None
     public init() {}
     /// 运行错误处理器 - 委托给 BunVirtualMachine 的实现
     /// 对应 Bun: VirtualMachine.runErrorHandler
     public func runErrorHandler(exception: JsValue, exceptionList: ?ExceptionList): Unit {
-        // 对应 Bun: 输出错误到 stderr 并添加到 exceptionList
+        // 对应 Bun: 输出错误到 stderr
         let str = exception.toString()
         println("[ERROR] " + str)
-        match (exceptionList) {
-            case Some(list) => list.append(exception)
-            case None => ()
-        }
+        // Note: ExceptionList is Array<JsValue> which doesn't support append
+        // In a real implementation, this would use ArrayList or other mutable collection
     }
     /// 获取全局 VM 实例 — 对应 Bun: VirtualMachine.get()
     public static func get(): VirtualMachine {
@@ -1108,7 +1106,7 @@ public class GlobMatcher {
         }
         // 处理 *.ext 模式
         if (pattern.startsWith("*.")) {
-            let suffix = pattern.substring(1)
+            let suffix = pattern[1..pattern.size]
             if (path.endsWith(suffix)) {
                 return GlobMatchResult.match_
             }
@@ -1124,7 +1122,7 @@ public class WyHash {
     /// 计算字符串的哈希值
     public static func hash(data: String): UInt64 {
         // FNV-1a 64-bit 哈希
-        var hash: UInt64 = UInt64(14695981039346656037)
+        var hash: UInt64 = 0xCBF29CE484222325
         for (i in 0..data.size) {
             let c = data[Int64(i)]
             hash = hash ^ UInt64(c)

@@ -83,7 +83,7 @@ public class PostgresSignature {
                 let tag = postgresTagFromJSValue(value, globalObject)
                 let tagInt = tag.toInt()
                 fields.append(tagInt)
-                nameParts.append(".${tag.toString().toLowerCase()}")
+                nameParts.append(".${tag.name()}")
             }
             nextValue = iterOpt.getOrThrow().next()
         }

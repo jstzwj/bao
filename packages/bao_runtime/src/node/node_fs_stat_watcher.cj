@@ -276,7 +276,7 @@ public class StatWatcher {
 
         // 注册到调度器
         scheduler = StatWatcherScheduler.get(vm)
-        scheduler.getOrThrow().add(this)
+        scheduler.getOrThrow().append(this)
 
         // 持久化时 ref 事件循环
         if (persistent) {

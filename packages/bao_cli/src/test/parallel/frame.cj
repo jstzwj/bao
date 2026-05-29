@@ -72,17 +72,17 @@ public class Frame {
         // 截断保护: 单帧不超过 MAX_PAYLOAD
         let trunc = "\n... [output truncated: would exceed --parallel IPC frame limit]\n"
         let headroom: Int64 = 256
-        let used: Int64 = (buf.size.toInt64() - 5) + 4
+        let used: Int64 = (buf.size - 5) + 4
         let room: Int64 = if (MAX_PAYLOAD > used + headroom) { MAX_PAYLOAD - used - headroom } else { 0 }
-        if (s.size.toInt64() <= room) {
+        if (s.size <= room) {
             u32_(Int64(s.size))
             for (i in 0..s.size) {
                 buf.append(UInt8(s[i]))
             }
             return
         }
-        let keep: Int64 = if (room > trunc.size.toInt64()) { room - trunc.size.toInt64() } else { 0 }
-        u32_(keep + trunc.size.toInt64())
+        let keep: Int64 = if (room > trunc.size) { room - trunc.size } else { 0 }
+        u32_(keep + trunc.size)
         for (i in 0..Int64(s.size)) {
             if (i >= keep) { break }
             buf.append(UInt8(s[i]))
@@ -96,7 +96,7 @@ public class Frame {
     /// 对应 Bun: Frame.finish()
     /// 严格翻译自: Frame.zig 中 finish() -- 补全 payload_len 头部并返回缓冲区
     public func finish(): Array<Byte> {
-        let payloadLen: Int64 = buf.size.toInt64() - 5
+        let payloadLen: Int64 = buf.size - 5
         // 写入 payload_len 到头部 [0..4]
         buf[0] = UInt8(payloadLen & 0xFF)
         buf[1] = UInt8((payloadLen >> 8) & 0xFF)
@@ -144,10 +144,10 @@ public class FrameReader {
     /// 严格翻译自: Frame.zig Reader.u32_() -- 小端读取 4 字节
     public func u32_(): Int64 {
         if (pos + 4 > data.size) { return 0 }
-        let v = Int64(data[pos].toInt()) |
-                (Int64(data[pos + 1].toInt()) << 8) |
-                (Int64(data[pos + 2].toInt()) << 16) |
-                (Int64(data[pos + 3].toInt()) << 24)
+        let v = Int64(data[pos]) |
+                (Int64(data[pos + 1]) << 8) |
+                (Int64(data[pos + 2]) << 16) |
+                (Int64(data[pos + 3]) << 24)
         pos += 4
         return v
     }

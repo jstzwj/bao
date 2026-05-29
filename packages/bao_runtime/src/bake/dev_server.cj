@@ -26,6 +26,10 @@ import bao_bundler.Define
 import bao_bundler.DefineData
 import bao_watcher.*
 import bao_threading.*
+import bao_safety.ThreadLock
+import bao_core.AllocationScope
+import bao_core.ArenaAllocator
+import bao_core.DevAllocator
 import bao_collections.ArrayList
 import bao_runtime.bake.dev_server.SerializedFailure
 import bao_runtime.bake.dev_server.HmrSocket
@@ -673,7 +677,7 @@ public class DevServer {
         nextBundle = NextBundle()
         deferredRequestPool = HiveArray<DeferredRequestNode>()
         activeWebsocketConnections = AutoHashMapUnmanaged<HmrSocket, Unit>()
-        memoryVisualizerTimer = EventLoopTimer()
+        memoryVisualizerTimer = EventLoopTimer(TimerTag.DevServerMemoryVisualizerTick)
         broadcastConsoleLogFromBrowserToServer = false
     }
 
@@ -681,7 +685,7 @@ public class DevServer {
     /// 对应 Bun: pub fn init(options: Options) bun.JSOOM!*DevServer
     public static func initFunc(options: Options): ?DevServer {
         let dev = DevServer()
-        dev.allocationScope = AllocationScope.initDefault()
+        dev.allocationScope = AllocationScope()
         dev.root = options.root
         dev.vm = options.vm
         dev.server = Option<AnyServer>.None

@@ -4,9 +4,8 @@
 package bao_runtime.api
 
 import bao_jsc.*
-import bao_collections.ArrayList
-import bao_core.*
 import bao_collections.*
+import bao_core.{Allocator, ArenaAllocator, BaoError, ErrorCode, Output, defaultAllocator}
 import bao_sys.*
 import bao_lolhtml_sys.*
 import bao_runtime.webcore.*

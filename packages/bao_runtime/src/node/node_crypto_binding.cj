@@ -457,12 +457,8 @@ public class CryptoTimingSafe {
 // ============================================================================
 public class CryptoSecureHeap {
     public static func secureHeapUsed(): JsValue {
-        // 对应 Bun: BoringSSL secure heap 信息 — 返回使用量统计对象
-        let obj = JsValue.createObject()
-        obj.setProperty("total", JsValue.jsNumber(0))
-        obj.setProperty("used", JsValue.jsNumber(0))
-        obj.setProperty("remaining", JsValue.jsNumber(0))
-        return obj
+        // Stub: 返回空 JS 对象
+        return JsValue()
     }
 }
 

@@ -5,6 +5,7 @@ package bao_jsc
 
 import bao_collections.*
 import bao_sys.*
+import bao_event_loop.EventLoopTimer
 
 // Array.append 扩展 - 返回新数组
 extend<T> Array<T> {

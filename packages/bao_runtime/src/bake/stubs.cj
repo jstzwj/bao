@@ -157,7 +157,7 @@ public class AnyRequestContext {}
 /// JavaScript bundler 插件
 public class JSBundlerPlugin {
     public var name: String = ""
-    public var setup: Any? = None
+    public var setup: ?Any = None
     public init() {}
     public init(name: String) { this.name = name }
 }

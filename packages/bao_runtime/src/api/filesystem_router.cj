@@ -3,11 +3,11 @@ package bao_runtime.api
 
 import bao_jsc.*
 import bao_collections.ArrayList
-import bao_core.*
-import bao_core.ArenaAllocator
+import bao_core.Allocator
 import bao_sys.*
 import bao_io.*
 import bao_collections.*
+import bao_router.Router
 
 // ============================================================================
 // 默认文件扩展名
@@ -26,8 +26,8 @@ public class FileSystemRouter {
     var origin: RefString = none
     var baseDir: RefString = none
     var router: Router
-    var arena: ArenaAllocator = uninitialized
-    var allocator: Allocator = uninitialized
+    var arena: ArenaAllocator = ArenaAllocator()
+    var allocator: Allocator = ArenaAllocator()
     var assetPrefix: RefString = none
 
     // ========================================================================
@@ -431,6 +431,11 @@ public class FileSystemRouter {
 // ============================================================================
 
 /// 路由参数列表（对应原 Zig RouterParamList）
+/// Query string map stub - placeholder for URL query parameter map
+public class QueryStringMap {
+    public init() {}
+}
+
 public class RouterParamList {
     public var len: Int64 = 0
 
@@ -460,7 +465,7 @@ public class RouterMatch {
 /// 匹配到的路由信息
 public class MatchedRoute {
     var route: RouterMatch
-    var routeHolder: RouterMatch = uninitialized
+    var routeHolder: RouterMatch = ArenaAllocator()
     var queryStringMap: QueryStringMap = none
     var paramMap: QueryStringMap = none
     var paramsListHolder: RouterParamList = RouterParamList{}
@@ -487,7 +492,7 @@ public class MatchedRoute {
 
         route = MatchedRoute{
             routeHolder = `match`
-            route = uninitialized
+            route = ArenaAllocator()
             assetPrefix = assetPrefix
             origin = origin
             baseDir = baseDir

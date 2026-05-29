@@ -145,7 +145,7 @@ public class VirtualMachineExports {
     /// 对应 Bun: Bun__handleHandledPromise
     public static func handleHandledPromise(global: JsObject, promise: JsPromise) {
         let promiseJs = promise.toJS()
-        promiseJs.protect(global.globalObjectEncoded())
+        promiseJs.protect()
         let context = HandledPromiseContext(global, promiseJs)
         global.bunVM().eventLoop_().enqueueTask(
             ManagedTaskNew.initFunc(context, HandledPromiseContext.callback)

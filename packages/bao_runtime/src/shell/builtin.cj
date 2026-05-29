@@ -95,6 +95,30 @@ public enum BuiltinKind {
             case cp => "usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpsvXx] source_file ... target_directory\n"
         }
     }
+
+    public func commandName(): String {
+        match (this) {
+            case cat => "cat"
+            case touch => "touch"
+            case mkdir => "mkdir"
+            case export => "export"
+            case cd => "cd"
+            case echo => "echo"
+            case pwd => "pwd"
+            case which => "which"
+            case rm => "rm"
+            case mv => "mv"
+            case ls => "ls"
+            case exit => "exit"
+            case true_ => "true"
+            case false_ => "false"
+            case yes => "yes"
+            case seq => "seq"
+            case dirname => "dirname"
+            case basename => "basename"
+            case cp => "cp"
+        }
+    }
 }
 
 /// 内置命令实现联合体 - extracted from BuiltinImpl
@@ -468,9 +492,8 @@ public class BuiltinImpl {
     public func fmtErrorArena(kind: ?BuiltinKind, fmt: String, args: Array<Any>): String {
         // 格式化: "builtin_name: " + fmt
         var prefix = ""
-        match (kind) {
-            case Some(k) => prefix = k.asStr() + ": "
-            case None => ()
+        if (kind.isSome()) {
+            prefix = kind.getOrThrow().commandName() + ": "
         }
         return prefix + fmt
     }

@@ -1,9 +1,6 @@
 // 严格翻译自: src/css/targets.zig
 package bao_css
 
-import bao_core.*
-import bao_collections.*
-
 // ============================================================================
 // Features - 目标特性标志位
 // 严格翻译自: targets.zig Features packed struct(u32)

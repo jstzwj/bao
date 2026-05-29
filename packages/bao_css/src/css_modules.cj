@@ -8,11 +8,8 @@
 //   对应: CssModuleReference - 引用类型 (local, global, dependency)
 package bao_css
 
-import bao_core.*
 import bao_collections.*
 import bao_hash.*
-
-// ============================================================================
 // CSS Modules 配置
 // 严格翻译自: css_modules.zig Config
 // ============================================================================

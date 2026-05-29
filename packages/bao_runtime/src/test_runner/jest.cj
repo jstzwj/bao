@@ -3,7 +3,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{BunString, CallFrame, File, JSFunction, JSFunctionCreateOptions, JSGlobalObject, JsValue, Log, RegularExpression, Source}
+import bao_jsc.{BunString, CallFrame, ExceptionList, File, JSFunction, JSFunctionCreateOptions, JSGlobalObject, JsValue, Log, RegularExpression, Source}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
@@ -516,7 +516,7 @@ public func onUnhandledRejection(jscVm: VirtualMachine, globalObject: JSGlobalOb
     }
 
     // 没有活跃的BunTest，直接运行错误处理器
-    jscVm.runErrorHandler(rejection, jscVm.onUnhandledRejectionExceptionList)
+    jscVm.runErrorHandler(rejection, Option<ExceptionList>.None)
 }
 
 // ========== 格式化标签 ==========
@@ -555,7 +555,7 @@ public func formatLabel(globalThis!: JSGlobalObject, label!: String, functionArg
                 varEnd += 1
                 while (varEnd < label.size) {
                     let c = label[varEnd]
-                    if (c == '.'.toInt()) {
+                    if (c == UInt8(46)) { // '.'
                         if (varEnd + 1 < label.size && isIdentifierContinue(label[varEnd + 1])) {
                             varEnd += 1
                         } else {
@@ -592,7 +592,7 @@ public func formatLabel(globalThis!: JSGlobalObject, label!: String, functionArg
                 continue
             } else {
                 // 不是有效的标识符开头，作为普通 $ 处理
-                while (varEnd < label.size && isIdentifierContinue(label[varEnd]) && label[varEnd] != "$".toInt()) {
+                while (varEnd < label.size && isIdentifierContinue(label[varEnd]) && label[varEnd] != UInt8(36)) { // '$'
                     varEnd += 1
                 }
                 result.append("$")

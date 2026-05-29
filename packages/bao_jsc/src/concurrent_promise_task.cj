@@ -96,9 +96,9 @@ public class ConcurrentPromiseTaskGeneric {
             if (let Some(ct) <- concurrentTask) {
                 // 通过 EventLoop 将并发任务入队
                 // 对应 Bun: vm.event_loop_handle.enqueueTaskConcurrent(task)
-                el.enqueue({ =>
+                el.enqueue(EventLoopEntry(EventLoopTag.Default, { =>
                     ct.run()
-                })
+                }))
             }
         }
     }

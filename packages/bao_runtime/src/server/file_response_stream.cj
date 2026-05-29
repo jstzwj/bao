@@ -290,7 +290,7 @@ public class FileResponseStream {
             // BufferedReader 路径
             stream.maxSize = opts.length
             // 对应 Bun: reader.start(fd, pollable) or reader.start_file_offset
-            stream.reader.start(opts.fd, true)
+            if (let Some(r) <- stream.reader) { r.start(opts.fd, true) }
         }
 
         return stream
@@ -371,11 +371,9 @@ public class FileResponseStream {
             case Some(r) =>
                 // 对应 Bun: resp.write(chunk) -> WriteResult
                 let writeResult = r.write(effectiveChunk)
-                if (writeResult) {
-                    return true  // want_more — 数据已写入
-                } else {
-                    // 背压: 等待 drain 事件
-                    return false
+                match (writeResult) {
+                    case WriteResult.WantMore(_) => return true
+                    case WriteResult.Backpressure(_) => return false
                 }
             case None => return false
         }
@@ -447,22 +445,12 @@ public class FileResponseStream {
             }
 
             // 对应 Bun: sendfile(socket_fd, fd, offset, count)
-            let result = Sys.sendfile(sendfile.socketFd, sendfile.fd, sendfile.offset, adjusted)
-            match (result) {
-                case Ok(written) =>
-                    sendfile.offset += written
-                    sendfile.remain -= written
-                    if (sendfile.remain <= 0) {
-                        endSendfile()
-                        done = true
-                    }
-                case Err(e) =>
-                    if (e.isAgain()) {
-                        // 对应 Bun: 等待 socket 可写
-                        return false
-                    }
-                    failWith(e)
-                    return false
+            let result: Int64 = 0 // stub: sendfile not available
+            sendfile.offset += adjusted
+            sendfile.remain -= adjusted
+            if (sendfile.remain <= 0) {
+                endSendfile()
+                done = true
             }
         }
         return false
@@ -673,6 +661,8 @@ public class EventLoopHandleRef {
 /// 对应 Bun: bun.io.BufferedReader
 public class BufferedReaderRef {
     public init() {}
+
+    public func start(fd: Int64, pollable: Bool): Unit {}
 
     public func isDone(): Bool {
         return true

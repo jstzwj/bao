@@ -1373,27 +1373,21 @@ public class BinaryWriter {
     }
 }
 
-/// JSPromiseStrong — JS Promise 强引用
-/// 对应 Bun: bun_jsc::JSPromiseStrong
+/// JSPromiseStrong — JS Promise strong reference (local stub)
 public class JSPromiseStrong {
     public init() {}
-
-    public init(global: JsGlobalObject) {}
-
-    public static func `init`(global: JSGlobalObject): JSPromiseStrong {
-        return JSPromiseStrong()
-    }
-
-    public func value(): JsValue {
-        return JsValue.undefined()
-    }
-
+    public init(global: JSGlobalObject) {}
+    public static func empty(): JSPromiseStrong { JSPromiseStrong() }
+    public func value(): JsValue { JsValue.undefined() }
+    public func valueOrEmpty(): JsValue { JsValue.undefined() }
     public func resolve(global: JSGlobalObject, value: JsValue): Unit {}
     public func reject(global: JSGlobalObject, value: JsValue): Unit {}
     public func reject(global: JSGlobalObject, err: ?JsValue): Unit {}
-    public func get(): ?JsValue { return None }
+    public func get(): ?JsValue { None }
     public func deinit(): Unit {}
-    public func swap(): JSPromiseStrong { return this }
+    public func swap(): JSPromiseStrong { this }
+    public func hasValue(): Bool { false }
+    public func toJS(): JsValue { JsValue.undefined() }
 }
 
 /// JSPromise — JS Promise 辅助

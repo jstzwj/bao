@@ -5,9 +5,6 @@
 //   对应: values/angle.zig - Angle, AnglePercentage
 package bao_css
 
-import bao_core.*
-import bao_collections.*
-
 // ============================================================================
 // 像素转换常量
 // 严格翻译自: length.zig PX_PER_IN, PX_PER_CM, PX_PER_MM, PX_PER_Q, PX_PER_PT, PX_PER_PC

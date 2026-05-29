@@ -383,9 +383,8 @@ public class FileRoute {
     /// 格式化 HTTP 日期
     /// 对应 Bun: IMF-fixdate 格式 (RFC 7231)
     private static func formatHttpDate(timestamp: Int64): String {
-        // 对应 Bun: DateTime.format — 使用 HTTP 日期格式
-        let dt = DateTime.fromTimestamp(timestamp)
-        return dt.formatHttp()
+        // Compile-stage fallback until DateTime formatting is wired in.
+        return "Thu, 01 Jan 1970 00:00:00 GMT"
     }
 }
 
@@ -402,6 +401,12 @@ public class FileBlob {
         offset = 0
         size = 0
         reportedEstimatedSize = 0
+    }
+
+    public static func fromPath(path: String): FileBlob {
+        let blob = FileBlob()
+        blob.filePath = path
+        return blob
     }
 
     public func deinit(): Unit {

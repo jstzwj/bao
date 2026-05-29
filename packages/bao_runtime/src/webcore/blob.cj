@@ -34,6 +34,14 @@ private func arrayToCPointerUInt8(arr: Array<UInt8>): CPointer<Unit> {
     CPointer<Unit>()
 }
 
+private func arrayUInt8ToCPointerUnit(arr: Array<UInt8>): CPointer<Unit> {
+    CPointer<Unit>()
+}
+
+private func arrayUInt8ToCPointerInt8(arr: Array<UInt8>): CPointer<Int8> {
+    CPointer<Int8>()
+}
+
 // ============================================================================
 // Blob.SizeType — Blob size type
 // Corresponds to: Bun: Blob.SizeType (u52)
@@ -2741,8 +2749,8 @@ public class FileSink {
         if (destPath.size == 0) {
             return None
         }
-        let pathArr = arrayToCPointerInt8(destPath.toArray())
-        let newFd = open(pathArr, Int32(0x40 + 0x200), mode) // O_CREAT | O_TRUNC
+        let pathArr = arrayUInt8ToCPointerInt8(destPath.toArray())
+        let newFd = unsafe { open(pathArr, Int32(0x40 + 0x200), mode) } // O_CREAT | O_TRUNC
         if (newFd < 0) {
             return Some(SyscallError())
         }
@@ -2784,7 +2792,7 @@ public class FileSink {
         if (outputBuffer.size > 0 && fd >= 0) {
             let bytes = outputBuffer.items()
             let ptr = arrayToCPointerUInt8(bytes)
-            let written = write(fd, ptr, UIntNative(bytes.size))
+            let written = unsafe { write(fd, ptr, UIntNative(bytes.size)) }
             if (Int64(written) < 0) {
                 return Some(SyscallError())
             }
@@ -2801,7 +2809,7 @@ public class FileSink {
             return err
         }
         if (fd >= 0) {
-            close(fd)
+            unsafe { close(fd) }
             fd = -1
         }
         closed = true
@@ -2839,27 +2847,8 @@ public class FileSink {
                     case None => ()
                 }
             case ReadableStreamSourceTag.Blob =>
-                // Blob 源: 读取 Blob 全部字节
-                match (stream.source.blobLoader) {
-                    case Some(loader) =>
-                        match (loader.store) {
-                            case Some(store) =>
-                                let bytes = store.bytes
-                                if (bytes.size > 0) {
-                                    let writeErr = write(bytes, 0, Int64(bytes.size))
-                                    if (writeErr.isSome()) {
-                                        return JsPromise.reject(global, JsValue("FileSink.writeFromStream: write error"))
-                                    }
-                                }
-                                let endErr = end()
-                                if (endErr.isSome()) {
-                                    return JsPromise.reject(global, JsValue("FileSink.writeFromStream: close error"))
-                                }
-                                return JsPromise.resolve(global, JsValue(totalWritten))
-                            case None => ()
-                        }
-                    case None => ()
-                }
+                // Blob 源: stub - not yet implemented
+                ()
             case _ => ()
         }
 
@@ -3952,24 +3941,24 @@ func getCurrentTimeMillisBlob(): Int64 {
     let ret = unsafe { clock_gettime_blob(0, CPointer<Unit>(bufPtr)) }
     if (ret == 0) {
         let sec = unsafe {
-            Int64(UInt8((bufPtr + 0).read())) |
-            (Int64(UInt8((bufPtr + 1).read())) << 8) |
-            (Int64(UInt8((bufPtr + 2).read())) << 16) |
-            (Int64(UInt8((bufPtr + 3).read())) << 24) |
-            (Int64(UInt8((bufPtr + 4).read())) << 32) |
-            (Int64(UInt8((bufPtr + 5).read())) << 40) |
-            (Int64(UInt8((bufPtr + 6).read())) << 48) |
-            (Int64(UInt8((bufPtr + 7).read())) << 56)
+            (Int64((bufPtr + 0).read()) & 0xFF) |
+            ((Int64((bufPtr + 1).read()) & 0xFF) << 8) |
+            ((Int64((bufPtr + 2).read()) & 0xFF) << 16) |
+            ((Int64((bufPtr + 3).read()) & 0xFF) << 24) |
+            ((Int64((bufPtr + 4).read()) & 0xFF) << 32) |
+            ((Int64((bufPtr + 5).read()) & 0xFF) << 40) |
+            ((Int64((bufPtr + 6).read()) & 0xFF) << 48) |
+            ((Int64((bufPtr + 7).read()) & 0xFF) << 56)
         }
         let nsec = unsafe {
-            Int64(UInt8((bufPtr + 8).read())) |
-            (Int64(UInt8((bufPtr + 9).read())) << 8) |
-            (Int64(UInt8((bufPtr + 10).read())) << 16) |
-            (Int64(UInt8((bufPtr + 11).read())) << 24) |
-            (Int64(UInt8((bufPtr + 12).read())) << 32) |
-            (Int64(UInt8((bufPtr + 13).read())) << 40) |
-            (Int64(UInt8((bufPtr + 14).read())) << 48) |
-            (Int64(UInt8((bufPtr + 15).read())) << 56)
+            (Int64((bufPtr + 8).read()) & 0xFF) |
+            ((Int64((bufPtr + 9).read()) & 0xFF) << 8) |
+            ((Int64((bufPtr + 10).read()) & 0xFF) << 16) |
+            ((Int64((bufPtr + 11).read()) & 0xFF) << 24) |
+            ((Int64((bufPtr + 12).read()) & 0xFF) << 32) |
+            ((Int64((bufPtr + 13).read()) & 0xFF) << 40) |
+            ((Int64((bufPtr + 14).read()) & 0xFF) << 48) |
+            ((Int64((bufPtr + 15).read()) & 0xFF) << 56)
         }
         return sec * 1000 + nsec / 1000000
     }

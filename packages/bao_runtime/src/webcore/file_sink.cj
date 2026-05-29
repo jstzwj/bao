@@ -517,37 +517,5 @@ public class JsWeak {
     public func clear(): Unit {}
 }
 
-/// JS Promise 强引用
-public class JSPromiseStrong {
-    public var value: JsValue
+/// JSPromiseStrong is defined in streams.cj
 
-    public init() {
-        value = JsValue.jsNumber(Int64(0))
-    }
-
-    public static func empty(): JSPromiseStrong {
-        return JSPromiseStrong()
-    }
-
-    public func valueOrEmpty(): JsValue {
-        return value
-    }
-
-    public func take(): JSPromiseStrong {
-        return JSPromiseStrong()
-    }
-
-    public func hasValue(): Bool {
-        !value.isUndefinedOrNull()
-    }
-
-    public func swap(other: JSPromiseStrong): Unit {
-        let tmp = value
-        value = other.value
-        other.value = tmp
-    }
-
-    public func get(): JsValue {
-        value
-    }
-}

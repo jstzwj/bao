@@ -64,10 +64,11 @@ public class ExportCmd {
         // 处理赋值参数: export NAME=VALUE 或 export NAME
         for (arg in args) {
             let eqIdx = arg.indexOf('=')
-            if (eqIdx >= 0) {
+            if (eqIdx.isSome()) {
+                let eq = eqIdx.getOrThrow()
                 // export NAME=VALUE
-                let name = arg.substring(0, eqIdx)
-                let value = arg.substring(eqIdx + 1)
+                let name = arg[0..eq]
+                let value = arg[(eq + 1)..]
                 SysFFI.setenv(name, value)
             } else {
                 // export NAME (标记为导出，如果已有值则保持)

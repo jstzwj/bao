@@ -682,9 +682,11 @@ public class JsSymbol {
     // 对应 Bun: Symbol.keyFor — 线性扫描注册表查找匹配的 key
     public static func keyFor(sym: JsSymbol): ?String {
         // 线性扫描注册表, 查找 id 匹配的 symbol 对应的 key
-        for ((key, registered) in registry) {
-            if (registered.id == sym.id) {
-                return key
+        for (key in registry.keys()) {
+            if (let Some(registered) <- registry.get(key)) {
+                if (registered.id == sym.id) {
+                    return key
+                }
             }
         }
         None

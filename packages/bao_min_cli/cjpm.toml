@@ -1,14 +1,14 @@
 [package]
 cjc-version = "1.0.0"
-name = "bao_cli"
+name = "bao_min_cli"
 organization = "bao"
-description = "Bao CLI entry point: run, build, install, test, init commands"
+description = "Minimal Bao CLI bootstrap target"
 version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
 link-option = ""
 output-type = "executable"
-src-dir = "src_min"
+src-dir = "src"
 target-dir = ""
 
 [dependencies]

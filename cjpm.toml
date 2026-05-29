@@ -16,6 +16,7 @@ members = [
     "packages/bao_install",
     "packages/bao_sql",
     "packages/bao_cli",
+    "packages/bao_min_cli",
     "packages/bao_transpiler",
     "packages/bao_resolver",
     "packages/bao_dotenv",

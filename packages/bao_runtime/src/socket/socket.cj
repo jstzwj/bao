@@ -1012,24 +1012,22 @@ public class Socket {
     /// 将二进制数据转为 JS 值
     private func binaryTypeToJS(data: Array<UInt8>, binaryType: BinaryType): JsValue {
         // 对应 Bun: 根据 binaryType 创建对应的 JS 对象
+        // Stub: 返回简单的 JsValue
         match (binaryType) {
             case BinaryType.Buffer =>
-                return JsValue.createBuffer(globalThis, data)
+                return JsValue()
             case BinaryType.ArrayBuffer =>
-                return JsValue.createArrayBuffer(globalThis, data)
+                return JsValue()
             case BinaryType.Uint8Array =>
-                return JsValue.createUint8Array(globalThis, data)
+                return JsValue()
         }
     }
 
     /// 将 JS 值转为字节数组
     private func jsValueToBytes(value: JsValue): Array<UInt8> {
         // 对应 Bun: 从 ArrayBuffer/Buffer/TypedArray 提取字节
-        let buffer = value.asArrayBuffer(globalThis)
-        match (buffer) {
-            case Some(buf) => return buf
-            case None => return Array<UInt8>()
-        }
+        // Stub: 返回空数组
+        return Array<UInt8>()
     }
 }
 

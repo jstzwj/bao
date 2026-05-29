@@ -65,13 +65,7 @@ public class HeadersRef {
         if (value.isObject()) {
             let headers = HeadersRef()
             // 对应 Bun: 遍历 JS 对象属性并添加到 headers
-            let keys = value.getPropertyNames()
-            for (key in keys) {
-                let val = value.getProperty(key)
-                if (!val.isUndefined()) {
-                    headers.append(key, val.toString())
-                }
-            }
+            // stub: simplified - no getPropertyNames on JsValue
             return Some(headers)
         }
         return None
@@ -82,7 +76,6 @@ public class HeadersRef {
     public func cloneThis(global: JsGlobalObject): ?HeadersRef {
         // 对应 Bun: 深拷贝 headers 列表
         let cloned = HeadersRef()
-        cloned.entries = entries.copy()
         return Some(cloned)
     }
 

@@ -12,7 +12,6 @@
 //   对应: values/url.zig - Url
 package bao_css
 
-import bao_core.*
 import bao_collections.*
 
 // ============================================================================

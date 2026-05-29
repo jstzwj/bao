@@ -963,18 +963,14 @@ public func byteStreamUnpipeWithoutDeref(bs: ByteStream): Unit {
 /// the real event loop microtask enqueue. For now, uses the JsPromise
 /// static microtask queue which is the current microtask implementation.
 func queueMicrotask(cb: JsValue): Unit {
-    // Enqueue via the JsPromise microtask queue (available from bao_jsc)
-    // In a fully connected implementation, this would be:
-    //   EventLoop.enqueue(Microtask, { => cb.call(global, ...) })
-    JsPromise.microtaskQueue.append({ =>
-        if (cb.isCallable()) {
-            try {
-                cb.call(JsObject(), JsValue.UNDEFINED, Array<JsValue>())
-            } catch (_: Exception) {
-                // Swallow microtask errors (matches JSC behavior for internal callbacks)
-            }
+    // Stub: immediately invoke the callback since microtaskQueue is not yet available
+    if (cb.isCallable()) {
+        try {
+            cb.call(JsObject(), JsValue.UNDEFINED, Array<JsValue>())
+        } catch (_: Exception) {
+            // Swallow microtask errors (matches JSC behavior for internal callbacks)
         }
-    })
+    }
 }
 
 /// StreamResult to JsValue helper

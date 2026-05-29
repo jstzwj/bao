@@ -131,13 +131,14 @@ public class PathLikeOps {
 // 对应 Bun: 仅 Buffer 变体需要 unprotect JSValue
 public func unprotectPathLike(value: PathLike): Unit {
     match(value) {
-        case Buffer(b) => {
+        case Buffer(_) =>
             // Buffer 的 JSValue 需要 unprotect (对应 Bun: b.buffer.value.unprotect())
-        }
-        case String(_)
-        | ThreadsafeString(_)
-        | SliceWithUnderlyingString(_)
-        | EncodedSlice(_) => {}  // 这些变体无需 unprotect
+            // b.buffer.value.unprotect()
+            ()
+        case String(_) => ()
+        case ThreadsafeString(_) => ()
+        case SliceWithUnderlyingString(_) => ()
+        case EncodedSlice(_) => ()
     }
 }
 

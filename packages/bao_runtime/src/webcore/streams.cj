@@ -1409,7 +1409,7 @@ public class NetworkSink <: SinkHandler {
     public func flushFromJS(global: JSGlobalObject, wait: Bool): JsValue {
         // Still waiting for more data to be flushed
         if (flushPromiseRef.hasValue()) {
-            return flushPromiseRef.get()
+            return flushPromiseRef.get().toJS()
         }
 
         // Nothing to do here
@@ -1422,7 +1422,7 @@ public class NetworkSink <: SinkHandler {
             let t = task.getOrThrow()
             if (!t.isQueueEmpty()) {
                 flushPromiseRef = JSPromiseStrong()
-                return flushPromiseRef.get()
+                return flushPromiseRef.get().toJS()
             }
         }
 
@@ -1517,12 +1517,12 @@ public class NetworkSink <: SinkHandler {
     public func endFromJS(global: JSGlobalObject): JsValue {
         end(Option<SyscallError>.None)
         if (endPromiseRef.hasValue()) {
-            return endPromiseRef.get()
+            return endPromiseRef.get().toJS()
         }
         if (task.isSome()) {
             // We need to wait for the task to end
             endPromiseRef = JSPromiseStrong()
-            let value = endPromiseRef.get()
+            let value = endPromiseRef.get().toJS()
             if (!ended) {
                 ended = true
                 // Send EOF
@@ -1789,7 +1789,7 @@ public class JSPromise {
         // For now, create a Promise JS object
         let obj = JsObject()
         let val = JsValue(obj)
-        return JSPromise(jsValue: val)
+        return JSPromise(val)
     }
 
     /// Create a resolved promise returning the given value
@@ -1803,7 +1803,7 @@ public class JSPromise {
     /// 对应 Bun: JSC__JSPromise__rejectedPromise(globalThis, value)
     public static func rejectedPromise(global: JSGlobalObject, value: JsValue): JSPromise {
         // When FFI is available: return JSC__JSPromise__rejectedPromise(globalThis.ptr(), value)
-        return JSPromise(jsValue: value)
+        return JSPromise(value)
     }
 
     /// Get opaque reference (identity)
@@ -1855,19 +1855,14 @@ public class JSPromise {
 /// JSPromiseStrong - holds a strong (GC-protected) reference to a JSPromise
 /// 严格翻译自 Bun: jsc.JSPromise.Strong { strong: jsc.Strong.Optional }
 public class JSPromiseStrong {
-    /// The underlying Promise JS value (GC-protected)
     var strongValue: ?JsValue
-    /// Whether this reference is valid (has a value)
     var hasStrongValue: Bool
 
-    /// Empty constructor — 对应 Bun: Strong.empty
     public init() {
         strongValue = None
         hasStrongValue = false
     }
 
-    /// Create from globalThis — 对应 Bun: Strong.init(globalThis)
-    /// Creates a new JSPromise via JSC and stores a strong reference to it
     public init(global: JSGlobalObject) {
         let promise = JSPromise.create(global)
         strongValue = Some(promise.toJS())
@@ -1875,17 +1870,13 @@ public class JSPromiseStrong {
         promise.toJS().protect()
     }
 
-    /// Get the underlying JSPromise pointer
-    /// 对应 Bun: Strong.get() -> *JSPromise
     public func get(): JSPromise {
         match (strongValue) {
-            case Some(v) => JSPromise(jsValue: v)
+            case Some(v) => JSPromise(v)
             case None => JSPromise()
         }
     }
 
-    /// Get the JSValue of the promise
-    /// 对应 Bun: Strong.value() -> JSValue
     public func value(): JsValue {
         match (strongValue) {
             case Some(v) => v
@@ -1893,27 +1884,19 @@ public class JSPromiseStrong {
         }
     }
 
-    /// Get value or empty JsValue
-    /// 对应 Bun: Strong.valueOrEmpty()
     public func valueOrEmpty(): JsValue {
         match (strongValue) {
             case Some(v) => v
-            case None => JsValue.ZERO
+            case None => JsValue.undefined()
         }
     }
 
-    /// Whether this strong reference holds a value
-    /// 对应 Bun: Strong.hasValue()
     public func hasValue(): Bool {
         hasStrongValue
     }
 
-    /// Swap the promise and return the old one
-    /// 对应 Bun: Strong.swap() -> *JSPromise
-    /// Consumes the strong reference and returns the raw JSPromise
     public func swap(): JSPromise {
         let old = get()
-        // Unprotect old value from GC
         match (strongValue) {
             case Some(v) => v.unprotect()
             case None => ()
@@ -1923,22 +1906,16 @@ public class JSPromiseStrong {
         return old
     }
 
-    /// Resolve the promise (consumes the strong reference)
-    /// 对应 Bun: Strong.resolve(globalThis, val) — calls swap().resolve()
     public func resolve(global: JSGlobalObject, val: JsValue): Unit {
         let promise = swap()
         promise.resolve(global, val)
     }
 
-    /// Reject the promise (consumes the strong reference)
-    /// 对应 Bun: Strong.reject(globalThis, val) — calls swap().reject()
     public func reject(global: JSGlobalObject, val: JsValue): Unit {
         let promise = swap()
         promise.reject(global, val)
     }
 
-    /// Release the strong reference
-    /// 对应 Bun: Strong.deinit()
     public func deinit(): Unit {
         match (strongValue) {
             case Some(v) => v.unprotect()
@@ -1948,8 +1925,6 @@ public class JSPromiseStrong {
         hasStrongValue = false
     }
 
-    /// Static: create empty
-    /// 对应 Bun: Strong.empty
     public static func empty(): JSPromiseStrong {
         JSPromiseStrong()
     }
@@ -1983,7 +1958,7 @@ public class ArrayBufferPlaceholder {
     /// 对应 Bun: ArrayBuffer.fromBytes(data, .Uint8Array)
     /// Installs a deallocator so the JSC GC frees the backing store.
     public static func fromBytes(data: Array<UInt8>, `type`: JSType): ArrayBufferPlaceholder {
-        return ArrayBufferPlaceholder(bytes: data, jsType: `type`)
+        return ArrayBufferPlaceholder(data, `type`)
     }
 
     /// Create a JS ArrayBuffer and return its JsValue

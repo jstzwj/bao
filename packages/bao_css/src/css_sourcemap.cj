@@ -1,7 +1,6 @@
 // 严格翻译自: src/css/sourcemap.zig
 package bao_css
 
-import bao_core.*
 import bao_collections.*
 
 // ============================================================================

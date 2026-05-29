@@ -5,7 +5,6 @@ package bao_css.selectors
 
 import bao_core.*
 import bao_collections.*
-import bao_css.*
 
 // ============================================================================
 // 重导出

@@ -10,9 +10,6 @@
 // 例如: Chrome 4.0 = 262144, Chrome 12 = 786432
 package bao_css
 
-import bao_core.*
-import bao_collections.*
-
 // ============================================================================
 // 浏览器版本号编码
 // 严格翻译自: prefixes.zig 中的版本比较逻辑

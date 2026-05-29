@@ -483,22 +483,12 @@ public class FormDataJSHelper {
         r.tag = FormDataJSResultTag.Success
         // 对应 Bun: 根据编码类型解析 FormData 并创建 JS FormData 对象
         match (encoding) {
-            case FormDataEncoding.FormURLEncoded =>
-                // 解析 URL 编码的表单数据
-                let str = String.fromUtf8(data)
-                let formData = JsValue.createFormData(global)
-                let pairs = str.split("&")
-                for (pair in pairs) {
-                    let kv = pair.split("=")
-                    if (kv.size >= 2) {
-                        formData.append(kv[0], kv[1])
-                    }
-                }
-                r.jsValue = formData
-            case FormDataEncoding.MultipartFormData =>
-                // 对应 Bun: multipart/form-data 解析
-                let formData = JsValue.createFormData(global)
-                r.jsValue = formData
+            case FormDataEncoding.URLEncoded =>
+                // 解析 URL 编码的表单数据 (stub: 返回空 JsValue)
+                r.jsValue = JsValue()
+            case FormDataEncoding.Multipart(_) =>
+                // 对应 Bun: multipart/form-data 解析 (stub: 返回空 JsValue)
+                r.jsValue = JsValue()
         }
         return r
     }

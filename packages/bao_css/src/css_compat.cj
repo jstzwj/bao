@@ -35,7 +35,6 @@
 //   isPartiallyCompatible: 检查任一指定浏览器是否支持此特性 (OR 逻辑)
 package bao_css
 
-import bao_core.*
 import bao_collections.*
 
 // ============================================================================
@@ -293,9 +292,7 @@ public func getCompatFeatureGroup(feature: CompatFeature): CompatFeatureGroup {
              min_content_size |
              moz_available_size |
              webkit_fill_available_size |
-             anchor_size_size |
-             stretch_size |
-             fit_content_function_size =>
+             anchor_size_size =>
             CompatFeatureGroup.size_group
         // 边框相关
         case border_image_repeat_round |
@@ -303,8 +300,7 @@ public func getCompatFeatureGroup(feature: CompatFeature): CompatFeatureGroup {
             CompatFeatureGroup.border_group
         // 媒体查询相关
         case media_range_syntax |
-             media_interval_syntax |
-             custom_media_queries =>
+             media_interval_syntax =>
             CompatFeatureGroup.media_query_group
         // 布局相关
         case place_content |
@@ -417,15 +413,6 @@ public func getCompatFeatureGroup(feature: CompatFeature): CompatFeatureGroup {
              disc_list_style_type |
              square_list_style_type =>
             CompatFeatureGroup.list_style_group
-        // 其他
-        case first_letter |
-             any_pseudo |
-             marker_pseudo |
-             placeholder |
-             selection |
-             fullscreen |
-             dialog =>
-            CompatFeatureGroup.pseudo_element_group
     }
 }
 

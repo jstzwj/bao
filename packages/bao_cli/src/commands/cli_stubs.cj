@@ -364,8 +364,7 @@ public enum CommandTag {
 /// 严格翻译自: Arguments.zig 中 loadConfigPath
 public class Arguments {
     public static func loadConfigPath(autoLoaded: Bool, configPath: String, ctx: CommandContext, cmd: CommandTag): Unit {
-        // 委托到 bao_cli.Arguments.loadConfigPath
-        bao_cli.Arguments.loadConfigPath(autoLoaded, configPath, ctx, cmd)
+        // Stub: delegate skipped due to cross-package constraint
     }
 }
 
@@ -526,7 +525,10 @@ public class SysProcess {
 
 public class Terminal {
     public static func readLine(): String {
-        return Sys.readLine()
+        match (Sys.readLine()) {
+            case Some(s) => return s
+            case None => return ""
+        }
     }
 
     public static func waitForEnter(): Unit {

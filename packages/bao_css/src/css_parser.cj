@@ -27,7 +27,6 @@
 //   对应: parse_utility / to_css / parseImportant - 解析/输出工具
 package bao_css
 
-import bao_core.*
 import bao_collections.*
 
 private func cssAsciiLower(input: String): String {
@@ -3742,12 +3741,11 @@ public class CssParserExt {
     public static func tryParse<T>(parser: CssParser, fn: (CssParser) -> CssParseResult<T>): CssParseResult<T> {
         let saved = parser.state()
         let result = fn(parser)
-        match (result) {
-            case err =>
-                parser.resetState(saved)
-                return result
-            case ok => result
+        if (result.isOk()) {
+            return result
         }
+        parser.resetState(saved)
+        return result
     }
 }
 

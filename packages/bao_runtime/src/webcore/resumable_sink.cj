@@ -207,37 +207,47 @@ public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: 
     /// 对应 Bun: set_cancel() — 将 oncancel 回调存储在 JS 对象的内部槽位
     public static func setCancel(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
         // 对应 Bun: Js.oncancelSetCached — 设置 JS 对象属性
-        thisValue.setProperty("_oncancel", value)
+        if (thisValue.isObject()) {
+            thisValue.toObject().set("_oncancel", value)
+        }
     }
 
     /// 获取 oncancel 回调
     /// 对应 Bun: get_cancel()
     public static func getCancel(thisValue: JsValue): ?JsValue {
-        let val = thisValue.getProperty("_oncancel")
-        if (val.isUndefined()) { return None }
-        return Some(val)
+        if (thisValue.isObject()) {
+            let val = thisValue.toObject().get("_oncancel")
+            if (!val.isUndefined()) { return Some(val) }
+        }
+        return None
     }
 
     /// 设置 ondrain 回调
     /// 对应 Bun: set_drain() — 将 ondrain 回调存储在 JS 对象的内部槽位
     public static func setDrain(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
         // 对应 Bun: Js.ondrainSetCached — 设置 JS 对象属性
-        thisValue.setProperty("_ondrain", value)
+        if (thisValue.isObject()) {
+            thisValue.toObject().set("_ondrain", value)
+        }
     }
 
     /// 获取 ondrain 回调
     /// 对应 Bun: get_drain()
     public static func getDrain(thisValue: JsValue): ?JsValue {
-        let val = thisValue.getProperty("_ondrain")
-        if (val.isUndefined()) { return None }
-        return Some(val)
+        if (thisValue.isObject()) {
+            let val = thisValue.toObject().get("_ondrain")
+            if (!val.isUndefined()) { return Some(val) }
+        }
+        return None
     }
 
     /// 设置 stream 缓存
     /// 对应 Bun: set_stream() — 将 stream 引用存储在 JS 对象的内部槽位
     public static func setStream(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
         // 对应 Bun: Js.streamSetCached — 设置 JS 对象属性
-        thisValue.setProperty("_stream", value)
+        if (thisValue.isObject()) {
+            thisValue.toObject().set("_stream", value)
+        }
     }
 
     /// 获取 stream 缓存
@@ -305,8 +315,8 @@ public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: 
         this_.status = ResumableSinkStatus.Started
 
         // 对应 Bun: stream 状态检查和 JS 对象绑定
-        let streamValue = stream.toJs(globalThis)
-        setStream(this_.jsValue, globalThis, streamValue)
+        let streamValue = stream.toJsValue()
+        setStream(JsValue.undefined(), globalThis, streamValue)
         return this_
     }
 

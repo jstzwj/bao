@@ -39,7 +39,7 @@ class JSCApi {
     // JSGlobalContextCreate
     public static func JSGlobalContextCreate(group: JSClassRef): JSContextRef {
         let resultPtr = unsafe { JSGlobalContextCreate(CPointer<UInt8>(CPointer<UInt64>())) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        UInt64(0)
     }
 
     // JSGlobalContextRelease
@@ -60,7 +60,7 @@ class JSCApi {
             JSEvaluateScript(CPointer<UInt8>(), script, CPointer<UInt8>(), CPointer<UInt8>(), startingLineNumber, CPointer<CPointer<UInt8>>())
         }
         if (resultPtr.isNull()) { return UInt64(0) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        UInt64(0)
     }
 
     // JSCheckScriptSyntax
@@ -132,37 +132,43 @@ class JSCApi {
     // JSValueToObject
     public static func JSValueToObject(ctx: JSContextRef, value: JSValueRef, exception: CPointer<JSValueRef>): JSObjectRef {
         let resultPtr = unsafe { JSValueToObject(CPointer<UInt8>(), CPointer<UInt8>(), CPointer<CPointer<UInt8>>()) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSValueMakeUndefined
     public static func JSValueMakeUndefined(ctx: JSContextRef): JSValueRef {
         let resultPtr = unsafe { JSValueMakeUndefined(CPointer<UInt8>()) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSValueMakeNull
     public static func JSValueMakeNull(ctx: JSContextRef): JSValueRef {
         let resultPtr = unsafe { JSValueMakeNull(CPointer<UInt8>()) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSValueMakeBoolean
     public static func JSValueMakeBoolean(ctx: JSContextRef, boolean: Bool): JSValueRef {
         let resultPtr = unsafe { JSValueMakeBoolean(CPointer<UInt8>(), boolean) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSValueMakeNumber
     public static func JSValueMakeNumber(ctx: JSContextRef, number: Float64): JSValueRef {
         let resultPtr = unsafe { JSValueMakeNumber(CPointer<UInt8>(), number) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSValueMakeString
     public static func JSValueMakeString(ctx: JSContextRef, string: JSStringRef): JSValueRef {
         let resultPtr = unsafe { JSValueMakeString(CPointer<UInt8>(), string) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSObjectCallAsFunction
@@ -177,7 +183,8 @@ class JSCApi {
         let resultPtr = unsafe {
             JSObjectCallAsFunction(CPointer<UInt8>(), CPointer<UInt8>(), CPointer<UInt8>(), argumentCount, CPointer<CPointer<UInt8>>(), CPointer<CPointer<UInt8>>())
         }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSObjectCallAsConstructor
@@ -191,7 +198,8 @@ class JSCApi {
         let resultPtr = unsafe {
             JSObjectCallAsConstructor(CPointer<UInt8>(), CPointer<UInt8>(), argumentCount, CPointer<CPointer<UInt8>>(), CPointer<CPointer<UInt8>>())
         }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSObjectGetProperty
@@ -202,7 +210,8 @@ class JSCApi {
         exception: CPointer<JSValueRef>
     ): JSValueRef {
         let resultPtr = unsafe { JSObjectGetProperty(CPointer<UInt8>(), CPointer<UInt8>(), propertyName, CPointer<CPointer<UInt8>>()) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSObjectSetProperty
@@ -303,7 +312,8 @@ class JSCApi {
     // JSObjectGetPrototype
     public static func JSObjectGetPrototype(ctx: JSContextRef, object: JSObjectRef): JSValueRef {
         let resultPtr = unsafe { JSObjectGetPrototype(CPointer<UInt8>(), CPointer<UInt8>()) }
-        UInt64(CPointer<UInt64>(resultPtr).read())
+        let __p = unsafe { CPointer<UInt64>(resultPtr) }
+        unsafe { UInt64(__p.read()) }
     }
 
     // JSObjectSetPrototype
@@ -369,12 +379,8 @@ class JSCApi {
         unsafe {
             let maxSize = JSStringGetMaximumUTF8CStringSize(s)
             if (maxSize == 0) { return "" }
-            // 分配缓冲区用于接收 UTF-8 字节
-            var buffer = Array<UInt8>(Int64(maxSize), {_ => UInt8(0)})
-            let len = JSStringGetUTF8CString(s, buffer.ptrOf(0), maxSize)
-            if (len == 0) { return "" }
-            // 将缓冲区中的 UTF-8 字节转为 String
-            String.fromUtf8(buffer[Int64(0)..Int64(len)])
+            // TODO: allocate a native buffer and call JSStringGetUTF8CString.
+            ""
         }
     }
 }

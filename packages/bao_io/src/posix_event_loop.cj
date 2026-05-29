@@ -1419,11 +1419,34 @@ private class FilePollFlagSet {
     public init() {}
 
     private func flagEq(a: FilePollFlag, b: FilePollFlag): Bool {
-        match (a, b) {
-            case (PollReadable, PollReadable) | (PollWritable, PollWritable) | (PollProcess, PollProcess) | (PollMachPort, PollMachPort) | (Readable, Readable) | (Writable, Writable) | (Process, Process) | (Eof, Eof) | (Hup, Hup) | (MachPort, MachPort) | (Fifo, Fifo) | (Tty, Tty) => true
+        match (a) {
+            case PollReadable => isPollReadable(b)
+            case PollWritable => isPollWritable(b)
+            case PollProcess => isPollProcess(b)
+            case PollMachPort => isPollMachPort(b)
+            case Readable => isReadable(b)
+            case Writable => isWritable(b)
+            case Process => isProcess(b)
+            case Eof => isEof(b)
+            case Hup => isHup(b)
+            case MachPort => isMachPort(b)
+            case Fifo => isFifo(b)
+            case Tty => isTty(b)
             case _ => false
         }
     }
+    private func isPollReadable(k: FilePollFlag): Bool { match (k) { case PollReadable => true; case _ => false } }
+    private func isPollWritable(k: FilePollFlag): Bool { match (k) { case PollWritable => true; case _ => false } }
+    private func isPollProcess(k: FilePollFlag): Bool { match (k) { case PollProcess => true; case _ => false } }
+    private func isPollMachPort(k: FilePollFlag): Bool { match (k) { case PollMachPort => true; case _ => false } }
+    private func isReadable(k: FilePollFlag): Bool { match (k) { case Readable => true; case _ => false } }
+    private func isWritable(k: FilePollFlag): Bool { match (k) { case Writable => true; case _ => false } }
+    private func isProcess(k: FilePollFlag): Bool { match (k) { case Process => true; case _ => false } }
+    private func isEof(k: FilePollFlag): Bool { match (k) { case Eof => true; case _ => false } }
+    private func isHup(k: FilePollFlag): Bool { match (k) { case Hup => true; case _ => false } }
+    private func isMachPort(k: FilePollFlag): Bool { match (k) { case MachPort => true; case _ => false } }
+    private func isFifo(k: FilePollFlag): Bool { match (k) { case Fifo => true; case _ => false } }
+    private func isTty(k: FilePollFlag): Bool { match (k) { case Tty => true; case _ => false } }
 
     public func contains(item: FilePollFlag): Bool {
         for (i in 0..items.size) {
@@ -1434,7 +1457,7 @@ private class FilePollFlagSet {
 
     public func put(item: FilePollFlag): Unit {
         if (!contains(item)) {
-            items.add(item)
+            items.append(item)
         }
     }
 

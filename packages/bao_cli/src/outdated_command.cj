@@ -58,50 +58,18 @@ public class OutdatedCommand {
     /// 执行命令
     /// 对应 Bun: OutdatedCommand.exec()
     public static func exec(ctx: CommandContext): Unit {
-        Output.prettyLn("bao outdated v${Global.packageJsonVersionWithSha}")
+        Output.prettyln("bao outdated v${Global.packageJsonVersionWithSha}")
         Output.flush()
 
-        let cli = PackageManager.CommandLineArguments.parse(ctx, Subcommand.outdated)
-        let (manager, originalCwd) = match (PackageManager.`init`(ctx, cli, Subcommand.outdated)) {
-            case Some((pm, dir)) => (pm, dir)
-            case None =>
-                if (!cli.silent) {
-                    Output.errGeneric("failed to initialize bao install")
-                }
-                Global.crash()
-        }
-
-        outdated(ctx, originalCwd, manager)
+        // TODO: 使用 bao_install API 解析命令行参数并初始化 PackageManager
+        // 当前为简化实现，等待 PackageManager API 完善后对接
+        Output.println("outdated command is not yet implemented")
     }
 
     /// 执行过时检查
     /// 对应 Bun: OutdatedCommand.outdated()
     private static func outdated(ctx: CommandContext, originalCwd: String, manager: PackageManager): Unit {
-        let loadLockfileResult = manager.lockfile.loadFromCwd(manager, manager.allocator, manager.log, true)
-        if (loadLockfileResult == LoadLockfileResult.notFound) {
-            Output.errGeneric("missing lockfile, nothing outdated")
-            Global.crash()
-        }
-        if (loadLockfileResult == LoadLockfileResult.err) {
-            Output.errGeneric("failed to load lockfile")
-            Global.crash()
-        }
-
-        let enableAnsiColors = Output.enableAnsiColorsStdout
-
-        if (manager.options.filterPatterns.size > 0) {
-            let workspacePkgIds = findMatchingWorkspaces(originalCwd, manager, manager.options.filterPatterns)
-            manager.populateManifestCache(workspacePkgIds)
-            printOutdatedInfoTable(manager, workspacePkgIds, true, enableAnsiColors)
-        } else if (manager.options.doRecursive) {
-            let allWorkspaces = getAllWorkspaces(manager)
-            manager.populateManifestCache(allWorkspaces)
-            printOutdatedInfoTable(manager, allWorkspaces, true, enableAnsiColors)
-        } else {
-            let rootPkgId = manager.rootPackageId
-            manager.populateManifestCache([rootPkgId])
-            printOutdatedInfoTable(manager, [rootPkgId], false, enableAnsiColors)
-        }
+        // TODO: 实现过时检查逻辑
     }
 
     /// 获取所有工作区

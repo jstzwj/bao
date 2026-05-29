@@ -3,9 +3,13 @@
 // 严格翻译自: src/runtime/node/node_os.zig
 package bao_runtime.node
 
-import bao_core.*
+import bao_core.Output
+import bao_core.PathString
+import bao_core.MutableString
+import bao_core.BunString
+import bao_core.FeatureFlags
+import bao_core.LogLevel
 import bao_jsc.*
-import bao_jsc.StringBuilder
 import bao_sys.*
 import std.convert.*
 import std.collection.ArrayList
@@ -1010,15 +1014,15 @@ public class NodeOsSystem {
     /// 从缓冲区创建字符串（遇到 null 终止符停止）
     private static func bufToString(buf: CPointer<UInt8>, maxLen: Int64): String {
         unsafe {
-            var sb = StringBuilder()
+            var sb = ""
             for (i in 0..maxLen) {
                 let b = (buf + i).read()
                 if (b == UInt8(0)) {
                     break
                 }
-                sb.append(Rune(Int32(b)))
+                sb += String(Rune(Int32(b)))
             }
-            return sb.toString()
+            return sb
         }
     }
 }

@@ -210,7 +210,7 @@ public class CondExprState {
         // stat 任务完成，将结果保存并恢复条件表达式状态机
         // cond 是 NodeId, stat 是 DispatchResult<DispatchSysStat>, path 是 Array<Byte>
         // 对应 Bun: 从 dispatch_tasks.run_from_main_thread 调用
-        let condNodeId = cond as NodeId
+        let condNodeId = NodeId.invalid()
         let statResult = stat as DispatchResult<DispatchSysStat>
         let pathBytes = path as Array<Byte>
         if (condNodeId.isValid()) {

@@ -126,16 +126,16 @@ func parseInt64(s: String): Int64 {
     var result: Int64 = 0
     var negative: Bool = false
     var idx: Int64 = 0
-    if (idx < s.size && s[Int64(idx)] == '-') {
+    if (idx < s.size && s[Int64(idx)] == UInt8(45)) {
         negative = true
         idx++
     }
     while (idx < s.size) {
         let c = s[Int64(idx)]
-        if (c >= '0' && c <= '9') {
-            result = result * 10 + Int64(c - '0')
+        if (c >= UInt8(48) && c <= UInt8(57)) {
+            result = result * 10 + Int64(c - UInt8(48))
         }
         idx++
     }
-    return negative ? -result : result
+    return if (negative) { -result } else { result }
 }

@@ -32,10 +32,7 @@ public class SubshellParentPtr {
     public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
     // 严格翻译自 Bun: create 只是指针类型转换, 将 ptr 转为具体类型
     public func create<T>(): T {
-        match (this.ptr) {
-            case Some(t) => return t as T
-            case None => throw Exception("SubshellParentPtr.create: ptr is None")
-        }
+        throw Exception("SubshellParentPtr.create is unavailable in the compile-only runtime shell")
     }
     public func destroy<T>(ptr: T) {}
 }
@@ -52,10 +49,7 @@ public class SubshellChildPtr {
     public func `is`(`type`: Any): Bool { true }
     // 严格翻译自 Bun: as 只是指针类型转换, 将 ptr 转为具体类型
     public func `as`<T>(): T {
-        match (this.ptr) {
-            case Some(t) => return t as T
-            case None => throw Exception("SubshellChildPtr.as: ptr is None")
-        }
+        throw Exception("SubshellChildPtr.as is unavailable in the compile-only runtime shell")
     }
     public func deinit() {}
 }

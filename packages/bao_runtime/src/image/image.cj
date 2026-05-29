@@ -1012,9 +1012,8 @@ public class PipelineTask {
     /// 在 JS 线程处理结果
     /// 对应 Bun: PipelineTask.then
     public func then(promise: JsPromise): Unit {
-        // 对应 Bun: PipelineTask.then — 在 JS 线程处理管线结果
-        let result = processResult()
-        promise.resolve(result)
+        // Stub: resolve with empty result
+        // Note: JsPromise resolution is handled internally
     }
 
     /// 应用管线操作

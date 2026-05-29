@@ -42,6 +42,7 @@ public enum AnyPostgresError {
     | UnknownFormatCode
     | JSError
     | OutOfMemory
+    | JSTerminated
     | ShortRead
 }
 

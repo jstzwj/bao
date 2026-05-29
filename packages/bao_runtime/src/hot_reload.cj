@@ -11,6 +11,8 @@ import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
 import bao_threading.*
+import bao_event_loop.FileWatcher as BaoFileWatcher
+import bao_event_loop.FileWatchEvent as BaoFileWatchEvent
 
 // ============================================================================
 // HotModuleState — 热模块状态
@@ -395,7 +397,7 @@ public class HotReloader {
     /// 虚拟机
     private var vm: VirtualMachine
     /// 文件监视器
-    private var watcher: ?FileWatcher
+    private var watcher: ?BaoFileWatcher
     /// 模块重载器
     public var reloader: ModuleReloader
     /// 模块注册表
@@ -409,7 +411,7 @@ public class HotReloader {
     /// 错误回调
     public var onErrorFn: ?(String, String) -> Unit
     /// 变更事件监听器列表
-    private var listeners: ArrayList<(FileWatchEvent) -> Unit>
+    private var listeners: ArrayList<(BaoFileWatchEvent) -> Unit>
     /// 轮询间隔 (毫秒)
     public var pollInterval: Float64
 
@@ -422,7 +424,7 @@ public class HotReloader {
         running = false
         onChangeFn = None
         onErrorFn = None
-        listeners = ArrayList<(FileWatchEvent) -> Unit>()
+        listeners = ArrayList<(BaoFileWatchEvent) -> Unit>()
         pollInterval = 100.0
     }
 
@@ -433,7 +435,7 @@ public class HotReloader {
         }
 
         // 创建文件监视器
-        let watcherResult = FileWatcher.create()
+        let watcherResult = BaoFileWatcher.create()
         match (watcherResult) {
             case SysMaybe.Ok(w) =>
                 watcher = Some(w)
@@ -465,7 +467,7 @@ public class HotReloader {
     }
 
     /// 递归监视目录
-    private func watchRecursively(w: FileWatcher, dir: String): Unit {}
+    private func watchRecursively(w: BaoFileWatcher, dir: String): Unit {}
 
     /// 监视循环
     private func watchLoop(): Unit {
@@ -484,7 +486,7 @@ public class HotReloader {
     }
 
     /// 处理文件变化事件
-    private func handleEvents(events: ArrayList<FileWatchEvent>): Unit {
+    private func handleEvents(events: ArrayList<BaoFileWatchEvent>): Unit {
         let changedModules = ArrayList<String>()
 
         for (event in events) {
@@ -530,7 +532,7 @@ public class HotReloader {
     }
 
     /// 添加变更监听器
-    public func onChange(listener: (FileWatchEvent) -> Unit): Unit {
+    public func onChange(listener: (BaoFileWatchEvent) -> Unit): Unit {
         listeners.append(listener)
     }
 

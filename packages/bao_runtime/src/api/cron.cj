@@ -5,7 +5,7 @@ import bao_jsc.*
 import bao_core.*
 import bao_collections.*
 import bao_sys.*
-import bao_event_loop.*
+import bao_event_loop.{EventLoopTimer, TimerTag, TimerState}
 
 /// SpawnStatus — 进程退出状态桩类型
 public class SpawnStatus {

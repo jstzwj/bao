@@ -55,7 +55,7 @@ public class ScanCommand {
             Output.errGeneric("Lockfile not found. Run 'bao install' first to generate a lockfile.")
             Global.exit(1)
         }
-        if (loadLockfile == LoadLockfileResult.err) {
+        if (match (loadLockfile) { case LoadLockfileResult.err(_) => true case _ => false }) {
             Output.errGeneric("Error loading lockfile: ${loadLockfile.errorValue}")
             Global.exit(1)
         }

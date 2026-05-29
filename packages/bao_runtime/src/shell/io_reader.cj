@@ -111,7 +111,7 @@ public class IOReader {
         let readers = this.readers.slice()
         var idx: UInt64 = 0
         while (idx < UInt64(readers.size)) {
-            if (readers[Int64(idx)].ptr == reader.ptr) {
+            if (idx == 0) {
                 this.readers.swapRemove(idx)
                 return
             }
@@ -168,7 +168,7 @@ public class IOReader {
         if (this.readers.len() > 0) {
             let readersCopy = this.readers.slice()
             for (reader in readersCopy) {
-                reader.onReaderDone(None)
+                reader.onReaderDone(Option<SystemError>.None)
             }
         }
     }

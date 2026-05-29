@@ -228,24 +228,24 @@ public class LsCmd {
             var i: Int64 = 1
             while (i < s.size) {
                 let c = s[Int64(i)]
-                if (c == 'a') {
+                if (c == UInt8(97)) {
                     this.opts.showAll = true
-                } else if (c == 'A') {
+                } else if (c == UInt8(65)) {
                     this.opts.showAlmostAll = true
-                } else if (c == 'l') {
+                } else if (c == UInt8(108)) {
                     this.opts.longListing = true
-                } else if (c == 'r') {
+                } else if (c == UInt8(114)) {
                     this.opts.reverseOrder = true
-                } else if (c == 'h') {
+                } else if (c == UInt8(104)) {
                     this.opts.humanReadable = true
-                } else if (c == '1') {
+                } else if (c == UInt8(49)) {
                     this.opts.oneFilePerLine = true
-                } else if (c == 'p') {
+                } else if (c == UInt8(112)) {
                     this.opts.slashIndicator = true
-                } else if (c == 'F') {
+                } else if (c == UInt8(70)) {
                     this.opts.classify = "always"
                 } else {
-                    return FlagParseResult.illegalOption("-" + String(Array<UInt8>([c])))
+                    return FlagParseResult.illegalOption("-")
                 }
                 i++
             }

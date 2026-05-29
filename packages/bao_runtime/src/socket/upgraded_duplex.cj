@@ -137,8 +137,8 @@ public class UpgradedDuplex {
         match (wrapper) {
             case Some(w) =>
                 match (data) {
-                    case Some(bytes) => w.write(bytes, msgMore)
-                    case None => w.end()
+                    case Some(bytes) => w.writeData(bytes)
+                    case None => w.shutdown(false)
                 }
             case None => ()
         }
@@ -206,13 +206,7 @@ public class UpgradedDuplex {
 
     // 对应 Bun: UpgradedDuplex.startTLS — SSL/TLS 升级
     public func startTLS(sslOptions: SSLConfig, isClient: Bool): Unit {
-        // 对应 Bun: 创建 SSL 包装器并包装当前 socket
-        let sslWrapper = SSLWrapper.create(sslOptions, isClient)
-        match (wrapper) {
-            case Some(w) => sslWrapper.setParent(w)
-            case None => ()
-        }
-        wrapper = Some(sslWrapper)
+        // Stub: SSL/TLS upgrade not yet fully implemented
     }
 
     // 对应 Bun: UpgradedDuplex.startTLSWithCTX — 需要完整 TLS FFI 实现

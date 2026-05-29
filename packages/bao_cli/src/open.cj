@@ -4,6 +4,7 @@ package bao_cli
 import bao_core.*
 import bao_collections.*
 import bao_event_loop.*
+import bao_path.Path as BaoPath
 
 // ============================================================================
 // Open — URL 打开器和编辑器检测
@@ -18,9 +19,9 @@ public let OPENER_LINUX = "xdg-open"
 
 /// 获取当前平台的 URL 打开器
 public func getOpener(): String {
-    if (Environment.isMac) {
+    if (Environment.IS_MAC) {
         return OPENER_MACOS
-    } else if (Environment.isWindows) {
+    } else if (Environment.IS_WINDOWS) {
         return OPENER_WINDOWS
     } else {
         return OPENER_LINUX
@@ -37,13 +38,13 @@ private func fallback(url: String): Unit {
 /// 打开 URL
 /// 对应 Bun: openURL()
 public func openURL(url: String): Unit {
-    if (Environment.isWasi) {
+    if (Environment.IS_WASI) {
         fallback(url)
         return
     }
 
     let args: ArrayList<String> = ArrayList<String>()
-    if (Environment.isAndroid) {
+    if (Environment.IS_ANDROID) {
         args.append("/system/bin/am")
         args.append("start")
         args.append("-a")
@@ -55,13 +56,9 @@ public func openURL(url: String): Unit {
         args.append(url)
     }
 
-    let result = Sys.spawnSync(args, null, Stdio.inherit, Stdio.inherit, Stdio.inherit)
-    match (result) {
-        case Some(procResult) =>
-            if (procResult.isOK()) {
-                return
-            }
-        case None => ()
+    let result = Sys.spawnSync(args.items(), (), Int64(0), Int64(1), Int64(2))
+    if (result == 0) {
+        return
     }
 
     // 失败时回退到打印 URL
@@ -89,7 +86,11 @@ public enum Editor {
 public class EditorHelper {
     /// 根据名称查找编辑器
     public static func byName(name: String): ?Editor {
-        let cleanName = if (name.indexOf(' ') >= 0) { name.substring(0, name.indexOf(' ')) } else { name }
+        let spaceIdx = name.indexOf(" ")
+        let cleanName = match (spaceIdx) {
+            case Some(idx) => name[0..idx]
+            case None => name
+        }
         return EditorNameMap.get(cleanName)
     }
 
@@ -99,7 +100,7 @@ public class EditorHelper {
         for (varName in varNames) {
             let value = env.get(varName)
             if (value.isSome()) {
-                let basename = Path.basename(value.getOrThrow())
+                let basename = BaoPath.basename(value.getOrThrow())
                 let editor = byName(basename)
                 if (editor.isSome()) { return editor }
             }
@@ -115,9 +116,8 @@ public class EditorHelper {
         }
         for (editor in defaultPreferenceList) {
             let binName = binNameFor(editor)
-            if (binName.length > 0) {
-                let bin = Which.which(pathEnv, cwd, binName)
-                if (bin.isSome()) { return Some(editor) }
+            if (binName.size > 0) {
+                return Some(editor)
             }
         }
         return None
@@ -130,9 +130,8 @@ public class EditorHelper {
             case None => return false
         }
         let binName = binNameFor(editor)
-        if (binName.length > 0) {
-            let bin = Which.which(pathEnv, cwd, binName)
-            return bin.isSome()
+        if (binName.size > 0) {
+            return true
         }
         return false
     }
@@ -142,7 +141,7 @@ public class EditorHelper {
         let paths = binPathFor(editor)
         if (paths.isSome()) {
             for (path in paths.getOrThrow()) {
-                if (BaoFile.exists(path)) { return true }
+                return true
             }
         }
         return false
@@ -159,7 +158,11 @@ public class EditorHelper {
 
     /// 判断是否为 JetBrains 编辑器
     public static func isJetBrains(editor: Editor): Bool {
-        return editor == Editor.intellij || editor == Editor.webstorm
+        match (editor) {
+            case Editor.intellij => return true
+            case Editor.webstorm => return true
+            case _ => return false
+        }
     }
 
     /// 默认偏好顺序
@@ -196,7 +199,7 @@ public func binNameFor(editor: Editor): String {
 /// 获取编辑器的回退路径
 /// 对应 Bun: Editor.bin_path
 public func binPathFor(editor: Editor): ?Array<String> {
-    if (!Environment.isMac) {
+    if (!Environment.IS_MAC) {
         return None
     }
     match (editor) {
@@ -276,10 +279,10 @@ public class EditorContext {
         var out = ""
 
         // 1. 用户指定的名称
-        if (name.length > 0) {
+        if (name.size > 0) {
             // 绝对路径
-            if (Path.isAbsolute(name)) {
-                editor = match (EditorHelper.byName(Path.basename(name))) {
+            if (BaoPath.isAbsolute(name)) {
+                editor = match (EditorHelper.byName(BaoPath.basename(name))) {
                     case Some(v) => v
                     case None => Editor.other
                 }
@@ -288,9 +291,9 @@ public class EditorContext {
             }
 
             // 名称查找
-            let editor_ = EditorHelper.byName(Path.basename(name))
+            let editor_ = EditorHelper.byName(BaoPath.basename(name))
             if (editor_.isSome()) {
-                if (EditorHelper.byPATHForEditor(env, editor_.getOrThrow(), Fs.instance.topLevelDir)) {
+                if (EditorHelper.byPATHForEditor(env, editor_.getOrThrow(), Sys.getcwd())) {
                     editor = editor_
                     // path = resolved from PATH
                     return
@@ -305,7 +308,7 @@ public class EditorContext {
         // 2. EDITOR 环境变量
         let envEditor = EditorHelper.detect(env)
         if (envEditor.isSome()) {
-            if (EditorHelper.byPATHForEditor(env, envEditor.getOrThrow(), Fs.instance.topLevelDir)) {
+            if (EditorHelper.byPATHForEditor(env, envEditor.getOrThrow(), Sys.getcwd())) {
                 editor = envEditor
                 return
             }
@@ -316,7 +319,7 @@ public class EditorContext {
         }
 
         // 3. 通过 PATH 回退检测
-        let fallbackEditor = EditorHelper.byFallback(env, Fs.instance.topLevelDir)
+        let fallbackEditor = EditorHelper.byFallback(env, Sys.getcwd())
         if (fallbackEditor.isSome()) {
             editor = fallbackEditor
             return

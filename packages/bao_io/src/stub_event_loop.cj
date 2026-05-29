@@ -310,11 +310,11 @@ public class StubLoop {
             return
         }
         unsafe {
-            // eventfd_write: 写入 8 字节计数器值
-            let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            // 将值 1 写入 buf (little-endian u64)
-            buf[0] = UInt8(1)
-            write(wakerFd, CPointer<UInt8>(buf), 8)
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            ptr.write(UInt8(1))
+            write(wakerFd, ptr, 8)
+            free(buf)
         }
     }
 
@@ -326,8 +326,10 @@ public class StubLoop {
             return
         }
         unsafe {
-            let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(wakerFd, CPointer<UInt8>(buf), 8)
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            read(wakerFd, ptr, 8)
+            free(buf)
         }
     }
 
@@ -861,8 +863,10 @@ public class TimerFd {
             return
         }
         unsafe {
-            let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(timerFd, CPointer<UInt8>(buf), 8)
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            read(timerFd, ptr, 8)
+            free(buf)
         }
     }
 

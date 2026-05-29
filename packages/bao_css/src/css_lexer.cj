@@ -6,10 +6,7 @@
 //   对应: Num struct / Dimension struct - 数值与维度 token
 package bao_css
 
-import bao_core.*
 import bao_collections.*
-
-// ============================================================================
 // CSS Token 类型
 // 严格翻译自: src/css/css_parser.zig TokenKind
 // ============================================================================

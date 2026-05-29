@@ -64,6 +64,12 @@ public class Codegen {
             "S3Client", "S3Credential"
         ]
     }
+
+    public static func targetSetCached(value: JsValue, globalObject: JsObject, target: JsValue): Unit {}
+
+    public static func targetGetCached(value: JsValue): ?JsValue {
+        None
+    }
 }
 
 // 注意: JsArrayBuffer 已移至 array_buffer.cj

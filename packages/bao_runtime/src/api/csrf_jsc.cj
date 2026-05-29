@@ -16,17 +16,20 @@ public enum EVPAlgorithm {
     | Sha256
     | Sha384
     | Sha512
+}
 
+/// EVP 算法辅助函数
+public class EVPAlgorithmHelper {
     /// 默认算法
-    public static let DEFAULT: EVPAlgorithm = Sha256
+    public static let DEFAULT: EVPAlgorithm = EVPAlgorithm.Sha256
 
     /// 从 JS 字符串(不区分大小写)映射到算法枚举
     public static func fromStringIgnoreCase(algo: String): ?EVPAlgorithm {
         let lower = algo.toLowerCase()
-        if (lower == "sha1") { return Some(Sha1) }
-        if (lower == "sha256") { return Some(Sha256) }
-        if (lower == "sha384") { return Some(Sha384) }
-        if (lower == "sha512") { return Some(Sha512) }
+        if (lower == "sha1") { return Some(EVPAlgorithm.Sha1) }
+        if (lower == "sha256") { return Some(EVPAlgorithm.Sha256) }
+        if (lower == "sha384") { return Some(EVPAlgorithm.Sha384) }
+        if (lower == "sha512") { return Some(EVPAlgorithm.Sha512) }
         return None
     }
 }
@@ -63,7 +66,7 @@ public class CsrfJsc {
         // 默认值
         var expiresIn: UInt64 = Csrf.DEFAULT_EXPIRATION_MS
         var encoding: CsrfTokenFormat = CsrfTokenFormat.Base64Url
-        var algorithm: EVPAlgorithm = EVPAlgorithm.DEFAULT
+        var algorithm: EVPAlgorithm = EVPAlgorithmHelper.DEFAULT
 
         // 检查选项对象
         if (args.len > 1 && args[1].isObject()) {
@@ -86,7 +89,7 @@ public class CsrfJsc {
                     return JsValue.jsUndefined()
                 }
                 let algoStr = algorithmJs.toSlice(globalObject, default_allocator)
-                let algoOpt = EVPAlgorithm.fromStringIgnoreCase(algoStr.slice())
+                let algoOpt = EVPAlgorithmHelper.fromStringIgnoreCase(algoStr.slice())
                 if (algoOpt.isNone()) {
                     globalObject.throwInvalidArguments("Algorithm not supported")
                     return JsValue.jsUndefined()
@@ -137,7 +140,7 @@ public class CsrfJsc {
         var secret: ?ZigStringSlice = none
         var maxAge: UInt64 = Csrf.DEFAULT_EXPIRATION_MS
         var encoding: CsrfTokenFormat = CsrfTokenFormat.Base64Url
-        var algorithm: EVPAlgorithm = EVPAlgorithm.DEFAULT
+        var algorithm: EVPAlgorithm = EVPAlgorithmHelper.DEFAULT
 
         // 解析选项
         if (args.len > 1 && args[1].isObject()) {

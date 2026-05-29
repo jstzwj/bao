@@ -6,9 +6,6 @@
 //   对应: values/percentage.zig - Percentage, NumberOrPercentage (百分比)
 package bao_css
 
-import bao_core.*
-import bao_collections.*
-
 // ============================================================================
 // Alpha 值
 // 严格翻译自: values/alpha.zig AlphaValue

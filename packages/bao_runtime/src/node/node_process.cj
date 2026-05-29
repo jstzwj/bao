@@ -2,9 +2,16 @@
 // Translated from Bun: src/runtime/node/node_process.rs
 package bao_runtime.node
 
-import bao_core.*
+import bao_core.Output
+import bao_core.PathString
+import bao_core.MutableString
+import bao_core.BunString
+import bao_core.FeatureFlags
+import bao_core.ErrorCode
+import bao_core.BaoError
 import bao_jsc.*
 import bao_sys.*
+import std.convert.*
 import std.collection.ArrayList
 
 // ============================================================================
@@ -566,15 +573,17 @@ public class NodeProcessSystem {
             var idx: Int64 = 0
             while (true) {
                 let entryPtr = (envPtr + idx).read()
-                if (entryPtr == CPointer<Int8>()) {
+                if (entryPtr.isNull()) {
                     break
                 }
                 let entry = unsafeCStringToString(entryPtr)
                 let eqIdx = entry.indexOf('=')
-                if (eqIdx >= 0 && eqIdx < entry.size) {
-                    let key = entry[0..eqIdx]
-                    let value = entry[eqIdx + 1..]
-                    result.put(key, value)
+                if (let Some(ei) <- eqIdx) {
+                    if (ei >= 0 && ei < entry.size) {
+                        let key = entry[0..ei]
+                        let value = entry[ei + 1..]
+                        result.put(key, value)
+                    }
                 }
                 idx += 1
             }
@@ -756,22 +765,22 @@ public class NodeProcessSystem {
             while (!(ptr + Int64(len)).read() == Int8(0)) {
                 len += 1
             }
-            var sb = StringBuilder()
+            var sb = ""
             for (i in 0..len) {
-                sb.append(Rune(Int32((ptr + Int64(i)).read())))
+                sb += String(Rune(Int32((ptr + Int64(i)).read())))
             }
-            return sb.toString()
+            return sb
         }
     }
 
     /// 从缓冲区创建字符串
     private static func unsafeBufToString(buf: CPointer<UInt8>, len: Int64): String {
         unsafe {
-            var sb = StringBuilder()
+            var sb = ""
             for (i in 0..len) {
-                sb.append(Rune(Int32((buf + i).read())))
+                sb += String(Rune(Int32((buf + i).read())))
             }
-            return sb.toString()
+            return sb
         }
     }
 
@@ -784,20 +793,20 @@ public class NodeProcessSystem {
         }
         let data = content.getOrThrow()
         var args = ArrayList<String>()
-        var current = StringBuilder()
+        var current = ""
         for (b in data) {
             if (b == UInt8(0)) {
-                let arg = current.toString()
+                let arg = current
                 if (arg.size > 0) {
                     args.add(arg)
                 }
-                current = StringBuilder()
+                current = ""
             } else {
-                current.append(Rune(Int32(b)))
+                current += String(Rune(Int32(b)))
             }
         }
         // 处理最后一个参数（如果没有以 \0 结尾）
-        let lastArg = current.toString()
+        let lastArg = current
         if (lastArg.size > 0) {
             args.add(lastArg)
         }

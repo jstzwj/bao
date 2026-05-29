@@ -1079,8 +1079,11 @@ public class UmaskHelper {
         if (!hasSetUmask) {
             hasSetUmask = true
             // Use FFI to get current umask: umask(0) returns old, then restore
-            // This is wrapped in OS.umask in bao_sys
-            umaskValue = OS.umask(UInt32(0o022))
+            // lifecycle_script_runner.cj defines a package-local OS helper, so call
+            // the local C binding directly here instead of resolving OS.umask.
+            unsafe {
+                umaskValue = umask(UInt32(0o022))
+            }
             // Note: On Linux, to read without changing you'd do umask(0); umask(old).
             // Since we want to set 0o022 as the Bun default, we just set it and capture the old value.
         }

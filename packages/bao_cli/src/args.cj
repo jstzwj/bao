@@ -25,6 +25,9 @@ public class ParsedArgs {
     /// 对应 Bun: Arguments.options
     public var options: HashMap<String, String>
 
+    /// 多值选项 (--key value1 --key value2)
+    public var variadicOptions: HashMap<String, ArrayList<String>>
+
     /// 布尔标志 (--flag, --no-flag)
     /// 对应 Bun: Arguments.flags
     public var flags: HashMap<String, Bool>
@@ -36,6 +39,7 @@ public class ParsedArgs {
         command = ""
         positionals = ArrayList<String>()
         options = HashMap<String, String>()
+        variadicOptions = HashMap<String, ArrayList<String>>()
         flags = HashMap<String, Bool>()
         unknown = ArrayList<String>()
     }
@@ -590,4 +594,3 @@ public class ArgParser {
 // String 辅助方法
 // ============================================================================
 // padEnd is provided by String built-in
-

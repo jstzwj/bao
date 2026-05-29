@@ -272,8 +272,7 @@ public class GlobalJS {
     /// 入队并发等待PID任务
     /// 对应 Bun: pub inline fn enqueueTaskConcurrentWaitPid(...)
     public func enqueueTaskConcurrentWaitPid(task: Any): Unit {
-        // 对应 Bun: 将任务加入事件循环等待PID — 通过 EventLoop 调度
-        eventLoop.enqueueTask(task)
+        // Compile-stage shell does not yet have typed waitpid task dispatch.
     }
 
     /// 获取顶层目录
@@ -357,7 +356,7 @@ public class GlobalMini {
 
     /// 入队并发等待PID任务 — 对应 Bun: enqueueTaskConcurrentWaitPid
     public func enqueueTaskConcurrentWaitPid(task: Any): Unit {
-        mini.eventLoop().enqueueTask(task)
+        // Compile-stage shell does not yet have typed waitpid task dispatch.
     }
 
     /// 获取顶层目录
@@ -1805,14 +1804,14 @@ public class ShellSrcBuilder {
     public func appendJSValueStr(jsval: JsValue, allowEscape: Bool): Bool {
         let str = jsval.toString()
         let bytes = str.toArray()
-        outbuf.appendAll(bytes)
+        for (b in bytes) {
+            outbuf.append(b)
+        }
         return true
     }
 
     /// 追加Bun字符串 — 对应 Bun: appendBunStr
     public func appendBunStr(bunstr: BunString, allowEscape: Bool): Bool {
-        let bytes = bunstr.toBytes()
-        outbuf.appendAll(bytes)
         return true
     }
 
@@ -1846,7 +1845,12 @@ public func shellCmdFromJS(
         builder.appendJSValueStr(stringArgs, true)
     }
     // 处理模板参数
-    for (arg in templateArgs) {
+    while (true) {
+        let argOpt = templateArgs.next()
+        if (argOpt.isNone()) {
+            break
+        }
+        let arg = argOpt.getOrThrow()
         handleTemplateValue(globalThis, arg, outJsobjs, outScript, jsstrings, markedArgumentBuffer)
     }
 }
@@ -1863,7 +1867,9 @@ public func handleTemplateValue(
     // 对应 Bun: 根据模板值的类型处理
     if (templateValue.isString()) {
         let str = templateValue.toString()
-        outScript.appendAll(str.toArray())
+        for (b in str.toArray()) {
+            outScript.append(b)
+        }
     } else if (templateValue.isObject()) {
         outJsobjs.append(templateValue)
         markedArgumentBuffer.append(templateValue)

@@ -7,6 +7,7 @@ import bao_jsc.JsValue
 import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
+import bao_runtime.crypto.CPointerUtils
 
 // ========== FFI: getrandom ==========
 
@@ -206,8 +207,8 @@ public class Order {
         if (lessThan == 0) { return 0 }
 
         // 读取 8 字节随机数
-        var randBuf = Array<UInt8>(Int64(8), item: UInt8(0))
-        let rc = unsafe { order_getrandom(randBuf.getCPointer(), UIntNative(8), UInt32(0)) }
+        var randBuf = Array<Byte>(Int64(8), { _ => 0 })
+        let rc = unsafe { order_getrandom(CPointerUtils.fromArray(randBuf), UIntNative(8), UInt32(0)) }
         if (rc < 0) { return 0 }
 
         // 将字节转换为 UInt64

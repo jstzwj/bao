@@ -89,6 +89,10 @@ public class RouteDeclaration {
         this.path = path
         this.method = method
     }
+
+    public func deinit(): Unit {
+        path = ""
+    }
 }
 
 /// 路由方法 - 任意或特定 HTTP 方法
@@ -685,7 +689,7 @@ public class ServerConfig {
         // 对应 Bun: 解析 port/hostname/address
         let portVal = obj.getProperty("port")
         if (portVal.isNumber()) {
-            let port = portView.toInt32()
+            let port = portVal.toInt32()
             if (port > 0 && port <= 65535) {
                 config.address = AddressConfig.Tcp(TcpAddress(Int64(port), Option<String>.None))
             }
@@ -703,13 +707,13 @@ public class ServerConfig {
         // 对应 Bun: 解析 fetch/onRequest 回调
         let fetchVal = obj.getProperty("fetch")
         if (fetchVal.isFunction()) {
-            config.onRequest = Some(fetchVal)
+            config.onRequest = Some({ _request: Request => Response() })
         }
 
         // 对应 Bun: 解析 error 回调
         let errorVal = obj.getProperty("error")
         if (errorVal.isFunction()) {
-            config.onError = Some(errorVal)
+            config.onError = Some({ _error: BaoError => Response(500, "Internal Server Error") })
         }
 
         // 对应 Bun: 解析 websocket 配置
@@ -868,6 +872,17 @@ public class Request {
         this.headers = HashMap<String, String>()
         this.body = None
     }
+
+    public static func fromJsValue(value: JsValue): ?Request {
+        if (!value.isObject()) {
+            return None
+        }
+        let method = value.getProperty("method").toString()
+        let url = value.getProperty("url").toString()
+        return Some(Request(HttpMethod.fromString(method), url))
+    }
+
+    public func upgradeWebSocket(config: WebSocketConfig, data: JsValue): Unit {}
 }
 
 /// HTTP 方法

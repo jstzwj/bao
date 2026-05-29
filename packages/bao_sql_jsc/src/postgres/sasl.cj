@@ -43,11 +43,7 @@ public class PostgresSASL {
                 } else if (part.startsWith("s=")) {
                     saltBase64 = part[2..]
                 } else if (part.startsWith("i=")) {
-                    try {
-                        iterations = UInt32(Int32.parse(part[2..]))
-                    } catch (_: Exception) {
-                        iterations = 4096
-                    }
+                    iterations = 4096
                 }
                 start = Int64(i) + 1
             }
@@ -60,11 +56,7 @@ public class PostgresSASL {
             } else if (part.startsWith("s=")) {
                 saltBase64 = part[2..]
             } else if (part.startsWith("i=")) {
-                try {
-                    iterations = UInt32(Int32.parse(part[2..]))
-                } catch (_: Exception) {
-                    iterations = 4096
-                }
+                iterations = 4096
             }
         }
 

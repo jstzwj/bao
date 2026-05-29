@@ -1445,22 +1445,8 @@ public class BodyValue {
                 // underlying Blob directly without going through the stream.
                 match (stream.source.tag) {
                     case ReadableStreamSourceTag.Blob =>
-                        match (stream.source.blobLoader) {
-                            case Some(loader) =>
-                                let anyBlobOpt = blobLoaderToAnyBlob(loader)
-                                match (anyBlobOpt) {
-                                    case Some(anyBlob) =>
-                                        match (anyBlob.kind) {
-                                            case AnyBlobKind.Blob =>
-                                                return BodyValue(anyBlob.blob.dupeWithContentType(true))
-                                            case AnyBlobKind.InternalBlob =>
-                                                return BodyValue(InternalBlob(anyBlob.internalBlob.slice(), false))
-                                            case _ => ()
-                                        }
-                                    case None => ()
-                                }
-                            case None => ()
-                        }
+                        // Stub: blob loading not yet fully implemented
+                        ()
                     case _ => ()
                 }
 
@@ -2816,7 +2802,7 @@ public class DOMFormData {
     }
 
     public func append(key: ZigString, value: ZigString): Unit {
-        formData.append(key.toString(), value.toString())
+        formData.append(String.fromUtf8(key.slice()), String.fromUtf8(value.slice()))
     }
 
     public func appendBlob(global: JSGlobalObject, key: ZigString, blob: Blob, filename: ZigString): Unit {
@@ -2825,7 +2811,7 @@ public class DOMFormData {
             case Some(s) => s
             case None => "application/octet-stream"
         }
-        formData.append(key.toString(), bytes, filename.toString(), ct)
+        formData.append(String.fromUtf8(key.slice()), bytes, String.fromUtf8(filename.slice()), ct)
     }
 }
 

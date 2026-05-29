@@ -218,15 +218,11 @@ public class Sys {
         }
     }
 
-    public static func spawnProcess(options: Unit, argv: Array<String>): Int64 {
-        if (argv.size == 0) { return Int64(-1) }
+    public static func spawnProcess(exe: String, args: Array<String>, env: Array<String>, cwd: String): Int64 {
         let opts = SpawnOptions()
-        var rest = Array<String>(argv.size - 1, { _ => "" })
-        for (i in 1..argv.size) {
-            rest[i - 1] = argv[i]
-        }
-        opts.args = rest
-        let child = ProcessSpawner.`spawn`(argv[0], opts)
+        opts.args = args
+        if (cwd.size > 0) { opts.cwd = Some(cwd) }
+        let child = ProcessSpawner.`spawn`(exe, opts)
         return child.pid
     }
 
@@ -240,5 +236,26 @@ public class Sys {
 
     public static func readlink(path: String): SysMaybe<String> {
         return SysMaybe.Err(SysError())
+    }
+
+    public static func flushStdout(): Unit {
+        // Stub: no-op
+    }
+
+    public static func readLine(): ?String {
+        return None
+    }
+
+    public static func createTempFile(prefix: String, suffix: String): ?String {
+        // Stub: return a temp path
+        return Some("/tmp/${prefix}tmp${suffix}")
+    }
+
+    public static func setEnv(key: String, value: String): Unit {
+        OS.setEnv(key, value)
+    }
+
+    public static func getCommandLineArgs(): Array<String> {
+        return ["bao"]
     }
 }

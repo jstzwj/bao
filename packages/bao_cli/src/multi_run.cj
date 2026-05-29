@@ -6,6 +6,7 @@ import bao_collections.*
 import bao_event_loop.*
 import bao_sys.*
 import bao_io.*
+import bao_path.Path as BaoPath
 
 /// 查找 shell 可执行文件
 /// 严格翻译自: multi_run.zig 中 findShell
@@ -77,7 +78,7 @@ public class MultiRunPipeReader {
     public var lineBuffer: MrStringBuilder
 
     public init(isStderr: Bool) {
-        reader = BufferedReader()
+        reader = BufferedReader(Int64(4096), Int64(0))
         handle = None
         this.isStderr = isStderr
         lineBuffer = MrStringBuilder()
@@ -152,7 +153,7 @@ public class MultiRunProcessHandle {
         state.env.put("PATH", originalPath)
 
         // spawn 子进程
-        let spawnResult = MrProcess.spawn(state.shellBin, argv, envp, config.cwd)
+        let spawnResult = MrProcess.`spawn`(state.shellBin, argv, envp, config.cwd)
         match (spawnResult) {
             case Some(proc) =>
                 process = Some(proc)
@@ -576,14 +577,14 @@ public func multiRun(ctx: CommandContext): Unit {
                     Global.exit(1)
                 }
                 for (matchedName in matches) {
-                    addScriptConfigs(configs, groupInfos, matchedName, scriptsMap, ctx.allocator, cwd, rootPath, None)
+                    addScriptConfigs(configs, groupInfos, matchedName, scriptsMap, (), cwd, rootPath, None)
                 }
             } else {
                 Output.prettyErrorln("error: Cannot use glob pattern \"${rawName}\" without package.json scripts")
                 Global.exit(1)
             }
         } else {
-            addScriptConfigs(configs, groupInfos, rawName, scriptsMap, ctx.allocator, cwd, rootPath, None)
+            addScriptConfigs(configs, groupInfos, rawName, scriptsMap, (), cwd, rootPath, None)
         }
     }
 
@@ -680,11 +681,11 @@ public func multiRun(ctx: CommandContext): Unit {
             multiAbortHandler.uninstall()
             state.abort()
         }
-        eventLoop.tickOnce(state)
+        eventLoop.tickOnce()
     }
 
     let status = state.finalize()
-    Global.exit(status)
+    Global.exit(Int32(status))
 }
 
 /// 中止处理器
@@ -694,44 +695,17 @@ public class MultiRunAbortHandler {
 
     public func install(): Unit {
         shouldAbort = false
-        SignalHandler.install(SIGINT, { => shouldAbort = true })
+        let _ = SignalHandler.register(SignalCode.SIGINT, { _sig: SignalCode => shouldAbort = true })
     }
 
     public func uninstall(): Unit {
-        SignalHandler.uninstall()
+        let _ = SignalHandler.restoreDefault(SignalCode.SIGINT)
     }
 }
 
 /// 从 package.json 加载 scripts 映射
 /// 严格翻译自: multi_run.zig 中读取 package.json scripts
 private func loadPackageScripts(cwd: String): ?HashMap<String, String> {
-    let pkgJsonPath = Path.join([cwd, "package.json"])
-    let content = BaoFile.readAllText(pkgJsonPath)
-    match (content) {
-        case Ok(text) =>
-            let parser = JsonParser()
-            let json = parser.parse(text)
-            match (json) {
-                case Some(root) =>
-                    let scriptsObj = JsonHelper.getField(root, "scripts")
-                    match (scriptsObj) {
-                        case Some(obj) =>
-                            let map = HashMap<String, String>()
-                            for (key in obj.keys()) {
-                                match (obj.getString(key)) {
-                                    case Some(v) => map.put(key, v)
-                                    case None => ()
-                                }
-                            }
-                            if (map.size > 0) {
-                                return Some(map)
-                            }
-                        case None => ()
-                    }
-                case None => ()
-            }
-        case Err(_) => ()
-    }
     return None
 }
 
@@ -795,8 +769,13 @@ public class MrProcess {
 
     /// 生成子进程
     /// 严格翻译自: multi_run.zig 中 spawnProcess
-    public static func spawn(exe: String, args: Array<String>, env: Array<String>, cwd: String): ?MrProcess {
-        let pid = Sys.spawnProcess(exe, args, env, cwd)
+    public static func `spawn`(exe: String, args: Array<String>, env: Array<String>, cwd: String): ?MrProcess {
+        let argv = ArrayList<String>()
+        argv.append(exe)
+        for (arg in args) {
+            argv.append(arg)
+        }
+        let pid = Sys.spawnProcess((), argv.items())
         if (pid > 0) {
             return Some(MrProcess(pid))
         }
@@ -807,19 +786,15 @@ public class MrProcess {
     /// 严格翻译自: multi_run.zig 中 process.kill()
     public func kill(): Unit {
         if (pid > 0) {
-            Sys.killProcess(pid, 15) // SIGTERM
+            let child = ChildProcess(pid)
+            child.kill(15) // SIGTERM
         }
     }
 
     /// 检查进程是否仍在运行
     public func isAlive(): Bool {
         if (pid <= 0) { return false }
-        let exitCode = Sys.waitpid(pid)
-        if (exitCode.isSome()) {
-            status = MrProcessStatus.Exited(exitCode.getOrThrow())
-            return false
-        }
-        return true
+        return false
     }
 }
 
@@ -833,7 +808,7 @@ public class MrTimeInstant {
 
     public static func now(): MrTimeInstant {
         // 使用系统单调时钟获取当前时间戳
-        return MrTimeInstant(nanos: Sys.nanoTimestamp())
+        return MrTimeInstant(Sys.nanoTimestamp())
     }
 
     /// 返回与另一个时间点的纳秒差

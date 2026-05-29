@@ -518,7 +518,7 @@ public class FileHandle {
         let result = BaoFile.writeAllText(filePath, data)
         match (result) {
             case Ok(_) => return Result.Ok(())
-            case Err(e) => return Result.Err(e.message)
+            case Err(e) => return Result.Err(e.toString())
         }
     }
 

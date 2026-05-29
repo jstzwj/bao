@@ -240,6 +240,13 @@ public class WebSocketServerContext {
         server.protect()
         return server
     }
+
+    public static func fromJS(global: JSGlobalObject, value: JsValue): ?WebSocketServerContext {
+        if (!value.isObject()) {
+            return None
+        }
+        return Some(onCreate(WebSocketConfig()))
+    }
 }
 
 // ============================================================================
