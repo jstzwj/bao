@@ -318,7 +318,7 @@ public class HashMap<K, V> where K <: ToString {
         return a.toString() == b.toString()
     }
 
-    /// 在哈希桶中查找索引 - 使用 Robin-Hood 探测
+    /// 在哈希桶中查找索引 - 使用开放寻址 (线性探测)
     private func findIndex(key: K, hash: UInt64): Int64 {
         if (!indexed) {
             // 未建索引时线性扫描
@@ -330,31 +330,28 @@ public class HashMap<K, V> where K <: ToString {
             }
             return -1
         }
-        let bucketIdx = Int64(hash % UInt64(buckets.size))
-        var idx = buckets[bucketIdx]
-        // Robin-Hood 探测: 在理想桶位置开始线性探测
-        var probeLen: Int64 = 0
-        while (idx >= 0 && idx < entries.size && probeLen < _capacity) {
-            let e = entries[idx]
-            if (e.isOccupied && e.hash == hash && keyEquals(e.key, key)) {
-                return idx
+        // 开放寻址: 从理想桶位置开始线性探测
+        var bucketIdx = Int64(hash % UInt64(buckets.size))
+        var probes: Int64 = 0
+        while (probes < _capacity) {
+            let idx = buckets[bucketIdx]
+            if (idx < 0) {
+                return -1 // 空桶，说明不存在
             }
-            // Robin-Hood: 如果当前条目的探查距离 < 我们的探查距离，说明不可能存在
-            if (indexed && e.isOccupied) {
-                let theirDist = probeDistance(e.hash, idx)
-                if (theirDist < probeLen) {
-                    break // 不可能存在 (Robin-Hood 保证)
+            if (idx < entries.size) {
+                let e = entries[idx]
+                if (e.isOccupied && e.hash == hash && keyEquals(e.key, key)) {
+                    return idx
                 }
             }
-            idx += 1
-            probeLen++
-            if (idx >= entries.size) { break }
+            bucketIdx = (bucketIdx + 1) % Int64(buckets.size)
+            probes++
         }
         return -1
     }
 
     /// 重建索引 - 对应 Bun ArrayHashMap 重建 hashbrown index
-    /// 使用 Robin-Hood 插入减少最大探查距离
+    /// 使用开放寻址 (线性探测) 处理哈希冲突
     private func rebuildIndex(): Unit {
         // 扩容桶数组
         var newCap = _capacity
@@ -369,11 +366,15 @@ public class HashMap<K, V> where K <: ToString {
                 buckets[i] = -1
             }
         }
-        // 重新索引所有条目
+        // 重新索引所有条目 - 使用开放寻址处理冲突
         for (i in 0..entries.size) {
             let e = entries[i]
             if (!e.isOccupied) { continue }
-            let bucketIdx = Int64(e.hash % UInt64(buckets.size))
+            var bucketIdx = Int64(e.hash % UInt64(buckets.size))
+            // 线性探测: 找到下一个空桶
+            while (buckets[bucketIdx] >= 0) {
+                bucketIdx = (bucketIdx + 1) % Int64(buckets.size)
+            }
             buckets[bucketIdx] = i
         }
         indexed = true

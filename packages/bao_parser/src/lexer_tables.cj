@@ -60,6 +60,7 @@ public class LexerTables {
         kw.put("import", Token.Import)
         kw.put("in", Token.In)
         kw.put("instanceof", Token.Instanceof)
+        kw.put("let", Token.Let)
         kw.put("new", Token.New)
         kw.put("null", Token.Null)
         kw.put("return", Token.Return)

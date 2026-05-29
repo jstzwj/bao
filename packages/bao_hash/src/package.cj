@@ -30,81 +30,21 @@ public class WyHash {
     /// 对应 Bun: bun_wyhash::hash(data) -> u64
     /// 用于 HashedString 的 hash 字段 (截断为 u32)
     public static func hash(data: Array<UInt8>): UInt64 {
-        return hashWithSeed(data, 0)
+        return Wyhash.hash(data)
     }
 
     /// 计算字符串哈希
     public static func hash(s: String): UInt64 {
-        var bytes = ArrayList<UInt8>()
-        for (c in s) {
-            bytes.add(UInt8(UInt32(c)))
-        }
-        return hash(bytes.toArray())
+        return Wyhash.hash(s)
     }
 
     /// 带种子的哈希 - 完整 WyHash final3 实现
     /// 对应 Bun: bun_wyhash::hash_with_seed
     public static func hashWithSeed(data: Array<UInt8>, seed: UInt64): UInt64 {
-        let len = data.size
-        // WyHash final3 常量 (wyp0-wyp4)
-        let WYP0: UInt64 = ((UInt64(0xa0761d64) << UInt64(32)) | UInt64(0x78bd642f))
-        let WYP1: UInt64 = ((UInt64(0xe7037ed1) << UInt64(32)) | UInt64(0xa0b428db))
-        let WYP2: UInt64 = ((UInt64(0x8ebc6af0) << UInt64(32)) | UInt64(0x9c88c6e3))
-        let WYP3: UInt64 = 0x589965cc75374cc3
-        let WYP4: UInt64 = 0x1d8e4e27c47d124f
-
-        var seedMut = seed ^ WYP0
-
-        if (len == 0) {
-            return wymix(seedMut, WYP0)
-        }
-
-        // <= 16 字节
-        if (len <= 16) {
-            let a = readUInt64(data, 0)
-            let b = readUInt64(data, if (len > 8) { len - 8 } else { 0 })
-            seedMut = seedMut ^ (wymix(a ^ WYP1, b ^ WYP2))
-            return wymix(seedMut, UInt64(len) ^ WYP0)
-        }
-
-        var i: Int64 = 0
-
-        // 17-64 字节
-        if (len <= 64) {
-            while (i + 16 <= len) {
-                let a = readUInt64(data, i)
-                let b = readUInt64(data, i + 8)
-                seedMut = seedMut ^ (wymix(a ^ WYP1, b ^ WYP2))
-                i += 16
-            }
-            if (i < len) {
-                let a = readUInt64(data, len - 8)
-                let b = readUInt64(data, len - 16)
-                seedMut = seedMut ^ (wymix(a ^ WYP3, b ^ WYP4))
-            }
-            return wymix(seedMut, UInt64(len) ^ WYP0)
-        }
-
-        // > 64 字节 - 使用更大块并行处理
-        var see1 = seedMut
-        var see2 = seedMut
-        while (i + 64 <= len) {
-            seedMut = seedMut ^ (wymix(readUInt64(data, i) ^ WYP1, readUInt64(data, i + 8) ^ WYP2))
-            see1 = see1 ^ (wymix(readUInt64(data, i + 16) ^ WYP3, readUInt64(data, i + 24) ^ WYP4))
-            see2 = see2 ^ (wymix(readUInt64(data, i + 32) ^ WYP2, readUInt64(data, i + 40) ^ WYP1))
-            seedMut = seedMut ^ (wymix(readUInt64(data, i + 48) ^ WYP4, readUInt64(data, i + 56) ^ WYP3))
-            i += 64
-        }
-        // 处理剩余块
-        while (i + 16 <= len) {
-            seedMut = seedMut ^ (wymix(readUInt64(data, i) ^ WYP1, readUInt64(data, i + 8) ^ WYP2))
-            i += 16
-        }
-        if (i < len) {
-            seedMut = seedMut ^ (wymix(readUInt64(data, len - 16) ^ WYP1, readUInt64(data, len - 8) ^ WYP2))
-        }
-
-        return wymix(seedMut ^ see1 ^ see2, UInt64(len) ^ WYP0)
+        // Use the Bun-aligned final4 implementation in wyhash.cj. The previous
+        // simplified mix used checked UInt64 multiplication and trapped on the
+        // wraparound arithmetic that wyhash intentionally relies on.
+        return Wyhash.hashWithSeed(data, seed)
     }
 
     /// Wymix - WyHash 混合函数

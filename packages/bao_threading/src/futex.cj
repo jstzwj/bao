@@ -19,7 +19,13 @@ package bao_threading
 
 import std.sync.*
 import std.time.*
-import std.sync.Condition as StdCondition
+
+@C
+foreign func nanosleep(req: CPointer<Unit>, rem: CPointer<Unit>): Int32
+@C
+foreign func malloc(size: UIntNative): CPointer<Unit>
+@C
+foreign func free(ptr: CPointer<Unit>): Unit
 
 // ============================================================================
 // Linux futex 系统调用 FFI 声明
@@ -53,29 +59,22 @@ private let FUTEX_WAKE_PRIVATE: Int32 = FUTEX_WAKE | FUTEX_PRIVATE_FLAG
 ///   load/store/compareAndSwap/fetchAdd 原子操作
 ///   wait/wake 线程等待/唤醒操作
 ///
-/// 仓颉使用 AtomicUInt32 + Mutex+Condition 模拟 futex 语义
-/// (真正的 futex 需要通过 syscall FFI，此处提供等价语义)
+/// 仓颉当前使用 AtomicUInt32 + short sleep fallback 模拟 futex 语义。
+/// BAO_STUB(threading): this avoids Cangjie Condition construction crashes in
+/// global initializers; replace with direct futex syscall FFI to match Bun.
 public class FutexWord {
     /// 原子值 - 对应 Bun atomic.Value(u32)
     private let value: AtomicUInt32
-    /// 等待互斥锁 - 模拟 futex 内核等待队列
-    private let waitMutex: Mutex
-    /// 等待条件 - 模拟 futex 唤醒
-    private let waitCond: StdCondition
     /// 等待线程计数
     private let waiters: AtomicInt64
 
     public init(initialValue: UInt32) {
         value = AtomicUInt32(initialValue)
-        waitMutex = Mutex()
-        waitCond = waitMutex.condition()
         waiters = AtomicInt64(0)
     }
 
     public init() {
         value = AtomicUInt32(0)
-        waitMutex = Mutex()
-        waitCond = waitMutex.condition()
         waiters = AtomicInt64(0)
     }
 
@@ -115,50 +114,52 @@ public class FutexWord {
     ///     - 虚假唤醒
     ///     - 超时 (返回 false)
     ///
-    /// 仓颉使用 Mutex + Condition 模拟:
-    ///   加锁 -> 检查值 -> wait (释放锁并阻塞) -> 被唤醒后重新获取锁
+    /// BAO_STUB(threading): until direct futex syscall FFI is wired, poll with a
+    /// short sleep. This preserves correctness for initialization/minimal CLI,
+    /// but not Bun's wake latency/performance.
     public func wait(expect: UInt32): Unit {
-        synchronized(waitMutex) {
-            if (value.load() != expect) {
-                return
-            }
-            while (value.load() == expect) {
-                waiters.fetchAdd(1)
-                waitCond.wait()
-                waiters.fetchSub(1)
-            }
+        if (value.load() != expect) {
+            return
         }
+        waiters.fetchAdd(1)
+        while (value.load() == expect) {
+            sleepOneMs()
+        }
+        waiters.fetchSub(1)
     }
 
     /// 带超时的 futex 等待
     /// 严格翻译自: Futex.zig:24-36 timeout_ns 参数
     /// 返回 true 表示正常唤醒，false 表示超时
     public func timedWait(expect: UInt32, timeout: Duration): Bool {
-        synchronized(waitMutex) {
-            if (value.load() != expect) {
-                return true
-            }
-            if (timeout <= Duration.Zero) {
+        if (value.load() != expect) {
+            return true
+        }
+        if (timeout <= Duration.Zero) {
+            return false
+        }
+        waiters.fetchAdd(1)
+        let deadline = DateTime.now().toUnixTimeStamp().toNanoseconds() + timeout.toNanoseconds()
+        while (value.load() == expect) {
+            if (DateTime.now().toUnixTimeStamp().toNanoseconds() >= deadline) {
+                waiters.fetchSub(1)
                 return false
             }
-            waiters.fetchAdd(1)
-            let result = waitCond.wait(timeout: timeout)
-            waiters.fetchSub(1)
-            return result
+            sleepOneMs()
         }
+        waiters.fetchSub(1)
+        return true
     }
 
     /// 永远等待 - 对应 Bun Futex.waitForever(ptr, expect)
     /// 严格翻译自: Futex.zig:38-48
     ///   循环调用 wait(ptr, expect, null)，忽略 Timeout (不应发生)
     public func waitForever(expect: UInt32): Unit {
-        synchronized(waitMutex) {
-            while (value.load() == expect) {
-                waiters.fetchAdd(1)
-                waitCond.wait()
-                waiters.fetchSub(1)
-            }
+        waiters.fetchAdd(1)
+        while (value.load() == expect) {
+            sleepOneMs()
         }
+        waiters.fetchSub(1)
     }
 
     /// futex 唤醒 - 对应 Bun Futex.wake(ptr, max_waiters)
@@ -170,13 +171,8 @@ public class FutexWord {
         if (maxWaiters == UInt32(0)) {
             return
         }
-        synchronized(waitMutex) {
-            if (maxWaiters == UInt32(1)) {
-                waitCond.notify()
-            } else {
-                waitCond.notifyAll()
-            }
-        }
+        // BAO_STUB(threading): polling waiters observe value changes without an
+        // explicit notify. Real futex wake should be restored with syscall FFI.
     }
 
     /// 唤醒一个等待线程 - 便捷方法
@@ -192,6 +188,18 @@ public class FutexWord {
     /// 当前等待线程数
     public func waiterCount(): Int64 {
         return waiters.load()
+    }
+
+    private static func sleepOneMs(): Unit {
+        unsafe {
+            let req = malloc(UIntNative(16))
+            let secPtr = CPointer<Int64>(req)
+            let nsecPtr = CPointer<Int64>(req) + Int64(1)
+            secPtr.write(Int64(0))
+            nsecPtr.write(Int64(1000000))
+            nanosleep(req, CPointer<Unit>())
+            free(req)
+        }
     }
 }
 

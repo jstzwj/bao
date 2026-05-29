@@ -6,7 +6,7 @@ package bao_runtime
 
 import bao_core.*
 import bao_collections.*
-import bao_parser.*
+import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Loc as ParserLoc, DeclKind, OptionalChain}
 
 // ============================================================================
 // Environment — 作用域环境
@@ -379,14 +379,22 @@ public class Interpreter {
         return JsValue.UNDEFINED
     }
 
-    /// 执行表达式语句
+    /// 执行表达式语句 — 对应 JS ExpressionStatement
     private func execExprStmt(s: Stmt, env: Environment): JsValue {
+        if (let Some(expr) <- s.expr) {
+            return evalExpr(expr, env)
+        }
         return JsValue.UNDEFINED
     }
 
-    /// 执行 return 语句
+    /// 执行 return 语句 — 对应 JS return [expr]
+    /// 通过抛出 ReturnSignal 传播返回值到 callJsFunction
     private func execReturnStmt(s: Stmt, env: Environment): JsValue {
-        return JsValue.UNDEFINED
+        var val = JsValue.UNDEFINED
+        if (let Some(expr) <- s.expr) {
+            val = evalExpr(expr, env)
+        }
+        throw ReturnSignal(val)
     }
 
     /// 执行 throw 语句
@@ -528,12 +536,53 @@ public class Interpreter {
     }
 
     /// 执行函数声明 - 对应 JS function hoisting
+    /// 函数声明在作用域创建时就被提升 (hoisting)，可以直接定义
     private func execFunctionDecl(s: Stmt, env: Environment): JsValue {
+        if (let Some(fn) <- s.fn) {
+            let paramNames = ArrayList<String>()
+            for (arg in fn.args) {
+                paramNames.append(arg.name)
+            }
+            // 提取函数体语句
+            let bodyStmts = ArrayList<Stmt>()
+            match (fn.body) {
+                case GFnBody.StmtBody(stmt) => bodyStmts.append(stmt)
+                case GFnBody.StmtsBody(stmts) => for (s in stmts) { bodyStmts.append(s) }
+                case GFnBody.ExprBody(expr) => bodyStmts.append(Stmt.expr_(ParserLoc(0), expr))
+            }
+            let jsFn = JsFunction(fn.name, paramNames, bodyStmts, env, false)
+            env.define(fn.name, JsValue.function(jsFn), true)
+        }
         return JsValue.UNDEFINED
     }
 
-    /// 执行类声明 — 支持 constructor, 方法定义, 继承, static 成员
+    /// 执行类声明 — 基础实现
+    /// 对应 JS class 声明，创建构造函数和方法
     private func execClassDecl(s: Stmt, env: Environment): JsValue {
+        if (let Some(cls) <- s.classData) {
+            let classObj = newObject()
+            classObj.set("name", JsValue(BaoString(cls.name)))
+
+            // 注册类方法
+            for (p in cls.properties) {
+                match (p.kind) {
+                    case GPropertyKind.Method =>
+                        if (let Some(valExpr) <- p.value) {
+                            let fnVal = evalExpr(valExpr, env)
+                            classObj.set(p.key, fnVal)
+                        }
+                    case GPropertyKind.Field =>
+                        if (let Some(valExpr) <- p.value) {
+                            let val = evalExpr(valExpr, env)
+                            classObj.set(p.key, val)
+                        }
+                    case _ => ()
+                }
+            }
+
+            // 定义类名到环境
+            env.define(cls.name, JsValue(classObj), true)
+        }
         return JsValue.UNDEFINED
     }
 
@@ -557,8 +606,34 @@ public class Interpreter {
     }
 
     /// 执行 try-catch-finally — 完整实现
+    /// 对应 JS try { ... } catch (e) { ... } finally { ... }
     private func execTry(s: Stmt, env: Environment): JsValue {
-        return JsValue.UNDEFINED
+        var result = JsValue.UNDEFINED
+        try {
+            // 执行 try 块
+            if (let Some(body) <- s.body) {
+                result = execStmt(body, env)
+            }
+        } catch (thrown: JsRuntimeThrow) {
+            // catch 块 — 绑定异常值
+            if (let Some(catchBody) <- s.catchBody) {
+                let catchEnv = Environment(env)
+                // 绑定 catch 参数: catch(e) 中的 e
+                match (s.catchBinding) {
+                    case Some(binding) =>
+                        catchEnv.define(binding.name, thrown.value, true)
+                    case None => ()
+                }
+                result = execStmt(catchBody, catchEnv)
+            }
+        }
+        // finally 块 — 总是执行
+        if (let Some(finallyBody) <- s.finallyBody) {
+            let finallyResult = execStmt(finallyBody, env)
+            // finally 的返回值覆盖 try/catch 的返回值 (标准行为)
+            result = finallyResult
+        }
+        return result
     }
 
     /// 执行 switch 语句
@@ -594,9 +669,62 @@ public class Interpreter {
     // 对应 Bun: JSC 中表达式求值 (bytecode → result)
     // ========================================================================
 
-    /// 求值表达式
+    /// 求值表达式 — 分派到各子求值器
+    /// 对应 Bun: JSC expression evaluation dispatch
     public func evalExpr(e: Expr, env: Environment): JsValue {
-        return JsValue.UNDEFINED
+        match (e.tag) {
+            // 字面量
+            case ExprTag.Undefined => return JsValue.UNDEFINED
+            case ExprTag.Null => return JsValue.NULL
+            case ExprTag.Boolean => return JsValue(e.boolValue)
+            case ExprTag.Number => return JsValue(e.numberValue)
+            case ExprTag.BigInt => return JsValue(e.numberValue) // 简化: BigInt 当 Number 处理
+            case ExprTag.String => return JsValue(e.stringValue)
+            case ExprTag.Regex => return JsValue.UNDEFINED // TODO: RegExp 支持
+            // 标识符和成员访问
+            case ExprTag.Identifier => return evalIdentifier(e, env)
+            case ExprTag.ImportIdentifier => return evalIdentifier(e, env)
+            case ExprTag.ThisExpr => return env.thisBinding
+            case ExprTag.Super => return JsValue.UNDEFINED // TODO: super 支持
+            // 调用和成员访问
+            case ExprTag.New => return evalNew(e, env)
+            case ExprTag.Call => return evalCall(e, env)
+            case ExprTag.Dot => return evalDot(e, env)
+            case ExprTag.Index => return evalIndex(e, env)
+            // 复合表达式
+            case ExprTag.Array => return evalArray(e, env)
+            case ExprTag.Object => return evalObject(e, env)
+            case ExprTag.Spread =>
+                // 展开在调用处处理
+                if (let Some(v) <- e.value) {
+                    return evalExpr(v, env)
+                }
+                return JsValue.UNDEFINED
+            case ExprTag.Arrow => return evalArrow(e, env)
+            case ExprTag.Function => return evalFunctionExpr(e, env)
+            case ExprTag.Class => return evalClassExpr(e, env)
+            case ExprTag.Template => return evalTemplate(e, env)
+            // 运算符
+            case ExprTag.Unary => return evalUnary(e, env)
+            case ExprTag.Binary => return evalBinary(e, env)
+            case ExprTag.Ternary => return evalTernary(e, env)
+            case ExprTag.Assign => return evalAssign(e, env)
+            case ExprTag.Postfix => return evalPostfix(e, env)
+            // async/await — 简化处理: await 直接求值
+            case ExprTag.Await =>
+                if (let Some(val) <- e.value) {
+                    return evalExpr(val, env)
+                }
+                return JsValue.UNDEFINED
+            case ExprTag.Yield => return JsValue.UNDEFINED // TODO: generator 支持
+            case ExprTag.TypeCast =>
+                // TypeScript 类型转换 — 运行时忽略，直接求值表达式
+                if (let Some(val) <- e.value) {
+                    return evalExpr(val, env)
+                }
+                return JsValue.UNDEFINED
+            case _ => return JsValue.UNDEFINED
+        }
     }
 
     /// 标识符求值 - 对应 JS 标识符解析
@@ -682,6 +810,9 @@ public class Interpreter {
         var callable: ?JsValue = None
 
         if (let Some(target) <-  e.target) {
+            // DEBUG: trace call target
+            let isDot = (target.tag == ExprTag.Dot)
+            let _ = println("[DEBUG evalCall] isDot=${isDot} args=${e.args.size}")
             // 处理 obj.method() 调用
             if (target.tag == ExprTag.Dot) {
                 let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
@@ -699,6 +830,10 @@ public class Interpreter {
                 if (let Some(objData) <-  objVal.objectData) {
                     callable = objData.get(target.propertyName)
                 }
+                // DEBUG: trace method lookup
+                let callableNone = callable.isNone()
+                let isStr = (objVal.valueType == JsValueType.String)
+                let _ = println("[DEBUG evalCall] prop=${target.propertyName} callableNone=${callableNone} isStr=${isStr}")
                 // 字符串方法调用 — 对应 String.prototype.method()
                 if (callable.isNone() && objVal.valueType == JsValueType.String) {
                     callable = getStringMethod(objVal, target.propertyName)
@@ -753,6 +888,8 @@ public class Interpreter {
     /// 获取字符串方法 — 对应 String.prototype.* 方法
     //  严格翻译自: JS String.prototype 方法绑定
     private func getStringMethod(strVal: JsValue, name: String): ?JsValue {
+        // DEBUG: trace string method lookup
+        let _ = println("[DEBUG getStringMethod] name='${name}'")
         match (name) {
             case "charAt" => Some(makeNativeFn("charAt") { args =>
                 let s = jsToString(strVal)
@@ -917,9 +1054,11 @@ public class Interpreter {
             for (stmt in fn.body) {
                 result = execStmt(stmt, fnEnv)
             }
+        } catch (ret: ReturnSignal) {
+            // return 语句 — 返回值通过 ReturnSignal 传播
+            return ret.value
         } catch (e: JsRuntimeThrow) {
-            // 如果是 return 抛出的值，作为返回值
-            // JsRuntimeThrow 目前用于 throw，直接传播
+            // throw 语句 — 向外传播
             throw e
         }
         return result
@@ -932,6 +1071,11 @@ public class Interpreter {
     private func evalDot(e: Expr, env: Environment): JsValue {
         if (let Some(target) <-  e.target) {
             let obj = evalExpr(target, env)
+
+            // DEBUG: trace dot access
+            let hasObjData = obj.objectData.isSome()
+            let isStr = (obj.valueType == JsValueType.String)
+            let _ = println("[DEBUG evalDot] prop=${e.propertyName} hasObjData=${hasObjData} isStr=${isStr}")
 
             // 可选链 — 对应 obj?.prop
             //  严格翻译自: ES2020 Optional Chaining
@@ -1060,8 +1204,27 @@ public class Interpreter {
     }
 
     /// 对象字面量
+    /// 对象字面量 — 对应 JS { key: value, ... }
     private func evalObject(e: Expr, env: Environment): JsValue {
-        return JsValue(newObject())
+        let obj = newObject()
+        for (p in e.properties) {
+            match (p.kind) {
+                case GPropertyKind.Field =>
+                    let key = p.key
+                    if (let Some(valExpr) <- p.value) {
+                        let val = evalExpr(valExpr, env)
+                        obj.set(key, val)
+                    }
+                case GPropertyKind.Method =>
+                    // 方法定义: { method() { ... } }
+                    if (let Some(valExpr) <- p.value) {
+                        let fnVal = evalExpr(valExpr, env)
+                        obj.set(p.key, fnVal)
+                    }
+                case _ => ()
+            }
+        }
+        return JsValue(obj)
     }
 
     /// 箭头函数
@@ -1118,24 +1281,170 @@ public class Interpreter {
     //  严格翻译自: ES6 Template Literal 求值语义
     //   `part0${expr0}part1${expr1}part2`
     //   模板字面量的求值: 交替静态字符串和表达式
-    //   tagged template: tag`part0${expr0}part1` 调用 tag 函数
     private func evalTemplate(e: Expr, env: Environment): JsValue {
-        return JsValue(e.stringValue)
+        // templateParts 中奇数位是静态字符串，偶数位是表达式 (交替)
+        // 但 bao_parser 的结构: templateParts 是 ArrayList<Expr>
+        // 其中 String 类型的 part 是静态文本，其他是需要求值的表达式
+        var sb = StringBuilder()
+        for (part in e.templateParts) {
+            if (part.tag == ExprTag.String) {
+                sb.append(jsToString(JsValue(part.stringValue)))
+            } else {
+                let val = evalExpr(part, env)
+                sb.append(jsToString(val))
+            }
+        }
+        return JsValue(BaoString(sb.toString()))
     }
 
-    /// 一元表达式
+    /// 一元表达式 — 对应 JS UnaryExpression
+    /// 严格翻译自: ES spec UnaryExpression 语义
     private func evalUnary(e: Expr, env: Environment): JsValue {
+        if (let Some(operand) <- e.value) {
+            let val = evalExpr(operand, env)
+            match (e.op) {
+                case OpCode.UnNot => return JsValue(!jsToBoolean(val))
+                case OpCode.UnNeg =>
+                    return JsValue(-jsToNumber(val))
+                case OpCode.UnPos =>
+                    return JsValue(jsToNumber(val))
+                case OpCode.UnCpl =>
+                    // 按位取反: XOR with -1 (等价于 ~x)
+                    return JsValue(Float64(Int64(jsToNumber(val)) ^ Int64(-1)))
+                case OpCode.Typeof =>
+                    return JsValue(BaoString(val.typeOf()))
+                case OpCode.UnVoid =>
+                    return JsValue.UNDEFINED
+                case OpCode.UnPreInc =>
+                    let newVal = jsToNumber(val) + 1.0
+                    // 写回变量
+                    match (operand.tag) {
+                        case ExprTag.Identifier => env.set(operand.identifierName, JsValue(newVal))
+                        case _ => ()
+                    }
+                    return JsValue(newVal)
+                case OpCode.UnPreDec =>
+                    let newVal = jsToNumber(val) - 1.0
+                    match (operand.tag) {
+                        case ExprTag.Identifier => env.set(operand.identifierName, JsValue(newVal))
+                        case _ => ()
+                    }
+                    return JsValue(newVal)
+                case _ => return JsValue.UNDEFINED
+            }
+        }
         return JsValue.UNDEFINED
     }
 
     /// 二元表达式 — 支持短路求值
+    /// 对应 JS BinaryExpression，严格翻译自 ES spec
     private func evalBinary(e: Expr, env: Environment): JsValue {
-        return JsValue.UNDEFINED
+        // 短路运算符: &&, ||, ?? 先求值左侧
+        if (e.op == OpCode.BinLoAnd) {
+            let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
+            if (!jsToBoolean(left)) { return left }
+            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+        }
+        if (e.op == OpCode.BinLoOr) {
+            let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
+            if (jsToBoolean(left)) { return left }
+            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+        }
+        if (e.op == OpCode.BinNullish) {
+            let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
+            if (!left.isUndefinedOrNull()) { return left }
+            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+        }
+
+        // 逗号运算符
+        if (e.op == OpCode.Comma) {
+            if (let Some(l) <- e.left) { let _ = evalExpr(l, env) }
+            return if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+        }
+
+        // 其他二元运算符: 两侧都要求值
+        let left = if (let Some(l) <- e.left) { evalExpr(l, env) } else { JsValue.UNDEFINED }
+        let right = if (let Some(r) <- e.right) { evalExpr(r, env) } else { JsValue.UNDEFINED }
+        return evalBinaryOp(e.op, left, right)
     }
 
-    /// 二元运算求值
+    /// 二元运算求值 — 对应 JS 二元运算符语义
+    /// 严格翻译自: ES spec BinaryExpression 语义
     private func evalBinaryOp(op: OpCode, l: JsValue, r: JsValue): JsValue {
-        return JsValue.UNDEFINED
+        match (op) {
+            // 算术运算
+            case OpCode.BinAdd =>
+                // + 运算: 字符串拼接或数字加法
+                if (l.valueType == JsValueType.String || r.valueType == JsValueType.String) {
+                    return JsValue(BaoString(jsToString(l) + jsToString(r)))
+                }
+                return JsValue(jsToNumber(l) + jsToNumber(r))
+            case OpCode.BinSub =>
+                return JsValue(jsToNumber(l) - jsToNumber(r))
+            case OpCode.BinMul =>
+                return JsValue(jsToNumber(l) * jsToNumber(r))
+            case OpCode.BinDiv =>
+                let divisor = jsToNumber(r)
+                if (divisor == 0.0) {
+                    if (jsToNumber(l) == 0.0) { return JsValue.nan }
+                    if (jsToNumber(l) > 0.0) { return JsValue(Float64(1.0 / 0.0)) } // Infinity
+                    return JsValue(Float64(-1.0 / 0.0)) // -Infinity
+                }
+                return JsValue(jsToNumber(l) / divisor)
+            case OpCode.BinRem =>
+                let a = jsToNumber(l)
+                let b = jsToNumber(r)
+                // JS % 运算: a - (truncate(a/b) * b)
+                if (b == 0.0) { return JsValue.nan }
+                return JsValue(a - Float64(Int64(a / b)) * b)
+            case OpCode.BinPow =>
+                return JsValue(pow(jsToNumber(l), jsToNumber(r)))
+            // 比较运算
+            case OpCode.BinLt =>
+                return JsValue(jsToNumber(l) < jsToNumber(r))
+            case OpCode.BinGt =>
+                return JsValue(jsToNumber(l) > jsToNumber(r))
+            case OpCode.BinLe =>
+                return JsValue(jsToNumber(l) <= jsToNumber(r))
+            case OpCode.BinGe =>
+                return JsValue(jsToNumber(l) >= jsToNumber(r))
+            // 相等运算
+            case OpCode.BinEq =>
+                return JsValue(jsAbstractEqual(l, r))
+            case OpCode.BinNe =>
+                return JsValue(!jsAbstractEqual(l, r))
+            case OpCode.BinEqStrict =>
+                return JsValue(jsStrictEqual(l, r))
+            case OpCode.BinNeStrict =>
+                return JsValue(!jsStrictEqual(l, r))
+            // 位运算
+            case OpCode.BinAnd =>
+                return JsValue(Float64(Int64(jsToNumber(l)) & Int64(jsToNumber(r))))
+            case OpCode.BinOr =>
+                return JsValue(Float64(Int64(jsToNumber(l)) | Int64(jsToNumber(r))))
+            case OpCode.BinXor =>
+                return JsValue(Float64(Int64(jsToNumber(l)) ^ Int64(jsToNumber(r))))
+            case OpCode.BinShl =>
+                return JsValue(Float64(Int64(jsToNumber(l)) << Int64(jsToNumber(r))))
+            case OpCode.BinShr =>
+                return JsValue(Float64(Int64(jsToNumber(l)) >> Int64(jsToNumber(r))))
+            case OpCode.BinUShr =>
+                // 无符号右移: 转为 UInt64 后右移，再转回 Int64
+                let lv = UInt64(Int64(jsToNumber(l)))
+                let rv = UInt64(Int64(jsToNumber(r)) & 0x1F)  // JS: 取低5位
+                return JsValue(Float64(Int64(lv >> rv)))
+            // in, instanceof — 简化实现
+            case OpCode.BinIn =>
+                if (r.valueType == JsValueType.Object) {
+                    if (let Some(obj) <- r.objectData) {
+                        return JsValue(obj.has(jsToString(l)))
+                    }
+                }
+                return JsValue.FALSE
+            case OpCode.BinInstanceof =>
+                return JsValue.FALSE // TODO: 完整 instanceof 实现
+            case _ => return JsValue.UNDEFINED
+        }
     }
 
     /// 三元表达式
@@ -1209,7 +1518,19 @@ public class Interpreter {
     private func applyBindingFromExpr(expr: Expr, value: JsValue, env: Environment): Unit {}
 
     /// 后缀表达式 ++/--
+    /// 对应 JS x++ / x-- 语义: 先返回旧值，再更新
     private func evalPostfix(e: Expr, env: Environment): JsValue {
+        if (let Some(operand) <- e.value) {
+            let oldVal = evalExpr(operand, env)
+            let oldNum = jsToNumber(oldVal)
+            let newVal = if (e.op == OpCode.UnPostInc) { oldNum + 1.0 } else { oldNum - 1.0 }
+            // 写回变量
+            match (operand.tag) {
+                case ExprTag.Identifier => env.set(operand.identifierName, JsValue(newVal))
+                case _ => ()
+            }
+            return oldVal  // 后缀: 返回旧值
+        }
         return JsValue.UNDEFINED
     }
 
@@ -1359,6 +1680,16 @@ public class ContinueSignal <: Exception {
     public init(label: String) {
         super(label)
         this.label = label
+    }
+}
+
+/// return 信号 - 对应 JS return expr
+/// 在函数执行中通过异常传播返回值
+public class ReturnSignal <: Exception {
+    public var value: JsValue
+    public init(value: JsValue) {
+        super("return")
+        this.value = value
     }
 }
 

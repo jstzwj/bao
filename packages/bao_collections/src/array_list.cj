@@ -44,7 +44,7 @@ public class ArrayList<T> <: Iterable<T> {
     /// 创建空列表
     /// 翻译自: pub fn init() Self
     public init() {
-        items_ = Array<T>()
+        items_ = Array<T>(0, { _ => unsafe { zeroValue<T>() } })
         length = 0
         capacity_ = 0
     }
@@ -368,8 +368,10 @@ public class ArrayList<T> <: Iterable<T> {
             while (newCap < needed) {
                 newCap *= 2
             }
-            let fill = if (length > 0) { items_[0] } else { throw Exception("ArrayList requires an existing element to grow") }
-            let newItems = Array<T>(newCap, repeat: fill)
+            // Match Zig ArrayList growth from an empty buffer: capacity can grow
+            // before a real element exists, so unused slots must be initialized
+            // with a type-level zero value instead of copying items_[0].
+            let newItems = Array<T>(newCap, { _ => unsafe { zeroValue<T>() } })
             for (i in 0..length) {
                 newItems[i] = items_[i]
             }

@@ -4,9 +4,8 @@ package bao_runtime
 
 import bao_core.*
 import bao_collections.*
-import bao_parser.*
+import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Source as ParserSource, Log as ParserLog, LogLevel as ParserLogLevel, Loc as ParserLoc, SourceLoc as ParserSourceLoc, Scope, ScopeKind, Symbol, SymbolKind, Ref, RefTag, DeclKind, OptionalChain, Parser}
 import bao_sys.*
-import bao_io.*
 import bao_event_loop.*
 import bao_path.*
 import bao_threading.*
@@ -507,11 +506,11 @@ public class EventLoop {
 
 public class ParseResultError {
     public var message: String
-    public var loc: SourceLoc
+    public var loc: ParserSourceLoc
 
     public init(message: String) {
         this.message = message
-        this.loc = SourceLoc()
+        this.loc = ParserSourceLoc()
     }
 }
 
@@ -532,8 +531,41 @@ public class ParseResult {
 public class JsParser {
     public init() {}
 
+    /// 解析 JavaScript/TypeScript 源代码
+    /// 对应 Bun: Transpiler.parse + Lexer + Parser 管线
     public func parse(source: String, options: ParserOptions): ParseResult {
-        return ParseResult()
+        let result = ParseResult()
+
+        // 创建 bao_parser 的 Source 和 Log
+        let parserSource = ParserSource(options.sourceFile, source)
+        let log = ParserLog()
+
+        // 创建解析器并解析
+        let parser = Parser(log, parserSource, options)
+        let blockStmt = parser.parse()
+
+        // 提取语句列表 — parser.parse() 返回 StmtTag.Block 包裹所有语句
+        if (blockStmt.tag == StmtTag.Block) {
+            result.program = blockStmt.stmts
+        }
+
+        // 转换错误日志为 ParseResultError
+        for (msg in log.msgs) {
+            let isError = match (msg.level) {
+                case ParserLogLevel.Error => true
+                case _ => false
+            }
+            if (isError) {
+                var loc = ParserSourceLoc()
+                match (msg.data.location) {
+                    case Some(l) => loc = l
+                    case None => ()
+                }
+                result.errors.append(ParseResultError(msg.data.text))
+            }
+        }
+
+        return result
     }
 }
 
@@ -574,6 +606,7 @@ public class VirtualMachine {
             for (err in result.errors) {
                 errorMsg.append("${filename}:${err.loc.line}:${err.loc.column}: ${err.message}\n")
             }
+            println(errorMsg.toString())
             return JsValue.UNDEFINED
         }
 
@@ -582,8 +615,52 @@ public class VirtualMachine {
     }
 
     /// 执行文件
+    /// 对应 Bun: VirtualMachine.loadEntryPoint → transpileAndRun
     public func executeFile(path: String): JsValue {
-        return eval("", path)
+        let source = readFileContents(path)
+        if (source.isEmpty()) {
+            println("Error: Cannot read file '${path}'")
+            return JsValue.UNDEFINED
+        }
+        return eval(source, path)
+    }
+
+    /// 读取文件内容 — 使用 SysFs 系统调用
+    private static func readFileContents(path: String): String {
+        let fdResult = SysFs.openRead(path)
+        let fd = match (fdResult) {
+            case SysMaybe.Ok(v) => v
+            case SysMaybe.Err(_) => return ""
+        }
+
+        // 循环读取文件内容
+        var allBytes = ArrayList<UInt8>()
+        let bufSize: Int64 = 8192
+        var buf = Array<UInt8>(bufSize, { _ => UInt8(0) })
+        while (true) {
+            let readResult = SysFs.read(fd, buf)
+            match (readResult) {
+                case SysMaybe.Err(_) =>
+                    let _ = SysFs.close(fd)
+                    return ""
+                case SysMaybe.Ok(bytesRead) =>
+                    if (bytesRead == 0) {
+                        break  // EOF
+                    }
+                    for (i in 0..bytesRead) {
+                        allBytes.append(buf[i])
+                    }
+            }
+        }
+
+        let _ = SysFs.close(fd)
+
+        // 转换为字符串
+        var sb = StringBuilder()
+        for (b in allBytes) {
+            sb.append(Rune(b))
+        }
+        return sb.toString()
     }
 
     /// 获取全局对象

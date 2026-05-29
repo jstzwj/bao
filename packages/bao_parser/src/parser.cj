@@ -746,7 +746,7 @@ public class Parser {
                     lexer.nextToken()
                     return
                 // 语句开始关键字 — 可以安全恢复的位置
-                case Var | Const | Function | Class | If | For |
+                case Var | Let | Const | Function | Class | If | For |
                      While | Do | Switch | Try | With | Break | Continue |
                      Return | Throw | Import | Export | Debugger =>
                     return
@@ -1429,8 +1429,16 @@ public class Parser {
     // ========================================================================
 
     /// 解析表达式 - 对应 Bun parseExpr
+    /// 解析表达式 - 对应 Bun parseExpr
+    /// 处理逗号运算符: a, b, c → 最后一个值
+    /// 逗号在 for-loop 头、表达式语句、分组括号中有效
     public func parseExpr(opts: ParseExprOpts): Expr {
-        return parseAssignmentExpr(opts)
+        var expr = parseAssignmentExpr(opts)
+        while (lexer.token == Token.Comma) {
+            lexer.nextToken()
+            expr = parseAssignmentExpr(opts)
+        }
+        return expr
     }
 
     /// 解析赋值表达式 - 对应 Bun parseAssignmentExpr
@@ -2015,7 +2023,8 @@ public class Parser {
                 let inner = parseAssignmentExpr(ParseExprOpts())
                 args.append(Expr.spread(lexer.loc(), inner))
             } else {
-                args.append(parseAssignmentExpr(ParseExprOpts()))
+                let argExpr = parseAssignmentExpr(ParseExprOpts())
+                args.append(argExpr)
             }
             if (lexer.token == Token.Comma) {
                 lexer.nextToken()
@@ -2134,7 +2143,11 @@ public class Parser {
             case AmpersandAmpersand => return BinaryOpInfo(OpCode.BinLoAnd, 7)
             case BarBar => return BinaryOpInfo(OpCode.BinLoOr, 6)
             case QuestionQuestion => return BinaryOpInfo(OpCode.BinNullish, 5)
-            case Comma => return BinaryOpInfo(OpCode.Comma, 0)
+            // Comma is NOT a binary operator in the Pratt parser.
+            // It is handled explicitly by parseExpr() for for-loop headers,
+            // expression statements, and grouping parens. parseCallArgs() uses
+            // parseAssignmentExpr() which must NOT consume commas.
+            case Comma => return None
             case _ => return None
         }
     }

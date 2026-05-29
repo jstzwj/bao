@@ -347,16 +347,16 @@ public class Barrier {
 public class Once {
     private let mutex: Mutex
     private let done: AtomicBool
-    private let cond: StdCondition
 
     public init() {
         mutex = Mutex()
         done = AtomicBool(false)
-        cond = mutex.condition()
     }
 
     /// 执行一次 - 对应 Zig std.once.call()
-    /// 严格翻译自: 如果 done==false，加锁执行 fn，设 done=true，唤醒等待者
+    /// 严格翻译自: 如果 done==false，加锁执行 fn，设 done=true。
+    /// Cangjie std.sync.Condition 必须在持锁状态下创建/使用；当前 Once
+    /// 没有等待 API，因此不保存 condition，避免全局 Once 初始化时触发锁状态异常。
     /// 如果 done==true，直接返回
     public func callOnce(fn: () -> Unit): Unit {
         if (done.load()) {
@@ -368,7 +368,6 @@ public class Once {
             }
             fn()
             done.store(true)
-            cond.notifyAll()
         }
     }
 

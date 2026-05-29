@@ -140,6 +140,9 @@ Bao 通过仓颉的 C FFI 机制桥接以下底层 C 库：
 - [libuv](https://libuv.org/) — 跨平台异步 I/O 库
 - **华为 (Huawei)** — 开发和维护仓颉语言及其工具链
 - **南京大学计算机软件新技术全国重点实验室 (The State Key Laboratory for Novel Software Technology, Nanjing University)** — 提供研究支持和基础设施
+- **mimo** — 感谢赠送的 coding plan，助力项目开发
+- **DeepSeek** — 感谢其高性价比的 API 服务
+- **GLM及其他开源模型** — 感谢对项目的支持与贡献
 
 ## 许可证
 

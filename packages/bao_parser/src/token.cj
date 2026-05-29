@@ -360,6 +360,7 @@ public class Keywords {
         m.put("import", Token.Import)
         m.put("in", Token.In)
         m.put("instanceof", Token.Instanceof)
+        m.put("let", Token.Let)
         m.put("new", Token.New)
         m.put("null", Token.Null)
         m.put("return", Token.Return)

@@ -6,9 +6,15 @@ description = "Bao CLI entry point: run, build, install, test, init commands"
 version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
-link-option = ""
+link-option = "target/native/bao_cli_native_shims.o -luv -lz -lbrotlienc -lbrotlidec -lzstd -lpthread"
 output-type = "executable"
 src-dir = "src_min"
 target-dir = ""
 
 [dependencies]
+bao_runtime = { path = "../bao_runtime" }
+
+[native_sources]
+bao_cli_native_shims = [
+  "native/bao_cli_native_shims.c",
+]

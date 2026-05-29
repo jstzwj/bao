@@ -1407,12 +1407,78 @@ public class Lexer {
         prevErrorLoc = r.loc
     }
 
-    /// 简易浮点数解析 (替代 std.fmt.parseFloat)
+    /// 浮点数解析 - 对应 Bun std.fmt.parseFloat
+    /// 支持: 整数、小数、指数 (e/E)、正负号、十六进制 (0x)
     private func parseFloat(text: String): Float64 {
-        if (text.size > 0) {
+        if (text.size == 0) {
             return 0.0
         }
-        return 0.0
+        var result: Float64 = 0.0
+        var sign: Float64 = 1.0
+        var i: Int64 = 0
+        let len = Int64(text.size)
+
+        // 符号
+        if (i < len && text[i] == UInt8(45)) { sign = -1.0; i++ }  // '-'
+        else if (i < len && text[i] == UInt8(43)) { i++ }           // '+'
+
+        // 十六进制
+        if (i + 1 < len && text[i] == UInt8(48) &&
+            (text[i + 1] == UInt8(120) || text[i + 1] == UInt8(88))) { // 'x'/'X'
+            i += 2
+            while (i < len) {
+                let c = text[i]
+                if (c >= UInt8(48) && c <= UInt8(57)) {        // '0'-'9'
+                    result = result * 16.0 + Float64(c) - 48.0
+                } else if (c >= UInt8(97) && c <= UInt8(102)) { // 'a'-'f'
+                    result = result * 16.0 + Float64(c) - 87.0
+                } else if (c >= UInt8(65) && c <= UInt8(70)) {  // 'A'-'F'
+                    result = result * 16.0 + Float64(c) - 55.0
+                } else {
+                    break
+                }
+                i++
+            }
+            return result * sign
+        }
+
+        // 整数部分
+        while (i < len && text[i] >= UInt8(48) && text[i] <= UInt8(57)) {
+            result = result * 10.0 + Float64(text[i]) - 48.0
+            i++
+        }
+
+        // 小数部分
+        if (i < len && text[i] == UInt8(46)) { // '.'
+            i++
+            var frac: Float64 = 0.1
+            while (i < len && text[i] >= UInt8(48) && text[i] <= UInt8(57)) {
+                result += (Float64(text[i]) - 48.0) * frac
+                frac *= 0.1
+                i++
+            }
+        }
+
+        // 指数部分
+        if (i < len && (text[i] == UInt8(101) || text[i] == UInt8(69))) { // 'e'/'E'
+            i++
+            var expSign: Float64 = 1.0
+            if (i < len && text[i] == UInt8(45)) { expSign = -1.0; i++ }
+            else if (i < len && text[i] == UInt8(43)) { i++ }
+            var exp: Float64 = 0.0
+            while (i < len && text[i] >= UInt8(48) && text[i] <= UInt8(57)) {
+                exp = exp * 10.0 + Float64(text[i]) - 48.0
+                i++
+            }
+            // 快速整数幂
+            var pow10: Float64 = 1.0
+            var e = Int64(exp * expSign)
+            if (e < 0) { while (e < 0) { pow10 *= 0.1; e++ } }
+            else { while (e > 0) { pow10 *= 10.0; e-- } }
+            result *= pow10
+        }
+
+        return result * sign
     }
 
     /// 向前看 n 个码点 - 对应 Bun peek()

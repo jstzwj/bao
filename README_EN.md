@@ -141,6 +141,9 @@ Contributions are welcome! Please read the following documents to get started:
 - [libuv](https://libuv.org/) — Cross-platform async I/O library
 - **Huawei** — For developing and maintaining the Cangjie language and its toolchain
 - **The State Key Laboratory for Novel Software Technology, Nanjing University** — For research support and infrastructure
+- **mimo** — Thanks for providing the coding plan to support project development
+- **DeepSeek** — Thanks for its affordable and high-quality API services
+- **GLM and other open-source models** — Thanks for their support and contributions to the project
 
 ## License
 
