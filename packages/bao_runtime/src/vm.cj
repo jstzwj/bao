@@ -810,9 +810,6 @@ public class Interpreter {
         var callable: ?JsValue = None
 
         if (let Some(target) <-  e.target) {
-            // DEBUG: trace call target
-            let isDot = (target.tag == ExprTag.Dot)
-            let _ = println("[DEBUG evalCall] isDot=${isDot} args=${e.args.size}")
             // 处理 obj.method() 调用
             if (target.tag == ExprTag.Dot) {
                 let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
@@ -830,13 +827,15 @@ public class Interpreter {
                 if (let Some(objData) <-  objVal.objectData) {
                     callable = objData.get(target.propertyName)
                 }
-                // DEBUG: trace method lookup
-                let callableNone = callable.isNone()
-                let isStr = (objVal.valueType == JsValueType.String)
-                let _ = println("[DEBUG evalCall] prop=${target.propertyName} callableNone=${callableNone} isStr=${isStr}")
                 // 字符串方法调用 — 对应 String.prototype.method()
-                if (callable.isNone() && objVal.valueType == JsValueType.String) {
-                    callable = getStringMethod(objVal, target.propertyName)
+                if (callable.isNone()) {
+                    let isStringType = match (objVal.valueType) {
+                        case JsValueType.String => true
+                        case _ => false
+                    }
+                    if (isStringType) {
+                        callable = getStringMethod(objVal, target.propertyName)
+                    }
                 }
             } else if (target.tag == ExprTag.Index) {
                 // 对应 obj[key]()
@@ -888,8 +887,6 @@ public class Interpreter {
     /// 获取字符串方法 — 对应 String.prototype.* 方法
     //  严格翻译自: JS String.prototype 方法绑定
     private func getStringMethod(strVal: JsValue, name: String): ?JsValue {
-        // DEBUG: trace string method lookup
-        let _ = println("[DEBUG getStringMethod] name='${name}'")
         match (name) {
             case "charAt" => Some(makeNativeFn("charAt") { args =>
                 let s = jsToString(strVal)
@@ -946,13 +943,39 @@ public class Interpreter {
                 return JsValue(s.endsWith(search))
             })
             case "toUpperCase" => Some(makeNativeFn("toUpperCase") { _ =>
-                return JsValue(BaoString(jsToString(strVal)))
+                let s = jsToString(strVal)
+                let sb = StringBuilder()
+                for (i in 0..Int64(s.size)) {
+                    let b = s[i]
+                    if (b >= 97 && b <= 122) { // 'a'-'z'
+                        sb.append(Rune(Int32(b) - 32))
+                    } else {
+                        sb.append(Rune(Int32(b)))
+                    }
+                }
+                return JsValue(BaoString(sb.toString()))
             })
             case "toLowerCase" => Some(makeNativeFn("toLowerCase") { _ =>
-                return JsValue(BaoString(jsToString(strVal)))
+                let s = jsToString(strVal)
+                let sb = StringBuilder()
+                for (i in 0..Int64(s.size)) {
+                    let b = s[i]
+                    if (b >= 65 && b <= 90) { // 'A'-'Z'
+                        sb.append(Rune(Int32(b) + 32))
+                    } else {
+                        sb.append(Rune(Int32(b)))
+                    }
+                }
+                return JsValue(BaoString(sb.toString()))
             })
             case "trim" => Some(makeNativeFn("trim") { _ =>
-                return JsValue(BaoString(jsToString(strVal)))
+                let s = jsToString(strVal)
+                var start: Int64 = 0
+                let len = Int64(s.size)
+                while (start < len && s[start] <= 32) { start++ }
+                var end = len
+                while (end > start && s[end - 1] <= 32) { end-- }
+                return JsValue(BaoString(s[start..end]))
             })
             case "split" => Some(makeNativeFn("split") { args =>
                 let s = jsToString(strVal)
@@ -1072,11 +1095,6 @@ public class Interpreter {
         if (let Some(target) <-  e.target) {
             let obj = evalExpr(target, env)
 
-            // DEBUG: trace dot access
-            let hasObjData = obj.objectData.isSome()
-            let isStr = (obj.valueType == JsValueType.String)
-            let _ = println("[DEBUG evalDot] prop=${e.propertyName} hasObjData=${hasObjData} isStr=${isStr}")
-
             // 可选链 — 对应 obj?.prop
             //  严格翻译自: ES2020 Optional Chaining
             if (target.optionalChain.isSome()) {
@@ -1089,11 +1107,14 @@ public class Interpreter {
                 return objData.get(e.propertyName)
             }
             // 字符串属性
-            if (obj.valueType == JsValueType.String) {
+            let isStringType2 = match (obj.valueType) {
+                case JsValueType.String => true
+                case _ => false
+            }
+            if (isStringType2) {
                 if (e.propertyName == "length") {
-                    return JsValue(0.0)
+                    return JsValue(Float64(obj.stringValue.toString().size))
                 }
-                // 字符串方法
                 if (let Some(method) <-  getStringMethod(obj, e.propertyName)) {
                     return method
                 }
