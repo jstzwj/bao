@@ -5,6 +5,7 @@ package bao_runtime.webcore
 
 import bao_core.*
 import bao_jsc.*
+import bao_sys.*
 
 // ============================================================================
 // Crypto - Web Crypto API
@@ -95,10 +96,16 @@ public class Crypto {
         return result
     }
 
-    /// 生成随机字节 (伪随机)
+    /// 生成随机字节 (使用系统安全随机数)
+    /// 对应 Bun: bun.rand() / getrandom(2)
     private static func randomByte(): Int64 {
-        // 简化的伪随机数生成
-        return Int64(42)  // TODO: pseudo-random stub
+        unsafe {
+            let buf = malloc(UIntNative(1))
+            let bytesRead = getrandom(buf, UIntNative(1), UInt32(0))
+            let byteVal = CPointer<UInt8>(buf).read(Int64(0))
+            free(buf)
+            return Int64(byteVal)
+        }
     }
 
     /// 字节数组转十六进制字符串

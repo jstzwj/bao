@@ -151,6 +151,32 @@ public class BaoFile {
     public static func realpath(path: String): String {
         return path
     }
+
+    /// 修改文件权限
+    /// 对应 Bun: std.posix.chmod / sys.chmod
+    public static func chmod(path: String, mode: UInt32): Bool {
+        unsafe {
+            let pathPtr = unsafeNewCString(path)
+            let rc = chmod(pathPtr, mode)
+            return rc == 0
+        }
+    }
+
+    /// 获取当前文件模式创建掩码
+    /// 对应 Bun: std.os.system.umask
+    public static func getUmask(): UInt32 {
+        // Read current umask: set to 0 (returns old), then restore
+        let old = setUmask(UInt32(0))
+        let _ = setUmask(old)
+        return old
+    }
+
+    /// 设置文件模式创建掩码
+    public static func setUmask(mask: UInt32): UInt32 {
+        unsafe {
+            return umask(mask)
+        }
+    }
 }
 
 public class SysProcess {

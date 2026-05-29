@@ -1931,17 +1931,34 @@ public class NodeFsSystem {
     public static func fsync(fd: Int32): Int32 { unitCode(SysFs.fsync(Int64(fd))) }
     public static func ftruncate(fd: Int32, len: Int64): Int32 { unitCode(SysFs.ftruncate(Int64(fd), len)) }
     public static func futimes(fd: Int32, atime: Float64, mtime: Float64): Int32 {
-        // Stub: futimes syscall not directly available in Cangjie
-        // Return success for now
-        0
+        unsafe {
+            // 构建 timeval 数组: [atime, mtime]
+            let tvSize = UIntNative(16) // sizeof(struct timeval) = 16 bytes on 64-bit
+            let times = malloc(tvSize)
+            let tvArr = CPointer<Int64>(times)
+            // timeval { tv_sec: Int64, tv_usec: Int64 }
+            tvArr.write(0, Int64(atime))
+            tvArr.write(1, Int64((atime - Float64(Int64(atime))) * 1000000.0))
+            tvArr.write(2, Int64(mtime))
+            tvArr.write(3, Int64((mtime - Float64(Int64(mtime))) * 1000000.0))
+            let rc = futimes(fd, times)
+            free(times)
+            return rc
+        }
     }
     public static func lchown(path: String, uid: UInt32, gid: UInt32): Bool {
-        // Stub: lchown syscall not directly available
-        false
+        unsafe {
+            let pathPtr = unsafeNewCString(path)
+            let rc = lchown(pathPtr, uid, gid)
+            return rc == 0
+        }
     }
     public static func link(oldPath: String, newPath: String): Int32 {
-        // Stub: link syscall not directly available
-        -1
+        unsafe {
+            let oldPtr = unsafeNewCString(oldPath)
+            let newPtr = unsafeNewCString(newPath)
+            return link(oldPtr, newPtr)
+        }
     }
 
     public static func lstat(path: String): ?Stats {
@@ -1952,14 +1969,48 @@ public class NodeFsSystem {
     }
 
     public static func lutimes(path: String, atime: Float64, mtime: Float64): Int32 {
-        // Stub: lutimes syscall not directly available
-        0
+        unsafe {
+            let pathPtr = unsafeNewCString(path)
+            let tvSize = UIntNative(16) // sizeof(struct timeval) = 16 bytes on 64-bit
+            let times = malloc(tvSize)
+            let tvArr = CPointer<Int64>(times)
+            tvArr.write(0, Int64(atime))
+            tvArr.write(1, Int64((atime - Float64(Int64(atime))) * 1000000.0))
+            tvArr.write(2, Int64(mtime))
+            tvArr.write(3, Int64((mtime - Float64(Int64(mtime))) * 1000000.0))
+            let rc = lutimes(pathPtr, times)
+            free(times)
+            return rc
+        }
     }
     public static func mkdir(path: String, mode: UInt32): Int32 { unitCode(SysFs.mkdir(path, mode)) }
     public static func mkdirRecursive(path: String, mode: UInt32): Bool { okUnit(DirHelper.mkdirRecursiveAt(FdUtils.atCwd(), path)) }
     public static func mkdtemp(prefix: String): ?String {
-        // Stub: mkdtemp syscall not directly available
-        None
+        unsafe {
+            // mkdtemp modifies template in place and returns it
+            // Need enough space for "XXXXXX" suffix
+            let bufSize = UIntNative(prefix.size + 7)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<Int8>(buf)
+            // Copy prefix into buffer
+            for (i in 0..prefix.size) {
+                bufPtr.write(Int64(i), Int8(prefix[Int64(i)]))
+            }
+            // Append "XXXXXX"
+            let suffix = "XXXXXX"
+            for (i in 0..suffix.size) {
+                bufPtr.write(Int64(prefix.size) + Int64(i), Int8(suffix[Int64(i)]))
+            }
+            bufPtr.write(Int64(prefix.size) + 6, Int8(0)) // null terminator
+            let result = mkdtemp(bufPtr)
+            if (result.isNull()) {
+                free(buf)
+                return None
+            }
+            let path = unsafeCStringToString(result)
+            free(buf)
+            return Some(path)
+        }
     }
 
     public static func open(path: String, flags: Int32, mode: UInt32): Int32 {
@@ -2061,8 +2112,38 @@ public class NodeFsSystem {
     }
 
     public static func statfs(path: String): ?StatFS {
-        // Stub: statfs syscall not directly available
-        None
+        unsafe {
+            let pathPtr = unsafeNewCString(path)
+            // struct statfs on Linux x86_64 is ~120 bytes
+            let bufSize = UIntNative(128)
+            let buf = malloc(bufSize)
+            let rc = OS.statfs(pathPtr, buf)
+            if (rc != 0) {
+                free(buf)
+                return None
+            }
+            // Parse struct statfs fields
+            // Linux x86_64 struct statfs layout:
+            //   f_type: Int64 (offset 0)
+            //   f_bsize: Int64 (offset 8)
+            //   f_blocks: Int64 (offset 16)
+            //   f_bfree: Int64 (offset 24)
+            //   f_bavail: Int64 (offset 32)
+            //   f_files: Int64 (offset 40)
+            //   f_ffree: Int64 (offset 48)
+            let arr = CPointer<Int64>(buf)
+            let result = StatFS(
+                Int32(arr.read(0)),   // fstype
+                Int32(arr.read(1)),   // bsize
+                Int32(arr.read(2)),   // blocks
+                Int32(arr.read(3)),   // bfree
+                Int32(arr.read(4)),   // bavail
+                Int32(arr.read(5)),   // files
+                Int32(arr.read(6))    // ffree
+            )
+            free(buf)
+            return Some(result)
+        }
     }
     public static func symlink(target: String, path: String): Int32 { unitCode(SysFs.symlink(target, path)) }
 
@@ -2078,8 +2159,19 @@ public class NodeFsSystem {
 
     public static func unlink(path: String): Int32 { unitCode(SysFs.unlink(path)) }
     public static func utimes(path: String, atime: Float64, mtime: Float64): Int32 {
-        // Stub: utimes syscall not directly available
-        0
+        unsafe {
+            let pathPtr = unsafeNewCString(path)
+            let tvSize = UIntNative(16) // sizeof(struct timeval) = 16 bytes on 64-bit
+            let times = malloc(tvSize)
+            let tvArr = CPointer<Int64>(times)
+            tvArr.write(0, Int64(atime))
+            tvArr.write(1, Int64((atime - Float64(Int64(atime))) * 1000000.0))
+            tvArr.write(2, Int64(mtime))
+            tvArr.write(3, Int64((mtime - Float64(Int64(mtime))) * 1000000.0))
+            let rc = utimes(pathPtr, times)
+            free(times)
+            return rc
+        }
     }
 
     public static func writeFd(fd: Int32, buffer: Array<UInt8>, offset: Int64, length: Int64, position: Int64): Int64 {

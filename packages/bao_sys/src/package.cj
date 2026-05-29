@@ -745,6 +745,18 @@ foreign func utimes(path: CPointer<Int8>, times: CPointer<Unit>): Int32
 foreign func lutimes(path: CPointer<Int8>, times: CPointer<Unit>): Int32
 @C
 foreign func futimes(fd: Int32, times: CPointer<Unit>): Int32
+@C
+foreign func setuid(uid: UInt32): Int32
+@C
+foreign func setgid(gid: UInt32): Int32
+@C
+foreign func abort(): Unit
+@C
+foreign func umask(mask: UInt32): UInt32
+@C
+foreign func statfs(path: CPointer<Int8>, buf: CPointer<Unit>): Int32
+@C
+foreign func getrandom(buf: CPointer<Unit>, buflen: UIntNative, flags: UInt32): UIntNative
 // errno_location 已在 linux_syscall.cj 中声明
 
 // ============================================================================
@@ -858,6 +870,70 @@ public class OS {
     public static func egid(): UInt32 {
         unsafe {
             return getegid()
+        }
+    }
+
+    /// 设置用户 ID
+    /// 对应 Bun: std.posix.system.setuid / sys.setuid
+    public static func setuid(uid: UInt32): Int32 {
+        unsafe {
+            return setuid(uid)
+        }
+    }
+
+    /// 设置组 ID
+    /// 对应 Bun: std.posix.system.setgid / sys.setgid
+    public static func setgid(gid: UInt32): Int32 {
+        unsafe {
+            return setgid(gid)
+        }
+    }
+
+    /// 终止进程（异常终止）
+    /// 对应 Bun: std.posix.abort
+    public static func abort(): Unit {
+        unsafe {
+            abort()
+        }
+    }
+
+    /// 获取/设置文件模式创建掩码
+    /// 对应 Bun: std.os.system.umask
+    public static func umask(mask: UInt32): UInt32 {
+        unsafe {
+            return umask(mask)
+        }
+    }
+
+    /// 获取随机字节（系统级安全随机数）
+    /// 对应 Bun: std.posix.getrandom / Linux getrandom(2)
+    public static func getrandom(buf: CPointer<Unit>, buflen: UIntNative, flags: UInt32): UIntNative {
+        unsafe {
+            return getrandom(buf, buflen, flags)
+        }
+    }
+
+    /// 获取文件系统统计信息
+    /// 对应 Bun: sys.statfs / statfs(2)
+    public static func statfs(path: CPointer<Int8>, buf: CPointer<Unit>): Int32 {
+        unsafe {
+            return statfs(path, buf)
+        }
+    }
+
+    /// 退出进程
+    /// 对应 Bun: std.posix.exit / sys.exit
+    public static func exit(status: Int32): Unit {
+        unsafe {
+            exit(status)
+        }
+    }
+
+    /// 发送信号给进程
+    /// 对应 Bun: std.posix.kill / sys.kill
+    public static func kill(pid: Int32, sig: Int32): Int32 {
+        unsafe {
+            return kill(pid, sig)
         }
     }
 

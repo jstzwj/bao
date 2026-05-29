@@ -457,8 +457,9 @@ public class NodeProcessSystem {
     }
 
     // Exit process
+    // 对应 Bun: std.posix.exit / sys.exit
     public static func exit(code: Int32): Unit {
-        // TODO: FFI call to exit()
+        OS.exit(code)
     }
 
     // Change directory
@@ -472,24 +473,83 @@ public class NodeProcessSystem {
     }
 
     // Set user ID
+    // 对应 Bun: std.posix.system.setuid
     public static func setuid(uid: UInt32): Unit {
-        // TODO: FFI call to setuid()
+        let rc = OS.setuid(uid)
+        if (rc != 0) {
+            throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "setuid failed")
+        }
     }
 
     // Set group ID
+    // 对应 Bun: std.posix.system.setgid
     public static func setgid(gid: UInt32): Unit {
-        // TODO: FFI call to setgid()
+        let rc = OS.setgid(gid)
+        if (rc != 0) {
+            throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "setgid failed")
+        }
     }
 
     // Abort process
+    // 对应 Bun: std.posix.abort
     public static func abort(): Unit {
-        // TODO: FFI call to abort()
+        OS.abort()
     }
 
     // Send signal to process
+    // 对应 Bun: sys.kill / std.posix.kill
+    // signal parameter is a string like "SIGTERM", "SIGKILL", etc.
     public static func kill(pid: Int32, signal: String): Bool {
-        // TODO: FFI call to kill()
-        return false
+        let sigNum = signalStringToNumber(signal)
+        let rc = OS.kill(pid, sigNum)
+        return rc == 0
+    }
+
+    // Convert signal name string to signal number
+    // e.g. "SIGTERM" -> 15, "SIGKILL" -> 9, "9" -> 9
+    private static func signalStringToNumber(signal: String): Int32 {
+        // If it's already a number string (first char is digit), parse it directly
+        if (signal.size > 0) {
+            let firstChar = signal[Int64(0)]
+            if (firstChar >= UInt8(48) && firstChar <= UInt8(57)) { // '0'-'9'
+                return Int32(Int64.parse(signal))
+            }
+        }
+        // Map signal name to number
+        let sigName = if (signal.startsWith("SIG")) { signal } else { "SIG" + signal }
+        match (sigName) {
+            case "SIGHUP" => return 1
+            case "SIGINT" => return 2
+            case "SIGQUIT" => return 3
+            case "SIGILL" => return 4
+            case "SIGTRAP" => return 5
+            case "SIGABRT" => return 6
+            case "SIGBUS" => return 7
+            case "SIGFPE" => return 8
+            case "SIGKILL" => return 9
+            case "SIGUSR1" => return 10
+            case "SIGSEGV" => return 11
+            case "SIGUSR2" => return 12
+            case "SIGPIPE" => return 13
+            case "SIGALRM" => return 14
+            case "SIGTERM" => return 15
+            case "SIGCHLD" => return 17
+            case "SIGCONT" => return 18
+            case "SIGSTOP" => return 19
+            case "SIGTSTP" => return 20
+            case "SIGTTIN" => return 21
+            case "SIGTTOU" => return 22
+            case "SIGURG" => return 23
+            case "SIGXCPU" => return 24
+            case "SIGXFSZ" => return 25
+            case "SIGVTALRM" => return 26
+            case "SIGPROF" => return 27
+            case "SIGWINCH" => return 28
+            case "SIGIO" => return 29
+            case "SIGPWR" => return 30
+            case "SIGSYS" => return 31
+            case _ => return 15 // Default to SIGTERM
+        }
     }
 
     // Get RSS memory usage
@@ -498,12 +558,17 @@ public class NodeProcessSystem {
     }
 
     // Get/set file mode creation mask
+    // 对应 Bun: std.os.system.umask
     public static func umask(): UInt32 {
-        return UInt32(0o022)
+        // umask(0) sets mask to 0 and returns the old value,
+        // then umask(old) restores it. This reads the current umask.
+        let old = OS.umask(UInt32(0))
+        let _ = OS.umask(old)
+        return old
     }
 
     public static func umask(mask: UInt32): UInt32 {
-        return UInt32(0o022)
+        return OS.umask(mask)
     }
 
     // High-resolution time in nanoseconds

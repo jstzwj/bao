@@ -829,7 +829,7 @@ public class BinLinker {
         let result = BaoFile.createSymlink(relTarget, absDest)
         if (result) {
             // 成功: chmod
-            // BaoFile.chmod(absTarget, 0x1FF) // TODO: chmod not available in Cangjie
+            BaoFile.chmod(absTarget, UInt32(0x1FF))
             return
         }
 
@@ -842,7 +842,7 @@ public class BinLinker {
                 err = Some("failed to create symlink: ${absDest}")
                 return
             }
-            // BaoFile.chmod(absTarget, 0x1FF) // TODO: chmod not available
+            BaoFile.chmod(absTarget, UInt32(0x1FF))
             return
         }
 
@@ -855,7 +855,7 @@ public class BinLinker {
                 err = Some("failed to create symlink after mkdir: ${absDest}")
                 return
             }
-            // BaoFile.chmod(absTarget, 0x1FF) // TODO: chmod not available
+            BaoFile.chmod(absTarget, UInt32(0x1FF))
         } else {
             err = Some("ENOENT for global bin link: ${absDest}")
         }
@@ -1074,7 +1074,11 @@ public class UmaskHelper {
     public static func ensureUmask(): Unit {
         if (!hasSetUmask) {
             hasSetUmask = true
-            umaskValue = UInt32(0o022) // TODO: SysFs.getUmask() not available
+            // Use FFI to get current umask: umask(0) returns old, then restore
+            // This is wrapped in OS.umask in bao_sys
+            umaskValue = OS.umask(UInt32(0o022))
+            // Note: On Linux, to read without changing you'd do umask(0); umask(old).
+            // Since we want to set 0o022 as the Bun default, we just set it and capture the old value.
         }
     }
 }
