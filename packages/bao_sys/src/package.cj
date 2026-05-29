@@ -1456,23 +1456,9 @@ public class SysModule {
 
     /// 获取当前时间毫秒数
     /// 对应 Bun: std.time.milliTimestamp / clock_gettime(CLOCK_REALTIME)
+    /// 直接调用 time_api.cj 中的包级 sysCurrentTimeMillis() 函数
     public static func currentTimeMillis(): Int64 {
-        unsafe {
-            // struct timespec: tv_sec (8 bytes) + tv_nsec (8 bytes)
-            let ts = malloc(UIntNative(16))
-            // CLOCK_REALTIME = 0
-            let rc = clock_gettime(0, ts)
-            if (rc == 0) {
-                let secPtr = CPointer<Int64>(ts)
-                let nsecPtr = CPointer<Int64>(ts) + Int64(1)
-                let sec = secPtr.read()
-                let nsec = nsecPtr.read()
-                free(ts)
-                return sec * Int64(1000) + nsec / Int64(1000000)
-            }
-            free(ts)
-            return Int64(0)
-        }
+        sysCurrentTimeMillis()
     }
 
     /// 获取 CPU 核心数

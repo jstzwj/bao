@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_sys.*
+
 // ========== 任务标签 ==========
 // 严格翻译自 Task.zig TaggedPointerUnion
 // 任务类型标识
@@ -250,7 +252,7 @@ public class TimeoutObject {
     }
 
     public func refresh() {
-        startTime = 0.0 // TODO: use proper time API
+        startTime = sysMonotonicSeconds()  // 对应 Bun: JSC::monotonicallyIncreasingTime()
     }
 }
 

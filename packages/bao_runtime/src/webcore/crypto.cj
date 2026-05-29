@@ -5,6 +5,7 @@ package bao_runtime.webcore
 
 import bao_core.*
 import bao_jsc.*
+import bao_sys.*
 
 // ============================================================================
 // Crypto - Web Crypto API
@@ -48,7 +49,7 @@ public class Crypto {
     /// 生成随机 UUID v7
     /// 对应 Bun: Crypto.Bun__randomUUIDv7_()
     public static func randomUUIDv7(): String {
-        let timestamp = Int64(0)  // TODO: DateTime.now().toUnixMilliSeconds()
+        let timestamp = sysCurrentTimeMillis()  // 对应 Bun: DateTime.now().toUnixMilliSeconds()
         let bytes = Array<UInt8>(16, { _ => UInt8(0) })
 
         // 时间戳 (前 48 位)
