@@ -3,6 +3,8 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_collections.HashMap
+
 /// 内存成本分类
 public class MemoryCost {
     public var incremental_graph_client: UInt64
@@ -90,8 +92,8 @@ public class MemoryCost {
     }
 
     /// ArrayHashMap 的内存成本
-    public static func memoryCostArrayHashMap<K, V>(map: HashMap<K, V>): UInt64 {
-        return UInt64(map.count()) * (sizeOf<K>() + sizeOf<V>())
+    public static func memoryCostArrayHashMap<K, V>(map: HashMap<K, V>): UInt64 where K <: ToString {
+        return UInt64(map.size) * (sizeOf<K>() + sizeOf<V>())
     }
 }
 

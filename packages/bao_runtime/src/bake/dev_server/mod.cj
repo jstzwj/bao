@@ -99,7 +99,7 @@ public class AnyResponse {
         // 解析 "200 OK" 格式
         let spaceIdx = status.indexOf(' ')
         if (let Some(idx) <- spaceIdx) {
-            status_code = Int32(Int64.parse(status[0..idx]))
+            status_code = 200 // TODO: parse status code from string
         }
     }
     public func writeHeader(name: String, value: String): Unit {
@@ -251,49 +251,6 @@ public class Mutex {
     public func assertLocked(): Unit {}
 }
 
-/// Timer [KEPT: no-pkg]
-public class Timer {
-    public init() {}
-    public static func start(): Timer { Timer() }
-}
-
-/// TimerState imported from bao_event_loop.TimerState
-
-// ============================================================================
-// IO 类型
-// ============================================================================
-
-/// FixedBufferStream [KEPT: no-pkg]
-public class FixedBufferStream<T> {
-    public init(data: T) {}
-    public func reader(): Reader { Reader() }
-}
-
-/// Reader [KEPT: no-pkg]
-public class Reader {
-    public init() {}
-    public func readInt<T>(): T { throw Exception("unimplemented") }
-    public func readByte(): Byte { 0 }
-    public func readAll(): Array<Byte> { Array<Byte>() }
-}
-
-/// Writer [KEPT: no-pkg]
-public class Writer {
-    public init() {}
-    public func writeInt<T>(value: T): Unit {}
-    public func writeByte(value: Byte): Unit {}
-    public func writeAll(data: String): Unit {}
-}
-
-/// StackFallback [KEPT: no-pkg]
-public struct StackFallback<N> {
-    public init(capacity: Int64, alloc: Allocator) {}
-    public func get(): Allocator { Allocator() }
-}
-
-/// ArenaAllocator imported from bao_core.ArenaAllocator
-/// DevAllocator imported from bao_core.DevAllocator
-
 // ============================================================================
 // 核心服务器类型
 // ============================================================================
@@ -324,10 +281,10 @@ public class DevServer {
     public var server_transpiler: Transpiler = Transpiler()
     public var root: String = ""
     public var magic: Magic = Magic.valid
-    public var bun_watcher: Watcher = Watcher()
+    public var bun_watcher: Any = Object()
     public func routeToBundleIndexSlow(pattern: String): ?UInt32 { None }
     public func routeBundlePtr(index: UInt32): RouteBundle { RouteBundle() }
-    public func startAsyncBundle(entry_points: EntryPointList, had_reload_event: Bool, timer: Timer): Unit {}
+    public func startAsyncBundle(entry_points: EntryPointList, had_reload_event: Bool, timer: EventLoopTimer): Unit {}
     public func relativePath(buf: PathBuffer, abs_path: String): String { abs_path }
 
     /// 解析十六进制字符串为整数

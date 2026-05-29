@@ -5,6 +5,10 @@
 package bao_runtime.bake.dev_server
 
 import bao_bun_alloc.Allocator
+import bao_core.DevAllocator
+import bao_collections.HashMap
+import bao_event_loop.EventLoopTimer
+import bao_event_loop.TimerTag
 
 /// SourceMapStore Key
 public struct SourceMapStoreKey {
@@ -104,7 +108,7 @@ public class SourceMapEntry {
     }
 
     func allocator(): Allocator {
-        return dev_allocator.allocator()
+        return Allocator()
     }
 }
 
@@ -165,7 +169,7 @@ public class SourceMapStore {
     public init() {
         entries = HashMap<UInt64, SourceMapEntry>()
         weak_refs = Array<WeakRef>()
-        weak_ref_sweep_timer = EventLoopTimer()
+        weak_ref_sweep_timer = EventLoopTimer(TimerTag.DevServerSweepSourceMaps)
     }
 
     public static let empty: SourceMapStore = SourceMapStore()

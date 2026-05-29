@@ -2,6 +2,7 @@
 package bao_runtime.api
 
 import bao_jsc.*
+import bao_runtime.webcore.{BodyValueError, SystemError}
 
 // ============================================================================
 // zlib.classes.ts 类绑定定义

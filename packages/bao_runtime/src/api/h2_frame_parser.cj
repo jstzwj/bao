@@ -1,12 +1,14 @@
 // 严格翻译自: src/runtime/api/bun/h2_frame_parser.rs
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.{Allocator, ArenaAllocator, BaoError, ErrorCode, Output}
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
+import bao_core.{Allocator, ArenaAllocator, BaoError, Output}
 import bao_collections.*
 import bao_sys.*
-import bao_io.*
-import bao_event_loop.*
+
+// 本地 stub 类型
+public enum BinaryType { | Buffer | ArrayBuffer | Uint8Array }
+public enum IpcMode { | None | Basic | Full }
 
 /// TLSSocket stub
 public class TLSSocket { public init() {} }

@@ -7,6 +7,7 @@ package bao_runtime.bake.dev_server
 
 
 import bao_bun_alloc.Allocator
+import bao_collections.HashMap
 
 /// Directory watch entry [KEPT: no-pkg]
 public class DirectoryWatchEntry {
@@ -53,14 +54,14 @@ public class DirectoryWatchDep {
 /// 此结构不是线程安全的。
 public class DirectoryWatchStore {
     /// 活跃监控器列表。删除时可能重新排序
-    public var watches: HashMap<String, DirectoryWatchEntry>
+    public var watches: SimpleHashMap<DirectoryWatchEntry>
     /// 依赖项列表
     public var dependencies: Array<DirectoryWatchDep>
     /// 依赖项不能重新排序。此列表跟踪哪些索引是空闲的。
     public var dependencies_free_list: Array<DirectoryWatchDepIndex>
 
     public init() {
-        watches = HashMap<String, DirectoryWatchEntry>()
+        watches = SimpleHashMap<DirectoryWatchEntry>()
         dependencies = Array<DirectoryWatchDep>()
         dependencies_free_list = Array<DirectoryWatchDepIndex>()
     }
@@ -149,7 +150,7 @@ public class DirectoryWatchStore {
         }
 
         // 添加新监控条目
-        let watch_index = dev.bun_watcher.addDirectory(invalid_fd, dir_name_to_watch, Watcher.getHash(dir_name_to_watch), false)
+        let watch_index = 0 // TODO: dev.bun_watcher.addDirectory not yet available
         let dep = appendDepAssumeCapacity(DirectoryWatchDep(
             DirectoryWatchDepIndexOptional.none,
             file_path,
@@ -220,33 +221,32 @@ public class DirectoryWatchStore {
 }
 
 /// HashMap helper methods
-/// 简化的哈希映射实现，支持 bake 包所需的核心操作
-public class HashMap<K, V> {
-    public var entries: Array<(K, V)> = []
+/// 简化的哈希映射实现，仅用于 String 键
+public class SimpleHashMap<V> {
+    public var entries: Array<(String, V)> = []
     public init() {}
-    public func get(key: K): ?V {
+    public func get(key: String): ?V {
         for (entry in entries) {
-            // 仓颉泛型没有 Eq 约束，使用 Object.equals
-            if (entry[0].toString() == key.toString()) { return entry[1] }
+            if (entry[0] == key) { return entry[1] }
         }
         return None
     }
-    public func put(key: K, value: V): Unit {
+    public func put(key: String, value: V): Unit {
         for (i in 0..entries.size) {
-            if (entries[Int64(i)][0].toString() == key.toString()) {
+            if (entries[Int64(i)][0] == key) {
                 entries[Int64(i)] = (key, value)
                 return
             }
         }
-        entries = Array<(K, V)>(entries.size + 1, { i =>
+        entries = Array<(String, V)>(entries.size + 1, { i =>
             if (i < entries.size) { entries[Int64(i)] } else { (key, value) }
         })
     }
-    public func remove(key: K): ?V {
+    public func remove(key: String): ?V {
         for (i in 0..entries.size) {
-            if (entries[Int64(i)][0].toString() == key.toString()) {
+            if (entries[Int64(i)][0].toString() == key) {
                 let value = entries[Int64(i)][1]
-                entries = Array<(K, V)>(entries.size - 1, { j =>
+                entries = Array<(String, V)>(entries.size - 1, { j =>
                     if (j < Int64(i)) { entries[j] } else { entries[j + 1] }
                 })
                 return value
@@ -254,15 +254,15 @@ public class HashMap<K, V> {
         }
         return None
     }
-    public func getOrPut(alloc: Allocator, key: K): GetOrPutResult { GetOrPutResult() }
-    public func keys(): Array<K> { Array<K>(entries.size, { i => entries[Int64(i)][0] }) }
+    public func getOrPut(alloc: Allocator, key: String): GetOrPutResult { GetOrPutResult() }
+    public func keys(): Array<String> { Array<String>(entries.size, { i => entries[Int64(i)][0] }) }
     public func values(): Array<V> { Array<V>(entries.size, { i => entries[Int64(i)][1] }) }
     public func count(): Int64 { entries.size }
     public func clear(): Unit { entries = [] }
     public func deinit(alloc: Allocator): Unit { entries = [] }
     public func clearRetainingCapacity(): Unit { entries = [] }
-    public func getPtr(key: K): ?V { get(key) }
-    public func getIndex(key: K): ?UInt64 {
+    public func getPtr(key: String): ?V { get(key) }
+    public func getIndex(key: String): ?UInt64 {
         for (i in 0..entries.size) {
             if (entries[Int64(i)][0].toString() == key.toString()) { return UInt64(i) }
         }

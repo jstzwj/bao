@@ -4,6 +4,7 @@
 package bao_runtime.bake.dev_server
 
 import bao_bun_alloc.Allocator
+import bao_collections.HashMap
 
 /// 热重载事件 - 通知 DevServer 线程有关要捆绑的新文件。
 /// 对齐到缓存行以消除虚假共享。
@@ -60,7 +61,7 @@ public class HotReloadEvent {
 
     /// 检查事件是否为空
     public func isEmpty(): Bool {
-        return (files.count() + dirs.count()) == 0
+        return (files.size + dirs.size) == 0
     }
 
     /// 追加文件

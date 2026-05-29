@@ -3,7 +3,7 @@
 // Ported from src/runtime/api/html_rewriter.zig.
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame, ArgumentsSlice}
 import bao_collections.*
 import bao_core.{Allocator, ArenaAllocator, BaoError, ErrorCode, Output, defaultAllocator}
 import bao_sys.*

@@ -3,8 +3,11 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_collections.HashMap
+
 /// HMR Socket - WebSocket 连接处理器
-public class HmrSocket {
+public class HmrSocket <: ToString {
+    public func toString(): String { "HmrSocket@${inspector_connection_id}" }
     public var dev: DevServer
     public var underlying: ?AnyWebSocket
     public var subscriptions: Int64

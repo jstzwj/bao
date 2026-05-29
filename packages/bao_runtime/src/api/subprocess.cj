@@ -2,12 +2,11 @@
 package bao_runtime.api
 
 import bao_jsc.*
-import bao_collections.ArrayList
-import bao_core.*
+import bao_collections.*
+import bao_core.{Allocator, ArenaAllocator, BaoError, Output, defaultAllocator}
+import bao_core.ptr.RefCount
 import bao_sys.*
 import bao_io.*
-import bao_collections.*
-import bao_event_loop.*
 
 // ============================================================================
 // Subprocess - Bun.spawn / Bun.spawnSync 返回的子进程对象

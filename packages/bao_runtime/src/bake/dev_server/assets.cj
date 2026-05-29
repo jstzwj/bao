@@ -4,6 +4,7 @@
 package bao_runtime.bake.dev_server
 
 import bao_bun_alloc.Allocator
+import bao_collections.HashMap
 
 /// 哈希资产存储。通过 /_bun/asset/{hash}.ext 提供。
 /// 键是绝对路径，与 IncrementalGraph(.client) 中的键共享内存。

@@ -68,7 +68,8 @@ public enum SerializedFailureOwner {
     }
 }
 
-public class SerializedFailure {
+public class SerializedFailure <: ToString {
+    public func toString(): String { "SerializedFailure@${data.size}" }
     /// 序列化数据始终由 dev.allocator() 拥有
     /// 前 32 位包含所有者信息
     public var data: Array<Byte>

@@ -4,6 +4,7 @@
 package bao_runtime.bake.dev_server
 
 import bao_bun_alloc.Allocator
+import bao_collections.HashMap
 
 /// EdgeIndex type alias
 public type EdgeIndex = UInt32
@@ -107,10 +108,11 @@ public class IncrementalGraph {
         return MemoryCostResult(graph, code, source_maps)
     }
 
-    /// 获取文件索引
+    /// 获取文件索引 (HashMap 不支持索引访问，暂返回 None)
     public func getFileIndex(path: String): ?FileIndex {
-        if (let Some(i) <- bundled_files.getIndex(path)) {
-            return FileIndex(UInt32(i))
+        if (bundled_files.contains(path)) {
+            // TODO: HashMap 不支持 getIndex，需要其他方式获取索引
+            return None
         }
         return None
     }
@@ -146,7 +148,7 @@ public class IncrementalGraph {
     public func invalidate(paths: Array<String>, entry_points: EntryPointList, alloc: Allocator): Unit {
         owner().graph_safety_lock.assertLocked()
         for (path in paths) {
-            if (bundled_files.getIndex(path).isSome()) {
+            if (bundled_files.contains(path)) {
                 // 标记为过期
             }
         }

@@ -7,17 +7,44 @@
 
 package bao_runtime.api
 
-import bao_bundler.*
-import bao_bun_alloc.*
-import bao_collections.*
-import bao_core.*
-import bao_io.*
-import bao_jsc.*
-import bao_options.*
-import bao_path.*
-import bao_ptr.*
-import bao_threading.*
-import bao_event_loop.*
+import bao_collections.ArrayList
+import bao_jsc.{JsGlobalObject, JsValue, JSPromise}
+
+// 本地 stub 类型 — 多个子包中均有同名定义，使用本地 stub 消除歧义
+public class HTMLBundleRoute { public init() {} }
+public class BundleV2Result { public init() {} }
+public class DotEnvLoader { public init() {} }
+public class Link<T> { public init() {} public static func new<T>(): Link<T> { Link<T>() } }
+public class JSPromiseStrong { public init() {}; public init(global: JsGlobalObject) {}; public static func default(): JSPromiseStrong { JSPromiseStrong() }; public func getValue(): JsValue { JsValue.jsUndefined() }; public func swap(): JSPromise { JSPromise() }; public func resolve(g: JsGlobalObject, v: JsValue): Unit {} ; public func reject(g: JsGlobalObject, v: JsValue): Unit {} }
+public class EventLoop { public init() {} }
+public class Log { public init() {} }
+public class BackRef<T> { public static func from<T>(v: T): BackRef<T> { BackRef<T>() }; public static func new<T>(v: T): BackRef<T> { BackRef<T>() }; public func get(): T { panic("stub") }; public func enqueueTaskConcurrent(t: Any): Unit {} }
+public class AnyTask { public init() {}; public static func default(): AnyTask { AnyTask() }; public func task(): Any { panic("stub") }; public static func fromTyped<T>(v: T, f: Any): AnyTask { AnyTask() } }
+public class KeepAlive { public init() {}; public func ref(v: Any): Unit {}; public func unref(v: Any): Unit {}; public func disable(): Unit {} }
+public class RefCount { public init() {} }
+public class ConcurrentTask { public static func create(t: Any): Any { t } }
+public class JSBundlerConfig { public init() {}; public var throwOnError: Bool = false; public var compile: Any = None; public var outdir: String = ""; public var dir: String = ""; public var envBehavior: Any = None; public var envPrefix: String = ""; public var features: Any = None; public var forceNodeEnv: Any = None; public var entryPoints: Any = None; public var format: Any = None; public var bytecode: Bool = false; public var publicPath: String = ""; public var rootdir: String = ""; public var minify: Any = None; public var sourceMap: Any = None; public var packages: Any = None; public var codeSplitting: Bool = false; public var emitDceAnnotations: Bool = false; public var ignoreDceAnnotations: Bool = false; public var cssChunking: Bool = false; public var banner: String = ""; public var footer: String = ""; public var reactFastRefresh: Bool = false; public var metafile: Bool = false; public var define: Any = None; public var target: Any = None; public var external: Any = None; public var conditions: Any = None; public var drop: Any = None; public var jsx: Any = None; public var autoloadDotenv: Bool = true; public var autoloadBunfig: Bool = true; public var autoloadTsconfig: Bool = true; public var autoloadPackageJson: Bool = true }
+public class Plugin { public static func destroy(p: Plugin): Unit {}; public func setConfig(t: Any): Unit {}; public func runOnEndCallbacks(g: JsGlobalObject, p: JSPromise, v: JsValue, r: ?JsValue): JsValue { JsValue.jsUndefined() } }
+public class BundleV2 { public init() {} }
+public class Transpiler { public init() {}; public var options: Any = None; public func configureLinker(): Unit {}; public func configureDefines(): Unit {}; public func syncResolverOpts(): Unit {}; public func isErr(): Bool { false }; public func unwrap(): Transpiler { this } }
+public class Arena { public init() {}; public func alloc<T>(v: T): T { v } }
+public class ThreadPool { public init() {} }
+public class OutputFile { public init() {}; public var outputKind: Any = None; public var side: Any = None; public var destPath: String = ""; public var isExecutable: Bool = false; public var sourceMapIndex: UInt32 = UInt32.max; public var value: Any = None }
+public class CompileResult { public static func fail(r: Any): CompileResult { CompileResult() }; public func isErr(): Bool { false }; public func unwrapErr(): Any { None } }
+public class WorkPool { public static func get(): WorkPool { WorkPool() } }
+public class BundleV2Singleton { public static func enqueue(t: Any): Unit {} }
+public class VirtualMachine { public static func eventLoopCtx(v: Any): Any { None }; public static func eventLoopCtx(v: UInt64): Any { None } }
+public class LogJsc { public static func logToJsArray(l: Log, g: JsGlobalObject): Any { None }; public static func logToJsAggregateError(l: Log, g: JsGlobalObject, s: String): JsValue { JsValue.jsUndefined() } }
+public class BuildArtifact { public static func sourcemapSetCached(v1: JsValue, g: JsGlobalObject, v2: JsValue): Unit {} }
+public class OutputFileJsc { public static func toJs(f: OutputFile, p: ?String, g: JsGlobalObject): JsValue { JsValue.jsUndefined() } }
+public class FileSystem { public static func get(): FileSystem { FileSystem() }; public var topLevelDir: String = "" }
+public class OutputKind { public static let entryPoint: Any = None; public static let sourcemap: Any = None }
+public class Side { public static let server: Any = None }
+public class StandaloneFlags { public static func default(): StandaloneFlags { StandaloneFlags() }; public func or(f: StandaloneFlags): StandaloneFlags { this }; public static let disableDefaultEnvFiles: StandaloneFlags = StandaloneFlags(); public static let disableAutoloadBunfig: StandaloneFlags = StandaloneFlags(); public static let disableAutoloadTsconfig: StandaloneFlags = StandaloneFlags(); public static let disableAutoloadPackageJson: StandaloneFlags = StandaloneFlags() }
+public class OperatingSystem { public static let windows: Any = None }
+public class WindowsOptions { public init(hideConsole!: Any = None, icon!: ?String = None, title!: ?String = None, publisher!: ?String = None, version!: ?String = None, description!: ?String = None, copyright!: ?String = None) {} }
+public class CompileErrorReason { public static let noEntryPoint: Any = None }
+public class Loc { public static let empty: Any = None }
 
 // ============================================================================
 // JSBundleCompletionTask — JS 端的打包完成回调

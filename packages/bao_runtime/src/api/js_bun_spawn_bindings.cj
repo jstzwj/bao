@@ -6,6 +6,11 @@ import bao_collections.ArrayList
 import bao_core.*
 import bao_sys.*
 
+// 本地 stub 类型
+public class IpcSendQueue { public init() {} }
+public class ArrayListManaged<T> { public var items: ArrayList<T> = ArrayList<T>(); public init() {} }
+public class JSBundlerConfig { public init() {} }
+
 // ============================================================================
 // js_bun_spawn_bindings - Bun.spawn() 和 Bun.spawnSync() 的 JS 绑定
 // 对应 Bun: src/runtime/api/bun/js_bun_spawn_bindings.zig
