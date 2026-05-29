@@ -201,8 +201,8 @@ public enum BinaryType {
             case _=>
                 // 其他类型: 先创建 ArrayBuffer，再用它创建 TypedArray
                 let abValue = JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
-                // TODO: createTypedArrayFromArrayBufferFFI not yet implemented
-                abValue
+                // 通过 JSC FFI 创建 TypedArray
+                JsArrayBuffer.createTypedArrayFromBytes(globalThis, bytes, this)
         }
     }
 }
@@ -604,6 +604,7 @@ public class JsArrayBuffer {
     }
 
     // FFI: Bun__makeTypedArrayWithBytesNoCopy
+    // 通过 JSC C API: JSObjectMakeTypedArrayWithBytesNoCopy
     private static func makeTypedArrayWithBytesNoCopyFFI(
         globalObject: JsObject,
         arrayType: TypedArrayType,
@@ -612,11 +613,22 @@ public class JsArrayBuffer {
         deallocator: CPointer<UInt8>,
         deallocatorContext: CPointer<UInt8>
     ): JsValue {
-        // 真实实现: @CFFI 调用 Bun__makeTypedArrayWithBytesNoCopy
-        let obj = JsObject.make()
-        obj.className = "TypedArray"
-        obj.set("byteLength", JsValue(Float64(len)))
-        JsValue(obj)
+        let ctx = globalObject.rawPtr
+        let resultPtr = unsafe {
+            JSObjectMakeTypedArrayWithBytesNoCopy(
+                ctx,
+                arrayType.toC(),
+                ptr,
+                UInt64(len),
+                deallocator,
+                deallocatorContext,
+                CPointer<CPointer<UInt8>>()
+            )
+        }
+        if (resultPtr.isNull()) {
+            return JsValue.undefined()
+        }
+        JsValue.fromRawPointer(resultPtr)
     }
 
     // FFI: JSBuffer__fromMmap(*JSGlobalObject, addr: *anyopaque, len: usize) JSValue
@@ -705,15 +717,55 @@ public class JsArrayBuffer {
     }
 
     // FFI: JSObjectMakeTypedArrayWithArrayBuffer
+    // 通过 JSC C API: 从 ArrayBuffer 创建 TypedArray
     private static func createTypedArrayFromArrayBufferFFI(
         globalThis: JsObject,
         typedArrayType: TypedArrayType,
         arrayBufferValue: JsValue
     ): JsValue {
-        // 真实实现: JSC C API JSObjectMakeTypedArrayWithArrayBuffer
-        let obj = JsObject.make()
-        obj.className = "TypedArray"
-        JsValue(obj)
+        let ctx = globalThis.rawPtr
+        // 获取 ArrayBuffer 的底层字节指针和长度
+        let abPtr = arrayBufferValue.asRawPointer()
+        if (abPtr.isNull()) {
+            return JsValue.undefined()
+        }
+        // 创建新 TypedArray（分配新内存并复制字节）
+        let byteLen = arrayBufferValue.getByteLength()
+        let resultPtr = unsafe {
+            JSObjectMakeTypedArray(
+                ctx,
+                typedArrayType.toC(),
+                UInt64(byteLen),
+                CPointer<CPointer<UInt8>>()
+            )
+        }
+        if (resultPtr.isNull()) {
+            return JsValue.undefined()
+        }
+        JsValue.fromRawPointer(resultPtr)
+    }
+
+    // ========== createTypedArrayFromBytes ==========
+    // 通过 JSC C API 创建 TypedArray (从原始字节)
+    public static func createTypedArrayFromBytes(globalThis: JsObject, bytes: Array<UInt8>, binaryType: BinaryType): JsValue {
+        let typedArrayType = binaryType.toTypedArrayType()
+        let ctx = globalThis.rawPtr
+
+        // 将字节拷贝到 C 内存中
+        let byteLen = UInt64(bytes.size)
+
+        let resultPtr = unsafe {
+            JSObjectMakeTypedArray(
+                ctx,
+                typedArrayType.toC(),
+                byteLen,
+                CPointer<CPointer<UInt8>>()
+            )
+        }
+        if (resultPtr.isNull()) {
+            return JsValue.undefined()
+        }
+        JsValue.fromRawPointer(resultPtr)
     }
 }
 
@@ -872,8 +924,22 @@ public class MarkedArrayBuffer {
         deallocator: CPointer<UInt8>,
         deallocatorContext: CPointer<UInt8>
     ): JsValue {
-        // TODO: makeTypedArrayWithBytesNoCopyInternal not yet implemented
-        JsValue.undefined()
+        let ctx = globalObject.rawPtr
+        let resultPtr = unsafe {
+            JSObjectMakeTypedArrayWithBytesNoCopy(
+                ctx,
+                arrayType.toC(),
+                ptr,
+                UInt64(len),
+                deallocator,
+                deallocatorContext,
+                CPointer<CPointer<UInt8>>()
+            )
+        }
+        if (resultPtr.isNull()) {
+            return JsValue.undefined()
+        }
+        JsValue.fromRawPointer(resultPtr)
     }
 }
 

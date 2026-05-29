@@ -1912,7 +1912,12 @@ public class BunVirtualMachine {
             "To terminate the node process on unhandled promise rejection, " +
             "use the CLI flag `--unhandled-rejections=strict` (see https://nodejs.org/api/cli.html#cli_unhandled_rejections_mode). " +
             "The promise rejected with the reason:"
-        let error = JsValue.undefined() // TODO: createError
+        // 创建 Error 对象
+        let errObj = JsObject()
+        errObj.className = "Error"
+        errObj.set("message", JsValue(reasonStr))
+        errObj.set("name", JsValue("UnhandledPromiseRejection"))
+        let error = JsValue(errObj)
         error
     }
 

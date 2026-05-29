@@ -46,9 +46,43 @@ public class CallbackWrapper {
     // 获取回调函数并在全局对象上调用它
     public func call(globalObject: JsGlobalObject, args: Array<JsValue>): ?JsValue {
         if (let Some(callback) <- get()) {
-            // TODO: callWithThis requires JSC runtime binding
-            return None
+            return callWithThis(globalObject, callback, args)
         }
         None
+    }
+
+    // 严格翻译自 callWithThis
+    // 通过 JSC C API 调用函数，绑定 this 为 container
+    public func callWithThis(globalObject: JsGlobalObject, fn: JsValue, args: Array<JsValue>): ?JsValue {
+        let ctx = globalObject.globalThis.rawPtr
+        let fnObj = fn.asRawPointer()
+        let thisObj = container.asRawPointer()
+
+        // 准备参数
+        let argCount = UInt64(args.size)
+        var argPtrs = Array<CPointer<UInt8>>()
+        for (arg in args) {
+            argPtrs.append(arg.asRawPointer())
+        }
+
+        var exception: CPointer<UInt8> = CPointer<UInt8>()
+        let resultPtr = unsafe {
+            JSObjectCallAsFunction(
+                ctx,
+                fnObj,
+                thisObj,
+                argCount,
+                CPointer<CPointer<UInt8>>(),
+                CPointer<CPointer<UInt8>>()
+            )
+        }
+
+        if (!exception.isNull()) {
+            return None
+        }
+        if (resultPtr.isNull()) {
+            return None
+        }
+        Some(JsValue.fromRawPointer(resultPtr))
     }
 }

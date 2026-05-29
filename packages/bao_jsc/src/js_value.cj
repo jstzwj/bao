@@ -2452,17 +2452,31 @@ extend JsValue {
     // ========== protect ==========
     // 严格翻译自 JSValue.protect
     // 保护 JSValue 不被垃圾回收
+    // 通过 JSC C API: JSValueProtect
     public func protect(): Unit {
-        // 在实际 JSC 中，这调用 Bun__JSValue__protect
-        // 增加引用计数
+        let ptr = asRawPointer()
+        if (ptr.isNull()) { return }
+        // 需要从当前 VM 获取 context
+        let vm = BunVirtualMachine.getOrNull()
+        if (let Some(vmInstance) <- vm) {
+            let ctx = vmInstance.globalObject.rawPtr
+            unsafe { JSValueProtect(ctx, ptr) }
+        }
     }
 
     // ========== unprotect ==========
     // 严格翻译自 JSValue.unprotect
     // 取消保护 (与 protect 配对使用)
+    // 通过 JSC C API: JSValueUnprotect
     public func unprotect(): Unit {
-        // 在实际 JSC 中，这调用 Bun__JSValue__unprotect
-        // 减少引用计数
+        let ptr = asRawPointer()
+        if (ptr.isNull()) { return }
+        // 需要从当前 VM 获取 context
+        let vm = BunVirtualMachine.getOrNull()
+        if (let Some(vmInstance) <- vm) {
+            let ctx = vmInstance.globalObject.rawPtr
+            unsafe { JSValueUnprotect(ctx, ptr) }
+        }
     }
 
     // ========== ensureStillAlive ==========
@@ -2919,9 +2933,56 @@ extend JsValue {
 
     /// ArrayBuffer 切片
     /// 返回 ArrayBuffer 的底层数据副本
+    /// 通过 JSC C API: JSObjectGetArrayBufferBytesPtr + JSObjectGetArrayBufferByteLength
     public func arrayBufferSlice(): Array<UInt8> {
-        // stub: 在真实 JSC 中调用 JSObjectGetArrayBufferBytesPtr
+        if (!isArrayBuffer()) {
+            return Array<UInt8>()
+        }
+        let ptr = asRawPointer()
+        if (ptr.isNull()) {
+            return Array<UInt8>()
+        }
+        let vm = BunVirtualMachine.getOrNull()
+        if (let Some(vmInstance) <- vm) {
+            let ctx = vmInstance.globalObject.rawPtr
+            let bytesPtr = unsafe {
+                JSObjectGetArrayBufferBytesPtr(ctx, ptr, CPointer<CPointer<UInt8>>())
+            }
+            let byteLen = unsafe {
+                JSObjectGetArrayBufferByteLength(ctx, ptr, CPointer<CPointer<UInt8>>())
+            }
+            if (bytesPtr.isNull() || byteLen == 0) {
+                return Array<UInt8>()
+            }
+            // 从 C 指针读取字节
+            var result = Array<UInt8>(Int64(byteLen), { _ => UInt8(0) })
+            unsafe {
+                var i: UInt64 = 0
+                while (i < byteLen) {
+                    result[Int64(i)] = (bytesPtr + Int64(i)).read()
+                    i++
+                }
+            }
+            return result
+        }
         Array<UInt8>()
+    }
+
+    /// 获取 ArrayBuffer 的字节长度
+    public func getByteLength(): Int64 {
+        let ptr = asRawPointer()
+        if (ptr.isNull()) {
+            return 0
+        }
+        let vm = BunVirtualMachine.getOrNull()
+        if (let Some(vmInstance) <- vm) {
+            let ctx = vmInstance.globalObject.rawPtr
+            let byteLen = unsafe {
+                JSObjectGetArrayBufferByteLength(ctx, ptr, CPointer<CPointer<UInt8>>())
+            }
+            return Int64(byteLen)
+        }
+        0
     }
 
     /// 获取 ArrayBuffer 的字节数据
@@ -3024,5 +3085,31 @@ extend JsValue {
     /// 将 JsValue 转为 ZigString 写入 result（stub）
     public func toZigString(result: String, globalThis: JsObject): String {
         toString()
+    }
+}
+
+// ========== JsValue 扩展: 原始指针操作 ==========
+// 用于 JSC FFI 绑定的指针转换
+
+extend JsValue {
+    /// 获取底层 JSC C API 指针 (JSValueRef)
+    /// 优先返回 rawPtr；如果 rawPtr 为 null 且有 objectValue，返回对象的 rawPtr
+    public func asRawPointer(): CPointer<UInt8> {
+        if (!rawPtr.isNull()) {
+            return rawPtr
+        }
+        if (let Some(obj) <- objectValue) {
+            return obj.rawPtr
+        }
+        CPointer<UInt8>()
+    }
+
+    /// 从 JSC C API 指针 (JSValueRef) 创建 JsValue
+    /// 此方法创建一个持有原始指针的 JsValue，生命周期由 JSC GC 管理
+    public static func fromRawPointer(ptr: CPointer<UInt8>): JsValue {
+        let v = JsValue()
+        v.rawPtr = ptr
+        v.valueType = JsValueType.Object
+        v
     }
 }
