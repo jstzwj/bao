@@ -56,14 +56,14 @@ public class GcAccessor {
 }
 
 // ============================================================================
-// Flags - 状态标志位
-// 严格翻译自: Terminal.rs bitflags! { pub struct Flags: u8 { ... } }
+// TerminalFlags - 状态标志位
+// 严格翻译自: Terminal.rs bitflags! { pub struct TerminalFlags: u8 { ... } }
 // ============================================================================
 
-/// Flags - Terminal 状态标志位
+/// TerminalFlags - Terminal 状态标志位
 /// Bun: bitflags, 使用 UInt8 位字段
 /// REF_COUNT: 1=JS side, 2=Reader, 3=Writer
-public struct Flags {
+public struct TerminalFlags {
     public var rawValue: UInt8
 
     public init(rawValue: UInt8) {
@@ -122,7 +122,7 @@ public struct Flags {
         return rawValue == 0
     }
 
-    public operator func == (rhs: Flags): Bool {
+    public operator func == (rhs: TerminalFlags): Bool {
         return this.rawValue == rhs.rawValue
     }
 }
@@ -788,7 +788,7 @@ public class Terminal {
     public var thisValue: JsRef
 
     /// 状态标志
-    public var flags: Flags
+    public var flags: TerminalFlags
 
     // ========================================================================
     // 构造函数
@@ -808,7 +808,7 @@ public class Terminal {
         writer = IOWriter()
         reader = IOReader(INVALID_FD, PIPE_BUF_SIZE)
         thisValue = JsRef.empty()
-        flags = Flags()
+        flags = TerminalFlags()
     }
 
     // ========================================================================
@@ -823,8 +823,8 @@ public class Terminal {
     }
 
     /// updateFlags - 读-修改-写 flags
-    /// 严格翻译自: fn update_flags(&self, f: impl FnOnce(&Flags))
-    public func updateFlags(f: (Flags) -> Flags): Unit {
+    /// 严格翻译自: fn update_flags(&self, f: impl FnOnce(&TerminalFlags))
+    public func updateFlags(f: (TerminalFlags) -> TerminalFlags): Unit {
         flags = f(flags)
     }
 
@@ -886,7 +886,7 @@ public class Terminal {
                 terminal.writer = IOWriter()
                 terminal.reader = IOReader(pty.readFd, PIPE_BUF_SIZE)
                 terminal.thisValue = JsRef.empty()
-                terminal.flags = Flags()
+                terminal.flags = TerminalFlags()
 
                 // 设置 reader parent
                 terminal.reader.setParent(terminal)
@@ -899,7 +899,7 @@ public class Terminal {
                 match (writerResult) {
                     case SysMaybe<Unit>.Err(_) =>
                         // Writer 启动失败
-                        terminal.flags.insert(Flags.WRITER_DONE)
+                        terminal.flags.insert(TerminalFlags.WRITER_DONE)
                         FdExt.close(terminal.readFd)
                         terminal.readFd = INVALID_FD
                         terminal.closeInternal()
@@ -931,7 +931,7 @@ public class Terminal {
                         terminal.ref_()
                         // PTY 行为类似管道, 不是 socket
                         // 设置 poll 标志
-                        terminal.flags.insert(Flags.READER_STARTED)
+                        terminal.flags.insert(TerminalFlags.READER_STARTED)
                 }
 
                 // 开始读取数据
@@ -1036,19 +1036,19 @@ public class Terminal {
     /// isClosed - 是否已关闭
     /// 严格翻译自: pub fn is_closed(&self) -> bool
     public func isClosed(): Bool {
-        return flags.contains(Flags.CLOSED)
+        return flags.contains(TerminalFlags.CLOSED)
     }
 
     /// isInlineSpawned - 是否已内联 spawn
     /// 严格翻译自: pub fn is_inline_spawned(&self) -> bool
     public func isInlineSpawned(): Bool {
-        return flags.contains(Flags.INLINE_SPAWNED)
+        return flags.contains(TerminalFlags.INLINE_SPAWNED)
     }
 
     /// getClosed - 获取关闭状态 (JS getter)
     /// 严格翻译自: pub fn get_closed(&self, _global) -> JsValue
     public func getClosed(globalObject!: JsGlobalObject): JsValue {
-        return JsValue(flags.contains(Flags.CLOSED))
+        return JsValue(flags.contains(TerminalFlags.CLOSED))
     }
 
     /// getInputFlags - 获取输入标志 (JS getter)
@@ -1111,7 +1111,7 @@ public class Terminal {
     /// getTermiosFlag - 获取 termios 标志值
     /// 严格翻译自: fn get_termios_flag<const FIELD: TermiosField>(&self) -> JsValue
     public func getTermiosFlag(field!: TermiosField): JsValue {
-        if (flags.contains(Flags.CLOSED) || masterFd == INVALID_FD) {
+        if (flags.contains(TerminalFlags.CLOSED) || masterFd == INVALID_FD) {
             return JsValue(0.0)
         }
 
@@ -1130,7 +1130,7 @@ public class Terminal {
     /// setTermiosFlag - 设置 termios 标志值
     /// 严格翻译自: fn set_termios_flag<const FIELD: TermiosField>(&self, global_object, value)
     public func setTermiosFlag(jsGlobalObject!: JsGlobalObject, value!: JsValue, field!: TermiosField): Unit {
-        if (flags.contains(Flags.CLOSED) || masterFd == INVALID_FD) {
+        if (flags.contains(TerminalFlags.CLOSED) || masterFd == INVALID_FD) {
             return
         }
 
@@ -1159,7 +1159,7 @@ public class Terminal {
     /// write - 向终端写入数据
     /// 严格翻译自: pub fn write(&self, global_object, callframe) -> JsResult<JsValue>
     public func write(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): Maybe<JsValue> {
-        if (flags.contains(Flags.CLOSED)) {
+        if (flags.contains(TerminalFlags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
 
@@ -1210,7 +1210,7 @@ public class Terminal {
     /// resize - 调整终端大小
     /// 严格翻译自: pub fn resize(&self, global_object, callframe) -> JsResult<JsValue>
     public func resize(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): Maybe<JsValue> {
-        if (flags.contains(Flags.CLOSED)) {
+        if (flags.contains(TerminalFlags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
 
@@ -1274,7 +1274,7 @@ public class Terminal {
     /// setRawMode - 设置原始模式
     /// 严格翻译自: pub fn set_raw_mode(&self, global_object, callframe) -> JsResult<JsValue>
     public func setRawMode(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): Maybe<JsValue> {
-        if (flags.contains(Flags.CLOSED)) {
+        if (flags.contains(TerminalFlags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
 
@@ -1290,7 +1290,7 @@ public class Terminal {
             case SysMaybe<Unit>.Ok(_) => ()
         }
 
-        flags.set(Flags.RAW_MODE, enabled)
+        flags.set(TerminalFlags.RAW_MODE, enabled)
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
 
@@ -1344,7 +1344,7 @@ public class Terminal {
         // 降级 JSRef 使包装器可被 GC 回收
         thisValue.downgrade()
         // 标记为已终结, 抑制回调
-        flags.insert(Flags.FINALIZED)
+        flags.insert(TerminalFlags.FINALIZED)
         closeInternal()
         return Maybe<JsValue>(result: JsPromise.resolvedPromiseValue(globalObject, JsValue.jsUndefined()))
     }
@@ -1358,17 +1358,17 @@ public class Terminal {
     /// 严格翻译自: pub fn close_internal(&self)
     /// 关闭所有文件描述符和 I/O 资源
     public func closeInternal(): Unit {
-        if (flags.contains(Flags.CLOSED)) {
+        if (flags.contains(TerminalFlags.CLOSED)) {
             return
         }
-        flags.insert(Flags.CLOSED)
+        flags.insert(TerminalFlags.CLOSED)
 
         // 关闭写入器 (关闭 write_fd)
         writer.close()
         writeFd = INVALID_FD
 
         // 关闭读取器 (关闭 read_fd)
-        if (flags.contains(Flags.READER_STARTED)) {
+        if (flags.contains(TerminalFlags.READER_STARTED)) {
             reader.close()
         }
         readFd = INVALID_FD
@@ -1395,7 +1395,7 @@ public class Terminal {
     /// 严格翻译自: pub fn close_slave_fd(&self)
     /// 子进程有自己的副本 - 关闭父进程的副本确保在子进程退出时 master 端收到 EOF
     public func closeSlaveFd(): Unit {
-        flags.insert(Flags.INLINE_SPAWNED)
+        flags.insert(TerminalFlags.INLINE_SPAWNED)
         let fd = slaveFd
         if (fd != INVALID_FD) {
             FdExt.close(fd)
@@ -1428,7 +1428,7 @@ public class Terminal {
     /// 运行 closeInternal
     public func abandonFromSpawn(): Unit {
         thisValue.downgrade()
-        flags.insert(Flags.FINALIZED)
+        flags.insert(TerminalFlags.FINALIZED)
         closeInternal()
     }
 
@@ -1452,8 +1452,8 @@ public class Terminal {
     /// onWriterClose - 写入器关闭回调
     /// 严格翻译自: fn on_writer_close(&self)
     func onWriterClose(): Unit {
-        if (!flags.contains(Flags.WRITER_DONE)) {
-            flags.insert(Flags.WRITER_DONE)
+        if (!flags.contains(TerminalFlags.WRITER_DONE)) {
+            flags.insert(TerminalFlags.WRITER_DONE)
             // 释放 writer 的引用
             deref_()
         }
@@ -1488,7 +1488,7 @@ public class Terminal {
     func onWriterError(err: SysError): Unit {
         // 写入错误, 关闭终端防止进一步操作
         // 处理子进程退出时的管道破裂等情况
-        if (!flags.contains(Flags.CLOSED)) {
+        if (!flags.contains(TerminalFlags.CLOSED)) {
             closeInternal()
         }
     }
@@ -1509,15 +1509,15 @@ public class Terminal {
     /// EOF 来自 master - 降级为弱引用以允许 GC
     /// 如果已终结 (在 finalize 期间调用 close), 跳过 JS 交互
     public func onReaderDone(): Unit {
-        if (!flags.contains(Flags.FINALIZED)) {
-            flags.remove(Flags.CONNECTED)
+        if (!flags.contains(TerminalFlags.FINALIZED)) {
+            flags.remove(TerminalFlags.CONNECTED)
             thisValue.downgrade()
             // exit_code 0 = PTY 流上的干净 EOF (不是子进程退出码)
             callExitCallback(0, None)
         }
         // 释放 reader 的引用 (仅一次)
-        if (!flags.contains(Flags.READER_DONE)) {
-            flags.insert(Flags.READER_DONE)
+        if (!flags.contains(TerminalFlags.READER_DONE)) {
+            flags.insert(TerminalFlags.READER_DONE)
             deref_()
         }
     }
@@ -1526,15 +1526,15 @@ public class Terminal {
     /// 严格翻译自: pub fn on_reader_error(&self, err: sys::Error)
     /// 错误 - 降级为弱引用以允许 GC
     public func onReaderError(err!: SysError): Unit {
-        if (!flags.contains(Flags.FINALIZED)) {
-            flags.remove(Flags.CONNECTED)
+        if (!flags.contains(TerminalFlags.FINALIZED)) {
+            flags.remove(TerminalFlags.CONNECTED)
             thisValue.downgrade()
             // exit_code 1 = PTY 流上的 I/O 错误 (不是子进程退出码)
             callExitCallback(1, None)
         }
         // 释放 reader 的引用 (仅一次)
-        if (!flags.contains(Flags.READER_DONE)) {
-            flags.insert(Flags.READER_DONE)
+        if (!flags.contains(TerminalFlags.READER_DONE)) {
+            flags.insert(TerminalFlags.READER_DONE)
             deref_()
         }
     }
@@ -1584,13 +1584,13 @@ public class Terminal {
     /// 严格翻译自: pub fn on_read_chunk(&self, chunk: &[u8], has_more: ReadState) -> bool
     /// 返回 true 继续读取, false 暂停
     public func onReadChunk(chunk!: Array<UInt8>, hasMore!: ReadState): Bool {
-        if (flags.contains(Flags.FINALIZED)) {
+        if (flags.contains(TerminalFlags.FINALIZED)) {
             return true
         }
 
         // 首次收到数据 - 升级为强引用 (已连接)
-        if (!flags.contains(Flags.CONNECTED)) {
-            flags.insert(Flags.CONNECTED)
+        if (!flags.contains(TerminalFlags.CONNECTED)) {
+            flags.insert(TerminalFlags.CONNECTED)
             let globalObj = global()
             thisValue.upgrade(globalObj)
         }
@@ -1647,7 +1647,7 @@ public class Terminal {
     /// 严格翻译自: pub fn finalize(self: Box<Self>)
     public func finalize(): Unit {
         thisValue.finalize()
-        flags.insert(Flags.FINALIZED)
+        flags.insert(TerminalFlags.FINALIZED)
         closeInternal()
     }
 
@@ -1661,8 +1661,8 @@ public class Terminal {
     /// 引用计数归零时调用
     public func deinitAndDestroy(): Unit {
         // 设置 reader/writer done 标志防止 closeInternal 中的额外 deref 调用
-        flags.insert(Flags.READER_DONE)
-        flags.insert(Flags.WRITER_DONE)
+        flags.insert(TerminalFlags.READER_DONE)
+        flags.insert(TerminalFlags.WRITER_DONE)
         // 关闭所有 FD (如果尚未关闭)
         closeInternal()
         // 释放 term_name, reader, writer

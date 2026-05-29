@@ -1,96 +1,15 @@
-// 严格翻译自: src/runtime/api/bun/subprocess/ResourceUsage.zig
+// 严格翻译自: src/runtime/api/resource_usage.zig
+// TODO: 完整实现需要资源使用统计支持
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
+import bao_sys.SysMaybe
 
-// ============================================================================
-// ResourceUsage - 子进程资源使用统计
-// 对应 Bun: src/runtime/api/bun/subprocess/ResourceUsage.zig
-// ============================================================================
-
-/// ResourceUsage - 子进程资源使用报告
+/// ResourceUsage — 资源使用统计
 public class ResourceUsage {
-    public var rusage: Rusage
-
-    // ========================================================================
-    // 创建
-    // ========================================================================
-
-    /// 从 rusage 创建 JS 值
-    public static func create(rusage!: Rusage, globalObject!: JsGlobalObject): JsValue {
-        return ResourceUsage(rusage: rusage).toJS(globalObject)
+    public init() {}
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): SysMaybe<ResourceUsage> {
+        SysMaybe<ResourceUsage>.Ok(ResourceUsage())
     }
-
-    // ========================================================================
-    // 属性获取器
-    // ========================================================================
-
-    /// getCPUTime - 获取 CPU 时间
-    public func getCPUTime(jsGlobalObject!: JsGlobalObject): JsValue {
-        var cpu = JsValue.createEmptyObjectWithNullPrototype(globalObject)
-        let rusage = this.rusage
-
-        let usrTime = JsValue.fromTimevalNoTruncate(globalObject, rusage.utime.usec, rusage.utime.sec) 
-        let sysTime = JsValue.fromTimevalNoTruncate(globalObject, rusage.stime.usec, rusage.stime.sec) 
-
-        cpu.put(globalObject, ZigString.`static`("user"), usrTime)
-        cpu.put(globalObject, ZigString.`static`("system"), sysTime)
-        cpu.put(globalObject, ZigString.`static`("total"), JsValue.bigIntSum(globalObject, usrTime, sysTime))
-
-        return cpu
-    }
-
-    /// getMaxRSS - 获取最大驻留集大小
-    public func getMaxRSS(): JsValue {
-        return JsValue.jsNumber(rusage.maxrss)
-    }
-
-    /// getSharedMemorySize - 获取共享内存大小
-    public func getSharedMemorySize(): JsValue {
-        return JsValue.jsNumber(rusage.ixrss)
-    }
-
-    /// getSwapCount - 获取交换次数
-    public func getSwapCount(): JsValue {
-        return JsValue.jsNumber(rusage.nswap)
-    }
-
-    /// getOps - 获取 I/O 操作数
-    public func getOps(jsGlobalObject!: JsGlobalObject): JsValue {
-        var ops = JsValue.createEmptyObjectWithNullPrototype(globalObject)
-        ops.put(globalObject, ZigString.`static`("in"), JsValue.jsNumber(rusage.inblock))
-        ops.put(globalObject, ZigString.`static`("out"), JsValue.jsNumber(rusage.oublock))
-        return ops
-    }
-
-    /// getMessages - 获取消息统计
-    public func getMessages(jsGlobalObject!: JsGlobalObject): JsValue {
-        var msgs = JsValue.createEmptyObjectWithNullPrototype(globalObject)
-        msgs.put(globalObject, ZigString.`static`("sent"), JsValue.jsNumber(rusage.msgsnd))
-        msgs.put(globalObject, ZigString.`static`("received"), JsValue.jsNumber(rusage.msgrcv))
-        return msgs
-    }
-
-    /// getSignalCount - 获取信号数
-    public func getSignalCount(): JsValue {
-        return JsValue.jsNumber(rusage.nsignals)
-    }
-
-    /// getContextSwitches - 获取上下文切换数
-    public func getContextSwitches(jsGlobalObject!: JsGlobalObject): JsValue {
-        var ctx = JsValue.createEmptyObjectWithNullPrototype(globalObject)
-        ctx.put(globalObject, ZigString.`static`("voluntary"), JsValue.jsNumber(rusage.nvcsw))
-        ctx.put(globalObject, ZigString.`static`("involuntary"), JsValue.jsNumber(rusage.nivcsw))
-        return ctx
-    }
-
-    // ========================================================================
-    // finalize
-    // ========================================================================
-
-    /// finalize - GC 回收时调用
-    public func finalize(): Unit {
-        destroy(this)
-    }
+    public func finalize(): Unit {}
 }

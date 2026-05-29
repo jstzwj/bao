@@ -1,26 +1,22 @@
 // 严格翻译自: src/runtime/api/lolhtml_jsc.zig
+// TODO: 完整实现需要 LOL HTML 支持
 package bao_runtime.api
 
-import bao_jsc.{JsGlobalObject, JsValue}
-import bao_core.{Allocator, Output}
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
+import bao_sys.SysMaybe
 
-// 本地 stub 类型
-public class HTMLString { public init() {} }
+public class HTMLString {
+    public init() {}
+    public func toString(): BunString { BunString() }
+}
 
-// ============================================================================
-// lolhtml_jsc - LOLHTML HTMLString 的 JSC 桥接
-// 对应 Bun: src/runtime/api/lolhtml_jsc.zig
-// ============================================================================
-
-/// LOLHTML HTMLString 的 JS 转换桥接
-/// 保持 src/lolhtml_sys/ 不包含 JSC 类型
-public class LolhtmlJsc {
-
-    /// 将 HTMLString 转换为 JS 值
-    public static func htmlStringToJS(htmlString!: HTMLString, globalThis!: JsGlobalObject): JsValue {
-        var str = htmlString.toString()
-        let result = str.toJS(globalThis)
-        str.deref()
-        return result
+/// LOLHTML JSC 绑定
+public class LOLHTMLRewriter {
+    public init() {}
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): SysMaybe<LOLHTMLRewriter> {
+        SysMaybe<LOLHTMLRewriter>.Ok(LOLHTMLRewriter())
     }
+    public func write(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue { JsValue.jsUndefined() }
+    public func end(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue { JsValue.jsUndefined() }
+    public func finalize(): Unit {}
 }

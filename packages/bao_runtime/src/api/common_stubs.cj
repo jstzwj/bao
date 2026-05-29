@@ -56,8 +56,18 @@ public class BackRef<T> {
     public static func from(value!: T): BackRef<T> {
         BackRef<T>(value: value)
     }
-    public func get(): ?T {
-        value
+    public func get(): T {
+        value.getOrThrow()
+    }
+    public func asPtr(): BackRefPtr<T> {
+        BackRefPtr<T>(value: get())
+    }
+}
+
+public class BackRefPtr<T> {
+    public var pointee: T
+    public init(value!: T) {
+        pointee = value
     }
 }
 
