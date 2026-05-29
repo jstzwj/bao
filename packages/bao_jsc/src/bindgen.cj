@@ -117,8 +117,16 @@ public class BindgenString {
         if (len == 0 || ptr.isNull()) {
             return ""
         }
-        // 从 C 指针构造字符串 - TODO: needs FFI for actual pointer-to-string
-        ""
+        // 从 C 指针构造字符串: 将指定长度的字节读取为仓颉 String
+        var bytes = Array<UInt8>(Int64(len), { _ => UInt8(0) })
+        unsafe {
+            var i: Int64 = 0
+            while (i < len) {
+                bytes[Int64(i)] = (ptr + i).read()
+                i++
+            }
+        }
+        String.fromUtf8(bytes)
     }
 
     // 严格翻译自 BindgenString.convertOptionalFromExtern

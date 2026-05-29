@@ -1010,7 +1010,7 @@ public class ConsoleFormatter {
         }
 
         if (keys.size == 0) {
-            if (false) { // TODO: obj.isCallable() - JsObject has no isCallable
+            if (obj.isCallable) {
                 return formatFunction(obj, enableColors)
             }
             let className = obj.className
@@ -2761,7 +2761,10 @@ public class ConsoleMutex {
 // 严格翻译自 ConsoleObject.writeTrace (673-707 行)
 public func consoleWriteTrace(global: JsObject): String {
     // 创建一个 Error 实例来获取栈跟踪
-    let err = JsValue("trace output") // TODO: createError stub
+    let errObj = JsObject()
+    errObj.className = "Error"
+    errObj.set("message", JsValue("trace"))
+    let err = JsValue(errObj)
     let holder = ZigExceptionHolder.initHolder()
 
     // 将错误转为 ZigException 并 remap

@@ -85,7 +85,9 @@ public class VirtualMachineExports {
     /// 检查字符串是否为 Bun 主文件
     /// 对应 Bun: Bun__isBunMain
     public static func isBunMain(globalObject: JsObject, str: BunString): Bool {
-        false // TODO: str.eqlUTF8(globalObject.bunVM().`main`)
+        // BunString 尚未完整实现，暂时返回 false
+        // 完整实现需要: str.toString() == globalObject.bunVM().main
+        false
     }
 
     /// 确保进程 IPC 已初始化
@@ -274,7 +276,8 @@ public class HandledPromiseContext {
     /// 对应 Bun: Context.callback
     public static func callback(context: HandledPromiseContext) {
         let _ = context.globalThis.bunVM().handledPromise(context.globalThis, context.promise)
-        // TODO: context.promise.unprotect()
+        // 通过 JSC C API 取消保护 promise 值
+        context.promise.unprotect()
     }
 }
 
