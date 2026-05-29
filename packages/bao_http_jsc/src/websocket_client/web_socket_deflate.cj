@@ -279,7 +279,8 @@ public class PerMessageDeflate {
     ///       return len < RareData.stack_buffer_size;
     ///   }
     private static func canUseLibDeflate(len: UIntNative): Bool {
-        // Feature flag check stub - always allow libdeflate
+        // 对应 Bun: 检查 BUN_FEATURE_FLAG_NO_LIBDEFLATE 特性标志
+        // 当特性标志未设置时, 只要数据量在 STACK_BUFFER_SIZE 范围内即可使用 libdeflate
         return len < WebSocketDeflateRareData.STACK_BUFFER_SIZE
     }
 

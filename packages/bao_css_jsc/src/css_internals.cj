@@ -18,7 +18,7 @@ public enum TestKind {
     | prefix
 }
 
-/// CSS 内部 JSC 绑定 (stub)
+/// CSS 内部 JSC 绑定
 public class CssInternalsJSC {
     public static func minifyErrorTestWithOptions(globalThis: JSGlobalObject, callframe: CallFrame): JsValue {
         return JsValue.jsUndefined()

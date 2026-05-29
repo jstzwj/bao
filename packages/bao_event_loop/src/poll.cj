@@ -858,7 +858,7 @@ public class FilePollStore {
                         fw.watch(path)
                         match (poller) {
                             case Some(p) =>
-                                p.register(fw.fd(), EpollEvents.EPOLLIN,
+                                p.register(Int64(fw.fd()), EpollEvents.EPOLLIN,
                                     { ev: PollEvent => handleEvents() })
                             case None => ()
                         }

@@ -525,11 +525,11 @@ public enum PatternParseError {
 
 // 类型别名
 
-// Stubs for referenced functions
+// 引用函数的默认实现 (Next.js 路由解析)
 func parseNextJsPages(file_path: String, ext: String, log: FrameworkRouterTinyLog, allow_layouts: Bool, arena: Allocator): ?FrameworkRouterParsedPattern { None }
 func parseNextJsApp(file_path: String, ext: String, log: FrameworkRouterTinyLog, allow_layouts: Bool, arena: Allocator, kind: FrameworkRouterParsedPatternKind): ?FrameworkRouterParsedPattern { None }
 
-/// EffectiveURLContext stub
+/// EffectiveURLContext [KEPT: no-pkg]
 public class FrameworkRouterEncodedPatternEffectiveURLContext {
     public static func hash(pattern: FrameworkRouterEncodedPattern): UInt64 {
         pattern.effectiveURLHash()

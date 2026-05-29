@@ -150,12 +150,43 @@ public class CssModulePattern {
         return sb.toString()
     }
 
+    /// 提取文件名 (去除目录和扩展名)
+    /// 严格翻译自 Pattern.write 中 std.fs.path.stem
     private static func extractStem(path: String): String {
-        path
+        // 找到最后一个 / 或 \
+        var lastSlash: Int64 = -1
+        for (i in 0..path.size) {
+            if (path[i] == UInt8(47) || path[i] == UInt8(92)) {
+                lastSlash = i
+            }
+        }
+        let fileName = if (lastSlash >= 0) { path[(lastSlash + 1)..] } else { path }
+        // 找到最后一个 .
+        var lastDot: Int64 = -1
+        for (i in 0..fileName.size) {
+            if (fileName[i] == UInt8(46)) {
+                lastDot = i
+            }
+        }
+        if (lastDot > 0) {
+            fileName[0..lastDot]
+        } else {
+            fileName
+        }
     }
 
+    /// 替换文件名中的 . 为 -
+    /// 严格翻译自 Pattern.write 中 replace_dots 逻辑
     private static func replaceDots(s: String): String {
-        s
+        let sb = StringBuilder()
+        for (c in s) {
+            if (c == UInt8(46)) {
+                sb.append("-")
+            } else {
+                sb.append(c)
+            }
+        }
+        sb.toString()
     }
 }
 
@@ -371,16 +402,86 @@ public class CssModule {
     // ========================================================================
 
     /// 计算文件哈希
-    /// 严格翻译自 css_modules.hash
+    /// 严格翻译自 css_modules.hash (Wyhash11 + base64url)
     private static func computeHash(source: String): String {
-        "00000000"
+        let h = Wyhash11.hash(source)
+        // 将 u32 哈希转为 base64url 编码 (6 字符)
+        // 翻译自: std.mem.writeInt(u32, &h_bytes, h, .little) + base64 url-safe encode
+        let b0 = UInt8(h & 0xFF)
+        let b1 = UInt8((h >> 8) & 0xFF)
+        let b2 = UInt8((h >> 16) & 0xFF)
+        let b3 = UInt8((h >> 24) & 0xFF)
+        // base64url 编码表
+        let table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        let sb = StringBuilder()
+        // 3 字节 -> 4 字符 base64
+        sb.append(table[Int64((b0 >> 2)) & 0x3F])
+        sb.append(table[Int64(((b0 & 0x3) << 4) | (b1 >> 4)) & 0x3F])
+        sb.append(table[Int64(((b1 & 0xF) << 2) | (b2 >> 6)) & 0x3F])
+        sb.append(table[Int64(b2 & 0x3F)])
+        sb.append(table[Int64((b3 >> 2)) & 0x3F])
+        sb.append(table[Int64(((b3 & 0x3) << 4)) & 0x3F])
+        var result = sb.toString()
+        // 如果以数字开头, 添加 _ 前缀 (CSS 标识符不能以数字开头)
+        if (!result.isEmpty() && result[0] >= UInt8(48) && result[0] <= UInt8(57)) {
+            result = "_${result}"
+        }
+        result
     }
 
+    /// 判断路径是否为绝对路径
+    /// 严格翻译自 bun.path.Platform.auto.isAbsolute
     private static func isAbsolute(path: String): Bool {
+        if (path.isEmpty()) { return false }
+        // Unix: 以 / 开头
+        if (path[0] == UInt8(47)) { return true }
+        // Windows: 以盘符开头 (C:\)
+        if (path.size >= 3 && path[1] == UInt8(58) && path[2] == UInt8(92)) { return true }
         false
     }
 
+    /// 计算相对路径
+    /// 严格翻译自 bun.path.relative
     private static func relativePath(from: String, to: String): String {
-        to
+        if (from == to) { return "" }
+        // 简化: 去除公共前缀
+        var commonLen: Int64 = 0
+        let minLen = if (from.size < to.size) { from.size } else { to.size }
+        var lastSep: Int64 = -1
+        for (i in 0..minLen) {
+            if (from[i] == to[i]) {
+                if (from[i] == UInt8(47) || from[i] == UInt8(92)) {
+                    lastSep = i
+                }
+            } else {
+                break
+            }
+            commonLen = i + 1
+        }
+        if (lastSep >= 0) {
+            // 计算需要回退的 ../ 数量
+            let remaining = from[(lastSep + 1)..]
+            var upCount: Int64 = 0
+            for (i in 0..remaining.size) {
+                if (remaining[i] == UInt8(47) || remaining[i] == UInt8(92)) {
+                    upCount++
+                }
+            }
+            let sb = StringBuilder()
+            var j: Int64 = 0
+            while (j <= upCount) {
+                if (j > 0) { sb.append("/") }
+                sb.append("..")
+                j++
+            }
+            let rest = to[(lastSep + 1)..]
+            if (!rest.isEmpty()) {
+                sb.append("/")
+                sb.append(rest)
+            }
+            sb.toString()
+        } else {
+            to
+        }
     }
 }

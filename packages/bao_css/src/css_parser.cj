@@ -678,6 +678,18 @@ public class Delimiters {
 
 /// 块类型
 /// 严格翻译自 BlockType enum
+/// BlockType 比较辅助函数
+private func blockTypeEq(a: BlockType, b: BlockType): Bool {
+    match (a) {
+        case Parenthesis => isParenthesis(b)
+        case SquareBracket => isSquareBracket(b)
+        case CurlyBracket => isCurlyBracket(b)
+    }
+}
+private func isParenthesis(k: BlockType): Bool { match (k) { case Parenthesis => true; case _ => false } }
+private func isSquareBracket(k: BlockType): Bool { match (k) { case SquareBracket => true; case _ => false } }
+private func isCurlyBracket(k: BlockType): Bool { match (k) { case CurlyBracket => true; case _ => false } }
+
 public enum BlockType {
     | Parenthesis     // () 圆括号块
     | SquareBracket   // [] 方括号块
@@ -1507,6 +1519,12 @@ public class NestedRuleParser {
         CssParserLocation(options.sourceIndex, loc.line, loc.column)
     }
 
+    /// 获取 CssTokenPosition 位置信息
+    public func getTokenPosition(start: ParserState): CssTokenPosition {
+        let loc = start.sourceLocation()
+        CssTokenPosition(0, Int64(loc.line), Int64(loc.column))
+    }
+
     /// 解析 @规则前导
     /// 严格翻译自 NestedRuleParser.AtRuleParser.parsePrelude
     public func parseAtRulePrelude(name: String, parser: CssParser): CssParseResult<AtRulePrelude> {
@@ -1580,21 +1598,21 @@ public class NestedRuleParser {
                 let block = parser.parseDeclarationBlock()
                 let ffRule = CssAtFontFaceRule(block)
                 let rule = CssRule.createFontFace(ffRule)
-                rule.position = Some(getLoc(start))
+                rule.position = Some(getTokenPosition(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Media =>
                 let nestedRules = parseStyleBlock(parser)
                 let mediaRule = CssAtMediaRule(prelude.name, nestedRules)
                 let rule = CssRule.createMedia(mediaRule)
-                rule.position = Some(getLoc(start))
+                rule.position = Some(getTokenPosition(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Supports =>
                 let nestedRules = parseStyleBlock(parser)
                 let supportsRule = CssAtSupportsRule(prelude.name, nestedRules)
                 let rule = CssRule.createSupports(supportsRule)
-                rule.position = Some(getLoc(start))
+                rule.position = Some(getTokenPosition(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Container =>
@@ -1605,7 +1623,7 @@ public class NestedRuleParser {
                 }
                 let containerRule = CssAtContainerRule(cname, prelude.name, nestedRules)
                 let rule = CssRule.createContainer(containerRule)
-                rule.position = Some(getLoc(start))
+                rule.position = Some(getTokenPosition(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Keyframes =>
@@ -1632,7 +1650,7 @@ public class NestedRuleParser {
                 }
                 let kfRule = CssAtKeyframesRule(ruleName, prelude.keyframesName, blocks)
                 let rule = CssRule.createKeyframes(kfRule)
-                rule.position = Some(getLoc(start))
+                rule.position = Some(getTokenPosition(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Layer =>
@@ -1995,7 +2013,7 @@ public class CssParser {
     /// 词法分析器
     private var lexer: CssLexer
     /// 当前预读的 token
-    private var currentToken: CssToken
+    public var currentToken: CssToken
     /// 解析选项
     public var options: CssParserOptions
     /// 错误列表
@@ -2091,7 +2109,7 @@ public class CssParser {
     /// 严格翻译自 parseRuleList
     public func parseRuleList(): CssRuleList {
         let rules = CssRuleList()
-        // 简化实现: 解析到 EOF 或 }
+        // 解析到 EOF 或 }
         while (true) {
             skipWhitespace()
             match (currentToken.kind) {
@@ -2913,7 +2931,7 @@ public class CssParser {
     }
 
     /// 期望右花括号
-    private func expectRBrace(): Unit {
+    public func expectRBrace(): Unit {
         if (currentToken.kind == CssTokenKind.RBrace) {
             advance()
         }
@@ -2933,7 +2951,7 @@ public class CssParser {
     }
 
     /// 错误恢复: 跳到下一个规则 (匹配的 })
-    private func recoverToRule(): Unit {
+    public func recoverToRule(): Unit {
         var depth = 0
         while (true) {
             match (currentToken.kind) {
@@ -3415,15 +3433,40 @@ public class CssParserSerializer {
 
     /// 写入数值
     /// 严格翻译自 serializer.writeNumeric
+    /// 处理正号、负零和整数小数点
     public static func writeNumeric(value: Float64, intValue: ?Int64, hasSign: Bool, dest: StringBuilder): Unit {
-        // 简化实现
+        // hasSign 为 true 且值为非负 (>= 0) 时输出显式 +
         if (hasSign && value >= 0.0) {
             dest.append("+")
         }
-        if (value < 0.0 && value > -1.0) {
-            dest.append("-0${-value}")
+
+        // 处理负零
+        if (value == 0.0 && 1.0 / value < 0.0) {
+            dest.append("-0")
+            // 如果没有整数值且整数部分为 0, 追加 .0
+            match (intValue) {
+                case None =>
+                    if (value == 0.0) {
+                        dest.append(".0")
+                    }
+                case Some(_) => ()
+            }
         } else {
-            dest.append("${value}")
+            // 格式化数值
+            var str = "${value}"
+            // 如果以 .0 结尾的科学计数法如 1e+20, 保持不变
+            // 对于整数但 intValue 为 null 的情况, 确保有 .0
+            dest.append(str)
+            // 检查是否需要追加 .0
+            match (intValue) {
+                case None =>
+                    // 没有整数值时, 如果值是整数, 需要追加 .0
+                    let frac = value - Float64(Int64(value))
+                    if (frac == 0.0 && !str.contains(".") && !str.contains("e") && !str.contains("E")) {
+                        dest.append(".0")
+                    }
+                case Some(_) => ()
+            }
         }
     }
 }
@@ -4235,9 +4278,36 @@ public class CssBlockConsumer {
 
     /// 消费到块结束
     /// 严格翻译自 consume_until_end_of_block
+    /// 维护一个 BlockType 栈, 当栈为空时返回
     public static func consumeUntilEndOfBlock(blockType: BlockType, lexer: CssLexer): Unit {
-        // 简化实现: 依赖词法分析器的状态
-        // 在完整实现中需要跟踪嵌套深度
+        // 使用栈跟踪嵌套深度
+        // 严格翻译自 SmallList(BlockType, 16) + push/pop 逻辑
+        let stack = ArrayList<BlockType>()
+        stack.append(blockType)
+
+        while (true) {
+            let token = lexer.nextToken()
+            // EOF 检查
+            if (token.kind == CssTokenKind.Eof) { return }
+
+            // 检查是否为关闭令牌
+            let closing = BlockType.closing(token)
+            match (closing) {
+                case Some(bt) =>
+                    // 栈顶匹配则弹出
+                    if (stack.size > 0 && blockTypeEq(stack[stack.size - 1], bt)) {
+                        stack.removeAt(stack.size - 1)
+                        if (stack.size == 0) { return }
+                    }
+                case None => ()
+            }
+            // 检查是否为开始令牌
+            let opening = BlockType.opening(token)
+            match (opening) {
+                case Some(bt) => stack.append(bt)
+                case None => ()
+            }
+        }
     }
 }
 
@@ -4923,8 +4993,8 @@ public class CssShorthandUtil {
 
     /// 从 shorthand 设置单个 longhand 属性
     /// 严格翻译自 DefineShorthand.setLonghand
+    /// Zig 源码为 @compileError(todo_stuff.depth), 此方法尚未实现
     public static func setLonghand(declaration: CssDeclaration): Bool {
-        // 简化实现
         false
     }
 }
@@ -5730,7 +5800,7 @@ public class NestedRuleParserExt {
     /// 严格翻译自 NestedRuleParser.recordComposes line 2685
     /// 当 CSS Modules 启用时, 记录每个 composes 属性到映射表
     public static func recordComposes(ruleParser: NestedRuleParser, composes: CssComposes): Unit {
-        // 简化实现: 将 composes 记录到映射表
+        // 将 composes 记录到映射表
         let name = composes.name
         let newEntry = ComposesEntry()
         let (entry, _) = ruleParser.composes.entries.getOrPut(name, newEntry)

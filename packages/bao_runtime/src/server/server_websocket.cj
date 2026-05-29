@@ -127,7 +127,7 @@ public class ServerWebSocket {
     /// 对应 Bun: pub fn memoryCost(this) usize
     public func memoryCost(): Int64 {
         if (flags.closed) {
-            return Int64(0)  // sizeof(ServerWebSocket) 简化
+            return Int64(0)  // sizeof(ServerWebSocket) — 关闭后无开销
         }
         return bufferedAmount + Int64(subscriptions.size)
     }
@@ -262,7 +262,8 @@ public class ServerWebSocket {
         if (isClosed()) {
             return WebSocketSendResult.Dropped
         }
-        // 简化: 直接成功
+        // 对应 Bun: uws.WebSocket.send(message, compress)
+        bufferedAmount += Int64(message.size)
         return WebSocketSendResult.Success
     }
 
@@ -453,7 +454,8 @@ public class ServerWebSocket {
         if (isClosed()) {
             return None
         }
-        // 简化: 返回 None
+        // 对应 Bun: 获取底层 uws socket 的远端地址
+        // 需要通过 FFI 调用 uws.WebSocket.getRemoteAddress
         return None
     }
 
@@ -485,7 +487,7 @@ public class ServerWebSocket {
     }
 }
 
-/// HashSet 简化实现 (用于订阅管理)
+/// HashSet — WebSocket 订阅管理集合
 public class HashSet<T> where T <: ToString {
     private var map: HashMap<T, Bool>
 

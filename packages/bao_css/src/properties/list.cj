@@ -104,11 +104,12 @@ public enum Symbol {
 }
 
 // ============================================================================
-// 占位类型 (Zig 源码中为 DefineEnumProperty(@compileError(...)) 占位)
+// 以下类型在 Zig 源码中为 DefineEnumProperty(@compileError(...)) 或
+// @compileError(css.todo_stuff.depth) -- 尚未实现, 仅提供枚举值和 toCss
 // ============================================================================
 
-/// 预定义计数器样式（占位）
-/// Zig 源码为 @compileError(css.todo_stuff.depth) 占位
+/// 预定义计数器样式
+/// Zig 源码为 @compileError(css.todo_stuff.depth), 仅提供枚举值
 /// 严格翻译自 PredefinedCounterStyle
 public enum PredefinedCounterStyle {
     | Disc
@@ -146,8 +147,8 @@ public enum PredefinedCounterStyle {
     }
 }
 
-/// symbols-type 值（占位）
-/// Zig 源码为 DefineEnumProperty(@compileError(...)) 占位
+/// symbols-type 值
+/// Zig 源码为 DefineEnumProperty(@compileError(...)), 仅提供枚举值
 /// 严格翻译自 SymbolsType
 public enum SymbolsType {
     | Cyclic
@@ -175,8 +176,8 @@ public enum SymbolsType {
     }
 }
 
-/// list-style-position 属性值（占位）
-/// Zig 源码为 DefineEnumProperty(@compileError(...)) 占位
+/// list-style-position 属性值
+/// Zig 源码为 DefineEnumProperty(@compileError(...)), 仅提供枚举值
 /// 严格翻译自 ListStylePosition
 public enum ListStylePosition {
     | Inside
@@ -190,14 +191,14 @@ public enum ListStylePosition {
     }
 }
 
-/// list-style 属性值（占位）
-/// Zig 源码为 @compileError(css.todo_stuff.depth) 占位
+/// list-style 属性值
+/// Zig 源码为 @compileError(css.todo_stuff.depth), 尚未实现
 /// 严格翻译自 ListStyle
 public struct ListStyle {
 }
 
-/// marker-side 属性值（占位）
-/// Zig 源码为 DefineEnumProperty(@compileError(...)) 占位
+/// marker-side 属性值
+/// Zig 源码为 DefineEnumProperty(@compileError(...)), 仅提供枚举值
 /// 严格翻译自 MarkerSide
 public enum MarkerSide {
     | Marker

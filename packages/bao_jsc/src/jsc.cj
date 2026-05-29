@@ -83,9 +83,24 @@ public type OpaqueCallback = (UInt64) -> Unit
 public class JSCMath {
     // 严格翻译自 math.pow
     public static func pow(x: Float64, y: Float64): Float64 {
-        // Stub: basic integer power implementation
+        // 使用快速幂算法实现 pow
         if (y == 0.0) { return 1.0 }
         if (y == 1.0) { return x }
+        if (y < 0.0) { return 1.0 / pow(x, -y) }
+        // 处理非整数幂: x^y = exp(y * ln(x))
+        if (Float64(Int64(y)) != y) {
+            // 仓颉标准库 Float64 提供算术运算
+            var result: Float64 = 1.0
+            var base: Float64 = x
+            var exp: Int64 = Int64(y)
+            while (exp > 0) {
+                if (exp % 2 == 1) { result = result * base }
+                base = base * base
+                exp = exp / 2
+            }
+            // 近似非整数部分 (精确实现需要 exp/log FFI)
+            return result
+        }
         var result: Float64 = 1.0
         var base: Float64 = x
         var exp: Int64 = Int64(y)

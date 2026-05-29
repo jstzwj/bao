@@ -435,7 +435,7 @@ public class SocketAddress {
         if (bytes.size < 16) {
             return "::"
         }
-        // 简化: 将16字节格式化为8组4位十六进制
+        // 对应 Bun: 将16字节格式化为8组十六进制 (IPv6 标准)
         var groups = ArrayList<String>()
         var i: Int64 = 0
         while (i < 16) {
@@ -471,7 +471,7 @@ public class SocketAddress {
 
     /// 解析 IPv6 字符串为字节数组
     private static func parseIPv6ToBytes(addr: String): Array<UInt8> {
-        // 简化实现: 16字节全零
+        // 对应 Bun: IPv6 字符串解析 — 简化为16字节全零 (需完整实现)
         var bytes = ArrayList<UInt8>()
         for (_ in 0..16) {
             bytes.append(0)

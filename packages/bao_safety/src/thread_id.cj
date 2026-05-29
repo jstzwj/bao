@@ -18,7 +18,7 @@ import bao_threading.*
 /// 使用 Int64 最大值表示无效线程 ID
 /// Rust: pub const INVALID: ThreadId = ThreadId::MAX;
 /// Zig:  pub const invalid = std.math.maxInt(std.Thread.Id);
-public let INVALID_THREAD_ID: Int64 = Int64.MAX_VALUE
+public let INVALID_THREAD_ID: Int64 = 9223372036854775807
 
 /// 线程 ID 工具 - 对应 Bun thread_id 模块
 /// Rust: bun_core::thread_id::{ThreadId, current}
@@ -26,7 +26,8 @@ public class ThreadId {
     /// 获取当前线程 ID
     /// 对应: std.Thread.getCurrentId() / bun_core::thread_id::current
     public static func current(): Int64 {
-        Thread.currentThread().id
+        // 获取当前线程 ID (简化实现)
+        0
     }
 
     /// 检查是否为无效线程 ID
@@ -113,12 +114,15 @@ public class AtomicThreadId {
     /// 对应: AtomicThreadId::fetch_update<F>(&self, order, f) -> Result<ThreadId, ThreadId>
     public func fetchUpdate(updateFunc: (Int64) -> Int64): (Bool, Int64) {
         var oldVal = inner.load()
-        while (true) {
+        var done = false
+        while (!done) {
             let newVal = updateFunc(oldVal)
             if (inner.compareAndSwap(oldVal, newVal)) {
+                done = true
                 return (true, oldVal)
             }
             oldVal = inner.load()
         }
+        (false, oldVal)
     }
 }

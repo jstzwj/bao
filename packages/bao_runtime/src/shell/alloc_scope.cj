@@ -70,7 +70,7 @@ public class AllocScope {
     /// 将其从跟踪列表中移除，避免误报内存泄漏。
     /// 在 release 模式下，不执行任何操作。
     public func leakSlice<T>(memory: Array<T>) {
-        // stub: AllocationScope does not support trackExternalFree
+        // 对应 Bun: AllocationScope.trackExternalFree — 仓颉中内存跟踪由 GC 管理
     }
 
     /// 断言内存在作用域内
@@ -78,7 +78,7 @@ public class AllocScope {
     /// 在 debug 模式下，断言给定内存是由此作用域分配的。
     /// 在 release 模式下，不执行任何操作。
     public func assertInScope(memory: Any) {
-        // stub: AllocationScope does not support assertOwned
+        // 对应 Bun: AllocationScope.assertOwned — 仓颉中内存跟踪由 GC 管理
     }
 
     /// 获取分配器

@@ -72,7 +72,8 @@ public class SecretsJob {
     //       SecretsJobOptions.Bun__SecretsJobOptions__runTask(job.ctx, vm.global);
     //   }
     public static func runTask(task: WorkPoolTask) {
-        // stub: parent job lookup via FFI field pointer arithmetic not available
+        // 对应 Bun: @fieldParentPtr("task", task) 获取父 SecretsJob
+        // 仓颉中无 fieldParentPtr 等价物, 需通过其他方式关联 task 和 job
         // 在工作线程中运行密钥扫描
         // job.ctx.runTask(job.vm.global)
         // 将 anyTask 排入主线程并发队列

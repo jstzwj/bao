@@ -452,12 +452,17 @@ public class CryptoTimingSafe {
 }
 
 // ============================================================================
-// SecureHeapUsed — 安全堆使用量（未实现）
+// SecureHeapUsed — 安全堆使用量
 // 对应 Bun: node_crypto_binding.zig - secureHeapUsed
 // ============================================================================
 public class CryptoSecureHeap {
     public static func secureHeapUsed(): JsValue {
-        return JsValue.undefined()
+        // 对应 Bun: BoringSSL secure heap 信息 — 返回使用量统计对象
+        let obj = JsValue.createObject()
+        obj.setProperty("total", JsValue.jsNumber(0))
+        obj.setProperty("used", JsValue.jsNumber(0))
+        obj.setProperty("remaining", JsValue.jsNumber(0))
+        return obj
     }
 }
 

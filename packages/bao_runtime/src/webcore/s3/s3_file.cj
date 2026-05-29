@@ -106,7 +106,7 @@ public func writeFormat(
         indented.printComma(writer, enableAnsiColors)
     }
 
-    // stub: writeFormatCredentials not available
+    // S3Client.writeFormatCredentials 尚未实现
     // S3Client.writeFormatCredentials(credentials, s3.options, s3.acl, formatter, writer, enableAnsiColors)
     formatter.writeIndent(writer)
     writer.append("}")
@@ -1462,7 +1462,7 @@ public func construct(global: JSGlobalObject, callframe: CallFrame): ?BlobRef {
 ///
 /// Returns true if the value is a Blob with S3 store.
 public func hasInstance(`this`: JsValue, global: JSGlobalObject, value: JsValue): Bool {
-    // stub: asClassRef not available, always return false
+    // 对应 Bun: asClassRef — 仓颉中 JS 类引用检查暂未实现, 始终返回 false
     return false
 }
 

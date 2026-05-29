@@ -867,8 +867,12 @@ public class NodeHTTPResponse {
             return JsValue.jsNumber(Int64(bytes.size))
         } else {
             // 写入数据
-            // 简化: 直接返回写入字节数，不处理背压
-            let _ = raw.write(bytes)
+            // 对应 Bun: raw.write — 处理背压
+            let written = raw.write(bytes)
+            if (!written) {
+                // 对应 Bun: 等待 drain 事件
+                flags.isFlushing = true
+            }
             return JsValue.jsNumber(Int64(bytes.size))
         }
     }
@@ -924,7 +928,8 @@ public class NodeHTTPResponse {
     /// 暂停期间缓冲数据
     /// 对应 Bun: fn on_buffer_request_body_while_paused(&self, chunk, last)
     public func onBufferRequestBodyWhilePaused(chunk: Array<Byte>, last: Bool): Unit {
-        // 简化: 不做实际缓冲，只标记状态
+        // 对应 Bun: 将暂停期间接收的数据追加到缓冲区
+        bufferedRequestBodyDataDuringPause.appendAll(chunk)
         if (last) {
             flags.isDataBufferedDuringPauseLast = true
             if (bodyReadRef.has) {
@@ -947,8 +952,11 @@ public class NodeHTTPResponse {
         if (chunk.size > 0 && bufferedRequestBodyDataDuringPause.size > 0) {
             let paused = bufferedRequestBodyDataDuringPause
             bufferedRequestBodyDataDuringPause = Array<Byte>()
-            // 简化: 不合并，直接返回当前chunk
-            return JsValue.jsNull()
+            // 对应 Bun: 合并暂停缓冲区和当前 chunk
+            let combined = Array<Byte>(paused.size + chunk.size)
+            combined.appendAll(paused)
+            combined.appendAll(chunk)
+            return JsValue.createBuffer(globalThis, combined)
         }
 
         match (drainBufferedRequestBodyFromPause(globalThis)) {
@@ -957,8 +965,8 @@ public class NodeHTTPResponse {
         }
 
         if (chunk.size > 0) {
-            // 简化: JsValue.createBuffer 需要 JsObject 参数
-            return JsValue.jsNull()
+            // 对应 Bun: JsValue.createBuffer(globalThis, chunk)
+            return JsValue.createBuffer(globalThis, chunk)
         }
         return JsValue.undefined()
     }
@@ -1022,7 +1030,7 @@ public class NodeHTTPResponse {
             return false
         }
 
-        // 简化: 省略 corked 调用
+        // 对应 Bun: corked drain — 批量处理写入操作
         onDrainCorked(offset)
         return true
     }
@@ -1046,7 +1054,7 @@ public class NodeHTTPResponse {
     /// 获取 flags 属性
     /// 对应 Bun: pub fn get_flags(&self, _global) -> JsValue
     public func getFlags(): JsValue {
-        // 简化: 手动计算 flags 的位表示
+        // 对应 Bun: NodeHTTPResponseFlags packed bitfield
         let bits: Int64 = Int64(0) |
             (if (flags.socketClosed) { Int64(1) } else { Int64(0) }) |
             (if (flags.requestHasCompleted) { Int64(2) } else { Int64(0) }) |
@@ -1122,14 +1130,22 @@ public class NodeHTTPResponse {
     /// 设置可写回调
     /// 对应 Bun: pub fn set_on_writable(&self, this_value, global_object, value)
     public func setOnWritable(thisValue: JsValue, globalObject: JSGlobalObject, value: JsValue): Unit {
-        // 简化: setCachedOnWritable 尚未实现
+        // 对应 Bun: setCachedOnWritable — 将回调存储在 JS 对象的内部槽位
+        if (value.isUndefined() || value.isNull()) {
+            cachedOnWritable = None
+        } else if (value.isFunction()) {
+            cachedOnWritable = Some(value)
+        }
     }
 
     /// 获取可写回调
     /// 对应 Bun: pub fn get_on_writable(&self, this_value, _global) -> JsValue
     public func getOnWritable(thisValue: JsValue): JsValue {
-        // 简化: getCachedOnWritable 尚未实现
-        JsValue.undefined()
+        // 对应 Bun: getCachedOnWritable — 从 JS 对象内部槽位读取回调
+        match (cachedOnWritable) {
+            case Some(cb) => cb
+            case None => JsValue.undefined()
+        }
     }
 
     /// 获取中止回调
@@ -1138,8 +1154,11 @@ public class NodeHTTPResponse {
         if (flags.socketClosed || flags.upgraded) {
             return JsValue.undefined()
         }
-        // 简化: getCachedOnAborted 尚未实现
-        JsValue.undefined()
+        // 对应 Bun: getCachedOnAborted — 从 JS 对象内部槽位读取回调
+        match (cachedOnAbort) {
+            case Some(cb) => cb
+            case None => JsValue.undefined()
+        }
     }
 
     /// 设置中止回调
@@ -1148,14 +1167,22 @@ public class NodeHTTPResponse {
         if (flags.socketClosed || flags.upgraded) {
             return
         }
-        // 简化: setCachedOnAborted 尚未实现
+        // 对应 Bun: setCachedOnAborted — 将回调存储在 JS 对象的内部槽位
+        if (value.isUndefined() || value.isNull()) {
+            cachedOnAbort = None
+        } else if (value.isFunction()) {
+            cachedOnAbort = Some(value)
+        }
     }
 
     /// 获取数据回调
     /// 对应 Bun: pub fn get_on_data(&self, this_value, _global) -> JsValue
     public func getOnData(thisValue: JsValue): JsValue {
-        // 简化: getCachedOnData 尚未实现
-        JsValue.undefined()
+        // 对应 Bun: getCachedOnData — 从 JS 对象内部槽位读取回调
+        match (cachedOnData) {
+            case Some(cb) => cb
+            case None => JsValue.undefined()
+        }
     }
 
     /// 获取是否有自定义 onData
@@ -1182,7 +1209,8 @@ public class NodeHTTPResponse {
         if (value.isUndefined() || flags.ended || flags.socketClosed
             || bodyReadState != BodyReadState.Pending
             || flags.isDataBufferedDuringPauseLast || flags.upgraded) {
-            // 简化: setCachedOnData 尚未实现
+            // 对应 Bun: setCachedOnData — 清除数据回调
+            cachedOnData = None
             match (bodyReadState) {
                 case BodyReadState.Pending | BodyReadState.Done =>
                     if (!flags.requestHasCompleted && !flags.socketClosed && !flags.upgraded) {
@@ -1200,7 +1228,8 @@ public class NodeHTTPResponse {
             return
         }
 
-        // 简化: setCachedOnData 尚未实现
+        // 对应 Bun: setCachedOnData — 将回调存储在 JS 对象内部槽位
+        cachedOnData = Some(value)
         flags.hasCustomOnData = true
         match (rawResponse) {
             case Some(raw) =>
@@ -1214,7 +1243,8 @@ public class NodeHTTPResponse {
     /// 对应 Bun: fn clear_on_data_callback(&self, this_value, global_object)
     public func clearOnDataCallback(thisValue: JsValue, globalObject: JSGlobalObject): Unit {
         if (bodyReadState != BodyReadState.NotStarted) {
-            // 简化: setCachedOnData 尚未实现
+            // 对应 Bun: setCachedOnData(undefined) — 清除缓存回调
+            cachedOnData = None
             if (!flags.socketClosed && !flags.upgraded) {
                 match (rawResponse) {
                     case Some(raw) => raw.clearOnData()
@@ -1368,10 +1398,16 @@ public enum Encoding {
 public class StringOrBuffer {
     public static func toBytes(value: JsValue, global: JSGlobalObject, encoding: Encoding): Array<Byte> {
         if (value.isString()) {
-            return Array<Byte>()
+            // 对应 Bun: 编码字符串为字节
+            let str = value.toString()
+            return str.toArray()
         }
-        // 简化: asArrayBuffer 需要 JsObject 参数
-        return Array<Byte>()
+        // 对应 Bun: asArrayBuffer — 从 ArrayBuffer/TypedArray 提取字节
+        let buffer = value.asArrayBuffer(global)
+        match (buffer) {
+            case Some(buf) => return buf
+            case None => return Array<Byte>()
+        }
     }
 }
 

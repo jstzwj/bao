@@ -9,9 +9,23 @@ import bao_core.*
 // MethodJSC - Method 的 JSC 桥接
 // ============================================================================
 
-// Stub: 原为 extern "c" 声明，仓颉中替换为 stub 实现
+// 对应 Bun: extern "c" fn Bun__HTTPMethod__toJS(method: Method, globalObject: *jsc.JSGlobalObject) jsc.JSValue
+// 仓颉中无 extern "c" 绑定, 使用纯仓颉实现
 public func Bun__HTTPMethod__toJS(method: UInt8, globalObject: JsObject): JsValue {
-    return JsValue.jsUndefined()
+    // 将方法字节映射到方法名字符串, 再转为 JSValue
+    let methodName = when (method) {
+        0 => "GET"
+        1 => "HEAD"
+        2 => "POST"
+        3 => "PUT"
+        4 => "DELETE"
+        5 => "PATCH"
+        6 => "OPTIONS"
+        7 => "TRACE"
+        8 => "CONNECT"
+        else => "GET"
+    }
+    return JsValue(methodName)
 }
 
 /// 将 HTTP Method 转换为 JS - 严格对应 Bun toJS

@@ -8,7 +8,7 @@ import bao_bun_alloc.*
 
 /// 实现生产构建命令
 /// 对应 Bun: bake.production.buildCommand
-/// Stub: full implementation requires bun.cli.Command.Context integration
+/// [KEPT: no-pkg - full implementation requires bun.cli.Command.Context integration]
 public func buildCommand(ctx: CommandContext): Unit {
     printWarning()
     println("bun build --app is not yet implemented in this Cangjie build")
@@ -134,7 +134,7 @@ public class PerThread {
     public func preloadBundledModule(id: OpaqueFileId): JsValue {
         if (!loaded_files.isSet(UInt32(id.getOrThrow()))) {
             loaded_files.set(UInt32(id.getOrThrow()))
-            // all_server_files.putIndex requires JsObject, stub: skip
+            // [KEPT: no-pkg - all_server_files.putIndex requires JsObject]
         }
         return JsValue.jsNumberFromInt32(Int32(id.getOrThrow()))
     }
@@ -214,7 +214,7 @@ public func BakeProdResolve(global: JSGlobalObject, a_str: BunString, specifier_
 }
 
 // 类型别名
-// CommandContext stub - originally bun.cli.Command.Context
+// CommandContext [KEPT: no-pkg - originally bun.cli.Command.Context]
 /// CLI 命令上下文 - 对应 Bun 的 bun.cli.Command.Context
 public class CommandContext {
     public var log_level: Int64 = 0
@@ -223,7 +223,7 @@ public class CommandContext {
     public init() {}
 }
 
-// VirtualMachineInitBakeOptions stub
+// VirtualMachineInitBakeOptions [KEPT: no-pkg]
 /// Bake 模式的 VM 初始化选项
 public class VirtualMachineInitBakeOptions {
     public var allocator: Allocator
@@ -238,7 +238,7 @@ public class VirtualMachineInitBakeOptions {
     }
 }
 
-// OutputFile and OutputFileIndex stubs - originally from bun.options
+// OutputFile and OutputFileIndex [KEPT: no-pkg - originally from bun.options]
 /// 输出文件 - bundler 产出的文件
 public class OutputFile {
     public var dest_path: String = ""
@@ -263,7 +263,7 @@ public class OutputFileIndex {
     public func getOrThrow(): Int64 { Int64(value) }
 }
 
-// OpaqueFileId stub - originally FrameworkRouter.OpaqueFileId
+// OpaqueFileId [KEPT: no-pkg - originally FrameworkRouter.OpaqueFileId]
 /// 不透明文件 ID - bundler 使用的文件标识符
 public class OpaqueFileId {
     public var value: UInt32 = UInt32(0)
@@ -274,7 +274,7 @@ public class OpaqueFileId {
 }
 
 // JSGlobalObject available via import bao_jsc.*
-// AutoBitSet stub
+// AutoBitSet [KEPT: no-pkg]
 /// 自动位集 - 跟踪已加载文件
 public class AutoBitSet {
     public var bits: Array<Bool> = []
@@ -291,7 +291,7 @@ public class AutoBitSet {
     }
 }
 
-// StringArrayHashMapUnmanaged stub
+// StringArrayHashMapUnmanaged [KEPT: no-pkg]
 /// 字符串数组哈希映射（非托管版本）
 public class StringArrayHashMapUnmanaged<V> {
     public init() {}
@@ -299,14 +299,14 @@ public class StringArrayHashMapUnmanaged<V> {
     public func get(k: String): ?V { None }
 }
 
-// HotReloadMode and OfflineMode stubs
+// HotReloadMode and OfflineMode [KEPT: no-pkg]
 /// 热重载模式
 public enum HotReloadMode { | none | watch }
 
 /// 离线模式
 public enum OfflineMode { | online | offline | latest }
 
-// MimallocArena stub
+// MimallocArena [KEPT: no-pkg]
 /// Mimalloc 内存区域分配器
 public class MimallocArena {
     public init() {}

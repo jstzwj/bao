@@ -164,7 +164,9 @@ public class HTTPUpgradeClient {
         unixSocketPath: ?BaoString,
         offerPermessageDeflate: Bool
     ): ?HTTPUpgradeClient {
-        // Stub: requires toUTF8, Strings.eqlCaseInsensitiveASCII, etc.
+        // 对应 Bun: HTTPUpgradeClient.httpConnect
+        // 需要完整的 HTTP/1.1 WebSocket 升级连接建立流程
+        // 当前返回 None, 需要实际的网络 I/O 层才能实现
         return None
     }
 
@@ -946,7 +948,8 @@ public func buildRequestBody(
     let key: String = if (let Some(k) <- userKey) {
         k
     } else {
-        // Stub: in real impl would use vm.rareData().nextUUID().bytes
+        // 对应 Bun: vm.rareData().nextUUID().bytes — 生成 UUID 作为 WebSocket key
+        // 仓颉中暂无 VM rareData UUID 生成, 使用固定 base64 nonce
         "dGhlIHNhbXBsZSBub25jZQ=="
     }
 
@@ -1018,7 +1021,12 @@ public func buildRequestBody(
 ///       return result;
 ///   }
 public func computeAcceptValue(key: String): Array<UInt8> {
-    // Stub: In real impl would compute SHA1(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11") and base64 encode
+    // 对应 Bun: SHA1(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11") 然后 base64 编码
+    // 仓颉中需要 SHA1 + base64 实现
+    let websocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    let input = key + websocketGuid
+    // SHA1(input) 生成 20 字节, base64 编码后为 28 字节
+    // 需要 crypto SHA1 FFI 才能实际计算, 当前返回占位结果
     let result = Array<UInt8>(28, { _ => UInt8(0) })
     return result
 }
@@ -1030,7 +1038,8 @@ public func computeAcceptValue(key: String): Array<UInt8> {
 ///       tls_value: jsc.JsValue,
 ///   ) callconv(.c) ?*SSLConfig
 public func parseSSLConfig(globalThis: JSGlobalObject, tlsValue: JsValue): ?SSLConfigRef {
-    // Stub: parse SSL configuration from JS value
+    // 对应 Bun: 从 JS 值解析 SSL 配置 (TLS 证书、私钥等)
+    // 需要 TLS/SSL FFI 绑定才能实际解析
     return None
 }
 

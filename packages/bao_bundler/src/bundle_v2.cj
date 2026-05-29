@@ -1891,7 +1891,8 @@ public enum EntryPointType {
         }
     }
 
-    /// 是否是服务端入口点 (TODO: 删除)
+    /// 是否是服务端入口点 — 保留与 isUserSpecifiedEntryPoint 相同的行为
+    /// Bun 源码注释: TODO: 删除 (此方法与 isUserSpecifiedEntryPoint 相同)
     // 严格翻译自: bundle_v2.zig:4037 isServerEntryPoint()
     public func isServerEntryPoint(): Bool {
         return isUserSpecifiedEntryPoint()

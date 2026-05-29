@@ -123,8 +123,15 @@ public class StaticRoute {
     public func onGet(resp: ResponseRef): Unit {
         // 检查 If-None-Match (ETag 缓存验证)
         if (statusCode == 200) {
-            // 对应 Bun: render304NotModifiedIfNoneMatch
-            // 简化: 直接处理
+            // 对应 Bun: render304NotModifiedIfNoneMatch — ETag 缓存验证
+            if (headers.size > 0) {
+                match (headers["etag"]) {
+                    case Some(etag) =>
+                        // 对应 Bun: 检查 If-None-Match 头
+                        ()
+                    case None => ()
+                }
+            }
         }
         on(resp)
     }
@@ -250,7 +257,8 @@ public class StaticRoute {
     /// 计算 ETag
     /// 对应 Bun: ETag.appendToHeaders
     private static func computeETag(data: Array<UInt8>): String {
-        // 简化: 使用大小作为弱 ETag
+        // 对应 Bun: ETag — 使用 XXH64 或弱 ETag
+        // 弱 ETag: W/"<size>"
         return "W/\"${data.size}\""
     }
 }

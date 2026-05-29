@@ -60,9 +60,19 @@ public class HeadersRef {
     /// FetchHeaders.createFromJS(global, value) — may throw, may return null.
     /// 对应 Bun: HeadersRef::create_from_js
     public static func createFromJS(global: JsGlobalObject, value: JsValue): ?HeadersRef {
-        // 简化实现: 如果 value 是 object 类型则创建空 headers
+        // 对应 Bun: HeadersRef::create_from_js — 从 JS 值创建 Headers
+        if (value.isEmptyOrUndefinedOrNull()) { return None }
         if (value.isObject()) {
-            return Some(HeadersRef())
+            let headers = HeadersRef()
+            // 对应 Bun: 遍历 JS 对象属性并添加到 headers
+            let keys = value.getPropertyNames()
+            for (key in keys) {
+                let val = value.getProperty(key)
+                if (!val.isUndefined()) {
+                    headers.append(key, val.toString())
+                }
+            }
+            return Some(headers)
         }
         return None
     }
@@ -70,8 +80,10 @@ public class HeadersRef {
     /// FetchHeaders.cloneThis(global) — deep copy on the C++ side.
     /// 对应 Bun: HeadersRef::clone_this
     public func cloneThis(global: JsGlobalObject): ?HeadersRef {
-        // 简化实现: 返回新的空 HeadersRef
-        return Some(HeadersRef())
+        // 对应 Bun: 深拷贝 headers 列表
+        let cloned = HeadersRef()
+        cloned.entries = entries.copy()
+        return Some(cloned)
     }
 
     /// 是否为空指针

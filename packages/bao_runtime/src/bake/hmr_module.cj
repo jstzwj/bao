@@ -605,7 +605,8 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
         if (sourceMapId.isSome()) {
             let existingSourceMapId = registrySourceMapIds.get(key)
             if (existingSourceMapId.isSome()) {
-                // Stub: derefMapping is not available as a callable in this build
+                // 对应 Bun: derefMapping — 释放旧 source map 引用
+                // 当前构建中 source map 引用管理暂未实现
             }
             registrySourceMapIds.put(key, sourceMapId.getOrThrow())
         }

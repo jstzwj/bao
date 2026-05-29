@@ -14,6 +14,7 @@ package bao_safety
 
 import bao_threading.*
 import bao_crash_handler.*
+import std.collection.ArrayList
 
 // ============================================================================
 // 全局常量
@@ -99,7 +100,7 @@ public struct AllocatorId {
 /// 对应: bun/src/safety/lib.rs - KNOWN_ALLOC_VTABLES
 ///   static KNOWN_ALLOC_VTABLES: [AtomicPtr<()>; 16]
 ///   static KNOWN_ALLOC_LEN: AtomicUsize
-private let registeredVtables: Array<Int64> = Array<Int64>()
+private let registeredVtables: ArrayList<Int64> = ArrayList<Int64>()
 private var registeredVtableCount: Int64 = 0
 
 /// 分配器标识工具 - 对应 Bun safety/alloc.rs 的全局辅助函数
@@ -145,7 +146,7 @@ public class AllocatorIdentity {
     ///   }
     public static func registerVtable(vtableId: Int64): Unit {
         if (registeredVtableCount < 16) {
-            registeredVtables.append(vtableId)
+            registeredVtables.add(vtableId)
             registeredVtableCount += 1
         }
     }

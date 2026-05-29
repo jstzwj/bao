@@ -2474,14 +2474,81 @@ public func computeSimpleSelectorSpecificity(component: CssSelectorComponent, sp
         case CssComponentKind.NthOf =>
             spec.classLikeSelectors += 1
             // nth-of 还要加上选择器列表的最大特异性
-        case CssComponentKind.Negation => ()
-            // negation 特异性计算
-        case CssComponentKind.Is => ()
-            // is 特异性计算
-        case CssComponentKind.Any => ()
-            // any 特异性计算
+            // 严格翻译自 specificity(NthOfSelectorData) 逻辑
+            match (component.nthOfData) {
+                case Some(nd) =>
+                    var maxSpec = CssSpecificity()
+                    for (s in nd.selectors) {
+                        let sSpec = CssSpecificity.fromU32(computeSelectorSpecificity(s.components))
+                        if (sSpec.toU32() > maxSpec.toU32()) {
+                            maxSpec = sSpec
+                        }
+                    }
+                    spec.add(maxSpec)
+                case None => ()
+            }
+        case CssComponentKind.Negation =>
+            // :not() 的特异性 = 参数列表中的最大特异性
+            // 严格翻译自 specificity(negation) 逻辑
+            match (component.nestedSelectors) {
+                case Some(sels) =>
+                    var maxSpec = CssSpecificity()
+                    for (s in sels.v) {
+                        let sSpec = CssSpecificity.fromU32(computeSelectorSpecificity(s.components))
+                        if (sSpec.toU32() > maxSpec.toU32()) {
+                            maxSpec = sSpec
+                        }
+                    }
+                    spec.add(maxSpec)
+                case None => ()
+            }
+        case CssComponentKind.Is =>
+            // :is() 的特异性 = 参数列表中的最大特异性
+            // 严格翻译自 specificity(is) 逻辑
+            match (component.nestedSelectors) {
+                case Some(sels) =>
+                    var maxSpec = CssSpecificity()
+                    for (s in sels.v) {
+                        let sSpec = CssSpecificity.fromU32(computeSelectorSpecificity(s.components))
+                        if (sSpec.toU32() > maxSpec.toU32()) {
+                            maxSpec = sSpec
+                        }
+                    }
+                    spec.add(maxSpec)
+                case None => ()
+            }
+        case CssComponentKind.Any =>
+            // :-prefix-any() 的特异性 = 参数列表中的最大特异性
+            // 严格翻译自 specificity(any) 逻辑
+            match (component.nestedSelectors) {
+                case Some(sels) =>
+                    var maxSpec = CssSpecificity()
+                    for (s in sels.v) {
+                        let sSpec = CssSpecificity.fromU32(computeSelectorSpecificity(s.components))
+                        if (sSpec.toU32() > maxSpec.toU32()) {
+                            maxSpec = sSpec
+                        }
+                    }
+                    spec.add(maxSpec)
+                case None => ()
+            }
         case CssComponentKind.Where => ()
-        case CssComponentKind.Has => ()
+            // :where() 的特异性为 0, 这是设计如此
+        case CssComponentKind.Has =>
+            // :has() 的特异性 = 参数列表中的最大特异性
+            // 严格翻译自 specificity(has) 逻辑
+            match (component.nestedSelectors) {
+                case Some(sels) =>
+                    var maxSpec = CssSpecificity()
+                    for (s in sels.v) {
+                        let sSpec = CssSpecificity.fromU32(computeSelectorSpecificity(s.components))
+                        if (sSpec.toU32() > maxSpec.toU32()) {
+                            maxSpec = sSpec
+                        }
+                    }
+                    spec.add(maxSpec)
+                case None => ()
+            }
         case CssComponentKind.ExplicitUniversalType => ()
         case CssComponentKind.ExplicitAnyNamespace => ()
         case CssComponentKind.ExplicitNoNamespace => ()
@@ -2499,7 +2566,7 @@ public func computeSimpleSelectorSpecificity(component: CssSelectorComponent, sp
 /// 解析选择器字符串到选择器列表
 /// 严格翻译自 GenericSelectorList.parseWithOptions() + parseWithState()
 public func parseSelectorList(input: String): ?CssSelectorListImpl {
-    // 简化实现: 解析逗号分隔的选择器列表
+    // 解析逗号分隔的选择器列表
     let parts = splitByComma(input)
     let selectors = ArrayList<CssSelectorImpl>()
     for (part in parts) {
@@ -3039,7 +3106,7 @@ func parseAttributeSelectorInternal(
 
 // ============================================================================
 // Nth 表达式解析 (An+B 语法)
-// 严格翻译自: selectors/parser.zig nth.parse_nth() 的简化实现
+// 严格翻译自: selectors/parser.zig nth.parse_nth()
 // ============================================================================
 
 /// 解析 An+B 表达式, 返回 [a, b]

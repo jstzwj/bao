@@ -319,7 +319,7 @@ public func printWarning(): Unit {
 // LoaderMap, DotEnvBehavior, SourceMapMode from bao_options (bun_schema)
 // ZigStringSlice from bao_jsc
 
-// Stubs for types not yet available in Cangjie:
+// 尚未在仓颉中实现的类型的替代定义:
 public type PathBuffer = Array<Byte>
 public type Int = Int64
 public class StringArrayHashMap<V> {

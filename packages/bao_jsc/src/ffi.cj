@@ -121,7 +121,12 @@ public class FFI {
         if (jsValueIsNumber(val)) {
             return UInt64(jsValueToDouble(val))
         }
-        0  // slow path via FFI
+        // 对应 Bun: JSVALUE_TO_UINT64_SLOW — BigInt/Cell 等类型的慢路径
+        // 非 Cell 类型可尝试从指针解析; 否则返回 0
+        if (!jsValueIsCell(val)) {
+            return val.asPtr
+        }
+        UInt64(0)
     }
 
     // 严格翻译自 JSVALUE_TO_INT64
@@ -132,7 +137,11 @@ public class FFI {
         if (jsValueIsNumber(val)) {
             return Int64(jsValueToDouble(val))
         }
-        0  // slow path via FFI
+        // 对应 Bun: JSVALUE_TO_INT64_SLOW — BigInt/Cell 等类型的慢路径
+        if (!jsValueIsCell(val)) {
+            return Int64(val.asPtr)
+        }
+        Int64(0)
     }
 
     // 严格翻译自 UINT64_TO_JSVALUE
@@ -143,8 +152,9 @@ public class FFI {
         if (val < 9007199254740991_u64) {
             return doubleToJSValue(Float64(val))
         }
-        // slow path via FFI
-        EncodedJSValue()
+        // 对应 Bun: UINT64_TO_JSVALUE_SLOW = JSValue.fromUInt64NoTruncate
+        // 超过安全整数范围的值用 double 近似编码
+        doubleToJSValue(Float64(val))
     }
 
     // 严格翻译自 INT64_TO_JSVALUE
@@ -155,8 +165,9 @@ public class FFI {
         if (val >= -9007199254740991_i64 && val <= 9007199254740991_i64) {
             return doubleToJSValue(Float64(val))
         }
-        // slow path via FFI
-        EncodedJSValue()
+        // 对应 Bun: INT64_TO_JSVALUE_SLOW = JSValue.fromInt64NoTruncate
+        // 超过安全整数范围的值用 double 近似编码
+        doubleToJSValue(Float64(val))
     }
 
     // FFI: JSFunctionCall

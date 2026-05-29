@@ -37,8 +37,10 @@ public class ScriptExecutionContextIdentifier {
     /// 对应 Bun: Identifier.globalObject() -> ?*JSGlobalObject
     ///   返回 Some 仅当上下文仍存活
     public func globalObject(): ?JSGlobalObject {
-        // 简化: 需要运行时 VM 注册表支持
-        return None
+        // 对应 Bun: 从 VM 注册表获取 JSGlobalObject
+        let vm = VirtualMachine.get()
+        if (vm.isNone()) { return None }
+        return Some(vm.getOrThrow().globalThis)
     }
 
     /// 获取 Bun VM 指针

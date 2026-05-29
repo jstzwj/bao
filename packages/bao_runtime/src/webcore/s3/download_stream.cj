@@ -222,7 +222,7 @@ public class S3HttpDownloadStreamingTask {
                         message = bytes
 
                         // 解析 XML <Code>...</Code>
-                        // Stub: simplified XML parsing
+                        // 简化的 XML 解析
                         ()
                     }
                 }

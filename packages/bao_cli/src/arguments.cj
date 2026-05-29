@@ -2455,14 +2455,22 @@ public class Arguments {
     }
 
     /// 收集可变参数
+    /// 严格翻译自: Arguments.zig 中可变参数收集逻辑
+    /// 支持 --key value1 --key value2 形式的多值参数
     private static func collectVariadic(parsed: ParsedArgs, key: String): ArrayList<String> {
         let result = ArrayList<String>()
-        match (parsed.options.get(key)) {
-            case Some(v) => result.append(v)
-            case None => ()
+        match (parsed.variadicOptions.get(key)) {
+            case Some(arr) =>
+                for (v in arr) {
+                    result.append(v)
+                }
+            case None =>
+                // 回退到单值模式
+                match (parsed.options.get(key)) {
+                    case Some(v) => result.append(v)
+                    case None => ()
+                }
         }
-        // 检查是否有多次使用 (通过 unknown 或特殊标记)
-        // 简化: 返回单个值或空
         return result
     }
 

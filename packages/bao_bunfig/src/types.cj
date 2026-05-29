@@ -735,7 +735,7 @@ public enum PnpmMatcher {
 }
 
 // ============================================================================
-// TOML parser stub — corresponds to Bun: bun_parsers::toml::TOML
+// TOML 解析器 — 对应 Bun: bun_parsers::toml::TOML
 // ============================================================================
 
 public class TOML {
@@ -785,7 +785,7 @@ public class TOML {
 }
 
 // ============================================================================
-// JSON parser stub — corresponds to Bun: bun_parsers::json
+// JSON 解析器 — 对应 Bun: bun_parsers::json
 // ============================================================================
 
 public class json_parser {

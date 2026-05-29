@@ -47,8 +47,7 @@ public enum ShellResult<T> {
     /// 成功结果
     /// 对应 Bun: pub fn success() -> Self
     public static func success(): ShellResult<T> {
-        // 对应 Bun: ShellResult::Result(T::default())
-        // 简化: 仓颉需要默认值
+        // 对应 Bun: ShellResult::Result(T::default()) — 仓颉无默认值构造器
         return ShellResult.Err(ShellErr.custom("uninitialized"))
     }
 
@@ -170,7 +169,7 @@ public class ShellTestingAPIs {
         }
 
         let script = args[0].toString()
-        // 简化: 返回脚本内容
+        // 对应 Bun: 返回 Shell AST 格式化输出
         return "[" + script + "]"
     }
 
@@ -182,7 +181,7 @@ public class ShellTestingAPIs {
         }
 
         let script = args[0].toString()
-        // 简化: 返回脚本内容
+        // 对应 Bun: 解析 Shell 脚本并返回 AST
         return script
     }
 }
@@ -311,7 +310,7 @@ public class SysNative {
 /// 检查字符串是否需要转义
 /// 对应 Bun: needs_escape_bunstr(bunstr)
 private func needsEscapeBunStr(s: BaoString): Bool {
-    // 简化: 检查是否包含特殊字符
+    // 对应 Bun: 检查字符串是否包含需要转义的特殊字符
     let str = s.toString()
     for (c in str) {
         // 空格, 引号, 反斜杠, 换行等

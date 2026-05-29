@@ -166,6 +166,6 @@ public class S3Stat {
     ///   BunString is Copy with NO Drop impl, so the +1 refs taken by
     ///   clone_utf8 in init must be released explicitly.
     public func finalize(): Unit {
-        // stub: BaoString has no deref, GC handles cleanup
+        // BaoString 无 deref 方法, 仓颉 GC 自动管理引用释放
     }
 }

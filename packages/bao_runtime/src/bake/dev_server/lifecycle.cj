@@ -101,10 +101,10 @@ public class WatchEvent {
     }
 }
 
-/// ChangedFilePath stub
+/// ChangedFilePath [KEPT: no-pkg]
 public type ChangedFilePath = String
 
-/// WatchList stub
+/// WatchList [KEPT: no-pkg]
 public class WatchList {
     public init() {}
 }

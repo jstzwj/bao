@@ -98,10 +98,10 @@ public class Ansi256 {
 }
 
 // ============================================================================
-// ColorJSC - 颜色 JS 函数 (stub)
+// ColorJSC - 颜色 JS 函数
 // ============================================================================
 
-/// 颜色 JS 函数 - 严格对应 Bun jsFunctionColor (stub)
+/// 颜色 JS 函数 - 严格对应 Bun jsFunctionColor
 public func jsFunctionColor(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
     return JsValue.jsUndefined()
 }

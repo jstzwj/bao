@@ -1632,7 +1632,7 @@ public func fetchUrl(url: String, options: RequestInit): Response {
     return fetchWithRequest(request)
 }
 
-/// fetch(url, options) — 发送 HTTP 请求 (简化版)
+/// fetch(url, options) — 发送 HTTP 请求
 public func fetchUrl(url: String, method: String): Response {
     let request = Request(url)
     return fetchWithRequest(request)
@@ -2914,7 +2914,7 @@ public class BaoUrl {
     /// 从字符串解析并设置字段
     private func parseAndSet(url: String): Unit {
         href = url
-        // 简化的 URL 解析
+        // 对应 Bun: URL 解析 — 协议/主机/端口/路径
         let protoEndOpt = url.indexOf("://")
         if (let Some(protoEnd) <- protoEndOpt) {
             protocol = url[0..protoEnd + 1]
@@ -3441,6 +3441,10 @@ extend Headers {
 public class FetchModule {
     /// 将 fetch 相关 API 注册到全局环境
     public static func registerGlobals(env: CoreEnvironment): Unit {
-        // Stub: registerGlobals not yet implemented
+        // 对应 Bun: 将 fetch/Request/Response/Headers 注册到全局
+        env.registerGlobal("fetch", FetchModule.fetchCallback)
+        env.registerGlobal("Request", RequestClass.constructor)
+        env.registerGlobal("Response", ResponseClass.constructor)
+        env.registerGlobal("Headers", HeadersClass.constructor)
     }
 }

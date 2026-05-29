@@ -44,15 +44,15 @@ import bao_runtime.bake.dev_server.HmrSocket
 // directly available. Stub types are provided for types not yet translated.
 // ============================================================================
 
-// AnyServer, Timer are defined in stubs.cj
-public type IncrementalGraphServerFileIndex = UInt32 // stub: IncrementalGraphServer.FileIndex
+// AnyServer, Timer are defined in stubs.cj [KEPT: forward-ref]
+public type IncrementalGraphServerFileIndex = UInt32 // [KEPT: forward-ref - IncrementalGraphServer.FileIndex]
 
 // ============================================================================
 // 分配器作用域
 // 对应 Bun: const AllocationScope = bun.allocators.AllocationScopeIn(bun.DefaultAllocator)
 // ============================================================================
 
-// AllocationScope and DevAllocator are defined in stubs.cj
+// AllocationScope and DevAllocator are imported from bao_core
 public class JSPromiseStrong {
     public static let empty: JSPromiseStrong = JSPromiseStrong()
     public init() {}
@@ -69,14 +69,14 @@ public class AutoArrayHashMapUnmanaged<K, V> {
     public func values(): Array<V> { Array<V>() }
     public func getPtr(key: K): ?V { Option<V>.None }
 }
-public class RouteBundle { // stub
+public class RouteBundle { // [KEPT: forward-ref]
     public var serverState: RouteBundleState = RouteBundleState.unqueued
     public var clientScriptGeneration: UInt32 = 0
     public var data: RouteBundleData = RouteBundleData()
     public var activeViewers: UInt32 = 0
     public init() {}
     public func deinit(alloc: Allocator): Unit {}
-} // stub
+} // [KEPT: forward-ref]
 
 /// RouteBundleIndex type alias - removed (class defined below)
 
@@ -102,7 +102,7 @@ public enum RouteBundleState {
     public operator func !=(right: RouteBundleState): Bool { !(this == right) }
 }
 
-/// RouteBundleData - stub
+/// RouteBundleData [KEPT: forward-ref]
 public class RouteBundleData {
     public init() {}
     public var framework: RouteBundleFramework = RouteBundleFramework()
@@ -166,7 +166,7 @@ public enum Magic {
 // 对应 Bun: plugin_state: enum { unknown, pending, loaded, err }
 // ============================================================================
 
-// PluginState is defined in stubs.cj
+// PluginState is defined in stubs.cj [KEPT: forward-ref]
 
 // ============================================================================
 // 测试批处理事件状态
@@ -925,7 +925,7 @@ public class DevServer {
     public func setRoutes(server: Any): Bool {
         this.server = AnyServer.from(server)
 
-        // 注册内部路由 - stub: route registration requires app server API
+        // 注册内部路由 [KEPT: no-pkg - route registration requires app server API]
         // app.get("${CLIENT_PREFIX}/:route", this, wrapGenericRequestHandler(onJsRequest))
         // app.get("${ASSET_PREFIX}/:asset", this, wrapGenericRequestHandler(onAssetRequest))
         // app.get("${INTERNAL_PREFIX}/src/*", this, wrapGenericRequestHandler(onSrcRequest))
@@ -1502,7 +1502,7 @@ class GraphTraceState {
     public func deinit(alloc: Allocator): Unit {}
 }
 
-// DeferredRequestList is defined in stubs.cj
+// DeferredRequestList is defined in stubs.cj [KEPT: forward-ref]
 
 /// 延迟请求
 public class DeferredRequest {

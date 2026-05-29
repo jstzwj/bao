@@ -1669,7 +1669,7 @@ public class DependencyVersionInfo {
         return tag == DependencyVersionTag.Npm || tag == DependencyVersionTag.DistTag
     }
 
-    // additional stubs for run_tasks usage
+    // run_tasks 操作的辅助方法
     public func getPkgName(): String { return "" }
     public func setGitPackageName(name: String): Unit {}
     public func setGitHubPackageName(name: String): Unit {}

@@ -7,6 +7,23 @@ import bao_collections.*
 
 public let MIN_READ_SIZE: Int64 = 4096
 
+// FFI declarations
+@C foreign func umask(mask: UInt32): UInt32
+@C foreign func chmod(path: CPointer<Int8>, mode: UInt32): Int32
+
+private func unsafeNewCString(s: String): CPointer<Int8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len + 1))
+        let bytesPtr = CPointer<Int8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        (bytesPtr + Int64(len)).write(Int8(0))
+        return bytesPtr
+    }
+}
+
 public enum IoEvent {
     | Readable
     | Writable

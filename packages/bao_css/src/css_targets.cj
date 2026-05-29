@@ -190,14 +190,127 @@ public class CssBrowsers {
     /// 严格翻译自 Browsers.convertFromString
     /// 支持 esXXXX 和 browser+version 格式
     public static func convertFromString(esbuild_targets: Array<String>): CssBrowsers {
-        CssBrowsers()
+        var browsers = CssBrowsers()
+        for (str in esbuild_targets) {
+            let entries = parseEntries(str)
+            for (entry in entries) {
+                if (entry == "esnext") { continue }
+                // 找到浏览器名称和版本的分界点
+                var idx: Int64 = -1
+                let chars = entry.toArray()
+                for (i in 0..chars.size) {
+                    let c = chars[i]
+                    if (c >= UInt8(48) && c <= UInt8(57)) {
+                        idx = i
+                        break
+                    }
+                }
+                if (idx < 0) { continue }
+
+                let browserName = entry[0..idx]
+                let versionStr = entry[idx..]
+
+                // 解析主版本号和次版本号
+                var major: UInt32 = 0
+                var minor: UInt32 = 0
+                let dotIdx = versionStr.indexOf(".")
+                if (dotIdx.isSome()) {
+                    let di = dotIdx.getOrThrow()
+                    major = parseVersionPart(versionStr[0..di])
+                    minor = parseVersionPart(versionStr[(di + 1)..])
+                } else {
+                    major = parseVersionPart(versionStr)
+                }
+
+                let version: UInt32 = (major << 16) | (minor << 8)
+
+                // 根据浏览器名称设置版本 (取最小值)
+                if (browserName == "chrome") {
+                    match (browsers.chrome) {
+                        case Some(v) => if (version < v) { browsers.chrome = Some(version) }
+                        case None => browsers.chrome = Some(version)
+                    }
+                } else if (browserName == "edge") {
+                    match (browsers.edge) {
+                        case Some(v) => if (version < v) { browsers.edge = Some(version) }
+                        case None => browsers.edge = Some(version)
+                    }
+                } else if (browserName == "firefox") {
+                    match (browsers.firefox) {
+                        case Some(v) => if (version < v) { browsers.firefox = Some(version) }
+                        case None => browsers.firefox = Some(version)
+                    }
+                } else if (browserName == "ie") {
+                    match (browsers.ie) {
+                        case Some(v) => if (version < v) { browsers.ie = Some(version) }
+                        case None => browsers.ie = Some(version)
+                    }
+                } else if (browserName == "ios") {
+                    match (browsers.ios_saf) {
+                        case Some(v) => if (version < v) { browsers.ios_saf = Some(version) }
+                        case None => browsers.ios_saf = Some(version)
+                    }
+                } else if (browserName == "opera") {
+                    match (browsers.opera) {
+                        case Some(v) => if (version < v) { browsers.opera = Some(version) }
+                        case None => browsers.opera = Some(version)
+                    }
+                } else if (browserName == "safari") {
+                    match (browsers.safari) {
+                        case Some(v) => if (version < v) { browsers.safari = Some(version) }
+                        case None => browsers.safari = Some(version)
+                    }
+                }
+            }
+        }
+        browsers
+    }
+
+    /// 解析版本号部分字符串为 UInt32
+    static func parseVersionPart(s: String): UInt32 {
+        if (s.isEmpty()) { return UInt32(0) }
+        var result: UInt32 = 0
+        for (c in s) {
+            if (c >= UInt8(48) && c <= UInt8(57)) {
+                result = result * UInt32(10) + UInt32(c - UInt8(48))
+            }
+        }
+        result
     }
 
     /// 解析单个目标字符串为浏览器条目列表
     /// 严格翻译自 convertFromString 内部逻辑
     /// 支持 es2015..es2023 映射到具体浏览器版本
     static func parseEntries(str: String): Array<String> {
-        Array<String>(0, { _ => "" })
+        // 检查是否为 esXXXX 格式
+        if (str.size > 2 && str[0] == UInt8(101) && str[1] == UInt8(115)) {
+            // "es" prefix
+            let yearStr = str[2..]
+            let year = parseVersionPart(yearStr)
+            if (year == 2015) {
+                return ["chrome49", "edge13", "safari10", "firefox44", "opera36"]
+            } else if (year == 2016) {
+                return ["chrome50", "edge13", "safari10", "firefox43", "opera37"]
+            } else if (year == 2017) {
+                return ["chrome58", "edge15", "safari11", "firefox52", "opera45"]
+            } else if (year == 2018) {
+                return ["chrome63", "edge79", "safari12", "firefox58", "opera50"]
+            } else if (year == 2019) {
+                return ["chrome73", "edge79", "safari12.1", "firefox64", "opera60"]
+            } else if (year == 2020) {
+                return ["chrome80", "edge80", "safari14.1", "firefox80", "opera67"]
+            } else if (year == 2021) {
+                return ["chrome85", "edge85", "safari14.1", "firefox80", "opera71"]
+            } else if (year == 2022) {
+                return ["chrome94", "edge94", "safari16.4", "firefox93", "opera80"]
+            } else if (year == 2023) {
+                return ["chrome110", "edge110", "safari16.4", "opera96"]
+            }
+            // 未知的 ES 版本, 返回原始字符串
+            return [str]
+        }
+        // 非 es 前缀, 直接返回
+        return [str]
     }
 }
 
@@ -244,8 +357,38 @@ public class CssTargets {
 
     /// 获取指定特性所需的前缀
     /// 严格翻译自 Targets.prefixes()
-    public func prefixes(prefix: VendorPrefix, feature: PrefixFeature): VendorPrefix {
-        prefix
+    /// 如果 prefix.none 且 exclude 中不包含 vendor_prefixes, 则查询特性所需前缀
+    /// 如果 include 中包含 vendor_prefixes, 则返回所有前缀 (.all)
+    public func prefixes(prefix: VendorPrefix, feature: CssFeature): VendorPrefix {
+        if (prefix.none && !exclude.vendor_prefixes) {
+            if (include.vendor_prefixes) {
+                return VendorPrefix.all()
+            } else {
+                return match (browsers) {
+                    case Some(b) =>
+                        let bt = convertToBrowserTargets(b)
+                        CssPrefixLookup.prefixesFor(feature, bt)
+                    case None => prefix
+                }
+            }
+        } else {
+            return prefix
+        }
+    }
+
+    /// 将 CssBrowsers 转换为 CssBrowserTargets
+    private static func convertToBrowserTargets(b: CssBrowsers): CssBrowserTargets {
+        let bt = CssBrowserTargets()
+        match (b.android) { case Some(v) => bt.android = Some(Int64(v)) case None => () }
+        match (b.chrome) { case Some(v) => bt.chrome = Some(Int64(v)) case None => () }
+        match (b.edge) { case Some(v) => bt.edge = Some(Int64(v)) case None => () }
+        match (b.firefox) { case Some(v) => bt.firefox = Some(Int64(v)) case None => () }
+        match (b.ie) { case Some(v) => bt.ie = Some(Int64(v)) case None => () }
+        match (b.ios_saf) { case Some(v) => bt.iosSaf = Some(Int64(v)) case None => () }
+        match (b.opera) { case Some(v) => bt.opera = Some(Int64(v)) case None => () }
+        match (b.safari) { case Some(v) => bt.safari = Some(Int64(v)) case None => () }
+        match (b.samsung) { case Some(v) => bt.samsung = Some(Int64(v)) case None => () }
+        bt
     }
 
     /// 是否需要编译逻辑属性
@@ -265,14 +408,40 @@ public class CssTargets {
 
     /// 检测兼容性 (使用同名特性标志)
     /// 严格翻译自 Targets.shouldCompileSame()
+    /// 创建一个只包含指定特性标志的 Features, 然后调用 shouldCompile
     public func shouldCompileSame(compat_feature: CompatFeature): Bool {
-        false
+        var flag = CssFeatures()
+        // 根据 compat_feature 设置对应的标志
+        match (compat_feature) {
+            case CompatFeature.nesting => flag.nesting = true
+            case CompatFeature.not_selector_list => flag.not_selector_list = true
+            case CompatFeature.dir_selector => flag.dir_selector = true
+            case CompatFeature.lang_selector_list => flag.lang_selector_list = true
+            case CompatFeature.is_selector => flag.is_selector = true
+            case CompatFeature.text_decoration_thickness_percent => flag.text_decoration_thickness_percent = true
+            case CompatFeature.media_interval_syntax => flag.media_interval_syntax = true
+            case CompatFeature.media_range_syntax => flag.media_range_syntax = true
+            case CompatFeature.custom_media_queries => flag.custom_media_queries = true
+            case CompatFeature.clamp_function => flag.clamp_function = true
+            case CompatFeature.color_function => flag.color_function = true
+            case CompatFeature.oklab_colors => flag.oklab_colors = true
+            case CompatFeature.lab_colors => flag.lab_colors = true
+            case CompatFeature.p3_colors => flag.p3_colors = true
+            case CompatFeature.hex_alpha_colors => flag.hex_alpha_colors = true
+            case CompatFeature.space_separated_color_notation => flag.space_separated_color_notation = true
+            case CompatFeature.font_family_system_ui => flag.font_family_system_ui = true
+            case CompatFeature.double_position_gradients => flag.double_position_gradients = true
+            case CompatFeature.logical_properties => flag.logical_properties = true
+            case _ => ()
+        }
+        return shouldCompile(compat_feature, flag)
     }
 
     /// 是否需要编译选择器
     /// 严格翻译自 Targets.shouldCompileSelectors()
     public func shouldCompileSelectors(): Bool {
-        false
+        include.intersectsSelectors() ||
+            (!exclude.intersectsSelectors() && match (browsers) { case Some(_) => true case None => false })
     }
 
     /// 检查特性是否与浏览器兼容
@@ -318,9 +487,15 @@ public enum TargetsCompatFeature {
 }
 
 /// 前缀特性 (从 prefixes.zig 引用)
-/// 简单声明
+/// 使用 CssFeature 枚举作为前缀特性标识符
 public class PrefixFeature {
+    public var feature: CssFeature
+
+    public init(feature: CssFeature) {
+        this.feature = feature
+    }
+
     public func prefixesFor(browsers: CssBrowsers): VendorPrefix {
-        VendorPrefix()
+        CssPrefixLookup.prefixesFor(feature, browsers)
     }
 }

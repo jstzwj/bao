@@ -383,9 +383,23 @@ public class ThumbHash {
         Int64(v + 0.5f32)
     }
 
+    // cos 近似实现 — 使用泰勒级数
     static func cos(v: Float32): Float32 {
-        // Stub: return 1.0 for now
-        1.0f32
+        // 泰勒级数: cos(x) = 1 - x^2/2! + x^4/4! - x^6/6!
+        // 归一化到 [-pi, pi]
+        var x = v
+        let pi2 = 6.283185307f32
+        while (x > 3.14159265f32) { x -= pi2 }
+        while (x < -3.14159265f32) { x += pi2 }
+        var term: Float32 = 1.0f32
+        var result: Float32 = 1.0f32
+        var i: Int32 = 1
+        while (i <= 8) {
+            term = term * (-x * x) / Float32((2 * i - 1) * (2 * i))
+            result += term
+            i++
+        }
+        result
     }
 
     static func sliceArray(b: Array<UInt8>, start: Int64, end: Int64): Array<UInt8> {

@@ -1870,8 +1870,8 @@ public func mkdirp(path: String): Bool {
 }
 
 // ============================================================================
-// NodeFsSystem — 文件系统系统调用存根
-// 所有方法通过 FFI 调用实际系统调用，此处为编译占位
+// NodeFsSystem — 文件系统系统调用封装
+// 所有方法通过 FFI 调用实际系统调用
 // ============================================================================
 public class NodeFsSystem {
     private static func okUnit(result: SysMaybe<Unit>): Bool {

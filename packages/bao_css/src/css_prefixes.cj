@@ -595,6 +595,21 @@ public class CssPrefixLookup {
     /// IE
     static let IE_10: Int64 = CssBrowserVersion.ie(10)
 
+    /// 查找指定特性在目标浏览器中需要的前缀 (CssBrowsers 重载)
+    public static func prefixesFor(feature: CssFeature, browsers: CssBrowsers): VendorPrefix {
+        let targets = CssBrowserTargets()
+        targets.chrome = browsers.chrome.map { v => Int64(v) }
+        targets.firefox = browsers.firefox.map { v => Int64(v) }
+        targets.safari = browsers.safari.map { v => Int64(v) }
+        targets.edge = browsers.edge.map { v => Int64(v) }
+        targets.ie = browsers.ie.map { v => Int64(v) }
+        targets.opera = browsers.opera.map { v => Int64(v) }
+        targets.iosSaf = browsers.ios_saf.map { v => Int64(v) }
+        targets.android = browsers.android.map { v => Int64(v) }
+        targets.samsung = browsers.samsung.map { v => Int64(v) }
+        prefixesFor(feature, targets)
+    }
+
     /// 查找指定特性在目标浏览器中需要的前缀
     /// 严格翻译自 Feature.prefixesFor
     public static func prefixesFor(feature: CssFeature, browsers: CssBrowserTargets): VendorPrefix {

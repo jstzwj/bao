@@ -97,7 +97,7 @@ public class BlockList {
 
     // 解析 IP 地址
     private func parseIpAddress(address: String, family: String): UInt32 {
-        // 简化实现：解析 IPv4 点分十进制
+        // 对应 Bun: 解析 IPv4 点分十进制为 UInt32
         var result: UInt32 = 0
         let parts = address.split(".")
         if (parts.size == 4) {

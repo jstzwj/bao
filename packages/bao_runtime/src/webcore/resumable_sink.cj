@@ -204,39 +204,48 @@ public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: 
     // ========================================================================
 
     /// 设置 oncancel 回调
-    /// 对应 Bun: set_cancel()
+    /// 对应 Bun: set_cancel() — 将 oncancel 回调存储在 JS 对象的内部槽位
     public static func setCancel(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
-        // stub: Js.oncancelSetCached not available
+        // 对应 Bun: Js.oncancelSetCached — 设置 JS 对象属性
+        thisValue.setProperty("_oncancel", value)
     }
 
     /// 获取 oncancel 回调
     /// 对应 Bun: get_cancel()
     public static func getCancel(thisValue: JsValue): ?JsValue {
-        return None
+        let val = thisValue.getProperty("_oncancel")
+        if (val.isUndefined()) { return None }
+        return Some(val)
     }
 
     /// 设置 ondrain 回调
-    /// 对应 Bun: set_drain()
+    /// 对应 Bun: set_drain() — 将 ondrain 回调存储在 JS 对象的内部槽位
     public static func setDrain(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
-        // stub: Js.ondrainSetCached not available
+        // 对应 Bun: Js.ondrainSetCached — 设置 JS 对象属性
+        thisValue.setProperty("_ondrain", value)
     }
 
     /// 获取 ondrain 回调
     /// 对应 Bun: get_drain()
     public static func getDrain(thisValue: JsValue): ?JsValue {
-        return None
+        let val = thisValue.getProperty("_ondrain")
+        if (val.isUndefined()) { return None }
+        return Some(val)
     }
 
     /// 设置 stream 缓存
-    /// 对应 Bun: set_stream()
+    /// 对应 Bun: set_stream() — 将 stream 引用存储在 JS 对象的内部槽位
     public static func setStream(thisValue: JsValue, global: JSGlobalObject, value: JsValue): Unit {
-        // stub: Js.streamSetCached not available
+        // 对应 Bun: Js.streamSetCached — 设置 JS 对象属性
+        thisValue.setProperty("_stream", value)
     }
 
     /// 获取 stream 缓存
     /// 对应 Bun: get_stream()
     public static func getStream(thisValue: JsValue): ?JsValue {
-        return None
+        let val = thisValue.getProperty("_stream")
+        if (val.isUndefined()) { return None }
+        return Some(val)
     }
 
     // ========================================================================
@@ -295,8 +304,9 @@ public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: 
         this_.highWaterMark = 16384
         this_.status = ResumableSinkStatus.Started
 
-        // Stub: stream.isLocked, isDisturbed, bytes(), toJs etc not available
-        // Simplified init - just return the sink
+        // 对应 Bun: stream 状态检查和 JS 对象绑定
+        let streamValue = stream.toJs(globalThis)
+        setStream(this_.jsValue, globalThis, streamValue)
         return this_
     }
 
@@ -525,7 +535,7 @@ public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: 
                         setDrain(jsThisVal, g, JsValue.undefined())
                         setCancel(jsThisVal, g, JsValue.undefined())
                         setStream(jsThisVal, g, JsValue.undefined())
-                        jsThis.unprotect() // stub: downgrade
+                        jsThis.unprotect() // 对应 Bun: downgrade — 将强引用降级为弱引用
                     case None => ()
                 }
             case None => ()
@@ -600,7 +610,7 @@ public class ResumableSink<Js, Context> where Js <: ResumableSinkJs, Context <: 
             case Some(global) =>
                 match (stream.get()) {
                     case Some(stream_) =>
-                        // stub: reset pipe
+                        // 对应 Bun: reset pipe — 取消或完成流
                         match (err) {
                             case Some(_) => stream_.cancel(global)
                             case None => stream_.doDone(global)

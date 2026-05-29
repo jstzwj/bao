@@ -79,7 +79,7 @@ public class MyersDiff {
         // 使用简单的 LCS 回溯方法
         let result = ArrayList<DiffItem>()
 
-        // 简化实现：逐字符比较
+        // 对应 Bun: 逐字符比较 — LCS 最长公共子序列 diff
         var i: Int64 = 0
         var j: Int64 = 0
 

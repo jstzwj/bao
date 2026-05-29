@@ -47,8 +47,7 @@ public class DoneCallback {
 
     /// 确保 DoneCallback 在 GC 中保持存活
     public func ensureStillAlive() {
-        // 在完整 JSC 绑定中, 这会调用 JSC__JSValue__ensureStillAlive
-        // 此处为占位 — DoneCallback 实例由栈/局部变量持有
+        // 对应 Bun: JSC__JSValue__ensureStillAlive — DoneCallback 由栈/局部变量持有
     }
 
     /// 创建未绑定的DoneCallback JS包装对象

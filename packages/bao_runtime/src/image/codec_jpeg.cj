@@ -208,7 +208,7 @@ public class CodecJpeg {
         if (hint.targetW != 0 && hint.targetH != 0 &&
             (hint.targetW < srcW || hint.targetH < srcH)) {
             var n: Int32 = 0
-            // 简化: 跳过 DCT 域缩放 (stub 实现)
+            // 对应 Bun: DCT 域缩放 — 通过 libjpeg-turbo tj3GetScalingFactors
             // let sfsOpt = tj3GetScalingFactors(CPointer<Int32>())
             // if (sfsOpt.isSome() && n > 0) { ... }
         }

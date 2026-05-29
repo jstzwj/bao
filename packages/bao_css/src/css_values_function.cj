@@ -13,6 +13,40 @@ import bao_collections.*
 // 严格翻译自: values/easing.zig EasingFunction, StepPosition
 // ============================================================================
 
+/// 比较两个 CssEasingKind 是否相同
+private func matchEasingKind(a: CssEasingKind, b: CssEasingKind): Bool {
+    match (a) {
+        case Linear => isLinear(b)
+        case Ease => isEase(b)
+        case EaseIn => isEaseIn(b)
+        case EaseOut => isEaseOut(b)
+        case EaseInOut => isEaseInOut(b)
+        case CubicBezier => isCubicBezier(b)
+        case Steps => isSteps(b)
+    }
+}
+private func isLinear(k: CssEasingKind): Bool { match (k) { case Linear => true; case _ => false } }
+private func isEase(k: CssEasingKind): Bool { match (k) { case Ease => true; case _ => false } }
+private func isEaseIn(k: CssEasingKind): Bool { match (k) { case EaseIn => true; case _ => false } }
+private func isEaseOut(k: CssEasingKind): Bool { match (k) { case EaseOut => true; case _ => false } }
+private func isEaseInOut(k: CssEasingKind): Bool { match (k) { case EaseInOut => true; case _ => false } }
+private func isCubicBezier(k: CssEasingKind): Bool { match (k) { case CubicBezier => true; case _ => false } }
+private func isSteps(k: CssEasingKind): Bool { match (k) { case Steps => true; case _ => false } }
+
+/// 比较两个 CssStepPosition 是否相同
+private func matchStepPosition(a: CssStepPosition, b: CssStepPosition): Bool {
+    match (a) {
+        case Start => isStart(b)
+        case End => isEnd(b)
+        case JumpNone => isJumpNone(b)
+        case JumpBoth => isJumpBoth(b)
+    }
+}
+private func isStart(k: CssStepPosition): Bool { match (k) { case Start => true; case _ => false } }
+private func isEnd(k: CssStepPosition): Bool { match (k) { case End => true; case _ => false } }
+private func isJumpNone(k: CssStepPosition): Bool { match (k) { case JumpNone => true; case _ => false } }
+private func isJumpBoth(k: CssStepPosition): Bool { match (k) { case JumpBoth => true; case _ => false } }
+
 /// CSS 步进位置
 /// 严格翻译自 StepPosition enum { start, end, jump-none, jump-both }
 /// 用于 steps() 函数
@@ -198,14 +232,23 @@ public class CssEasingFunction {
     /// 相等比较
     /// 严格翻译自 EasingFunction.eql
     public func eql(other: CssEasingFunction): Bool {
-        if (kind != other.kind) { return false }
+        let kindMatch = match (kind) {
+            case Linear => matchEasingKind(other.kind, Linear)
+            case Ease => matchEasingKind(other.kind, Ease)
+            case EaseIn => matchEasingKind(other.kind, EaseIn)
+            case EaseOut => matchEasingKind(other.kind, EaseOut)
+            case EaseInOut => matchEasingKind(other.kind, EaseInOut)
+            case CubicBezier => matchEasingKind(other.kind, CubicBezier)
+            case Steps => matchEasingKind(other.kind, Steps)
+        }
+        if (!kindMatch) { return false }
         match (kind) {
             case Linear | Ease | EaseIn | EaseOut | EaseInOut => true
             case CubicBezier =>
                 x1 == other.x1 && y1 == other.y1 &&
                 x2 == other.x2 && y2 == other.y2
             case Steps =>
-                stepCount == other.stepCount && stepPosition == other.stepPosition
+                stepCount == other.stepCount && matchStepPosition(stepPosition, other.stepPosition)
         }
     }
 

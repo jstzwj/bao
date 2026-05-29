@@ -497,7 +497,7 @@ public class Config {
                             case None => ()
                         }
 
-                        // dependencies - getStringMap stub: parse dependency objects
+                        // dependencies - 解析依赖对象
                         match (JsonHelper.getField(root, "dependencies")) {
                             case Some(depsObj) =>
                                 for (key in depsObj.keys()) {
@@ -518,7 +518,26 @@ public class Config {
                                 }
                             case None => ()
                         }
-                        // TODO: peerDependencies, optionalDependencies
+                        match (JsonHelper.getField(root, "peerDependencies")) {
+                            case Some(depsObj) =>
+                                for (key in depsObj.keys()) {
+                                    match (depsObj.getString(key)) {
+                                        case Some(v) => info.peerDependencies.put(key, v)
+                                        case None => ()
+                                    }
+                                }
+                            case None => ()
+                        }
+                        match (JsonHelper.getField(root, "optionalDependencies")) {
+                            case Some(depsObj) =>
+                                for (key in depsObj.keys()) {
+                                    match (depsObj.getString(key)) {
+                                        case Some(v) => info.optionalDependencies.put(key, v)
+                                        case None => ()
+                                    }
+                                }
+                            case None => ()
+                        }
 
                         return info
                     case None => return PackageJsonInfo()

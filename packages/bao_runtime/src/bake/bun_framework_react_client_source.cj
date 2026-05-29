@@ -260,7 +260,7 @@ function ensureCssIsReady(cssList: string[]) {
 }
 
 function disableUnusedCssFiles() {
-  // TODO: create a list of files that should be updated instead of a full loop (Bun 原始 TODO)
+  // TODO: create a list of files that should be updated instead of a full loop [KEPT: Bun-upstream]
   for (const [href, { link }] of cssFiles) {
     if (!currentCssList!.includes(href)) {
       link.disabled = true;
@@ -309,7 +309,7 @@ document.addEventListener("click", async (event, element = event.target as HTMLA
         return;
       }
 
-      // TODO: consider `target` attribute (Bun 原始 TODO)
+      // TODO: consider `target` attribute [KEPT: Bun-upstream]
 
       // Take no action at all if the url is the same page.
       // However if there is a hash, don't call preventDefault()

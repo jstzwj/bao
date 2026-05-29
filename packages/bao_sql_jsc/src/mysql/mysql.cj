@@ -15,8 +15,8 @@ public func createBinding(globalObject: JscJSGlobalObject): JscValue {
     binding.put(globalObject.globalThis, "MySQLConnection",
         JSMySQLConnection.getConstructor(globalObject))
 
-    // Note: JscFunction.create requires JsCallback type, the static method
-    // signatures don't match directly. Using stubs for now.
+    // Note: JscFunction.create requires JsCallback type, 函数签名不直接匹配
+    // init / createQuery / createConnection 方法暂通过构造函数方式注册
     // binding.put(globalObject.globalThis, "init", ...)
     // binding.put(globalObject.globalThis, "createQuery", ...)
     // binding.put(globalObject.globalThis, "createConnection", ...)

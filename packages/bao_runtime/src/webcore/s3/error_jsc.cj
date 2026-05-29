@@ -189,7 +189,7 @@ public func s3ErrorToJS(err: S3Error, globalObject: JsGlobalObject, path: ?Strin
 /// 适用于在 HTTP 回调中拒绝 promise 的场景
 public func s3ErrorToJSWithAsyncStack(err: S3Error, globalObject: JsGlobalObject, path: ?String, promise: JsPromise): JsValue {
     let value = s3ErrorToJS(err, globalObject, path)
-    // Stub: attachAsyncStackFromPromise not available - async stack traces omitted
+    // 对应 Bun: attachAsyncStackFromPromise — 仓颉中异步堆栈追踪暂未实现
     return value
 }
 

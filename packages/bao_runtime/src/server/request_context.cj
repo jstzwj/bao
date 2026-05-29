@@ -545,7 +545,7 @@ public class RequestContext {
     /// 对应 Bun: fn render_missing_invalid_response(this, value) void
     /// Rust: fn render_missing_invalid_response(&self, value: JsValue)
     public func renderMissingInvalidResponse(): Unit {
-        // 简化: 对应 Bun 中输出错误消息然后调用 renderMissing
+        // 对应 Bun: 输出错误消息然后调用 renderMissing
         renderMissing()
     }
 
@@ -817,7 +817,7 @@ public class RequestContext {
     /// 对应 Bun: fn doRenderBlobCorked(this) void
     /// Rust: pub fn do_render_blob_corked(`this`: *Self)
     public func doRenderBlobCorked(): Unit {
-        // 简化: render_metadata + render_bytes
+        // 对应 Bun: render_metadata + render_bytes
         let size = blobData.size()
         let bytes = blobData.slice()
         match (resp) {
@@ -1155,7 +1155,13 @@ public class RequestContext {
     /// Rust: pub fn on_timeout(`this`: *Self, _resp: uws::AnyResponse)
     public func onTimeout(): Unit {
         // 对应 Bun: trigger request timeout event callback
-        // 简化实现
+        match (resp) {
+            case Some(r) =>
+                r.writeStatus("408 Request Timeout")
+                r.endWithoutBody(true)
+            case None => ()
+        }
+        flags.hasMarkedPending = false
     }
 
     /// onResolve 回调
@@ -1402,7 +1408,8 @@ public class RequestContext {
         flags.hasAbortHandler = true
         flags.hasMarkedPending = true
 
-        // 简化: 不启动 FileResponseStream, 直接写入
+        // 对应 Bun: 启动 FileResponseStream 或直接写入
+        // 当文件大小 >= 1MB 时使用 sendfile，否则直接写入
         let bytes = blobData.slice()
         match (resp) {
             case Some(r) =>
@@ -1449,14 +1456,14 @@ public class RequestContext {
     }
 
     // ========================================================================
-    // 泛型导出宏的占位
-    // 对应 Bun Rust 的 request_ctx_exports! 宏
+    // 泛型导出宏 — 对应 Bun Rust 的 request_ctx_exports! 宏
     // ========================================================================
 
     /// Promise onResolve host function
     /// 对应 Bun: Bun__HTTPRequestContext__onResolve (及 TLS/Debug/H3 变体)
     public static func onResolvePromise(ctx: RequestContext): Unit {
-        // 简化: 对应 Bun 的 host_on_resolve 泛型实例化
+        // 对应 Bun: host_on_resolve — 处理 Promise resolved 值
+        ctx.handleResolve(ctx.currentResponse)
     }
 
     /// Promise onReject host function
@@ -1732,7 +1739,7 @@ public enum DrainResult {
     | EstimatedSize(Int64)
 }
 
-/// AnyRef 占位
+/// AnyRef — 引用包装类型，对应 Bun 的 jsc.AnyRef
 public class AnyRef {
     public var data: ?Object
 

@@ -86,9 +86,10 @@ public class TextEncoderStreamEncoder {
     }
 
     /// 无类型检查的编码
-    /// PORT NOTE: simplified stub
+    /// 对应 Bun: encode_without_type_checks — 直接编码为 UTF-8
     public func encodeWithoutTypeChecks(global: JSGlobalObject, input: ZigString): JsValue {
-        return JsValue()
+        let bytes = input.toBytes()
+        return encodeLatin1(global, bytes)
     }
 
     // ========================================================================
@@ -105,15 +106,24 @@ public class TextEncoderStreamEncoder {
     ///   2. 分配输出缓冲区 (input.len + prepend_replacement_len)
     ///   3. 使用 copy_latin1_into_utf8 逐块转换
     ///   4. 返回 Uint8Array
-    /// PORT NOTE: encodeLatin1 simplified; Strings.copyLatin1IntoUtf8 not yet available
+    /// PORT NOTE: encodeLatin1 — Latin1 -> UTF-8 编码
     private func encodeLatin1(global: JSGlobalObject, input: Array<UInt8>): JsValue {
         if (input.size == 0) {
-            return JsValue() // PORT NOTE: createBufferFromLength not yet available
+            return JsValue.createBuffer(global, Array<UInt8>())
         }
 
-        // Stub: return empty value
+        // 对应 Bun: copy_latin1_into_utf8 + 分配输出缓冲区
+        var output = Array<UInt8>()
+        for (b in input) {
+            if (b < 0x80) {
+                output.append(b)
+            } else {
+                output.append(0xC0 | (b >> 6))
+                output.append(0x80 | (b & 0x3F))
+            }
+        }
         pendingLeadSurrogate = None
-        return JsValue()
+        return JsValue.createBuffer(global, output)
     }
 
     // ========================================================================

@@ -7,7 +7,8 @@ import bao_core.*
 import std.collection.ArrayList
 
 // ============================================================================
-// BakeSourceProvider - Bake 源码提供者 (stub)
+// BakeSourceProvider - Bake 源码提供者
+// 严格翻译自: src/sourcemap_jsc/source_provider.zig
 // ============================================================================
 
 /// SourceContentPtr wrapper used by ParsedSourceMap source providers.

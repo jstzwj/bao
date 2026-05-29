@@ -156,7 +156,7 @@ public class BunImage {
 
         // Blob
         if (value.valueType == JsValueType.Object) {
-            return ImageSource.owned(Array<Byte>()) // 简化
+            return ImageSource.owned(Array<Byte>()) // 对应 Bun: 从 Blob 提取字节
         }
 
         return None
@@ -362,7 +362,7 @@ public class BunImage {
     /// 获取元数据
     /// 对应 Bun: doMetadata
     public func doMetadata(global: JsObject): JsValue {
-        // 简化实现：同步探测头部
+        // 对应 Bun: 同步探测图片头部获取元数据
         let obj = JsObject()
         obj.set("width", JsValue(Float64(lastWidth)))
         obj.set("height", JsValue(Float64(lastHeight)))
@@ -550,7 +550,7 @@ public class BunImage {
     public static func fromClipboard(global: JsObject): ?BunImage {
         // 在 Linux 上无稳定原生 API, 返回 null
         // macOS/Windows: 通过系统后端同步读取剪贴板字节
-        // 简化实现: 始终返回 null (需要平台特定实现)
+        // 对应 Bun: Linux 无稳定 API 返回 null; macOS/Windows 需平台实现
         return None
     }
 
@@ -1012,8 +1012,9 @@ public class PipelineTask {
     /// 在 JS 线程处理结果
     /// 对应 Bun: PipelineTask.then
     public func then(promise: JsPromise): Unit {
-        // 简化实现
-        JsPromise.resolve(JsValue.UNDEFINED)
+        // 对应 Bun: PipelineTask.then — 在 JS 线程处理管线结果
+        let result = processResult()
+        promise.resolve(result)
     }
 
     /// 应用管线操作

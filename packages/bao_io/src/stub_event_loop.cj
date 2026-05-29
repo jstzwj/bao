@@ -41,28 +41,16 @@ public let EFD_NONBLOCK: Int32 = 0x4000
 public let EFD_CLOEXEC: Int32 = 0x2000000
 
 // ============================================================================
-// C FFI 声明 - epoll / eventfd / timerfd / read / write / close
+// C FFI 声明 - timerfd / epoll helpers
+// (epoll_create1, epoll_ctl, epoll_wait, bao_eventfd, unsafeMallocEpollEvent,
+//  setEpollEventEvents, setEpollEventData, unsafeFreeEpollEvent 在 posix_event_loop.cj 中声明)
 // ============================================================================
 
-@C
-foreign func epoll_create1(flags: Int32): Int32
-@C
-foreign func epoll_ctl(epfd: Int32, op: Int32, fd: Int32, event: CPointer<UInt8>): Int32
-@C
-foreign func epoll_wait(epfd: Int32, events: CPointer<UInt8>, maxevents: Int32, timeout: Int32): Int32
-@C
-foreign func bao_eventfd(initval: UInt32, flags: Int32): Int32
 @C
 foreign func bao_timerfd_create(): Int32
 @C
 foreign func bao_timerfd_set(fd: Int32, delayMs: Int64, intervalMs: Int64): Int32
 
-@C
-foreign func unsafeMallocEpollEvent(): CPointer<UInt8>
-@C
-foreign func setEpollEventEvents(ptr: CPointer<UInt8>, events: UInt32): Unit
-@C
-foreign func setEpollEventData(ptr: CPointer<UInt8>, data: UInt64): Unit
 @C
 foreign func getEpollEventEvents(ptr: CPointer<UInt8>): UInt32
 @C
@@ -71,8 +59,6 @@ foreign func getEpollEventData(ptr: CPointer<UInt8>): UInt64
 foreign func getEpollEventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
 @C
 foreign func unsafeMallocEpollEvents(count: Int64): CPointer<UInt8>
-@C
-foreign func unsafeFreeEpollEvent(ptr: CPointer<UInt8>): Unit
 @C
 foreign func unsafeFreeEpollEvents(ptr: CPointer<UInt8>, count: Int64): Unit
 

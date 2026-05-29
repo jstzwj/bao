@@ -423,7 +423,7 @@ public class CssDependencyAnalyzer {
         var result = css
         // 遍历所有替换映射, 将占位符替换为实际值
         for (placeholder in replacements.keys()) {
-            result = result.replace(placeholder, replacements[placeholder].getOrThrow())
+            result = result.replace(placeholder, replacements.get(placeholder).getOrThrow())
         }
         result
     }

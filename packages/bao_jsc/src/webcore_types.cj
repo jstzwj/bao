@@ -433,7 +433,9 @@ public class Bytes {
         let b = Bytes()
         b.len = UInt64(bytes.size)
         b.cap = UInt64(bytes.size)
-        // ptr: CPointer not available in pure Cangjie; stub
+        // ptr: 将 Array<Byte> 底层缓冲区指针存储 (仓颉中用 CPointer 表示)
+        // 当 FFI 可用时通过 bytes 的原生指针获取; 此处保留为 None
+        b.ptr = None
         b
     }
 
@@ -443,7 +445,8 @@ public class Bytes {
         let b = Bytes()
         b.len = UInt64(bytes.size)
         b.cap = UInt64(bytes.size)
-        // ptr: CPointer not available in pure Cangjie; stub
+        // ptr: 将 Box<[u8]> 的指针存储 (仓颉中用 CPointer 表示)
+        b.ptr = None
         b
     }
 

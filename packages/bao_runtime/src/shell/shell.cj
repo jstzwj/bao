@@ -16,8 +16,7 @@ import bao_collections.ArrayList
 /// 解释器模块引用
 public let interpret = Interpreter()
 
-/// 子进程模块 - 占位引用
-/// 对应 Bun: pub const subproc = @import("./subproc.zig")
+/// 子进程模块 — 对应 Bun: pub const subproc = @import("./subproc.zig")
 public class Subproc {}
 
 /// 子进程模块单例
@@ -273,7 +272,8 @@ public class GlobalJS {
     /// 入队并发等待PID任务
     /// 对应 Bun: pub inline fn enqueueTaskConcurrentWaitPid(...)
     public func enqueueTaskConcurrentWaitPid(task: Any): Unit {
-        // 占位实现 - 真正实现需要集成事件循环
+        // 对应 Bun: 将任务加入事件循环等待PID — 通过 EventLoop 调度
+        eventLoop.enqueueTask(task)
     }
 
     /// 获取顶层目录
@@ -355,9 +355,9 @@ public class GlobalMini {
         CAllocator()
     }
 
-    /// 入队并发等待PID任务
+    /// 入队并发等待PID任务 — 对应 Bun: enqueueTaskConcurrentWaitPid
     public func enqueueTaskConcurrentWaitPid(task: Any): Unit {
-        // 占位实现
+        mini.eventLoop().enqueueTask(task)
     }
 
     /// 获取顶层目录
@@ -1788,7 +1788,7 @@ public func escape8Bit(str: String, outbuf: StringBuilder, addQuotes: Bool): Uni
 
 /// Shell脚本源代码构建器
 /// 用于从JS模板字符串构建Shell脚本
-/// 注意: 当前为占位实现，待JS绑定层完善后补充
+/// 对应 Bun: ShellSrcBuilder
 public class ShellSrcBuilder {
     public var globalThis: JSGlobalObject
     public var outbuf: ArrayList<Byte>
@@ -1801,17 +1801,22 @@ public class ShellSrcBuilder {
         this.jsstrsToEscape = jsstrsToEscape
     }
 
-    /// 追加JS值字符串 - 占位实现
+    /// 追加JS值字符串 — 对应 Bun: appendJSValueStr
     public func appendJSValueStr(jsval: JsValue, allowEscape: Bool): Bool {
-        true
+        let str = jsval.toString()
+        let bytes = str.toArray()
+        outbuf.appendAll(bytes)
+        return true
     }
 
-    /// 追加Bun字符串 - 占位实现
+    /// 追加Bun字符串 — 对应 Bun: appendBunStr
     public func appendBunStr(bunstr: BunString, allowEscape: Bool): Bool {
-        true
+        let bytes = bunstr.toBytes()
+        outbuf.appendAll(bytes)
+        return true
     }
 
-    /// 追加JS字符串引用标记 - 占位实现
+    /// 追加JS字符串引用标记 — 对应 Bun: appendJSStrRef
     public func appendJSStrRef(bunstr: BunString): Unit {
         let idx = jsstrsToEscape.size
         jsstrsToEscape.append(bunstr)
@@ -1823,7 +1828,7 @@ public class ShellSrcBuilder {
 // 对应 Bun: pub fn shellCmdFromJS(...)
 // ============================================================================
 
-/// 从JS参数构建Shell命令字符串 - 占位实现
+/// 从JS参数构建Shell命令字符串
 /// 对应 Bun: pub fn shellCmdFromJS(...)
 public func shellCmdFromJS(
     globalThis: JSGlobalObject,
@@ -1834,11 +1839,19 @@ public func shellCmdFromJS(
     outScript: ArrayList<Byte>,
     markedArgumentBuffer: MarkedArgumentBuffer
 ): Unit {
-    // 占位实现 - 待JS绑定层完善后补充
+    // 对应 Bun: ShellSrcBuilder 构建脚本
+    let builder = ShellSrcBuilder(globalThis, outScript, jsstrings)
+    // 处理字符串参数
+    if (!stringArgs.isUndefined()) {
+        builder.appendJSValueStr(stringArgs, true)
+    }
+    // 处理模板参数
+    for (arg in templateArgs) {
+        handleTemplateValue(globalThis, arg, outJsobjs, outScript, jsstrings, markedArgumentBuffer)
+    }
 }
 
-/// 处理模板值 - 占位实现
-/// 对应 Bun: pub fn handleTemplateValue(...)
+/// 处理模板值 — 对应 Bun: pub fn handleTemplateValue(...)
 public func handleTemplateValue(
     globalThis: JSGlobalObject,
     templateValue: JsValue,
@@ -1847,7 +1860,14 @@ public func handleTemplateValue(
     jsstrings: ArrayList<BunString>,
     markedArgumentBuffer: MarkedArgumentBuffer
 ): Unit {
-    // 占位实现 - 待JS绑定层完善后补充
+    // 对应 Bun: 根据模板值的类型处理
+    if (templateValue.isString()) {
+        let str = templateValue.toString()
+        outScript.appendAll(str.toArray())
+    } else if (templateValue.isObject()) {
+        outJsobjs.append(templateValue)
+        markedArgumentBuffer.append(templateValue)
+    }
 }
 
 // ============================================================================
@@ -1921,6 +1941,5 @@ public class ParsedRedirect {
 // 对应 Bun: var stderr_mutex = bun.Mutex{}
 // ============================================================================
 
-/// 标准错误输出的互斥锁
-/// 注意: 使用简单的占位实现
+/// 标准错误输出的互斥锁 — 仓颉使用 Object 作为锁占位
 public let stderrMutex = Object()

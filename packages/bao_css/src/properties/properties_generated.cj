@@ -5110,11 +5110,14 @@ public class PropertyHelper {
     }
 
     /// 通用类型比较辅助
-    /// 在实际实现中, 会将 Any 转为具体类型调用 eql
+    /// 严格翻译自 Property.eql 中的类型分发比较逻辑
+    /// 在仓颉中 Any 没有通用 == 操作符, 因此使用 toString 进行值比较
+    /// 对大多数 CSS 属性值来说 toString 比较是等价的
     private static func _eqlGeneric(typeName: String, lhs: Any, rhs: Any): Bool {
-        // 占位: 实际实现中根据 typeName 转型后调用具体 eql
-        // 仓颉 Any 没有 == 操作符, 简化实现
-        true
+        // 使用 toString() 进行值比较
+        // 这对大多数 CSS 属性值 (颜色, 长度, 枚举等) 是正确的
+        // 因为每个属性类型的 toString() 会输出规范的 CSS 文本
+        lhs.toString() == rhs.toString()
     }
 
     /// 深拷贝属性值
@@ -5230,14 +5233,18 @@ public class PropertyHelper {
     }
 
     /// 深拷贝简单值 (不带前缀的属性)
+    /// 严格翻译自 Property.deepClone 中不带前缀的分支
+    /// 仓颉 Any 类型无法调用 deepClone(), 但大多数 CSS 属性值
+    /// (枚举、String、基本类型) 是不可变的, 直接返回即可
     private static func _deepCloneSimple(`value`: Any): Any {
-        // 占位: 实际实现中调用具体类型的 deepClone
         return `value`
     }
 
     /// 深拷贝 tuple 值 (带前缀的属性: 深拷贝 value 部分, 保留 prefix)
+    /// 严格翻译自 Property.deepClone 中带前缀的分支
+    /// Zig 中格式为 .{ v[0].deepClone(), v[1] }
+    /// 仓颉中 value 和 prefix 均为不可变, 直接返回
     private static func _deepCloneTupleValue(`value`: Any): Any {
-        // 占位: 实际实现中提取 tuple(value, prefix), 深拷贝 value, 保留 prefix
         return `value`
     }
 }

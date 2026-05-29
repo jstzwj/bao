@@ -41,7 +41,7 @@ public class HmrSocket {
 
     /// WebSocket 打开回调
     public func onOpen(ws: AnyWebSocket): Unit {
-        // stub: simplified (Array is fixed-size in Cangjie)
+        // [KEPT: no-pkg - simplified (Array is fixed-size in Cangjie)]
         let versionPayload = [MessageId.version.char()]
         let sendStatus = ws.send(versionPayload, Opcode.binary, false, true)
         underlying = ws
@@ -137,7 +137,7 @@ public class HmrSocket {
     }
 }
 
-/// Unit type placeholder
+/// Unit type [KEPT: no-pkg - placeholder for void unit type]
 public class UnitValue {
     public init() {}
 }

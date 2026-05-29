@@ -161,16 +161,48 @@ public func downlevelComponent(component: CssSelectorComponent, targets: CssTarg
 
 /// :dir() 降级为 :lang()
 /// 严格翻译自 downlevelDir()
+/// RTL -> :lang(ae, ar, arc, ...) (所有 RTL 语言)
+/// LTR -> :not(:lang(ae, ar, arc, ...))
 public func downlevelDir(direction: CssDirection, targets: CssTargets): CssSelectorComponent {
-    // 简化实现: 返回 :lang() 或 :not(:lang()) 替代
-    let pc = CssSelectorPseudoClass(CssPseudoClassKind.Lang)
-    if (direction == CssDirection.Rtl) {
+    // 如果支持 :lang() 列表语法, 使用 :lang() 直接列出 RTL 语言
+    if (!targets.shouldCompileSame(CompatFeature.lang_selector_list)) {
+        let pc = CssSelectorPseudoClass(CssPseudoClassKind.Lang)
         for (lang in RTL_LANGS) { pc.languages.append(lang) }
-        CssSelectorComponent(CssComponentKind.NonTsPseudoClass)
+        if (direction == CssDirection.Ltr) {
+            // LTR = :not(:lang(rtl-langs))
+            let innerComp = CssSelectorComponent(CssComponentKind.NonTsPseudoClass)
+            innerComp.pseudoClass = Some(pc)
+            let innerSel = CssSelectorImpl.fromComponent(innerComp)
+            let innerList = CssSelectorListImpl.fromSelector(innerSel)
+            let negComp = CssSelectorComponent(CssComponentKind.Negation)
+            negComp.nestedSelectors = Some(innerList)
+            return negComp
+        } else {
+            // RTL = :lang(ae, ar, ...)
+            let comp = CssSelectorComponent(CssComponentKind.NonTsPseudoClass)
+            comp.pseudoClass = Some(pc)
+            return comp
+        }
     } else {
-        // LTR = :not(:lang(rtl-langs))
-        for (lang in RTL_LANGS) { pc.languages.append(lang) }
-        CssSelectorComponent(CssComponentKind.NonTsPseudoClass)
+        // 不支持 :lang() 列表, 降级为 :is(:lang(a), :lang(b), ...)
+        let selectors = langListToSelectors(RTL_LANGS)
+        if (direction == CssDirection.Ltr) {
+            // LTR = :not(:is(:lang(a), :lang(b), ...))
+            let innerList = CssSelectorListImpl(selectors)
+            let isComp = CssSelectorComponent(CssComponentKind.Is)
+            isComp.nestedSelectors = Some(innerList)
+            let isSel = CssSelectorImpl.fromComponent(isComp)
+            let isList = CssSelectorListImpl.fromSelector(isSel)
+            let negComp = CssSelectorComponent(CssComponentKind.Negation)
+            negComp.nestedSelectors = Some(isList)
+            return negComp
+        } else {
+            // RTL = :is(:lang(a), :lang(b), ...)
+            let innerList = CssSelectorListImpl(selectors)
+            let isComp = CssSelectorComponent(CssComponentKind.Is)
+            isComp.nestedSelectors = Some(innerList)
+            return isComp
+        }
     }
 }
 
@@ -460,32 +492,66 @@ func isSelectorUnused(
 
 /// 伪类获取必需前缀
 /// 严格翻译自 PseudoClass.getNecessaryPrefixes()
+/// 根据目标浏览器版本, 返回该伪类所需的厂商前缀
 public func getNecessaryPrefixes(pc: CssSelectorPseudoClass, targets: CssTargets): VendorPrefix {
-    let prefix = VendorPrefix()
-    match (pc.kind) {
-        case CssPseudoClassKind.AnyLink => ()   // any_link feature
-        case CssPseudoClassKind.Fullscreen => ()  // fullscreen feature
-        case CssPseudoClassKind.ReadOnly => ()   // read_only feature
-        case CssPseudoClassKind.ReadWrite => ()  // read_write feature
-        case CssPseudoClassKind.PlaceholderShown => ()  // placeholder_shown feature
-        case CssPseudoClassKind.Autofill => ()   // autofill feature
-        case _ => ()
+    match (targets.browsers) {
+        case Some(browsers) =>
+            let bt = convertToBrowserTargets(browsers)
+            match (pc.kind) {
+                case CssPseudoClassKind.AnyLink =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoClassAnyLink, bt)
+                case CssPseudoClassKind.Fullscreen =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoClassFullscreen, bt)
+                case CssPseudoClassKind.ReadOnly =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoClassReadOnly, bt)
+                case CssPseudoClassKind.ReadWrite =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoClassReadWrite, bt)
+                case CssPseudoClassKind.PlaceholderShown =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoClassPlaceholderShown, bt)
+                case CssPseudoClassKind.Autofill =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoClassAutofill, bt)
+                case _ => VendorPrefix()
+            }
+        case None => VendorPrefix()
     }
-    prefix
 }
 
 /// 伪元素获取必需前缀
 /// 严格翻译自 PseudoElement.getNecessaryPrefixes()
+/// 根据目标浏览器版本, 返回该伪元素所需的厂商前缀
 public func getNecessaryPrefixes(pe: CssSelectorPseudoElement, targets: CssTargets): VendorPrefix {
-    let prefix = VendorPrefix()
-    match (pe.kind) {
-        case CssPseudoElementKind.Selection => ()    // selection feature
-        case CssPseudoElementKind.Placeholder => ()  // placeholder feature
-        case CssPseudoElementKind.Backdrop => ()     // backdrop feature
-        case CssPseudoElementKind.FileSelectorButton => ()  // file_selector_button feature
-        case _ => ()
+    match (targets.browsers) {
+        case Some(browsers) =>
+            let bt = convertToBrowserTargets(browsers)
+            match (pe.kind) {
+                case CssPseudoElementKind.Selection =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoElementSelection, bt)
+                case CssPseudoElementKind.Placeholder =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoElementPlaceholder, bt)
+                case CssPseudoElementKind.Backdrop =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoElementBackdrop, bt)
+                case CssPseudoElementKind.FileSelectorButton =>
+                    CssPrefixLookup.prefixesFor(CssFeature.PseudoElementFileSelectorButton, bt)
+                case _ => VendorPrefix()
+            }
+        case None => VendorPrefix()
     }
-    prefix
+}
+
+/// 将 CssBrowsers 转换为 CssBrowserTargets
+/// CssBrowsers 使用 ?UInt32, CssBrowserTargets 使用 ?Int64
+private func convertToBrowserTargets(browsers: CssBrowsers): CssBrowserTargets {
+    let bt = CssBrowserTargets()
+    match (browsers.android) { case Some(v) => bt.android = Some(Int64(v)) case None => () }
+    match (browsers.chrome) { case Some(v) => bt.chrome = Some(Int64(v)) case None => () }
+    match (browsers.edge) { case Some(v) => bt.edge = Some(Int64(v)) case None => () }
+    match (browsers.firefox) { case Some(v) => bt.firefox = Some(Int64(v)) case None => () }
+    match (browsers.ie) { case Some(v) => bt.ie = Some(Int64(v)) case None => () }
+    match (browsers.ios_saf) { case Some(v) => bt.iosSaf = Some(Int64(v)) case None => () }
+    match (browsers.opera) { case Some(v) => bt.opera = Some(Int64(v)) case None => () }
+    match (browsers.safari) { case Some(v) => bt.safari = Some(Int64(v)) case None => () }
+    match (browsers.samsung) { case Some(v) => bt.samsung = Some(Int64(v)) case None => () }
+    bt
 }
 
 // ============================================================================

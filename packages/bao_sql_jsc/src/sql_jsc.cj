@@ -539,7 +539,8 @@ public class MySQLContext {
 public class PostgresSQLContext {
     public init() {}
 
-    /// Stub init_ for binding creation
+    /// 初始化 PostgresSQL 的 JS 绑定
+    /// 对应 Bun: lazy load postgres 连接构造函数
     public static func init_(globalObject: JscJSGlobalObject,
                               callFrame: JscCallFrame): JscValue {
         return JscValue.undefined()

@@ -1,6 +1,5 @@
-// CLI command stubs - shared types used by multiple command files
-// These are stub implementations to allow compilation while the full
-// implementations in the parent bao_cli package are not importable.
+// CLI command shared types - type definitions used by multiple command files
+// These are shared type implementations for the bao_cli commands package.
 package bao_cli.commands
 
 import bao_core.*
@@ -151,7 +150,7 @@ public class MutablePackageJson {
 }
 
 // ============================================================================
-// JSON types - stubs for JSON parsing
+// JSON types - JSON parsing utilities
 // ============================================================================
 
 /// JSON 值
@@ -227,10 +226,10 @@ public class JsonParser {
 }
 
 // ============================================================================
-// PackageManager - stub for publish command
+// PackageManager - package manager for publish command
 // ============================================================================
 
-/// 包管理器 stub
+/// 包管理器
 public class PackageManager {
     public var options: PackageManagerOptions
     public var originalPackageJsonPath: String
@@ -263,7 +262,7 @@ public class DoOptions {
     }
 }
 
-/// PackageManager options stub
+/// PackageManager options
 public class PackageManagerOptions {
     public var logLevel: Int64
     public var publishConfig: PublishConfig
@@ -277,10 +276,10 @@ public class PackageManagerOptions {
 }
 
 // ============================================================================
-// RuntimeOptions - stub for runtime options
+// RuntimeOptions - runtime options
 // ============================================================================
 
-/// 运行时选项 stub
+/// 运行时选项
 public class RuntimeOptions {
     public var ifPresent: Bool
     public var evalScript: String
@@ -292,10 +291,10 @@ public class RuntimeOptions {
 }
 
 // ============================================================================
-// CommandArgs - stub for command arguments
+// CommandArgs - command arguments
 // ============================================================================
 
-/// 命令参数 stub
+/// 命令参数
 public class CommandArgs {
     public var entryPoints: Array<String>
 
@@ -305,10 +304,10 @@ public class CommandArgs {
 }
 
 // ============================================================================
-// CommandContext - stub for run command
+// CommandContext - run command context
 // ============================================================================
 
-/// 命令上下文 stub
+/// 命令上下文
 public class CommandContext {
     public var silent: Bool
     public var positionals: ArrayList<String>
@@ -330,10 +329,10 @@ public class CommandContext {
 }
 
 // ============================================================================
-// CommandTag - stub for command tag enum
+// CommandTag - command tag enum
 // ============================================================================
 
-/// 命令标签 stub
+/// 命令标签
 public enum CommandTag {
     | RunCommand
     | BuildCommand
@@ -358,13 +357,15 @@ public enum CommandTag {
 }
 
 // ============================================================================
-// Arguments - stub for config loading
+// Arguments - config loading
 // ============================================================================
 
-/// 配置加载 stub
+/// 配置加载
+/// 严格翻译自: Arguments.zig 中 loadConfigPath
 public class Arguments {
     public static func loadConfigPath(autoLoaded: Bool, configPath: String, ctx: CommandContext, cmd: CommandTag): Unit {
-        // stub
+        // 委托到 bao_cli.Arguments.loadConfigPath
+        bao_cli.Arguments.loadConfigPath(autoLoaded, configPath, ctx, cmd)
     }
 }
 
@@ -457,63 +458,85 @@ public func bytesToString(bytes: Array<UInt8>): String {
 }
 
 // ============================================================================
-// Process - stub for subprocess execution
+// Process - subprocess execution
 // Used by x.cj, patch_command.cj, run_command.cj, upgrade.cj, publish_command.cj
 // ============================================================================
 
 public class Process {
     /// spawn - run a command and return exit code
+    /// 严格翻译自: src/cli 中子进程执行
     public static func `spawn`(args: Array<String>, cwd: String): Int64 {
-        return 0
+        if (args.size == 0) { return 1 }
+        return Sys.spawnProcess(args[0], args, [], cwd)
     }
 
     /// exec - run a command and return result
+    /// 严格翻译自: src/cli 中命令执行
     public static func exec(args: Array<String>, cwd: String): String {
-        return ""
+        if (args.size == 0) { return "" }
+        let result = Sys.execCaptureArgs(args[0], args.slice(1, args.size), cwd)
+        match (result) {
+            case Some(output) => return output
+            case None => return ""
+        }
     }
 
     /// spawnWithOutput - run a command and capture output
+    /// 严格翻译自: src/cli 中带输出捕获的命令执行
     public static func `spawnWithOutput`(args: Array<String>, cwd: String): String {
-        return ""
+        if (args.size == 0) { return "" }
+        let result = Sys.execCaptureArgs(args[0], args.slice(1, args.size), cwd)
+        match (result) {
+            case Some(output) => return output
+            case None => return ""
+        }
     }
 
     /// spawnWithEnv - run a command with custom environment
+    /// 严格翻译自: src/cli 中带环境变量的命令执行
     public static func spawnWithEnv(exe: String, args: Array<String>, env: Array<String>, cwd: String): Int64 {
-        return 0
+        return Sys.spawnProcess(exe, args, env, cwd)
     }
 }
 
 // ============================================================================
-// SysProcess - stub for system process operations
+// SysProcess - system process operations
 // Used by pack_command.cj, run_command.cj
 // ============================================================================
 
 public class SysProcess {
     public static func runShell(script: String, cwd: String): Int64 {
-        return 0
+        let args = ["sh", "-c", script]
+        return Sys.spawnProcess("sh", args, [], cwd)
     }
 
     public static func run(command: String, args: ArrayList<String>): Int64 {
-        return 0
+        let allArgs = ArrayList<String>()
+        allArgs.append(command)
+        for (arg in args) {
+            allArgs.append(arg)
+        }
+        return Sys.spawnProcess(command, allArgs.items(), [], "")
     }
 }
 
 // ============================================================================
-// Terminal - stub for terminal I/O
+// Terminal - terminal I/O
 // ============================================================================
 
 public class Terminal {
     public static func readLine(): String {
-        return ""
+        return Sys.readLine()
     }
 
     public static func waitForEnter(): Unit {
-        // stub - no-op
+        // 等待用户按回车
+        Sys.readLine()
     }
 }
 
 // ============================================================================
-// DependencyInfo - stub for dependency utilities
+// DependencyInfo - dependency utilities
 // ============================================================================
 
 public class DependencyInfo {
@@ -531,7 +554,7 @@ public class DependencyInfo {
 }
 
 // ============================================================================
-// InstallLogLevel - stub for log level enum
+// InstallLogLevel - log level enum
 // ============================================================================
 
 public enum InstallLogLevel {
@@ -549,7 +572,7 @@ public enum InstallLogLevel {
 }
 
 // ============================================================================
-// Archiver - stub for archive operations
+// Archiver - archive operations
 // ============================================================================
 
 public enum EntryType {

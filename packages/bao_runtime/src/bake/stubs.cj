@@ -1,6 +1,11 @@
 // Stub types for bao_runtime.bake
-// These types are defined in other packages or sub-packages that are not yet imported.
-// They provide minimal interfaces needed by the bake package to compile.
+// Types imported from real packages where available.
+// Remaining stubs marked [KEPT] with reason.
+//
+// [KEPT] reasons:
+//   "no-pkg"       — no real package yet provides this type
+//   "deferred"     — depends on another [KEPT] type, will resolve later
+//   "wrapper"      — thin wrapper around String/Array for API compat
 
 package bao_runtime.bake
 
@@ -17,6 +22,8 @@ import bao_bundler.DefineData
 import bao_collections.*
 import bao_core.Output
 import bao_core.ArenaAllocator
+import bao_core.AllocationScope
+import bao_core.DevAllocator
 import bao_jsc.JsValue
 import bao_jsc.JSGlobalObject
 import bao_jsc.JsObject
@@ -30,6 +37,9 @@ import bao_jsc.CallFrame
 import bao_jsc.HostFunction
 import bao_jsc.JSFunction
 import bao_jsc.StrongOptional
+import bao_safety.ThreadLock
+import bao_event_loop.EventLoopTimer
+import bao_watcher.Watcher
 import bao_options.LoaderMap
 import bao_options.DotEnvBehavior
 import bao_options.SourceMapMode
@@ -38,7 +48,12 @@ import bao_runtime.bake.dev_server.SerializedFailure
 import bao_runtime.bake.dev_server.HmrSocket
 
 // ============================================================================
-// Types that are NOT defined anywhere else in bao_runtime.bake
+// Types imported from real packages (replaces previous local definitions):
+//   ThreadLock        <- bao_safety.ThreadLock
+//   EventLoopTimer    <- bao_event_loop.EventLoopTimer
+//   Watcher           <- bao_watcher.Watcher
+//   AllocationScope   <- bao_core.AllocationScope
+//   DevAllocator      <- bao_core.DevAllocator
 // ============================================================================
 
 /// HTTP method enum
@@ -82,7 +97,7 @@ public enum HTTPMethod {
     }
 }
 
-/// UWS request stub
+/// UWS request [KEPT: no-pkg]
 /// 对应 Bun: uws.Request
 /// uWebSockets HTTP 请求封装
 public class UwsRequest {
@@ -101,7 +116,7 @@ public class UwsRequest {
     public func fullPath(): String { url_value }
 }
 
-/// Any HTTP response stub
+/// Any HTTP response [KEPT: no-pkg]
 /// 对应 Bun: uws.Response
 /// 注意: 此类型在 dev_server/mod.cj 中也有定义
 public class AnyResponse {
@@ -113,7 +128,7 @@ public class AnyResponse {
     public func corked(callback: (AnyResponse) -> Unit, extra: AnyResponse): Unit { callback(extra) }
 }
 
-/// Saved request stub
+/// Saved request [KEPT: no-pkg]
 /// 对应 Bun: bake.SavedRequest
 /// 保存 UWS 请求的快照，用于异步处理
 public class SavedRequest {
@@ -134,10 +149,10 @@ public class SavedRequest {
     public func header(name: String): ?String { headers.get(name) }
 }
 
-/// Any request context stub
+/// Any request context [KEPT: no-pkg]
 public class AnyRequestContext {}
 
-/// JS bundler plugin stub
+/// JS bundler plugin [KEPT: no-pkg]
 /// 对应 Bun: bun.Plugin
 /// JavaScript bundler 插件
 public class JSBundlerPlugin {
@@ -153,7 +168,7 @@ public type RequestHandler = Any
 /// Debugger ID type
 public type DebuggerId = Int64
 
-/// Dir type stub
+/// Dir type [KEPT: no-pkg]
 public class Dir {
     public init() {}
 }
@@ -167,7 +182,8 @@ public enum Opcode {
     | pong
 }
 
-/// Promise type stub - adds resolve/then/all/unit
+/// Promise type [KEPT: no-pkg]
+/// 仓颉 stdlib 提供 Promise，此类型为 Bun API 兼容层
 public class Promise<T> {
     public init() {}
     public static func resolve(value: T): Promise<T> { Promise<T>() }
@@ -177,15 +193,7 @@ public class Promise<T> {
     public func `catch`(callback: (Any) -> Unit): Promise<T> { this }
 }
 
-/// Thread lock stub
-public class ThreadLock {
-    public init() {}
-    public static func initUnlocked(): ThreadLock { ThreadLock() }
-    public func lock(): Unit {}
-    public func unlock(): Unit {}
-}
-
-/// Incremental graph stub
+/// Incremental graph [KEPT: no-pkg]
 /// 对应 Bun: bake.DevServer.IncrementalGraph
 /// 增量构建图，跟踪文件间的依赖关系
 public class IncrementalGraph {
@@ -201,13 +209,13 @@ public class IncrementalGraph {
     public func getFileIndex(path: String): ?UInt32 { None }
 }
 
-/// String hash map stub
+/// String hash map [KEPT: no-pkg]
 public class StringHashMap<V> {
     public init() {}
     public func deinit(alloc: Allocator): Unit {}
 }
 
-/// Directory watch store stub
+/// Directory watch store [KEPT: deferred - real type in dev_server/directory_watch_store.cj]
 /// 对应 Bun: bake.DevServer.DirectoryWatchStore
 /// 跟踪目录监视器和解析失败的依赖
 public class DirectoryWatchStore {
@@ -227,7 +235,7 @@ public class WatchDependency {
     public init() {}
 }
 
-/// Watcher atomics stub
+/// Watcher atomics [KEPT: deferred - real type in dev_server/watcher_atomics.cj]
 public class WatcherAtomics {
     public var events: Array<WatcherAtomicEvent>
     public init() {
@@ -247,12 +255,12 @@ public class WatcherAtomicEvent {
     public func deinit(alloc: Allocator): Unit {}
 }
 
-/// HTML bundle route stub
+/// HTML bundle route [KEPT: no-pkg]
 public class HTMLBundleRoute {
     public init() {}
 }
 
-/// Assets store stub
+/// Assets store [KEPT: deferred - real type in dev_server/assets.cj]
 /// 对应 Bun: bake.DevServer.Assets
 /// 哈希资产存储，通过 /_bun/asset/<hash>.ext 提供
 public class Assets {
@@ -271,7 +279,7 @@ public class Asset {
     public func on(resp: AnyResponse): Unit {}
 }
 
-/// Source map store stub
+/// Source map store [KEPT: deferred - real type in dev_server/source_map_store.cj]
 /// 对应 Bun: bake.DevServer.SourceMapStore
 /// 管理源映射的引用计数存储
 public class SourceMapStore {
@@ -299,7 +307,7 @@ public enum WeakRefMode {
     | downgrade
 }
 
-/// Array hash map unmanaged stub
+/// Array hash map unmanaged [KEPT: no-pkg]
 public class ArrayHashMapUnmanaged<K, V> {
     public init() {}
     public func keys(): Array<K> { Array<K>() }
@@ -307,7 +315,7 @@ public class ArrayHashMapUnmanaged<K, V> {
     public func count(): Int64 { 0 }
 }
 
-/// Auto hash map unmanaged stub
+/// Auto hash map unmanaged [KEPT: no-pkg]
 public class AutoHashMapUnmanaged<K, V> {
     public init() {}
     public func deinit(alloc: Allocator): Unit {}
@@ -332,14 +340,16 @@ public class KeyIterator<T> {
     public func next(): ?T { Option<T>.None }
 }
 
-/// DevServer input stub
+/// DevServer input [KEPT: no-pkg]
 public class DevServerInput {
     public init() {}
 }
 
-/// VirtualMachine stub
+/// VirtualMachine [KEPT: deferred]
 /// 对应 Bun: bun.JSC.VirtualMachine
-/// 注意: 真实类型在 bao_jsc 中。此 stub 仅为 bake 包编译提供接口。
+/// 注意: 真实类型在 bao_jsc.BunVirtualMachine 中。
+/// 此类型保留是因为 bake 包使用的 API 子集与 BunVirtualMachine 不同，
+/// 待 bao_jsc 完善后替换为 import。
 public class VirtualMachine {
     public static func get(): VirtualMachine { VirtualMachine() }
     public var global: JSGlobalObject
@@ -372,7 +382,7 @@ public class VirtualMachine {
     public func log(level: Int64, msg: String): Unit {}
 }
 
-/// BunString stub
+/// BunString [KEPT: wrapper]
 /// 对应 Bun: bun.String
 /// 在仓颉中直接使用 String，此类型用于 API 兼容
 public class BunString {
@@ -388,23 +398,18 @@ public class BunString {
     public func isEmpty(): Bool { value.isEmpty() }
 }
 
-/// Event loop timer stub
-public class EventLoopTimer {
-    public init() {}
-}
-
-/// HiveArray stub
+/// HiveArray [KEPT: no-pkg]
 public class HiveArray<T> {
     public init() {}
     public func get(): T { throw Exception("unimplemented") }
 }
 
-/// Memory cost stub
+/// Memory cost [KEPT: deferred - real type in dev_server/memory_cost.cj]
 public class MemoryCost {
     public static func memoryCost(dev: DevServer): Int64 { 0 }
 }
 
-/// Static route stub
+/// Static route [KEPT: no-pkg]
 /// 对应 Bun: bake.DevServer.StaticRoute
 /// 静态文件路由，用于服务预构建的文件
 public class StaticRoute {
@@ -443,7 +448,7 @@ public enum MimeType {
     | text
 }
 
-/// Blob stub
+/// Blob [KEPT: deferred - real type in bao_runtime.webcore]
 public class Blob {
     public init() {}
 }
@@ -454,17 +459,17 @@ public enum SendStatus {
     | sent
 }
 
-/// PluginTarget stub
+/// PluginTarget [KEPT: no-pkg]
 public class PluginTarget {
     public init(dev: DevServer) {}
 }
 
-/// DirInfo stub
+/// DirInfo [KEPT: no-pkg]
 public class DirInfo {
     public init() {}
 }
 
-/// BoundedArray stub
+/// BoundedArray [KEPT: no-pkg]
 /// 对应 Bun: std.BoundedArray
 /// 有容量限制的数组
 public class BoundedArray<T> {
@@ -494,7 +499,7 @@ public class Object {
     public init() {}
 }
 
-/// MapIterator stub
+/// MapIterator [KEPT: no-pkg]
 public class MapIterator<K, V> {
     public init() {}
     public func next(): ?MapEntry<K, V> { Option<MapEntry<K, V>>.None }
@@ -517,7 +522,7 @@ public enum WatchKind {
     | rename
 }
 
-/// DynamicRouteMap stub
+/// DynamicRouteMap [KEPT: deferred - real type in dev_server/packed_map.cj]
 public class DynamicRouteMap {
     public init() {}
     public func deinit(alloc: Allocator): Unit {}
@@ -527,7 +532,7 @@ public class DynamicRouteMap {
     public static func DataList(): DataListHelper { DataListHelper() }
 }
 
-/// StaticRouteMap stub
+/// StaticRouteMap [KEPT: deferred - real type in dev_server/packed_map.cj]
 public class StaticRouteMap {
     public init() {}
     public func deinit(alloc: Allocator): Unit {}
@@ -540,7 +545,7 @@ public class DataListHelper {
     public static func capacityInBytes(cap: Int64): UInt64 { 0 }
 }
 
-/// AnyServer stub
+/// AnyServer [KEPT: no-pkg]
 /// 对应 Bun: bake.AnyServer
 /// 封装 HTTP 服务器实例
 public class AnyServer {
@@ -558,7 +563,7 @@ public class AnyServer {
     public func publish(topic: String, data: Array<Byte>, opcode: Any): Unit {}
 }
 
-/// PluginState stub
+/// PluginState [KEPT: no-pkg]
 public enum PluginState {
     | unknown
     | pending
@@ -696,7 +701,7 @@ public func toBytes(value: UInt32): Array<Byte> {
     return result
 }
 
-/// FileSystem stub
+/// FileSystem [KEPT: no-pkg]
 /// 对应 Bun: bun.FS
 /// 提供文件系统操作接口
 public class FileSystem {
@@ -710,35 +715,24 @@ public class FileSystem {
     public func normalize(path: String): String { path }
 }
 
-/// DeferredRequest list stubs
+/// DeferredRequest list [KEPT: no-pkg]
 public class DeferredRequestList {
     public init() {}
     public func prepend(item: Any): Unit {}
 }
 
-/// Timer stub with start method
+/// Timer [KEPT: no-pkg]
 public class Timer {
     public init() {}
     public static func start(): Timer { Timer() }
 }
 
-/// Global stub
+/// Global [KEPT: no-pkg]
 public class Global {
     public static func crash(): Nothing { throw Exception("crash") }
 }
 
-/// AllocationScope stub
-public class AllocationScope {
-    public init() {}
-    public static func initDefault(): AllocationScope { AllocationScope() }
-    public func allocator(): Allocator { Allocator() }
-    public func borrow(): DevAllocator { DevAllocator() }
-}
-
-/// DevAllocator stub
-public class DevAllocator {}
-
-/// Format stub for output formats
+/// Format enum [KEPT: no-pkg]
 public enum Format {
     | esm
     | cjs
@@ -746,7 +740,7 @@ public enum Format {
     | internalBakeDev
 }
 
-/// ImportKind stub
+/// ImportKind [KEPT: no-pkg]
 public enum ImportKind {
     | stmt
     | `import`

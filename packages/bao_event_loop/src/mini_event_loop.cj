@@ -12,6 +12,7 @@ package bao_event_loop
 
 import bao_core.*
 import bao_collections.*
+import std.time.DateTime
 
 // 注意: epoll/kqueue/eventfd/timerfd C FFI 声明在 poll.cj 中 (同一包)
 // 这里不再重复声明, 直接使用
@@ -498,8 +499,10 @@ public class MiniEventLoop {
             return
         }
         unsafe {
-            var buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(eventFd, CPointer<UInt8>(buf[0]), 8)
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            read(eventFd, ptr, 8)
+            free(buf)
         }
     }
 
@@ -509,8 +512,10 @@ public class MiniEventLoop {
             return
         }
         unsafe {
-            var buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(timerFd, CPointer<UInt8>(buf[0]), 8)
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            read(timerFd, ptr, 8)
+            free(buf)
         }
     }
 
@@ -562,9 +567,11 @@ public class MiniEventLoop {
             return
         }
         unsafe {
-            let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            buf[0] = UInt8(1)  // 写入值 1
-            write(eventFd, CPointer<UInt8>(buf[0]), 8)
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            ptr.write(UInt8(1))
+            write(eventFd, ptr, 8)
+            free(buf)
         }
     }
 

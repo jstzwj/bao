@@ -342,7 +342,7 @@ public class IOWriter {
     public func deinitOnMainThread() {
         this.buf.clear()
         this.writers.deinit()
-        // stub: err deref skipped
+        // 对应 Bun: err.deref() — 仓颉中 GC 自动管理, 无需手动释放
         if (this.fd.isValid()) {
             this.fd.close()
         }

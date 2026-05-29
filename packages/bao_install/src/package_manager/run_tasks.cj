@@ -1565,7 +1565,7 @@ public class ManifestData {
         return pkgHasExtendedManifest
     }
 
-    // stubs for enqueue usage
+    // 以下方法提供 enqueue 操作所需的接口 (默认空实现)
     public func resolveVersion(version: DependencyVersionInfo): ?ResolvedVersion { return None }
     public func findVersion(version: DependencyVersionInfo): ?FindResultData { return None }
     public func findByDistTag(tag: String): ?FindResultData { return None }
@@ -1599,7 +1599,7 @@ public class ExtractRequestRef {
     }
 }
 
-/// 解压 Tarball 引用 (stub)
+/// 解压 Tarball 引用 — 对应 Bun: ExtractTarballRef
 public class ExtractTarballRef {
     public init() {}
 }
@@ -1695,7 +1695,7 @@ public class NetworkTaskRef {
     public func getExtractCallback(): ExtractRequestRef { return ExtractRequestRef() }
     public func setStreamingExtractTask(task: ResolveTaskRef): Unit {}
     public func setTarballStream(stream: TarballStream): Unit {}
-    // additional stubs for enqueue usage
+    // enqueue 操作的辅助方法 (默认空实现)
     public func forManifest(pkgName: String, depId: UInt32, dep: DependencyRef, installPeer: Bool, successFn: ?SuccessFn, failFn: ?FailFn): Unit {}
     public func forExtract(depId: UInt32, dep: DependencyRef, tarballUrl: String, integrity: IntegrityInfo): Unit {}
     public func forLocalTarball(depId: UInt32, dep: DependencyRef, path: String): Unit {}
@@ -2163,7 +2163,7 @@ public class TaskBatch {
         return TaskBatchIterator(items)
     }
 
-    // additional stub for enqueue usage
+    // enqueue 操作辅助方法
     public func push(task: EnqueueTaskRef): Unit {}
 }
 

@@ -78,8 +78,14 @@ public class Validators {
     // 获取类型名称
     // 对应 Bun: src/runtime/node/util/validators.zig - getTypeName
     public static func getTypeName(value: Any): String {
-        // 简化实现
-        return "object"
+        // 对应 Bun: getTypeName — 返回值的 JavaScript 类型名
+        return match (value) {
+            case _: String => "string"
+            case _: Int64 => "number"
+            case _: Float64 => "number"
+            case _: Bool => "boolean"
+            case _ => "object"
+        }
     }
 
     // 抛出无效参数类型错误

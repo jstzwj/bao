@@ -10,7 +10,7 @@ import bao_uws_sys.{UsBunVerifyError}
 // ============================================================================
 // WindowsNamedPipeContext
 // 对应 Bun: WindowsNamedPipeContext.zig
-// Stub: 完整实现需要 libuv FFI 绑定和跨类型事件分发
+// 需要完整实现: libuv FFI 绑定和跨类型事件分发
 // ============================================================================
 
 /// 事件状态

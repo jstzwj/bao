@@ -270,7 +270,7 @@ public func parsePluginArray(
             return false
         }
 
-        // 添加插件 (stub implementation)
+        // 添加插件 [KEPT: no-pkg - Plugin hooks API not yet available]
         // opts.plugin.getOrThrow().hooks.append(...)
     }
     return true
@@ -736,7 +736,7 @@ public func frameworkInitTranspilerWithOptions(
     minifyIdentifiers: ?Bool
 ): ?Transpiler {
     let transpiler = Transpiler()
-    // Stub implementation - full bundler options configuration is not yet available
+    // 对应 Bun: 创建配置完整的 Transpiler — 当前仅返回基础实例
     return transpiler
 }
 

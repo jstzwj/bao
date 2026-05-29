@@ -281,7 +281,8 @@ public class PostgresSQLConnection {
 
             case _ =>
                 // CopyData, CopyInResponse, CopyOutResponse, CopyDone,
-                // CopyBothResponse, PortalSuspended — stubs
+                // CopyBothResponse, PortalSuspended — 这些消息类型在当前实现中暂不处理
+                // 对应 Bun: 这些 case 都会跳过消息体
                 reader.skipRemaining()
         }
     }

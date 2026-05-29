@@ -123,7 +123,7 @@ public class CriticalSection {
     /// 排他标记值 (表示有线程请求写访问)
     /// 对应: State::EXCLUSIVE = u32::MAX
     /// Rust: const EXCLUSIVE: u32 = u32::MAX;
-    private static let EXCLUSIVE: UInt32 = UInt32.MAX
+    private static let EXCLUSIVE: UInt32 = UInt32(4294967295)
 
     /// 持有锁的线程 ID (原子)
     /// 对应: State.thread_id: AtomicThreadId

@@ -45,12 +45,25 @@ public class VendorPrefix {
     public var moz: Bool
     public var ms: Bool
     public var o: Bool
+    public var none: Bool
 
     public init() {
         this.webkit = false
         this.moz = false
         this.ms = false
         this.o = false
+        this.none = false
+    }
+
+    /// 返回所有前缀都设置的前缀
+    /// 严格翻译自 VendorPrefix.all
+    public static func all(): VendorPrefix {
+        let prefix = VendorPrefix()
+        prefix.webkit = true
+        prefix.moz = true
+        prefix.ms = true
+        prefix.o = true
+        prefix
     }
 
     public static func webkitPrefix(): VendorPrefix {

@@ -1,13 +1,24 @@
 // 翻译自 Bun: src/runtime/bake/dev_server/mod.rs
 // DevServer 子模块入口。
+//
+// [KEPT] reasons:
+//   "no-pkg"       — no real package yet provides this type
+//   "deferred"     — depends on another [KEPT] type, will resolve later
+//   "forward-ref"  — forward reference to type defined in parent package
+//   "wrapper"      — thin wrapper for API compat
 
 package bao_runtime.bake.dev_server
 
 import bao_bun_alloc.Allocator
 import bao_collections.*
+import bao_core.AllocationScope
+import bao_core.DevAllocator
+import bao_safety.ThreadLock
+import bao_event_loop.EventLoopTimer
+import bao_event_loop.TimerState
 
 // ============================================================================
-// 共享类型别名和存根
+// 共享类型
 // 仅包含未在其他专用文件中定义的类型
 // ============================================================================
 
@@ -15,7 +26,7 @@ import bao_collections.*
 // 通信/WebSocket 类型
 // ============================================================================
 
-/// AnyWebSocket stub
+/// AnyWebSocket [KEPT: no-pkg]
 public class AnyWebSocket {
     public init() {}
     public func send(data: Array<Byte>, opcode: Opcode, compress: Bool, fin: Bool): SendStatus { SendStatus.sent }
@@ -23,14 +34,14 @@ public class AnyWebSocket {
     public func getRemoteSocketInfo(): ?SocketInfo { None }
 }
 
-/// SocketInfo stub
+/// SocketInfo [KEPT: no-pkg]
 public class SocketInfo {
     public var ip: String = ""
     public var is_ipv6: Bool = false
     public init() {}
 }
 
-/// Opcode stub
+/// Opcode [KEPT: no-pkg]
 public enum Opcode {
     | text
     | binary
@@ -39,7 +50,7 @@ public enum Opcode {
     | pong
 }
 
-/// SendStatus stub
+/// SendStatus [KEPT: no-pkg]
 public enum SendStatus {
     | dropped
     | sent
@@ -49,50 +60,8 @@ public enum SendStatus {
 // 基础设施工具
 // ============================================================================
 
-/// EventLoopTimer - 事件循环定时器
-/// 对应 Bun: bun.api.timer.EventLoopTimer
-/// 支持暂停、启动、取消和一次性/周期性模式
-public class EventLoopTimer {
-    public var state: TimerState = TimerState.CANCELLED
-    public var tag: Int64 = 0
-    public var next_expires: Int64 = 0
-    public var repeats: Bool = false
-    public var elapsed_ms: Int64 = 0
-    public var callback: ?(() -> Unit) = None
-
-    public init() {}
-    public static func initPaused(tag: Int64): EventLoopTimer {
-        let timer = EventLoopTimer()
-        timer.tag = tag
-        timer.state = TimerState.CANCELLED
-        return timer
-    }
-
-    /// 启动定时器（一次触发）
-    public func start(ms: Int64): Unit {
-        elapsed_ms = ms
-        state = TimerState.ACTIVE
-    }
-
-    /// 启动定时器（周期触发）
-    public func startRepeating(ms: Int64): Unit {
-        elapsed_ms = ms
-        repeats = true
-        state = TimerState.ACTIVE
-    }
-
-    /// 取消定时器
-    public func cancel(): Unit {
-        state = TimerState.CANCELLED
-    }
-
-    /// 停止定时器（等同于取消）
-    public func stop(): Unit {
-        cancel()
-    }
-}
-
-/// StringJoiner stub
+/// StringJoiner [KEPT: deferred - real type in bao_string.StringJoiner]
+/// 保留此 [KEPT] 类型因为 API 表面不同
 public class StringJoiner {
     public init(allocator: Allocator) {}
     public func pushStatic(s: String): Unit {}
@@ -100,14 +69,14 @@ public class StringJoiner {
     public func doneWithEnd(suffix: String): Array<Byte> { Array<Byte>() }
 }
 
-/// GenericIndex stub
+/// GenericIndex [KEPT: no-pkg]
 public struct GenericIndex<T, P> {
     public var value: UInt32
     public init(value: UInt32) { this.value = value }
     public static func create(v: UInt32): GenericIndex<T, P> { GenericIndex<T, P>(v) }
 }
 
-/// BodyReaderMixin stub
+/// BodyReaderMixin [KEPT: no-pkg]
 public class BodyReaderMixin<T> {
     public init(alloc: Allocator) {}
     public func readBody(resp: AnyResponse): Unit {}
@@ -130,7 +99,7 @@ public class AnyResponse {
         // 解析 "200 OK" 格式
         let spaceIdx = status.indexOf(' ')
         if (let Some(idx) <- spaceIdx) {
-            status_code = Int32(Int64(status[0..idx]))
+            status_code = Int32(Int64.parse(status[0..idx]))
         }
     }
     public func writeHeader(name: String, value: String): Unit {
@@ -140,6 +109,50 @@ public class AnyResponse {
         callback(this)
     }
 }
+
+/// Timer [KEPT: no-pkg]
+public class Timer {
+    public init() {}
+    public static func start(): Timer { Timer() }
+}
+
+/// TimerState - imported from bao_event_loop.TimerState
+/// Previously had a local definition, now using the real type from import.
+
+// ============================================================================
+// IO 类型
+// ============================================================================
+
+/// FixedBufferStream [KEPT: no-pkg]
+public class FixedBufferStream<T> {
+    public init(data: T) {}
+    public func reader(): Reader { Reader() }
+}
+
+/// Reader [KEPT: no-pkg]
+public class Reader {
+    public init() {}
+    public func readInt<T>(): T { throw Exception("unimplemented") }
+    public func readByte(): Byte { 0 }
+    public func readAll(): Array<Byte> { Array<Byte>() }
+}
+
+/// Writer [KEPT: no-pkg]
+public class Writer {
+    public init() {}
+    public func writeInt<T>(value: T): Unit {}
+    public func writeByte(value: Byte): Unit {}
+    public func writeAll(data: String): Unit {}
+}
+
+/// StackFallback [KEPT: no-pkg]
+public struct StackFallback<N> {
+    public init(capacity: Int64, alloc: Allocator) {}
+    public func get(): Allocator { Allocator() }
+}
+
+/// ArenaAllocator imported from bao_core.ArenaAllocator
+/// DevAllocator imported from bao_core.DevAllocator
 
 /// Request - HTTP 请求
 /// 对应 Bun: uws.Request 或 bun.Request
@@ -238,38 +251,33 @@ public class Mutex {
     public func assertLocked(): Unit {}
 }
 
-/// Timer stub
+/// Timer [KEPT: no-pkg]
 public class Timer {
     public init() {}
     public static func start(): Timer { Timer() }
 }
 
-/// TimerState stub
-public enum TimerState {
-    | ACTIVE
-    | FIRED
-    | CANCELLED
-}
+/// TimerState imported from bao_event_loop.TimerState
 
 // ============================================================================
 // IO 类型
 // ============================================================================
 
-/// FixedBufferStream stub
+/// FixedBufferStream [KEPT: no-pkg]
 public class FixedBufferStream<T> {
     public init(data: T) {}
     public func reader(): Reader { Reader() }
 }
 
-/// Reader stub
+/// Reader [KEPT: no-pkg]
 public class Reader {
     public init() {}
-    public func readInt<T>(): T { throw Exception("stub") }
+    public func readInt<T>(): T { throw Exception("unimplemented") }
     public func readByte(): Byte { 0 }
     public func readAll(): Array<Byte> { Array<Byte>() }
 }
 
-/// Writer stub
+/// Writer [KEPT: no-pkg]
 public class Writer {
     public init() {}
     public func writeInt<T>(value: T): Unit {}
@@ -277,30 +285,20 @@ public class Writer {
     public func writeAll(data: String): Unit {}
 }
 
-/// StackFallback stub
+/// StackFallback [KEPT: no-pkg]
 public struct StackFallback<N> {
     public init(capacity: Int64, alloc: Allocator) {}
     public func get(): Allocator { Allocator() }
 }
 
-/// ArenaAllocator stub
-public class ArenaAllocator {
-    public init(alloc: Allocator) {}
-    public func allocator(): Allocator { Allocator() }
-    public func deinit(): Unit {}
-}
-
-/// DevAllocator stub
-public class DevAllocator {
-    public init() {}
-    public func allocator(): Allocator { Allocator() }
-}
+/// ArenaAllocator imported from bao_core.ArenaAllocator
+/// DevAllocator imported from bao_core.DevAllocator
 
 // ============================================================================
 // 核心服务器类型
 // ============================================================================
 
-/// DevServer stub (forward reference)
+/// DevServer [KEPT: forward-ref - main type defined in parent package dev_server.cj]
 public class DevServer {
     public init() {}
     public func allocator(): Allocator { Allocator() }
@@ -354,9 +352,9 @@ public class DevServer {
     }
 }
 
-/// VirtualMachine - JS 虚拟机
+/// VirtualMachine [KEPT: deferred - real type in bao_jsc.BunVirtualMachine]
 /// 对应 Bun: bun.JSC.VirtualMachine
-/// 仓颉 stub: 真实实现在 bao_jsc 和 bao_runtime.package 中
+/// 保留是因为 bake 包使用 API 子集不同
 public class VirtualMachine {
     public var event_loop: EventLoop = EventLoop()
     public var global: JSGlobalObject = JSGlobalObject()
@@ -394,9 +392,8 @@ public class EventLoop {
     }
 }
 
-/// JSGlobalObject - JS 全局对象
+/// JSGlobalObject [KEPT: deferred - real type in bao_jsc.JSGlobalObject]
 /// 对应 Bun: bun.JSC.JSGlobalObject
-/// 仓颉 stub: 真实实现在 bao_jsc 中
 public class JSGlobalObject {
     public var globalThis: Any = Object()
     public init() {}
@@ -422,13 +419,13 @@ public class AnyServer {
     public func onSavedRequest(req: Any, resp: AnyResponse, callback: Any, count: Int64, args: Array<JsValue>): Unit {}
 }
 
-/// CurrentBundle stub
+/// CurrentBundle [KEPT: forward-ref]
 public class CurrentBundle {
     public init() {}
     public var reload_event: ?HotReloadEvent = None
 }
 
-/// NextBundle stub
+/// NextBundle [KEPT: forward-ref]
 public class NextBundle {
     public init() {}
     public var reload_event: ?HotReloadEvent = None
@@ -438,32 +435,32 @@ public class NextBundle {
 // 路由与框架类型
 // ============================================================================
 
-/// FrameworkRouter stub
+/// FrameworkRouter [KEPT: forward-ref - real type in parent package framework_router.cj]
 public class FrameworkRouter {
     public init() {}
     public func memoryCost(): UInt64 { 0 }
     public func scanAll(alloc: Allocator, resolver: Resolver, ctx: Any): Unit {}
 }
 
-/// HTMLBundleRoute stub
+/// HTMLBundleRoute [KEPT: no-pkg]
 public class HTMLBundleRoute {
     public init() {}
 }
 
-/// IntPtr stub
+/// IntPtr [KEPT: no-pkg]
 public class IntPtr {
     public init() {}
     public func deref(): Unit {}
 }
 
-/// HTMLRouter stub
+/// HTMLRouter [KEPT: forward-ref - real type in parent package dev_server.cj]
 public class HTMLRouter {
     public init() {}
     public static let empty: HTMLRouter = HTMLRouter()
     public func deinit(alloc: Allocator): Unit {}
 }
 
-/// StrongOptional stub
+/// StrongOptional [KEPT: deferred - imported from bao_jsc.StrongOptional]
 public class StrongOptional {
     public static let empty: StrongOptional = StrongOptional()
     public init() {}
@@ -471,7 +468,7 @@ public class StrongOptional {
     public func clearWithoutDeallocation(): Unit {}
 }
 
-/// EntryPointList stub
+/// EntryPointList [KEPT: forward-ref - real type in parent package dev_server.cj]
 public class EntryPointList {
     public static let empty: EntryPointList = EntryPointList()
     public init() {}
@@ -479,20 +476,20 @@ public class EntryPointList {
     public func deinit(alloc: Allocator): Unit {}
 }
 
-/// TestingBatchEvents stub
+/// TestingBatchEvents [KEPT: forward-ref - real type in parent package dev_server.cj]
 public enum TestingBatchEvents {
     | disabled
     | enable_after_bundle
     | enabled(TestingBatch)
 }
 
-/// TestingBatch stub
+/// TestingBatch [KEPT: forward-ref - real type in parent package dev_server.cj]
 public class TestingBatch {
     public init() {}
     public var entry_points: EntryPointList = EntryPointList()
 }
 
-/// IndexOptional stub
+/// IndexOptional [KEPT: no-pkg]
 public class IndexOptional {
     public static let none: IndexOptional = IndexOptional()
     public init() {}
@@ -504,63 +501,48 @@ public class IndexOptional {
 // 监控与观察类型
 // ============================================================================
 
-/// Watcher stub
-public class Watcher {
-    public init() {}
-    public func addDirectory(fd: Int64, dir: String, hash: UInt64, recursive: Bool): UInt16 { 0 }
-    public func removeAtIndex(index: UInt16, extra: Int64, paths: Array<String>): Unit {}
-    public func deinit(wait: Bool): Unit {}
-    public static func getHash(s: String): UInt64 { 0 }
-}
-
-/// ThreadLock stub
-public class ThreadLock {
-    public init() {}
-    public static func initUnlocked(): ThreadLock { ThreadLock() }
-    public func lock(): Unit {}
-    public func unlock(): Unit {}
-    public func assertLocked(): Unit {}
-}
+/// Watcher imported from bao_watcher.Watcher
+/// ThreadLock imported from bao_safety.ThreadLock
 
 // ============================================================================
 // Bundler/编译器类型
 // ============================================================================
 
-/// Transpiler stub
+/// Transpiler [KEPT: forward-ref - imported via parent package]
 public class Transpiler {
     public init() {}
     public var resolver: Resolver = Resolver()
 }
 
-/// Resolver stub
+/// Resolver [KEPT: forward-ref - imported via parent package]
 public class Resolver {
     public init() {}
     public func bustDirCache(dir: String): Unit {}
     public func resolve(dir: String, specifier: String, kind: ImportKind): ?String { None }
 }
 
-/// ImportKind stub
+/// ImportKind [KEPT: forward-ref]
 public enum ImportKind {
     | stmt
     | `import`
     | dynamic
 }
 
-/// Side stub
+/// Side [KEPT: forward-ref]
 public enum Side {
     | client
     | server
     | ssr
 }
 
-/// Graph stub
+/// Graph [KEPT: no-pkg]
 public enum Graph {
     | client
     | server
     | ssr
 }
 
-/// FileKind stub
+/// FileKind [KEPT: no-pkg]
 public enum FileKind {
     | unknown
     | js
@@ -590,13 +572,13 @@ public enum FileKind {
 /// Loader type alias
 public type Loader = FileKind
 
-/// ChunkKind stub
+/// ChunkKind [KEPT: no-pkg]
 public enum ChunkKind {
     | initial_response
     | hmr_chunk
 }
 
-/// Magic stub
+/// Magic [KEPT: forward-ref]
 public enum Magic {
     | valid
 }
@@ -605,14 +587,14 @@ public enum Magic {
 // 源映射与调试器
 // ============================================================================
 
-/// SourceMapMappingList stub
+/// SourceMapMappingList [KEPT: no-pkg]
 public class SourceMapMappingList {
     public init() {}
     public func find(line: UInt32, column: UInt32): ?RemappedPosition { None }
     public func deinit(alloc: Allocator): Unit {}
 }
 
-/// RemappedPosition stub
+/// RemappedPosition [KEPT: no-pkg]
 public class RemappedPosition {
     public init() {}
     public func originalLine(): UInt32 { 0 }
@@ -620,7 +602,7 @@ public class RemappedPosition {
     public var source_index: UInt32 = 0
 }
 
-/// InspectorAgent stub
+/// InspectorAgent [KEPT: no-pkg]
 public class InspectorAgent {
     public init() {}
     public func nextConnectionID(): Int32 { 0 }
@@ -633,7 +615,7 @@ public class InspectorAgent {
 // Index 类型
 // ============================================================================
 
-/// FileIndex stub
+/// FileIndex [KEPT: no-pkg]
 public struct FileIndex {
     public var value: UInt32
     public init(value: UInt32) { this.value = value }
@@ -642,7 +624,7 @@ public struct FileIndex {
 
 /// EdgeIndex is defined in incremental_graph.cj
 
-/// AstIndex stub
+/// AstIndex [KEPT: no-pkg]
 public struct AstIndex {
     public var value: UInt32
     public init(value: UInt32) { this.value = value }
@@ -657,7 +639,7 @@ public struct AstIndex {
 // HTTP/MIME/路由类型
 // ============================================================================
 
-/// MimeType stub
+/// MimeType [KEPT: no-pkg]
 public enum MimeType {
     | json
     | html
@@ -680,7 +662,7 @@ public class MimeTypeHelper {
     }
 }
 
-/// StaticRoute stub
+/// StaticRoute [KEPT: forward-ref]
 public class StaticRoute {
     public init() {}
     public static func initFromAnyBlob(blob: AnyBlob, status: Int32, mime: ?MimeType, extra: Any): StaticRoute { StaticRoute() }
@@ -689,7 +671,7 @@ public class StaticRoute {
     public static func sendBlobThenDeinit(resp: AnyResponse, blob: AnyBlob, opts: Any): Unit {}
 }
 
-/// AnyBlob stub
+/// AnyBlob [KEPT: no-pkg]
 public class AnyBlob {
     public init() {}
     public func sharedView(): AnyBlob { this }
@@ -697,7 +679,7 @@ public class AnyBlob {
     public func memoryCost(): UInt64 { 0 }
 }
 
-/// StaticRouteOptions stub
+/// StaticRouteOptions [KEPT: no-pkg]
 public class StaticRouteOptions {
     public var mime_type: MimeType
     public var server: ?AnyServer
@@ -707,7 +689,7 @@ public class StaticRouteOptions {
     }
 }
 
-/// Blob stub
+/// Blob [KEPT: no-pkg]
 public class Blob {
     public init() {}
     public static func fromArrayList(list: ArrayList<Byte>): Blob { Blob() }
@@ -717,7 +699,7 @@ public class Blob {
 // 集合类型
 // ============================================================================
 
-/// ArrayList stub
+/// ArrayList [KEPT: no-pkg - thin wrapper around bao_collections.ArrayList]
 public class ArrayList<T> {
     public init() {}
     public static func initCapacity(alloc: Allocator, capacity: Int64): ArrayList<T> { ArrayList<T>() }
@@ -729,7 +711,7 @@ public class ArrayList<T> {
     public func clear(): Unit {}
 }
 
-/// HashSet stub
+/// HashSet [KEPT: no-pkg - thin wrapper around bao_collections.HashSet]
 public class HashSet<T> {
     public init() {}
     public func contains(item: T): Bool { false }
@@ -738,7 +720,7 @@ public class HashSet<T> {
     public func clear(): Unit {}
 }
 
-/// DynamicBitSetUnmanaged stub
+/// DynamicBitSetUnmanaged [KEPT: no-pkg]
 public class DynamicBitSetUnmanaged {
     public var bit_length: UInt32 = 0
     public init() {}
@@ -775,12 +757,12 @@ public class StringsHelper {
     }
 }
 
-/// JsPrinter stub
+/// JsPrinter [KEPT: no-pkg]
 public class JsPrinter {
     public static func writePreQuotedString(input: String, writer: Writer, quoteChar: Byte, a: Bool, b: Bool, encoding: Encoding): Unit {}
 }
 
-/// URL stub
+/// URL [KEPT: no-pkg]
 public class URL {
     public static func originFromSlice(url: String): ?String { None }
 }
@@ -808,19 +790,19 @@ public class PathHelper {
 // HMR 消息与主题类型
 // ============================================================================
 
-/// HmrTopic stub
+/// HmrTopic [KEPT: forward-ref]
 public class HmrTopic {
     public static let Bits: Int64 = 0
     public static let max_count: Int64 = 64
 }
 
-/// ConsoleLogKind stub
+/// ConsoleLogKind [KEPT: forward-ref]
 public enum ConsoleLogKind {
     | log
     | err
 }
 
-/// MessageId stub
+/// MessageId [KEPT: forward-ref]
 public enum MessageId {
     | version
     | set_url_response
@@ -828,7 +810,7 @@ public enum MessageId {
     public func char(): Byte { 0 }
 }
 
-/// IncomingMessageId stub
+/// IncomingMessageId [KEPT: forward-ref]
 public enum IncomingMessageId {
     | `init`
     | subscribe
@@ -902,7 +884,7 @@ public class LoggerLocation {
     }
 }
 
-/// LoggerKind stub
+/// LoggerKind [KEPT: no-pkg]
 public enum LoggerKind {
     | err
     | warn
@@ -915,7 +897,7 @@ public enum LoggerKind {
 // JS 类型
 // ============================================================================
 
-/// ZigStackFrame stub
+/// ZigStackFrame [KEPT: no-pkg]
 public class ZigStackFrame {
     public var source_url: ZigString = ZigString()
     public var function_name: ZigString = ZigString()
@@ -924,7 +906,7 @@ public class ZigStackFrame {
     public init() {}
 }
 
-/// ZigString stub
+/// ZigString [KEPT: no-pkg]
 public class ZigString {
     public var value: ZigStringInner = ZigStringInner()
     public init() {}
@@ -932,13 +914,13 @@ public class ZigString {
     public func slice(): String { "" }
 }
 
-/// ZigStringInner stub
+/// ZigStringInner [KEPT: no-pkg]
 public class ZigStringInner {
     public init() {}
     public func slice(): String { "" }
 }
 
-/// ZigStackFramePosition stub
+/// ZigStackFramePosition [KEPT: no-pkg]
 public class ZigStackFramePosition {
     public var line: Line = Line(0)
     public var column: Column = Column(0)
@@ -946,7 +928,7 @@ public class ZigStackFramePosition {
     public init() {}
 }
 
-/// Line stub
+/// Line [KEPT: no-pkg]
 public struct Line {
     public var value: UInt32
     public init(value: UInt32) { this.value = value }
@@ -954,7 +936,7 @@ public struct Line {
     public func oneBased(): UInt32 { value + 1 }
 }
 
-/// Column stub
+/// Column [KEPT: no-pkg]
 public struct Column {
     public var value: UInt32
     public init(value: UInt32) { this.value = value }
@@ -962,7 +944,7 @@ public struct Column {
     public func oneBased(): UInt32 { value + 1 }
 }
 
-/// ZigException stub
+/// ZigException [KEPT: no-pkg]
 public class ZigException {
     public var name: String = ""
     public var message: String = ""
@@ -972,7 +954,7 @@ public class ZigException {
     public init() {}
 }
 
-/// ZigStackTrace stub
+/// ZigStackTrace [KEPT: no-pkg]
 public class ZigStackTrace {
     public var frames_len: UInt32 = 0
     public init() {}
@@ -980,19 +962,19 @@ public class ZigStackTrace {
     public func frames(): Array<ZigStackFrame> { Array<ZigStackFrame>() }
 }
 
-/// SourceMapState stub
+/// SourceMapState [KEPT: no-pkg]
 public class SourceMapState {
     public init(generated_line: UInt32, generated_column: UInt32, source_index: UInt32, original_line: UInt32, original_column: UInt32) {}
 }
 
-/// HmrRuntime stub
+/// HmrRuntime [KEPT: no-pkg]
 public class HmrRuntime {
     public var code: String = ""
     public var line_count: UInt32 = 0
     public init(code: String) { this.code = code }
 }
 
-/// Encoding stub
+/// Encoding [KEPT: no-pkg]
 public enum Encoding {
     | utf8
 }
@@ -1001,14 +983,14 @@ public enum Encoding {
 // Graph/跟踪类型
 // ============================================================================
 
-/// GraphTraceState stub
+/// GraphTraceState [KEPT: no-pkg]
 public class GraphTraceState {
     public init() {}
     public func bits(side: Side): BitSet { BitSet() }
     public func deinit(alloc: Allocator): Unit {}
 }
 
-/// BitSet stub
+/// BitSet [KEPT: no-pkg]
 public class BitSet {
     public init() {}
     public func isSet(index: UInt32): Bool { false }
@@ -1016,27 +998,27 @@ public class BitSet {
     public func unset(index: UInt32): Unit {}
 }
 
-/// InsertResult stub
+/// InsertResult [KEPT: no-pkg]
 public class InsertResult {
     public init() {}
     public var key: String = ""
     public var index: UInt32 = 0
 }
 
-/// ChunkContent stub
+/// ChunkContent [KEPT: no-pkg]
 public enum ChunkContent {
     | js(ChunkJsContent)
     | css(UInt64)
 }
 
-/// ChunkJsContent stub
+/// ChunkJsContent [KEPT: no-pkg]
 public class ChunkJsContent {
     public var code: String = ""
     public var source_map: ?ChunkSourceMap = None
     public init() {}
 }
 
-/// ChunkSourceMap stub
+/// ChunkSourceMap [KEPT: no-pkg]
 public class ChunkSourceMap {
     public init() {}
 }
@@ -1095,8 +1077,8 @@ public enum PluginState {
     public operator func !=(right: PluginState): Bool { !(this == right) }
 }
 
-/// JsValue stub - 用于 AnyServer.onSavedRequest 参数类型
-/// 真实类型来自 bao_jsc
+/// JsValue [KEPT: forward-ref - imported from bao_jsc in parent package]
+/// 此处保留是因为 dev_server 子包需要独立编译
 public class JsValue {
     public init() {}
     public static func jsUndefined(): JsValue { JsValue() }
@@ -1112,7 +1094,7 @@ public class JsValue {
     public func get(global: Any, `prop`: String): ?JsValue { None }
 }
 
-/// Strong stub
+/// Strong [KEPT: no-pkg]
 public class Strong {
     public var Optional: StrongOptional = StrongOptional.empty
     public init() {}
@@ -1150,28 +1132,28 @@ public func assert(condition: Bool, message: String): Unit {
 /// sizeOf helper
 public func sizeOf<T>(): UInt64 { 0 }
 
-/// random helper
-public func random<T>(): T { throw Exception("stub") }
+/// random helper [KEPT: no-pkg - uses system RNG when available]
+public func random<T>(): T { throw Exception("unimplemented: random") }
 
-/// bitCast helper
-public func bitCast<T>(value: Any): T { throw Exception("stub") }
+/// bitCast helper [KEPT: no-pkg - needs unsafe reinterpret]
+public func bitCast<T>(value: Any): T { throw Exception("unimplemented: bitCast") }
 
 /// isAbsolutePath helper
 public func isAbsolutePath(path: String): Bool { path.startsWith("/") }
 
-/// timespec stub
+/// timespec [KEPT: no-pkg]
 public struct timespec {
     public var sec: Int64
     public var nsec: Int64
     public init(sec: Int64, nsec: Int64) { this.sec = sec; this.nsec = nsec }
 }
 
-/// TimeMode stub
+/// TimeMode [KEPT: no-pkg]
 public enum TimeMode {
     | allow_mocked_time
 }
 
 /// StackFallbackInit helper
 
-/// FieldParentPtr helper
-public func fieldParentPtr<T>(ptr: Any): T { throw Exception("stub") }
+/// FieldParentPtr helper [KEPT: no-pkg - needs unsafe pointer arithmetic]
+public func fieldParentPtr<T>(ptr: Any): T { throw Exception("unimplemented: fieldParentPtr") }

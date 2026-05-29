@@ -1153,10 +1153,10 @@ func selectAlpnCallback(
 // 辅助
 // ============================================================================
 
-/// 获取 JS 事件循环上下文
+/// 获取 JS 事件循环上下文 — 对应 Bun: SocketBody.jsLoopCtx
 func jsLoopCtx(): Any {
-    // Stub: return placeholder context — actual event loop integration not yet implemented
-    return "js_loop_ctx"
+    // 对应 Bun: JSC.vm().eventLoop().loopCtx() — 获取 JS 事件循环上下文
+    return EventLoop.get().loopCtx()
 }
 
 /// 从 NewSocket 获取底层 SSL* 指针

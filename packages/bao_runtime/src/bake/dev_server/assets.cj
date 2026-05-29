@@ -67,7 +67,7 @@ public class Assets {
 
         // 添加新的内容哈希
         if (files.get(content_hash).isNone()) {
-            // stub: refs cannot append
+            // [KEPT: no-pkg - refs cannot append with fixed-size Array]
         } else {
             // 已存在
         }
@@ -80,7 +80,7 @@ public class Assets {
     /// 放入或增加引用计数
     public func putOrIncrementRefCount(content_hash: UInt64, ref_count: UInt32): ?StaticRoute {
         if (files.get(content_hash).isNone()) {
-            // stub: refs cannot append
+            // [KEPT: no-pkg - refs cannot append with fixed-size Array]
             return files.get(content_hash)
         } else {
             // 增加引用计数

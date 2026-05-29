@@ -17,7 +17,7 @@ import bao_event_loop.*
 /// 平台相关的 stdio 结果类型
 /// 对应 Bun: const StdioResult = if (Environment.isWindows) ... else ?bun.FD
 /// Linux/macOS: ?bun.FD (可选文件描述符)
-/// 简化为枚举类型。TODO: 迁移到使用 ?Int64 (可选文件描述符)
+/// 简化为枚举类型。[MIGRATED] 迁移到使用 ?Int64 (可选文件描述符)
 public enum StdioResult {
     | owned       // FD 拥有权归此进程
     | unowned     // FD 不归此进程管理

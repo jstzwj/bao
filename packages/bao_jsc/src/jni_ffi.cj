@@ -294,9 +294,10 @@ class JSCApi {
         unsafe { JSValueUnprotect(CPointer<UInt8>(), CPointer<UInt8>()) }
     }
 
-    // JSGlobalContextSetName
+    // JSGlobalContextSetName — JSC 标准 C API
+    // 设置全局上下文的名称, 对应 JSC API: JSGlobalContextSetName(ctx, name)
     public static func JSGlobalContextSetName(ctx: JSContextRef, name: JSStringRef): Unit {
-        // 未在 jsc_ffi.cj 中声明，保留为 stub
+        // 仓颉 FFI 尚未绑定此函数; 当前为空实现
     }
 
     // JSObjectGetPrototype
@@ -310,13 +311,14 @@ class JSCApi {
         unsafe { JSObjectSetPrototype(CPointer<UInt8>(), CPointer<UInt8>(), CPointer<UInt8>()) }
     }
 
-    // JSObjectMakeFunctionWithCallback
+    // JSObjectMakeFunctionWithCallback — JSC 标准 C API
+    // 创建带回调的函数对象, 对应 JSC API: JSObjectMakeFunctionWithCallback(ctx, name, callAsFunction)
     public static func JSObjectMakeFunctionWithCallback(
         ctx: JSContextRef,
         name: JSStringRef,
         callAsFunction: CPointer<UInt8>
     ): JSObjectRef {
-        // 未在 jsc_ffi.cj 中声明，保留为 stub
+        // 仓颉 FFI 尚未绑定此函数; 返回空引用
         UInt64(0)
     }
 

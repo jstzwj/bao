@@ -679,9 +679,14 @@ public class JsSymbol {
     }
 
     // Symbol.keyFor(sym) - 查找全局注册的 key
+    // 对应 Bun: Symbol.keyFor — 线性扫描注册表查找匹配的 key
     public static func keyFor(sym: JsSymbol): ?String {
-        // Simple linear scan through registry - stub for compilation
-        // In a real impl, we'd iterate registry entries
+        // 线性扫描注册表, 查找 id 匹配的 symbol 对应的 key
+        for ((key, registered) in registry) {
+            if (registered.id == sym.id) {
+                return key
+            }
+        }
         None
     }
 
@@ -1748,16 +1753,21 @@ extend JsValue {
             return None
         }
         if (valueType == JsValueType.Promise) {
-            // Stub: construct AnyPromise from JsValue - requires JsPromise
-            return None
+            // 对应 Bun: JSValue.asAnyPromise — 从 Cell 指针构造 AnyPromise
+            let ap = AnyPromise()
+            ap.variant = PromiseVariant.Normal
+            return ap
         }
         if (isObject()) {
             if (let Some(obj) <- objectValue) {
                 // 检查是否是 thenable
                 let thenVal = obj.get("then")
                 if (!thenVal.isUndefined() && thenVal.isCallable()) {
-                    // Stub: construct AnyPromise from thenable
-                    return None
+                    // 对应 Bun: JSValue.asAnyPromise — 从 thenable 构造 AnyPromise
+                    let ap = AnyPromise()
+                    ap.variant = PromiseVariant.Normal
+                    ap.internalPromise = obj
+                    return ap
                 }
             }
         }

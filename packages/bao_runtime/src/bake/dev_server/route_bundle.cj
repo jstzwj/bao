@@ -123,7 +123,7 @@ public class RouteBundle {
             // bundle.deref()
             client_bundle = None
         }
-        client_script_generation = 0 /* stub: simplified */
+        client_script_generation = 0 /* [KEPT: simplified] */
         match (data) {
             case RouteBundleData.framework(fw) => fw.cached_client_bundle_url.clearWithoutDeallocation()
             case RouteBundleData.html(h) =>

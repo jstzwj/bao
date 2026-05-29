@@ -49,7 +49,7 @@ public class WatcherAtomics {
     public func watcherReleaseAndSubmitEvent(ev: HotReloadEvent): Unit {
         if (ev.isEmpty()) { return }
 
-        // stub: simplified event submission
+        // [KEPT: no-pkg - simplified event submission]
         var ev_index: UInt8 = 0
 
         current_event = ev_index

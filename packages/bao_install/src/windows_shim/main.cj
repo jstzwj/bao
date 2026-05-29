@@ -46,7 +46,7 @@ public class ShimMain {
 }
 
 // ============================================================================
-// CRT stubs (Windows 特定)
+// CRT 符号 (Windows 特定)
 // 严格翻译自: main.rs — _fltused / __chkstk
 //   在 Windows PE 中, 这些是 CRT 需要的链接时符号
 //   在仓颉中不需要, 但保留注释说明

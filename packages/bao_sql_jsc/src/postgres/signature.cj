@@ -43,10 +43,12 @@ public class PostgresSignature {
     /// 计算哈希
     /// 对应 Bun: Signature.hash
     public func hash(): UInt64 {
-        // Stub: simplified hash
-        var h: UInt64 = 0
+        // FNV-1a 变体: 使用质数乘法进行字符串哈希
+        // 对应 Bun: Signature.hash — 简化的哈希实现
+        var h: UInt64 = 2166136261_u64
         for (i in 0..name.size) {
-            h = h * 31 + UInt64(Int64(name[Int64(i)]))
+            h = h ^ UInt64(Int64(name[Int64(i)]))
+            h = h * 16777619_u64
         }
         return h
     }

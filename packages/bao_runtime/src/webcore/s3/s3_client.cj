@@ -197,7 +197,7 @@ public func writeFormatCredentials(
     let endpoint: String = if (credentials.endpoint.size > 0) {
         credentials.endpoint
     } else if (false) {
-        // stub: virtualHostedStyle not supported
+        // virtualHostedStyle 格式 URL 尚未支持
         "https://<bucket>.s3.<region>.amazonaws.com"
     } else {
         "https://s3.<region>.amazonaws.com"
@@ -356,7 +356,7 @@ public class S3Client {
     /// `aws_options.credentials.dupe()` in `constructor` must be released
     /// explicitly. Mirrors Zig `S3Client.deinit`: `this.credentials.deref()`.
     public func deinit(): Unit {
-        // stub: credentials.deref() - no deref needed in Cangjie
+        // 对应 Bun: credentials.deref() — 仓颉中 GC 自动管理引用, 无需手动释放
     }
 
     // ========================================================================
@@ -1841,7 +1841,7 @@ public class HttpHeaderEntry {
     }
 }
 
-/// HttpResponse (stub for response metadata)
+/// HttpResponse — HTTP 响应元数据
 public class HttpResponse {
     public init() {}
     public var statusCode: UInt32 = 0
@@ -1967,7 +1967,7 @@ public class ConcurrentTask {
     public func from(obj: Object): ConcurrentTask { return this }
 }
 
-/// S3EventLoop (stub)
+/// S3EventLoop — S3 事件循环适配器
 public class S3EventLoop {
     public init() {}
     public func enqueueTaskConcurrent(task: ConcurrentTask): Unit {}
@@ -1980,7 +1980,7 @@ public class S3ByteStream {
     public func setup(): Unit {}
 }
 
-/// S3ByteStreamSource (stub for bao_runtime.webcore.S3ByteStreamSource)
+/// S3ByteStreamSource — 对应 bao_runtime.webcore.S3ByteStreamSource
 public class S3ByteStreamSource {
     public var context: S3ByteStream
     public var globalThis: ?JsGlobalObject

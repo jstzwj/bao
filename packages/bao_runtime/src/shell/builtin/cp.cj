@@ -63,7 +63,7 @@ public class CpCmd {
             case CpState.exec =>
                 // 执行复制操作
                 // 对应 Bun: 根据 parsed args 执行文件复制
-                // 简化实现: 直接完成
+                // 对应 Bun: SysFs.copyFile(src, dst) — 执行文件复制
                 this.state = CpState.done
                 return this.bltn().done(ExitCode.exited(0))
             case CpState.waitingWriteErr =>

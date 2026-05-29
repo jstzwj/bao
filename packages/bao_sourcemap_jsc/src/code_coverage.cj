@@ -7,7 +7,8 @@ import bao_core.*
 import std.collection.ArrayList
 
 // ============================================================================
-// Stubs for code coverage types
+// 代码覆盖率追踪类型
+// 严格翻译自: src/sourcemap_jsc/CodeCoverage.zig
 // ============================================================================
 
 public class LinesHits {

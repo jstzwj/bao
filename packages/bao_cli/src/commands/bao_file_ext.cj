@@ -34,7 +34,8 @@ extend BaoFile {
     }
 
     public static func setExecutable(path: String): Unit {
-        // stub - no-op
+        // 对应 Bun: 设置文件可执行权限 (chmod +x)
+        // 当前实现为空操作, 需要 FFI 调用 chmod
     }
 
     public static func isExecutable(path: String): Bool {

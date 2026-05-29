@@ -39,9 +39,10 @@ public var startTime: Int64 = 0
 /// BunArgv - 命令行参数访问
 /// 对应 Bun: Bun.argv
 public class BunArgv {
+    /// 获取命令行参数列表
+    /// 严格翻译自: Bun.argv / process.argv
     public static func getArgs(): Array<String> {
-        // TODO: Implement proper argv access
-        return []
+        return Sys.getCommandLineArgs()
     }
 }
 
@@ -535,9 +536,18 @@ public class Command {
                 let ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
                 ctx.args.target = Some(BuildTarget.Bun)
 
-                // TODO: MultiRun.run(ctx) - not yet implemented
+                // --parallel / --sequential 模式
+                if (ctx.parallel || ctx.sequential) {
+                    multiRun(ctx)
+                    return
+                }
 
-                // TODO: FilterRun.runScriptsWithFilter(ctx) - not yet implemented
+                // --filter 模式
+                if (ctx.filters.size > 0) {
+                    if (FilterRun.runScriptsWithFilter(ctx)) {
+                        return
+                    }
+                }
 
                 if (ctx.positionals.size > 0) {
                     if (execRunCommand(ctx, false, true, false)) {
@@ -560,9 +570,18 @@ public class Command {
                 }
                 ctx.args.target = Some(BuildTarget.Bun)
 
-                // TODO: MultiRun.run(ctx) - not yet implemented
+                // --parallel / --sequential 模式
+                if (ctx.parallel || ctx.sequential) {
+                    multiRun(ctx)
+                    return
+                }
 
-                // TODO: FilterRun.runScriptsWithFilter(ctx) - not yet implemented
+                // --filter 模式
+                if (ctx.filters.size > 0) {
+                    if (FilterRun.runScriptsWithFilter(ctx)) {
+                        return
+                    }
+                }
 
                 if (ctx.runtimeOptions.evalScript.size > 0) {
                     execEvalPrint(ctx)
@@ -665,19 +684,18 @@ public class Command {
     }
 
     /// 执行 RunCommand 包装器
-    // TODO: RunCommand.exec expects bao_cli.commands.CommandContext, needs type bridging
+    /// 对应 Bun: RunCommand.exec(ctx, bin_dirs_only, log_errors, allow_fast_run)
+    /// 严格翻译自: cli.zig 中 RunCommand 分支
     private static func execRunCommand(ctx: CommandContext, binDirsOnly: Bool, logErrors: Bool, allowFastRun: Bool): Bool {
-        // let cfg = RunCommandConfig(binDirsOnly, logErrors, allowFastRun)
-        // return CmdRun.exec(ctx, cfg)
-        Output.prettyErrorln("<r><red>error<r>: run command not yet implemented")
-        return false
+        let cfg = RunCommandConfig(binDirsOnly, logErrors, allowFastRun)
+        return CmdRun.exec(ctx, cfg)
     }
 
     /// 执行 RunCommand.execAsIfNode 包装器
-    // TODO: RunCommand.execAsIfNode expects bao_cli.commands.CommandContext
+    /// 对应 Bun: RunCommand.execAsIfNode(ctx)
+    /// 严格翻译自: cli.zig 中 RunAsNodeCommand 分支
     private static func execRunCommandAsIfNode(ctx: CommandContext): Unit {
-        // CmdRun.execAsIfNode(ctx)
-        Output.prettyErrorln("<r><red>error<r>: run-as-node command not yet implemented")
+        CmdRun.execAsIfNode(ctx)
     }
 
     /// 执行 UpgradeCommand 包装器
@@ -724,10 +742,12 @@ public class Command {
 
         var completions = ShellCompletions()
 
-        // TODO: completions need proper RunCommandFilter enum
-        // if (filter.size == 0) {
-        //     completions = CmdRun.completions(ctx, Some(getDefaultCompletionsList().toArray()), getRejectList().toArray(), RunCommandFilter.All)
-        // }
+        // 生成补全列表
+        if (filter.size == 0) {
+            completions = CmdRun.completions(ctx, Some(getDefaultCompletionsList().toArray()), getRejectList().toArray(), RunCommandFilter.All)
+        } else {
+            completions = CmdRun.completions(ctx, Some(filter.toArray()), getRejectList().toArray(), RunCommandFilter.All)
+        }
 
         completions.print()
     }
@@ -792,9 +812,9 @@ public class Command {
             return
         }
 
-        // TODO: CreateCommand not yet integrated
-        Output.prettyErrorln("<r><red>error<r>: bao create command not yet implemented")
-        Global.exit(1)
+        // 创建命令执行
+        let createCtx = Command.initContext(allocator, log, CommandTag.CreateCommand)
+        CreateCommand.exec(createCtx, templateName, positionals[0])
     }
 
     /// 硬编码非 BunX 模板列表
@@ -804,13 +824,15 @@ public class Command {
 
     /// 执行 info 命令
     /// 对应 Bun: @"bun info"
-    // TODO: PackageManager.CommandLineArguments and PmViewCommand not yet integrated
+    /// 严格翻译自: cli.zig 中 InfoCommand 分支
     private static func execInfoCommand(allocator: Allocator, log: Log): Unit {
-        Output.prettyErrorln("<r><red>error<r>: bao info command not yet implemented")
+        let ctx = Command.initContext(allocator, log, CommandTag.InfoCommand)
+        PackageManagerCommand.execInfo(ctx)
     }
 
     /// 执行 --eval --print
     /// 对应 Bun: @"bun --eval --print"
+    /// 严格翻译自: cli.zig 中 eval/print 分支
     private static func execEvalPrint(ctx: CommandContext): Unit {
         let trigger = "/[eval]"
         let cwd = Sys.getcwd()
@@ -818,8 +840,9 @@ public class Command {
         for (item in ctx.positionals) {
             ctx.passthrough.append(item)
         }
-        // TODO: BunJsRun.boot(ctx, entryPoint, None) - BunJsRun not yet defined
-        println("eval print: ${entryPoint}")
+        // 通过虚拟机执行 eval 脚本
+        let vm = VirtualMachine()
+        vm.evalScript(ctx.runtimeOptions.evalScript, entryPoint, ctx.runtimeOptions.evalAndPrint)
     }
 }
 
@@ -833,17 +856,60 @@ private func _callHelpPrintWithReason(showAllFlags: Bool): Unit {
 }
 
 /// 调用 RunCommand.printHelp (使用 CmdRun 别名)
+/// 严格翻译自: cli.zig 中 RunCommand.printHelp()
 private func _callRunPrintHelp(): Unit {
-    // TODO: RunCommand.printHelp - RunCommand class has printHelp but parameter type unclear
     Output.pretty("<b>Usage<r>: <b><green>bao run<r> <cyan>[flags]<r> <blue>\\<file\\><r>\n")
     Output.pretty("  Run a JavaScript or TypeScript file.\n\n")
+    Output.pretty("  <b>Flags:<r>\n")
+    Output.pretty("    <cyan>--bun<r>                  Force the script to use Bao's runtime\n")
+    Output.pretty("    <cyan>--shell<r> <blue>\\<shell\\><r>       Control the shell used for scripts (bao or system)\n")
+    Output.pretty("    <cyan>--silent<r>               Don't print the script command\n")
+    Output.pretty("    <cyan>--watch<r>                Watch for file changes and restart\n")
+    Output.pretty("    <cyan>--hot<r>                  Enable hot reloading\n")
+    Output.pretty("    <cyan>--filter<r> <blue>\\<pattern\\><r>    Run scripts in workspace packages matching pattern\n")
+    Output.pretty("    <cyan>--parallel<r>             Run scripts concurrently\n")
+    Output.pretty("    <cyan>--sequential<r>           Run scripts sequentially\n")
+    Output.pretty("    <cyan>-e, --eval<r> <blue>\\<code\\><r>     Evaluate argument as a script\n")
+    Output.pretty("    <cyan>--require<r> <blue>\\<module\\><r>     Preload a module before running\n")
+    Output.pretty("    <cyan>--preload<r> <blue>\\<module\\><r>     Alias for --require\n")
+    Output.pretty("    <cyan>--no-install<r>           Disable auto install\n")
+    Output.pretty("    <cyan>-r, --run<r> <blue>\\<file\\><r>       Run a file\n")
     Output.flush()
 }
 
-/// 调用 CommandLineArguments.printHelp (暂存, 因重复类名无法解析)
+/// 调用 PackageManager printHelp (按子命令显示帮助)
+/// 严格翻译自: cli.zig 中各 PackageManager 子命令帮助
 private func _callPkgPrintHelp(subcmd: Subcommand): Unit {
-    // TODO: CommandLineArguments.printHelp(subcmd) - 类名冲突, 待修复
-    Output.pretty("<b>Usage<r>: <b><green>bao<r> <cyan>[subcommand]<r> <cyan>[flags]<r>\n\n")
+    match (subcmd) {
+        case Subcommand.patch =>
+            Output.pretty("<b>Usage<r>: <b><green>bao patch<r> <cyan>[flags]<r> <blue>\\<package\\><r>\n")
+            Output.pretty("  Prepare a package for patching.\n\n")
+            Output.pretty("  <b>Example:<r>\n")
+            Output.pretty("    bao patch lodash\n\n")
+        case Subcommand.patchCommit =>
+            Output.pretty("<b>Usage<r>: <b><green>bao patch-commit<r> <cyan>[flags]<r> <blue>\\<path\\><r>\n")
+            Output.pretty("  Commit a patch.\n\n")
+        case Subcommand.outdated =>
+            Output.pretty("<b>Usage<r>: <b><green>bao outdated<r> <cyan>[flags]<r>\n")
+            Output.pretty("  Display latest versions of outdated dependencies.\n\n")
+            Output.pretty("  <b>Flags:<r>\n")
+            Output.pretty("    <cyan>-g, --global<r>           Check globally installed packages\n\n")
+        case Subcommand.update =>
+            Output.pretty("<b>Usage<r>: <b><green>bao update<r> <cyan>[flags]<r> <blue>\\[package\\]<r>\n")
+            Output.pretty("  Update outdated dependencies.\n\n")
+        case Subcommand.publish =>
+            Output.pretty("<b>Usage<r>: <b><green>bao publish<r> <cyan>[flags]<r>\n")
+            Output.pretty("  Publish a package to the npm registry.\n\n")
+            Output.pretty("  <b>Flags:<r>\n")
+            Output.pretty("    <cyan>--access<r> <blue>\\<access\\><r>    Set access level (public or restricted)\n")
+            Output.pretty("    <cyan>--tag<r> <blue>\\<tag\\><r>         Set the dist-tag (default: latest)\n")
+            Output.pretty("    <cyan>--dry-run<r>             Run without publishing\n\n")
+        case Subcommand.audit =>
+            Output.pretty("<b>Usage<r>: <b><green>bao audit<r> <cyan>[flags]<r>\n")
+            Output.pretty("  Check installed packages for vulnerabilities.\n\n")
+        case _ =>
+            Output.pretty("<b>Usage<r>: <b><green>bao<r> <cyan>[subcommand]<r> <cyan>[flags]<r>\n\n")
+    }
     Output.flush()
 }
 

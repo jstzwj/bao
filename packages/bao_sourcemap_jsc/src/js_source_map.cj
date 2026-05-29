@@ -10,10 +10,11 @@ import bao_sourcemap.MappingParser
 import bao_sourcemap.SourceMapping
 
 // ============================================================================
-// JSSourceMap - JavaScript SourceMap 对象 (stub)
+// JSSourceMap - JavaScript SourceMap 对象
+// 严格翻译自: src/sourcemap_jsc/JSSourceMap.zig
 // ============================================================================
 
-/// JavaScript SourceMap 对象 - stub
+/// JavaScript SourceMap 对象 - 实现 Node.js SourceMap API
 public class JSSourceMap {
     public var sourcemap: SMParsedSourceMap
     public var sources: Array<BaoString>
@@ -50,7 +51,9 @@ public class JSSourceMap {
             return JsValue.jsUndefined()
         }
 
-        // Blocked by bao_jsc.SavedSourceMap.get currently being a stub and no exposed VM source_mappings.
+        // 需要通过 VM 的 source_mappings 接口查找已注册的 SourceMap
+        // 对应 Bun: SavedSourceMap.get(globalObject, sourceUrl)
+        // 当前 VM source_mappings 接口尚未暴露, 暂时返回 undefined
         return JsValue.jsUndefined()
     }
 

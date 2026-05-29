@@ -2895,12 +2895,12 @@ public class FileSink {
 
     /// 增加引用计数
     public func ref(): Unit {
-        // 引用计数管理 — 当前简化实现中无需操作
+        // 对应 Bun: 引用计数 +1 — 仓颉 GC 管理生命周期
     }
 
     /// 减少引用计数
     public static func deref(sink: FileSink): Unit {
-        // 引用计数管理 — 当前简化实现中确保文件关闭
+        // 对应 Bun: 引用计数 -1 — 确保文件关闭
         if (!sink.closed) {
             sink.end()
         }

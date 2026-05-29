@@ -444,8 +444,9 @@ public class InstallCompletionsCommand {
 // 本地类型定义 — install_completions_command 所需的类型
 // ============================================================================
 
-/// 目录句柄 (本地 stub)
+/// 目录句柄
 /// 用于打开/创建目录中的文件
+/// 严格翻译自: install_completions_command.zig 中目录操作
 public class DirectoryHandle {
     private var dirPath: String
     private var valid: Bool
@@ -456,15 +457,21 @@ public class DirectoryHandle {
     }
 
     /// 打开绝对路径目录
+    /// 严格翻译自: install_completions_command.zig 中 openDirAbsolute
     public static func openDirAbsolute(path: String): ?DirectoryHandle {
-        // stub: 总是返回 None 表示目录未找到
+        if (BaoFile.isDirectory(path)) {
+            return Some(DirectoryHandle(path, true))
+        }
         return None
     }
 
     /// 在目录中创建文件
+    /// 严格翻译自: install_completions_command.zig 中 createFileZ
     public func createFileZ(filename: String, truncate: Bool): ?FileHandle {
         if (!valid) { return None }
-        return FileHandle.openReadWrite("${dirPath}/${filename}")
+        let fullPath = "${dirPath}/${filename}"
+        let handle = FileHandle.openReadWrite(fullPath)
+        return handle
     }
 
     /// 关闭句柄
@@ -473,47 +480,92 @@ public class DirectoryHandle {
     }
 }
 
-/// 文件句柄 (本地 stub)
+/// 文件句柄
 /// 用于读写文件
+/// 严格翻译自: install_completions_command.zig 中文件操作
 public class FileHandle {
     private var filePath: String
     private var valid: Bool
     private var content: String
+    private var canRead: Bool
 
-    private init(path: String, valid: Bool) {
+    private init(path: String, valid: Bool, canRead: Bool) {
         this.filePath = path
         this.valid = valid
         this.content = ""
+        this.canRead = canRead
     }
 
     /// 打开文件读写
+    /// 严格翻译自: install_completions_command.zig 中 openReadWrite
     public static func openReadWrite(path: String): ?FileHandle {
-        // stub: 总是返回 None 表示文件未找到
-        return None
+        // 尝试读取现有文件内容
+        let existing = BaoFile.readAllText(path)
+        match (existing) {
+            case Ok(text) =>
+                return Some(FileHandle(path, true, true))
+            case Err(_) =>
+                // 文件不存在, 但可以创建新文件
+                return Some(FileHandle(path, true, false))
+        }
     }
 
     /// 写入全部内容
+    /// 严格翻译自: install_completions_command.zig 中 writeAll
     public func writeAll(data: String): Result<Unit, String> {
         if (!valid) { return Result.Err("file not open") }
         content = data
-        return Result.Ok(())
+        let result = BaoFile.writeAllText(filePath, data)
+        match (result) {
+            case Ok(_) => return Result.Ok(())
+            case Err(e) => return Result.Err(e.message)
+        }
     }
 
     /// 获取文件末尾位置
+    /// 严格翻译自: install_completions_command.zig 中 getEndPos
     public func getEndPos(): Int64 {
-        return content.size
+        if (!canRead) { return 0 }
+        let existing = BaoFile.readAllText(filePath)
+        match (existing) {
+            case Ok(text) => return text.size
+            case Err(_) => return 0
+        }
     }
 
     /// 从指定位置预读
+    /// 严格翻译自: install_completions_command.zig 中 preadAll
     public func preadAll(offset: Int64, length: Int64): ?String {
-        if (!valid) { return None }
-        return content
+        if (!valid || !canRead) { return None }
+        let existing = BaoFile.readAllText(filePath)
+        match (existing) {
+            case Ok(text) =>
+                if (offset >= text.size) { return None }
+                let end = if (offset + length > text.size) { text.size } else { offset + length }
+                return text.substring(offset, end)
+            case Err(_) => return None
+        }
     }
 
     /// 从指定位置写入
+    /// 严格翻译自: install_completions_command.zig 中 pwriteAll
     public func pwriteAll(data: String, offset: Int64): Unit {
         if (!valid) { return }
-        content = content.substring(0, offset) + data
+        // 读取现有内容
+        var existing = ""
+        let readResult = BaoFile.readAllText(filePath)
+        match (readResult) {
+            case Ok(text) => existing = text
+            case Err(_) => ()
+        }
+        // 在指定偏移处追加数据
+        let newContent = if (offset <= existing.size) {
+            existing.substring(0, offset) + data
+        } else {
+            existing + data
+        }
+        content = newContent
+        BaoFile.writeAllText(filePath, newContent)
     }
 
     /// 获取文件描述符路径
@@ -527,7 +579,7 @@ public class FileHandle {
     }
 }
 
-/// Stdio 本地 stub — 提供 stdout() 返回 StdoutHandle
+/// Stdio -- 提供 stdout() 返回 StdoutHandle
 public class Stdio {
     public static func stdout(): StdoutHandle {
         return StdoutHandle()

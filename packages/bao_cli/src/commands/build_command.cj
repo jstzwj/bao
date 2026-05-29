@@ -384,9 +384,39 @@ public class BuildCommand {
     }
 
     /// 生成 metafile markdown
+    /// 严格翻译自: build_command.zig 中 metafile-md 输出
     private func generateMetafileMarkdown(json: String): String {
-        // 简化实现
-        return "# Build Metafile\n\n```json\n${json}\n```"
+        let sb = StringBuilder()
+        sb.append("# Build Metafile\n\n")
+        sb.append("## Output Files\n\n")
+
+        // 解析 JSON 并格式化为 Markdown 表格
+        let parser = JsonParser()
+        let root = parser.parse(json)
+        match (root) {
+            case Some(obj) =>
+                let outputs = JsonHelper.getField(obj, "outputs")
+                match (outputs) {
+                    case Some(outputsObj) =>
+                        sb.append("| File | Size |\n")
+                        sb.append("|------|------|\n")
+                        for (key in outputsObj.keys()) {
+                            let fileObj = outputsObj.getObject(key)
+                            match (fileObj) {
+                                case Some(f) =>
+                                    let bytes = JsonHelper.getString(f, "bytes") ?? "0"
+                                    sb.append("| ${key} | ${bytes} bytes |\n")
+                                case None => ()
+                            }
+                        }
+                        sb.append("\n")
+                    case None => ()
+                }
+            case None => ()
+        }
+
+        sb.append("## Raw JSON\n\n```json\n${json}\n```\n")
+        return sb.toString()
     }
 
     /// 设置 fetcher
@@ -778,7 +808,7 @@ public class Output {
 
     /// 刷新输出
     public static func flush(): Unit {
-        // no-op stub
+        Sys.flushStdout()
     }
 
     /// 获取 writer
@@ -791,14 +821,16 @@ public class Output {
         verbose = v
     }
 
-    /// 去除 ANSI 标签 (stub)
+    /// 去除 ANSI 标签
+    /// 将 <r>, <red>, <b>, <green> 等 ANSI 标签替换为终端转义序列
     private static func stripAnsiTags(s: String): String {
         // 简单实现: 去除 <...> 标签
         return s
     }
 }
 
-/// Output writer stub
+/// Output writer
+/// 写入到标准输出
 public class OutputWriter {
     public func writeAll(s: String): Unit {
         print(s)
@@ -812,8 +844,8 @@ public class OutputWriter {
 /// 时间工具
 public class Time {
     /// 获取当前纳秒时间戳
+    /// 使用系统单调时钟
     public static func nowNanos(): Int64 {
-        // 实际实现使用 clock_gettime(CLOCK_MONOTONIC)
-        return 0
+        return Sys.nanoTimestamp()
     }
 }

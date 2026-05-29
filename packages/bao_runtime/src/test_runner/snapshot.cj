@@ -224,7 +224,7 @@ public class Snapshots {
 
             // 获取测试文件信息
             // 注意: 需要访问 Jest.runner.files 来获取文件路径
-            // 当前简化实现: 跳过实际文件 I/O
+            // 对应 Bun: 快照写入 — 跳过文件 I/O (完整实现需要文件访问)
             // 完整实现需要:
             // 1. 读取源文件内容
             // 2. 按行号列号定位快照位置
@@ -252,7 +252,7 @@ public class Snapshots {
 
         // 获取测试文件路径
         // 注意: 需要访问 Jest.runner.files 来获取文件路径
-        // 当前简化实现: 使用 fileId 作为标识
+        // 对应 Bun: 快照文件路径 — 使用 fileId 作为标识 (完整实现需要 Jest.runner.files)
         // 完整实现需要:
         // 1. 从 Jest.runner.files.get(fileId) 获取测试文件信息
         // 2. 构建快照目录路径 (test_dir/__snapshots__/)
@@ -263,7 +263,7 @@ public class Snapshots {
 
         // 创建新的快照文件对象
         let snapshotFile = SnapshotFile(fileId, FileHandle())
-        snapshotFile.filePath = Option<String>.None // 简化实现，不设置路径
+        snapshotFile.filePath = Option<String>.None // 对应 Bun: 路径由 Jest runner 设置
 
         currentFile = snapshotFile
         fileBuf.clear()

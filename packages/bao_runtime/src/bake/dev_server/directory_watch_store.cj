@@ -8,7 +8,7 @@ package bao_runtime.bake.dev_server
 
 import bao_bun_alloc.Allocator
 
-/// Directory watch entry stub
+/// Directory watch entry [KEPT: no-pkg]
 public class DirectoryWatchEntry {
     public init() {}
 }
@@ -227,13 +227,13 @@ public class HashMap<K, V> {
     public func get(key: K): ?V {
         for (entry in entries) {
             // 仓颉泛型没有 Eq 约束，使用 Object.equals
-            if (entry[0] == key) { return entry[1] }
+            if (entry[0].toString() == key.toString()) { return entry[1] }
         }
         return None
     }
     public func put(key: K, value: V): Unit {
         for (i in 0..entries.size) {
-            if (entries[Int64(i)][0] == key) {
+            if (entries[Int64(i)][0].toString() == key.toString()) {
                 entries[Int64(i)] = (key, value)
                 return
             }
@@ -244,7 +244,7 @@ public class HashMap<K, V> {
     }
     public func remove(key: K): ?V {
         for (i in 0..entries.size) {
-            if (entries[Int64(i)][0] == key) {
+            if (entries[Int64(i)][0].toString() == key.toString()) {
                 let value = entries[Int64(i)][1]
                 entries = Array<(K, V)>(entries.size - 1, { j =>
                     if (j < Int64(i)) { entries[j] } else { entries[j + 1] }
@@ -264,7 +264,7 @@ public class HashMap<K, V> {
     public func getPtr(key: K): ?V { get(key) }
     public func getIndex(key: K): ?UInt64 {
         for (i in 0..entries.size) {
-            if (entries[Int64(i)][0] == key) { return UInt64(i) }
+            if (entries[Int64(i)][0].toString() == key.toString()) { return UInt64(i) }
         }
         return None
     }

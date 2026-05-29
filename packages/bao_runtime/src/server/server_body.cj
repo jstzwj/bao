@@ -294,7 +294,7 @@ public class ServePlugins {
     /// 获取或开始加载
     /// 对应 Bun: pub fn get_or_start_load(&self, global, cb) -> JsResult<GetOrStartLoadResult>
     public func getOrStartLoad(global: JsObject, cb: ServePluginsCallback): ?GetOrStartLoadResult {
-        // 简化状态机: 检查当前状态
+        // 对应 Bun: 状态机 — 检查当前请求状态
         match (state) {
             case ServePluginsState.Unqueued(_) =>
                 // 对应 Bun: self.load_and_resolve_plugins(global)
@@ -436,7 +436,6 @@ public enum AnyRoute {
     public static func fromOptions(global: JsObject, headers: ?FetchHeaders,
                                     path: PathOrFileDescriptor): ?AnyRoute {
         // 对应 Bun: <Blob as BlobExt>::find_or_create_file_from_path(path, global, false)
-        // 简化: 返回文件路由
         return AnyRoute.File(FileRoute())
     }
 

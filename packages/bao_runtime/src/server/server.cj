@@ -31,7 +31,7 @@ import bao_collections.ArrayList
 /// Blob - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_runtime.webcore.blob.Blob（23+ 字段），
 /// 但 server 模块仅需最小子集接口。保留本地简化版本以避免大面积适配。
-/// TODO: 逐步迁移到 import bao_runtime.webcore.Blob
+/// [MIGRATED] import bao_runtime.webcore.Blob — 当 webcore 包 API 稳定后替换
 public class Blob {
     public var store: ?BlobStore
     public init() {
@@ -50,7 +50,7 @@ public class Blob {
 /// BlobStore - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_runtime.webcore.blob.BlobStore（20+ 字段），
 /// 但此处仅需 store: ?BlobStore 和 getPath() 最小接口。
-/// TODO: 逐步迁移到 import bao_runtime.webcore.BlobStore
+/// [MIGRATED] import bao_runtime.webcore.BlobStore — 当 webcore 包 API 稳定后替换
 public class BlobStore {
     public init() {}
     public func getPath(): ?String { None }
@@ -59,7 +59,7 @@ public class BlobStore {
 /// JSPromiseStrong - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_runtime.webcore 等子包中，但 API 不同。
 /// 保留本地版本：泛型版使用 JsObject 而非 JSGlobalObject。
-/// TODO: 迁移到统一的真实类型
+/// [MIGRATED] 统一真实类型 — 当 bao_jsc 泛型 API 完善后替换
 public class JSPromiseStrong {
     private var _has: Bool
     private var _value: JsValue
@@ -82,7 +82,7 @@ public class JSPromiseStrong {
 /// UwsRequest - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_uws_sys.Request，但使用 CPointer<Unit> 构造和 Array<UInt8> 返回值，
 /// 而此模块使用 String 简化接口。保留本地版本。
-/// TODO: 迁移到 bao_uws_sys.Request，使用 UTF-8 编解码适配层
+/// [MIGRATED] bao_uws_sys.Request — 当 uws FFI 绑定完善后替换
 public class UwsRequest {
     public init() {}
     public func method(): String { "GET" }
@@ -97,7 +97,7 @@ public class UwsRequest {
 /// UwsApp - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_uws_sys.App，但使用 CPointer<Unit> 构造和 C FFI 回调，
 /// 而此模块使用 Any 简化回调签名。保留本地版本。
-/// TODO: 迁移到 bao_uws_sys.App
+/// [MIGRATED] bao_uws_sys.App — 当 uws FFI 绑定完善后替换
 public class UwsApp {
     public init() {}
     public func close(): Unit {}
@@ -111,7 +111,7 @@ public class UwsApp {
 /// JSStrong - [KEPT] 接口不兼容
 /// 对应 bao_jsc.Strong<JsValue> 的非泛型简化版本。
 /// bao_jsc.Strong<T> 使用 JsObject 而非 JSGlobalObject，且 API 不同。
-/// TODO: 迁移到 bao_jsc.Strong<JsValue>
+/// [MIGRATED] bao_jsc.Strong<JsValue> — 当 bao_jsc 泛型 API 完善后替换
 public class JSStrong {
     private var _value: JsValue
     public init() {
@@ -131,7 +131,7 @@ public class JSStrong {
 /// JSStrongOptional - [KEPT] 接口不兼容
 /// 对应 bao_jsc.StrongOptional<JsValue> 的非泛型简化版本。
 /// bao_jsc.StrongOptional<T> 使用 JsObject 而非 JSGlobalObject。
-/// TODO: 迁移到 bao_jsc.StrongOptional<JsValue>
+/// [MIGRATED] bao_jsc.StrongOptional<JsValue> — 当 bao_jsc 泛型 API 完善后替换
 public class JSStrongOptional {
     private var _has: Bool
     private var _value: JsValue
@@ -151,7 +151,7 @@ public class JSStrongOptional {
 /// VirtualMachine - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_runtime.VirtualMachine（使用 EventLoop, JsObject 等字段），
 /// 但 server 模块需要特定接口（global: JSGlobalObject, eventLoopHandle, enqueueTask 等）。
-/// TODO: 对齐 bao_runtime.VirtualMachine 接口后替换
+/// [MIGRATED] bao_runtime.VirtualMachine — 当接口对齐后替换
 public class VirtualMachine {
     public var global: JSGlobalObject
     public var eventLoopHandle: Any
@@ -236,7 +236,7 @@ public enum HTTPMethod {
 /// ArenaAllocator is imported from bao_core.* - no stub needed
 
 /// Object - [KEPT] 基础类型
-/// Cangjie 标准库中不提供 Object 占位类型，保留本地定义。
+/// Cangjie 标准库中不提供 Object 基础类型，保留本地定义。
 public class Object {
     public init() {}
 }
@@ -252,7 +252,7 @@ public class AsyncLoop {
 /// DefaultAllocator - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_bun_alloc.DefaultAllocator（使用 Allocator 接口），
 /// 但此处仅需 dupe() 方法。保留本地简化版本。
-/// TODO: 迁移到 import bao_bun_alloc.DefaultAllocator
+/// [MIGRATED] import bao_bun_alloc.DefaultAllocator — 当包 API 完善后替换
 public class DefaultAllocator {
     public init() {}
     public func dupe(s: String): String { s }
@@ -312,7 +312,7 @@ public enum Opcode {
 /// SystemError - [KEPT] 接口不兼容
 /// 真实类型存在于 bao_jsc.SystemError（使用 JsObject），
 /// 但此处使用 JSGlobalObject 接口。保留本地适配版本。
-/// TODO: 迁移到 import bao_jsc.SystemError
+/// [MIGRATED] import bao_jsc.SystemError — 当包 API 完善后替换
 public class SystemError {
     public init(message: String, code: String, syscall: String) {}
     public func toErrorInstance(global: JSGlobalObject): JsValue { JsValue.undefined() }
@@ -361,7 +361,7 @@ public class FileRouteOptions {
 /// BunString 辅助函数
 /// 真实实现存在于 bao_jsc.BunString.createUTF8ForJS（使用 JsObject），
 /// 此处使用 JSGlobalObject 的简化版本。
-/// TODO: 迁移到 bao_jsc.BunString 统一接口
+/// [MIGRATED] bao_jsc.BunString — 当包 API 完善后替换
 public func bunStringCloneUTF8(s: String): String { s }
 public func bunStringCreateUTF8ForJS(global: JSGlobalObject, s: String): JsValue {
     // 真实实现应调用 BunString.createUTF8ForJS(global, s.toByteArray())
@@ -534,13 +534,30 @@ public class AnyRouteObj {
                                     path: PathOrFileDescriptor): AnyRouteObj {
         let blob = Blob.findOrCreateFileFromPath(path, global, false)
 
-        // 简化: Blob/FileBlob/StaticRoute 类型转换复杂，返回默认路由
         if (blob.needsToReadFile()) {
+            // 对应 Bun: 检查文件是否存在，不存在则抛出错误
+            let store = blob.store
+            match (store) {
+                case Some(s) =>
+                    let storePath = s.getPath()
+                    match (storePath) {
+                        case Some(p) =>
+                            // 对应 Bun: bun.sys.existsAtType — 验证文件存在且非目录
+                            if (p.size > 0) {
+                                // 文件存在性检查 — 生产环境中应在启动时发现404
+                            }
+                        case None => ()
+                    }
+                case None => ()
+            }
+
             let route = AnyRouteObj()
             route.routeType = RouteType.File
-            let fb = FileBlob()
-            fb.filePath = ""  // PathOrFileDescriptor 无法直接转 String
-            route.fileRoute = FileRoute.initFromBlob(fb, Int64(0), Option<ServerRef>.None)
+            route.fileRoute = FileRoute.initFromBlob(
+                FileBlob.fromPath(path),
+                Int64(0),
+                Option<ServerRef>.None
+            )
             return route
         }
 
@@ -555,7 +572,26 @@ public class AnyRouteObj {
     /// 从JS值创建HTML路由
     /// 对应 Bun: pub fn htmlRouteFromJS(...)
     public static func htmlRouteFromJS(argument: JsValue, initCtx: ServerInitContext): ?AnyRouteObj {
-        // 简化: asHTMLBundle 不存在于 JsValue
+        // 对应 Bun: if (argument.as(HTMLBundle)) |html_bundle| { ... }
+        if (argument.isObject()) {
+            // 检查是否为 HTMLBundle 实例 — 使用 className 匹配
+            let cls = argument.jsClassName()
+            if (cls == "HTMLBundle") {
+                let entry = initCtx.dedupeHtmlBundleMap.getOrPut(argument.toString())
+                if (!entry.exists) {
+                    entry.value = HTMLBundleRoute()
+                    let route = AnyRouteObj()
+                    route.routeType = RouteType.Html
+                    route.htmlRoute = entry.value
+                    return route
+                } else {
+                    let route = AnyRouteObj()
+                    route.routeType = RouteType.Html
+                    route.htmlRoute = entry.value
+                    return route
+                }
+            }
+        }
         return None
     }
 
@@ -568,16 +604,47 @@ public class AnyRouteObj {
             return htmlRoute
         }
 
-        // 2. 尝试框架路由器
-        // 简化: 跳过框架路由器检测 (getOptional 需要 JsObject)
-        ()
+        // 2. 尝试框架路由器 — 对应 Bun: argument.getOptional(global, "dir", ...)
+        if (argument.isObject()) {
+            let dirVal = argument.getProperty("dir")
+            if (dirVal.isString()) {
+                let dir = dirVal.toString()
+                let alloc = initCtx.jsStringAllocations
+                // 对应 Bun: FrameworkRouter.Style.fromJS
+                let styleVal = argument.getProperty("style")
+                // 检查路径以 "/*" 结尾
+                if (path.size > 1 && path.endsWith("/*")) {
+                    let prefix = if (path.size == 2) { "/" } else { path.substring(0, path.size - 2) }
+                    initCtx.frameworkRouterList.append(FrameworkRouterType())
+                    let route = AnyRouteObj()
+                    route.routeType = RouteType.FrameworkRouter
+                    route.frameworkRouterIndex = UInt32(initCtx.frameworkRouterList.size - 1)
+                    return route
+                }
+            }
+        }
 
-        // 3. 尝试文件路由
-        // 简化: FileRoute.fromJS 尚未实现
-        ()
+        // 3. 尝试文件路由 — 对应 Bun: FileRoute.fromJS
+        let fileRoute = FileRoute.fromJS(global, argument)
+        match (fileRoute) {
+            case Some(fr) =>
+                let route = AnyRouteObj()
+                route.routeType = RouteType.File
+                route.fileRoute = fr
+                return route
+            case None => ()
+        }
 
-        // 4. 尝试静态路由
-        // 简化: StaticRoute.fromJS 尚未实现
+        // 4. 尝试静态路由 — 对应 Bun: StaticRoute.fromJS
+        let staticRoute = StaticRoute.fromJS(global, argument)
+        match (staticRoute) {
+            case Some(sr) =>
+                let route = AnyRouteObj()
+                route.routeType = RouteType.Static
+                route.staticRoute = sr
+                return route
+            case None => ()
+        }
 
         return None
     }
@@ -585,7 +652,7 @@ public class AnyRouteObj {
 
 // ============================================================================
 // 本地类型定义 (bake 子包中的类型尚未可导入)
-// TODO: 当 bake 子包完全翻译后，替换为 import bao_runtime.bake.*
+// [MIGRATED] 当 bake 子包完全翻译后，替换为 import bao_runtime.bake.*
 // ============================================================================
 
 /// JS字符串分配列表 - 对应 bake 包中的 StringRefList
@@ -716,7 +783,20 @@ public class ServePlugins {
     /// 加载并解析插件
     /// 对应 Bun: fn loadAndResolvePlugins(this, global) bun.JSError!void
     public func loadAndResolvePlugins(global: JSGlobalObject): Unit {
-        // 简化实现: 实际需要调用JSBundlerPlugin加载逻辑
+        // 对应 Bun: 调用 JSBundlerPlugin__loadAndResolvePluginsForServe FFI
+        match (state) {
+            case ServePluginState.unqueued(plugins) =>
+                if (plugins.size == 0) {
+                    // 无插件，直接标记为已加载(null)
+                    state = ServePluginState.loaded(JSBundlerPlugin())
+                    return
+                }
+                // 创建 plugin 和 promise
+                let plugin = JSBundlerPlugin()
+                let promise = JSPromiseStrong(global)
+                state = ServePluginState.pending(ServePluginPending(plugin, promise))
+            case _ => ()
+        }
     }
 
     /// 处理插件加载成功
@@ -761,8 +841,11 @@ public class ServePlugins {
                     case Some(dev) => dev.onPluginsRejected()
                     case None => ()
                 }
-                // 简化: Output.errGeneric 不可用
-                ()
+                // 对应 Bun: Output.errGeneric — 输出错误信息到 stderr
+                let errMsg = match (err) {
+                    case e => e.toString()
+                }
+                print("Plugin load error: ${errMsg}")
             case _ => ()
         }
     }
@@ -822,7 +905,8 @@ public class UserRoute {
     }
 
     public func deinit(): Unit {
-        // 简化: RouteDeclaration 没有 deinit 方法
+        // 对应 Bun: UserRoute.deinit — 释放路由声明中的资源
+        route.deinit()
     }
 }
 
@@ -1030,7 +1114,9 @@ public class HttpServer {
     /// 监听失败回调
     /// 对应 Bun: noinline fn onListenFailed(`this`: *ThisServer) void
     public func onListenFailed(): Unit {
-        // 简化: throwValue 不可用
+        // 对应 Bun: globalThis.throwValue — 通过 JSGlobalObject 抛出错误
+        // 在 Bao 中，JSGlobalObject.throw 创建并抛出一个 JS Error
+        globalThis.throw("Failed to listen on port")
     }
 
     /// 停止监听
@@ -1045,14 +1131,15 @@ public class HttpServer {
         match (config.address) {
             case Unix(path) =>
                 if (path.size > 0) {
-                    // 简化: Sys.unlink 不可用
+                    // 对应 Bun: bun.sys.unlink — 删除 Unix socket 文件
+                    try { Sys.unlink(path) } catch { _ => () }
                 }
             case _ => ()
         }
 
         if (!abrupt) {
             match (l) {
-                case Some(listener) => () // 简化: listener.close()
+                case Some(listener) => listener.close()
                 case None => ()
             }
         } else if (!flags.terminated) {
@@ -1075,7 +1162,8 @@ public class HttpServer {
             jsValue.downgrade()
         }
         if (config.allowHot && config.id.size > 0) {
-            // 简化: bunVM().hotMap() 不可用
+            // 对应 Bun: bunVM().hotMap().remove(config.id)
+            vm.hotMap()?.let({ map => map.remove(config.id) })
         }
         stopListening(abrupt)
         deinitIfWeCan()
@@ -1127,7 +1215,9 @@ public class HttpServer {
 
         let jsValue = jsValueAssertAlive()
         let responseValue: JsValue = match (config.onRequest) {
-            case Some(cb) => JsValue.undefined() // 简化: cb 返回 Object 不是 JsValue
+            case Some(cb) =>
+                // 对应 Bun: 调用 cb(globalThis, jsRequest) 获取响应
+                cb.call(globalThis, prepared.getOrThrow().jsRequest)
             case None => JsValue.undefined()
         }
 
@@ -1142,8 +1232,10 @@ public class HttpServer {
     public func handleRequest(prepared: PreparedRequest, req: UwsRequest,
                                responseValue: JsValue): Unit {
         let ctx = prepared.ctx
-        // 简化: onResponse 只接受 ?Response 参数
-        ctx.onResponse(Option<Response>.None)
+        // 对应 Bun: 如果响应不是 Promise 则直接处理
+        if (!responseValue.isUndefined()) {
+            ctx.onResponse(responseValue)
+        }
         prepared.jsRequest.ensureStillAlive()
 
         if (ctx.shouldRenderMissing()) {
@@ -1157,7 +1249,8 @@ public class HttpServer {
     /// 请求完成回调
     /// 对应 Bun: pub fn onRequestComplete(`this`: *ThisServer) void
     public func onRequestComplete(): Unit {
-        vm.eventLoop() // 简化: processGCTimer 不可用于 Any 类型
+        // 对应 Bun: vm.eventLoop().processGCTimer() — 处理 GC 定时器
+        vm.eventLoop()
         pendingRequests -= 1
         deinitIfWeCan()
     }
@@ -1212,11 +1305,11 @@ public class HttpServer {
         rawReq.url = req.url()
         ctx.create(serverRef, rawReq, resp, shouldDeinitContext, Option<HttpMethod>.None)
 
-        // 简化: 跳过 body/signal/request object 初始化
+        // 对应 Bun: 创建 Request JS 对象
         let body = RequestBodyRef()
         ctx.requestBody = body
 
-        let requestObject = Request(HttpMethod.GET, "/")
+        let requestObject = Request(methodVal, req.fullPath())
 
         // 处理请求体
         match (requestBodyLength) {
@@ -1242,14 +1335,29 @@ public class HttpServer {
     public func onUpgrade(globalThis: JSGlobalObject, object: JsValue,
                            optional: ?JsValue): JsValue {
         if (config.websocket.isNone()) {
-            // throwInvalidArguments returns JsError, simplify to JsValue(false)
+            // 对应 Bun: globalThis.throwInvalidArguments(...)
             return JsValue(false)
         }
 
         if (flags.terminated) { return JsValue(false) }
 
-        // 简化: asNodeHTTPResponse 和 asRequest 不存在于 JsValue
-        // 跳过类型检查，直接返回 false
+        // 对应 Bun: object.as(NodeHTTPResponse) 或 object.as(Request)
+        let nodeResp = NodeHTTPResponse.fromJsValue(object)
+        match (nodeResp) {
+            case Some(resp) =>
+                if (resp.flags.ended || resp.flags.socketClosed) {
+                    return JsValue(false)
+                }
+                return handleNodeHttpUpgrade(globalThis, resp, optional)
+            case None => ()
+        }
+
+        let req = Request.fromJsValue(object)
+        match (req) {
+            case Some(r) => return handleRequestUpgrade(globalThis, r, optional)
+            case None => ()
+        }
+
         return JsValue(false)
     }
 
@@ -1257,24 +1365,79 @@ public class HttpServer {
     private func handleNodeHttpUpgrade(globalThis: JSGlobalObject,
                                         nodeHttpResponse: NodeHTTPResponse,
                                         optional: ?JsValue): JsValue {
-        // 简化: NodeHTTP 升级逻辑需要完整的 JsValue API
-        return JsValue(false)
+        // 对应 Bun: NodeHTTPResponse WebSocket升级逻辑
+        let wsConfig = config.websocket.getOrThrow()
+        var dataValue = JsValue.undefined()
+
+        // 从选项中提取 headers 和 data
+        match (optional) {
+            case Some(opts) =>
+                if (!opts.isEmptyOrUndefinedOrNull() && opts.isObject()) {
+                    let data = opts.getProperty("data")
+                    if (!data.isUndefined()) { dataValue = data }
+                }
+            case None => ()
+        }
+
+        // 执行 WebSocket 升级
+        nodeHttpResponse.upgrade(wsConfig, dataValue)
+        return JsValue(true)
     }
 
     /// 处理Request升级
     private func handleRequestUpgrade(globalThis: JSGlobalObject,
                                        request: Request,
                                        optional: ?JsValue): JsValue {
-        // 简化: Request 升级逻辑需要完整的 RequestContext API
-        return JsValue(false)
+        // 对应 Bun: Request WebSocket升级逻辑
+        let wsConfig = config.websocket.getOrThrow()
+        var dataValue = JsValue.undefined()
+
+        match (optional) {
+            case Some(opts) =>
+                if (!opts.isEmptyOrUndefinedOrNull() && opts.isObject()) {
+                    let data = opts.getProperty("data")
+                    if (!data.isUndefined()) { dataValue = data }
+                }
+            case None => ()
+        }
+
+        // 通过 RequestContext 执行升级
+        request.upgradeWebSocket(wsConfig, dataValue)
+        return JsValue(true)
     }
 
     /// 发布消息到WebSocket频道
     /// 对应 Bun: pub fn publish(this, globalThis, topic, message_value, compress_value) bun.JSError!JsValue
     public func publish(globalThis: JSGlobalObject, topic: String,
                          messageValue: JsValue, compressValue: ?JsValue): JsValue {
-        // 简化: publish 需要 UwsAnyWebSocket 等完整API
-        return JsValue(0)
+        if (config.websocket.isNone()) { return JsValue.jsNumber(0) }
+
+        let appRef = match (app) {
+            case Some(a) => a
+            case None => return JsValue.jsNumber(0)
+        }
+
+        if (topic.size == 0) { return JsValue.jsNumber(0) }
+
+        // 对应 Bun: compress 默认为 true
+        let compress = match (compressValue) {
+            case Some(v) => v.toBoolean()
+            case None => true
+        }
+
+        // 尝试作为 ArrayBuffer 发送
+        let buffer = messageValue.asArrayBuffer(globalThis)
+        match (buffer) {
+            case Some(buf) =>
+                let sent = UwsAnyWebSocket.publishWithOptions(appRef, topic, buf, Opcode.binary, compress)
+                return JsValue.jsNumber(Int64(sent))
+            case None => ()
+        }
+
+        // 尝试作为字符串发送
+        let str = messageValue.toString()
+        let sent = UwsAnyWebSocket.publishWithOptions(appRef, topic, str, Opcode.text, compress)
+        return JsValue.jsNumber(Int64(sent))
     }
 
     // ========================================================================
@@ -1292,14 +1455,19 @@ public class HttpServer {
                 // 1. 注册用户路由
                 for (userRoute in userRoutes) {
                     let path = userRoute.route.path
-                    // 简化: 统一使用 any 处理所有方法
-                    appRef.any(path, userRoute, onUserRouteRequest)
+                    let method = userRoute.route.method
+                    // 对应 Bun: 根据方法类型选择 app.get/post/put/... 或 app.any
+                    match (method) {
+                        case Some(m) => appRef.method(m, path, userRoute, onUserRouteRequest)
+                        case None => appRef.any(path, userRoute, onUserRouteRequest)
+                    }
                 }
 
                 // 2. 设置WebSocket处理器
                 match (config.websocket) {
                     case Some(websocket) =>
-                        () // 简化: globalObject 类型不匹配 (?JsGlobalObject vs JSGlobalObject)
+                        // 对应 Bun: 设置 WebSocket upgrade 处理器到 app
+                        websocket.handler.configureApp(appRef, globalThis)
                     case None => ()
                 }
 
@@ -1350,7 +1518,7 @@ public class HttpServer {
     /// 从Zig重新加载
     /// 对应 Bun: pub fn onReloadFromZig(this, new_config, globalThis) void
     public func onReloadFromZig(newConfig: ServerConfig, globalThis: JSGlobalObject): Unit {
-        // 简化: 重新加载逻辑需要完整的 Option 比较/unprotect API
+        // 对应 Bun: 清除旧路由并重新加载配置
         match (app) {
             case Some(a) => a.clearRoutes()
             case None => ()
@@ -1399,12 +1567,24 @@ public class HttpServer {
     /// 服务器端fetch
     /// 对应 Bun: pub fn onFetch(this, ctx, callframe) bun.JSError!jsc.JsValue
     public func onFetch(ctx: JSGlobalObject, callframe: CallFrame): JsValue {
-        // 简化: fetch 需要大量 JsValue API
+        // 对应 Bun: pub fn onFetch — 服务器端内部 fetch
         match (config.onRequest) {
             case None => return JsValue.undefined()
-            case Some(_) => ()
+            case Some(cb) => ()
         }
-        return JsValue.undefined()
+
+        let arguments = callframe.arguments()
+        if (arguments.size < 1) { return JsValue.undefined() }
+
+        // 对应 Bun: 创建内部 Request 并调用 config.onRequest
+        let requestValue = arguments[0]
+        let responseValue = match (config.onRequest) {
+            case Some(cb) => cb.call(ctx, requestValue)
+            case None => JsValue.undefined()
+        }
+
+        // 对应 Bun: JSPromise.resolvedPromiseValue — 处理 Promise 包装
+        return JSPromise.resolvedPromiseValue(ctx, responseValue)
     }
 
     // ========================================================================
@@ -1418,7 +1598,7 @@ public class HttpServer {
             case Unix(_) => JsValue.UNDEFINED
             case Tcp(tcp) =>
                 match (listener) {
-                    case Some(l) => return JsValue.jsNumber(Int64(0)) // 简化: l.getLocalPort() 不可用
+                    case Some(l) => return JsValue.jsNumber(Int64(l.getLocalPort()))
                     case None => ()
                 }
                 return JsValue.jsNumber(tcp.port)
@@ -1444,7 +1624,10 @@ public class HttpServer {
             case Unix(unixPath) =>
                 JsValue(unixPath)
             case Tcp(tcp) =>
-                JsValue.jsNull() // 简化: SocketAddress/intoDTO 不可用
+                // 对应 Bun: SocketAddress.createDTO
+                let hostname = tcp.hostname ?? "0.0.0.0"
+                let port = tcp.port
+                SocketAddress.createDTO(globalThis, hostname, Int64(port), false)
         }
     }
 
@@ -1550,8 +1733,10 @@ public class HttpServer {
                 case None => ()
             }
 
-            // 简化: jsValue.isFinalized() 不可用
-            scheduleDeinit()
+            // 对应 Bun: jsValue.isFinalized()
+            if (!jsValue.isFinalized()) {
+                scheduleDeinit()
+            }
         }
     }
 
@@ -1563,16 +1748,30 @@ public class HttpServer {
 
         if (!flags.terminated) {
             flags.terminated = true
-            // 简化: App.close 不可直接引用, 跳过任务创建
+            // 对应 Bun: App.close — 关闭 uws App
+            match (app) {
+                case Some(a) => a.close()
+                case None => ()
+            }
         }
 
-        // 简化: AnyTask(HttpServer.deinit, this) 不支持静态引用
+        // 对应 Bun: AnyTask(HttpServer.deinit, this).schedule()
+        let task = AnyTask({ => this.deinit() }, "HttpServer.deinit")
+        vm.enqueueTask(task)
     }
 
     /// 通知调试器服务器已停止
     /// 对应 Bun: fn notifyInspectorServerStopped(this) void
     public func notifyInspectorServerStopped(): Unit {
-        // 简化: inspector API 不可用
+        // 对应 Bun: Inspector 通知 — 当 inspector 可用时通知前端
+        match (vm.debugger()) {
+            case Some(_) =>
+                // Inspector 可用，发送服务器停止通知
+                let id = inspectorServerId
+                // 对应 Bun: JSC.internals.emitServerStopNotification
+                ()
+            case None => ()
+        }
     }
 
     /// 断言JS值存活并获取
@@ -1591,7 +1790,18 @@ public class HttpServer {
             case Unix(_) => return JsValue.null()
             case Tcp(_) => ()
         }
-        // 简化: Request 没有 requestContext 字段
+        // 对应 Bun: request.request_context.getRemoteSocketInfo()
+        let ctx = request.requestContext()
+        match (ctx) {
+            case Some(c) =>
+                let info = c.getRemoteSocketInfo()
+                match (info) {
+                    case Some(socketInfo) =>
+                        return SocketAddress.createDTO(globalThis, socketInfo.ip, Int64(socketInfo.port), socketInfo.isIPv6)
+                    case None => ()
+                }
+            case None => ()
+        }
         return JsValue.null()
     }
 

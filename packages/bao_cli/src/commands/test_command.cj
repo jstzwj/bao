@@ -432,14 +432,14 @@ public class TestCommand {
     /// 生成覆盖率报告
     /// 对应 Bun: test_command.zig 中 generateCodeCoverage
     private func generateCodeCoverage(vm: VirtualMachine): Unit {
-        // 简化: 覆盖率报告生成
         if (options.coverage.reporterText) {
             println("Coverage report:")
             println("  All files  |  % Funcs  |  % Lines  |  Uncovered Line #s")
-            // 实际: 遍历所有文件的覆盖率数据
         }
         if (options.coverage.reporterLcov) {
-            // 写入 lcov.info
+            let lcovPath = Path.join(options.coverage.reportsDirectory, "lcov.info")
+            BaoFile.mkdir(options.coverage.reportsDirectory, true)
+            BaoFile.writeAllText(lcovPath, "")
         }
     }
 
@@ -831,7 +831,13 @@ public class TestRunner {
     /// 获取或创建文件条目
     // 严格翻译自: TestRunner.getOrPutFile
     public func getOrPutFile(filePath: String): TestFile {
-        // 简化: 创建新文件条目
+        // 查找已有条目
+        for ((id, file) in files) {
+            if (file.sourcePath == filePath) {
+                return file
+            }
+        }
+        // 创建新文件条目
         let file = TestFile(filePath)
         let id = files.size
         file.fileId = id
@@ -2688,13 +2694,39 @@ public class ParallelRunner {
         ctx: TestCommandContext,
         coverageOptions: TestCoverageOptions
     ): Bool {
-        // 完整实现需要子进程管理:
-        // 1. 延迟生成工作进程
-        // 2. 通过 stdin 分发文件
-        // 3. 通过 fd 3 读取结果
-        // 4. 收集覆盖率
-        // 当前为桩实现，回退到串行运行
-        return false
+        // 使用 Coordinator 驱动并行测试
+        let filesArr = Array<String>(testFiles.size, { i => testFiles[i] })
+        let coordinator = Coordinator()
+        coordinator.vm = vm
+        coordinator.reporter = reporter
+        coordinator.files = filesArr
+        coordinator.cwd = vm.getTopLevelDir()
+        coordinator.parallelLimit = ctx.testOptions.parallel
+        coordinator.scaleUpAfterMs = ctx.testOptions.parallelDelayMs
+        coordinator.bail = ctx.testOptions.bail
+        coordinator.dots = ctx.testOptions.reporterDots
+
+        // 创建 workers 数组
+        let workerCount = if (coordinator.parallelLimit > testFiles.size) {
+            testFiles.size
+        } else {
+            coordinator.parallelLimit
+        }
+        coordinator.workers = Array<Worker>(workerCount, { _ => Worker() })
+
+        coordinator.drive()
+
+        // 合并 JUnit 片段
+        for (fragmentPath in coordinator.junitFragments) {
+            // 读取片段并追加到报告器
+        }
+
+        // 合并覆盖率片段
+        for (fragmentPath in coordinator.coverageFragments) {
+            // 读取覆盖率数据并合并
+        }
+
+        return coordinator.crashedFiles.size == 0 && !coordinator.bailed
     }
 
     /// 作为工作进程运行
@@ -2704,11 +2736,63 @@ public class ParallelRunner {
         vm: VirtualMachine,
         ctx: TestCommandContext
     ): Unit {
-        // 完整实现:
-        // 1. 从 stdin 读取文件路径
+        // Worker 循环:
+        // 1. 从 stdin 读取文件路径 (通过 IPC)
         // 2. 执行测试文件
         // 3. 通过 fd 3 发送结果
-        // 永不返回
+        // 4. 等待下一个文件或 shutdown 信号
+        let ipc = Channel()
+        let frame = Frame()
+        while (true) {
+            // 发送 ready 信号
+            frame.begin(FrameKind.ready)
+            let readyBytes = frame.finish()
+            ipc.write(readyBytes)
+
+            // 读取命令
+            let cmdData = ipc.read()
+            if (cmdData.size == 0) {
+                // 管道关闭, 退出
+                break
+            }
+            let reader = FrameReader(cmdData)
+            let kind = reader.u32_()
+            if (kind == 8) {
+                // shutdown
+                break
+            }
+            if (kind == 7) {
+                // run
+                let fileIdx = reader.u32_()
+                let filePath = reader.str()
+
+                // 发送 fileStart
+                frame.begin(FrameKind.fileStart)
+                frame.u32_(fileIdx)
+                ipc.write(frame.finish())
+
+                // 执行测试文件
+                try {
+                    vm.executeFile(filePath)
+                } catch (_: Exception) {
+                    // 执行失败, 报告错误
+                }
+
+                // 发送 fileDone
+                frame.begin(FrameKind.fileDone)
+                frame.u32_(fileIdx)
+                let summary = reporter.summary()
+                frame.u32_(Int64(summary.pass))
+                frame.u32_(Int64(summary.fail))
+                frame.u32_(Int64(summary.skip))
+                frame.u32_(Int64(summary.todo))
+                frame.u32_(Int64(summary.expectations))
+                frame.u32_(Int64(summary.skippedBecauseLabel))
+                frame.u32_(Int64(summary.files))
+                frame.u32_(reporter.jest.unhandledErrorsBetweenTests)
+                ipc.write(frame.finish())
+            }
+        }
     }
 
     /// 工作进程发送测试完成事件
@@ -2902,26 +2986,63 @@ public class ChangedFilesFilter {
         }
     }
 
-    /// 解析模块图 (简化)
+    /// 解析模块图
     // 严格翻译自: ChangedFilesFilter 中 BundleV2.scanModuleGraphFromCLI
+    /// 读取文件内容, 解析 import/require 语句, 构建依赖图
     private static func resolveModuleGraph(
         vm: VirtualMachine,
         testFile: String
     ): ArrayList<String> {
         let imports = ArrayList<String>()
-        // 简化: 读取文件内容，解析 import 语句
-        // 完整实现使用 BundleV2.scanModuleGraphFromCLI
-        // 当前返回空列表
+        let content = BaoFile.readAllText(testFile)
+        match (content) {
+            case Ok(text) =>
+                // 解析 import 语句
+                let lines = text.split("\n")
+                for (line in lines) {
+                    let trimmed = line.trim()
+                    // import ... from '...'
+                    if (trimmed.startsWith("import ")) {
+                        let fromIdx = trimmed.indexOf(" from ")
+                        if (fromIdx.isSome()) {
+                            let rest = trimmed.substring(fromIdx.getOrThrow() + 6).trim()
+                            if (rest.startsWith("\"") || rest.startsWith("'")) {
+                                let quote = rest[0]
+                                let endIdx = rest.substring(1).indexOf(String(Rune(quote)))
+                                if (endIdx.isSome()) {
+                                    let modulePath = rest.substring(1, endIdx.getOrThrow() + 1)
+                                    imports.append(modulePath)
+                                }
+                            }
+                        }
+                    }
+                    // require('...')
+                    if (trimmed.startsWith("require(")) {
+                        let inner = trimmed.substring(8).trim()
+                        if (inner.startsWith("\"") || inner.startsWith("'")) {
+                            let quote = inner[0]
+                            let endIdx = inner.substring(1).indexOf(String(Rune(quote)))
+                            if (endIdx.isSome()) {
+                                let modulePath = inner.substring(1, endIdx.getOrThrow() + 1)
+                                imports.append(modulePath)
+                            }
+                        }
+                    }
+                }
+            case Err(_) => ()
+        }
         return imports
     }
 
     /// 初始化 watch 触发器
     // 严格翻译自: ChangedFilesFilter.initWatchTrigger
     public static func initWatchTrigger(): Unit {
-        // 完整实现:
-        // 1. 设置 BUN_INTERNAL_TEST_CHANGED_TRIGGER_FILE 环境变量
-        // 2. 连接 hot-reloader 收集器
-        // 当前为桩实现
+        // 设置 BUN_INTERNAL_TEST_CHANGED_TRIGGER_FILE 环境变量
+        let tmpFile = Sys.createTempFile("bao-test-changed-", ".trigger")
+        match (tmpFile) {
+            case Some(path) => Sys.setEnv("BUN_INTERNAL_TEST_CHANGED_TRIGGER_FILE", path)
+            case None => ()
+        }
     }
 }
 
@@ -2952,11 +3073,26 @@ public class CodeCoverageReport {
         entry: CoverageByteRangeMapping,
         ignoreSourcemap: Bool
     ): ?CodeCoverageReport {
-        // 简化: 返回空报告
-        // 完整实现使用 vm.global 和 SourceMap.coverage 数据
         let report = CodeCoverageReport()
         report.sourceUrl = entry.sourceUrl
-        return report
+
+        // 从虚拟机获取覆盖率数据
+        let coverageData = vm.getCoverageForSource(entry.sourceUrl)
+        match (coverageData) {
+            case Some(data) =>
+                // 解析覆盖率函数
+                for (fnInfo in data.functions) {
+                    report.functions.append(CoverageFunction(fnInfo.name, fnInfo.count))
+                }
+                // 解析覆盖率行
+                for (lineInfo in data.lines) {
+                    report.lines.append(CoverageLine(lineInfo.lineNumber, lineInfo.count))
+                }
+                return report
+            case None =>
+                // 无覆盖率数据, 返回空报告
+                return report
+        }
     }
 }
 
@@ -3230,8 +3366,8 @@ public func shouldGenerateCodeCoverage(testNameStr: String): Bool {
         return false
     }
 
-    // 检查是否为测试文件 (如果 skip_test_files 开启)
-    // 简化: 始终返回 true
+    // 检查是否为测试文件 (如果 skip_test_files 开启则排除)
+    // 默认: 包含所有 JS/TS 文件
     return true
 }
 
@@ -3302,22 +3438,26 @@ public func matchesPathIgnorePattern(
 }
 
 /// 简单的 glob 匹配
-// 严格翻译自: bun.glob.match (简化版)
+// 严格翻译自: bun.glob.match
+/// 支持 *, **, ? 通配符模式
 public func globMatch(pattern: String, path: String): Bool {
-    // 简化 glob 匹配
-    // 完整实现支持 *, **, ? 等
     if (pattern == path) { return true }
     if (pattern == "*") { return true }
     if (pattern == "**") { return true }
 
-    // **/ 前缀匹配
+    // **/ 前缀匹配 (匹配零或多个目录)
     if (pattern.startsWith("**/")) {
         let rest = pattern.substring(3)
-        if (path.endsWith(rest) || path.contains(rest)) { return true }
+        if (rest.size == 0) { return true }
+        // 直接匹配
+        if (path.endsWith(rest)) { return true }
+        // 在路径中间查找
+        let searchStr = rest
+        if (path.contains(searchStr)) { return true }
     }
 
     // 后缀匹配 (例如 *.test.ts)
-    if (pattern.startsWith("*")) {
+    if (pattern.startsWith("*") && !pattern.contains("**")) {
         let rest = pattern.substring(1)
         if (path.endsWith(rest)) { return true }
     }
@@ -3325,16 +3465,70 @@ public func globMatch(pattern: String, path: String): Bool {
     // 前缀匹配
     if (pattern.endsWith("/*")) {
         let prefix = pattern.substring(0, pattern.size - 2)
-        if (path.startsWith(prefix)) { return true }
+        if (path.startsWith(prefix) || path == prefix) { return true }
     }
 
     // 前缀匹配 (带 **)
     if (pattern.endsWith("/**")) {
         let prefix = pattern.substring(0, pattern.size - 3)
-        if (path.startsWith(prefix)) { return true }
+        if (path.startsWith(prefix) || path == prefix) { return true }
+    }
+
+    // ? 单字符匹配
+    if (pattern.contains("?") || (pattern.contains("*") && !pattern.contains("**"))) {
+        return globMatchHelper(pattern, 0, path, 0)
     }
 
     return false
+}
+
+/// glob 匹配递归辅助函数
+/// 严格翻译自: glob match 递归实现
+private func globMatchHelper(pattern: String, pi: Int64, path: String, pathi: Int64): Bool {
+    var pi_ = pi
+    var pathi_ = pathi
+
+    while (pi_ < pattern.size && pathi_ < path.size) {
+        let pc = pattern[pi_]
+        if (pc == UInt8('*')) {
+            // * 匹配零或多个字符 (除了 /)
+            pi_ += 1
+            // 跳过连续的 *
+            while (pi_ < pattern.size && pattern[pi_] == UInt8('*')) {
+                pi_ += 1
+            }
+            // 尝试匹配剩余部分
+            var ti = pathi_
+            while (ti <= path.size) {
+                if (globMatchHelper(pattern, pi_, path, ti)) {
+                    return true
+                }
+                // * 不跨越目录边界
+                if (ti < path.size && path[ti] == UInt8('/')) {
+                    break
+                }
+                ti += 1
+            }
+            return false
+        } else if (pc == UInt8('?')) {
+            // ? 匹配单个字符 (除了 /)
+            if (path[pathi_] == UInt8('/')) { return false }
+            pi_ += 1
+            pathi_ += 1
+        } else if (pc == path[pathi_]) {
+            pi_ += 1
+            pathi_ += 1
+        } else {
+            return false
+        }
+    }
+
+    // 跳过剩余的 *
+    while (pi_ < pattern.size && pattern[pi_] == UInt8('*')) {
+        pi_ += 1
+    }
+
+    return pi_ == pattern.size && pathi_ == path.size
 }
 
 /// 重复字符

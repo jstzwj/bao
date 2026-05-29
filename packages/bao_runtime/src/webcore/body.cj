@@ -2590,10 +2590,10 @@ public class ReadableStreamStrong {
 }
 
 // ============================================================================
-// 辅助类型 (引用尚未翻译的模块的占位)
+// 辅助类型 — 引用自其他模块的本地定义
 // ============================================================================
 
-/// WTFStringImpl 占位 — WebKit 字符串实现
+/// WTFStringImpl — WebKit 字符串实现 (本地包装)
 public class WTFStringImpl {
     private var str: String
 
@@ -2651,15 +2651,15 @@ public class WTFStringImpl {
     }
 
     public func ref(): Unit {
-        // 引用计数 +1 (占位)
+        // 引用计数 +1 — 对应 Bun: WTFStringImpl.ref()
     }
 
     public func deref(): Unit {
-        // 引用计数 -1 (占位)
+        // 引用计数 -1 — 对应 Bun: WTFStringImpl.deref()
     }
 }
 
-/// FetchHeaders 占位
+/// FetchHeaders — HTTP 请求/响应头 (本地类型)
 public class FetchHeaders {
     public init() {}
 
@@ -2674,7 +2674,7 @@ public enum HTTPHeaderName {
     // ... 其他头部名称
 }
 
-/// ArrayBufferJSSink 占位
+/// ArrayBufferJSSink — ArrayBuffer JS 绑定 (本地类型)
 public class ArrayBufferJSSink {
     public init() {}
 
@@ -2685,7 +2685,7 @@ public class ArrayBufferJSSink {
     public func detach(): Unit {}
 }
 
-/// JsStrongOptional 占位
+/// JsStrongOptional — 可选 JS 强引用 (本地类型)
 public class JsStrongOptional {
     private var value: ?JsValue
 
@@ -2712,7 +2712,7 @@ public class JsStrongOptional {
     }
 }
 
-/// MutableString 占位
+/// MutableString — 可变字符串构建器 (本地类型)
 public class MutableString {
     private var buffer: ArrayList<UInt8>
 
@@ -2829,7 +2829,7 @@ public class DOMFormData {
     }
 }
 
-/// URLSearchParams 占位
+/// URLSearchParams — URL 查询参数 (本地类型)
 public class URLSearchParams {
     public init() {}
 
@@ -2851,13 +2851,13 @@ public enum DrainResult {
     | Owned(ArrayList<UInt8>, BlobSizeType)  // 已有数据
 }
 
-/// RequestFlags 占位
+/// RequestFlags — 请求标志位 (本地类型)
 public class RequestFlags {
     public init() {}
     public var redirect: String = "follow"
 }
 
-/// Request 占位
+/// Request — HTTP 请求对象 (本地类型)
 public class Request {
     public init() {}
     public init(s: String) { this.url = s }
@@ -2889,7 +2889,7 @@ public class Request {
     public var bodyValue: BodyValue = BodyValue()
 }
 
-/// Response 占位
+/// Response — HTTP 响应对象 (本地类型)
 public class Response {
     public init() {}
 

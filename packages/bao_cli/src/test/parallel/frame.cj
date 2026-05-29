@@ -67,14 +67,42 @@ public class Frame {
 
     /// 写入字符串 (长度前缀)
     /// 对应 Bun: Frame.str()
+    /// 严格翻译自: Frame.zig 中 str(s) -- 写入 u32 长度 + 字节
     public func str(s: String): Unit {
-        u32_(0)
+        // 截断保护: 单帧不超过 MAX_PAYLOAD
+        let trunc = "\n... [output truncated: would exceed --parallel IPC frame limit]\n"
+        let headroom: Int64 = 256
+        let used: Int64 = (buf.size.toInt64() - 5) + 4
+        let room: Int64 = if (MAX_PAYLOAD > used + headroom) { MAX_PAYLOAD - used - headroom } else { 0 }
+        if (s.size.toInt64() <= room) {
+            u32_(Int64(s.size))
+            for (i in 0..s.size) {
+                buf.append(UInt8(s[i]))
+            }
+            return
+        }
+        let keep: Int64 = if (room > trunc.size.toInt64()) { room - trunc.size.toInt64() } else { 0 }
+        u32_(keep + trunc.size.toInt64())
+        for (i in 0..Int64(s.size)) {
+            if (i >= keep) { break }
+            buf.append(UInt8(s[i]))
+        }
+        for (i in 0..trunc.size) {
+            buf.append(UInt8(trunc[i]))
+        }
     }
 
     /// 完成帧并返回编码字节
     /// 对应 Bun: Frame.finish()
+    /// 严格翻译自: Frame.zig 中 finish() -- 补全 payload_len 头部并返回缓冲区
     public func finish(): Array<Byte> {
-        return Array<Byte>()
+        let payloadLen: Int64 = buf.size.toInt64() - 5
+        // 写入 payload_len 到头部 [0..4]
+        buf[0] = UInt8(payloadLen & 0xFF)
+        buf[1] = UInt8((payloadLen >> 8) & 0xFF)
+        buf[2] = UInt8((payloadLen >> 16) & 0xFF)
+        buf[3] = UInt8((payloadLen >> 24) & 0xFF)
+        return Array<Byte>(buf.size, { i => buf[i] })
     }
 
     /// 释放资源
@@ -113,13 +141,26 @@ public class FrameReader {
 
     /// 读取 u32 值
     /// 对应 Bun: Reader.u32_()
+    /// 严格翻译自: Frame.zig Reader.u32_() -- 小端读取 4 字节
     public func u32_(): Int64 {
-        return 0
+        if (pos + 4 > data.size) { return 0 }
+        let v = Int64(data[pos].toInt()) |
+                (Int64(data[pos + 1].toInt()) << 8) |
+                (Int64(data[pos + 2].toInt()) << 16) |
+                (Int64(data[pos + 3].toInt()) << 24)
+        pos += 4
+        return v
     }
 
     /// 读取字符串
     /// 对应 Bun: Reader.str()
+    /// 严格翻译自: Frame.zig Reader.str() -- 先读 u32 长度, 再读字节
     public func str(): String {
-        return ""
+        let n = u32_()
+        if (n == 0) { return "" }
+        if (pos + n > data.size) { return "" }
+        let bytes = Array<Byte>(n, { i => data[pos + i] })
+        pos += n
+        return String.fromUtf8(bytes)
     }
 }

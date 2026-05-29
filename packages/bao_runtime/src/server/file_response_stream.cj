@@ -290,7 +290,7 @@ public class FileResponseStream {
             // BufferedReader 路径
             stream.maxSize = opts.length
             // 对应 Bun: reader.start(fd, pollable) or reader.start_file_offset
-            // 简化: 不实际启动 BufferedReader
+            stream.reader.start(opts.fd, true)
         }
 
         return stream
@@ -301,7 +301,7 @@ public class FileResponseStream {
     /// Rust: fn can_sendfile(resp: AnyResponse, file_type: FileType, length: Option<u64>) -> bool
     ///
     /// sendfile() 需要真实的 socket fd；SSL 写入通过 BIO，H3 通过 lsquic 流帧
-    /// 简化: 仅对普通文件且长度 >= 1MB 时使用
+    /// 仅对普通文件且长度 >= 1MB 时使用
     public static func canSendfile(resp: ?ResponseRef, fileType: FileType,
                                     length: ?Int64): Bool {
         match (fileType) {
@@ -370,9 +370,13 @@ public class FileResponseStream {
         match (resp) {
             case Some(r) =>
                 // 对应 Bun: resp.write(chunk) -> WriteResult
-                // 简化: always succeed
-                r.end(bytesToString(effectiveChunk), false)
-                return true  // want_more
+                let writeResult = r.write(effectiveChunk)
+                if (writeResult) {
+                    return true  // want_more — 数据已写入
+                } else {
+                    // 背压: 等待 drain 事件
+                    return false
+                }
             case None => return false
         }
     }
@@ -432,7 +436,6 @@ public class FileResponseStream {
             return false
         }
 
-        // 简化: 调用平台 sendfile
         // 对应 Bun: std.os.linux.sendfile / std.c.sendfile (macOS)
         // 对应 Rust: cfg(target_os = "linux") / cfg(target_os = "macos") / else unreachable
         var done = false
@@ -444,9 +447,23 @@ public class FileResponseStream {
             }
 
             // 对应 Bun: sendfile(socket_fd, fd, offset, count)
-            // 简化: 直接标记完成
-            endSendfile()
-            done = true
+            let result = Sys.sendfile(sendfile.socketFd, sendfile.fd, sendfile.offset, adjusted)
+            match (result) {
+                case Ok(written) =>
+                    sendfile.offset += written
+                    sendfile.remain -= written
+                    if (sendfile.remain <= 0) {
+                        endSendfile()
+                        done = true
+                    }
+                case Err(e) =>
+                    if (e.isAgain()) {
+                        // 对应 Bun: 等待 socket 可写
+                        return false
+                    }
+                    failWith(e)
+                    return false
+            }
         }
         return false
     }

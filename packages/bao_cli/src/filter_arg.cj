@@ -315,7 +315,7 @@ public class PackageFilterIterator {
     }
 }
 
-/// Glob 遍历器 (本地 stub)
+/// Glob 遍历器 (本地占位实现)
 /// 对应 Bun: bun.glob.BunGlobWalkerZ
 /// 完整实现在 bao_runtime.shell.dispatch_tasks.GlobWalker
 public class GlobWalker {

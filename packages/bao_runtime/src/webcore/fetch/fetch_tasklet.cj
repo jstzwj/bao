@@ -13,7 +13,7 @@ import bao_collections.ArrayList
 import bao_boringssl.*
 
 // ============================================================================
-// Stub Types for disambiguation and missing types
+// 类型定义 — 用于消歧义和缺失类型补充
 // ============================================================================
 
 public class BlobStore {

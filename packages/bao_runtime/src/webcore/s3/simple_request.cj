@@ -950,7 +950,7 @@ public class S3HttpSimpleTask {
         let isDone = !httpResult.hasMore
         result = httpResult
         http = asyncHttp
-        // stub: AsyncHttp has no responseBuffer field; keep existing buffer
+        // AsyncHttp 在仓颉中无 responseBuffer 字段; 保留现有缓冲区
         if (isDone) {
             vm.eventLoop().enqueueTaskConcurrent(concurrentTask.from(this))
         }

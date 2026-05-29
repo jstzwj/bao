@@ -27,6 +27,14 @@
 //   safety.cj            - 安全上下文配置
 package bao_safety
 
+import bao_crash_handler.StoredTrace
+import std.collection.ArrayList
+
+/// panic 替代 - 抛出异常模拟 Rust/Zig panic
+func panic(message: String): Unit {
+    throw Exception(message)
+}
+
 // ============================================================================
 // Allocator vtable 注册表
 // 严格翻译自: bun/src/safety/lib.rs - KNOWN_ALLOC_VTABLES / register_alloc_vtable
@@ -62,7 +70,7 @@ private let KNOWN_ALLOC_CAP: Int64 = 16
 
 /// 已注册的分配器虚表地址数组
 /// 对应: static KNOWN_ALLOC_VTABLES: [AtomicPtr<()>; KNOWN_ALLOC_CAP]
-private let knownAllocVtables: Array<Int64> = Array<Int64>()
+private let knownAllocVtables: ArrayList<Int64> = ArrayList<Int64>()
 
 /// 已注册的分配器虚表数量
 /// 对应: static KNOWN_ALLOC_LEN: AtomicUsize
@@ -73,7 +81,7 @@ private var knownAllocLen: Int64 = 0
 ///   Registration is single-threaded at startup, Relaxed ordering is sufficient.
 public func registerAllocVtable(vtableId: Int64): Unit {
     if (knownAllocLen < KNOWN_ALLOC_CAP) {
-        knownAllocVtables.append(vtableId)
+        knownAllocVtables.add(vtableId)
         knownAllocLen += 1
     }
 }

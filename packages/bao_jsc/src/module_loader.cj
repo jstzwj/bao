@@ -940,7 +940,7 @@ public func runVirtualModule(
     }
 
     // 严格翻译自: 检查是否可能是插件
-    // Stub: couldBePlugin expects Array<UInt8>, pass specifier bytes
+    // couldBePlugin 接收 Array<UInt8>, 将 specifier 转为字节数组
     let specBytes = specifier.toArray()
     if (!PluginRunner.couldBePlugin(specBytes)) {
         return JsValue()
@@ -1032,7 +1032,7 @@ public func fetchBuiltinModule(
         let fileOpt2 = graph.find(specifier)
         if (fileOpt2.isSome()) {
             let file = fileOpt2.getOrThrow()
-            // 严格翻译自: SQLite 文件特殊处理 - stub
+            // 严格翻译自: SQLite 文件特殊处理 (在独立模块图中识别 .sqlite 文件)
             if (false) {
                 let sqliteCode =
                     "/* Generated code */\n" +

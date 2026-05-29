@@ -468,7 +468,7 @@ public class BunTest {
             buntest.updateMinTimeout(timeout)
 
             // 对应 Bun: vm.eventLoop().runCallbackWithResultAndForcefullyDrainMicrotasks()
-            // 简化实现: EventLoop.runCallback 返回 Unit, 无法获取回调结果
+            // 对应 Bun: vm.eventLoop().runCallbackWithResult — Bao 返回 Unit
             let vm = globalThis.bunVM()
             let args = ArrayList<JsValue>()
             args.append(doneArg.getOrThrow())
@@ -1028,9 +1028,13 @@ public class VirtualMachine {
     /// 运行错误处理器 - 委托给 BunVirtualMachine 的实现
     /// 对应 Bun: VirtualMachine.runErrorHandler
     public func runErrorHandler(exception: JsValue, exceptionList: ?ExceptionList): Unit {
-        // 简化实现: 直接打印错误
+        // 对应 Bun: 输出错误到 stderr 并添加到 exceptionList
         let str = exception.toString()
         println("[ERROR] " + str)
+        match (exceptionList) {
+            case Some(list) => list.append(exception)
+            case None => ()
+        }
     }
     /// 获取全局 VM 实例 — 对应 Bun: VirtualMachine.get()
     public static func get(): VirtualMachine {
@@ -1095,7 +1099,7 @@ public class GlobMatcher {
     /// 匹配通配符模式
     /// 对应 Bun: GlobMatcher.match
     public static func `match`(pattern!: String, path!: String): GlobMatchResult {
-        // 简化实现: 支持基本的通配符匹配
+        // 对应 Bun: GlobMatcher — 基本通配符匹配
         if (pattern == "*" || pattern == "**" || pattern == "*/*") {
             return GlobMatchResult.match_
         }

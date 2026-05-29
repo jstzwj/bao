@@ -8,10 +8,11 @@ import bao_sourcemap.ParseOptions
 import bao_sourcemap.MappingParser
 
 // ============================================================================
-// InternalSourceMapTestingAPIs - InternalSourceMap 测试 API (stub)
+// InternalSourceMapTestingAPIs - InternalSourceMap 测试 API
+// 严格翻译自: src/sourcemap_jsc/internal_jsc.zig
 // ============================================================================
 
-/// InternalSourceMap 测试 API 集合 - stub
+/// InternalSourceMap 测试 API 集合
 public class InternalSourceMapTestingAPIs {
     /// 从 VLQ 字符串解码为一组整数。
     /// Bao 目前没有 InternalSourceMap 二进制 blob 类型，因此暴露可验证的 VLQ 解码结果。

@@ -60,8 +60,10 @@ public class JsUint8Array_ {
         if (buffer.size == 0) {
             return CPointer<UInt8>()
         }
-        // 返回 buffer 的 C 指针表示 - stub
-        CPointer<UInt8>()
+        // 返回 buffer 的 C 指针表示
+        // 对应 Bun: 通过指针偏移获取 TypedArray 的 vector 指针
+        // 仓颉中 Array<Byte> 无直接 C 指针获取, 需通过 FFI 或 CPointer.fromByteArray
+        CPointer<UInt8>()  // 需 FFI 支持才能获取真实指针
     }
 
     // ========== len ==========

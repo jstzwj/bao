@@ -29,7 +29,8 @@ public class JsArrayIterator_ {
     // 快速路径: 直接指向 JSArray butterfly 的指针
     // 当数组使用 Int32 或 Contiguous 存储且有正常的原型链时可用
     // 空洞(holes)编码为 0
-    public var fast: UInt64 = 0  // pointer to contiguous vector, stub
+    // 对应 Bun: fast: ?[*]const JSValue = null
+    public var fast: UInt64 = 0  // pointer to contiguous vector (0 = null/未使用快速路径)
 
     public init() {}
 
@@ -39,7 +40,8 @@ public class JsArrayIterator_ {
         iter.array = value
         iter.global = global
 
-        // 尝试获取快速连续向量 - stub
+        // 对应 Bun: Bun__JSArray__getContiguousVector — 尝试获取快速连续向量
+        // 在仓颉中无法直接访问 JSC butterfly 指针, fast 保持 0 (回退到慢路径)
         iter.len = UInt32(value.toLength())
         iter
     }

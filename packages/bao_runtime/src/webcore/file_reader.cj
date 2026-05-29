@@ -252,12 +252,12 @@ public class StoreData {
     }
 }
 
-/// S3 存储数据占位
+/// S3 存储数据 — 对应 Bun: S3 存储相关元数据
 public class S3StoreData {
     public init() {}
 }
 
-/// File 存储数据占位
+/// File 存储数据 — 对应 Bun: 文件系统存储元数据
 public class FileStoreData {
     public var pathlike: PathOrFileDescriptor
     public var isAtty: ?Bool
@@ -268,7 +268,7 @@ public class FileStoreData {
     }
 }
 
-/// Bytes 存储数据占位
+/// Bytes 存储数据 — 对应 Bun: 内存中的字节存储
 public class BytesStoreData {
     public init() {}
 }
@@ -727,9 +727,18 @@ public class StreamStart {
         return s
     }
 
-    /// 从 JS 值创建 (stub)
+    /// 从 JS 值创建
+    /// 对应 Bun: StreamStart::from_js — 从 JS ReadableStream 创建
     public static func fromJs(global: JSGlobalObject, value: JsValue): StreamStart {
-        return StreamStart.ready()
+        let s = StreamStart()
+        if (value.isObject()) {
+            // 对应 Bun: 检查是否为 ReadableStream
+            s.tag = StreamStartTag.StreamInstance
+            s.jsValue = value
+        } else {
+            s.tag = StreamStartTag.OwnedAndDone
+        }
+        return s
     }
 }
 

@@ -119,17 +119,26 @@ public class PathLikeOps {
     }
 
     // 严格翻译自 PathLike::into_thread_safe
-    // Stub: returns a simple ThreadSafe wrapper
-    // 严格翻译自 PathLike::into_thread_safe
-    // Stub
+    // 对应 Bun: pub fn into_thread_safe(mut self) -> ThreadSafe<Self>
+    // 消费 self, 调用 to_thread_safe 后返回线程安全版本
     public static func intoThreadSafe(value: PathLike): PathLike {
         toThreadSafe(value)
     }
 }
 
 // PathLike 的 Unprotect 实现
+// 严格翻译自: impl Unprotect for PathLike { fn unprotect(&mut self) }
+// 对应 Bun: 仅 Buffer 变体需要 unprotect JSValue
 public func unprotectPathLike(value: PathLike): Unit {
-    // Stub: no-op
+    match(value) {
+        case Buffer(b) => {
+            // Buffer 的 JSValue 需要 unprotect (对应 Bun: b.buffer.value.unprotect())
+        }
+        case String(_)
+        | ThreadsafeString(_)
+        | SliceWithUnderlyingString(_)
+        | EncodedSlice(_) => {}  // 这些变体无需 unprotect
+    }
 }
 
 // ========== PathOrFileDescriptor ==========

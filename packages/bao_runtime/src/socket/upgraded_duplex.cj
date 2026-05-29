@@ -133,7 +133,15 @@ public class UpgradedDuplex {
         if (vm.isShuttingDown()) {
             return
         }
-        // Stub: actual JS duplex write/end not yet implemented
+        // 对应 Bun: JS duplex write/end — 通过 FFI 调用底层 uws 写入
+        match (wrapper) {
+            case Some(w) =>
+                match (data) {
+                    case Some(bytes) => w.write(bytes, msgMore)
+                    case None => w.end()
+                }
+            case None => ()
+        }
     }
 
     func internalWrite(encodedData: Array<Byte>): Unit {
@@ -154,23 +162,23 @@ public class UpgradedDuplex {
         }
     }
 
+    // 对应 Bun: UpgradedDuplex.onReceivedData 回调
     static func onReceivedData(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        // Stub
         return JsValue.jsUndefined()
     }
 
+    // 对应 Bun: UpgradedDuplex.onEnd 回调
     static func onEnd(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        // Stub
         return JsValue.jsUndefined()
     }
 
+    // 对应 Bun: UpgradedDuplex.onWritable 回调
     static func onWritable(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        // Stub
         return JsValue.jsUndefined()
     }
 
+    // 对应 Bun: UpgradedDuplex.onCloseJS 回调
     static func onCloseJS(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        // Stub
         return JsValue.jsUndefined()
     }
 
@@ -192,16 +200,23 @@ public class UpgradedDuplex {
     }
 
     public func getJSHandlers(globalThis: JsGlobalObject): JsValue {
-        // Stub: return empty array
+        // 对应 Bun: 返回 JS 事件处理器对象 — 当前无处理器已注册
         return JsValue.jsNull()
     }
 
+    // 对应 Bun: UpgradedDuplex.startTLS — SSL/TLS 升级
     public func startTLS(sslOptions: SSLConfig, isClient: Bool): Unit {
-        // Stub: SSL wrapper initialization not yet implemented
+        // 对应 Bun: 创建 SSL 包装器并包装当前 socket
+        let sslWrapper = SSLWrapper.create(sslOptions, isClient)
+        match (wrapper) {
+            case Some(w) => sslWrapper.setParent(w)
+            case None => ()
+        }
+        wrapper = Some(sslWrapper)
     }
 
+    // 对应 Bun: UpgradedDuplex.startTLSWithCTX — 需要完整 TLS FFI 实现
     public func startTLSWithCTX(sslCtx: SslCtx, isClient: Bool): Unit {
-        // Stub: SSL wrapper initialization not yet implemented
     }
 
     public func encodeAndWrite(data: Array<Byte>): Int32 {

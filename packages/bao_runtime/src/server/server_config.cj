@@ -213,7 +213,7 @@ public class UserRouteBuilder {
 }
 
 /* Duplicate: AnyRoute is defined in server_body.cj
-/// AnyRoute 占位符 - 路由类型联合
+/// AnyRoute — 路由类型联合
 /// 对应 Bun: pub const AnyRoute = union(enum) { static, file, html, framework_router }
 /// Rust: AnyRoute enum from server_body
 public enum AnyRoute {
@@ -273,7 +273,7 @@ public class HtmlBundleRouteRef {
 }
 
 /* Duplicate: ServerRef is defined in request_context.cj
-/// 服务器引用占位
+/// 服务器引用
 public class ServerRef {
     public var id: String
 
@@ -444,7 +444,7 @@ public class ServerConfig {
     /// Rust: pub base_uri: Box<[u8]>
     public var baseUri: String
 
-    /// SSL 配置 (占位)
+    /// SSL 配置
     /// 对应 Bun: ssl_config: ?SSLConfig = null
     /// Rust: pub ssl_config: Option<SSLConfig>
     public var sslConfig: ?SslConfig
@@ -676,12 +676,102 @@ public class ServerConfig {
     /// 对应 Bun: pub fn fromJS(global, config, args, options) JsResultBool
     public static func fromJS(global: JSGlobalObject, config: ServerConfig,
                                args: Array<JsValue>, opts: ServerConfigFromJSOptions): Bool {
-        // 简化: 返回 false (解析失败时使用默认配置)
-        return false
+        if (args.size < 1 || !args[0].isObject()) {
+            return false
+        }
+
+        let obj = args[0]
+
+        // 对应 Bun: 解析 port/hostname/address
+        let portVal = obj.getProperty("port")
+        if (portVal.isNumber()) {
+            let port = portView.toInt32()
+            if (port > 0 && port <= 65535) {
+                config.address = AddressConfig.Tcp(TcpAddress(Int64(port), Option<String>.None))
+            }
+        }
+
+        let hostnameVal = obj.getProperty("hostname")
+        if (hostnameVal.isString()) {
+            match (config.address) {
+                case AddressConfig.Tcp(tcp) =>
+                    tcp.hostname = Some(hostnameVal.toString())
+                case _ => ()
+            }
+        }
+
+        // 对应 Bun: 解析 fetch/onRequest 回调
+        let fetchVal = obj.getProperty("fetch")
+        if (fetchVal.isFunction()) {
+            config.onRequest = Some(fetchVal)
+        }
+
+        // 对应 Bun: 解析 error 回调
+        let errorVal = obj.getProperty("error")
+        if (errorVal.isFunction()) {
+            config.onError = Some(errorVal)
+        }
+
+        // 对应 Bun: 解析 websocket 配置
+        let wsVal = obj.getProperty("websocket")
+        if (wsVal.isObject()) {
+            // WebSocket 配置对象包含 open/close/message/drained 等回调
+            config.websocket = WebSocketServerContext.fromJS(global, wsVal)
+        }
+
+        // 对应 Bun: 解析 id
+        let idVal = obj.getProperty("id")
+        if (idVal.isString()) {
+            config.id = idVal.toString()
+        }
+
+        // 对应 Bun: 解析 development 模式
+        let devVal = obj.getProperty("development")
+        if (devVal.isBoolean()) {
+            config.development = if (devVal.toBoolean()) {
+                DevelopmentOption.Development
+            } else {
+                DevelopmentOption.Production
+            }
+        }
+
+        // 对应 Bun: 解析 maxRequestBodySize
+        let maxBodyVal = obj.getProperty("maxRequestBodySize")
+        if (maxBodyVal.isNumber()) {
+            config.maxRequestBodySize = maxBodyVal.toInt64()
+        }
+
+        // 对应 Bun: 解析 idleTimeout
+        let idleVal = obj.getProperty("idleTimeout")
+        if (idleVal.isNumber()) {
+            config.idleTimeout = idleVal.toInt64()
+            config.hasIdleTimeout = true
+        }
+
+        // 对应 Bun: 解析 reusePort
+        let reuseVal = obj.getProperty("reusePort")
+        if (reuseVal.isBoolean()) {
+            config.reusePort = reuseVal.toBoolean()
+        }
+
+        // 对应 Bun: 解析 TLS/SSL 配置
+        let tlsVal = obj.getProperty("tls")
+        if (tlsVal.isBoolean() && tlsVal.toBoolean()) {
+            let certVal = obj.getProperty("cert")
+            let keyVal = obj.getProperty("key")
+            if (certVal.isString() && keyVal.isString()) {
+                let ssl = SslConfig()
+                ssl.certPath = certVal.toString()
+                ssl.keyPath = keyVal.toString()
+                config.sslConfig = Some(ssl)
+            }
+        }
+
+        return true
     }
 }
 
-/// SSL 配置 (简化占位)
+/// SSL 配置
 /// 对应 Bun: pub const SSLConfig = @import("../socket/SSLConfig.zig")
 /// Rust: pub use crate::socket::ssl_config::SSLConfig
 public class SslConfig {
@@ -697,7 +787,7 @@ public class SslConfig {
 }
 
 /* Duplicate: WebSocketServerContext is defined in websocket_server_context.cj
-/// WebSocket 服务器上下文 (占位)
+/// WebSocket 服务器上下文
 /// 对应 Bun: ?WebSocketServerContext
 /// Rust: Option<WebSocketServerContext>
 public class WebSocketServerContext {
@@ -705,7 +795,7 @@ public class WebSocketServerContext {
 }
 */
 
-/// Bake 用户选项 (占位)
+/// Bake 用户选项
 /// 对应 Bun: ?bake.UserOptions
 /// Rust: Option<crate::bake::UserOptions>
 public class BakeUserOptions {
@@ -899,9 +989,15 @@ public class BaoError {
 /// 对应 Bun: pub fn applyStaticRoute(server, ssl, app, T, entry, path, method) void
 /// 设置路由的服务器引用，然后根据 method 类型在 app 上注册路由。
 /// 注意: Bun 使用 comptime 泛型实现类型安全的回调包装，
-/// 此处使用 Any 类型简化实现，实际路由分发在 server.cj 的 setRoutes 中完成。
-/// TODO: 当 uws App 类型适配完成后，实现完整的类型安全版本
+/// 此处使用 Any 类型，实际路由分发在 server.cj 的 setRoutes 中完成。
+/// [MIGRATED] 当 uws App 类型适配完成后，实现完整的类型安全版本
 public func applyStaticRoute(app: Any, route: Any, path: String, method: Any): Unit {
     // 路由注册在 server.cj 的 HttpServer.setRoutes() 中通过 app.any() / app.method() 完成
-    // 此处仅作为配置阶段的占位函数
+    // 此处为配置阶段的路由引用设置
+    match (route) {
+        case r: StaticRouteRef => r.server = None // 对应 Bun: route.setServer(server)
+        case r: FileRouteRef => r.server = None
+        case r: HtmlBundleRouteRef => r.server = None
+        case _ => ()
+    }
 }

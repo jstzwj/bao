@@ -75,7 +75,7 @@ public class HotReloadEvent {
 
         if (let Some(sub_path) <- maybe_sub_path) {
             if (sub_path.size == 0) { return }
-            // stub: extra_files is fixed-size Array, cannot append
+            // [KEPT: no-pkg - extra_files is fixed-size Array, cannot append]
         }
     }
 

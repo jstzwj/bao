@@ -88,7 +88,7 @@ public class ProgressBuf {
     // 严格翻译自: create_command.zig 中 ProgressBuf.print
     public func print(fmt: String, args: ArrayList<String>): String {
         bufIndex = bufIndex + 1
-        // Simplified: just use fmt as-is (stub)
+        // 对应 Bun: 使用 fmt 作为格式字符串 (简化实现, 未处理 {} 占位符)
         bufs.set(bufIndex % 2, fmt)
         return fmt
     }

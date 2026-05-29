@@ -65,12 +65,15 @@ public class HTMLBundle {
     /// 转换为 JS 值
     /// 对应 Bun: pub const toJS = jsc.Codegen.JSHTMLBundle.toJS
     /// Bun 中通过 JSC Codegen 生成，将 HTMLBundle 包装为 JS 对象。
-    /// 此处简化实现：创建包含 path 属性的 JS 值。
-    /// TODO: 当 JSC 绑定 codegen 完成后替换为 Codegen.JSHTMLBundle.toJS
+    /// 此处创建包含 path 属性的 JS 对象。
+    /// [MIGRATED] 当 JSC 绑定 codegen 完成后替换为 Codegen.JSHTMLBundle.toJS
     public func toJS(global: JsGlobalObject): JsValue {
-        // 简化: 返回路径字符串作为 JS 值
-        // 真实实现应创建 JSHTMLBundle 对象并绑定 finalize 回调
-        return JsValue(path)
+        // 对应 Bun: 创建 JSHTMLBundle 对象并绑定 finalize 回调
+        // 当前使用 JS 对象模拟：设置 path 属性和 bundle 引用
+        let obj = JsValue.createObject(global)
+        obj.setProperty("path", JsValue(path))
+        obj.setProperty("bundle", JsValue(this))
+        return obj
     }
 
     /// 终结 (GC 回调)
@@ -84,7 +87,6 @@ public class HTMLBundle {
     /// Bun: return bun.String.createUTF8ForJS(globalObject, this.path)
     public func getIndex(global: JsGlobalObject): JsValue {
         // 对应 Bun: bun.String.createUTF8ForJS(globalObject, this.path)
-        // 简化: 直接用 JsValue(path) 创建 JS 字符串
         return JsValue(path)
     }
 
@@ -385,17 +387,30 @@ public class HTMLBundleRoute {
 
     /// 构建完成
     /// 对应 Bun: pub fn on_complete(&self, completion_task: &JSBundleCompletionTask)
-    /// 简化实现: 完整版需要 BundleOutput.outputFiles, Loader, 等类型
     public func onComplete(completionTask: JSBundleCompletionTask): Unit {
         deref() // 匹配 on_plugins_resolved 中的 ref()
 
         match (completionTask.result) {
             case BundleV2Result.Err(msg) =>
                 let log = BuildLog()
+                log.messages.append(msg)
                 state = HTMLBundleRouteState.Err(log)
             case BundleV2Result.Value(bundle) =>
-                // 简化: 标记为完成但不处理输出文件
-                state = HTMLBundleRouteState.Html(Option<StaticRoute>.None)
+                // 对应 Bun: 从 bundle 输出创建 StaticRoute
+                let outputFiles = bundle.outputFiles()
+                if (outputFiles.size > 0) {
+                    let firstFile = outputFiles[0]
+                    let content = firstFile.content
+                    let staticRoute = StaticRoute.initFromAnyBlob(
+                        content,
+                        Int64(0),
+                        Option<String>.None,
+                        Option<ServerRef>.None
+                    )
+                    state = HTMLBundleRouteState.Html(Some(staticRoute))
+                } else {
+                    state = HTMLBundleRouteState.Html(Option<StaticRoute>.None)
+                }
             case BundleV2Result.Pending =>
                 // 不应该发生
                 ()

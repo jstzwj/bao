@@ -282,7 +282,8 @@ public func getCompatFeatureGroup(feature: CompatFeature): CompatFeatureGroup {
              logical_padding_shorthand |
              logical_inset |
              logical_size |
-             logical_text_align =>
+             logical_text_align |
+             logical_properties =>
             CompatFeatureGroup.logical_property_group
         // 尺寸相关
         case auto_size |
@@ -652,6 +653,7 @@ public enum CompatFeature {
     | vw_unit
     | webkit_fill_available_size
     | x_resolution_unit
+    | logical_properties
 
     /// 检查特性与浏览器版本的兼容性
     /// 严格翻译自 Feature.isCompatible()
@@ -873,6 +875,7 @@ public enum CompatFeature {
             case vw_unit => isCompatible_vw_unit(browsers)
             case webkit_fill_available_size => isCompatible_webkit_fill_available_size(browsers)
             case x_resolution_unit => isCompatible_x_resolution_unit(browsers)
+            case logical_properties => true
         }
         return true
     }
@@ -1173,6 +1176,7 @@ public func getFeatureDescription(feature: CompatFeature): String {
         case none_list_style_type => "CSS list-style-type: none"
         case string_list_style_type => "CSS list-style-type: <string>"
         case symbols_list_style_type => "CSS list-style-type: symbols()"
+        case logical_properties => "CSS logical properties"
     }
 }
 

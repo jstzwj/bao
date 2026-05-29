@@ -226,7 +226,7 @@ public enum FilePollFlag {
 
 /// 文件轮询标志集合
 public class FilePollFlags {
-    private var flags: HashSet<FilePollFlag> = HashSet<FilePollFlag>()
+    private var flags: FilePollFlagSet = FilePollFlagSet()
 
     public init() {}
 
@@ -1412,28 +1412,36 @@ public class UwsLoop {
 
 /// HashSet 简化实现 (posix_event_loop 内部使用)
 /// 使用 ArrayList 线性扫描，适用于 FilePollFlag 等少量枚举值
-private class HashSet<T> {
-    private var items: ArrayList<T> = ArrayList<T>()
+/// FilePollFlag 集合 - 使用 match 比较
+private class FilePollFlagSet {
+    private var items: ArrayList<FilePollFlag> = ArrayList<FilePollFlag>()
 
     public init() {}
 
-    public func contains(item: T): Bool {
+    private func flagEq(a: FilePollFlag, b: FilePollFlag): Bool {
+        match (a, b) {
+            case (PollReadable, PollReadable) | (PollWritable, PollWritable) | (PollProcess, PollProcess) | (PollMachPort, PollMachPort) | (Readable, Readable) | (Writable, Writable) | (Process, Process) | (Eof, Eof) | (Hup, Hup) | (MachPort, MachPort) | (Fifo, Fifo) | (Tty, Tty) => true
+            case _ => false
+        }
+    }
+
+    public func contains(item: FilePollFlag): Bool {
         for (i in 0..items.size) {
-            if (items[i] == item) { return true }
+            if (flagEq(items[i], item)) { return true }
         }
         return false
     }
 
-    public func put(item: T): Unit {
+    public func put(item: FilePollFlag): Unit {
         if (!contains(item)) {
-            items.append(item)
+            items.add(item)
         }
     }
 
-    public func remove(item: T): Unit {
+    public func remove(item: FilePollFlag): Unit {
         var i = Int64(0)
         while (i < items.size) {
-            if (items[i] == item) {
+            if (flagEq(items[i], item)) {
                 items.removeAt(i)
                 return
             }
@@ -1454,58 +1462,7 @@ private class HashSet<T> {
     }
 }
 
-/// HashMap 简化实现 (posix_event_loop 内部使用)
-/// 使用并行数组线性扫描，适用于小规模集合
-private class HashMap<K, V> {
-    private var keys_: ArrayList<K> = ArrayList<K>()
-    private var vals_: ArrayList<V> = ArrayList<V>()
-
-    public init() {}
-
-    public func contains(key: K): Bool {
-        for (i in 0..keys_.size) {
-            if (keys_[i] == key) { return true }
-        }
-        return false
-    }
-
-    public func put(key: K, value: V): Unit {
-        for (i in 0..keys_.size) {
-            if (keys_[i] == key) {
-                vals_[i] = value
-                return
-            }
-        }
-        keys_.append(key)
-        vals_.append(value)
-    }
-
-    public func remove(key: K): Unit {
-        for (i in 0..keys_.size) {
-            if (keys_[i] == key) {
-                keys_.removeAt(i)
-                vals_.removeAt(i)
-                return
-            }
-        }
-    }
-
-    public func get(key: K): ?V {
-        for (i in 0..keys_.size) {
-            if (keys_[i] == key) { return Some(vals_[i]) }
-        }
-        return None
-    }
-
-    public func clear(): Unit {
-        keys_.clear()
-        vals_.clear()
-    }
-
-    public prop size: Int64 {
-        get() { keys_.size }
-    }
-}
+// HashMap 未使用，已移除
 
 // ============================================================================
 // POSIX FFI 声明 - epoll/kqueue/eventfd/read/write/close

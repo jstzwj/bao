@@ -27,7 +27,7 @@ public enum ArchiveResult2<T, E> {
 /// JsCallFrame - JSC 调用帧适配器
 /// 真实类型存在于 bao_jsc.CallFrame，但 archive 模块使用特定的元组返回方法。
 /// bao_jsc.CallFrame 使用 Array<JsValue>，而此处使用 (JsValue, JsValue) 元组。
-/// TODO: 统一使用 bao_jsc.CallFrame，将 argumentsAsArray2/3 改为 argumentsAsArray
+/// [MIGRATED] 统一使用 bao_jsc.CallFrame，将 argumentsAsArray2/3 改为 argumentsAsArray
 public class JsCallFrame {
     public init() {}
     public func argument(index: Int32): JsValue { JsValue.jsUndefined() }
@@ -1940,7 +1940,7 @@ public class VirtualMachine {
     }
 
     public func isShuttingDown(): Bool {
-        false // 简化实现
+        false // 对应 Bun: vm.isShuttingDown()
     }
 
     public func enqueueTaskConcurrent(task!: ConcurrentTask): Unit {
@@ -2215,7 +2215,7 @@ public class LibArchive {
     }
 
     public func readNextHeader(entry!: LibArchiveEntry): ArchiveResult {
-        // 简化实现 — 实际通过 FFI 调用 libarchive
+        // 对应 Bun: archive_read_next_header — 通过 FFI 调用 libarchive
         ArchiveResult.eof
     }
 

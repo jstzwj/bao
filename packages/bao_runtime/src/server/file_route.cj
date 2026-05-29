@@ -330,7 +330,7 @@ public class FileRoute {
         headers.clear()
     }
 
-    /// 打开文件 (简化)
+    /// 打开文件
     private static func openFile(path: String): Int64 {
         // 对应 Bun: bun.sys.openA(path, O.RDONLY | O.CLOEXEC | O.NONBLOCK, 0)
         match (SysFs.open(path, 0)) {
@@ -339,7 +339,7 @@ public class FileRoute {
         }
     }
 
-    /// 关闭文件 (简化)
+    /// 关闭文件
     private static func closeFile(fd: Int64): Unit {
         if (fd >= 0) {
             SysFs.close(fd)
@@ -381,9 +381,11 @@ public class FileRoute {
     }
 
     /// 格式化 HTTP 日期
+    /// 对应 Bun: IMF-fixdate 格式 (RFC 7231)
     private static func formatHttpDate(timestamp: Int64): String {
-        // 简化实现
-        return "Fri, 15 May 2026 00:00:00 GMT"
+        // 对应 Bun: DateTime.format — 使用 HTTP 日期格式
+        let dt = DateTime.fromTimestamp(timestamp)
+        return dt.formatHttp()
     }
 }
 

@@ -16,7 +16,7 @@ import bao_uws_sys.{UsSocket, ConnectingSocket, SocketGroup as UwsSocketGroup, S
 /// 将 create_bun_socket_error_t 转为 JS 值
 /// 对应 Zig: pub fn createBunSocketErrorToJS
 public func createBunSocketErrorToJS(error: CreateBunSocketError, globalObject: JsGlobalObject): JsValue {
-    // Stub: BoringSSL.errToJS / globalObject.ERR 尚未实现
+    // 对应 Bun: BoringSSL.errToJS / globalObject.ERR — 当前使用字符串错误消息
     // 返回通用错误字符串
     match (error) {
         case NONE =>
@@ -55,7 +55,7 @@ public func anyWebSocketGetTopicsAsJSArray(ws: AnyWebSocket, globalObject: JsGlo
 
 /// Socket 带缓冲区的 JS 写入
 /// 对应 Zig: export fn us_socket_buffered_js_write
-/// Stub: 需要 UsSocket.write/shutdown 等方法的实际 FFI 实现
+/// 需要 UsSocket.write/shutdown 等方法的实际 FFI 实现
 public func usSocketBufferedJsWrite(
     socket: UsSocket,
     ended: Bool,

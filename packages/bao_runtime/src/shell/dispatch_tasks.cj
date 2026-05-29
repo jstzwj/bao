@@ -411,15 +411,27 @@ public class ShellEventLoopUtil {
 public class ShellBuiltinUtil {
     /// 递归删除目录（rm -rf）
     public static func rmrf(path: String): Int32 {
-        // 仓颉无法直接调用 rm -rf，通过系统调用递归删除
-        // 简化实现: 返回 0 表示成功
-        0
+        // 对应 Bun: 递归删除目录 — 通过 SysFs 递归删除
+        try {
+            SysFs.rmrf(path)
+            return 0
+        } catch {
+            case e => return 1
+        }
     }
 
     /// 删除单个路径（文件或空目录）
     public static func removePath(path: String, force: Bool): Unit {
-        // 简化实现
-        ()
+        // 对应 Bun: unlink/rmdir
+        try {
+            if (SysFs.isDirectory(path)) {
+                SysFs.rmdir(path)
+            } else {
+                SysFs.unlink(path)
+            }
+        } catch {
+            case _ => ()
+        }
     }
 }
 

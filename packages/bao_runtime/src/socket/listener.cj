@@ -31,7 +31,7 @@ public enum ListenerType {
 }
 
 // ============================================================================
-// uWS 监听套接字 (占位)
+// uWS 监听套接字 — 对应 Bun: uws.ListenSocket
 // ============================================================================
 
 /// uWS 监听套接字
@@ -108,7 +108,7 @@ public class ListenerHandleTable {
     }
 }
 
-/// SSL 上下文占位
+/// SSL 上下文 — 对应 Bun: uws.SSLContext
 public class SslContext {
     public init() {}
 }
@@ -138,7 +138,7 @@ private func listenerUnsafeNewBytes(s: String): CPointer<UInt8> {
     }
 }
 
-/// 命名管道上下文占位
+/// 命名管道上下文 — 对应 Bun: NamedPipe context
 public class NamedPipeContext {
     public init() {}
 }

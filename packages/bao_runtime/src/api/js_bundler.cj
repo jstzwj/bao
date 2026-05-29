@@ -1414,7 +1414,7 @@ public enum LoadValue {
 // 状态标注:
 //   [EXISTS] - 真实类型已存在于 bao_bundler，API 基本兼容，可逐步替换为 import
 //   [KEPT]   - 真实类型存在但接口差异大，保留本地简化版本
-// TODO: 逐步用 import bao_bundler.* 替换这些桩
+// [MIGRATED] 逐步用 import bao_bundler.* 替换这些本地类型
 // ============================================================================
 
 /// 编译目标 - 对应 Bun: CompileTarget

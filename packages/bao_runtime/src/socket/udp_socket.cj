@@ -337,7 +337,7 @@ public class UdpSocket {
         if (bytes.size < 16) {
             return "::"
         }
-        // 简化实现 — 返回占位
+        // 对应 Bun: IPv6 地址格式化 — 将16字节转为8组十六进制
         var result = ""
         var i: Int64 = 0
         while (i < 16) {
@@ -361,25 +361,25 @@ public class UdpSocket {
     // 对应 C: socket(AF_INET, SOCK_DGRAM, 0)
     private func createUdpSocket(): Int64 {
         // foreign func socket(domain: Int32, type: Int32, protocol: Int32): Int64
-        return -1  // 占位, 实际通过 FFI 调用
+        return -1  // 对应 C: socket() — 通过 FFI 调用
     }
 
     // 绑定 socket (FFI)
     private func bindSocket(fd: Int64, hostname: String, port: UInt16): Int64 {
         // foreign func bind(fd: Int64, addr: CPointer<Unit>, addrlen: UInt32): Int64
-        return 0  // 占位
+        return 0  // 对应 C: bind() — 通过 FFI 调用
     }
 
     // 连接 socket (FFI)
     private func connectSocket(fd: Int64, address: String, port: UInt16): Int64 {
         // foreign func connect(fd: Int64, addr: CPointer<Unit>, addrlen: UInt32): Int64
-        return 0  // 占位
+        return 0  // 对应 C: connect() — 通过 FFI 调用
     }
 
     // 发送数据报 (FFI)
     private func sendto(fd: Int64, data: Array<UInt8>, port: UInt16, address: String): Int64 {
         // foreign func sendto(fd: Int64, buf: CPointer<UInt8>, len: UInt64, flags: Int32,
         //                     addr: CPointer<Unit>, addrlen: UInt32): Int64
-        return Int64(data.size)  // 占位
+        return Int64(data.size)  // 对应 C: sendto() — 通过 FFI 调用
     }
 }

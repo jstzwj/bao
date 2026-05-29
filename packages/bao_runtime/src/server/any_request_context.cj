@@ -17,7 +17,7 @@ import bao_collections.*
 /// AnyRequestContext - 统一的请求上下文引用
 /// 对应 Bun: AnyRequestContext { tagged_pointer: Pointer }
 /// Bun 使用 tagged pointer 来区分不同类型 (HTTP, HTTPS, Debug, H3)
-/// 仓颉使用枚举 + 类型来简化实现
+/// AnyRequestContext — 仓颉使用枚举 + 类型实现 tagged pointer 等价
 public enum AnyRequestContextTag {
     | Http
     | Https

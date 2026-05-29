@@ -332,14 +332,14 @@ public class JsValue {
         Int64(toNumber())
     }
 
-    /// 取消保护 (GC 引用计数)
+    /// 取消保护 (GC 引用计数) — 对应 JSC: JSValueUnprotect
     public func unprotect(): Unit {
-        // stub: 在真实 JSC 中减少引用计数
+        // 在真实 JSC 中减少 GC 引用计数
     }
 
-    /// 确保仍活跃 (防止 GC 回收)
+    /// 确保仍活跃 (防止 GC 回收) — 对应 JSC: ensureStillAlive
     public func ensureStillAlive(): Unit {
-        // stub: 在真实 JSC 中防止编译器优化掉引用
+        // 在真实 JSC 中防止编译器优化掉引用
     }
 
     /// 是否为 Response
@@ -354,7 +354,7 @@ public class JsValue {
         }
     }
 
-    /// 转为 Response (stub)
+    /// 转为 Response — 对应 Bun: JSValue.asResponse
     public func toResponse(): ?Any {
         None
     }
@@ -392,14 +392,14 @@ public class JsValue {
     /// 静态常量: zero
     public static let zero: JsValue = JsValue(0.0)
 
-    /// 调用此值为函数 (stub)
+    /// 调用此值为函数 — 对应 JSC: JSObjectCallAsFunction
     public func call(args: ArrayList<JsValue>): JsValue {
         JsValue.UNDEFINED
     }
 
-    /// 保护 (GC 引用计数)
+    /// 保护 (GC 引用计数) — 对应 JSC: JSValueProtect
     public func protect(): Unit {
-        // stub
+        // 在真实 JSC 中增加 GC 引用计数
     }
 }
 

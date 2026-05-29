@@ -1423,7 +1423,7 @@ public let POSIX_SPAWN_SETSID: Int32 = 0x0800
 public let SIGCONT: Int32 = 18
 public let SIGTSTP: Int32 = 20
 
-// SyncProcess - 同步子进程占位类型
+// SyncProcess — 同步子进程类型 (POSIX 为 opaque)
 // 严格翻译自: process.zig:103-104
 //   const SyncProcess = if (Environment.isWindows) sync.SyncWindowsProcess else SyncProcessPosix;
 //   const SyncProcessPosix = opaque {};
@@ -1431,7 +1431,7 @@ public let SIGTSTP: Int32 = 20
 // Windows: SyncWindowsProcess 有实际的 onProcessExit 实现
 // 在 ProcessExitHandler.call 中，POSIX 路径到达 SyncProcess 分支时会 panic
 // @panic("This code should not reached")
-// 因此这里保留空实现作为类型系统的占位
+// 因此这里保留空实现作为类型系统的占位 — POSIX 不应实例化
 public class SyncProcess {
     /// POSIX: 不应被调用 (会 panic)
     /// Windows: 对应 SyncWindowsProcess.onProcessExit(status, rusage)

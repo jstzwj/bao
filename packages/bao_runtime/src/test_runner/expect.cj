@@ -707,7 +707,7 @@ public class Expect {
             result = anyPromise2.result(vm)
             result.ensureStillAlive()
             if (anyPromise2.status() == JSPromiseStatus.Rejected) {
-                return false  // 简化: 实际应抛出错误
+                return false  // 对应 Bun: Promise rejected — 应传播错误
             }
         }
 

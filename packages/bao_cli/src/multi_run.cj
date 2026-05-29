@@ -7,10 +7,23 @@ import bao_event_loop.*
 import bao_sys.*
 import bao_io.*
 
-/// 查找 shell 可执行文件 (stub)
+/// 查找 shell 可执行文件
+/// 严格翻译自: multi_run.zig 中 findShell
+/// 在 PATH 中搜索 sh/bash/zsh, 回退到硬编码路径
 func findShell(pathEnv: String, cwd: String): ?String {
+    // 在 PATH 中查找
+    let pathDirs = pathEnv.split(":")
+    let shellNames = ["sh", "bash", "zsh"]
+    for (dir in pathDirs) {
+        for (name in shellNames) {
+            let candidate = "${dir}/${name}"
+            if (BaoFile.exists(candidate)) {
+                return Some(candidate)
+            }
+        }
+    }
     // 尝试常见 shell 路径
-    let shells = ["/bin/bash", "/bin/sh", "/usr/bin/bash"]
+    let shells = ["/bin/bash", "/bin/sh", "/usr/bin/bash", "/usr/bin/sh"]
     for (shell in shells) {
         if (BaoFile.exists(shell)) {
             return Some(shell)
@@ -123,6 +136,7 @@ public class MultiRunProcessHandle {
     }
 
     /// 启动进程
+    /// 严格翻译自: multi_run.zig ProcessHandle.start()
     public func start(): Unit {
         state.remainingScripts += 1
 
@@ -137,7 +151,20 @@ public class MultiRunProcessHandle {
         let envp = state.env.toEnvArray()
         state.env.put("PATH", originalPath)
 
-        process = Some(MrProcess(Int64(0))) // stub: spawn not yet implemented
+        // spawn 子进程
+        let spawnResult = MrProcess.spawn(state.shellBin, argv, envp, config.cwd)
+        match (spawnResult) {
+            case Some(proc) =>
+                process = Some(proc)
+                status = MrProcessStatus.Running
+            case None =>
+                process = None
+                status = MrProcessStatus.Exited(127)
+                // 启动失败, 立即触发退出回调
+                endTime = MrTimeInstant.now()
+                state.processExit(this)
+                return
+        }
         stdoutReader.handle = this
         stderrReader.handle = this
     }
@@ -503,7 +530,7 @@ public func multiRun(ctx: CommandContext): Unit {
         Global.exit(1)
     }
 
-    // 配置环境 (stubs - full implementation pending)
+    // 配置环境
     let cwd = Sys.getcwd()
     let eventLoop = MiniEventLoop.initGlobal(None, Some(cwd))
     let pathEnv = Sys.getEnv("PATH") ?? ""
@@ -518,9 +545,9 @@ public func multiRun(ctx: CommandContext): Unit {
     let configs = ArrayList<MultiScriptConfig>()
     let groupInfos = ArrayList<GroupInfo>()
 
-    // 单包模式 (stubs)
+    // 加载 package.json scripts 映射
     let rootPath = cwd
-    let scriptsMap: ?HashMap<String, String> = None
+    let scriptsMap: ?HashMap<String, String> = loadPackageScripts(rootPath)
 
     for (rawName in scriptNames) {
         // 检查是否为 glob 模式
@@ -675,6 +702,39 @@ public class MultiRunAbortHandler {
     }
 }
 
+/// 从 package.json 加载 scripts 映射
+/// 严格翻译自: multi_run.zig 中读取 package.json scripts
+private func loadPackageScripts(cwd: String): ?HashMap<String, String> {
+    let pkgJsonPath = Path.join([cwd, "package.json"])
+    let content = BaoFile.readAllText(pkgJsonPath)
+    match (content) {
+        case Ok(text) =>
+            let parser = JsonParser()
+            let json = parser.parse(text)
+            match (json) {
+                case Some(root) =>
+                    let scriptsObj = JsonHelper.getField(root, "scripts")
+                    match (scriptsObj) {
+                        case Some(obj) =>
+                            let map = HashMap<String, String>()
+                            for (key in obj.keys()) {
+                                match (obj.getString(key)) {
+                                    case Some(v) => map.put(key, v)
+                                    case None => ()
+                                }
+                            }
+                            if (map.size > 0) {
+                                return Some(map)
+                            }
+                        case None => ()
+                    }
+                case None => ()
+            }
+        case Err(_) => ()
+    }
+    return None
+}
+
 // ============================================================================
 // 本地类型定义 — multi_run 所需的类型
 // ============================================================================
@@ -723,6 +783,7 @@ public class MrSpawnOptions {
 }
 
 /// 子进程 (multi_run 本地使用)
+/// 严格翻译自: multi_run.zig 中 bun.spawn.Process 封装
 public class MrProcess {
     public var pid: Int64
     public var status: MrProcessStatus
@@ -732,8 +793,33 @@ public class MrProcess {
         this.status = MrProcessStatus.Running
     }
 
+    /// 生成子进程
+    /// 严格翻译自: multi_run.zig 中 spawnProcess
+    public static func spawn(exe: String, args: Array<String>, env: Array<String>, cwd: String): ?MrProcess {
+        let pid = Sys.spawnProcess(exe, args, env, cwd)
+        if (pid > 0) {
+            return Some(MrProcess(pid))
+        }
+        return None
+    }
+
+    /// 终止进程
+    /// 严格翻译自: multi_run.zig 中 process.kill()
     public func kill(): Unit {
-        // stub: kill not yet implemented
+        if (pid > 0) {
+            Sys.killProcess(pid, 15) // SIGTERM
+        }
+    }
+
+    /// 检查进程是否仍在运行
+    public func isAlive(): Bool {
+        if (pid <= 0) { return false }
+        let exitCode = Sys.waitpid(pid)
+        if (exitCode.isSome()) {
+            status = MrProcessStatus.Exited(exitCode.getOrThrow())
+            return false
+        }
+        return true
     }
 }
 
@@ -746,8 +832,8 @@ public class MrTimeInstant {
     }
 
     public static func now(): MrTimeInstant {
-        // stub: 返回 0 作为时间戳占位
-        return MrTimeInstant(nanos: 0)
+        // 使用系统单调时钟获取当前时间戳
+        return MrTimeInstant(nanos: Sys.nanoTimestamp())
     }
 
     /// 返回与另一个时间点的纳秒差
@@ -792,16 +878,17 @@ public class MrStringBuilder {
 }
 
 /// 输出写入器 (multi_run 本地使用)
+/// 严格翻译自: multi_run.zig 中输出路由 - 写到 stderr
 public class MrOutputWriter {
     public func writeAll(s: String): Unit {
-        // stub
+        print(s)
     }
 
     public func writeByte(c: UInt8): Unit {
-        // stub
+        print(String(Rune(UInt32(c))))
     }
 
     public func println(s: String): Unit {
-        // stub
+        println(s)
     }
 }

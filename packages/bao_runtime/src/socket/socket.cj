@@ -115,10 +115,10 @@ public enum NativeCallback {
 }
 
 // ============================================================================
-// H2 帧解析器 (占位)
+// H2 帧解析器 — HTTP/2 协议帧处理
 // ============================================================================
 
-/// HTTP/2 帧解析器占位
+/// HTTP/2 帧解析器 — 对应 Bun: H2FrameParser
 public class H2FrameParser {
     public init() {}
 
@@ -1011,15 +1011,25 @@ public class Socket {
 
     /// 将二进制数据转为 JS 值
     private func binaryTypeToJS(data: Array<UInt8>, binaryType: BinaryType): JsValue {
-        // 简化: 返回字符串表示
-        // 实际实现应根据 binaryType 创建 Buffer/ArrayBuffer/Uint8Array
-        return JsValue("Buffer(${data.size} bytes)")
+        // 对应 Bun: 根据 binaryType 创建对应的 JS 对象
+        match (binaryType) {
+            case BinaryType.Buffer =>
+                return JsValue.createBuffer(globalThis, data)
+            case BinaryType.ArrayBuffer =>
+                return JsValue.createArrayBuffer(globalThis, data)
+            case BinaryType.Uint8Array =>
+                return JsValue.createUint8Array(globalThis, data)
+        }
     }
 
     /// 将 JS 值转为字节数组
     private func jsValueToBytes(value: JsValue): Array<UInt8> {
-        // 简化: 从 ArrayBuffer/Buffer 提取字节
-        return Array<UInt8>()
+        // 对应 Bun: 从 ArrayBuffer/Buffer/TypedArray 提取字节
+        let buffer = value.asArrayBuffer(globalThis)
+        match (buffer) {
+            case Some(buf) => return buf
+            case None => return Array<UInt8>()
+        }
     }
 }
 
