@@ -1,10 +1,56 @@
 // 严格翻译自: src/runtime/api/bun/spawn.zig
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue}
 import bao_collections.ArrayList
-import bao_core.*
+import bao_core.{Allocator, Output}
 import bao_sys.*
+
+public class SpawnTuple<T, U> {
+    public var first: T
+    public var second: U
+
+    public init(first: T, second: U) {
+        this.first = first
+        this.second = second
+    }
+}
+
+public class FD {
+    public var value: Int32
+
+    public init(value: Int32) {
+        this.value = value
+    }
+
+    public func native(): Int32 { value }
+    public func cast(): Int32 { value }
+
+    public operator func ==(right: FD): Bool {
+        value == right.value
+    }
+}
+
+public class ArrayListUnmanaged<T> {
+    public var items: Array<T> = []
+
+    public init() {}
+
+    public func append(allocator: Allocator, item: T): Unit {
+        items.append(item)
+    }
+
+    public func deinit(allocator: Allocator): Unit {
+        items = []
+    }
+}
+
+public class SpawnActionsList {
+    public var ptr: Any = None
+    public var len: Int64 = 0
+
+    public init() {}
+}
 
 // ============================================================================
 // BunSpawn - Bun 自定义 spawn 实现 (用于 Linux/FreeBSD PTY 支持)
@@ -23,7 +69,7 @@ public enum FileActionType {
 public class Action {
     var kind: FileActionType = FileActionType.none
     var path: String = none      // null-terminated string
-    var fds: Tuple<Int32, Int32>
+    var fds: SpawnTuple<Int32, Int32> = SpawnTuple<Int32, Int32>(0, 0)
     var flags: Int32 = 0
     var mode: Int32 = 0
 
@@ -75,7 +121,7 @@ public class Actions {
         action.path = path
         action.flags = Int32(flags)
         action.mode = Int32(mode)
-        action.fds = (fd.native(), 0)
+        action.fds = SpawnTuple<Int32, Int32>(fd.native(), 0)
         this.actions.append(default_allocator, action)
     }
 
@@ -83,7 +129,7 @@ public class Actions {
     public func close(fd!: FD) {
         let action = Action()
         action.kind = FileActionType.close
-        action.fds = (fd.native(), 0)
+        action.fds = SpawnTuple<Int32, Int32>(fd.native(), 0)
         this.actions.append(default_allocator, action)
     }
 
@@ -91,7 +137,7 @@ public class Actions {
     public func dup2(fd!: FD, newfd!: FD) {
         let action = Action()
         action.kind = FileActionType.dup2
-        action.fds = (fd.native(), newfd.native())
+        action.fds = SpawnTuple<Int32, Int32>(fd.native(), newfd.native())
         this.actions.append(default_allocator, action)
     }
 
@@ -312,9 +358,9 @@ public func spawnZ(
             path,
             BunSpawnRequest{
                 actions = if (actions != none) {
-                    ActionsList{ ptr = actions.actions.items.ptr; len = actions.actions.items.len }
+                    SpawnActionsList{ ptr = Some(actions.actions.items); len = actions.actions.items.size }
                 } else {
-                    ActionsList{ ptr = none; len = 0 }
+                    SpawnActionsList{ ptr = None; len = 0 }
                 }
                 chdirBuf = if (actions != none) { actions.chdirBuf } else { none }
                 detached = detached
@@ -426,14 +472,9 @@ public class BunSpawnRequest {
     var chdirBuf: String = none
     var detached: Bool = false
     var newProcessGroup: Bool = false
-    var actions: ActionsList = ActionsList{}
+    var actions: SpawnActionsList = SpawnActionsList()
     var ptySlaveFd: Int32 = -1
     var linuxPdeathsig: Int32 = 0
-
-//    public class ActionsList {
-//        var ptr: UnsafePointer<Action> = none
-//        var len: Int64 = 0
-//    }
 
     // 外部 C 函数 - stub
     public static func posix_spawn_bun(

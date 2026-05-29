@@ -1,13 +1,22 @@
 // 严格翻译自: src/runtime/api/bun/process.zig
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue}
 import bao_collections.ArrayList
-import bao_core.*
+import bao_core.{Allocator, ArenaAllocator, BaoError, Output}
 import bao_sys.*
 import bao_io.*
 import bao_event_loop.*
 import bao_ptr.*
+
+// 本地 stub 类型
+public class ExtraPipe { public init() {} }
+public class SyncStdio { public init() {} }
+public class PosixSpawnattrT { public init() {} }
+public class PosixSpawnFileActionsT { public init() {} }
+public type ModeT = UInt32
+public type Maybe<T> = SysMaybe<T>
+public class SysErrno { public init() {} }
 
 // ============================================================================
 // 类型别名

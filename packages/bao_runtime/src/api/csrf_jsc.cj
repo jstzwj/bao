@@ -1,8 +1,8 @@
 // 严格翻译自: src/runtime/api/csrf_jsc.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue, ZigStringSlice}
+import bao_core.{Allocator, Output}
 import bao_csrf.*
 
 // ============================================================================

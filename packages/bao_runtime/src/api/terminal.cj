@@ -1,11 +1,13 @@
 // 严格翻译自: src/runtime/api/bun/Terminal.rs
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue, ZigStringSlice}
+import bao_core.{Allocator, Output}
 import bao_io.*
 import bao_sys.*
-import bao_collections.*
+import bao_collections.{ArrayList, HashMap}
+
+// 本地 stub 类型
 
 // ============================================================================
 // Terminal - Bun.Terminal - 伪终端 (PTY) 支持

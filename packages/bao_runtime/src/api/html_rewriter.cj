@@ -4,7 +4,7 @@
 package bao_runtime.api
 
 import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame, ArgumentsSlice}
-import bao_collections.*
+import bao_collections.{ArrayList, HashMap}
 import bao_core.{Allocator, ArenaAllocator, BaoError, ErrorCode, Output, defaultAllocator}
 import bao_sys.*
 import bao_lolhtml_sys.*

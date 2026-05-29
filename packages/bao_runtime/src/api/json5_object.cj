@@ -1,9 +1,9 @@
 // 严格翻译自: src/runtime/api/JSON5Object.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
-import bao_collections.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
+import bao_collections.{ArrayList, HashMap}
 
 // ============================================================================
 // JSON5Object - Bun.JSON5 API (parse/stringify)

@@ -1,8 +1,8 @@
 // 严格翻译自: src/runtime/api/standalone_graph_jsc.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
 
 // ============================================================================
 // standalone_graph_jsc - StandaloneModuleGraph.File 的 JSC 桥接

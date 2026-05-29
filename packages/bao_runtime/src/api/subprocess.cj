@@ -8,6 +8,49 @@ import bao_core.ptr.RefCount
 import bao_sys.*
 import bao_io.*
 
+// 本地 stub 类型
+public enum ApiStdioKind { | stdin | stdout | stderr }
+
+public class MaxBuf {
+    public init() {}
+    public static func createForSubprocess(owner: Subprocess, slot: ?MaxBuf, initial: ?Int64): Unit {}
+    public static func removeFromSubprocess(slot: ?MaxBuf): Unit {}
+    public static func addToPipeReader(limit: ?MaxBuf, readerMaxbuf: Any): Unit {}
+}
+public class TimerAll {
+    public init() {}
+    public func incrementTimerRef(delta: Int32, uwsLoop: Any): Unit {}
+    public func remove(timer: EventLoopTimer): Unit {}
+}
+public class CowString {
+    public init() {}
+    public static func initOwned(s: String): CowString { CowString() }
+}
+public class PipeReaderState {
+    public var done: Any = None
+    public init() {}
+}
+public enum SubprocessReadable {
+    | ignore
+    | pipe(Pipe)
+    | buffer(CowString)
+    public func replace(other: SubprocessReadable): SubprocessReadable { other }
+}
+public class Signal {
+    public func clear(): Unit {}
+    public init() {}
+}
+
+public class JscHooks {
+    public static func timerAllMut(): TimerAll { TimerAll() }
+}
+
+public class EnumSet<T> {
+    public init() {}
+    public func insert(value: T): Unit {}
+    public func contains(value: T): Bool { false }
+}
+
 // ============================================================================
 // Subprocess - Bun.spawn / Bun.spawnSync 返回的子进程对象
 // 对应 Bun: src/runtime/api/bun/subprocess.rs
@@ -51,7 +94,7 @@ public class Subprocess {
     /// JSC 全局对象 (生命周期长于 Subprocess)
     public var globalThis: BackRef<JsGlobalObject>
     public var observableGetters: EnumSet<ObservableGetter>
-    public var closed: EnumSet<StdioKind>
+    public var closed: EnumSet<ApiStdioKind>
     public var thisValue: JsRef
 
     /// IPC 数据，null 表示未初始化
@@ -65,14 +108,11 @@ public class Subprocess {
 
     public var eventLoopTimerRefd: Bool = false
     /// 侵入式定时器节点
-    public var eventLoopTimer: EventLoopTimer = EventLoopTimer{
-        tag = TimerTag.SubprocessTimeout
-        next = Timespec.epoch
-    }
+    public var eventLoopTimer: EventLoopTimer = EventLoopTimer(TimerTag.SubprocessTimeout)
     public var killSignal: SignalCode
 
-    public var stdoutMaxbuf: ?MaxBufMaxBuf
-    public var stderrMaxbuf: ?MaxBufMaxBuf
+    public var stdoutMaxbuf: ?MaxBuf
+    public var stderrMaxbuf: ?MaxBuf
     public var exitedDueToMaxbuf: ?MaxBufKind
 
     // ========================================================================
@@ -348,10 +388,10 @@ public class Subprocess {
     }
 
     /// 关闭 IO 回调
-    public func onCloseIO(kind!: StdioKind) {
+    public func onCloseIO(kind!: ApiStdioKind) {
         match (kind) {
             case stdin =>
-                match (thisStdioKind.stdin) {
+                match (this.stdin) {
                     case pipe(pipe) =>
                         // signal 是 JsCell, 所以共享的 &FileSink 就足够了
                         pipe.signal.clear()
@@ -370,15 +410,16 @@ public class Subprocess {
                     this.stderr
                 }
 
-                if (out is Readable.pipe) {
-                    let pipe = out.replace(Readable.ignore())
-                    let pipeState = pipe.reader.state
-                    if (let done <- pipeState.`as`(PipeReaderState).done) {
-                        let taken = done.take()
-                        out = Readable.buffer(CowString.initOwned(taken))
-                    }
-                    // 否则 out 保持为 Readable::Ignore (由 replace 设置)
-                    pipe.deref()
+                match (out) {
+                    case pipe(pipe) =>
+                        let pipeState = pipe.reader.state
+                        match (pipeState) {
+                            case done(bytes) => this.stdout = Readable.buffer(bytes)
+                            case _ => ()
+                        }
+                        this.stdout = Readable.ignore
+                        pipe.deref()
+                    case _ => ()
                 }
             case stderr =>
                 let out: Readable = if (kind == stdout) {
@@ -387,15 +428,16 @@ public class Subprocess {
                     this.stderr
                 }
 
-                if (out is Readable.pipe) {
-                    let pipe = out.replace(Readable.ignore())
-                    let pipeState = pipe.reader.state
-                    if (let done <- pipeState.`as`(PipeReaderState).done) {
-                        let taken = done.take()
-                        out = Readable.buffer(CowString.initOwned(taken))
-                    }
-                    // 否则 out 保持为 Readable::Ignore (由 replace 设置)
-                    pipe.deref()
+                match (out) {
+                    case pipe(pipe) =>
+                        let pipeState = pipe.reader.state
+                        match (pipeState) {
+                            case done(bytes) => this.stderr = Readable.buffer(bytes)
+                            case _ => ()
+                        }
+                        this.stderr = Readable.ignore
+                        pipe.deref()
+                    case _ => ()
                 }
         }
 
@@ -411,15 +453,15 @@ public class Subprocess {
     public func jsRef() {
         this.processMut().enableKeepingEventLoopAlive()
 
-        if (!this.hasCalledGetter(StdioKind.stdin)) {
+        if (!this.hasCalledGetter(ObservableGetter.stdin)) {
             this.stdin.ref()
         }
 
-        if (!this.hasCalledGetter(StdioKind.stdout)) {
+        if (!this.hasCalledGetter(ObservableGetter.stdout)) {
             this.stdout.ref()
         }
 
-        if (!this.hasCalledGetter(StdioKind.stderr)) {
+        if (!this.hasCalledGetter(ObservableGetter.stderr)) {
             this.stderr.ref()
         }
 
@@ -430,15 +472,15 @@ public class Subprocess {
     public func jsUnref() {
         this.processMut().disableKeepingEventLoopAlive()
 
-        if (!this.hasCalledGetter(StdioKind.stdin)) {
+        if (!this.hasCalledGetter(ObservableGetter.stdin)) {
             this.stdin.unref()
         }
 
-        if (!this.hasCalledGetter(StdioKind.stdout)) {
+        if (!this.hasCalledGetter(ObservableGetter.stdout)) {
             this.stdout.unref()
         }
 
-        if (!this.hasCalledGetter(StdioKind.stderr)) {
+        if (!this.hasCalledGetter(ObservableGetter.stderr)) {
             this.stderr.unref()
         }
 
@@ -460,7 +502,7 @@ public class Subprocess {
         if (this.terminal != none) {
             return JsValue.null()
         }
-        this.observableGetters.insert(StdioKind.stderr)
+        this.observableGetters.insert(ObservableGetter.stderr)
         let exited = this.hasExited()
         return this.stderr.toJS(globalThis, exited)
     }
@@ -471,7 +513,7 @@ public class Subprocess {
         if (this.terminal != none) {
             return JsValue.null()
         }
-        this.observableGetters.insert(StdioKind.stdin)
+        this.observableGetters.insert(ObservableGetter.stdin)
         return Writable.toJS(this, globalThis)
     }
 
@@ -481,7 +523,7 @@ public class Subprocess {
         if (this.terminal != none) {
             return JsValue.null()
         }
-        this.observableGetters.insert(StdioKind.stdout)
+        this.observableGetters.insert(ObservableGetter.stdout)
         let exited = this.hasExited()
         return this.stdout.toJS(globalThis, exited)
     }
@@ -818,9 +860,10 @@ public class Subprocess {
         }
 
         var stdin: ?FileSink = none
-        if (this.stdin is Writable.pipe && this.flags.isStdinAReadableStream) {
-            if (let pipe <- this.stdin.`as`(Writable.pipe)) {
-                stdin = pipe
+        if (this.flags.isStdinAReadableStream) {
+            match (this.stdin) {
+                case Writable.pipe(p) => stdin = Some(p)
+                case _ => ()
             }
         } else {
             stdin = this.weakFileSinkStdinPtr
@@ -852,22 +895,22 @@ public class Subprocess {
         if (this.flags.isSync) {
             // 这与 Node.js 的行为不匹配, 但对于同步子进程,
             // 流不应该保持计时器运行。
-            if (this.stdout is Readable.pipe) {
+            if (this.stdout is SubprocessReadable.pipe) {
                 this.stdout.close()
             }
 
-            if (this.stderr is Readable.pipe) {
+            if (this.stderr is SubprocessReadable.pipe) {
                 this.stderr.close()
             }
         } else {
             // 这与 Node.js 的行为匹配。Node 在流上调用 resume()。
-            if (let pipe <- this.stdout.`as`(Readable.pipe)) {
+            if (let pipe <- this.stdout.`as`(SubprocessReadable.pipe)) {
                 if (!pipe.reader.isDone()) {
                     pipe.reader.read()
                 }
             }
 
-            if (let pipe <- this.stderr.`as`(Readable.pipe)) {
+            if (let pipe <- this.stderr.`as`(SubprocessReadable.pipe)) {
                 if (!pipe.reader.isDone()) {
                     pipe.reader.read()
                 }
@@ -980,7 +1023,7 @@ public class Subprocess {
     // ========================================================================
 
     /// 关闭 IO
-    public func closeIO(io!: StdioKind) {
+    public func closeIO(io!: ApiStdioKind) {
         if (this.closed.contains(io)) {
             return
         }
@@ -1026,9 +1069,9 @@ public class Subprocess {
     public func finalizeStreams() {
         this.closeProcess()
 
-        this.closeIO(StdioKindStdioKind.stdin)
-        this.closeIO(StdioKind.stdout)
-        this.closeIO(StdioKind.stderr)
+        this.closeIO(ApiStdioKind.stdin)
+        this.closeIO(ApiStdioKind.stdout)
+        this.closeIO(ApiStdioKind.stderr)
 
         // POSIX: 关闭拥有的 fd
         for (item in this.stdioPipes) {
@@ -1304,8 +1347,8 @@ public class TestingAPIs {
             return globalThis.`throw`("second argument must be 'stdout' or 'stderr'")
         }
 
-        if (out is Readable.pipe) {
-            let pipe = out.`as`(Readable.pipe)
+        if (match (out) { case SubprocessReadable.pipe(_) => true; case _ => false }) {
+            let pipe = out.`as`(SubprocessReadable.pipe)
             // 模拟真实错误路径的行为
             let fakeErr = SysError.fromCode(Errno.EBADF, Tag.read)
             pipe.reader.onError(fakeErr)

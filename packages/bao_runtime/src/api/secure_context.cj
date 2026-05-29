@@ -1,8 +1,10 @@
 // 严格翻译自: src/runtime/api/bun/SecureContext.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
+import bao_runtime.socket.{BoringSSL, BunSocketContextOptions, CreateBunSocketError, SSLConfig, SslCtx}
+public type SSLCtx = SslCtx
 
 // ============================================================================
 // SecureContext - node:tls SecureContext 的原生支持

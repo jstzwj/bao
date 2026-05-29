@@ -1,10 +1,12 @@
 // 严格翻译自: src/runtime/api/bun/subprocess/StaticPipeWriter.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
 import bao_io.*
 import bao_sys.*
+
+// 本地 stub 类型
 
 // ============================================================================
 // StaticPipeWriter - 静态管道写入器 (用于子进程 stdin)
@@ -76,7 +78,7 @@ public class StaticPipeWriter<ProcessType> {
     /// onClose - 关闭回调
     public func onClose(): Unit {
         source.detach()
-        process.onCloseIO(StdioKind.stdin)
+        process.onCloseIO(ApiStdioKind.stdin)
     }
 
     /// getBuffer - 获取当前缓冲区

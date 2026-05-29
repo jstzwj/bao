@@ -1,8 +1,11 @@
 // 严格翻译自: src/runtime/api/lolhtml_jsc.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
+
+// 本地 stub 类型
+public class HTMLString { public init() {} }
 
 // ============================================================================
 // lolhtml_jsc - LOLHTML HTMLString 的 JSC 桥接

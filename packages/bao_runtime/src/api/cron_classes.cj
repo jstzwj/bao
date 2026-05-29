@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/api/cron.classes.ts
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue}
 
 // ============================================================================
 // cron.classes.ts 类绑定定义

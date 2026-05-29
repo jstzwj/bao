@@ -1,9 +1,9 @@
 // 严格翻译自: src/runtime/api/sql.classes.ts
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
-import bao_collections.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
+import bao_collections.{ArrayList, HashMap}
 
 // ============================================================================
 // SQL 绑定 - Bun.sql (PostgresSQL / MySQL)

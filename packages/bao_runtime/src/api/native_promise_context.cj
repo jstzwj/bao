@@ -1,8 +1,8 @@
 // 严格翻译自: src/runtime/api/NativePromiseContext.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
 
 // ============================================================================
 // NativePromiseContext - 用于 Promise .then() 链的原生上下文

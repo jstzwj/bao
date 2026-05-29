@@ -1,9 +1,15 @@
 // 严格翻译自: src/runtime/api/bun/spawn/stdio.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
 import bao_sys.*
+
+// 本地 stub 类型
+public class ByteList { public init() {} }
+public class Dup2Config { public init() {} }
+public class PathLike { public init() {} }
+public class BlobAny { public init() {} }
 
 // ============================================================================
 // Stdio - 子进程标准输入/输出/错误配置

@@ -193,6 +193,16 @@ public class Promise<T> {
     public func `catch`(callback: (Any) -> Unit): Promise<T> { this }
 }
 
+/// InsertResult stub [KEPT: no-pkg]
+public class InsertResult {
+    public init() {}
+}
+
+/// AnyBlob stub [KEPT: no-pkg]
+public class AnyBlob {
+    public init() {}
+}
+
 /// Incremental graph [KEPT: no-pkg]
 /// 对应 Bun: bake.DevServer.IncrementalGraph
 /// 增量构建图，跟踪文件间的依赖关系

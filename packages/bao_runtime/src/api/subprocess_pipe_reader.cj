@@ -147,12 +147,12 @@ public class PipeReader {
     // ========================================================================
 
     /// kind - 确定是 stdout 还是 stderr
-    public func kind(process!: Subprocess): StdioKind {
+    public func kind(process!: Subprocess): ApiStdioKind {
         if (process.stdout == pipe && process.stdout.pipe == this) {
-            return StdioKind.stdout
+            return ApiStdioKind.stdout
         }
         if (process.stderr == pipe && process.stderr.pipe == this) {
-            return StdioKind.stderr
+            return ApiStdioKind.stderr
         }
         fatalError("We should be either stdout or stderr")
     }

@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/api/Shell.classes.ts
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue}
 
 // ============================================================================
 // Shell.classes.ts 类绑定定义

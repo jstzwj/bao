@@ -7,8 +7,7 @@ package bao_runtime.bake.dev_server
 import bao_bun_alloc.Allocator
 import bao_core.DevAllocator
 import bao_collections.HashMap
-import bao_event_loop.EventLoopTimer
-import bao_event_loop.TimerTag
+import bao_event_loop.{EventLoopTimer, TimerTag}
 
 /// SourceMapStore Key
 public struct SourceMapStoreKey {

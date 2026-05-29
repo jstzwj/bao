@@ -1,11 +1,11 @@
 // 严格翻译自: src/runtime/api/glob.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{ArgumentsSlice, ConcurrentPromiseTaskGeneric, JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
 import bao_sys.*
 import bao_io.*
-import bao_collections.*
+import bao_collections.{ArrayList, HashMap}
 import bao_ptr.AtomicUInt64
 
 /// Arena stub for Glob - corresponds to Bun Arena allocator

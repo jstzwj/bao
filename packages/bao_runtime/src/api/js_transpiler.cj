@@ -1,10 +1,50 @@
 // 严格翻译自: src/runtime/api/JSTranspiler.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_collections.ArrayList
-import bao_core.*
-import bao_collections.*
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
+import bao_collections.{ArrayList, HashMap}
+import bao_core.{Allocator, ArenaAllocator, BaoError, Output}
+
+// 本地 stub 类型
+public class Config {
+    public init() {}
+    public static func fromJS(config: Config, globalThis: JsGlobalObject, object: JsValue, allocator: Allocator): Unit {}
+}
+public class ScanPassResult {
+    public init() {}
+}
+public class JsPrinterBufferWriter {
+    public init(alloc: Any) {}
+}
+public class LoggerLogLevel {
+    public init() {}
+}
+public class MacroJSCtx {
+    public static let zero: MacroJSCtx = MacroJSCtx()
+    public init() {}
+}
+public class Expr {
+    public init() {}
+}
+public class NamedExports {
+    public init() {}
+}
+public class ImportRecord {
+    public init() {}
+}
+public class Space {
+    public init() {}
+}
+public class BunString {
+    public init() {}
+    public static func createStatic(s: String): BunString { BunString() }
+}
+public class TransformOptions {
+    public init() {}
+}
+public class ParseResult {
+    public init() {}
+}
 
 // ============================================================================
 // JSTranspiler - JS 转译器

@@ -1,8 +1,8 @@
 // 严格翻译自: src/runtime/api/UnsafeObject.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
 
 // ============================================================================
 // UnsafeObject - Bun.unsafe 全局对象

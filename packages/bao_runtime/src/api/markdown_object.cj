@@ -2,10 +2,9 @@
 // Bun.markdown — html/ansi/react/render host fns over bao_md.
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_collections.ArrayList
-import bao_core.*
-import bao_collections.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_collections.{ArrayList, HashMap}
+import bao_core.{Allocator, Output}
 import bao_sys.*
 import bao_md.*
 

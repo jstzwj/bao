@@ -9,9 +9,9 @@
 
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue, PathLike, ZigStringSlice}
 import bao_bundler.*
-import bao_core.*
+import bao_core.{Allocator, Output}
 import bao_http_types.*
 
 // ============================================================================
@@ -24,7 +24,7 @@ public class SavedFile {
     /// 将已保存文件转换为 JS 值
     /// 对应 Bun: SavedFile.to_js
     public static func toJs(
-        globalThis!: JSGlobalObject,
+        globalThis!: JsGlobalObject,
         path!: String,
         byteSize!: Int64
     ): JsValue {
@@ -57,7 +57,7 @@ public class OutputFileJsc {
     public static func toJs(
         outputFile!: OutputFile,
         ownedPathname!: ?String,
-        globalObject!: JSGlobalObject
+        globalObject!: JsGlobalObject
     ): JsValue {
         // 提前返回: 未决的输出文件
         match (outputFile.value) {
@@ -118,7 +118,7 @@ public class OutputFileJsc {
     /// 对应 Bun: OutputFileJsc::to_blob
     public static func toBlob(
         outputFile!: OutputFile,
-        globalThis!: JSGlobalObject
+        globalThis!: JsGlobalObject
     ): ?Blob {
         match (outputFile.value) {
             case OutputFileValue.move(_) | OutputFileValue.pending(_) =>
@@ -179,7 +179,7 @@ public class OutputFileJsc {
 public class BuildArtifact {
     /// 将 Blob 转换为 BuildArtifact JS 值
     /// 对应 Bun: BuildArtifact::to_js_boxed
-    public static func toJs(blob: Blob, hash: String, path: String, globalObject: JSGlobalObject): JsValue {
+    public static func toJs(blob: Blob, hash: String, path: String, globalObject: JsGlobalObject): JsValue {
         let obj = JsValue.createEmptyObject(globalObject.globalThis, 7)
         // 设置 blob 属性
         obj.put(globalObject.globalThis, "blob", blob.toJs(globalObject))

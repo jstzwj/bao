@@ -853,13 +853,13 @@ public class DevServer {
     /// 获取分配器
     /// 对应 Bun: pub fn allocator(dev: *const DevServer) Allocator
     public func allocator(): Allocator {
-        allocationScope.allocator()
+        Allocator()
     }
 
     /// 获取开发分配器
     /// 对应 Bun: pub fn dev_allocator(dev: *const DevServer) DevAllocator
     public func devAllocator(): DevAllocator {
-        allocationScope.borrow()
+        DevAllocator()
     }
 
     // ========================================================================

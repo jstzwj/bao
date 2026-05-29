@@ -1,9 +1,14 @@
 // 严格翻译自: src/runtime/api/JSONCObject.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
-import bao_collections.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
+import bao_collections.{ArrayList, HashMap}
+
+// 本地 stub 类型
+public class OutOfMemory { public init() {} }
+public class JsError { public init() {} }
+public class JsTerminated { public init() {} }
 
 // ============================================================================
 // JSONCObject - Bun.JSONC API
@@ -83,14 +88,14 @@ public class JSONCObject {
             log.deinit()
             astScope.exit()
             arena.deinit()
-            if (err is Error.OutOfMemory) {
-                return Error.OutOfMemory
+            if (err is OutOfMemory) {
+                return OutOfMemory
             }
-            if (err is Error.JsError) {
-                return Error.JsError
+            if (err is JsError) {
+                return JsError
             }
-            if (err is Error.JsTerminated) {
-                return Error.JsTerminated
+            if (err is JsTerminated) {
+                return JsTerminated
             }
             unreachable()("JSONC parsing does not produce macros or identifiers")
         }

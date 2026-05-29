@@ -1,10 +1,12 @@
 // 严格翻译自: src/runtime/api/bun/subprocess/Readable.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue}
+import bao_core.{Allocator, Output}
 import bao_sys.*
 import bao_io.*
+
+public type BlobSizeType = Int64
 
 // ============================================================================
 // Readable - 子进程可读流 (stdout/stderr)

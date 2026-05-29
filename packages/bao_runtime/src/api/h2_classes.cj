@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/api/h2.classes.ts
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue}
 
 // ============================================================================
 // h2.classes.ts 类绑定定义
