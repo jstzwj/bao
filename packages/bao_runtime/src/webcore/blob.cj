@@ -1764,7 +1764,8 @@ public class Blob {
         if (lastModified != 0.0) {
             blob.lastModified = lastModified
         } else {
-            blob.lastModified = Float64(0) // TODO: use proper time API
+            // 对应 Bun: Date.now() / std.time.milliTimestamp()
+            blob.lastModified = Float64(sysCurrentTimeMillis())
         }
         return newHeap(blob)
     }

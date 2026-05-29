@@ -82,7 +82,7 @@ public class WatchEvent2 {
         this.eventType = eventType
         this.path = path
         this.isDirectory = isDirectory
-        this.timestamp = currentTimeMillis()
+        this.timestamp = sysCurrentTimeMillis()
         this.fileSize = -1
     }
 
@@ -485,7 +485,7 @@ class DebounceEntry {
         this.eventType = eventType
         this.path = path
         this.isDirectory = isDirectory
-        let now = currentTimeMillis()
+        let now = sysCurrentTimeMillis()
         this.firstTimestamp = now
         this.lastTimestamp = now
         this.count = 1
@@ -493,7 +493,7 @@ class DebounceEntry {
 
     func update(eventType: WatchEventType): Unit {
         this.eventType = eventType
-        this.lastTimestamp = currentTimeMillis()
+        this.lastTimestamp = sysCurrentTimeMillis()
         this.count += 1
     }
 }
@@ -527,7 +527,7 @@ public class DebouncedWatcher {
         this.inner = Some(inner)
         this.debounceMs = debounceMs
         this.pending = HashMap<String, DebounceEntry>()
-        this.lastFlushTime = currentTimeMillis()
+        this.lastFlushTime = sysCurrentTimeMillis()
         this.onDebouncedEvent = { _ => () }
         this.closed = false
 
@@ -544,7 +544,7 @@ public class DebouncedWatcher {
     private func handleRawEvent(event: WatchEvent2): Unit {
         let eventKind = if (event.isDirectory) { "dir" } else { "file" }
         let key = "${event.path}:${eventKind}"
-        let now = currentTimeMillis()
+        let now = sysCurrentTimeMillis()
 
         match (pending.get(key)) {
             case Some(entry) =>
@@ -587,7 +587,7 @@ public class DebouncedWatcher {
     /// 返回去抖后的事件列表
     public func flush(): ArrayList<WatchEvent2> {
         let events = ArrayList<WatchEvent2>()
-        let now = currentTimeMillis()
+        let now = sysCurrentTimeMillis()
 
         // 收集所有超时的事件
         let keys = pending.keys()
@@ -635,7 +635,7 @@ public class DebouncedWatcher {
         }
 
         pending = HashMap<String, DebounceEntry>()
-        lastFlushTime = currentTimeMillis()
+        lastFlushTime = sysCurrentTimeMillis()
         return events
     }
 
@@ -714,15 +714,4 @@ class Path {
 // 辅助函数
 // ============================================================================
 
-/// 获取当前时间戳 (毫秒)
-private func currentTimeMillis(): Int64 {
-    unsafe {
-        let tsBuf = malloc(UIntNative(16))
-        let tsPtr = CPointer<Int64>(tsBuf)
-        clock_gettime(0, tsBuf)
-        let sec = tsPtr.read()
-        let nsec = (tsPtr + Int64(1)).read()
-        free(tsBuf)
-        return sec * 1000 + nsec / 1000000
-    }
-}
+// sysCurrentTimeMillis() 已在 time_api.cj 中作为包级函数提供

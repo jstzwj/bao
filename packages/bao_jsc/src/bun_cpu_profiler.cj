@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_sys.*
+
 // ========== CPUProfilerConfig ==========
 // 严格翻译自 BunCPUProfiler.zig CPUProfilerConfig
 public class CPUProfilerConfig {
@@ -77,7 +79,7 @@ public class BunCPUProfiler {
 
 // 支撑类型
 public class TimeUtils {
-    public static func epochMicroseconds(): UInt64 { UInt64(0) * 1000 } // TODO: DateTime not available
+    public static func epochMicroseconds(): UInt64 { sysCurrentEpochMicroseconds() }
 }
 public class ProcessInfo {
     public static let pid: UInt64 = 0

@@ -4,6 +4,7 @@
 package bao_jsc
 
 import bao_collections.*
+import bao_sys.*
 
 // ========== HashMap 简化实现 ==========
 // console_object 中使用的简化 HashMap (Int64 键)
@@ -1933,7 +1934,7 @@ public class ConsoleObject {
         if (let Some(_) <- timers.get(hash)) {
             // 已存在，不重置
         } else {
-            timers.put(hash, Float64(0)) // TODO: use real timestamp
+            timers.put(hash, sysMonotonicSeconds())  // 对应 Bun: JSC::monotonicallyIncreasingTime()
         }
     }
 
@@ -1941,7 +1942,7 @@ public class ConsoleObject {
     public func timeEnd(label: String) {
         let hash = hashString(label)
         if (let Some(start) <- timers.get(hash)) {
-            let elapsed = Float64(0) - start // TODO: use real timestamp
+            let elapsed = sysMonotonicSeconds() - start  // 对应 Bun: monotonicallyIncreasingTime() - start
             let elapsedMs = elapsed
             // 严格翻译自 Output.printElapsed - 将微秒转为毫秒显示
             if (label.isEmpty()) {
@@ -1959,7 +1960,7 @@ public class ConsoleObject {
     public func timeLog(label: String, args: Array<JsValue>) {
         let hash = hashString(label)
         if (let Some(start) <- timers.get(hash)) {
-            let elapsed = Float64(0) - start // TODO: use real timestamp
+            let elapsed = sysMonotonicSeconds() - start  // 对应 Bun: monotonicallyIncreasingTime() - start
             let elapsedMs = elapsed
             // 输出经过的时间
             if (label.isEmpty()) {

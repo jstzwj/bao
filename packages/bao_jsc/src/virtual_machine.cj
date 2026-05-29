@@ -4,6 +4,7 @@
 package bao_jsc
 
 import bao_collections.*
+import bao_sys.*
 
 // Array.append 扩展 - 返回新数组
 extend<T> Array<T> {
@@ -471,6 +472,9 @@ public class BunVirtualMachine {
 
     public init() {
         this.originTimestamp = getOriginTimestamp()
+        // 对应 Bun: originTimer = std.time.nanoTimestamp()
+        // 单调时钟纳秒，用于 performance.now() 计时
+        this.originTimer = Float64(sysMonotonicNanoseconds())
         this.onUnhandledRejection = { vm, global, value =>
             vm.defaultOnUnhandledRejection(global, value)
         }
@@ -2667,11 +2671,7 @@ public func bunVMEventLoopUnrefConcurrently() {}
 public func bunVMEnqueueDeferredWorkTask(task: JSCDeferredWorkTask) {}
 public func bunVMEventLoopTickWhilePaused(paused: Bool) {}
 
-// FFI 获取当前毫秒时间戳
-@C
-foreign func clock_gettime_ms(): Int64
-
 /// 获取当前毫秒时间戳 (用于 getOriginTimestamp 等)
 func getNowMillis(): Int64 {
-    return unsafe { clock_gettime_ms() }
+    return sysCurrentTimeMillis()
 }
