@@ -21,13 +21,13 @@ import bao_core.*
 public class NativeZlib {
 
     /// 写回调
-    public var writeCallback: ?JsValue = none
+    public var writeCallback: ?JsValue = None
 
     /// 错误回调
-    public var errorCallback: ?JsValue = none
+    public var errorCallback: ?JsValue = None
 
     /// 预设字典
-    public var dictionary: ?JsValue = none
+    public var dictionary: ?JsValue = None
 
     /// 内部流对象 (z_stream)
     private var stream: CPointer<Unit> = CPointer<Unit>()
@@ -176,9 +176,9 @@ public class NativeZlib {
             // 释放 z_stream 资源
             initialized = false
         }
-        writeCallback = none
-        errorCallback = none
-        dictionary = none
+        writeCallback = None
+        errorCallback = None
+        dictionary = None
     }
 
     // ========================================================================
@@ -203,13 +203,13 @@ public class NativeZlib {
 public class NativeBrotli {
 
     /// 写回调
-    public var writeCallback: ?JsValue = none
+    public var writeCallback: ?JsValue = None
 
     /// 错误回调
-    public var errorCallback: ?JsValue = none
+    public var errorCallback: ?JsValue = None
 
     /// 预设字典
-    public var dictionary: ?JsValue = none
+    public var dictionary: ?JsValue = None
 
     /// 内部流对象
     private var stream: CPointer<Unit> = CPointer<Unit>()
@@ -308,9 +308,9 @@ public class NativeBrotli {
     /// finalize - GC 回收时调用
     public func finalize(): Unit {
         initialized = false
-        writeCallback = none
-        errorCallback = none
-        dictionary = none
+        writeCallback = None
+        errorCallback = None
+        dictionary = None
     }
 
     // ========================================================================
@@ -334,13 +334,13 @@ public class NativeBrotli {
 public class NativeZstd {
 
     /// 写回调
-    public var writeCallback: ?JsValue = none
+    public var writeCallback: ?JsValue = None
 
     /// 错误回调
-    public var errorCallback: ?JsValue = none
+    public var errorCallback: ?JsValue = None
 
     /// 预设字典
-    public var dictionary: ?JsValue = none
+    public var dictionary: ?JsValue = None
 
     /// 内部流对象
     private var stream: CPointer<Unit> = CPointer<Unit>()
@@ -439,9 +439,9 @@ public class NativeZstd {
     /// finalize - GC 回收时调用
     public func finalize(): Unit {
         initialized = false
-        writeCallback = none
-        errorCallback = none
-        dictionary = none
+        writeCallback = None
+        errorCallback = None
+        dictionary = None
     }
 
     // ========================================================================

@@ -1,48 +1,13 @@
-// 严格翻译自: src/runtime/api/standalone_graph_jsc.zig
+// BAO_STUB: compile gate for src/runtime/api/standalone_graph_jsc.zig.
+// TODO(bao-runtime-api): restore StandaloneModuleGraph JSC generation and Blob bridge.
 package bao_runtime.api
 
-import bao_jsc.{JsGlobalObject, JsValue}
-import bao_core.{Allocator, Output}
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
 
-// ============================================================================
-// standalone_graph_jsc - StandaloneModuleGraph.File 的 JSC 桥接
-// 对应 Bun: src/runtime/api/standalone_graph_jsc.zig
-// ============================================================================
-
-/// StandaloneModuleGraph.File 的 Blob 访问器
-/// 图本身在 standalone_graph/ 中, 只有需要 JSGlobalObject 的 Blob 访问器在此处
-public class StandaloneGraphJsc {
-
-    /// 获取文件的 Blob 对象
-    /// 如果尚未缓存, 创建 Blob 并缓存
-    public static func fileBlob(file!: StandaloneModuleGraphFile, globalObject!: JsGlobalObject): Blob {
-        if (file.cachedBlob == none) {
-            let store = BlobStore(file.contents, default_allocator)
-            store.ref() // 永不释放
-
-            let b = Blob.initWithStore(store, globalObject).new()
-
-            // 设置 MIME 类型
-            if (let mime <- MimeType.byExtensionNoDefault(file.name.extension().trimLeading('.'))) {
-                store.mimeType = mime
-                b.contentType = mime.value
-                b.contentTypeWasSet = true
-                b.contentTypeAllocated = false
-            }
-
-            // 设置真实名称
-            store.data.bytes.storedName = PathString(file.name)
-
-            // 设置显示名称
-            if (file.name.hasPrefix(StandaloneModuleGraph.basePublicPathWithDefaultSuffix)) {
-                b.name = BunString.cloneUTF8(file.name.substring(StandaloneModuleGraph.basePublicPathWithDefaultSuffix.count))
-            } else if (file.name.count > 0) {
-                b.name = BunString.cloneUTF8(file.name)
-            }
-
-            file.cachedBlob = b
-        }
-
-        return file.cachedBlob.getOrThrow()
+/// StandaloneModuleGraphJSC — 独立模块图的 JS 绑定
+public class StandaloneModuleGraphJSC {
+    public init() {}
+    public static func generateFromGraph(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
+        JsValue.jsUndefined()
     }
 }

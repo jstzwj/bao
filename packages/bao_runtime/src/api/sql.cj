@@ -21,13 +21,13 @@ import bao_collections.{ArrayList, HashMap}
 public open class SQLConnection {
 
     /// 连接的回调
-    public var onConnect: ?JsValue = none
+    public var onConnect: ?JsValue = None
 
     /// 关闭的回调
-    public var onClose: ?JsValue = none
+    public var onClose: ?JsValue = None
 
     /// 活跃查询列表
-    public var queries: ?JsValue = none
+    public var queries: ?JsValue = None
 
     /// 是否已连接
     public var connected: Bool = false
@@ -156,9 +156,9 @@ public open class SQLConnection {
 
     /// finalize - GC 回收时调用
     public func finalize(): Unit {
-        onConnect = none
-        onClose = none
-        queries = none
+        onConnect = None
+        onClose = None
+        queries = None
         connected = false
     }
 
@@ -170,7 +170,7 @@ public open class SQLConnection {
 
     /// hasPendingActivity - 是否有待处理的活动
     /// PostgresSQL 总是返回 true (保持连接活跃直到显式关闭)
-    public func hasPendingActivity(): Bool {
+    public open func hasPendingActivity(): Bool {
         return connected
     }
 }
@@ -185,16 +185,16 @@ public open class SQLConnection {
 public open class SQLQuery {
 
     /// 挂起的 Promise 值
-    public var pendingValue: ?JsValue = none
+    public var pendingValue: ?JsValue = None
 
     /// 目标连接
-    public var target: ?JsValue = none
+    public var target: ?JsValue = None
 
     /// 列信息
-    public var columns: ?JsValue = none
+    public var columns: ?JsValue = None
 
     /// 绑定参数
-    public var binding: ?JsValue = none
+    public var binding: ?JsValue = None
 
     /// 估计内存大小
     public func estimatedSize(): Int64 {
@@ -281,10 +281,10 @@ public open class SQLQuery {
 
     /// finalize - GC 回收时调用
     public func finalize(): Unit {
-        pendingValue = none
-        target = none
-        columns = none
-        binding = none
+        pendingValue = None
+        target = None
+        columns = None
+        binding = None
     }
 
     // ========================================================================
@@ -307,7 +307,7 @@ public open class SQLQuery {
 /// hasPendingActivity: true (PostgresSQL 特有)
 public class PostgresSQLConnection <: SQLConnection {
 
-    public func hasPendingActivity(): Bool {
+    public override func hasPendingActivity(): Bool {
         return true
     }
 }

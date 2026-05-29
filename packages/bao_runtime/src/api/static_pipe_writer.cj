@@ -1,4 +1,5 @@
-// Compile-gating API surface for StaticPipeWriter.zig.
+// BAO_STUB: compile gate for src/runtime/api/bun/subprocess/StaticPipeWriter.zig.
+// TODO(bao-runtime-api): restore the Bun one-to-one static pipe writer.
 package bao_runtime.api
 
 import bao_io.WriteStatus

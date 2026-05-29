@@ -1,4 +1,5 @@
-// Compile-gating API surface for src/runtime/api/bun/process.zig.
+// BAO_STUB: compile gate for src/runtime/api/bun/process.zig.
+// TODO(bao-runtime-api): restore the Bun one-to-one process/spawn implementation.
 package bao_runtime.api
 
 import bao_collections.ArrayList

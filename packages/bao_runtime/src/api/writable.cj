@@ -1,4 +1,5 @@
-// Compile-gating API surface for Writable.zig.
+// BAO_STUB: compile gate for src/runtime/api/bun/subprocess/Writable.zig.
+// TODO(bao-runtime-api): restore the Bun one-to-one subprocess Writable.
 package bao_runtime.api
 
 import bao_jsc.{JsGlobalObject, JsValue}

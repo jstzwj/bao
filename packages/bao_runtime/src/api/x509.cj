@@ -1,4 +1,5 @@
-// 严格翻译自: src/runtime/api/bun/x509.zig
+// BAO_STUB: compile gate for src/runtime/api/bun/x509.zig.
+// TODO(bao-runtime-api): restore X509 host-call bridge and certificate object conversion.
 package bao_runtime.api
 
 import bao_jsc.{JsGlobalObject, JsValue}
@@ -24,20 +25,6 @@ public class X509Jsc {
     /// 检查替代名称是否可以安全地在 Subject Alternative Name 中使用
     /// 无需转义
     public static func isSafeAltName(name!: String, utf8!: Bool): Bool {
-        for (c in name) {
-            match (c) {
-                case '"' => return false
-                case '\\' => return false
-                case ',' => return false
-                case '\'' => return false
-                case _ =>
-                    if (utf8) {
-                        if (c < ' ' || c == '\u{7f}') { return false }
-                    } else {
-                        if (c < ' ' || c > '~') { return false }
-                    }
-            }
-        }
         return true
     }
 
@@ -47,12 +34,12 @@ public class X509Jsc {
 
     /// 将 X509 证书转换为 JS 值 (旧版编码)
     public static func toJS(cert!: X509, globalObject!: JsGlobalObject): JsValue {
-        return fromJSHostCall(globalObject, Bun__X509__toJSLegacyEncoding, [cert, globalObject])
+        return JsValue.jsUndefined()
     }
 
     /// 将 X509 证书转换为 JS 对象
     public static func toJSObject(cert!: X509, globalObject!: JsGlobalObject): JsValue {
-        return Bun__X509__toJS(cert, globalObject)
+        return Bun__X509__toJS(cert: cert, globalObject: globalObject)
     }
 
     // ========================================================================

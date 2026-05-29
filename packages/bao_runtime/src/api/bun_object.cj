@@ -136,7 +136,7 @@ public func getPublicPathWithAssetPrefix(
     platform!: PathPlatform
 ): Unit {
     var relativePath: Array<UInt8> = if (to.size >= dir.size && to[..dir.size] == dir) {
-        let sliced = to[dir.len..]
+        let sliced = to[dir.size..]
         // withoutTrailingSlash
         if (sliced.size > 0 && sliced[sliced.size - 1] == UInt8(47)) {
             sliced[..sliced.size - 1]

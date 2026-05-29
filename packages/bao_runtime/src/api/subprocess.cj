@@ -1,8 +1,8 @@
-// Compile-gating API surface for src/runtime/api/bun/subprocess.rs.
+// BAO_STUB: compile gate for src/runtime/api/bun/subprocess.rs.
+// TODO(bao-runtime-api): restore the Bun one-to-one Subprocess implementation.
 package bao_runtime.api
 
 import bao_collections.ArrayList
-import bao_core.ptr.RefCount
 import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
 import bao_sys.*
 
@@ -172,8 +172,16 @@ public class JSSubprocess {
     public static func toJS(ptr!: Subprocess, global!: JsGlobalObject): JsValue { JsValue.jsUndefined() }
 }
 
+// BAO_STUB: compile gate for src/runtime/api/bun/subprocess.rs intrusive ref_count.
+// TODO(bao-runtime-api): replace with bao_core.ptr.RefCount once Subprocess ownership/destructor is restored.
+public class SubprocessRefCount {
+    public init() {}
+    public func ref(): Unit {}
+    public func deref(): Unit {}
+}
+
 public class Subprocess {
-    public var refCount: RefCount<Subprocess> = RefCount<Subprocess>()
+    public var refCount: SubprocessRefCount = SubprocessRefCount()
     public var process: BackRef<Process> = BackRef<Process>.from(value: Process())
     public var stdin: Writable = Writable.ignore
     public var stdout: Readable = Readable.ignore
@@ -221,7 +229,7 @@ public class Subprocess {
     public func jsUnref(): Unit {}
     public func updateHasPendingActivity(): Unit {}
     public func updateFlags(fn!: (SubprocessFlags) -> Unit): Unit { fn(flags) }
-    public func onCloseIO(kind!: ApiStdioKind): Unit { closed.insert(kind) }
+    public func onCloseIO(kind!: ApiStdioKind): Unit { closed.insert(value: kind) }
     public func onStdinDestroyed(): Unit {
         weakFileSinkStdinPtr = None
         flags.hasStdinDestructorCalled = true
@@ -257,7 +265,7 @@ public class Subprocess {
     public func doSend(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue { JsValue.jsUndefined() }
     public func handleIPCMessage(message!: IPCDecodedIPCMessage, handle!: JsValue): Unit {}
     public func handleIPCClose(): Unit {}
-    public func closeIO(io!: ApiStdioKind): Unit { closed.insert(io) }
+    public func closeIO(io!: ApiStdioKind): Unit { closed.insert(value: io) }
     public func close(): Unit {
         stdin.close()
         stdout.close()

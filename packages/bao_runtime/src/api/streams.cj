@@ -21,13 +21,13 @@ import bao_core.*
 public open class InternalReadableStreamSource {
 
     /// 挂起的 Promise
-    public var pendingPromise: ?JsValue = none
+    public var pendingPromise: ?JsValue = None
 
     /// 关闭回调
-    public var onCloseCallback: ?JsValue = none
+    public var onCloseCallback: ?JsValue = None
 
     /// 排空回调
-    public var onDrainCallback: ?JsValue = none
+    public var onDrainCallback: ?JsValue = None
 
     // ========================================================================
     // 构造函数 (不可从 JS 直接构造)
@@ -156,9 +156,9 @@ public open class InternalReadableStreamSource {
 
     /// finalize - GC 回收时调用
     public func finalize(): Unit {
-        pendingPromise = none
-        onCloseCallback = none
-        onDrainCallback = none
+        pendingPromise = None
+        onCloseCallback = None
+        onDrainCallback = None
     }
 
     // ========================================================================
@@ -192,7 +192,7 @@ public class BlobInternalReadableStreamSource <: InternalReadableStreamSource {
     /// 严格翻译自: crate::webcore::byte_blob_loader::Source::textFromJS
     public func textFromJS(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         // 将流数据读取为 UTF-8 文本
-        return JsValue.jsEmptyString()
+        return JsValue.jsEmptyString(jsGlobalObject.globalThis)
     }
 
     /// jsonFromJS - 读取流为 JSON
@@ -272,7 +272,7 @@ public class BytesInternalReadableStreamSource <: InternalReadableStreamSource {
 
     /// textFromJS - 读取流为文本
     public func textFromJS(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
-        return JsValue.jsEmptyString()
+        return JsValue.jsEmptyString(jsGlobalObject.globalThis)
     }
 
     /// jsonFromJS - 读取流为 JSON

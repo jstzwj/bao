@@ -1210,7 +1210,7 @@ public enum Format {
 /// SourceMapOption - Source Map 选项
 /// 严格翻译自: options.SourceMapOption
 public enum SourceMapOption {
-    | none
+    | sourceMapNone
     | inline
     | linked
     | external
@@ -1220,7 +1220,7 @@ public enum SourceMapOption {
             case "inline" => return SourceMapOption.inline
             case "linked" => return SourceMapOption.linked
             case "external" => return SourceMapOption.external
-            case _ => return SourceMapOption.none
+            case _ => return SourceMapOption.sourceMapNone
         }
     }
 }
@@ -1315,8 +1315,9 @@ public enum Loader {
 
 /// LoaderMap - 加载器映射
 public class LoaderMap {
-    public var extensions: Array<String>
-    public var loaders: Array<Loader>
+    public var extensions: Array<String> = Array<String>()
+    public var loaders: Array<Loader> = Array<Loader>()
+    public init() {}
 }
 
 /// Jsx - JSX 配置

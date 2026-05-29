@@ -1,4 +1,5 @@
-// Compile-gating API surface for Readable.zig.
+// BAO_STUB: compile gate for src/runtime/api/bun/subprocess/Readable.zig.
+// TODO(bao-runtime-api): restore the Bun one-to-one subprocess Readable.
 package bao_runtime.api
 
 import bao_core.Allocator

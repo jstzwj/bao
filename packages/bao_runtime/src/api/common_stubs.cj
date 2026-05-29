@@ -146,3 +146,65 @@ public class Strings {
         return input[start..input.size]
     }
 }
+
+// BAO_STUB: compatibility shims for src/runtime/api/bun/spawn.zig consumers.
+// TODO(bao-runtime-api): move these back into the real spawn translation once it is restored.
+public class WaitPidResult {
+    public var pid: Int32 = 0
+    public var status: UInt32 = 0
+    public init() {}
+}
+public class FD {
+    public var value: Int32 = 0
+    public init(value: Int32) { this.value = value }
+    public func native(): Int32 { value }
+    public func cast(): Int32 { value }
+    public func close(): Unit {}
+    public func toFd(): FD { this }
+    public func toJS(globalThis!: JsGlobalObject): JsValue { JsValue.jsNumber(Int64(value)) }
+    public func stdioTag(): ?FDStdio { FDStdio.fromInt(i: value) }
+    public operator func ==(right: FD): Bool { value == right.value }
+    public operator func !=(right: FD): Bool { value != right.value }
+    public static let invalid: FD = FD(-1)
+    public static let Stdio: FDStdioHelper = FDStdioHelper()
+}
+
+public enum FDStdio { | std_in | std_out | std_err
+    public static func fromInt(i!: Int32): ?FDStdio {
+        match (i) {
+            case 0 => Some(FDStdio.std_in)
+            case 1 => Some(FDStdio.std_out)
+            case 2 => Some(FDStdio.std_err)
+            case _ => None
+        }
+    }
+    public func fd(): FD {
+        match (this) {
+            case std_in => FD(0)
+            case std_out => FD(1)
+            case std_err => FD(2)
+        }
+    }
+}
+
+public class FDStdioHelper {
+    public init() {}
+    public func fromInt(i!: Int32): ?FDStdio { FDStdio.fromInt(i: i) }
+}
+
+// BAO_STUB: compatibility shims split out from src/runtime/api/bun/Terminal.rs.
+// TODO(bao-runtime-api): restore concrete event-loop handles and JS references with Terminal/process ownership.
+public class EventLoopHandle {
+    public init() {}
+    public func ref(): Unit {}
+    public func unref(): Unit {}
+}
+
+public class JsRef {
+    public init() {}
+    public static func empty(): JsRef { JsRef() }
+    public static func initStrong(value!: JsValue, globalThis!: JsGlobalObject): JsRef { JsRef() }
+    public static func initWeak(value!: JsValue, globalThis!: JsGlobalObject): JsRef { JsRef() }
+    public func get(): JsValue { JsValue.jsUndefined() }
+    public func clear(): Unit {}
+}

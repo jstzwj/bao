@@ -1,539 +1,118 @@
-// 严格翻译自: src/runtime/api/bun/spawn/stdio.zig
+// BAO_STUB: compile gate for src/runtime/api/bun/spawn/stdio.zig.
+// TODO(bao-runtime-api): restore Bun's exact stdio parsing and spawn option conversion.
 package bao_runtime.api
 
 import bao_jsc.{JsGlobalObject, JsValue}
-import bao_core.{Allocator, Output}
-import bao_sys.*
 
-// 本地 stub 类型
-public class ByteList { public init() {} }
-public class Dup2Config { public init() {} }
-public class PathLike { public init() {} }
-public class BlobAny { public init() {} }
+public class ByteList {
+    public init() {}
+    public func slice(): Array<UInt8> { Array<UInt8>() }
+}
 
-// ============================================================================
-// Stdio - 子进程标准输入/输出/错误配置
-// 对应 Bun: src/runtime/api/bun/spawn/stdio.zig
-// ============================================================================
+public class Dup2Config {
+    public var out: FD = FD(1)
+    public var to: FD = FD(1)
+    public init() {}
+}
 
-/// Stdio 表示子进程的标准输入/输出/错误配置
-public enum Stdio {
-    /// 继承父进程的标准流
+public class PathLike {
+    public var value: String = ""
+    public init() {}
+    public init(value: String) { this.value = value }
+    public func slice(): String { value }
+}
+
+public class BlobAny {
+    public init() {}
+    public func needsToReadFile(): Bool { false }
+    public func store(): ?BlobAnyStore { None }
+    public func slice(): Array<UInt8> { Array<UInt8>() }
+    public func detach(): Unit {}
+}
+
+public class BlobAnyStore {
+    public var data: BlobAnyStoreData = BlobAnyStoreData()
+    public init() {}
+}
+
+public class BlobAnyStoreData {
+    public var file: BlobAnyFile = BlobAnyFile()
+    public init() {}
+}
+
+public class BlobAnyFile {
+    public var pathlike: BlobAnyPathLike = BlobAnyPathLike()
+    public init() {}
+}
+
+public class BlobAnyPathLike {
+    public var fd: FD = FD(-1)
+    public var path: PathLike = PathLike()
+    public init() {}
+}
+
+public enum SpawnOptionsStdio {
     | inherit
-    /// 捕获到缓冲区
-    | capture(ByteList)
-    /// 忽略
     | ignore
-    /// 使用文件描述符
-    | fd(FD)
-    /// dup2 重定向
-    | dup2(Dup2Config)
-    /// 使用文件路径
-    | path(PathLike)
-    /// 使用 Blob
-    | blob(BlobAny)
-    /// 使用 ArrayBuffer
-    | array_buffer(ArrayBufferStrong)
-    /// 使用内存文件描述符 (Linux)
-    | memfd(FD)
-    /// 使用管道
-    | pipe
-    /// IPC 通道
+    | buffer
+    | pipe(FD)
+    | path(String)
     | ipc
-    /// 使用 ReadableStream
+    | dup2(FD, FD)
+}
+
+public class StdioConversionResult {
+    public var value: SpawnOptionsStdio = SpawnOptionsStdio.ignore
+    public var error: ?String = None
+    public init() {}
+    public init(value: SpawnOptionsStdio) { this.value = value }
+    public init(error: String) { this.error = Some(error) }
+    public static func result(value!: SpawnOptionsStdio): StdioConversionResult { StdioConversionResult(value) }
+    public static func err(error!: String): StdioConversionResult { StdioConversionResult(error) }
+}
+
+public enum Stdio {
+    | inherit
+    | capture(ByteList)
+    | ignore
+    | fd(FD)
+    | dup2(Dup2Config)
+    | path(PathLike)
+    | blob(BlobAny)
+    | array_buffer(ArrayBufferStrong)
+    | memfd(FD)
+    | pipe
+    | ipc
     | readable_stream(ReadableStream)
 
-    // ========================================================================
-    // Dup2 配置
-    // ========================================================================
-
-//    public class Dup2Config {
-//        var out: StdioKind
-//        var to: StdioKind
-//    }
-
-    // ========================================================================
-    // ToSpawnOptsError - 转换错误
-    // ========================================================================
-
-//    public enum ToSpawnOptsError {
-//        | stdin_used_as_out
-//        | out_used_as_stdin
-//        | blob_used_as_out
-//        | uv_pipe(SysError)
-
-//        public func toStr(): String {
-//            return match (this) {
-//                case stdin_used_as_out => "Stdin cannot be used for stdout or stderr"
-//                case out_used_as_stdin => "Stdout and stderr cannot be used for stdin"
-//                case blob_used_as_out => "Blobs are immutable, and cannot be used for stdout/stderr"
-//                // 严格翻译自 Bun src/runtime/api/bun/spawn/stdio.zig ToSpawnOptsError.toStr: uv_pipe carries the sys error.
-//                case uv_pipe(err) => err.toString()
-//            }
-//        }
-
-//        public func throwJS(globalThis!: JsGlobalObject): JsValue {
-//            return globalThis.`throw`("${this.toStr()}")
-//        }
-//    }
-
-    // ========================================================================
-    // Result - 转换结果
-    // ========================================================================
-
-//    public enum Result {
-//        | result(SpawnOptionsStdio)
-//        | err(ToSpawnOptsError)
-//    }
-
-    // ========================================================================
-    // 方法
-    // ========================================================================
-
-    /// 获取字节切片
-    public func byteSlice(): Array<UInt8> {
-        return match (this) {
+    public func slice(): Array<UInt8> {
+        match (this) {
             case capture(buf) => buf.slice()
-            case array_buffer(ab) => ab.array_buffer.byteSlice()
-            case blob(b) => b.slice()
-            case _ => []
+            case array_buffer(ab) => ab.byteSlice()
+            case _ => Array<UInt8>()
         }
     }
 
-    /// 释放资源
-    public func deinit() {
-        match (this) {
-            case array_buffer(ab) => ab.deinit()
-            case blob(b) => b.detach()
-            case memfd(fd) => fd.close()
-            case readable_stream => ()  // ReadableStream 清理由子进程处理
-            case _ => ()
-        }
-    }
-
-    /// 是否可以使用 memfd (仅 Linux)
-    public func canUseMemfd(isSync!: Bool, hasMaxBuffer!: Bool): Bool {
-        if (!Environment.isLinux) { return false }
-
-        return match (this) {
-            case blob => !this.blob.needsToReadFile()
-            case memfd => true
-            case array_buffer => true
-            case pipe => isSync && !hasMaxBuffer
-            case _ => false
-        }
-    }
-
-    /// 尝试使用 memfd 替代
-    public func useMemfd(index!: UInt32): Bool {
-        if (!Environment.isLinux) { return false }
-        if (!Sys.canUseMemfd()) { return false }
-
-        let label = match (index) {
-            case 0 => "spawn_stdio_stdin"
-            case 1 => "spawn_stdio_stdout"
-            case 2 => "spawn_stdio_stderr"
-            case _ => "spawn_stdio_memory_file"
-        }
-
-        let fdResult = Sys.memfd_create(label, 0u32)
-        let fd = try { fdResult.unwrap() } catch(_: Exception) { return false }
-
-        var remain = this.byteSlice()
-
-        if (remain.len > 0) {
-            _ = Sys.ftruncate(fd, Int64(remain.len))
-        }
-
-        // 将所有字节写入 memfd
-        var written: Int64 = 0
-        while (remain.len > 0) {
-            match (Sys.pwrite(fd, remain, written)) {
-                case err(err) =>
-                    if (err.getErrno() == AGAIN) { continue }
-                    Output.debugWarn("Failed to write to memfd: ${err.getErrno()}")
-                    fd.close()
-                    return false
-                case result(result) =>
-                    if (result == 0) {
-                        Output.debugWarn("Failed to write to memfd: EOF")
-                        fd.close()
-                        return false
-                    }
-                    written += Int64(result)
-                    remain = remain[result..]
-            }
-        }
-
-        match (this) {
-            case array_buffer => this.array_buffer.deinit()
-            case blob => this.blob.detach()
-            case _ => ()
-        }
-
-        this = Stdio.memfd(fd)
-        return true
-    }
-
-    /// 转换为 POSIX spawn 选项
-    public func toPosix(i!: Int32): Result {
-        return Result.result(
-            match (this) {
-                case blob(blob) =>
-                    let fd = FD.Stdio.fromInt(i).fd()
-                    if (blob.needsToReadFile()) {
-                        if (let store <- blob.store()) {
-                            if (store.data.file.pathlike == fd) {
-                                if (store.data.file.pathlike.fd == fd) {
-                                    return SpawnOptionsStdio.inherit()
-                                }
-                                if (let tag <- store.data.file.pathlike.fd.stdioTag()) {
-                                    match (tag) {
-                                        case std_in =>
-                                            if (i == 1 || i == 2) {
-                                                return Result.err("Stdin cannot be used for stdout or stderr")
-                                            }
-                                        case std_out =>
-                                            if (i == 0) {
-                                                return Result.err("Stdout and stderr cannot be used for stdin")
-                                            }
-                                        case std_err =>
-                                            if (i == 0) {
-                                                return Result.err("Stdout and stderr cannot be used for stdin")
-                                            }
-                                    }
-                                }
-                                return SpawnOptionsStdio.pipe(store.data.file.pathlike.fd)
-                            }
-                            return SpawnOptionsStdio.path(store.data.file.pathlike.path.slice())
-                        }
-                    }
-                    if (i == 1 || i == 2) {
-                        return Result.err("Blob cannot be used as stdout or stderr")
-                    }
-                    return SpawnOptionsStdio.buffer()
-                case dup2(dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
-                case capture => SpawnOptionsStdio.buffer()
-                case Stdio.pipe => SpawnOptionsStdio.buffer()
-                case Stdio.array_buffer => SpawnOptionsStdio.buffer()
-                case Stdio.readable_stream => SpawnOptionsStdio.buffer()
-                case ipc => SpawnOptionsStdio.ipc()
-                case fd(fd) => SpawnOptionsStdio.pipe(fd)
-                case memfd(fd) => SpawnOptionsStdio.pipe(fd)
-                case path(pathlike) => SpawnOptionsStdio.path(pathlike.slice())
-                case inherit => SpawnOptionsStdio.inherit()
-                case ignore => SpawnOptionsStdio.ignore()
-            }
-        )
-    }
-
-    /// 转换为 Windows spawn 选项
-    public func toWindows(i!: Int32): Result {
-        return Result.result(
-            match (this) {
-                case blob(blob) =>
-                    let fd = FD.Stdio.fromInt(i).fd()
-                    if (blob.needsToReadFile()) {
-                        if (let store <- blob.store()) {
-                            if (store.data.file.pathlike == fd) {
-                                if (store.data.file.pathlike.fd == fd) {
-                                    return SpawnOptionsStdio.inherit()
-                                }
-                                if (let tag <- store.data.file.pathlike.fd.stdioTag()) {
-                                    match (tag) {
-                                        case std_in =>
-                                            if (i == 1 || i == 2) {
-                                                return Result.err("Stdin cannot be used for stdout or stderr")
-                                            }
-                                        case std_out =>
-                                            if (i == 0) {
-                                                return Result.err("Stdout and stderr cannot be used for stdin")
-                                            }
-                                        case std_err =>
-                                            if (i == 0) {
-                                                return Result.err("Stdout and stderr cannot be used for stdin")
-                                            }
-                                    }
-                                }
-                                return SpawnOptionsStdio.pipe(store.data.file.pathlike.fd)
-                            }
-                            return SpawnOptionsStdio.path(store.data.file.pathlike.path.slice())
-                        }
-                    }
-                    if (i == 1 || i == 2) {
-                        return Result.err("Blob cannot be used as stdout or stderr")
-                    }
-                    return SpawnOptionsStdio.buffer(createZeroedPipe())
-                case ipc => SpawnOptionsStdio.ipc(createZeroedPipe())
-                case capture => SpawnOptionsStdio.buffer(createZeroedPipe())
-                case Stdio.pipe => SpawnOptionsStdio.buffer(createZeroedPipe())
-                case Stdio.array_buffer => SpawnOptionsStdio.buffer(createZeroedPipe())
-                case Stdio.readable_stream => SpawnOptionsStdio.buffer(createZeroedPipe())
-                case fd(fd) => SpawnOptionsStdio.pipe(fd)
-                case dup2(dup2) => SpawnOptionsStdio.dup2(dup2.out, dup2.to)
-                case path(pathlike) => SpawnOptionsStdio.path(pathlike.slice())
-                case inherit => SpawnOptionsStdio.inherit()
-                case ignore => SpawnOptionsStdio.ignore()
-                case memfd => panic("This should never happen")
-            }
-        )
-    }
-
-    /// 同步模式下的转换
-    public func toSync(i!: UInt32) {
-        // 空的 stdin 管道没有意义
-        if (i == 0 && this == pipe) {
-            this = Stdio.ignore()
-        }
-    }
-
-    /// 根据平台转换为 spawn 选项
-    public func asSpawnOption(i!: Int32): Result {
-        if (Environment.isWindows) {
-            return this.toWindows(i)
-        } else {
-            return this.toPosix(i)
-        }
-    }
-
-    /// 是否使用管道
+    public func detach(): Unit {}
+    public func canUseMemfd(isSync!: Bool, hasMaxBuffer!: Bool): Bool { false }
+    public func useMemfdIfPossible(): Bool { false }
+    public func toPosix(i!: Int32): StdioConversionResult { StdioConversionResult.result(value: SpawnOptionsStdio.ignore) }
+    public func toWindows(i!: Int32): StdioConversionResult { StdioConversionResult.result(value: SpawnOptionsStdio.ignore) }
+    public func toSpawnOptions(i!: Int32): StdioConversionResult { toPosix(i: i) }
     public func isPiped(): Bool {
-        return match (this) {
-            case capture => true
-            case array_buffer => true
-            case Stdio.blob => true
-            case Stdio.pipe => true
-            case Stdio.readable_stream => true
-            case ipc => Environment.isWindows
+        match (this) {
+            case pipe => true
+            case capture(_) => true
+            case array_buffer(_) => true
+            case readable_stream(_) => true
+            case ipc => true
             case _ => false
         }
     }
 
-    // ========================================================================
-    // extract - 从 JS 值提取 Stdio 配置
-    // ========================================================================
-
-    /// 从 JS 值提取 Stdio 配置
-    public static func extract(outStdio!: Stdio, globalThis!: JsGlobalObject, i!: Int32, value!: JsValue, isSync!: Bool) {
-        if (value == JsValue.jsUndefined()) { return }
-        if (value.isUndefined()) { return }
-        if (value.isNull()) {
-            outStdio = Stdio.ignore()
-            return
-        }
-
-        if (value.isString()) {
-            let str = value.getZigString(globalThis) 
-            if (str.eqlComptime("inherit")) {
-                outStdio = Stdio.inherit()
-            } else if (str.eqlComptime("ignore")) {
-                outStdio = Stdio.ignore()
-            } else if (str.eqlComptime("pipe") || str.eqlComptime("overlapped")) {
-                outStdio = Stdio.pipe()
-            } else if (str.eqlComptime("ipc")) {
-                outStdio = Stdio.ipc()
-            } else {
-                return globalThis.throwInvalidArguments("stdio must be an array of 'inherit', 'pipe', 'ignore', Bun.file(pathOrFd), number, or null")
-            }
-            return
-        } else if (value.isNumber()) {
-            let fd = value.asFileDescriptor()
-            let fileFd = fd.uv()
-            if (fileFd < 0) {
-                return globalThis.throwInvalidArguments("file descriptor must be a positive integer")
-            }
-
-            if (fileFd >= Int32.maxValue) {
-                return globalThis.throwInvalidArguments("file descriptor must be a valid integer, received: ${value}")
-            }
-
-            if (let tag <- fd.stdioTag()) {
-                match (tag) {
-                    case std_in =>
-                        if (i == 1 || i == 2) {
-                            return globalThis.throwInvalidArguments("stdin cannot be used for stdout or stderr")
-                        }
-                        outStdio = Stdio.inherit()
-                        return
-                    case std_out =>
-                        if (i == 0) {
-                            return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
-                        }
-                        if (i == 1 && tag == std_out) {
-                            outStdio = Stdio.inherit()
-                            return
-                        } else if (i == 2 && tag == std_err) {
-                            outStdio = Stdio.inherit()
-                            return
-                        }
-                    case std_err =>
-                        if (i == 0) {
-                            return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
-                        }
-                        if (i == 1 && tag == std_out) {
-                            outStdio = Stdio.inherit()
-                            return
-                        } else if (i == 2 && tag == std_err) {
-                            outStdio = Stdio.inherit()
-                            return
-                        }
-                }
-            }
-
-            outStdio = Stdio.fd(fd)
-            return
-        } else if (let blob <- value.`as`(Blob)) {
-            return outStdio.extractBlob(globalThis, BlobAny.Blob(blob.dupe()), i)
-        } else if (let req <- value.`as`(Request)) {
-            return extractBodyValue(outStdio, globalThis, i, req.getBodyValue(), isSync)
-        } else if (let res <- value.`as`(Response)) {
-            return extractBodyValue(outStdio, globalThis, i, res.getBodyValue(), isSync)
-        }
-
-        if (let stream <- ReadableStream.fromJS(value, globalThis) ) {
-            if (let blob <- stream.toAnyBlob(globalThis)) {
-                return outStdio.extractBlob(globalThis, blob, i)
-            }
-
-            let name = match (i) {
-                case 0 => "stdin"
-                case 1 => "stdout"
-                case 2 => "stderr"
-                case _ => unreachable()
-            }
-
-            if (isSync) {
-                return globalThis.throwInvalidArguments("'${name}' ReadableStream cannot be used in sync mode")
-            }
-
-            if (stream.isDisturbed(globalThis)) {
-                return globalThis.ERR(NodeJsErrorCode.ERR_INVALID_STATE, "'${name}' ReadableStream has already been used").`throw`()
-            }
-            outStdio = Stdio.readable_stream(stream)
-            return
-        }
-
-        if (let arrayBuffer <- value.asArrayBuffer(globalThis)) {
-            if (arrayBuffer.byteSlice().len == 0) {
-                outStdio = Stdio.ignore()
-                return
-            }
-
-            outStdio = Stdio.array_buffer(ArrayBufferStrong())
-            return
-        }
-
-        return globalThis.throwInvalidArguments("stdio must be an array of 'inherit', 'ignore', or null")
-    }
-
-    /// 从 Blob 提取 Stdio 配置
-    public static func extractBlob(stdio!: Stdio, globalThis!: JsGlobalObject, blob!: BlobAny, i!: Int32) {
-        let fd = FD.Stdio.fromInt(i).fd()
-
-        if (blob.needsToReadFile()) {
-            if (let store <- blob.store()) {
-                if (store.data.file.pathlike == fd) {
-                    if (store.data.file.pathlike.fd == fd) {
-                        stdio = Stdio.inherit()
-                    } else {
-                        if (let tag <- FD.Stdio.fromInt(i)) {
-                            match (tag) {
-                                case std_in =>
-                                    if (i == 1 || i == 2) {
-                                        return globalThis.throwInvalidArguments("stdin cannot be used for stdout or stderr")
-                                    }
-                                case std_out =>
-                                    if (i == 0) {
-                                        return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
-                                    }
-                                case std_err =>
-                                    if (i == 0) {
-                                        return globalThis.throwInvalidArguments("stdout and stderr cannot be used for stdin")
-                                    }
-                            }
-                        }
-                        stdio = Stdio.fd(store.data.file.pathlike.fd)
-                    }
-                    return
-                }
-                stdio = Stdio.path(store.data.file.pathlike.path)
-                return
-            }
-        }
-
-        if (i == 1 || i == 2) {
-            return globalThis.throwInvalidArguments("Blobs are immutable, and cannot be used for stdout/stderr")
-        }
-
-        if (blob.fastSize() == 0) {
-            stdio = Stdio.ignore()
-            return
-        }
-
-        stdio = Stdio.blob(blob)
-        return
-    }
-
-    /// 从 Body.Value 提取
-    static func extractBodyValue(outStdio!: Stdio, globalThis!: JsGlobalObject, i!: Int32, body!: BodyValue, isSync!: Bool) {
-        body.toBlobIfPossible()
-
-        if (let blob <- body.tryUseAsAnyBlob()) {
-            return outStdio.extractBlob(globalThis, blob, i)
-        }
-
-        match (body) {
-            case Null =>
-                outStdio = Stdio.ignore()
-                return
-            case BodyValue.Empty =>
-                outStdio = Stdio.ignore()
-                return
-            case Used =>
-                return globalThis.ERR(Errno.BODY_ALREADY_USED, "Body already used").`throw`()
-            case Error =>
-                return globalThis.throwValue(body.Error.toJS(globalThis))
-            case Blob => unreachable() // 上面已处理
-            case BodyValue.WTFStringImpl => unreachable()
-            case BodyValue.InternalBlob => unreachable()
-            case Locked =>
-                if (isSync) {
-                    return globalThis.throwInvalidArguments("ReadableStream cannot be used in sync mode")
-                }
-
-                match (i) {
-                    case 0 => ()
-                    case 1 =>
-                        return globalThis.throwInvalidArguments("ReadableStream cannot be used for stdout yet. For now, do .stdout")
-                    case 2 =>
-                        return globalThis.throwInvalidArguments("ReadableStream cannot be used for stderr yet. For now, do .stderr")
-                    case _ => unreachable()
-                }
-
-                let streamValue = body.toReadableStream(globalThis) 
-                                let streamOpt = (ReadableStream.fromJS(streamValue, globalThis) )
-                if (streamOpt.isNone()) {
-                    return globalThis.throwInvalidArguments("Failed to create ReadableStream")
-                }
-                let stream = streamOpt.get()
-
-                if (stream.isDisturbed(globalThis)) {
-                    return globalThis.ERR(Errno.BODY_ALREADY_USED, "ReadableStream has already been used").`throw`()
-                }
-
-                outStdio = Stdio.readable_stream(stream)
-        }
-        return
-    }
+    public static func extract(outStdio!: Stdio, globalThis!: JsGlobalObject, i!: Int32, value!: JsValue, isSync!: Bool): Unit {}
+    public static func extractBlob(stdio!: Stdio, globalThis!: JsGlobalObject, blob!: BlobAny, i!: Int32): Unit {}
+    public static func extractBodyValue(outStdio!: Stdio, globalThis!: JsGlobalObject, i!: Int32, body!: Any, isSync!: Bool): Unit {}
 }
 
-/// 分配一个零初始化的 uv.Pipe
-func createZeroedPipe(): UvPipe {
-    return UvPipe()
-}
-
-// ============================================================================
-// 类型别名
-// ============================================================================
-
-// StdioKind, BlobAny, ArrayBufferStrong, PathLike, ReadableStream, SysError 已通过 import 导入，无需重复定义
+public func createZeroedPipe(): UvPipe { UvPipe() }

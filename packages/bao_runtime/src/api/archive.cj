@@ -14,7 +14,7 @@ public class BlobStore {
 
 /// Compression enum
 public enum Compression {
-    | none
+    | compressionNone
     | gzip
     | brotli
     | zstd
@@ -30,7 +30,7 @@ public enum BlobOutputType {
 /// 对应 Bun: src/runtime/api/Archive.rs
 public class Archive {
     private var store: BlobStore = BlobStore()
-    private var compress: Compression = Compression.none
+    private var compress: Compression = Compression.compressionNone
 
     public init() {}
     public init(store!: BlobStore, compress!: Compression) {
@@ -90,7 +90,7 @@ public class Archive {
 /// 解析压缩选项
 public func parseCompressionOptions(global!: JsGlobalObject, optionsArg!: JsValue): Compression {
     if (optionsArg.isUndefinedOrNull()) {
-        return Compression.none
+        return Compression.compressionNone
     }
     if (optionsArg.isObject()) {
         let jsObj: JsObject = global.globalThis
@@ -103,7 +103,7 @@ public func parseCompressionOptions(global!: JsGlobalObject, optionsArg!: JsValu
             }
         }
     }
-    Compression.none
+    Compression.compressionNone
 }
 
 /// createArchive - 从数据创建归档

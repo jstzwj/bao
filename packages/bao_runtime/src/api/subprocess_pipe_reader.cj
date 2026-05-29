@@ -1,4 +1,5 @@
-// Compile-gating API surface for SubprocessPipeReader.zig.
+// BAO_STUB: compile gate for src/runtime/api/bun/subprocess/SubprocessPipeReader.zig.
+// TODO(bao-runtime-api): restore the Bun one-to-one subprocess pipe reader.
 package bao_runtime.api
 
 import bao_jsc.{JsGlobalObject, JsValue}
@@ -31,12 +32,7 @@ public class PipeReader {
     }
 
     public func readAll(): Unit {}
-    public func toOwnedSlice(): Array<UInt8> {
-        match (state) {
-            case done(bytes) => bytes
-            case _ => buffer
-        }
-    }
+    public func toOwnedSlice(): Array<UInt8> { buffer }
     public func toReadableStream(jsGlobalObject!: JsGlobalObject): JsValue { JsValue.jsUndefined() }
     public func toBuffer(globalThis!: JsGlobalObject): JsValue { JsValue.jsUndefined() }
     public func onReaderDone(): Unit { state = PipeReaderState.done(buffer) }
@@ -50,3 +46,5 @@ public class PipeReader {
     public func memoryCost(): Int { 0 }
     public func deinit(): Unit {}
 }
+
+public type SubprocessPipeReader = PipeReader
