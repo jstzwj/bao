@@ -8,6 +8,7 @@ import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
 import bao_io.BaoFile
+import bao_sys.OS
 
 // ========== Snapshots - 快照管理 ==========
 
@@ -86,7 +87,8 @@ public class Snapshots {
 
         // 不存在, 追加到文件字节并添加到hashmap
         // 在CI环境中防止创建快照, 除非使用--update-snapshots
-        if (false) { // stub: bun.ci.isCI() not implemented
+        // 对应 Bun: if (bun.ci.isCI())
+        if (isCIEnv()) {
             if (!updateSnapshots) {
                 // 存储快照名称以用于错误报告
                 if (lastErrorSnapshotName.isSome()) {
@@ -407,4 +409,16 @@ public func unformatEscapes(text: String): String {
         }
     }
     return result.toString()
+}
+
+/// CI 环境检测
+/// 对应 Bun: bun.ci.isCI()
+/// 检查 CI 环境变量是否存在且不为 "false"
+public func isCIEnv(): Bool {
+    let ciEnv = OS.getEnv("CI")
+    if (ciEnv.isNone()) { return false }
+    let ciValue = ciEnv.getOrThrow()
+    // CI=false 明确表示不在 CI 中
+    if (ciValue == "false") { return false }
+    return true
 }

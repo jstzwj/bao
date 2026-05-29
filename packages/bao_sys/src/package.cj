@@ -547,6 +547,16 @@ public class FileMode {
     public static func isSocket(mode: UInt32): Bool {
         return (mode & 0xF000) == 0xC000  // S_IFSOCK
     }
+
+    /// S_ISCHR - 判断是否为字符设备
+    public static func isChar(mode: UInt32): Bool {
+        return (mode & 0xF000) == 0x2000  // S_IFCHR
+    }
+
+    /// S_ISBLK - 判断是否为块设备
+    public static func isBlock(mode: UInt32): Bool {
+        return (mode & 0xF000) == 0x6000  // S_IFBLK
+    }
 }
 
 // ============================================================================

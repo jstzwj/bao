@@ -498,8 +498,8 @@ public class MiniEventLoop {
             return
         }
         unsafe {
-            let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(eventFd, buf.toCPointer(), 8)
+            var buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
+            read(eventFd, CPointer<UInt8>(buf[0]), 8)
         }
     }
 
@@ -509,8 +509,8 @@ public class MiniEventLoop {
             return
         }
         unsafe {
-            let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(timerFd, buf.toCPointer(), 8)
+            var buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
+            read(timerFd, CPointer<UInt8>(buf[0]), 8)
         }
     }
 
@@ -564,7 +564,7 @@ public class MiniEventLoop {
         unsafe {
             let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
             buf[0] = UInt8(1)  // 写入值 1
-            write(eventFd, CPointer<UInt8>(buf), 8)
+            write(eventFd, CPointer<UInt8>(buf[0]), 8)
         }
     }
 

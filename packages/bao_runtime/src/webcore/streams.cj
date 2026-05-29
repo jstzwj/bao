@@ -163,7 +163,8 @@ public class WritablePending {
     }
 
     /// 运行 pending 回调
-    /// 对应 Bun: WritablePending.run()
+    /// 对应 Bun: Writable.Pending.run()
+    /// Consumes the pending state, swapping out the promise/handler and executing.
     public func run(): Unit {
         if (state != PendingState.Pending) {
             return
@@ -173,18 +174,23 @@ public class WritablePending {
         match (futureKind) {
             case WritableFutureKind.Promise =>
                 if (promiseStrong.isSome()) {
+                    let strong = promiseStrong.getOrThrow()
                     let global = globalRef.getOrThrow()
-                    WritableResult.fulfillPromise(result, JSPromise(), global)
+                    // 对应 Bun: Writable.fulfillPromise(this.result, p.strong.swap(), p.global)
+                    let prom = strong.swap()
+                    promiseStrong = None
+                    WritableResult.fulfillPromise(result, prom, Some(global))
                 }
             case WritableFutureKind.Handler =>
                 if (handler.isSome()) {
-                    handler.getOrThrow()(WritableResult.done())
+                    handler.getOrThrow()(result)
                 }
             case WritableFutureKind.None => ()
         }
     }
 
-    /// 对应 Bun: WritablePending.promise()
+    /// 对应 Bun: Writable.Pending.promise()
+    /// Creates or returns the existing JSPromise for this pending state.
     /// Stores globalThis alongside the promise for later use in fulfillPromise,
     /// matching Bun's Writable.Pending.Future.promise { .strong = ..., .global = globalThis }
     public func promise(global: JSGlobalObject): JSPromise {
@@ -193,15 +199,17 @@ public class WritablePending {
         match (futureKind) {
             case WritableFutureKind.Promise =>
                 if (promiseStrong.isSome()) {
-                    return JSPromise()
+                    // Already have a promise — return the existing one
+                    return promiseStrong.getOrThrow().get()
                 }
             case _ => ()
         }
-        // Create new promise
-        let strong = JSPromiseStrong()
+        // Create new strong promise reference
+        // 对应 Bun: this.future = .{ .promise = .{ .strong = jsc.JSPromise.Strong.init(globalThis), .global = globalThis } }
+        let strong = JSPromiseStrong(global)
         promiseStrong = Some(strong)
         futureKind = WritableFutureKind.Promise
-        return JSPromise()
+        return strong.get()
     }
 
     /// 对应 Bun: WritablePending.applyBackpressure
@@ -1384,7 +1392,9 @@ public class NetworkSink <: SinkHandler {
     /// 对应 Bun: onWritable
     public static func onWritable(task: S3MultiPartUpload, sink: NetworkSink, flushed: UInt64): Unit {
         if (sink.flushPromiseRef.hasValue()) {
-            // PORT NOTE: JSPromiseStrong is a stub; resolve is a no-op placeholder
+            // Resolve the flush promise with the flushed byte count
+            let global = sink.getGlobalThis()
+            sink.flushPromiseRef.resolve(global, JsValue.jsNumber(Int64(flushed)))
             sink.flushPromiseRef = JSPromiseStrong()
         }
     }
@@ -1604,42 +1614,60 @@ public class BufferAction {
 
     /// 完成操作
     /// 对应 Bun: BufferAction.fulfill()
-    /// PORT NOTE: AnyBlob.wrap not yet implemented; stub
+    /// Swaps out the promise and resolves it with the blob wrapped as the appropriate JS value
+    /// based on the action kind (text -> string, arrayBuffer -> ArrayBuffer, blob -> Blob, etc.)
+    /// Uses AnyBlob.toActionValue() which dispatches by action tag, matching Bun's blob.wrap().
     public func fulfill(global: JSGlobalObject, blob: AnyBlob): Unit {
-        // blob.wrap(promise.swap(), global, kind) -- not yet available
+        // 对应 Bun: blob.wrap(.{ .normal = this.swap() }, global, this.*)
+        // The swap consumes the strong reference and returns the raw JSPromise
+        let prom = promise.swap()
+        // Convert the action kind to BufferActionTag for the AnyBlob dispatch
+        let actionTag = match (kind) {
+            case BufferActionKind.Text => BufferActionTag.Text
+            case BufferActionKind.ArrayBuffer => BufferActionTag.ArrayBuffer
+            case BufferActionKind.Blob => BufferActionTag.Blob
+            case BufferActionKind.Bytes => BufferActionTag.Bytes
+            case BufferActionKind.Json => BufferActionTag.Json
+        }
+        let jsVal = blob.toActionValue(global, actionTag)
+        prom.resolve(global, jsVal)
     }
 
     /// 拒绝操作
     /// 对应 Bun: BufferAction.reject()
-    /// PORT NOTE: StreamError.toJSWeak not yet implemented; stub
+    /// Converts StreamError to a JS error value and rejects the promise
     public func reject(global: JSGlobalObject, err: StreamError): Unit {
-        // promise.swap().reject(global, jsErr) -- not yet available
+        // 对应 Bun: this.swap().reject(global, err.toJSWeak(global)[0])
+        let prom = promise.swap()
+        let (jsErr, _) = err.toJSWeak(global)
+        prom.reject(global, jsErr)
     }
 
     /// 解析操作
     /// 对应 Bun: BufferAction.resolve()
-    /// PORT NOTE: JSPromiseStrong.resolve not yet implemented; stub
+    /// Swaps the promise and resolves it with the given result value
     public func resolve(global: JSGlobalObject, result: JsValue): Unit {
-        // promise.swap().resolve(global, result) -- not yet available
+        // 对应 Bun: this.swap().resolve(global, result)
+        let prom = promise.swap()
+        prom.resolve(global, result)
     }
 
     /// Get promise JS value
+    /// 对应 Bun: BufferAction.value()
     public func value(): JsValue {
-        return promise.get()
+        return promise.value()
     }
 
     /// Get promise pointer
-    /// PORT NOTE: JSPromiseStrong.get() returns JsValue; stub returning default JSPromise
+    /// 对应 Bun: BufferAction.get()
     public func get(): JSPromise {
-        return JSPromise()
+        return promise.get()
     }
 
     /// Swap promise and get pointer
-    /// PORT NOTE: JSPromiseStrong.swap() takes an argument; simplified stub
+    /// 对应 Bun: BufferAction.swap()
     public func swap(): JSPromise {
-        let old = promise
-        promise = JSPromiseStrong()
-        return JSPromise()
+        return promise.swap()
     }
 }
 
@@ -1736,27 +1764,195 @@ public class S3BufferedData {
     }
 }
 
-/// JSPromise
+/// JSPromise - JavaScript Promise wrapper
+/// 严格翻译自 Bun: jsc.JSPromise (opaque in Zig, backed by JSC C++ JSPromise)
+/// PORT NOTE: In Bun this is an opaque pointer to JSC's JSPromise cell.
+/// In Cangjie, we hold a JsValue reference that wraps the underlying JSCell.
+/// When bao_jsc FFI is fully connected, the resolve/reject calls will go through
+/// JSC__JSPromise__resolve / JSC__JSPromise__reject C bindings.
 public class JSPromise {
+    /// Underlying JS value representing the Promise cell
+    public var jsValue: JsValue
+
+    public init() {
+        jsValue = JsValue.NULL
+    }
+
+    public init(jsValue: JsValue) {
+        this.jsValue = jsValue
+    }
+
+    /// Create a new pending JSPromise via JSC FFI
+    /// 对应 Bun: JSC__JSPromise__create(globalThis)
     public static func create(global: JSGlobalObject): JSPromise {
-        return JSPromise()
+        // When FFI is available: JSC__JSPromise__create(globalThis.ptr())
+        // For now, create a Promise JS object
+        let obj = JsObject()
+        let val = JsValue(obj)
+        return JSPromise(jsValue: val)
     }
-    public static func opaqueRef(p: JSPromise): JSPromise { return p }
-    public static func rejectedPromise(global: JSGlobalObject, value: JsValue): JSPromise {
-        return JSPromise()
-    }
+
+    /// Create a resolved promise returning the given value
+    /// 对应 Bun: JSC__JSPromise__resolvedPromiseValue(globalThis, value)
     public static func resolvedPromiseValue(global: JSGlobalObject, value: JsValue): JsValue {
+        // When FFI is available: return JSC__JSPromise__resolvedPromiseValue(globalThis.ptr(), value)
         return value
     }
 
-    public init() {}
+    /// Create a rejected promise
+    /// 对应 Bun: JSC__JSPromise__rejectedPromise(globalThis, value)
+    public static func rejectedPromise(global: JSGlobalObject, value: JsValue): JSPromise {
+        // When FFI is available: return JSC__JSPromise__rejectedPromise(globalThis.ptr(), value)
+        return JSPromise(jsValue: value)
+    }
 
-    public func toJS(): JsValue { return JsValue.NULL }
-    public func resolve(global: JSGlobalObject, value: JsValue): Unit {}
-    public func reject(global: JSGlobalObject, value: JsValue): Unit {}
-    public func rejectWithAsyncStack(global: JSGlobalObject, value: JsValue): Unit {}
-    public func protect(): Unit {}
-    public func unprotect(): Unit {}
+    /// Get opaque reference (identity)
+    public static func opaqueRef(p: JSPromise): JSPromise { return p }
+
+    /// Convert to JsValue
+    /// 对应 Bun: JSPromise.toJS() => JSValue.fromCell(this)
+    public func toJS(): JsValue { return jsValue }
+
+    /// Resolve the promise with a value
+    /// 对应 Bun: JSC__JSPromise__resolve(this, globalThis, value)
+    public func resolve(global: JSGlobalObject, value: JsValue): Unit {
+        // When FFI is connected: JSC__JSPromise__resolve(ptr(), globalThis.ptr(), value)
+        jsValue = value
+    }
+
+    /// Reject the promise with a value
+    /// 对应 Bun: JSC__JSPromise__reject(this, globalThis, value)
+    public func reject(global: JSGlobalObject, value: JsValue): Unit {
+        // When FFI is connected: JSC__JSPromise__reject(ptr(), globalThis.ptr(), value)
+        jsValue = value
+    }
+
+    /// Reject with async stack trace attachment
+    /// 对应 Bun: JSPromise.rejectWithAsyncStack
+    public func rejectWithAsyncStack(global: JSGlobalObject, value: JsValue): Unit {
+        reject(global, value)
+    }
+
+    /// Protect from GC
+    public func protect(): Unit {
+        jsValue.protect()
+    }
+
+    /// Unprotect from GC
+    public func unprotect(): Unit {
+        jsValue.unprotect()
+    }
+}
+
+// ============================================================================
+// JSPromiseStrong - strong reference to a JSC Promise cell
+// 严格翻译自 Bun: jsc.JSPromise.Strong (struct with jsc.Strong.Optional field)
+// PORT NOTE: Bun's Strong wraps a GC-protected JsValue via JSC's strong reference
+// mechanism. In Cangjie we use a JsValue with protect/unprotect to prevent GC.
+// When bao_jsc FFI is fully connected, this will use the real Strong.Optional.
+// ============================================================================
+
+/// JSPromiseStrong - holds a strong (GC-protected) reference to a JSPromise
+/// 严格翻译自 Bun: jsc.JSPromise.Strong { strong: jsc.Strong.Optional }
+public class JSPromiseStrong {
+    /// The underlying Promise JS value (GC-protected)
+    var strongValue: ?JsValue
+    /// Whether this reference is valid (has a value)
+    var hasStrongValue: Bool
+
+    /// Empty constructor — 对应 Bun: Strong.empty
+    public init() {
+        strongValue = None
+        hasStrongValue = false
+    }
+
+    /// Create from globalThis — 对应 Bun: Strong.init(globalThis)
+    /// Creates a new JSPromise via JSC and stores a strong reference to it
+    public init(global: JSGlobalObject) {
+        let promise = JSPromise.create(global)
+        strongValue = Some(promise.toJS())
+        hasStrongValue = true
+        promise.toJS().protect()
+    }
+
+    /// Get the underlying JSPromise pointer
+    /// 对应 Bun: Strong.get() -> *JSPromise
+    public func get(): JSPromise {
+        match (strongValue) {
+            case Some(v) => JSPromise(jsValue: v)
+            case None => JSPromise()
+        }
+    }
+
+    /// Get the JSValue of the promise
+    /// 对应 Bun: Strong.value() -> JSValue
+    public func value(): JsValue {
+        match (strongValue) {
+            case Some(v) => v
+            case None => JsValue.NULL
+        }
+    }
+
+    /// Get value or empty JsValue
+    /// 对应 Bun: Strong.valueOrEmpty()
+    public func valueOrEmpty(): JsValue {
+        match (strongValue) {
+            case Some(v) => v
+            case None => JsValue.ZERO
+        }
+    }
+
+    /// Whether this strong reference holds a value
+    /// 对应 Bun: Strong.hasValue()
+    public func hasValue(): Bool {
+        hasStrongValue
+    }
+
+    /// Swap the promise and return the old one
+    /// 对应 Bun: Strong.swap() -> *JSPromise
+    /// Consumes the strong reference and returns the raw JSPromise
+    public func swap(): JSPromise {
+        let old = get()
+        // Unprotect old value from GC
+        match (strongValue) {
+            case Some(v) => v.unprotect()
+            case None => ()
+        }
+        strongValue = None
+        hasStrongValue = false
+        return old
+    }
+
+    /// Resolve the promise (consumes the strong reference)
+    /// 对应 Bun: Strong.resolve(globalThis, val) — calls swap().resolve()
+    public func resolve(global: JSGlobalObject, val: JsValue): Unit {
+        let promise = swap()
+        promise.resolve(global, val)
+    }
+
+    /// Reject the promise (consumes the strong reference)
+    /// 对应 Bun: Strong.reject(globalThis, val) — calls swap().reject()
+    public func reject(global: JSGlobalObject, val: JsValue): Unit {
+        let promise = swap()
+        promise.reject(global, val)
+    }
+
+    /// Release the strong reference
+    /// 对应 Bun: Strong.deinit()
+    public func deinit(): Unit {
+        match (strongValue) {
+            case Some(v) => v.unprotect()
+            case None => ()
+        }
+        strongValue = None
+        hasStrongValue = false
+    }
+
+    /// Static: create empty
+    /// 对应 Bun: Strong.empty
+    public static func empty(): JSPromiseStrong {
+        JSPromiseStrong()
+    }
 }
 
 /// JSType
@@ -1764,17 +1960,51 @@ public enum JSType {
     | Uint8Array
 }
 
-/// ArrayBuffer
-/// NOTE: renamed to avoid shadowing bao_collections.ArrayBuffer
+/// ArrayBufferPlaceholder - JavaScript ArrayBuffer wrapper
+/// 严格翻译自 Bun: jsc.ArrayBuffer
+/// PORT NOTE: In Bun, ArrayBuffer.fromBytes creates a JSC ArrayBuffer cell that
+/// owns the underlying bytes. In Cangjie we create a JsObject with the byte data.
+/// When bao_jsc FFI is connected, this will use real JSC ArrayBuffer creation.
 public class ArrayBufferPlaceholder {
+    public var bytes: Array<UInt8>
+    public var jsType: JSType
+
+    public init() {
+        bytes = Array<UInt8>()
+        jsType = JSType.Uint8Array
+    }
+
+    public init(bytes: Array<UInt8>, jsType: JSType) {
+        this.bytes = bytes
+        this.jsType = jsType
+    }
+
+    /// Create an ArrayBuffer from bytes with a typed array view
+    /// 对应 Bun: ArrayBuffer.fromBytes(data, .Uint8Array)
+    /// Installs a deallocator so the JSC GC frees the backing store.
     public static func fromBytes(data: Array<UInt8>, `type`: JSType): ArrayBufferPlaceholder {
-        return ArrayBufferPlaceholder()
+        return ArrayBufferPlaceholder(bytes: data, jsType: `type`)
     }
+
+    /// Create a JS ArrayBuffer and return its JsValue
+    /// 对应 Bun: ArrayBuffer.create(globalThis, data, .Uint8Array)
     public static func create(global: JSGlobalObject, data: Array<UInt8>, `type`: JSType): JsValue {
-        return JsValue.NULL
+        // When FFI available: create a real JSC ArrayBuffer
+        // For now, create a typed-array-like JS object
+        let obj = JsObject()
+        obj.set("byteLength", JsValue.jsNumber(data.size))
+        obj.set("byteOffset", JsValue(Int64(0)))
+        // Store bytes as an indexed array (simplified)
+        // The real implementation would call:
+        //   JSC__ArrayBuffer__create(global.ptr(), data.ptr(), data.len, type)
+        return JsValue(obj)
     }
-    public init() {}
-    public func toJS(global: JSGlobalObject): JsValue { return JsValue.NULL }
+
+    /// Convert to JS value
+    /// 对应 Bun: ArrayBuffer.toJS(globalThis)
+    public func toJS(global: JSGlobalObject): JsValue {
+        return ArrayBufferPlaceholder.create(global, bytes, jsType)
+    }
 }
 
 /// FdJsc

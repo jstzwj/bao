@@ -59,7 +59,9 @@ public class ConsoleFormatterExtensions {
 // ========== ConsoleFormatter 扩展 - 便捷格式化方法 ==========
 
 extend ConsoleFormatter {
-    /// 单参数格式化（stub：委托给 formatValue）
+    /// 单参数格式化
+    /// 对应 Bun: ConsoleFormatter 单参数 format
+    /// 委托给 formatValue 进行实际格式化
     public func format(value: JsValue): String {
         return formatValue(value, globalThis)
     }
@@ -376,15 +378,20 @@ public class MockResultIterator {
     }
 }
 
-// ========== String 扩展 - test_runner 所需的 toSlice (stub) ==========
+// ========== String 扩展 - test_runner 所需的 toSlice ==========
 
 extend String {
-    /// 将 String 转为切片（stub，在 Cangjie 中 String 本身就是值类型）
+    /// 将 String 转为切片
+    /// 对应 Bun: BunString.toSlice / string.toSlice
+    /// 在 Cangjie 中 String 本身就是值类型，直接返回自身
+    /// 保留 allocator 参数以匹配 Bun API 签名
     public func toSlice(allocator!: Any): String {
         this
     }
 
-    /// 将 String 转为切片（stub，带 global 参数）
+    /// 将 String 转为切片（带 global 参数）
+    /// 对应 Bun: JSValue.toSlice(globalThis)
+    /// 在 Cangjie 中 String 本身就是值类型，直接返回自身
     public func toSlice(global!: JsObject): String {
         this
     }

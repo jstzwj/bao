@@ -1410,15 +1410,21 @@ public enum LoadValue {
 
 // ============================================================================
 // 桩声明 - 未完全移植的 Bundler 类型
-// TODO: 当 bao_bundler 完全移植后，用实际实现替换这些桩
+// 以下类型在 bao_bundler 包中已有对应实现，但 API 可能不完全兼容。
+// 状态标注:
+//   [EXISTS] - 真实类型已存在于 bao_bundler，API 基本兼容，可逐步替换为 import
+//   [KEPT]   - 真实类型存在但接口差异大，保留本地简化版本
+// TODO: 逐步用 import bao_bundler.* 替换这些桩
 // ============================================================================
 
 /// 编译目标 - 对应 Bun: CompileTarget
+/// [KEPT] bao_bundler 中尚无此类型
 public class CompileTarget {
     public init() {}
 }
 
 /// 编译目标类型 - 对应 Bun: CompileTargetType
+/// [KEPT] bao_bundler 中尚无此类型
 public enum CompileTargetType {
     | Browser
     | Node
@@ -1426,27 +1432,35 @@ public enum CompileTargetType {
 }
 
 /// 日志消息 - 对应 Bun: LoggerMsg
+/// [KEPT] bao_bundler 中尚无此类型
 public class LoggerMsg {
     public init() {}
 }
 
 /// 日志范围 - 对应 Bun: LoggerRange
+/// [KEPT] bao_bundler 中尚无此类型
 public class LoggerRange {
     public static let none: LoggerRange = LoggerRange()
     public init() {}
 }
 
 /// BundleV2 打包器 - 对应 Bun: BundleV2
+/// [EXISTS] 真实类型在 bao_bundler.bundle_v2.BundleV2（30+ 字段）
+/// 保留本地简化版本，待 API 适配后替换为 import
 public class BundleV2 {
     public init() {}
 }
 
 /// 解析任务 - 对应 Bun: ParseTask
+/// [EXISTS] 真实类型在 bao_bundler.parse_task.ParseTask
+/// 保留本地简化版本，待 API 适配后替换为 import
 public class ParseTask {
     public init() {}
 }
 
 /// 索引类型 - 对应 Bun: Index
+/// [EXISTS] 真实类型在 bao_bundler.ast_builder.Index（字段兼容）
+/// 待 import bao_bundler.* 后替换
 public class Index {
     public var value: Int32 = -1
     public static let Invalid: Index = Index()
@@ -1457,6 +1471,8 @@ public class Index {
 }
 
 /// 插件 - 对应 Bun: Plugin
+/// [EXISTS] 真实类型在 bao_bundler.plugin.Plugin
+/// 待 import bao_bundler.* 后替换
 public class Plugin {
     public var name: String = ""
     public init() {}
@@ -1464,16 +1480,19 @@ public class Plugin {
 }
 
 /// 拥有的字符串 - 对应 Bun: OwnedString
+/// [KEPT] bao_bundler 中尚无此类型
 public class OwnedString {
     public init() {}
 }
 
 /// 路径模板 - 对应 Bun: PathTemplate
+/// [KEPT] bao_bundler 中尚无此类型
 public class PathTemplate {
     public init() {}
 }
 
 /// 文件系统路径 - 对应 Bun: FsPath
+/// [KEPT] bao_bundler 中尚无此类型（有 resolver 中的 PathPair 等）
 public class FsPath {
     public var text: String = ""
     public var isDisabled: Bool = false
@@ -1491,6 +1510,7 @@ public class FsPath {
 }
 
 /// 路径对 - 对应 Bun: PathPair
+/// [KEPT] bao_bundler 中尚无此类型
 public class PathPair {
     public var primary: FsPath = FsPath()
     public var secondary: FsPath = FsPath()
@@ -1498,21 +1518,26 @@ public class PathPair {
 }
 
 /// 解析器结果 - 对应 Bun: ResolverResult
+/// [EXISTS] 真实类型在 bao_bundler.bundle_v2.ResolverResult
+/// 待 import bao_bundler.* 后替换
 public class ResolverResult {
     public init() {}
 }
 
 /// Blob 对象 - 对应 Bun: Blob
+/// [KEPT] 真实类型在 bao_runtime.webcore.Blob，但接口不同
 public class Blob {
     public init() {}
 }
 
 /// 通用任务 - 对应 Bun: AnyTask
+/// [KEPT] 真实类型在 bao_event_loop.AnyTask
 public class AnyTask {
     public init() {}
 }
 
 /// 事件循环任务 - 对应 Bun: AnyEventLoopTask
+/// [KEPT] 真实类型在 bao_event_loop 中
 public class AnyEventLoopTask {
     public init() {}
 }

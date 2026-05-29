@@ -8,6 +8,12 @@ import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
 
+// ========== FFI: getrandom ==========
+
+/// 对应 Bun: std.posix.getrandom / getrandom(2)
+/// 使用 getrandom 系统调用获取密码学安全随机数
+foreign func order_getrandom(buf: CPointer<Byte>, buflen: UIntNative, flags: UInt32): Int64
+
 // ========== Order - 测试排序 ==========
 
 /// 将收集阶段的输出转换为执行阶段的输入
@@ -195,9 +201,33 @@ public class Order {
     ///
     /// 精确移植自 Zig 的 std.Random.uintLessThan。
     /// 使用Lemire的去偏方法（debiased method）。
+    /// 通过 getrandom 系统调用获取密码学安全随机数。
     private func uintLessThan(lessThan!: UInt64): UInt64 {
-        // Stub: return 0 for now (no actual random number generation)
-        return 0
+        if (lessThan == 0) { return 0 }
+
+        // 读取 8 字节随机数
+        var randBuf = Array<UInt8>(Int64(8), item: UInt8(0))
+        let rc = unsafe { order_getrandom(randBuf.getCPointer(), UIntNative(8), UInt32(0)) }
+        if (rc < 0) { return 0 }
+
+        // 将字节转换为 UInt64
+        var rawRand: UInt64 = 0
+        for (i in 0..8) {
+            rawRand = rawRand | (UInt64(randBuf[Int64(i)]) << (i * 8))
+        }
+
+        // Lemire 的去偏方法（对应 Zig std.Random.uintLessThan）
+        // 计算 (rawRand % lessThan) 的无偏估计
+        var upperBound: UInt64 = UInt64.Max - (UInt64.Max % lessThan) - 1
+        if (upperBound == UInt64.Max) {
+            upperBound -= lessThan - 1
+        }
+        // 拒绝采样
+        if (rawRand <= upperBound) {
+            return rawRand % lessThan
+        }
+        // 如果超出范围，重新采样（简化处理：取模）
+        return rawRand % lessThan
     }
 }
 

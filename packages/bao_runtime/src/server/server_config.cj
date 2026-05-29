@@ -121,8 +121,20 @@ public class StaticRouteEntry {
         return path.size
     }
 
+    /// 对应 Bun: pub fn deinit(this: *StaticRouteEntry) void
+    /// 释放 path 并减少 route 引用计数
+    /// Bun: bun.default_allocator.free(this.path); this.route.deref();
     public func deinit(): Unit {
-        // no-op stub
+        path = ""
+        match (route) {
+            case Some(r) =>
+                match (r) {
+                    case AnyRoute.Static(sr) => sr.deref()
+                    case AnyRoute.File(fr) => fr.deref()
+                    case AnyRoute.HtmlBundle(hr) => hr.deref()
+                }
+            case None => ()
+        }
     }
 
     /// 对应 Bun: isLessThan — strict-weak ordering (descending by path)
@@ -883,7 +895,13 @@ public class BaoError {
 }
 */
 
-/// 静态路由注册辅助函数 - stub, 实际注册在 server.cj 的 setRoutes 中完成
+/// 静态路由注册辅助函数
+/// 对应 Bun: pub fn applyStaticRoute(server, ssl, app, T, entry, path, method) void
+/// 设置路由的服务器引用，然后根据 method 类型在 app 上注册路由。
+/// 注意: Bun 使用 comptime 泛型实现类型安全的回调包装，
+/// 此处使用 Any 类型简化实现，实际路由分发在 server.cj 的 setRoutes 中完成。
+/// TODO: 当 uws App 类型适配完成后，实现完整的类型安全版本
 public func applyStaticRoute(app: Any, route: Any, path: String, method: Any): Unit {
-    // no-op stub
+    // 路由注册在 server.cj 的 HttpServer.setRoutes() 中通过 app.any() / app.method() 完成
+    // 此处仅作为配置阶段的占位函数
 }

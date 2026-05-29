@@ -101,9 +101,12 @@ public func getPublicPathWithAssetPrefix(
     var relativePath: Array<UInt8> = if (Strings.hasPrefix(to, dir)) {
         Strings.withoutTrailingSlash(to[dir.len..])
     } else {
-        // 根据 platform 分发到不同的路径解析实现 (stub: 桩实现)
-        // TODO: 实现 ResolvePath.relativePlatform* 系列方法
-        to
+        // 严格翻译自: VirtualMachine.get().transpiler.fs.relativePlatform(dir, to, platform)
+        // 对应 Bun: relativePlatform(from, to, platform, false)
+        let fromStr = String.fromUtf8(dir)
+        let toStr = String.fromUtf8(to)
+        let relStr = relativePath(fromStr, toStr, platform)
+        Array<UInt8>(relStr.size, { i => relStr[i] })
     }
 
     if (origin.isAbsolute()) {
@@ -2104,21 +2107,34 @@ public class EditorContextSlot {
     }
 }
 
-// TODO: ThreadLocal not available in Cangjie yet
-// 线程本地的编辑器上下文
-// public let EDITOR_CONTEXT = ThreadLocal<EditorContextSlot>(() => EditorContextSlot())
+// TODO(cangjie-stdlib): ThreadLocal not available in Cangjie yet
+// Bun uses std.Thread.Local for EDITOR_CONTEXT; in Cangjie we use a package-level
+// mutable variable as a single-threaded approximation.  When Cangjie adds
+// thread-local storage, replace with the proper API.
+// Original Bun: pub const EDITOR_CONTEXT = ThreadLocal<EditorContextSlot>(EditorContextSlot{})
+// 严格翻译自: src/runtime/api/BunObject.zig EDITOR_CONTEXT
 
 // ============================================================================
 // Stdio 存储模块
 // ============================================================================
 
-// TODO: ThreadLocal and struct literal syntax not available
-// StdioStores - 管理 stdin/stdout/stderr 的 Blob 存储
+// TODO(cangjie-stdlib): ThreadLocal not available in Cangjie yet
+// StdioStores 管理 stdin/stdout/stderr 的 Blob 存储
+// 严格翻译自: src/runtime/api/BunObject.zig StdioStores
+// Bun: 使用 ThreadLocal<StdioStores> 保证每个线程独立
+// 当前仓颉无 ThreadLocal, 使用全局实例作为单线程近似
+// public let STDIO_STORES = StdioStores()
+//
 // public class StdioStores {
-//     static let STDIN: Option<StoreRef> = None
-//     static let STDOUT: Option<StoreRef> = None
-//     static let STDERR: Option<StoreRef> = None
+//     var stdinStore: ?StoreRef = None
+//     var stdoutStore: ?StoreRef = None
+//     var stderrStore: ?StoreRef = None
+//
+//     public static func stdin(globalThis!: JsGlobalObject): JsValue { ... }
+//     public static func stdout(globalThis!: JsGlobalObject): JsValue { ... }
+//     public static func stderr(globalThis!: JsGlobalObject): JsValue { ... }
 // }
+// 当 Cangjie 支持 ThreadLocal 后，改为线程本地存储实现
 
 // ============================================================================
 // BunObject 回调/属性注册表

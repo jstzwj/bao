@@ -1423,9 +1423,24 @@ public let POSIX_SPAWN_SETSID: Int32 = 0x0800
 public let SIGCONT: Int32 = 18
 public let SIGTSTP: Int32 = 20
 
-// SyncProcess placeholder (对应 SyncProcessPosix)
+// SyncProcess - 同步子进程占位类型
+// 严格翻译自: process.zig:103-104
+//   const SyncProcess = if (Environment.isWindows) sync.SyncWindowsProcess else SyncProcessPosix;
+//   const SyncProcessPosix = opaque {};
+// POSIX: SyncProcessPosix 是 opaque 类型，不应该被实际实例化
+// Windows: SyncWindowsProcess 有实际的 onProcessExit 实现
+// 在 ProcessExitHandler.call 中，POSIX 路径到达 SyncProcess 分支时会 panic
+// @panic("This code should not reached")
+// 因此这里保留空实现作为类型系统的占位
 public class SyncProcess {
-    public func onProcessExit(status!: Status, rusage!: Rusage) {}
+    /// POSIX: 不应被调用 (会 panic)
+    /// Windows: 对应 SyncWindowsProcess.onProcessExit(status, rusage)
+    /// 严格翻译自: process.zig:177-183
+    public func onProcessExit(status!: Status, rusage!: Rusage) {
+        // POSIX: panic("This code should not reached")
+        // 保留为空实现以兼容类型系统; 实际运行时在 ProcessExitHandler.call
+        // 中已通过 panic 处理
+    }
 }
 
 /// 信号转发 FFI (对应 C++ 实现)

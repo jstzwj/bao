@@ -17,5 +17,23 @@ public class CommonAbortReason {
     // FFI 中指向 TypedArray 向量的指针偏移量
     public static let FFI_POINTER_OFFSET_TO_TYPED_ARRAY_VECTOR: Int64 = 16
 
-    public init() {}
+    /// The abort reason message
+    public var message: String
+
+    public init() {
+        message = "AbortError"
+    }
+
+    public init(message: String) {
+        this.message = message
+    }
+
+    /// Convert to JS error value
+    /// 对应 Bun: CommonAbortReason.toJS(globalObject)
+    public func toJsValue(): JsValue {
+        let obj = JsObject()
+        obj.set("name", JsValue("AbortError"))
+        obj.set("message", JsValue(message))
+        JsValue(obj)
+    }
 }

@@ -63,9 +63,14 @@ public class HTMLBundle {
     }
 
     /// 转换为 JS 值
-    /// 对应 Bun: pub fn to_js(`this`: *HTMLBundle, global: &JSGlobalObject) -> JsValue
+    /// 对应 Bun: pub const toJS = jsc.Codegen.JSHTMLBundle.toJS
+    /// Bun 中通过 JSC Codegen 生成，将 HTMLBundle 包装为 JS 对象。
+    /// 此处简化实现：创建包含 path 属性的 JS 值。
+    /// TODO: 当 JSC 绑定 codegen 完成后替换为 Codegen.JSHTMLBundle.toJS
     public func toJS(global: JsGlobalObject): JsValue {
-        JsValue.jsNull() // stub: HTMLBundle toJS
+        // 简化: 返回路径字符串作为 JS 值
+        // 真实实现应创建 JSHTMLBundle 对象并绑定 finalize 回调
+        return JsValue(path)
     }
 
     /// 终结 (GC 回调)
@@ -75,9 +80,12 @@ public class HTMLBundle {
     }
 
     /// 获取路径索引
-    /// 对应 Bun: pub fn get_index(`this`: &Self, global: &JSGlobalObject) -> JsResult<JsValue>
+    /// 对应 Bun: pub fn getIndex(this, globalObject) bun.JSError!JSValue
+    /// Bun: return bun.String.createUTF8ForJS(globalObject, this.path)
     public func getIndex(global: JsGlobalObject): JsValue {
-        JsValue.jsNull() // simplified: return path as JS string (stub)
+        // 对应 Bun: bun.String.createUTF8ForJS(globalObject, this.path)
+        // 简化: 直接用 JsValue(path) 创建 JS 字符串
+        return JsValue(path)
     }
 
     /// 增加引用

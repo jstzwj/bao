@@ -8,6 +8,7 @@ import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
 import bao_core.Output
+import bao_sys.OS
 import bao_core.defaultAllocator
 import bao_event_loop.Timespec
 import bao_runtime.test_runner.timers.FakeTimers
@@ -307,7 +308,10 @@ public class Jest {
         let mockModuleFn = JsValue.zero
 
         module.put(globalObject.globalThis, "mock", mockFn)
-        // mockFn is a stub - skip sub-property puts
+        // 对应 Bun: mockFn.put(globalObject, "module", mockModuleFn) etc.
+        mockFn.put(globalObject.globalThis, "module", mockModuleFn)
+        mockFn.put(globalObject.globalThis, "restore", restoreAllMocks)
+        mockFn.put(globalObject.globalThis, "clearAllMocks", clearAllMocks)
 
         // jest对象
         let jest = JsValue.createEmptyObject(globalObject.globalThis, Int64(9) + Int64(FakeTimers.timerFnsCount))
@@ -480,10 +484,25 @@ public func onUnhandledRejection(jscVm: VirtualMachine, globalObject: JSGlobalOb
         let buntest = buntestOpt.getOrThrow()
 
         // 标记未处理错误属于当前活跃测试
+        // 对应 Bun: 检查错误是否发生在 hook 上下文中
         var currentStateData = buntest.getCurrentStateData()
 
-        // Stub: entry/sequence pattern matching simplified
-        // The original code checks if the error occurs in a hook context
+        // 对应 Bun: if (entry != sequence.test_entry) currentStateData = .start
+        // 检查当前活跃条目是否为 hook（而非 test entry）
+        let ref = BunTest.ref(buntestStrong, currentStateData)
+        if (ref.isSome()) {
+            let refVal = ref.getOrThrow()
+            let entry = refVal.entry(buntest)
+            let sequence = refVal.sequence(buntest)
+            if (entry.isSome() && sequence.isSome()) {
+                let entryVal = entry.getOrThrow()
+                let seqVal = sequence.getOrThrow()
+                // 如果当前条目不是 test_entry，说明是在 hook 中发生的错误
+                if (entryVal != seqVal.testEntry.getOrThrow()) {
+                    currentStateData = RefDataValue.start // 标记为测试间未处理错误
+                }
+            }
+        }
 
         buntest.onUncaughtException(
             globalObject,
@@ -525,15 +544,63 @@ public func formatLabel(globalThis!: JSGlobalObject, label!: String, functionArg
     while (idx < label.size) {
         let char = label[idx]
 
-        // $variablePath语法 - stub simplified
-        if (label[idx..idx+1] == "$") {
-            // Stub: just append the $ and continue
-            result.append("$")
-            idx += 1
-            while (idx < label.size && label[idx..idx+1] != " " && label[idx..idx+1] != "%" && label[idx..idx+1] != "$") {
+        // $variablePath语法 - 对应 Bun: $variablePath property access
+        // 从 functionArgs[0]（对象）中读取属性值
+        if (label[idx..idx+1] == "$" && idx + 1 < label.size && functionArgs.size > 0 && functionArgs[0].isObject()) {
+            let varStart = idx + 1
+            var varEnd = varStart
+
+            // 检查是否是有效的标识符开头
+            if (varEnd < label.size && isIdentifierStart(label[varEnd])) {
+                varEnd += 1
+                while (varEnd < label.size) {
+                    let c = label[varEnd]
+                    if (c == '.'.toInt()) {
+                        if (varEnd + 1 < label.size && isIdentifierContinue(label[varEnd + 1])) {
+                            varEnd += 1
+                        } else {
+                            break
+                        }
+                    } else if (isIdentifierContinue(c)) {
+                        varEnd += 1
+                    } else {
+                        break
+                    }
+                }
+
+                let varPath = label[varStart..varEnd]
+                // 尝试从第一个参数对象获取属性值
+                let value = functionArgs[0].getIfPropertyExistsFromPath(globalThis.globalThis, varPath)
+                if (value.isSome() && !value.getOrThrow().isEmptyOrUndefinedOrNull()) {
+                    let resolvedValue = value.getOrThrow()
+                    // 对于字符串，使用 toString 避免引号（与 Jest 行为一致）
+                    if (resolvedValue.isString()) {
+                        result.append(resolvedValue.toSlice(globalThis.globalThis))
+                    } else {
+                        let formatter = makeFormatter(globalThis)
+                        result.append(formatter.format(resolvedValue))
+                    }
+                    idx = varEnd
+                    idx += 1
+                    continue
+                }
+                // 无法解析的 $variablePath，保留原样
+                result.append("$")
+                result.append(varPath)
+                idx = varEnd
                 idx += 1
+                continue
+            } else {
+                // 不是有效的标识符开头，作为普通 $ 处理
+                while (varEnd < label.size && isIdentifierContinue(label[varEnd]) && label[varEnd] != "$".toInt()) {
+                    varEnd += 1
+                }
+                result.append("$")
+                result.append(label[varStart..varEnd])
+                idx = varEnd
+                idx += 1
+                continue
             }
-            continue
         } else if (label[idx..idx+1] == "%" && (idx + 1 < label.size) && !(argsIdx >= functionArgs.size)) {
             let currentArg = functionArgs[argsIdx]
             let nextStr = label[idx + 1..idx + 2]
@@ -614,9 +681,10 @@ public func captureTestLineNumber(callFrame!: CallFrame, globalThis!: JSGlobalOb
 /// CI环境中的错误
 ///
 /// 如果在CI环境中运行，抛出错误提示用户设置CI=false来覆盖。
+/// 对应 Bun: jest.zig errorInCI
 public func errorInCI(globalObject!: JSGlobalObject, message!: String): ?JsValue {
-    // Stub: CIInfo.isCI() simplified to false
-    if (false) {
+    // 对应 Bun: if (bun.ci.isCI())
+    if (isCIEnv()) {
         globalObject.`throw`((message) + "\nTo override, set the environment variable CI=false.")
         return None
     }
@@ -636,4 +704,26 @@ public class TestOptions {
 public class ReporterOptions {
     public var junit: Bool = false
     public init() {}
+}
+
+// ========== 标识符辅助函数 ==========
+/// 对应 Bun: bun.js_lexer.isIdentifierStart / isIdentifierContinue
+/// 用于 formatLabel 中的 $variablePath 语法
+
+/// 判断字符是否是 JS 标识符的起始字符
+public func isIdentifierStart(ch: UInt8): Bool {
+    // a-z, A-Z, _, $
+    if (ch >= 97 && ch <= 122) { return true }  // a-z
+    if (ch >= 65 && ch <= 90) { return true }   // A-Z
+    if (ch == 95) { return true }               // _
+    if (ch == 36) { return true }               // $
+    return false
+}
+
+/// 判断字符是否是 JS 标识符的后续字符
+public func isIdentifierContinue(ch: UInt8): Bool {
+    if (isIdentifierStart(ch)) { return true }
+    // 0-9
+    if (ch >= 48 && ch <= 57) { return true }
+    return false
 }

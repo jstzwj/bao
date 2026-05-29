@@ -22,12 +22,16 @@ import bao_collections.ArrayList
 // ============================================================================
 
 // ============================================================================
-// 本地 Stub 类型定义
-// 这些类型定义在其他子包或尚未翻译的模块中，提供编译所需的最小接口
+// 本地类型定义
+// 以下类型按优先级标注：
+//   - [KEPT] 接口不兼容: 真实类型存在但 API 签名不同，保留本地简化版本
+//   - [KEPT] 尚不存在: 真实类型尚未在对应包中实现
 // ============================================================================
 
-/// Blob stub - 文件/数据Blob
-/// 完整定义在 bao_runtime.webcore.blob 或 bao_http 包中
+/// Blob - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_runtime.webcore.blob.Blob（23+ 字段），
+/// 但 server 模块仅需最小子集接口。保留本地简化版本以避免大面积适配。
+/// TODO: 逐步迁移到 import bao_runtime.webcore.Blob
 public class Blob {
     public var store: ?BlobStore
     public init() {
@@ -43,14 +47,19 @@ public class Blob {
     }
 }
 
-/// BlobStore stub
+/// BlobStore - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_runtime.webcore.blob.BlobStore（20+ 字段），
+/// 但此处仅需 store: ?BlobStore 和 getPath() 最小接口。
+/// TODO: 逐步迁移到 import bao_runtime.webcore.BlobStore
 public class BlobStore {
     public init() {}
     public func getPath(): ?String { None }
 }
 
-/// JSPromiseStrong stub - 强引用JS Promise
-/// 完整定义在 bao_runtime.webcore 等子包中
+/// JSPromiseStrong - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_runtime.webcore 等子包中，但 API 不同。
+/// 保留本地版本：泛型版使用 JsObject 而非 JSGlobalObject。
+/// TODO: 迁移到统一的真实类型
 public class JSPromiseStrong {
     private var _has: Bool
     private var _value: JsValue
@@ -70,8 +79,10 @@ public class JSPromiseStrong {
     }
 }
 
-/// UwsRequest stub - UWS HTTP请求
-/// 完整定义在 bao_uws_sys.Request 中，但为避免大面积API适配，使用本地stub
+/// UwsRequest - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_uws_sys.Request，但使用 CPointer<Unit> 构造和 Array<UInt8> 返回值，
+/// 而此模块使用 String 简化接口。保留本地版本。
+/// TODO: 迁移到 bao_uws_sys.Request，使用 UTF-8 编解码适配层
 public class UwsRequest {
     public init() {}
     public func method(): String { "GET" }
@@ -83,8 +94,10 @@ public class UwsRequest {
     public func parameter(name: String): String { "" }
 }
 
-/// UwsApp stub - UWS App
-/// 完整定义在 bao_uws_sys.App 中
+/// UwsApp - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_uws_sys.App，但使用 CPointer<Unit> 构造和 C FFI 回调，
+/// 而此模块使用 Any 简化回调签名。保留本地版本。
+/// TODO: 迁移到 bao_uws_sys.App
 public class UwsApp {
     public init() {}
     public func close(): Unit {}
@@ -95,8 +108,10 @@ public class UwsApp {
     public func setFlags(requireHostHeader: Bool, useStrictMethodValidation: Bool): Unit {}
 }
 
-/// JSStrong stub - 强引用JS值
-/// 对应 bao_jsc.Strong<JsValue> 的简化别名
+/// JSStrong - [KEPT] 接口不兼容
+/// 对应 bao_jsc.Strong<JsValue> 的非泛型简化版本。
+/// bao_jsc.Strong<T> 使用 JsObject 而非 JSGlobalObject，且 API 不同。
+/// TODO: 迁移到 bao_jsc.Strong<JsValue>
 public class JSStrong {
     private var _value: JsValue
     public init() {
@@ -113,8 +128,10 @@ public class JSStrong {
     }
 }
 
-/// JSStrongOptional stub - 可选的强引用JS值
-/// 对应 bao_jsc.StrongOptional 的简化别名
+/// JSStrongOptional - [KEPT] 接口不兼容
+/// 对应 bao_jsc.StrongOptional<JsValue> 的非泛型简化版本。
+/// bao_jsc.StrongOptional<T> 使用 JsObject 而非 JSGlobalObject。
+/// TODO: 迁移到 bao_jsc.StrongOptional<JsValue>
 public class JSStrongOptional {
     private var _has: Bool
     private var _value: JsValue
@@ -131,8 +148,10 @@ public class JSStrongOptional {
     }
 }
 
-/// VirtualMachine stub - 虚拟机
-/// 完整定义在 bao_runtime 根包中
+/// VirtualMachine - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_runtime.VirtualMachine（使用 EventLoop, JsObject 等字段），
+/// 但 server 模块需要特定接口（global: JSGlobalObject, eventLoopHandle, enqueueTask 等）。
+/// TODO: 对齐 bao_runtime.VirtualMachine 接口后替换
 public class VirtualMachine {
     public var global: JSGlobalObject
     public var eventLoopHandle: Any
@@ -150,13 +169,17 @@ public class VirtualMachine {
     public func debugger(): ?Any { None }
 }
 
-/// RequestContextStackAllocator stub - 请求上下文池分配器
+/// RequestContextStackAllocator - [KEPT] 尚不存在
+/// 真实类型尚无对应实现。这是请求上下文池分配器。
+/// 参考: Bun src/runtime/server/server.zig RequestContextStackAllocator
 public class RequestContextStackAllocator {
     public init() {}
     public func tryGet(): RequestContext { RequestContext() }
 }
 
-/// AsyncKeepAlive stub - 异步保活引用
+/// AsyncKeepAlive - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_runtime.api.AsyncKeepAlive，但构造器/方法签名不同。
+/// 参考: Bun src/jsc/AsyncKeepAlive.zig
 public class AsyncKeepAlive {
     public init() {}
     public func isActive(): Bool { false }
@@ -164,10 +187,14 @@ public class AsyncKeepAlive {
     public func unref(vm: VirtualMachine): Unit {}
 }
 
-/// DebuggerId stub - 调试器ID
+/// DebuggerId - 类型别名
+/// 参考: bao_runtime.bake.stubs.DebuggerId = Int64
 public type DebuggerId = Int64
 
-/// HTTPMethod stub - HTTP方法枚举
+/// HTTPMethod - HTTP方法枚举
+/// [KEPT] 简化版本。真实枚举存在于 bao_runtime.bake.stubs.HTTPMethod，
+/// 但可能字段不完全相同。保留本地版本以确保 server 包自包含。
+/// 参考: Bun src/http/Method.zig
 public enum HTTPMethod {
     | GET
     | POST
@@ -208,18 +235,24 @@ public enum HTTPMethod {
 /// AnyTask is imported from bao_event_loop.* - no stub needed
 /// ArenaAllocator is imported from bao_core.* - no stub needed
 
-/// Object stub
+/// Object - [KEPT] 基础类型
+/// Cangjie 标准库中不提供 Object 占位类型，保留本地定义。
 public class Object {
     public init() {}
 }
 
-/// AsyncLoop stub
+/// AsyncLoop - [KEPT] 简化版本
+/// 真实类型存在于 bao_runtime.socket.AsyncLoop，但为空类。
+/// 保留本地简化版本以确保 server 包自包含。
 public class AsyncLoop {
     public static func get(): AsyncLoop { AsyncLoop() }
     public init() {}
 }
 
-/// DefaultAllocator is imported from bao_bun_alloc (via dependency chain) - stub for now
+/// DefaultAllocator - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_bun_alloc.DefaultAllocator（使用 Allocator 接口），
+/// 但此处仅需 dupe() 方法。保留本地简化版本。
+/// TODO: 迁移到 import bao_bun_alloc.DefaultAllocator
 public class DefaultAllocator {
     public init() {}
     public func dupe(s: String): String { s }
@@ -238,7 +271,10 @@ public class DefaultAllocator {
 /// GetOrStartLoadResult is defined in html_bundle.cj - no stub needed
 /// ServerWebSocket is defined in server_websocket.cj - no stub needed
 
-/// JSPromise stub
+/// JSPromise - [KEPT] 简化版本
+/// 真实类型存在于 bao_runtime.webcore.streams.JSPromise，但 API 不同。
+/// 保留本地最小接口。
+/// 参考: Bun src/jsc/JSPromise.zig
 public class JSPromise {
     public static func resolvedPromiseValue(global: JSGlobalObject, value: JsValue): JsValue { value }
     public static func resolvedPromise(global: JSGlobalObject, value: JsValue): JSPromise { JSPromise() }
@@ -246,17 +282,25 @@ public class JSPromise {
     public func toJS(): JsValue { JsValue.undefined() }
 }
 
-/// JSWeakRef stub
+/// JSWeakRef - [KEPT] 尚不存在
+/// JS 弱引用类型，尚无完整实现。
+/// 参考: Bun src/jsc/JSWeakRef.zig
 public class JSWeakRef {
     public static func initRef(value: Any): JSWeakRef { JSWeakRef() }
 }
 
-/// UwsAnyWebSocket stub
+/// UwsAnyWebSocket - [KEPT] 简化版本
+/// WebSocket 广播辅助类。真实实现需要 uws FFI。
+/// 参考: Bun src/uws_sys/WebSocket.zig AnyWebSocket
 public class UwsAnyWebSocket {
     public static func publishWithOptions(app: UwsApp, topic: String, data: Any, opcode: Any, compress: Bool): Int64 { 0 }
 }
 
-/// Opcode stub
+/// Opcode - [KEPT] 字段名不兼容
+/// 真实枚举存在于 bao_uws_sys.Opcode (text/binary/close/ping/pong)
+/// 和 bao_uws.Opcode (Continuation/Text/Binary/Close/Ping/Pong)，字段名不同。
+/// 保留本地小写版本以确保与 Bun 源码字段名一致。
+/// 参考: Bun src/uws_sys/lib.rs Opcode
 public enum Opcode {
     | text
     | binary
@@ -265,16 +309,19 @@ public enum Opcode {
     | pong
 }
 
-/// SystemError stub
+/// SystemError - [KEPT] 接口不兼容
+/// 真实类型存在于 bao_jsc.SystemError（使用 JsObject），
+/// 但此处使用 JSGlobalObject 接口。保留本地适配版本。
+/// TODO: 迁移到 import bao_jsc.SystemError
 public class SystemError {
     public init(message: String, code: String, syscall: String) {}
     public func toErrorInstance(global: JSGlobalObject): JsValue { JsValue.undefined() }
 }
 
-/// RouteDeclaration stub (forward reference to server_config.cj)
-/// Note: RouteDeclaration is defined in server_config.cj
+/// RouteDeclaration - 定义在 server_config.cj（同一包内，直接可见）
 
-/// ServerConfigFromJSOptions stub
+/// ServerConfigFromJSOptions - JS配置解析选项
+/// 参考: Bun src/runtime/server/ServerConfig.zig fromJS
 public class ServerConfigFromJSOptions {
     public var allowBakeConfig: Bool
     public var isFetchRequired: Bool
@@ -286,7 +333,8 @@ public class ServerConfigFromJSOptions {
     }
 }
 
-/// StaticRouteOptions stub
+/// StaticRouteOptions - 静态路由选项
+/// 参考: Bun src/runtime/server/StaticRoute.zig Options
 public class StaticRouteOptions {
     public var server: ?ServerRef
     public var headers: ?FetchHeaders
@@ -296,7 +344,8 @@ public class StaticRouteOptions {
     }
 }
 
-/// FileRouteOptions stub
+/// FileRouteOptions - 文件路由选项
+/// 参考: Bun src/runtime/server/FileRoute.zig Options
 public class FileRouteOptions {
     public var server: ?ServerRef
     public var headers: ?FetchHeaders
@@ -309,11 +358,13 @@ public class FileRouteOptions {
 /// ServerInitContext forward - actual definition is in this file
 /// (ServerInitContext is defined below)
 
-/// BunString helper functions (since bao_core.BunString = String, we use String directly)
-/// These replace the bao_jsc.BunString class static methods
+/// BunString 辅助函数
+/// 真实实现存在于 bao_jsc.BunString.createUTF8ForJS（使用 JsObject），
+/// 此处使用 JSGlobalObject 的简化版本。
+/// TODO: 迁移到 bao_jsc.BunString 统一接口
 public func bunStringCloneUTF8(s: String): String { s }
 public func bunStringCreateUTF8ForJS(global: JSGlobalObject, s: String): JsValue {
-    // Simplified: create a JS string from a Cangjie string
+    // 真实实现应调用 BunString.createUTF8ForJS(global, s.toByteArray())
     JsValue.jsNull()
 }
 
@@ -533,15 +584,16 @@ public class AnyRouteObj {
 }
 
 // ============================================================================
-// 本地类型别名 (无法从 bao_runtime.bake 子包导入)
+// 本地类型定义 (bake 子包中的类型尚未可导入)
+// TODO: 当 bake 子包完全翻译后，替换为 import bao_runtime.bake.*
 // ============================================================================
 
-/// JS字符串分配列表 - 对应 bake包中的 StringRefList
+/// JS字符串分配列表 - 对应 bake 包中的 StringRefList
 public class StringRefList {
     public init() {}
 }
 
-/// 框架路由器类型 - 对应 bake包中的 FrameworkRouterType
+/// 框架路由器类型 - 对应 bake 包中的 FrameworkRouterType
 public class FrameworkRouterType {
     public init() {}
 }

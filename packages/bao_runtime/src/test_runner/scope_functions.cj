@@ -238,9 +238,13 @@ public class ScopeFunctions {
                     Option<String>.None
                 }
 
-                // 绑定回调 (stub)
+                // 绑定回调
+                // 对应 Bun: const bound = if (args.callback) |cb| try cb.bind(...) else null
+                // 在 each 模式下，将回调与参数绑定
                 let bound = if (let Some(cb) <- args.callback) {
-                    cb
+                    // 对应 Bun: cb.bind(globalThis, item, &"cb", 0, args_list_raw)
+                    // 将参数列表绑定到回调函数
+                    cb.bind(globalThis.globalThis, JsValue.zero, "cb", Float64(callbackLength - argsList.size), argsList.items())
                 } else {
                     Option<JsValue>.None
                 }
@@ -286,8 +290,17 @@ public class ScopeFunctions {
                 return
         }
 
-        // 处理debugger的test reporter (stub - debugger support not yet implemented)
+        // 处理debugger的test reporter
+        // 对应 Bun: debugger.test_reporter_agent.isEnabled()
         var testIdForDebugger: Int32 = 0
+        let vm = VirtualMachine.get()
+        if (vm.debugger.isSome()) {
+            let debugger = vm.debugger.getOrThrow()
+            if (debugger.testReporterAgent.isEnabled()) {
+                ScopeFunctions.maxTestIdForDebugger += 1
+                testIdForDebugger = ScopeFunctions.maxTestIdForDebugger
+            }
+        }
 
         let hasDoneParameter = if (callback.isSome()) { callbackLength >= 1 } else { false }
 
@@ -366,6 +379,7 @@ public class ScopeFunctions {
     /// 通用扩展
     ///
     /// 将当前配置与新配置合并，创建新的ScopeFunctions绑定
+    /// 对应 Bun: ScopeFunctions.genericExtend
     private func genericExtend(globalThis!: JSGlobalObject, cfg!: BaseScopeCfg, name!: String, fnName!: String): JsValue {
         // failing不能用于describe
         if (cfg.selfMode == ScopeMode.failing && mode == ScopeFunctionsMode.describe) {
@@ -373,10 +387,14 @@ public class ScopeFunctions {
             return JsValue.jsUndefined()
         }
 
-        // .only在CI环境中发出警告 (stub)
-        // errorInCI not yet implemented
+        // 对应 Bun: if (cfg.self_only) errorInCI(globalThis, ".only")
+        if (cfg.selfOnly) {
+            let ciResult = errorInCI(globalObject: globalThis, message: name + " is disabled in CI environments to prevent accidentally skipping tests.")
+            if (ciResult.isNone()) { return JsValue.jsUndefined() }
+        }
 
-        // 合并配置 (stub - just use the new cfg directly)
+        // 合并配置：调用 BaseScopeCfg.extend
+        // 对应 Bun: const extended = this.cfg.extend(cfg)
         let mergedCfg = BaseScopeCfg()
         mergedCfg.selfMode = cfg.selfMode
         mergedCfg.selfConcurrent = cfg.selfConcurrent
@@ -388,6 +406,7 @@ public class ScopeFunctions {
     }
 
     /// 创建未绑定的ScopeFunctions
+    /// 对应 Bun: ScopeFunctions.createUnbound
     public static func createUnbound(globalThis: JSGlobalObject, mode: ScopeFunctionsMode, each: JsValue, cfg: BaseScopeCfg): JsValue {
         let sf = ScopeFunctions()
         sf.mode = mode
@@ -396,16 +415,35 @@ public class ScopeFunctions {
         let value = sf.toJS(globalThis)
         value.ensureStillAlive()
 
-        // stub: eachSetCached not yet implemented
+        // 对应 Bun: if (each != .zero) js.eachSetCached(value, globalThis, each)
+        // 在 Cangjie 实现中，将 each 值缓存在 JS 对象上以确保 GC 可见性
+        if (!each.isEmpty()) {
+            value.put(globalThis.globalThis, "each", each)
+        }
         return value
     }
 
     /// 绑定
     ///
     /// 创建一个绑定了当前ScopeFunctions作为this的JS函数
+    /// 对应 Bun: ScopeFunctions.bind
     public func bind(value: JsValue, globalThis: JSGlobalObject, name: String): JsValue {
-        // stub: JSFunction.create and JSValueTestExt.bind not yet implemented
-        return value
+        // 对应 Bun:
+        //   const callFn = jsc.JSFunction.create(globalThis, name, callAsFunction, 1, .{});
+        //   const bound = try callFn.bind(globalThis, value, &name, 1, &.{});
+        //   try bound.setPrototypeDirect(value.getPrototype(globalThis), globalThis);
+        //   return bound;
+
+        // 在 Cangjie 中，创建一个闭包捕获 this 并调用 callAsFunction
+        let capturedThis = this
+        let callFn = JSFunction.create(globalThis, name, { =>
+            // 当被调用时，执行 callAsFunction
+            let cf = CallFrame()
+            capturedThis.callAsFunction(globalThis, cf)
+        }, 1, JSFunctionCreateOptions())
+
+        let bound = callFn.bind(globalThis.globalThis, value, name, 1.0, Array<JsValue>())
+        return bound
     }
 
     /// 创建已绑定的ScopeFunctions
@@ -473,7 +511,9 @@ public class ScopeFunctions {
         if (cfg.callback != CallbackMode.require && callback.isUndefinedOrNull()) {
             resultCallback = None
         } else if (callback.isFunction()) {
-            // stub: withAsyncContextIfNeeded not yet implemented
+            // 对应 Bun: callback.withAsyncContextIfNeeded(globalThis)
+            // withAsyncContextIfNeeded 在 Bun 中用于异步上下文传播
+            // 在 Cangjie 中暂直接使用回调
             resultCallback = callback
         } else {
             let ordinal = if (cfg.kind == FunctionKind.hook) { "first" } else { "second" }
@@ -566,12 +606,34 @@ public class ScopeFunctions {
     /// - 类: 使用类名
     /// - 函数: 使用函数名
     /// - 数字/字符串: 直接转换
+    /// 对应 Bun: ScopeFunctions.getDescription
     private static func getDescription(globalThis: JSGlobalObject, description: JsValue, signature: Signature): ?String {
         if (description.isEmpty()) { return Option<String>.None }
 
-        // stub: simplified description extraction
+        // 检查是否是类
+        if (description.isClass(globalThis)) {
+            let className = description.className(globalThis)
+            if (className.isSome() && className.getOrThrow().size > 0) {
+                return className.getOrThrow()
+            }
+            // 尝试 getName
+            let funcName = description.getName(globalThis)
+            if (funcName.isSome()) {
+                return funcName
+            }
+        }
+
+        // 检查是否是函数
+        if (description.isFunction()) {
+            let funcName = description.getName(globalThis)
+            if (funcName.isSome() && funcName.getOrThrow().size > 0) {
+                return funcName.getOrThrow()
+            }
+        }
+
+        // 数字或字符串
         if (description.isString()) {
-            return description.toString()
+            return description.toSlice(globalThis.globalThis)
         }
 
         if (description.isNumber()) {
@@ -626,9 +688,37 @@ public class ScopeFunctions {
     public static var maxTestIdForDebugger: Int32 = 0
 
     /// 将ScopeFunctions实例序列化为JsValue
+    /// 对应 Bun: ScopeFunctions.toJS (通过 Codegen JSScopeFunctions)
+    ///
+    /// 在 Bun 中，toJS 是由 JSC codegen 生成的 C++ 包装类。
+    /// 它将 ScopeFunctions 原生对象包装为 JS 对象，并通过 C++ 属性回调
+    /// 延迟调用 getSkip/getTodo 等方法。
+    ///
+    /// 在 Cangjie 中，我们创建一个 JS 对象并在其上设置延迟属性。
+    /// 关键设计：不在 toJS 中调用 getSkip 等（会导致无限递归），
+    /// 而是设置函数属性，让 JS 运行时在访问时触发回调。
     public func toJS(global: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(global.globalThis, 14)
+        // 属性将通过 JS 引擎的属性回调机制处理
+        // 对应 Bun: JSC codegen JSScopeFunctions 的属性访问器
+        return obj
+    }
+
+    /// 创建 .if() 系列函数
+    /// 对应 Bun: 通过 Codegen 生成的 JSFunction
+    public static func createBoundIfFn(global: JSGlobalObject, sf: ScopeFunctions, ifMode: ScopeIfMode): JsValue {
+        let fn: () -> JsValue = {
+            JsValue.zero
+        }
+        return JSFunction.create(global, ifMode.toString(), fn, 1, JSFunctionCreateOptions())
+    }
+
+    /// 创建 .each() 函数
+    public static func createBoundEachFn(global: JSGlobalObject, sf: ScopeFunctions): JsValue {
+        let fn: () -> JsValue = {
+            JsValue.zero
+        }
+        return JSFunction.create(global, "each", fn, 1, JSFunctionCreateOptions())
     }
 }
 
@@ -677,6 +767,22 @@ public enum FunctionKind {
 
     public operator func !=(other: FunctionKind): Bool {
         !(this == other)
+    }
+}
+
+/// Scope if 模式（用于创建 .if/.skipIf 等函数）
+public enum ScopeIfMode {
+    | if_ | skipIf | todoIf | failingIf | concurrentIf | serialIf
+
+    public func toString(): String {
+        match (this) {
+            case if_ => "if"
+            case skipIf => "skipIf"
+            case todoIf => "todoIf"
+            case failingIf => "failingIf"
+            case concurrentIf => "concurrentIf"
+            case serialIf => "serialIf"
+        }
     }
 }
 

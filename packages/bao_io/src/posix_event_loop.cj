@@ -12,21 +12,16 @@ import bao_core.*
 import bao_sys.*
 import bao_collections.*
 
-// epoll 操作常量 (提前定义以避免前向引用错误)
+// epoll 操作常量
 private let EPOLL_CTL_ADD: Int32 = 1
 private let EPOLL_CTL_MOD: Int32 = 3
 private let EPOLL_CTL_DEL: Int32 = 2
-private let EPOLL_CLOEXEC: Int32 = 0x80000
 private let EPOLLIN: UInt32 = 0x001
 private let EPOLLOUT: UInt32 = 0x004
 private let EPOLLHUP: UInt32 = 0x010
 private let EPOLLERR: UInt32 = 0x008
 private let EPOLLET: UInt32 = 1 << 31
 private let EPOLLONESHOT: UInt32 = 1 << 30
-
-// eventfd 标志
-private let EFD_NONBLOCK: Int32 = 0o4000
-private let EFD_CLOEXEC: Int32 = 0o2000000
 
 // ============================================================================
 // Loop - 事件循环

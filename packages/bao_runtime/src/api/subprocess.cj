@@ -14,11 +14,14 @@ import bao_event_loop.*
 // 对应 Bun: src/runtime/api/bun/subprocess.rs
 // ============================================================================
 
-/// 平台相关的 stdio 结果类型 (stub)
+/// 平台相关的 stdio 结果类型
+/// 对应 Bun: const StdioResult = if (Environment.isWindows) ... else ?bun.FD
+/// Linux/macOS: ?bun.FD (可选文件描述符)
+/// 简化为枚举类型。TODO: 迁移到使用 ?Int64 (可选文件描述符)
 public enum StdioResult {
-    | owned
-    | unowned
-    | unavailable
+    | owned       // FD 拥有权归此进程
+    | unowned     // FD 不归此进程管理
+    | unavailable // FD 不可用
 }
 
 /// MaxBuf 类型别名 - MaxBufKind 已在 bao_io 中定义

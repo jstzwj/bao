@@ -1688,27 +1688,13 @@ public interface BufferedReaderParent {
     func eventLoop(): EventLoopHandle
 }
 
-// TODO: extension keyword not supported in current Cangjie version
 // Terminal 实现 BufferedReaderParent
 // 严格翻译自: Terminal.rs impl BufferedReaderParent for Terminal
 // BufferedReaderParent 的回调使用 from_parent_ptr 恢复 &Terminal
-// extension Terminal <: BufferedReaderParent {
-//     public func onReadChunk(chunk!: Array<UInt8>, hasMore!: ReadState): Bool {
-//         return onReadChunk(chunk, hasMore)
-//     }
-//     public func onReaderDone(): Unit {
-//         onReaderDone()
-//     }
-//     public func onReaderError(err!: SysError): Unit {
-//         onReaderError(err)
-//     }
-//     public func loop_(): CPointer<Unit> {
-//         return loop_()
-//     }
-//     public func eventLoop(): EventLoopHandle {
-//         return eventLoop()
-//     }
-// }
+// Cangjie 使用 extend 关键字实现接口扩展
+// Terminal 已定义同名方法 onReadChunk/onReaderDone/onReaderError/loop_/eventLoop
+// 因此接口扩展无需重新实现这些方法 (Cangjie 自动匹配)
+extend Terminal <: BufferedReaderParent {}
 
 // ============================================================================
 // StreamingWriterParent trait 实现
@@ -1728,29 +1714,29 @@ public interface StreamingWriterParent {
     func swLoop(): CPointer<Unit>
 }
 
-// TODO: extension keyword not supported in current Cangjie version
 /// Terminal 实现 StreamingWriterParent
 /// 严格翻译自: Terminal.rs impl bun_io::pipe_writer::PosixStreamingWriterParent for Terminal
-// extension Terminal <: StreamingWriterParent {
-//     public func onWrite(amount!: Int64, status!: WriteStatus): Unit {
-//         onWrite(amount, status)
-//     }
-//     public func onError(err!: SysError): Unit {
-//         onWriterError(err)
-//     }
-//     public func onReady(): Unit {
-//         onWriterReady()
-//     }
-//     public func onClose(): Unit {
-//         onWriterClose()
-//     }
-//     public func swEventLoop(): EventLoopHandle {
-//         return eventLoopHandle
-//     }
-//     public func swLoop(): CPointer<Unit> {
-//         return eventLoopHandle.loop()
-//     }
-// }
+/// Cangjie 使用 extend 关键字实现接口扩展
+/// Terminal 中对应方法名不同: onWrite->已有, onError->onWriterError,
+/// onReady->onWriterReady, onClose->onWriterClose
+/// 因此在 extend 中提供适配器方法映射到 Terminal 的内部方法
+extend Terminal <: StreamingWriterParent {
+    public func onError(err!: SysError): Unit {
+        onWriterError(err)
+    }
+    public func onReady(): Unit {
+        onWriterReady()
+    }
+    public func onClose(): Unit {
+        onWriterClose()
+    }
+    public func swEventLoop(): EventLoopHandle {
+        return eventLoopHandle
+    }
+    public func swLoop(): CPointer<Unit> {
+        return eventLoopHandle.loop()
+    }
+}
 
 // ============================================================================
 // StringOrBuffer - 字符串或缓冲区辅助类

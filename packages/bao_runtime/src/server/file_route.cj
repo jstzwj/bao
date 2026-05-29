@@ -346,9 +346,27 @@ public class FileRoute {
         }
     }
 
-    /// fstat (简化)
+    /// fstat - 获取文件元数据
+    /// 对应 Bun: bun.sys.fstat(fd) -> Maybe(bun.Stat)
+    /// 使用 SysImpl.fstat 获取 PosixStat，然后转换为 FileStat
     private static func fstat(fd: Int64): FileStat {
-        return FileStat() // stub: simplified fstat
+        match (SysImpl.fstat(fd)) {
+            case Ok(stat) =>
+                let result = FileStat()
+                result.size = Int64(stat.size)
+                result.mode = Int64(stat.mode)
+                // 对应 Bun: bun.S.ISDIR(stat.mode)
+                result.isDir = FileMode.isDir(stat.mode)
+                // 对应 Bun: bun.S.ISFIFO(stat.mode)
+                result.isFifo = FileMode.isFifo(stat.mode)
+                // 对应 Bun: bun.S.ISCHR(stat.mode)
+                result.isChar = FileMode.isChar(stat.mode)
+                // 对应 Bun: bun.S.ISSOCK(stat.mode)
+                result.isSocket = FileMode.isSocket(stat.mode)
+                return result
+            case Err(_) =>
+                return FileStat()
+        }
     }
 
     /// 确定文件类型

@@ -533,7 +533,9 @@ public class BodyValue {
     }
 
     /// 转为 AnyBlob (如果可能)
-    /// Stub for fetch.cj usage
+    /// 对应 Bun: Body.Value.to_any_blob()
+    /// Converts the body value to an AnyBlob if it holds concrete data.
+    /// Returns None for Locked, Used, Error, Null, or Empty states.
     public func toAnyBlob(): ?AnyBlob {
         match (tag) {
             case BodyValueTag.Blob =>
@@ -1438,10 +1440,27 @@ public class BodyValue {
                 }
 
                 // 尝试从 Source::Blob 提取
+                // 对应 Bun: Body.Value.from_js readable stream blob path
+                // When the ReadableStream source is a Blob, we can extract the
+                // underlying Blob directly without going through the stream.
                 match (stream.source.tag) {
                     case ReadableStreamSourceTag.Blob =>
-                        // Stub: cannot extract blob from ReadableStream
-                        ()
+                        match (stream.source.blobLoader) {
+                            case Some(loader) =>
+                                let anyBlobOpt = blobLoaderToAnyBlob(loader)
+                                match (anyBlobOpt) {
+                                    case Some(anyBlob) =>
+                                        match (anyBlob.kind) {
+                                            case AnyBlobKind.Blob =>
+                                                return BodyValue(anyBlob.blob.dupeWithContentType(true))
+                                            case AnyBlobKind.InternalBlob =>
+                                                return BodyValue(InternalBlob(anyBlob.internalBlob.slice(), false))
+                                            case _ => ()
+                                        }
+                                    case None => ()
+                                }
+                            case None => ()
+                        }
                     case _ => ()
                 }
 
@@ -2104,7 +2123,10 @@ public type ValueBuffererCallback = (UIntPtr, Array<UInt8>, ?BodyValueError, Boo
 // 对应 Bun: Body.ValueBufferer
 // ============================================================================
 
-/// ReadFileResultType — 文件读取结果类型 (local stub)
+/// ReadFileResultType — file read result type
+/// 对应 Bun: file read callback result (used by ValueBufferer.onFinishedLoadingFile)
+/// In Bun this comes from the file system thread pool; here it is a local enum
+/// wrapping the success/error result of a file read operation.
 public enum ReadFileResultType {
     | Ok(Array<UInt8>)
     | Err(SyscallError)
@@ -2856,7 +2878,8 @@ public class Request {
         BodyValue()
     }
 
-    // ========== Stub members for fetch ==========
+    // ========== Request state members ==========
+    // 对应 Bun: Request struct fields
     public var url: String = ""
     public var method: HttpMethod = HttpMethod.GET
     public var headers: Headers = Headers()
@@ -2907,7 +2930,8 @@ public class Response {
         Array<UInt8>()
     }
 
-    // ========== Stub methods ==========
+    // ========== Response state members ==========
+    // 对应 Bun: Response struct fields
     public var url: String = ""
     public var body: ?BodyValue = None
     public var errorValue: ?JsValue = None

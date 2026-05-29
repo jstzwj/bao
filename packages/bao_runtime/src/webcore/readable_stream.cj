@@ -211,9 +211,26 @@ public type ReadableStreamStrongAlias = ReadableStreamStrong
 
 /// 检查给定 JS 值是否为已消费的可读流
 /// 对应 Bun: ReadableStream__isDisturbed(value, global_object) FFI
+/// Calls into JSC to check if the JS value is a disturbed ReadableStream.
+/// PORT NOTE: When bao_jsc FFI is connected, this will call the real
+/// ReadableStream__isDisturbed C++ binding. For now, checks the JS object
+/// properties to determine disturbed state.
 public func isDisturbedValue(value: JsValue): Bool {
-    // Placeholder: in real implementation this calls the C++ FFI
-    false
+    if (value.isEmptyOrUndefinedOrNull()) {
+        return false
+    }
+    if (!value.isObject()) {
+        return false
+    }
+    // Check the [[disturbed]] internal slot on the ReadableStream object
+    // In JSC, ReadableStream has a @disturbed private symbol
+    // For now, check if the object has a disturbed property set to true
+    let obj = value.toObject()
+    let disturbed = obj.get("disturbed")
+    if (disturbed.isEmptyOrUndefinedOrNull()) {
+        return false
+    }
+    disturbed.toBoolean()
 }
 
 // ============================================================================
@@ -940,9 +957,24 @@ public func byteStreamUnpipeWithoutDeref(bs: ByteStream): Unit {
     bs.pipeCallback = None
 }
 
-/// Queue microtask (placeholder)
+/// Queue microtask — enqueues a callback on the event loop microtask queue
+/// 对应 Bun: jsc.VirtualMachine.get().eventLoop().enqueueMicrotask(cb)
+/// PORT NOTE: When bao_event_loop FFI is connected, this will call
+/// the real event loop microtask enqueue. For now, uses the JsPromise
+/// static microtask queue which is the current microtask implementation.
 func queueMicrotask(cb: JsValue): Unit {
-    // Placeholder: in real implementation queues on the event loop
+    // Enqueue via the JsPromise microtask queue (available from bao_jsc)
+    // In a fully connected implementation, this would be:
+    //   EventLoop.enqueue(Microtask, { => cb.call(global, ...) })
+    JsPromise.microtaskQueue.append({ =>
+        if (cb.isCallable()) {
+            try {
+                cb.call(JsObject(), JsValue.UNDEFINED, Array<JsValue>())
+            } catch (_: Exception) {
+                // Swallow microtask errors (matches JSC behavior for internal callbacks)
+            }
+        }
+    })
 }
 
 /// StreamResult to JsValue helper

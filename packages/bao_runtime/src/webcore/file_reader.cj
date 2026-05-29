@@ -830,20 +830,92 @@ public class IntoArrayData {
 }
 
 /// StreamError
-/// 对应 Bun: streams.StreamError
+/// 对应 Bun: streams.Result.StreamError (union(enum))
+/// Variants: Error(SyscallError), AbortReason(CommonAbortReason),
+///           JSValue(jsc.JSValue), WeakJSValue(jsc.JSValue)
 public class StreamError {
-    public var err: SyscallError
+    public var kind: StreamErrorKind
+    public var err: ?SyscallError
+    public var abortReason: ?CommonAbortReason
+    /// Strong JS value reference
+    public var jsValue: ?JsValue
+    /// Weak JS value reference
+    public var weakJsValue: ?JsValue
 
     public init(err: SyscallError) {
-        this.err = err
+        kind = StreamErrorKind.Error
+        this.err = Some(err)
+        abortReason = None
+        jsValue = None
+        weakJsValue = None
+    }
+
+    public init(kind: StreamErrorKind) {
+        this.kind = kind
+        err = None
+        abortReason = None
+        jsValue = None
+        weakJsValue = None
     }
 
     public static func fromAbortReason(reason: CommonAbortReason): StreamError {
-        StreamError(SyscallError())
+        let se = StreamError(kind: StreamErrorKind.AbortReason)
+        se.abortReason = Some(reason)
+        se
     }
 
     public static func fromJSValue(value: JsValue): StreamError {
-        StreamError(SyscallError())
+        let se = StreamError(kind: StreamErrorKind.JsValue)
+        se.jsValue = Some(value)
+        se
+    }
+
+    public static func fromWeakJSValue(value: JsValue): StreamError {
+        let se = StreamError(kind: StreamErrorKind.WeakJSValue)
+        se.weakJsValue = Some(value)
+        se
+    }
+
+    /// Convert to JS error value, returning (JsValue, WasStrong) tuple
+    /// 严格翻译自 Bun: StreamError.toJSWeak(globalObject)
+    /// Returns the JS error representation and whether it was a strong reference.
+    public func toJSWeak(globalObject: JSGlobalObject): (JsValue, WasStrong) {
+        match (kind) {
+            case StreamErrorKind.Error =>
+                match (err) {
+                    case Some(e) =>
+                        // 对应 Bun: err.toJS(globalObject) catch return .{ .zero, WasStrong.Weak }
+                        let jsErr = JsValue(e.message)
+                        return (jsErr, WasStrong.Weak)
+                    case None =>
+                        return (JsValue.NULL, WasStrong.Weak)
+                }
+            case StreamErrorKind.JsValue =>
+                match (jsValue) {
+                    case Some(v) => return (v, WasStrong.Strong)
+                    case None => return (JsValue.NULL, WasStrong.Strong)
+                }
+            case StreamErrorKind.WeakJSValue =>
+                match (weakJsValue) {
+                    case Some(v) => return (v, WasStrong.Weak)
+                    case None => return (JsValue.NULL, WasStrong.Weak)
+                }
+            case StreamErrorKind.AbortReason =>
+                match (abortReason) {
+                    case Some(reason) =>
+                        let value = reason.toJsValue()
+                        return (value, WasStrong.Weak)
+                    case None =>
+                        return (JsValue.NULL, WasStrong.Weak)
+                }
+        }
+    }
+
+    /// Convert to JS error value (convenience)
+    /// 对应 Bun usage where only the JsValue is needed
+    public func toJS(globalObject: JSGlobalObject): JsValue {
+        let (val, _) = toJSWeak(globalObject)
+        val
     }
 }
 

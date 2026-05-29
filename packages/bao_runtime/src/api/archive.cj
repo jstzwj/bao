@@ -24,7 +24,10 @@ public enum ArchiveResult2<T, E> {
     | err(E)
 }
 
-// JsCallFrame stub — JSC 调用帧 (桩声明)
+/// JsCallFrame - JSC 调用帧适配器
+/// 真实类型存在于 bao_jsc.CallFrame，但 archive 模块使用特定的元组返回方法。
+/// bao_jsc.CallFrame 使用 Array<JsValue>，而此处使用 (JsValue, JsValue) 元组。
+/// TODO: 统一使用 bao_jsc.CallFrame，将 argumentsAsArray2/3 改为 argumentsAsArray
 public class JsCallFrame {
     public init() {}
     public func argument(index: Int32): JsValue { JsValue.jsUndefined() }
