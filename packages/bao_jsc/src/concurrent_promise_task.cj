@@ -91,8 +91,11 @@ public class ConcurrentPromiseTaskGeneric {
     public func onFinish() {
         if (let Some(el) <- eventLoop) {
             if (let Some(ct) <- concurrentTask) {
-                // TODO: enqueueTaskConcurrent not yet on EventLoop
-                // el.enqueueTaskConcurrent(ct)
+                // 通过 EventLoop 将并发任务入队
+                // 对应 Bun: vm.event_loop_handle.enqueueTaskConcurrent(task)
+                el.enqueue({ =>
+                    ct.run()
+                })
             }
         }
     }
