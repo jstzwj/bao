@@ -4,6 +4,7 @@
 package bao_runtime.bake.client
 
 import bao_runtime.bake.*
+import bao_collections.*
 
 public class DeserializedFailure {
     /// 未指定时代表客户端错误。
@@ -66,7 +67,7 @@ public func decodeSerializedError(reader: DataViewReader): BundlerMessage {
     return BundlerMessage(
         BundlerMessageLevel.err,
         "Unsupported serialized JS error kind ${kind}",
-        None,
+        Option<BundlerMessageLocation>.None,
         Array<BundlerNote>()
     )
 }
@@ -76,11 +77,12 @@ func readLogMsg(r: DataViewReader, level: BundlerMessageLevel): BundlerMessage {
     let message = r.string32()
     let location = readBundlerMessageLocationOrNull(r)
     let noteCount = r.u32()
-    var notes = Array<BundlerNote>()
-    for (i in 0..noteCount) {
+    var notes = ArrayList<BundlerNote>()
+    for (i in 0..Int64(noteCount)) {
         notes.append(readLogData(r))
     }
-    return BundlerMessage(level, message, location, notes)
+    let notesFrozen = notes
+    return BundlerMessage(level, message, location, Array<BundlerNote>(notesFrozen.size, { idx => notesFrozen[idx] }))
 }
 
 func readLogData(r: DataViewReader): BundlerNote {
@@ -89,7 +91,7 @@ func readLogData(r: DataViewReader): BundlerNote {
 
 func readBundlerMessageLocationOrNull(r: DataViewReader): ?BundlerMessageLocation {
     let line = r.u32()
-    if (line == 0) { return None }
+    if (line == 0) { return Option<BundlerMessageLocation>.None }
     let column = r.u32()
     let length = r.u32()
     let lineText = r.string32()

@@ -2,23 +2,41 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
+
+/// 去除多余空白（将连续空白替换为单个空格，并去除首尾空白）
+private func normalizeWhitespace(s: String): String {
+    var result = ""
+    var inWhitespace = false
+    for (c in s.runes()) {
+        if (c == Rune(0x20) || c == Rune(0x09) || c == Rune(0x0A) || c == Rune(0x0D)) {
+            if (!inWhitespace) {
+                result = result + " "
+                inWhitespace = true
+            }
+        } else {
+            result = result + c.toString()
+            inWhitespace = false
+        }
+    }
+    result.trimEnd().trimStart()
+}
 
 /// toEqualIgnoringWhitespace() - 检查去除空白后是否相等
 /// 用法: expect(received).toEqualIgnoringWhitespace(expected)
 public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toEqualIgnoringWhitespace() requires 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toEqualIgnoringWhitespace() requires 1 argument")
     }
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
     let expected = arguments[0]
     expected.ensureStillAlive()
@@ -27,7 +45,7 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
         return globalThis.throw_("toEqualIgnoringWhitespace() requires the first argument to be a string")
     }
 
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqualIgnoringWhitespace", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEqualIgnoringWhitespace", matcherParamsFmt: "<green>expected<r>")
 
     if (!value.isString()) {
         let formatter = ConsoleFormatter()
@@ -35,17 +53,16 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
         return globalThis.throw_("Received value must be a string: {f}", args: [value.toFmt(formatter)])
     }
 
-    let valueStr = value.toSliceOrNull(globalThis: globalThis)
-    // defer { valueStr.deinit() }
-    let expectedStr = expected.toSliceOrNull(globalThis: globalThis)
-    // defer { expectedStr.deinit() }
+    let global = globalThis.globalThis
+    let valueStr = value.toSliceOrNull(global)
+    let expectedStr = expected.toSliceOrNull(global)
 
     // 去除空白后比较
-    let normalizedValue = strings.normalizeWhitespace(valueStr.slice())
-    let normalizedExpected = strings.normalizeWhitespace(expectedStr.slice())
+    let normalizedValue = if (valueStr.isSome()) { normalizeWhitespace(valueStr.getOrThrow()) } else { "" }
+    let normalizedExpected = if (expectedStr.isSome()) { normalizeWhitespace(expectedStr.getOrThrow()) } else { "" }
 
-    let not = this.flags.not
-    var pass = strings.eql(normalizedValue, normalizedExpected)
+    let not = `this`.flags.not
+    var pass = normalizedValue == normalizedExpected
 
     if (not) { pass = !pass }
     if (pass) { return JsValue.jsUndefined() }
@@ -56,14 +73,14 @@ public func toEqualIgnoringWhitespace(`this`: Expect, globalThis: JSGlobalObject
     let expectedFmt = expected.toFmt(formatter)
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toEqualIgnoringWhitespace", args: "<green>expected<r>", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature,
+        let signature = Expect.getSignature("toEqualIgnoringWhitespace", "<green>expected<r>", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected: not <green>{f}<r>\nReceived: <red>{f}<r>\n",
             args: [expectedFmt, valueFmt])
     }
 
-    let signature = Expect.getSignature(matcherName: "toEqualIgnoringWhitespace", args: "<green>expected<r>", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature,
+    let signature = Expect.getSignature("toEqualIgnoringWhitespace", "<green>expected<r>", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature,
         fmt: "\n\nExpected: <green>{f}<r>\nReceived: <red>{f}<r>\n",
         args: [expectedFmt, valueFmt])
 }

@@ -21,6 +21,7 @@ public enum SubshellStateKind {
 }
 
 /// 子Shell父节点指针（提取到顶层）
+/// 严格翻译自 Bun: 类型擦除的父节点指针, 用于回调父节点
 public class SubshellParentPtr {
     public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): SubshellParentPtr {
@@ -29,11 +30,18 @@ public class SubshellParentPtr {
         return pp
     }
     public func childDone(child: Any, exitCode: ExitCode): Yield { Yield.done }
-    public func create<T>(): T { throw Exception("SubshellParentPtr.create not implemented") }
+    // 严格翻译自 Bun: create 只是指针类型转换, 将 ptr 转为具体类型
+    public func create<T>(): T {
+        match (this.ptr) {
+            case Some(t) => return t as T
+            case None => throw Exception("SubshellParentPtr.create: ptr is None")
+        }
+    }
     public func destroy<T>(ptr: T) {}
 }
 
 /// 子Shell子节点指针（提取到顶层）
+/// 严格翻译自 Bun: 类型擦除的子节点指针, 用于判断子节点类型
 public class SubshellChildPtr {
     public var ptr: Any = Option<Any>.None
     public static func initFunc(p: Any): SubshellChildPtr {
@@ -42,7 +50,13 @@ public class SubshellChildPtr {
         return cp
     }
     public func `is`(`type`: Any): Bool { true }
-    public func `as`<T>(): T { throw Exception("SubshellChildPtr.as not implemented") }
+    // 严格翻译自 Bun: as 只是指针类型转换, 将 ptr 转为具体类型
+    public func `as`<T>(): T {
+        match (this.ptr) {
+            case Some(t) => return t as T
+            case None => throw Exception("SubshellChildPtr.as: ptr is None")
+        }
+    }
     public func deinit() {}
 }
 

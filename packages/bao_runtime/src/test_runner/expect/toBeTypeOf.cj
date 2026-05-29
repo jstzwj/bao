@@ -2,42 +2,45 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeTypeOf() - 检查值的类型名称
 /// 用法: expect(received).toBeTypeOf("string")
 public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toBeTypeOf() requires 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toBeTypeOf() requires 1 argument")
     }
 
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeTypeOf", matcherParamsFmt: "")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeTypeOf", matcherParamsFmt: "")
 
     let expected = arguments[0]
     expected.ensureStillAlive()
 
     if (!expected.isString()) {
-        return globalThis.throwInvalidArguments("toBeTypeOf() requires a string argument")
+        return globalThis.throwInvalidArgumentsValue("toBeTypeOf() requires a string argument")
     }
 
-    let expectedType = expected.toBunString(globalThis: globalThis)
-    // defer { expectedType.deref() }
-    this.incrementExpectCallCounter()
+    let expectedType = expected.toString()
+    `this`.incrementExpectCallCounter()
 
-    let typeOfOpt = expectedType.inMap(JSTypeOfMap)
-    if (typeOfOpt.isNone()) {
-        return globalThis.throwInvalidArguments("toBeTypeOf() requires a valid type string argument ('function', 'object', 'bigint', 'boolean', 'number', 'string', 'symbol', 'undefined')")
+    let validTypes = ["function", "object", "bigint", "boolean", "number", "string", "symbol", "undefined"]
+    var isValidType = false
+    for (vt in validTypes) {
+        if (vt == expectedType) { isValidType = true; break }
     }
-    let typeOf = typeOfOpt.getOrThrow()
+    if (!isValidType) {
+        return globalThis.throwInvalidArgumentsValue("toBeTypeOf() requires a valid type string argument ('function', 'object', 'bigint', 'boolean', 'number', 'string', 'symbol', 'undefined')")
+    }
+    let typeOf = expectedType
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     var pass = false
     var whatIsTheType: String = ""
 
@@ -62,7 +65,7 @@ public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
         return globalThis.throw_("Internal consistency error: unknown JsValue type")
     }
 
-    pass = strings.eql(typeOf, whatIsTheType)
+    pass = typeOf == whatIsTheType
 
     if (not) { pass = !pass }
     if (pass) { return JsValue.jsUndefined() }
@@ -73,29 +76,14 @@ public func toBeTypeOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     let expectedStr = expected.toFmt(formatter)
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toBeTypeOf", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature,
+        let signature = Expect.getSignature("toBeTypeOf", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected type: not <green>{f}<r>\nReceived type: <red>\"{s}\"<r>\nReceived value: <red>{f}<r>\n",
             args: [expectedStr, whatIsTheType, received])
     }
 
-    let signature = Expect.getSignature(matcherName: "toBeTypeOf", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature,
+    let signature = Expect.getSignature("toBeTypeOf", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature,
         fmt: "\n\nExpected type: <green>{f}<r>\nReceived type: <red>\"{s}\"<r>\nReceived value: <red>{f}<r>\n",
         args: [expectedStr, whatIsTheType, received])
 }
-
-// 类型名称映射表
-private func getJSTypeOfMap(): HashMap<String, String> {
-    let m = HashMap<String, String>()
-    m.put("function", "function")
-    m.put("object", "object")
-    m.put("bigint", "bigint")
-    m.put("boolean", "boolean")
-    m.put("number", "number")
-    m.put("string", "string")
-    m.put("symbol", "symbol")
-    m.put("undefined", "undefined")
-    return m
-}
-private let JSTypeOfMap = getJSTypeOfMap()

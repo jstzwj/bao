@@ -9,7 +9,6 @@ import bao_core.*
 import bao_collections.*
 import bao_sys.*
 import bao_lolhtml_sys.*
-import bao_lolhtml_sys.lol_html as lolhtml
 import bao_runtime.webcore.*
 
 // ============================================================================
@@ -19,7 +18,7 @@ import bao_runtime.webcore.*
 
 /// `HTMLString` → 拥有所有权的 `BaoString` (clone + free original)。
 /// 严格翻译自: fn html_string_to_bun_string(s: lolhtml::HTMLString) -> BunString
-public func htmlStringToBunString(s: HTMLString): BaoString {
+public func htmlStringToBunString(s!: HTMLString): BaoString {
     let out = BaoString.cloneUtf8(s.slice())
     s.deinit()
     return out
@@ -27,7 +26,7 @@ public func htmlStringToBunString(s: HTMLString): BaoString {
 
 /// 构造一个带有 code + message 的 SystemError。
 /// 严格翻译自: fn system_error(code: &'static str, message: &'static str) -> SystemError
-public func systemError(code: String, message: String): SystemError {
+public func systemError(code!: String, message!: String): SystemError {
     let err = SystemError()
     err.code = BaoString(code)
     err.message = BaoString(message)
@@ -36,7 +35,7 @@ public func systemError(code: String, message: String): SystemError {
 
 /// 创建 lolhtml 错误 JsValue。
 /// 严格翻译自: fn create_lolhtml_error(global: &JSGlobalObject) -> JsValue
-public func createLolhtmlError(global: JsGlobalObject): JsValue {
+public func createLolhtmlError(global!: JsGlobalObject): JsValue {
     // 如果已有 pending exception，使用它
     if (let err <- global.tryTakeException()) {
         return err
@@ -69,7 +68,7 @@ public func createLolhtmlStringError(): BaoString {
 
 /// HTMLString → JsValue
 /// 严格翻译自: fn html_string_value(input: lolhtml::HTMLString, global_object: &JSGlobalObject) -> JsResult<JsValue>
-public func htmlStringValue(input: HTMLString, globalObject: JsGlobalObject): JsValue {
+public func htmlStringValue(input!: HTMLString, globalObject!: JsGlobalObject): JsValue {
     return LolhtmlJsc.htmlStringToJS(input, globalObject)
 }
 
@@ -80,7 +79,7 @@ public func htmlStringValue(input: HTMLString, globalObject: JsGlobalObject): Js
 
 /// 解码参数中的 ZigString
 /// 严格翻译自: fn eat_zig_string(iter: &ArgumentsSlice<'_>, global: &JSGlobalObject) -> JsResult<ZigString>
-public func eatZigString(iter: ArgumentsSlice, global: JsGlobalObject): BaoString {
+public func eatZigString(iter!: ArgumentsSlice, global!: JsGlobalObject): BaoString {
     let value = iter.nextEat()
     if (value.isNone()) {
         global.throwInvalidArguments("Missing argument")
@@ -95,7 +94,7 @@ public func eatZigString(iter: ArgumentsSlice, global: JsGlobalObject): BaoStrin
 
 /// 解码参数中的 JsValue (必需)
 /// 严格翻译自: fn eat_js_value(iter: &ArgumentsSlice<'_>, global: &JSGlobalObject) -> JsResult<JsValue>
-public func eatJsValue(iter: ArgumentsSlice, global: JsGlobalObject): JsValue {
+public func eatJsValue(iter!: ArgumentsSlice, global!: JsGlobalObject): JsValue {
     let value = iter.nextEat()
     if (value.isNone()) {
         global.throwInvalidArguments("Missing argument")
@@ -106,7 +105,7 @@ public func eatJsValue(iter: ArgumentsSlice, global: JsGlobalObject): JsValue {
 
 /// 解码 ContentOptions 参数
 /// 严格翻译自: fn eat_content_options(iter, global) -> Option<ContentOptions>
-public func eatContentOptions(iter: ArgumentsSlice, global: JsGlobalObject): ?ContentOptions {
+public func eatContentOptions(iter!: ArgumentsSlice, global!: JsGlobalObject): ?ContentOptions {
     let arg = iter.nextEat()
     if (arg.isNone()) {
         return None
@@ -120,7 +119,7 @@ public func eatContentOptions(iter: ArgumentsSlice, global: JsGlobalObject): ?Co
 
 /// 解码 (content: ZigString, contentOptions: ?ContentOptions) 参数对
 /// 严格翻译自: fn eat_content_args(global, call_frame) -> (ZigString, Option<ContentOptions>)
-public func eatContentArgs(global: JsGlobalObject, callFrame: JsCallFrame): ContentArgs {
+public func eatContentArgs(global!: JsGlobalObject, callFrame!: JsCallFrame): ContentArgs {
     let args = callFrame.argumentsOld(2)
     let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
     let content = eatZigString(iter, global)
@@ -221,7 +220,7 @@ public class HTMLRewriter {
 
     /// 构造函数
     /// 严格翻译自: pub fn constructor(_global, _frame) -> JsResult<*HTMLRewriter>
-    public static func constructor(global: JsGlobalObject, callFrame: JsCallFrame): HTMLRewriter {
+    public static func constructor(global!: JsGlobalObject, callFrame!: JsCallFrame): HTMLRewriter {
         let rewriter = HTMLRewriter(
             builder: HTMLRewriterBuilder(),
             context: LOLHTMLContext(),
@@ -238,7 +237,7 @@ public class HTMLRewriter {
 
     /// on_ — 注册元素选择器处理器
     /// 严格翻译自: pub fn on_(&self, global, selector_name, call_frame, listener) -> JsResult<JsValue>
-    public func on_(global: JsGlobalObject, selectorName: BaoString, callFrame: JsCallFrame, listener: JsValue): JsValue {
+    public func on_(global!: JsGlobalObject, selectorName!: BaoString, callFrame!: JsCallFrame, listener!: JsValue): JsValue {
         let selectorSlice = selectorName.toSlice()
 
         let selector = HTMLSelector.parse(selectorSlice)
@@ -273,7 +272,7 @@ public class HTMLRewriter {
         let sel = selectorGuard.release()
         context.selectors.append(sel)
         context.elementHandlers.append(handler)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     // ========================================================================
@@ -283,7 +282,7 @@ public class HTMLRewriter {
 
     /// on_document_ — 注册文档处理器
     /// 严格翻译自: pub fn on_document_(&self, global, listener, call_frame) -> JsResult<JsValue>
-    public func onDocument_(global: JsGlobalObject, listener: JsValue, callFrame: JsCallFrame): JsValue {
+    public func onDocument_(global!: JsGlobalObject, listener!: JsValue, callFrame!: JsCallFrame): JsValue {
         let handler = DocumentHandler(global, listener)
         if (handler.isNone()) {
             return global.throwInvalidArguments("Expected object")
@@ -305,7 +304,7 @@ public class HTMLRewriter {
         )
 
         context.documentHandlers.append(handler)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     // ========================================================================
@@ -333,14 +332,14 @@ public class HTMLRewriter {
 
     /// begin_transform — 开始转换
     /// 严格翻译自: pub fn begin_transform(&self, global, response) -> JsResult<JsValue>
-    public func beginTransform(global: JsGlobalObject, response: Response): JsValue {
+    public func beginTransform(global!: JsGlobalObject, response!: Response): JsValue {
         let newContext = context
         return BufferOutputSink(newContext, global, response, builder)
     }
 
     /// transform_ — 转换实现
     /// 严格翻译自: pub fn transform_(&self, global, response_value) -> JsResult<JsValue>
-    public func transform_(global: JsGlobalObject, responseValue: JsValue): JsValue {
+    public func transform_(global!: JsGlobalObject, responseValue!: JsValue): JsValue {
         // 检查是否为 Response 对象
         if (let response <- responseValue.asResponse()) {
             let bodyValue = response.getBodyValue()
@@ -365,10 +364,10 @@ public class HTMLRewriter {
         if (kind != ResponseKind.Other) {
             let bodyValue = Body.extract(global, responseValue)
             let resp = Response(
-                init: ResponseInit(statusCode: 200),
-                body: bodyValue,
-                url: "",
-                redirected: false,
+                ResponseInit(200),
+                bodyValue,
+                "",
+                false
             )
 
             let outResponseValue = beginTransform(global, resp)
@@ -386,7 +385,7 @@ public class HTMLRewriter {
                 match (kind) {
                     case String => blob.toString(global, Lifetime.Transfer)
                     case ArrayBuffer => blob.toArrayBuffer(global, Lifetime.Transfer)
-                    case Other => JsValue.UNDEFINED // unreachable
+                    case Other => JsValue.UNDEFINED // unreachable()
                 }
             } else {
                 return outResponseValue
@@ -398,7 +397,7 @@ public class HTMLRewriter {
 
     /// on — 注册元素选择器处理器（解码参数版本）
     /// 严格翻译自: pub fn on(&self, global, call_frame) -> JsResult<JsValue>
-    public func on(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func on(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(2)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let selectorName = eatZigString(iter, global)
@@ -408,7 +407,7 @@ public class HTMLRewriter {
 
     /// onDocument — 注册文档处理器（解码参数版本）
     /// 严格翻译自: pub fn on_document(&self, global, call_frame) -> JsResult<JsValue>
-    public func onDocument(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func onDocument(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let listener = eatJsValue(iter, global)
@@ -417,7 +416,7 @@ public class HTMLRewriter {
 
     /// transform — 转换（解码参数版本）
     /// 严格翻译自: pub fn transform(&self, global, call_frame) -> JsResult<JsValue>
-    public func transform(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func transform(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let responseValue = eatJsValue(iter, global)
@@ -471,21 +470,21 @@ public class HTMLRewriterBuilder {
 
     /// destroy — 销毁 builder
     /// 严格翻译自: lolhtml::HTMLRewriterBuilder::destroy(builder)
-    public static func destroy(builder: CPointer<Unit>): Unit {
+    public static func destroy(builder!: CPointer<Unit>): Unit {
         lol_html_rewriter_builder_free(builder)
     }
 
     /// add_element_content_handlers — 添加元素内容处理器
     /// 严格翻译自: (*self.builder).add_element_content_handlers(...)
     public static func addElementContentHandlers(
-        builder: CPointer<Unit>,
-        selector: CPointer<Unit>,
-        elementHandler: CPointer<Unit>,
-        elementUserData: CPointer<Unit>,
-        commentHandler: CPointer<Unit>,
-        commentUserData: CPointer<Unit>,
-        textHandler: CPointer<Unit>,
-        textUserData: CPointer<Unit>,
+        builder!: CPointer<Unit>,
+        selector!: CPointer<Unit>,
+        elementHandler!: CPointer<Unit>,
+        elementUserData!: CPointer<Unit>,
+        commentHandler!: CPointer<Unit>,
+        commentUserData!: CPointer<Unit>,
+        textHandler!: CPointer<Unit>,
+        textUserData!: CPointer<Unit>
     ): Bool {
         let res = lol_html_rewriter_builder_add_element_content_handlers(
             builder, selector,
@@ -501,13 +500,13 @@ public class HTMLRewriterBuilder {
 public class HTMLSelector {
     /// parse — 解析选择器
     /// 严格翻译自: lolhtml::HTMLSelector::parse(&selector_slice)
-    public static func parse(selectorSlice: Array<UInt8>): CPointer<Unit> {
+    public static func parse(selectorSlice!: Array<UInt8>): CPointer<Unit> {
         return lol_html_selector_parse(selectorSlice.toArrayPtr(), UIntNative(selectorSlice.size))
     }
 
     /// destroy — 销毁选择器
     /// 严格翻译自: lolhtml::HTMLSelector::destroy(selector)
-    public static func destroy(selector: CPointer<Unit>): Unit {
+    public static func destroy(selector!: CPointer<Unit>): Unit {
         lol_html_selector_free(selector)
     }
 }
@@ -554,7 +553,7 @@ public class HTMLRewriterLoader {
 
     /// fail — 失败
     /// 严格翻译自: pub fn fail(&self, err: bun_sys::Error)
-    public func fail(err: SyscallError): Unit {
+    public func fail(err!: SyscallError): Unit {
         signal.close(Some(err))
         output.end(Some(err))
         failed = true
@@ -563,13 +562,13 @@ public class HTMLRewriterLoader {
 
     /// connect — 连接信号
     /// 严格翻译自: pub fn connect(&self, signal: Signal)
-    public func connect(signal: StreamSignal): Unit {
+    public func connect(signal!: StreamSignal): Unit {
         this.signal = signal
     }
 
     /// write_to_destination — 写入目标
     /// 严格翻译自: pub fn write_to_destination(&self, bytes: &[u8])
-    public func writeToDestination(bytes: Array<UInt8>): Unit {
+    public func writeToDestination(bytes!: Array<UInt8>): Unit {
         if (backpressure.readableLength() > 0) {
             if (backpressure.write(bytes).isErr()) {
                 fail(SyscallError.oom())
@@ -609,10 +608,10 @@ public class HTMLRewriterLoader {
     /// setup — 设置
     /// 严格翻译自: pub fn setup(&self, builder, context, size_hint, output) -> Option<lolhtml::HTMLString>
     public func setup(
-        builder: CPointer<Unit>,
-        context: LOLHTMLContext,
-        sizeHint: ?Int64,
-        output: Sink,
+        builder!: CPointer<Unit>,
+        context!: LOLHTMLContext,
+        sizeHint!: ?Int64,
+        output!: Sink
     ): ?HTMLString {
         let chunkSize = if (let Some(s) <- sizeHint) {
             if (s < 1024) { 1024 } else { s }
@@ -656,7 +655,7 @@ public class HTMLRewriterLoader {
 
     /// write_bytes — 写入字节数据
     /// 严格翻译自: fn write_bytes(&self, bytes: &[u8]) -> Option<bun_sys::Error>
-    public func writeBytesInternal(bytes: Array<UInt8>): ?SyscallError {
+    public func writeBytesInternal(bytes!: Array<UInt8>): ?SyscallError {
         // SAFETY: rewriter 有效（setup() 成功，尚未终结）。
         let res = lol_html_rewriter_write(rewriter, bytes.toArrayPtr(), UIntNative(bytes.size))
         if (res != 0) {
@@ -670,7 +669,7 @@ public class HTMLRewriterLoader {
 
     /// write — 写入 StreamResult
     /// 严格翻译自: pub fn write(&self, data: StreamResult) -> streams::Writable
-    public func write(data: StreamResult): StreamResultWritable {
+    public func write(data!: StreamResult): StreamResultWritable {
         match (data.tag) {
             case Owned =>
                 let len = data.ownedData.size
@@ -702,19 +701,19 @@ public class HTMLRewriterLoader {
 
     /// write_utf16 — 写入 UTF-16 数据
     /// 严格翻译自: pub fn write_utf16(&self, data: StreamResult) -> streams::Writable
-    public func writeUtf16(data: StreamResult): StreamResultWritable {
+    public func writeUtf16(data!: StreamResult): StreamResultWritable {
         return UTF8Fallback.writeUtf16(this, data, HTMLRewriterLoader.write)
     }
 
     /// write_latin1 — 写入 Latin-1 数据
     /// 严格翻译自: pub fn write_latin1(&self, data: StreamResult) -> streams::Writable
-    public func writeLatin1(data: StreamResult): StreamResultWritable {
+    public func writeLatin1(data!: StreamResult): StreamResultWritable {
         return UTF8Fallback.writeLatin1(this, data, HTMLRewriterLoader.write)
     }
 
     /// end — 结束
     /// 严格翻译自: pub fn end(&self, err: Option<bun_sys::Error>) -> bun_sys::Result<()>
-    public func end(err: ?SyscallError): Unit {
+    public func end(err!: ?SyscallError): Unit {
         if (let e <- err) {
             fail(e)
         } else {
@@ -776,17 +775,17 @@ public class BufferOutputSink {
 
     /// writeTmpSyncError — 写入临时同步错误
     /// 严格翻译自: fn write_tmp_sync_error(sink: *Self, err: JsValue)
-    public static func writeTmpSyncError(sink: BufferOutputSink, err: JsValue): Unit {
+    public static func writeTmpSyncError(sink!: BufferOutputSink, err!: JsValue): Unit {
         sink.tmpSyncError = Some(err)
     }
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(context, global, original, builder) -> JsResult<JsValue>
     public static func `init`(
-        context: LOLHTMLContext,
-        global: JsGlobalObject,
-        original: Response,
-        builder: CPointer<Unit>,
+        context!: LOLHTMLContext,
+        global!: JsGlobalObject,
+        original!: Response,
+        builder!: CPointer<Unit>
     ): JsValue {
         let sink = BufferOutputSink()
         sink.refCount = 1
@@ -800,12 +799,7 @@ public class BufferOutputSink {
         sink.tmpSyncError = None
 
         // 创建结果 Response
-        let result = Response(
-            init: ResponseInit(statusCode: 200),
-            body: Body.newLocked(sink),
-            url: "",
-            redirected: false,
-        )
+        let result = Response(ResponseInit(200), Body.newLocked(sink), "", false)
         sink.response = result
 
         let sinkError = JsValue.UNDEFINED
@@ -870,16 +864,15 @@ public class BufferOutputSink {
         let bufferingResult = sink.bodyValueBufferer.run(value, ownedReadableStream)
         if (bufferingResult.isErr()) {
             sink.deref()
-            match (bufferingResult) {
-                case e if (e == BaoError("StreamAlreadyUsed")) =>
-                    let err = systemError(
-                        "ERR_STREAM_ALREADY_FINISHED",
-                        "Stream already used, please create a new one",
-                    )
-                    return err.toErrorInstance(global)
-                case _ =>
-                    let err = systemError("ERR_STREAM_CANNOT_PIPE", "Failed to pipe stream")
-                    return err.toErrorInstance(global)
+            if (bufferingResult == BaoError("StreamAlreadyUsed")) {
+                let err = systemError(
+                    "ERR_STREAM_ALREADY_FINISHED",
+                    "Stream already used, please create a new one",
+                )
+                return err.toErrorInstance(global)
+            } else {
+                let err = systemError("ERR_STREAM_CANNOT_PIPE", "Failed to pipe stream")
+                return err.toErrorInstance(global)
             }
         }
 
@@ -897,10 +890,10 @@ public class BufferOutputSink {
     /// onFinishedBufferingTrampoline — 完成缓冲跳板函数
     /// 严格翻译自: fn on_finished_buffering_trampoline(ctx, bytes, js_err, is_async)
     public static func onFinishedBufferingTrampoline(
-        ctx: BufferOutputSink,
-        bytes: Array<UInt8>,
-        jsErr: ?BodyValueError,
-        isAsync: Bool,
+        ctx!: BufferOutputSink,
+        bytes!: Array<UInt8>,
+        jsErr!: ?BodyValueError,
+        isAsync!: Bool
     ): Unit {
         onFinishedBuffering(ctx, bytes, jsErr, isAsync)
     }
@@ -908,10 +901,10 @@ public class BufferOutputSink {
     /// onFinishedBuffering — 完成缓冲
     /// 严格翻译自: pub fn on_finished_buffering(sink, bytes, js_err, is_async)
     public static func onFinishedBuffering(
-        sink: BufferOutputSink,
-        bytes: Array<UInt8>,
-        jsErr: ?BodyValueError,
-        isAsync: Bool,
+        sink!: BufferOutputSink,
+        bytes!: Array<UInt8>,
+        jsErr!: ?BodyValueError,
+        isAsync!: Bool
     ): Unit {
         let global = sink.global
 
@@ -956,7 +949,7 @@ public class BufferOutputSink {
 
     /// runOutputSink — 运行输出接收器
     /// 严格翻译自: pub fn run_output_sink(sink, bytes, is_async) -> Option<JsValue>
-    public static func runOutputSink(sink: BufferOutputSink, bytes: Array<UInt8>, isAsync: Bool): ?JsValue {
+    public static func runOutputSink(sink!: BufferOutputSink, bytes!: Array<UInt8>, isAsync!: Bool): ?JsValue {
         sink.bytes.growBy(bytes.size)
         let global = sink.global
         let response = sink.response
@@ -1007,7 +1000,7 @@ public class BufferOutputSink {
 
     /// write — 写入
     /// 严格翻译自: pub fn write(&self, bytes: &[u8])
-    public func writeBytes(bytes: Array<UInt8>): Unit {
+    public func writeBytes(bytes!: Array<UInt8>): Unit {
         bytes.append(bytes)
     }
 }
@@ -1046,7 +1039,7 @@ public class DocumentHandler {
 
     /// init — 初始化文档处理器
     /// 严格翻译自: pub fn init(global, this_object) -> JsResult<DocumentHandler>
-    public static func `init`(global: JsGlobalObject, thisObject: JsValue): ?DocumentHandler {
+    public static func `init`(global!: JsGlobalObject, thisObject!: JsValue): ?DocumentHandler {
         if (!thisObject.isObject()) {
             global.throwInvalidArguments("Expected object")
             return None
@@ -1108,7 +1101,7 @@ public class DocumentHandler {
 
     /// onDocType — DocType 回调
     /// 严格翻译自: pub fn on_doc_type(`this`: *Self, value: *lolhtml::DocType) -> bool
-    public static func onDocType(`this`: DocumentHandler, value: CPointer<Unit>): Bool {
+    public static func onDocType(`this`: DocumentHandler, value!: CPointer<Unit>): Bool {
         return handlerCallback(
             this,
             value,
@@ -1119,7 +1112,7 @@ public class DocumentHandler {
 
     /// onComment — Comment 回调
     /// 严格翻译自: pub fn on_comment(`this`: *Self, value: *lolhtml::Comment) -> bool
-    public static func onComment(`this`: DocumentHandler, value: CPointer<Unit>): Bool {
+    public static func onComment(`this`: DocumentHandler, value!: CPointer<Unit>): Bool {
         return handlerCallback(
             this,
             value,
@@ -1130,7 +1123,7 @@ public class DocumentHandler {
 
     /// onText — TextChunk 回调
     /// 严格翻译自: pub fn on_text(`this`: *Self, value: *lolhtml::TextChunk) -> bool
-    public static func onText(`this`: DocumentHandler, value: CPointer<Unit>): Bool {
+    public static func onText(`this`: DocumentHandler, value!: CPointer<Unit>): Bool {
         return handlerCallback(
             this,
             value,
@@ -1141,7 +1134,7 @@ public class DocumentHandler {
 
     /// onEnd — DocEnd 回调
     /// 严格翻译自: pub fn on_end(`this`: *Self, value: *lolhtml::DocEnd) -> bool
-    public static func onEnd(`this`: DocumentHandler, value: CPointer<Unit>): Bool {
+    public static func onEnd(`this`: DocumentHandler, value!: CPointer<Unit>): Bool {
         return handlerCallback(
             this,
             value,
@@ -1166,10 +1159,10 @@ public interface HandlerLike {
 /// WrapperLike — 包装器接口
 /// 严格翻译自: pub trait WrapperLike
 public interface WrapperLike {
-    func initWrapper(value: CPointer<Unit>): CPointer<Unit>
+    func initWrapper(value!: CPointer<Unit>): CPointer<Unit>
     func ref_(): Unit
     func derefWrapper(): Unit
-    func toJS(global: JsGlobalObject): JsValue
+    func toJS(global!: JsGlobalObject): JsValue
     func invalidate(): Unit
 }
 
@@ -1182,15 +1175,15 @@ public interface WrapperLike {
 /// 严格翻译自: fn handler_callback<H, Z, L>(...) -> bool
 public func handlerCallback(
     `this`: DocumentHandler,
-    value: CPointer<Unit>,
-    clearField: (DocType) -> Unit,
-    getCallback: (DocumentHandler) -> ?JsValue,
+    value!: CPointer<Unit>,
+    clearField!: (DocType) -> Unit,
+    getCallback!: (DocumentHandler) -> ?JsValue
 ): Bool {
     // 标记绑定
     // markBinding()
 
     // this: 是 Box<DocumentHandler> 的 userdata 指针
-    let global = this.global()
+    let global = this.getGlobal()
     let vm = global.bunVM()
 
     let cb = getCallback(this)
@@ -1198,7 +1191,7 @@ public func handlerCallback(
         return false
     }
 
-    let result = cb.call(global, this.thisObject())
+    let result = cb.call(global, this.getThisObject())
 
     if (result.isErr()) {
         // 如果有异常，捕获它
@@ -1242,11 +1235,11 @@ public func handlerCallback(
 /// handlerCallback — ElementHandler 版本
 public func handlerCallbackElement(
     `this`: ElementHandler,
-    value: CPointer<Unit>,
-    clearField: (HTMLElement) -> Unit,
-    getCallback: (ElementHandler) -> ?JsValue,
+    value!: CPointer<Unit>,
+    clearField!: (HTMLElement) -> Unit,
+    getCallback!: (ElementHandler) -> ?JsValue
 ): Bool {
-    let global = this.global()
+    let global = this.getGlobal()
     let vm = global.bunVM()
 
     let cb = getCallback(this)
@@ -1254,7 +1247,7 @@ public func handlerCallbackElement(
         return false
     }
 
-    let result = cb.call(global, this.thisObject())
+    let result = cb.call(global, this.getThisObject())
 
     if (result.isErr()) {
         if (let exc <- result.exception()) {
@@ -1296,11 +1289,11 @@ public func handlerCallbackElement(
 /// handlerCallback — EndTagHandler 版本
 public func handlerCallbackEndTag(
     `this`: EndTagHandler,
-    value: CPointer<Unit>,
-    clearField: (EndTag) -> Unit,
-    getCallback: (EndTagHandler) -> ?JsValue,
+    value!: CPointer<Unit>,
+    clearField!: (EndTag) -> Unit,
+    getCallback!: (EndTagHandler) -> ?JsValue
 ): Bool {
-    let global = this.global()
+    let global = this.getGlobal()
     let vm = global.bunVM()
 
     let cb = getCallback(this)
@@ -1371,7 +1364,7 @@ public class ElementHandler {
 
     /// init — 初始化元素处理器
     /// 严格翻译自: pub fn init(global, this_object) -> JsResult<ElementHandler>
-    public static func `init`(global: JsGlobalObject, thisObject: JsValue): ?ElementHandler {
+    public static func `init`(global!: JsGlobalObject, thisObject!: JsValue): ?ElementHandler {
         let handler = ElementHandler()
         handler.onElementCallback = None
         handler.onCommentCallback = None
@@ -1422,7 +1415,7 @@ public class ElementHandler {
 
     /// onElement — 元素回调
     /// 严格翻译自: pub fn on_element(`this`: *Self, value: *lolhtml::Element) -> bool
-    public static func onElement(`this`: ElementHandler, value: CPointer<Unit>): Bool {
+    public static func onElement(`this`: ElementHandler, value!: CPointer<Unit>): Bool {
         return handlerCallbackElement(
             this,
             value,
@@ -1433,7 +1426,7 @@ public class ElementHandler {
 
     /// onComment — 注释回调
     /// 严格翻译自: pub fn on_comment(`this`: *Self, value: *lolhtml::Comment) -> bool
-    public static func onComment(`this`: ElementHandler, value: CPointer<Unit>): Bool {
+    public static func onComment(`this`: ElementHandler, value!: CPointer<Unit>): Bool {
         return handlerCallbackElement(
             this,
             value,
@@ -1444,7 +1437,7 @@ public class ElementHandler {
 
     /// onText — 文本回调
     /// 严格翻译自: pub fn on_text(`this`: *Self, value: *lolhtml::TextChunk) -> bool
-    public static func onText(`this`: ElementHandler, value: CPointer<Unit>): Bool {
+    public static func onText(`this`: ElementHandler, value!: CPointer<Unit>): Bool {
         return handlerCallbackElement(
             this,
             value,
@@ -1454,12 +1447,12 @@ public class ElementHandler {
     }
 
     /// 获取 global
-    public func global(): JsGlobalObject {
+    public func getGlobal(): JsGlobalObject {
         return global.get()
     }
 
     /// 获取 thisObject
-    public func thisObject(): JsValue {
+    public func getThisObject(): JsValue {
         return thisObject
     }
 }
@@ -1487,7 +1480,7 @@ public class TextChunk {
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(text_chunk) -> *TextChunk
-    public static func `init`(textChunk: CPointer<Unit>): TextChunk {
+    public static func `init`(textChunk!: CPointer<Unit>): TextChunk {
         return TextChunk(textChunk: textChunk)
     }
 
@@ -1516,10 +1509,10 @@ public class TextChunk {
     /// 严格翻译自: fn content_handler(&self, callback, this_object, global_object, content, content_options)
     public func contentHandler(
         callback: (CPointer<Unit>, Array<UInt8>, Bool) -> Bool,
-        thisObject: JsValue,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        thisObject!: JsValue,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         if (textChunk == CPointer<Unit>()) {
             return JsValue.UNDEFINED
@@ -1539,16 +1532,16 @@ public class TextChunk {
     /// before_ — 在前面插入内容
     /// 严格翻译自: pub fn before_(&self, call_frame, global_object, content, content_options)
     public func before_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { chunk: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_text_chunk_before(chunk, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -1557,7 +1550,7 @@ public class TextChunk {
 
     /// before — 在前面插入内容（解码参数版本）
     /// 严格翻译自: pub fn before(&self, global, call_frame) -> JsResult<JsValue>
-    public func before(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func before(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return before_(callFrame, global, args.content, args.options)
     }
@@ -1565,16 +1558,16 @@ public class TextChunk {
     /// after_ — 在后面插入内容
     /// 严格翻译自: pub fn after_(&self, call_frame, global_object, content, content_options)
     public func after_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { chunk: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_text_chunk_after(chunk, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -1582,7 +1575,7 @@ public class TextChunk {
     }
 
     /// after — 在后面插入内容（解码参数版本）
-    public func after(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func after(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return after_(callFrame, global, args.content, args.options)
     }
@@ -1590,16 +1583,16 @@ public class TextChunk {
     /// replace_ — 替换内容
     /// 严格翻译自: pub fn replace_(&self, call_frame, global_object, content, content_options)
     public func replace_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { chunk: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_text_chunk_replace(chunk, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -1607,24 +1600,24 @@ public class TextChunk {
     }
 
     /// replace — 替换内容（解码参数版本）
-    public func replace(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func replace(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return replace_(callFrame, global, args.content, args.options)
     }
 
     /// remove — 删除
     /// 严格翻译自: #[bun_jsc::host_fn(method)] pub fn remove(...)
-    public func remove(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func remove(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         if (textChunk == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
         lol_html_text_chunk_remove(textChunk)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// getText — 获取文本内容
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn get_text(...)
-    public func getText(global: JsGlobalObject): JsValue {
+    public func getText(global!: JsGlobalObject): JsValue {
         if (textChunk == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -1675,7 +1668,7 @@ public class DocType {
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(doctype) -> *DocType
-    public static func `init`(doctype: CPointer<Unit>): DocType {
+    public static func `init`(doctype!: CPointer<Unit>): DocType {
         return DocType(doctype: doctype)
     }
 
@@ -1697,7 +1690,7 @@ public class DocType {
 
     /// name — 文档类型名称
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn name(...)
-    public func name(JsGlobalObject): JsValue {
+    public func name(jsGlobalObject!: JsGlobalObject): JsValue {
         if (doctype == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -1711,7 +1704,7 @@ public class DocType {
 
     /// systemId — 系统标识符
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn system_id(...)
-    public func systemId(JsGlobalObject): JsValue {
+    public func systemId(jsGlobalObject!: JsGlobalObject): JsValue {
         if (doctype == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -1725,7 +1718,7 @@ public class DocType {
 
     /// publicId — 公共标识符
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn public_id(...)
-    public func publicId(JsGlobalObject): JsValue {
+    public func publicId(jsGlobalObject!: JsGlobalObject): JsValue {
         if (doctype == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -1739,12 +1732,12 @@ public class DocType {
 
     /// remove — 删除
     /// 严格翻译自: #[bun_jsc::host_fn(method)] pub fn remove(...)
-    public func remove(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func remove(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         if (doctype == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
         lol_html_doctype_remove(doctype)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// removed — 是否已删除
@@ -1780,7 +1773,7 @@ public class DocEnd {
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(doc_end) -> *DocEnd
-    public static func `init`(docEnd: CPointer<Unit>): DocEnd {
+    public static func `init`(docEnd!: CPointer<Unit>): DocEnd {
         return DocEnd(docEnd: docEnd)
     }
 
@@ -1803,10 +1796,10 @@ public class DocEnd {
     /// contentHandler — 通用内容处理器
     public func contentHandler(
         callback: (CPointer<Unit>, Array<UInt8>, Bool) -> Bool,
-        thisObject: JsValue,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        thisObject!: JsValue,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         if (docEnd == CPointer<Unit>()) {
             return JsValue.NULL
@@ -1826,16 +1819,16 @@ public class DocEnd {
     /// append_ — 追加内容
     /// 严格翻译自: lol_content_ops! { DocEnd, doc_end, JsValue::NULL; append / append_ }
     public func append_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { de: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_doc_end_append(de, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -1843,7 +1836,7 @@ public class DocEnd {
     }
 
     /// append — 追加内容（解码参数版本）
-    public func append(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func append(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return append_(callFrame, global, args.content, args.options)
     }
@@ -1872,7 +1865,7 @@ public class HTMLComment {
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(comment) -> *Comment
-    public static func `init`(comment: CPointer<Unit>): HTMLComment {
+    public static func `init`(comment!: CPointer<Unit>): HTMLComment {
         return HTMLComment(comment: comment)
     }
 
@@ -1895,10 +1888,10 @@ public class HTMLComment {
     /// contentHandler — 通用内容处理器
     public func contentHandler(
         callback: (CPointer<Unit>, Array<UInt8>, Bool) -> Bool,
-        thisObject: JsValue,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        thisObject!: JsValue,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         if (comment == CPointer<Unit>()) {
             return JsValue.NULL
@@ -1918,16 +1911,16 @@ public class HTMLComment {
     /// before_ — 在前面插入内容
     /// 严格翻译自: lol_content_ops! { Comment, comment, JsValue::NULL; before / before_, ... }
     public func before_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { c: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_comment_before(c, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -1935,23 +1928,23 @@ public class HTMLComment {
     }
 
     /// before — 在前面插入内容（解码参数版本）
-    public func before(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func before(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return before_(callFrame, global, args.content, args.options)
     }
 
     /// after_ — 在后面插入内容
     public func after_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { c: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_comment_after(c, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -1959,23 +1952,23 @@ public class HTMLComment {
     }
 
     /// after — 在后面插入内容（解码参数版本）
-    public func after(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func after(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return after_(callFrame, global, args.content, args.options)
     }
 
     /// replace_ — 替换内容
     public func replace_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { c: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_comment_replace(c, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -1983,24 +1976,24 @@ public class HTMLComment {
     }
 
     /// replace — 替换内容（解码参数版本）
-    public func replace(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func replace(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return replace_(callFrame, global, args.content, args.options)
     }
 
     /// remove — 删除
     /// 严格翻译自: #[bun_jsc::host_fn(method)] pub fn remove(...)
-    public func remove(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func remove(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         if (comment == CPointer<Unit>()) {
             return JsValue.NULL
         }
         lol_html_comment_remove(comment)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// getText — 获取文本
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn get_text(...)
-    public func getText(JsGlobalObject): JsValue {
+    public func getText(jsGlobalObject!: JsGlobalObject): JsValue {
         if (comment == CPointer<Unit>()) {
             return JsValue.NULL
         }
@@ -2009,7 +2002,7 @@ public class HTMLComment {
 
     /// setText — 设置文本
     /// 严格翻译自: pub fn set_text(&self, global, value) -> JsResult<()>
-    public func setText(global: JsGlobalObject, value: JsValue): Unit {
+    public func setText(global!: JsGlobalObject, value!: JsValue): Unit {
         if (comment == CPointer<Unit>()) {
             return
         }
@@ -2052,7 +2045,7 @@ public class EndTag {
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(end_tag) -> *EndTag
-    public static func `init`(endTag: CPointer<Unit>): EndTag {
+    public static func `init`(endTag!: CPointer<Unit>): EndTag {
         return EndTag(endTag: endTag)
     }
 
@@ -2075,10 +2068,10 @@ public class EndTag {
     /// contentHandler — 通用内容处理器
     public func contentHandler(
         callback: (CPointer<Unit>, Array<UInt8>, Bool) -> Bool,
-        thisObject: JsValue,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        thisObject!: JsValue,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         if (endTag == CPointer<Unit>()) {
             return JsValue.NULL
@@ -2098,16 +2091,16 @@ public class EndTag {
     /// before_ — 在前面插入内容
     /// 严格翻译自: lol_content_ops! { EndTag, end_tag, JsValue::NULL; before / before_, ... }
     public func before_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { et: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_end_tag_before(et, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2115,23 +2108,23 @@ public class EndTag {
     }
 
     /// before — 在前面插入内容（解码参数版本）
-    public func before(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func before(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return before_(callFrame, global, args.content, args.options)
     }
 
     /// after_ — 在后面插入内容
     public func after_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { et: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_end_tag_after(et, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2139,7 +2132,7 @@ public class EndTag {
     }
 
     /// after — 在后面插入内容（解码参数版本）
-    public func after(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func after(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return after_(callFrame, global, args.content, args.options)
     }
@@ -2147,17 +2140,17 @@ public class EndTag {
     /// replace_ — 替换内容 (allow dead_code)
     /// 严格翻译自: #[allow(dead_code)] replace / replace_
     public func replace_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { et: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 // EndTag 没有 replace FFI，但保留以匹配 Rust 代码
                 true
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2165,24 +2158,24 @@ public class EndTag {
     }
 
     /// replace — 替换内容（解码参数版本）
-    public func replace(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func replace(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return replace_(callFrame, global, args.content, args.options)
     }
 
     /// remove — 删除
     /// 严格翻译自: #[bun_jsc::host_fn(method)] pub fn remove(...)
-    public func remove(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func remove(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         if (endTag == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
         lol_html_end_tag_remove(endTag)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// getName — 获取标签名
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn get_name(...)
-    public func getName(JsGlobalObject): JsValue {
+    public func getName(jsGlobalObject!: JsGlobalObject): JsValue {
         if (endTag == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -2191,7 +2184,7 @@ public class EndTag {
 
     /// setName — 设置标签名
     /// 严格翻译自: pub fn set_name(&self, global, value) -> JsResult<()>
-    public func setName(global: JsGlobalObject, value: JsValue): Unit {
+    public func setName(global!: JsGlobalObject, value!: JsValue): Unit {
         if (endTag == CPointer<Unit>()) {
             return
         }
@@ -2225,7 +2218,7 @@ public class EndTagHandler {
 
     /// onEndTag — 结束标签回调
     /// 严格翻译自: pub fn on_end_tag(`this`: *Self, value: *lolhtml::EndTag) -> bool
-    public static func onEndTag(`this`: EndTagHandler, value: CPointer<Unit>): Bool {
+    public static func onEndTag(`this`: EndTagHandler, value!: CPointer<Unit>): Bool {
         return handlerCallbackEndTag(
             this,
             value,
@@ -2235,7 +2228,7 @@ public class EndTagHandler {
     }
 
     /// 获取 global
-    public func global(): JsGlobalObject {
+    public func getGlobal(): JsGlobalObject {
         return global.get()
     }
 
@@ -2270,7 +2263,7 @@ public class AttributeIterator {
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(iterator) -> *AttributeIterator
-    public static func `init`(iterator: CPointer<Unit>): AttributeIterator {
+    public static func `init`(iterator!: CPointer<Unit>): AttributeIterator {
         return AttributeIterator(iterator: iterator)
     }
 
@@ -2307,7 +2300,7 @@ public class AttributeIterator {
 
     /// next — 下一个属性
     /// 严格翻译自: #[bun_jsc::host_fn(method)] pub fn next(...)
-    public func next(JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func next(jsGlobalObject!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let doneLabel = BaoString("done")
         let valueLabel = BaoString("value")
 
@@ -2354,8 +2347,8 @@ public class AttributeIterator {
 
     /// getThis — 获取 this
     /// 严格翻译自: #[bun_jsc::host_fn(method)] pub fn get_this(...)
-    public func getThis(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
-        return callFrame.this()
+    public func getThis(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
+        return callFrame.`this`()
     }
 }
 
@@ -2385,7 +2378,7 @@ public class HTMLElement {
 
     /// init — 初始化
     /// 严格翻译自: pub fn init(element) -> *Element
-    public static func `init`(element: CPointer<Unit>): HTMLElement {
+    public static func `init`(element!: CPointer<Unit>): HTMLElement {
         return HTMLElement(element: element)
     }
 
@@ -2435,10 +2428,10 @@ public class HTMLElement {
     /// contentHandler — 通用内容处理器
     public func contentHandler(
         callback: (CPointer<Unit>, Array<UInt8>, Bool) -> Bool,
-        thisObject: JsValue,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        thisObject!: JsValue,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
@@ -2458,16 +2451,16 @@ public class HTMLElement {
     /// before_ — 在前面插入内容
     /// 严格翻译自: /// Inserts content before the element.
     public func before_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { el: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_element_before(el, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2475,7 +2468,7 @@ public class HTMLElement {
     }
 
     /// before — 在前面插入内容（解码参数版本）
-    public func before(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func before(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return before_(callFrame, global, args.content, args.options)
     }
@@ -2483,16 +2476,16 @@ public class HTMLElement {
     /// after_ — 在后面插入内容
     /// 严格翻译自: /// Inserts content right after the element.
     public func after_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { el: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_element_after(el, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2500,7 +2493,7 @@ public class HTMLElement {
     }
 
     /// after — 在后面插入内容（解码参数版本）
-    public func after(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func after(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return after_(callFrame, global, args.content, args.options)
     }
@@ -2508,16 +2501,16 @@ public class HTMLElement {
     /// prepend_ — 在开始标签后插入内容
     /// 严格翻译自: /// Inserts content right after the start tag of the element.
     public func prepend_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { el: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_element_prepend(el, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2525,7 +2518,7 @@ public class HTMLElement {
     }
 
     /// prepend — 在开始标签后插入内容（解码参数版本）
-    public func prepend(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func prepend(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return prepend_(callFrame, global, args.content, args.options)
     }
@@ -2533,16 +2526,16 @@ public class HTMLElement {
     /// append_ — 在结束标签前插入内容
     /// 严格翻译自: /// Inserts content right before the end tag of the element.
     public func append_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { el: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_element_append(el, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2550,7 +2543,7 @@ public class HTMLElement {
     }
 
     /// append — 在结束标签前插入内容（解码参数版本）
-    public func append(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func append(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return append_(callFrame, global, args.content, args.options)
     }
@@ -2558,16 +2551,16 @@ public class HTMLElement {
     /// replace_ — 替换元素
     /// 严格翻译自: /// Removes the element and inserts content in place of it.
     public func replace_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { el: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_element_replace(el, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2575,7 +2568,7 @@ public class HTMLElement {
     }
 
     /// replace — 替换元素（解码参数版本）
-    public func replace(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func replace(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return replace_(callFrame, global, args.content, args.options)
     }
@@ -2583,16 +2576,16 @@ public class HTMLElement {
     /// setInnerContent_ — 设置内部内容
     /// 严格翻译自: /// Replaces content of the element.
     public func setInnerContent_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        content: BaoString,
-        contentOptions: ?ContentOptions,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        content!: BaoString,
+        contentOptions!: ?ContentOptions
     ): JsValue {
         return contentHandler(
             { el: CPointer<Unit>, bytes: Array<UInt8>, isHtml: Bool =>
                 lol_html_element_set_inner_content(el, bytes.toArrayPtr(), UIntNative(bytes.size), isHtml) != 0
             },
-            callFrame.this(),
+            callFrame.`this`(),
             globalObject,
             content,
             contentOptions,
@@ -2600,34 +2593,34 @@ public class HTMLElement {
     }
 
     /// setInnerContent — 设置内部内容（解码参数版本）
-    public func setInnerContent(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func setInnerContent(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = eatContentArgs(global, callFrame)
         return setInnerContent_(callFrame, global, args.content, args.options)
     }
 
     /// remove — 删除元素
     /// 严格翻译自: /// Removes the element with all its content.
-    public func remove(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func remove(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
         lol_html_element_remove(element)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// removeAndKeepContent — 删除标签但保留内容
     /// 严格翻译自: /// Removes the start tag and end tag of the element but keeps its inner content intact.
-    public func removeAndKeepContent(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func removeAndKeepContent(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
         lol_html_element_remove_and_keep_content(element)
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// getTagName — 获取标签名
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn get_tag_name(...)
-    public func getTagName(JsGlobalObject): JsValue {
+    public func getTagName(jsGlobalObject!: JsGlobalObject): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -2636,7 +2629,7 @@ public class HTMLElement {
 
     /// setTagName — 设置标签名
     /// 严格翻译自: pub fn set_tag_name(&self, global, value) -> JsResult<()>
-    public func setTagName(global: JsGlobalObject, value: JsValue): Unit {
+    public func setTagName(global!: JsGlobalObject, value!: JsValue): Unit {
         if (element == CPointer<Unit>()) {
             return
         }
@@ -2675,7 +2668,7 @@ public class HTMLElement {
 
     /// getNamespaceUri — 获取命名空间 URI
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn get_namespace_uri(...)
-    public func getNamespaceUri(JsGlobalObject): JsValue {
+    public func getNamespaceUri(jsGlobalObject!: JsGlobalObject): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -2685,7 +2678,7 @@ public class HTMLElement {
 
     /// getAttributes — 获取属性迭代器
     /// 严格翻译自: #[bun_jsc::host_fn(getter)] pub fn get_attributes(...)
-    public func getAttributes(JsGlobalObject): JsValue {
+    public func getAttributes(jsGlobalObject!: JsGlobalObject): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
         }
@@ -2711,7 +2704,7 @@ public class HTMLElement {
 
     /// getAttribute_ — 获取属性值
     /// 严格翻译自: pub fn get_attribute_(&self, global_object, name) -> JsResult<JsValue>
-    public func getAttribute_(JsGlobalObject, name: BaoString): JsValue {
+    public func getAttribute_(jsGlobalObject!: JsGlobalObject, name!: BaoString): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.NULL
         }
@@ -2726,7 +2719,7 @@ public class HTMLElement {
     }
 
     /// getAttribute — 获取属性值（解码参数版本）
-    public func getAttribute(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func getAttribute(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let name = eatZigString(iter, global)
@@ -2735,7 +2728,7 @@ public class HTMLElement {
 
     /// hasAttribute_ — 检查属性是否存在
     /// 严格翻译自: pub fn has_attribute_(&self, global, name) -> JsValue
-    public func hasAttribute_(global: JsGlobalObject, name: BaoString): JsValue {
+    public func hasAttribute_(global!: JsGlobalObject, name!: BaoString): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.FALSE
         }
@@ -2748,7 +2741,7 @@ public class HTMLElement {
     }
 
     /// hasAttribute — 检查属性是否存在（解码参数版本）
-    public func hasAttribute(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func hasAttribute(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let name = eatZigString(iter, global)
@@ -2758,10 +2751,10 @@ public class HTMLElement {
     /// setAttribute_ — 设置属性
     /// 严格翻译自: pub fn set_attribute_(&self, call_frame, global_object, name_, value_) -> JsValue
     public func setAttribute_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        name_: BaoString,
-        value_: BaoString,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        name_!: BaoString,
+        value_!: BaoString
     ): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
@@ -2779,11 +2772,11 @@ public class HTMLElement {
         ) != 0) {
             return createLolhtmlError(globalObject)
         }
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// setAttribute — 设置属性（解码参数版本）
-    public func setAttribute(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func setAttribute(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(2)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let name = eatZigString(iter, global)
@@ -2794,9 +2787,9 @@ public class HTMLElement {
     /// removeAttribute_ — 删除属性
     /// 严格翻译自: pub fn remove_attribute_(&self, call_frame, global_object, name) -> JsValue
     public func removeAttribute_(
-        callFrame: JsCallFrame,
-        globalObject: JsGlobalObject,
-        name: BaoString,
+        callFrame!: JsCallFrame,
+        globalObject!: JsGlobalObject,
+        name!: BaoString
     ): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.UNDEFINED
@@ -2809,11 +2802,11 @@ public class HTMLElement {
         if (lol_html_element_remove_attribute(element, nameSlice.toArrayPtr(), UIntNative(nameSlice.size)) != 0) {
             return createLolhtmlError(globalObject)
         }
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// removeAttribute — 删除属性（解码参数版本）
-    public func removeAttribute(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func removeAttribute(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let name = eatZigString(iter, global)
@@ -2827,7 +2820,7 @@ public class HTMLElement {
 
     /// onEndTag_ — 注册结束标签处理器
     /// 严格翻译自: pub fn on_end_tag_(&self, global_object, function, call_frame) -> JsResult<JsValue>
-    public func onEndTag_(JsGlobalObject, function: JsValue, callFrame: JsCallFrame): JsValue {
+    public func onEndTag_(jsGlobalObject!: JsGlobalObject, function!: JsValue, callFrame!: JsCallFrame): JsValue {
         if (element == CPointer<Unit>()) {
             return JsValue.NULL
         }
@@ -2844,11 +2837,11 @@ public class HTMLElement {
         }
 
         function.protect()
-        return callFrame.this()
+        return callFrame.`this`()
     }
 
     /// onEndTag — 注册结束标签处理器（解码参数版本）
-    public func onEndTag(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func onEndTag(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let args = callFrame.argumentsOld(1)
         let iter = ArgumentsSlice(global.bunVMRef(), args.slice())
         let function = eatJsValue(iter, global)
@@ -2888,14 +2881,14 @@ public class MutableString {
     }
 
     /// growBy — 扩展指定字节
-    public func growBy(count: Int64): Unit {
+    public func growBy(count!: Int64): Unit {
         for (_ in 0..count) {
             list.append(0)
         }
     }
 
     /// append — 追加字节
-    public func append(bytes: Array<UInt8>): Unit {
+    public func append(bytes!: Array<UInt8>): Unit {
         for (b in bytes) {
             list.append(b)
         }
@@ -2926,7 +2919,7 @@ public class LinearFifo {
     }
 
     /// write — 写入数据
-    public func write(bytes: Array<UInt8>): Bool {
+    public func write(bytes!: Array<UInt8>): Bool {
         for (b in bytes) {
             buffer.append(b)
         }
@@ -2946,12 +2939,12 @@ public class LinearFifo {
 
 /// UTF8Fallback — UTF-8 回退编码器
 public class UTF8Fallback {
-    public static func writeUtf16(loader: HTMLRewriterLoader, data: StreamResult, writeFn: (StreamResult) -> StreamResultWritable): StreamResultWritable {
+    public static func writeUtf16(loader!: HTMLRewriterLoader, data!: StreamResult, writeFn!: (StreamResult) -> StreamResultWritable): StreamResultWritable {
         // 简化版本：直接转发
         return writeFn(data)
     }
 
-    public static func writeLatin1(loader: HTMLRewriterLoader, data: StreamResult, writeFn: (StreamResult) -> StreamResultWritable): StreamResultWritable {
+    public static func writeLatin1(loader!: HTMLRewriterLoader, data!: StreamResult, writeFn!: (StreamResult) -> StreamResultWritable): StreamResultWritable {
         // 简化版本：直接转发
         return writeFn(data)
     }
@@ -2975,15 +2968,15 @@ public class ValueBufferer {
     }
 
     public static func `init`(
-        ctx: BufferOutputSink,
-        trampoline: (BufferOutputSink, Array<UInt8>, ?BodyValueError, Bool) -> Unit,
-        global: JsGlobalObject,
+        ctx!: BufferOutputSink,
+        trampoline!: (BufferOutputSink, Array<UInt8>, Option<BodyValueError>, Bool) -> Unit,
+        global!: JsGlobalObject
     ): ValueBufferer {
         return ValueBufferer(ctx: ctx, callback: trampoline, global: global)
     }
 
     /// run — 运行缓冲器
-    public func run(value: BodyValue, readableStream: JsValue): BaoError {
+    public func run(value!: BodyValue, readableStream!: JsValue): BaoError {
         // 简化版本：同步处理
         return BaoError.None
     }
@@ -3006,11 +2999,11 @@ public class GlobalRef {
         this.global = global
     }
 
-    public static func from(global: JsGlobalObject): GlobalRef {
+    public static func from(global!: JsGlobalObject): GlobalRef {
         return GlobalRef(global: global)
     }
 
-    public func get(): JsGlobalObject {
+    public func `get`(): JsGlobalObject {
         return global
     }
 }
@@ -3024,8 +3017,8 @@ public class GlobalRef {
 public class StreamSignal {
     public init() {}
 
-    public func close(err: ?SyscallError): Unit {}
-    public func ready(chunkSize: ?Int64, err: ?SyscallError): Unit {}
+    public func close(err!: ?SyscallError): Unit {}
+    public func ready(chunkSize!: ?Int64, err!: ?SyscallError): Unit {}
 }
 
 // ============================================================================
@@ -3036,15 +3029,15 @@ public class StreamSignal {
 /// Body — Body 辅助方法
 public class Body {
     /// extract — 提取 body 值
-    public static func extract(global: JsGlobalObject, value: JsValue): BodyValue {
+    public static func extract(global!: JsGlobalObject, value!: JsValue): BodyValue {
         return BodyValue()
     }
 
     /// resolve — 解析 body 值
-    public static func resolve(prev: BodyValue, current: BodyValue, global: GlobalRef, err: ?String): Unit {}
+    public static func resolve(prev!: BodyValue, current!: BodyValue, global!: GlobalRef, err!: ?String): Unit {}
 
     /// newLocked — 创建锁定的 body
-    public static func newLocked(task: BufferOutputSink): BodyValue {
+    public static func newLocked(task!: BufferOutputSink): BodyValue {
         let v = BodyValue()
         v.tag = BodyValueTag.Locked
         return v
@@ -3074,8 +3067,8 @@ public class BodyValue {
         onReceiveValue = None
     }
 
-    public func toErrorInstance(err: BodyValueError, global: JsGlobalObject): Unit {}
-    public func toErrorInstance(err: JsValue, global: GlobalRef): Unit {}
+    public func toErrorInstance(err!: BodyValueError, global!: JsGlobalObject): Unit {}
+    public func toErrorInstance(err!: JsValue, global!: GlobalRef): Unit {}
     public func useAsAnyBlobAllowNonUtf8String(): AnyBlob { return AnyBlob() }
 }
 
@@ -3107,11 +3100,11 @@ public class InternalBlob {
 
 /// AnyBlob — 任意 Blob
 public class AnyBlob {
-    public func toString(global: JsGlobalObject, lifetime: Lifetime): JsValue {
+    public func toString(global!: JsGlobalObject, lifetime!: Lifetime): JsValue {
         return JsValue.UNDEFINED
     }
 
-    public func toArrayBuffer(global: JsGlobalObject, lifetime: Lifetime): JsValue {
+    public func toArrayBuffer(global!: JsGlobalObject, lifetime!: Lifetime): JsValue {
         return JsValue.UNDEFINED
     }
 }

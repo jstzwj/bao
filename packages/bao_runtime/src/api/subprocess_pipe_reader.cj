@@ -22,25 +22,25 @@ public class PipeReader {
     public var stdioResult: StdioResult
 
     /// PipeReaderState - 读取器状态
-    public enum PipeReaderState {
-        | pending
-        | done(Array<UInt8>)
-        | err(SysError)
-    }
+//    public enum PipeReaderState {
+//        | pending
+//        | done(Array<UInt8>)
+//        | err(SysError)
+//    }
 
     // ========================================================================
     // 创建和启动
     // ========================================================================
 
     /// 创建 PipeReader
-    public static func create(eventLoop: EventLoop, process: Subprocess, result: StdioResult, limit: ?MaxBuf): PipeReader {
+    public static func create(eventLoop!: EventLoop, process!: Subprocess, result!: StdioResult, limit!: ?MaxBuf): PipeReader {
         let reader = PipeReader(
             refCount: RefCount(),
             process: process,
             reader: IOReader(),
             eventLoop: eventLoop,
             stdioResult: result,
-            state: .pending,
+            state: PipeReaderState.pending,
         )
         MaxBuf.addToPipeReader(limit, reader.reader.maxbuf)
         reader.reader.setParent(reader)
@@ -48,7 +48,7 @@ public class PipeReader {
     }
 
     /// 启动读取
-    public func start(process: Subprocess, eventLoop: EventLoop): Maybe<Unit> {
+    public func start(process!: Subprocess, eventLoop!: EventLoop): Maybe<Unit> {
         ref()
         this.process = process
         this.eventLoop = eventLoop
@@ -58,11 +58,11 @@ public class PipeReader {
             case result =>
                 if (Environment.isPosix) {
                     let poll = reader.handle.poll
-                    poll.flags.insert(.socket)
+                    poll.flags.insert(PollFlags.socket)
                     reader.flags.socket = true
                     reader.flags.nonblocking = true
                     reader.flags.pollable = true
-                    poll.flags.insert(.nonblocking)
+                    poll.flags.insert(PollFlags.nonblocking)
                 }
                 return Maybe<Unit>.success
         }
@@ -91,29 +91,28 @@ public class PipeReader {
     }
 
     /// toReadableStream - 转换为可读流
-    public func toReadableStream(JsGlobalObject): JsValue {
-        defer detach()
-
+    public func toReadableStream(jsGlobalObject!: JsGlobalObject): JsValue {
         match (state) {
             case pending =>
                 let stream = ReadableStream.fromPipe(globalObject, this, reader)
-                state = .done([])
+                state = PipeReaderState.done(Array<UInt8>())
                 return stream
             case done(bytes) =>
-                state = .done([])
+                state = PipeReaderState.done(Array<UInt8>())
                 return ReadableStream.fromOwnedSlice(globalObject, bytes, 0)
             case err =>
-                let empty = try ReadableStream.empty(globalObject)
+                let empty = ReadableStream.empty(globalObject)
                 return empty
         }
+        detach()
     }
 
     /// toBuffer - 转换为 Buffer
-    public func toBuffer(globalThis: JsGlobalObject): JsValue {
+    public func toBuffer(globalThis!: JsGlobalObject): JsValue {
         match (state) {
             case done(bytes) =>
-                defer { state = .done([]) }
-                return MarkedArrayBuffer.fromBytes(bytes, default_allocator, .Uint8Array).toNodeBuffer(globalThis)
+                 state = PipeReaderState.done(Array<UInt8>())
+                return MarkedArrayBuffer.fromBytes(bytes, default_allocator, TypedArrayKind.Uint8Array).toNodeBuffer(globalThis)
             case _ => return JsValue.jsUndefined()
         }
     }
@@ -125,7 +124,7 @@ public class PipeReader {
     /// onReaderDone - 读取完成回调
     public func onReaderDone(): Unit {
         let owned = toOwnedSlice()
-        state = .done(owned)
+        state = PipeReaderState.done(owned)
         if (let process <- process) {
             this.process = none
             process.onCloseIO(kind(process))
@@ -134,8 +133,8 @@ public class PipeReader {
     }
 
     /// onReaderError - 读取错误回调
-    public func onReaderError(err: SysError): Unit {
-        state = .err(err)
+    public func onReaderError(err!: SysError): Unit {
+        state = PipeReaderState.err(err)
         if (let process <- process) {
             this.process = none
             process.onCloseIO(kind(process))
@@ -148,12 +147,12 @@ public class PipeReader {
     // ========================================================================
 
     /// kind - 确定是 stdout 还是 stderr
-    public func kind(process: Subprocess): StdioKind {
+    public func kind(process!: Subprocess): StdioKind {
         if (process.stdout == pipe && process.stdout.pipe == this) {
-            return .stdout
+            return StdioKind.stdout
         }
         if (process.stderr == pipe && process.stderr.pipe == this) {
-            return .stderr
+            return StdioKind.stderr
         }
         fatalError("We should be either stdout or stderr")
     }
@@ -173,7 +172,7 @@ public class PipeReader {
     }
 
     /// updateRef - 更新引用
-    public func updateRef(add: Bool): Unit {
+    public func updateRef(add!: Bool): Unit {
         reader.updateRef(add)
     }
 

@@ -336,6 +336,8 @@ public class Log {
     public func hasErrors(): Bool {
         return false
     }
+
+    public func deinit(): Unit {}
 }/// 辅助函数: 创建 ArrayList<T>
 private func arrayListOf(elements: Array<String>): ArrayList<String> {
     let list = ArrayList<String>()

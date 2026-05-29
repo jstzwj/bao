@@ -128,10 +128,21 @@ public class StrongOptional<T> {
     }
 
     // 严格翻译自 Strong.Optional.call
-    // 如果有值则调用函数
+    // 如果有值则调用函数 (仅当 T 为 JsValue 时有效)
     public func call(global: JsObject, args: Array<JsValue>): JsValue {
-        // TODO: requires JSC runtime callWithThis binding
-        JsValue.undefined()
+        let function = trySwap()
+        if (function.isNone()) {
+            return JsValue.undefined()
+        }
+        // T is expected to be JsValue in call contexts
+        match (function) {
+            case Some(jsVal: JsValue) =>
+                if (jsVal.isCallable()) {
+                    return jsVal.call(global, JsValue.undefined(), args)
+                }
+                JsValue.undefined()
+            case _ => JsValue.undefined()
+        }
     }
 
     // 严格翻译自 Strong.Optional.get
@@ -191,8 +202,10 @@ public class StrongImpl {
     // 严格翻译自 Strong.Impl.get
     // 获取引用的 JS 值
     public func get(): JsValue {
-        // TODO: proper type cast from Any to JsValue
-        JsValue.undefined()
+        match (value) {
+            case jsVal: JsValue => jsVal
+            case _ => JsValue.undefined()
+        }
     }
 
     // 严格翻译自 Strong.Impl.set

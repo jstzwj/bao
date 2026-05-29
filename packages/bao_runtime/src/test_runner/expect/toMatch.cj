@@ -2,23 +2,23 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toMatch() - 检查字符串是否匹配正则或包含子串
 /// 用法: expect(received).toMatch(expected)
 public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toMatch() requires 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toMatch() requires 1 argument")
     }
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
     let formatter = ConsoleFormatter()
     // defer { formatter.deinit() }
@@ -29,18 +29,19 @@ public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     }
     expectedValue.ensureStillAlive()
 
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatch", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatch", matcherParamsFmt: "<green>expected<r>")
 
     if (!value.isString()) {
         return globalThis.throw_("Received value must be a string: {f}", args: [value.toFmt(formatter)])
     }
 
-    let not = this.flags.not
+    let not = `this`.flags.not
+    let global = globalThis.globalThis
     var pass: Bool = false
     if (expectedValue.isString()) {
-        pass = value.stringIncludes(globalThis: globalThis, expected: expectedValue)
+        pass = value.stringIncludes(global, expectedValue)
     } else if (expectedValue.isRegExp()) {
-        pass = expectedValue.toMatch(globalThis: globalThis, value: value)
+        pass = expectedValue.toMatch(global, value)
     }
 
     if (not) { pass = !pass }
@@ -53,12 +54,12 @@ public func toMatch(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallF
     if (not) {
         let expectedLine = "Expected substring or pattern: not <green>{f}<r>\n"
         let receivedLine = "Received: <red>{f}<r>\n"
-        let signature = Expect.getSignature(matcherName: "toMatch", args: "<green>expected<r>", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
+        let signature = Expect.getSignature("toMatch", "<green>expected<r>", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
     }
 
     let expectedLine = "Expected substring or pattern: <green>{f}<r>\n"
     let receivedLine = "Received: <red>{f}<r>\n"
-    let signature = Expect.getSignature(matcherName: "toMatch", args: "<green>expected<r>", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
+    let signature = Expect.getSignature("toMatch", "<green>expected<r>", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
 }

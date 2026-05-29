@@ -66,7 +66,7 @@ public class JSBundleCompletionTask {
         config: JSBundlerConfig,
         plugins: ?Plugin,
         globalThis: JSGlobalObject,
-        eventLoop: EventLoop,
+        eventLoop: EventLoop
     ) {
         refCount = RefCount()
         this.config = config
@@ -105,10 +105,10 @@ public class JSBundleCompletionTask {
 /// BundleV2.createAndScheduleCompletionTask — 构造、获取进程保活引用，
 /// 并将任务交给 bundle 线程单例。
 public func createAndScheduleCompletionTask(
-    config: JSBundlerConfig,
-    plugins: ?Plugin,
-    globalThis: JSGlobalObject,
-    eventLoop: EventLoop,
+    config!: JSBundlerConfig,
+    plugins!: ?Plugin,
+    globalThis!: JSGlobalObject,
+    eventLoop!: EventLoop
 ): ?JSBundleCompletionTask {
     let vm = globalThis.bunVmPtr()
     let completion = JSBundleCompletionTask(config, plugins, globalThis, eventLoop)
@@ -135,10 +135,10 @@ public func createAndScheduleCompletionTask(
 
 /// BundleV2.generateFromJavaScript — 调度一个构建并返回其 Promise。
 public func generateFromJavaScript(
-    config: JSBundlerConfig,
-    plugins: ?Plugin,
-    globalThis: JSGlobalObject,
-    eventLoop: EventLoop,
+    config!: JSBundlerConfig,
+    plugins!: ?Plugin,
+    globalThis!: JSGlobalObject,
+    eventLoop!: EventLoop
 ): ?JsValue {
     let completion = createAndScheduleCompletionTask(config, plugins, globalThis, eventLoop)
     if (completion.isNone()) {
@@ -146,7 +146,7 @@ public func generateFromJavaScript(
     }
     let task = completion.unwrap()
     task.promise = JSPromiseStrong(globalThis)
-    return task.promise.value()
+    return task.promise.getValue()
 }
 
 // ============================================================================
@@ -154,7 +154,7 @@ public func generateFromJavaScript(
 // ============================================================================
 
 /// 辅助: 空 Box 转换
-func optBox(s: String): ?String {
+func optBox(s!: String): ?String {
     if (s.isEmpty()) {
         return None
     }
@@ -165,32 +165,32 @@ func optBox(s: String): ?String {
 /// 返回 true 如果回调已处理并从 BundlePlugin.ts 解析
 /// 返回 false 表示调用者应立即解析
 public func runOnEndCallbacks(
-    globalThis: JSGlobalObject,
-    plugin: Plugin,
-    promise: JSPromise,
-    buildResult: JsValue,
-    rejection: ?JsValue,
+    globalThis!: JSGlobalObject,
+    plugin!: Plugin,
+    promise!: JSPromise,
+    buildResult!: JsValue,
+    rejection!: ?JsValue
 ): Bool {
     let value = plugin.runOnEndCallbacks(globalThis, promise, buildResult, rejection)
     return (value != JsValue.undefined)
 }
 
 /// 扩展: 获取可变插件引用
-public func pluginsMut(task: JSBundleCompletionTask): ?Plugin {
+public func pluginsMut(task!: JSBundleCompletionTask): ?Plugin {
     return task.plugins
 }
 
 /// 扩展: 将错误转换为 JS
 public func toJsError(
-    task: JSBundleCompletionTask,
-    promise: JSPromise,
-    globalThis: JSGlobalObject,
+    task!: JSBundleCompletionTask,
+    promise!: JSPromise,
+    globalThis!: JSGlobalObject
 ): Unit {
     let throwOnError = task.config.throwOnError
 
     let buildResult = JsValue.createEmptyObject(globalThis, 3)
     buildResult.put(globalThis, "outputs", JsValue.createEmptyArray(globalThis, 0))
-    buildResult.put(globalThis, "success", JsValue.false)
+    buildResult.put(globalThis, "success", JsValue.jsFalse())
 
     match (LogJsc.logToJsArray(task.log, globalThis)) {
         case ok(v) => buildResult.put(globalThis, "logs", v)
@@ -224,8 +224,8 @@ public func toJsError(
 /// 扩展: 执行编译（compile 模式）
 /// 对应 Bun: JSBundleCompletionTask.do_compilation
 public func doCompilation(
-    task: JSBundleCompletionTask,
-    outputFiles: Array<OutputFile>,
+    task!: JSBundleCompletionTask,
+    outputFiles!: Array<OutputFile>
 ): CompileResult {
     let compileOptions = task.config.compile
     if (compileOptions.isNone()) {
@@ -236,8 +236,7 @@ public func doCompilation(
     // 查找入口点索引
     var entryPointIndex: Int64 = -1
     for ((i, outputFile) in outputFiles) {
-        if (outputFile.outputKind == OutputKind.entryPoint
-            && (outputFile.side ?? Side.server) == Side.server) {
+        if (outputFile.outputKind == OutputKind.entryPoint && (outputFile.side ?? Side.server) == Side.server) {
             entryPointIndex = i
             break
         }
@@ -259,8 +258,7 @@ public func doCompilation(
     }
 
     // Windows 目标添加 .exe 扩展名
-    if (compileOpts.compileTarget.os == OperatingSystem.windows
-        && !fullOutfilePath.endsWith(".exe")) {
+    if (compileOpts.compileTarget.os == OperatingSystem.windows && !fullOutfilePath.endsWith(".exe")) {
         fullOutfilePath = fullOutfilePath + ".exe"
     }
 
@@ -328,9 +326,7 @@ public func doCompilation(
     for ((i, outputFile) in outputFiles) {
         let keepThis = if (i == entryPointIndex) {
             true
-        } else if (result == CompileResult.success
-            && outputFile.outputKind == OutputKind.sourcemap
-            && outputFile.value.isBuffer()) {
+        } else if (result == CompileResult.success && outputFile.outputKind == OutputKind.sourcemap && outputFile.value.isBuffer()) {
             let bytesLen = outputFile.value.bufferBytes().size
             if (bytesLen > 0) {
                 // 写入 sourcemap 文件
@@ -375,7 +371,7 @@ public func doCompilation(
 
 /// 扩展: AnyTask 入口 — onComplete
 /// 在 JS 线程上运行，当 bundle 线程通过 complete_on_bundle_thread 回调时调用。
-public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
+public func onCompleteAnytask(ctx!: JSBundleCompletionTask): Unit {
     let `this` = ctx
     this.pollRef.unref(VirtualMachine.eventLoopCtx(this.globalThis.bunVmPtr()))
 
@@ -455,7 +451,7 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
 
         let buildOutput = JsValue.createEmptyObject(globalThis, 4)
         buildOutput.put(globalThis, "outputs", outputFilesJs)
-        buildOutput.put(globalThis, "success", JsValue.true)
+        buildOutput.put(globalThis, "success", JsValue.`true`)
 
         match (LogJsc.logToJsArray(this.log, globalThis)) {
             case ok(v) => buildOutput.put(globalThis, "logs", v)
@@ -494,9 +490,9 @@ public func onCompleteAnytask(ctx: JSBundleCompletionTask): Unit {
 /// 配置 bundler — post-init 阶段
 /// 对应 Bun: JSBundleCompletionTask.configureBundler
 public func configureBundler(
-    task: JSBundleCompletionTask,
-    transpiler: Transpiler,
-    bump: Arena,
+    task!: JSBundleCompletionTask,
+    transpiler!: Transpiler,
+    bump!: Arena
 ): Bool {
     let config = task.config
 
@@ -555,7 +551,7 @@ public func configureBundler(
 }
 
 /// 在 bundle 线程上完成
-public func completeOnBundleThread(task: JSBundleCompletionTask): Unit {
+public func completeOnBundleThread(task!: JSBundleCompletionTask): Unit {
     task.jscEventLoop.enqueueTaskConcurrent(
         ConcurrentTask.create(task.task.task()),
     )
@@ -564,8 +560,8 @@ public func completeOnBundleThread(task: JSBundleCompletionTask): Unit {
 /// 创建和配置 Transpiler
 /// 对应 Bun: JSBundleCompletionTask.create_and_configure_transpiler
 public func createAndConfigureTranspiler(
-    task: JSBundleCompletionTask,
-    bump: Arena,
+    task!: JSBundleCompletionTask,
+    bump!: Arena
 ): ?Transpiler {
     let config = task.config
     let opts = TransformOptions(
@@ -596,10 +592,10 @@ public func createAndConfigureTranspiler(
 /// 初始化并运行
 /// 对应 Bun: JSBundleCompletionTask.init_and_run
 public func initAndRun(
-    task: JSBundleCompletionTask,
-    transpiler: Transpiler,
-    bump: Arena,
-    threadPool: ?ThreadPool,
+    task!: JSBundleCompletionTask,
+    transpiler!: Transpiler,
+    bump!: Arena,
+    threadPool!: ?ThreadPool
 ): Bool {
     // 创建 BundleV2 并运行
     let bv2 = BundleV2(transpiler, None, bump, None, false, threadPool)

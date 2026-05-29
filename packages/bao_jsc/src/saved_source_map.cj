@@ -102,7 +102,7 @@ public class SavedSourceMap {
         line: Int32,
         column: Int32,
         sourceHandling: SourceContentHandling
-    ): ?MappingLookup {
+    ): ?SourceMapLookup {
         None
     }
 }

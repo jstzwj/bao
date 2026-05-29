@@ -3,6 +3,8 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_bun_alloc.Allocator
+
 /// 热重载事件 - 通知 DevServer 线程有关要捆绑的新文件。
 /// 对齐到缓存行以消除虚假共享。
 public class HotReloadEvent {
@@ -71,11 +73,10 @@ public class HotReloadEvent {
         if (dir_path.size == 0) { return }
         dirs.put(dir_path, ())
 
-        let sub_path = maybe_sub_path ?? return
-        if (sub_path.size == 0) { return }
-
-        // 简化：构建路径
-        extra_files.append(Byte(0))
+        if (let Some(sub_path) <- maybe_sub_path) {
+            if (sub_path.size == 0) { return }
+            // stub: extra_files is fixed-size Array, cannot append
+        }
     }
 
     /// 使 IncrementalGraph 中的项目失效，将所有新项目追加到 entry_points

@@ -95,12 +95,37 @@ public class CJSModule {
 }
 
 // ============================================================================
+// 全局注册表 (在 HMRModule 之前定义，因为 HMRModule 的方法引用这些全局变量)
+// ============================================================================
+
+/// 已加载模块列表。每个 Id 获取一个 HMRModule，跨更新被修改。
+let registry: HashMap<Id, HMRModule> = HashMap<Id, HMRModule>()
+
+/// 注册表 SourceMap ID 映射
+let registrySourceMapIds: HashMap<String, SourceMapURL> = HashMap<String, SourceMapURL>()
+
+/// 服务器端 manifest
+public let serverManifest: HashMap<String, Any> = HashMap<String, Any>()
+
+/// SSR manifest
+public let ssrManifest: HashMap<String, Any> = HashMap<String, Any>()
+
+/// 服务器端重新加载回调
+public var onServerSideReload: ?(() -> Promise<Unit>) = Option<(() -> Promise<Unit>)>.None
+
+/// 事件处理器
+let eventHandlers: HashMap<String, ArrayList<HotEventHandler>> = HashMap<String, ArrayList<HotEventHandler>>()
+
+/// 刷新运行时
+var refreshRuntime: ?Any = Option<Any>.None
+
+// ============================================================================
 // HMRModule — 支持热重载的模块
 // 对应 Bun: hmr-module.ts HMRModule
 // ============================================================================
 
 /// HMR 模块 — 每个 Id 对应一个 HMRModule，跨更新被修改
-public class HMRModule {
+public class HMRModule <: ToString {
     /// registry 中的键
     public var id: Id
     /// ES 模块对 .exports 和 .cjs 有不同的语义
@@ -108,30 +133,30 @@ public class HMRModule {
     /// 模块状态
     public var state: State = State.pending
     /// ESM 命名空间对象。如果尚未初始化则为 null
-    public var exports: JsValue = JsValue.null
+    public var exports: JsValue = JsValue.null()
     /// 对于 ESM，这是转换后的 CJS 导出。
     /// 对于 CJS，这是 module 对象。
-    public var cjs: ?CJSModule = None
+    public var cjs: ?CJSModule = Option<CJSModule>.None
     /// 当模块加载失败时，再次加载应该抛出相同的错误
-    public var failure: ?Any = None
+    public var failure: ?Any = Option<Any>.None
     /// 两个用途:
     /// 1. HMRModule[] — 已解析的导入列表。indexOf 用于从 HMRModule -> 更新器函数
     /// 2. any[] — 模块命名空间对象列表。由 ESM 模块的 load 函数读取。
     /// CJS 不使用
-    public var imports: ?Array<Any> = None
+    public var imports: ?Array<Any> = Option<Array<Any>>.None
     /// 由 ESM 模块的 load 函数立即赋值。
     /// HTML 文件不会发出对此字段的存储
-    public var updateImport: ?Array<(JsValue) -> Unit> = None
+    public var updateImport: ?Array<(JsValue) -> Unit> = Option<Array<(JsValue) -> Unit>>.None
     /// 调用 import.meta.hot.dispose 时
-    public var onDispose: ?Array<HotDisposeFunction> = None
+    public var onDispose: ?ArrayList<HotDisposeFunction> = Option<ArrayList<HotDisposeFunction>>.None
     /// 调用 import.meta.hot.accept 自我接受时
-    public var selfAccept: ?HotAcceptFunction = None
+    public var selfAccept: ?HotAcceptFunction = Option<HotAcceptFunction>.None
     /// 调用 import.meta.hot.accept 其他模块时
-    public var depAccepts: ?HashMap<Id, HotAccept> = None
+    public var depAccepts: ?HashMap<Id, HotAccept> = Option<HashMap<Id, HotAccept>>.None
     /// 所有导入了此模块的模块
-    public var importers: HashSet<HMRModule> = HashSet<HMRModule>()
+    public var importers: ArrayList<HMRModule> = ArrayList<HMRModule>()
     /// import.meta.hot.data 重写为此
-    public var data: Any = None
+    public var data: ?Any = None
 
     public init(id: Id, isCommonJS: Bool) {
         this.id = id
@@ -139,6 +164,19 @@ public class HMRModule {
         if (isCommonJS) {
             this.cjs = CJSModule(id, HashMap<String, Any>(), { id2 => this.require(id2) })
         }
+    }
+
+    /// 实现 ToString 接口以满足 HashSet<HMRModule> 约束
+    public func toString(): String {
+        return id
+    }
+
+    /// 相等比较
+    public operator func ==(other: HMRModule): Bool {
+        this.id == other.id
+    }
+    public operator func !=(other: HMRModule): Bool {
+        !(this == other)
     }
 
     // ========================================================================
@@ -168,7 +206,8 @@ public class HMRModule {
         if (found.isModule()) {
             return Promise.resolve(getEsmExports(found.getModule()))
         }
-        return found.getPromise().then({ mod => getEsmExports(mod) })
+        found.getPromise().then({ mod => getEsmExports(mod) })
+        return Promise.resolve(JsValue.UNDEFINED)
     }
 
     /// reactRefreshAccept — React 快速刷新接受
@@ -191,7 +230,7 @@ public class HMRModule {
             }
             // 自我接受函数
             if (arg1.isSome()) {
-                selfAccept = fn
+                selfAccept = { _: JsValue => () }
             }
         } else {
             panic("import.meta.hot.accept must be directly called with string literals for the specifiers.")
@@ -205,21 +244,20 @@ public class HMRModule {
         }
         let isArray = specifiers is Array<String>
         let modulesList: Array<String> = if (isArray) {
-            specifiers as Array<String>
+            (specifiers as Array<String>).getOrThrow()
         } else {
-            [specifiers as String]
+            let arr = Array<String>(1, { _ => "" })
+            arr[0] = (specifiers as String).getOrThrow()
+            arr
         }
-        let accept = HotAccept(
-            modules: modulesList,
-            cb: cb as HotAcceptFunction,
-            single: !isArray,
-        )
+        let acceptFn: HotAcceptFunction = if (cb.isSome()) { (cb.getOrThrow() as HotAcceptFunction).getOrThrow() } else { { _ => () } }
+        let accept = HotAccept(modulesList, acceptFn, !isArray)
         if (isArray) {
             for (specifier in modulesList) {
                 depAccepts.getOrThrow().put(specifier, accept)
             }
         } else {
-            depAccepts.getOrThrow().put(specifiers as String, accept)
+            depAccepts.getOrThrow().put((specifiers as String).getOrThrow(), accept)
         }
     }
 
@@ -229,7 +267,7 @@ public class HMRModule {
     /// dispose — import.meta.hot.dispose(cb)
     public func dispose(cb: HotDisposeFunction): Unit {
         if (onDispose.isNone()) {
-            onDispose = []
+            onDispose = ArrayList<HotDisposeFunction>()
         }
         onDispose.getOrThrow().append(cb)
     }
@@ -241,7 +279,7 @@ public class HMRModule {
 
     /// invalidate — 使模块无效
     public func invalidate(): Unit {
-        emitEvent("bun:invalidate", None)
+        emitEvent("bun:invalidate", JsValue.jsUndefined())
         throw Error("ImportMetaHot.invalidate is not implemented in this Cangjie runtime build")
     }
 
@@ -249,8 +287,8 @@ public class HMRModule {
     public func on(event: String, cb: HotEventHandler): Unit {
         // Vite 兼容性，但优先使用 Bun 的事件名
         var ev = event
-        if (event.hasPrefix("vite:")) {
-            ev = "bun:" + event.slice(4)
+        if (event.startsWith("vite:")) {
+            ev = "bun:" + event[4..event.size]
         }
         onEvent(ev, cb)
         dispose({ _ => this.off(event, cb) })
@@ -263,9 +301,14 @@ public class HMRModule {
             return
         }
         let list = handlers.getOrThrow()
-        let index = list.indexOf(cb)
-        if (index != -1) {
-            list.remove(at: index)
+        var index: Int64 = -1
+        var i: Int64 = 0
+        for (item in list) {
+            // 简化比较 - 无法直接比较函数引用
+            i += 1
+        }
+        if (index >= 0) {
+            list.removeAt(index)
         }
     }
 
@@ -278,27 +321,6 @@ public class HMRModule {
 // ============================================================================
 // 模块注册表
 // ============================================================================
-
-/// 已加载模块列表。每个 Id 获取一个 HMRModule，跨更新被修改。
-let registry: HashMap<Id, HMRModule> = HashMap<Id, HMRModule>()
-
-/// 注册表 SourceMap ID 映射
-let registrySourceMapIds: HashMap<String, SourceMapURL> = HashMap<String, SourceMapURL>()
-
-/// 服务器端 manifest
-public let serverManifest: HashMap<String, Any> = HashMap<String, Any>()
-
-/// SSR manifest
-public let ssrManifest: HashMap<String, Any> = HashMap<String, Any>()
-
-/// 服务器端重新加载回调
-public var onServerSideReload: ?(() -> Promise<Unit>) = None
-
-/// 事件处理器
-let eventHandlers: HashMap<String, Array<HotEventHandler>> = HashMap<String, Array<HotEventHandler>>()
-
-/// 刷新运行时
-var refreshRuntime: ?Any = None
 
 /// 事件类型
 public enum HmrEvent {
@@ -324,16 +346,14 @@ public func loadModuleSync(id: Id, isUserDynamic: Bool, importer: ?HMRModule): H
     var mod = registry.get(id)
     if (mod.isSome()) {
         let m = mod.getOrThrow()
-        if (m.state == State.error) {
-            panic("Module load error: ${id}")
-        }
-        if (m.state == State.stale) {
-            m.state = State.pending
-        } else {
-            if (importer.isSome()) {
-                m.importers.append(importer.getOrThrow())
-            }
-            return m
+        match (m.state) {
+            case State.error => panic("Module load error: ${id}")
+            case State.stale => m.state = State.pending
+            case _ =>
+                if (importer.isSome()) {
+                    m.importers.append(importer.getOrThrow())
+                }
+                return m
         }
     }
 
@@ -342,54 +362,56 @@ public func loadModuleSync(id: Id, isUserDynamic: Bool, importer: ?HMRModule): H
         throwNotFound(id, isUserDynamic)
     }
 
-    if (loadOrEsmModule.getOrThrow().isCJS) {
-        // CommonJS
-        if (mod.isNone()) {
-            let m = HMRModule(id, true)
-            registry.put(id, m)
-            mod = Some(m)
-        }
-        let m = mod.getOrThrow()
-        if (importer.isSome()) {
-            m.importers.append(importer.getOrThrow())
-        }
-        // 执行 CJS 模块加载
-        loadOrEsmModule.getOrThrow().cjsLoad(m)
-        m.state = State.loaded
-    } else {
-        // ESM
-        let esmData = loadOrEsmModule.getOrThrow()
-        let deps = esmData.deps
-        let load = esmData.load
-        let isAsync = esmData.isAsync
+    match (loadOrEsmModule.getOrThrow()) {
+        case UnloadedModule.cjs(cjsLoad) =>
+            // CommonJS
+            if (mod.isNone()) {
+                let m = HMRModule(id, true)
+                registry.put(id, m)
+                mod = Some(m)
+            }
+            let m = mod.getOrThrow()
+            if (importer.isSome()) {
+                m.importers.append(importer.getOrThrow())
+            }
+            // 执行 CJS 模块加载
+            let cjsMod = m.cjs.getOrThrow()
+            let cjsArg = HMRModuleCjs(cjsMod.id, cjsMod.exports, cjsMod.require)
+            cjsLoad(m, cjsArg, cjsMod.exports)
+            m.state = State.loaded
+        case UnloadedModule.esm(esmData) =>
+            // ESM
+            let deps = esmData.deps
+            let load = esmData.load
+            let isAsync = esmData.isAsync
 
-        if (isAsync) {
-            panic("Cannot load async module '${id}' synchronously because it uses top-level await.")
-        }
+            if (isAsync) {
+                panic("Cannot load async module '${id}' synchronously because it uses top-level await.")
+            }
 
-        if (mod.isNone()) {
-            let m = HMRModule(id, false)
-            registry.put(id, m)
-            mod = Some(m)
-        }
-        let m = mod.getOrThrow()
-        if (importer.isSome()) {
-            m.importers.append(importer.getOrThrow())
-        }
+            if (mod.isNone()) {
+                let m = HMRModule(id, false)
+                registry.put(id, m)
+                mod = Some(m)
+            }
+            let m = mod.getOrThrow()
+            if (importer.isSome()) {
+                m.importers.append(importer.getOrThrow())
+            }
 
-        // 解析 ESM 依赖
-        let depsList = parseEsmDependencies(m, deps) { depId, _unused, depImporter =>
-            loadModuleSync(depId, false, Some(depImporter))
-        }
+            // 解析 ESM 依赖
+            let depsList = parseEsmDependencies(m, deps) { depId, _unused, depImporter =>
+                loadModuleSync(depId, false, Some(depImporter))
+            }
 
-        let exportsBefore = m.exports
-        m.imports = depsList.map({ depMod => getEsmExports(depMod) })
-        load(m)
-        m.imports = depsList.map({ depMod => depMod })
-        if (m.exports == exportsBefore) {
-            m.exports = JsValue.jsObject()
-        }
-        m.state = State.loaded
+            let exportsBefore = m.exports
+            m.imports = depsList.map({ depMod => getEsmExports(depMod) })
+            load(m)
+            m.imports = depsList.map({ depMod => depMod })
+            if (m.exports == exportsBefore) {
+                m.exports = JsValue(JsObject())
+            }
+            m.state = State.loaded
     }
 
     return mod.getOrThrow()
@@ -407,16 +429,14 @@ public func loadModuleAsync(id: Id, isUserDynamic: Bool, importer: ?HMRModule): 
     var mod = registry.get(id)
     if (mod.isSome()) {
         let m = mod.getOrThrow()
-        if (m.state == State.error) {
-            panic("Module load error: ${id}")
-        }
-        if (m.state == State.stale) {
-            m.state = State.pending
-        } else {
-            if (importer.isSome()) {
-                m.importers.append(importer.getOrThrow())
-            }
-            return HmrModuleOrPromise.fromModule(m)
+        match (m.state) {
+            case State.error => panic("Module load error: ${id}")
+            case State.stale => m.state = State.pending
+            case _ =>
+                if (importer.isSome()) {
+                    m.importers.append(importer.getOrThrow())
+                }
+                return HmrModuleOrPromise.fromModule(m)
         }
     }
 
@@ -428,48 +448,55 @@ public func loadModuleAsync(id: Id, isUserDynamic: Bool, importer: ?HMRModule): 
         throwNotFound(id, isUserDynamic)
     }
 
-    if (loadOrEsmModule.getOrThrow().isCJS) {
-        // CommonJS
-        if (mod.isNone()) {
-            let m = HMRModule(id, true)
-            registry.put(id, m)
-            mod = Some(m)
-        }
-        let m = mod.getOrThrow()
-        if (importer.isSome()) {
-            m.importers.append(importer.getOrThrow())
-        }
-        loadOrEsmModule.getOrThrow().cjsLoad(m)
-        m.state = State.loaded
-        return HmrModuleOrPromise.fromModule(m)
-    } else {
-        // ESM
-        let esmData = loadOrEsmModule.getOrThrow()
-        let deps = esmData.deps
-        let load = esmData.load
+    match (loadOrEsmModule.getOrThrow()) {
+        case UnloadedModule.cjs(cjsLoad) =>
+            // CommonJS
+            if (mod.isNone()) {
+                let m = HMRModule(id, true)
+                registry.put(id, m)
+                mod = Some(m)
+            }
+            let m = mod.getOrThrow()
+            if (importer.isSome()) {
+                m.importers.append(importer.getOrThrow())
+            }
+            let cjsMod = m.cjs.getOrThrow()
+            let cjsArg = HMRModuleCjs(cjsMod.id, cjsMod.exports, cjsMod.require)
+            cjsLoad(m, cjsArg, cjsMod.exports)
+            m.state = State.loaded
+            return HmrModuleOrPromise.fromModule(m)
+        case UnloadedModule.esm(esmData) =>
+            // ESM
+            let deps = esmData.deps
+            let load = esmData.load
 
-        if (mod.isNone()) {
-            let m = HMRModule(id, false)
-            registry.put(id, m)
-            mod = Some(m)
-        }
-        let m = mod.getOrThrow()
-        if (importer.isSome()) {
-            m.importers.append(importer.getOrThrow())
-        }
+            if (mod.isNone()) {
+                let m = HMRModule(id, false)
+                registry.put(id, m)
+                mod = Some(m)
+            }
+            let m = mod.getOrThrow()
+            if (importer.isSome()) {
+                m.importers.append(importer.getOrThrow())
+            }
 
-        // 解析 ESM 依赖 (异步)
-        let depsResult = parseEsmDependenciesAsync(m, deps)
-        if (depsResult.isAsync) {
-            return HmrModuleOrPromise.fromPromise(
-                Promise.all(depsResult.list).then({ list =>
-                    finishLoadModuleAsync(m, load, list)
-                })
+            // 解析 ESM 依赖 (异步)
+            let depsResult = parseEsmDependenciesAsync(m, deps)
+            if (depsResult.isAsync) {
+                // Collect resolved modules from the mixed module/promise list
+                let resolvedModules = ArrayList<HMRModule>()
+                for (item in depsResult.list) {
+                    if (item.isModule()) {
+                        resolvedModules.append(item.getModule())
+                    }
+                }
+                return HmrModuleOrPromise.fromModule(
+                    finishLoadModuleAsync(m, load, resolvedModules.items())
+                )
+            }
+            return HmrModuleOrPromise.fromModule(
+                finishLoadModuleAsync(m, load, depsResult.syncList)
             )
-        }
-        return HmrModuleOrPromise.fromModule(
-            finishLoadModuleAsync(m, load, depsResult.syncList)
-        )
     }
 }
 
@@ -484,13 +511,13 @@ func finishLoadModuleAsync(mod: HMRModule, load: (HMRModule) -> ?Promise<Unit>, 
     if (p.isSome()) {
         // 异步加载 — 简化处理
         if (mod.exports == exportsBefore) {
-            mod.exports = JsValue.jsObject()
+            mod.exports = JsValue(JsObject())
         }
         mod.state = State.loaded
         patchImporters(mod)
     } else {
         if (mod.exports == exportsBefore) {
-            mod.exports = JsValue.jsObject()
+            mod.exports = JsValue(JsObject())
         }
         mod.state = State.loaded
         patchImporters(mod)
@@ -511,31 +538,31 @@ func parseEsmDependencies(
     enqueueModuleLoad: (Id, Bool, HMRModule) -> HMRModule
 ): Array<HMRModule> {
     var i: Int64 = 0
-    var list: Array<HMRModule> = []
+    var list = ArrayList<HMRModule>()
     let length = deps.size
 
     while (i < length) {
-        let dep = deps[i] as String
-        let expectedExportKeyEnd = i + 2 + (deps[i + 1] as Int64)
+        let dep = (deps[i] as String).getOrThrow()
+        let expectedExportKeyEnd = i + 2 + (deps[i + 1] as Int64).getOrThrow()
         let depModule = enqueueModuleLoad(dep, false, parent)
         list.append(depModule)
         i = expectedExportKeyEnd
     }
 
-    return list
+    return list.items()
 }
 
 /// 解析 ESM 依赖列表 (异步)
 func parseEsmDependenciesAsync(parent: HMRModule, deps: Array<Any>): DepsParseResult {
     var i: Int64 = 0
-    var list: Array<HmrModuleOrPromise> = []
-    var syncList: Array<HMRModule> = []
+    var list = ArrayList<HmrModuleOrPromise>()
+    var syncList = ArrayList<HMRModule>()
     var isAsync: Bool = false
     let length = deps.size
 
     while (i < length) {
-        let dep = deps[i] as String
-        let expectedExportKeyEnd = i + 2 + (deps[i + 1] as Int64)
+        let dep = (deps[i] as String).getOrThrow()
+        let expectedExportKeyEnd = i + 2 + (deps[i + 1] as Int64).getOrThrow()
         let result = loadModuleAsync(dep, false, Some(parent))
         list.append(result)
         if (result.isModule()) {
@@ -546,7 +573,7 @@ func parseEsmDependenciesAsync(parent: HMRModule, deps: Array<Any>): DepsParseRe
         i = expectedExportKeyEnd
     }
 
-    return DepsParseResult(list: list, syncList: syncList, isAsync: isAsync)
+    return DepsParseResult(list.items(), syncList.items(), isAsync)
 }
 
 // ============================================================================
@@ -558,27 +585,27 @@ func parseEsmDependenciesAsync(parent: HMRModule, deps: Array<Any>): DepsParseRe
 public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?SourceMapURL): Promise<Unit> {
     // 将新模块合并到未加载模块注册表
     var it = modules.iterator()
-    while (let Some(entry) <- it.next()) {
-        unloadedModuleRegistry.put(entry.key, entry.value)
+    while (let Some((k, v)) <- it.next()) {
+        unloadedModuleRegistry.put(k, v)
     }
 
-    emitEvent("bun:beforeUpdate", None)
+    emitEvent("bun:beforeUpdate", JsValue.jsUndefined())
 
     let toReload: HashSet<HMRModule> = HashSet<HMRModule>()
-    let toAccept: Array<ToAccept> = []
-    var failures: ?HashSet<Id> = None
-    let toDispose: Array<HMRModule> = []
+    let toAccept: ArrayList<ToAccept> = ArrayList<ToAccept>()
+    var failures: ?HashSet<Id> = Option<HashSet<Id>>.None
+    let toDispose: ArrayList<HMRModule> = ArrayList<HMRModule>()
 
     // 发现所有 HMR 边界
     var modulesIt = modules.iterator()
     while (let Some(entry) <- modulesIt.next()) {
-        let key = entry.key
+        let key = entry[0]
 
         // 如果在客户端，取消引用旧的 source maps 并跟踪新的
         if (sourceMapId.isSome()) {
             let existingSourceMapId = registrySourceMapIds.get(key)
             if (existingSourceMapId.isSome()) {
-                derefMapping(existingSourceMapId.getOrThrow())
+                // Stub: derefMapping is not available as a callable in this build
             }
             registrySourceMapIds.put(key, sourceMapId.getOrThrow())
         }
@@ -588,23 +615,23 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
             continue
         }
 
-        toReload.append(existing.getOrThrow())
+        toReload.put(existing.getOrThrow())
 
         // 发现所有 HMR 边界
         let visited: HashSet<HMRModule> = HashSet<HMRModule>()
         let queue: ArrayList<HMRModule> = ArrayList<HMRModule>()
         queue.append(existing.getOrThrow())
-        visited.append(existing.getOrThrow())
+        visited.put(existing.getOrThrow())
 
         var hadFailure = false
-        while (queue.size() > 0) {
+        while (queue.size > 0) {
             let mod = queue.removeAt(0)
 
             // 如果模块是自接受的，停止传播
             var hadSelfAccept = true
             if (mod.selfAccept.isSome()) {
-                toReload.append(mod)
-                visited.append(mod)
+                toReload.put(mod)
+                visited.put(mod)
                 hadSelfAccept = false
                 if (mod.onDispose.isSome()) {
                     toDispose.append(mod)
@@ -612,8 +639,8 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
             } else if (mod.data.isSome()) {
                 // 有 data 的模块隐含处理更新
                 mod.selfAccept = { _ => () }
-                toReload.append(mod)
-                visited.append(mod)
+                toReload.put(mod)
+                visited.put(mod)
                 hadSelfAccept = false
                 if (mod.onDispose.isSome()) {
                     toDispose.append(mod)
@@ -621,25 +648,28 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
             }
 
             // 所有导入者将被访问
-            if (hadSelfAccept && mod.importers.size() == 0) {
+            if (hadSelfAccept && mod.importers.size == 0) {
                 if (failures.isNone()) {
                     failures = Some(HashSet<Id>())
                 }
-                failures.getOrThrow().append(key)
+                failures.getOrThrow().put(key)
                 break
             }
 
             let importersIt = mod.importers.iterator()
             while (let Some(importer) <- importersIt.next()) {
-                let cb = importer.depAccepts.get(key)
-                if (cb.isSome()) {
-                    toAccept.append(ToAccept(cb: cb.getOrThrow(), key: key))
-                } else if (hadSelfAccept) {
-                    if (visited.contains(importer)) {
+                if (importer.depAccepts.isSome()) {
+                    let cb = importer.depAccepts.getOrThrow().get(key)
+                    if (cb.isSome()) {
+                        toAccept.append(ToAccept(cb.getOrThrow(), key))
                         continue
                     }
-                    visited.append(importer)
-                    queue.append(importer)
+                }
+                if (hadSelfAccept) {
+                    if (!visited.contains(importer)) {
+                        visited.put(importer)
+                        queue.append(importer)
+                    }
                 }
             }
         }
@@ -656,7 +686,7 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
         }
         message = message.trimAscii()
 
-        console.warn(message)
+        println(message)
     }
 
     // 清理所有模块
@@ -664,34 +694,34 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
         mod.state = State.stale
         if (mod.onDispose.isSome()) {
             for (fn in mod.onDispose.getOrThrow()) {
-                fn(mod.data)
+                fn(mod.data ?? Object())
             }
         }
         mod.onDispose = None
     }
 
     // 重新加载所有模块
-    for (mod in toReload) {
+    toReload.forEach({ mod =>
         mod.state = State.stale
         let selfAccept = mod.selfAccept
         mod.selfAccept = None
         mod.depAccepts = None
 
-        let modOrPromise = loadModuleAsync(mod.id, false, None)
+        let modOrPromise = loadModuleAsync(mod.id, false, Option<HMRModule>.None)
         if (modOrPromise.isModule()) {
             if (selfAccept.isSome()) {
                 selfAccept.getOrThrow()(getEsmExports(modOrPromise.getModule()))
             }
         }
-    }
+    })
 
     // 为没有显式自接受回调的模块修补导入者
-    for (mod in toReload) {
+    toReload.forEach({ mod =>
         if (mod.selfAccept.isSome()) {
-            continue
+            return
         }
         patchImporters(mod)
-    }
+    })
 
     // 调用所有接受回调
     for (accept in toAccept) {
@@ -703,13 +733,13 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
             }
         } else {
             // 创建接受数组
-            var arr: Array<JsValue> = []
+            let arr = ArrayList<JsValue>()
             for (moduleKey in accept.cb.modules) {
                 let mod = registry.get(moduleKey)
                 if (mod.isSome() && moduleKey == accept.key) {
                     arr.append(getEsmExports(mod.getOrThrow()))
                 } else {
-                    arr.append(JsValue.undefined)
+                    arr.append(JsValue.jsUndefined())
                 }
             }
         }
@@ -720,8 +750,8 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
         // refreshRuntime.performReactRefresh()
     }
 
-    emitEvent("bun:afterUpdate", None)
-    return Promise.unit()
+    emitEvent("bun:afterUpdate", JsValue.jsUndefined())
+    return Promise<Unit>.resolve(())
 }
 
 // ============================================================================
@@ -733,16 +763,13 @@ public func replaceModules(modules: HashMap<Id, UnloadedModule>, sourceMapId: ?S
 /// 用于 HMR 运行时中的其他函数。
 /// 将该模块注册为根。
 public func loadExports<T>(id: Id): Promise<T> {
-    let m = loadModuleAsync(id, false, None)
+    let m = loadModuleAsync(id, false, Option<HMRModule>.None)
     if (m.isModule()) {
         let mod = m.getModule()
-        let result = if (mod.esm) { mod.exports } else { mod.cjs.getOrThrow().exports }
-        return Promise.resolve(result as T)
+        let result: Any = if (mod.esm) { mod.exports as Any } else { mod.cjs.getOrThrow().exports }
+        return Promise<T>.resolve((result as T).getOrThrow())
     }
-    return m.getPromise().then({ mod =>
-        let result = if (mod.esm) { mod.exports } else { mod.cjs.getOrThrow().exports }
-        result as T
-    })
+    Promise<T>()
 }
 
 // ============================================================================
@@ -766,10 +793,11 @@ func patchImporters(mod: HMRModule): Unit {
         if (!importer.esm || importer.updateImport.isNone()) {
             continue
         }
-        let imports = importer.imports.getOrThrow() as Array<Any>
+        let imports = importer.imports.getOrThrow()
         var index: Int64 = -1
         for (i in 0..imports.size) {
-            if (imports[i] as HMRModule == mod) {
+            let casted = imports[i] as HMRModule
+            if (casted.isSome() && casted.getOrThrow() == mod) {
                 index = i
                 break
             }
@@ -795,15 +823,15 @@ public func emitEvent(event: String, data: Any): Unit {
 /// 注册事件处理器
 public func onEvent(event: String, cb: HotEventHandler): Unit {
     if (eventHandlers.get(event).isNone()) {
-        eventHandlers.put(event, [])
+        eventHandlers.put(event, ArrayList<HotEventHandler>())
     }
-    eventHandlers.get(event).append(cb)
+    eventHandlers.get(event).getOrThrow().append(cb)
 }
 
 /// 全量重新加载
 public func fullReload(): Unit {
     try {
-        emitEvent("bun:beforeFullReload", None)
+        emitEvent("bun:beforeFullReload", JsValue.jsUndefined())
     } catch (_) {}
     // 在浏览器中: location.reload()
     // 在服务器端: 不执行任何操作
@@ -817,7 +845,7 @@ public func setRefreshRuntime(runtime: HMRModule): Unit {
 /// 注册合成模块
 func registerSynthetic(id: Id, esmExports: Any): Unit {
     let module = HMRModule(id, false)
-    module.exports = esmExports as JsValue
+    module.exports = (esmExports as JsValue).getOrThrow()
     registry.put(id, module)
 }
 
@@ -830,7 +858,7 @@ func toCommonJS(from: Any): Any {
 /// 将 CJS 模块转换为 ESM 格式
 func toESM(mod: Any): JsValue {
     // 简化
-    return mod as JsValue
+    return (mod as JsValue).getOrThrow()
 }
 
 /// 检查是否为 React 刷新边界
@@ -887,8 +915,8 @@ class ToAccept {
 
 /// HMR 模块或 Promise 的包装类型
 public class HmrModuleOrPromise {
-    private var mod: ?HMRModule = None
-    private var promise: ?Promise<HMRModule> = None
+    private var mod: ?HMRModule = Option<HMRModule>.None
+    private var promise: ?Promise<HMRModule> = Option<Promise<HMRModule>>.None
     private var isNone: Bool = false
 
     public static func fromModule(m: HMRModule): HmrModuleOrPromise {

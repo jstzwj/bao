@@ -83,7 +83,10 @@ public class PostgresRequest {
                 writer.f64(value.toNumber())
             case Bytea =>
                 if (value.asArrayBuffer(globalObject.globalThis).isSome()) {
-                    // Stub: would write bytea data
+                    let ab = value.asArrayBuffer(globalObject.globalThis).getOrThrow()
+                    let bytes = ab.bytes()
+                    writer.int32(Int32(bytes.size))
+                    writer.write(bytes)
                 }
             case _ =>
                 let str = value.toString()

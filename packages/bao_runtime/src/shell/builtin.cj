@@ -399,8 +399,8 @@ public class BuiltinImpl {
     public func done(exitCode: ExitCode): Yield {
         this.exitCode = exitCode
         let cmd = this.parentCmdMut()
-        // stub: simplified done
-        return Yield.done
+        // 通知父命令节点完成
+        return cmd.childDone(CmdChildPtr.initFunc(this), exitCode)
     }
 
     /// 获取参数切片
@@ -466,8 +466,13 @@ public class BuiltinImpl {
 
     /// 格式化错误到Arena
     public func fmtErrorArena(kind: ?BuiltinKind, fmt: String, args: Array<Any>): String {
-        // stub: simplified
-        return fmt
+        // 格式化: "builtin_name: " + fmt
+        var prefix = ""
+        match (kind) {
+            case Some(k) => prefix = k.asStr() + ": "
+            case None => ()
+        }
+        return prefix + fmt
     }
 
     /// 错误字符串

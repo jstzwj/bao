@@ -2,20 +2,20 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeString() - 检查值是否为字符串类型
 /// 用法: expect(received).toBeString()
 public func toBeString(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeString", matcherParamsFmt: "")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeString", matcherParamsFmt: "")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     let pass = value.isString() != not
 
     if (pass) { return JsValue.jsUndefined() }
@@ -25,10 +25,10 @@ public func toBeString(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     let received = value.toFmt(formatter)
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toBeString", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+        let signature = Expect.getSignature("toBeString", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }
 
-    let signature = Expect.getSignature(matcherName: "toBeString", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+    let signature = Expect.getSignature("toBeString", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
 }

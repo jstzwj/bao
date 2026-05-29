@@ -6,6 +6,7 @@ package bao_runtime.node
 import bao_core.*
 import bao_jsc.HashMap
 import bao_threading.*
+import std.collection.ArrayList
 
 // ============================================================================
 // 文件系统事件类型
@@ -355,6 +356,8 @@ public class FsPathWatcherManager {
     private static var watchers: HashMap<String, Array<FsWatchCallback>> = HashMap<String, Array<FsWatchCallback>>()
 
     // 添加监视
+    // 对应 Bun: node_fs_watcher.zig - PathWatcherManager.watch
+    // 将 callback 追加到该路径的 handler 列表中
     public static func watch(path: String, recursive: Bool, callback: ?FsWatchCallback): Unit {
         if (callback.isNone()) {
             return
@@ -363,8 +366,13 @@ public class FsPathWatcherManager {
         if (list.isNone()) {
             list = Array<FsWatchCallback>()
         }
-        // TODO: list.getOrThrow().append(callback.getOrThrow())
-        watchers.put(path, list.getOrThrow())
+        var handlerList = list.getOrThrow()
+        let newHandlerList = ArrayList<FsWatchCallback>()
+        for (cb in handlerList) {
+            newHandlerList.add(cb)
+        }
+        newHandlerList.add(callback.getOrThrow())
+        watchers.put(path, newHandlerList.toArray())
     }
 
     // 移除监视

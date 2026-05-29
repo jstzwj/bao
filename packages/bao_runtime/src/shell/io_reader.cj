@@ -108,17 +108,37 @@ public class IOReader {
 
     /// 移除读取器
     public func removeReader(reader: ChildPtr) {
-        // stub: simplified remove
+        let readers = this.readers.slice()
+        var idx: UInt64 = 0
+        while (idx < UInt64(readers.size)) {
+            if (readers[Int64(idx)].ptr == reader.ptr) {
+                this.readers.swapRemove(idx)
+                return
+            }
+            idx++
+        }
     }
 
     /// 读取数据块回调
     public func onReadChunk(chunk: Array<Byte>, hasMore: ReadState): Bool {
         this.setReading(false)
-        // stub: simplified onReadChunk
         let shouldContinue = match (hasMore) {
             case done => false
             case hasMore => true
             case error => false
+        }
+        if (chunk.size > 0) {
+            for (b in chunk) {
+                this.buf.append(b)
+            }
+            this.read += UInt64(chunk.size)
+        }
+        // 通知所有读取器有新数据
+        if (this.readers.len() > 0) {
+            let readersCopy = this.readers.slice()
+            for (reader in readersCopy) {
+                reader.onReadChunk(chunk, !shouldContinue)
+            }
         }
         if (shouldContinue) {
             if (this.readers.len() > 0) {
@@ -131,14 +151,26 @@ public class IOReader {
     /// 读取器错误回调
     public func onReaderError(err: SyscallError) {
         this.setReading(false)
-        this.err = SystemError("", "")
-        // stub: simplified onReaderDone
+        this.err = SystemError(err.message, "")
+        // 通知所有读取器发生了错误
+        if (this.readers.len() > 0) {
+            let readersCopy = this.readers.slice()
+            for (reader in readersCopy) {
+                reader.onReaderDone(this.err)
+            }
+        }
     }
 
     /// 读取完成
     public func onReaderDone() {
         this.setReading(false)
-        // stub: simplified onReaderDone
+        // 通知所有读取器完成
+        if (this.readers.len() > 0) {
+            let readersCopy = this.readers.slice()
+            for (reader in readersCopy) {
+                reader.onReaderDone(None)
+            }
+        }
     }
 
     /// 增加引用
@@ -168,11 +200,16 @@ public class IOReader {
         if (this.fd.isValid()) {
             this.fd.close()
         }
-        // stub: err deref skipped
+        // 释放错误引用
+        if (this.err.isSome()) {
+            this.err = None
+        }
         this.readers.deinit()
-        this.buf.deinit()
-        // stub: disableKeepingProcessAlive not available
-        // stub: BufferedReader does not have deinit
+        this.buf.clear()
+        // 关闭缓冲读取器
+        this.reader.close()
+        // 取消并发任务
+        this.concurrentTask = EventLoopTask(EventLoopKind.Js)
     }
 
 }

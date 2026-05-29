@@ -558,6 +558,9 @@ public class DevServer {
     public func respondForHTMLBundle(route: Any, req: Any, resp: Any): Unit {}
     public func setRoutes(server: Any): Unit {}
     public func deinit(): Unit {}
+    public func onPluginsResolved(plugin: Any): Unit {}
+    public func onPluginsRejected(): Unit {}
+    public func memoryCost(): Int64 { 0 }
     public var htmlRouter: HTMLRouter = HTMLRouter()
 }
 

@@ -259,6 +259,180 @@ public class CssDeclarationBlock {
         return CssResult<CssDeclarationBlock>.ok(CssDeclarationBlock())
     }
 
+    /// minify 声明块 (简化接口)
+    /// 对应 Bun: DeclarationBlock.minify with default handlers
+    /// 执行基本的值压缩: 缩短颜色值、移除零单位等
+    public func minify(options: CssMinifyOptions): Unit {
+        minifyDeclarationList(declarations)
+        minifyDeclarationList(importantDeclarations)
+    }
+
+    /// 对声明列表执行基本值压缩
+    private static func minifyDeclarationList(decls: ArrayList<CssDeclaration>): Unit {
+        var i: Int64 = 0
+        while (i < decls.size) {
+            let decl = decls[i]
+            decl.value = minifyValue(decl.value)
+            // 移除空声明
+            if (decl.value.isEmpty()) {
+                decls.removeAt(i)
+            } else {
+                i++
+            }
+        }
+    }
+
+    /// 压缩单个 CSS 值
+    /// - 缩短颜色: #ffffff -> #fff, #aabbcc -> #abc
+    /// - 移除零单位: 0px -> 0, 0em -> 0, 0% -> 0
+    /// - 压缩空白
+    private static func minifyValue(value: String): String {
+        var result = value
+        // 移除多余空白 (多个空格压缩为一个)
+        result = collapseWhitespace(result)
+        // 缩短十六进制颜色
+        result = shortenHexColor(result)
+        // 移除零的单位
+        result = removeZeroUnits(result)
+        result
+    }
+
+    /// 将多个空白字符压缩为单个空格
+    private static func collapseWhitespace(s: String): String {
+        let sb = StringBuilder()
+        var prevSpace = false
+        for (i in 0..s.size) {
+            let ch = s[i]
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) || ch == UInt8(13)) {
+                if (!prevSpace) {
+                    sb.append(" ")
+                    prevSpace = true
+                }
+            } else {
+                sb.append(ch)
+                prevSpace = false
+            }
+        }
+        sb.toString()
+    }
+
+    /// 缩短十六进制颜色值: #ffffff -> #fff
+    private static func shortenHexColor(s: String): String {
+        if (s.size < 7) { return s }
+        // 查找 # 后面跟着 6 个十六进制字符的模式
+        let sb = StringBuilder()
+        var i: Int64 = 0
+        while (i < s.size) {
+            let ch = s[i]
+            if (ch == UInt8(35) && i + 6 < s.size) {
+                // '#' 字符, 检查后面是否有 6 个十六进制数字
+                let hexStart = i + 1
+                if (isHexString(s, hexStart, 6)) {
+                    let r1 = s[hexStart]
+                    let r2 = s[hexStart + 1]
+                    let g1 = s[hexStart + 2]
+                    let g2 = s[hexStart + 3]
+                    let b1 = s[hexStart + 4]
+                    let b2 = s[hexStart + 5]
+                    // 如果每对都相同, 可以缩短
+                    if (r1 == r2 && g1 == g2 && b1 == b2) {
+                        sb.append("#")
+                        sb.append(r1)
+                        sb.append(g1)
+                        sb.append(b1)
+                        i = hexStart + 6
+                    } else {
+                        sb.append(ch)
+                        i++
+                    }
+                } else {
+                    sb.append(ch)
+                    i++
+                }
+            } else {
+                sb.append(ch)
+                i++
+            }
+        }
+        sb.toString()
+    }
+
+    /// 检查字符串指定位置是否为十六进制字符序列
+    private static func isHexString(s: String, start: Int64, len: Int64): Bool {
+        if (start + len > s.size) { return false }
+        for (i in 0..len) {
+            let ch = s[start + i]
+            if (!((ch >= UInt8(48) && ch <= UInt8(57)) ||
+                  (ch >= UInt8(65) && ch <= UInt8(70)) ||
+                  (ch >= UInt8(97) && ch <= UInt8(102)))) {
+                return false
+            }
+        }
+        true
+    }
+
+    /// 移除零值后面的单位: 0px -> 0, 0em -> 0 等
+    private static func removeZeroUnits(s: String): String {
+        // 匹配 "0" 后面跟着 CSS 单位的模式
+        let units = ["px", "em", "rem", "vw", "vh", "vmin", "vmax", "pt", "pc",
+                     "cm", "mm", "in", "ex", "ch", "%", "deg", "rad", "grad",
+                     "turn", "s", "ms", "Hz", "kHz", "dpi", "dpcm", "dppx"]
+        var result = s
+        for (unit in units) {
+            let zeroPattern = "0${unit}"
+            // 简单替换: 仅在 "0" 前面是空白/开头/逗号/括号且后面是空白/分号/结束/逗号/括号时替换
+            result = replaceZeroUnit(result, zeroPattern, "0", unit.size)
+        }
+        result
+    }
+
+    /// 安全地替换零值单位, 只替换独立出现的 "0Xxx"
+    private static func replaceZeroUnit(s: String, pattern: String, replacement: String, unitLen: Int64): String {
+        let sb = StringBuilder()
+        var i: Int64 = 0
+        let patSize = pattern.size
+        while (i <= s.size - patSize) {
+            // 检查从位置 i 是否匹配 pattern
+            var matched = true
+            for (j in 0..patSize) {
+                if (s[i + j] != pattern[j]) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) {
+                // 确保前面是安全的 (空白, 开头, 逗号, 括号, 冒号)
+                let safeBefore = (i == 0) || isSeparator(s[i - 1])
+                // 确保后面是安全的 (空白, 分号, 结束, 逗号, 括号, !)
+                let afterPos = i + patSize
+                let safeAfter = (afterPos >= s.size) || isSeparator(s[afterPos]) || s[afterPos] == UInt8(59) || s[afterPos] == UInt8(33)
+                if (safeBefore && safeAfter) {
+                    sb.append(replacement)
+                    i += patSize
+                } else {
+                    sb.append(s[i])
+                    i++
+                }
+            } else {
+                sb.append(s[i])
+                i++
+            }
+        }
+        // 添加剩余字符
+        while (i < s.size) {
+            sb.append(s[i])
+            i++
+        }
+        sb.toString()
+    }
+
+    /// 是否为分隔符字符
+    private static func isSeparator(ch: UInt8): Bool {
+        ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) ||
+        ch == UInt8(13) || ch == UInt8(44) || ch == UInt8(40) ||
+        ch == UInt8(58)
+    }
+
     /// minify 声明块
     /// 严格翻译自 DeclarationBlock.minify()
     public func minify(handler: DeclarationHandler, importantHandler: DeclarationHandler, context: DeclarationPropertyHandlerContext): Unit {

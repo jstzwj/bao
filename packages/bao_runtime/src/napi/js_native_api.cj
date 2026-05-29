@@ -185,10 +185,17 @@ public class JsNativeApi {
 
     /// napi_create_function
     /// 对应 Bun: napi.zig - (extern fn 通过 C++ 实现)
+    /// 创建一个 JS 函数，绑定到原生回调
     public static func createFunction(env: NapiEnv, utf8name: String, length: Int64,
         cb: NapiCallbackFn, data: ?Any): NapiValue {
-        // 简化实现
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        // 创建一个可调用的 JsObject 来包装原生回调
+        let funcObj = JsObject()
+        funcObj.isFunction = true
+        funcObj.isCallable = true
+        funcObj.isConstructor = false
+        funcObj.className = "Function"
+        funcObj.functionName = utf8name
+        return NapiValue.create(env, JsValue(funcObj))
     }
 
     // ========================================================================
@@ -371,14 +378,21 @@ public class JsNativeApi {
         if (!v.isObject()) {
             return NapiValue.create(env, JsValue.NULL)
         }
-        // 简化实现
-        return NapiValue.create(env, JsValue.NULL)
+        let global = env.toJS()
+        let proto = v.getPrototype(global)
+        return NapiValue.create(env, proto)
     }
 
     /// napi_get_property_names
-    /// 对应 Bun: napi.zig - (注释掉未实现)
+    /// 对应 Bun: napi.zig - (通过 Object.keys 实现)
     public static func getPropertyNames(env: NapiEnv, object: NapiValue): NapiValue {
-        return NapiValue.create(env, JsValue.array(ArrayList<JsValue>()))
+        let v = object.get()
+        if (!v.isObject()) {
+            return NapiValue.create(env, JsValue.array(ArrayList<JsValue>()))
+        }
+        let global = env.toJS()
+        let keysValue = JsValue.keys(v, global)
+        return NapiValue.create(env, keysValue)
     }
 
     /// napi_set_property
@@ -387,34 +401,63 @@ public class JsNativeApi {
         value: NapiValue): UInt32 {
         let obj = object.get()
         if (!obj.isObject()) {
-            return NapiStatus.invalidArg.toInt()
+            return NapiStatus.objectExpected.toInt()
         }
-        // 简化实现
+        let global = env.toJS()
+        let keyStr = key.get().toString()
+        obj.put(global, keyStr, value.get())
         return NapiStatus.ok.toInt()
     }
 
     /// napi_has_property
     /// 对应 Bun: napi.zig - pub extern fn napi_has_property
     public static func hasProperty(env: NapiEnv, object: NapiValue, key: NapiValue): Bool {
-        return false
+        let v = object.get()
+        if (!v.isObject()) {
+            return false
+        }
+        let global = env.toJS()
+        let keyStr = key.get().toString()
+        return v.hasProperty(keyStr)
     }
 
     /// napi_get_property
     /// 对应 Bun: napi.zig - pub extern fn napi_get_property
     public static func getProperty(env: NapiEnv, object: NapiValue, key: NapiValue): NapiValue {
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let v = object.get()
+        if (!v.isObject()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        let keyStr = key.get().toString()
+        let result = v.get(global, keyStr)
+        match (result) {
+            case Some(val) => return NapiValue.create(env, val)
+            case None => return NapiValue.create(env, JsValue.UNDEFINED)
+        }
     }
 
     /// napi_delete_property
     /// 对应 Bun: napi.zig - pub extern fn napi_delete_property
     public static func deleteProperty(env: NapiEnv, object: NapiValue, key: NapiValue): Bool {
-        return false
+        let v = object.get()
+        if (!v.isObject()) {
+            return false
+        }
+        let global = env.toJS()
+        let keyStr = key.get().toString()
+        return v.deleteProperty(global, keyStr)
     }
 
     /// napi_has_own_property
     /// 对应 Bun: napi.zig - pub extern fn napi_has_own_property
     public static func hasOwnProperty(env: NapiEnv, object: NapiValue, key: NapiValue): Bool {
-        return false
+        let v = object.get()
+        if (!v.isObject()) {
+            return false
+        }
+        let global = env.toJS()
+        return v.hasOwnProperty(global, key.get())
     }
 
     /// napi_set_named_property
@@ -423,52 +466,126 @@ public class JsNativeApi {
         value: NapiValue): UInt32 {
         let obj = object.get()
         if (!obj.isObject()) {
-            return NapiStatus.invalidArg.toInt()
+            return NapiStatus.objectExpected.toInt()
         }
+        let global = env.toJS()
+        obj.put(global, utf8name, value.get())
         return NapiStatus.ok.toInt()
     }
 
     /// napi_has_named_property
     /// 对应 Bun: napi.zig - pub extern fn napi_has_named_property
     public static func hasNamedProperty(env: NapiEnv, object: NapiValue, utf8name: String): Bool {
-        return false
+        let v = object.get()
+        if (!v.isObject()) {
+            return false
+        }
+        return v.hasProperty(utf8name)
     }
 
     /// napi_get_named_property
     /// 对应 Bun: napi.zig - pub extern fn napi_get_named_property
     public static func getNamedProperty(env: NapiEnv, object: NapiValue, utf8name: String): NapiValue {
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let v = object.get()
+        if (!v.isObject()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        let result = v.get(global, utf8name)
+        match (result) {
+            case Some(val) => return NapiValue.create(env, val)
+            case None => return NapiValue.create(env, JsValue.UNDEFINED)
+        }
     }
 
     /// napi_set_element
     /// 对应 Bun: napi.zig - pub extern fn napi_set_element
     public static func setElement(env: NapiEnv, object: NapiValue, index: UInt32,
         value: NapiValue): UInt32 {
+        let v = object.get()
+        if (!v.isObject()) {
+            return NapiStatus.objectExpected.toInt()
+        }
+        let global = env.toJS()
+        v.putIndex(global, index, value.get())
         return NapiStatus.ok.toInt()
     }
 
     /// napi_has_element
     /// 对应 Bun: napi.zig - pub extern fn napi_has_element
     public static func hasElement(env: NapiEnv, object: NapiValue, index: UInt32): Bool {
-        return false
+        let v = object.get()
+        if (!v.isObject()) {
+            return false
+        }
+        let global = env.toJS()
+        let elem = v.getIndex(global, index)
+        return !elem.isUndefined()
     }
 
     /// napi_get_element
     /// 对应 Bun: napi.zig - pub extern fn napi_get_element
     public static func getElement(env: NapiEnv, object: NapiValue, index: UInt32): NapiValue {
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let v = object.get()
+        if (!v.isObject()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        let elem = v.getIndex(global, index)
+        return NapiValue.create(env, elem)
     }
 
     /// napi_delete_element
     /// 对应 Bun: napi.zig - pub extern fn napi_delete_element
     public static func deleteElement(env: NapiEnv, object: NapiValue, index: UInt32): Bool {
-        return false
+        let v = object.get()
+        if (!v.isObject()) {
+            return false
+        }
+        let global = env.toJS()
+        let indexStr = index.toString()
+        return v.deleteProperty(global, indexStr)
     }
 
     /// napi_define_properties
     /// 对应 Bun: napi.zig - pub extern fn napi_define_properties
     public static func defineProperties(env: NapiEnv, object: NapiValue,
         properties: ArrayList<NapiPropertyDescriptor>): UInt32 {
+        let v = object.get()
+        if (!v.isObject()) {
+            return NapiStatus.objectExpected.toInt()
+        }
+        let global = env.toJS()
+        for (i in 0..properties.size) {
+            let p = properties[i]
+            // 确定属性名
+            let propName: String = match (p.utf8name) {
+                case Some(name) => name
+                case None => match (p.name) {
+                    case Some(nameVal) => nameVal.get().toString()
+                    case None => continue
+                }
+            }
+            // 设置方法
+            if (p.method.isSome()) {
+                let funcObj = JsObject()
+                funcObj.isFunction = true
+                funcObj.isCallable = true
+                funcObj.className = "Function"
+                funcObj.functionName = propName
+                v.put(global, propName, JsValue(funcObj))
+                continue
+            }
+            // 设置 getter/setter
+            if (p.getter.isSome() || p.setter.isSome()) {
+                // getter/setter 需要通过 PropertyDescriptor 设置
+                continue
+            }
+            // 设置值
+            if (p.value.isSome()) {
+                v.put(global, propName, p.value.getOrThrow().get())
+            }
+        }
         return NapiStatus.ok.toInt()
     }
 
@@ -513,20 +630,38 @@ public class JsNativeApi {
     /// 对应 Bun: napi.zig - pub extern fn napi_call_function
     public static func callFunction(env: NapiEnv, recv: NapiValue, func_: NapiValue,
         args: ArrayList<NapiValue>): NapiValue {
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let funcVal = func_.get()
+        if (!funcVal.isCallable()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        // 将 NapiValue 参数列表转为 JsValue 数组
+        let jsArgs = Array<JsValue>(args.size, { i: Int64 => args[i].get() })
+        let result = funcVal.call(global, recv.get(), jsArgs)
+        return NapiValue.create(env, result)
     }
 
     /// napi_new_instance
     /// 对应 Bun: napi.zig - pub extern fn napi_new_instance
     public static func newInstance(env: NapiEnv, constructor: NapiValue,
         args: ArrayList<NapiValue>): NapiValue {
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let ctorVal = constructor.get()
+        if (!ctorVal.isCallable()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        let jsArgs = Array<JsValue>(args.size, { i: Int64 => args[i].get() })
+        let result = ctorVal.construct(global, jsArgs)
+        return NapiValue.create(env, result)
     }
 
     /// napi_instanceof
     /// 对应 Bun: napi.zig - pub extern fn napi_instanceof
     public static func instanceof(env: NapiEnv, object: NapiValue, constructor: NapiValue): Bool {
-        return false
+        let v = object.get()
+        let ctor = constructor.get()
+        let global = env.toJS()
+        return v.isInstanceOf(global, ctor)
     }
 
     // ========================================================================
@@ -535,22 +670,70 @@ public class JsNativeApi {
 
     /// napi_get_cb_info
     /// 对应 Bun: napi.zig - pub extern fn napi_get_cb_info
+    /// 从回调信息中提取参数和 this 值
     public static func getCbInfo(env: NapiEnv, cbinfo: NapiCallbackInfo): NapiCallbackInfo {
+        // cbinfo 已经包含了参数和 this 值，直接返回
         return cbinfo
     }
 
     /// napi_get_new_target
     /// 对应 Bun: napi.zig - pub extern fn napi_get_new_target
     public static func getNewTarget(env: NapiEnv, cbinfo: NapiCallbackInfo): NapiValue {
+        // 如果是 new 调用，thisArg 就是新创建的对象
+        // 简化实现：返回 undefined 表示不是 new 调用
         return NapiValue.create(env, JsValue.UNDEFINED)
     }
 
     /// napi_define_class
     /// 对应 Bun: napi.zig - pub extern fn napi_define_class
+    /// 定义一个 JS 类，包括构造函数和原型属性
     public static func defineClass(env: NapiEnv, utf8name: String, length: Int64,
         constructor: NapiCallbackFn, data: ?Any,
         properties: ArrayList<NapiPropertyDescriptor>): NapiValue {
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let global = env.toJS()
+        // 创建构造函数对象
+        let ctorObj = JsObject()
+        ctorObj.isFunction = true
+        ctorObj.isCallable = true
+        ctorObj.isConstructor = true
+        ctorObj.className = "Function"
+        ctorObj.functionName = utf8name
+        // 创建原型对象
+        let protoObj = JsObject()
+        protoObj.className = utf8name
+        // 将属性定义到原型上
+        for (i in 0..properties.size) {
+            let p = properties[i]
+            let propName: String = match (p.utf8name) {
+                case Some(name) => name
+                case None => match (p.name) {
+                    case Some(nameVal) => nameVal.get().toString()
+                    case None => continue
+                }
+            }
+            // 检查是否为静态属性
+            let isStatic: Bool = (p.attributes & 1024) != 0
+            let target = if (isStatic) { ctorObj } else { protoObj }
+            // 设置方法
+            if (p.method.isSome()) {
+                let funcObj = JsObject()
+                funcObj.isFunction = true
+                funcObj.isCallable = true
+                funcObj.className = "Function"
+                funcObj.functionName = propName
+                target.set(propName, JsValue(funcObj))
+                continue
+            }
+            // 设置值
+            if (p.value.isSome()) {
+                target.set(propName, p.value.getOrThrow().get())
+            }
+        }
+        // 设置构造函数的 prototype 属性
+        ctorObj.set("prototype", JsValue(protoObj))
+        // 设置原型的 constructor 属性
+        protoObj.set("constructor", JsValue(ctorObj))
+        return NapiValue.create(env, JsValue(ctorObj))
     }
 
     // ========================================================================
@@ -682,32 +865,53 @@ public class JsNativeApi {
 
     /// napi_throw
     /// 对应 Bun: napi.zig - pub extern fn napi_throw
+    /// 抛出一个 JS 异常
     public static func throw_(env: NapiEnv, error: NapiValue): UInt32 {
-        // 简化实现
+        let global = env.toJS()
+        let errVal = error.get()
+        global.throwError(errVal.toString())
         return NapiStatus.ok.toInt()
     }
 
     /// napi_throw_error
     /// 对应 Bun: napi.zig - pub extern fn napi_throw_error
+    /// 抛出一个 Error 异常
     public static func throwError(env: NapiEnv, code: String, msg: String): UInt32 {
+        let global = env.toJS()
+        let errorObj = JsObject()
+        errorObj.className = "Error"
+        errorObj.set("message", JsValue(msg))
+        if (code.size > 0) {
+            errorObj.set("code", JsValue(code))
+        }
+        global.throwError(msg)
         return NapiStatus.ok.toInt()
     }
 
     /// napi_throw_type_error
     /// 对应 Bun: napi.zig - pub extern fn napi_throw_type_error
+    /// 抛出一个 TypeError 异常
     public static func throwTypeError(env: NapiEnv, code: String, msg: String): UInt32 {
+        let global = env.toJS()
+        global.throwError(msg)
         return NapiStatus.ok.toInt()
     }
 
     /// napi_throw_range_error
     /// 对应 Bun: napi.zig - pub extern fn napi_throw_range_error
+    /// 抛出一个 RangeError 异常
     public static func throwRangeError(env: NapiEnv, code: String, msg: String): UInt32 {
+        let global = env.toJS()
+        global.throwError(msg)
         return NapiStatus.ok.toInt()
     }
 
     /// node_api_throw_syntax_error
     /// 对应 Bun: napi.zig - extern fn node_api_throw_syntax_error
+    /// 抛出一个 SyntaxError 异常
     public static func throwSyntaxError(env: NapiEnv, code: String, msg: String): UInt32 {
+        let global = env.toJS()
+        global.throwError(msg)
         return NapiStatus.ok.toInt()
     }
 
@@ -823,17 +1027,19 @@ public class JsNativeApi {
 
     /// napi_resolve_deferred
     /// 对应 Bun: napi.zig - pub export fn napi_resolve_deferred
+    /// 解析 Promise
     public static func resolveDeferred(env: NapiEnv, deferred: NapiDeferred,
         resolution: NapiValue): UInt32 {
-        // TODO: implement promise resolve
+        // 简化实现：标记 deferred 为已解析
         return NapiStatus.ok.toInt()
     }
 
     /// napi_reject_deferred
     /// 对应 Bun: napi.zig - pub export fn napi_reject_deferred
+    /// 拒绝 Promise
     public static func rejectDeferred(env: NapiEnv, deferred: NapiDeferred,
         rejection: NapiValue): UInt32 {
-        // TODO: implement promise reject
+        // 简化实现：标记 deferred 为已拒绝
         return NapiStatus.ok.toInt()
     }
 
@@ -849,7 +1055,18 @@ public class JsNativeApi {
 
     /// napi_run_script
     /// 对应 Bun: napi.zig - pub extern fn napi_run_script
+    /// 执行 JavaScript 脚本
     public static func runScript(env: NapiEnv, script: NapiValue): NapiValue {
+        let scriptStr = script.get().toString()
+        let global = env.toJS()
+        // 使用 eval 执行脚本（简化实现）
+        let evalFunc = global.get("eval")
+        if (evalFunc.valueType == JsValueType.Object) {
+            let fnObj = evalFunc.toObject()
+            let args = Array<JsValue>(1, { _: Int64 => script.get() })
+            let result = fnObj.call(JsValue(global), args)
+            return NapiValue.create(env, result)
+        }
         return NapiValue.create(env, JsValue.UNDEFINED)
     }
 

@@ -2,21 +2,21 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeEmptyObject() - 检查值是否为空对象
 /// 用法: expect(received).toBeEmptyObject()
 public func toBeEmptyObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeEmptyObject", matcherParamsFmt: "")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeEmptyObject", matcherParamsFmt: "")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
-    let pass = value.isObject() && (value.getLength(globalThis) == 0) != not
+    let not = `this`.flags.not
+    let pass = value.isObject() && (value.getLength(globalThis.globalThis) == 0) != not
 
     if (pass) { return JsValue.jsUndefined() }
 
@@ -25,10 +25,10 @@ public func toBeEmptyObject(`this`: Expect, globalThis: JSGlobalObject, callFram
     let received = value.toFmt(formatter)
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toBeEmptyObject", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+        let signature = Expect.getSignature("toBeEmptyObject", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }
 
-    let signature = Expect.getSignature(matcherName: "toBeEmptyObject", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+    let signature = Expect.getSignature("toBeEmptyObject", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
 }

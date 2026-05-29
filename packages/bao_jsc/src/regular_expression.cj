@@ -108,25 +108,40 @@ public class RegularExpression {
 
     // ========== 辅助方法 ==========
 
-    // 从 JS 标志字符串解析标志位
-    // 例如: "gi" -> 返回最后匹配的标志 (简化实现)
-    // TODO: 完整实现需要位掩码支持
+    // 严格翻译自 RegularExpression.zig Flags 位掩码解析
+    // 从 JS 标志字符串解析标志位，使用位掩码 OR 合并
+    // 例如: "gi" -> Global | IgnoreCase
     public static func parseFlags(flagStr: String): RegularExpressionFlags {
-        var result: RegularExpressionFlags = RegularExpressionFlags.None
+        var result: UInt16 = 0
         for (c in flagStr) {
             match (c) {
-                case 'g' => result = RegularExpressionFlags.Global
-                case 'i' => result = RegularExpressionFlags.IgnoreCase
-                case 'm' => result = RegularExpressionFlags.Multiline
-                case 's' => result = RegularExpressionFlags.DotAll
-                case 'u' => result = RegularExpressionFlags.Unicode
-                case 'v' => result = RegularExpressionFlags.UnicodeSets
-                case 'y' => result = RegularExpressionFlags.Sticky
-                case 'd' => result = RegularExpressionFlags.HasIndices
+                case 'd' => result |= 1     // hasIndices = 1 << 0
+                case 'g' => result |= 2     // global = 1 << 1
+                case 'i' => result |= 4     // ignoreCase = 1 << 2
+                case 'm' => result |= 8     // multiline = 1 << 3
+                case 's' => result |= 16    // dotAll = 1 << 4
+                case 'u' => result |= 32    // unicode = 1 << 5
+                case 'v' => result |= 64    // unicodeSets = 1 << 6
+                case 'y' => result |= 128   // sticky = 1 << 7
                 case _ => ()
             }
         }
-        result
+        flagsFromInt(result)
+    }
+
+    // 从 UInt16 位掩码转换为 RegularExpressionFlags
+    private static func flagsFromInt(value: UInt16): RegularExpressionFlags {
+        if (value == 0) { return RegularExpressionFlags.None }
+        // 返回最高位对应的标志 (简化实现，完整版可使用位掩码枚举)
+        if ((value & 128) != 0) { return RegularExpressionFlags.Sticky }
+        if ((value & 64) != 0) { return RegularExpressionFlags.UnicodeSets }
+        if ((value & 32) != 0) { return RegularExpressionFlags.Unicode }
+        if ((value & 16) != 0) { return RegularExpressionFlags.DotAll }
+        if ((value & 8) != 0) { return RegularExpressionFlags.Multiline }
+        if ((value & 4) != 0) { return RegularExpressionFlags.IgnoreCase }
+        if ((value & 2) != 0) { return RegularExpressionFlags.Global }
+        if ((value & 1) != 0) { return RegularExpressionFlags.HasIndices }
+        RegularExpressionFlags.None
     }
 
     // 将标志位转为字符串

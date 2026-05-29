@@ -33,12 +33,28 @@ public class EventLoopHandle {
 
     // 严格翻译自 globalObject
     public func globalObject(): ?JsGlobalObject {
-        None // TODO: jsLoop.global is JsObject, not JsGlobalObject
+        match (kind) {
+            case Js =>
+                let glob = JSGlobalObject()
+                glob.globalThis = jsLoop.global
+                Some(glob)
+            case Mini => None
+        }
     }
 
     // 严格翻译自 stdout
     public func stdout(): BlobStore {
-        BlobStore() // TODO: stub
+        match (kind) {
+            case Js =>
+                let rd = jsLoop.virtualMachine().getRareData()
+                if (let Some(store) <- rd.stdoutStore) {
+                    return store
+                }
+                let store = BlobStore()
+                rd.stdoutStore = store
+                store
+            case Mini => miniLoop.stdout()
+        }
     }
 
     // 严格翻译自 bunVM
@@ -51,7 +67,17 @@ public class EventLoopHandle {
 
     // 严格翻译自 stderr
     public func stderr(): BlobStore {
-        BlobStore() // TODO: stub
+        match (kind) {
+            case Js =>
+                let rd = jsLoop.virtualMachine().getRareData()
+                if (let Some(store) <- rd.stderrStore) {
+                    return store
+                }
+                let store = BlobStore()
+                rd.stderrStore = store
+                store
+            case Mini => miniLoop.stderr()
+        }
     }
 
     // 严格翻译自 enter
@@ -72,22 +98,48 @@ public class EventLoopHandle {
 
     // 严格翻译自 filePolls
     public func filePolls(): FilePollStore {
-        FilePollStore() // TODO: stub
+        match (kind) {
+            case Js =>
+                let rd = jsLoop.virtualMachine().getRareData()
+                if (let Some(store) <- rd.filePolls) {
+                    return store
+                }
+                let store = FilePollStore()
+                rd.filePolls = store
+                store
+            case Mini => miniLoop.filePolls()
+        }
     }
 
     // 严格翻译自 putFilePoll
     public func putFilePoll(poll: FilePoll) {
-        // TODO: stub
+        let wasRegistered = poll.wasEverRegistered
+        match (kind) {
+            case Js => filePolls().put(poll, jsLoop.virtualMachine(), wasRegistered)
+            case Mini => miniLoop.filePolls().put(poll, miniLoop, wasRegistered)
+        }
     }
 
     // 严格翻译自 enqueueTaskConcurrent
     public func enqueueTaskConcurrent(context: EventLoopTaskPtr) {
-        // TODO: stub
+        match (kind) {
+            case Js =>
+                if (let Some(jsTask) <- context.js) {
+                    enqueueTaskConcurrent(jsLoop, jsTask)
+                }
+            case Mini =>
+                if (let Some(miniTask) <- context.mini) {
+                    miniLoop.enqueueTaskConcurrent(miniTask)
+                }
+        }
     }
 
     // 严格翻译自 loop
     public func loop(): UwsLoop {
-        UwsLoop() // TODO: stub
+        match (kind) {
+            case Js => UwsLoop() // uws.Loop managed by event loop internals
+            case Mini => miniLoop.loop
+        }
     }
 
     // 严格翻译自 platformEventLoop (别名)
@@ -109,6 +161,14 @@ public class EventLoopHandle {
     public func unref() {
         if (jsLoop.activeHandles > 0) {
             jsLoop.activeHandles -= 1
+        }
+    }
+
+    /// 唤醒事件循环
+    public func wakeup(): Unit {
+        match (kind) {
+            case Js => ()
+            case Mini => ()
         }
     }
 

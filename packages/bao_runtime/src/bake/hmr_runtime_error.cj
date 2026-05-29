@@ -6,6 +6,8 @@
 
 package bao_runtime.bake
 
+import bao_collections.*
+
 // ============================================================================
 // HMR 错误运行时
 // 对应 Bun: hmr-runtime-error.ts
@@ -26,7 +28,7 @@ public func initErrorRuntime(error: Array<Byte>): Unit {
         try {
             decodeAndAppendServerError(reader)
         } catch (e: Exception) {
-            console.error(e.toString())
+            println("Error decoding server error: ${e.message}")
             break
         }
     }
@@ -58,7 +60,7 @@ public func onErrorRuntimePayload(view: Array<Byte>): Unit {
         try {
             decodeAndAppendServerError(reader)
         } catch (e: Exception) {
-            console.error(e.toString())
+            println("Error decoding server error: ${e.message}")
             break
         }
     }
@@ -72,8 +74,8 @@ func decodeAndAppendServerError(r: DataViewReader): Unit {
     let file = r.string32()
     let messageCount = r.u32()
 
-    var messages: Array<BundlerMessage> = []
-    for (_ in 0..messageCount) {
+    var messages = ArrayList<BundlerMessage>()
+    for (_ in 0..Int64(messageCount)) {
         messages.append(decodeSerializedError(r))
     }
 
@@ -84,16 +86,18 @@ func decodeAndAppendServerError(r: DataViewReader): Unit {
 func decodeSerializedError(reader: DataViewReader): BundlerMessage {
     let kind = reader.u8()
     if (kind <= 4) {
-        return readLogMsg(reader, BundlerMessageLevel.fromInt(kind))
+        let level = match (kind) {
+            case 0 => BundlerMessageLevel.err
+            case 1 => BundlerMessageLevel.warn
+            case 2 => BundlerMessageLevel.note
+            case 3 => BundlerMessageLevel.debug
+            case 4 => BundlerMessageLevel.verbose
+            case _ => BundlerMessageLevel.err
+        }
+        return readLogMsg(reader, level)
     }
     // JS 错误的简化处理
-    return BundlerMessage(
-        kind: "bundler",
-        level: BundlerMessageLevel.err,
-        message: "Unknown error",
-        location: None,
-        notes: [],
-    )
+    return BundlerMessage("bundler", BundlerMessageLevel.err, "Unknown error", Option<BundlerMessageLocation>.None, Array<BundlerNote>())
 }
 
 /// 读取日志消息
@@ -101,25 +105,17 @@ func readLogMsg(r: DataViewReader, level: BundlerMessageLevel): BundlerMessage {
     let message = r.string32()
     let location = readBundlerMessageLocationOrNull(r)
     let noteCount = r.u32()
-    var notes: Array<BundlerNote> = []
-    for (_ in 0..noteCount) {
+    var notes = ArrayList<BundlerNote>()
+    for (_ in 0..Int64(noteCount)) {
         notes.append(readLogData(r))
     }
-    return BundlerMessage(
-        kind: "bundler",
-        level: level,
-        message: message,
-        location: location,
-        notes: notes,
-    )
+    let notesFrozen = notes
+    return BundlerMessage("bundler", level, message, location, Array<BundlerNote>(notesFrozen.size, { i => notesFrozen[i] }))
 }
 
 /// 读取日志数据
 func readLogData(r: DataViewReader): BundlerNote {
-    return BundlerNote(
-        message: r.string32(),
-        location: readBundlerMessageLocationOrNull(r),
-    )
+    return BundlerNote(r.string32(), readBundlerMessageLocationOrNull(r))
 }
 
 /// 读取 BundlerMessageLocation 或 null
@@ -131,12 +127,7 @@ func readBundlerMessageLocationOrNull(r: DataViewReader): ?BundlerMessageLocatio
     let column = r.u32()
     let length = r.u32()
     let lineText = r.string32()
-    return Some(BundlerMessageLocation(
-        line: line,
-        column: column,
-        length: length,
-        lineText: lineText,
-    ))
+    return Some(BundlerMessageLocation(line, column, length, lineText))
 }
 
 // ============================================================================

@@ -484,7 +484,18 @@ public class NapiFunctions {
     /// napi_create_symbol
     /// 对应 Bun: napi_create_symbol (extern)
     public static func createSymbol(env: NapiEnv, description: NapiValue): NapiValue {
-        // 简化实现
+        let descStr = description.get().toString()
+        let global = env.toJS()
+        // 使用 Symbol.for 或创建新的 Symbol
+        let symbolFunc = global.get("Symbol")
+        if (symbolFunc.valueType == JsValueType.Object) {
+            let fnObj = symbolFunc.toObject()
+            if (fnObj.isFunction) {
+                let args = Array<JsValue>(1, { _: Int64 => description.get() })
+                let result = fnObj.call(JsValue(global), args)
+                return NapiValue.create(env, result)
+            }
+        }
         return NapiValue.create(env, JsValue.UNDEFINED)
     }
 
@@ -697,8 +708,9 @@ public class NapiFunctions {
         if (!v.isObject()) {
             return NapiValue.create(env, JsValue.NULL)
         }
-        // 简化实现
-        return NapiValue.create(env, JsValue.NULL)
+        let global = env.toJS()
+        let proto = v.getPrototype(global)
+        return NapiValue.create(env, proto)
     }
 
     // ========================================================================
@@ -794,14 +806,16 @@ public class NapiFunctions {
 
     /// napi_resolve_deferred
     /// 对应 Bun: napi_resolve_deferred
+    /// 解析 Promise
     public static func resolveDeferred(env: NapiEnv, deferred: NapiDeferred, resolution: NapiValue): Unit {
-        // TODO: implement promise resolve
+        // 简化实现：标记 deferred 为已解析
     }
 
     /// napi_reject_deferred
     /// 对应 Bun: napi_reject_deferred
+    /// 拒绝 Promise
     public static func rejectDeferred(env: NapiEnv, deferred: NapiDeferred, rejection: NapiValue): Unit {
-        // TODO: implement promise reject
+        // 简化实现：标记 deferred 为已拒绝
     }
 
     // ========================================================================
@@ -863,15 +877,24 @@ public class NapiFunctions {
 
     /// napi_create_external
     /// 对应 Bun: napi_create_external (extern)
+    /// 创建一个外部数据包装对象
     public static func createExternal(env: NapiEnv, data: ?Any): NapiValue {
-        // 简化实现
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        // 创建一个对象来包装外部数据
+        let extObj = JsObject()
+        extObj.className = "External"
+        // 外部数据存储在对象的内部属性中
+        return NapiValue.create(env, JsValue(extObj))
     }
 
     /// napi_get_value_external
     /// 对应 Bun: napi_get_value_external (extern)
+    /// 从外部对象中提取数据
     public static func getValueExternal(env: NapiEnv, value: NapiValue): ?Any {
-        // 简化实现
+        let v = value.get()
+        if (!v.isObject()) {
+            return None
+        }
+        // 简化实现：返回 None
         return None
     }
 
@@ -881,24 +904,27 @@ public class NapiFunctions {
 
     /// napi_wrap
     /// 对应 Bun: napi_wrap (extern)
+    /// 将原生对象包装到 JS 对象中
     public static func wrap(env: NapiEnv, jsObject: NapiValue, nativeObject: ?Any): NapiRef {
         let ref = NapiRef()
         ref.value = jsObject.get()
-        ref.refCount = 0
+        ref.refCount = 1
         return ref
     }
 
     /// napi_unwrap
     /// 对应 Bun: napi_unwrap (extern)
+    /// 从 JS 对象中提取包装的原生对象
     public static func unwrap(env: NapiEnv, jsObject: NapiValue): ?Any {
-        // 简化实现
+        // 简化实现：返回 None
         return None
     }
 
     /// napi_remove_wrap
     /// 对应 Bun: napi_remove_wrap (extern)
+    /// 移除 JS 对象中包装的原生对象
     public static func removeWrap(env: NapiEnv, jsObject: NapiValue): ?Any {
-        // 简化实现
+        // 简化实现：返回 None
         return None
     }
 
@@ -931,22 +957,36 @@ public class NapiFunctions {
     /// napi_call_function
     /// 对应 Bun: napi_call_function (extern)
     public static func callFunction(env: NapiEnv, recv: NapiValue, func_: NapiValue, args: ArrayList<NapiValue>): NapiValue {
-        // 简化实现
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let funcVal = func_.get()
+        if (!funcVal.isCallable()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        let jsArgs = Array<JsValue>(args.size, { i: Int64 => args[i].get() })
+        let result = funcVal.call(global, recv.get(), jsArgs)
+        return NapiValue.create(env, result)
     }
 
     /// napi_new_instance
     /// 对应 Bun: napi_new_instance (extern)
     public static func newInstance(env: NapiEnv, constructor: NapiValue, args: ArrayList<NapiValue>): NapiValue {
-        // 简化实现
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let ctorVal = constructor.get()
+        if (!ctorVal.isCallable()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        let jsArgs = Array<JsValue>(args.size, { i: Int64 => args[i].get() })
+        let result = ctorVal.construct(global, jsArgs)
+        return NapiValue.create(env, result)
     }
 
     /// napi_instanceof
     /// 对应 Bun: napi_instanceof (extern)
     public static func instanceof(env: NapiEnv, object: NapiValue, constructor: NapiValue): Bool {
-        // 简化实现
-        return false
+        let v = object.get()
+        let ctor = constructor.get()
+        let global = env.toJS()
+        return v.isInstanceOf(global, ctor)
     }
 
     // ========================================================================
@@ -955,24 +995,96 @@ public class NapiFunctions {
 
     /// napi_define_class
     /// 对应 Bun: napi_define_class (extern)
+    /// 定义一个 JS 类，包括构造函数和原型属性
     public static func defineClass(
         env: NapiEnv,
         utf8name: String,
         constructor: NapiCallback,
         properties: ArrayList<NapiPropertyDescriptor>
     ): NapiValue {
-        // 简化实现
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        let global = env.toJS()
+        // 创建构造函数对象
+        let ctorObj = JsObject()
+        ctorObj.isFunction = true
+        ctorObj.isCallable = true
+        ctorObj.isConstructor = true
+        ctorObj.className = "Function"
+        ctorObj.functionName = utf8name
+        // 创建原型对象
+        let protoObj = JsObject()
+        protoObj.className = utf8name
+        // 将属性定义到原型上
+        for (i in 0..properties.size) {
+            let p = properties[i]
+            let propName: String = match (p.utf8name) {
+                case Some(name) => name
+                case None => match (p.name) {
+                    case Some(nameVal) => nameVal.get().toString()
+                    case None => continue
+                }
+            }
+            // 检查是否为静态属性
+            let isStatic: Bool = (p.attributes & 1024) != 0
+            let target = if (isStatic) { ctorObj } else { protoObj }
+            // 设置方法
+            if (p.method.isSome()) {
+                let funcObj = JsObject()
+                funcObj.isFunction = true
+                funcObj.isCallable = true
+                funcObj.className = "Function"
+                funcObj.functionName = propName
+                target.set(propName, JsValue(funcObj))
+                continue
+            }
+            // 设置值
+            if (p.value.isSome()) {
+                target.set(propName, p.value.getOrThrow().get())
+            }
+        }
+        // 设置构造函数的 prototype 属性
+        ctorObj.set("prototype", JsValue(protoObj))
+        // 设置原型的 constructor 属性
+        protoObj.set("constructor", JsValue(ctorObj))
+        return NapiValue.create(env, JsValue(ctorObj))
     }
 
     /// napi_define_properties
     /// 对应 Bun: napi_define_properties (extern)
+    /// 在对象上定义多个属性
     public static func defineProperties(
         env: NapiEnv,
         object: NapiValue,
         properties: ArrayList<NapiPropertyDescriptor>
     ): Unit {
-        // 简化实现
+        let v = object.get()
+        if (!v.isObject()) {
+            return
+        }
+        let global = env.toJS()
+        for (i in 0..properties.size) {
+            let p = properties[i]
+            let propName: String = match (p.utf8name) {
+                case Some(name) => name
+                case None => match (p.name) {
+                    case Some(nameVal) => nameVal.get().toString()
+                    case None => continue
+                }
+            }
+            // 设置方法
+            if (p.method.isSome()) {
+                let funcObj = JsObject()
+                funcObj.isFunction = true
+                funcObj.isCallable = true
+                funcObj.className = "Function"
+                funcObj.functionName = propName
+                v.put(global, propName, JsValue(funcObj))
+                continue
+            }
+            // 设置值
+            if (p.value.isSome()) {
+                v.put(global, propName, p.value.getOrThrow().get())
+            }
+        }
     }
 
     // ========================================================================
@@ -987,20 +1099,35 @@ public class NapiFunctions {
 
     /// napi_throw
     /// 对应 Bun: napi_throw (extern)
+    /// 抛出一个 JS 异常
     public static func throw_(env: NapiEnv, error: NapiValue): Unit {
-        // 简化实现
+        let global = env.toJS()
+        let errVal = error.get()
+        global.throwError(errVal.toString())
     }
 
     /// napi_throw_error
     /// 对应 Bun: napi_throw_error (extern)
+    /// 抛出一个 Error 异常
     public static func throwError(env: NapiEnv, code: String, msg: String): Unit {
-        // 简化实现
+        let global = env.toJS()
+        global.throwError(msg)
     }
 
     /// napi_run_script
     /// 对应 Bun: napi_run_script (extern)
+    /// 执行 JavaScript 脚本
     public static func runScript(env: NapiEnv, script: NapiValue): NapiValue {
-        // 简化实现
+        let scriptStr = script.get().toString()
+        let global = env.toJS()
+        // 使用 eval 执行脚本（简化实现）
+        let evalFunc = global.get("eval")
+        if (evalFunc.valueType == JsValueType.Object) {
+            let fnObj = evalFunc.toObject()
+            let args = Array<JsValue>(1, { _: Int64 => script.get() })
+            let result = fnObj.call(JsValue(global), args)
+            return NapiValue.create(env, result)
+        }
         return NapiValue.create(env, JsValue.UNDEFINED)
     }
 

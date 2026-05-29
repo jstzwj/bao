@@ -9,6 +9,10 @@ import bao_hash.*
 import bao_path.*
 import bao_sys.*
 
+// POSIX umask - 无法从 bao_sys 导出, 本地声明
+@C
+foreign func umask(mask: UInt32): UInt32
+
 // ============================================================================
 // Bin 标签
 // 严格翻译自: src/install/bin.zig - Bin.Tag

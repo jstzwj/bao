@@ -38,7 +38,7 @@ public class SQLConnection {
 
     /// constructor - JS 构造函数
     /// 严格翻译自: sql.classes.ts construct: true
-    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?SQLConnection {
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): ?SQLConnection {
         let conn = SQLConnection()
         return conn
     }
@@ -51,7 +51,7 @@ public class SQLConnection {
     /// doClose - 关闭数据库连接
     /// 严格翻译自: bun_sql_jsc::postgres::PostgresSQLConnection::doClose
     ///             bun_sql_jsc::mysql::js_my_sql_connection::JSMySQLConnection::doClose
-    public func doClose(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doClose(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         connected = false
         return JsValue.jsUndefined()
     }
@@ -63,7 +63,7 @@ public class SQLConnection {
 
     /// getConnected - 获取连接状态 (JS getter)
     /// 严格翻译自: bun_sql_jsc::...::getConnected
-    public func getConnected(JsGlobalObject): JsValue {
+    public func getConnected(jsGlobalObject!: JsGlobalObject): JsValue {
         return JsValue.jsBoolean(connected)
     }
 
@@ -74,14 +74,14 @@ public class SQLConnection {
 
     /// doRef - 引用连接, 保持事件循环活跃
     /// 严格翻译自: bun_sql_jsc::...::doRef
-    public func doRef(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doRef(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         // 引用计数+1
         return JsValue.jsUndefined()
     }
 
     /// doUnref - 取消引用连接
     /// 严格翻译自: bun_sql_jsc::...::doUnref
-    public func doUnref(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doUnref(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         // 引用计数-1
         return JsValue.jsUndefined()
     }
@@ -93,7 +93,7 @@ public class SQLConnection {
 
     /// doFlush - 刷新挂起的操作
     /// 严格翻译自: bun_sql_jsc::...::doFlush
-    public func doFlush(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doFlush(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -104,7 +104,7 @@ public class SQLConnection {
 
     /// getQueries - 获取活跃查询列表 (JS getter)
     /// 严格翻译自: bun_sql_jsc::...::getQueries
-    public func getQueries(JsGlobalObject): JsValue {
+    public func getQueries(jsGlobalObject!: JsGlobalObject): JsValue {
         if (let Some(q) <- queries) {
             return q
         }
@@ -117,7 +117,7 @@ public class SQLConnection {
     // ========================================================================
 
     /// getOnConnect - 获取连接回调
-    public func getOnConnect(JsGlobalObject): JsValue {
+    public func getOnConnect(jsGlobalObject!: JsGlobalObject): JsValue {
         if (let Some(cb) <- onConnect) {
             return cb
         }
@@ -125,7 +125,7 @@ public class SQLConnection {
     }
 
     /// setOnConnect - 设置连接回调
-    public func setOnConnect(JsGlobalObject, value: JsValue): JsValue {
+    public func setOnConnect(jsGlobalObject!: JsGlobalObject, value!: JsValue): JsValue {
         onConnect = value
         return JsValue.jsBoolean(true)
     }
@@ -136,7 +136,7 @@ public class SQLConnection {
     // ========================================================================
 
     /// getOnClose - 获取关闭回调
-    public func getOnClose(JsGlobalObject): JsValue {
+    public func getOnClose(jsGlobalObject!: JsGlobalObject): JsValue {
         if (let Some(cb) <- onClose) {
             return cb
         }
@@ -144,7 +144,7 @@ public class SQLConnection {
     }
 
     /// setOnClose - 设置关闭回调
-    public func setOnClose(JsGlobalObject, value: JsValue): JsValue {
+    public func setOnClose(jsGlobalObject!: JsGlobalObject, value!: JsValue): JsValue {
         onClose = value
         return JsValue.jsBoolean(true)
     }
@@ -207,7 +207,7 @@ public class SQLQuery {
 
     /// constructor - JS 构造函数
     /// 严格翻译自: sql.classes.ts construct: true
-    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?SQLQuery {
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): ?SQLQuery {
         let query = SQLQuery()
         return query
     }
@@ -220,7 +220,7 @@ public class SQLQuery {
     /// doRun - 执行 SQL 查询
     /// 严格翻译自: bun_sql_jsc::...::doRun
     /// 参数: (sql: string, values?: any[])
-    public func doRun(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doRun(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         // 委托给底层 SQL 驱动执行查询
         return JsValue.jsUndefined()
     }
@@ -232,7 +232,7 @@ public class SQLQuery {
 
     /// doCancel - 取消正在执行的查询
     /// 严格翻译自: bun_sql_jsc::...::doCancel
-    public func doCancel(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doCancel(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -243,7 +243,7 @@ public class SQLQuery {
 
     /// doDone - 标记查询已完成
     /// 严格翻译自: bun_sql_jsc::...::doDone
-    public func doDone(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doDone(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         return JsValue.jsUndefined()
     }
 
@@ -254,7 +254,7 @@ public class SQLQuery {
 
     /// setModeFromJS - 从 JS 设置查询模式
     /// 严格翻译自: bun_sql_jsc::...::setModeFromJS
-    public func setModeFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func setModeFromJS(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         // 设置查询模式 (如 array, object 等)
         return JsValue.jsUndefined()
@@ -267,7 +267,7 @@ public class SQLQuery {
 
     /// setPendingValueFromJS - 从 JS 设置挂起值
     /// 严格翻译自: bun_sql_jsc::...::setPendingValueFromJS
-    public func setPendingValueFromJS(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func setPendingValueFromJS(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(1)
         if (args.size > 0) {
             pendingValue = args[0]

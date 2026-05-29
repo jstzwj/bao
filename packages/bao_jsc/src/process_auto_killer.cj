@@ -52,7 +52,8 @@ public class ProcessAutoKiller {
     // 严格翻译自 ProcessAutoKiller.onSubprocessSpawn
     public func onSubprocessSpawn(process: SubProcess) {
         if (enabled) {
-            processes.append(process)
+            // 使用 concat 追加到不可变数组（仓颉 Array 没有 append 方法）
+            processes = processes.concat([process])
             process.ref()
         }
     }
@@ -60,10 +61,10 @@ public class ProcessAutoKiller {
     // 严格翻译自 ProcessAutoKiller.onSubprocessExit
     public func onSubprocessExit(process: SubProcess) {
         if (everEnabled) {
-            // Stub: linear scan to find and remove process
+            // 按引用匹配查找并移除特定进程
             var idx: Int64 = -1
             for (i in 0..processes.size) {
-                if (processes[Int64(i)].hasExited()) {
+                if (processes[Int64(i)].pid == process.pid) {
                     idx = Int64(i)
                     break
                 }
@@ -91,7 +92,15 @@ public class ProcessAutoKillerResult {
 }
 
 public class SubProcess {
-    public func hasExited(): Bool { true }
+    public var pid: Int32 = -1
+    public var exited: Bool = false
+
+    public init() {}
+    public init(pid: Int32) {
+        this.pid = pid
+    }
+
+    public func hasExited(): Bool { exited }
     public func kill() {}
     public func ref() {}
     public func deref() {}

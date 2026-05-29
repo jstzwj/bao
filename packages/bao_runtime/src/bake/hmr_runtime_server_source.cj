@@ -195,7 +195,7 @@ server_exports = {
       for (const fileName of componentManifestDelete) {
         const client = ssrManifest[fileName];
         for (const exportName in client) {
-          delete serverManifest[`${fileName}#${exportName}`];
+          delete serverManifest[`\${fileName}#\${exportName}`];
         }
         delete ssrManifest[fileName];
       }

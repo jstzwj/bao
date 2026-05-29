@@ -13,10 +13,10 @@ import bao_sql.postgres.protocol.*
 import bao_sql.shared.ColumnIdentifier
 import bao_sql.shared.ColumnIdentifierKind
 import bao_sql_jsc.shared.*
-import bao_sql_jsc.mysql.AnySocket
-import bao_sql_jsc.mysql.OffsetByteList
-import bao_sql_jsc.mysql.SSLConfig
-import bao_sql_jsc.mysql.ConnectionFlags
+import bao_sql_jsc.shared.AnySocket
+import bao_sql_jsc.shared.OffsetByteList
+import bao_sql_jsc.shared.SSLConfig
+import bao_sql_jsc.shared.ConnectionFlags
 import bao_collections.ArrayList as BaoArrayList
 
 /// Postgres SQL 连接
@@ -325,7 +325,9 @@ public class PostgresSQLConnection {
             let jsRow = putter.toJS(globalObject, JscValue.undefined(),
                 JscValue.undefined(), flags,
                 request.flags.resultMode, structure)
-            // TODO: 将 jsRow 传递给请求的结果收集器
+            // 将 jsRow 传递给请求的结果收集器
+            // 对应 Bun: request.rows.push(js_row) — 收集查询结果行
+            request.rows.append(jsRow)
         }
     }
 

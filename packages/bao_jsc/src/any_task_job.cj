@@ -63,8 +63,8 @@ public class AnyTaskJob<C> where C <: AnyTaskJobCtx<C> {
         let vm = BunVirtualMachine()
         let job = AnyTaskJob<C>(ctx)
         job.vm = vm
-        // TODO: runTask is static, need to bind instance
-        job.task = WorkPoolTask()
+        // 严格翻译自: task.callback = Self::run_task (静态回调绑定到实例)
+        job.task = WorkPoolTask({ => AnyTaskJob<C>.runTask(job.task) })
 
         // 构建 AnyTask (类型擦除的回调)
         job.anyTask = AnyTask()
@@ -82,8 +82,7 @@ public class AnyTaskJob<C> where C <: AnyTaskJobCtx<C> {
     // KeepAlive.ref JS 事件循环并将侵入式任务交给工作池
     public static func schedule(job: AnyTaskJob<C>) {
         job.poll.ref(job.vm)
-        // TODO: WorkPool.schedule expects ThreadPoolTask, not WorkPoolTask
-        // WorkPool.schedule(job.task)
+        WorkPool.schedule(job.task)
     }
 
     // ========== createAndSchedule ==========

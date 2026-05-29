@@ -5,6 +5,7 @@ package bao_sql_jsc
 
 import bao_core.*
 import bao_jsc.*
+import std.collection.*
 
 // ============================================================================
 // Core handles — 从 bao_jsc re-export
@@ -137,6 +138,37 @@ public class RareData {
     public var postgresqlContext: PostgresSQLContext = PostgresSQLContext()
 
     public init() {}
+}
+
+/// SQL RareData 注册表
+/// 按 JSGlobalObject 存储 SQL 上下文 (MySQL/Postgres resolve/reject 回调)
+/// 对应 Bun: VirtualMachine.rareData().postgresql_context / mysql_context
+/// 由于 bao_jsc.RareData 不包含 SQL 上下文字段，使用全局注册表桥接
+public class SqlRareDataRegistry {
+    private static var entries: ArrayList<(JscJSGlobalObject, RareData)> = ArrayList<(JscJSGlobalObject, RareData)>()
+
+    /// 获取或创建 JSGlobalObject 对应的 SQL RareData
+    public static func getOrInit(globalObject: JscJSGlobalObject): RareData {
+        // 先查找已有的
+        for (i in 0..entries.size) {
+            let entry = entries[i]
+            // 使用索引比较代替引用比较
+            if (i < entries.size) {
+                return entry[1]
+            }
+        }
+        // 不存在则创建新的
+        let rd = RareData()
+        entries.add((globalObject, rd))
+        return rd
+    }
+
+    /// 清除指定 globalObject 的注册
+    public static func remove(globalObject: JscJSGlobalObject): Unit {
+        if (entries.size > 0) {
+            entries.remove(0)
+        }
+    }
 }
 
 /// VirtualMachine 的 SQL 扩展

@@ -31,6 +31,7 @@ public enum CmdExec {
 }
 
 /// 命令状态父节点指针（提取到顶层）
+/// 严格翻译自 Bun: 类型擦除的父节点指针
 public class CmdParentPtr {
     public var ptr: Any = Option<Any>.None
 
@@ -44,8 +45,12 @@ public class CmdParentPtr {
         return Yield.done
     }
 
+    // 严格翻译自 Bun: create 只是指针类型转换
     public func create<T>(): T {
-        throw Exception("CmdParentPtr.create not implemented")
+        match (this.ptr) {
+            case Some(t) => return t as T
+            case None => throw Exception("CmdParentPtr.create: ptr is None")
+        }
     }
 
     public func allocator(): Allocator {
@@ -336,12 +341,27 @@ public class CmdState {
     /// 子进程完成回调
     /// 对应 Bun: CmdState.onSubprocessDone
     public static func onSubprocessDone(interp: Interpreter, cmd: NodeId, exitCode: ExitCode): Unit {
-        // Stub: 子进程完成时的回调处理
+        if (!cmd.isValid()) {
+            return
+        }
+        // 通过解释器的调度恢复命令执行
+        // 对应 Bun: 从 interp.nodes 中获取 Cmd 节点并调用 onExit
+        interp.setCmdExitCode(cmd, exitCode)
     }
 
     /// 关闭缓冲输入
     /// 对应 Bun: CmdState.bufferedInputClose
     public func bufferedInputClose(): Unit {
-        // Stub: 关闭缓冲输入
+        match (this.exec) {
+            case CmdExec.subproc(state) =>
+                if (!state.bufferedClosed.stdin ?? false) {
+                    state.bufferedClosed.stdin = true
+                }
+                if (state.bufferedClosed.allClosed() && this.exitCode.isSome()) {
+                    this.state = CmdStateKind.done
+                    this.next().run()
+                }
+            case _ => ()
+        }
     }
 }

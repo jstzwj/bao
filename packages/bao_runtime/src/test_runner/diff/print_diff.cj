@@ -4,6 +4,7 @@
 package bao_runtime.test_runner.diff
 
 import bao_runtime.test_runner.StringWriter
+import bao_collections.ArrayList
 
 // ========== ANSI颜色常量 ==========
 public class DiffColors {
@@ -31,11 +32,11 @@ public class PrefixStyle {
 }
 
 public class PrefixStyles {
-    public static let inserted: PrefixStyle = PrefixStyle(msg: "+ ", color: DiffColors.red)
-    public static let removed: PrefixStyle = PrefixStyle(msg: "- ", color: DiffColors.green)
-    public static let equal: PrefixStyle = PrefixStyle(msg: "  ", color: "")
-    public static let singleLineInserted: PrefixStyle = PrefixStyle(msg: "Received: ", color: "")
-    public static let singleLineRemoved: PrefixStyle = PrefixStyle(msg: "Expected: ", color: "")
+    public static let inserted: PrefixStyle = PrefixStyle("+ ", DiffColors.red)
+    public static let removed: PrefixStyle = PrefixStyle("- ", DiffColors.green)
+    public static let equal: PrefixStyle = PrefixStyle("  ", "")
+    public static let singleLineInserted: PrefixStyle = PrefixStyle("Received: ", "")
+    public static let singleLineRemoved: PrefixStyle = PrefixStyle("Expected: ", "")
 }
 
 /// 文本样式
@@ -52,13 +53,13 @@ public class Style {
 // ========== 基础样式 ==========
 
 public class BaseStyles {
-    public static let redBgInserted: Style = Style(prefix: PrefixStyles.inserted, textColor: DiffColors.red + DiffColors.invert)
-    public static let greenBgRemoved: Style = Style(prefix: PrefixStyles.removed, textColor: DiffColors.green + DiffColors.invert)
-    public static let dimEqual: Style = Style(prefix: PrefixStyles.equal, textColor: DiffColors.dim)
-    public static let redFgInserted: Style = Style(prefix: PrefixStyles.inserted, textColor: DiffColors.red)
-    public static let greenFgRemoved: Style = Style(prefix: PrefixStyles.removed, textColor: DiffColors.green)
-    public static let dimInserted: Style = Style(prefix: PrefixStyles.inserted, textColor: DiffColors.dim)
-    public static let dimRemoved: Style = Style(prefix: PrefixStyles.removed, textColor: DiffColors.dim)
+    public static let redBgInserted: Style = Style(PrefixStyles.inserted, DiffColors.red + DiffColors.invert)
+    public static let greenBgRemoved: Style = Style(PrefixStyles.removed, DiffColors.green + DiffColors.invert)
+    public static let dimEqual: Style = Style(PrefixStyles.equal, DiffColors.dim)
+    public static let redFgInserted: Style = Style(PrefixStyles.inserted, DiffColors.red)
+    public static let greenFgRemoved: Style = Style(PrefixStyles.removed, DiffColors.green)
+    public static let dimInserted: Style = Style(PrefixStyles.inserted, DiffColors.dim)
+    public static let dimRemoved: Style = Style(PrefixStyles.removed, DiffColors.dim)
 }
 
 // ========== 差异配置 ==========
@@ -98,6 +99,16 @@ public enum DiffSegmentMode {
     | removed
     | inserted
     | modified
+
+    public operator func ==(other: DiffSegmentMode): Bool {
+        match (this) {
+            case equal => match (other) { case equal => true case _ => false }
+            case removed => match (other) { case removed => true case _ => false }
+            case inserted => match (other) { case inserted => true case _ => false }
+            case modified => match (other) { case modified => true case _ => false }
+        }
+    }
+    public operator func !=(other: DiffSegmentMode): Bool { !(this == other) }
 }
 
 /// 差异段
@@ -147,30 +158,30 @@ public func printDiffMain(not: Bool, receivedSlice: String, expectedSlice: Strin
 
     // 检查是否为单行差异
     if (!receivedSlice.contains("\n") && !expectedSlice.contains("\n")) {
-        let segment = DiffSegment(removed: expectedSlice, inserted: receivedSlice, mode: DiffSegmentMode.modified)
-        printModifiedSegment(segment: segment, writer: writer, config: config, modifiedStyle: ModifiedStyle(singleLine: true))
+        let segment = DiffSegment(expectedSlice, receivedSlice, DiffSegmentMode.modified)
+        printModifiedSegment(segment, writer, config, ModifiedStyle(true))
         return
     }
 
     // 多行差异 - 使用差异算法
     let dmp = DiffMatchPatch()
-    let linesToChars = dmp.diffLinesToChars(text1: expectedSlice, text2: receivedSlice)
-    var charDiffs = dmp.diff(before: linesToChars.chars1, after: linesToChars.chars2, checkLines: false)
-    var diffs = dmp.diffCharsToLines(diffs: charDiffs, lineArray: linesToChars.lineArray)
+    let linesToChars = dmp.diffLinesToChars(expectedSlice, receivedSlice)
+    var charDiffs = dmp.diff(linesToChars.chars1, linesToChars.chars2, false)
+    var diffs = dmp.diffCharsToLines(charDiffs, linesToChars.lineArray)
 
-    var diffSegments = Array<DiffSegment>()
+    var diffSegments = ArrayList<DiffSegment>()
     for (diff in diffs) {
         if (diff.operation == DiffOperation.delete) {
-            diffSegments.append(DiffSegment(removed: diff.text, inserted: "", mode: DiffSegmentMode.removed))
+            diffSegments.append(DiffSegment(diff.text, "", DiffSegmentMode.removed))
         } else if (diff.operation == DiffOperation.insert) {
             if (diffSegments.size > 0 && diffSegments[diffSegments.size - 1].mode == DiffSegmentMode.removed) {
                 diffSegments[diffSegments.size - 1].inserted = diff.text
                 diffSegments[diffSegments.size - 1].mode = DiffSegmentMode.modified
             } else {
-                diffSegments.append(DiffSegment(removed: "", inserted: diff.text, mode: DiffSegmentMode.inserted))
+                diffSegments.append(DiffSegment("", diff.text, DiffSegmentMode.inserted))
             }
         } else if (diff.operation == DiffOperation.equal) {
-            diffSegments.append(DiffSegment(removed: diff.text, inserted: diff.text, mode: DiffSegmentMode.equal))
+            diffSegments.append(DiffSegment(diff.text, diff.text, DiffSegmentMode.equal))
         }
     }
 
@@ -183,14 +194,14 @@ public func printDiffMain(not: Bool, receivedSlice: String, expectedSlice: Strin
     }
 
     // 确定是否需要分块
-    if (expectedSlice.size > config.minBytesBeforeChunking || receivedSlice.size > config.minBytesBeforeChunking) {
-        var newDiffSegments = Array<DiffSegment>()
+    if (UInt64(expectedSlice.size) > config.minBytesBeforeChunking || UInt64(receivedSlice.size) > config.minBytesBeforeChunking) {
+        var newDiffSegments = ArrayList<DiffSegment>()
 
         for (segment in diffSegments) {
             if (segment.mode == DiffSegmentMode.equal) {
-                let lines = segment.removed.split(separator: "\n")
+                let lines = segment.removed.split("\n", -1, removeEmpty: false)
                 for (line in lines) {
-                    let seg = DiffSegment(removed: line, inserted: line, mode: DiffSegmentMode.equal)
+                    let seg = DiffSegment(line, line, DiffSegmentMode.equal)
                     seg.skip = true
                     newDiffSegments.append(seg)
                 }
@@ -204,7 +215,8 @@ public func printDiffMain(not: Bool, receivedSlice: String, expectedSlice: Strin
         // 正向传递: 取消非等号段之后的段的跳过标记
         for (i in 0..diffSegments.size) {
             if (diffSegments[i].mode != DiffSegmentMode.equal) {
-                let end = min(i + config.chunkContextLines + 1, diffSegments.size)
+                let endVal = i + Int64(config.chunkContextLines) + 1
+                let end = if (endVal < diffSegments.size) { endVal } else { diffSegments.size }
                 for (j in i..end) {
                     diffSegments[j].skip = false
                 }
@@ -216,7 +228,7 @@ public func printDiffMain(not: Bool, receivedSlice: String, expectedSlice: Strin
         while (ri > 0) {
             ri -= 1
             if (diffSegments[ri].mode != DiffSegmentMode.equal) {
-                let start = if (ri > config.chunkContextLines) { ri - config.chunkContextLines } else { 0 }
+                let start = if (ri > Int64(config.chunkContextLines)) { ri - Int64(config.chunkContextLines) } else { 0 }
                 for (j in start..ri + 1) {
                     diffSegments[j].skip = false
                 }
@@ -227,21 +239,21 @@ public func printDiffMain(not: Bool, receivedSlice: String, expectedSlice: Strin
     // 计算行数
     for (segment in diffSegments) {
         for (ch in segment.removed) {
-            if (ch == '\n' ) { segment.removedLineCount += 1 }
+            if (ch == UInt8(0x0A)) { segment.removedLineCount += 1 }
         }
         segment.removedLineCount += 1
 
         for (ch in segment.inserted) {
-            if (ch == '\n' ) { segment.insertedLineCount += 1 }
+            if (ch == UInt8(0x0A)) { segment.insertedLineCount += 1 }
         }
         segment.insertedLineCount += 1
     }
 
-    printDiff(writer: writer, diffSegments: diffSegments, config: config)
+    printDiff(writer, diffSegments, config)
 }
 
 /// 打印差异
-public func printDiff(writer: StringWriter, diffSegments: Array<DiffSegment>, config: DiffConfig) {
+public func printDiff(writer: StringWriter, diffSegments: ArrayList<DiffSegment>, config: DiffConfig) {
     var removedLineNumber: UInt64 = 1
     var insertedLineNumber: UInt64 = 1
     var removedDiffLines: UInt64 = 0
@@ -291,7 +303,7 @@ public func printDiff(writer: StringWriter, diffSegments: Array<DiffSegment>, co
                 writer.write("\n")
                 insertedDiffLines += segment.insertedLineCount
             case DiffSegmentMode.modified =>
-                printModifiedSegment(segment: segment, writer: writer, config: config, modifiedStyle: ModifiedStyle(singleLine: false))
+                printModifiedSegment(segment, writer, config, ModifiedStyle(false))
                 removedDiffLines += segment.removedLineCount
                 insertedDiffLines += segment.insertedLineCount
         }
@@ -305,15 +317,15 @@ public func printDiff(writer: StringWriter, diffSegments: Array<DiffSegment>, co
 }
 
 /// 打印行前缀
-func printLinePrefix(writer: StringWriter, config: DiffConfig, prefix: PrefixStyle) {
+func printLinePrefix(writer!: StringWriter, config!: DiffConfig, prefix!: PrefixStyle) {
     if (config.enableAnsiColors ) { writer.write(prefix.color) }
     writer.write(prefix.msg)
     if (config.enableAnsiColors ) { writer.write(DiffColors.reset) }
 }
 
 /// 打印截断行
-func printTruncatedLine(line: String, writer: StringWriter, config: DiffConfig, style: Style) {
-    if (line.size <= config.truncateThreshold || line.size <= config.truncateContext * 2) {
+func printTruncatedLine(line!: String, writer!: StringWriter, config!: DiffConfig, style!: Style) {
+    if (Int64(line.size) <= Int64(config.truncateThreshold) || Int64(line.size) <= Int64(config.truncateContext * 2)) {
         if (config.enableAnsiColors ) { writer.write(style.textColor) }
         writer.write(line)
         if (config.enableAnsiColors ) { writer.write(DiffColors.reset) }
@@ -322,28 +334,28 @@ func printTruncatedLine(line: String, writer: StringWriter, config: DiffConfig, 
 
     // 行太长, 截断
     if (config.enableAnsiColors ) { writer.write(style.textColor) }
-    writer.write(line[0..config.truncateContext])
+    writer.write(line[0..Int64(config.truncateContext)])
     if (config.enableAnsiColors ) { writer.write(DiffColors.reset) }
 
     if (config.enableAnsiColors ) { writer.write(DiffColors.white) }
-    writer.write("... (" + (line.size - 2 * config.truncateContext).toString() + " bytes truncated) ...")
+    writer.write("... (" + (Int64(line.size) - 2 * Int64(config.truncateContext)).toString() + " bytes truncated) ...")
     if (config.enableAnsiColors ) { writer.write(DiffColors.reset) }
 
     if (config.enableAnsiColors ) { writer.write(style.textColor) }
-    writer.write(line[line.size - config.truncateContext..])
+    writer.write(line[Int64(line.size) - Int64(config.truncateContext)..])
     if (config.enableAnsiColors ) { writer.write(DiffColors.reset) }
 }
 
 /// 打印段
-func printSegment(text: String, writer: StringWriter, config: DiffConfig, style: Style) {
-    let lines = text.split(separator: "\n")
+func printSegment(text!: String, writer!: StringWriter, config!: DiffConfig, style!: Style) {
+    let lines = text.split("\n")
     if (lines.size > 0) {
-        printTruncatedLine(lines[0], writer: writer, config: config, style: style)
+        printTruncatedLine(line: lines[0], writer: writer, config: config, style: style)
     }
     for (i in 1..lines.size) {
         writer.write("\n")
         printLinePrefix(writer: writer, config: config, prefix: style.prefix)
-        printTruncatedLine(lines[i], writer: writer, config: config, style: style)
+        printTruncatedLine(line: lines[i], writer: writer, config: config, style: style)
     }
 }
 
@@ -354,8 +366,8 @@ func printModifiedSegment(segment: DiffSegment, writer: StringWriter, config: Di
 
     // 使用字符级差异
     let dmp = DiffMatchPatch()
-    var charDiff = dmp.diff(before: segment.removed, after: segment.inserted, checkLines: true)
-    charDiff = dmp.cleanupSemantic(diffs: charDiff)
+    var charDiff = dmp.diff(segment.removed, segment.inserted, true)
+    charDiff = dmp.cleanupSemantic(charDiff)
 
     // 检查差异是否太大(超过2/3被修改)
     var deletedHighlightedLength: UInt64 = 0
@@ -371,7 +383,7 @@ func printModifiedSegment(segment: DiffSegment, writer: StringWriter, config: Di
     if ((deletedHighlightedLength > 10 && deletedHighlightedLength > UInt64(segment.removed.size) / 3 * 2) ||
        (insertedHighlightedLength > 10 && insertedHighlightedLength > UInt64(segment.inserted.size) / 3 * 2)) {
         // 差异太大, 跳过字符级差异
-        printModifiedSegmentWithoutDiffDiff(writer: writer, config: config, segment: segment, modifiedStyle: modifiedStyle)
+        printModifiedSegmentWithoutDiffDiff(writer, config, segment, modifiedStyle)
         return
     }
 
@@ -426,16 +438,16 @@ func printModifiedSegmentWithoutDiffDiff(writer: StringWriter, config: DiffConfi
 }
 
 /// 检查是否所有字符都是空白/控制字符
-func shouldHighlightCharAll(text: String): Bool {
+func shouldHighlightCharAll(text!: String): Bool {
     for (ch in text) {
-        if (ch <= '\u{20}' || ch == '\u{7F}') { continue }
+        if (ch <= UInt8(0x20) || ch == UInt8(0x7F)) { continue }
         return false
     }
     return true
 }
 
 /// 打印差异页脚
-func printDiffFooter(writer: StringWriter, config: DiffConfig, removedDiffLines: UInt64, insertedDiffLines: UInt64) {
+func printDiffFooter(writer!: StringWriter, config!: DiffConfig, removedDiffLines!: UInt64, insertedDiffLines!: UInt64) {
     if (config.enableAnsiColors ) { writer.write(BaseStyles.greenFgRemoved.prefix.color) }
     writer.write(BaseStyles.greenFgRemoved.prefix.msg)
     writer.write("Expected")
@@ -450,7 +462,7 @@ func printDiffFooter(writer: StringWriter, config: DiffConfig, removedDiffLines:
 }
 
 /// 打印块头
-func printHunkHeader(writer: StringWriter, config: DiffConfig, originalLineNumber: UInt64, originalLineCount: UInt64, changedLineNumber: UInt64, changedLineCount: UInt64) {
+func printHunkHeader(writer!: StringWriter, config!: DiffConfig, originalLineNumber!: UInt64, originalLineCount!: UInt64, changedLineNumber!: UInt64, changedLineCount!: UInt64) {
     if (config.enableAnsiColors) {
         writer.write(DiffColors.yellow + "@@ -" + originalLineNumber.toString() + "," + originalLineCount.toString() + " +" + changedLineNumber.toString() + "," + changedLineCount.toString() + " @@" + DiffColors.reset + "\n")
     } else {

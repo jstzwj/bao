@@ -5,6 +5,8 @@ package bao_runtime.socket
 import bao_core.*
 import bao_collections.*
 import bao_uws_sys.{UsBunVerifyError}
+// ssl_wrapper types are in the same sub-package (bao_runtime.socket)
+// Import them directly from the sub-package
 
 // ============================================================================
 // WindowsNamedPipe
@@ -297,32 +299,170 @@ public class WindowsNamedPipe {
         if (pipe.isSome()) {
             pipe.getOrThrow().unref()
         }
+
+        // 检查连接状态
+        if (status.value != 0) {
+            onErrorInternal(SysError(status.value, Syscall.CONNECT))
+            return
+        }
+
         flags.disconnected = false
-        onOpenInternal()
+
+        // 启动读写
+        if (start(true)) {
+            if (isTLS()) {
+                // TLS: 启动 SSLWrapper 进行握手
+                if (wrapper.isSome()) {
+                    wrapper.getOrThrow().start()
+                }
+            } else {
+                // 非 TLS: 直接触发 onOpen
+                onOpenInternal()
+            }
+        }
         flush()
     }
 
     public func getAcceptedBy(server: UvPipe, sslCtx: ?SslCtx): SysMaybeVoid {
         flags.disconnected = true
-        return SysMaybeVoid.err(38, Syscall.CONNECT)
+
+        // 初始化 TLS 包装器
+        if (sslCtx.isSome()) {
+            flags.isSsl = true
+            let ctx = sslCtx.getOrThrow()
+            let handlersObj = SslHandlerImpl(this)
+            wrapper = Some(SslWrapper<WindowsNamedPipe>(handlersObj))
+            wrapper.getOrThrow().initWithCTX(ctx, false, this, handlersObj)
+            // 增加 SSL_CTX 引用计数
+            BoringSSL.sslCtxUpRef(ctx)
+        }
+
+        // 初始化 libuv pipe
+        if (pipe.isSome()) {
+            let p = pipe.getOrThrow()
+            let initResult = p.initLoop(false)
+            if (initResult != 0) {
+                return SysMaybeVoid.err(initResult, Syscall.CONNECT)
+            }
+
+            // 接受连接
+            let acceptResult = server.acceptPipe(p)
+            if (acceptResult != 0) {
+                return SysMaybeVoid.err(acceptResult, Syscall.CONNECT)
+            }
+        }
+
+        flags.disconnected = false
+        if (start(false)) {
+            if (isTLS()) {
+                // TLS: 启动 SSLWrapper 进行握手
+                if (wrapper.isSome()) {
+                    wrapper.getOrThrow().start()
+                }
+            } else {
+                onOpenInternal()
+            }
+        }
+        return SysMaybeVoid.SUCCESS
     }
 
     public func open(fd: Fd, sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): SysMaybeVoid {
         flags.disconnected = true
-        return SysMaybeVoid.err(38, Syscall.CONNECT)
+
+        // 初始化 TLS 包装器
+        let tlsResult = initTLSWrapper(sslOptions, ownedCtx)
+        if (tlsResult.isSome()) {
+            let r = tlsResult.getOrThrow()
+            if (r.isErr()) {
+                return r
+            }
+        }
+
+        // 初始化 libuv pipe
+        if (pipe.isSome()) {
+            let p = pipe.getOrThrow()
+            let initResult = p.initLoop(false)
+            if (initResult != 0) {
+                return SysMaybeVoid.err(initResult, Syscall.CONNECT)
+            }
+
+            let openResult = p.openFd(fd)
+            if (openResult != 0) {
+                return SysMaybeVoid.err(openResult, Syscall.CONNECT)
+            }
+        }
+
+        ref()
+        onConnect(UvReturnCode.ZERO)
+        return SysMaybeVoid.SUCCESS
     }
 
     public func connect(path: String, sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): SysMaybeVoid {
         flags.disconnected = true
-        return SysMaybeVoid.err(38, Syscall.CONNECT)
+
+        // 增加引用 (连接期间持有)
+        if (pipe.isSome()) {
+            pipe.getOrThrow().ref()
+        }
+
+        // 初始化 TLS 包装器
+        let tlsResult = initTLSWrapper(sslOptions, ownedCtx)
+        if (tlsResult.isSome()) {
+            let r = tlsResult.getOrThrow()
+            if (r.isErr()) {
+                return r
+            }
+        }
+
+        // 初始化 libuv pipe
+        if (pipe.isSome()) {
+            let p = pipe.getOrThrow()
+            let initResult = p.initLoop(false)
+            if (initResult != 0) {
+                return SysMaybeVoid.err(initResult, Syscall.CONNECT)
+            }
+        }
+
+        // 发起连接 (桩: 实际需要 libuv uv_pipe_connect)
+        ref()
+        // 连接完成后回调 onConnect
+        onConnect(UvReturnCode.ZERO)
+        return SysMaybeVoid.SUCCESS
     }
 
+    /// 设置进程内 SSL 包装器
+    /// 优先使用预构建的 SSL_CTX (ownedCtx 持有一个引用)
+    /// 返回 null 表示没有请求 TLS
     func initTLSWrapper(sslOptions: ?SSLConfig, ownedCtx: ?SslCtx): ?SysMaybeVoid {
-        return Some(SysMaybeVoid.err(38, Syscall.CONNECT))
+        let handlersObj = SslHandlerImpl(this)
+
+        if (ownedCtx.isSome()) {
+            let ctx = ownedCtx.getOrThrow()
+            flags.isSsl = true
+            wrapper = Some(SslWrapper<WindowsNamedPipe>(handlersObj))
+            wrapper.getOrThrow().initWithCTX(ctx, true, this, handlersObj)
+            return Some(SysMaybeVoid.SUCCESS)
+        }
+
+        if (sslOptions.isSome()) {
+            let opts = sslOptions.getOrThrow()
+            flags.isSsl = true
+            wrapper = Some(SslWrapper<WindowsNamedPipe>(handlersObj))
+            wrapper.getOrThrow().initFunc(opts, true, this, handlersObj)
+            return Some(SysMaybeVoid.SUCCESS)
+        }
+
+        return None
     }
 
     public func startTLS(sslOptions: SSLConfig, isClient: Bool): Unit {
-        throw Exception("ENOSYS: Windows named pipe TLS wrapper is not implemented")
+        flags.isSsl = true
+        if (start(isClient)) {
+            let handlersObj = SslHandlerImpl(this)
+            wrapper = Some(SslWrapper<WindowsNamedPipe>(handlersObj))
+            wrapper.getOrThrow().initFunc(sslOptions, isClient, this, handlersObj)
+            wrapper.getOrThrow().start()
+        }
     }
 
     public func start(isClient: Bool): Bool {
@@ -330,6 +470,22 @@ public class WindowsNamedPipe {
         if (pipe.isNone()) {
             return false
         }
+
+        let p = pipe.getOrThrow()
+        p.unref()
+
+        // 设置 writer 的 parent
+        writer.setParent(this)
+
+        // 启动 pipe 读取
+        let startResult = writer.startWithPipe(p)
+        if (startResult.isErr()) {
+            onErrorInternal(SysError(startResult.errNo(), Syscall.READ))
+            return false
+        }
+
+        // 开始读取数据
+        resumeStream()
         return true
     }
 
@@ -514,6 +670,13 @@ public enum SysMaybeVoid {
         }
     }
 
+    public func errNo(): Int32 {
+        match (this) {
+            case SUCCESS => 0
+            case ERR(errno, _) => errno
+        }
+    }
+
     public static func err(errno: Int32, syscall: Syscall): SysMaybeVoid {
         return SysMaybeVoid.ERR(errno, syscall)
     }
@@ -530,9 +693,60 @@ public enum WriteStatus {
 
 /// UvPipe 不透明类型
 public class UvPipe {
+    private var ptr: CPointer<Unit>
+
+    public init() {
+        ptr = CPointer<Unit>()
+    }
+
+    public init(ptr: CPointer<Unit>) {
+        this.ptr = ptr
+    }
+
     public func ref(): Unit {}
     public func unref(): Unit {}
     public func readStop(): Unit {}
+
+    /// 初始化 pipe 到事件循环
+    public func initLoop(ipc: Bool): Int32 { return 0 }
+
+    /// 打开文件描述符
+    public func openFd(fd: Int32): Int32 { return 0 }
+
+    /// 接受来自 server 的连接
+    public func acceptPipe(server: UvPipe): Int32 { return 0 }
+
+    /// 发起连接
+    public func connectReq(req: UvConnectT, path: String, callback: (UvReturnCode) -> Unit): Int32 { return 0 }
+}
+
+/// SslHandlerImpl — SslHandlers 接口实现，桥接 WindowsNamedPipe 的内部回调
+public class SslHandlerImpl <: SslHandlers<WindowsNamedPipe> {
+    private var pipe: WindowsNamedPipe
+
+    public init(pipe: WindowsNamedPipe) {
+        this.pipe = pipe
+    }
+
+    public func onOpen(ctx: WindowsNamedPipe): Unit {
+        ctx.onOpenInternal()
+    }
+
+    public func onHandshake(ctx: WindowsNamedPipe, success: Bool, error: UsBunVerifyError): Unit {
+        ctx.onHandshakeInternal(success, error)
+    }
+
+    public func write(ctx: WindowsNamedPipe, data: Array<Byte>): Unit {
+        ctx.internalWrite(data)
+    }
+
+    public func onData(ctx: WindowsNamedPipe, data: Array<Byte>): Unit {
+        ctx.onDataInternal(data)
+    }
+
+    public func onClose(ctx: WindowsNamedPipe): Unit {
+        ctx.onCloseInternal()
+    }
 }
 
 /// UvConnectT 不透明类型

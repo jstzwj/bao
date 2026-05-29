@@ -417,6 +417,9 @@ public class BuiltinModules {
         // process — 特殊处理
         registry.put("process", JsValue(JsObject()))
 
+        // worker_threads — Web Worker / Node.js worker_threads 模块
+        registry.put("worker_threads", WorkerModule.toNodeWorkerThreadsJsValue())
+
         let bunTest = BuiltinModules.createBunTestModule()
         registry.put("bun:test", bunTest)
         registry.put("@jest/globals", bunTest)

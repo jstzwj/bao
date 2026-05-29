@@ -36,8 +36,21 @@ public class ExportCmd {
         // 不带参数调用export时按字典序打印所有导出变量
         if (args.size == 0) {
             var buf = ArrayList<UInt8>()
-            // stub: print export env
-            buf.appendSlice("".toArray())
+            // 遍历当前 exportEnv 中的条目
+            // 对应 Bun: 遍历 bltn.exportEnv 获取所有导出的环境变量
+            let envMap = this.bltn().exportEnv
+            let iter = envMap.iterator()
+            while (iter.hasNext()) {
+                match (iter.next()) {
+                    case Some((key, value)) =>
+                        buf.appendSlice("export ".toArray())
+                        buf.appendSlice(key.toArray())
+                        buf.appendSlice("=\"".toArray())
+                        buf.appendSlice(value.toArray())
+                        buf.appendSlice("\"\n".toArray())
+                    case None => break
+                }
+            }
 
             if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
                 this.printing = true
@@ -48,7 +61,25 @@ public class ExportCmd {
             return this.bltn().done(ExitCode.exited(0))
         }
 
-        // 处理赋值参数 - stub
+        // 处理赋值参数: export NAME=VALUE 或 export NAME
+        for (arg in args) {
+            let eqIdx = arg.indexOf('=')
+            if (eqIdx >= 0) {
+                // export NAME=VALUE
+                let name = arg.substring(0, eqIdx)
+                let value = arg.substring(eqIdx + 1)
+                SysFFI.setenv(name, value)
+            } else {
+                // export NAME (标记为导出，如果已有值则保持)
+                // 在 shell 中，仅 export NAME 会将变量标记为导出
+                // 如果变量不存在，则创建空值导出
+                let existingOpt = SysFFI.getenv(arg)
+                match (existingOpt) {
+                    case Some(_) => () // 已有值，保持
+                    case None => SysFFI.setenv(arg, "")
+                }
+            }
+        }
         return this.bltn().done(ExitCode.exited(0))
     }
 

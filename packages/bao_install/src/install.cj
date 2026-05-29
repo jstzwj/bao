@@ -546,4 +546,14 @@ public enum InstallLogLevel {
             case _ => false
         }
     }
+
+    /// 转换为 Int64 (用于与 Int64 类型的 logLevel 比较)
+    public func toInt64(): Int64 {
+        match (this) {
+            case Silent => 0
+            case Verbose => 1
+            case Default => 2
+            case DefaultNoProgress => 3
+        }
+    }
 }

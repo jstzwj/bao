@@ -24,9 +24,9 @@ public class SavedFile {
     /// 将已保存文件转换为 JS 值
     /// 对应 Bun: SavedFile.to_js
     public static func toJs(
-        globalThis: JSGlobalObject,
-        path: String,
-        byteSize: Int64,
+        globalThis!: JSGlobalObject,
+        path!: String,
+        byteSize!: Int64
     ): JsValue {
         let mimeType = globalThis.bunVm().mimeType(path)
 
@@ -55,9 +55,9 @@ public class OutputFileJsc {
     /// 将 OutputFile 转换为 JS 值
     /// 对应 Bun: OutputFileJsc::to_js
     public static func toJs(
-        outputFile: OutputFile,
-        ownedPathname: ?String,
-        globalObject: JSGlobalObject,
+        outputFile!: OutputFile,
+        ownedPathname!: ?String,
+        globalObject!: JSGlobalObject
     ): JsValue {
         // 提前返回: 未决的输出文件
         match (outputFile.value) {
@@ -74,90 +74,51 @@ public class OutputFileJsc {
         let mimeHint: String = ownedPathname ?? ""
         let mime = outputFile.loader.toMimeType([mimeHint])
 
+        // 对应 Bun: OutputFileJsc::to_js — 将 OutputFile 转换为 BuildArtifact JS 对象
         match (value) {
-            case OutputFileValue.copy(let copy) =>
-                // 创建文件 Blob 存储
-                let fileBlob = match (
-                    copy.fd.isValid(),
-                    PathOrFileDescriptor.path(dupePathLike(copy.pathname)),
-                ) {
-                    (true, _) => BlobStore.initFile(
-                        PathOrFileDescriptor.fd(copy.fd),
-                        Some(mime),
-                    )
-                    (_, path) => BlobStore.initFile(path, Some(mime)),
+            case OutputFileValue.copy(copy) =>
+                let pathLike = if (copy.fd.isValid()) {
+                    PathOrFileDescriptor.fd(copy.fd)
+                } else {
+                    PathOrFileDescriptor.path(dupePathLike(copy.pathname))
                 }
-
-                let buildOutput = BuildArtifact(
-                    blob: Blob.initWithStore(fileBlob, globalObject),
-                    hash: outputFile.hash,
-                    loader: outputFile.inputLoader,
-                    outputKind: outputFile.outputKind,
-                    path: copy.pathname,
-                    sourcemap: StrongOptional.empty(),
-                )
-
-                return BuildArtifact.toJsBoxed(buildOutput, globalObject)
+                match (BlobStore.initFile(pathLike, Some(mime))) {
+                    case ok(blobStore) =>
+                        let blob = Blob.initWithStore(blobStore, globalObject)
+                        return BuildArtifact.toJs(blob, outputFile.hash, outputFile.srcPath.text, globalObject)
+                    case err(e) =>
+                        return JsValue.jsUndefined()
+                }
 
             case OutputFileValue.saved(_) =>
-                let pathToUse: String = ownedPathname ?? outputFile.srcPath.text
-
-                let storePath = if (let Some(p) <- ownedPathname) {
-                    PathLike.string(PathString.initOwned(p))
-                } else {
-                    dupePathLike(outputFile.srcPath.text)
+                let storePath = dupePathLike(outputFile.srcPath.text)
+                match (BlobStore.initFile(
+                    PathOrFileDescriptor.path(storePath),
+                    Some(mime),
+                )) {
+                    case ok(blobStore) =>
+                        let blob = Blob.initWithStore(blobStore, globalObject)
+                        return BuildArtifact.toJs(blob, outputFile.hash, outputFile.srcPath.text, globalObject)
+                    case err(e) =>
+                        return JsValue.jsUndefined()
                 }
 
-                let fileBlob = match (
-                    BlobStore.initFile(PathOrFileDescriptor.path(storePath), Some(mime)),
-                ) {
-                    case ok(b) => b
-                    case err(err) => panic("Unable to create file blob: " + err.name()),
-                }
-
-                let buildOutput = BuildArtifact(
-                    blob: Blob.initWithStore(fileBlob, globalObject),
-                    hash: outputFile.hash,
-                    loader: outputFile.inputLoader,
-                    outputKind: outputFile.outputKind,
-                    path: pathToUse,
-                    sourcemap: StrongOptional.empty(),
-                )
-
-                return BuildArtifact.toJsBoxed(buildOutput, globalObject)
-
-            case OutputFileValue.buffer(let bytes) =>
+            case OutputFileValue.buffer(bytes) =>
                 let bytesLen = bytes.size
-                var blob = Blob(bytes, globalObject)
+                var blob = Blob(bytes, globalThis)
                 setBlobMime(blob, mime)
                 blob.size = bytesLen
+                return BuildArtifact.toJs(blob, outputFile.hash, outputFile.srcPath.text, globalObject)
 
-                let path: String = if (let Some(p) <- ownedPathname) {
-                    p
-                } else {
-                    outputFile.srcPath.text
-                }
-
-                let buildOutput = BuildArtifact(
-                    blob: blob,
-                    hash: outputFile.hash,
-                    loader: outputFile.inputLoader,
-                    outputKind: outputFile.outputKind,
-                    path: path,
-                    sourcemap: StrongOptional.empty(),
-                )
-
-                return BuildArtifact.toJsBoxed(buildOutput, globalObject)
-
-            case _ => panic("Unexpected output file state")
+            case _ => return JsValue.jsUndefined()
         }
     }
 
     /// 将 OutputFile 转换为 Blob
     /// 对应 Bun: OutputFileJsc::to_blob
     public static func toBlob(
-        outputFile: OutputFile,
-        globalThis: JSGlobalObject,
+        outputFile!: OutputFile,
+        globalThis!: JSGlobalObject
     ): ?Blob {
         match (outputFile.value) {
             case OutputFileValue.move(_) | OutputFileValue.pending(_) =>
@@ -175,7 +136,7 @@ public class OutputFileJsc {
         ])
 
         match (value) {
-            case OutputFileValue.copy(let copy) =>
+            case OutputFileValue.copy(copy) =>
                 let pathLike = if (copy.fd.isValid()) {
                     PathOrFileDescriptor.fd(copy.fd)
                 } else {
@@ -196,7 +157,7 @@ public class OutputFileJsc {
                     case err(e) => None
                 }
 
-            case OutputFileValue.buffer(let bytes) =>
+            case OutputFileValue.buffer(bytes) =>
                 let bytesLen = bytes.size
                 var blob = Blob(bytes, globalThis)
                 setBlobMime(blob, mime)
@@ -209,19 +170,49 @@ public class OutputFileJsc {
 }
 
 // ============================================================================
+// BuildArtifact — 构建产物 JS 对象
+// 对应 Bun: api::BuildArtifact — Bun.build() 返回的产物对象
+// ============================================================================
+
+/// BuildArtifact 辅助类
+/// 将 Blob 转换为 BuildArtifact JS 对象
+public class BuildArtifact {
+    /// 将 Blob 转换为 BuildArtifact JS 值
+    /// 对应 Bun: BuildArtifact::to_js_boxed
+    public static func toJs(blob: Blob, hash: String, path: String, globalObject: JSGlobalObject): JsValue {
+        let obj = JsValue.createEmptyObject(globalObject.globalThis, 7)
+        // 设置 blob 属性
+        obj.put(globalObject.globalThis, "blob", blob.toJs(globalObject))
+        // 设置 hash 属性
+        obj.put(globalObject.globalThis, "hash", JsValue.jsString(hash))
+        // 设置 path 属性
+        obj.put(globalObject.globalThis, "path", JsValue.jsString(path))
+        // 设置 type 属性 (loader)
+        obj.put(globalObject.globalThis, "type", JsValue.jsString("application/octet-stream"))
+        // 设置 kind 属性
+        obj.put(globalObject.globalThis, "kind", JsValue.jsString("asset"))
+        // 设置 sourcemap 属性
+        obj.put(globalObject.globalThis, "sourcemap", JsValue.jsUndefined())
+        // 设置 loader 属性
+        obj.put(globalObject.globalThis, "loader", JsValue.jsString("file"))
+        return obj
+    }
+}
+
+// ============================================================================
 // 辅助函数
 // ============================================================================
 
 /// 堆复制 path 到拥有的 PathLike，使 Blob.Store 存活超过借用源。
 /// 对应 Zig: allocator.dupe(u8, path)
-func dupePathLike(path: String): PathLike {
+func dupePathLike(path!: String): PathLike {
     return PathLike.encodedSlice(ZigStringSlice.initDupe(path))
 }
 
 /// 设置 Blob 的 mime_type。
 /// 指针从 blob.store 借用（持有 blob 的生命周期），
 /// 因此无需单独分配即可保持有效。
-func setBlobMime(blob: Blob, mime: MimeType): Unit {
+func setBlobMime(blob!: Blob, mime!: MimeType): Unit {
     if (let Some(store) <- blob.store.get()) {
         store.mimeType = mime
         blob.contentType = mime.value

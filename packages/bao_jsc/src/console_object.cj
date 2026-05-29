@@ -1386,7 +1386,7 @@ public class ConsoleFormatter {
                             case PercentTag.F => formatPercentFloat(nextValue, globalThis)
                             case PercentTag.O | PercentTag.BigO =>
                                 format(ConsoleFormatter.getTag(nextValue, globalThis), nextValue, globalThis, enableColors)
-                            case PercentTag.C => "" // TODO: CSS 样式
+                            case PercentTag.C => "" // CSS 样式在终端中不适用，忽略
                             case PercentTag.J => nextValue.toString()
                         }
                         result = result[0..i] + replacement + result[(i + 2)..result.size]
@@ -2146,11 +2146,38 @@ public class ConsoleObject {
         result
     }
 
-    // 获取栈跟踪 (简化)
+    // 获取栈跟踪
+    // 严格翻译自 ConsoleObject.zig 中的栈跟踪获取逻辑
     func getStackTrace(global: JsObject): Array<String> {
         var frames = Array<String>()
-        // 简化处理 - TODO: 实际实现应解析 stack trace
-        frames = frames.concat(["<anonymous>"])
+        // 通过 ZigException 获取栈跟踪
+        let holder = ZigExceptionHolder.initHolder()
+        let exception = holder.zigException()
+        let vm = BunVirtualMachine.getOrNull()
+        if (let Some(vmInstance) <- vm) {
+            vmInstance.remapStackFramePositions(exception.stack.frames)
+            for (frame in exception.stack.frames) {
+                let file = frame.sourceUrl
+                let `func` = frame.functionName
+                if (file.isEmpty() && `func`.isEmpty()) {
+                    continue
+                }
+                let lineNum = frame.position.line.value + 1
+                let colNum = frame.position.column.value + 1
+                if (`func`.size > 0 && !frame.position.isInvalid()) {
+                    frames = frames.concat(["at " + `func` + " (" + file + ":" + lineNum.toString() + ":" + colNum.toString() + ")"])
+                } else if (!frame.position.isInvalid()) {
+                    frames = frames.concat(["at " + file + ":" + lineNum.toString() + ":" + colNum.toString()])
+                } else if (`func`.size > 0) {
+                    frames = frames.concat(["at " + `func`])
+                } else {
+                    frames = frames.concat(["at " + file])
+                }
+            }
+        }
+        if (frames.size == 0) {
+            frames = frames.concat(["<anonymous>"])
+        }
         frames
     }
 
@@ -2431,9 +2458,29 @@ public class MapEntryIterator {
 
     public init() {}
 
-    public init(map: JsObject) {
-        // TODO: callMethod not available on JsObject, stub iterator
-        // 简化: 不实际迭代 Map
+    // 严格翻译自 Map.forEach 回调逻辑
+    // 通过 JsValue.call 调用 Map 的 entries() 迭代器
+    public init(map: JsValue, global: JsObject) {
+        // 调用 map.entries() 获取迭代器，然后逐个调用 next()
+        let entriesFn = map.getProperty("entries")
+        if (entriesFn.isCallable()) {
+            let iterator = entriesFn.call(global, map, [])
+            let nextFn = iterator.getProperty("next")
+            while (nextFn.isCallable()) {
+                let nextResult = nextFn.call(global, iterator, [])
+                if (nextResult.isUndefined() || nextResult.isNull()) {
+                    break
+                }
+                let done = nextResult.getProperty("done")
+                if (done.toBoolean()) {
+                    break
+                }
+                let value = nextResult.getProperty("value")
+                let key = value.getProperty("0")
+                let val = value.getProperty("1")
+                entries = entries.concat([Pair(key, val)])
+            }
+        }
     }
 
     public func next(): ?Pair<JsValue, JsValue> {
@@ -2454,9 +2501,27 @@ public class SetEntryIterator {
 
     public init() {}
 
-    public init(set: JsObject) {
-        // TODO: callMethod not available on JsObject, stub iterator
-        // 简化: 不实际迭代 Set
+    // 严格翻译自 Set.forEach 回调逻辑
+    // 通过 JsValue.call 调用 Set 的 values() 迭代器
+    public init(set: JsValue, global: JsObject) {
+        // 调用 set.values() 获取迭代器，然后逐个调用 next()
+        let valuesFn = set.getProperty("values")
+        if (valuesFn.isCallable()) {
+            let iterator = valuesFn.call(global, set, [])
+            let nextFn = iterator.getProperty("next")
+            while (nextFn.isCallable()) {
+                let nextResult = nextFn.call(global, iterator, [])
+                if (nextResult.isUndefined() || nextResult.isNull()) {
+                    break
+                }
+                let done = nextResult.getProperty("done")
+                if (done.toBoolean()) {
+                    break
+                }
+                let value = nextResult.getProperty("value")
+                entries = entries.concat([value])
+            }
+        }
     }
 
     public func next(): ?JsValue {

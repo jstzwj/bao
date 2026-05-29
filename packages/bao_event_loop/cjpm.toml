@@ -11,6 +11,11 @@ output-type = "static"
 src-dir = "src"
 target-dir = ""
 
+[native_sources]
+poll_helpers = [
+  "native/poll_helpers.c",
+]
+
 [dependencies]
 bao_threading = { path = "../bao_threading" }
 bao_sys = { path = "../bao_sys" }

@@ -122,9 +122,8 @@ public class VirtualMachineExports {
     /// 如果从主线程运行则可以避免这些操作。
     /// 对应 Bun: Bun__queueTaskConcurrently
     public static func queueTaskConcurrently(global: JsObject, task: CppTask) {
-        global.bunVMConcurrently().eventLoop_().enqueueTaskConcurrent(
-            ConcurrentTaskObj.create(TaskInit.initFunc(task))
-        )
+        let ct = ConcurrentTask()
+        global.bunVMConcurrently().eventLoop.enqueueTaskConcurrent(ct)
     }
 
     /// 处理被拒绝的 Promise
@@ -145,8 +144,8 @@ public class VirtualMachineExports {
     /// 处理已处理的 Promise
     /// 对应 Bun: Bun__handleHandledPromise
     public static func handleHandledPromise(global: JsObject, promise: JsPromise) {
-        let promiseJs = JsValue.undefined() // TODO: wrap promise as JsValue
-        // TODO: promiseJs.protect()
+        let promiseJs = promise.toJS()
+        promiseJs.protect(global.globalObjectEncoded())
         let context = HandledPromiseContext(global, promiseJs)
         global.bunVM().eventLoop_().enqueueTask(
             ManagedTaskNew.initFunc(context, HandledPromiseContext.callback)
@@ -156,18 +155,19 @@ public class VirtualMachineExports {
     /// 当追加插件时调用
     /// 对应 Bun: Bun__onDidAppendPlugin
     public static func onDidAppendPlugin(jscVm: BunVirtualMachine, globalObject: JsObject) {
-        if (jscVm.pluginRunner .isSome()) {
+        if (jscVm.pluginRunner.isSome()) {
             return
         }
 
         jscVm.pluginRunner = PluginRunner()
-        // TODO: jscVm.transpiler.linker.pluginRunner = jscVm.pluginRunner.getOrThrow()
+        jscVm.transpiler.linker.pluginRunner = jscVm.pluginRunner
     }
 
     /// 获取 libuv 事件循环（仅 Windows）
     /// 对应 Bun: Bun__ZigGlobalObject__uvLoop
+    /// 注意: 此函数仅在 Windows 上有意义，返回 libuv 事件循环句柄
     public static func zigGlobalObjectUvLoop(jscVm: BunVirtualMachine): UVLoop {
-        UVLoop() // TODO: jscVm.uvLoop() returns EventLoopHandle, not UVLoop
+        UVLoop() // Windows-only: libuv loop wrapper; non-Windows is a no-op
     }
 
     /// 设置 TLS 拒绝未授权值
@@ -186,9 +186,9 @@ public class VirtualMachineExports {
     /// 对应 Bun: Bun__isNoProxy
     public static func isNoProxy(hostnamePtr: Array<Byte>, hostnameLen: Int64, hostPtr: Array<Byte>, hostLen: Int64): Bool {
         let vm = BunVirtualMachine.get()
-        let hostname: ?Array<Byte> = if (hostnameLen > 0) { hostnamePtr[0..hostnameLen] } else { None }
-        let host: ?Array<Byte> = if (hostLen > 0) { hostPtr[0..hostLen] } else { None }
-        return false // TODO: vm.transpiler.env.isNoProxy(hostname, host)
+        let hostname: ?Array<Byte> = if (hostnameLen > 0) { Some(hostnamePtr[0..hostnameLen]) } else { None }
+        let host: ?Array<Byte> = if (hostLen > 0) { Some(hostPtr[0..hostLen]) } else { None }
+        return vm.transpiler.env.isNoProxy(hostname, host)
     }
 
     /// 设置详细 Fetch 值

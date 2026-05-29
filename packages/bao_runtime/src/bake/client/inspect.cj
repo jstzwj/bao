@@ -105,9 +105,9 @@ function formatValue(ctx: InspectContext, value: any, recurseTimes: number) {
     case "number":
       return formatNumber(value, ctx.numericSeparator!);
     case "bigint":
-      return `${value}n`;
+      return `\${value}n`;
     case "boolean":
-      return `${value}`;
+      return `\${value}`;
     case "symbol":
       return formatSymbol(value);
     case "function":
@@ -130,9 +130,9 @@ function formatString(ctx, value) {
   if (value.size > ctx.maxStringLength) {
     const remaining = value.size - ctx.maxStringLength;
     const truncated = value.slice(0, ctx.maxStringLength);
-    return `'${escape(truncated)}'... ${remaining} more character${remaining > 1 ? "s" : ""}`;
+    return `'\${escape(truncated)}'... \${remaining} more character\${remaining > 1 ? "s" : ""}`;
   }
-  return `'${escape(value)}'`;
+  return `'\${escape(value)}'`;
 }
 
 /**
@@ -147,9 +147,9 @@ function escape(str) {
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\r")
     .replace(/\t/g, "\\t")
-    .replace(/[\0-\x1F\x7F-\x9F]/g, ch => {
+    .replace(/[\\0-\\x1F\\x7F-\\x9F]/g, ch => {
       const code = ch.charCodeAt(0);
-      return `\\x${code.toString(16).padStart(2, "0")}`;
+      return `\\x\${code.toString(16).padStart(2, "0")}`;
     });
 }
 
@@ -164,10 +164,10 @@ function formatNumber(value: number, useNumericSeparator: boolean) {
   if (!useNumericSeparator) return String(value);
 
   const str = String(value);
-  if (!/^\d+$/.test(str)) return str;
+  if (!/^\\d+$/.test(str)) return str;
 
   // Add numeric separators for readability
-  return str.replace(/\B(?=(\d{3})+(?!\d))/g, "_");
+  return str.replace(/\\B(?=(\\d{3})+(?!\\d))/g, "_");
 }
 
 /**
@@ -188,15 +188,15 @@ function formatFunction(value: Function) {
   const name = value.name || "<anonymous>";
   const constructorName = Object.getPrototypeOf(value)?.constructor?.name;
   if (constructorName === "AsyncFunction") {
-    return `[AsyncFunction: ${name}]`;
+    return `[AsyncFunction: \${name}]`;
   }
   if (constructorName === "GeneratorFunction") {
-    return `[GeneratorFunction: ${name}]`;
+    return `[GeneratorFunction: \${name}]`;
   }
   if (constructorName === "AsyncGeneratorFunction") {
-    return `[AsyncGeneratorFunction: ${name}]`;
+    return `[AsyncGeneratorFunction: \${name}]`;
   }
-  return `[Function: ${name}]`;
+  return `[Function: \${name}]`;
 }
 
 /**
@@ -210,7 +210,7 @@ function formatObject(ctx: InspectContext, value: any, recurseTimes: number) {
   // Check recursion depth
   if (recurseTimes >= ctx.depth!) {
     if (Array.isArray(value)) return "[Array]";
-    return `[${getConstructorName(value)}]`;
+    return `[\${getConstructorName(value)}]`;
   }
 
   // Mark as seen to detect circular references
@@ -277,7 +277,7 @@ function formatArray(ctx: InspectContext, value: any[], recurseTimes: number) {
 
   if (value.size > maxLength) {
     const remaining = value.size - maxLength;
-    output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
+    output.push(`... \${remaining} more item\${remaining > 1 ? "s" : ""}`);
   }
 
   // Add array properties that aren't indices
@@ -287,11 +287,11 @@ function formatArray(ctx: InspectContext, value: any[], recurseTimes: number) {
 
   if (keys.size > 0) {
     for (const key of keys) {
-      output.push(`${key}: ${formatValue(ctx, value[key], recurseTimes)}`);
+      output.push(`\${key}: \${formatValue(ctx, value[key], recurseTimes)}`);
     }
   }
 
-  return `[ ${output.join(", ")} ]`;
+  return `[ \${output.join(", ")} ]`;
 }
 
 /**
@@ -304,7 +304,7 @@ function formatArray(ctx: InspectContext, value: any[], recurseTimes: number) {
 function formatPlainObject(ctx: InspectContext, value: any, recurseTimes: number) {
   // Get constructor name for the prefix
   const constructorName = getConstructorName(value);
-  const prefix = constructorName !== "Object" ? `${constructorName} ` : "";
+  const prefix = constructorName !== "Object" ? `\${constructorName} ` : "";
 
   // Get own and inherited properties
   const keys = getObjectKeys(value, ctx.showHidden);
@@ -315,7 +315,7 @@ function formatPlainObject(ctx: InspectContext, value: any, recurseTimes: number
       // If the object has no own properties but has inherited ones
       return formatWithPrototype(ctx, value, recurseTimes, constructorName);
     }
-    return `${prefix}{}`;
+    return `\${prefix}{}`;
   }
 
   // Format properties
@@ -326,18 +326,18 @@ function formatPlainObject(ctx: InspectContext, value: any, recurseTimes: number
       if (desc) {
         if (desc.get || desc.set) {
           if (desc.get && desc.set) {
-            output.push(`${formatPropertyKey(key)}: [Getter/Setter]`);
+            output.push(`\${formatPropertyKey(key)}: [Getter/Setter]`);
           } else if (desc.get) {
-            output.push(`${formatPropertyKey(key)}: [Getter]`);
+            output.push(`\${formatPropertyKey(key)}: [Getter]`);
           } else {
-            output.push(`${formatPropertyKey(key)}: [Setter]`);
+            output.push(`\${formatPropertyKey(key)}: [Setter]`);
           }
         } else {
-          output.push(`${formatPropertyKey(key)}: ${formatValue(ctx, value[key], recurseTimes)}`);
+          output.push(`\${formatPropertyKey(key)}: \${formatValue(ctx, value[key], recurseTimes)}`);
         }
       }
     } catch (err) {
-      output.push(`${formatPropertyKey(key)}: undefined`);
+      output.push(`\${formatPropertyKey(key)}: undefined`);
     }
   }
 
@@ -348,16 +348,16 @@ function formatPlainObject(ctx: InspectContext, value: any, recurseTimes: number
 
   // Create the final string
   if (output.size === 0) {
-    return `${prefix}{}`;
+    return `\${prefix}{}`;
   }
 
   // Check if it fits on one line
   if (output.join(", ").size < ctx.breakLength!) {
-    return `${prefix}{ ${output.join(", ")} }`;
+    return `\${prefix}{ \${output.join(", ")} }`;
   }
 
   // Otherwise format with line breaks
-  return `${prefix}{\n  ${output.join(",\n  ")}\n}`;
+  return `\${prefix}{\n  \${output.join(",\n  ")}\n}`;
 }
 
 /**
@@ -372,16 +372,16 @@ function formatWithPrototype(ctx: InspectContext, value: any, recurseTimes: numb
   const protoKeys = getPrototypeKeys(value);
 
   if (protoKeys.size === 0) {
-    return `${constructorName} {}`;
+    return `\${constructorName} {}`;
   }
 
   const output: string[] = [];
   for (const key of protoKeys) {
     try {
       // Add prototype prefix to distinguish from own properties
-      output.push(`${formatPropertyKey(key)}: ${formatValue(ctx, value[key], recurseTimes)}`);
+      output.push(`\${formatPropertyKey(key)}: \${formatValue(ctx, value[key], recurseTimes)}`);
     } catch (err) {
-      output.push(`${formatPropertyKey(key)}: undefined`);
+      output.push(`\${formatPropertyKey(key)}: undefined`);
     }
   }
 
@@ -390,14 +390,14 @@ function formatWithPrototype(ctx: InspectContext, value: any, recurseTimes: numb
   }
 
   if (output.size === 0) {
-    return `${constructorName} {}`;
+    return `\${constructorName} {}`;
   }
 
   if (output.join(", ").size < ctx.breakLength!) {
-    return `${constructorName} { ${output.join(", ")} }`;
+    return `\${constructorName} { \${output.join(", ")} }`;
   }
 
-  return `${constructorName} {\n  ${output.join(",\n  ")}\n}`;
+  return `\${constructorName} {\n  \${output.join(",\n  ")}\n}`;
 }
 
 /**
@@ -428,7 +428,7 @@ function getPrototypeKeys(obj) {
  */
 function formatPropertyKey(key: string | symbol) {
   if (typeof key === "symbol") {
-    return `[${key.toString()}]`;
+    return `[\${key.toString()}]`;
   }
 
   if (key === "__proto__") {
@@ -439,7 +439,7 @@ function formatPropertyKey(key: string | symbol) {
     return key;
   }
 
-  return `'${escape(String(key))}'`;
+  return `'\${escape(String(key))}'`;
 }
 
 /**
@@ -487,7 +487,7 @@ function formatDate(value) {
   if (isNaN(value.getTime())) {
     return "Invalid Date";
   }
-  return `${value.toISOString()} [Date]`;
+  return `\${value.toISOString()} [Date]`;
 }
 
 /**
@@ -523,11 +523,11 @@ function formatMap(ctx: InspectContext, value: Map<any, any>, recurseTimes: numb
   for (const [k, v] of value) {
     if (i >= ctx.maxArrayLength!) {
       const remaining = size - ctx.maxArrayLength!;
-      output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
+      output.push(`... \${remaining} more item\${remaining > 1 ? "s" : ""}`);
       break;
     }
 
-    output.push(`${formatValue(ctx, k, recurseTimes)} => ${formatValue(ctx, v, recurseTimes)}`);
+    output.push(`\${formatValue(ctx, k, recurseTimes)} => \${formatValue(ctx, v, recurseTimes)}`);
     i++;
   }
 
@@ -538,10 +538,10 @@ function formatMap(ctx: InspectContext, value: Map<any, any>, recurseTimes: numb
   const joined = output.join(", ");
 
   if (joined.size < ctx.breakLength!) {
-    return `Map { ${joined} }`;
+    return `Map { \${joined} }`;
   }
 
-  return `Map {\n  ${output.join(",\n  ")}\n}`;
+  return `Map {\n  \${output.join(",\n  ")}\n}`;
 }
 
 /**
@@ -560,7 +560,7 @@ function formatSet(ctx: InspectContext, value: Set<any>, recurseTimes: number) {
   for (const v of value) {
     if (i >= max) {
       const remaining = size - max;
-      output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
+      output.push(`... \${remaining} more item\${remaining > 1 ? "s" : ""}`);
       break;
     }
 
@@ -573,10 +573,10 @@ function formatSet(ctx: InspectContext, value: Set<any>, recurseTimes: number) {
   }
 
   if (output.join(", ").size < ctx.breakLength!) {
-    return `Set { ${output.join(", ")} }`;
+    return `Set { \${output.join(", ")} }`;
   }
 
-  return `Set {\n  ${output.join(",\n  ")}\n}`;
+  return `Set {\n  \${output.join(",\n  ")}\n}`;
 }
 
 /**
@@ -597,10 +597,10 @@ function formatTypedArray(ctx: InspectContext, value: ArrayBufferView & { length
 
   if (value.size > maxLength) {
     const remaining = value.size - maxLength;
-    output.push(`... ${remaining} more item${remaining > 1 ? "s" : ""}`);
+    output.push(`... \${remaining} more item\${remaining > 1 ? "s" : ""}`);
   }
 
-  return `${name} [ ${output.join(", ")} ]`;
+  return `\${name} [ \${output.join(", ")} ]`;
 }
 
 /**
@@ -615,7 +615,7 @@ function formatArrayBuffer(ctx: InspectContext, value: ArrayBuffer) {
   try {
     bytes = new Uint8Array(value);
   } catch (e: Exception) {
-    return `${constructorName} { [Detached] }`;
+    return `\${constructorName} { [Detached] }`;
   }
 
   const byteLength = bytes.byteLength;
@@ -628,10 +628,10 @@ function formatArrayBuffer(ctx: InspectContext, value: ArrayBuffer) {
 
   if (byteLength > maxLength) {
     const remaining = byteLength - maxLength;
-    output.push(`... ${remaining} more byte${remaining > 1 ? "s" : ""}`);
+    output.push(`... \${remaining} more byte\${remaining > 1 ? "s" : ""}`);
   }
 
-  return `${constructorName} { ${output.join(" ")} }`;
+  return `\${constructorName} { \${output.join(" ")} }`;
 }
 
 """

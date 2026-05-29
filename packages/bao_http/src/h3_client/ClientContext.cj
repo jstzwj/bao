@@ -4,6 +4,7 @@ package bao_http.h3_client
 
 import bao_core.*
 import bao_collections.*
+import bao_uws_sys.{QuicGlobal}
 
 // ============================================================================
 // H3ClientContext - HTTP/3 全局客户端上下文
@@ -27,6 +28,10 @@ import bao_collections.*
 /// HTTP/3 全局客户端上下文
 /// 严格翻译自: bun/src/http/h3_client/ClientContext.zig ClientContext struct
 public class H3ClientContext {
+    /// QUIC 上下文 (lsquic 引擎)
+    /// 严格翻译自: qctx: *quic.Context
+    public var quicCtx: ?H3QuicContext
+
     /// 活跃会话列表
     /// 严格翻译自: sessions: std.ArrayListUnmanaged(*ClientSession) = .{}
     public var sessions: ArrayList<H3ClientSession>
@@ -39,6 +44,7 @@ public class H3ClientContext {
     private static var lsquicInitialized: Bool = false
 
     public init() {
+        quicCtx = None
         sessions = ArrayList<H3ClientSession>()
     }
 
@@ -75,12 +81,19 @@ public class H3ClientContext {
         match (instance) {
             case Some(ctx) => return ctx
             case None =>
+                // 初始化 lsquic 全局状态 (仅一次)
                 if (!lsquicInitialized) {
                     lsquicInitialized = true
-                    // 桩: 初始化 lsquic 全局状态
+                    QuicGlobal.globalInit()
                 }
+
                 let ctx = H3ClientContext()
-                // 桩: 创建 QUIC 上下文, 注册回调
+
+                // 创建 QUIC 客户端上下文
+                let quicCtx = H3QuicContext()
+                H3Callbacks.register(quicCtx)
+                ctx.quicCtx = quicCtx
+
                 instance = ctx
                 return ctx
         }
@@ -131,11 +144,33 @@ public class H3ClientContext {
         sessions.append(session)
         session.enqueue(client)
 
-        // 3. 发起 QUIC 连接 (桩)
-        // 实际: qctx.connect() -> socket / pending / err
-        session.qsocket = Some(QuicSocketRef(0))
-
-        return true
+        // 3. 发起 QUIC 连接
+        // 对应 Bun: qctx.connect(host_z.ptr, port, host_z.ptr, reject, session)
+        // 返回 .socket (同步) / .pending (DNS 等待) / .err (失败)
+        match (quicCtx) {
+            case Some(qctx) =>
+                let result = qctx.connect(hostname, port, rejectUnauthorized, session)
+                match (result) {
+                    case QuicConnectResult.socket(qs) =>
+                        // 同步连接成功
+                        session.qsocket = Some(qs)
+                        return true
+                    case QuicConnectResult.pending(pendingConn) =>
+                        // DNS 解析中，等待回调
+                        H3PendingConnect.register(session, pendingConn)
+                        return true
+                    case QuicConnectResult.err =>
+                        // 连接失败
+                        unregister(session)
+                        H3PendingConnect.failSession(session, "ConnectionRefused")
+                        return false
+                }
+            case None =>
+                // QUIC 上下文未初始化
+                unregister(session)
+                H3PendingConnect.failSession(session, "H3ClientNotInitialized")
+                return false
+        }
     }
 
     // ========================================================================
@@ -209,4 +244,14 @@ public class H3ClientContext {
             case None => ()
         }
     }
+}
+
+// ============================================================================
+// QuicConnectResult - QUIC 连接结果
+// 对应 Bun: quic.Context.connect 返回的 union
+// ============================================================================
+public enum QuicConnectResult {
+    | socket(QuicSocketRef)     // 同步连接成功，返回 QUIC socket
+    | pending(H3PendingConnect) // DNS 解析中，等待回调
+    | err                       // 连接失败
 }

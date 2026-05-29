@@ -10,6 +10,7 @@ import bao_io.*
 import bao_sys.*
 import bao_path.*
 import bao_resolver.*
+import std.convert.*
 
 // ============================================================================
 // RunCommand — bun run 命令执行器
@@ -101,12 +102,12 @@ public class BunXFastPath {
         let path = Path.join([dir, "package.json"])
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) =>
+            case SysMaybe.Ok(text) =>
                 let pkg = RunPackageJson()
                 pkg.path = path
                 parsePackageJsonScripts(text, pkg)
                 return Some(pkg)
-            case None => return None
+            case _ => return None
         }
     }
 
@@ -119,7 +120,7 @@ public class BunXFastPath {
                     case Some(scripts) =>
                         for (key in scripts.keys()) {
                             match (scripts.get(key)) {
-                                case Some(v) => pkg.scripts.put(key, v.toString())
+                                case Some(v) => pkg.scripts.put(key, v.asString() ?? "")
                                 case None => ()
                             }
                         }
@@ -137,7 +138,7 @@ public class BunXFastPath {
                     case Some(config) =>
                         for (key in config.keys()) {
                             match (config.get(key)) {
-                                case Some(v) => pkg.config.put(key, v.toString())
+                                case Some(v) => pkg.config.put(key, v.asString() ?? "")
                                 case None => ()
                             }
                         }
@@ -145,6 +146,21 @@ public class BunXFastPath {
                 }
             case None => ()
         }
+    }
+
+    /// 检测文件 loader
+    private static func detectLoader(path: String): String {
+        let ext = Path.extname(path)
+        let jsExts = [".js", ".mjs", ".cjs"]
+        let tsExts = [".ts", ".tsx", ".jsx", ".mts", ".cts"]
+        for (e in jsExts) { if (ext == e) { return "js" } }
+        for (e in tsExts) { if (ext == e) { return "ts" } }
+        if (ext == ".html") { return "html" }
+        if (ext == ".md") { return "md" }
+        if (ext == ".css") { return "css" }
+        if (ext == ".json") { return "json" }
+        if (ext == ".wasm") { return "wasm" }
+        return "file"
     }
 
     /// 获取路径的默认 loader
@@ -172,10 +188,10 @@ public class BunXFastPath {
     /// 检查字符串是否需要 shell 转义
     private static func needsEscape(s: String): Bool {
         for (c in s) {
-            if (c == ' ' || c == '\t' || c == '"' || c == '\'' || c == '\\' ||
-                c == '|' || c == '&' || c == ';' || c == '<' || c == '>' ||
-                c == '(' || c == ')' || c == '$' || c == '`' || c == '!' ||
-                c == '*' || c == '?' || c == '[' || c == ']' || c == '{' || c == '}') {
+            if (c == UInt8(32) || c == UInt8(9) || c == UInt8(34) || c == UInt8(39) || c == UInt8(92) ||
+                c == UInt8(124) || c == UInt8(38) || c == UInt8(59) || c == UInt8(60) || c == UInt8(62) ||
+                c == UInt8(40) || c == UInt8(41) || c == UInt8(36) || c == UInt8(96) || c == UInt8(33) ||
+                c == UInt8(42) || c == UInt8(63) || c == UInt8(91) || c == UInt8(93) || c == UInt8(123) || c == UInt8(125)) {
                 return true
             }
         }
@@ -293,101 +309,97 @@ public class RunCommand {
     public static func replacePackageManagerRun(script: String): String {
         let sb = StringBuilder()
         var i: Int64 = 0
-        var delimiter: UInt8 = UInt8(' ')
+        var delimiter: UInt8 = UInt8(32)
 
         while (i < script.size) {
             let c = script[i]
 
-            match (c) {
-                case 'y' =>
-                    if (delimiter > UInt8(0)) {
-                        let remainder = script.substringFrom(i)
-                        if (remainder.startsWith("yarn ")) {
-                            let next = remainder.substring(5)
-                            let spaceIdx = next.indexOf(' ')
-                            if (spaceIdx >= 0) {
-                                let yarnCmd = next.substring(0, spaceIdx)
-                                if (yarnCmd == "run") {
-                                    sb.append(bunRun)
-                                    i += Int64("yarn run".size)
-                                    delimiter = UInt8(0)
-                                    continue
-                                }
-                                // yarn npm 是 yarn 2 子命令, 保持不变
-                                if (yarnCmd == "npm") {
-                                    sb.append("yarn npm ")
-                                    i += Int64("yarn npm ".size)
-                                    continue
-                                }
-                                // yarn -flags 保持不变
-                                if (yarnCmd.size > 0 && yarnCmd[0] == '-') {
-                                    sb.append("yarn ")
-                                    sb.append(yarnCmd)
-                                    i += Int64("yarn ".size) + Int64(yarnCmd.size)
-                                    continue
-                                }
-                                // 隐式 yarn 命令 (如果不在已知 yarn 命令列表中)
-                                if (!isKnownYarnCommand(yarnCmd)) {
-                                    sb.append(bunRun)
-                                    sb.append(' ')
-                                    sb.append(yarnCmd)
-                                    i += Int64("yarn ".size) + Int64(yarnCmd.size)
-                                    delimiter = UInt8(0)
-                                    continue
-                                }
+            if (c == UInt8(121)) {  // 'y'
+                if (delimiter > UInt8(0)) {
+                    let remainder = script.substringFrom(i)
+                    if (remainder.startsWith("yarn ")) {
+                        let next = remainder.substring(5)
+                        let spaceIdx = next.indexOf(UInt8(32))
+                        if (spaceIdx.isSome()) {
+                            let yarnCmd = next.substring(0, spaceIdx.getOrThrow())
+                            if (yarnCmd == "run") {
+                                sb.append(bunRun)
+                                i += Int64("yarn run".size)
+                                delimiter = UInt8(0)
+                                continue
+                            }
+                            if (yarnCmd == "npm") {
+                                sb.append("yarn npm ")
+                                i += Int64("yarn npm ".size)
+                                continue
+                            }
+                            if (yarnCmd.size > 0 && yarnCmd[0] == UInt8(45)) {
+                                sb.append("yarn ")
+                                sb.append(yarnCmd)
+                                i += Int64("yarn ".size) + Int64(yarnCmd.size)
+                                continue
+                            }
+                            if (!isKnownYarnCommand(yarnCmd)) {
+                                sb.append(bunRun)
+                                sb.append(" ")
+                                sb.append(yarnCmd)
+                                i += Int64("yarn ".size) + Int64(yarnCmd.size)
+                                delimiter = UInt8(0)
+                                continue
                             }
                         }
                     }
-                    delimiter = UInt8(0)
-                case ' ' =>
-                    delimiter = UInt8(' ')
-                case '"' =>
-                    delimiter = UInt8('"')
-                case '\'' =>
-                    delimiter = UInt8('\'')
-                case 'n' =>
-                    if (delimiter > UInt8(0)) {
-                        if (script.startsWithFrom("npm run ", i)) {
-                            sb.append("${bunRun} ")
-                            i += Int64("npm run ".size)
-                            delimiter = UInt8(0)
-                            continue
-                        }
-                        if (script.startsWithFrom("npx ", i)) {
-                            sb.append("${bunBinName} x ")
-                            i += Int64("npx ".size)
-                            delimiter = UInt8(0)
-                            continue
-                        }
+                }
+                delimiter = UInt8(0)
+            } else if (c == UInt8(32)) {  // ' '
+                delimiter = UInt8(32)
+            } else if (c == UInt8(34)) {  // '"'
+                delimiter = UInt8(34)
+            } else if (c == UInt8(39)) {  // '\''
+                delimiter = UInt8(39)
+            } else if (c == UInt8(110)) {  // 'n'
+                if (delimiter > UInt8(0)) {
+                    if (script.startsWithFrom("npm run ", i)) {
+                        sb.append("${bunRun} ")
+                        i += Int64("npm run ".size)
+                        delimiter = UInt8(0)
+                        continue
                     }
-                    delimiter = UInt8(0)
-                case 'p' =>
-                    if (delimiter > UInt8(0)) {
-                        if (script.startsWithFrom("pnpm run ", i)) {
-                            sb.append("${bunRun} ")
-                            i += Int64("pnpm run ".size)
-                            delimiter = UInt8(0)
-                            continue
-                        }
-                        if (script.startsWithFrom("pnpm dlx ", i)) {
-                            sb.append("${bunBinName} x ")
-                            i += Int64("pnpm dlx ".size)
-                            delimiter = UInt8(0)
-                            continue
-                        }
-                        if (script.startsWithFrom("pnpx ", i)) {
-                            sb.append("${bunBinName} x ")
-                            i += Int64("pnpx ".size)
-                            delimiter = UInt8(0)
-                            continue
-                        }
+                    if (script.startsWithFrom("npx ", i)) {
+                        sb.append("${bunBinName} x ")
+                        i += Int64("npx ".size)
+                        delimiter = UInt8(0)
+                        continue
                     }
-                    delimiter = UInt8(0)
-                case _ =>
-                    delimiter = UInt8(0)
+                }
+                delimiter = UInt8(0)
+            } else if (c == UInt8(112)) {  // 'p'
+                if (delimiter > UInt8(0)) {
+                    if (script.startsWithFrom("pnpm run ", i)) {
+                        sb.append("${bunRun} ")
+                        i += Int64("pnpm run ".size)
+                        delimiter = UInt8(0)
+                        continue
+                    }
+                    if (script.startsWithFrom("pnpm dlx ", i)) {
+                        sb.append("${bunBinName} x ")
+                        i += Int64("pnpm dlx ".size)
+                        delimiter = UInt8(0)
+                        continue
+                    }
+                    if (script.startsWithFrom("pnpx ", i)) {
+                        sb.append("${bunBinName} x ")
+                        i += Int64("pnpx ".size)
+                        delimiter = UInt8(0)
+                        continue
+                    }
+                }
+                delimiter = UInt8(0)
+            } else {
+                delimiter = UInt8(0)
             }
 
-            sb.append(c)
+            sb.append(String.fromUtf8([c]))
             i += 1
         }
 
@@ -440,7 +452,7 @@ public class RunCommand {
         let shellBin = findShell(env.get("PATH") ?? "", cwd)
         if (shellBin.isNone()) {
             if (!silent) {
-                Output.errGeneric("No shell found. Please install bash, sh, or zsh.", [])
+                Output.errGeneric("No shell found. Please install bash, sh, or zsh.")
             }
             return 1
         }
@@ -571,13 +583,13 @@ public class RunCommand {
                     }
 
                     if (isProbablyPkgScript) {
-                        Output.errGeneric("\"${executable}\" exited with code ${exitCode}", [])
+                        Output.errGeneric("\"${executable}\" exited with code ${exitCode}")
                         match (originalScriptForBunRun) {
-                            case Some(s) => Output.noteGeneric("a package.json script \"${s}\" was not found", [])
+                            case Some(s) => Output.noteGeneric("a package.json script \"${s}\" was not found")
                             case None => ()
                         }
                     } else if (exitCode > 0 && exitCode != 130) {
-                        Output.errGeneric("\"${displayName}\" exited with code ${exitCode}", [])
+                        Output.errGeneric("\"${displayName}\" exited with code ${exitCode}")
                     } else {
                         Output.prettyErrorLn("error: Failed to run \"${displayName}\" due to exit code ${exitCode}")
                     }
@@ -696,8 +708,11 @@ public class RunCommand {
                 envLoader.putDefault("npm_package_json", pkg.path)
 
                 // 设置 npm_package_config_* 变量
-                for ((k, v) in pkg.config) {
-                    envLoader.putDefault("npm_package_config_${k}", v)
+                for (k in pkg.config.keys()) {
+                    match (pkg.config.get(k)) {
+                        case Some(v) => envLoader.putDefault("npm_package_config_${k}", v)
+                        case None => ()
+                    }
                 }
             case None => ()
         }
@@ -801,17 +816,17 @@ public class RunCommand {
         // 确保目录存在
         let dir = bunNodeDir
         if (!BaoFile.exists(dir)) {
-            BaoFile.createDir(dir)
+            BaoFile.mkdir(dir, true)
         }
 
         // 创建 node 符号链接
         let nodePath = "${dir}/node"
         let bunPath = "${dir}/bun"
         if (!BaoFile.exists(nodePath)) {
-            BaoFile.createSymbolicLink(selfExe, nodePath)
+            BaoFile.createSymlink(selfExe, nodePath)
         }
         if (!BaoFile.exists(bunPath)) {
-            BaoFile.createSymbolicLink(selfExe, bunPath)
+            BaoFile.createSymlink(selfExe, bunPath)
         }
 
         // 添加到 PATH
@@ -846,7 +861,11 @@ public class RunCommand {
         }
 
         if (positionals.size > 0 && (positionals[0] == "run" || positionals[0] == "r")) {
-            positionals = positionals.slice(1)
+            let newPos = ArrayList<String>()
+            for (i in 1..positionals.size) {
+                newPos.append(positionals[i])
+            }
+            positionals = newPos
         }
 
         var targetName: String = ""
@@ -854,7 +873,9 @@ public class RunCommand {
         if (positionals.size > 0) {
             targetName = positionals[0]
             if (positionals.size > 1) {
-                passthrough = positionals.slice(1)
+                for (i in 1..positionals.size) {
+                    passthrough.append(positionals[i])
+                }
             }
         }
 
@@ -862,14 +883,14 @@ public class RunCommand {
         // 严格翻译自: run_command.zig 中 try_fast_run 检测
         var tryFastRun = false
         var skipScriptCheck = false
-        if (targetName.size > 0 && targetName[0] == '.') {
+        if (targetName.size > 0 && targetName.startsWith(".")) {
             tryFastRun = true
             skipScriptCheck = true
         } else if (Path.isAbsolute(targetName)) {
             tryFastRun = true
             skipScriptCheck = true
         } else if (cfg.allowFastRunForExtensions) {
-            let ext = Path.extension(targetName)
+            let ext = Path.extname(targetName)
             if (ext.size > 0) {
                 let defaultLoader = getDefaultLoader(ext)
                 if (defaultLoader.isSome()) {
@@ -925,7 +946,7 @@ public class RunCommand {
 
         // Stdin 模式: script == "-"
         // 严格翻译自: run_command.zig 中 stdin 检查
-        if (targetName.size == 1 && targetName[0] == '-') {
+        if (targetName.size == 1 && targetName.startsWith("-")) {
             return runStdin(ctx)
         }
 
@@ -953,14 +974,14 @@ public class RunCommand {
             case Some(path) =>
                 let loader = detectLoader(path)
                 if (canBeRunByBun(loader) || loader == "html" || loader == "md") {
-                    return bootAndHandleError(ctx, path, None)
+                    return _bootAndHandleError(ctx, path, None)
                 } else {
                     resolvedToUnrunnableFile = Some(ResolvedFileInfo(path, loader))
                 }
             case None =>
                 // 支持 HTML glob 入口点
                 if (targetName.endsWith(".html") && targetName.contains("*")) {
-                    return bootAndHandleError(ctx, targetName, Some("html"))
+                    return _bootAndHandleError(ctx, targetName, Some("html"))
                 }
         }
 
@@ -998,10 +1019,10 @@ public class RunCommand {
             match (resolvedToUnrunnableFile) {
                 case Some(info) =>
                     Output.prettyErrorLn("error: Cannot run \"${info.path}\"")
-                    Output.noteGeneric("Bao cannot run ${info.loader} files directly", [])
+                    Output.noteGeneric("Bao cannot run ${info.loader} files directly")
                 case None =>
-                    let ext = Path.extension(targetName)
-                    if (targetName.size > 0 && (targetName[0] == '.' || targetName[0] == '/' || Path.isAbsolute(targetName))) {
+                    let ext = Path.extname(targetName)
+                    if (targetName.size > 0 && (targetName.startsWith(".") || targetName.startsWith("/") || Path.isAbsolute(targetName))) {
                         Output.prettyErrorLn("error: Module not found \"${targetName}\"")
                     } else if (ext.size > 0) {
                         Output.prettyErrorLn("error: File not found \"${targetName}\"")
@@ -1025,7 +1046,7 @@ public class RunCommand {
             try {
                 bootRun(ctx, entryPath, None)
             } catch (e: Exception) {
-                Output.errGeneric("Failed to run eval script: ${e.message}", [])
+                Output.errGeneric("Failed to run eval script: ${e.message}")
                 Sys.exit(1)
             }
             return
@@ -1033,7 +1054,7 @@ public class RunCommand {
 
         // 需要位置参数
         if (ctx.positionals.size == 0) {
-            Output.errGeneric("Missing script to execute. Bao's provided 'node' cli wrapper does not support a repl.", [])
+            Output.errGeneric("Missing script to execute. Bao's provided 'node' cli wrapper does not support a repl.")
             Sys.exit(1)
         }
 
@@ -1048,7 +1069,7 @@ public class RunCommand {
         try {
             bootRun(ctx, normalizedFilename, None)
         } catch (e: Exception) {
-            Output.errGeneric("Failed to run script \"${Path.basename(normalizedFilename)}\": ${e.message}", [])
+            Output.errGeneric("Failed to run script \"${Path.basename(normalizedFilename)}\": ${e.message}")
             Sys.exit(1)
         }
     }
@@ -1188,7 +1209,7 @@ public class RunCommand {
     private static func renderMarkdownFileAndExit(path: String): Unit {
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) =>
+            case SysMaybe.Ok(text) =>
                 // 获取终端列数
                 var columns: Int64 = 80
                 let columnsEnv = Sys.getenv("COLUMNS")
@@ -1204,7 +1225,7 @@ public class RunCommand {
                 // 渲染 Markdown
                 let rendered = renderMarkdownToTerminal(text, columns)
                 println(rendered)
-            case None =>
+            case _ =>
                 Output.prettyErrorLn("error: Failed to read file ${path}")
         }
         Sys.exit(0)
@@ -1346,11 +1367,20 @@ public class RunCommand {
             }
         }
 
-        // 排序
+        // 排序 (使用 ArrayList 手动排序)
         if (shellOut.commands.isSome()) {
-            let cmds = shellOut.commands ?? []
-            cmds.sort()
-            shellOut.commands = cmds
+            let cmds = ArrayList<String>(shellOut.commands ?? [])
+            // 简单冒泡排序
+            for (i in 0..cmds.size) {
+                for (j in i+1..cmds.size) {
+                    if (cmds[i] > cmds[j]) {
+                        let tmp = cmds[i]
+                        cmds[i] = cmds[j]
+                        cmds[j] = tmp
+                    }
+                }
+            }
+            shellOut.commands = cmds.items()
         }
 
         return shellOut
@@ -1371,8 +1401,11 @@ public class RunCommand {
             case Some(pkg) =>
                 if (pkg.scripts.size > 0) {
                     println("Scripts:")
-                    for ((key, cmd) in pkg.scripts) {
-                        println("  ${key}: ${cmd}")
+                    for (key in pkg.scripts.keys()) {
+                        match (pkg.scripts.get(key)) {
+                            case Some(cmd) => println("  ${key}: ${cmd}")
+                            case None => ()
+                        }
                     }
                 }
             case None => println("No package.json found.")
@@ -1441,12 +1474,12 @@ public class RunCommand {
         let path = Path.join([dir, "package.json"])
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) =>
+            case SysMaybe.Ok(text) =>
                 let pkg = RunPackageJson()
                 pkg.path = path
                 parsePackageJsonScripts(text, pkg)
                 return Some(pkg)
-            case None => return None
+            case _ => return None
         }
     }
 
@@ -1459,7 +1492,7 @@ public class RunCommand {
                     case Some(scripts) =>
                         for (key in scripts.keys()) {
                             match (scripts.get(key)) {
-                                case Some(v) => pkg.scripts.put(key, v.toString())
+                                case Some(v) => pkg.scripts.put(key, v.asString() ?? "")
                                 case None => ()
                             }
                         }
@@ -1480,7 +1513,7 @@ public class RunCommand {
                     case Some(config) =>
                         for (key in config.keys()) {
                             match (config.get(key)) {
-                                case Some(v) => pkg.config.put(key, v.toString())
+                                case Some(v) => pkg.config.put(key, v.asString() ?? "")
                                 case None => ()
                             }
                         }
@@ -1492,7 +1525,7 @@ public class RunCommand {
 
     /// 检测文件 loader
     private static func detectLoader(path: String): String {
-        let ext = Path.extension(path)
+        let ext = Path.extname(path)
         let jsExts = [".js", ".mjs", ".cjs"]
         let tsExts = [".ts", ".tsx", ".jsx", ".mts", ".cts"]
         for (e in jsExts) { if (ext == e) { return "js" } }
@@ -1533,27 +1566,31 @@ public class RunCommand {
 
     /// 读取 stdin
     private static func readStdin(): Array<UInt8> {
-        let buffer = ArrayBuffer(4096)
+        let buffer = ArrayList<UInt8>()
         try {
-            let chunk = Array<UInt8>(4096, item: 0)
+            let chunk = Array<UInt8>(4096, repeat: UInt8(0))
             var done = false
             while (!done) {
-                let n = SysFs.read(0, chunk)
-                if (n <= 0) {
-                    done = true
-                } else {
-                    for (i in 0..n) {
-                        buffer.append(chunk[Int64(i)])
-                    }
+                match (SysFs.read(0, chunk)) {
+                    case SysMaybe.Ok(n) =>
+                        if (n <= 0) {
+                            done = true
+                        } else {
+                            for (i in 0..n) {
+                                buffer.append(chunk[Int64(i)])
+                            }
+                        }
+                    case _ =>
+                        done = true
                 }
             }
         } catch (_: Exception) {}
-        return buffer.slice()
+        return buffer.items()
     }
 
     /// 移除尾部斜杠
     public static func removeTrailingSlash(s: String): String {
-        if (s.size > 1 && s[s.size - 1] == '/') {
+        if (s.size > 1 && s.endsWith("/")) {
             return s.substring(0, s.size - 1)
         }
         return s
@@ -1561,20 +1598,16 @@ public class RunCommand {
 
     /// 字节数组转字符串
     private static func bytesToString(bytes: Array<UInt8>): String {
-        let sb = StringBuilder()
-        for (b in bytes) {
-            sb.append(Char(Int32(b)))
-        }
-        return sb.toString()
+        return String.fromUtf8(bytes)
     }
 
     /// 检查字符串是否需要 shell 转义
     private static func needsEscape(s: String): Bool {
         for (c in s) {
-            if (c == ' ' || c == '\t' || c == '"' || c == '\'' || c == '\\' ||
-                c == '|' || c == '&' || c == ';' || c == '<' || c == '>' ||
-                c == '(' || c == ')' || c == '$' || c == '`' || c == '!' ||
-                c == '*' || c == '?' || c == '[' || c == ']' || c == '{' || c == '}') {
+            if (c == UInt8(32) || c == UInt8(9) || c == UInt8(34) || c == UInt8(39) || c == UInt8(92) ||
+                c == UInt8(124) || c == UInt8(38) || c == UInt8(59) || c == UInt8(60) || c == UInt8(62) ||
+                c == UInt8(40) || c == UInt8(41) || c == UInt8(36) || c == UInt8(96) || c == UInt8(33) ||
+                c == UInt8(42) || c == UInt8(63) || c == UInt8(91) || c == UInt8(93) || c == UInt8(123) || c == UInt8(125)) {
                 return true
             }
         }
@@ -1635,7 +1668,7 @@ public class RunCommandConfig {
 }
 
 /// 运行时 package.json 信息
-class RunPackageJson {
+public class RunPackageJson {
     public var path: String
     public var name: String
     public var version: String
@@ -1653,7 +1686,7 @@ class RunPackageJson {
 
 /// 运行时目录信息
 /// 严格翻译自: run_command.zig DirInfo (简化)
-class RunDirInfo {
+public class RunDirInfo {
     public var enclosingPackageJson: ?RunPackageJson
     public var absPath: String
 
@@ -1676,7 +1709,7 @@ class ResolvedFileInfo {
 
 /// DotEnv 加载器
 /// 严格翻译自: run_command.zig DotEnv.Loader
-class DotEnvLoader {
+public class DotEnvLoader {
     private var map: HashMap<String, String>
 
     public init() {
@@ -1712,15 +1745,18 @@ class DotEnvLoader {
     /// 转换为环境变量数组
     public func toEnvArray(): Array<String> {
         let result = ArrayList<String>()
-        for ((k, v) in map) {
-            result.append("${k}=${v}")
+        for (k in map.keys()) {
+            match (map.get(k)) {
+                case Some(v) => result.append("${k}=${v}")
+                case None => ()
+            }
         }
         return result.items()
     }
 }
 
 /// Shell 补全结果
-class ShellCompletions {
+public class ShellCompletions {
     public var commands: ?Array<String>
     public var descriptions: ?Array<String>
     public var shell: String
@@ -1745,7 +1781,7 @@ class ShellInterpreter {
 }
 
 /// 引用包装器
-class Ref<T> {
+public class Ref<T> {
     public var value: T
 
     public init(value: T) {

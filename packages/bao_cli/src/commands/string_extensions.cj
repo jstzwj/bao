@@ -55,20 +55,22 @@ extend String {
         return indexOfFrom(startIndex, ch)
     }
 
-    /// trim - removes leading and trailing whitespace
+    /// trim - removes leading and trailing whitespace (delegates to trimAscii)
     public func trim(): String {
-        return this.trimStart().trimEnd()
+        return this.trimAscii()
     }
 
-    public func lastIndexOf(ch: UInt8): ?Int64 {
-        var i = Int64(this.size) - 1
-        while (i >= 0) {
-            if (this[i] == ch) {
-                return Some(i)
+    /// indexOfAny - finds the index of the first occurrence of any character in chars
+    /// Returns the index, or -1 if not found
+    public func indexOfAny(chars: String): Int64 {
+        for (i in 0..this.size) {
+            for (j in 0..chars.size) {
+                if (this[i] == chars[j]) {
+                    return Int64(i)
+                }
             }
-            i -= 1
         }
-        return None
+        return -1
     }
 
     /// containsAny - returns true if this string contains any of the characters in the given string
@@ -99,20 +101,15 @@ extend String {
         return true
     }
 
-    /// removePrefix - removes the given prefix if present
-    public func removePrefix(prefix: String): String {
-        if (this.size >= prefix.size && this.substring(0, prefix.size) == prefix) {
-            return this.substring(prefix.size)
+    /// removeTrailingSlash - removes trailing slash characters
+    public func removeTrailingSlash(slash: String): String {
+        if (slash.size == 0) { return this }
+        let ch = slash[0]
+        var end = this.size
+        while (end > 1 && this[end - 1] == ch) {
+            end -= 1
         }
-        return this
-    }
-
-    /// removeSuffix - removes the given suffix if present
-    public func removeSuffix(suffix: String): String {
-        if (this.size >= suffix.size && this.substring(this.size - suffix.size) == suffix) {
-            return this.substring(0, this.size - suffix.size)
-        }
-        return this
+        return this.substring(0, end)
     }
 
     /// toLower - converts string to lowercase (ASCII only)
@@ -143,8 +140,4 @@ extend String {
         return String.fromUtf8(bytes)
     }
 
-    /// isEmpty - returns true if the string is empty
-    public func isEmpty(): Bool {
-        return this.size == 0
-    }
 }

@@ -15,8 +15,8 @@ public class StandaloneGraphJsc {
 
     /// 获取文件的 Blob 对象
     /// 如果尚未缓存, 创建 Blob 并缓存
-    public static func fileBlob(file: StandaloneModuleGraphFile, globalObject: JsGlobalObject): Blob {
-        if (file.cachedBlob == null) {
+    public static func fileBlob(file!: StandaloneModuleGraphFile, globalObject!: JsGlobalObject): Blob {
+        if (file.cachedBlob == none) {
             let store = BlobStore(file.contents, default_allocator)
             store.ref() // 永不释放
 

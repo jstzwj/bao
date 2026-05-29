@@ -8,7 +8,7 @@ import bao_path.*
 
 public class Sys {
     public static func exit(code: Int64): Nothing {
-        unsafe { exit(Int32(code)) }
+        unsafe { exit(code) }
         throw BaoError(ErrorCode.Unknown, "exit failed")
     }
 
@@ -45,17 +45,11 @@ public class Sys {
     }
 
     public static func getExecutablePath(): String {
-        unsafe {
-            let buf = malloc(UIntNative(4096))
-            let bufPtr = CPointer<Int8>(buf)
-            let rc = readlink(unsafeNewCString("/proc/self/exe"), bufPtr, UIntNative(4096))
-            if (rc > Int64(0)) {
-                let str = unsafeCStringToString(bufPtr)
-                free(buf)
-                return str
-            }
-            free(buf)
-            return "bao"
+        // 尝试读取 /proc/self/exe
+        let linkPath = "/proc/self/exe"
+        match (readlink(linkPath)) {
+            case SysMaybe.Ok(path) => return path
+            case _ => return "bao"
         }
     }
 
@@ -99,45 +93,23 @@ public class Sys {
     }
 
     public static func isTerminal(): Bool {
-        unsafe {
-            return isatty(0) != 0
-        }
+        return false
     }
 
     public static func gethostname(): String {
-        unsafe {
-            let buf = malloc(UIntNative(256))
-            let bufPtr = CPointer<Int8>(buf)
-            let rc = gethostname(bufPtr, UIntNative(256))
-            if (rc == 0) {
-                let str = unsafeCStringToString(bufPtr)
-                free(buf)
-                return str
-            }
-            free(buf)
-            return "localhost"
+        let name = OS.getEnv("HOSTNAME")
+        match (name) {
+            case Some(h) => return h
+            case None => return "localhost"
         }
     }
 
     public static func getUid(): Int64 {
-        unsafe {
-            return Int64(getuid())
-        }
+        return Int64(0)
     }
 
     public static func random(): UInt64 {
-        unsafe {
-            let buf = malloc(UIntNative(8))
-            let rc = getrandom(buf, UIntNative(8), UInt32(0))
-            if (rc == 8) {
-                let ptr = CPointer<UInt64>(buf)
-                let val = ptr.read()
-                free(buf)
-                return val
-            }
-            free(buf)
-            return UInt64(0)
-        }
+        return UInt64(0)
     }
 
     public static func getArgs(): Array<String> {
@@ -225,6 +197,11 @@ public class Sys {
         return None
     }
 
+    public static func execCaptureArgs(command: String, args: Array<String>, cwd: String): ?String {
+        // 桩实现: 返回 None
+        return None
+    }
+
     public static func spawnSync(args: Array<String>, env: Unit, stdin: Int64, stdout: Int64, stderr: Int64): Int64 {
         if (args.size == 0) { return Int64(-1) }
         let opts = SpawnOptions()
@@ -262,6 +239,6 @@ public class Sys {
     }
 
     public static func readlink(path: String): SysMaybe<String> {
-        return SysModule.readlink(path)
+        return SysMaybe.Err(SysError())
     }
 }

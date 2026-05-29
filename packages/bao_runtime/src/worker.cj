@@ -1,7 +1,12 @@
 // Worker — Web Worker API
-// 严格翻译自: src/runtime/ Web Worker API
+// 严格翻译自: src/jsc/web_worker.zig + src/runtime/web_worker
 //   Bun 支持 Web Worker API，允许在独立线程中执行 JavaScript
-//   仓颉通过 bao_threading.Thread + Channel 实现等价功能
+//   仓颉通过 spawn { } + Channel 实现等价功能
+//
+// 生命周期模型 (对应 Bun web_worker.zig):
+//   1. create()  — 分配 Worker 结构体, 注册到全局列表, 启动线程
+//   2. spin()    — 加载入口脚本, 触发 'online' 事件, 运行事件循环
+//   3. shutdown() — 运行退出处理器, 销毁 VM, 发送 'close' 事件
 package bao_runtime
 
 import bao_core.*
@@ -13,11 +18,60 @@ import bao_event_loop.*
 import bao_threading.*
 
 // ============================================================================
-// 同步占位类型
+// 全局 Worker 注册表
+// 对应 Bun: LiveWorkers — 进程级 Worker 注册表
+//   terminateAllAndWait() 在进程退出前终止所有 Worker
 // ============================================================================
 
-public class ReentrantMutex {
-    public init() {}
+/// 全局活跃 Worker 注册表
+/// 对应 Bun: LiveWorkers struct
+public class LiveWorkers {
+    /// 活跃 Worker 列表
+    private static let workers: ArrayList<Worker> = ArrayList<Worker>()
+    /// 互斥锁
+    private static let mutex: ThreadMutex = ThreadMutex()
+
+    /// 注册 Worker
+    public static func register(worker: Worker): Unit {
+        synchronized(mutex) {
+            workers.append(worker)
+        }
+    }
+
+    /// 注销 Worker
+    public static func unregister(worker: Worker): Unit {
+        synchronized(mutex) {
+            var i = Int64(0)
+            while (i < workers.size) {
+                if (workers[i] == worker) {
+                    workers.removeAt(i)
+                    break
+                }
+                i += Int64(1)
+            }
+        }
+    }
+
+    /// 终止所有 Worker 并等待
+    /// 对应 Bun: terminateAllAndWait(timeout_ms)
+    public static func terminateAllAndWait(timeoutMs: Int64): Unit {
+        let snapshot = ArrayList<Worker>()
+        synchronized(mutex) {
+            for (w in workers) {
+                snapshot.append(w)
+            }
+        }
+        for (w in snapshot) {
+            w.terminate()
+        }
+    }
+
+    /// 获取活跃 Worker 数量
+    public static func count(): Int64 {
+        synchronized(mutex) {
+            return workers.size
+        }
+    }
 }
 
 // ============================================================================
@@ -72,8 +126,10 @@ public enum WorkerState {
 public class MessagePort {
     /// 端口 ID
     public var id: Int64
-    /// 消息通道
-    private var channel: Channel<JsValue>
+    /// 接收通道 (从此通道读取消息)
+    private var receiveChannel: Channel<JsValue>
+    /// 发送通道 (向此通道写入消息)
+    private var sendChannel: Channel<JsValue>
     /// 消息监听器
     private var messageListeners: ArrayList<(JsValue) -> Unit>
     /// 错误监听器
@@ -83,9 +139,22 @@ public class MessagePort {
     /// 是否已关闭
     private var closed: Bool
 
+    /// 双通道构造 (MessageChannel 使用)
+    public init(id: Int64, receiveChannel: Channel<JsValue>, sendChannel: Channel<JsValue>) {
+        this.id = id
+        this.receiveChannel = receiveChannel
+        this.sendChannel = sendChannel
+        messageListeners = ArrayList<(JsValue) -> Unit>()
+        errorListeners = ArrayList<(String) -> Unit>()
+        closeListeners = ArrayList<() -> Unit>()
+        closed = false
+    }
+
+    /// 单通道构造 (向后兼容)
     public init(id: Int64, channel: Channel<JsValue>) {
         this.id = id
-        this.channel = channel
+        this.receiveChannel = channel
+        this.sendChannel = channel
         messageListeners = ArrayList<(JsValue) -> Unit>()
         errorListeners = ArrayList<(String) -> Unit>()
         closeListeners = ArrayList<() -> Unit>()
@@ -98,7 +167,7 @@ public class MessagePort {
         if (closed) {
             return false
         }
-        return channel.send(data)
+        return sendChannel.send(data)
     }
 
     /// 接收消息 (非阻塞)
@@ -106,7 +175,7 @@ public class MessagePort {
         if (closed) {
             return None
         }
-        return channel.tryReceive()
+        return receiveChannel.tryReceive()
     }
 
     /// 注册消息监听器 - 对应 port.onmessage = fn
@@ -133,7 +202,7 @@ public class MessagePort {
             return
         }
         while (true) {
-            let msg = channel.tryReceive()
+            let msg = receiveChannel.tryReceive()
             match (msg) {
                 case Some(value) =>
                     // 分发给所有监听器
@@ -151,7 +220,8 @@ public class MessagePort {
             return
         }
         closed = true
-        channel.close()
+        receiveChannel.close()
+        // 注意: 不关闭 sendChannel, 对端可能还需要发送
         for (listener in closeListeners) {
             listener()
         }
@@ -203,16 +273,20 @@ public class MessageChannel {
     /// 端口 2
     public var port2: MessagePort
 
-    /// 双向通道: port1 -> port2
+    /// 双向通道: port1 -> port2 (port1 发送, port2 接收)
     private var channel1to2: Channel<JsValue>
-    /// 双向通道: port2 -> port1
+    /// 双向通道: port2 -> port1 (port2 发送, port1 接收)
     private var channel2to1: Channel<JsValue>
 
     public init() {
+        // port1.postMessage(data) -> channel1to2 -> port2.receiveMessage()
+        // port2.postMessage(data) -> channel2to1 -> port1.receiveMessage()
         channel1to2 = Channel<JsValue>()
         channel2to1 = Channel<JsValue>()
-        port1 = MessagePort(1, channel2to1)
-        port2 = MessagePort(2, channel1to2)
+        // port1 的接收通道是 channel2to1, 发送通道是 channel1to2
+        port1 = MessagePort(1, channel2to1, channel1to2)
+        // port2 的接收通道是 channel1to2, 发送通道是 channel2to1
+        port2 = MessagePort(2, channel1to2, channel2to1)
     }
 
     /// 将 MessageChannel 导出为 JsValue
@@ -231,41 +305,84 @@ public class MessageChannel {
 //   完整实现需要 Atomics API 支持
 // ============================================================================
 
-/// SharedArrayBuffer 存根 — 共享内存
+/// SharedArrayBuffer — 共享内存
 /// 对应 Bun: SharedArrayBuffer
-/// 简化实现: 使用 Mutex 保护的数组模拟
+/// 线程安全实现: 使用 ThreadMutex 保护的数组
 public class SharedArrayBuffer {
     /// 底层数据
     private var data: Array<UInt8>
-    /// 互斥锁
-    private var lock: ReentrantMutex
+    /// 互斥锁 — 使用 ThreadMutex 保证线程安全
+    private var lock: ThreadMutex
     /// 字节长度
     public var byteLength: Int64
 
     public init(size: Int64) {
         this.data = Array<UInt8>(Int64(size), { _ => UInt8(0) })
-        this.lock = ReentrantMutex()
+        this.lock = ThreadMutex()
         this.byteLength = size
     }
 
     /// 读取字节
     public func readByte(index: Int64): UInt8 {
-        if (index < 0 || index >= byteLength) {
-            return UInt8(0)
+        synchronized(lock) {
+            if (index < 0 || index >= byteLength) {
+                return UInt8(0)
+            }
+            return data[Int64(index)]
         }
-        return data[Int64(index)]
     }
 
     /// 写入字节
     public func writeByte(index: Int64, value: UInt8): Unit {
-        if (index < 0 || index >= byteLength) {
-            return
+        synchronized(lock) {
+            if (index < 0 || index >= byteLength) {
+                return
+            }
+            data[Int64(index)] = value
         }
-        data[Int64(index)] = value
     }
 
     /// 读取 Int32 (小端序)
     public func readInt32(index: Int64): Int32 {
+        synchronized(lock) {
+            if (index < 0 || index + 4 > byteLength) {
+                return 0
+            }
+            let b0 = Int32(data[Int64(index)])
+            let b1 = Int32(data[Int64(index + 1)])
+            let b2 = Int32(data[Int64(index + 2)])
+            let b3 = Int32(data[Int64(index + 3)])
+            return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+        }
+    }
+
+    /// 写入 Int32 (小端序)
+    public func writeInt32(index: Int64, value: Int32): Unit {
+        synchronized(lock) {
+            if (index < 0 || index + 4 > byteLength) {
+                return
+            }
+            data[Int64(index)] = UInt8(value & 0xFF)
+            data[Int64(index + 1)] = UInt8((value >> 8) & 0xFF)
+            data[Int64(index + 2)] = UInt8((value >> 16) & 0xFF)
+            data[Int64(index + 3)] = UInt8((value >> 24) & 0xFF)
+        }
+    }
+
+    /// 原子比较并交换 (简化)
+    /// 对应 Atomics.compareExchange
+    public func compareExchange(index: Int64, expected: Int32, replacement: Int32): Int32 {
+        synchronized(lock) {
+            let current = readInt32Locked(index)
+            if (current == expected) {
+                writeInt32Locked(index, replacement)
+            }
+            return current
+        }
+    }
+
+    /// 内部读取 (调用者已持有锁)
+    private func readInt32Locked(index: Int64): Int32 {
         if (index < 0 || index + 4 > byteLength) {
             return 0
         }
@@ -276,8 +393,8 @@ public class SharedArrayBuffer {
         return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
     }
 
-    /// 写入 Int32 (小端序)
-    public func writeInt32(index: Int64, value: Int32): Unit {
+    /// 内部写入 (调用者已持有锁)
+    private func writeInt32Locked(index: Int64, value: Int32): Unit {
         if (index < 0 || index + 4 > byteLength) {
             return
         }
@@ -287,29 +404,21 @@ public class SharedArrayBuffer {
         data[Int64(index + 3)] = UInt8((value >> 24) & 0xFF)
     }
 
-    /// 原子比较并交换 (简化)
-    /// 对应 Atomics.compareExchange
-    public func compareExchange(index: Int64, expected: Int32, replacement: Int32): Int32 {
-        let current = readInt32(index)
-        if (current == expected) {
-            writeInt32(index, replacement)
-        }
-        return current
-    }
-
     /// 切片数据 (复制)
     public func slice(start: Int64, end: Int64): Array<UInt8> {
-        let s = if (start < 0) { byteLength + start } else { start }
-        let e = if (end < 0) { byteLength + end } else { end }
-        if (s < 0 || e > byteLength || s >= e) {
-            return Array<UInt8>(0, { _ => UInt8(0) })
+        synchronized(lock) {
+            let s = if (start < 0) { byteLength + start } else { start }
+            let e = if (end < 0) { byteLength + end } else { end }
+            if (s < 0 || e > byteLength || s >= e) {
+                return Array<UInt8>(0, { _ => UInt8(0) })
+            }
+            let len = e - s
+            let result = Array<UInt8>(Int64(len), { _ => UInt8(0) })
+            for (i in 0..Int64(len)) {
+                result[i] = data[Int64(s) + i]
+            }
+            return result
         }
-        let len = e - s
-        let result = Array<UInt8>(Int64(len), { _ => UInt8(0) })
-        for (i in 0..Int64(len)) {
-            result[i] = data[Int64(s) + i]
-        }
-        return result
     }
 
     /// 将 SharedArrayBuffer 导出为 JsValue
@@ -322,11 +431,11 @@ public class SharedArrayBuffer {
         obj.set("slice", JsValue.nativeFunction(JsNativeFunction("slice") { args =>
             let start = if (args.size >= 1) { Int64(Interpreter.jsToNumber(args[0])) } else { 0 }
             let end = if (args.size >= 2) { Int64(Interpreter.jsToNumber(args[1])) } else { sab.byteLength }
-            let data = sab.slice(start, end)
-            return JsValue.nativeFunction(JsNativeFunction("getBuffer") { _ =>
-                // 返回一个新的 Buffer 视图
-                return JsValue.UNDEFINED
-            })
+            let sliced = sab.slice(start, end)
+            // 返回一个新的 ArrayBuffer 视图
+            let bufObj = JsObject()
+            bufObj.set("byteLength", JsValue(Float64(sliced.size)))
+            return JsValue(bufObj)
         }))
 
         return JsValue(obj)
@@ -423,11 +532,12 @@ public class WorkerMessageBus {
 }
 
 // ============================================================================
-// WorkerThread — Worker 线程
-// 对应 Bun: Worker 底层线程执行
+// WorkerThread — Worker 线程执行上下文
+// 对应 Bun: web_worker.zig threadMain -> startVM -> spin -> shutdown
 // ============================================================================
 
 /// Worker 线程执行上下文
+/// 对应 Bun: WebWorker 结构体的 Worker 线程部分
 public class WorkerContext {
     /// Worker 内的全局作用域
     public var globalScope: JsObject
@@ -435,22 +545,146 @@ public class WorkerContext {
     public var messageBus: WorkerMessageBus
     /// Worker 虚拟机
     public var vm: VirtualMachine
+    /// Worker 解释器
+    public var interpreter: Interpreter
     /// Worker 名称
     public var name: String
+    /// 请求终止标志
+    public var requestedTerminate: Bool
+    /// Worker 入口脚本 URL
+    public var entryUrl: String
+    /// Worker 入口脚本源码
+    public var entrySource: String
+    /// 是否已退出
+    public var exitCalled: Bool
 
-    public init(messageBus: WorkerMessageBus) {
+    public init(messageBus: WorkerMessageBus, entryUrl: String, entrySource: String) {
         globalScope = JsObject()
         this.messageBus = messageBus
         vm = VirtualMachine()
+        interpreter = vm.getInterpreter()
         name = ""
+        requestedTerminate = false
+        this.entryUrl = entryUrl
+        this.entrySource = entrySource
+        exitCalled = false
+    }
+
+    /// 初始化 Worker VM 环境
+    /// 对应 Bun: startVM() — 构建 Worker 的 VM 并注册全局对象
+    public func startVM(): Unit {
+        let env = interpreter.getGlobalEnv()
+
+        // 注册 self / globalThis — Worker 全局作用域
+        let selfValue = toSelfJsValue()
+        env.define("self", selfValue, false)
+        env.define("globalThis", selfValue, false)
+
+        // 注册 onmessage — 消息处理回调
+        env.define("onmessage", JsValue.UNDEFINED, true)
+
+        // 注册 onerror — 错误处理回调
+        env.define("onerror", JsValue.UNDEFINED, true)
+
+        // 注册 onclose — 关闭回调
+        env.define("onclose", JsValue.UNDEFINED, true)
+
+        // 注册 importScripts (经典 Worker)
+        let ctx = this
+        env.define("importScripts", Interpreter.makeNativeFn("importScripts") { args =>
+            // 经典 Worker 的 importScripts
+            // 对应 Bun: WebWorker.importScripts — 从文件系统加载并同步执行脚本
+            for (arg in args) {
+                let scriptPath = Interpreter.jsToString(arg)
+                // 从文件系统读取脚本源码
+                let readResult = BaoFile.readAllText(scriptPath)
+                if (readResult.isOk()) {
+                    let source = readResult.result().getOrThrow()
+                    // 在当前 VM 中执行脚本
+                    let result = ctx.vm.eval(source, scriptPath)
+                    // 如果执行出错，传播异常
+                    match (result.valueType) {
+                        case JsValueType.Error =>
+                            return result
+                        case _ => ()
+                    }
+                } else {
+                    // 文件读取失败
+                    ()
+                }
+            }
+            return JsValue.UNDEFINED
+        }, false)
+
+        // 注册 close() — Worker 内部关闭
+        env.define("close", Interpreter.makeNativeFn("close") { _ =>
+            ctx.requestedTerminate = true
+            ctx.messageBus.postToMain(JsValue(BaoString("__close__")))
+            return JsValue.UNDEFINED
+        }, false)
+
+        // 注册 console 对象
+        let consoleObj = JsObject()
+        let printFn = interpreter.printFn
+        consoleObj.set("log", Interpreter.makeNativeFn("log") { args =>
+            let sb = StringBuilder()
+            for (i in 0..args.size) {
+                if (i > 0) { sb.append(" ") }
+                sb.append(Interpreter.jsToString(args[i]))
+            }
+            printFn(sb.toString())
+            return JsValue.UNDEFINED
+        })
+        consoleObj.set("error", Interpreter.makeNativeFn("error") { args =>
+            let sb = StringBuilder()
+            for (i in 0..args.size) {
+                if (i > 0) { sb.append(" ") }
+                sb.append(Interpreter.jsToString(args[i]))
+            }
+            printFn("[Worker ERROR] ${sb.toString()}")
+            return JsValue.UNDEFINED
+        })
+        consoleObj.set("warn", Interpreter.makeNativeFn("warn") { args =>
+            let sb = StringBuilder()
+            for (i in 0..args.size) {
+                if (i > 0) { sb.append(" ") }
+                sb.append(Interpreter.jsToString(args[i]))
+            }
+            printFn("[Worker WARN] ${sb.toString()}")
+            return JsValue.UNDEFINED
+        })
+        env.define("console", JsValue(consoleObj), false)
+
+        // 注册 setTimeout/setInterval (Worker 内的定时器)
+        env.define("setTimeout", Interpreter.makeNativeFn("setTimeout") { args =>
+            if (args.size < 1) { return JsValue(-1.0) }
+            // 简化: 立即执行回调
+            match (args[0].nativeFnData) {
+                case Some(nf) =>
+                    let result = nf.fn(ArrayList<JsValue>())
+                    return result
+                case None => ()
+            }
+            return JsValue(-1.0)
+        }, false)
+        env.define("setInterval", Interpreter.makeNativeFn("setInterval") { args =>
+            return JsValue(-1.0)
+        }, false)
+        env.define("clearTimeout", Interpreter.makeNativeFn("clearTimeout") { _ =>
+            return JsValue.UNDEFINED
+        }, false)
+        env.define("clearInterval", Interpreter.makeNativeFn("clearInterval") { _ =>
+            return JsValue.UNDEFINED
+        }, false)
     }
 
     /// 将 Worker 全局作用域注册为 JsValue (self)
+    /// 对应 Bun: WorkerGlobalScope
     public func toSelfJsValue(): JsValue {
         let obj = JsObject()
         let ctx = this
 
-        // self.postMessage(data)
+        // self.postMessage(data) — Worker 向主线程发送消息
         obj.set("postMessage", JsValue.nativeFunction(JsNativeFunction("postMessage") { args =>
             if (args.size >= 1) {
                 ctx.messageBus.postToMain(args[0])
@@ -458,28 +692,112 @@ public class WorkerContext {
             return JsValue.UNDEFINED
         }))
 
-        // self.onmessage
+        // self.onmessage — 消息处理回调
         obj.set("onmessage", JsValue.UNDEFINED)
 
-        // self.close()
+        // self.onerror — 错误处理回调
+        obj.set("onerror", JsValue.UNDEFINED)
+
+        // self.close() — 关闭 Worker
         obj.set("close", JsValue.nativeFunction(JsNativeFunction("close") { _ =>
-            ctx.messageBus.postToMain(JsValue(BaoString("close")))
+            ctx.requestedTerminate = true
+            ctx.messageBus.postToMain(JsValue(BaoString("__close__")))
             return JsValue.UNDEFINED
         }))
 
-        // self.name
+        // self.name — Worker 名称
         obj.set("name", JsValue(BaoString(name)))
 
         return JsValue(obj)
+    }
+
+    /// spin() — 加载入口脚本并运行事件循环
+    /// 对应 Bun: WebWorker.spin() — Phase 2
+    public func spin(): Unit {
+        // 加载并执行入口脚本
+        if (!entrySource.isEmpty()) {
+            let result = vm.eval(entrySource, entryUrl)
+            // 检查是否有未处理的错误
+            match (result.valueType) {
+                case JsValueType.Error =>
+                    // 脚本执行出错, 发送错误事件
+                    let errorObj = JsObject()
+                    let errMsg = result.toString()
+                    errorObj.set("message", JsValue(errMsg))
+                    messageBus.postToMain(JsValue(errorObj))
+                case _ => ()
+            }
+        }
+
+        // 触发 online 事件 — 通知主线程 Worker 已就绪
+        messageBus.postToMain(JsValue(BaoString("__online__")))
+
+        // 进入消息循环
+        // 对应 Bun: while (vm.isEventLoopAlive()) { vm.tick(); }
+        while (!requestedTerminate) {
+            // 轮询来自主线程的消息
+            messageBus.pollWorkerMessages()
+
+            // 检查 onmessage 回调
+            let env = interpreter.getGlobalEnv()
+            match (env.lookup("onmessage")) {
+                case Some(handler) =>
+                    // 尝试从消息总线获取消息
+                    while (true) {
+                        let msg = messageBus.receiveInWorker()
+                        match (msg) {
+                            case Some(value) =>
+                                // 创建 MessageEvent 对象
+                                let eventObj = JsObject()
+                                eventObj.set("data", value)
+                                let event = JsValue(eventObj)
+
+                                // 调用 onmessage handler
+                                match (handler.nativeFnData) {
+                                    case Some(nf) =>
+                                        let callArgs = ArrayList<JsValue>()
+                                        callArgs.append(event)
+                                        nf.fn(callArgs)
+                                    case None => ()
+                                }
+                            case None => break
+                        }
+                    }
+                case None => ()
+            }
+
+            // 让出 CPU 时间
+            SysModule.sleep(1)
+        }
+    }
+
+    /// shutdown() — 运行退出处理器
+    /// 对应 Bun: WebWorker.shutdown() — Phase 3
+    public func shutdown(): Unit {
+        // 触发 onclose 回调
+        let env = interpreter.getGlobalEnv()
+        match (env.lookup("onclose")) {
+            case Some(handler) =>
+                match (handler.nativeFnData) {
+                    case Some(nf) =>
+                        let _ = nf.fn(ArrayList<JsValue>())
+                    case None => ()
+                }
+            case None => ()
+        }
+
+        // 关闭消息总线
+        messageBus.close()
     }
 }
 
 // ============================================================================
 // Worker — Web Worker
-// 对应 Bun: new Worker(url, options)
+// 对应 Bun: new Worker(url, options) + web_worker.zig
 // ============================================================================
 
 /// Worker 选项 - 对应 new Worker(url, { ... })
+/// 对应 Bun: WorkerOptions
 public class WorkerOptions {
     /// Worker 名称 - 对应 { name: "my-worker" }
     public var name: String
@@ -487,9 +805,9 @@ public class WorkerOptions {
     public var `type`: String
     /// 是否启用 SharedArrayBuffer - 对应 { sharedArrayBuffer: true }
     public var sharedArrayBuffer: Bool
-    /// 预执行代码 (内联 Worker) - 对应 Blob URL
+    /// 预执行代码 (内联 Worker) - 对应 Blob URL 或 eval 模式
     public var source: ?String
-    /// 是否平滑启动
+    /// 是否使用精简模式
     public var smol: Bool
 
     public init() {
@@ -504,7 +822,12 @@ public class WorkerOptions {
 /// Worker — Web Worker API
 /// 对应 Bun: new Worker(url, options)
 ///   Bun 通过 pthread_create 创建新线程执行 Worker 脚本
-///   仓颉通过 bao_threading.spawn 创建新线程
+///   仓颉通过 spawn { } 创建新线程
+///
+/// 生命周期 (对应 Bun web_worker.zig):
+///   1. create()  — 分配结构体, 注册到 LiveWorkers, 启动线程
+///   2. spin()    — 加载入口脚本, 触发 'online', 运行事件循环
+///   3. shutdown() — 运行退出处理器, 发送 'close', 清理资源
 public class Worker {
     /// Worker URL (脚本路径)
     public var url: String
@@ -514,15 +837,17 @@ public class Worker {
     private var messageBus: WorkerMessageBus
     /// Worker 状态
     public var state: WorkerState
-    /// Worker 线程
-    private var workerThread: ?Thread
+    /// 请求终止标志 (原子)
+    private var requestedTerminate: Bool
+    /// Worker 线程上下文 (在线程启动后设置)
+    private var context: ?WorkerContext
     /// 消息监听器 (主线程端)
     private var messageListeners: ArrayList<(JsValue) -> Unit>
     /// 错误监听器
     private var errorListeners: ArrayList<(String) -> Unit>
     /// 关闭监听器
     private var closeListeners: ArrayList<() -> Unit>
-    /// 错误事件监听器
+    /// 消息错误事件监听器
     private var messageErrorListeners: ArrayList<(JsValue) -> Unit>
 
     public init(url: String) {
@@ -530,7 +855,8 @@ public class Worker {
         options = WorkerOptions()
         messageBus = WorkerMessageBus()
         state = WorkerState.Starting
-        workerThread = None
+        requestedTerminate = false
+        context = None
         messageListeners = ArrayList<(JsValue) -> Unit>()
         errorListeners = ArrayList<(String) -> Unit>()
         closeListeners = ArrayList<() -> Unit>()
@@ -542,14 +868,20 @@ public class Worker {
         this.options = options
         messageBus = WorkerMessageBus()
         state = WorkerState.Starting
-        workerThread = None
+        requestedTerminate = false
+        context = None
         messageListeners = ArrayList<(JsValue) -> Unit>()
         errorListeners = ArrayList<(String) -> Unit>()
         closeListeners = ArrayList<() -> Unit>()
         messageErrorListeners = ArrayList<(JsValue) -> Unit>()
     }
 
-    /// 启动 Worker - 对应 new Worker(url) 后自动启动
+    public operator func ==(right: Worker): Bool {
+        this.url == right.url
+    }
+
+    /// 启动 Worker — 对应 Bun: create() + threadMain()
+    /// 分配 Worker 线程上下文, 注册到 LiveWorkers, 启动线程
     public func start(): Unit {
         if (state != WorkerState.Starting) {
             return
@@ -560,98 +892,103 @@ public class Worker {
         let workerOpts = options
         let worker = this
 
-        workerThread = None
+        // 获取入口脚本源码
+        // 如果 options.source 有值, 使用内联源码
+        // 否则尝试从 URL 读取
+        let entrySource = match (options.source) {
+            case Some(src) => src
+            case None =>
+                // 从文件系统读取 worker 入口脚本
+                // 对应 Bun: std.fs.cwd().readFileAlloc(...)
+                let readResult = BaoFile.readAllText(workerUrl)
+                if (readResult.isOk()) { readResult.result().getOrThrow() } else { "" }
+        }
 
-        state = WorkerState.Running
+        // 创建 Worker 线程上下文
+        let ctx = WorkerContext(bus, workerUrl, entrySource)
+        ctx.name = options.name
+        context = Some(ctx)
 
-        // 注册消息总线监听器
-        messageBus.onMainMessage() { value =>
-            // 通知 Worker 消息给主线程的监听器
+        // 注册到全局 LiveWorkers
+        LiveWorkers.register(worker)
+
+        // 注册消息总线监听器 — 主线程端
+        bus.onMainMessage() { value =>
+            let valueStr = Interpreter.jsToString(value)
+            // 处理内部控制消息
+            if (valueStr == "__online__") {
+                worker.state = WorkerState.Running
+                return
+            }
+            if (valueStr == "__close__") {
+                worker.state = WorkerState.Terminated
+                for (listener in worker.closeListeners) {
+                    listener()
+                }
+                return
+            }
+            if (valueStr.startsWith("error:")) {
+                let errMsg = valueStr[6..]
+                for (listener in worker.errorListeners) {
+                    listener(errMsg)
+                }
+                return
+            }
+            // 普通消息, 分发给监听器
             for (listener in worker.messageListeners) {
                 listener(value)
             }
         }
+
+        // 启动 Worker 线程
+        // 对应 Bun: std.Thread.spawn(.{ .stack_size }, threadMain, .{worker})
+        // 仓颉使用 spawn { } 创建新线程
+        spawn {
+            worker.workerThreadMain(ctx)
+        }
     }
 
-    /// Worker 线程运行循环
-    private func workerRunLoop(bus: WorkerMessageBus, scriptUrl: String, opts: WorkerOptions): Unit {
-        let ctx = WorkerContext(bus)
-        ctx.name = opts.name
-
-        // 创建 Worker 内的虚拟机
-        let interpreter = ctx.vm.getInterpreter()
-        let env = interpreter.getGlobalEnv()
-
-        // 注册 self / globalThis
-        let selfValue = ctx.toSelfJsValue()
-        env.define("self", selfValue, false)
-        env.define("globalThis", selfValue, false)
-
-        // 注册 onmessage
-        env.define("onmessage", JsValue.UNDEFINED, true)
-
-        // 注册 importScripts (经典 Worker)
-        env.define("importScripts", Interpreter.makeNativeFn("importScripts") { args =>
-            // 简化: 加载并执行脚本
-            for (arg in args) {
-                let scriptPath = Interpreter.jsToString(arg)
-                try {
-                    ctx.vm.executeFile(scriptPath)
-                } catch (_: Exception) {
-                    // 忽略加载错误
-                }
-            }
-            return JsValue.UNDEFINED
-        }, false)
-
-        // 执行 Worker 脚本
+    /// Worker 线程主函数
+    /// 对应 Bun: WebWorker.threadMain() -> startVM() -> spin() -> shutdown()
+    private func workerThreadMain(ctx: WorkerContext): Unit {
+        // Phase 1: startVM — 初始化 Worker VM 环境
+        // 对应 Bun: WebWorker.startVM()
         try {
-            let source = match (opts.source) {
-                case Some(src) => src
-                case None => ""
-            }
-            ctx.vm.eval(source, scriptUrl)
-
-            // 进入消息循环
-            while (true) {
-                // 检查来自主线程的消息
-                bus.pollWorkerMessages()
-
-                // 检查是否有 onmessage
-                match (env.lookup("onmessage")) {
-                    case Some(handler) =>
-                        // 尝试从消息总线获取消息
-                        while (true) {
-                            let msg = bus.receiveInWorker()
-                            match (msg) {
-                                case Some(value) =>
-                                    // 调用 onmessage handler
-                                    match (handler.nativeFnData) {
-                                        case Some(nf) =>
-                                            let args = ArrayList<JsValue>()
-                                            let dataObj = JsObject()
-                                            dataObj.set("data", value)
-                                            args.append(JsValue(dataObj))
-                                            nf.fn(args)
-                                        case None => ()
-                                    }
-                                    match (handler.functionData) {
-                                        case Some(fn) =>
-                                            // JS 函数调用需要 Interpreter
-                                            ()
-                                        case None => ()
-                                    }
-                                case None => break
-                            }
-                        }
-                    case None => ()
-                }
-
-                SysModule.sleep(1)
-            }
+            ctx.startVM()
         } catch (e: Exception) {
-            // Worker 错误
-            bus.postToMain(JsValue(BaoString("error: ${e.message}")))
+            messageBus.postToMain(JsValue(BaoString("error: Failed to start Worker VM: ${e.message}")))
+            LiveWorkers.unregister(this)
+            return
+        }
+
+        // 检查是否已请求终止
+        if (requestedTerminate) {
+            ctx.shutdown()
+            LiveWorkers.unregister(this)
+            return
+        }
+
+        // Phase 2: spin — 加载入口脚本, 运行事件循环
+        // 对应 Bun: WebWorker.spin()
+        try {
+            ctx.spin()
+        } catch (e: Exception) {
+            messageBus.postToMain(JsValue(BaoString("error: Worker error: ${e.message}")))
+        }
+
+        // Phase 3: shutdown — 运行退出处理器, 清理资源
+        // 对应 Bun: WebWorker.shutdown()
+        ctx.shutdown()
+
+        // 从全局注册表注销
+        LiveWorkers.unregister(this)
+
+        // 如果还未触发关闭事件, 触发它
+        if (state != WorkerState.Terminated) {
+            state = WorkerState.Terminated
+            for (listener in closeListeners) {
+                listener()
+            }
         }
     }
 
@@ -692,11 +1029,12 @@ public class Worker {
     }
 
     /// terminate() — 强制终止 Worker
-    /// 对应 Bun: worker.terminate()
+    /// 对应 Bun: worker.terminate() / WebWorker.notifyNeedTermination()
     public func terminate(): Unit {
         if (state == WorkerState.Terminated) {
             return
         }
+        requestedTerminate = true
         state = WorkerState.Terminated
         messageBus.close()
         // 通知关闭监听器
@@ -709,6 +1047,18 @@ public class Worker {
     /// 对应 Bun: self.close()
     public func close(): Unit {
         terminate()
+    }
+
+    /// ref() — 保持父事件循环活跃
+    /// 对应 Bun: worker.ref()
+    public func ref(): Unit {
+        // 在完整实现中, 这会增加父事件循环的 keep-alive 计数
+    }
+
+    /// unref() — 允许父事件循环退出
+    /// 对应 Bun: worker.unref()
+    public func unref(): Unit {
+        // 在完整实现中, 这会减少父事件循环的 keep-alive 计数
     }
 
     /// 轮询来自 Worker 的消息 (在主线程事件循环中调用)
@@ -741,7 +1091,17 @@ public class Worker {
             return JsValue.UNDEFINED
         }))
 
-        // onmessage 占位
+        obj.set("ref", JsValue.nativeFunction(JsNativeFunction("ref") { _ =>
+            worker.ref()
+            return JsValue.UNDEFINED
+        }))
+
+        obj.set("unref", JsValue.nativeFunction(JsNativeFunction("unref") { _ =>
+            worker.unref()
+            return JsValue.UNDEFINED
+        }))
+
+        // onmessage / onerror / onclose 占位
         obj.set("onmessage", JsValue.UNDEFINED)
         obj.set("onerror", JsValue.UNDEFINED)
         obj.set("onclose", JsValue.UNDEFINED)
@@ -756,6 +1116,7 @@ public class Worker {
 // ============================================================================
 
 /// Worker 池 — 管理多个 Worker 的池
+/// 用于将任务分发到多个 Worker 线程并行处理
 public class WorkerPool {
     /// Worker 列表
     private var workers: ArrayList<Worker>
@@ -811,9 +1172,15 @@ public class WorkerPool {
     }
 }
 
-/// Worker 模块导出
+// ============================================================================
+// WorkerModule — Worker 模块导出
+// 对应 Bun: node:worker_threads 模块
+// ============================================================================
+
+/// Worker 模块导出 — 对应 node:worker_threads
+/// 提供 Web Worker API 和 Node.js worker_threads 兼容接口
 public class WorkerModule {
-    /// 将 Worker 类导出为 JsValue
+    /// 将 Worker 模块导出为 JsValue (Web Worker API)
     public static func toJsValue(): JsValue {
         let obj = JsObject()
 
@@ -821,7 +1188,23 @@ public class WorkerModule {
         obj.set("Worker", JsValue.nativeFunction(JsNativeFunction("Worker") { args =>
             if (args.size >= 1) {
                 let url = Interpreter.jsToString(args[0])
-                let worker = Worker(url)
+                let opts = WorkerOptions()
+                // 解析第二个参数 (options)
+                if (args.size >= 2) {
+                    match (args[1].objectValue) {
+                        case Some(optObj) =>
+                            let nameVal = optObj.get("name")
+                            if (nameVal.valueType == JsValueType.String) {
+                                opts.name = nameVal.stringValue.toString()
+                            }
+                            let typeVal = optObj.get("type")
+                            if (typeVal.valueType == JsValueType.String) {
+                                opts.`type` = typeVal.stringValue.toString()
+                            }
+                        case None => ()
+                    }
+                }
+                let worker = Worker(url, opts)
                 worker.start()
                 return worker.toJsValue()
             }
@@ -844,6 +1227,153 @@ public class WorkerModule {
             let sab = SharedArrayBuffer(size)
             return sab.toJsValue()
         }))
+
+        // default 导出 (ESM 兼容)
+        obj.set("default", JsValue(obj))
+
+        return JsValue(obj)
+    }
+
+    /// 将 node:worker_threads 模块导出为 JsValue
+    /// 对应 Node.js worker_threads API
+    public static func toNodeWorkerThreadsJsValue(): JsValue {
+        let obj = JsObject()
+
+        // Worker 类 — 对应 node:worker_threads.Worker
+        obj.set("Worker", JsValue.nativeFunction(JsNativeFunction("Worker") { args =>
+            if (args.size >= 1) {
+                let url = Interpreter.jsToString(args[0])
+                let opts = WorkerOptions()
+                // 解析第二个参数 (options)
+                if (args.size >= 2) {
+                    match (args[1].objectValue) {
+                        case Some(optObj) =>
+                            let nameVal = optObj.get("name")
+                            if (nameVal.valueType == JsValueType.String) {
+                                opts.name = nameVal.stringValue.toString()
+                            }
+                            let typeVal = optObj.get("type")
+                            if (typeVal.valueType == JsValueType.String) {
+                                opts.`type` = typeVal.stringValue.toString()
+                            }
+                            let evalVal = optObj.get("eval")
+                            if (evalVal.valueType == JsValueType.Boolean) {
+                                // eval 模式: workerData 作为源码
+                                if (evalVal.boolValue) {
+                                    let workerDataVal = optObj.get("workerData")
+                                    if (workerDataVal.valueType == JsValueType.String) {
+                                        opts.source = Some(workerDataVal.stringValue.toString())
+                                    }
+                                }
+                            }
+                            let workerDataVal = optObj.get("workerData")
+                            // workerData 传递给 Worker
+                        case None => ()
+                    }
+                }
+                let worker = Worker(url, opts)
+                worker.start()
+                return worker.toJsValue()
+            }
+            return JsValue.UNDEFINED
+        }))
+
+        // isMainThread — 是否在主线程
+        obj.set("isMainThread", JsValue(true))
+
+        // workerData — 当前 Worker 的数据 (主线程为 null)
+        obj.set("workerData", JsValue.NULL)
+
+        // parentPort — 父线程端口 (主线程为 null)
+        obj.set("parentPort", JsValue.NULL)
+
+        // threadId — 当前线程 ID
+        obj.set("threadId", JsValue(0.0))
+
+        // MessageChannel
+        obj.set("MessageChannel", JsValue.nativeFunction(JsNativeFunction("MessageChannel") { _ =>
+            let channel = MessageChannel()
+            return channel.toJsValue()
+        }))
+
+        // MessagePort
+        obj.set("MessagePort", JsValue.nativeFunction(JsNativeFunction("MessagePort") { _ =>
+            let channel = Channel<JsValue>()
+            let port = MessagePort(0, channel)
+            return port.toJsValue()
+        }))
+
+        // SharedArrayBuffer
+        obj.set("SharedArrayBuffer", JsValue.nativeFunction(JsNativeFunction("SharedArrayBuffer") { args =>
+            let size = if (args.size >= 1) {
+                Int64(Interpreter.jsToNumber(args[0]))
+            } else {
+                0
+            }
+            let sab = SharedArrayBuffer(size)
+            return sab.toJsValue()
+        }))
+
+        // default 导出 (ESM 兼容)
+        obj.set("default", JsValue(obj))
+
+        return JsValue(obj)
+    }
+
+    /// 创建 Worker 内部的 worker_threads 模块
+    /// 当在 Worker 线程中 require('worker_threads') 时使用
+    public static func toWorkerThreadJsValue(workerCtx: WorkerContext): JsValue {
+        let obj = JsObject()
+
+        // isMainThread — Worker 中为 false
+        obj.set("isMainThread", JsValue(false))
+
+        // workerData — Worker 的初始化数据
+        obj.set("workerData", JsValue.NULL)
+
+        // parentPort — 父线程端口
+        let parentPort = JsObject()
+        parentPort.set("postMessage", JsValue.nativeFunction(JsNativeFunction("postMessage") { args =>
+            if (args.size >= 1) {
+                workerCtx.messageBus.postToMain(args[0])
+            }
+            return JsValue.UNDEFINED
+        }))
+        parentPort.set("on", JsValue.nativeFunction(JsNativeFunction("on") { args =>
+            // 注册消息监听器
+            if (args.size >= 2) {
+                let eventName = Interpreter.jsToString(args[0])
+                if (eventName == "message") {
+                    match (args[1].nativeFnData) {
+                        case Some(nf) =>
+                            workerCtx.messageBus.onWorkerMessage() { value =>
+                                let callArgs = ArrayList<JsValue>()
+                                callArgs.append(value)
+                                nf.fn(callArgs)
+                            }
+                        case None => ()
+                    }
+                }
+            }
+            return JsValue.UNDEFINED
+        }))
+        parentPort.set("close", JsValue.nativeFunction(JsNativeFunction("close") { _ =>
+            workerCtx.requestedTerminate = true
+            return JsValue.UNDEFINED
+        }))
+        obj.set("parentPort", JsValue(parentPort))
+
+        // threadId
+        obj.set("threadId", JsValue(1.0))
+
+        // MessageChannel
+        obj.set("MessageChannel", JsValue.nativeFunction(JsNativeFunction("MessageChannel") { _ =>
+            let channel = MessageChannel()
+            return channel.toJsValue()
+        }))
+
+        // default 导出
+        obj.set("default", JsValue(obj))
 
         return JsValue(obj)
     }

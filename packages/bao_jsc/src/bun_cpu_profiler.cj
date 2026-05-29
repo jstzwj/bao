@@ -78,9 +78,10 @@ public class BunCPUProfiler {
 }
 
 // 支撑类型
+// 严格翻译自 BunCPUProfiler.zig - 使用 timespec.now(.force_real_time) 获取微秒时间戳
 public class TimeUtils {
     public static func epochMicroseconds(): UInt64 { sysCurrentEpochMicroseconds() }
 }
 public class ProcessInfo {
-    public static let pid: UInt64 = 0
+    public static let pid: UInt64 = UInt64(unsafe { c_getpid_profiler() })
 }

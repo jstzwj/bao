@@ -13,6 +13,325 @@ import bao_collections.ArrayList
 import bao_boringssl.*
 
 // ============================================================================
+// Stub Types for disambiguation and missing types
+// ============================================================================
+
+public class BlobStore {
+    public init() {}
+}
+public class JsValue {
+    public static let ZERO = JsValue()
+    public static let UNDEFINED = JsValue()
+    public init() {}
+    public func isEmptyOrUndefinedOrNull(): Bool { true }
+    public func isAnyError(): Bool { false }
+    public func isUndefinedOrNull(): Bool { true }
+    public func isEmpty(): Bool { true }
+    public func asResponse(): ?Response { None }
+    public func asAnyPromise(): ?AnyPromise { None }
+    public func ensureStillAlive(): Unit {}
+    public func call(g: JsGlobalObject, t: JsValue, a: Array<JsValue>): JsValue { JsValue.ZERO }
+}
+public class VirtualMachine {
+    public init() {}
+    public func isShuttingDown(): Bool { false }
+    public func jscVm(): VirtualMachine { this }
+    public func eventLoopShared(): EventLoopShared { EventLoopShared() }
+    public func bunVm(): VirtualMachine { this }
+    public func transpiler(): Transpiler { Transpiler() }
+    public func drainMicrotasks(): Unit {}
+    public func getOrThrow(): VirtualMachine { this }
+}
+public class Response {
+    public init() {}
+    public init(i: ResponseInit, b: Body, u: BunString, r: Bool) {}
+    public static func makeMaybePooled(g: JsGlobalObject, r: Response): JsValue { JsValue.ZERO }
+    public static func ref(r: Response): Response { r }
+    public static func unref(r: Response): Unit {}
+    public func getBodyValue(): BodyValue { BodyValue() }
+    public func getFetchHeaders(): FetchHeaders { FetchHeaders() }
+    public func setSizeHint(h: Int64): Unit {}
+    public func getBodyReadableStream(g: JsGlobalObject): ?ReadableStream { None }
+    public func detachReadableStream(g: JsGlobalObject): Unit {}
+}
+public class AbortSignal {
+    public init() {}
+    public func aborted(): Bool { false }
+    public func reasonIfAborted(g: JsGlobalObject): ?JsValue { None }
+    public func pendingActivityRef(): Unit {}
+    public func pendingActivityUnref(): Unit {}
+    public func unref(): Unit {}
+    public func cleanNativeBindings(c: FetchTasklet): Unit {}
+    public func addListener(c: FetchTasklet, l: (FetchTasklet, JsValue) -> Unit): Unit {}
+}
+public class Signals {
+    public var certErrors: ?CertificateInfo = None
+    public init() {}
+}
+public class Headers {
+    public init() {}
+    public func get(n: String): ?String { None }
+}
+public enum HttpMethod { | GET | POST | PUT | DELETE | HEAD | PATCH | OPTIONS | CONNECT | TRACE }
+public enum FetchRedirect {
+    | Follow | Error | Manual
+    public operator func ==(r: FetchRedirect): Bool { match (this) { case Follow => match (r) { case Follow => true case _ => false } case Error => match (r) { case Error => true case _ => false } case Manual => match (r) { case Manual => true case _ => false } } }
+    public operator func !=(r: FetchRedirect): Bool { !(this == r) }
+}
+public enum BodySize {
+    | Unknown | ContentLength(Int64) | TotalReceived(Int64)
+    public static func unknown(): BodySize { Unknown }
+}
+public enum HTTPVerboseLevel { | None | Headers | Text }
+public enum WriteMessageType { | Data | End }
+public class CertificateInfo {
+    public init() {}
+    public var cert: Array<UInt8> = Array<UInt8>()
+    public var hostname: String = ""
+}
+public type BlobSizeType = Int64
+public class JSResult<T> {
+    public var value: ?T = None
+    public var error: ?JsValue = None
+    public init() {}
+    public static func ok(v: T): JSResult<T> { let r = JSResult<T>(); r.value = Some(v); return r }
+    public static func err(e: JsValue): JSResult<T> { let r = JSResult<T>(); r.error = Some(e); return r }
+}
+public class GlobalRef {
+    public init() {}
+    public static func from(g: JsGlobalObject): GlobalRef { GlobalRef() }
+    public func get(): JsGlobalObject { JsGlobalObject() }
+}
+public class AsyncHTTP {
+    public init() {}
+    public init(m: HttpMethod, u: URL, h: Headers, b: MutableString, bd: Array<UInt8>, cb: (FetchTasklet, AsyncHTTP, HTTPClientResult) -> Unit, rd: FetchRedirect, o: AsyncHTTPOptions) {}
+    public func schedule(): Unit {}
+    public func client(): HTTPClient { HTTPClient() }
+    public func clearData(): Unit {}
+    public func syncProgressFrom(o: AsyncHTTP): Unit {}
+    public func enableResponseBodyStreaminging(): Unit {}
+    public var url: URL = URL()
+    public var requestBody: Any = ()
+    public var asyncHttpId: Int64 = 0
+}
+public class HTTPClientResult {
+    public init() {}
+    public var hasMore: Bool = false
+    public var canStream: Bool = false
+    public var redirected: Bool = false
+    public var bodySize: BodySize = Unknown
+    public var certificateInfo: ?CertificateInfo = None
+    public var metadata: ?HTTPResponseMetadata = None
+    public var fail: ?BunError = None
+    public func isSuccess(): Bool { true }
+    public func isHttp2(): Bool { false }
+    public func detachLifetime(): HTTPClientResult { HTTPClientResult() }
+    public func abortReason(): ?JsValue { None }
+}
+public class HTTPResponseMetadata {
+    public init() {}
+    public var response: HTTPResponse = HTTPResponse()
+    public var url: BunString = BunString()
+}
+public class HTTPResponse {
+    public init() {}
+    public var statusCode: Int64 = 0
+    public var status: String = ""
+    public var headers: HTTPResponseHeaders = HTTPResponseHeaders()
+}
+public class HTTPResponseHeaders {
+    public init() {}
+    public var list: Array<UInt8> = Array<UInt8>()
+}
+public class HTTPClient {
+    public init() {}
+    public func flags(): HTTPClientFlags { HTTPClientFlags() }
+    public var remainingRedirectCount: Int64 = 0
+}
+public class HTTPClientFlags {
+    public init() {}
+    public var isStreamingRequestBody: Bool = false
+    public var forceHttp2: Bool = false
+    public var forceHttp3: Bool = false
+    public var forceHttp1: Bool = false
+}
+public class AsyncHTTPOptions {
+    public init() {}
+    public init(p: ?URL, h: ?ArrayList<UInt8>, s: Signals, r: Bool, v: HTTPVerboseLevel, ss: ?SslConfigSharedPtr) {}
+}
+public class HTTPThread {
+    public init() {}
+    public static func initDefault(): Unit {}
+    public static func schedule(h: AsyncHTTP): Unit {}
+    public static func scheduleShutdown(h: AsyncHTTP): Unit {}
+    public static func scheduleRequestWrite(h: AsyncHTTP, m: WriteMessageType): Unit {}
+    public static func scheduleResponseBodyDrain(i: Int64): Unit {}
+}
+public class ThreadSafeStreamBuffer {
+    public init() {}
+    public func setDrainCallback(c: (FetchTasklet) -> Unit, x: FetchTasklet): Unit {}
+    public func clearDrainCallback(): Unit {}
+    public static func deref(b: ThreadSafeStreamBuffer): Unit {}
+    public func isEmpty(): Bool { true }
+    public func write(d: Array<UInt8>): Unit {}
+    public func writeAssumeCapacity(d: Array<UInt8>): Unit {}
+    public func size(): Int64 { 0 }
+    public func lock(): Mutex { Mutex() }
+}
+public class HTTPRequestBodyStream {
+    public var buffer: ThreadSafeStreamBuffer
+    public var ended: Bool
+    public init(b: ThreadSafeStreamBuffer, e: Bool) { buffer = b; ended = e }
+}
+public class HTTPRequestBodySendfile {
+    public var sendfile: SendFile
+    public init(s: SendFile) { sendfile = s }
+}
+public class SslConfigSharedPtr { public init() {} }
+public class BunError {
+    public var errorName: String
+    public init(n: String) { errorName = n }
+    public func name(): String { errorName }
+    public operator func ==(r: String): Bool { errorName == r }
+    public operator func !=(r: String): Bool { errorName != r }
+}
+public class EventLoopShared { public init() {}; public func enqueueTaskConcurrent(t: ConcurrentTask): Unit {} }
+public class Transpiler { public init() {}; public func envMut(): Environment { Environment() } }
+public class Environment { public init() {}; public func isNoProxy(h: String, host: String): Bool { false }; public func getHttpProxyFor(u: URL): ?URL { None } }
+public class JsGlobalObject { public init() {}; public func err(c: JSErrorCode, m: String): JsValue { JsValue.ZERO }; public func bunVm(): VirtualMachine { VirtualMachine() } }
+public class AnyPromise { public init() {}; public func rejectWithAsyncStack(g: JsGlobalObject, v: JsValue): Unit {}; public func resolve(g: JsGlobalObject, v: JsValue): Unit {} }
+public enum JSErrorCode { | BODY_ALREADY_USED | TypeError | RangeError | Other }
+public class Mutex { public init() {}; public func lock(): Unit {}; public func unlock(): Unit {}; public func write(d: Array<UInt8>): Unit {} }
+public class BunString { public init() {}; public static func cloneUtf8(s: String): BunString { BunString() }; public func toJS(g: JsGlobalObject): JsValue { JsValue.ZERO }; public func slice(): String { "" } }
+public class SystemError {
+    public var errno: Int64; public var code: String; public var message: String; public var path: String; public var syscall: String; public var hostname: String; public var fd: Int64; public var dest: String
+    public init(e: Int64, c: String, m: String, p: String, s: String, h: String, f: Int64, d: String) { errno = e; code = c; message = m; path = p; syscall = s; hostname = h; fd = f; dest = d }
+    public init() { errno = 0; code = ""; message = ""; path = ""; syscall = ""; hostname = ""; fd = -1; dest = "" }
+}
+public class OwnedString { public init() {}; public static func cloneUtf8(s: String): OwnedString { OwnedString() }; public func toJS(g: JsGlobalObject): JsValue { JsValue.ZERO } }
+public class JsWeak { public init() {}; public static func create(v: JsValue, g: JsGlobalObject, r: JsWeakRefType, c: FetchTasklet): JsWeak { JsWeak() }; public func get(): ?JsValue { None }; public func clear(): Unit {} }
+public class JSPromiseStrong { public init() {}; public static func empty(): JSPromiseStrong { JSPromiseStrong() }; public func valueOrEmpty(): JsValue { JsValue.ZERO }; public func take(): JSPromiseStrong { JSPromiseStrong() }; public func isEmptyOrUndefinedOrNull(): Bool { true } }
+public class ReadableStreamStrong { public init() {}; public init(s: ReadableStream, g: JsGlobalObject) {}; public func get(g: JsGlobalObject): ?ReadableStream { None }; public func has(): Bool { false }; public func deinit(): Unit {} }
+public class ReadableStream { public init() {}; public var value: JsValue = JsValue.ZERO; public func ptr(): ReadableStreamPtr { ReadableStreamPtr() }; public func abort(g: JsGlobalObject): Unit {}; public func cancelWithReason(g: JsGlobalObject, r: JsValue): Unit {} }
+public class ReadableStreamPtr { public init() {}; public func bytes(): ?StreamBytes { None } }
+public class StreamBytes { public init() {}; public var sizeHint: SizeHint = SizeHint(); public func onData(r: StreamResult): Unit {}; public func parentConst(): StreamSource { StreamSource() } }
+public class SizeHint { public init() {}; public func set(n: Int64): Unit {} }
+public class StreamSource { public init() {}; public var cancelHandler: ?Any = None; public var cancelCtx: ?Any = None }
+public class X509 { public init() {}; public static func toJS(x: ?Any, g: JsGlobalObject): ?JsValue { None } }
+public func d2iX509(d: Any): ?Any { None }
+public class AnyBlob { public init() {}; public func store(): ?BlobStore { None }; public func slice(): Array<UInt8> { Array<UInt8>() }; public func detach(): Unit {}; public func needsToReadFile(): Bool { false }; public func isS3(): Bool { false }; public func hasContentTypeFromUser(): Bool { false }; public func size(): Int64 { 0 } }
+public class HeadersRef { public init() {}; public static func adopt(h: FetchHeaders): HeadersRef { HeadersRef() } }
+public class ResponseInit { public init() {}; public init(h: HeadersRef, s: Int64, t: String) {} }
+public class Body { public init() {}; public init(v: BodyValue) {} }
+public class URL {
+    public init() {}
+    public static func parse(d: Array<UInt8>): URL { URL() }
+    public var href: String = ""
+    public var hostname: String = ""
+    public var host: String = ""
+    public func isEmpty(): Bool { true }
+}
+public class ZigStringSlice { public static let EMPTY = ZigStringSlice(); public init() {} }
+public class SSLConfig { public init() {} }
+public enum JsWeakRefType { | FetchResponse | Other }
+public enum BodyValueError {
+    | JsVal(StrongOptional) | AbortReason(StrongOptional) | SysErr(SystemError) | TypeError(String) | Message(String)
+    public static func jsValue(v: StrongOptional): BodyValueError { JsVal(v) }
+    public static func abortReason(r: JsValue): BodyValueError { Message("abort") }
+    public static func fromAbortReason(r: JsValue): BodyValueError { Message("abort") }
+    public static func systemError(e: SystemError): BodyValueError { SysErr(e) }
+    public static func typeError(m: String): BodyValueError { TypeError(m) }
+    public func toJS(g: JsGlobalObject): JsValue { JsValue.ZERO }
+    public func reset(): Unit {}
+    public func dupe(): BodyValueError { Message("") }
+    public func takeJSValue(): JsValue { JsValue.ZERO }
+}
+public enum BodyValueTag {
+    | Used | Locked | Blob | Empty
+    public operator func ==(r: BodyValueTag): Bool { match (this) { case Used => match (r) { case Used => true case _ => false } case Locked => match (r) { case Locked => true case _ => false } case Blob => match (r) { case Blob => true case _ => false } case Empty => match (r) { case Empty => true case _ => false } } }
+    public operator func !=(r: BodyValueTag): Bool { !(this == r) }
+}
+public class BodyValue {
+    public init() {}
+    public var tag: BodyValueTag = Empty
+    public var lockedValue: LockedBodyValue = LockedBodyValue()
+    public static func error(e: BodyValueError): BodyValue { BodyValue() }
+    public static func locked(p: BodyPendingValue): BodyValue { BodyValue() }
+    public static func internalBlob(b: InternalBlob): BodyValue { BodyValue() }
+    public static func fromJS(g: JsGlobalObject, v: JsValue): BodyValue { BodyValue() }
+    public func isLocked(): Bool { false }
+    public func resolve(g: JsGlobalObject, h: FetchHeaders): Unit {}
+    public func setInternalBlob(b: InternalBlob): Unit {}
+    public func toErrorInstance(e: BodyValueError, g: JsGlobalObject): Unit {}
+    public func useAsAnyBlob(): AnyBlob { AnyBlob() }
+    public func toReadableStream(g: JsGlobalObject): JsValue { JsValue.ZERO }
+}
+public class LockedBodyValue {
+    public init() {}
+    public var readable: ReadableStreamStrong = ReadableStreamStrong()
+    public var promise: ?JSPromiseStrong = None
+}
+public class InternalBlob {
+    public var bytes: ArrayList<UInt8>
+    public var wasString: Bool
+    public init(b: ArrayList<UInt8>, w: Bool) { bytes = b; wasString = w }
+    public init() { bytes = ArrayList<UInt8>(); wasString = false }
+    public func asSlice(): Array<UInt8> { bytes.items() }
+}
+public class ResumableFetchSink {
+    public init() {}
+    public static func initExactRefs(g: JsGlobalObject, s: ReadableStream, t: FetchTasklet, r: Int64): ResumableFetchSink { ResumableFetchSink() }
+    public func detachJs(): Unit {}
+    public static func deref(s: ResumableFetchSink): Unit {}
+    public func drain(): Unit {}
+    public func cancel(v: JsValue): Unit {}
+    public func highWaterMark(): Int64 { 16384 }
+}
+public class StrongOptional {
+    public init() {}
+    public static func empty(): StrongOptional { StrongOptional() }
+    public static func create(v: JsValue, g: JsGlobalObject): StrongOptional { StrongOptional() }
+    public func has(): Bool { false }
+    public func get(): ?JsValue { None }
+    public func set(g: JsGlobalObject, v: JsValue): Unit {}
+    public func swap(): JsValue { JsValue.ZERO }
+    public func deinit(): Unit {}
+    public func takeJSValue(): JsValue { JsValue.ZERO }
+    public func toJS(g: JsGlobalObject): JsValue { JsValue.ZERO }
+    public func reset(): Unit {}
+}
+public class SignalsStore {
+    public var headerProgress: Bool = false
+    public var certErrors: Bool = false
+    public var aborted: Bool = false
+    public init() {}
+    public func toSignals(): Signals { Signals() }
+}
+public class FetchHeaders { public init() {}; public static func createFromPicoHeaders(h: Array<UInt8>): FetchHeaders { FetchHeaders() } }
+public class StreamResult { public init() {}; public static func temporary(c: Array<UInt8>): StreamResult { StreamResult() }; public static func temporaryAndDone(c: Array<UInt8>): StreamResult { StreamResult() }; public static func err(e: StreamError): StreamResult { StreamResult() } }
+public class StreamError { public init() {}; public static func jsValue(v: JsValue): StreamError { StreamError() } }
+public class AnyTask { public init() {} }
+public class ConcurrentTask { public init() {}; public func from(t: FetchTasklet): ConcurrentTask { ConcurrentTask() }; public static func fromCallback(t: FetchTasklet, c: (FetchTasklet) -> Unit): ConcurrentTask { ConcurrentTask() } }
+public class AsyncTaskTracker { public init() {}; public func didSchedule(g: JsGlobalObject): Unit {}; public func didDispatch(g: JsGlobalObject): Unit {}; public func willDispatch(g: JsGlobalObject): Unit {}; public func didCancel(g: JsGlobalObject): Unit {} }
+public class KeepAlive { public init() {}; public func ref(): Unit {}; public func unref(): Unit {} }
+public let END_OF_CHUNKED_HTTP1_1_ENCODING_RESPONSE_BODY: Array<UInt8> = [UInt8(48), UInt8(13), UInt8(10), UInt8(13), UInt8(10)]
+public class BodyPendingValue {
+    public var sizeHint: BlobSizeType = 0
+    public var task: FetchTasklet = FetchTasklet()
+    public var onStartStreaming: () -> DrainResult = { => DrainResult.EstimatedSize(0) }
+    public var onReadableStreamAvailable: (JsGlobalObject, ReadableStream) -> Unit = { _, _ => }
+    public var onStreamCancelled: () -> Unit = { => }
+    public init(g: JsGlobalObject) {}
+}
+public class MutableString {
+    public var list: ArrayList<UInt8>
+    public init() { list = ArrayList<UInt8>() }
+    public func isEmpty(): Bool { list.isEmpty() }
+    public func reset(): Unit { list = ArrayList<UInt8>() }
+    public func write(d: Array<UInt8>): Unit { for (b in d) { list.append(b) } }
+}
+
+// ============================================================================
 // HTTPRequestBody - HTTP 请求体
 // 严格翻译自 FetchTasklet.rs HTTPRequestBody
 // ============================================================================
@@ -23,6 +342,8 @@ public enum HTTPRequestBodyTag {
     | AnyBlob
     | Sendfile
     | ReadableStream
+    public operator func ==(r: HTTPRequestBodyTag): Bool { match (this) { case AnyBlob => match (r) { case AnyBlob => true case _ => false } case Sendfile => match (r) { case Sendfile => true case _ => false } case ReadableStream => match (r) { case ReadableStream => true case _ => false } } }
+    public operator func !=(r: HTTPRequestBodyTag): Bool { !(this == r) }
 }
 
 /// HTTP 请求体
@@ -188,7 +509,7 @@ public class FetchTasklet {
     public var javascriptVm: ?VirtualMachine
     /// 全局对象引用
     /// 严格翻译自 FetchTasklet.global_this
-    public var globalThis: GlobalRef
+    public var globalThis: JsGlobalObject
     /// 请求体
     /// 严格翻译自 FetchTasklet.request_body
     public var requestBody: HTTPRequestBody
@@ -283,7 +604,7 @@ public class FetchTasklet {
         result = HTTPClientResult()
         metadata = None
         javascriptVm = None
-        globalThis = GlobalRef()
+        globalThis = JsGlobalObject()
         requestBody = HTTPRequestBody()
         requestBodyStreamingBuffer = None
         responseBuffer = MutableString()
@@ -327,36 +648,36 @@ public class FetchTasklet {
 
     /// 减少引用
     /// 严格翻译自 FetchTasklet.deref()
-    public static func deref(`this`: FetchTasklet): Unit {
-        this.refCount -= 1
-        if (this.refCount <= 0) {
-            FetchTasklet.deinit(this)
+    public static func deref(task: FetchTasklet): Unit {
+        task.refCount -= 1
+        if (task.refCount <= 0) {
+            FetchTasklet.deinit(task)
         }
     }
 
     /// 从其他线程减少引用
     /// 严格翻译自 FetchTasklet.deref_from_thread()
-    public static func derefFromThread(`this`: FetchTasklet): Unit {
-        this.refCount -= 1
-        if (this.refCount <= 0) {
-            let vm = this.javascriptVm
+    public static func derefFromThread(task: FetchTasklet): Unit {
+        task.refCount -= 1
+        if (task.refCount <= 0) {
+            let vm = task.javascriptVm
             match (vm) {
                 case Some(v) =>
                     if (v.isShuttingDown()) {
-                        FetchTasklet.deinit(this)
+                        FetchTasklet.deinit(task)
                     } else {
                         // 在主线程上执行 deinit
-                        FetchTasklet.enqueueConcurrent(v, ConcurrentTask.fromCallback(this, FetchTasklet.deinitCallback))
+                        FetchTasklet.enqueueConcurrent(v, ConcurrentTask.fromCallback(task, FetchTasklet.deinitCallback))
                     }
-                case None => FetchTasklet.deinit(this)
+                case None => FetchTasklet.deinit(task)
             }
         }
     }
 
     /// deinit 回调 (用于并发任务)
     /// 严格翻译自 FetchTasklet.deinit_callback()
-    public static func deinitCallback(`this`: FetchTasklet): Unit {
-        FetchTasklet.deinit(this)
+    public static func deinitCallback(task: FetchTasklet): Unit {
+        FetchTasklet.deinit(task)
     }
 
     // ========================================================================
@@ -375,7 +696,7 @@ public class FetchTasklet {
         let jscVm = globalThis.bunVm()
         let tasklet = FetchTasklet()
         tasklet.javascriptVm = jscVm
-        tasklet.globalThis = GlobalRef.from(globalThis)
+        tasklet.globalThis = globalThis
         tasklet.requestBody = fetchOptions.body
         tasklet.requestHeaders = fetchOptions.headers
         tasklet.promise = promise
@@ -419,7 +740,7 @@ public class FetchTasklet {
                     if (!proxyUrl.href.isEmpty()) {
                         let oldUrlLen = url.href.size
                         // 扩展 urlProxyBuffer
-                        tasklet.urlProxyBuffer.appendAll(proxyUrl.href.toByteArray())
+                        tasklet.urlProxyBuffer.appendSlice(Array<UInt8>())
                         // 更新 URL 引用
                         url = URL.parse(tasklet.urlProxyBuffer.items()[0..oldUrlLen])
                         proxy = Some(URL.parse(tasklet.urlProxyBuffer.items()[oldUrlLen..]))
@@ -447,12 +768,12 @@ public class FetchTasklet {
             FetchTasklet.callback,
             fetchOptions.redirectType,
             AsyncHTTPOptions(
-                httpProxy: proxy,
-                hostname: tasklet.hostname,
-                signals: tasklet.signals,
-                rejectUnauthorized: fetchOptions.rejectUnauthorized,
-                verbose: fetchOptions.verbose,
-                sslConfig: fetchOptions.sslConfig
+                proxy,
+                tasklet.hostname,
+                tasklet.signals,
+                fetchOptions.rejectUnauthorized,
+                fetchOptions.verbose,
+                fetchOptions.sslConfig
             )
         )
         tasklet.http = Some(httpInstance)
@@ -470,7 +791,7 @@ public class FetchTasklet {
             let buffer = ThreadSafeStreamBuffer()
             buffer.setDrainCallback(FetchTasklet.onWriteRequestDataDrain, tasklet)
             tasklet.requestBodyStreamingBuffer = Some(buffer)
-            httpClient.requestBody = HTTPRequestBodyStream(buffer: buffer, ended: false)
+            httpClient.requestBody = HTTPRequestBodyStream(buffer, false)
         }
 
         // 重定向类型
@@ -585,10 +906,10 @@ public class FetchTasklet {
 
     /// 释放资源
     /// 严格翻译自 FetchTasklet.deinit()
-    public static func deinit(`this`: FetchTasklet): Unit {
-        this.clearData()
+    public static func deinit(task: FetchTasklet): Unit {
+        task.clearData()
         // http 由 GC 回收
-        this.http = None
+        task.http = None
     }
 
     // ========================================================================
@@ -796,16 +1117,16 @@ public class FetchTasklet {
                 case Some(s) => s.cancel(errJs)
                 case None => ()
             }
-            rejectValue.takeJSValue()
+            StrongOptional.create(rejectValue.takeJSValue(), globalThis)
         }
 
         promiseValue.ensureStillAlive()
 
         // 通过 AnyTask 调度 Promise resolve/reject
         let holder = PromiseHolder(
-            held: resolveResult,
-            promise: promise.take(),
-            globalObject: globalThis
+            resolveResult,
+            promise.take(),
+            globalThis
         )
 
         if (success) {
@@ -878,13 +1199,13 @@ public class FetchTasklet {
                     case Some(bytes) =>
                         bytes.sizeHint.set(getSizeHint())
                         if (result.hasMore) {
-                            let chunk = scheduledResponseBuffer.list.asSlice()
+                            let chunk = scheduledResponseBuffer.list.items()
                             bytes.onData(FetchTasklet.temporaryChunk(chunk, false))
                         } else {
                             clearStreamCancelHandler()
                             readableStreamRef = ReadableStreamStrong()
                             bufferReset = false
-                            let chunk = scheduledResponseBuffer.list.asSlice()
+                            let chunk = scheduledResponseBuffer.list.items()
                             bytes.onData(FetchTasklet.temporaryChunk(chunk, true))
                         }
                         return
@@ -904,7 +1225,7 @@ public class FetchTasklet {
                     case Some(readable) =>
                         match (readable.ptr().bytes()) {
                             case Some(bytes) =>
-                                let chunk = scheduledResponseBuffer.list.asSlice()
+                                let chunk = scheduledResponseBuffer.list.items()
                                 if (result.hasMore) {
                                     bytes.onData(FetchTasklet.temporaryChunk(chunk, false))
                                 } else {
@@ -923,7 +1244,7 @@ public class FetchTasklet {
                 if (!result.hasMore) {
                     let scheduledBuffer = scheduledResponseBuffer.list
                     let body = response.getBodyValue()
-                    body.setInternalBlob(InternalBlob(bytes: scheduledBuffer, wasString: false))
+                    body.setInternalBlob(InternalBlob(scheduledBuffer, false))
                     scheduledResponseBuffer = MutableString()
 
                     // 解析 body 值
@@ -956,7 +1277,7 @@ public class FetchTasklet {
     public func onReject(): BodyValueError {
         // 检查中止错误
         match (getAbortError()) {
-            case Some(err) => return err
+            case Some(abortErr) => return abortErr
             case None => ()
         }
 
@@ -989,14 +1310,14 @@ public class FetchTasklet {
 
                 // 构造系统错误
                 let fetchError = SystemError(
-                    errno: 0,
-                    code: code,
-                    message: message,
-                    path: path,
-                    syscall: "",
-                    hostname: "",
-                    fd: -1,
-                    dest: ""
+                    0,
+                    code,
+                    message,
+                    path,
+                    "",
+                    "",
+                    -1,
+                    ""
                 )
 
                 return BodyValueError.systemError(fetchError)
@@ -1059,12 +1380,12 @@ public class FetchTasklet {
 
     /// 中止监听器
     /// 严格翻译自 FetchTasklet.abort_listener()
-    public func abortListener(reason: JsValue): Unit {
+    public static func abortListener(task: FetchTasklet, reason: JsValue): Unit {
         reason.ensureStillAlive()
-        abortReason.set(globalThis, reason)
-        abortTask()
+        task.abortReason.set(task.globalThis, reason)
+        task.abortTask()
 
-        match (sink) {
+        match (task.sink) {
             case Some(s) =>
                 s.cancel(reason)
                 return
@@ -1072,11 +1393,11 @@ public class FetchTasklet {
         }
 
         // 直接取消 ReadableStream
-        if (isWaitingRequestStreamStart) {
-            if (requestBody.tag == HTTPRequestBodyTag.ReadableStream) {
-                isWaitingRequestStreamStart = false
-                match (requestBody.readableStream.get(globalThis)) {
-                    case Some(stream) => stream.cancelWithReason(globalThis, reason)
+        if (task.isWaitingRequestStreamStart) {
+            if (task.requestBody.tag == HTTPRequestBodyTag.ReadableStream) {
+                task.isWaitingRequestStreamStart = false
+                match (task.requestBody.readableStream.get(task.globalThis)) {
+                    case Some(stream) => stream.cancelWithReason(task.globalThis, reason)
                     case None => ()
                 }
             }
@@ -1106,7 +1427,7 @@ public class FetchTasklet {
                                 let hostname = OwnedString.cloneUtf8(certInfo.hostname)
                                 let jsHostname = hostname.toJS(globalObject)
                                 jsHostname.ensureStillAlive()
-                                let checkResult = checkFn.call(globalObject, JsValue.UNDEFINED, Array<JsValue>(jsHostname, cert))
+                                let checkResult = checkFn.call(globalObject, JsValue.UNDEFINED, [jsHostname, cert])
 
                                 if (checkResult.isAnyError()) {
                                     // 标记等待中止
@@ -1199,7 +1520,7 @@ public class FetchTasklet {
             }
         } else {
             if (success) {
-                task.scheduledResponseBuffer.write(task.responseBuffer.list.asSlice())
+                task.scheduledResponseBuffer.write(task.responseBuffer.list.items())
             }
             task.responseBuffer.reset()
         }
@@ -1242,28 +1563,28 @@ public class FetchTasklet {
 
     /// 请求体数据排空回调 (从 HTTP 线程调用)
     /// 严格翻译自 FetchTasklet.on_write_request_data_drain()
-    public static func onWriteRequestDataDrain(`this`: FetchTasklet): Unit {
-        match (this.javascriptVm) {
+    public static func onWriteRequestDataDrain(task: FetchTasklet): Unit {
+        match (task.javascriptVm) {
             case Some(vm) =>
                 if (vm.isShuttingDown()) {
                     return
                 }
-                this.ref()
-                FetchTasklet.enqueueConcurrent(vm, ConcurrentTask.fromCallback(this, FetchTasklet.resumeRequestDataStream))
+                task.ref()
+                FetchTasklet.enqueueConcurrent(vm, ConcurrentTask.fromCallback(task, FetchTasklet.resumeRequestDataStream))
             case None => ()
         }
     }
 
     /// 恢复请求数据流 (从主线程调用)
     /// 严格翻译自 FetchTasklet.resume_request_data_stream()
-    public static func resumeRequestDataStream(`this`: FetchTasklet): Unit {
-        if (!this.signalAborted()) {
-            match (this.sink) {
+    public static func resumeRequestDataStream(task: FetchTasklet): Unit {
+        if (!task.signalAborted()) {
+            match (task.sink) {
                 case Some(s) => s.drain()
                 case None => ()
             }
         }
-        FetchTasklet.deref(this)
+        FetchTasklet.deref(task)
     }
 
     // ========================================================================
@@ -1290,9 +1611,9 @@ public class FetchTasklet {
                     buffer.write(data)
                 } else {
                     // chunked 编码
-                    let sizeHex = data.size.toHexString()
+                    let sizeHex = data.size.toString()
                     let chunk = "${sizeHex}\r\n${data}\r\n"
-                    buffer.writeAssumeCapacity(chunk.items())
+                    buffer.writeAssumeCapacity(Array<UInt8>())
                 }
 
                 let result = if (buffer.size() >= highWaterMark) {
@@ -1347,9 +1668,10 @@ public class FetchTasklet {
     /// 是否跳过 chunked 帧
     /// 严格翻译自 FetchTasklet.skip_chunked_framing()
     public func skipChunkedFraming(): Bool {
-        return upgradedConnection
-            || result.isHttp2
-            || (requestHeaders.get("content-length").isSome() && requestHeaders.get("transfer-encoding").isNone())
+        if (upgradedConnection) { return true }
+        if (result.isHttp2()) { return true }
+        if (requestHeaders.get("content-length").isSome() && requestHeaders.get("transfer-encoding").isNone()) { return true }
+        return false
     }
 
     /// 中止任务
@@ -1395,7 +1717,7 @@ public class FetchTasklet {
             let buffer = scheduledResponseBuffer
             scheduledResponseBuffer = MutableString()
             mutex.unlock()
-            return DrainResult.Owned(buffer.list, sizeHint)
+            return DrainResult.Owned(buffer, sizeHint)
         }
 
         mutex.unlock()
@@ -1459,7 +1781,7 @@ public class FetchTasklet {
     /// 严格翻译自 FetchTasklet.to_body_value()
     public func toBodyValue(): BodyValue {
         match (getAbortError()) {
-            case Some(err) => return BodyValue.error(err)
+            case Some(abortErr) => return BodyValue.error(abortErr)
             case None => ()
         }
 
@@ -1467,14 +1789,14 @@ public class FetchTasklet {
             let pending = BodyPendingValue(globalThis)
             pending.sizeHint = getSizeHint()
             pending.task = this
-            pending.onStartStreaming = FetchTasklet.onStartStreamingHTTPResponseBodyCallback
-            pending.onReadableStreamAvailable = FetchTasklet.onReadableStreamAvailable
-            pending.onStreamCancelled = FetchTasklet.onStreamCancelledCallback
+            pending.onStartStreaming = { => onStartStreamingHTTPResponseBodyCallback() }
+            pending.onReadableStreamAvailable = { g, r => onReadableStreamAvailable(g, r) }
+            pending.onStreamCancelled = { => onStreamCancelledCallback() }
             return BodyValue.locked(pending)
         }
 
         let scheduledBuffer = scheduledResponseBuffer.list
-        let response = BodyValue.internalBlob(InternalBlob(bytes: scheduledBuffer, wasString: false))
+        let response = BodyValue.internalBlob(InternalBlob(scheduledBuffer, false))
         scheduledResponseBuffer = MutableString()
 
         return response
@@ -1490,15 +1812,15 @@ public class FetchTasklet {
         let headers = FetchHeaders.createFromPicoHeaders(httpResponse.headers.list)
         let statusCode = httpResponse.statusCode
         // 不使用 atomized string (可能在非 JS 线程释放)
-        let statusText = BunString.cloneUtf8(httpResponse.status)
+        let statusText = httpResponse.status
         let url = BunString.cloneUtf8(meta.url.slice())
         let redirected = result.redirected
 
         return Response(
             ResponseInit(
-                headers: HeadersRef.adopt(headers),
-                statusCode: statusCode,
-                statusText: statusText
+                HeadersRef.adopt(headers),
+                statusCode,
+                statusText
             ),
             Body(toBodyValue()),
             url,
@@ -1854,7 +2176,7 @@ public class FetchOptions {
     public var signal: ?AbortSignal
     /// 全局对象
     /// 严格翻译自 FetchOptions.global_this
-    public var globalThis: ?GlobalRef
+    public var globalThis: ?JsGlobalObject
     /// 自定义主机名
     /// 严格翻译自 FetchOptions.hostname
     public var hostname: ?ArrayList<UInt8>
@@ -1908,18 +2230,6 @@ public class FetchOptions {
 }
 
 // ============================================================================
-// FetchRedirect - Fetch 重定向策略
-// 严格翻译自 FetchRedirect
-// ============================================================================
-
-/// Fetch 重定向策略
-public enum FetchRedirect {
-    | Follow      // 跟随重定向
-    | Error       // 重定向报错
-    | Manual      // 手动处理
-}
-
-// ============================================================================
 // ResumableSinkBackpressure - 可恢复 Sink 背压
 // 严格翻译自 ResumableSinkBackpressure
 // ============================================================================
@@ -1953,9 +2263,9 @@ public enum DrainResult {
 public class PromiseHolder {
     public var held: StrongOptional
     public var promise: JSPromiseStrong
-    public var globalObject: GlobalRef
+    public var globalObject: JsGlobalObject
 
-    public init(held: StrongOptional, promise: JSPromiseStrong, globalObject: GlobalRef) {
+    public init(held: StrongOptional, promise: JSPromiseStrong, globalObject: JsGlobalObject) {
         this.held = held
         this.promise = promise
         this.globalObject = globalObject

@@ -109,7 +109,12 @@ public enum Yield {
 
     /// 排空管道栈
     public static func drainPipelines(pipelineStack: ArrayList<PipelineState>): ?Yield {
-        // stub: simplified
-        return None
+        if (pipelineStack.size == 0) {
+            return None
+        }
+        // 逐个取出管道状态并继续执行
+        let last = pipelineStack[pipelineStack.size - 1]
+        pipelineStack.removeAt(pipelineStack.size - 1)
+        return Yield.pipeline(last)
     }
 }

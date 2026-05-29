@@ -947,11 +947,70 @@ public class StreamResult {
         return r
     }
 
-    // ========== Stub methods ==========
+    // ========== 转换方法 ==========
     public func slice(): ArrayList<UInt8> { ownedData }
     public func slice16(): ArrayList<UInt16> { ArrayList<UInt16>() }
-    public func isDone(): Bool { tag == StreamResultTag.Done || tag == StreamResultTag.OwnedAndDone }
-    public func toJsValue(): JsValue { JsValue() }
+    public func isDone(): Bool {
+        match (tag) {
+            case StreamResultTag.Done | StreamResultTag.OwnedAndDone |
+                 StreamResultTag.TemporaryAndDone | StreamResultTag.IntoArrayAndDone |
+                 StreamResultTag.Err => true
+            case _ => false
+        }
+    }
+    /// 将流结果转为 JsValue
+    /// 对应 Bun: Result.toJS(globalThis) — Owned/Temporary 转为 ArrayBuffer
+    public func toJsValue(): JsValue {
+        match (tag) {
+            case StreamResultTag.Done => JsValue(true)
+            case StreamResultTag.Owned =>
+                let bytes = ownedData.items()
+                if (bytes.size > 0) {
+                    JsValue.createBuffer(JsObject(), bytes)
+                } else {
+                    JsValue.UNDEFINED
+                }
+            case StreamResultTag.OwnedAndDone =>
+                let bytes = ownedData.items()
+                if (bytes.size > 0) {
+                    JsValue.createBuffer(JsObject(), bytes)
+                } else {
+                    JsValue.UNDEFINED
+                }
+            case StreamResultTag.Temporary =>
+                let bytes = tempData.items()
+                if (bytes.size > 0) {
+                    JsValue.createBuffer(JsObject(), bytes)
+                } else {
+                    JsValue.UNDEFINED
+                }
+            case StreamResultTag.TemporaryAndDone =>
+                let bytes = tempData.items()
+                if (bytes.size > 0) {
+                    JsValue.createBuffer(JsObject(), bytes)
+                } else {
+                    JsValue.UNDEFINED
+                }
+            case StreamResultTag.IntoArray =>
+                if (intoArrayData.value != 0) {
+                    JsValue(Int64(intoArrayData.value))
+                } else {
+                    JsValue.UNDEFINED
+                }
+            case StreamResultTag.IntoArrayAndDone =>
+                if (intoArrayData.value != 0) {
+                    JsValue(Int64(intoArrayData.value))
+                } else {
+                    JsValue.UNDEFINED
+                }
+            case StreamResultTag.Pending => JsValue.UNDEFINED
+            case StreamResultTag.Err =>
+                match (streamErr) {
+                    case Some(e) => JsValue("Stream error")
+                    case None => JsValue.UNDEFINED
+                }
+        }
+    }
 }
 
 // ============================================================================

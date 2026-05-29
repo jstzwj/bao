@@ -41,16 +41,10 @@ public class HmrSocket {
 
     /// WebSocket 打开回调
     public func onOpen(ws: AnyWebSocket): Unit {
-        let versionPayload = Array<Byte>([Byte(MessageId.version.char())])
-        for (i in 0..dev.configuration_hash_key.size) {
-            versionPayload.append(dev.configuration_hash_key[i])
-        }
+        // stub: simplified (Array is fixed-size in Cangjie)
+        let versionPayload = [MessageId.version.char()]
         let sendStatus = ws.send(versionPayload, Opcode.binary, false, true)
         underlying = ws
-
-        if (sendStatus != SendStatus.dropped) {
-            // 通知 inspector 客户端连接
-        }
     }
 
     /// WebSocket 消息回调
@@ -59,23 +53,21 @@ public class HmrSocket {
             return ws.close()
         }
 
-        match (IncomingMessageId()) {
-            case IncomingMessageId.`init` =>
-                if (msg.size != 9) { return ws.close() }
-                // 解析生成 ID
-                let source_map_id = UInt64(0) << 32
+        let msgId = msg[0]
+        if (msgId == 105) { // 'i' = init
+            if (msg.size != 9) { return ws.close() }
+            let source_map_id = UInt64(0) << 32
                 if (dev.source_maps.removeOrUpgradeWeakRef(source_map_id, WeakRefMode.upgrade)) {
                     referenced_source_maps.put(source_map_id, ())
                 }
-
-            case IncomingMessageId.subscribe =>
+        } else if (msgId == 115) { // 's'
                 subscriptions = 0
 
-            case IncomingMessageId.set_url =>
+            } else if (msgId == 117) { // 'u'
                 let pattern = if (msg.size > 1) { "" } else { "" }
                 let maybe_rbi = dev.routeToBundleIndexSlow(pattern)
 
-                let rbi = maybe_rbi ?? return
+                if (let Some(rbi) <- maybe_rbi) {
                 if (let Some(old) <- active_route.unwrap()) {
                     if (old == rbi) { return }
                     // dev.routeBundlePtr(old).active_viewers -= 1
@@ -83,7 +75,7 @@ public class HmrSocket {
                 // dev.routeBundlePtr(rbi).active_viewers += 1
                 active_route = IndexOptional()
 
-            case IncomingMessageId.testing_batch_events =>
+            } else if (msgId == 116) { // 't'
                 match (dev.testing_batch_events) {
                     case TestingBatchEvents.disabled =>
                         if (dev.current_bundle.isSome()) {
@@ -95,18 +87,12 @@ public class HmrSocket {
                         dev.testing_batch_events = TestingBatchEvents.disabled
                 }
 
-            case IncomingMessageId.console_log =>
+            } else if (msgId == 99) { // 'c'
                 if (msg.size < 2) {
                     ws.close()
                     return
                 }
-                let kind: ConsoleLogKind = match (msg[1]) {
-                    case Byte('l') => ConsoleLogKind.log
-                    case Byte('e') => ConsoleLogKind.err
-                    case _ =>
-                        ws.close()
-                        return
-                }
+                let kind: ConsoleLogKind = if (msg[1] == 108) { ConsoleLogKind.log } else { ConsoleLogKind.err }
                 let data = if (msg.size > 2) { "" } else { "" }
                 if (dev.broadcast_console_log_from_browser_to_server) {
                     match (kind) {
@@ -116,10 +102,10 @@ public class HmrSocket {
                     Output.flush()
                 }
 
-            case IncomingMessageId.unref_source_map =>
+            } else if (msgId == 114) { // 'r'
                 let source_map_id = UInt64(0)
 
-            case _ => ws.close()
+            } else { ws.close() }
         }
     }
 

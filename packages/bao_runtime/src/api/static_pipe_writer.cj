@@ -27,7 +27,7 @@ public class StaticPipeWriter<ProcessType> {
     // ========================================================================
 
     /// 创建 StaticPipeWriter
-    public static func create(eventLoop: EventLoop, subprocess: ProcessType, result: StdioResult, source: Source): StaticPipeWriter {
+    public static func create(eventLoop!: EventLoop, subprocess!: ProcessType, result!: StdioResult, source!: Source): StaticPipeWriter {
         let writer = StaticPipeWriter(
             refCount: RefCount(),
             eventLoop: EventLoopHandle(eventLoop),
@@ -50,7 +50,7 @@ public class StaticPipeWriter<ProcessType> {
             case err(err) => return Maybe<Unit>.err(err)
             case result =>
                 if (Environment.isPosix) {
-                    writer.handle.poll.flags.insert(.nonblocking)
+                    writer.handle.poll.flags.insert(PollFlags.nonblocking)
                 }
                 return Maybe<Unit>.success
         }
@@ -61,7 +61,7 @@ public class StaticPipeWriter<ProcessType> {
     // ========================================================================
 
     /// onWrite - 写入完成回调
-    public func onWrite(amount: Int, status: WriteStatus): Unit {
+    public func onWrite(amount!: Int, status!: WriteStatus): Unit {
         buffer = buffer.substring(min(amount, buffer.count))
         if (status == endOfFile || buffer.count == 0) {
             writer.close()
@@ -69,14 +69,14 @@ public class StaticPipeWriter<ProcessType> {
     }
 
     /// onError - 错误回调
-    public func onError(err: SysError): Unit {
+    public func onError(err!: SysError): Unit {
         source.detach()
     }
 
     /// onClose - 关闭回调
     public func onClose(): Unit {
         source.detach()
-        process.onCloseIO(.stdin)
+        process.onCloseIO(StdioKind.stdin)
     }
 
     /// getBuffer - 获取当前缓冲区
@@ -104,7 +104,7 @@ public class StaticPipeWriter<ProcessType> {
     }
 
     /// updateRef - 更新引用
-    public func updateRef(add: Bool): Unit {
+    public func updateRef(add!: Bool): Unit {
         writer.updateRef(eventLoop, add)
     }
 

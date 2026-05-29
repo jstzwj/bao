@@ -531,10 +531,10 @@ export class DraculaSyntaxHighlighter {
 
   public highlight(): string {
     const containerClass = this.options.languageName
-      ? `dracula-theme language-${this.options.languageName}`
+      ? `dracula-theme language-\${this.options.languageName}`
       : "dracula-theme";
 
-    const classAttr = this.options.showLineNumbers ? `${containerClass} with-line-numbers` : containerClass;
+    const classAttr = this.options.showLineNumbers ? `\${containerClass} with-line-numbers` : containerClass;
 
     let result = "";
     let lineContent = "";
@@ -597,10 +597,10 @@ export class DraculaSyntaxHighlighter {
 
   private buildHtmlElement(tag: string, attributes: Record<string, string>, content: string): string {
     const attrs = Object.entries(attributes)
-      .map(([key, value]) => `${key}="${this.escapeHtml(value)}"`)
+      .map(([key, value]) => `\${key}="\${this.escapeHtml(value)}"`)
       .join(" ");
 
-    return `<${tag}${attrs ? " " + attrs : ""}>${content}</${tag}>`;
+    return `<\${tag}\${attrs ? " " + attrs : ""}>\${content}</\${tag}>`;
   }
 
   private wrap(content: string, tokenClass: string): string {
@@ -611,7 +611,7 @@ export class DraculaSyntaxHighlighter {
       .split(" ")
       .map(cls => cls.trimAscii())
       .join(" ");
-    return `<span class="${classes}">${this.escapeHtml(content)}</span>`;
+    return `<span class="\${classes}">\${this.escapeHtml(content)}</span>`;
   }
 
   private isIdentifierStart(char: string): boolean {

@@ -60,10 +60,10 @@ public enum SerializedFailureOwner {
 
     public func encode(): Packed {
         return match (this) {
-            case none => Packed(kind: SerializedFailureOwnerKind.none, data: 0)
-            case client(data) => Packed(kind: SerializedFailureOwnerKind.client, data: data)
-            case server(data) => Packed(kind: SerializedFailureOwnerKind.server, data: data)
-            case route(data) => Packed(kind: SerializedFailureOwnerKind.route, data: data)
+            case none => Packed(SerializedFailureOwnerKind.none, 0)
+            case client(d) => Packed(SerializedFailureOwnerKind.client, d)
+            case server(d) => Packed(SerializedFailureOwnerKind.server, d)
+            case route(d) => Packed(SerializedFailureOwnerKind.route, d)
         }
     }
 }
@@ -113,7 +113,7 @@ public class SerializedFailure {
         // w.writeInt(...)
 
         let result_data = payload.items
-        return SerializedFailure(data: result_data)
+        return SerializedFailure(result_data)
     }
 
     /// 写入日志消息

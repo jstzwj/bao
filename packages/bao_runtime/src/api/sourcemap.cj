@@ -32,7 +32,7 @@ public class SourceMap {
 
     /// constructor - JS 构造函数
     /// 严格翻译自: sourcemap.classes.ts construct: true, constructNeedsThis: true
-    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?SourceMap {
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): ?SourceMap {
         let sourceMap = SourceMap()
 
         // 解析可选参数: 可以传入 payload 对象
@@ -53,7 +53,7 @@ public class SourceMap {
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::findOrigin
     /// 参数: (generatedLine: number, generatedColumn: number)
     /// 返回: { source: string, line: number, column: number, name?: string } | null
-    public func findOrigin(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func findOrigin(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
 
         var generatedLine: Int32 = 0
@@ -85,14 +85,14 @@ public class SourceMap {
 
     // ========================================================================
     // findEntry - 查找映射条目
-    // 严格翻译自: sourcemap.classes.ts findEntry { fn: "findEntry", length: 2 }
+    // 严格翻译自: sourcemap.classes.ts findEnfn: "findEntry", length: 2 
     // ========================================================================
 
     /// findEntry - 根据生成的行和列查找映射条目
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::findEntry
     /// 参数: (generatedLine: number, generatedColumn: number)
     /// 返回: { generatedLine, generatedColumn, originalLine, originalColumn, source, name? } | null
-    public func findEntry(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func findEntry(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let args = callframe.argumentsAsArray(2)
 
         var generatedLine: Int32 = 0
@@ -132,7 +132,7 @@ public class SourceMap {
     /// getPayload - 获取源码映射的 payload 数据
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::getPayload
     /// 结果被缓存
-    public func getPayload(JsGlobalObject): JsValue {
+    public func getPayload(jsGlobalObject!: JsGlobalObject): JsValue {
         if (let Some(p) <- payload) {
             return p
         }
@@ -151,7 +151,7 @@ public class SourceMap {
     /// getLineLengths - 获取原始源码每行的长度数组
     /// 严格翻译自: bun_sourcemap_jsc::JSSourceMap::getLineLengths
     /// 结果被缓存
-    public func getLineLengths(JsGlobalObject): JsValue {
+    public func getLineLengths(jsGlobalObject!: JsGlobalObject): JsValue {
         if (let Some(ll) <- lineLengths) {
             return ll
         }
@@ -191,13 +191,13 @@ public class SourceMap {
     /// 需要 FFI: 调用 bun_sourcemap_jsc 的 findOrigin 实现
     /// bun_sourcemap_jsc 是用 C++ 编写的 JSC bindings，解析 VLQ 编码的
     /// source map 数据并执行二分查找。需要 JSC FFI 绑定才能在仓颉中实现。
-    private func findOriginInternal(line: Int32, column: Int32): ?SourceMapOriginResult {
+    private func findOriginInternal(line!: Int32, column!: Int32): ?SourceMapOriginResult {
         return none
     }
 
     /// 查找映射条目 (内部)
     /// 需要 FFI: 调用 bun_sourcemap_jsc 的 findEntry 实现
-    private func findEntryInternal(line: Int32, column: Int32): ?SourceMapEntryResult {
+    private func findEntryInternal(line!: Int32, column!: Int32): ?SourceMapEntryResult {
         return none
     }
 
@@ -209,7 +209,7 @@ public class SourceMap {
 
     /// 计算行长度 (内部)
     /// 需要 FFI: 调用 bun_sourcemap_jsc 的 getLineLengths 实现
-    private func computeLineLengthsInternal(JsGlobalObject): JsValue {
+    private func computeLineLengthsInternal(jsGlobalObject!: JsGlobalObject): JsValue {
         return JsValue.jsNull()
     }
 }

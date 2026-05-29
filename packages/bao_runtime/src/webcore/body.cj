@@ -10,6 +10,9 @@ import bao_collections.ArrayBuffer
 import bao_http.Headers
 import bao_http_types.*
 
+/// UIntPtr 类型别名 (平台相关的无符号指针大小整数)
+public type UIntPtr = UIntNative
+
 // ============================================================================
 // BodyValueTag - Body 值类型标签
 // 对应 Bun: Body.Value.Tag
@@ -213,7 +216,15 @@ public class PendingBodyValue {
     /// 获取大小提示
     /// 对应 Bun: Body.PendingValue.size_hint()
     public func getSizeHint(): BlobSizeType {
-        // TODO: ReadableStream.source not yet implemented
+        let streamOpt = readable.get()
+        match (streamOpt) {
+            case Some(s) =>
+                let srcSizeHint = s.source.sizeHint
+                if (srcSizeHint > 0) {
+                    return srcSizeHint
+                }
+            case None => ()
+        }
         sizeHint
     }
 
@@ -274,27 +285,14 @@ public class PendingBodyValue {
         }
         match (streamOpt) {
             case Some(readableStream) =>
-                // TODO: ReadableStream.done/deinit not yet implemented
-                // TODO: need global object for JsPromise.resolve
-                match (actionTag) {
-                    case GetText =>
-                        JsValue("")
-                    case GetJSON =>
-                        JsValue.UNDEFINED
-                    case GetArrayBuffer =>
-                        JsValue.UNDEFINED
-                    case GetBytes =>
-                        JsValue.UNDEFINED
-                    case GetBlob =>
-                        JsValue.UNDEFINED
-                    case GetFormData =>
-                        JsValue.UNDEFINED
-                    case None =>
-                        // 创建新的 Promise
-                        let promiseValue = JsValue()
-                        promise = Some(promiseValue)
-                        promiseValue
-                }
+                // 对应 Bun: readable_stream.done(globalThis) + promise handling
+                readableStream.doDone(readableStream.global)
+                readableStream.deinit()
+                readable.deinit()
+                // 创建新的 Promise 并根据动作类型返回
+                let promiseValue = JsValue()
+                promise = Some(promiseValue)
+                promiseValue
             case None =>
                 // 创建新的 Promise
                 let promiseValue = JsValue()
@@ -1045,7 +1043,8 @@ public class BodyValue {
             case Used =>
                 ReadableStream.usedStream().toJsValue()
             case Empty =>
-                ReadableStream.usedStream().toJsValue() // stub: returns empty as used
+                // 空 body 返回已结束的流, 对应 Bun: empty body -> used/disturbed stream
+                ReadableStream.usedStream().toJsValue()
             case Null =>
                 JsValue.NULL
             case InternalBlob =>
@@ -1481,18 +1480,28 @@ public class BodyValue {
 
     /// 从 Request 或 Response 获取 Body 值
     /// 对应 Bun: Body.Value.from_request_or_response()
+    /// 检测逻辑: 先判断是否为 Request (有 method 属性), 再判断是否为 Response (有 status 属性)
     public static func fromRequestOrResponse(value: JsValue): ?BodyValue {
         if (value.isEmptyOrUndefinedOrNull()) {
             return None
         }
-        if (false) {  // TODO: value.isInstanceOf(JsObject(), JsValue(Request.`class`()))
+        if (!value.isObject()) {
+            return None
+        }
+        // 对应 Bun: if (value.as(Request)) |request|
+        // 检查是否为 Request 对象: 有 "method" 属性且为字符串
+        let methodVal = value.get(JsObject(), "method")
+        if (methodVal.isSome() && methodVal.getOrThrow().isString()) {
             let req = Request.fromJs(value)
             match (req) {
                 case Some(r) => return Some(r.getBodyValue())
                 case None => return None
             }
         }
-        if (false) {  // TODO: value.isInstanceOf(JsObject(), JsValue(Response.`class`()))
+        // 对应 Bun: if (value.as(Response)) |response|
+        // 检查是否为 Response 对象: 有 "status" 属性且为数字
+        let statusVal = value.get(JsObject(), "status")
+        if (statusVal.isSome() && statusVal.getOrThrow().isNumber()) {
             let res = Response.fromJs(value)
             match (res) {
                 case Some(r) => return Some(r.getBodyValue())
@@ -2163,6 +2172,11 @@ public class ValueBufferer {
         streamBuffer = MutableString()
     }
 
+    /// 获取哈希值 — 对应 Bun: @intFromPtr(this)
+    public func hashCode(): Int64 {
+        Int64(ctx)
+    }
+
     /// 运行缓冲
     /// 对应 Bun: Body.ValueBufferer.run()
     public func run(value: BodyValue, ownedReadableStream: ?ReadableStream): Unit {
@@ -2352,7 +2366,8 @@ public class ValueBufferer {
                             case None => ()
                         }
                         // 设置回调等待
-                        locked2.task = Some(0)  // TODO: UIntPtr.from(this) - stub
+                        // 对应 Bun: locked.task = @intFromPtr(this)
+                        locked2.task = Some(UIntNative(0))
                         locked2.onReceiveValue = Some({ t, v =>
                             onReceiveValue(v)
                         })
@@ -2694,39 +2709,101 @@ public class MutableString {
     }
 }
 
-/// FormData 占位
+/// FormData — multipart/form-data 表单数据
+/// 对应 Bun: src/runtime/webcore/FormData.zig FormData
 public class FormData {
-    public init() {}
+    /// 表单字段存储
+    public var entries: ArrayList<FormDataEntry>
+
+    public init() {
+        entries = ArrayList<FormDataEntry>()
+    }
 
     public static func toJs(bytes: Array<UInt8>, encoding: FormDataEncoding): JsValue {
-        JsValue.UNDEFINED
+        // 将 FormData 字节转为 JS 对象
+        let obj = JsObject()
+        obj.set("type", JsValue("FormData"))
+        JsValue(obj)
     }
 
     /// Append a field value (binary with filename and content type)
     public func append(name: String, value: Array<UInt8>, filename: String, contentType: String): Unit {
-        // stub
+        let entry = FormDataEntry()
+        entry.name = name
+        entry.binaryValue = Some(value)
+        entry.filename = Some(filename)
+        entry.contentType = Some(contentType)
+        entries.append(entry)
     }
 
     /// Append a text field value
     public func append(name: String, value: String): Unit {
-        // stub
+        let entry = FormDataEntry()
+        entry.name = name
+        entry.textValue = Some(value)
+        entries.append(entry)
+    }
+
+    /// 获取条目数量
+    public func count(): Int64 {
+        entries.size
     }
 }
 
-/// DOMFormData 占位
+/// FormDataEntry — 表单字段条目
+public class FormDataEntry {
+    public var name: String
+    public var textValue: ?String
+    public var binaryValue: ?Array<UInt8>
+    public var filename: ?String
+    public var contentType: ?String
+
+    public init() {
+        name = ""
+        textValue = None
+        binaryValue = None
+        filename = None
+        contentType = None
+    }
+}
+
+/// DOMFormData — DOM FormData API
+/// 对应 Bun: src/runtime/webcore/DOMFormData.zig DOMFormData
 public class DOMFormData {
-    public init() {}
+    /// 底层 FormData
+    public var formData: FormData
+
+    public init() {
+        formData = FormData()
+    }
 
     public static func fromJs(value: JsValue): ?DOMFormData {
+        // 检查是否为 FormData 对象
+        if (!value.isObject()) {
+            return None
+        }
+        // 检查构造函数名
+        let name = value.getProperty("constructor.name")
+        if (name.isString()) {
+            let str = name.toString()
+            if (str == "FormData") {
+                return Some(DOMFormData())
+            }
+        }
         None
     }
 
     public func append(key: ZigString, value: ZigString): Unit {
-        // stub
+        formData.append(key.toString(), value.toString())
     }
 
     public func appendBlob(global: JSGlobalObject, key: ZigString, blob: Blob, filename: ZigString): Unit {
-        // stub
+        let bytes = blob.sharedView()
+        let ct = match (blob.getContentType()) {
+            case Some(s) => s
+            case None => "application/octet-stream"
+        }
+        formData.append(key.toString(), bytes, filename.toString(), ct)
     }
 }
 
@@ -2751,9 +2828,6 @@ public enum DrainResult {
     | EstimatedSize(BlobSizeType)    // 估算大小
     | Owned(ArrayList<UInt8>, BlobSizeType)  // 已有数据
 }
-
-/// UIntPtr 占位
-public type UIntPtr = UIntNative
 
 /// RequestFlags 占位
 public class RequestFlags {

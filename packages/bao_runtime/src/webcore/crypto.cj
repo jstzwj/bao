@@ -108,15 +108,22 @@ public class Crypto {
         }
     }
 
-    /// 字节数组转十六进制字符串
+    /// 字节数组转十六进制字符串（公开接口）
+    /// 对应 Bun: buffer.toString("hex") / fmt.hex()
+    public static func toHexString(bytes: Array<UInt8>): String {
+        return bytesToHex(bytes)
+    }
+
+    /// 字节数组转十六进制字符串（内部实现）
+    /// 对应 Bun: uuid.print() / fmt.hex()
     private static func bytesToHex(bytes: Array<UInt8>): String {
+        let hexChars = "0123456789abcdef"
         var result = ""
         for (b in bytes) {
-            let hex = Int64(b).toString()  // TODO: toHexString()
-            if (hex.size < 2) {
-                result += "0"
-            }
-            result += hex
+            let hi = Int64((b >> 4) & UInt8(0x0F))
+            let lo = Int64(b & UInt8(0x0F))
+            result += hexChars[hi..hi + 1]
+            result += hexChars[lo..lo + 1]
         }
         return result
     }
@@ -134,4 +141,34 @@ public class Crypto {
 
         return JsValue(obj)
     }
+}
+
+/// 获取当前时间戳 (毫秒)
+/// 对应 Bun: std.time.milliTimestamp()
+@C foreign func clock_gettime_crypto(clk_id: Int32, tp: CPointer<Byte>): Int32
+func getCurrentTimeMillis(): Int64 {
+    // CLOCK_REALTIME = 0
+    // struct timespec { tv_sec: i64, tv_nsec: i64 } on 64-bit Linux
+    let buf = Array<Byte>(16, repeat: UInt8(0))
+    let ret = unsafe { clock_gettime_crypto(0, CPointerUtils.fromArray(buf)) }
+    if (ret == 0) {
+        let sec = Int64(buf[0]) |
+            (Int64(buf[1]) << 8) |
+            (Int64(buf[2]) << 16) |
+            (Int64(buf[3]) << 24) |
+            (Int64(buf[4]) << 32) |
+            (Int64(buf[5]) << 40) |
+            (Int64(buf[6]) << 48) |
+            (Int64(buf[7]) << 56)
+        let nsec = Int64(buf[8]) |
+            (Int64(buf[9]) << 8) |
+            (Int64(buf[10]) << 16) |
+            (Int64(buf[11]) << 24) |
+            (Int64(buf[12]) << 32) |
+            (Int64(buf[13]) << 40) |
+            (Int64(buf[14]) << 48) |
+            (Int64(buf[15]) << 56)
+        return sec * 1000 + nsec / 1000000
+    }
+    return Int64(0)
 }

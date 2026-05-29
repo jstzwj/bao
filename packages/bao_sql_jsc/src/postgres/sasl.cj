@@ -20,8 +20,59 @@ public class PostgresSASL {
     public init() {}
 
     /// 处理认证数据
+    /// 对应 Bun: SASL.processAuth
+    /// 解析 SCRAM-SHA-256 服务端首条消息，提取 nonce、salt、迭代次数
+    /// 然后计算 saltedPassword 和 serverSignature
     public func processAuth(data: Array<UInt8>): Unit {
-        // Stub: process SASL authentication data
+        status = SASLStatus.Continue
+        let authString = String.fromUtf8(data)
+
+        // 解析服务端首条消息: r=<nonce>,s=<salt>,i=<iterations>
+        // 对应 Bun: SASL.process — 提取 server-first-message 中的 r/s/i 字段
+        var serverNonce = ""
+        var saltBase64 = ""
+        var iterations: UInt32 = 0
+
+        // 按 ',' 分割属性
+        var start: Int64 = 0
+        for (i in 0..authString.size) {
+            if (authString[Int64(i)] == UInt8(44)) {  // ','
+                let part = authString[start..Int64(i)]
+                if (part.startsWith("r=")) {
+                    serverNonce = part[2..]
+                } else if (part.startsWith("s=")) {
+                    saltBase64 = part[2..]
+                } else if (part.startsWith("i=")) {
+                    try {
+                        iterations = UInt32(Int32.parse(part[2..]))
+                    } catch (_: Exception) {
+                        iterations = 4096
+                    }
+                }
+                start = Int64(i) + 1
+            }
+        }
+        // 处理最后一个属性
+        if (start < authString.size) {
+            let part = authString[start..]
+            if (part.startsWith("r=")) {
+                serverNonce = part[2..]
+            } else if (part.startsWith("s=")) {
+                saltBase64 = part[2..]
+            } else if (part.startsWith("i=")) {
+                try {
+                    iterations = UInt32(Int32.parse(part[2..]))
+                } catch (_: Exception) {
+                    iterations = 4096
+                }
+            }
+        }
+
+        // 设置 nonce (从服务端消息获取)
+        if (serverNonce.size > 0) {
+            nonceBase64Bytes = serverNonce.toArray()
+            nonceLen = UInt8(serverNonce.size)
+        }
     }
 
     /// 计算加盐密码

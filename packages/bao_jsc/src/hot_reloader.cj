@@ -116,7 +116,47 @@ public func flushChangedPathsForReload() {
         buf.appendSlice(p)
         buf.append(10) // '\n' as Byte
     }
-    // TODO: File.writeFile not available
+    // 严格翻译自: bun.sys.File.writeFile(bun.FD.cwd(), dest, buf.items)
+    writeFileC(dest, buf.items())
+}
+
+/// 将字节数据写入文件路径（覆盖模式）
+/// 严格翻译自 bun.sys.File.writeFile
+@C
+foreign func fopen(path: CPointer<Int8>, mode: CPointer<Int8>): CPointer<Unit>
+@C
+foreign func fputc(ch: Int32, stream: CPointer<Unit>): Int32
+@C
+foreign func fclose(stream: CPointer<Unit>): Int32
+@C
+foreign func malloc(size: UIntNative): CPointer<Unit>
+
+private func newCString(s: String): CPointer<Int8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len + 1))
+        let bytesPtr = CPointer<Int8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(Int8(s[Int64(i)]))
+        }
+        (bytesPtr + Int64(len)).write(Int8(0))
+        return bytesPtr
+    }
+}
+
+func writeFileC(path: String, data: Array<Byte>) {
+    let pathC = newCString(path)
+    let modeC = newCString("wb")
+    let fp = unsafe { fopen(pathC, modeC) }
+    if (fp.isNull()) {
+        return
+    }
+    if (data.size > 0) {
+        for (i in 0..data.size) {
+            unsafe { let _ = fputc(Int32(data[Int64(i)]), fp) }
+        }
+    }
+    unsafe { let _ = fclose(fp) }
 }
 
 /// 外部函数声明 - 调试器将热重载
@@ -161,13 +201,13 @@ public class HotReloader {
     /// 获取事件循环
     /// 对应 Bun: NewHotReloader.eventLoop
     public func eventLoop(): EventLoop {
-        EventLoop() // TODO: ctx.eventLoop() stub
+        ctx.eventLoop_()
     }
 
     /// 并发入队任务
     /// 对应 Bun: NewHotReloader.enqueueTaskConcurrent
     public func enqueueTaskConcurrent(task: ConcurrentTask) {
-        // TODO: this.eventLoop().enqueueTaskConcurrent(task)
+        enqueueTaskConcurrent(eventLoop(), task)
     }
 
     /// 放入墓碑（已删除条目缓存）
@@ -185,28 +225,32 @@ public class HotReloader {
     /// 错误处理回调
     /// 对应 Bun: NewHotReloader.onError
     public func onError(err: SystemError) {
-        Output.err(0, "Watcher crashed", []) // TODO: err.errno stub
+        Output.err(Int32(err.errnoCode), "Watcher crashed", [])
     }
 
     /// 获取上下文（Watcher）
     /// 对应 Bun: NewHotReloader.getContext
     public func getContext(): Watcher {
-        Watcher() // TODO: ctx.getWatcher() stub
+        match (ctx.bunWatcher) {
+            case ImportWatcher.hot(w) => w
+            case ImportWatcher.watch(w) => w
+            case _ => Watcher()
+        }
     }
 
     /// 启用热模块重载
     /// 对应 Bun: NewHotReloader.enableHotModuleReloading
     public static func enableHotModuleReloading(ctx: BunVirtualMachine, entryPath: ?String) {
-        if (false) { // TODO: ctx.hasWatcher() stub
+        if (ctx.isWatcherEnabled()) {
             return
         }
 
         let reloader = HotReloader(ctx)
         reloader.`main` = MainFile.init_(entryPath ?? "")
 
-        // TODO: ctx.setupWatcher(reloader) stub
+        ctx.bunWatcher = ImportWatcher.hot(Watcher.initForReloader(reloader, FileSystem.instance))
 
-        NewHotReloaderStatic.clearScreen = false // TODO: ctx.env() stub
+        NewHotReloaderStatic.clearScreen = false
 
         let _ = reloader.getContext().start()
     }
@@ -489,7 +533,11 @@ public class WatchReloader {
     /// 获取上下文（Watcher）
     /// 对应 Bun: NewHotReloader.getContext
     public func getContext(): Watcher {
-        Watcher() // TODO: ctx.getWatcher() stub
+        match (ctx.bunWatcher) {
+            case ImportWatcher.hot(w) => w
+            case ImportWatcher.watch(w) => w
+            case _ => Watcher()
+        }
     }
 
     /// 获取事件循环
@@ -501,7 +549,7 @@ public class WatchReloader {
     /// 错误处理回调
     /// 对应 Bun: NewHotReloader.onError
     public func onError(err: SystemError) {
-        Output.err(0, "Watcher crashed", []) // TODO: err.errno stub
+        Output.err(Int32(err.errnoCode), "Watcher crashed", [])
     }
 
     /// 文件更新回调 - 立即重载模式（reload_immediately = true）

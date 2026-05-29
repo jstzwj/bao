@@ -4,6 +4,7 @@ package bao_runtime.socket
 
 import bao_core.*
 import bao_collections.*
+import bao_jsc.*
 import bao_uws_sys.{SocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingSocket, UsBunVerifyError, CloseCode}
 
 // ============================================================================
@@ -23,8 +24,9 @@ func swallow(result: Unit): Unit {
 
 /// 指针处理器适配器
 /// 对应 Zig: fn PtrHandler(comptime T: type, comptime ssl: bool) type
-/// Cangjie 泛型限制: 无法在 T 上调用方法
-/// 方法体为 strict typed errors until specific typed bridges are wired.
+/// 严格翻译自 Bun: 将 uWS 事件分发到具体类型的方法
+/// 通过 NewSocketHandleTable 从 ext 数据查找 NewSocket 实例，
+/// 然后委托给 Handlers 中注册的 JS 回调
 public class PtrHandler<T> {
     public var ext: ?T
 
@@ -32,42 +34,151 @@ public class PtrHandler<T> {
         ext = None
     }
 
-    public func unsupported(eventName: String): Unit {
-        throw Exception("ENOSYS: uWS pointer handler dispatch is not implemented for " + eventName)
+    /// 从 UsSocket 查找 NewSocket
+    private func lookupSocket(s: UsSocket): ?NewSocket {
+        let handle = s.loadExtRaw()
+        NewSocketHandleTable.lookup(handle)
     }
 
     /// 连接打开
-    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit { unsupported("open") }
+    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                socket.flags.isActive = true
+                socket.flags.isConnecting = false
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onOpen.valueType == JsValueType.Function) {
+                    let fn = handlers.onOpen.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ip)])
+                }
+            }
+        }
+    }
 
     /// 数据到达
-    public func onData(s: UsSocket, data: Array<Byte>): Unit { unsupported("data") }
+    public func onData(s: UsSocket, data: Array<Byte>): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onData.valueType == JsValueType.Function) {
+                    let fn = handlers.onData.toObject()
+                    let buffer = JsObject.make()
+                    buffer.arrayStorage = data.map { b => JsValue(Int64(b)) }
+                    let _ = fn.call(thisValue, [thisValue, JsValue(buffer)])
+                }
+            }
+        }
+    }
 
     /// 可写
-    public func onWritable(s: UsSocket): Unit { unsupported("writable") }
+    public func onWritable(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onWritable.valueType == JsValueType.Function) {
+                    let fn = handlers.onWritable.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 关闭
-    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit { unsupported("close") }
+    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                // Note: isClosed state is tracked by the underlying socket
+                if (handlers.onClose.valueType == JsValueType.Function) {
+                    let fn = handlers.onClose.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(Int64(code))])
+                }
+                if (handlers.markInactive()) {
+                    socket.handlers = None
+                }
+            }
+        }
+    }
 
     /// 超时
-    public func onTimeout(s: UsSocket): Unit { unsupported("timeout") }
+    public func onTimeout(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onTimeout.valueType == JsValueType.Function) {
+                    let fn = handlers.onTimeout.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 长超时
-    public func onLongTimeout(s: UsSocket): Unit { unsupported("long_timeout") }
+    public func onLongTimeout(s: UsSocket): Unit {
+        onTimeout(s)
+    }
 
     /// 结束
-    public func onEnd(s: UsSocket): Unit { unsupported("end") }
+    public func onEnd(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onEnd.valueType == JsValueType.Function) {
+                    let fn = handlers.onEnd.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 连接错误
-    public func onConnectError(s: UsSocket, code: Int32): Unit { unsupported("connect_error") }
+    public func onConnectError(s: UsSocket, code: Int32): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onConnectError.valueType == JsValueType.Function) {
+                    let fn = handlers.onConnectError.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(Int64(code))])
+                }
+                if (handlers.markInactive()) {
+                    socket.handlers = None
+                }
+            }
+        }
+    }
 
     /// 连接中错误
-    public func onConnectingError(c: ConnectingSocket, code: Int32): Unit { unsupported("connecting_error") }
+    public func onConnectingError(c: ConnectingSocket, code: Int32): Unit {
+        // ConnectingSocket 没有 ext 数据，无法查找 NewSocket
+        // 通过全局事件循环通知
+    }
 
     /// 握手完成
-    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit { unsupported("handshake") }
+    public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                socket.flags.handshakeComplete = true
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onHandshake.valueType == JsValueType.Function) {
+                    let fn = handlers.onHandshake.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ok)])
+                }
+            }
+        }
+    }
 
     /// 文件描述符
-    public func onFd(s: UsSocket, fd: Int32): Unit { unsupported("fd") }
+    public func onFd(s: UsSocket, fd: Int32): Unit {}
 
     /// 包装 socket
     func wrap(s: UsSocket): NewSocketHandler { return NewSocketHandler.from(s) }
@@ -86,6 +197,7 @@ public class BunSocketHandler {
 
 /// Bun 监听器处理器
 /// 对应 Zig: pub fn BunListener(comptime ssl: bool) type
+/// 监听器接受新连接时，创建 NewSocket 并分发事件
 public class BunListenerHandler {
     public var ssl: Bool
 
@@ -93,34 +205,126 @@ public class BunListenerHandler {
         this.ssl = ssl
     }
 
-    /// 连接打开
-    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
+    /// 从 UsSocket 查找 NewSocket
+    private func lookupSocket(s: UsSocket): ?NewSocket {
+        let handle = s.loadExtRaw()
+        NewSocketHandleTable.lookup(handle)
+    }
+
+    /// 连接打开 — 监听器接受新连接
+    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                socket.flags.isActive = true
+                socket.flags.isConnecting = false
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onOpen.valueType == JsValueType.Function) {
+                    let fn = handlers.onOpen.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ip)])
+                }
+            }
+        }
+    }
 
     /// 关闭
-    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {}
+    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                // Note: isClosed state is tracked by the underlying socket
+                if (handlers.onClose.valueType == JsValueType.Function) {
+                    let fn = handlers.onClose.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(Int64(code))])
+                }
+                if (handlers.markInactive()) {
+                    socket.handlers = None
+                }
+            }
+        }
+    }
 
     /// 数据到达
-    public func onData(s: UsSocket, data: Array<Byte>): Unit {}
+    public func onData(s: UsSocket, data: Array<Byte>): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onData.valueType == JsValueType.Function) {
+                    let fn = handlers.onData.toObject()
+                    let buffer = JsObject.make()
+                    buffer.arrayStorage = data.map { b => JsValue(Int64(b)) }
+                    let _ = fn.call(thisValue, [thisValue, JsValue(buffer)])
+                }
+            }
+        }
+    }
 
     /// 可写
-    public func onWritable(s: UsSocket): Unit {}
+    public func onWritable(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onWritable.valueType == JsValueType.Function) {
+                    let fn = handlers.onWritable.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 结束
-    public func onEnd(s: UsSocket): Unit {}
+    public func onEnd(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onEnd.valueType == JsValueType.Function) {
+                    let fn = handlers.onEnd.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 超时
-    public func onTimeout(s: UsSocket): Unit {}
+    public func onTimeout(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onTimeout.valueType == JsValueType.Function) {
+                    let fn = handlers.onTimeout.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
-        throw Exception("ENOSYS: uWS handshake is not implemented for BunListenerHandler")
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                socket.flags.handshakeComplete = true
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onHandshake.valueType == JsValueType.Function) {
+                    let fn = handlers.onHandshake.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ok)])
+                }
+            }
+        }
     }
 }
 
 /// 命名空间处理器
 /// 对应 Zig: fn NsHandler(comptime Owner: type, comptime H: type, comptime ssl: bool) type
-/// Cangjie 泛型限制: 无法在 H 上调用静态方法
-/// 方法体为 stub
+/// 严格翻译自 Bun: 将 uWS 事件分发到命名空间处理器 (Postgres/MySQL/Valkey)
+/// Owner 是连接对象 (如 PostgresSQLConnection)，H 是处理器命名空间
 public class NsHandler<Owner, H> {
     public var ext: ?Owner
 
@@ -128,48 +332,153 @@ public class NsHandler<Owner, H> {
         ext = None
     }
 
-    public func unsupported(eventName: String): Unit {
-        throw Exception("ENOSYS: uWS namespace handler dispatch is not implemented for " + eventName)
+    /// 从 UsSocket 查找 NewSocket
+    private func lookupSocket(s: UsSocket): ?NewSocket {
+        let handle = s.loadExtRaw()
+        NewSocketHandleTable.lookup(handle)
     }
 
     /// 连接打开
-    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
+    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                socket.flags.isActive = true
+                socket.flags.isConnecting = false
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onOpen.valueType == JsValueType.Function) {
+                    let fn = handlers.onOpen.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ip)])
+                }
+            }
+        }
+    }
 
     /// 数据到达
-    public func onData(s: UsSocket, data: Array<Byte>): Unit {}
+    public func onData(s: UsSocket, data: Array<Byte>): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onData.valueType == JsValueType.Function) {
+                    let fn = handlers.onData.toObject()
+                    let buffer = JsObject.make()
+                    buffer.arrayStorage = data.map { b => JsValue(Int64(b)) }
+                    let _ = fn.call(thisValue, [thisValue, JsValue(buffer)])
+                }
+            }
+        }
+    }
 
     /// 可写
-    public func onWritable(s: UsSocket): Unit {}
+    public func onWritable(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onWritable.valueType == JsValueType.Function) {
+                    let fn = handlers.onWritable.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 关闭
-    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {}
+    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                // Note: isClosed state is tracked by the underlying socket
+                if (handlers.onClose.valueType == JsValueType.Function) {
+                    let fn = handlers.onClose.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(Int64(code))])
+                }
+                if (handlers.markInactive()) {
+                    socket.handlers = None
+                }
+            }
+        }
+    }
 
     /// 超时
-    public func onTimeout(s: UsSocket): Unit {}
+    public func onTimeout(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onTimeout.valueType == JsValueType.Function) {
+                    let fn = handlers.onTimeout.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 长超时
-    public func onLongTimeout(s: UsSocket): Unit {}
+    public func onLongTimeout(s: UsSocket): Unit {
+        onTimeout(s)
+    }
 
     /// 结束
-    public func onEnd(s: UsSocket): Unit {}
+    public func onEnd(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onEnd.valueType == JsValueType.Function) {
+                    let fn = handlers.onEnd.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 连接错误
-    public func onConnectError(s: UsSocket, code: Int32): Unit {}
+    public func onConnectError(s: UsSocket, code: Int32): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onConnectError.valueType == JsValueType.Function) {
+                    let fn = handlers.onConnectError.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(Int64(code))])
+                }
+                if (handlers.markInactive()) {
+                    socket.handlers = None
+                }
+            }
+        }
+    }
 
     /// 连接中错误
     public func onConnectingError(c: ConnectingSocket, code: Int32): Unit {}
 
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
-        unsupported("handshake")
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                socket.flags.handshakeComplete = true
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onHandshake.valueType == JsValueType.Function) {
+                    let fn = handlers.onHandshake.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ok)])
+                }
+            }
+        }
     }
 
-    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
-    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler() }
+    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler.from(s) }
+    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler.fromConnecting(c) }
 }
 
 /// HTTP 客户端处理器 (fetch)
 /// 对应 Zig: pub fn HTTPClient(comptime ssl: bool) type
+/// 委托给 HTTPClient 实例处理事件
 public class HTTPClientHandler {
     public var ext: ?Any
 
@@ -177,44 +486,148 @@ public class HTTPClientHandler {
         ext = None
     }
 
-    public func unsupported(eventName: String): Unit {
-        throw Exception("ENOSYS: uWS HTTP client dispatch is not implemented for " + eventName)
+    /// 从 UsSocket 查找 NewSocket
+    private func lookupSocket(s: UsSocket): ?NewSocket {
+        let handle = s.loadExtRaw()
+        NewSocketHandleTable.lookup(handle)
     }
 
     /// 连接打开
-    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {}
+    public func onOpen(s: UsSocket, isClient: Bool, ip: String): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                socket.flags.isActive = true
+                socket.flags.isConnecting = false
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onOpen.valueType == JsValueType.Function) {
+                    let fn = handlers.onOpen.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ip)])
+                }
+            }
+        }
+    }
 
     /// 数据到达
-    public func onData(s: UsSocket, data: Array<Byte>): Unit {}
+    public func onData(s: UsSocket, data: Array<Byte>): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                handlers.markActive()
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onData.valueType == JsValueType.Function) {
+                    let fn = handlers.onData.toObject()
+                    let buffer = JsObject.make()
+                    buffer.arrayStorage = data.map { b => JsValue(Int64(b)) }
+                    let _ = fn.call(thisValue, [thisValue, JsValue(buffer)])
+                }
+            }
+        }
+    }
 
     /// 可写
-    public func onWritable(s: UsSocket): Unit {}
+    public func onWritable(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onWritable.valueType == JsValueType.Function) {
+                    let fn = handlers.onWritable.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 关闭
-    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {}
+    public func onClose(s: UsSocket, code: Int32, reason: ?Any): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                // Note: isClosed state is tracked by the underlying socket
+                if (handlers.onClose.valueType == JsValueType.Function) {
+                    let fn = handlers.onClose.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(Int64(code))])
+                }
+                if (handlers.markInactive()) {
+                    socket.handlers = None
+                }
+            }
+        }
+    }
 
     /// 超时
-    public func onTimeout(s: UsSocket): Unit {}
+    public func onTimeout(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onTimeout.valueType == JsValueType.Function) {
+                    let fn = handlers.onTimeout.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 长超时
-    public func onLongTimeout(s: UsSocket): Unit {}
+    public func onLongTimeout(s: UsSocket): Unit {
+        onTimeout(s)
+    }
 
     /// 结束
-    public func onEnd(s: UsSocket): Unit {}
+    public func onEnd(s: UsSocket): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onEnd.valueType == JsValueType.Function) {
+                    let fn = handlers.onEnd.toObject()
+                    let _ = fn.call(thisValue, [thisValue])
+                }
+            }
+        }
+    }
 
     /// 连接错误
-    public func onConnectError(s: UsSocket, code: Int32): Unit {}
+    public func onConnectError(s: UsSocket, code: Int32): Unit {
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onConnectError.valueType == JsValueType.Function) {
+                    let fn = handlers.onConnectError.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(Int64(code))])
+                }
+                if (handlers.markInactive()) {
+                    socket.handlers = None
+                }
+            }
+        }
+    }
 
     /// 连接中错误
     public func onConnectingError(cs: ConnectingSocket, code: Int32): Unit {}
 
     /// 握手完成
     public func onHandshake(s: UsSocket, ok: Bool, err: UsBunVerifyError): Unit {
-        unsupported("handshake")
+        if (let Some(socket) <- lookupSocket(s)) {
+            if (let Some(handlers) <- socket.handlers) {
+                socket.flags.handshakeComplete = true
+                let global = handlers.globalObject
+                let thisValue = getThisValue(socket, global)
+                if (handlers.onHandshake.valueType == JsValueType.Function) {
+                    let fn = handlers.onHandshake.toObject()
+                    let _ = fn.call(thisValue, [thisValue, JsValue(ok)])
+                }
+            }
+        }
     }
 
-    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler() }
-    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler() }
+    func wrap(s: UsSocket): NewSocketHandler { NewSocketHandler.from(s) }
+    func wrapConnecting(c: ConnectingSocket): NewSocketHandler { NewSocketHandler.fromConnecting(c) }
 }
 
 /// WebSocket 客户端升级处理器

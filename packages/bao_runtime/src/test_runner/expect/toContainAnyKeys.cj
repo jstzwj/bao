@@ -2,43 +2,44 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toContainAnyKeys() - 检查对象是否包含任一指定键
 /// 用法: expect(received).toContainAnyKeys(expected)
 public func toContainAnyKeys(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toContainAnyKeys() takes 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toContainAnyKeys() takes 1 argument")
     }
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
     let expected = arguments[0]
     expected.ensureStillAlive()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainAnyKeys", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainAnyKeys", matcherParamsFmt: "<green>expected<r>")
 
     if (!expected.jsType().isArray()) {
-        return globalThis.throwInvalidArgumentType("toContainAnyKeys", argName: "expected", expectedType: "array")
+        return globalThis.throwInvalidArgumentsValue("Expected expected to be a array for 'toContainAnyKeys'.")
     }
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     var pass = false
+    let global = globalThis.globalThis
 
-    let count = expected.getLength(globalThis)
+    let count = expected.getLength(global)
 
     if (value.isObject()) {
         var i: UInt32 = 0
-        while (i < count) {
-            let key = expected.getIndex(globalThis, i)
+        while (i < UInt32(count)) {
+            let key = expected.getIndex(global, i)
 
-            if (value.hasOwnPropertyValue(globalThis: globalThis, key: key)) {
+            if (value.hasOwnProperty(global, key)) {
                 pass = true
                 break
             }
@@ -57,12 +58,12 @@ public func toContainAnyKeys(`this`: Expect, globalThis: JSGlobalObject, callFra
     if (not) {
         let receivedFmt = value.toFmt(formatter)
         let expectedLine = "Expected to not contain: <green>{f}<r>\nReceived: <red>{f}<r>\n"
-        let signature = Expect.getSignature(matcherName: "toContainAnyKeys", args: "<green>expected<r>", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine, args: [expectedFmt, receivedFmt])
+        let signature = Expect.getSignature("toContainAnyKeys", "<green>expected<r>", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine, args: [expectedFmt, receivedFmt])
     }
 
     let expectedLine = "Expected to contain: <green>{f}<r>\n"
     let receivedLine = "Received: <red>{f}<r>\n"
-    let signature = Expect.getSignature(matcherName: "toContainAnyKeys", args: "<green>expected<r>", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
+    let signature = Expect.getSignature("toContainAnyKeys", "<green>expected<r>", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
 }

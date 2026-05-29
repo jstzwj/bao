@@ -16,7 +16,7 @@ import bao_md.*
 
 /// 创建 Markdown 全局对象并注册所有方法
 /// 对应 Bun: MarkdownObject.create()
-public func markdownCreate(globalThis: JsGlobalObject): JsValue {
+public func markdownCreate(globalThis!: JsGlobalObject): JsValue {
     let obj = JsValue.createEmptyObject(globalThis, 4)
     obj.put(globalThis, ZigString.`static`("html"), JsFunction.create(globalThis, "html", markdownRenderToHtml, 1))
     obj.put(globalThis, ZigString.`static`("ansi"), JsFunction.create(globalThis, "ansi", markdownRenderToAnsi, 2))
@@ -32,13 +32,13 @@ public func markdownCreate(globalThis: JsGlobalObject): JsValue {
 
 /// 创建 UTF8 JS 字符串
 /// 对应 Bun: create_utf8_for_js()
-public func createUtf8ForJs(global: JsGlobalObject, utf8: String): JsValue {
+public func createUtf8ForJs(global!: JsGlobalObject, utf8!: String): JsValue {
     return BunString.createUTF8ForJS(global, utf8)
 }
 
 /// 向 JS 数组添加元素
 /// 对应 Bun: js_array_push()
-public func jsArrayPush(arr: JsValue, global: JsGlobalObject, item: JsValue): Unit {
+public func jsArrayPush(arr!: JsValue, global!: JsGlobalObject, item!: JsValue): Unit {
     arr.push(global, item)
 }
 
@@ -50,7 +50,7 @@ public func jsArrayPush(arr: JsValue, global: JsGlobalObject, item: JsValue): Un
 /// 对应 Bun: render_to_ansi()
 /// theme 是可选对象: { colors?, hyperlinks?, kittyGraphics?, light?, columns? }
 /// 默认: colors=true, hyperlinks=false, columns=80
-public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func markdownRenderToAnsi(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let (inputValue, themeValue) = callframe.argumentsAsArray2()
 
     if (inputValue.isEmptyOrUndefinedOrNull()) {
@@ -58,10 +58,12 @@ public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFr
         return JsValue.jsUndefined()
     }
 
-    let buffer = try StringOrBuffer.fromJS(globalThis, inputValue) ?? {
-        globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.jsUndefined()
+    let bufferOpt = StringOrBuffer.fromJS(globalThis, inputValue)
+    if (bufferOpt.isNone()) {
+    globalThis.throwInvalidArguments("Expected a string or buffer to render")
+    return JsValue.jsUndefined()
     }
+    let buffer = bufferOpt.get()
 
     let input = buffer.slice()
 
@@ -75,19 +77,19 @@ public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFr
 
     // 解析主题选项
     if (themeValue.isObject()) {
-        if (let v <- try themeValue.getBooleanLoose(globalThis, "colors")) {
+        if (let v <- themeValue.getBooleanLoose(globalThis, "colors") ) {
             theme.colors = v
         }
-        if (let v <- try themeValue.getBooleanLoose(globalThis, "hyperlinks")) {
+        if (let v <- themeValue.getBooleanLoose(globalThis, "hyperlinks") ) {
             theme.hyperlinks = v
         }
-        if (let v <- try themeValue.getBooleanLoose(globalThis, "kittyGraphics")) {
+        if (let v <- themeValue.getBooleanLoose(globalThis, "kittyGraphics") ) {
             theme.kitty_graphics = v
         }
-        if (let v <- try themeValue.getBooleanLoose(globalThis, "light")) {
+        if (let v <- themeValue.getBooleanLoose(globalThis, "light") ) {
             theme.light = v
         }
-        if (let cols <- try themeValue.get(globalThis, "columns")) {
+        if (let cols <- themeValue.get(globalThis, "columns") ) {
             if (cols.isNumber()) {
                 let n = cols.toInt32()
                 if (n <= 0) {
@@ -100,10 +102,12 @@ public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFr
     }
 
     // 渲染
-    let result = try renderToAnsi(input, Options.terminal(), theme) ?? {
-        globalThis.throwOutOfMemory()
-        return JsValue.jsUndefined()
+    let resultOpt = renderToAnsi(input, Options.terminal() , theme)
+    if (resultOpt.isNone()) {
+    globalThis.throwOutOfMemory()
+    return JsValue.jsUndefined()
     }
+    let result = resultOpt.get()
 
     return createUtf8ForJs(globalThis, result)
 }
@@ -114,7 +118,7 @@ public func markdownRenderToAnsi(globalThis: JsGlobalObject, callframe: JsCallFr
 
 /// 渲染 Markdown 到 HTML 字符串
 /// 对应 Bun: render_to_html()
-public func markdownRenderToHtml(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func markdownRenderToHtml(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let (inputValue, optsValue) = callframe.argumentsAsArray2()
 
     if (inputValue.isEmptyOrUndefinedOrNull()) {
@@ -122,13 +126,15 @@ public func markdownRenderToHtml(globalThis: JsGlobalObject, callframe: JsCallFr
         return JsValue.jsUndefined()
     }
 
-    let buffer = try StringOrBuffer.fromJS(globalThis, inputValue) ?? {
-        globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.jsUndefined()
+    let bufferOpt = StringOrBuffer.fromJS(globalThis, inputValue)
+    if (bufferOpt.isNone()) {
+    globalThis.throwInvalidArguments("Expected a string or buffer to render")
+    return JsValue.jsUndefined()
     }
+    let buffer = bufferOpt.get()
 
     let input = buffer.slice()
-    let options = try markdownParseOptions(globalThis, optsValue)
+    let options = markdownParseOptions(globalThis, optsValue) 
 
     let result = renderToHtmlWithOptions(input, options)
     return createUtf8ForJs(globalThis, result)
@@ -140,40 +146,40 @@ public func markdownRenderToHtml(globalThis: JsGlobalObject, callframe: JsCallFr
 // ============================================================================
 
 /// 解析 Markdown 渲染选项
-public func markdownParseOptions(globalThis: JsGlobalObject, optsValue: JsValue): Options {
+public func markdownParseOptions(globalThis!: JsGlobalObject, optsValue!: JsValue): Options {
     var options = Options()
     if (optsValue.isObject()) {
         // 处理复合 autolinks: true | { url, www, email }
-        if (let autolinksVal <- try optsValue.get(globalThis, "autolinks")) {
+        if (let autolinksVal <- optsValue.get(globalThis, "autolinks") ) {
             if (autolinksVal.isBoolean()) {
                 if (autolinksVal.toBoolean()) {
                     options.permissive_autolinks = true
                 }
             } else if (autolinksVal.isObject()) {
-                if (let v <- try autolinksVal.getBooleanLoose(globalThis, "url")) {
+                if (let v <- autolinksVal.getBooleanLoose(globalThis, "url") ) {
                     options.permissive_url_autolinks = v
                 }
-                if (let v <- try autolinksVal.getBooleanLoose(globalThis, "www")) {
+                if (let v <- autolinksVal.getBooleanLoose(globalThis, "www") ) {
                     options.permissive_www_autolinks = v
                 }
-                if (let v <- try autolinksVal.getBooleanLoose(globalThis, "email")) {
+                if (let v <- autolinksVal.getBooleanLoose(globalThis, "email") ) {
                     options.permissive_email_autolinks = v
                 }
             }
         }
 
         // 处理复合 headings: true | { ids, autolink }
-        if (let headingsVal <- try optsValue.get(globalThis, "headings")) {
+        if (let headingsVal <- optsValue.get(globalThis, "headings") ) {
             if (headingsVal.isBoolean()) {
                 if (headingsVal.toBoolean()) {
                     options.heading_ids = true
                     options.autolink_headings = true
                 }
             } else if (headingsVal.isObject()) {
-                if (let v <- try headingsVal.getBooleanLoose(globalThis, "ids")) {
+                if (let v <- headingsVal.getBooleanLoose(globalThis, "ids") ) {
                     options.heading_ids = v
                 }
-                if (let v <- try headingsVal.getBooleanLoose(globalThis, "autolink")) {
+                if (let v <- headingsVal.getBooleanLoose(globalThis, "autolink") ) {
                     options.autolink_headings = v
                 }
             }
@@ -181,46 +187,46 @@ public func markdownParseOptions(globalThis: JsGlobalObject, optsValue: JsValue)
 
         // 处理其余布尔选项
         // 对应 Bun: Options.BOOL_FIELD_SETTERS 反射循环
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "allowMath")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "allowMath") ) {
             options.latex_math = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "parseSpan")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "parseSpan") ) {
             options.collapse_whitespace = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "wikilinks")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "wikilinks") ) {
             options.wiki_links = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "tasklist")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "tasklist") ) {
             options.tasklists = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "tasklists")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "tasklists") ) {
             options.tasklists = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "strikethrough")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "strikethrough") ) {
             options.strikethrough = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "underline")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "underline") ) {
             options.underline = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "tables")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "tables") ) {
             options.tables = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "hardSoftBreaks")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "hardSoftBreaks") ) {
             options.hard_soft_breaks = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "noIndentedCodeBlocks")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "noIndentedCodeBlocks") ) {
             options.no_indented_code_blocks = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "noHtmlBlocks")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "noHtmlBlocks") ) {
             options.no_html_blocks = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "noHtmlSpans")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "noHtmlSpans") ) {
             options.no_html_spans = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "permissiveAtxHeaders")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "permissiveAtxHeaders") ) {
             options.permissive_atx_headers = v
         }
-        if (let v <- try optsValue.getBooleanLoose(globalThis, "tagFilter")) {
+        if (let v <- optsValue.getBooleanLoose(globalThis, "tagFilter") ) {
             options.tag_filter = v
         }
     }
@@ -235,7 +241,7 @@ public func markdownParseOptions(globalThis: JsGlobalObject, optsValue: JsValue)
 /// 对应 Bun: render()
 /// 每个回调接收累积的子元素字符串和可选元数据对象，返回字符串。
 /// 最终结果是所有回调输出的拼接。
-public func markdownRender(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func markdownRender(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let (inputValue, callbacksValue, optsValue) = callframe.argumentsAsArray3()
 
     if (inputValue.isEmptyOrUndefinedOrNull()) {
@@ -243,27 +249,32 @@ public func markdownRender(globalThis: JsGlobalObject, callframe: JsCallFrame): 
         return JsValue.jsUndefined()
     }
 
-    let buffer = try StringOrBuffer.fromJS(globalThis, inputValue) ?? {
-        globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return JsValue.jsUndefined()
+    let bufferOpt = StringOrBuffer.fromJS(globalThis, inputValue)
+    if (bufferOpt.isNone()) {
+    globalThis.throwInvalidArguments("Expected a string or buffer to render")
+    return JsValue.jsUndefined()
     }
+    let buffer = bufferOpt.get()
 
     let input = buffer.slice()
 
     // 解析选项
-    let options = try markdownParseOptions(globalThis, optsValue)
+    let options = markdownParseOptions(globalThis, optsValue) 
 
     // 创建 JS 回调渲染器
-    var jsRenderer = try JsCallbackRenderer(globalThis, input, options.heading_ids) ?? {
+    var jsRendererOpt = JsCallbackRenderer(globalThis, input, options.heading_ids)
+    if (jsRendererOpt.isNone()) {
         globalThis.throwOutOfMemory()
         return JsValue.jsUndefined()
     }
+    var jsRenderer = jsRendererOpt.get()
 
     // 提取回调
-    try jsRenderer.extractCallbacks(if (callbacksValue.isObject()) callbacksValue else JsValue.jsUndefined())
+    let cbVal = if (callbacksValue.isObject()) { callbacksValue } else { JsValue.jsUndefined() }
+    jsRenderer.extractCallbacks(cbVal)
 
     // 运行解析器
-    try renderWithRenderer(input, options, jsRenderer.renderer())
+    renderWithRenderer(input, options, jsRenderer.renderer() )
 
     // 返回累积结果
     let result = jsRenderer.getResult()
@@ -277,14 +288,14 @@ public func markdownRender(globalThis: JsGlobalObject, callframe: JsCallFrame): 
 /// 渲染 Markdown 为 React Fragment 元素
 /// 对应 Bun: render_react() / render_react_impl()
 /// 返回一个 React Fragment 元素，包含解析后的 Markdown 作为子元素。
-public func markdownRenderReact(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func markdownRenderReact(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     // 获取选项中的 reactVersion
     let args = callframe.argumentsAsArray(3)
     let optsValue = args[2]
 
     var reactVersion: UInt8 = 1 // 默认: react.transitional.element (React 19+)
     if (optsValue.isObject()) {
-        if (let rv <- try optsValue.get(globalThis, "reactVersion")) {
+        if (let rv <- optsValue.get(globalThis, "reactVersion") ) {
             if (rv.isNumber()) {
                 let num = rv.toInt32()
                 if (num <= 18) {
@@ -294,9 +305,11 @@ public func markdownRenderReact(globalThis: JsGlobalObject, callframe: JsCallFra
         }
     }
 
-    let children = try renderAst(globalThis, callframe, reactVersion) ?? {
-        return JsValue.jsUndefined()
+    let childrenOpt = renderAst(globalThis, callframe, reactVersion)
+    if (childrenOpt.isNone()) {
+    return JsValue.jsUndefined()
     }
+    let children = childrenOpt.get()
 
     let fragment = JSReactElement.createFragment(globalThis, reactVersion, children)
     return fragment
@@ -308,7 +321,7 @@ public func markdownRenderReact(globalThis: JsGlobalObject, callframe: JsCallFra
 ///   { type: "tagName", props: { ...metadata, children: [...] } }
 /// 在 React 模式下，每个元素变为有效的 React 元素:
 ///   { $$typeof: Symbol.for('react.element'), type, key, ref, props }
-public func renderAst(globalThis: JsGlobalObject, callframe: JsCallFrame, reactVersion: UInt8): ?JsValue {
+public func renderAst(globalThis!: JsGlobalObject, callframe!: JsCallFrame, reactVersion!: UInt8): ?JsValue {
     let (inputValue, componentsValue, optsValue) = callframe.argumentsAsArray3()
 
     if (inputValue.isEmptyOrUndefinedOrNull()) {
@@ -316,31 +329,35 @@ public func renderAst(globalThis: JsGlobalObject, callframe: JsCallFrame, reactV
         return None
     }
 
-    let buffer = try StringOrBuffer.fromJS(globalThis, inputValue) ?? {
-        globalThis.throwInvalidArguments("Expected a string or buffer to render")
-        return None
+    let bufferOpt = StringOrBuffer.fromJS(globalThis, inputValue)
+    if (bufferOpt.isNone()) {
+    globalThis.throwInvalidArguments("Expected a string or buffer to render")
+    return None
     }
+    let buffer = bufferOpt.get()
 
     let input = buffer.slice()
 
     // 解析选项
-    let options = try markdownParseOptions(globalThis, optsValue)
+    let options = markdownParseOptions(globalThis, optsValue) 
 
-    var renderer = try ParseRenderer(
+    var rendererOpt = ParseRenderer(
         globalThis,
         input,
         options.heading_ids,
         reactVersion,
-    ) ?? {
+    )
+    if (rendererOpt.isNone()) {
         globalThis.throwOutOfMemory()
         return None
     }
+    var renderer = rendererOpt.get()
 
     // 提取组件覆盖
-    try renderer.extractComponents(if (componentsValue.isObject()) componentsValue else JsValue.jsUndefined())
+    renderer.extractComponents(if (componentsValue.isObject() ) { componentsValue } else { JsValue.jsUndefined() })
 
     // 运行解析器
-    try renderWithRenderer(input, options, renderer.renderer())
+    renderWithRenderer(input, options, renderer.renderer() )
 
     return renderer.getResult()
 }
@@ -427,13 +444,13 @@ public enum TagIndex {
 
 /// 获取缓存的标签字符串
 /// 对应 Bun: get_cached_tag_string()
-public func getCachedTagString(JsGlobalObject, tag: TagIndex): JsValue {
+public func getCachedTagString(jsGlobalObject!: JsGlobalObject, tag!: TagIndex): JsValue {
     return BunMarkdownTagStrings.getTagString(globalObject, tag.toUInt8())
 }
 
 /// 从 BlockType 获取标签索引
 /// 对应 Bun: get_block_type_tag()
-public func getBlockTypeTag(blockType: BlockType, data: UInt32): TagIndex {
+public func getBlockTypeTag(blockType!: BlockType, data!: UInt32): TagIndex {
     match (blockType) {
         case BlockType.h =>
             match (data) {
@@ -465,7 +482,7 @@ public func getBlockTypeTag(blockType: BlockType, data: UInt32): TagIndex {
 
 /// 从 SpanType 获取标签索引
 /// 对应 Bun: get_span_type_tag()
-public func getSpanTypeTag(spanType: SpanType): TagIndex {
+public func getSpanTypeTag(spanType!: SpanType): TagIndex {
     match (spanType) {
         case SpanType.em => TagIndex.em
         case SpanType.strong => TagIndex.strong
@@ -483,7 +500,7 @@ public func getSpanTypeTag(spanType: SpanType): TagIndex {
 
 /// 从 src_text 切割代码块语言标记
 /// 对应 Bun: extract_language()
-public func extractLanguage(srcText: String, infoBeg: UInt32): String {
+public func extractLanguage(srcText!: String, infoBeg!: UInt32): String {
     var langEnd = infoBeg
     while (Int64(langEnd) < srcText.size) {
         let c = srcText[Int64(langEnd)]
@@ -549,7 +566,8 @@ public class ParseStackEntry {
     public var flags: UInt32 = 0
     public var detail: SpanDetail = SpanDetail()
 
-    public init() {}
+    public init() {
+    }
 
     public init(children: JsValue, blockType: ?BlockType, data: UInt32, flags: UInt32) {
         this.children = children
@@ -583,7 +601,7 @@ public class ParseRenderer {
 
     /// 初始化渲染器
     /// 对应 Bun: ParseRenderer::init()
-    public static func `init`(JsGlobalObject, srcText: String, headingIds: Bool, reactVersion: UInt8): ?ParseRenderer {
+    public static func `init`(jsGlobalObject!: JsGlobalObject, srcText!: String, headingIds!: Bool, reactVersion!: UInt8): ?ParseRenderer {
         var self_ = ParseRenderer()
         self_.globalObject = globalObject
         self_.stack = ArrayList<ParseStackEntry>()
@@ -594,9 +612,11 @@ public class ParseRenderer {
         self_.reactVersion = reactVersion
 
         // 根条目 — 其 children 数组成为返回值
-        let rootArray = try JsValue.createEmptyArray(globalObject, 0) ?? {
-            return None
+        let rootArrayOpt = JsValue.createEmptyArray(globalObject, 0)
+        if (rootArrayOpt.isNone()) {
+        return None
         }
+        let rootArray = rootArrayOpt.get()
         var rootEntry = ParseStackEntry()
         rootEntry.children = rootArray
         rootEntry.blockType = BlockType.doc
@@ -607,7 +627,7 @@ public class ParseRenderer {
     /// 提取组件覆盖
     /// 对应 Bun: ParseRenderer::extract_components()
     /// 任何非布尔值的 truthy 值（函数、类、字符串等）按 HTML 标签名索引存储
-    public func extractComponents(opts: JsValue): Unit {
+    public func extractComponents(opts!: JsValue): Unit {
         if (opts.isUndefinedOrNull() || !opts.isObject()) {
             return
         }
@@ -617,7 +637,7 @@ public class ParseRenderer {
                         "pre", "hr", "html", "table", "thead", "tbody", "tr", "th", "td", "em",
                         "strong", "a", "img", "code", "del", "math", "u", "br"]
         for (name in tagNames) {
-            if (let val <- try opts.getTruthy(globalObject, name)) {
+            if (let val <- opts.getTruthy(globalObject, name) ) {
                 if (!val.isBoolean()) {
                     setComponentField(name, val)
                 }
@@ -626,7 +646,7 @@ public class ParseRenderer {
     }
 
     /// 设置组件字段值
-    private func setComponentField(name: String, val: JsValue): Unit {
+    private func setComponentField(name!: String, val!: JsValue): Unit {
         match (name) {
             case "h1" => components.h1 = val
             case "h2" => components.h2 = val
@@ -663,7 +683,7 @@ public class ParseRenderer {
 
     /// 获取块级元素组件覆盖
     /// 对应 Bun: ParseRenderer::get_block_component()
-    public func getBlockComponent(blockType: BlockType, data: UInt32): JsValue {
+    public func getBlockComponent(blockType!: BlockType, data!: UInt32): JsValue {
         match (blockType) {
             case BlockType.h =>
                 match (data) {
@@ -695,7 +715,7 @@ public class ParseRenderer {
 
     /// 获取行内元素组件覆盖
     /// 对应 Bun: ParseRenderer::get_span_component()
-    public func getSpanComponent(spanType: SpanType): JsValue {
+    public func getSpanComponent(spanType!: SpanType): JsValue {
         match (spanType) {
             case SpanType.em => components.em
             case SpanType.strong => components.strong
@@ -743,7 +763,7 @@ public class ParseRenderer {
     }
 
     /// 从指针恢复实例
-    public static func fromPtr(ptr: UIntNative): ParseRenderer {
+    public static func fromPtr(ptr!: UIntNative): ParseRenderer {
         // 在仓颉中通过哈希码映射恢复引用
         // 实际实现通过全局注册表
         ParseRendererRegistry.get(ptr)
@@ -761,7 +781,7 @@ public class ParseRenderer {
     /// 创建元素节点
     /// 对应 Bun: ParseRenderer::create_element()
     /// 在 React 模式下使用 C++ 快速路径，在普通模式下创建简单的 { type, props } 对象
-    public func createElement(typeVal: JsValue, props: JsValue): JsValue {
+    public func createElement(typeVal!: JsValue, props!: JsValue): JsValue {
         if (let version <- reactVersion) {
             let obj = JSReactElement.create(globalObject, version, typeVal, props)
             return obj
@@ -779,7 +799,7 @@ public class ParseRenderer {
     // ========================================================================
 
     /// 进入块级元素
-    public func enterBlockImpl(blockType: BlockType, data: UInt32, flags: UInt32): Unit {
+    public func enterBlockImpl(blockType!: BlockType, data!: UInt32, flags!: UInt32): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalThis.throwStackOverflow()
             return
@@ -792,9 +812,11 @@ public class ParseRenderer {
             headingTracker.enterHeading()
         }
 
-        let array = try JsValue.createEmptyArray(globalObject, 0) ?? {
-            return
+        let arrayOpt = JsValue.createEmptyArray(globalObject, 0)
+        if (arrayOpt.isNone()) {
+        return
         }
+        let array = arrayOpt.get()
         var entry = ParseStackEntry()
         entry.children = array
         entry.blockType = blockType
@@ -804,7 +826,7 @@ public class ParseRenderer {
     }
 
     /// 离开块级元素
-    public func leaveBlockImpl(blockType: BlockType, data: UInt32): Unit {
+    public func leaveBlockImpl(blockType!: BlockType, data!: UInt32): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -928,15 +950,17 @@ public class ParseRenderer {
     // ========================================================================
 
     /// 进入行内元素
-    public func enterSpanImpl(spanType: SpanType, detail: SpanDetail): Unit {
+    public func enterSpanImpl(spanType!: SpanType, detail!: SpanDetail): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
         }
 
-        let array = try JsValue.createEmptyArray(globalObject, 0) ?? {
-            return
+        let arrayOpt = JsValue.createEmptyArray(globalObject, 0)
+        if (arrayOpt.isNone()) {
+        return
         }
+        let array = arrayOpt.get()
         var entry = ParseStackEntry()
         entry.children = array
         entry.detail = detail
@@ -944,7 +968,7 @@ public class ParseRenderer {
     }
 
     /// 离开行内元素
-    public func leaveSpanImpl(spanType: SpanType): Unit {
+    public func leaveSpanImpl(spanType!: SpanType): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1009,7 +1033,7 @@ public class ParseRenderer {
             // img 是 void 元素 — 将 children 转换为 alt prop
             let len = entry.children.getLength(g)
             if (len == 1) {
-                let child = try entry.children.getIndex(g, 0) ?? JsValue.jsUndefined()
+                let child = entry.children.getIndex(g, 0)  ?? JsValue.jsUndefined()
                 if (child.isString()) {
                     props.put(g, "alt", child)
                 }
@@ -1017,7 +1041,7 @@ public class ParseRenderer {
                 // 多个子元素 — 拼接字符串部分
                 var altBuf = StringBuilder()
                 for (i in 0..len) {
-                    let child = try entry.children.getIndex(g, UInt32(i)) ?? JsValue.jsUndefined()
+                    let child = entry.children.getIndex(g, UInt32(i) ) ?? JsValue.jsUndefined()
                     if (child.isString()) {
                         let str = child.toSlice(g)
                         altBuf.append(str)
@@ -1047,7 +1071,7 @@ public class ParseRenderer {
     // ========================================================================
 
     /// 处理文本内容
-    public func textImpl(textType: TextType, content: String): Unit {
+    public func textImpl(textType!: TextType, content!: String): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1143,7 +1167,8 @@ public class CallbackStackEntry {
     public var childIndex: UInt32 = 0
     public var detail: SpanDetail = SpanDetail()
 
-    public init() {}
+    public init() {
+    }
 
     public init(blockType: BlockType, data: UInt32, flags: UInt32, childIndex: UInt32) {
         this.blockType = blockType
@@ -1174,7 +1199,7 @@ public class JsCallbackRenderer {
 
     /// 初始化
     /// 对应 Bun: JsCallbackRenderer::init()
-    public static func `init`(JsGlobalObject, srcText: String, headingIds: Bool): ?JsCallbackRenderer {
+    public static func `init`(jsGlobalObject!: JsGlobalObject, srcText!: String, headingIds!: Bool): ?JsCallbackRenderer {
         var self_ = JsCallbackRenderer()
         self_.globalObject = globalObject
         self_.srcText = srcText
@@ -1190,7 +1215,7 @@ public class JsCallbackRenderer {
 
     /// 提取回调函数
     /// 对应 Bun: JsCallbackRenderer::extract_callbacks()
-    public func extractCallbacks(opts: JsValue): Unit {
+    public func extractCallbacks(opts!: JsValue): Unit {
         if (opts.isUndefinedOrNull() || !opts.isObject()) {
             return
         }
@@ -1221,7 +1246,7 @@ public class JsCallbackRenderer {
         ]
 
         for ((fieldName, jsKey) in callbackMap) {
-            if (let val <- try opts.getTruthy(globalObject, jsKey)) {
+            if (let val <- opts.getTruthy(globalObject, jsKey) ) {
                 if (val.isCallable()) {
                     setCallbackField(fieldName, val)
                 }
@@ -1230,7 +1255,7 @@ public class JsCallbackRenderer {
     }
 
     /// 设置回调字段
-    private func setCallbackField(name: String, val: JsValue): Unit {
+    private func setCallbackField(name!: String, val!: JsValue): Unit {
         match (name) {
             case "heading" => callbacks.heading = val
             case "paragraph" => callbacks.paragraph = val
@@ -1288,7 +1313,7 @@ public class JsCallbackRenderer {
     }
 
     /// 从指针恢复实例
-    public static func fromPtr(ptr: UIntNative): JsCallbackRenderer {
+    public static func fromPtr(ptr!: UIntNative): JsCallbackRenderer {
         JsCallbackRendererRegistry.get(ptr)
     }
 
@@ -1299,7 +1324,7 @@ public class JsCallbackRenderer {
 
     /// 追加数据到顶部缓冲区
     /// 对应 Bun: append_to_top()
-    public func appendToTop(data: String): Unit {
+    public func appendToTop(data!: String): Unit {
         if (stack.size() > 0) {
             stack[stack.size() - 1].buffer.append(data)
         }
@@ -1307,7 +1332,7 @@ public class JsCallbackRenderer {
 
     /// 弹出栈顶并调用回调
     /// 对应 Bun: pop_and_callback()
-    public func popAndCallback(callback: JsValue, meta: ?JsValue): Unit {
+    public func popAndCallback(callback!: JsValue, meta!: ?JsValue): Unit {
         if (stack.size() <= 1) {
             return // 不弹出根条目
         }
@@ -1359,7 +1384,7 @@ public class JsCallbackRenderer {
 
     /// 进入块级元素
     /// 对应 Bun: enter_block_impl()
-    public func enterBlockImpl(blockType: BlockType, data: UInt32, flags: UInt32): Unit {
+    public func enterBlockImpl(blockType!: BlockType, data!: UInt32, flags!: UInt32): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1385,7 +1410,7 @@ public class JsCallbackRenderer {
 
     /// 离开块级元素
     /// 对应 Bun: leave_block_impl()
-    public func leaveBlockImpl(blockType: BlockType, data: UInt32): Unit {
+    public func leaveBlockImpl(blockType!: BlockType, data!: UInt32): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1406,7 +1431,7 @@ public class JsCallbackRenderer {
             savedChildIndex = top.childIndex
         }
 
-        let meta = try createBlockMeta(blockType, savedData, savedFlags, savedChildIndex)
+        let meta = createBlockMeta(blockType, savedData, savedFlags, savedChildIndex) 
         popAndCallback(callback, meta)
 
         if (blockType == BlockType.h) {
@@ -1416,7 +1441,7 @@ public class JsCallbackRenderer {
 
     /// 进入行内元素
     /// 对应 Bun: enter_span_impl()
-    public func enterSpanImpl(spanType: SpanType, detail: SpanDetail): Unit {
+    public func enterSpanImpl(spanType!: SpanType, detail!: SpanDetail): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1428,7 +1453,7 @@ public class JsCallbackRenderer {
 
     /// 离开行内元素
     /// 对应 Bun: leave_span_impl()
-    public func leaveSpanImpl(spanType: SpanType): Unit {
+    public func leaveSpanImpl(spanType!: SpanType): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1439,13 +1464,13 @@ public class JsCallbackRenderer {
         if (stack.size() > 1) {
             detail = stack[stack.size() - 1].detail
         }
-        let meta = try createSpanMeta(spanType, detail)
+        let meta = createSpanMeta(spanType, detail) 
         popAndCallback(callback, meta)
     }
 
     /// 处理文本
     /// 对应 Bun: text_impl()
-    public func textImpl(textType: TextType, content: String): Unit {
+    public func textImpl(textType!: TextType, content!: String): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1475,7 +1500,7 @@ public class JsCallbackRenderer {
 
     /// 调用文本回调
     /// 对应 Bun: call_text_callback()
-    public func callTextCallback(content: String): Unit {
+    public func callTextCallback(content!: String): Unit {
         if (!stackCheck.isSafeToRecurse()) {
             globalObject.throwStackOverflow()
             return
@@ -1490,7 +1515,7 @@ public class JsCallbackRenderer {
 
     /// 解码并追加 HTML 实体
     /// 对应 Bun: decode_and_append_entity()
-    public func decodeAndAppendEntity(entityText: String): Unit {
+    public func decodeAndAppendEntity(entityText!: String): Unit {
         if (let decoded <- decodeEntityToUtf8(entityText)) {
             appendTextOrRaw(decoded)
         } else {
@@ -1500,7 +1525,7 @@ public class JsCallbackRenderer {
 
     /// 通过文本回调追加文本（如果已设置），否则直接追加
     /// 对应 Bun: append_text_or_raw()
-    public func appendTextOrRaw(content: String): Unit {
+    public func appendTextOrRaw(content!: String): Unit {
         if (!callbacks.text.isEmpty()) {
             callTextCallback(content)
         } else {
@@ -1515,7 +1540,7 @@ public class JsCallbackRenderer {
 
     /// 获取块级元素的回调函数
     /// 对应 Bun: get_block_callback()
-    public func getBlockCallback(blockType: BlockType): JsValue {
+    public func getBlockCallback(blockType!: BlockType): JsValue {
         match (blockType) {
             case BlockType.h => callbacks.heading
             case BlockType.p => callbacks.paragraph
@@ -1539,7 +1564,7 @@ public class JsCallbackRenderer {
 
     /// 获取行内元素的回调函数
     /// 对应 Bun: get_span_callback()
-    public func getSpanCallback(spanType: SpanType): JsValue {
+    public func getSpanCallback(spanType!: SpanType): JsValue {
         match (spanType) {
             case SpanType.em => callbacks.emphasis
             case SpanType.strong => callbacks.strong
@@ -1583,14 +1608,14 @@ public class JsCallbackRenderer {
         }
         let parent = stack[len - 2]
         if (parent.blockType == BlockType.ul || parent.blockType == BlockType.ol) {
-            return parent
+            return Some(parent)
         }
         return None
     }
 
     /// 创建块级元素的元数据对象
     /// 对应 Bun: create_block_meta()
-    public func createBlockMeta(blockType: BlockType, data: UInt32, flags: UInt32, childIndex: UInt32): ?JsValue {
+    public func createBlockMeta(blockType!: BlockType, data!: UInt32, flags!: UInt32, childIndex!: UInt32): ?JsValue {
         let g = globalObject
         match (blockType) {
             case BlockType.h =>
@@ -1665,7 +1690,7 @@ public class JsCallbackRenderer {
 
     /// 创建行内元素的元数据对象
     /// 对应 Bun: create_span_meta()
-    public func createSpanMeta(spanType: SpanType, detail: SpanDetail): ?JsValue {
+    public func createSpanMeta(spanType!: SpanType, detail!: SpanDetail): ?JsValue {
         let g = globalObject
         match (spanType) {
             case SpanType.a =>
@@ -1698,13 +1723,13 @@ public class JsCallbackRenderer {
 /// 对应 Bun: JSReactElement__create / JSReactElement__createFragment
 public class JSReactElement {
     /// 创建 React 元素
-    public static func create(global: JsGlobalObject, reactVersion: UInt8, elementType: JsValue, props: JsValue): JsValue {
+    public static func create(global!: JsGlobalObject, reactVersion!: UInt8, elementType!: JsValue, props!: JsValue): JsValue {
         // FFI 绑定 — 在 C++ 层使用缓存的 Structure 和 putDirectOffset
         return jsReactElementCreate(global, reactVersion, elementType, props)
     }
 
     /// 创建 React Fragment
-    public static func createFragment(global: JsGlobalObject, reactVersion: UInt8, children: JsValue): JsValue {
+    public static func createFragment(global!: JsGlobalObject, reactVersion!: UInt8, children!: JsValue): JsValue {
         return jsReactElementCreateFragment(global, reactVersion, children)
     }
 }
@@ -1712,7 +1737,7 @@ public class JSReactElement {
 /// Markdown 标签字符串缓存（FFI 绑定）
 /// 对应 Bun: BunMarkdownTagStrings__getTagString
 public class BunMarkdownTagStrings {
-    public static func getTagString(global: JsGlobalObject, index: UInt8): JsValue {
+    public static func getTagString(global!: JsGlobalObject, index!: UInt8): JsValue {
         return bunMarkdownGetTagString(global, index)
     }
 }
@@ -1721,24 +1746,24 @@ public class BunMarkdownTagStrings {
 /// 对应 Bun: BunMarkdownMeta__createListItem / createList / createCell / createLink
 public class BunMarkdownMeta {
     /// 创建列表项元数据
-    public static func createListItem(global: JsGlobalObject, index: UInt32, depth: UInt32,
-                                       ordered: Bool, start: JsValue, checked: JsValue): JsValue {
+    public static func createListItem(global!: JsGlobalObject, index!: UInt32, depth!: UInt32,
+                                       ordered!: Bool, start!: JsValue, checked!: JsValue): JsValue {
         return bunMarkdownCreateListItem(global, index, depth, ordered, start, checked)
     }
 
     /// 创建列表元数据
-    public static func createList(global: JsGlobalObject, ordered: Bool, start: JsValue,
-                                   depth: UInt32): JsValue {
+    public static func createList(global!: JsGlobalObject, ordered!: Bool, start!: JsValue,
+                                   depth!: UInt32): JsValue {
         return bunMarkdownCreateList(global, ordered, start, depth)
     }
 
     /// 创建单元格元数据
-    public static func createCell(global: JsGlobalObject, align: JsValue): JsValue {
+    public static func createCell(global!: JsGlobalObject, align!: JsValue): JsValue {
         return bunMarkdownCreateCell(global, align)
     }
 
     /// 创建链接元数据
-    public static func createLink(global: JsGlobalObject, href: JsValue, title: JsValue): JsValue {
+    public static func createLink(global!: JsGlobalObject, href!: JsValue, title!: JsValue): JsValue {
         return bunMarkdownCreateLink(global, href, title)
     }
 }
@@ -1773,15 +1798,15 @@ public class StackCheck {
 public class ParseRendererRegistry {
     private static var registry: HashMap<UIntNative, ParseRenderer> = HashMap<UIntNative, ParseRenderer>()
 
-    public static func register(ptr: UIntNative, renderer: ParseRenderer): Unit {
+    public static func register(ptr!: UIntNative, renderer!: ParseRenderer): Unit {
         registry.put(ptr, renderer)
     }
 
-    public static func get(ptr: UIntNative): ParseRenderer {
+    public static func `get`(ptr!: UIntNative): ParseRenderer {
         registry.getOrThrow(ptr)
     }
 
-    public static func unregister(ptr: UIntNative): Unit {
+    public static func unregister(ptr!: UIntNative): Unit {
         registry.remove(ptr)
     }
 }
@@ -1790,15 +1815,15 @@ public class ParseRendererRegistry {
 public class JsCallbackRendererRegistry {
     private static var registry: HashMap<UIntNative, JsCallbackRenderer> = HashMap<UIntNative, JsCallbackRenderer>()
 
-    public static func register(ptr: UIntNative, renderer: JsCallbackRenderer): Unit {
+    public static func register(ptr!: UIntNative, renderer!: JsCallbackRenderer): Unit {
         registry.put(ptr, renderer)
     }
 
-    public static func get(ptr: UIntNative): JsCallbackRenderer {
+    public static func `get`(ptr!: UIntNative): JsCallbackRenderer {
         registry.getOrThrow(ptr)
     }
 
-    public static func unregister(ptr: UIntNative): Unit {
+    public static func unregister(ptr!: UIntNative): Unit {
         registry.remove(ptr)
     }
 }
@@ -1808,25 +1833,25 @@ public class JsCallbackRendererRegistry {
 // 对应 Bun: unsafe extern "C" 块
 // ============================================================================
 
-@FFI
-external func jsReactElementCreate(global: JsGlobalObject, reactVersion: UInt8, elementType: JsValue, props: JsValue): JsValue
+@C
+foreign func jsReactElementCreate(global!: JsGlobalObject, reactVersion!: UInt8, elementType!: JsValue, props!: JsValue): JsValue
 
-@FFI
-external func jsReactElementCreateFragment(global: JsGlobalObject, reactVersion: UInt8, children: JsValue): JsValue
+@C
+foreign func jsReactElementCreateFragment(global!: JsGlobalObject, reactVersion!: UInt8, children!: JsValue): JsValue
 
-@FFI
-external func bunMarkdownGetTagString(global: JsGlobalObject, index: UInt8): JsValue
+@C
+foreign func bunMarkdownGetTagString(global!: JsGlobalObject, index!: UInt8): JsValue
 
-@FFI
-external func bunMarkdownCreateListItem(global: JsGlobalObject, index: UInt32, depth: UInt32,
-                                          ordered: Bool, start: JsValue, checked: JsValue): JsValue
+@C
+foreign func bunMarkdownCreateListItem(global!: JsGlobalObject, index!: UInt32, depth!: UInt32,
+                                          ordered!: Bool, start!: JsValue, checked!: JsValue): JsValue
 
-@FFI
-external func bunMarkdownCreateList(global: JsGlobalObject, ordered: Bool, start: JsValue,
-                                      depth: UInt32): JsValue
+@C
+foreign func bunMarkdownCreateList(global!: JsGlobalObject, ordered!: Bool, start!: JsValue,
+                                      depth!: UInt32): JsValue
 
-@FFI
-external func bunMarkdownCreateCell(global: JsGlobalObject, align: JsValue): JsValue
+@C
+foreign func bunMarkdownCreateCell(global!: JsGlobalObject, align!: JsValue): JsValue
 
-@FFI
-external func bunMarkdownCreateLink(global: JsGlobalObject, href: JsValue, title: JsValue): JsValue
+@C
+foreign func bunMarkdownCreateLink(global!: JsGlobalObject, href!: JsValue, title!: JsValue): JsValue

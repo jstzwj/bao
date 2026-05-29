@@ -14,10 +14,17 @@ public class PostgresJsonType {
 
     /// 转换为 JS 值（解析 JSON）
     /// 对应 Bun: json.toJS
+    /// 解析 JSON 字符串并返回 JS 值 (对象/数组/原始类型)
     public static func toJS(globalObject: JscJSGlobalObject,
                              data: Array<UInt8>): JscValue {
         let str = String.fromUtf8(data)
-        // Stub: parseJson not available on JsValue; return string for now
-        return JscValue(str)
+        // 使用 JSC 的 JSON.parse 来解析 JSON 字符串
+        // 对应 Bun: globalObject.prettyPrintJSON(str) / JSC FFI JSONParse
+        // 通过 JSC JSGlobalObject 的 JSON.parse 能力来解析
+        let parsed = globalObject.jsonParse(str)
+        match (parsed) {
+            case Some(value) => return value
+            case None => return JscValue(str)
+        }
     }
 }

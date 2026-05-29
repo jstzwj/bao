@@ -2,36 +2,37 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toContainEqual() - 检查数组是否深度包含期望值
 /// 用法: expect(received).toContainEqual(expected)
 public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toContainEqual() takes 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toContainEqual() takes 1 argument")
     }
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
     let expected = arguments[0]
     expected.ensureStillAlive()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainEqual", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainEqual", matcherParamsFmt: "<green>expected<r>")
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     var pass = false
+    let global = globalThis.globalThis
 
     let valueType = value.jsType()
     let expectedType = expected.jsType()
 
-    if (valueType.isArrayLike()) {
-        var itr = value.arrayIterator(globalThis)
+    if (valueType.isArray()) {
+        var itr = value.arrayIterator(global)
         while (let Some(item) <- itr.next()) {
             if (item.jestDeepEquals(expected, globalThis: globalThis)) {
                 pass = true
@@ -39,32 +40,21 @@ public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame
             }
         }
     } else if (valueType.isStringLike() && expectedType.isStringLike()) {
-        if (expectedType.isStringObjectLike() && valueType.isString()) {
-            pass = false
-        } else {
-            let valueString = value.toSliceOrNull(globalThis: globalThis)
-            // defer { valueString.deinit() }
-            let expectedString = expected.toSliceOrNull(globalThis: globalThis)
-            // defer { expectedString.deinit() }
+        let valueString = value.toSliceOrNull(global)
+        let expectedString = expected.toSliceOrNull(global)
 
-            // jest does not have a `typeof === "string"` check for `toContainEqual`.
-            // it immediately spreads the value into an array.
-            let expectedIter = strings.CodepointIterator(expectedString.slice())
-            var expectedCursor = CodepointIterator.Cursor()
-            _ = expectedIter.next(cursor: expectedCursor)
-
-            pass = if (expectedIter.next(cursor: expectedCursor)) {
-                false
-            } else {
-                strings.indexOf(valueString.slice(), expectedString.slice()).isSome()
-            }
+        if (valueString.isSome() && expectedString.isSome()) {
+            pass = valueString.getOrThrow().contains(expectedString.getOrThrow())
         }
-    } else if (value.isIterable(globalThis)) {
-        var expectedEntry = ExpectedEntry(globalThis: globalThis, expected: expected, pass: pass)
-        value.forEach(globalThis, expectedEntry, { vm, globalObject, entry_, item =>
-            let entry = entry_ as ExpectedEntry
-            if (item.jestDeepEquals(entry.expected, globalObject)) {
-                entry.pass = true
+    } else if (value.isIterable(global)) {
+        var expectedEntry = ExpectedEntry(globalThis, expected, pass)
+        value.forEach(global, expectedEntry, { vm, globalObject, entry_, item =>
+            let entryOpt = entry_ as ExpectedEntry
+            if (entryOpt.isSome()) {
+                let entry = entryOpt.getOrThrow()
+                if (item.jestDeepEquals(entry.expected, globalThis: globalThis)) {
+                    entry.pass = true
+                }
             }
         })
     } else {
@@ -81,14 +71,14 @@ public func toContainEqual(`this`: Expect, globalThis: JSGlobalObject, callFrame
     let expectedFmt = expected.toFmt(formatter)
     if (not) {
         let expectedLine = "Expected to not contain: <green>{f}<r>\n"
-        let signature = Expect.getSignature(matcherName: "toContainEqual", args: "<green>expected<r>", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine, args: [expectedFmt])
+        let signature = Expect.getSignature("toContainEqual", "<green>expected<r>", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine, args: [expectedFmt])
     }
 
     let expectedLine = "Expected to contain: <green>{f}<r>\n"
     let receivedLine = "Received: <red>{f}<r>\n"
-    let signature = Expect.getSignature(matcherName: "toContainEqual", args: "<green>expected<r>", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
+    let signature = Expect.getSignature("toContainEqual", "<green>expected<r>", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
 }
 
 // 用于 forEach 回调的上下文
@@ -96,4 +86,10 @@ private class ExpectedEntry {
     var globalThis: JSGlobalObject
     var expected: JsValue
     var pass: Bool
+
+    public init(globalThis: JSGlobalObject, expected: JsValue, pass: Bool) {
+        this.globalThis = globalThis
+        this.expected = expected
+        this.pass = pass
+    }
 }

@@ -406,7 +406,15 @@ public class CssSelectorList {
         for (sel in selectors) {
             parts.append(sel.toString())
         }
-        return ""
+        // 用逗号连接选择器列表
+        let sb = StringBuilder()
+        var first = true
+        for (part in parts) {
+            if (!first) { sb.append(", ") }
+            first = false
+            sb.append(part)
+        }
+        return sb.toString()
     }
 }
 
@@ -524,6 +532,13 @@ public class CssSelectorParser {
         Some(CssSelectorList())
     }
 
+    /// 解析选择器列表 (静态方法, 带选项)
+    /// 对应 Bun: selectors::parser::parse_selector_list
+    public static func parseList(text: String, options: CssParserOptions): ?CssSelectorList {
+        let parser = CssSelectorParser()
+        parser.parse(text)
+    }
+
     private func parseComplexSelector(): ?CssComplexSelector {
         Some(CssComplexSelector())
     }
@@ -608,7 +623,14 @@ public class CssSelectorSerializer {
         for (sel in list.selectors) {
             parts.append(serializeComplexSelector(sel))
         }
-        return ""
+        let sb = StringBuilder()
+        var first = true
+        for (part in parts) {
+            if (!first) { sb.append(", ") }
+            first = false
+            sb.append(part)
+        }
+        return sb.toString()
     }
 
     /// 序列化复杂选择器
@@ -660,7 +682,14 @@ public class CssSelectorSerializer {
         for (sel in selectors) {
             parts.append(serializeComplexSelector(sel))
         }
-        return ""
+        let sb = StringBuilder()
+        var first = true
+        for (part in parts) {
+            if (!first) { sb.append(", ") }
+            first = false
+            sb.append(part)
+        }
+        return sb.toString()
     }
 }
 

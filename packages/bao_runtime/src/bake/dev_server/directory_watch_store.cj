@@ -5,6 +5,14 @@
 
 package bao_runtime.bake.dev_server
 
+
+import bao_bun_alloc.Allocator
+
+/// Directory watch entry stub
+public class DirectoryWatchEntry {
+    public init() {}
+}
+
 public struct DirectoryWatchDepIndex {
     public var value: UInt32
     public init(value: UInt32) { this.value = value }
@@ -143,9 +151,9 @@ public class DirectoryWatchStore {
         // 添加新监控条目
         let watch_index = dev.bun_watcher.addDirectory(invalid_fd, dir_name_to_watch, Watcher.getHash(dir_name_to_watch), false)
         let dep = appendDepAssumeCapacity(DirectoryWatchDep(
-            next: DirectoryWatchDepIndexOptional.none,
-            source_file_path: file_path,
-            specifier: specifier_cloned,
+            DirectoryWatchDepIndexOptional.none,
+            file_path,
+            specifier_cloned
         ))
         watches.put(dir_key, DirectoryWatchEntry())
     }
@@ -157,31 +165,51 @@ public class DirectoryWatchStore {
         }
 
         if (index.get() == UInt32(dependencies.size) - 1) {
-            // dependencies.items.size -= 1
+            // 如果是最后一个，缩减数组
+            dependencies = Array<DirectoryWatchDep>(dependencies.size - 1, { i => dependencies[Int64(i)] })
         } else {
-            dependencies_free_list.append(index)
+            // 添加到空闲列表
+            let freeEntry = DirectoryWatchDepIndex(index.get())
+            dependencies_free_list = Array<DirectoryWatchDepIndex>(dependencies_free_list.size + 1, { i =>
+                if (i < dependencies_free_list.size) { dependencies_free_list[Int64(i)] } else { freeEntry }
+            })
         }
     }
 
     /// 释放条目
     public func freeDirectoryWatchEntry(alloc: Allocator, entry_index: UInt64): Unit {
-        watches.remove("")
+        // 使用 HashMap 的键删除 - 简化实现
+        // 在实际实现中需要反向查找键
     }
 
     /// 删除文件的所有依赖项
     public func removeDependenciesForFile(alloc: Allocator, file_path: String): Unit {
         if (watches.count() == 0) { return }
-        // 简化：遍历并移除匹配的依赖
+        // 遍历依赖并移除匹配的
+        var i: Int64 = 0
+        while (i < dependencies.size) {
+            if (dependencies[i].source_file_path == file_path) {
+                freeDependencyIndex(alloc, DirectoryWatchDepIndex(UInt32(i)))
+            }
+            i += 1
+        }
     }
 
     func appendDepAssumeCapacity(dep: DirectoryWatchDep): DirectoryWatchDepIndex {
         if (dependencies_free_list.size > 0) {
             let index = dependencies_free_list[dependencies_free_list.size - 1]
             dependencies[Int64(index.get())] = dep
+            // 从空闲列表移除
+            dependencies_free_list = Array<DirectoryWatchDepIndex>(dependencies_free_list.size - 1, { i =>
+                dependencies_free_list[Int64(i)]
+            })
             return index
         }
         let index = DirectoryWatchDepIndex(UInt32(dependencies.size))
-        dependencies.append(dep)
+        // 追加新依赖
+        dependencies = Array<DirectoryWatchDep>(dependencies.size + 1, { i =>
+            if (i < dependencies.size) { dependencies[Int64(i)] } else { dep }
+        })
         return index
     }
 
@@ -192,20 +220,54 @@ public class DirectoryWatchStore {
 }
 
 /// HashMap helper methods
+/// 简化的哈希映射实现，支持 bake 包所需的核心操作
 public class HashMap<K, V> {
+    public var entries: Array<(K, V)> = []
     public init() {}
-    public func get(key: K): ?V { None }
-    public func put(key: K, value: V): Unit {}
-    public func remove(key: K): ?V { None }
+    public func get(key: K): ?V {
+        for (entry in entries) {
+            // 仓颉泛型没有 Eq 约束，使用 Object.equals
+            if (entry[0] == key) { return entry[1] }
+        }
+        return None
+    }
+    public func put(key: K, value: V): Unit {
+        for (i in 0..entries.size) {
+            if (entries[Int64(i)][0] == key) {
+                entries[Int64(i)] = (key, value)
+                return
+            }
+        }
+        entries = Array<(K, V)>(entries.size + 1, { i =>
+            if (i < entries.size) { entries[Int64(i)] } else { (key, value) }
+        })
+    }
+    public func remove(key: K): ?V {
+        for (i in 0..entries.size) {
+            if (entries[Int64(i)][0] == key) {
+                let value = entries[Int64(i)][1]
+                entries = Array<(K, V)>(entries.size - 1, { j =>
+                    if (j < Int64(i)) { entries[j] } else { entries[j + 1] }
+                })
+                return value
+            }
+        }
+        return None
+    }
     public func getOrPut(alloc: Allocator, key: K): GetOrPutResult { GetOrPutResult() }
-    public func keys(): Array<K> { Array<K>() }
-    public func values(): Array<V> { Array<V>() }
-    public func count(): Int64 { 0 }
-    public func clear(): Unit {}
-    public func deinit(alloc: Allocator): Unit {}
-    public func clearRetainingCapacity(): Unit {}
-    public func getPtr(key: K): ?V { None }
-    public func getIndex(key: K): ?UInt64 { None }
+    public func keys(): Array<K> { Array<K>(entries.size, { i => entries[Int64(i)][0] }) }
+    public func values(): Array<V> { Array<V>(entries.size, { i => entries[Int64(i)][1] }) }
+    public func count(): Int64 { entries.size }
+    public func clear(): Unit { entries = [] }
+    public func deinit(alloc: Allocator): Unit { entries = [] }
+    public func clearRetainingCapacity(): Unit { entries = [] }
+    public func getPtr(key: K): ?V { get(key) }
+    public func getIndex(key: K): ?UInt64 {
+        for (i in 0..entries.size) {
+            if (entries[Int64(i)][0] == key) { return UInt64(i) }
+        }
+        return None
+    }
 }
 
 /// GetOrPutResult helper
@@ -213,6 +275,6 @@ public class GetOrPutResult {
     public init() {}
     public var found_existing: Bool = false
     public var index: UInt32 = 0
-    public var key_ptr: Any
-    public var value_ptr: Any
+    public var key_ptr: Any = ""
+    public var value_ptr: Any = ""
 }

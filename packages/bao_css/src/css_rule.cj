@@ -268,6 +268,81 @@ public class CssRule {
     public func toString(): String {
         toCss("")
     }
+
+    /// 压缩规则
+    /// 对应 Bun: Rule.minify
+    /// 遍历所有规则类型并应用压缩优化
+    public func minify(options: CssMinifyOptions): Unit {
+        match (kind) {
+            case CssRuleKind.Style =>
+                match (styleRule) {
+                    case Some(r) => r.declarations.minify(options)
+                    case None => ()
+                }
+            case CssRuleKind.Media =>
+                match (mediaRule) {
+                    case Some(r) =>
+                        for (rule in r.rules.rules) {
+                            rule.minify(options)
+                        }
+                    case None => ()
+                }
+            case CssRuleKind.Keyframes =>
+                match (keyframesRule) {
+                    case Some(r) =>
+                        for (block in r.keyframes) {
+                            block.declarations.minify(options)
+                        }
+                    case None => ()
+                }
+            case CssRuleKind.FontFace =>
+                match (fontFaceRule) {
+                    case Some(r) => r.declarations.minify(options)
+                    case None => ()
+                }
+            case CssRuleKind.Supports =>
+                match (supportsRule) {
+                    case Some(r) =>
+                        for (rule in r.rules.rules) {
+                            rule.minify(options)
+                        }
+                    case None => ()
+                }
+            case CssRuleKind.LayerBlock =>
+                match (layerBlockRule) {
+                    case Some(r) =>
+                        for (rule in r.rules.rules) {
+                            rule.minify(options)
+                        }
+                    case None => ()
+                }
+            case CssRuleKind.Container =>
+                match (containerRule) {
+                    case Some(r) =>
+                        for (rule in r.rules.rules) {
+                            rule.minify(options)
+                        }
+                    case None => ()
+                }
+            case CssRuleKind.Unknown =>
+                match (unknownRule) {
+                    case Some(r) =>
+                        r.declarations.minify(options)
+                        match (r.rules) {
+                            case Some(rl) =>
+                                for (rule in rl.rules) {
+                                    rule.minify(options)
+                                }
+                            case None => ()
+                        }
+                    case None => ()
+                }
+            case CssRuleKind.Page | CssRuleKind.Property =>
+                // Page 和 Property 规则的声明块由各自处理器处理
+                ()
+            case _ => ()
+        }
+    }
 }
 
 // ============================================================================
@@ -475,13 +550,26 @@ public class CssKeyframeBlock {
     /// 声明块
     public var declarations: CssDeclarationBlock
 
+    public init() {
+        this.selectors = ArrayList<String>()
+        this.declarations = CssDeclarationBlock()
+    }
+
     public init(selectors: ArrayList<String>, declarations: CssDeclarationBlock) {
         this.selectors = selectors
         this.declarations = declarations
     }
 
     public func toCss(indent: String): String {
-        let selectorStr = ""
+        // 拼接选择器列表 (逗号分隔)
+        let selBuilder = StringBuilder()
+        var first = true
+        for (sel in selectors) {
+            if (!first) { selBuilder.append(", ") }
+            first = false
+            selBuilder.append(sel)
+        }
+        let selectorStr = selBuilder.toString()
         let sb = StringBuilder()
         sb.append("${indent}${selectorStr} {\n")
         for (decl in declarations.declarations) {

@@ -2,20 +2,20 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeTruthy() - 检查值是否为真值
 /// 用法: expect(received).toBeTruthy()
 public func toBeTruthy(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeTruthy", matcherParamsFmt: "")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeTruthy", matcherParamsFmt: "")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     var pass = false
 
     let truthy = value.toBoolean()
@@ -30,11 +30,11 @@ public func toBeTruthy(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     let valueFmt = value.toFmt(formatter)
     if (not) {
         let receivedLine = "Received: <red>{f}<r>\n"
-        let signature = Expect.getSignature(matcherName: "toBeTruthy", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
+        let signature = Expect.getSignature("toBeTruthy", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
     }
 
     let receivedLine = "Received: <red>{f}<r>\n"
-    let signature = Expect.getSignature(matcherName: "toBeTruthy", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
+    let signature = Expect.getSignature("toBeTruthy", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
 }

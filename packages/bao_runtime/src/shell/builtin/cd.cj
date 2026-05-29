@@ -42,7 +42,41 @@ public class CdCmd {
             return this.writeStderrNonBlocking("too many arguments\n", [])
         }
 
-        // cd with no args or cd ~ - stub: just succeed
+        if (args.size == 0) {
+            // cd with no args: go to HOME directory
+            let homeOpt = SysFFI.getenv("HOME")
+            match (homeOpt) {
+                case Some(home) =>
+                    let rc = SysFFI.chdir(home)
+                    if (rc != 0) {
+                        return this.writeStderrNonBlocking("cd: ${home}: No such file or directory\n", [])
+                    }
+                case None =>
+                    // No HOME, just succeed (same as bash behavior)
+                    ()
+            }
+            return this.bltn().done(ExitCode.exited(0))
+        }
+
+        // cd with one argument
+        let target = args[0]
+        if (target == "~") {
+            let homeOpt = SysFFI.getenv("HOME")
+            match (homeOpt) {
+                case Some(home) =>
+                    let rc = SysFFI.chdir(home)
+                    if (rc != 0) {
+                        return this.writeStderrNonBlocking("cd: ${home}: No such file or directory\n", [])
+                    }
+                case None => ()
+            }
+            return this.bltn().done(ExitCode.exited(0))
+        }
+
+        let rc = SysFFI.chdir(target)
+        if (rc != 0) {
+            return this.writeStderrNonBlocking("cd: ${target}: No such file or directory\n", [])
+        }
         return this.bltn().done(ExitCode.exited(0))
     }
 

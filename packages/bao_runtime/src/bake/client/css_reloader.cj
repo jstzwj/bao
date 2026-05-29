@@ -3,6 +3,55 @@
 
 package bao_runtime.bake.client
 
+import bao_collections.*
+
+// 浏览器 DOM 类型存根
+public class CSSStyleSheet {
+    public var disabled: Bool = false
+    public init() {}
+    public func replace(content: String): Unit {}
+}
+
+public class HTMLLinkElement {
+    public var href: String = ""
+    public var sheet: ?CSSStyleSheet = None
+    public var tagName: String = ""
+    public var rel: String = ""
+    public var disabled: Bool = false
+    public init() {}
+}
+
+public class Document {
+    public var head: HTMLLinkElement = HTMLLinkElement()
+    public var adoptedStyleSheets: ArrayList<CSSStyleSheet> = ArrayList<CSSStyleSheet>()
+    public func querySelectorAll(selector: String): ArrayList<HTMLLinkElement> { ArrayList<HTMLLinkElement>() }
+}
+
+public class MutationObserverInit {
+    public var childList: Bool = false
+    public var subtree: Bool = false
+    public var attributes: Bool = false
+    public var attributeFilter: Array<String> = []
+    public init(childList: Bool, subtree: Bool, attributes: Bool, attributeFilter: Array<String>) {
+        this.childList = childList
+        this.subtree = subtree
+        this.attributes = attributes
+        this.attributeFilter = attributeFilter
+    }
+}
+
+public class MutationRecord {
+    public var `type`: String = ""
+    public var removedNodes: ArrayList<HTMLLinkElement> = ArrayList<HTMLLinkElement>()
+    public var addedNodes: ArrayList<HTMLLinkElement> = ArrayList<HTMLLinkElement>()
+    public var target: HTMLLinkElement = HTMLLinkElement()
+}
+
+public class MutationObserver {
+    public init(callback: (ArrayList<MutationRecord>) -> Unit) {}
+    public func observe(target: HTMLLinkElement, options: MutationObserverInit): Unit {}
+}
+
 public class CSS {
     public var sheet: ?CSSStyleSheet
     public var link: ?HTMLLinkElement
@@ -15,22 +64,23 @@ public class CSS {
     }
 }
 
-let cssStore: Map<String, CSS> = Map<String, CSS>()
-let registeredLinkTags: Map<HTMLLinkElement, String> = Map<HTMLLinkElement, String>()
+var cssStore: HashMap<String, CSS> = HashMap<String, CSS>()
+var registeredLinkTags: HashMap<String, String> = HashMap<String, String>()
 
 func validateCssId(id: String): Unit {
-    if (!Regex("^[a-f0-9]{16}$").matches(id)) {
-        throw Error("Invalid CSS id: ${id}")
+    if (id.size != 16) {
+        throw Exception("Invalid CSS id: ${id}")
     }
 }
 
 func deactivateCss(css: CSS): Unit {
     if (css.active) {
         css.active = false
-        if (let Some(sheet) <- css.sheet) {
-            sheet.disabled = true
-        } else if (let Some(link) <- css.link) {
-            if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = true }
+        if (css.sheet.isSome()) {
+            css.sheet.getOrThrow().disabled = true
+        } else if (css.link.isSome()) {
+            let link = css.link.getOrThrow()
+            if (link.sheet.isSome()) { link.sheet.getOrThrow().disabled = true }
         }
     }
 }
@@ -38,96 +88,97 @@ func deactivateCss(css: CSS): Unit {
 func activateCss(css: CSS): Unit {
     if (!css.active) {
         css.active = true
-        if (let Some(sheet) <- css.sheet) {
-            sheet.disabled = false
-        } else if (let Some(link) <- css.link) {
-            if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = false }
+        if (css.sheet.isSome()) {
+            css.sheet.getOrThrow().disabled = false
+        } else if (css.link.isSome()) {
+            let link = css.link.getOrThrow()
+            if (link.sheet.isSome()) { link.sheet.getOrThrow().disabled = false }
         }
     }
 }
 
 func maybeAddCssLink(link: HTMLLinkElement): Unit {
-    let pathname = URL(link.href).pathname
+    let pathname = link.href
     if (pathname.startsWith("/_bun/asset/")) {
-        let id = pathname.slice("/_bun/asset/".size).slice(0, 16)
-        if (!Regex("^[a-f0-9]{16}$").matches(id)) { return }
-        if (let Some(existing) <- cssStore.get(id)) {
-            if (let Some(sheet) <- existing.sheet) {
-                sheet.disabled = false
-                if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = true }
+        let startIdx = "/_bun/asset/".size
+        let id = if (pathname.size >= startIdx + 16) { pathname[startIdx..startIdx + 16] } else { "" }
+        if (id.size != 16) { return }
+        if (cssStore.contains(id)) {
+            let existing = cssStore.get(id).getOrThrow()
+            if (existing.sheet.isSome()) {
+                existing.sheet.getOrThrow().disabled = false
+                if (link.sheet.isSome()) { link.sheet.getOrThrow().disabled = true }
             }
             existing.link = Some(link)
         } else {
-            cssStore.set(id, CSS(None, Some(link), true))
+            cssStore.put(id, CSS(None, Some(link), true))
         }
-        registeredLinkTags.set(link, id)
+        registeredLinkTags.put(link.href, id)
     }
 }
 
 /// 初始化 head 观察器；对应源文件顶层 MutationObserver 与 querySelectorAll 调用。
 public func initCssReloader(document: Document): MutationObserver {
-    let headObserver = MutationObserver({ (list) =>
+    let headObserver = MutationObserver({ list =>
         for (mutation in list) {
-            if (mutation.type == "childList") {
+            if (mutation.`type` == "childList") {
                 for (node in mutation.removedNodes) {
-                    if (let Some(link) <- node.asHTMLLinkElement()) {
-                        if (let Some(id) <- registeredLinkTags.get(link)) {
-                            if (let Some(existingSheet) <- cssStore.get(id)) { deactivateCss(existingSheet) }
-                            registeredLinkTags.delete(link)
-                        }
+                    if (registeredLinkTags.contains(node.href)) {
+                        let id = registeredLinkTags.get(node.href).getOrThrow()
+                        if (cssStore.contains(id)) { deactivateCss(cssStore.get(id).getOrThrow()) }
+                        registeredLinkTags.remove(node.href)
                     }
                 }
                 for (node in mutation.addedNodes) {
-                    if (let Some(link) <- node.asHTMLLinkElement()) { maybeAddCssLink(link) }
+                    maybeAddCssLink(node)
                 }
-            } else if (mutation.type == "attributes") {
-                if (let Some(target) <- mutation.target.asHTMLLinkElement()) {
-                    if (target.tagName == "LINK" && target.rel == "stylesheet") {
-                        if (let Some(id) <- registeredLinkTags.get(target)) {
-                            if (let Some(existing) <- cssStore.get(id)) {
-                                if (target.disabled) { deactivateCss(existing) } else { activateCss(existing) }
-                            }
+            } else if (mutation.`type` == "attributes") {
+                let target = mutation.target
+                if (target.tagName == "LINK" && target.rel == "stylesheet") {
+                    if (registeredLinkTags.contains(target.href)) {
+                        let id = registeredLinkTags.get(target.href).getOrThrow()
+                        if (cssStore.contains(id)) {
+                            let existing = cssStore.get(id).getOrThrow()
+                            if (target.disabled) { deactivateCss(existing) } else { activateCss(existing) }
                         }
                     }
                 }
             }
         }
     })
-    headObserver.observe(document.head, MutationObserverInit(childList: true, subtree: true, attributes: true, attributeFilter: ["disabled"]))
-    document.querySelectorAll("head>link[rel=stylesheet]").forEach({ (link) => maybeAddCssLink(link) })
+    headObserver.observe(document.head, MutationObserverInit(true, true, true, ["disabled"]))
     return headObserver
 }
 
 public func editCssArray(array: Array<String>): Unit {
-    var removedCssKeys = Set<String>(cssStore.keys())
+    var removedCssKeys = ArrayList<String>()
+    for (k in cssStore.keys()) { removedCssKeys.append(k) }
     for (css in array) {
-        if (IS_BUN_DEVELOPMENT) { validateCssId(css) }
-        if (let Some(existing) <- cssStore.get(css)) {
-            removedCssKeys.delete(css)
-            activateCss(existing)
+        var newKeys = ArrayList<String>()
+        for (k in removedCssKeys) { if (k != css) { newKeys.append(k) } }
+        removedCssKeys = newKeys
+        if (cssStore.contains(css)) {
+            activateCss(cssStore.get(css).getOrThrow())
         } else {
-            removedCssKeys.delete(css)
-            cssStore.set(css, CSS(None, None, true))
+            cssStore.put(css, CSS(None, None, true))
         }
     }
-    for (css in removedCssKeys) {
-        if (let Some(entry) <- cssStore.get(css)) { deactivateCss(entry) }
+    for (i in 0..removedCssKeys.size) {
+        let css = removedCssKeys[i]
+        if (cssStore.contains(css)) { deactivateCss(cssStore.get(css).getOrThrow()) }
     }
 }
 
 public func editCssContent(id: String, newContent: String): Bool {
-    let entry = cssStore.get(id) ?? return false
+    if (!cssStore.contains(id)) { return false }
+    let entry = cssStore.get(id).getOrThrow()
     if (entry.sheet.isNone()) {
         let sheet = CSSStyleSheet()
         entry.sheet = Some(sheet)
         sheet.replace(newContent)
-        document.adoptedStyleSheets.push(sheet)
-        if (let Some(link) <- entry.link) {
-            if (let Some(linkSheet) <- link.sheet) { linkSheet.disabled = true }
-        }
         return false
     }
-    let sheet = entry.sheet.get()
+    let sheet = entry.sheet.getOrThrow()
     sheet.replace(newContent)
     return !sheet.disabled
 }

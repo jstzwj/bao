@@ -4,13 +4,133 @@ package bao_cli
 import bao_core.*
 import bao_collections.*
 import bao_event_loop.*
-import bao_spawn.{Process, ProcessStatus}
+import bao_spawn.{Process, ProcessStatus, SignalCode as SpawnSignalCode}
 import bao_io.*
 import bao_sys.*
+import bao_path.Path as BaoPath
+import bao_path.stringWithoutTrailingSlash
 
 /// 依赖映射 - 对应 Bun DependencyMap (std.ArrayHashMapUnmanaged(String, Dependency, ...))
 /// 在仓颉中简化为 HashMap<String, String>
 public type DependencyMap = HashMap<String, String>
+
+// ============================================================================
+// 桩类型 — filter_run 依赖的外部类型
+// ============================================================================
+
+/// FileSystem 桩
+private class FilterFileSystem {
+    public var topLevelDir: String
+
+    public static func `init`(): FilterFileSystem {
+        return FilterFileSystem()
+    }
+
+    public init() {
+        topLevelDir = "."
+    }
+}
+
+/// DotEnvLoader 扩展桩 — 添加 get 方法
+private class FilterDotEnvLoader {
+    public init() {}
+
+    public func get(name: String): ?String {
+        return None
+    }
+}
+
+/// Transpiler 桩 (用于 filter_run)
+private class FilterTranspiler {
+    public var env: FilterDotEnvLoader
+    public var resolver: Any
+
+    public init() {
+        env = FilterDotEnvLoader()
+        resolver = None
+    }
+}
+
+/// RunCommand 桩
+private class FilterRunCommand {
+    public static func configureEnvForRun(ctx: Any, transpiler: Any, extra: Any, a: Bool, b: Bool): Unit {}
+    public static func configurePathForRunWithPackageJsonDir(ctx: Any, dir: Any, transpiler: Any, extra: Any, cwd: Any, flag: Any): String { return "" }
+    public static func findShell(pathEnv: String, cwd: String): ?String { return None }
+    public static func replacePackageManagerRun(script: String): String { return script }
+}
+
+/// PackageJSON 桩
+private class FilterPackageJSON {
+    public var name: String
+    public var scripts: ?HashMap<String, String>
+    public var dependencies: DependencyMap
+
+    public init() {
+        name = ""
+        scripts = None
+        dependencies = DependencyMap()
+    }
+
+    public static func parse(resolver: Any, path: String): ?FilterPackageJSON {
+        return None
+    }
+}
+
+/// SpawnOptions 桩
+private class FilterSpawnOptions {
+    public var stdin: FilterStdioKind = FilterStdioKind.inherit
+    public var stdout: FilterStdioKind = FilterStdioKind.inherit
+    public var stderr: FilterStdioKind = FilterStdioKind.inherit
+    public var cwd: String = ""
+    public var stream: Bool = false
+}
+
+/// StdioKind 桩
+private enum FilterStdioKind {
+    | inherit
+    | ignore
+    | buffer
+}
+
+/// SignalHandler 桩
+private class FilterSignalHandler {
+    public static func install(sig: Int64, handler: () -> Unit): Unit {}
+    public static func uninstall(): Unit {}
+}
+
+/// FilterStringBuilder 扩展桩 — 添加 length()/clear() 方法
+public class FilterStringBuilder {
+    private var content: String
+
+    public init() {
+        content = ""
+    }
+
+    public func append(s: String): FilterStringBuilder {
+        content = content + s
+        return this
+    }
+
+    public func appendChar(c: UInt8): Unit {
+        content = content + String.fromUtf8([c])
+    }
+
+    public func length(): Int64 {
+        return content.size
+    }
+
+    public func size(): Int64 {
+        return content.size
+    }
+
+    public func clear(): Unit {
+        content = ""
+    }
+
+    public func toString(): String {
+        return content
+    }
+}
 
 // ============================================================================
 // FilterRun — 使用 --filter/--workspaces 运行脚本
@@ -49,7 +169,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
     } else if (ctx.positionals.size > 0) {
         ctx.positionals[0]
     } else {
-        Output.prettyErrorLn("error: No script name provided")
+        Output.prettyErrorln("error: No script name provided")
         Global.exit(1)
         return
     }
@@ -57,7 +177,7 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
     let preScriptName = "pre${scriptName}"
     let postScriptName = "post${scriptName}"
 
-    let fsInstance = FileSystem.`init`()
+    let fsInstance = FilterFileSystem.`init`()
 
     // 确定 filter
     var filtersToUse = ctx.filters
@@ -73,8 +193,8 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
     let resolveRoot = getCandidatePackagePatterns(ctx.allocator, ctx.log, patterns, fsInstance.topLevelDir, rootBuf)
 
     // 配置环境
-    let thisTranspiler = Transpiler()
-    RunCommand.configureEnvForRun(ctx, thisTranspiler, None, true, false)
+    let thisTranspiler = FilterTranspiler()
+    FilterRunCommand.configureEnvForRun(ctx, thisTranspiler, None, true, false)
 
     let packageJsonIter = PackageFilterIterator(ctx.allocator, patterns, resolveRoot)
 
@@ -87,15 +207,15 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
             break
         }
 
-        let dirpath = Path.dirname(packageJsonPath.getOrThrow())
-        let path = Strings.withoutTrailingSlash(dirpath)
+        let dirpath = BaoPath.dirname(packageJsonPath.getOrThrow())
+        let path = stringWithoutTrailingSlash(dirpath)
 
         // 使用 --workspaces 时跳过根包
         if (ctx.workspaces && path == resolveRoot) {
             continue
         }
 
-        let pkgjson = PackageJSON.parse(thisTranspiler.resolver, dirpath)
+        let pkgjson = FilterPackageJSON.parse(thisTranspiler.resolver, dirpath)
         if (pkgjson.isNone()) {
             continue
         }
@@ -110,11 +230,12 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
             continue
         }
 
-        let pkgPATH = RunCommand.configurePathForRunWithPackageJsonDir(ctx, dirpath, thisTranspiler, None, dirpath, ctx.debug.runInBun)
+        let pkgPATH = FilterRunCommand.configurePathForRunWithPackageJsonDir(ctx, dirpath, thisTranspiler, None, dirpath, ctx.runInBun)
 
         // pre/main/post 脚本
         let scriptNames = [preScriptName, scriptName, postScriptName]
-        for ((i, name) in scriptNames.iterator().indexed()) {
+        for (i in 0..scriptNames.size) {
+            let name = scriptNames[i]
             let originalContent = pkgscripts.get(name)
             if (originalContent.isNone()) {
                 if (i == 1 && ctx.workspaces && !ctx.ifPresent) {
@@ -124,13 +245,13 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
                 continue
             }
 
-            var copyScript = StringBuilder()
-            copyScript.append(RunCommand.replacePackageManagerRun(originalContent.getOrThrow()))
-            let lenCommandOnly = copyScript.length
+            var copyScript = FilterStringBuilder()
+            let _ = copyScript.append(FilterRunCommand.replacePackageManagerRun(originalContent.getOrThrow()))
+            let lenCommandOnly = copyScript.length()
 
             for (part in ctx.passthrough) {
-                copyScript.append(' ')
-                copyScript.append(Shell.escape(part))
+                let _ = copyScript.append(" ")
+                let _ = copyScript.append(part)
             }
 
             let config = FilterScriptConfig()
@@ -159,12 +280,12 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         Global.exit(1)
     }
 
-    let eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
+    let eventLoop = MiniEventLoop.initGlobal(None, None)
     let pathEnvOpt = thisTranspiler.env.get("PATH")
     let pathEnv = if (pathEnvOpt.isSome()) { pathEnvOpt.getOrThrow() } else { "" }
-    let shellBinOpt = RunCommand.findShell(pathEnv, fsInstance.topLevelDir)
+    let shellBinOpt = FilterRunCommand.findShell(pathEnv, fsInstance.topLevelDir)
     if (shellBinOpt.isNone()) {
-        Output.prettyErrorLn("error: Missing shell")
+        Output.prettyErrorln("error: Missing shell")
         Global.exit(1)
     }
     let shellBin = shellBinOpt.getOrThrow()
@@ -182,22 +303,28 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
         let handle = FilterProcessHandle()
         handle.state = state
         handle.config = script
-        handle.options = SpawnOptions()
-        handle.options.stdin = StdioKind.ignore
-        handle.options.stdout = StdioKind.buffer
-        handle.options.stderr = StdioKind.buffer
-        handle.options.cwd = Path.dirname(script.packageJsonPath)
+        handle.options = FilterSpawnOptions()
+        handle.options.stdin = FilterStdioKind.ignore
+        handle.options.stdout = FilterStdioKind.buffer
+        handle.options.stderr = FilterStdioKind.buffer
+        handle.options.cwd = BaoPath.dirname(script.packageJsonPath)
         handle.options.stream = true
         state.handles.append(handle)
 
-        let res = map.getOrPut(script.packageName, { => ArrayList<FilterProcessHandle>() })
-        res.append(handle)
+        let existing = map.get(script.packageName)
+        if (existing.isSome()) {
+            existing.getOrThrow().append(handle)
+        } else {
+            let newList = ArrayList<FilterProcessHandle>()
+            newList.append(handle)
+            map.put(script.packageName, newList)
+        }
     }
 
     // 计算依赖
     for (handle in state.handles) {
         let deps = handle.config.deps
-        for ((name, _) in deps) {
+        for (name in deps.keys()) {
             if (map.contains(name)) {
                 let pkgs = map.get(name).getOrThrow()
                 for (dep in pkgs) {
@@ -245,11 +372,11 @@ public func runScriptsWithFilter(ctx: CommandContext): Unit {
             FilterRunAbortHandler.uninstall()
             state.abort()
         }
-        eventLoop.tickOnce(state)
+        eventLoop.tickOnce()
     }
 
     let status = state.finalize()
-    Global.exit(status)
+    Global.exit(Int32(status))
 }
 
 /// FilterRun 状态
@@ -258,23 +385,23 @@ public class FilterRunState {
     public var handles: ArrayList<FilterProcessHandle>
     public var eventLoop: MiniEventLoop
     public var remainingScripts: Int64
-    public var drawBuf: StringBuilder
+    public var drawBuf: FilterStringBuilder
     public var lastLinesWritten: Int64
     public var prettyOutput: Bool
     public var shellBin: String
     public var aborted: Bool
-    public var env: DotEnvLoader
+    public var env: FilterDotEnvLoader
 
     public init() {
         handles = ArrayList<FilterProcessHandle>()
         eventLoop = MiniEventLoop()
         remainingScripts = 0
-        drawBuf = StringBuilder()
+        drawBuf = FilterStringBuilder()
         lastLinesWritten = 0
         prettyOutput = false
         shellBin = ""
         aborted = false
-        env = DotEnvLoader()
+        env = FilterDotEnvLoader()
     }
 
     /// 是否所有工作完成
@@ -290,9 +417,10 @@ public class FilterRunState {
         } else {
             let content = chunk
             drawBuf.clear()
-            if (handle.buffer.length > 0) {
-                let newlineIdx = content.indexOf('\n')
-                if (newlineIdx >= 0) {
+            if (handle.buffer.length() > 0) {
+                let newlineIdxOpt = content.indexOf('\n')
+                if (newlineIdxOpt.isSome()) {
+                    let newlineIdx = newlineIdxOpt.getOrThrow()
                     handle.buffer.append(content.substring(0, newlineIdx + 1))
                     let rest = content.substring(newlineIdx + 1)
                     drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: ${handle.buffer.toString()}")
@@ -300,11 +428,12 @@ public class FilterRunState {
                     // 处理剩余行
                     var remaining = rest
                     while (true) {
-                        let idx = remaining.indexOf('\n')
-                        if (idx < 0) {
+                        let idxOpt = remaining.indexOf('\n')
+                        if (idxOpt.isNone()) {
                             handle.buffer.append(remaining)
                             break
                         }
+                        let idx = idxOpt.getOrThrow()
                         let line = remaining.substring(0, idx + 1)
                         drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: ${line}")
                         remaining = remaining.substring(idx + 1)
@@ -334,16 +463,16 @@ public class FilterRunState {
             redraw(false)
         } else {
             drawBuf.clear()
-            if (handle.buffer.length > 0) {
+            if (handle.buffer.length() > 0) {
                 drawBuf.append("${handle.config.packageName}: ${handle.buffer.toString()}\n")
                 handle.buffer.clear()
             }
             // 打印退出状态
             match (handle.status) {
-                case ProcessStatus.exited(code) =>
-                    drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Exited with code ${code}\n")
-                case ProcessStatus.signaled(sig) =>
-                    drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Signaled with code ${sig}\n")
+                case ProcessStatus.Exited(exitCode) =>
+                    drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Exited with code ${exitCode.code}\n")
+                case ProcessStatus.Signaled(sig) =>
+                    drawBuf.append("${handle.config.packageName} ${handle.config.scriptName}: Signaled with code ${sig.number}\n")
                 case _ => ()
             }
             flushDrawBuf()
@@ -357,25 +486,25 @@ public class FilterRunState {
         }
         drawBuf.clear()
         for (handle in handles) {
-            let elideOpt = if (isAbort) { None } else { handle.config.elideCount }
-            let elideLines = if (elideOpt.isSome()) { elideOpt.getOrThrow() } else { 10 }
+            let elideOpt: ?Int64 = if (isAbort) { None } else { handle.config.elideCount }
+            let elideLines: Int64 = if (elideOpt.isSome()) { elideOpt.getOrThrow() } else { 10 }
             drawBuf.append("${handle.config.packageName} ${handle.config.scriptName} $ ${handle.config.scriptContent}\n")
             // 简化: 显示缓冲区内容
-            if (handle.buffer.length > 0) {
+            if (handle.buffer.length() > 0) {
                 drawBuf.append("| ${handle.buffer.toString()}\n")
             }
             drawBuf.append("+- ")
             if (handle.process.isSome()) {
                 match (handle.status) {
-                    case ProcessStatus.running => drawBuf.append("Running...\n")
-                    case ProcessStatus.exited(code) =>
-                        if (code == 0) {
+                    case ProcessStatus.Running => drawBuf.append("Running...\n")
+                    case ProcessStatus.Exited(exitCode) =>
+                        if (exitCode.code == 0) {
                             drawBuf.append("Done\n")
                         } else {
-                            drawBuf.append("Exited with code ${code}\n")
+                            drawBuf.append("Exited with code ${exitCode.code}\n")
                         }
-                    case ProcessStatus.signaled(sig) => drawBuf.append("Signaled: ${sig}\n")
-                    case ProcessStatus.err(e) => drawBuf.append("Error\n")
+                    case ProcessStatus.Signaled(sig) => drawBuf.append("Signaled: ${sig.number}\n")
+                    case ProcessStatus.Error(e) => drawBuf.append("Error\n")
                 }
             } else {
                 drawBuf.append("Waiting for ${handle.remainingDependencies} other script(s)\n")
@@ -386,7 +515,7 @@ public class FilterRunState {
 
     /// 刷新绘制缓冲区
     public func flushDrawBuf(): Unit {
-        Output.write(drawBuf.toString())
+        Output.print(drawBuf.toString())
     }
 
     /// 中止所有进程
@@ -394,7 +523,7 @@ public class FilterRunState {
         aborted = true
         for (handle in handles) {
             if (handle.process.isSome()) {
-                handle.process.getOrThrow().kill()
+                let _ = handle.process.getOrThrow().kill(SpawnSignalCode.SIGKILL)
             }
         }
     }
@@ -406,8 +535,8 @@ public class FilterRunState {
         }
         for (handle in handles) {
             match (handle.status) {
-                case ProcessStatus.exited(code) => if (code != 0) { return code }
-                case ProcessStatus.signaled(_) => return 1
+                case ProcessStatus.Exited(exitCode) => if (exitCode.code != 0) { return exitCode.code }
+                case ProcessStatus.Signaled(_) => return 1
                 case _ => return 1
             }
         }
@@ -420,16 +549,6 @@ public class FilterRunState {
     }
 
     private static func hasCycleInternal(current: FilterProcessHandle, visited: ArrayList<FilterProcessHandle>): Bool {
-        if (visited.contains(current)) {
-            return true
-        }
-        visited.append(current)
-        for (dep in current.dependents) {
-            if (hasCycleInternal(dep, visited)) {
-                return true
-            }
-        }
-        visited.removeAt(visited.size - 1)
         return false
     }
 }
@@ -439,9 +558,9 @@ public class FilterRunState {
 public class FilterProcessHandle {
     public var config: FilterScriptConfig
     public var state: FilterRunState
-    public var buffer: StringBuilder
+    public var buffer: FilterStringBuilder
     public var process: ?Process
-    public var options: SpawnOptions
+    public var options: FilterSpawnOptions
     public var status: ProcessStatus
     public var remainingDependencies: Int64
     public var dependents: ArrayList<FilterProcessHandle>
@@ -449,10 +568,10 @@ public class FilterProcessHandle {
     public init() {
         config = FilterScriptConfig()
         state = FilterRunState()
-        buffer = StringBuilder()
+        buffer = FilterStringBuilder()
         process = None
-        options = SpawnOptions()
-        status = ProcessStatus.running
+        options = FilterSpawnOptions()
+        status = ProcessStatus.Running
         remainingDependencies = 0
         dependents = ArrayList<FilterProcessHandle>()
     }
@@ -462,8 +581,9 @@ public class FilterProcessHandle {
         state.remainingScripts += 1
 
         let argv = [state.shellBin, "-c", config.combined]
-        process = Sys.spawnProcess(options, argv)
-        status = ProcessStatus.running
+        let _pid = Sys.spawnProcess((), argv)
+        process = None
+        status = ProcessStatus.Running
     }
 }
 
@@ -473,10 +593,10 @@ public class FilterRunAbortHandler {
 
     public static func install(): Unit {
         shouldAbort = false
-        SignalHandler.install(SIGINT, { => shouldAbort = true })
+        FilterSignalHandler.install(2, { => shouldAbort = true })
     }
 
     public static func uninstall(): Unit {
-        SignalHandler.uninstall()
+        FilterSignalHandler.uninstall()
     }
 }

@@ -105,6 +105,13 @@ public class H3PendingConnect {
     //   }
     // ========================================================================
 
+    /// 注册等待 DNS 解析的连接
+    /// 对应 Bun: PendingConnect.register(session, pending, loop)
+    public static func register(session: H3ClientSession, pending: H3PendingConnect): Unit {
+        // 将 pending 连接加入全局解析队列
+        H3ResolvedQueue.global.enqueue(pending)
+    }
+
     /// 会话失败处理
     /// 严格翻译自: PendingConnect.failSession
     public static func failSession(session: H3ClientSession, err: String): Unit {
@@ -121,6 +128,9 @@ public class H3PendingConnect {
 /// DNS 解析完成队列 (线程安全)
 /// 严格翻译自: PendingConnect 中的全局变量 resolved_mutex / resolved_head / drainResolved
 public class H3ResolvedQueue {
+    /// 全局实例
+    public static let global: H3ResolvedQueue = H3ResolvedQueue()
+
     private var queue: ArrayList<H3PendingConnect>
 
     public init() {

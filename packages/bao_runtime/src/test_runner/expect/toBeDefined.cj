@@ -2,20 +2,20 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeDefined() - 检查值是否已定义（非undefined）
 /// 用法: expect(received).toBeDefined()
 public func toBeDefined(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeDefined", matcherParamsFmt: "")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeDefined", matcherParamsFmt: "")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     var pass = !value.isUndefined()
     if (not) { pass = !pass }
     if (pass) { return JsValue.jsUndefined() }
@@ -26,11 +26,11 @@ public func toBeDefined(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     let valueFmt = value.toFmt(formatter)
     if (not) {
         let receivedLine = "Received: <red>{f}<r>\n"
-        let signature = Expect.getSignature(matcherName: "toBeDefined", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
+        let signature = Expect.getSignature("toBeDefined", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
     }
 
     let receivedLine = "Received: <red>{f}<r>\n"
-    let signature = Expect.getSignature(matcherName: "toBeDefined", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
+    let signature = Expect.getSignature("toBeDefined", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + receivedLine, args: [valueFmt])
 }

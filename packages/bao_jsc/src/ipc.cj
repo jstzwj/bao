@@ -592,19 +592,25 @@ public class IPCAdvanced {
     // 严格翻译自 advanced.serialize
     // 序列化 JSValue 为 IPC 消息
     public static func serialize(writer: StreamBuffer, global: JsObject, value: JsValue, isInternal: Bool): Int64 {
-        // 序列化值
+        // 序列化值 (使用 JSC 的 SerializedScriptValue 格式)
+        let serializedOpt = value.serialize(global, true, false)
         var dataSize: Int64 = 0
         var serializedBytes: Array<UInt8> = []
-        // TODO: value.serialize stub
-        // match (value.serialize(global, true, false)) {
-        //     case Some(sv) =>
-        //         serializedBytes = sv.data
-        //         dataSize = Int64(serializedBytes.size)
-        //     case None => ()
-        // }
+
+        match (serializedOpt) {
+            case Some(sv) =>
+                serializedBytes = sv.data
+                dataSize = Int64(serializedBytes.size)
+            case None =>
+                // 序列化失败: 写入空消息体
+                dataSize = 0
+        }
 
         // 写入 header + body
         let payloadLength = HEADER_LENGTH + dataSize
+
+        // 确保写入缓冲区有足够容量
+        writer.ensureUnusedCapacity(payloadLength)
 
         // 写入消息类型
         let msgType = if (isInternal) {
@@ -854,7 +860,7 @@ public class IPCHandle {
 
     public init(fd: Int64, js: JsValue) {
         this.fd = fd
-        this.jsValue = jsValue
+        this.jsValue = js
     }
 
     // 严格翻译自 Handle.init
@@ -915,7 +921,17 @@ public class IPCCallbackList {
                 callback.callNextTick(global, JsValue.null())
                 tag = CallbackListTag.None
             case CallbackListTag.CallbackArray=>
-                // TODO: iterate callback array
+                // 严格翻译自 CallbackList.callNextTick (callback_array 分支)
+                // 遍历回调数组中的每个回调并调用
+                if (callbackArray.isArray()) {
+                    let arrLen = callbackArray.getLength(global)
+                    var i: UInt64 = 0
+                    while (i < arrLen) {
+                        let item = callbackArray.getIndex(global, UInt32(i))
+                        item.callNextTick(global, JsValue.null())
+                        i += 1
+                    }
+                }
                 tag = CallbackListTag.None
         }
     }
@@ -1753,13 +1769,12 @@ public class VersionPacket {
 
     // 序列化为字节
     public func toBytes(): Array<UInt8> {
-        let result = Array<UInt8>(5, {_ => 0})
-        result[0] = messageType.value()
-        // Little-endian u32
-        result[1] = UInt8(version & 0xFF)
-        result[2] = UInt8((version >> 8) & 0xFF)
-        result[3] = UInt8((version >> 16) & 0xFF)
-        result[4] = UInt8((version >> 24) & 0xFF)
-        result
+        // 使用字面量数组构造，避免 Array 值类型赋值问题
+        let b0 = messageType.value()
+        let b1 = UInt8(version & 0xFF)
+        let b2 = UInt8((version >> 8) & 0xFF)
+        let b3 = UInt8((version >> 16) & 0xFF)
+        let b4 = UInt8((version >> 24) & 0xFF)
+        [b0, b1, b2, b3, b4]
     }
 }

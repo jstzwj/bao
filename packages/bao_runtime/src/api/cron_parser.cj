@@ -50,7 +50,7 @@ public class CronExpression {
         months: UInt16,
         weekdays: UInt8,
         daysIsWildcard: Bool,
-        weekdaysIsWildcard: Bool,
+        weekdaysIsWildcard: Bool
     ) {
         this.minutes = minutes
         this.hours = hours
@@ -62,45 +62,15 @@ public class CronExpression {
     }
 
     // ========================================================================
-    // 错误定义
+    // 错误定义 (moved to top-level: CronExpressionError)
     // ========================================================================
-
-    public enum Error {
-        | invalidField
-        | invalidStep
-        | invalidRange
-        | invalidNumber
-        | tooManyFields
-        | tooFewFields
-
-        public func errorMessage(): String {
-            match (this) {
-                case tooFewFields =>
-                    "Invalid cron expression: expected 5 space-separated fields (minute hour day month weekday)"
-                case tooManyFields =>
-                    "Invalid cron expression: too many fields. Bun.cron uses 5 fields (minute hour day month weekday) \u{2014} seconds are not supported"
-                case invalidStep =>
-                    "Invalid cron expression: step value must be a positive integer"
-                case invalidRange =>
-                    "Invalid cron expression: range must be ascending (use 'a,b' or 'a-max,0-b' for wrap-around)"
-                case invalidNumber =>
-                    "Invalid cron expression: value out of range for field"
-                case invalidField =>
-                    "Invalid cron expression: unrecognized field syntax"
-            }
-        }
-
-        public func errorMessageBytes(): Array<UInt8> {
-            return errorMessage().toUtf8().toArray()
-        }
-    }
 
     // ========================================================================
     // 解析
     // ========================================================================
 
     /// 解析 5 字段 cron 表达式或预定义昵称为 CronExpression
-    public static func parse(input: Array<UInt8>): CronExpression {
+    public static func parse(input!: Array<UInt8>): CronExpression {
         let expr = Strings.trim(input, [' ', '\t'])
 
         // 检查预定义昵称
@@ -108,7 +78,7 @@ public class CronExpression {
             if (let result <- parseNickname(expr)) {
                 return result
             }
-            throw Error.invalidField
+            throw CronExpressionError.invalidField
         }
 
         var count: Int = 0
@@ -127,7 +97,7 @@ public class CronExpression {
                 i++
             }
             if (count >= 5) {
-                throw Error.tooManyFields
+                throw CronExpressionError.tooManyFields
             }
             var field = Array<UInt8>()
             for (j in start..i) {
@@ -138,7 +108,7 @@ public class CronExpression {
         }
 
         if (count != 5) {
-            throw Error.tooFewFields
+            throw CronExpressionError.tooFewFields
         }
 
         return CronExpression(
@@ -153,12 +123,12 @@ public class CronExpression {
     }
 
     /// 解析字符串版本
-    public static func parse(input: String): CronExpression {
+    public static func parse(input!: String): CronExpression {
         return parse(input.toUtf8().toArray())
     }
 
     /// 验证 cron 表达式字符串 (不分配)
-    public static func validate(expr: Array<UInt8>): Bool {
+    public static func validate(expr!: Array<UInt8>): Bool {
         try {
             _ = parse(expr)
             return true
@@ -168,7 +138,7 @@ public class CronExpression {
     }
 
     /// 验证 cron 表达式字符串
-    public static func validate(expr: String): Bool {
+    public static func validate(expr!: String): Bool {
         return validate(expr.toUtf8().toArray())
     }
 
@@ -178,7 +148,7 @@ public class CronExpression {
 
     /// 将表达式格式化为标准化的数字 "M H D Mo W" 字符串
     /// 适合 crontab 使用. 返回写入 buf 的切片
-    public func formatNumeric(buf: Array<UInt8>): Array<UInt8> {
+    public func formatNumeric(buf!: Array<UInt8>): Array<UInt8> {
         formatBitfield64(buf, minutes, 0, 59)
         buf.append(UInt8(' '))
         formatBitfield32(buf, hours, 0, 23)
@@ -204,7 +174,7 @@ public class CronExpression {
 
     /// 计算匹配此表达式的下一个 UTC 时间 (毫秒时间戳)
     /// 严格在 fromMs 之后. 在 8 年内未找到匹配则返回 none
-    public func next(JsGlobalObject, fromMs: Float64): ?Float64 {
+    public func next(jsGlobalObject!: JsGlobalObject, fromMs!: Float64): ?Float64 {
         var dt = globalObject.msToGregorianDateTimeUTC(fromMs)
         let startYear = dt.year
         dt.minute += 1
@@ -228,10 +198,11 @@ public class CronExpression {
             // 否则 `*` 字段匹配所有
             let dayOk = bitSet32(days, UInt32(dt.day))
             let weekdayOk = bitSet8(weekdays, UInt8(dt.weekday))
-            let dayMatch = if (!daysIsWildcard && !weekdaysIsWildcard)
+            let dayMatch = if (!daysIsWildcard && !weekdaysIsWildcard) {
                 dayOk || weekdayOk
-            else
+            } else {
                 dayOk && weekdayOk
+            }
 
             if (!dayMatch) {
                 dt.day += 1
@@ -261,23 +232,18 @@ public class CronExpression {
     // 字段解析
     // ========================================================================
 
-    /// 名称种类
-    public enum NameKind {
-        | none
-        | weekday
-        | month
-    }
+    /// 名称种类 (moved to top-level: NameKind)
 
     /// 解析单个 cron 字段 (64位位集)
-    public static func parseField64(field: Array<UInt8>, min: UInt8, max: UInt8, kind: NameKind): UInt64 {
-        if (field.isEmpty) { throw Error.invalidField }
+    public static func parseField64(field!: Array<UInt8>, min!: UInt8, max!: UInt8, kind!: NameKind): UInt64 {
+        if (field.isEmpty) { throw CronExpressionError.invalidField }
         var result: UInt64 = 0
 
         // 按 ',' 分割
         var partStart: Int = 0
         for (i in 0..field.size + 1) {
             if (i == field.size || field[i] == UInt8(',')) {
-                if (i == partStart) { throw Error.invalidField }
+                if (i == partStart) { throw CronExpressionError.invalidField }
 
                 var part = Array<UInt8>()
                 for (j in partStart..i) {
@@ -304,17 +270,17 @@ public class CronExpression {
                         }
                     }
                 }
-                if (slashCount > 1) { throw Error.invalidStep }
+                if (slashCount > 1) { throw CronExpressionError.invalidStep }
 
                 let step: UInt8 = if (let s <- stepStr) {
-                    if (s.isEmpty) { throw Error.invalidStep }
+                    if (s.isEmpty) { throw CronExpressionError.invalidStep }
                     let parsed = parseDecimal8(s)
-                    if (parsed == none) { throw Error.invalidStep }
+                    if (parsed == none) { throw CronExpressionError.invalidStep }
                     parsed.get()
                 } else {
                     1
                 }
-                if (step == 0) { throw Error.invalidStep }
+                if (step == 0) { throw CronExpressionError.invalidStep }
 
                 var rangeMin: UInt8 = 0
                 var rangeMax: UInt8 = 0
@@ -324,15 +290,15 @@ public class CronExpression {
                     rangeMax = max
                 } else if (let rangeParts <- splitRange(basePart)) {
                     let lo = parseValue(rangeParts[0], min, max, kind)
-                    if (lo == none) { throw Error.invalidNumber }
+                    if (lo == none) { throw CronExpressionError.invalidNumber }
                     let hi = parseValue(rangeParts[1], min, max, kind)
-                    if (hi == none) { throw Error.invalidNumber }
-                    if (lo.get() > hi.get()) { throw Error.invalidRange }
+                    if (hi == none) { throw CronExpressionError.invalidNumber }
+                    if (lo.get() > hi.get()) { throw CronExpressionError.invalidRange }
                     rangeMin = lo.get()
                     rangeMax = hi.get()
                 } else {
                     let lo = parseValue(basePart, min, max, kind)
-                    if (lo == none) { throw Error.invalidNumber }
+                    if (lo == none) { throw CronExpressionError.invalidNumber }
                     rangeMin = lo.get()
                     rangeMax = if (stepStr != none) { max } else { lo.get() }
                 }
@@ -359,22 +325,22 @@ public class CronExpression {
     }
 
     /// 解析单个 cron 字段 (32位位集)
-    public static func parseField32(field: Array<UInt8>, min: UInt8, max: UInt8, kind: NameKind): UInt32 {
+    public static func parseField32(field!: Array<UInt8>, min!: UInt8, max!: UInt8, kind!: NameKind): UInt32 {
         return UInt32(parseField64(field, min, max, kind) & 0xFFFFFFFF)
     }
 
     /// 解析单个 cron 字段 (16位位集)
-    public static func parseField16(field: Array<UInt8>, min: UInt8, max: UInt8, kind: NameKind): UInt16 {
+    public static func parseField16(field!: Array<UInt8>, min!: UInt8, max!: UInt8, kind!: NameKind): UInt16 {
         return UInt16(parseField64(field, min, max, kind) & 0xFFFF)
     }
 
     /// 解析单个 cron 字段 (8位位集)
-    public static func parseField8(field: Array<UInt8>, min: UInt8, max: UInt8, kind: NameKind): UInt8 {
+    public static func parseField8(field!: Array<UInt8>, min!: UInt8, max!: UInt8, kind!: NameKind): UInt8 {
         return UInt8(parseField64(field, min, max, kind) & 0xFF)
     }
 
     /// 在 '-' 上分割范围表达式, 如果不是范围则返回 none
-    public static func splitRange(base: Array<UInt8>): ?(Array<UInt8>, Array<UInt8>) {
+    public static func splitRange(base!: Array<UInt8>): ?(Array<UInt8>, Array<UInt8>) {
         var idx: ?Int = none
         for (i in 0..base.size) {
             if (base[i] == UInt8('-')) {
@@ -403,7 +369,7 @@ public class CronExpression {
     }
 
     /// 解析单个值 (数字或名称), 验证范围
-    public static func parseValue(str: Array<UInt8>, min: UInt8, max: UInt8, kind: NameKind): ?UInt8 {
+    public static func parseValue(str!: Array<UInt8>, min!: UInt8, max!: UInt8, kind!: NameKind): ?UInt8 {
         // 先尝试命名值查找 (不区分大小写)
         match (kind) {
             case weekday =>
@@ -424,7 +390,7 @@ public class CronExpression {
     // ========================================================================
 
     /// 解析预定义昵称
-    public static func parseNickname(expr: Array<UInt8>): ?CronExpression {
+    public static func parseNickname(expr!: Array<UInt8>): ?CronExpression {
         if (eqlCaseInsensitiveASCII(expr, "@yearly") || eqlCaseInsensitiveASCII(expr, "@annually")) {
             return CronExpression(
                 minutes: 1,
@@ -488,28 +454,28 @@ public class CronExpression {
     // ========================================================================
 
     /// 检查位集中特定位是否设置 (64位)
-    public static func bitSet64(set: UInt64, pos: UInt64): Bool {
+    public static func bitSet64(set!: UInt64, pos!: UInt64): Bool {
         return (set >> pos) & 1 != 0
     }
 
     /// 检查位集中特定位是否设置 (32位)
-    public static func bitSet32(set: UInt32, pos: UInt32): Bool {
+    public static func bitSet32(set!: UInt32, pos!: UInt32): Bool {
         return (set >> pos) & 1 != 0
     }
 
     /// 检查位集中特定位是否设置 (16位)
-    public static func bitSet16(set: UInt16, pos: UInt16): Bool {
+    public static func bitSet16(set!: UInt16, pos!: UInt16): Bool {
         return (set >> pos) & 1 != 0
     }
 
     /// 检查位集中特定位是否设置 (8位)
-    public static func bitSet8(set: UInt8, pos: UInt8): Bool {
+    public static func bitSet8(set!: UInt8, pos!: UInt8): Bool {
         return (set >> pos) & 1 != 0
     }
 
     /// 格式化位字段为 cron 字段字符串 (64位)
     /// 如果所有位都设置了则为 "*", 否则为逗号分隔的值
-    public static func formatBitfield64(buf: Array<UInt8>, bits: UInt64, min: UInt8, max: UInt8): Unit {
+    public static func formatBitfield64(buf!: Array<UInt8>, bits!: UInt64, min!: UInt8, max!: UInt8): Unit {
         var popCount: Int = 0
         var temp = bits
         while (temp != 0) {
@@ -536,22 +502,22 @@ public class CronExpression {
     }
 
     /// 格式化位字段为 cron 字段字符串 (32位)
-    public static func formatBitfield32(buf: Array<UInt8>, bits: UInt32, min: UInt8, max: UInt8): Unit {
+    public static func formatBitfield32(buf!: Array<UInt8>, bits!: UInt32, min!: UInt8, max!: UInt8): Unit {
         formatBitfield64(buf, UInt64(bits), min, max)
     }
 
     /// 格式化位字段为 cron 字段字符串 (16位)
-    public static func formatBitfield16(buf: Array<UInt8>, bits: UInt16, min: UInt8, max: UInt8): Unit {
+    public static func formatBitfield16(buf!: Array<UInt8>, bits!: UInt16, min!: UInt8, max!: UInt8): Unit {
         formatBitfield64(buf, UInt64(bits), min, max)
     }
 
     /// 格式化位字段为 cron 字段字符串 (8位)
-    public static func formatBitfield8(buf: Array<UInt8>, bits: UInt8, min: UInt8, max: UInt8): Unit {
+    public static func formatBitfield8(buf!: Array<UInt8>, bits!: UInt8, min!: UInt8, max!: UInt8): Unit {
         formatBitfield64(buf, UInt64(bits), min, max)
     }
 
     /// 解析十进制字符串为 UInt8
-    public static func parseDecimal8(s: Array<UInt8>): ?UInt8 {
+    public static func parseDecimal8(s!: Array<UInt8>): ?UInt8 {
         if (s.isEmpty) { return none }
         var result: UInt8 = 0
         for (i in 0..s.size) {
@@ -566,7 +532,7 @@ public class CronExpression {
     }
 
     /// 不区分大小写 ASCII 比较 (字节数组)
-    public static func eqlCaseInsensitiveASCII(a: Array<UInt8>, b: String): Bool {
+    public static func eqlCaseInsensitiveASCII(a!: Array<UInt8>, b!: String): Bool {
         let bBytes = b.toUtf8().toArray()
         if (a.size != bBytes.size) { return false }
         for (i in 0..a.size) {
@@ -578,7 +544,7 @@ public class CronExpression {
     }
 
     /// ASCII 转小写
-    public static func toLowerASCII(c: UInt8): UInt8 {
+    public static func toLowerASCII(c!: UInt8): UInt8 {
         if (c >= UInt8('A') && c <= UInt8('Z')) {
             return c + (UInt8('a') - UInt8('A'))
         }
@@ -586,7 +552,7 @@ public class CronExpression {
     }
 
     /// 不区分大小写查找星期名称
-    public static func lookupWeekday(str: Array<UInt8>): ?UInt8 {
+    public static func lookupWeekday(str!: Array<UInt8>): ?UInt8 {
         let names: Array<(String, UInt8)> = [
             ("sun", 0), ("mon", 1), ("tue", 2), ("wed", 3),
             ("thu", 4), ("fri", 5), ("sat", 6),
@@ -602,7 +568,7 @@ public class CronExpression {
     }
 
     /// 不区分大小写查找月份名称
-    public static func lookupMonth(str: Array<UInt8>): ?UInt8 {
+    public static func lookupMonth(str!: Array<UInt8>): ?UInt8 {
         let names: Array<(String, UInt8)> = [
             ("jan", 1), ("feb", 2), ("mar", 3), ("apr", 4),
             ("may", 5), ("jun", 6), ("jul", 7), ("aug", 8),
@@ -627,10 +593,10 @@ public class CronExpression {
     public static let allHours: UInt32 = (1 << 24) - 1
 
     /// 所有日代码 (位 1-31 全部设置)
-    public static let allDays: UInt32 = UInt32((UInt64(1) << 32) - 1) & ~UInt32(1)
+    public static let allDays: UInt32 = UInt32((UInt64(1) << 32) - 1) & (UInt32.MAX ^ UInt32(1))
 
     /// 所有月代码 (位 1-12 全部设置)
-    public static let allMonths: UInt16 = UInt16((UInt32(1) << 13) - 1) & ~UInt16(1)
+    public static let allMonths: UInt16 = UInt16((UInt32(1) << 13) - 1) & (UInt16.MAX ^ UInt16(1))
 
     /// 所有星期代码 (位 0-6 全部设置)
     public static let allWeekdays: UInt8 = UInt8((1 << 7) - 1)
@@ -640,7 +606,7 @@ public class CronExpression {
     // ========================================================================
 
     /// 字符串 trim 辅助 (去除首尾空白)
-    public static func trimBytes(input: Array<UInt8>, chars: Array<UInt8>): Array<UInt8> {
+    public static func trimBytes(input!: Array<UInt8>, chars!: Array<UInt8>): Array<UInt8> {
         var start: Int = 0
         var end: Int = input.size
         while (start < end) {
@@ -667,12 +633,12 @@ public class CronExpression {
     }
 
     /// 字符串辅助 - 兼容旧接口
-    public static func trim(input: Array<UInt8>, chars: Array<UInt8>): Array<UInt8> {
+    public static func trim(input!: Array<UInt8>, chars!: Array<UInt8>): Array<UInt8> {
         return trimBytes(input, chars)
     }
 
     /// 计算 popcount
-    public static func popCount64(v: UInt64): Int {
+    public static func popCount64(v!: UInt64): Int {
         var count: Int = 0
         var temp = v
         while (temp != 0) {
@@ -683,7 +649,7 @@ public class CronExpression {
     }
 
     /// 计算 popcount32
-    public static func popCount32(v: UInt32): Int {
+    public static func popCount32(v!: UInt32): Int {
         var count: Int = 0
         var temp = v
         while (temp != 0) {
@@ -694,7 +660,7 @@ public class CronExpression {
     }
 
     /// 计算 trailing zeros (64位)
-    public static func trailingZeros64(v: UInt64): Int {
+    public static func trailingZeros64(v!: UInt64): Int {
         if (v == 0) { return 64 }
         var count: Int = 0
         var temp = v
@@ -706,7 +672,7 @@ public class CronExpression {
     }
 
     /// 计算 trailing zeros (32位)
-    public static func trailingZeros32(v: UInt32): Int {
+    public static func trailingZeros32(v!: UInt32): Int {
         if (v == 0) { return 32 }
         var count: Int = 0
         var temp = v
@@ -719,23 +685,67 @@ public class CronExpression {
 }
 
 // ============================================================================
+// CronExpressionError - Cron 表达式解析错误
+// ============================================================================
+
+public enum CronExpressionError {
+    | invalidField
+    | invalidStep
+    | invalidRange
+    | invalidNumber
+    | tooManyFields
+    | tooFewFields
+
+    public func errorMessage(): String {
+        match (this) {
+            case tooFewFields =>
+                "Invalid cron expression: expected 5 space-separated fields (minute hour day month weekday)"
+            case tooManyFields =>
+                "Invalid cron expression: too many fields. Bun.cron uses 5 fields (minute hour day month weekday) \u{2014} seconds are not supported"
+            case invalidStep =>
+                "Invalid cron expression: step value must be a positive integer"
+            case invalidRange =>
+                "Invalid cron expression: range must be ascending (use 'a,b' or 'a-max,0-b' for wrap-around)"
+            case invalidNumber =>
+                "Invalid cron expression: value out of range for field"
+            case invalidField =>
+                "Invalid cron expression: unrecognized field syntax"
+        }
+    }
+
+    public func errorMessageBytes(): Array<UInt8> {
+        return errorMessage().toUtf8().toArray()
+    }
+}
+
+// ============================================================================
+// NameKind - 名称种类
+// ============================================================================
+
+public enum NameKind {
+    | none
+    | weekday
+    | month
+}
+
+// ============================================================================
 // 字符串辅助 (Strings)
 // ============================================================================
 
 /// 字符串工具类
 public class Strings {
     /// 去除首尾空白字符
-    public static func trim(input: Array<UInt8>, chars: Array<UInt8>): Array<UInt8> {
+    public static func trim(input!: Array<UInt8>, chars!: Array<UInt8>): Array<UInt8> {
         return CronExpression.trimBytes(input, chars)
     }
 
     /// 去除首尾空白字符 (字符串版本)
-    public static func trim(input: String, chars: Array<UInt8>): Array<UInt8> {
+    public static func trim(input!: String, chars!: Array<UInt8>): Array<UInt8> {
         return trim(input.toUtf8().toArray(), chars)
     }
 
     /// 查找字符在字节数组中的位置
-    public static func indexOf(input: Array<UInt8>, ch: UInt8): ?Int {
+    public static func indexOf(input!: Array<UInt8>, ch!: UInt8): ?Int {
         for (i in 0..input.size) {
             if (input[i] == ch) { return i }
         }

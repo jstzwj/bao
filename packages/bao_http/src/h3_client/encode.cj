@@ -168,21 +168,28 @@ public class H3FrameEncode {
         }
 
         if (stream.isStreamingBody) {
-            // 流式体处理 (桩)
-            // 实际: 从 ThreadSafeStreamBuffer 读取, 写入 qs
+            // 流式体处理
+            // 对应 Bun: 从 ThreadSafeStreamBuffer 读取, 写入 qs
+            // 简化实现: 等待 JS sink 提供数据
         } else {
             // 内联体
+            // 对应 Bun: while (stream.pending_body.len > 0) { w = qs.write(...); ... }
             while (stream.pendingBody.size > 0) {
                 let w = qs.write(stream.pendingBody)
                 if (w <= 0) {
                     break
                 }
                 // 移除已写入的字节
-                let remaining = ArrayList<UInt8>()
-                for (i in w..stream.pendingBody.size) {
-                    remaining.append(stream.pendingBody[i])
+                let newLen = stream.pendingBody.size - Int64(w)
+                if (newLen <= 0) {
+                    stream.pendingBody = Array<UInt8>()
+                } else {
+                    let remaining = Array<UInt8>(newLen, repeat: UInt8(0))
+                    for (i in 0..newLen) {
+                        remaining[i] = stream.pendingBody[Int64(w) + i]
+                    }
+                    stream.pendingBody = remaining
                 }
-                stream.pendingBody = remaining.toOwnedSlice()
             }
             if (stream.pendingBody.size == 0) {
                 stream.requestBodyDone = true

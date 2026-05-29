@@ -14,9 +14,10 @@ import bao_core.*
 public class LolhtmlJsc {
 
     /// 将 HTMLString 转换为 JS 值
-    public static func htmlStringToJS(htmlString: HTMLString, globalThis: JsGlobalObject): JsValue {
+    public static func htmlStringToJS(htmlString!: HTMLString, globalThis!: JsGlobalObject): JsValue {
         var str = htmlString.toString()
-        defer str.deref()
-        return try str.toJS(globalThis)
+        let result = str.toJS(globalThis)
+        str.deref()
+        return result
     }
 }

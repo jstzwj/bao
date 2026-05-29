@@ -112,6 +112,33 @@ public class JsObject {
 
     public init() {}
 
+    // ========== isCallableViaFFI ==========
+    // 通过 JSC C API 检查对象是否可调用
+    // 优先使用此方法而非 isCallable 属性 (属性在模拟环境中可能未正确设置)
+    public func isCallableViaFFI(globalObject: UInt64): Bool {
+        unsafe {
+            JSC__JSObjectIsFunction(globalObject, encodedAsInt64())
+        }
+    }
+
+    // ========== encodedAsInt64 ==========
+    // 将 rawPtr 转为 Int64 用于 JSC FFI 调用
+    public func encodedAsInt64(): Int64 {
+        Int64(0) // 在真实 JSC 运行时中返回 NaN-boxed 64 位值
+    }
+
+    // ========== globalObjectEncoded ==========
+    // 返回全局对象的 UInt64 编码 (用于 JSC FFI 调用)
+    public func globalObjectEncoded(): UInt64 {
+        UInt64(0) // 在真实 JSC 运行时中返回 JSGlobalObject 指针
+    }
+
+    // ========== asJsValue ==========
+    // 将 JsObject 转为 JsValue
+    public func asJsValue(): JsValue {
+        JsValue(this)
+    }
+
     // 静态工厂方法 - 严格翻译自 JSObject.zig make/derive
     public static func make(): JsObject {
         let obj = JsObject()
@@ -405,8 +432,40 @@ public class JsObject {
                 return result.toJsonString()
             }
         }
+        // 数组类型的对象
+        if (className == "Array") {
+            let sb = StringBuilder()
+            sb.append("[")
+            for (i in 0..arrayStorage.size) {
+                if (i > 0) { sb.append(",") }
+                sb.append(arrayStorage[i].toJsonString())
+            }
+            sb.append("]")
+            return sb.toString()
+        }
         // 普通对象序列化
-        "{}"
+        let sb = StringBuilder()
+        sb.append("{")
+        var first = true
+        let keys = properties.keys()
+        for (i in 0..keys.size) {
+            let key = keys[Int64(i)]
+            if (let Some(desc) <- properties.get(key)) {
+                if (desc.enumerable) {
+                    if (!first) { sb.append(",") }
+                    sb.append("\"" + key + "\"")
+                    sb.append(":")
+                    if (let Some(val) <- desc.value) {
+                        sb.append(val.toJsonString())
+                    } else {
+                        sb.append("null")
+                    }
+                    first = false
+                }
+            }
+        }
+        sb.append("}")
+        sb.toString()
     }
 
     // 函数调用辅助
@@ -451,6 +510,16 @@ public class JsObject {
     // 抛出无效参数错误
     public func throwInvalidArguments(msg: String): JsValue {
         throw JsTypeError(msg)
+    }
+
+    // 抛出错误
+    public func throwError(msg: String): JsValue {
+        throw JsError(msg)
+    }
+
+    // 调用函数
+    public func call(thisObj: JsValue, args: Array<JsValue>): JsValue {
+        return JsValue.UNDEFINED
     }
 
     /// 是否为 rejected promise

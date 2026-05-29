@@ -257,12 +257,12 @@ public enum InstallErrorKind {
 /// 安装异常
 public class InstallException <: Exception {
     public var kind: InstallErrorKind
-    public var message: String
+    public var detail: String
 
     public init(kind: InstallErrorKind, message: String) {
         super(message)
         this.kind = kind
-        this.message = message
+        this.detail = message
     }
 }
 
@@ -308,7 +308,7 @@ public class InstallCommandLineOptions {
 
 /// 安装命令内部选项
 /// 对应 Bun: PackageManager.Options
-class InstallCommandOptions {
+public class InstallCommandOptions {
     public var production: Bool
     public var frozenLockfile: Bool
     public var verbose: Bool
@@ -328,7 +328,7 @@ class InstallCommandOptions {
 
 /// 安装命令结果
 /// 对应 Bun: PackageManager install result
-class InstallCommandResult {
+public class InstallCommandResult {
     public var installed: Int64
     public var removed: Int64
     public var updated: Int64

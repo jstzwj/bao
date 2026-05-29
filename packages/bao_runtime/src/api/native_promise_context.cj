@@ -22,81 +22,81 @@ public class NativePromiseContext {
 
     /// Tag - 每个具体原生类型对应一个标签
     /// 通过 CompactPointerTuple 打包到指针的高位
-    public enum Tag {
-        | httpServerRequestContext
-        | httpsServerRequestContext
-        | debugHttpServerRequestContext
-        | debugHttpsServerRequestContext
-        | bodyValueBufferer
-        | httpsServerH3RequestContext
-        | debugHttpsServerH3RequestContext
+//    public enum Tag {
+//        | httpServerRequestContext
+//        | httpsServerRequestContext
+//        | debugHttpServerRequestContext
+//        | debugHttpsServerRequestContext
+//        | bodyValueBufferer
+//        | httpsServerH3RequestContext
+//        | debugHttpsServerH3RequestContext
 
-        /// 获取标签的数值 (用于指针打包)
-        public func value(): UInt8 {
-            match (this) {
-                case httpServerRequestContext => 0
-                case httpsServerRequestContext => 1
-                case debugHttpServerRequestContext => 2
-                case debugHttpsServerRequestContext => 3
-                case bodyValueBufferer => 4
-                case httpsServerH3RequestContext => 5
-                case debugHttpsServerH3RequestContext => 6
-            }
-        }
+//        /// 获取标签的数值 (用于指针打包)
+//        public func value(): UInt8 {
+//            match (this) {
+//                case httpServerRequestContext => 0
+//                case httpsServerRequestContext => 1
+//                case debugHttpServerRequestContext => 2
+//                case debugHttpsServerRequestContext => 3
+//                case bodyValueBufferer => 4
+//                case httpsServerH3RequestContext => 5
+//                case debugHttpsServerH3RequestContext => 6
+//            }
+//        }
 
-        /// 从数值构造标签
-        public static func fromValue(v: UInt8): Tag {
-            match (v) {
-                case 0 => httpServerRequestContext
-                case 1 => httpsServerRequestContext
-                case 2 => debugHttpServerRequestContext
-                case 3 => debugHttpsServerRequestContext
-                case 4 => bodyValueBufferer
-                case 5 => httpsServerH3RequestContext
-                case 6 => debugHttpsServerH3RequestContext
-                case _ => httpServerRequestContext
-            }
-        }
+//        /// 从数值构造标签
+//        public static func fromValue(v!: UInt8): Tag {
+//            match (v) {
+//                case 0 => httpServerRequestContext
+//                case 1 => httpsServerRequestContext
+//                case 2 => debugHttpServerRequestContext
+//                case 3 => debugHttpsServerRequestContext
+//                case 4 => bodyValueBufferer
+//                case 5 => httpsServerH3RequestContext
+//                case 6 => debugHttpsServerH3RequestContext
+//                case _ => httpServerRequestContext
+//            }
+//        }
 
-        /// 从类型推断标签
-        public static func fromType<T>(type: T.Type): Tag {
-            match (type) {
-                case HTTPServerRequestContext => .httpServerRequestContext
-                case HTTPSServerRequestContext => .httpsServerRequestContext
-                case DebugHTTPServerRequestContext => .debugHttpServerRequestContext
-                case DebugHTTPSServerRequestContext => .debugHttpsServerRequestContext
-                case H3RequestContext => .httpsServerH3RequestContext
-                case DebugH3RequestContext => .debugHttpsServerH3RequestContext
-                case ValueBufferer => .bodyValueBufferer
-                case _ => throw CompileError("NativePromiseContext.Tag: unsupported type")
-            }
-        }
-    }
+//        /// 从类型推断标签
+//        public static func fromType<T>(type: T.Type): Tag {
+//            match (type) {
+//                case HTTPServerRequestContext => .httpServerRequestContext
+//                case HTTPSServerRequestContext => .httpsServerRequestContext
+//                case DebugHTTPServerRequestContext => .debugHttpServerRequestContext
+//                case DebugHTTPSServerRequestContext => .debugHttpsServerRequestContext
+//                case H3RequestContext => .httpsServerH3RequestContext
+//                case DebugH3RequestContext => .debugHttpsServerH3RequestContext
+//                case ValueBufferer => .bodyValueBufferer
+//                case _ => throw CompileError("NativePromiseContext.Tag: unsupported type")
+//            }
+//        }
+//    }
 
     // ========================================================================
     // 外部函数
     // ========================================================================
 
     /// 创建 NativePromiseContext (C++ 实现)
-    public static func create(global: JsGlobalObject, ctx: Any, tag: UInt8): JsValue {
+    public static func create(global!: JsGlobalObject, ctx!: Any, tag!: UInt8): JsValue {
         return Bun__NativePromiseContext__create(global, ctx, tag)
     }
 
     /// 外部声明: C++ 创建函数
     @Extern
-    public static func Bun__NativePromiseContext__create(global: JsGlobalObject, ctx: Any, tag: UInt8): JsValue
+    public static func Bun__NativePromiseContext__create(global!: JsGlobalObject, ctx!: Any, tag!: UInt8): JsValue
 
     /// take - 转移引用回调用者, 置空单元格
     /// 返回 null 如果已经被取走
     public static func take<T>(cell: JsValue): ?T {
         let ptr = Bun__NativePromiseContext__take(cell)
-        if (ptr == null) { return none }
+        if (ptr == none) { return none }
         return unsafeBitCast(ptr, T)
     }
 
     /// 外部声明: C++ take 函数
     @Extern
-    public static func Bun__NativePromiseContext__take(value: JsValue): ?Any
+    public static func Bun__NativePromiseContext__take(value!: JsValue): ?Any
 
     // ========================================================================
     // DeferredDerefTask - 延迟释放任务
@@ -104,42 +104,42 @@ public class NativePromiseContext {
 
     /// DeferredDerefTask - 将 GC 触发的 deref 延迟到下一个事件循环 tick
     /// 零分配: ctx 指针和 Tag 打包到任务的 _ptr 插槽中
-    public class DeferredDerefTask {
-        public static let tagMask: UInt64 = 0b111
+//    public class DeferredDerefTask {
+//        public static let tagMask: UInt64 = 0b111
 
-        /// 调度延迟释放
-        public static func schedule(ctx: Any, tag: Tag): Unit {
-            let vm = VirtualMachine.get()
-            if (vm.isShuttingDown()) { return }
+//        /// 调度延迟释放
+//        public static func schedule(ctx!: Any, tag!: Tag): Unit {
+//            let vm = VirtualMachine.get()
+//            if (vm.isShuttingDown()) { return }
 
-            let addr = Int.fromPtr(ctx)
-            var task = JsTask()
-            task.setUintptr(UInt64(addr) | UInt64(tag.value()))
-            vm.eventLoop().enqueueTask(task)
-        }
+//            let addr = Int.fromPtr(ctx)
+//            var task = JsTask()
+//            task.setUintptr(UInt64(addr) | UInt64(tag.value()))
+//            vm.eventLoop().enqueueTask(task)
+//        }
 
-        /// 从 JS 线程运行
-        public static func runFromJSThread(packedPtr: UInt64): Unit {
-            let tag: Tag = Tag.fromValue(UInt8(packedPtr & tagMask))
-            let ctx: Any = UnsafeMutableRawPointer(bitPattern: UInt(packedPtr & ~tagMask))
+//        /// 从 JS 线程运行
+//        public static func runFromJSThread(packedPtr!: UInt64): Unit {
+//            let tag: Tag = Tag.fromValue(UInt8(packedPtr & tagMask))
+//            let ctx: Any = UnsafeMutableRawPointer(bitPattern: UInt(packedPtr & ~tagMask))
 
-            match (tag) {
-                case httpServerRequestContext =>
-                    (ctx as! HTTPServerRequestContext).deref()
-                case httpsServerRequestContext =>
-                    (ctx as! HTTPSServerRequestContext).deref()
-                case debugHttpServerRequestContext =>
-                    (ctx as! DebugHTTPServerRequestContext).deref()
-                case debugHttpsServerRequestContext =>
-                    (ctx as! DebugHTTPSServerRequestContext).deref()
-                case bodyValueBufferer =>
-                    let bufferer = ctx as! ValueBufferer
-                    (bufferer.ctx as! HTMLRewriterBufferOutputSink).deref()
-                case httpsServerH3RequestContext =>
-                    (ctx as! H3RequestContext).deref()
-                case debugHttpsServerH3RequestContext =>
-                    (ctx as! DebugH3RequestContext).deref()
-            }
-        }
-    }
+//            match (tag) {
+//                case httpServerRequestContext =>
+//                    (ctx as! HTTPServerRequestContext).deref()
+//                case httpsServerRequestContext =>
+//                    (ctx as! HTTPSServerRequestContext).deref()
+//                case debugHttpServerRequestContext =>
+//                    (ctx as! DebugHTTPServerRequestContext).deref()
+//                case debugHttpsServerRequestContext =>
+//                    (ctx as! DebugHTTPSServerRequestContext).deref()
+//                case bodyValueBufferer =>
+//                    let bufferer = ctx as! ValueBufferer
+//                    (bufferer.ctx as! HTMLRewriterBufferOutputSink).deref()
+//                case httpsServerH3RequestContext =>
+//                    (ctx as! H3RequestContext).deref()
+//                case debugHttpsServerH3RequestContext =>
+//                    (ctx as! DebugH3RequestContext).deref()
+//            }
+//        }
+//    }
 }

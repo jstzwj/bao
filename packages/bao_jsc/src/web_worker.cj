@@ -494,11 +494,11 @@ public class WebWorker {
             }
 
             // 严格翻译自: 检查 promise 是否被拒绝
-            // TODO: real implementation would inspect JSC Promise state via FFI
             if (promise.isSome()) {
                 let p = promise.getOrThrow()
-                // stub: always treat as not rejected for now
-                if (false) {
+                // 严格翻译自: 检查 JSC Promise 状态
+                // 通过 FFI 检查 promise 是否处于 rejected 状态
+                if (p.isRejected()) {
                     // 未捕获的异常
                     vmInstance.exitHandler.exitCode = 1
                     flushLogs(vmInstance)
@@ -542,7 +542,6 @@ public class WebWorker {
 
             // 严格翻译自: 仅在自然排空时发出 'beforeExit'，不在 terminate() 时
             if (!hasRequestedTerminate()) {
-                // TODO: 这是否能允许事件循环继续?
                 vmInstance.onBeforeExit()
             }
 

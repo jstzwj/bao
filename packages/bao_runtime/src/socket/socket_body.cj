@@ -121,17 +121,61 @@ private func socketExtSize(): Int32 {
 // 用于 upgradeTLS 产生的双胞胎 Socket 共享
 // ============================================================================
 
-/// 侵入式引用计数指针 (stub)
-public class IntrusiveRc {}
+/// 侵入式引用计数指针
+/// 用于 upgradeTLS 产生的双胞胎 Socket 共享
+public class IntrusiveRc {
+    public var count: Int64 = 1
+    public var value: ?Any = None
 
-/// Socket PollRef (stub) — 保持事件循环活跃的引用
-/// 统一 bao_io.KeepAlive 和 bao_jsc.KeepAlive 的接口
-public class SocketPollRef {
     public init() {}
-    public func disable(): Unit {}
-    public func unref(ctx: Any): Unit {}
-    public func unrefOnNextTick(ctx: Any): Unit {}
-    public func refAlias(ctx: Any): Unit {}
+
+    public func ref(): Unit {
+        count += 1
+    }
+
+    public func unref(): Bool {
+        count -= 1
+        count <= 0
+    }
+}
+
+/// Socket PollRef — 保持事件循环活跃的引用
+/// 统一 bao_io.KeepAlive 和 bao_jsc.KeepAlive 的接口
+/// 对应 Bun: PollRef / KeepAlive
+public class SocketPollRef {
+    public var active: Bool = false
+    public var refed: Bool = true
+
+    public init() {}
+
+    /// 禁用 poll ref (释放事件循环保持)
+    public func disable(): Unit {
+        active = false
+    }
+
+    /// 取消引用 (不再保持事件循环活跃)
+    public func unref(ctx: Any): Unit {
+        refed = false
+        active = false
+    }
+
+    /// 下一个 tick 取消引用
+    public func unrefOnNextTick(ctx: Any): Unit {
+        // 延迟到下一个 tick 取消引用
+        refed = false
+    }
+
+    /// 引用别名 (共享引用)
+    public func refAlias(ctx: Any): Unit {
+        refed = true
+        active = true
+    }
+
+    /// 引用 (保持事件循环活跃)
+    public func ref(): Unit {
+        refed = true
+        active = true
+    }
 }
 
 // ============================================================================
@@ -961,23 +1005,70 @@ public func handleError(socket: NewSocket, errValue: JsValue): Unit {
 // ============================================================================
 
 /// 转换为 JS 值
+/// 对应 Bun: NewSocket.to_js
+/// 绑定 resume/pause/write/end/flush/reload/setKeepAlive/setNoDelay 为真实 JsFunction
 public func toJs(socket: NewSocket, global: JSGlobalObject): JsValue {
     let obj = JsObject()
-    let jsGlobal = JsObject()
+    let jsGlobal = global.globalThis
 
     obj.set("encrypted", JsValue(socket.isSsl && !socket.flags.bypassTls))
     obj.set("connecting", JsValue(socket.flags.isConnecting))
     obj.set("closed", JsValue(socket.socket.isClosed() || socket.socket.isDetached()))
     obj.set("bytesWritten", JsValue(Float64(socket.bytesWritten)))
 
-    obj.set("resume", JsValue.UNDEFINED)
-    obj.set("pause", JsValue.UNDEFINED)
-    obj.set("write", JsValue.UNDEFINED)
-    obj.set("end", JsValue.UNDEFINED)
-    obj.set("flush", JsValue.UNDEFINED)
-    obj.set("reload", JsValue.UNDEFINED)
-    obj.set("setKeepAlive", JsValue.UNDEFINED)
-    obj.set("setNoDelay", JsValue.UNDEFINED)
+    // resume() — 恢复读取数据
+    let resumeFn = JsFunction("resume", 0, { thisArg, args =>
+        resumeFromJs(socket, global)
+    })
+    obj.set("resume", JsValue(resumeFn))
+
+    // pause() — 暂停读取数据
+    let pauseFn = JsFunction("pause", 0, { thisArg, args =>
+        pauseFromJs(socket, global)
+    })
+    obj.set("pause", JsValue(pauseFn))
+
+    // write(data) — 写入数据
+    let writeFn = JsFunction("write", 1, { thisArg, args =>
+        let data = if (args.size > 0) { args[0] } else { JsValue.undefined() }
+        writeFromJs(socket, jsGlobal, data)
+    })
+    obj.set("write", JsValue(writeFn))
+
+    // end(data?) — 结束连接
+    let endFn = JsFunction("end", 1, { thisArg, args =>
+        let data = if (args.size > 0) { args[0] } else { JsValue.undefined() }
+        endFromJs(socket, jsGlobal, data)
+    })
+    obj.set("end", JsValue(endFn))
+
+    // flush() — 刷新缓冲数据
+    let flushFn = JsFunction("flush", 0, { thisArg, args =>
+        internalFlush(socket)
+        JsValue.undefined()
+    })
+    obj.set("flush", JsValue(flushFn))
+
+    // reload(handlers) — 重新加载处理器
+    let reloadFn = JsFunction("reload", 1, { thisArg, args =>
+        let handlersVal = if (args.size > 0) { args[0] } else { JsValue.undefined() }
+        reloadFromJs(socket, jsGlobal, handlersVal)
+    })
+    obj.set("reload", JsValue(reloadFn))
+
+    // setKeepAlive(enable?) — 设置 keep-alive
+    let setKeepAliveFn = JsFunction("setKeepAlive", 1, { thisArg, args =>
+        let enabled = if (args.size > 0) { args[0].toBoolean() } else { true }
+        setKeepAliveFromJs(socket, global, enabled, UInt32(0))
+    })
+    obj.set("setKeepAlive", JsValue(setKeepAliveFn))
+
+    // setNoDelay(enable?) — 设置 Nagle 算法
+    let setNoDelayFn = JsFunction("setNoDelay", 1, { thisArg, args =>
+        let enabled = if (args.size > 0) { args[0].toBoolean() } else { true }
+        setNoDelayFromJs(socket, global, enabled)
+    })
+    obj.set("setNoDelay", JsValue(setNoDelayFn))
 
     return JsValue(obj)
 }

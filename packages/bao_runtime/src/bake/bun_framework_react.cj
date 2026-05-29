@@ -8,35 +8,36 @@ package bao_runtime.bake
 /// 返回 React 框架配置
 /// 对应 Bun: bun-framework-react/index.ts react()
 public func bunFrameworkReactConfig(): Framework {
-    return Framework(
-        is_built_in_react: true,
-        file_system_router_types: [
-            Framework.FileSystemRouterType(
-                root: "pages",
-                prefix: "/",
-                entry_client: Some("bun-framework-react/client.tsx"),
-                entry_server: "bun-framework-react/server.tsx",
-                ignore_underscores: true,
-                ignore_dirs: [".git", "node_modules"],
-                extensions: [".jsx", ".tsx"],
-                style: FrameworkRouterStyle.nextjs_pages,
-                allow_layouts: true,
-            )
-        ],
-        server_components: Some(ServerComponents(
-            separate_ssr_graph: true,
-            server_runtime_import: "react-server-dom-webpack/server",
-            server_register_client_reference: "registerClientReference",
-            server_register_server_reference: "registerServerReference",
-            client_register_server_reference: "registerServerReference",
-        )),
-        react_fast_refresh: Some(ReactFastRefresh(
-            import_source: "react-refresh/runtime",
-        )),
-        built_in_modules: StringArrayHashMap<BuiltInModule>.fromEntries([
-            ("bun-framework-react/client.tsx", BuiltInModule.`import`("bun-framework-react/client.tsx")),
-            ("bun-framework-react/server.tsx", BuiltInModule.`import`("bun-framework-react/server.tsx")),
-            ("bun-framework-react/ssr.tsx", BuiltInModule.`import`("bun-framework-react/ssr.tsx"))
-        ]),
-    )
+    let routerType = FileSystemRouterType()
+    routerType.root = "pages"
+    routerType.prefix = "/"
+    routerType.entry_client = Option<String>.Some("bun-framework-react/client.tsx")
+    routerType.entry_server = "bun-framework-react/server.tsx"
+    routerType.ignore_underscores = true
+    routerType.ignore_dirs = [".git", "node_modules"]
+    routerType.extensions = [".jsx", ".tsx"]
+    routerType.style = FrameworkRouterStyle.nextjs_pages
+    routerType.allow_layouts = true
+
+    let fw = Framework(true, [routerType])
+
+    let sc = ServerComponents()
+    sc.separate_ssr_graph = true
+    sc.server_runtime_import = "react-server-dom-webpack/server"
+    sc.server_register_client_reference = "registerClientReference"
+    sc.server_register_server_reference = "registerServerReference"
+    sc.client_register_server_reference = "registerServerReference"
+    fw.serverComponents = Option<ServerComponents>.Some(sc)
+
+    let rfr = ReactFastRefresh()
+    rfr.import_source = "react-refresh/runtime"
+    fw.reactFastRefresh = Option<ReactFastRefresh>.Some(rfr)
+
+    fw.built_in_modules = StringArrayHashMap<BuiltInModule>.fromEntries([
+        ("bun-framework-react/client.tsx", BuiltInModule.`import`("bun-framework-react/client.tsx")),
+        ("bun-framework-react/server.tsx", BuiltInModule.`import`("bun-framework-react/server.tsx")),
+        ("bun-framework-react/ssr.tsx", BuiltInModule.`import`("bun-framework-react/ssr.tsx"))
+    ])
+
+    return fw
 }

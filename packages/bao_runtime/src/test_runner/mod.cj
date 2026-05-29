@@ -11,40 +11,24 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{CallFrame, ComparisonResult, ConsoleFormatter, ConsoleObject, Formatter, JsObject, JSGlobalObject, JsValue}
+import bao_jsc.{CallFrame, ComparisonResult, ConsoleFormatter, AnsiColors, Formatter, JsObject, JSGlobalObject, JsValue}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 
 // ========== JSGlobalObject 扩展 - 测试运行器所需方法 ==========
 
 extend JSGlobalObject {
-    /// 抛出错误 - 简化版
-    public func throw_(message: String): JsValue {
-        throwError(message)
-        return JsValue.jsUndefined()
-    }
-
-    /// 抛出错误 - 带 args 格式化（stub）
-    public func throw_(message: String, args!: Array<Any>): JsValue {
-        var result = message
-        for (arg in args) {
-            result = result.replace("{f}", arg.toString())
-        }
-        result = result.replace("{}", "")
-        throwError(result)
-        return JsValue.jsUndefined()
-    }
 
     /// 抛出带格式化的错误
     public func throwPretty(fmt: String, args: ArrayList<Any>): JsValue {
-        let message = ConsoleObject.prettyFmt(fmt, false)
+        let message = AnsiColors.prettyFmt(fmt, false)
         throwError(message)
         return JsValue.jsUndefined()
     }
 
     /// 抛出带格式化的错误 (Array版本)
     public func throwPretty(fmt: String, args: Array<Any>): JsValue {
-        let message = ConsoleObject.prettyFmt(fmt, false)
+        let message = AnsiColors.prettyFmt(fmt, false)
         throwError(message)
         return JsValue.jsUndefined()
     }
@@ -53,6 +37,7 @@ extend JSGlobalObject {
     public func `throw`(message: String): JsValue {
         return throw_(message)
     }
+
 }
 
 // ========== ConsoleFormatter 扩展 ==========
@@ -210,8 +195,8 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
     let arguments = argsBuf.slice()
 
     if (arguments.size < 1) {
-        expect.postMatch(global)
-        return global.throwInvalidArguments(name + "() requires 1 argument")
+        expect.postMatch(globalThis: global)
+        return global.throwInvalidArgumentsValue(name + "() requires 1 argument")
     }
 
     expect.incrementExpectCallCounter()
@@ -219,11 +204,12 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
     let otherValue = arguments[0]
     otherValue.ensureStillAlive()
 
-    let value: JsValue = expect.getValue(global, thisValue, name, "<green>expected<r>")
+    let value: JsValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: name, matcherParamsFmt: "<green>expected<r>")
 
     if ((!value.isNumber() && !value.isBigInt()) || (!otherValue.isNumber() && !otherValue.isBigInt())) {
-        expect.postMatch(global)
-        return global.throwError("Expected and actual values must be numbers or bigints")
+        expect.postMatch(globalThis: global)
+        global.throwError("Expected and actual values must be numbers or bigints")
+        return JsValue.jsUndefined()
     }
 
     let not = expect.flags.not
@@ -241,7 +227,7 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
 
     if (not) { pass = !pass }
     if (pass) {
-        expect.postMatch(global)
+        expect.postMatch(globalThis: global)
         return JsValue.jsUndefined()
     }
 
@@ -257,14 +243,14 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
 
     if (not) {
         let signature = Expect.getSignature(name, "<green>expected<r>", true)
-        expect.postMatch(global)
+        expect.postMatch(globalThis: global)
         return expect.throw_(globalThis: global, signature: signature,
             fmt: "\n\nExpected: not " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
             args: [expectedFmt, valueFmt])
     }
 
     let signature = Expect.getSignature(name, "<green>expected<r>", false)
-    expect.postMatch(global)
+    expect.postMatch(globalThis: global)
     return expect.throw_(globalThis: global, signature: signature,
         fmt: "\n\nExpected: " + glyph + " <green>{f}<r>\nReceived: <red>{f}<r>\n",
         args: [expectedFmt, valueFmt])
@@ -285,7 +271,7 @@ public func numericOrderingMatcher(expect: Expect, global: JSGlobalObject, callF
 /// @return JsValue
 public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame: CallFrame, matcherName: String, predicate: (JsValue) -> Bool): JsValue {
     let thisValue = callFrame.`this`()
-    let value: JsValue = expect.getValue(global, thisValue, matcherName, "")
+    let value: JsValue = expect.getValue(globalThis: global, thisValue: thisValue, matcherName: matcherName, matcherParamsFmt: "")
 
     expect.incrementExpectCallCounter()
 
@@ -294,7 +280,7 @@ public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame:
     let not = expect.flags.not
     if (not) { pass = !pass }
     if (pass) {
-        expect.postMatch(global)
+        expect.postMatch(globalThis: global)
         return JsValue.jsUndefined()
     }
 
@@ -305,14 +291,14 @@ public func runUnaryPredicate(expect: Expect, global: JSGlobalObject, callFrame:
 
     if (not) {
         let signature = Expect.getSignature(matcherName, "", true)
-        expect.postMatch(global)
+        expect.postMatch(globalThis: global)
         return expect.throw_(globalThis: global, signature: signature,
             fmt: "\n\nExpected: not {f}\nReceived: <red>{f}<r>\n",
             args: [received, received])
     }
 
     let signature = Expect.getSignature(matcherName, "", false)
-    expect.postMatch(global)
+    expect.postMatch(globalThis: global)
     return expect.throw_(globalThis: global, signature: signature,
         fmt: "\n\nReceived: <red>{f}<r>\n",
         args: [received])
@@ -351,7 +337,7 @@ public enum MockReturnType {
 public class MockHelpers {
     /// 获取 mock 函数的调用记录迭代器
     public static func jestMockIterator(globalThis!: JsObject, value!: JsValue): MockResultIterator {
-        return MockResultIterator(globalThis: globalThis, returnValues: JSMockFunction.getReturnValues(globalThis, value))
+        return MockResultIterator(globalThis, JSMockFunction.getReturnValues(globalThis: globalThis, value: value))
     }
 
     /// 获取 mock 返回对象的类型

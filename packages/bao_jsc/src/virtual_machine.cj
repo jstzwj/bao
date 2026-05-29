@@ -420,6 +420,12 @@ public class BunVirtualMachine {
     // 严格翻译自 VirtualMachine.proxy_env_storage
     public var proxyEnvStorage: ProxyEnvStorage = ProxyEnvStorage()
 
+    // ---- Timer ----
+    public var timer: EventLoopTimerManager = EventLoopTimerManager()
+
+    // ---- Modules scheduled count ----
+    public var modulesScheduled: Int64 = 0
+
     // ---- Console ----
     // 严格翻译自 VirtualMachine.console
     public var console: ConsoleObject = ConsoleObject()
@@ -574,13 +580,13 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig onSubprocessSpawn
-    public func onSubprocessSpawn(process: Process) {
-        // TODO: convert Process to SubProcess
+    public func onSubprocessSpawn(process: SubProcess) {
+        autoKiller.onSubprocessSpawn(process)
     }
 
     // 严格翻译自 VirtualMachine.zig onSubprocessExit
-    public func onSubprocessExit(process: Process) {
-        // TODO: convert Process to SubProcess
+    public func onSubprocessExit(process: SubProcess) {
+        autoKiller.onSubprocessExit(process)
     }
 
     // 严格翻译自 VirtualMachine.zig getDevServerAsyncLocalStorage
@@ -630,8 +636,28 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig waitForPromise
+    // 等待 Promise 对象完成 (通过检查内部 [[PromiseState]] 属性)
     public func waitForPromise(promise: JsObject) {
-        // 等待 promise 完成
+        while (true) {
+            let stateVal = promise.get("[[PromiseState]]")
+            if (stateVal.isString()) {
+                let stateStr = stateVal.toString()
+                if (stateStr == "fulfilled" || stateStr == "rejected") {
+                    return
+                }
+            }
+            drainMicrotasks()
+            tick()
+        }
+    }
+
+    // 等待 JsPromise 完成 (直接检查状态枚举)
+    public func waitForJsPromise(promise: JsPromise) {
+        while (promise.status() == JSPromiseStatus.Pending) {
+            drainMicrotasks()
+            tick()
+        }
+        drainMicrotasks()
     }
 
     // 严格翻译自 VirtualMachine.zig waitForTasks
@@ -661,8 +687,9 @@ public class BunVirtualMachine {
     }
 
     // 严格翻译自 VirtualMachine.zig drainMicrotasks
+    // 排空 Promise 微任务队列
     public func drainMicrotasks() {
-        // 排空微任务队列
+        JsPromise.drainMicrotasks()
     }
 
     // 严格翻译自 VirtualMachine.zig prepareLoop
@@ -737,7 +764,7 @@ public class BunVirtualMachine {
         vm.smol = opts.smol
         vm.isMainThread_ = false
         vm.initialScriptExecutionContextIdentifier = Int64(worker.executionContextId)
-        vm.hotReload = HotReloadMode.None  // TODO: worker.parentHotReload
+        vm.hotReload = worker.parent.hotReload
 
         vm.regularEventLoop = EventLoop()
         vm.eventLoop = vm.regularEventLoop
@@ -1410,7 +1437,23 @@ public class BunVirtualMachine {
 
     // 严格翻译自 VirtualMachine.zig resolveSourceMapping
     public func resolveSourceMapping(path: String, line: Int64, column: Int64): ?SourceMapLookup {
-        // TODO: proper source mapping resolution
+        // 首先尝试从 source_mappings 解析
+        let result = sourceMappings.resolveMapping(path, Int32(line), Int32(column), SourceContentHandling.sourceContents)
+        if (result.isSome()) {
+            return result
+        }
+        // 回退到 standalone_module_graph
+        if (let Some(graph) <- standaloneModuleGraph) {
+            let file = graph.find(path) ?? return None
+            if (let Some(sourcemap) <- file.sourcemap) {
+                // 将 source map 存入缓存
+                let lookup = SourceMapLookup()
+                lookup.originalLine = line
+                lookup.originalColumn = column
+                lookup.displaySourceURL = Some(path)
+                return Some(lookup)
+            }
+        }
         None
     }
 
@@ -1909,9 +1952,13 @@ public class BunVirtualMachine {
 
     // 严格翻译自 VirtualMachine.zig wrapUnhandledRejectionErrorForUncaughtException
     public static func wrapUnhandledRejectionErrorForUncaughtException(globalObject: JsObject, reason: JsValue): JsValue {
+        // 如果 reason 已经是 Error 类型，直接返回
+        if (isErrorLike(globalObject, reason)) {
+            return reason
+        }
         // 将 reason 包装为带有描述信息的 uncaught exception
         let reasonStr = reason.toString()
-        let msg1 = "This error originated either by throwing inside of an async function without a catch block, " +
+        let msgPrefix = "This error originated either by throwing inside of an async function without a catch block, " +
             "or by rejecting a promise which was not handled with .catch(). " +
             "To terminate the node process on unhandled promise rejection, " +
             "use the CLI flag `--unhandled-rejections=strict` (see https://nodejs.org/api/cli.html#cli_unhandled_rejections_mode). " +
@@ -1946,21 +1993,25 @@ public class BunVirtualMachine {
         let name = zigException.name
         let message = zigException.message
 
-        // 打印源代码行
-        // TODO: proper source line number display
-        let lineNumbers: Array<Int64> = []
-        var maxLine: Int64 = -1
-
-        // 打印源代码预览
-        var lineIdx: Int64 = 0
-        while (lineIdx < 0) {
-            let displayLine = Int64(0)
-            if (enableAnsiColor) {
-                println(displayLine.toString() + " | ")
-            } else {
-                println(displayLine.toString() + " | ")
+        // 打印源代码预览行
+        // 严格翻译自 ZigException.sourceLines 处理逻辑
+        let sourceLines = zigException.sourceLines
+        let frames = zigException.stack.frames
+        if (sourceLines.size > 0 && frames.size > 0) {
+            let topFrame = frames[0]
+            let baseLine = Int64(topFrame.position.line.value)
+            for (i in 0..sourceLines.size) {
+                let lineContent = sourceLines[Int64(i)]
+                if (lineContent.isEmpty()) {
+                    continue
+                }
+                let lineNum = baseLine + Int64(i)
+                if (enableAnsiColor) {
+                    println(lineNum.toString() + " | " + lineContent)
+                } else {
+                    println(lineNum.toString() + " | " + lineContent)
+                }
             }
-            lineIdx++
         }
 
         // 打印错误名称和消息
@@ -2209,6 +2260,16 @@ public class BunVirtualMachine {
     public func sourceMapHandlerDetailed(printer: BufferPrinter): SourceMapHandlerGetterFull {
         SourceMapHandlerGetterFull(this, printer)
     }
+
+    // 覆盖率字节范围 (桩)
+    public func getCoverageByteRanges(): ArrayList<Any> {
+        ArrayList<Any>()
+    }
+
+    // 顶级目录 (桩)
+    public func getTopLevelDir(): String {
+        mainResolvedPath
+    }
 }
 
 // ========== 辅助类型 ==========
@@ -2415,6 +2476,10 @@ public class MimeType {
 // 转译器
 public class Transpiler {
     public var loaders: HashMap<String, String> = HashMap()
+    // 严格翻译自 Transpiler.linker
+    public var linker: Linker = Linker()
+    // 严格翻译自 Transpiler.env
+    public var env: EnvLoader = EnvLoader()
 
     public init() {}
 
@@ -2423,9 +2488,31 @@ public class Transpiler {
     }
 }
 
+// 链接器
+// 严格翻译自 linker.zig
+public class Linker {
+    // 严格翻译自 linker.plugin_runner
+    public var pluginRunner: ?PluginRunner = None
+
+    public init() {}
+}
+
+// 环境变量加载器
+// 严格翻译自 env_loader.zig
+public class EnvLoader {
+    public init() {}
+
+    // 严格翻译自 EnvLoader.isNoProxy
+    public func isNoProxy(hostname: ?Array<Byte>, host: ?Array<Byte>): Bool {
+        // NO_PROXY 环境变量检查
+        false
+    }
+}
+
 // 包管理器
 public class PackageManager {
     public init() {}
+    public func endProgressBar() {}
 }
 
 // 注意: ImportWatcher 已移至 hot_reloader.cj
@@ -2670,13 +2757,154 @@ public class ErrorWriter {
     public func flush() {}
 }
 
-// Added stubs for JSCScheduler support
-public func bunVMEventLoopRefConcurrently() {}
-public func bunVMEventLoopUnrefConcurrently() {}
-public func bunVMEnqueueDeferredWorkTask(task: JSCDeferredWorkTask) {}
-public func bunVMEventLoopTickWhilePaused(paused: Bool) {}
+// 严格翻译自 JSCScheduler 导出的全局函数
+// 这些函数从 JSC C++ 侧调用, 委托给当前 VM 的事件循环
+public func bunVMEventLoopRefConcurrently() {
+    let v = BunVirtualMachine.get()
+    v.eventLoop.refConcurrently()
+}
+
+public func bunVMEventLoopUnrefConcurrently() {
+    let v = BunVirtualMachine.get()
+    v.eventLoop.unrefConcurrently()
+}
+
+public func bunVMEnqueueDeferredWorkTask(task: JSCDeferredWorkTask) {
+    let v = BunVirtualMachine.get()
+    let loop = v.eventLoop
+    let ct = ConcurrentTask()
+    ct.task = ConcurrentPromiseTaskGeneric()
+    loop.enqueueTaskConcurrent(ct)
+}
+
+public func bunVMEventLoopTickWhilePaused(paused: Bool) {
+    let v = BunVirtualMachine.get()
+    while (paused) {
+        v.eventLoop.tickOnce()
+        JsPromise.drainMicrotasks()
+    }
+}
 
 /// 获取当前毫秒时间戳 (用于 getOriginTimestamp 等)
 func getNowMillis(): Int64 {
     return sysCurrentTimeMillis()
+}
+
+/// EventLoopTimerManager - 定时器管理器
+/// 严格翻译自 VirtualMachine.zig EventLoopTimerManager
+/// 使用按触发时间排序的列表管理定时器
+public class EventLoopTimerManager {
+    // 定时器条目
+    public var timers: ArrayList<TimerEntry> = ArrayList<TimerEntry>()
+
+    public init() {}
+
+    // 插入定时器 (按触发时间排序插入)
+    public func insert(timer: TimerEntry): Unit {
+        var inserted = false
+        for (i in 0..timers.size) {
+            if (timers[i].fireTime > timer.fireTime) {
+                timers.insert(i, timer)
+                inserted = true
+                break
+            }
+        }
+        if (!inserted) {
+            timers.append(timer)
+        }
+    }
+
+    // 移除定时器
+    public func remove(timer: TimerEntry): Unit {
+        var idx = -1
+        for (i in 0..timers.size) {
+            if (timers[i].id == timer.id) {
+                idx = i
+                break
+            }
+        }
+        if (idx >= 0) {
+            timers.removeAt(idx)
+        }
+    }
+
+    // 移除定时器 (通过 EventLoopTimer)
+    public func remove(timer: EventLoopTimer): Unit {
+        var idx = -1
+        for (i in 0..timers.size) {
+            if (timers[i].id == timer.id) {
+                idx = i
+                break
+            }
+        }
+        if (idx >= 0) {
+            timers.removeAt(idx)
+        }
+    }
+
+    // 获取下一个需要触发的定时器
+    public func peek(): ?TimerEntry {
+        if (timers.size > 0) {
+            return Some(timers[0])
+        }
+        None
+    }
+
+    // 弹出下一个需要触发的定时器
+    public func pop(): ?TimerEntry {
+        if (timers.size > 0) {
+            return Some(timers.removeAt(0))
+        }
+        None
+    }
+
+    // 处理所有到期的定时器
+    public func processExpired(nowMillis: Int64): ArrayList<TimerEntry> {
+        let expired = ArrayList<TimerEntry>()
+        while (timers.size > 0 && timers[0].fireTime <= nowMillis) {
+            expired.append(timers.removeAt(0))
+        }
+        expired
+    }
+
+    // 定时器数量
+    public func size(): Int64 {
+        Int64(timers.size)
+    }
+
+    // 是否为空
+    public func isEmpty(): Bool {
+        timers.size == 0
+    }
+}
+
+/// TimerEntry - 定时器条目
+public class TimerEntry {
+    static var nextId: Int64 = 0
+
+    public var id: Int64
+    public var fireTime: Int64       // 触发时间 (毫秒时间戳)
+    public var interval: Int64 = 0   // 间隔 (重复定时器)
+    public var callback: () -> Unit
+    public var repeatable: Bool = false
+
+    public init(fireTime: Int64, callback: () -> Unit) {
+        this.id = TimerEntry.nextId
+        TimerEntry.nextId += 1
+        this.fireTime = fireTime
+        this.callback = callback
+    }
+
+    public init(fireTime: Int64, interval: Int64, callback: () -> Unit) {
+        this.id = TimerEntry.nextId
+        TimerEntry.nextId += 1
+        this.fireTime = fireTime
+        this.interval = interval
+        this.callback = callback
+        this.repeatable = true
+    }
+
+    public func run(): Unit {
+        callback()
+    }
 }

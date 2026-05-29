@@ -111,6 +111,8 @@ public class ArchiveEntry {
     public var symlink: String = ""
     /// 是否为目录可读的可执行位
     public var isReadable: Bool = false
+    /// 文件数据 (仅在 extractEntries 含数据时填充)
+    public var data: Array<Byte> = []
 
     public init() {}
 
@@ -528,7 +530,7 @@ public class Archiver {
                     if (entry.entryType == EntryType.File && entry.size > 0) {
                         let dataResult = readFileData(stream, entry.size)
                         match (dataResult) {
-                            case Some(data) => ()
+                            case Some(data) => entry.data = data
                             case None => ()
                         }
                     }
@@ -544,6 +546,37 @@ public class Archiver {
     public static func extractEntries(fileBuffer: String,
                                        options: ExtractOptions): ?ArrayList<ArchiveEntry> {
         extractEntries(fileBuffer.toArray(), options)
+    }
+
+    // ========================================================================
+    // 从内存缓冲区提取归档条目 (原始路径, 不做路径规范化)
+    // 用于 publish_command 等需要自行处理路径前缀的场景
+    // ========================================================================
+
+    /// 从内存缓冲区提取归档条目 (原始路径)
+    /// 不跳过深度, 不规范化路径, 保留原始 pathname
+    public static func extractRawEntries(fileBuffer: Array<Byte>): ?ArrayList<ArchiveEntry> {
+        let stream = BufferReadStream(fileBuffer)
+        let entries = ArrayList<ArchiveEntry>()
+
+        while (true) {
+            let entryResult = readNextEntry(stream)
+            match (entryResult) {
+                case None => break
+                case Some(entry) =>
+                    // 读取文件数据
+                    if (entry.entryType == EntryType.File && entry.size > 0) {
+                        let dataResult = readFileData(stream, entry.size)
+                        match (dataResult) {
+                            case Some(data) => entry.data = data
+                            case None => ()
+                        }
+                    }
+                    entries.add(entry)
+            }
+        }
+
+        entries
     }
 
     // ========================================================================

@@ -33,7 +33,7 @@ public class GcAccessor {
 
     /// 获取缓存的 JsValue
     /// 严格翻译自: js.gc.get(which, this_value)
-    public static func get(which: GcValue, thisValue: JsValue): ?JsValue {
+    public static func `get`(which!: GcValue, thisValue!: JsValue): ?JsValue {
         // 对应 Bun 的 data_get_cached / exit_get_cached / drain_get_cached
         match (which) {
             case Data => JsValue.getCached(thisValue, "data")
@@ -44,7 +44,7 @@ public class GcAccessor {
 
     /// 设置缓存的 JsValue
     /// 严格翻译自: js.gc.set(which, this_value, global, value)
-    public static func set(which: GcValue, thisValue: JsValue, global: JsGlobalObject, value: JsValue): Unit {
+    public static func `set`(which!: GcValue, thisValue!: JsValue, global!: JsGlobalObject, value!: JsValue): Unit {
         match (which) {
             case Data => JsValue.setCached(thisValue, global, "data", value)
             case Exit => JsValue.setCached(thisValue, global, "exit", value)
@@ -61,7 +61,7 @@ public class GcAccessor {
 /// Flags - Terminal 状态标志位
 /// Bun: bitflags, 使用 UInt8 位字段
 /// REF_COUNT: 1=JS side, 2=Reader, 3=Writer
-public struct Flags: Equatable {
+public struct Flags {
     public var rawValue: UInt8
 
     public init(rawValue: UInt8) {
@@ -92,22 +92,22 @@ public struct Flags: Equatable {
     public static let INLINE_SPAWNED: UInt8 = 1 << 7
 
     /// 是否包含指定标志
-    public func contains(flag: UInt8): Bool {
+    public func contains(flag!: UInt8): Bool {
         return (rawValue & flag) != 0
     }
 
     /// 插入指定标志
-    public mutating func insert(flag: UInt8): Unit {
+    public func insert(flag!: UInt8): Unit {
         rawValue = rawValue | flag
     }
 
     /// 移除指定标志
-    public mutating func remove(flag: UInt8): Unit {
-        rawValue = rawValue & (~flag)
+    public func remove(flag!: UInt8): Unit {
+        rawValue = rawValue & (flag ^ 0xFF)
     }
 
     /// 设置指定标志为指定值
-    public mutating func set(flag: UInt8, value: Bool): Unit {
+    public func `set`(flag!: UInt8, value!: Bool): Unit {
         if (value) {
             insert(flag)
         } else {
@@ -120,8 +120,8 @@ public struct Flags: Equatable {
         return rawValue == 0
     }
 
-    public static func == (lhs: Flags, rhs: Flags): Bool {
-        return lhs.rawValue == rhs.rawValue
+    public operator func == (rhs: Flags): Bool {
+        return this.rawValue == rhs.rawValue
     }
 }
 
@@ -159,7 +159,7 @@ public class StreamingWriter {
 
     /// 启动写入器
     /// 严格翻译自: StreamingWriter.start(fd, true)
-    public func start(fd: Int64,_: Bool): SysMaybe<Unit> {
+    public func start(fd!: Int64, force!: Bool): SysMaybe<Unit> {
         this.fd = fd
         this.started = true
         return SysMaybe<Unit>.Ok(())
@@ -167,7 +167,7 @@ public class StreamingWriter {
 
     /// 写入数据
     /// 严格翻译自: StreamingWriter.write(bytes)
-    public func write(bytes: Array<UInt8>): IoWriteResult {
+    public func write(bytes!: Array<UInt8>): IoWriteResult {
         if (closed || fd == INVALID_FD) {
             return IoWriteResult.err(SysError(32, SysTag.Write))  // EPIPE
         }
@@ -190,7 +190,7 @@ public class StreamingWriter {
     }
 
     /// 更新引用
-    public func updateRef(ctx: EventLoopHandle, add: Bool): Unit {
+    public func updateRef(ctx!: EventLoopHandle, add!: Bool): Unit {
         // 对应 Bun StreamingWriter.updateRef(ctx, add)
     }
 }
@@ -222,11 +222,11 @@ public enum IoWriteResult {
         }
     }
 
-    public static func err(e: SysError): IoWriteResult {
+    public static func err(e!: SysError): IoWriteResult {
         IoWriteResult.Err(e)
     }
 
-    public static func wrote(n: Int64): IoWriteResult {
+    public static func wrote(n!: Int64): IoWriteResult {
         IoWriteResult.Wrote(n)
     }
 }
@@ -261,7 +261,7 @@ public struct Options {
 
     /// 从 JS 对象解析选项
     /// 严格翻译自: Options::parse_from_js(global_object, js_options)
-    public static func parseFromJS(JsGlobalObject, jsOptions: JsValue): Maybe<Options> {
+    public static func parseFromJS(jsGlobalObject!: JsGlobalObject, jsOptions!: JsValue): Maybe<Options> {
         var options = Options()
 
         // 解析 cols
@@ -324,7 +324,7 @@ public struct Options {
     }
 
     /// 释放资源
-    public mutating func deinit(): Unit {
+    public func deinit(): Unit {
         termName.deinit()
     }
 }
@@ -512,14 +512,14 @@ public let TIOCSWINSZ_MACOS: UIntNative = 0x80087467
 /// createPty - 创建 PTY
 /// 严格翻译自: Terminal.rs fn create_pty(cols, rows)
 /// POSIX 平台使用 openpty, Windows 使用 ConPTY
-public func createPty(cols: UInt16, rows: UInt16): SysMaybe<PtyResult> {
+public func createPty(cols!: UInt16, rows!: UInt16): SysMaybe<PtyResult> {
     return createPtyPosix(cols, rows)
 }
 
 /// createPtyPosix - POSIX 平台创建 PTY
 /// 严格翻译自: Terminal.rs fn create_pty_posix(cols, rows)
 /// 使用 openpty 系统调用创建 PTY master/slave 对
-public func createPtyPosix(cols: UInt16, rows: UInt16): SysMaybe<PtyResult> {
+public func createPtyPosix(cols!: UInt16, rows!: UInt16): SysMaybe<PtyResult> {
     // 使用 openpty 创建 PTY
     // openpty 需要传入 winsize
     let winsize = Winsize(row: rows, col: cols)
@@ -604,9 +604,9 @@ public func createPtyPosix(cols: UInt16, rows: UInt16): SysMaybe<PtyResult> {
 /// configureSlaveTermios - 配置 slave 端 termios 为合理的默认值
 /// 严格翻译自: Terminal.rs create_pty_posix 中的 tcgetattr/tcsetattr 块
 /// 设置 cooked mode 默认值, 匹配 node-pty 行为
-public func configureSlaveTermios(slaveFd: Int32): Unit {
+public func configureSlaveTermios(slaveFd!: Int32): Unit {
     match (Termios.getattr(Int64(slaveFd))) {
-        case SysMaybe<Termios>.Ok(var t) =>
+        case SysMaybe<Termios>.Ok(t) =>
             // 输入标志: 标准终端输入处理
             t.iflag = InputFlags.ICRNL | InputFlags.IXON | InputFlags.IXANY
                 | UInt32(0x00002000)  // IMAXBEL
@@ -658,10 +658,10 @@ public func configureSlaveTermios(slaveFd: Int32): Unit {
 /// dup - 复制文件描述符
 /// 严格翻译自: sys::dup(fd)
 @C
-foreign func dup(fd: Int32): Int32
+foreign func dup(fd!: Int32): Int32
 
 /// dup 重载 (Int64 版本)
-public func dup(fd: Int64): Int64 {
+public func dup(fd!: Int64): Int64 {
     unsafe { Int64(dup(Int32(fd))) }
 }
 
@@ -669,16 +669,16 @@ public func dup(fd: Int64): Int64 {
 /// 严格翻译自: openpty 外部函数
 @C
 foreign func openpty(
-    amaster: CPointer<Int32>,
-    aslave: CPointer<Int32>,
-    name: CPointer<UInt8>,
-    termp: CPointer<Unit>,
-    winp: CPointer<Unit>
+    amaster!: CPointer<Int32>,
+    aslave!: CPointer<Int32>,
+    name!: CPointer<UInt8>,
+    termp!: CPointer<Unit>,
+    winp!: CPointer<Unit>
 ): Int32
 
 /// setNonblocking - 设置文件描述符为非阻塞
 /// 严格翻译自: sys::update_nonblocking(fd, true)
-public func setNonblocking(fd: Int64, nonblocking: Bool): Int32 {
+public func setNonblocking(fd!: Int64, nonblocking!: Bool): Int32 {
     unsafe {
         let flags = fcntl(Int32(fd), 3, 0)  // F_GETFL
         if (flags < 0) {
@@ -691,11 +691,11 @@ public func setNonblocking(fd: Int64, nonblocking: Bool): Int32 {
 
 /// fcntl - 文件控制操作
 @C
-foreign func fcntl(fd: Int32, cmd: Int32, arg: Int32): Int32
+foreign func fcntl(fd!: Int32, cmd!: Int32, arg!: Int32): Int32
 
 /// setCloseOnExec - 设置 close-on-exec 标志
 /// 严格翻译自: spawn_sys::set_close_on_exec(fd)
-public func setCloseOnExec(fd: Int64): Int32 {
+public func setCloseOnExec(fd!: Int64): Int32 {
     unsafe {
         let flags = fcntl(Int32(fd), 3, 0)  // F_GETFL
         if (flags < 0) {
@@ -707,7 +707,7 @@ public func setCloseOnExec(fd: Int64): Int32 {
 
 /// clampToCoord - 将 UInt16 限制在 i16 范围内
 /// 严格翻译自: Terminal.rs fn clamp_to_coord(v: u16) -> i16
-public func clampToCoord(v: UInt16): Int16 {
+public func clampToCoord(v!: UInt16): Int16 {
     if (v > 32767) {
         return 32767  // Int16.MAX
     }
@@ -716,7 +716,7 @@ public func clampToCoord(v: UInt16): Int16 {
 
 /// getTermios - 获取终端属性
 /// 严格翻译自: Terminal.rs fn get_termios(fd)
-public func getTermios(fd: Int64): ?Termios {
+public func getTermios(fd!: Int64): ?Termios {
     match (Termios.getattr(fd)) {
         case SysMaybe<Termios>.Ok(t) => Some(t)
         case SysMaybe<Termios>.Err(_) => None
@@ -725,7 +725,7 @@ public func getTermios(fd: Int64): ?Termios {
 
 /// setTermios - 设置终端属性
 /// 严格翻译自: Terminal.rs fn set_termios(fd, termios_p)
-public func setTermios(fd: Int64, termios: Termios): Bool {
+public func setTermios(fd!: Int64, termios!: Termios): Bool {
     match (termios.setattr(fd, TcSetAttrFlags.TCSANOW)) {
         case SysMaybe<Unit>.Ok(_) => true
         case SysMaybe<Unit>.Err(_) => false
@@ -850,9 +850,9 @@ public class Terminal {
     /// 创建 PTY, 启动读写器, 存储 JS 回调
     /// 返回 CreateResult 或 InitError
     public static func initTerminal(
-        JsGlobalObject,
-        options: Options,
-        existingJsValue: ?JsValue
+        global!: JsGlobalObject,
+        options!: Options,
+        existingJsValue!: ?JsValue
     ): Maybe<TerminalCreateResult> {
         // 创建 PTY
         let ptyResult = createPty(options.cols, options.rows)
@@ -969,7 +969,7 @@ public class Terminal {
 
     /// constructor - 从 JS 创建 Terminal
     /// 严格翻译自: pub fn constructor(global_object, callframe, this_value) -> JsResult<*Terminal>
-    public static func constructor(JsGlobalObject, callframe: CallFrame, thisValue: JsValue): Maybe<Terminal> {
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame, thisValue!: JsValue): Maybe<Terminal> {
         let args = callframe.argumentsAsArray(1)
         let jsOptions = args[0]
 
@@ -1014,8 +1014,8 @@ public class Terminal {
     /// 严格翻译自: pub fn create_from_spawn(global_object, options) -> Result<CreateResult, InitError>
     /// 返回 Terminal 和 JS 包装值, slave_fd 应用于子进程的 stdin/stdout/stderr
     public static func createFromSpawn(
-        JsGlobalObject,
-        options: Options
+        globalObject!: JsGlobalObject,
+        options!: Options
     ): Maybe<TerminalCreateResult> {
         return initTerminal(globalObject, options, None)
     }
@@ -1045,58 +1045,58 @@ public class Terminal {
 
     /// getClosed - 获取关闭状态 (JS getter)
     /// 严格翻译自: pub fn get_closed(&self, _global) -> JsValue
-    public func getClosed(_: JsGlobalObject): JsValue {
+    public func getClosed(globalObject!: JsGlobalObject): JsValue {
         return JsValue(flags.contains(Flags.CLOSED))
     }
 
     /// getInputFlags - 获取输入标志 (JS getter)
     /// 严格翻译自: pub fn get_input_flags(&self, _global) -> JsValue
-    public func getInputFlags(_: JsGlobalObject): JsValue {
+    public func getInputFlags(globalObject!: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Iflag)
     }
 
     /// setInputFlags - 设置输入标志 (JS setter)
     /// 严格翻译自: pub fn set_input_flags(&self, global_object, value) -> JsResult<bool>
-    public func setInputFlags(JsGlobalObject, value: JsValue): Bool {
+    public func setInputFlags(jsGlobalObject!: JsGlobalObject, value!: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Iflag)
         return true
     }
 
     /// getOutputFlags - 获取输出标志 (JS getter)
     /// 严格翻译自: pub fn get_output_flags(&self, _global) -> JsValue
-    public func getOutputFlags(_: JsGlobalObject): JsValue {
+    public func getOutputFlags(globalObject!: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Oflag)
     }
 
     /// setOutputFlags - 设置输出标志 (JS setter)
     /// 严格翻译自: pub fn set_output_flags(&self, global_object, value) -> JsResult<bool>
-    public func setOutputFlags(JsGlobalObject, value: JsValue): Bool {
+    public func setOutputFlags(jsGlobalObject!: JsGlobalObject, value!: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Oflag)
         return true
     }
 
     /// getLocalFlags - 获取本地标志 (JS getter)
     /// 严格翻译自: pub fn get_local_flags(&self, _global) -> JsValue
-    public func getLocalFlags(_: JsGlobalObject): JsValue {
+    public func getLocalFlags(globalObject!: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Lflag)
     }
 
     /// setLocalFlags - 设置本地标志 (JS setter)
     /// 严格翻译自: pub fn set_local_flags(&self, global_object, value) -> JsResult<bool>
-    public func setLocalFlags(JsGlobalObject, value: JsValue): Bool {
+    public func setLocalFlags(jsGlobalObject!: JsGlobalObject, value!: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Lflag)
         return true
     }
 
     /// getControlFlags - 获取控制标志 (JS getter)
     /// 严格翻译自: pub fn get_control_flags(&self, _global) -> JsValue
-    public func getControlFlags(_: JsGlobalObject): JsValue {
+    public func getControlFlags(globalObject!: JsGlobalObject): JsValue {
         return getTermiosFlag(TermiosField.Cflag)
     }
 
     /// setControlFlags - 设置控制标志 (JS setter)
     /// 严格翻译自: pub fn set_control_flags(&self, global_object, value) -> JsResult<bool>
-    public func setControlFlags(JsGlobalObject, value: JsValue): Bool {
+    public func setControlFlags(jsGlobalObject!: JsGlobalObject, value!: JsValue): Bool {
         setTermiosFlag(globalObject, value, TermiosField.Cflag)
         return true
     }
@@ -1108,7 +1108,7 @@ public class Terminal {
 
     /// getTermiosFlag - 获取 termios 标志值
     /// 严格翻译自: fn get_termios_flag<const FIELD: TermiosField>(&self) -> JsValue
-    public func getTermiosFlag(field: TermiosField): JsValue {
+    public func getTermiosFlag(field!: TermiosField): JsValue {
         if (flags.contains(Flags.CLOSED) || masterFd == INVALID_FD) {
             return JsValue(0.0)
         }
@@ -1127,7 +1127,7 @@ public class Terminal {
 
     /// setTermiosFlag - 设置 termios 标志值
     /// 严格翻译自: fn set_termios_flag<const FIELD: TermiosField>(&self, global_object, value)
-    public func setTermiosFlag(JsGlobalObject, value: JsValue, field: TermiosField): Unit {
+    public func setTermiosFlag(jsGlobalObject!: JsGlobalObject, value!: JsValue, field!: TermiosField): Unit {
         if (flags.contains(Flags.CLOSED) || masterFd == INVALID_FD) {
             return
         }
@@ -1156,7 +1156,7 @@ public class Terminal {
 
     /// write - 向终端写入数据
     /// 严格翻译自: pub fn write(&self, global_object, callframe) -> JsResult<JsValue>
-    public func write(JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
+    public func write(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1207,7 +1207,7 @@ public class Terminal {
 
     /// resize - 调整终端大小
     /// 严格翻译自: pub fn resize(&self, global_object, callframe) -> JsResult<JsValue>
-    public func resize(JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
+    public func resize(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1271,7 +1271,7 @@ public class Terminal {
 
     /// setRawMode - 设置原始模式
     /// 严格翻译自: pub fn set_raw_mode(&self, global_object, callframe) -> JsResult<JsValue>
-    public func setRawMode(JsGlobalObject, callframe: CallFrame): Maybe<JsValue> {
+    public func setRawMode(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1299,21 +1299,21 @@ public class Terminal {
 
     /// doRef - 引用终端, 保持事件循环活跃
     /// 严格翻译自: pub fn do_ref(&self, _g, _f) -> JsResult<JsValue>
-    public func doRef(_: JsGlobalObject, _: CallFrame): Maybe<JsValue> {
+    public func doRef(globalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
         updateRef(true)
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
 
     /// doUnref - 取消引用终端
     /// 严格翻译自: pub fn do_unref(&self, _g, _f) -> JsResult<JsValue>
-    public func doUnref(_: JsGlobalObject, _: CallFrame): Maybe<JsValue> {
+    public func doUnref(globalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
         updateRef(false)
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
 
     /// updateRef - 更新引用
     /// 严格翻译自: fn update_ref(&self, add: bool)
-    public func updateRef(add: Bool): Unit {
+    public func updateRef(add!: Bool): Unit {
         reader.updateRef(add)
         writer.updateRef(eventLoopHandle, add)
     }
@@ -1325,7 +1325,7 @@ public class Terminal {
 
     /// close - 关闭终端
     /// 严格翻译自: pub fn close(&self, _g, _f) -> JsResult<JsValue>
-    public func close(_: JsGlobalObject, _: CallFrame): Maybe<JsValue> {
+    public func close(globalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
         closeInternal()
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
@@ -1338,7 +1338,7 @@ public class Terminal {
     /// asyncDispose - 异步释放, 用于 "using" 语法
     /// 严格翻译自: pub fn async_dispose(&self, global_object, _f) -> JsResult<JsValue>
     /// 关闭后调用者不应再看到进一步的 data/exit 回调
-    public func asyncDispose(JsGlobalObject, _: CallFrame): Maybe<JsValue> {
+    public func asyncDispose(jsGlobalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
         // 降级 JSRef 使包装器可被 GC 回收
         thisValue.downgrade()
         // 标记为已终结, 抑制回调
@@ -1449,7 +1449,7 @@ public class Terminal {
 
     /// onWriterClose - 写入器关闭回调
     /// 严格翻译自: fn on_writer_close(&self)
-    fn onWriterClose(): Unit {
+    func onWriterClose(): Unit {
         if (!flags.contains(Flags.WRITER_DONE)) {
             flags.insert(Flags.WRITER_DONE)
             // 释放 writer 的引用
@@ -1460,7 +1460,7 @@ public class Terminal {
     /// onWriterReady - 写入器就绪回调
     /// 严格翻译自: fn on_writer_ready(&self)
     /// 调用 drain 回调
-    fn onWriterReady(): Unit {
+    func onWriterReady(): Unit {
         let thisJsvalue = thisValue.tryGet()
         if (thisJsvalue.isNone()) {
             return
@@ -1483,7 +1483,7 @@ public class Terminal {
     /// onWriterError - 写入器错误回调
     /// 严格翻译自: fn on_writer_error(&self, err: sys::Error)
     /// 写入错误时关闭终端
-    fn onWriterError(err: SysError): Unit {
+    func onWriterError(err: SysError): Unit {
         // 写入错误, 关闭终端防止进一步操作
         // 处理子进程退出时的管道破裂等情况
         if (!flags.contains(Flags.CLOSED)) {
@@ -1493,7 +1493,7 @@ public class Terminal {
 
     /// onWrite - 写入完成回调
     /// 严格翻译自: fn on_write(&self, amount: usize, status: WriteStatus)
-    fn onWrite(amount: Int64, status: WriteStatus): Unit {
+    func onWrite(amount: Int64, status: WriteStatus): Unit {
         // 日志记录
     }
 
@@ -1523,7 +1523,7 @@ public class Terminal {
     /// onReaderError - 读取器错误回调
     /// 严格翻译自: pub fn on_reader_error(&self, err: sys::Error)
     /// 错误 - 降级为弱引用以允许 GC
-    public func onReaderError(err: SysError): Unit {
+    public func onReaderError(err!: SysError): Unit {
         if (!flags.contains(Flags.FINALIZED)) {
             flags.remove(Flags.CONNECTED)
             thisValue.downgrade()
@@ -1546,7 +1546,7 @@ public class Terminal {
     /// 严格翻译自: fn call_exit_callback(&self, exit_code: i32, signal: Option<SignalCode>)
     /// 注意: exit_code 是 PTY 级别的 (0=EOF, 1=error), 不是子进程退出码
     /// signal 参数仅在信号导致 PTY 关闭时填充
-    fn callExitCallback(exitCode: Int32, signal: ?SignalCode): Unit {
+    func callExitCallback(exitCode: Int32, signal: ?SignalCode): Unit {
         let thisJsvalue = thisValue.tryGet()
         if (thisJsvalue.isNone()) {
             return
@@ -1581,7 +1581,7 @@ public class Terminal {
     /// onReadChunk - 数据可用回调
     /// 严格翻译自: pub fn on_read_chunk(&self, chunk: &[u8], has_more: ReadState) -> bool
     /// 返回 true 继续读取, false 暂停
-    public func onReadChunk(chunk: Array<UInt8>, hasMore: ReadState): Bool {
+    public func onReadChunk(chunk!: Array<UInt8>, hasMore!: ReadState): Bool {
         if (flags.contains(Flags.FINALIZED)) {
             return true
         }
@@ -1681,33 +1681,34 @@ public class Terminal {
 /// Terminal 实现此接口作为 BufferedReader 的 parent
 /// 严格翻译自: impl BufferedReaderParent for Terminal
 public interface BufferedReaderParent {
-    func onReadChunk(chunk: Array<UInt8>, hasMore: ReadState): Bool
+    func onReadChunk(chunk!: Array<UInt8>, hasMore!: ReadState): Bool
     func onReaderDone(): Unit
-    func onReaderError(err: SysError): Unit
+    func onReaderError(err!: SysError): Unit
     func loop_(): CPointer<Unit>
     func eventLoop(): EventLoopHandle
 }
 
-/// Terminal 实现 BufferedReaderParent
-/// 严格翻译自: Terminal.rs impl BufferedReaderParent for Terminal
-/// BufferedReaderParent 的回调使用 from_parent_ptr 恢复 &Terminal
-extension Terminal <: BufferedReaderParent {
-    public func onReadChunk(chunk: Array<UInt8>, hasMore: ReadState): Bool {
-        return onReadChunk(chunk, hasMore)
-    }
-    public func onReaderDone(): Unit {
-        onReaderDone()
-    }
-    public func onReaderError(err: SysError): Unit {
-        onReaderError(err)
-    }
-    public func loop_(): CPointer<Unit> {
-        return loop_()
-    }
-    public func eventLoop(): EventLoopHandle {
-        return eventLoop()
-    }
-}
+// TODO: extension keyword not supported in current Cangjie version
+// Terminal 实现 BufferedReaderParent
+// 严格翻译自: Terminal.rs impl BufferedReaderParent for Terminal
+// BufferedReaderParent 的回调使用 from_parent_ptr 恢复 &Terminal
+// extension Terminal <: BufferedReaderParent {
+//     public func onReadChunk(chunk!: Array<UInt8>, hasMore!: ReadState): Bool {
+//         return onReadChunk(chunk, hasMore)
+//     }
+//     public func onReaderDone(): Unit {
+//         onReaderDone()
+//     }
+//     public func onReaderError(err!: SysError): Unit {
+//         onReaderError(err)
+//     }
+//     public func loop_(): CPointer<Unit> {
+//         return loop_()
+//     }
+//     public func eventLoop(): EventLoopHandle {
+//         return eventLoop()
+//     }
+// }
 
 // ============================================================================
 // StreamingWriterParent trait 实现
@@ -1719,36 +1720,37 @@ extension Terminal <: BufferedReaderParent {
 /// Terminal 实现此接口作为 StreamingWriter 的 parent
 /// 严格翻译自: impl PosixStreamingWriterParent for Terminal
 public interface StreamingWriterParent {
-    func onWrite(amount: Int64, status: WriteStatus): Unit
-    func onError(err: SysError): Unit
+    func onWrite(amount!: Int64, status!: WriteStatus): Unit
+    func onError(err!: SysError): Unit
     func onReady(): Unit
     func onClose(): Unit
     func swEventLoop(): EventLoopHandle
     func swLoop(): CPointer<Unit>
 }
 
+// TODO: extension keyword not supported in current Cangjie version
 /// Terminal 实现 StreamingWriterParent
 /// 严格翻译自: Terminal.rs impl bun_io::pipe_writer::PosixStreamingWriterParent for Terminal
-extension Terminal <: StreamingWriterParent {
-    public func onWrite(amount: Int64, status: WriteStatus): Unit {
-        onWrite(amount, status)
-    }
-    public func onError(err: SysError): Unit {
-        onWriterError(err)
-    }
-    public func onReady(): Unit {
-        onWriterReady()
-    }
-    public func onClose(): Unit {
-        onWriterClose()
-    }
-    public func swEventLoop(): EventLoopHandle {
-        return eventLoopHandle
-    }
-    public func swLoop(): CPointer<Unit> {
-        return eventLoopHandle.loop()
-    }
-}
+// extension Terminal <: StreamingWriterParent {
+//     public func onWrite(amount!: Int64, status!: WriteStatus): Unit {
+//         onWrite(amount, status)
+//     }
+//     public func onError(err!: SysError): Unit {
+//         onWriterError(err)
+//     }
+//     public func onReady(): Unit {
+//         onWriterReady()
+//     }
+//     public func onClose(): Unit {
+//         onWriterClose()
+//     }
+//     public func swEventLoop(): EventLoopHandle {
+//         return eventLoopHandle
+//     }
+//     public func swLoop(): CPointer<Unit> {
+//         return eventLoopHandle.loop()
+//     }
+// }
 
 // ============================================================================
 // StringOrBuffer - 字符串或缓冲区辅助类
@@ -1769,7 +1771,7 @@ public class StringOrBuffer {
 
     /// 从 JS 值创建 StringOrBuffer
     /// 严格翻译自: StringOrBuffer::from_js(global_object, data)
-    public static func fromJS(JsGlobalObject, value: JsValue): ?StringOrBuffer {
+    public static func fromJS(jsGlobalObject!: JsGlobalObject, value!: JsValue): ?StringOrBuffer {
         if (value.isString()) {
             let str = value.toString()
             return Some(StringOrBuffer(bytes: str.toArray(), isString: true))
@@ -1816,7 +1818,7 @@ public class JsRef {
 
     /// 初始化强引用
     /// 严格翻译自: JsRef::init_strong(value, global)
-    public static func initStrong(value: JsValue, global: JsGlobalObject): JsRef {
+    public static func initStrong(value!: JsValue, global!: JsGlobalObject): JsRef {
         let r = JsRef()
         r.value = Some(value)
         r.isStrong = true
@@ -1831,7 +1833,7 @@ public class JsRef {
 
     /// 升级为强引用 (阻止 GC)
     /// 严格翻译自: JsRef::upgrade(global)
-    public func upgrade(global: JsGlobalObject): Unit {
+    public func upgrade(global!: JsGlobalObject): Unit {
         isStrong = true
     }
 
@@ -1842,7 +1844,7 @@ public class JsRef {
     }
 
     /// 获取内部引用
-    public func get(): JsRef {
+    public func `get`(): JsRef {
         return this
     }
 
@@ -1864,12 +1866,12 @@ public class MarkedArrayBuffer {
 
     /// 从字节数组创建
     /// 严格翻译自: MarkedArrayBuffer::from_bytes(bytes, js_type)
-    public static func fromBytes(bytes: Array<UInt8>, jsType: JSType): MarkedArrayBuffer {
+    public static func fromBytes(bytes!: Array<UInt8>, jsType!: JSType): MarkedArrayBuffer {
         return MarkedArrayBuffer()
     }
 
     /// 转为 Node Buffer
-    public func toNodeBuffer(global: JsGlobalObject): JsValue {
+    public func toNodeBuffer(global!: JsGlobalObject): JsValue {
         return JsValue(bytes: [])
     }
 }
@@ -1924,13 +1926,13 @@ public class BufferedReader {
     }
 
     /// 设置 parent 指针
-    public func setParent(p: Object): Unit {
+    public func setParent(p!: Object): Unit {
         // parent 用于回调
     }
 
     /// 启动读取
     /// 严格翻译自: BufferedReader.start(fd, true)
-    public func start(fd: Int64,_: Bool): SysMaybe<Unit> {
+    public func start(fd!: Int64, force!: Bool): SysMaybe<Unit> {
         this.fd = fd
         this.started = true
         return SysMaybe<Unit>.Ok(())
@@ -1957,7 +1959,7 @@ public class BufferedReader {
     }
 
     /// 更新引用
-    public func updateRef(add: Bool): Unit {
+    public func updateRef(add!: Bool): Unit {
         // 对应 Bun BufferedReader.updateRef(add)
     }
 
@@ -1990,7 +1992,7 @@ public class BufferedReaderFlags_ {
         pollable = false
     }
 
-    public func insert(flags: UInt32): Unit {
+    public func insert(flags!: UInt32): Unit {
         if ((flags & 1) != 0) { nonblocking = true }
         if ((flags & 2) != 0) { pollable = true }
     }
@@ -1998,7 +2000,7 @@ public class BufferedReaderFlags_ {
 
 /// FilePoll - 文件轮询抽象
 public class FilePoll {
-    public func setFlag(flag: Int64): Unit {}
+    public func setFlag(flag!: Int64): Unit {}
 }
 
 /// RefCount - 引用计数
@@ -2031,7 +2033,7 @@ public class RefCount {
 /// JsPromise - JS Promise 辅助
 public class JsPromise {
     /// 创建已解决的 Promise
-    public static func resolvedPromiseValue(global: JsGlobalObject, value: JsValue): JsValue {
+    public static func resolvedPromiseValue(global!: JsGlobalObject, value!: JsValue): JsValue {
         return value
     }
 }

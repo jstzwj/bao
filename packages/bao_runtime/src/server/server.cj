@@ -683,7 +683,7 @@ public class ServePlugins {
                     route.deref()
                 }
                 match (devSrv) {
-                    case Some(dev) => () // TODO: dev.onPluginsResolved(plugin)
+                    case Some(dev) => dev.onPluginsResolved(plugin)
                     case None => ()
                 }
             case _ => ()
@@ -706,7 +706,7 @@ public class ServePlugins {
                     route.deref()
                 }
                 match (devSrv) {
-                    case Some(dev) => () // TODO: dev.onPluginsRejected()
+                    case Some(dev) => dev.onPluginsRejected()
                     case None => ()
                 }
                 // 简化: Output.errGeneric 不可用
@@ -933,7 +933,7 @@ public class HttpServer {
         cost += Int64(baseUrlStringForJoining.size)
         cost += config.memoryCost()
         match (devServer) {
-            case Some(dev) => () // TODO: dev.memoryCost()
+            case Some(dev) => cost += dev.memoryCost()
             case None => ()
         }
         return cost
@@ -951,7 +951,7 @@ public class HttpServer {
         onClientError.deinit()
 
         match (devServer) {
-            case Some(dev) => () // TODO: dev.deinit()
+            case Some(dev) => dev.deinit()
             case None => ()
         }
         match (plugins) {

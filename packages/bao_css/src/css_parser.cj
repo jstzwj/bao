@@ -261,12 +261,15 @@ public class CssParserOptions {
     public var filename: String
     /// 特性标志
     public var flags: CssParserFlags
+    /// 收集的警告
+    public var warnings: ArrayList<CssParseError>
 
     public init() {
         this.errorRecovery = true
         this.cssModules = None
         this.sourceIndex = 0
         this.filename = "<input>"
+        this.warnings = ArrayList<CssParseError>()
         this.flags = CssParserFlags()
     }
 
@@ -275,6 +278,7 @@ public class CssParserOptions {
         this.cssModules = None
         this.sourceIndex = 0
         this.filename = filename
+        this.warnings = ArrayList<CssParseError>()
         this.flags = CssParserFlags()
     }
 
@@ -285,7 +289,9 @@ public class CssParserOptions {
     /// 发出警告
     /// 严格翻译自 ParserOptions.warn
     public func warn(warning: CssParseError): Unit {
-        // TODO: 实现日志系统后连接
+        // 将警告添加到日志收集器
+        // 对应 Bun: options.warn(warning) — 通过 Logger 输出警告
+        warnings.append(warning)
     }
 
     public func toString(): String {
@@ -1572,31 +1578,61 @@ public class NestedRuleParser {
         match (prelude.kind) {
             case AtRulePreludeKind.FontFace =>
                 let block = parser.parseDeclarationBlock()
-                let rule = CssRule()
-                rule.kind = CssRuleKind.FontFace
+                let ffRule = CssAtFontFaceRule(block)
+                let rule = CssRule.createFontFace(ffRule)
+                rule.position = Some(getLoc(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Media =>
                 let nestedRules = parseStyleBlock(parser)
-                let rule = CssRule()
-                rule.kind = CssRuleKind.Media
+                let mediaRule = CssAtMediaRule(prelude.name, nestedRules)
+                let rule = CssRule.createMedia(mediaRule)
+                rule.position = Some(getLoc(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Supports =>
                 let nestedRules = parseStyleBlock(parser)
-                let rule = CssRule()
-                rule.kind = CssRuleKind.Supports
+                let supportsRule = CssAtSupportsRule(prelude.name, nestedRules)
+                let rule = CssRule.createSupports(supportsRule)
+                rule.position = Some(getLoc(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Container =>
                 let nestedRules = parseStyleBlock(parser)
-                let rule = CssRule()
-                rule.kind = CssRuleKind.Container
+                let cname = match (prelude.containerName) {
+                    case Some(n) => n
+                    case None => ""
+                }
+                let containerRule = CssAtContainerRule(cname, prelude.name, nestedRules)
+                let rule = CssRule.createContainer(containerRule)
+                rule.position = Some(getLoc(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Keyframes =>
-                let rule = CssRule()
-                rule.kind = CssRuleKind.Keyframes
+                let blocks = ArrayList<CssKeyframeBlock>()
+                // 解析关键帧块列表
+                while (!parser.currentToken.isEof() && !parser.currentToken.isRBrace()) {
+                    match (parser.parseKeyframeBlockFromAtRule()) {
+                        case Some(block) => blocks.append(block)
+                        case None => parser.recoverToRule()
+                    }
+                }
+                parser.expectRBrace()
+                // 根据供应商前缀构建规则名
+                let ruleName = if (prelude.prefix.webkit) {
+                    "-webkit-keyframes"
+                } else if (prelude.prefix.moz) {
+                    "-moz-keyframes"
+                } else if (prelude.prefix.o) {
+                    "-o-keyframes"
+                } else if (prelude.prefix.ms) {
+                    "-ms-keyframes"
+                } else {
+                    "keyframes"
+                }
+                let kfRule = CssAtKeyframesRule(ruleName, prelude.keyframesName, blocks)
+                let rule = CssRule.createKeyframes(kfRule)
+                rule.position = Some(getLoc(start))
                 rules.append(rule)
                 CssParseResult<Unit>(())
             case AtRulePreludeKind.Layer =>
@@ -1675,9 +1711,20 @@ public class NestedRuleParser {
     }
 
     /// 解析限定规则前导 (选择器)
+    /// 对应 Bun: parseQualifiedRulePrelude — 使用选择器解析器解析 CSS 选择器列表
     public func parseQualifiedRulePrelude(parser: CssParser): CssParseResult<CssSelectorList> {
-        // TODO: 使用完整的选择器解析器
-        CssParseResult<CssSelectorList>(CssSelectorList())
+        // 使用完整的选择器解析器
+        // 对应 Bun: selectors::parser::parse_selector_list(...)
+        let selectorText = parser.sliceUntil(0x7B) // '{'
+        if (selectorText.isEmpty()) {
+            return CssParseResult<CssSelectorList>(CssParseError(CssParseErrorKind.InvalidSelector, 0, 0))
+        }
+        match (CssSelectorParser.parseList(selectorText, parser.options)) {
+            case Some(selectors) =>
+                CssParseResult<CssSelectorList>(selectors)
+            case None =>
+                CssParseResult<CssSelectorList>(CssParseError(CssParseErrorKind.InvalidSelector, 0, 0))
+        }
     }
 
     /// 解析限定规则块 (声明和嵌套规则)
@@ -1950,7 +1997,7 @@ public class CssParser {
     /// 当前预读的 token
     private var currentToken: CssToken
     /// 解析选项
-    private var options: CssParserOptions
+    public var options: CssParserOptions
     /// 错误列表
     public var errors: ArrayList<CssParseError>
     /// 解析是否已结束
@@ -1999,6 +2046,12 @@ public class CssParser {
         eof = false
         stateStack = ArrayList<ParserState>()
         advance()
+    }
+
+    /// 从当前位置切片直到遇到指定字符
+    /// 对应 Bun: Parser.sliceUntil
+    public func sliceUntil(ch: UInt8): String {
+        lexer.sliceUntil(ch)
     }
 
     // ========================================================================
@@ -2127,9 +2180,9 @@ public class CssParser {
     private func parseMediaRule(pos: CssTokenPosition): ?CssRule {
         let prelude = readPrelude()
         expectLBrace()
-        let rules = parseRuleList()
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Media
+        let childRules = parseRuleList()
+        let mediaRule = CssAtMediaRule(prelude, childRules)
+        let rule = CssRule.createMedia(mediaRule)
         rule.position = Some(pos)
         Some(rule)
     }
@@ -2141,37 +2194,148 @@ public class CssParser {
             url = currentToken.text
             advance()
         }
-        let prelude = readPrelude() // media query 等
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Import
+        let conditions = readPrelude() // media query 等
+        let importRule = CssAtImportRule(url, conditions)
+        let rule = CssRule.createImport(importRule)
         rule.position = Some(pos)
         Some(rule)
     }
 
     /// 解析 @keyframes 规则
+    /// 对应 Bun: parseKeyframesRule — 解析关键帧动画规则
     private func parseKeyframesRule(name: String, pos: CssTokenPosition): ?CssRule {
         let keyframeName = readIdentOrString()
         expectLBrace()
-        // TODO: 解析关键帧块
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Keyframes
+        // 解析关键帧块列表
+        let blocks = ArrayList<CssKeyframeBlock>()
+        while (!currentToken.isEof() && !currentToken.isRBrace()) {
+            match (parseKeyframeBlock()) {
+                case Some(block) => blocks.append(block)
+                case None =>
+                    // 跳过无法解析的块
+                    recoverToRule()
+            }
+        }
+        expectRBrace()
+        // 构建规则名 (保留供应商前缀)
+        let ruleName = if (name.startsWith("@")) { cssSubstring(name, 1) } else { name }
+        let kfRule = CssAtKeyframesRule(ruleName, keyframeName, blocks)
+        let rule = CssRule.createKeyframes(kfRule)
         rule.position = Some(pos)
-        // 跳到匹配的 }
-        recoverToRule()
         Some(rule)
     }
 
     /// 解析关键帧块 (from/to/percentage)
+    /// 对应 Bun: parseKeyframeBlock — 解析单个关键帧选择器和声明块
+    /// 选择器可以是逗号分隔的列表, 如: 0%, 50%, from
     private func parseKeyframeBlock(): ?CssKeyframeBlock {
-        None
+        skipWhitespace()
+        // 读取关键帧选择器列表 (逗号分隔)
+        let selectorList = ArrayList<String>()
+        var firstSelector = true
+        while (true) {
+            skipWhitespace()
+            let selectorText = readKeyframeSelector()
+            if (selectorText.isEmpty() && selectorList.size == 0) {
+                return None
+            }
+            if (selectorText.isEmpty()) { break }
+            // 标准化选择器: from -> 0%, to -> 100%
+            let normalized = normalizeKeyframeSelector(selectorText)
+            selectorList.append(normalized)
+            skipWhitespace()
+            // 检查是否有逗号 (更多选择器)
+            if (currentToken.kind == CssTokenKind.Comma) {
+                advance()
+            } else {
+                break
+            }
+        }
+        expectLBrace()
+        // 解析声明块
+        let declarations = parseDeclarationBlock()
+        expectRBrace()
+        let block = CssKeyframeBlock()
+        block.selectors = selectorList
+        block.declarations = declarations
+        Some(block)
+    }
+
+    /// 读取关键帧选择器文本 (from, to, 百分比值)
+    private func readKeyframeSelector(): String {
+        skipWhitespace()
+        match (currentToken.kind) {
+            case CssTokenKind.Ident =>
+                let text = currentToken.text
+                // 关键帧只接受 from, to
+                let lower = cssAsciiLower(text)
+                if (lower == "from" || lower == "to") {
+                    advance()
+                    return text
+                }
+                ""
+            case CssTokenKind.Percentage =>
+                // Percentage token 的 text 可能未设置, 使用 numberValue
+                let pctValue = currentToken.numberValue * 100.0
+                advance()
+                "${pctValue}%"
+            case CssTokenKind.Number =>
+                // "0" 可作为百分比选择器
+                let numValue = currentToken.numberValue
+                if (numValue == 0.0) {
+                    advance()
+                    return "0%"
+                }
+                ""
+            case _ => ""
+        }
+    }
+
+    /// 标准化关键帧选择器
+    /// from -> 0%, to -> 100%
+    private func normalizeKeyframeSelector(selector: String): String {
+        let lower = cssAsciiLower(selector)
+        if (lower == "from") { return "0%" }
+        if (lower == "to") { return "100%" }
+        selector
+    }
+
+    /// 从 @规则解析路径调用, 解析单个关键帧块
+    /// 供 NestedRuleParser.parseAtRuleBlock 使用
+    public func parseKeyframeBlockFromAtRule(): ?CssKeyframeBlock {
+        skipWhitespace()
+        let selectorList = ArrayList<String>()
+        while (true) {
+            skipWhitespace()
+            let selectorText = readKeyframeSelector()
+            if (selectorText.isEmpty() && selectorList.size == 0) {
+                return None
+            }
+            if (selectorText.isEmpty()) { break }
+            let normalized = normalizeKeyframeSelector(selectorText)
+            selectorList.append(normalized)
+            skipWhitespace()
+            if (currentToken.kind == CssTokenKind.Comma) {
+                advance()
+            } else {
+                break
+            }
+        }
+        expectLBrace()
+        let declarations = parseDeclarationBlock()
+        expectRBrace()
+        let block = CssKeyframeBlock()
+        block.selectors = selectorList
+        block.declarations = declarations
+        Some(block)
     }
 
     /// 解析 @font-face 规则
     private func parseFontFaceRule(pos: CssTokenPosition): ?CssRule {
         expectLBrace()
         let block = parseDeclarationBlock()
-        let rule = CssRule()
-        rule.kind = CssRuleKind.FontFace
+        let ffRule = CssAtFontFaceRule(block)
+        let rule = CssRule.createFontFace(ffRule)
         rule.position = Some(pos)
         Some(rule)
     }
@@ -2180,9 +2344,9 @@ public class CssParser {
     private func parseSupportsRule(pos: CssTokenPosition): ?CssRule {
         let prelude = readPrelude()
         expectLBrace()
-        let rules = parseRuleList()
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Supports
+        let childRules = parseRuleList()
+        let supportsRule = CssAtSupportsRule(prelude, childRules)
+        let rule = CssRule.createSupports(supportsRule)
         rule.position = Some(pos)
         Some(rule)
     }
@@ -2193,15 +2357,15 @@ public class CssParser {
         match (currentToken.kind) {
             case CssTokenKind.Semicolon =>
                 advance()
-                let rule = CssRule()
-                rule.kind = CssRuleKind.LayerStatement
+                let layerStmt = CssAtLayerStatementRule(prelude)
+                let rule = CssRule.createLayerStatement(layerStmt)
                 rule.position = Some(pos)
                 Some(rule)
             case CssTokenKind.LBrace =>
                 advance()
-                let rules = parseRuleList()
-                let rule = CssRule()
-                rule.kind = CssRuleKind.LayerBlock
+                let childRules = parseRuleList()
+                let layerBlock = CssAtLayerBlockRule(prelude, childRules)
+                let rule = CssRule.createLayerBlock(layerBlock)
                 rule.position = Some(pos)
                 Some(rule)
             case _ =>
@@ -2214,18 +2378,51 @@ public class CssParser {
     private func parseContainerRule(pos: CssTokenPosition): ?CssRule {
         let prelude = readPrelude()
         expectLBrace()
-        let rules = parseRuleList()
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Container
+        let childRules = parseRuleList()
+        // 从 prelude 中分离容器名称和条件
+        let (containerName, condition) = splitContainerPrelude(prelude)
+        let containerRule = CssAtContainerRule(containerName, condition, childRules)
+        let rule = CssRule.createContainer(containerRule)
         rule.position = Some(pos)
         Some(rule)
+    }
+
+    /// 从 container prelude 中分离名称和条件
+    /// container prelude 格式: [name] <condition>
+    private func splitContainerPrelude(prelude: String): (String, String) {
+        // 简化: 如果 prelude 以 / 结尾则无名称, 否则第一个标识符是名称
+        let trimmed = cssTrim(prelude)
+        if (trimmed.isEmpty()) { return ("", "") }
+        // 检查是否以 / 开头 (只有条件)
+        let firstChar = trimmed[0]
+        if (firstChar == UInt8(40) || firstChar == UInt8(91) ||
+            firstChar == UInt8(110) || firstChar == UInt8(115) ||
+            firstChar == UInt8(40) || firstChar == UInt8(63)) {
+            return ("", trimmed)
+        }
+        // 尝试找到第一个空格作为名称/条件分隔
+        var spaceIdx: Int64 = -1
+        for (i in 0..trimmed.size) {
+            let ch = trimmed[i]
+            if (ch == UInt8(32) || ch == UInt8(9)) {
+                spaceIdx = i
+                break
+            }
+        }
+        if (spaceIdx > 0) {
+            let name = trimmed[0..spaceIdx]
+            let condition = cssTrim(trimmed[spaceIdx..trimmed.size])
+            return (name, condition)
+        }
+        // 无条件, 只有名称
+        return ("", trimmed)
     }
 
     /// 解析 @namespace 规则
     private func parseNamespaceRule(pos: CssTokenPosition): ?CssRule {
         let prelude = readPrelude()
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Namespace
+        let nsRule = CssAtNamespaceRule(prelude)
+        let rule = CssRule.createNamespace(nsRule)
         rule.position = Some(pos)
         Some(rule)
     }
@@ -2242,8 +2439,8 @@ public class CssParser {
         let name = readIdentOrString()
         expectLBrace()
         let block = parseDeclarationBlock()
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Property
+        let propRule = CssAtPropertyRule(name, block)
+        let rule = CssRule.createProperty(propRule)
         rule.position = Some(pos)
         Some(rule)
     }
@@ -2254,15 +2451,16 @@ public class CssParser {
         match (currentToken.kind) {
             case CssTokenKind.Semicolon =>
                 advance()
-                let rule = CssRule()
-                rule.kind = CssRuleKind.Unknown
+                let unknownRule = CssUnknownAtRule(name, prelude, CssDeclarationBlock())
+                let rule = CssRule.createUnknown(unknownRule)
                 rule.position = Some(pos)
                 Some(rule)
             case CssTokenKind.LBrace =>
                 advance()
-                recoverToRule()
-                let rule = CssRule()
-                rule.kind = CssRuleKind.Unknown
+                // 尝试解析声明块
+                let block = parseDeclarationBlock()
+                let unknownRule = CssUnknownAtRule(name, prelude, block)
+                let rule = CssRule.createUnknown(unknownRule)
                 rule.position = Some(pos)
                 Some(rule)
             case _ =>
@@ -2281,8 +2479,10 @@ public class CssParser {
         }
         advance() // 消费 {
         let block = parseDeclarationBlock()
-        let rule = CssRule()
-        rule.kind = CssRuleKind.Style
+        let selectorList = CssSelectorList()
+        // 创建样式规则
+        let styleRule = CssStyleRule(selectorList, block, ArrayList<CssRule>())
+        let rule = CssRule.createStyle(styleRule)
         Some(rule)
     }
 
@@ -2854,20 +3054,22 @@ public class CssStylesheet {
 
     /// 压缩和转换
     /// 严格翻译自 StyleSheet.minify
+    /// 遍历所有规则并应用压缩优化
     public func minify(options: CssMinifyOptions): Unit {
-        // TODO: 实现 minify
+        // 遍历所有规则并压缩
+        // 对应 Bun: stylesheet.minify — 移除空白、合并声明等
+        for (rule in rules.rules) {
+            rule.minify(options)
+        }
     }
 
     /// 序列化为 CSS 文本
     /// 严格翻译自 StyleSheet.toCss
+    /// 使用 CssPrinter 进行规范的 CSS 序列化
     public func toCss(): ToCssResult {
-        // TODO: 使用 Printer 进行序列化
-        let sb = StringBuilder()
-        for (rule in rules.rules) {
-            sb.append(rule.toString())
-            sb.append("\n")
-        }
-        ToCssResult(sb.toString())
+        let printer = CssPrinter()
+        let cssText = printer.printStylesheet(rules)
+        ToCssResult(cssText)
     }
 
     public func toString(): String {
@@ -2919,8 +3121,9 @@ public class CssStyleAttribute {
     }
 
     /// 压缩
+    /// 对应 Bun: StyleAttribute.minify — 压缩内联样式声明
     public func minify(options: CssMinifyOptions): Unit {
-        // TODO: 实现
+        declarations.minify(options)
     }
 }
 
@@ -4703,12 +4906,12 @@ public class CssShorthandUtil {
 
     /// 从 longhand 属性创建 shorthand
     /// 严格翻译自 DefineShorthand.fromLonghands
-    /// TODO: 完整实现需要属性映射表
+    /// 注意: 完整实现需要属性映射表，当前返回 None 表示不支持自动合并
     public static func fromLonghands(
         decls: CssDeclarationBlock,
         prefix: VendorPrefix
     ): ?CssShorthandResult {
-        // 简化实现: 返回 None 表示不支持自动合并
+        // 属性映射表尚未实现，返回 None 表示不支持自动合并
         None
     }
 

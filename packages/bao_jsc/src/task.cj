@@ -227,12 +227,16 @@ public class TimeoutObject {
     public var callback: ?JsFunction = None
     public var args: Array<JsValue> = []
     public var interval: Float64 = 0.0
-    public var startTime: Float64 = 0.0
+    // 使用真实单调时间初始化 startTime
+    // 对应 Bun: 初始化时使用 bun.timespec.now() 获取当前时间
+    public var startTime: Float64 = Float64(getNowMillis())
     public var isRefed: Bool = true
     public var isRepeated: Bool = false
     public var isDestroyed: Bool = false
 
-    public init() {}
+    public init() {
+        startTime = Float64(getNowMillis())
+    }
 
     public func run() {
         if (let Some(cb) <- callback) {

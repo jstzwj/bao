@@ -54,7 +54,7 @@ public class ServerExports {
         Array<String>, // styles
         ?HashMap<String, String>, // params
         (Any) -> Unit, // setAsyncLocalStorage
-        (Any, String) -> Tuple<Int64, ?Promise<Unit>>, // bundleNewRoute
+        (Any, String) -> (Int64, ?Promise<Unit>), // bundleNewRoute
         (Any, Int64, String) -> NewRouteParams, // newRouteParams
     ) -> Promise<Any>
 
@@ -69,7 +69,7 @@ public class ServerExports {
         handleRequest: (
             Any, String, Array<String>, String, Array<String>,
             ?HashMap<String, String>, (Any) -> Unit,
-            (Any, String) -> Tuple<Int64, ?Promise<Unit>>,
+            (Any, String) -> (Int64, ?Promise<Unit>),
             (Any, Int64, String) -> NewRouteParams
         ) -> Promise<Any>,
         registerUpdate: (HashMap<String, Any>, ?Array<String>, ?Array<String>) -> Unit
@@ -127,7 +127,7 @@ func serverHandleRequest(
     styles: Array<String>,
     params: ?HashMap<String, String>,
     setAsyncLocalStorage: (Any) -> Unit,
-    bundleNewRoute: (Any, String) -> Tuple<Int64, ?Promise<Unit>>,
+    bundleNewRoute: (Any, String) -> (Int64, ?Promise<Unit>),
     newRouteParams: (Any, Int64, String) -> NewRouteParams
 ): Promise<Any> {
     // 加载入口点导出
@@ -137,18 +137,17 @@ func serverHandleRequest(
         // 查找 render 函数
         let serverRenderer = exports // 简化：假设 exports 就是 render 函数
 
-        // 加载路由模块
-        var pageModulePromises: Array<Promise<Any>> = []
+        // 加载路由模块（简化：同步加载）
+        var pageModules = ArrayList<Any>()
         for (moduleId in routeModules) {
-            pageModulePromises.append(loadExports<Any>(moduleId))
+            let m = loadExports<Any>(moduleId)
+            pageModules.append(m)
         }
 
-        Promise.all(pageModulePromises).then({ pageModules =>
-            // 构建渲染上下文
-            // 调用 render 函数
-            // 返回 Response
-            Any()
-        })
+        // 构建渲染上下文
+        // 调用 render 函数
+        // 返回 Response
+        exports
     })
 }
 
@@ -159,7 +158,7 @@ func serverRegisterUpdate(
     componentManifestDelete: ?Array<String>
 ): Unit {
     // 构建模块映射并调用 replaceModules
-    var moduleMap: HashMap<Id, UnloadedModule> = HashMap<Id, UnloadedModule>()
+    var moduleMap: HashMap<String, Any> = HashMap<String, Any>()
     // 简化实现
     // replaceModules(moduleMap)
 

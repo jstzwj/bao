@@ -111,15 +111,8 @@ public class RemoveCommand {
 
         try {
             logger.info("Reinstalling to clean up...")
-            let result = pm.install(installOpts)
-            match (result) {
-                case Some(summary) =>
-                    logger.success("Removed ${opts.packages.size} package(s)")
-                    if (summary.removed > 0) {
-                        logger.info("Cleaned up ${summary.removed} unused packages")
-                    }
-                case None => ()
-            }
+            pm.install(CommandContext())
+            logger.success("Removed ${opts.packages.size} package(s)")
         } catch (e: Exception) {
             logger.error("Post-remove install failed: ${e.message}")
         }
@@ -165,7 +158,7 @@ public class RemoveCommand {
                 case "--global" | "-g" => opts.global = true
                 case "--no-install" => opts.noInstall = true
                 case "--force" => opts.force = true
-                case "--verbose" | "-v" => logger.setLevel(LogLevel.DEBUG)
+                case "--verbose" | "-v" => logger.verbose = true
                 case "--help" | "-h" =>
                     printRemoveHelp()
                     return opts
@@ -187,14 +180,14 @@ public class RemoveCommand {
     private func readPackageJson(dir: String): ?MutablePackageJson {
         let content = BaoFile.readAllText(Path.join([dir, "package.json"]))
         match (content) {
-            case Some(text) =>
+            case SysMaybe.Ok(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
                     case Some(root) => return MutablePackageJson.fromJson(root)
                     case None => return None
                 }
-            case None => return None
+            case _ => return None
         }
     }
 

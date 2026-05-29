@@ -8,6 +8,23 @@ import bao_install.*
 import bao_io.*
 import bao_path.*
 import bao_sys.*
+import bao_cli.commands.JsonParser
+import bao_cli.commands.JsonHelper
+import bao_cli.commands.JsonValue
+
+/// 本地 toLower 辅助函数 (ASCII)
+private func _toLower(s: String): String {
+    var bytes = Array<UInt8>(s.size, { _ => UInt8(0) })
+    for (i in 0..s.size) {
+        let c = s[i]
+        if (c >= UInt8(65) && c <= UInt8(90)) {
+            bytes[i] = c + UInt8(32)
+        } else {
+            bytes[i] = c
+        }
+    }
+    return String.fromUtf8(bytes)
+}
 
 // ============================================================================
 // 配置系统 - 对应 bunfig.toml
@@ -36,7 +53,7 @@ public enum BuildTarget {
     }
 
     public static func fromString(s: String): ?BuildTarget {
-        match (s.toLower()) {
+        match (_toLower(s)) {
             case "browser" => Some(BuildTarget.Browser)
             case "node" => Some(BuildTarget.Node)
             case "bun" => Some(BuildTarget.Bun)
@@ -62,7 +79,7 @@ public enum Loader {
     | Toml
 
     public static func fromString(s: String): ?Loader {
-        match (s.toLower()) {
+        match (_toLower(s)) {
             case "js" => Some(Loader.Js)
             case "ts" => Some(Loader.Ts)
             case "jsx" => Some(Loader.Jsx)
@@ -249,8 +266,8 @@ public class Config {
         if (BaoFile.exists(globalConfigPath)) {
             let content = BaoFile.readAllText(globalConfigPath)
             match (content) {
-                case Some(text) => config.parseBunfig(text)
-                case None => ()
+                case Ok(text) => config.parseBunfig(text)
+                case Err(_) => ()
             }
         }
 
@@ -259,8 +276,8 @@ public class Config {
         if (BaoFile.exists(projectConfigPath)) {
             let content = BaoFile.readAllText(projectConfigPath)
             match (content) {
-                case Some(text) => config.parseBunfig(text)
-                case None => ()
+                case Ok(text) => config.parseBunfig(text)
+                case Err(_) => ()
             }
         }
 
@@ -323,13 +340,13 @@ public class Config {
 
                 // loader
                 match (TomlHelper.getTable(root, "loader")) {
-                    case Some(table) =>
-                        for (key in table.keys()) {
-                            match (table.get(key)) {
+                    case Some(loaderTable) =>
+                        for (key in loaderTable.keys()) {
+                            match (loaderTable.get(key)) {
                                 case Some(v) =>
-                                    match (Loader.fromString(v)) {
-                                        case Some(loader) => loaderMap.put(key, loader)
-                                        case None => ()
+                                    let parsedLoader = Loader.fromString(v)
+                                    if (let Some(ld) <- parsedLoader) {
+                                        loaderMap.put(key, ld)
                                     }
                                 case None => ()
                             }
@@ -414,7 +431,7 @@ public class Config {
 
                 // tsconfig
                 match (TomlHelper.getString(root, "tsconfig")) {
-                    case Some(path) => tsconfig = Some(path)
+                    case Some(tsconfigPath) => tsconfig = Some(tsconfigPath)
                     case None => ()
                 }
 
@@ -456,7 +473,7 @@ public class Config {
     private func parsePackageJsonFile(path: String): PackageJsonInfo {
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) =>
+            case Ok(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
@@ -470,26 +487,43 @@ public class Config {
 
                         // scripts
                         match (JsonHelper.getField(root, "scripts")) {
-                            case Some(JsonValue.Object(scripts)) =>
-                                for (key in scripts.keys()) {
-                                    match (scripts.get(key)) {
-                                        case Some(JsonValue.Str(v)) => info.scripts.put(key, v)
-                                        case _ => ()
+                            case Some(scriptsObj) =>
+                                for (key in scriptsObj.keys()) {
+                                    match (scriptsObj.getString(key)) {
+                                        case Some(v) => info.scripts.put(key, v)
+                                        case None => ()
                                     }
                                 }
-                            case _ => ()
+                            case None => ()
                         }
 
-                        // dependencies
-                        info.dependencies = JsonHelper.getStringMap(root, "dependencies")
-                        info.devDependencies = JsonHelper.getStringMap(root, "devDependencies")
-                        info.peerDependencies = JsonHelper.getStringMap(root, "peerDependencies")
-                        info.optionalDependencies = JsonHelper.getStringMap(root, "optionalDependencies")
+                        // dependencies - getStringMap stub: parse dependency objects
+                        match (JsonHelper.getField(root, "dependencies")) {
+                            case Some(depsObj) =>
+                                for (key in depsObj.keys()) {
+                                    match (depsObj.getString(key)) {
+                                        case Some(v) => info.dependencies.put(key, v)
+                                        case None => ()
+                                    }
+                                }
+                            case None => ()
+                        }
+                        match (JsonHelper.getField(root, "devDependencies")) {
+                            case Some(depsObj) =>
+                                for (key in depsObj.keys()) {
+                                    match (depsObj.getString(key)) {
+                                        case Some(v) => info.devDependencies.put(key, v)
+                                        case None => ()
+                                    }
+                                }
+                            case None => ()
+                        }
+                        // TODO: peerDependencies, optionalDependencies
 
                         return info
                     case None => return PackageJsonInfo()
                 }
-            case None => return PackageJsonInfo()
+            case Err(_) => return PackageJsonInfo()
         }
     }
 
@@ -498,22 +532,22 @@ public class Config {
     private func parseTsconfig(path: String): Unit {
         let content = BaoFile.readAllText(path)
         match (content) {
-            case Some(text) =>
+            case Ok(text) =>
                 let parser = JsonParser()
                 let json = parser.parse(text)
                 match (json) {
                     case Some(root) =>
                         // 读取 paths 映射
                         match (JsonHelper.getField(root, "compilerOptions")) {
-                            case Some(JsonValue.Object(opts)) =>
+                            case Some(opts) =>
                                 // paths
                                 match (JsonHelper.getField(opts, "paths")) {
-                                    case Some(JsonValue.Object(paths)) =>
-                                        for (key in paths.keys()) {
+                                    case Some(pathsObj) =>
+                                        for (key in pathsObj.keys()) {
                                             // 路径别名
                                             defines.set(key, key)
                                         }
-                                    case _ => ()
+                                    case None => ()
                                 }
                                 // baseUrl
                                 match (JsonHelper.getString(opts, "baseUrl")) {
@@ -522,11 +556,11 @@ public class Config {
                                         defines.set("TS_CONFIG_BASEURL", baseUrl)
                                     case None => ()
                                 }
-                            case _ => ()
+                            case None => ()
                         }
                     case None => ()
                 }
-            case None => ()
+            case Err(_) => ()
         }
     }
 
@@ -535,12 +569,12 @@ public class Config {
     private func applyEnvOverrides(): Unit {
         // BAO_CONFIG_PATH
         match (Sys.getEnv("BAO_CONFIG_PATH")) {
-            case Some(path) =>
-                if (BaoFile.exists(path)) {
-                    let content = BaoFile.readAllText(path)
+            case Some(configPath) =>
+                if (BaoFile.exists(configPath)) {
+                    let content = BaoFile.readAllText(configPath)
                     match (content) {
-                        case Some(text) => parseBunfig(text)
-                        case None => ()
+                        case Ok(text) => parseBunfig(text)
+                        case Err(_) => ()
                     }
                 }
             case None => ()
@@ -638,14 +672,14 @@ public class TomlParser {
         let lines = content.split("\n")
 
         for (line in lines) {
-            let trimmed = line.trim()
+            let trimmed = line.trimAscii()
             if (trimmed.isEmpty() || trimmed.startsWith("#")) {
                 continue
             }
 
             // section header: [section] 或 [section.subsection]
             if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                currentSection = trimmed.substring(1, trimmed.length - 1).trim()
+                currentSection = trimmed.substring(1, trimmed.size - 1).trimAscii()
                 continue
             }
 
@@ -653,13 +687,13 @@ public class TomlParser {
             let eqIdx = trimmed.indexOf("=")
             match (eqIdx) {
                 case Some(idx) =>
-                    let key = trimmed.substring(0, idx).trim()
-                    var value = trimmed.substring(idx + 1).trim()
+                    let key = trimmed.substring(0, idx).trimAscii()
+                    var value = trimmed.substring(idx + 1).trimAscii()
 
                     // 去除引号
                     if ((value.startsWith("\"") && value.endsWith("\"")) ||
                         (value.startsWith("'") && value.endsWith("'"))) {
-                        value = value.substring(1, value.length - 1)
+                        value = value.substring(1, value.size - 1)
                     }
 
                     let fullKey = if (currentSection.isEmpty()) {
@@ -718,7 +752,7 @@ public class TomlHelper {
         var found = false
         for (key in table.keys()) {
             if (key.startsWith(prefixDot)) {
-                let subKey = key.substring(prefixDot.length)
+                let subKey = key.substring(prefixDot.size)
                 match (table.get(key)) {
                     case Some(v) => result.set(subKey, v)
                     case None => ()
@@ -734,18 +768,18 @@ public class TomlHelper {
             case Some(v) =>
                 // 简化的数组解析: ["a", "b", "c"]
                 if (v.startsWith("[") && v.endsWith("]")) {
-                    let inner = v.substring(1, v.length - 1)
+                    let inner = v.substring(1, v.size - 1)
                     let items = inner.split(",")
                     let result = ArrayList<String>()
                     for (item in items) {
-                        let trimmed = item.trim()
+                        let trimmed = item.trimAscii()
                         var clean = trimmed
                         if (clean.startsWith("\"") && clean.endsWith("\"")) {
-                            clean = clean.substring(1, clean.length - 1)
+                            clean = clean.substring(1, clean.size - 1)
                         }
                         if (!clean.isEmpty()) { result.append(clean) }
                     }
-                    return Some(result.toArray())
+                    return Some(result.items())
                 }
                 return None
             case None => return None

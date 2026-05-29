@@ -22,8 +22,8 @@ public class ColonListType {
     public var values: ArrayList<String>
 
     public init(count: Int64) {
-        keys = ArrayList<String>(count)
-        values = ArrayList<String>(count)
+        keys = ArrayList<String>()
+        values = ArrayList<String>()
     }
 
     /// 从输入列表加载键值对
@@ -32,12 +32,12 @@ public class ColonListType {
     public func load(input: ArrayList<String>): Unit {
         for (str in input) {
             // 查找分隔符: 支持 ":" 或 "=", 优先使用先出现的
-            let colonIdx = str.indexOf(':')
-            let equalIdx = str.indexOf('=')
+            let colonIdx: Int64 = str.indexOf(':') ?? -1
+            let equalIdx: Int64 = str.indexOf('=') ?? -1
 
-            var midpoint = -1
+            var midpoint: Int64 = -1
             if (colonIdx >= 0 && equalIdx >= 0) {
-                midpoint = Math.min(colonIdx, equalIdx)
+                midpoint = if (colonIdx < equalIdx) { colonIdx } else { equalIdx }
             } else if (colonIdx >= 0) {
                 midpoint = colonIdx
             } else if (equalIdx >= 0) {
@@ -45,7 +45,7 @@ public class ColonListType {
             }
 
             if (midpoint < 0) {
-                Output.prettyErrorLn("error: expected \":\" separator")
+                Output.prettyErrorln("error: expected \":\" separator")
                 Global.exit(1)
             }
 

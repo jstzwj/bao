@@ -702,7 +702,7 @@ public class TestRunSummary {
 }
 
 /// 测试文件总结
-class TestFileSummary {
+public class TestFileSummary {
     public var filePath: String
     public var passed: Int64
     public var failed: Int64
@@ -809,7 +809,7 @@ public class TestRunner {
     public init() {
         allocator = ""
         defaultTimeoutMs = 5000
-        defaultTimeoutOverride = Int64.maxValue
+        defaultTimeoutOverride = Int64(9223372036854775807)
         concurrent = 1
         randomize = false
         randomizeSeed = None
@@ -833,7 +833,7 @@ public class TestRunner {
     public func getOrPutFile(filePath: String): TestFile {
         // 简化: 创建新文件条目
         let file = TestFile(filePath)
-        let id = files.size()
+        let id = files.size
         file.fileId = id
         files.put(id, file)
         return file
@@ -1020,7 +1020,7 @@ public class TestScanner {
 
         let entries = BaoFile.readdir(dir)
         for (entry in entries) {
-            let nameLower = entry.toLowerCase()
+            let nameLower = entry.toLower()
 
             // 跳过隐藏目录和 node_modules
             // 严格翻译自: Scanner.next 中目录过滤
@@ -1088,7 +1088,7 @@ public class TestScanner {
     /// 判断文件名是否可能是测试文件
     // 严格翻译自: Scanner.couldBeTestFile
     private func couldBeTestFileEntry(name: String, needsTestSuffix: Bool): Bool {
-        let ext = Path.extension(name)
+        let ext = Path.extname(name)
         if (ext.size == 0 || !isJavaScriptLikeExtension(ext)) { return false }
         if (!needsTestSuffix) { return true }
         let nameWithoutExt = name.substring(0, name.size - ext.size)
@@ -1227,7 +1227,7 @@ public class JUnitReporter {
 
     /// 套件栈
     // 对应 Bun: suite_stack
-    private var suiteStack: ArrayList<SuiteInfo>
+    public var suiteStack: ArrayList<SuiteInfo>
 
     /// 总度量指标
     // 对应 Bun: total_metrics
@@ -1304,16 +1304,16 @@ public class JUnitReporter {
     private func generatePropertiesList(): Unit {
         // 从环境变量获取 CI 信息
         var ci = ""
-        let githubRunId = Sys.getenv("GITHUB_RUN_ID")
-        let githubServerUrl = Sys.getenv("GITHUB_SERVER_URL")
-        let githubRepository = Sys.getenv("GITHUB_REPOSITORY")
+        let githubRunId = Sys.getenv("GITHUB_RUN_ID") ?? ""
+        let githubServerUrl = Sys.getenv("GITHUB_SERVER_URL") ?? ""
+        let githubRepository = Sys.getenv("GITHUB_REPOSITORY") ?? ""
 
         if (githubRunId.size > 0 && githubServerUrl.size > 0 && githubRepository.size > 0) {
             ci = "${githubServerUrl}/${githubRepository}/actions/runs/${githubRunId}"
         }
 
         if (ci.size == 0) {
-            let ciJobUrl = Sys.getenv("CI_JOB_URL")
+            let ciJobUrl = Sys.getenv("CI_JOB_URL") ?? ""
             if (ciJobUrl.size > 0) {
                 ci = ciJobUrl
             }
@@ -1321,15 +1321,15 @@ public class JUnitReporter {
 
         // 获取 commit SHA
         var commit = ""
-        let githubSha = Sys.getenv("GITHUB_SHA")
+        let githubSha = Sys.getenv("GITHUB_SHA") ?? ""
         if (githubSha.size > 0) {
             commit = githubSha
         } else {
-            let ciCommitSha = Sys.getenv("CI_COMMIT_SHA")
+            let ciCommitSha = Sys.getenv("CI_COMMIT_SHA") ?? ""
             if (ciCommitSha.size > 0) {
                 commit = ciCommitSha
             } else {
-                let gitSha = Sys.getenv("GIT_SHA")
+                let gitSha = Sys.getenv("GIT_SHA") ?? ""
                 if (gitSha.size > 0) {
                     commit = gitSha
                 }
@@ -1382,7 +1382,7 @@ public class JUnitReporter {
         if (!headerWritten) {
             content.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
             content.append("<testsuites name=\"bao test\" ")
-            offsetOfTestsuitesValue = content.size()
+            offsetOfTestsuitesValue = content.len
             content.append(">\n")
             headerWritten = true
         }
@@ -1408,7 +1408,7 @@ public class JUnitReporter {
         }
 
         content.append(" ")
-        let offsetOfAttributes = content.size()
+        let offsetOfAttributes = content.len
         content.append(">\n")
 
         if (isFileSuite) {
@@ -1446,7 +1446,7 @@ public class JUnitReporter {
 
         // 插入汇总属性
         let elapsedTimeMs = suiteInfo.metrics.elapsedTime
-        let elapsedTimeSeconds = Float64.fromInt64(elapsedTimeMs) / 1000.0
+        let elapsedTimeSeconds = Float64(elapsedTimeMs) / 1000.0
         let hostname = match (getHostname()) {
             case Some(h) => h
             case None => ""
@@ -1454,7 +1454,11 @@ public class JUnitReporter {
         let summary = "tests=\"${suiteInfo.metrics.testCases}\" assertions=\"${suiteInfo.metrics.assertions}\" failures=\"${suiteInfo.metrics.failures}\" skipped=\"${suiteInfo.metrics.skipped}\" time=\"${elapsedTimeSeconds}\" hostname=\"${hostname}\""
 
         // 在属性偏移位置插入汇总
-        content.insertAt(suiteInfo.offsetOfAttributes, summary)
+        let contentStr = content.toString()
+        content = StringBuilder()
+        content.append(contentStr.substring(0, suiteInfo.offsetOfAttributes))
+        content.append(summary)
+        content.append(contentStr.substring(suiteInfo.offsetOfAttributes))
 
         let indent = getIndent(currentDepth)
         content.append(indent)
@@ -1480,13 +1484,13 @@ public class JUnitReporter {
         elapsedNs: Int64,
         lineNumber: Int64
     ): Unit {
-        let elapsedNsF64 = Float64.fromInt64(elapsedNs)
+        let elapsedNsF64 = Float64(elapsedNs)
         let elapsedMs = elapsedNsF64 / 1000000.0
 
         // 更新当前套件度量
         if (suiteStack.size > 0) {
             let currentSuite = suiteStack[suiteStack.size - 1]
-            currentSuite.metrics.elapsedTime += Int64.fromFloat64(elapsedMs)
+            currentSuite.metrics.elapsedTime += Int64(elapsedMs)
             currentSuite.metrics.testCases += 1
             currentSuite.metrics.assertions += assertions
         }
@@ -1631,7 +1635,7 @@ public class JUnitReporter {
     // 对应 Bun: JunitReporter.writeToFile
     // 严格翻译自: JunitReporter.writeToFile
     public func writeToFile(path: String): Unit {
-        if (content.size() == 0) { return }
+        if (content.len == 0) { return }
 
         // 关闭所有未关闭的套件
         while (suiteStack.size > 0) {
@@ -1639,10 +1643,14 @@ public class JUnitReporter {
         }
 
         // 写入 testsuites 汇总属性
-        let elapsed = Float64.fromInt64(Sys.nanoTimestamp() - BaoStartupTime.start) / 1000000000.0
+        let elapsed = Float64(Sys.nanoTimestamp()) / 1000000000.0
         let metrics = totalMetrics
         let summary = "tests=\"${metrics.testCases}\" assertions=\"${metrics.assertions}\" failures=\"${metrics.failures}\" skipped=\"${metrics.skipped}\" time=\"${elapsed}\""
-        content.insertAt(offsetOfTestsuitesValue, summary)
+        let contentStr2 = content.toString()
+        content = StringBuilder()
+        content.append(contentStr2.substring(0, offsetOfTestsuitesValue))
+        content.append(summary)
+        content.append(contentStr2.substring(offsetOfTestsuitesValue))
         content.append("</testsuites>\n")
 
         BaoFile.writeAllText(path, content.toString())
@@ -1665,11 +1673,11 @@ public class JUnitReporter {
                 case '\'' => writer.append("&apos;")
                 case _ =>
                     // 转义控制字符
-                    let code = Int64.fromUInt8(c)
+                    let code = Int64(c)
                     if (code >= 0 && code <= 0x1f) {
                         writer.append("&#${code};")
                     } else {
-                        writer.append(c)
+                        writer.append(String([Rune(c)]))
                     }
             }
         }
@@ -1678,7 +1686,7 @@ public class JUnitReporter {
 
 /// 套件信息
 // 严格翻译自: test_command.zig - JunitReporter.SuiteInfo
-class SuiteInfo {
+public class SuiteInfo {
     public var name: String
     /// 套件属性在 XML 内容中的偏移位置
     // 对应 Bun: offset_of_attributes
@@ -2197,7 +2205,7 @@ public class CommandLineReporter {
         let classNameBuf = StringBuilder()
         for (i in 0..scopes.size) {
             if (i > 0) { classNameBuf.append(" > ") }
-            escapeXml(scopes[i], classNameBuf)
+            JUnitReporter.escapeXmlTo(scopes[i], classNameBuf)
         }
 
         // 写入每个 flaky 尝试
@@ -2262,11 +2270,27 @@ public class CommandLineReporter {
         if (!reporterText && !reporterLcov) { return }
 
         // 获取覆盖率映射数据
-        let byteRanges = vm.getCoverageByteRanges()
-        if (byteRanges.size == 0) { return }
+        let rawRanges = vm.getCoverageByteRanges()
+        if (rawRanges.size == 0) { return }
 
-        // 排序字节范围
-        byteRanges.sortBySourceUrl()
+        // 转换为具体类型并排序
+        var byteRanges = ArrayList<CoverageByteRangeMapping>()
+        for (item in rawRanges) {
+            let mapped = item as CoverageByteRangeMapping
+            if (mapped.isSome()) {
+                byteRanges.append(mapped.getOrThrow())
+            }
+        }
+        // 按 sourceUrl 排序 (冒泡排序)
+        for (i in 0..byteRanges.size) {
+            for (j in 0..(byteRanges.size - i - 1)) {
+                if (byteRanges[j].sourceUrl > byteRanges[j + 1].sourceUrl) {
+                    let tmp = byteRanges[j]
+                    byteRanges[j] = byteRanges[j + 1]
+                    byteRanges[j + 1] = tmp
+                }
+            }
+        }
 
         printCodeCoverage(vm, opts, byteRanges, reporterText, reporterLcov, enableAnsiColors)
     }
@@ -2278,10 +2302,26 @@ public class CommandLineReporter {
         opts: TestCoverageOptions,
         outPath: String
     ): Unit {
-        let byteRanges = vm.getCoverageByteRanges()
-        if (byteRanges.size == 0) { return }
+        let rawRanges = vm.getCoverageByteRanges()
+        if (rawRanges.size == 0) { return }
 
-        byteRanges.sortBySourceUrl()
+        var byteRanges = ArrayList<CoverageByteRangeMapping>()
+        for (item in rawRanges) {
+            let mapped = item as CoverageByteRangeMapping
+            if (mapped.isSome()) {
+                byteRanges.append(mapped.getOrThrow())
+            }
+        }
+        // 按 sourceUrl 排序 (冒泡排序)
+        for (i in 0..byteRanges.size) {
+            for (j in 0..(byteRanges.size - i - 1)) {
+                if (byteRanges[j].sourceUrl > byteRanges[j + 1].sourceUrl) {
+                    let tmp = byteRanges[j]
+                    byteRanges[j] = byteRanges[j + 1]
+                    byteRanges[j + 1] = tmp
+                }
+            }
+        }
 
         let relativeDir = vm.getTopLevelDir()
         let writer = StringBuilder()
@@ -2302,7 +2342,7 @@ public class CommandLineReporter {
 
             let report = CodeCoverageReport.generate(vm, entry, opts.ignoreSourcemap)
             if (report.isSome()) {
-                CodeCoverageReport.Lcov.writeFormat(report.getOrThrow(), relativeDir, writer)
+                CodeCoverageReport_Lcov.writeFormat(report.getOrThrow(), relativeDir, writer)
             }
         }
 
@@ -2347,9 +2387,9 @@ public class CommandLineReporter {
 
         // Text 报告表头
         if (reporterText) {
-            let dashLine = repeatChar('-', maxFilepathLength + 2)
+            let dashLine = repeatChar(UInt8('-'[0]), maxFilepathLength + 2)
             println("${dashLine}|---------|---------|-------------------")
-            let filePadding = repeatChar(' ', maxFilepathLength - 4 + 1)
+            let filePadding = repeatChar(UInt8(' '[0]), maxFilepathLength - 4 + 1)
             print("File${filePadding} | % Funcs | % Lines | Uncovered Line #s\n")
             println("${dashLine}|---------|---------|-------------------")
         }
@@ -2364,7 +2404,7 @@ public class CommandLineReporter {
         var lcovWriter: ?StringBuilder = None
         if (reporterLcov) {
             // 确保目录存在
-            BaoFile.mkdirRecursive(opts.reportsDirectory)
+            BaoFile.mkdir(opts.reportsDirectory, true)
 
             let lcovPath = Path.join(opts.reportsDirectory, "lcov.info")
             lcovWriter = Some(StringBuilder())
@@ -2389,7 +2429,7 @@ public class CommandLineReporter {
 
             if (reporterText) {
                 let fraction = CoverageFraction()
-                CodeCoverageReport.Text.writeFormat(report.getOrThrow(), maxFilepathLength, fraction, relativeDir)
+                CodeCoverageReport_Text.writeFormat(report.getOrThrow(), maxFilepathLength, fraction, relativeDir)
                 avgFunctions += fraction.functions
                 avgLines += fraction.lines
                 avgStmts += fraction.stmts
@@ -2401,7 +2441,7 @@ public class CommandLineReporter {
 
             if (reporterLcov) {
                 match (lcovWriter) {
-                    case Some(w) => CodeCoverageReport.Lcov.writeFormat(report.getOrThrow(), relativeDir, w)
+                    case Some(w) => CodeCoverageReport_Lcov.writeFormat(report.getOrThrow(), relativeDir, w)
                     case None => ()
                 }
             }
@@ -2409,13 +2449,13 @@ public class CommandLineReporter {
 
         // Text 报告汇总行
         if (reporterText) {
-            if (avgCount > 0) {
+            if (avgCount > 0.0) {
                 avgFunctions /= avgCount
                 avgLines /= avgCount
                 avgStmts /= avgCount
             }
 
-            let dashLine = repeatChar('-', maxFilepathLength + 2)
+            let dashLine = repeatChar(UInt8('-'[0]), maxFilepathLength + 2)
             let avgLine = formatCoverageLine("All files", maxFilepathLength, avgFunctions, avgLines)
             println(avgLine)
             println("${dashLine}|---------|---------|-------------------")
@@ -2800,14 +2840,20 @@ public class ChangedFilesFilter {
         let result = ArrayList<String>()
 
         // 查找 git
-        let gitPath = Sys.which("git")
-        if (gitPath.size == 0) {
+        let gitPathOpt = Sys.which("git")
+        if (gitPathOpt.isNone()) {
             println("--changed: requires git to be installed and in PATH")
             return result
         }
+        let gitPath = gitPathOpt.getOrThrow()
 
         // 获取 git 仓库根目录
-        let gitRoot = Sys.execAndWait(gitPath, ["rev-parse", "--show-toplevel"], topLevelDir)
+        let gitRootOpt = Sys.execCaptureArgs(gitPath, ["rev-parse", "--show-toplevel"], topLevelDir)
+        if (gitRootOpt.isNone()) {
+            println("--changed requires running inside a git repository")
+            return result
+        }
+        let gitRoot = gitRootOpt.getOrThrow()
         if (gitRoot.size == 0) {
             println("--changed requires running inside a git repository")
             return result
@@ -2816,17 +2862,23 @@ public class ChangedFilesFilter {
         // 获取变更文件列表
         if (since.size == 0) {
             // 未提交的变更 (未暂存 + 已暂存)
-            let diffOutput = Sys.execAndWait(gitPath, ["diff", "--name-only", "HEAD", "--"], topLevelDir)
-            appendPaths(result, gitRoot, diffOutput)
+            let diffOutputOpt = Sys.execCaptureArgs(gitPath, ["diff", "--name-only", "HEAD", "--"], topLevelDir)
+            if (diffOutputOpt.isSome()) {
+                appendPaths(result, gitRoot, diffOutputOpt.getOrThrow())
+            }
         } else {
             // 相对于指定 ref 的变更
-            let diffOutput = Sys.execAndWait(gitPath, ["diff", "--name-only", since, "--"], topLevelDir)
-            appendPaths(result, gitRoot, diffOutput)
+            let diffOutputOpt = Sys.execCaptureArgs(gitPath, ["diff", "--name-only", since, "--"], topLevelDir)
+            if (diffOutputOpt.isSome()) {
+                appendPaths(result, gitRoot, diffOutputOpt.getOrThrow())
+            }
         }
 
         // 未跟踪文件始终被视为变更
-        let untrackedOutput = Sys.execAndWait(gitPath, ["ls-files", "--others", "--exclude-standard", "--full-name"], topLevelDir)
-        appendPaths(result, gitRoot, untrackedOutput)
+        let untrackedOutputOpt = Sys.execCaptureArgs(gitPath, ["ls-files", "--others", "--exclude-standard", "--full-name"], topLevelDir)
+        if (untrackedOutputOpt.isSome()) {
+            appendPaths(result, gitRoot, untrackedOutputOpt.getOrThrow())
+        }
 
         return result
     }
@@ -3103,11 +3155,14 @@ public class Snapshots {
     // 严格翻译自: Snapshots.writeInlineSnapshots
     public func writeInlineSnapshots(): Bool {
         var success = true
-        let entries = inlineSnapshotsToWrite.entries()
-        for (entry in entries) {
-            for (snapshot in entry.value) {
-                if (!snapshot.write()) {
-                    success = false
+        let keys = inlineSnapshotsToWrite.keys()
+        for (key in keys) {
+            let snapshots = inlineSnapshotsToWrite.get(key)
+            if (snapshots.isSome()) {
+                for (snapshot in snapshots.getOrThrow()) {
+                    if (!snapshot.write()) {
+                        success = false
+                    }
                 }
             }
         }
@@ -3117,7 +3172,7 @@ public class Snapshots {
     /// 写入快照文件
     // 严格翻译自: Snapshots.writeSnapshotFile
     public func writeSnapshotFile(): Bool {
-        if (fileBuf.size == 0) { return true }
+        if (fileBuf.toString().size == 0) { return true }
         // 真实实现写入 .snap 文件
         return true
     }
@@ -3170,7 +3225,7 @@ public func shouldGenerateCodeCoverage(testNameStr: String): Bool {
     }
 
     // 检查扩展名
-    let ext = Path.extension(testNameStr)
+    let ext = Path.extname(testNameStr)
     if (!isJavaScriptLikeExtension(ext)) {
         return false
     }
@@ -3194,7 +3249,7 @@ public func isJavaScriptLikeExtension(ext: String): Bool {
 /// 判断文件名是否可能是测试文件
 // 严格翻译自: Scanner.couldBeTestFile
 public func couldBeTestFile(name: String, needsTestSuffix: Bool): Bool {
-    let extname = Path.extension(name)
+    let extname = Path.extname(name)
     if (extname.size == 0 || !isJavaScriptLikeExtension(extname)) { return false }
     if (!needsTestSuffix) { return true }
 
@@ -3286,8 +3341,9 @@ public func globMatch(pattern: String, path: String): Bool {
 public func repeatChar(c: UInt8, count: Int64): String {
     if (count <= 0) { return "" }
     let buf = StringBuilder()
+    let s = String(Rune(UInt32(c)))
     for (i in 0..count) {
-        buf.append(c)
+        buf.append(s)
     }
     return buf.toString()
 }
@@ -3300,14 +3356,23 @@ public func formatCoverageLine(
     linesPct: Float64
 ): String {
     let padding = maxFilepathLength - name.size
-    let paddingStr = repeatChar(' ', padding)
-    let fnPct = String.formatFloat(functionsPct * 100.0, 1)
-    let linePct = String.formatFloat(linesPct * 100.0, 1)
+    let paddingStr = repeatChar(UInt8(' '[0]), padding)
+    let fnPct = formatFloatPercent(functionsPct * 100.0)
+    let linePct = formatFloatPercent(linesPct * 100.0)
     return " ${name}${paddingStr} | ${fnPct}% | ${linePct}% |"
 }
 
+/// 格式化浮点百分比 (保留1位小数)
+public func formatFloatPercent(value: Float64): String {
+    let rounded = Int64(value * 10.0)
+    let intPart = rounded / 10
+    let decPart = rounded % 10
+    if (decPart < 0) { return "${intPart}.${-decPart}" }
+    return "${intPart}.${decPart}"
+}
+
 /// 集合类型
-public class HashSet<T> {
+public class HashSet<T> where T <: ToString {
     private var map: HashMap<T, Bool>
 
     public init() {
@@ -3323,6 +3388,6 @@ public class HashSet<T> {
     }
 
     public func size(): Int64 {
-        return map.size()
+        return map.size
     }
 }

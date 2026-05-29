@@ -12,7 +12,7 @@ import bao_collections.*
 // ============================================================================
 
 /// 创建 YAML 对象，挂载到 Bun.YAML
-public func create(globalThis: JsGlobalObject): JsValue {
+public func create(globalThis!: JsGlobalObject): JsValue {
     let object = JsValue.createEmptyObject(globalThis, 2)
     object.put(
         globalThis,
@@ -38,60 +38,59 @@ public func create(globalThis: JsGlobalObject): JsValue {
 }
 
 /// YAML.parse - 解析 YAML 字符串为 JS 对象
-public func parse(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+public func parse(globalThis!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
     var arena = ArenaAllocator(default_allocator)
-    defer arena.deinit()
     let allocator = arena.allocator()
 
     var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
     var astScope = astMemoryAllocator.enter(allocator)
-    defer astScope.exit()
 
     let inputValue = callFrame.argumentsAsArray(1)[0]
 
-    let input = try JsNode.BlobOrStringOrBuffer.fromJS(globalThis, arena.allocator(), inputValue) ?? {
-        var str = try inputValue.toBunString(globalThis)
-        defer str.deref()
-        return BlobOrStringOrBuffer{ string_or_buffer: StringOrBuffer{ string: str.toSlice(arena.allocator()) } }
-    }()
-    defer input.deinit()
-
+    var input: JsNode.BlobOrStringOrBuffer
+    let inputOpt = JsNode.BlobOrStringOrBuffer.fromJS(globalThis, arena.allocator(), inputValue)
+    if (let someInput <- inputOpt) {
+        input = someInput
+    } else {
+        let str = inputValue.toBunString(globalThis)
+        input = BlobOrStringOrBuffer(string_or_buffer: StringOrBuffer(string: str.toSlice(arena.allocator())))
+        str.deref()
+    }
     var log = Logger.Log(default_allocator)
-    defer log.deinit()
 
     let source = Logger.Source.initPathString("input.yaml", input.slice())
 
-    let root = YAML.parse(source, log, arena.allocator()) catch { err =>
-        return match (err) {
-            case OutOfMemory => oom
-            case StackOverflow => globalThis.throwStackOverflow()
-            else => {
-                if (log.msgs.items.len > 0) {
-                    let firstMsg = log.msgs.items[0]
-                    let errorText = firstMsg.data.text
-                    return globalThis.throwValue(globalThis.createSyntaxErrorInstance("YAML Parse error: ${errorText}"))
-                }
-                return globalThis.throwValue(globalThis.createSyntaxErrorInstance("YAML Parse error: Unable to parse YAML string"))
-            }
+    let root = try {
+        YAML.parse(source, log, arena.allocator())
+    } catch (err: Exception) {
+        if (log.msgs.items.len > 0) {
+            let firstMsg = log.msgs.items[0]
+            let errorText = firstMsg.data.text
+            return globalThis.throwValue(globalThis.createSyntaxErrorInstance("YAML Parse error: ${errorText}"))
         }
+        return globalThis.throwValue(globalThis.createSyntaxErrorInstance("YAML Parse error: Unable to parse YAML string"))
     }
 
     var ctx = ParserCtx{
-        seen_objects = AutoHashMap(arena.allocator()),
-        stack_check = StackCheck(),
-        global = globalThis,
-        root = root,
-        result = JsValue.jsUndefined(),
+        seen_objects = AutoHashMap(arena.allocator())
+        stack_check = StackCheck()
+        global = globalThis
+        root = root
+        result = JsValue.jsUndefined()
     }
-    defer ctx.deinit()
-
     MarkedArgumentBuffer.run(ParserCtx, ctx, ParserCtx.run)
 
-    return ctx.result
+    ctx.deinit()
+    let parseResult = ctx.result
+    log.deinit()
+    input.deinit()
+    astScope.exit()
+    arena.deinit()
+    return parseResult
 }
 
 /// YAML.stringify - 将 JS 值序列化为 YAML 字符串
-public func stringify(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+public func stringify(globalThis!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
     let (value, replacer, spaceValue) = callFrame.argumentsAsArray(3)
 
     value.ensureStillAlive()
@@ -105,37 +104,46 @@ public func stringify(globalThis: JsGlobalObject, callFrame: JsCallFrame): JsVal
     }
 
     var scope = AllocationScope(default_allocator)
-    defer scope.deinit()
+    var stringifier = YamlStringifier(scope.allocator() , globalThis, spaceValue)
 
-    var stringifier = try Stringifier(scope.allocator(), globalThis, spaceValue)
-    defer stringifier.deinit()
-
-    stringifier.findAnchorsAndAliases(globalThis, value, AnchorOrigin.root) catch { err =>
-        return match (err) {
-            case OutOfMemory => js_err => js_err
-            case .JSError => js_err => js_err
-            case .JSTerminated => js_err => js_err
-            case StackOverflow => globalThis.throwStackOverflow()
-        }
+    try {
+        stringifier.findAnchorsAndAliases(globalThis, value, AnchorOrigin.root)
+    } catch (err: Exception) {
+        stringifier.deinit()
+        scope.deinit()
+        return globalThis.throwStackOverflow()
     }
 
-    stringifier.stringify(globalThis, value) catch { err =>
-        return match (err) {
-            case OutOfMemory => js_err => js_err
-            case .JSError => js_err => js_err
-            case .JSTerminated => js_err => js_err
-            case StackOverflow => globalThis.throwStackOverflow()
-        }
+    try {
+        stringifier.stringify(globalThis, value)
+    } catch (err: Exception) {
+        stringifier.deinit()
+        scope.deinit()
+        return globalThis.throwStackOverflow()
     }
 
+    stringifier.deinit()
+    scope.deinit()
     return stringifier.builder.toString(globalThis)
 }
+
+// ============================================================================
+// AnchorOrigin / ValueOrigin - YAML 锚点来源类型
+// ============================================================================
+
+public enum AnchorOrigin {
+    | root
+    | array_item
+    | prop_value(BunString)
+}
+
+public type ValueOrigin = AnchorOrigin
 
 // ============================================================================
 // Stringifier - YAML 序列化器
 // ============================================================================
 
-public class Stringifier {
+public class YamlStringifier {
     var stack_check: StackCheck
     var builder: StringBuilder
     var indent: Int64
@@ -148,94 +156,53 @@ public class Stringifier {
     // Space - 缩进配置
     // ========================================================================
 
-    public enum Space {
-        | minified
-        | number(Int64)
-        | str(BunString)
+//    public enum Space {
+//        | minified
+//        | number(Int64)
+//        | str(BunString)
 
-        public static func initFunc(global: JsGlobalObject, spaceValue: JsValue): Space {
-            let space = try spaceValue.unwrapBoxedPrimitive(global)
-            if (space.isNumber()) {
-                let numF = space.asNumber()
-                if (!(numF >= 1)) { return .minified }
-                return .number(if (numF > 10) 10 else Int64(numF))
-            }
+//        public static func initFunc(global!: JsGlobalObject, spaceValue!: JsValue): Space {
+//            let space = spaceValue.unwrapBoxedPrimitive(global) 
+//            if (space.isNumber()) {
+//                let numF = space.asNumber()
+//                if (!(numF >= 1)) { return .minified }
+//                return .number(if (numF > 10) 10 else Int64(numF))
+//            }
 
-            if (space.isString()) {
-                let str = try space.toBunString(global)
-                if (str.size() == 0) {
-                    str.deref()
-                    return .minified
-                }
-                return .str(str)
-            }
+//            if (space.isString()) {
+//                let str = space.toBunString(global) 
+//                if (str.size() == 0) {
+//                    str.deref()
+//                    return .minified
+//                }
+//                return .str(str)
+//            }
 
-            return .minified
-        }
+//            return .minified
+//        }
 
-        public func deinit() {
-            match (this) {
-                case minified => ()
-                case number => ()
-                case str(str) => str.deref()
-            }
-        }
-    }
+//        public func deinit() {
+//            match (this) {
+//                case minified => ()
+//                case number => ()
+//                case str(str) => str.deref()
+//            }
+//        }
+//    }
 
-    // ========================================================================
-    // AnchorOrigin / AnchorAlias
-    // ========================================================================
-
-    public enum AnchorOrigin {
-        | root
-        | array_item
-        | prop_value(BunString)
-    }
-
-    public class AnchorAlias {
-        var anchored: Bool
-        var used: Bool
-        var name: Name
-
-        public static func initFunc(origin: ValueOrigin): AnchorAlias {
-            return AnchorAlias{
-                anchored = false,
-                used = false,
-                name = match (origin) {
-                    case root => .root
-                    case array_item => .array_item(0)
-                    case prop_value(prop_name) => .prop_value(PropValueName{ prop_name: prop_name, counter: 0 })
-                },
-            }
-        }
-
-        public enum Name {
-            | root
-            | array_item(Int64)
-            | prop_value(PropValueName)
-        }
-
-        public class PropValueName {
-            var prop_name: BunString
-            var counter: Int64
-        }
-    }
-
-    public type ValueOrigin = AnchorOrigin
-
-    public static func initFunc(allocator: Allocator, global: JsGlobalObject, spaceValue: JsValue): Stringifier {
+    public static func initFunc(allocator!: Allocator, global!: JsGlobalObject, spaceValue!: JsValue): YamlStringifier {
         var propNames = StringHashMap<Int64>.`init`(allocator)
         // 避免与 root anchor 冲突
-        try propNames.put("root", 0)
+        propNames.put("root", 0) 
 
-        return Stringifier{
-            stack_check = StackCheck(),
-            builder = StringBuilder(),
-            indent = 0,
-            known_collections = AutoHashMap(allocator),
-            array_item_counter = 0,
-            prop_names = propNames,
-            space = try Space(global, spaceValue),
+        return YamlStringifier{
+            stack_check = StackCheck()
+            builder = StringBuilder()
+            indent = 0
+            known_collections = AutoHashMap(allocator)
+            array_item_counter = 0
+            prop_names = propNames
+            space = Space(global, spaceValue)
         }
     }
 
@@ -247,12 +214,12 @@ public class Stringifier {
     }
 
     /// 查找锚点和别名
-    public func findAnchorsAndAliases(global: JsGlobalObject, value: JsValue, origin: ValueOrigin): Unit {
+    public func findAnchorsAndAliases(global!: JsGlobalObject, value!: JsValue, origin!: ValueOrigin): Unit {
         if (!this.stack_check.isSafeToRecurse()) {
             throw Error.StackOverflow
         }
 
-        let unwrapped = try value.unwrapBoxedPrimitive(global)
+        let unwrapped = value.unwrapBoxedPrimitive(global) 
 
         if (unwrapped.isNull()) { return }
         if (unwrapped.isNumber()) { return }
@@ -263,7 +230,7 @@ public class Stringifier {
         if (unwrapped.isBoolean()) { return }
         if (unwrapped.isString()) { return }
 
-        let objectEntry = try this.known_collections.getOrPut(unwrapped)
+        let objectEntry = this.known_collections.getOrPut(unwrapped) 
         if (objectEntry.found_existing) {
             if (objectEntry.value_ptr.used) { return }
             objectEntry.value_ptr.used = true
@@ -275,7 +242,7 @@ public class Stringifier {
                     counter = this.array_item_counter
                     this.array_item_counter += 1
                 case prop_value(propValue) =>
-                    let nameEntry = try this.prop_names.getOrPut(propValue.prop_name.byteSlice())
+                    let nameEntry = this.prop_names.getOrPut(propValue.prop_name.byteSlice() )
                     if (nameEntry.found_existing) {
                         nameEntry.value_ptr += 1
                     } else {
@@ -289,60 +256,59 @@ public class Stringifier {
         objectEntry.value_ptr = AnchorAlias(origin)
 
         if (unwrapped.isArray()) {
-            var iter = try unwrapped.arrayIterator(global)
-            while (let item <- try iter.next()) {
+            var iter = unwrapped.arrayIterator(global) 
+            while (let item <- iter.next() ) {
                 if (item.isUndefined() || item.isSymbol() || item.isFunction()) { continue }
-                try this.findAnchorsAndAliases(global, item, .array_item)
+                this.findAnchorsAndAliases(global, item, AnchorOrigin.array_item)
             }
             return
         }
 
         var iter = JsPropertyIterator(
             global,
-            try unwrapped.toObject(global),
+            unwrapped.toObject(global) ,
             skip_empty_name: false,
             include_value: true,
         )
-        defer iter.deinit()
-
-        while (let propName <- try iter.next()) {
+        while (let propName <- iter.next()) {
             if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) { continue }
-            try this.findAnchorsAndAliases(global, iter.value, .prop_value(propName))
+            this.findAnchorsAndAliases(global, iter.value, AnchorOrigin.prop_value(propName))
         }
+        iter.deinit()
     }
 
     /// 执行序列化
-    public func stringify(global: JsGlobalObject, value: JsValue): Unit {
+    public func stringify(global!: JsGlobalObject, value!: JsValue): Unit {
         if (!this.stack_check.isSafeToRecurse()) {
             throw Error.StackOverflow
         }
 
-        let unwrapped = try value.unwrapBoxedPrimitive(global)
+        let unwrapped = value.unwrapBoxedPrimitive(global) 
 
         if (unwrapped.isNull()) {
-            this.builder.append(.latin1, "null")
+            this.builder.append("null")
             return
         }
 
         if (unwrapped.isNumber()) {
             if (unwrapped.isInt32()) {
-                this.builder.append(.int, unwrapped.asInt32())
+                this.builder.append("${unwrapped.asInt32()}")
                 return
             }
 
             let num = unwrapped.asNumber()
             if (Math.isNegativeInf(num)) {
-                this.builder.append(.latin1, "-.inf")
+                this.builder.append("-.inf")
             } else if (Math.isInf(num)) {
-                this.builder.append(.latin1, ".inf")
+                this.builder.append(".inf")
             } else if (Math.isNan(num)) {
-                this.builder.append(.latin1, ".nan")
+                this.builder.append(".nan")
             } else if (Math.isNegativeZero(num)) {
-                this.builder.append(.latin1, "-0")
+                this.builder.append("-0")
             } else if (Math.isPositiveZero(num)) {
-                this.builder.append(.latin1, "+0")
+                this.builder.append("+0")
             } else {
-                this.builder.append(.double, num)
+                this.builder.append("${num}")
             }
             return
         }
@@ -353,43 +319,43 @@ public class Stringifier {
 
         if (unwrapped.isBoolean()) {
             if (unwrapped.asBoolean()) {
-                this.builder.append(.latin1, "true")
+                this.builder.append("true")
             } else {
-                this.builder.append(.latin1, "false")
+                this.builder.append("false")
             }
             return
         }
 
         if (unwrapped.isString()) {
-            let valueStr = try unwrapped.toBunString(global)
-            defer valueStr.deref()
+            let valueStr = unwrapped.toBunString(global) 
             this.appendString(valueStr)
+            valueStr.deref()
             return
         }
 
         // 处理锚点/别名
         let hasAnchor = this.known_collections.getPtr(unwrapped).flatMap { anchor =>
-            if (!anchor.used) { return null }
+            if (!anchor.used) { return none }
             return anchor
         }
 
         if (let anchor <- hasAnchor) {
-            this.builder.append(.lchar, if (anchor.anchored) '*' else '&')
+            this.builder.appendChar(if (anchor.anchored) { '*'.toUInt8() } else { '&'.toUInt8() })
 
             match (anchor.name) {
                 case root =>
-                    this.builder.append(.latin1, "root")
+                    this.builder.append("root")
                 case array_item =>
-                    this.builder.append(.latin1, "item")
-                    this.builder.append(.usize, anchor.name.array_item)
+                    this.builder.append("item")
+                    this.builder.append(anchor.name.array_item.toString())
                 case prop_value(propValue) =>
                     if (propValue.prop_name.size() == 0) {
-                        this.builder.append(.latin1, "value")
-                        this.builder.append(.usize, propValue.counter)
+                        this.builder.append("value")
+                        this.builder.append(propValue.counter.toString())
                     } else {
-                        this.builder.append(.string, anchor.name.prop_value.prop_name)
+                        this.builder.append(anchor.name.prop_value.prop_name)
                         if (anchor.name.prop_value.counter != 0) {
-                            this.builder.append(.usize, anchor.name.prop_value.counter)
+                            this.builder.append(anchor.name.prop_value.counter.toString())
                         }
                     }
             }
@@ -398,56 +364,56 @@ public class Stringifier {
 
             match (this.space) {
                 case minified =>
-                    this.builder.append(.lchar, ' ')
+                    this.builder.appendChar(' ')
                 case number =>
                     this.newline()
-                case .str =>
+                case str =>
                     this.newline()
             }
             anchor.anchored = true
         }
 
         if (unwrapped.isArray()) {
-            var iter = try unwrapped.arrayIterator(global)
+            var iter = unwrapped.arrayIterator(global) 
 
             if (iter.len == 0) {
-                this.builder.append(.latin1, "[]")
+                this.builder.append("[]")
                 return
             }
 
             match (this.space) {
                 case minified =>
-                    this.builder.append(.lchar, '[')
+                    this.builder.appendChar('[')
                     var first = true
-                    while (let item <- try iter.next()) {
+                    while (let item <- iter.next() ) {
                         if (item.isUndefined() || item.isSymbol() || item.isFunction()) { continue }
-                        if (!first) { this.builder.append(.lchar, ',') }
+                        if (!first) { this.builder.appendChar(',') }
                         first = false
-                        try this.stringify(global, item)
+                        this.stringify(global, item) 
                     }
-                    this.builder.append(.lchar, ']')
+                    this.builder.appendChar(']')
                 case number =>
                     this.builder.ensureUnusedCapacity(iter.len * "- ".size)
                     var first = true
-                    while (let item <- try iter.next()) {
+                    while (let item <- iter.next() ) {
                         if (item.isUndefined() || item.isSymbol() || item.isFunction()) { continue }
                         if (!first) { this.newline() }
                         first = false
-                        this.builder.append(.latin1, "- ")
+                        this.builder.append("- ")
                         this.indent += 1
-                        try this.stringify(global, item)
+                        this.stringify(global, item) 
                         this.indent -= 1
                     }
-                case .str =>
+                case str =>
                     this.builder.ensureUnusedCapacity(iter.len * "- ".size)
                     var first = true
-                    while (let item <- try iter.next()) {
+                    while (let item <- iter.next() ) {
                         if (item.isUndefined() || item.isSymbol() || item.isFunction()) { continue }
                         if (!first) { this.newline() }
                         first = false
-                        this.builder.append(.latin1, "- ")
+                        this.builder.append("- ")
                         this.indent += 1
-                        try this.stringify(global, item)
+                        this.stringify(global, item) 
                         this.indent -= 1
                     }
             }
@@ -457,65 +423,64 @@ public class Stringifier {
         // 对象
         var iter = JsPropertyIterator(
             global,
-            try unwrapped.toObject(global),
+            unwrapped.toObject(global) ,
             skip_empty_name: false,
             include_value: true,
         )
-        defer iter.deinit()
-
         if (iter.len == 0) {
-            this.builder.append(.latin1, "{}")
+            this.builder.append("{")
             return
         }
 
         match (this.space) {
             case minified =>
-                this.builder.append(.lchar, '{')
+                this.builder.appendChar('{')
                 var first = true
-                while (let propName <- try iter.next()) {
+                while (let propName <- iter.next() ) {
                     if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) { continue }
-                    if (!first) { this.builder.append(.lchar, ',') }
+                    if (!first) { this.builder.appendChar(',') }
                     first = false
                     this.appendString(propName)
-                    this.builder.append(.latin1, ": ")
-                    try this.stringify(global, iter.value)
+                    this.builder.append(": ")
+                    this.stringify(global, iter.value) 
                 }
-                this.builder.append(.lchar, '}')
+                this.builder.appendChar('}')
             case number =>
                 this.builder.ensureUnusedCapacity(iter.len * ": ".size)
                 var first = true
-                while (let propName <- try iter.next()) {
+                while (let propName <- iter.next() ) {
                     if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) { continue }
                     if (!first) { this.newline() }
                     first = false
                     this.appendString(propName)
-                    this.builder.append(.latin1, ": ")
-                    try this.stringify(global, iter.value)
+                    this.builder.append(": ")
+                    this.stringify(global, iter.value) 
                 }
-            case .str =>
+            case str =>
                 this.builder.ensureUnusedCapacity(iter.len * ": ".size)
                 var first = true
-                while (let propName <- try iter.next()) {
+                while (let propName <- iter.next() ) {
                     if (iter.value.isUndefined() || iter.value.isSymbol() || iter.value.isFunction()) { continue }
                     if (!first) { this.newline() }
                     first = false
                     this.appendString(propName)
-                    this.builder.append(.latin1, ": ")
+                    this.builder.append(": ")
                     this.indent += 1
                     if (propValueNeedsNewline(iter.value)) {
                         this.newline()
                     }
-                    try this.stringify(global, iter.value)
+                    this.stringify(global, iter.value) 
                     this.indent -= 1
                 }
                 if (first) {
-                    this.builder.append(.latin1, "{}")
+                    this.builder.append("{}")
                 }
         }
+        iter.deinit()
     }
 
     /// 判断属性值是否需要换行
-    static func propValueNeedsNewline(value: JsValue): Bool {
+    static func propValueNeedsNewline(value!: JsValue): Bool {
         return !value.isNumber() && !value.isBoolean() && !value.isNull() && !value.isString()
     }
 
@@ -525,63 +490,63 @@ public class Stringifier {
         match (this.space) {
             case minified => ()
             case number(spaceNum) =>
-                this.builder.append(.lchar, '\n')
+                this.builder.appendChar('\n')
                 this.builder.ensureUnusedCapacity(indentCount * spaceNum)
-                for (_ in 0..<indentCount * spaceNum) {
-                    this.builder.append(.lchar, ' ')
+                for (_ in 0..indentCount * spaceNum) {
+                    this.builder.appendChar(' ')
                 }
             case str(spaceStr) =>
-                this.builder.append(.lchar, '\n')
-                let clamped = if (spaceStr.size() > 10) spaceStr.substringWithLen(0, 10) else spaceStr
+                this.builder.appendChar('\n')
+                let clamped = if (spaceStr.size() > 10) { spaceStr.substringWithLen(0, 10) } else { spaceStr }
                 this.builder.ensureUnusedCapacity(indentCount * clamped.size())
-                for (_ in 0..<indentCount) {
-                    this.builder.append(.string, clamped)
+                for (_ in 0..indentCount) {
+                    this.builder.append(clamped)
                 }
         }
     }
 
     /// 追加双引号字符串
-    func appendDoubleQuotedString(str: BunString) {
-        this.builder.append(.lchar, '"')
-        for (i in 0..<str.size()) {
+    func appendDoubleQuotedString(str!: BunString) {
+        this.builder.appendChar('"')
+        for (i in 0..str.size()) {
             let c = str.charAt(i)
             // YAML 双引号转义规则
-            if (c == 0x00) { this.builder.append(.latin1, "\\0") }
-            else if (c == 0x07) { this.builder.append(.latin1, "\\a") }
-            else if (c == 0x08) { this.builder.append(.latin1, "\\b") }
-            else if (c == 0x09) { this.builder.append(.latin1, "\\t") }
-            else if (c == 0x0a) { this.builder.append(.latin1, "\\n") }
-            else if (c == 0x0b) { this.builder.append(.latin1, "\\v") }
-            else if (c == 0x0c) { this.builder.append(.latin1, "\\f") }
-            else if (c == 0x0d) { this.builder.append(.latin1, "\\r") }
-            else if (c == 0x1b) { this.builder.append(.latin1, "\\e") }
-            else if (c == 0x22) { this.builder.append(.latin1, "\\\"") }
-            else if (c == 0x5c) { this.builder.append(.latin1, "\\\\") }
-            else if (c == 0x7f) { this.builder.append(.latin1, "\u{7f}") }
-            else if (c == 0x85) { this.builder.append(.latin1, "\\N") }
-            else if (c == 0xa0) { this.builder.append(.latin1, "\\_") }
-            else if (c == 0xa8) { this.builder.append(.latin1, "\\L") }
-            else if (c == 0xa9) { this.builder.append(.latin1, "\\P") }
+            if (c == 0x00) { this.builder.append("\\0") }
+            else if (c == 0x07) { this.builder.append("\\a") }
+            else if (c == 0x08) { this.builder.append("\\b") }
+            else if (c == 0x09) { this.builder.append("\\t") }
+            else if (c == 0x0a) { this.builder.append("\\n") }
+            else if (c == 0x0b) { this.builder.append("\\v") }
+            else if (c == 0x0c) { this.builder.append("\\f") }
+            else if (c == 0x0d) { this.builder.append("\\r") }
+            else if (c == 0x1b) { this.builder.append("\\e") }
+            else if (c == 0x22) { this.builder.append("\\\"") }
+            else if (c == 0x5c) { this.builder.append("\\\\") }
+            else if (c == 0x7f) { this.builder.append("\u{7f}") }
+            else if (c == 0x85) { this.builder.append("\\N") }
+            else if (c == 0xa0) { this.builder.append("\\_") }
+            else if (c == 0xa8) { this.builder.append("\\L") }
+            else if (c == 0xa9) { this.builder.append("\\P") }
             else if (c < 0x20 || c == 0x22 || c == 0x7f) {
-                this.builder.appendFormat(.latin1, "\\x{}", c.toHex(2))
+                this.builder.appendFormat("\\x{}", c.toHex(2))
             } else {
-                this.builder.append(.uchar, c)
+                this.builder.appendChar(c)
             }
         }
-        this.builder.append(.lchar, '"')
+        this.builder.appendChar('"')
     }
 
     /// 追加字符串，根据需要加引号
-    func appendString(str: BunString) {
+    func appendString(str!: BunString) {
         if (stringNeedsQuotes(str)) {
             this.appendDoubleQuotedString(str)
             return
         }
-        this.builder.append(.string, str)
+        this.builder.append(str)
     }
 
     /// 判断字符串是否需要引号
-    static func stringNeedsQuotes(str: BunString): Bool {
+    static func stringNeedsQuotes(str!: BunString): Bool {
         if (str.isEmpty()) { return true }
 
         // 检查尾部字符
@@ -650,25 +615,24 @@ public class Stringifier {
                     }
                     if (i == 0 && stringIsNumber(str)) { return true }
                     i += 1
-                case '0'...'9' =>
+                case '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' =>
                     if (i == 0 && stringIsNumber(str)) { return true }
                     i += 1
                 case '+' =>
                     if (i == 0 && stringIsNumber(str)) { return true }
                     i += 1
-                else => {
+                case _ =>
                     if (c <= 0x1f || c == 0x22 || c == 0x7f || c == 0x85 || c == 0xa0 || c == 0xa8 || c == 0xa9) {
                         return true
                     }
                     i += 1
-                }
             }
         }
         return false
     }
 
     /// 检测字符串是否为数字
-    static func stringIsNumber(str: BunString): Bool {
+    static func stringIsNumber(str!: BunString): Bool {
         let len = str.size()
         if (len == 0) { return false }
         var i: Int64 = 0
@@ -727,7 +691,7 @@ public class Stringifier {
     }
 
     /// 检查是否为 .inf 后缀
-    static func isInfSuffix(str: BunString, i: Int64): Bool {
+    static func isInfSuffix(str!: BunString, i!: Int64): Bool {
         if (i + 4 > str.size()) { return false }
         let a = str.charAt(i + 1)
         let b = str.charAt(i + 2)
@@ -753,18 +717,26 @@ public class ParserCtx {
         this.seen_objects.deinit()
     }
 
-    public static func run(ctx: ParserCtx, args: MarkedArgumentBuffer) {
-        ctx.result = ctx.toJS(args, ctx.root) catch { err =>
-            return match (err) {
-                case OutOfMemory => { ctx.result = ctx.global.throwOutOfMemoryValue(); return }
-                case JSError => { ctx.result = JsValue.jsUndefined(); return }
-                case .JSTerminated => { ctx.result = JsValue.jsUndefined(); return }
-                case StackOverflow => { ctx.result = ctx.global.throwStackOverflow() ?? JsValue.jsUndefined(); return }
+    public static func run(ctx!: ParserCtx, args!: MarkedArgumentBuffer) {
+        ctx.result = try { ctx.toJS(args, ctx.root) } catch(err: Exception) {
+            match (err) {
+                case _: OutOfMemory =>
+                    ctx.result = ctx.global.throwOutOfMemoryValue()
+                    return
+                case _: JSError =>
+                    ctx.result = JsValue.jsUndefined()
+                    return
+                case _: JSTerminated =>
+                    ctx.result = JsValue.jsUndefined()
+                    return
+                case _: StackOverflow =>
+                    ctx.result = ctx.global.throwStackOverflow() ?? JsValue.jsUndefined()
+                    return
             }
         }
     }
 
-    public func toJS(args: MarkedArgumentBuffer, expr: Expr): JsValue {
+    public func toJS(args!: MarkedArgumentBuffer, expr!: Expr): JsValue {
         if (!this.stack_check.isSafeToRecurse()) {
             throw Error.StackOverflow
         }
@@ -778,14 +750,14 @@ public class ParserCtx {
             case e_array =>
                 if (let arr <- this.seen_objects.get(expr.data.e_array)) { return arr }
 
-                var arr = try JsValue.createEmptyArray(this.global, expr.data.e_array.items.len)
+                var arr = JsValue.createEmptyArray(this.global, expr.data.e_array.items.len) 
                 args.append(arr)
-                try this.seen_objects.put(expr.data.e_array, arr)
+                this.seen_objects.put(expr.data.e_array, arr) 
 
                 for ((item, _i) in expr.data.e_array.slice().enumerated()) {
                     let i: Int64 = Int64(_i)
-                    let value = try this.toJS(args, item)
-                    try arr.putIndex(this.global, i, value)
+                    let value = this.toJS(args, item) 
+                    arr.putIndex(this.global, i, value) 
                 }
                 return arr
             case e_object =>
@@ -793,22 +765,21 @@ public class ParserCtx {
 
                 var obj = JsValue.createEmptyObject(this.global, expr.data.e_object.properties.len)
                 args.append(obj)
-                try this.seen_objects.put(expr.data.e_object, obj)
+                this.seen_objects.put(expr.data.e_object, obj) 
 
-                for (prop in expr.data.e_object.properties.slice()) {
-                    let keyExpr = prop.key
-                    let valueExpr = prop.value
+                for (p in expr.data.e_object.properties.slice()) {
+                    let keyExpr = p.key
+                    let valueExpr = p.value
 
-                    let key = try this.toJS(args, keyExpr)
-                    let value = try this.toJS(args, valueExpr)
+                    let key = this.toJS(args, keyExpr) 
+                    let value = this.toJS(args, valueExpr) 
 
-                    let keyStr = try key.toBunString(this.global)
-                    defer keyStr.deref()
-
-                    try obj.putMayBeIndex(this.global, keyStr, value)
+                    let keyStr = key.toBunString(this.global)
+                    try { obj.putMayBeIndex(this.global, keyStr, value) } catch(_: Exception) {}
+                    keyStr.deref()
                 }
                 return obj
-            else => return JsValue.jsUndefined()
+            case _ => return JsValue.jsUndefined()
         }
     }
 }
@@ -817,8 +788,4 @@ public class ParserCtx {
 // 类型别名
 // ============================================================================
 
-public type BunString = BunString
-public type YAML = YAML
-public type ASTMemoryAllocator = ASTMemoryAllocator
-public type Logger = Logger
-public let default_allocator = default_allocator
+// BunString, YAML, ASTMemoryAllocator, Logger, default_allocator 已通过 import 导入，无需重复定义

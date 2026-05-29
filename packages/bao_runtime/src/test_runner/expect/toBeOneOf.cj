@@ -2,45 +2,52 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeOneOf() - 检查值是否在给定集合中
 /// 用法: expect(received).toBeOneOf(list)
 public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toBeOneOf() takes 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toBeOneOf() takes 1 argument")
     }
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let expected = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeOneOf", matcherParamsFmt: "<green>expected<r>")
+    let expected = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeOneOf", matcherParamsFmt: "<green>expected<r>")
     let listValue: JsValue = arguments[0]
+    let global = globalThis.globalThis
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     var pass = false
 
-    if (listValue.jsTypeLoose().isArrayLike()) {
-        var itr = listValue.arrayIterator(globalThis)
-        while (let Some(item) <- itr.next()) {
+    if (listValue.isArray()) {
+        var itr = listValue.arrayIterator(global)
+        while (true) {
+            let itemOpt = itr.next()
+            if (itemOpt.isNone()) { break }
+            let item = itemOpt.getOrThrow()
             // jest-extended uses `deepEqual`, instead of `toBe`
             if (item.jestDeepEquals(expected, globalThis: globalThis)) {
                 pass = true
                 break
             }
         }
-    } else if (listValue.isIterable(globalThis)) {
-        var expectedEntry = ExpectedEntry(globalThis: globalThis, expected: expected)
-        listValue.forEach(globalThis, expectedEntry, { vm, globalObject, entry_, item =>
-            let entry = entry_ as ExpectedEntry
-            if (item.jestDeepEquals(entry.expected, entry.globalThis)) {
-                entry.pass = true
+    } else if (listValue.isIterable(global)) {
+        var expectedEntry = ExpectedEntry(globalThis, expected)
+        listValue.forEach(global, expectedEntry, { vm, globalObject, entry_, item =>
+            let entryOpt = entry_ as ExpectedEntry
+            if (entryOpt.isSome()) {
+                let entry = entryOpt.getOrThrow()
+                if (item.jestDeepEquals(entry.expected, globalThis: entry.globalThis)) {
+                    entry.pass = true
+                }
             }
         })
     } else {
@@ -58,14 +65,14 @@ public func toBeOneOf(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (not) {
         let receivedFmt = listValue.toFmt(formatter)
         let expectedLine = "Expected to not be one of: <green>{f}<r>\nReceived: <red>{f}<r>\n"
-        let signature = Expect.getSignature(matcherName: "toBeOneOf", args: "<green>expected<r>", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine, args: [receivedFmt, expectedFmt])
+        let signature = Expect.getSignature("toBeOneOf", "<green>expected<r>", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine, args: [receivedFmt, expectedFmt])
     }
 
     let expectedLine = "Expected to be one of: <green>{f}<r>\n"
     let receivedLine = "Received: <red>{f}<r>\n"
-    let signature = Expect.getSignature(matcherName: "toBeOneOf", args: "<green>expected<r>", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [valueFmt, expectedFmt])
+    let signature = Expect.getSignature("toBeOneOf", "<green>expected<r>", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [valueFmt, expectedFmt])
 }
 
 // 用于 forEach 回调的上下文

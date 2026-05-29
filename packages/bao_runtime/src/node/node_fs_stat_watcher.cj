@@ -10,6 +10,7 @@ package bao_runtime.node
 
 import bao_core.*
 import bao_threading.*
+import std.collection.*
 
 // ============================================================================
 // Stat 监视事件
@@ -79,7 +80,13 @@ public class StatWatcherScheduler {
     // 对应 Bun: node_fs_stat_watcher.zig - StatWatcherScheduler.append
     public func append(watcher: StatWatcher): Unit {
         mutex.lock()
-        pendingWatchers = [watcher]
+        // 追加到 pendingWatchers 而非替换
+        var newList = ArrayList<StatWatcher>()
+        for (w in pendingWatchers) {
+            newList.add(w)
+        }
+        newList.add(watcher)
+        pendingWatchers = newList.toArray()
         mutex.unlock()
 
         // 更新间隔
@@ -88,6 +95,7 @@ public class StatWatcherScheduler {
 
     // 移除 watcher
     // 对应 Bun: node_fs_stat_watcher.zig - StatWatcherScheduler.remove
+    // Bun 使用 UnboundedQueue（链表），这里使用 Array 切片重建实现移除
     public func remove(watcher: StatWatcher): Unit {
         mutex.lock()
         var idx: Int64 = -1
@@ -98,7 +106,16 @@ public class StatWatcherScheduler {
             }
         }
         if (idx >= 0) {
-            // TODO: watchers.remove(idx)
+            // 重建数组，移除指定索引的元素
+            let newWatchers = Array<StatWatcher>(watchers.size - 1, { _ => StatWatcher() })
+            var j = 0
+            for (i in 0..watchers.size) {
+                if (i != idx) {
+                    newWatchers[j] = watchers[i]
+                    j++
+                }
+            }
+            watchers = newWatchers
         }
         mutex.unlock()
 
@@ -145,10 +162,17 @@ public class StatWatcherScheduler {
     public func onTimer(): Unit {
         // 将 pending watchers 合并到活跃列表
         mutex.lock()
-        for (w in pendingWatchers) {
-            watchers = [w]
+        if (pendingWatchers.size > 0) {
+            var newWatchers = ArrayList<StatWatcher>()
+            for (w in watchers) {
+                newWatchers.add(w)
+            }
+            for (w in pendingWatchers) {
+                newWatchers.add(w)
+            }
+            watchers = newWatchers.toArray()
+            pendingWatchers = Array<StatWatcher>()
         }
-        pendingWatchers = Array<StatWatcher>()
         mutex.unlock()
 
         // 对每个 watcher 执行 stat 检查
@@ -252,7 +276,7 @@ public class StatWatcher {
 
         // 注册到调度器
         scheduler = StatWatcherScheduler.get(vm)
-        scheduler.getOrThrow().append(this)
+        scheduler.getOrThrow().add(this)
 
         // 持久化时 ref 事件循环
         if (persistent) {
@@ -387,7 +411,7 @@ public class AbortSignalRef {}
 // System — 系统调用
 public class System {
     public static func stat(path: String): ?Stats {
-        // 简化实现
-        return None
+        // 调用 NodeFsSystem.stat 获取真实的文件状态
+        return NodeFsSystem.stat(path)
     }
 }

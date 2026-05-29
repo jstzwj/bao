@@ -48,6 +48,14 @@ public class MiniEventLoop {
     ///   Bun: UnboundedQueue(AnyTaskWithExtraContext, .next) - MPSC 无锁链表
     public var concurrentTasks: ArrayList<MiniTask>
 
+    /// I/O 轮询器 (epoll/kqueue)
+    /// 对应 Bun: loop: *uws.Loop
+    public var poller: ?Poller
+
+    /// 跨线程唤醒器
+    /// 对应 Bun: waker: Waker
+    public var waker: ?PollWaker
+
     /// 环境变量加载器
     /// 严格翻译自: env: ?*bun.DotEnv.Loader
     public var env: ?DotEnvLoader
@@ -107,9 +115,18 @@ public class MiniEventLoop {
     /// 活跃句柄计数
     private var activeHandleCount: Int64
 
+    /// 全局实例 (thread-local)
+    /// 严格翻译自: pub threadlocal var global: *MiniEventLoop
+    public static var globalInstance: ?MiniEventLoop = None
+    /// 全局是否已初始化
+    /// 严格翻译自: pub threadlocal var globalInitialized: bool = false
+    public static var globalInitialized: Bool = false
+
     public init() {
         tasks = ArrayList<MiniTask>()
         concurrentTasks = ArrayList<MiniTask>()
+        poller = None
+        waker = None
         env = None
         topLevelDir = ""
         pipeReadBuffer = None
@@ -176,12 +193,44 @@ public class MiniEventLoop {
     /// 初始化全局实例
     /// 严格翻译自: pub fn initGlobal(env, cwd) *MiniEventLoop
     public static func initGlobal(env: ?DotEnvLoader, cwd: ?String): MiniEventLoop {
+        if (globalInitialized) {
+            if (let Some(g) <- globalInstance) {
+                return g
+            }
+        }
+
         let loop = MiniEventLoop()
         loop.env = env
         if (let Some(dir) <- cwd) {
             loop.topLevelDir = dir
         }
         loop.initialized = true
+
+        // 创建 Poller (epoll/kqueue)
+        let p = Poller()
+        if (p.active) {
+            loop.poller = Some(p)
+        }
+
+        // 创建唤醒器
+        let w = PollWaker.create()
+        loop.waker = Some(w)
+
+        // 将唤醒器的读取端注册到 Poller
+        if (let Some(poller) <- loop.poller) {
+            let wakeFd = w.getReadFd()
+            if (wakeFd >= 0) {
+                let _ = poller.register(Int64(wakeFd), EpollEvents.EPOLLIN, { evt =>
+                    // 消费唤醒事件
+                    w.consume()
+                })
+            }
+        }
+
+        // 设置为全局实例
+        globalInstance = Some(loop)
+        globalInitialized = true
+
         return loop
     }
 
@@ -213,6 +262,9 @@ public class MiniEventLoop {
             unsafe { close(timerFd) }
             timerFd = Int32(-1)
         }
+        if (let Some(w) <- waker) {
+            w.deinit()
+        }
         initialized = false
     }
 
@@ -235,6 +287,7 @@ public class MiniEventLoop {
 
     /// 停止事件循环
     public func stop(): Unit {
+        initialized = false
         running = false
     }
 
@@ -446,7 +499,7 @@ public class MiniEventLoop {
         }
         unsafe {
             let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(eventFd, CPointer<UInt8>(buf), 8)
+            read(eventFd, buf.toCPointer(), 8)
         }
     }
 
@@ -457,7 +510,7 @@ public class MiniEventLoop {
         }
         unsafe {
             let buf: Array<UInt8> = Array<UInt8>(8, { _ => UInt8(0) })
-            read(timerFd, CPointer<UInt8>(buf), 8)
+            read(timerFd, buf.toCPointer(), 8)
         }
     }
 
@@ -721,6 +774,11 @@ public class MiniEventLoop {
         return epollFd
     }
 
+    /// 是否有 keepAlive 引用
+    public func hasKeepAlive(): Bool {
+        return keepAliveCount > 0
+    }
+
     /// 标准错误
     public func stderrStore(): ?Object {
         return None
@@ -775,7 +833,34 @@ public class MiniTask {
 
 /// 环境变量加载器 - 对应 Bun DotEnv.Loader
 public class DotEnvLoader {
-    public init() {}
+    private var map: HashMap<String, String>
+
+    public init() {
+        map = HashMap<String, String>()
+    }
+
+    public func get(key: String): ?String {
+        return map.get(key)
+    }
+
+    public func put(key: String, value: String): Unit {
+        map.put(key, value)
+    }
+
+    public func contains(key: String): Bool {
+        return map.contains(key)
+    }
+
+    public func toEnvArray(): Array<String> {
+        let result = ArrayList<String>()
+        for (k in map.keys()) {
+            match (map.get(k)) {
+                case Some(v) => result.append("${k}=${v}")
+                case None => ()
+            }
+        }
+        return result.items()
+    }
 }
 
 // ============================================================================
@@ -789,3 +874,14 @@ public enum EventLoopKind {
     | Js
     | Mini
 }
+
+// ============================================================================
+// timerfd C FFI 声明
+// Linux timerfd 用于实现精确定时器
+//
+// 注意: read/close/malloc/free 已在 poll.cj 中声明为 @C foreign func,
+// 此处只声明新增的 timerfd 相关函数
+// ============================================================================
+
+@C foreign func bao_timerfd_create(): Int32
+@C foreign func bao_timerfd_set(fd: Int32, delayMs: Int64, intervalMs: Int64): Int32

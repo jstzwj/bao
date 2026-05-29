@@ -55,6 +55,10 @@ public class Logger {
         }
     }
 
+    public func success(msg: String): Unit {
+        println(msg)
+    }
+
     public func setLevel(l: Int64): Unit {
         level = l
     }
@@ -140,6 +144,10 @@ public class MutablePackageJson {
     public func addOptionalDependency(name: String, version: String): Unit {}
     public func addPeerDependency(name: String, version: String): Unit {}
     public func removeDependency(name: String): Bool { return false }
+    public func removeDevDependency(name: String): Bool { return false }
+    public func removeOptionalDependency(name: String): Bool { return false }
+    public func removePeerDependency(name: String): Bool { return false }
+    public func removeTrustedDependency(name: String): Bool { return false }
 }
 
 // ============================================================================
@@ -150,6 +158,20 @@ public class MutablePackageJson {
 public class JsonValue {
     public static func fromString(s: String): JsonValue {
         return JsonValue()
+    }
+
+    /// 创建空 JSON 对象
+    public static func newObject(): JsonValue {
+        return JsonValue()
+    }
+
+    /// 从键值对创建 JSON 对象
+    public static func newObjectFrom(entries: Array<(String, String)>): JsonValue {
+        let obj = JsonValue()
+        for (entry in entries) {
+            JsonHelper.setString(obj, entry[0], entry[1])
+        }
+        return obj
     }
 
     public func keys(): Array<String> {
@@ -188,6 +210,11 @@ public class JsonValue {
     }
 
     public func remove(key: String): Unit {}
+
+    /// 按键获取 JSON 值
+    public func get(key: String): ?JsonValue {
+        return None
+    }
 }
 
 /// JSON 解析器
@@ -213,6 +240,7 @@ public class PackageManager {
     }
     public func install(ctx: CommandContext): Unit {}
     public func addPackage(ctx: CommandContext, name: String, version: String): Unit {}
+    public func scopeForPackageName(name: String): RegistryInfo { return RegistryInfo() }
 }
 
 public class CommandLineArguments {
@@ -220,8 +248,18 @@ public class CommandLineArguments {
         return CommandLineArguments()
     }
 
-    public static func initForPublish(cli: CommandLineArguments): ?Tuple<PackageManager, String> {
-        return Some((PackageManager(), "."))
+    public static func initForPublish(cli: CommandLineArguments): ?(PackageManager, String) {
+        let val: (PackageManager, String) = (PackageManager(), ".")
+        return Some(val)
+    }
+}
+
+/// Do options - 控制安装/发布行为
+public class DoOptions {
+    public var runScripts: Bool
+
+    public init() {
+        runScripts = true
     }
 }
 
@@ -229,18 +267,40 @@ public class CommandLineArguments {
 public class PackageManagerOptions {
     public var logLevel: Int64
     public var publishConfig: PublishConfig
+    public var `do`: DoOptions
 
     public init() {
         logLevel = 0
         publishConfig = PublishConfig()
+        `do` = DoOptions()
     }
 }
 
-/// PublishConfig stub
-public class PublishConfig {
-    public var access: ?AccessLevel
+// ============================================================================
+// RuntimeOptions - stub for runtime options
+// ============================================================================
+
+/// 运行时选项 stub
+public class RuntimeOptions {
+    public var ifPresent: Bool
+    public var evalScript: String
+
     public init() {
-        access = None
+        ifPresent = false
+        evalScript = ""
+    }
+}
+
+// ============================================================================
+// CommandArgs - stub for command arguments
+// ============================================================================
+
+/// 命令参数 stub
+public class CommandArgs {
+    public var entryPoints: Array<String>
+
+    public init() {
+        entryPoints = []
     }
 }
 
@@ -250,17 +310,61 @@ public class PublishConfig {
 
 /// 命令上下文 stub
 public class CommandContext {
-    public init() {}
+    public var silent: Bool
+    public var positionals: ArrayList<String>
+    public var loadedBunfig: Bool
+    public var runInBun: Bool
+    public var useSystemShell: Bool
+    public var runtimeOptions: RuntimeOptions
+    public var args: CommandArgs
+
+    public init() {
+        silent = false
+        positionals = ArrayList<String>()
+        loadedBunfig = false
+        runInBun = false
+        useSystemShell = false
+        runtimeOptions = RuntimeOptions()
+        args = CommandArgs()
+    }
 }
 
-/// Tuple2 - simple pair
-public class Tuple2<A, B> {
-    public var _0: A
-    public var _1: B
+// ============================================================================
+// CommandTag - stub for command tag enum
+// ============================================================================
 
-    public init(a: A, b: B) {
-        _0 = a
-        _1 = b
+/// 命令标签 stub
+public enum CommandTag {
+    | RunCommand
+    | BuildCommand
+    | TestCommand
+    | InstallCommand
+    | AutoCommand
+    | InitCommand
+    | ReplCommand
+
+    public operator func ==(right: CommandTag): Bool {
+        match (this) {
+            case RunCommand => match (right) { case RunCommand => true case _ => false }
+            case BuildCommand => match (right) { case BuildCommand => true case _ => false }
+            case TestCommand => match (right) { case TestCommand => true case _ => false }
+            case InstallCommand => match (right) { case InstallCommand => true case _ => false }
+            case AutoCommand => match (right) { case AutoCommand => true case _ => false }
+            case InitCommand => match (right) { case InitCommand => true case _ => false }
+            case ReplCommand => match (right) { case ReplCommand => true case _ => false }
+        }
+    }
+    public operator func !=(right: CommandTag): Bool { !(this == right) }
+}
+
+// ============================================================================
+// Arguments - stub for config loading
+// ============================================================================
+
+/// 配置加载 stub
+public class Arguments {
+    public static func loadConfigPath(autoLoaded: Bool, configPath: String, ctx: CommandContext, cmd: CommandTag): Unit {
+        // stub
     }
 }
 
@@ -315,8 +419,15 @@ public class JsonHelper {
 
     public static func setString(obj: JsonValue, key: String, value: String): Unit {}
 
+    /// 设置 JSON 对象的字段
+    public static func setField(obj: JsonValue, key: String, value: JsonValue): Unit {}
+
     public static func serialize(obj: JsonValue): String {
         return "{}"
+    }
+
+    public static func serializeMinified(obj: JsonValue, source: String): String {
+        return serialize(obj)
     }
 
     public static func removeField(obj: JsonValue, key: String): Unit {}
@@ -329,6 +440,10 @@ public class JsonHelper {
 
     public static func getStringArray(obj: JsonValue, key: String): Array<String> {
         return []
+    }
+
+    public static func getBool(obj: JsonValue, key: String): ?Bool {
+        return None
     }
 }
 
@@ -380,5 +495,118 @@ public class SysProcess {
 
     public static func run(command: String, args: ArrayList<String>): Int64 {
         return 0
+    }
+}
+
+// ============================================================================
+// Terminal - stub for terminal I/O
+// ============================================================================
+
+public class Terminal {
+    public static func readLine(): String {
+        return ""
+    }
+
+    public static func waitForEnter(): Unit {
+        // stub - no-op
+    }
+}
+
+// ============================================================================
+// DependencyInfo - stub for dependency utilities
+// ============================================================================
+
+public class DependencyInfo {
+    public static func withoutBuildTag(version: String): String {
+        let plusIdx = version.indexOf('+')
+        match (plusIdx) {
+            case Some(idx) => return version.substring(0, idx)
+            case None => return version
+        }
+    }
+
+    public static func isScopedPackageName(name: String): Bool {
+        return name.startsWith("@")
+    }
+}
+
+// ============================================================================
+// InstallLogLevel - stub for log level enum
+// ============================================================================
+
+public enum InstallLogLevel {
+    | Silent
+    | Default
+    | Verbose
+
+    public func toInt64(): Int64 {
+        match (this) {
+            case Silent => return 0
+            case Default => return 1
+            case Verbose => return 2
+        }
+    }
+}
+
+// ============================================================================
+// Archiver - stub for archive operations
+// ============================================================================
+
+public enum EntryType {
+    | File
+    | Directory
+    | Other
+
+    public operator func ==(right: EntryType): Bool {
+        match (this) {
+            case File => match(right) { case File => true case _ => false }
+            case Directory => match(right) { case Directory => true case _ => false }
+            case Other => match(right) { case Other => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: EntryType): Bool {
+        !(this == right)
+    }
+}
+
+public class ArchiveEntry {
+    public var pathname: String
+    public var size: Int64
+    public var entryType: EntryType
+    public var data: Array<UInt8>
+
+    public init() {
+        pathname = ""
+        size = 0
+        entryType = EntryType.Other
+        data = []
+    }
+}
+
+public class Archiver {
+    public static func extractRawEntries(bytes: Array<UInt8>): ?Array<ArchiveEntry> {
+        return None
+    }
+}
+
+// ============================================================================
+// String.host() extension - extract hostname from URL
+// ============================================================================
+
+extend String {
+    public func host(): String {
+        let noScheme = if (this.startsWith("https://")) {
+            this.substring(8)
+        } else if (this.startsWith("http://")) {
+            this.substring(7)
+        } else {
+            this
+        }
+        let slashIdx = noScheme.indexOf('/')
+        match (slashIdx) {
+            case Some(idx) => return noScheme.substring(0, idx)
+            case None => return noScheme
+        }
     }
 }

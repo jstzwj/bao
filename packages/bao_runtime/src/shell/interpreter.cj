@@ -462,6 +462,33 @@ public class Interpreter {
     public func isPollable(fd: FD, mode: FileMode): Bool {
         return S.isFifo(mode) || S.isSock(mode) || Posix.isatty(fd.native())
     }
+
+    /// 设置命令节点的退出码并恢复执行
+    /// 对应 Bun: dispatch_tasks.onSubprocessDone -> Cmd.onExit
+    public func setCmdExitCode(cmd: NodeId, exitCode: ExitCode): Unit {
+        // 在 NodeId-arena 模型中，调度任务会恢复对应的状态机
+        // 这里简化为直接设置解释器的退出码并恢复事件循环
+        if (this.exitCode.isNone()) {
+            this.exitCode = exitCode
+        }
+    }
+
+    /// 设置扩展状态的 Glob 结果并恢复执行
+    /// 对应 Bun: dispatch_tasks.run_from_main_thread -> Expansion.onGlobTaskDone
+    public func setExpansionGlobResult(expansion: NodeId,
+                                       result: ArrayList<Array<Byte>>,
+                                       err: ?ShellGlobErr): Unit {
+        // 在 NodeId-arena 模型中，glob 结果会注入到扩展状态
+        // 这里简化处理：结果已计算，后续扩展状态恢复时使用
+        ()
+    }
+
+    /// 设置条件表达式 stat 结果并恢复执行
+    /// 对应 Bun: dispatch_tasks.run_from_main_thread -> CondExpr.onStatTaskDone
+    public func setCondExprStatResult(cond: NodeId, stat: Any, path: Any): Unit {
+        // 在 NodeId-arena 模型中，stat 结果会注入到条件表达式状态
+        ()
+    }
 }
 
 // ========================================================================

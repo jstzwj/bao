@@ -51,11 +51,11 @@ public enum EventType {
 public let eventTypeMap: HashMap<String, EventType> = HashMap<String, EventType>()
 
 public func initEventTypeMap(): Unit {
-    eventTypeMap["event"] = EventType.Event
-    eventTypeMap["message"] = EventType.MessageEvent
-    eventTypeMap["close"] = EventType.CloseEvent
-    eventTypeMap["error"] = EventType.ErrorEvent
-    eventTypeMap["open"] = EventType.OpenEvent
+    eventTypeMap.put("event", EventType.Event)
+    eventTypeMap.put("message", EventType.MessageEvent)
+    eventTypeMap.put("close", EventType.CloseEvent)
+    eventTypeMap.put("error", EventType.ErrorEvent)
+    eventTypeMap.put("open", EventType.OpenEvent)
 }
 
 // ========== JestPrettyFormat - Jest美化格式化 ==========
@@ -210,11 +210,11 @@ extend JestPrettyFormat {
                 if (i > 0) {
                     writer.write(" ")
                 }
-                let tag = Tag.get(value: vals[i], globalThis: globalObj)
+                let tag = Tag.get(value: vals[Int64(i)], globalThis: globalObj)
                 if (options.enableColors) {
-                    fmt.format(result: tag, writer: writer, value: vals[i], globalThis: globalObj, enableAnsiColors: true)
+                    fmt.format(result: tag, writer: writer, value: vals[Int64(i)], globalThis: globalObj, enableAnsiColors: true)
                 } else {
-                    fmt.format(result: tag, writer: writer, value: vals[i], globalThis: globalObj, enableAnsiColors: false)
+                    fmt.format(result: tag, writer: writer, value: vals[Int64(i)], globalThis: globalObj, enableAnsiColors: false)
                 }
                 i += 1
             }
@@ -313,7 +313,7 @@ public enum Tag {
         if (value.isBoolean()) { return TagResult(tag: Tag.boolean) }
         if (value.isNumber()) {
             let num = value.asNumber()
-            if (num == num && num == num.trunc() && num >= Int64.min.toFloat64() && num <= Int64.max.toFloat64()) {
+            if (num == num && num == Float64(Int64(num)) && num >= Float64(Int64.Min) && num <= Float64(Int64.Max)) {
                 return TagResult(tag: Tag.integer)
             }
             return TagResult(tag: Tag.double_)
@@ -327,8 +327,8 @@ public enum Tag {
             // 检查是否为特殊对象类型
             if (value.isClass(globalThis.globalThis)) { return TagResult(tag: Tag.class_) }
             if (value.isError()) { return TagResult(tag: Tag.error) }
-            if (value.objectValue.getOrThrow().className == "Map") { return TagResult(tag: Tag.map) }
-            if (value.objectValue.getOrThrow().className == "Set") { return TagResult(tag: Tag.set) }
+            if (value.toObject().className == "Map") { return TagResult(tag: Tag.map) }
+            if (value.toObject().className == "Set") { return TagResult(tag: Tag.set) }
             if (value.asAnyPromise().isSome()) { return TagResult(tag: Tag.promise) }
             if (value.isTypedArray()) { return TagResult(tag: Tag.typedArray) }
             if (value.isArrayBuffer()) { return TagResult(tag: Tag.arrayBuffer) }
@@ -507,17 +507,16 @@ public class Formatter {
         indent += 1
         var first = true
         if (value.isObject()) {
-            if (let Some(obj) <- value.objectValue) {
-                let entries = obj.entries()
-                for ((name, propValue) in entries) {
-                    if (!first) {
-                        writer.write(", ")
-                    }
-                    first = false
-                    writer.write((name) + ": ")
-                    let tag = Tag.get(value: propValue, globalThis: globalThis)
-                    format(result: tag, writer: writer, value: propValue, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
+            let obj = value.toObject()
+            let entries = obj.entries()
+            for ((name, propValue) in entries) {
+                if (!first) {
+                    writer.write(", ")
                 }
+                first = false
+                writer.write((name) + ": ")
+                let tag = Tag.get(value: propValue, globalThis: globalThis)
+                format(result: tag, writer: writer, value: propValue, globalThis: globalThis, enableAnsiColors: enableAnsiColors)
             }
         }
         indent -= 1

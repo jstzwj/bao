@@ -77,7 +77,7 @@ public class AbortSignalTimeout {
     // 严格翻译自 Timeout.cancel
     public func cancel(vm: BunVirtualMachine) {
         if (eventLoopTimer.isActive()) {
-            // TODO: vm.timer.remove(eventLoopTimer) - timer API 未实现
+            vm.timer.remove(eventLoopTimer)
         }
     }
 
@@ -96,8 +96,10 @@ public class AbortSignalTimeout {
 
     // 严格翻译自 Timeout.dispatch
     public func dispatch(vm: BunVirtualMachine, signalPtr: AbortSignal) {
-        // TODO: loop.enter() / exit() - EventLoop 缺少这些方法
+        let loop = vm.eventLoop
+        loop.enter()
         signalPtr.signal(vm.globalObject, CommonAbortReason())
+        loop.exit()
     }
 
     // 严格翻译自 Timeout.deinit

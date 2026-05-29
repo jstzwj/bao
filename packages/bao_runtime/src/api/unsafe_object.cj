@@ -10,7 +10,7 @@ import bao_core.*
 // ============================================================================
 
 /// 创建 Unsafe 对象，挂载到 Bun.unsafe
-public func create(globalThis: JsGlobalObject): JsValue {
+public func create(globalThis!: JsGlobalObject): JsValue {
     let object = JsValue.createEmptyObject(globalThis, 3)
 
     // gcAggressionLevel
@@ -40,16 +40,16 @@ public func create(globalThis: JsGlobalObject): JsValue {
 /// 获取或设置 GC 激进程度
 /// Bun.unsafe.gcAggressionLevel(0|1|2)
 /// 0 = none, 1 = mild, 2 = aggressive
-public func gcAggressionLevel(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func gcAggressionLevel(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let ret = JsValue.jsNumber(Int32(globalThis.bunVM().aggressive_garbage_collection.rawValue))
     let value = callframe.argumentsOld(1).ptr[0]
 
     if (!value.isEmptyOrUndefinedOrNull()) {
-        match (try value.coerceInt32(globalThis)) {
-            case 1 => globalThis.bunVM().aggressive_garbage_collection = .mild
-            case 2 => globalThis.bunVM().aggressive_garbage_collection = .aggressive
-            case 0 => globalThis.bunVM().aggressive_garbage_collection = .none
-            else => ()
+        match (value.coerceInt32(globalThis) ) {
+            case 1 => globalThis.bunVM().aggressive_garbage_collection = GCLevel.mild
+            case 2 => globalThis.bunVM().aggressive_garbage_collection = GCLevel.aggressive
+            case 0 => globalThis.bunVM().aggressive_garbage_collection = GCLevel.none
+            case _ => ()
         }
     }
     return ret
@@ -57,7 +57,7 @@ public func gcAggressionLevel(globalThis: JsGlobalObject, callframe: JsCallFrame
 
 /// 将 ArrayBuffer 转换为字符串
 /// 支持 Uint16Array/Int16Array (UTF-16) 和其他类型 (Latin1)
-public func arrayBufferToString(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func arrayBufferToString(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let args = callframe.argumentsOld(2).slice()
     if (args.len < 1 || !args[0].isCell() || !args[0].jsType().isTypedArrayOrArrayBuffer()) {
         return globalThis.throwInvalidArguments("Expected an ArrayBuffer")
@@ -71,20 +71,19 @@ public func arrayBufferToString(globalThis: JsGlobalObject, callframe: JsCallFra
             zigStr.len = arrayBuffer.len
             zigStr.markUTF16()
             return zigStr.toJS(globalThis)
-        case .Int16Array =>
+        case Int16Array =>
             var zigStr = ZigString("")
             zigStr._unsafe_ptr_do_not_use = arrayBuffer.ptr
             zigStr.len = arrayBuffer.len
             zigStr.markUTF16()
             return zigStr.toJS(globalThis)
-        else => {
+        case _ =>
             return ZigString(arrayBuffer.slice()).toJS(globalThis)
-        }
     }
 }
 
 /// 输出 mimalloc 内存分配统计信息
-public func dumpMimalloc(JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func dumpMimalloc(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     globalObject.bunVM().arena.dumpStats()
     if (HeapBreakdown.enabled) {
         dumpZoneMallocStats()

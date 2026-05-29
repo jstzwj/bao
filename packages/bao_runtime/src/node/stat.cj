@@ -98,15 +98,30 @@ public class Stats {
         obj.set("mtime", JsValue(mtimeMs))
         obj.set("ctime", JsValue(ctimeMs))
         obj.set("birthtime", JsValue(birthtimeMs))
-        // 设置文件类型判断方法
-        // TODO: 使用 JsValue.nativeFunction 绑定实际方法
-        obj.set("isFile", JsValue(this.isFile()))
-        obj.set("isDirectory", JsValue(this.isDirectory()))
-        obj.set("isSymbolicLink", JsValue(this.isSymbolicLink()))
-        obj.set("isBlockDevice", JsValue(this.isBlockDevice()))
-        obj.set("isCharacterDevice", JsValue(this.isCharacterDevice()))
-        obj.set("isFIFO", JsValue(this.isFIFO()))
-        obj.set("isSocket", JsValue(this.isSocket()))
+        // 文件类型判断方法 — 使用 nativeFunction 绑定为可调用函数
+        // 对应 Bun: Stat.zig - Bun__createJSStatsObject (C++ creates native methods)
+        let capturedMode = this.mode
+        obj.set("isFile", JsValue.nativeFunction("isFile", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x8000)
+        }))
+        obj.set("isDirectory", JsValue.nativeFunction("isDirectory", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x4000)
+        }))
+        obj.set("isSymbolicLink", JsValue.nativeFunction("isSymbolicLink", { _ =>
+            JsValue((capturedMode & 0xF000) == 0xA000)
+        }))
+        obj.set("isBlockDevice", JsValue.nativeFunction("isBlockDevice", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x6000)
+        }))
+        obj.set("isCharacterDevice", JsValue.nativeFunction("isCharacterDevice", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x2000)
+        }))
+        obj.set("isFIFO", JsValue.nativeFunction("isFIFO", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x1000)
+        }))
+        obj.set("isSocket", JsValue.nativeFunction("isSocket", { _ =>
+            JsValue((capturedMode & 0xF000) == 0xC000)
+        }))
         return JsValue(obj)
     }
 }
@@ -212,15 +227,30 @@ public class BigIntStats {
         obj.set("mtimeNs", JsValue(Int64(mtimeNs)))
         obj.set("ctimeNs", JsValue(Int64(ctimeNs)))
         obj.set("birthtimeNs", JsValue(Int64(birthtimeNs)))
-        // 文件类型判断方法
-        // TODO: 使用 JsValue.nativeFunction 绑定实际方法
-        obj.set("isFile", JsValue(this.isFile()))
-        obj.set("isDirectory", JsValue(this.isDirectory()))
-        obj.set("isSymbolicLink", JsValue(this.isSymbolicLink()))
-        obj.set("isBlockDevice", JsValue(this.isBlockDevice()))
-        obj.set("isCharacterDevice", JsValue(this.isCharacterDevice()))
-        obj.set("isFIFO", JsValue(this.isFIFO()))
-        obj.set("isSocket", JsValue(this.isSocket()))
+        // 文件类型判断方法 — 使用 nativeFunction 绑定为可调用函数
+        // 对应 Bun: Stat.zig - Bun__createJSBigIntStatsObject (C++ creates native methods)
+        let capturedMode = this.mode
+        obj.set("isFile", JsValue.nativeFunction("isFile", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x8000)
+        }))
+        obj.set("isDirectory", JsValue.nativeFunction("isDirectory", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x4000)
+        }))
+        obj.set("isSymbolicLink", JsValue.nativeFunction("isSymbolicLink", { _ =>
+            JsValue((capturedMode & 0xF000) == 0xA000)
+        }))
+        obj.set("isBlockDevice", JsValue.nativeFunction("isBlockDevice", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x6000)
+        }))
+        obj.set("isCharacterDevice", JsValue.nativeFunction("isCharacterDevice", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x2000)
+        }))
+        obj.set("isFIFO", JsValue.nativeFunction("isFIFO", { _ =>
+            JsValue((capturedMode & 0xF000) == 0x1000)
+        }))
+        obj.set("isSocket", JsValue.nativeFunction("isSocket", { _ =>
+            JsValue((capturedMode & 0xF000) == 0xC000)
+        }))
         return JsValue(obj)
     }
 }

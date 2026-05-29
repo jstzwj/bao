@@ -14,6 +14,6 @@ public class DiscordCommand {
 
     /// 执行命令: 打开 Discord URL
     public static func exec(): Unit {
-        Open.openURL(discordUrl)
+        openURL(discordUrl)
     }
 }

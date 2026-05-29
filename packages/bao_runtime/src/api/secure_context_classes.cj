@@ -19,7 +19,7 @@ public class SecureContextClasses {
     /// intern (static klass method)
     /// 严格翻译自: klass.intern { fn: "intern", length: 1 }
     /// tls.createSecureContext() 入口 — 通过配置摘要 WeakGCMap 缓存
-    public static func intern(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func intern(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 解析选项，创建或复用 SecureContext
         // 使用 SHA-256 摘要作为缓存键
         return JsValue.jsUndefined()

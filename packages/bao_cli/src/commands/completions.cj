@@ -359,6 +359,7 @@ public class CompletionsCommand {
 /// String 扩展辅助
 public class StringBuilder {
     private var parts: ArrayList<String>
+    public var len: Int64 = 0
 
     public init() {
         parts = ArrayList<String>()
@@ -366,6 +367,7 @@ public class StringBuilder {
 
     public func append(s: String): Unit {
         parts.append(s)
+        len += Int64(s.size)
     }
 
     public func toString(): String {

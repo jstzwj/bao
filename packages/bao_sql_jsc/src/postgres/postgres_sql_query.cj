@@ -5,6 +5,8 @@ package bao_sql_jsc.postgres
 
 import bao_core.*
 import bao_jsc.*
+import bao_collections.ArrayList
+import bao_sql_jsc.SqlRareDataRegistry
 
 /// Postgres SQL 查询
 /// 对应 Bun: PostgresSQLQuery
@@ -17,6 +19,12 @@ public class PostgresSQLQuery {
     public var status: PostgresQueryStatus = PostgresQueryStatus.Pending
     var refCount: Int64 = 1
     public var flags: PostgresQueryFlags = PostgresQueryFlags()
+    /// 已收集的行数据 (JS 值)
+    /// 对应 Bun: PostgresSQLQuery.rows — 用于收集查询结果行
+    public var rows: ArrayList<JscValue> = ArrayList<JscValue>()
+    /// 关联的 globalObject (在调用时设置)
+    /// 对应 Bun: 通过 thisValue.getGlobal() 获取
+    public var globalObject: ?JscJSGlobalObject = None
 
     public init() {}
 
@@ -57,24 +65,60 @@ public class PostgresSQLQuery {
 
     /// 写入失败回调
     /// 对应 Bun: PostgresSQLQuery.onWriteFail
+    /// 通过 SQL RareData 的 postgresql_context.onQueryRejectFn 将错误传递给 JS
     public func onWriteFail(err: AnyPostgresError, globalObject: JscJSGlobalObject,
                              queriesArray: JscValue): Unit {
         ref()
         status = PostgresQueryStatus.Fail
-        // Stub: would invoke reject callback
+
+        // 获取 SQL RareData 中的 postgresql_context 回调
+        let sqlRareData = SqlRareDataRegistry.getOrInit(globalObject)
+        let rejectFn = sqlRareData.postgresqlContext.onQueryRejectFn
+        match (rejectFn) {
+            case Some(fn) =>
+                let jsErr = postgresErrorToJS(globalObject, "", err)
+                let targetValue = getTarget(globalObject, true)
+                match (targetValue) {
+                    case Some(target) =>
+                        // 对应 Bun: eventLoop.runCallback(function, globalObject, thisValue, args)
+                        fn.call(globalObject.globalThis, thisValue,
+                            [target, jsErr, queriesArray])
+                    case None => ()
+                }
+            case None => ()
+        }
+
         deref()
     }
 
     /// JS 错误回调
     /// 对应 Bun: PostgresSQLQuery.onJSError
+    /// 通过 SQL RareData 的 postgresql_context.onQueryRejectFn 将 JS 错误传递回 JS
     public func onJSError(err: JscValue, globalObject: JscJSGlobalObject): Unit {
         ref()
         status = PostgresQueryStatus.Fail
+
+        // 获取 SQL RareData 中的 postgresql_context 回调
+        let sqlRareData = SqlRareDataRegistry.getOrInit(globalObject)
+        let rejectFn = sqlRareData.postgresqlContext.onQueryRejectFn
+        match (rejectFn) {
+            case Some(fn) =>
+                let targetValue = getTarget(globalObject, true)
+                match (targetValue) {
+                    case Some(target) =>
+                        fn.call(globalObject.globalThis, thisValue,
+                            [target, err])
+                    case None => ()
+                }
+            case None => ()
+        }
+
         deref()
     }
 
     /// Resolve 查询结果
-    /// 对应 Bun: PostgresSQLQuery.resolve
+    /// 对应 Bun: PostgresSQLQuery.resolve / PostgresSQLQuery.onResult
+    /// 通过 SQL RareData 的 postgresql_context.onQueryResolveFn 将结果传递给 JS
     public func resolve(queriesArray: JscValue, result: PostgresQueryResult): Unit {
         ref()
 
@@ -89,12 +133,35 @@ public class PostgresSQLQuery {
         }
         status = if (result.isLastResult) { PostgresQueryStatus.Success } else { PostgresQueryStatus.PartialResponse }
 
-        // Stub: would invoke resolve callback
+        // 获取 SQL RareData 中的 postgresql_context 回调
+        let globalObject = this.globalObject
+        match (globalObject) {
+            case Some(globalObj) =>
+                let sqlRareData = SqlRareDataRegistry.getOrInit(globalObj)
+                let resolveFn = sqlRareData.postgresqlContext.onQueryResolveFn
+                match (resolveFn) {
+                    case Some(fn) =>
+                        let jsTag = result.commandTag.toJSTag(globalObj)
+                        let jsNumber = result.commandTag.toJSNumber()
+                        let targetValue = getTarget(globalObj, result.isLastResult)
+                        match (targetValue) {
+                            case Some(target) =>
+                                fn.call(globalObj.globalThis, thisValue,
+                                    [target, JscValue.undefined(), jsTag, jsNumber,
+                                     queriesArray, JscValue(result.isLastResult)])
+                            case None => ()
+                        }
+                    case None => ()
+                }
+            case None => ()
+        }
+
         deref()
     }
 
     /// Reject 查询
     /// 对应 Bun: PostgresSQLQuery.reject
+    /// 通过 SQL RareData 的 postgresql_context.onQueryRejectFn 将错误传递给 JS
     public func reject(queriesArray: JscValue, err: AnyPostgresError): Unit {
         let isDone = match (status) {
             case PostgresQueryStatus.Fail => true
@@ -106,10 +173,30 @@ public class PostgresSQLQuery {
         }
         status = PostgresQueryStatus.Fail
 
-        // Stub: would invoke reject callback
+        // 获取 SQL RareData 中的 postgresql_context 回调
+        let globalObject = this.globalObject
+        match (globalObject) {
+            case Some(globalObj) =>
+                let sqlRareData = SqlRareDataRegistry.getOrInit(globalObj)
+                let rejectFn = sqlRareData.postgresqlContext.onQueryRejectFn
+                match (rejectFn) {
+                    case Some(fn) =>
+                        let jsErr = postgresErrorToJS(globalObj, "", err)
+                        let targetValue = getTarget(globalObj, true)
+                        match (targetValue) {
+                            case Some(target) =>
+                                fn.call(globalObj.globalThis, thisValue,
+                                    [target, jsErr, queriesArray])
+                            case None => ()
+                        }
+                    case None => ()
+                }
+            case None => ()
+        }
     }
 
     /// 使用 JS 值 reject
+    /// 对应 Bun: PostgresSQLQuery.rejectWithJSValue (内联于 onJSError)
     public func rejectWithJSValue(queriesArray: JscValue, err: JscValue): Unit {
         let isDone = match (status) {
             case PostgresQueryStatus.Fail => true
@@ -120,6 +207,26 @@ public class PostgresSQLQuery {
             return
         }
         status = PostgresQueryStatus.Fail
+
+        // 获取 SQL RareData 中的 postgresql_context 回调
+        let globalObject = this.globalObject
+        match (globalObject) {
+            case Some(globalObj) =>
+                let sqlRareData = SqlRareDataRegistry.getOrInit(globalObj)
+                let rejectFn = sqlRareData.postgresqlContext.onQueryRejectFn
+                match (rejectFn) {
+                    case Some(fn) =>
+                        let targetValue = getTarget(globalObj, true)
+                        match (targetValue) {
+                            case Some(target) =>
+                                fn.call(globalObj.globalThis, thisValue,
+                                    [target, err, queriesArray])
+                            case None => ()
+                        }
+                    case None => ()
+                }
+            case None => ()
+        }
     }
 
     /// 标记为失败
@@ -191,9 +298,21 @@ public class PostgresSQLQuery {
 
         let query = PostgresSQLQuery()
         query.query = queryVal.toString()
+        query.globalObject = globalObject
         query.ref()
 
         return query.toJS(globalObject)
+    }
+
+    /// 获取目标值 (用于回调中的 this 绑定)
+    /// 对应 Bun: PostgresSQLQuery.getTarget
+    /// 从 Codegen.targetGetCached 获取缓存的 target JS 值
+    public func getTarget(globalObject: JscJSGlobalObject, cleanTarget: Bool): ?JscValue {
+        let target = Codegen.targetGetCached(thisValue)
+        if (cleanTarget) {
+            Codegen.targetSetCached(thisValue, globalObject, JscValue.undefined())
+        }
+        return target
     }
 
     /// 转换为 JS 值
@@ -261,4 +380,29 @@ public class PostgresCommandTag {
     public func toJSNumber(): JscValue {
         return JscValue(count)
     }
+}
+
+// ============================================================================
+// postgresErrorToJS - 将 Postgres 错误转为 JS 值
+// 对应 Bun: postgresErrorToJS(globalObject, message, err)
+// ============================================================================
+
+/// 将 Postgres 错误转换为 JS 错误对象
+/// 对应 Bun: AnyPostgresError.postgresErrorToJS
+/// 创建包含 name 和 message 属性的 JS Error 对象
+public func postgresErrorToJS(globalObject: JscJSGlobalObject, message: String,
+                               err: AnyPostgresError): JscValue {
+    let errObj = JscValue.createEmptyObject(globalObject.globalThis)
+    match (err) {
+        case AnyPostgresError.JSError =>
+            errObj.put(globalObject.globalThis, "name", JscValue("PostgresError"))
+            errObj.put(globalObject.globalThis, "message", JscValue(if (message.size > 0) { message } else { "Postgres error" }))
+        case AnyPostgresError.OutOfMemory =>
+            errObj.put(globalObject.globalThis, "name", JscValue("OutOfMemory"))
+            errObj.put(globalObject.globalThis, "message", JscValue("Out of memory"))
+        case AnyPostgresError.JSTerminated =>
+            errObj.put(globalObject.globalThis, "name", JscValue("Terminated"))
+            errObj.put(globalObject.globalThis, "message", JscValue("JavaScript was terminated"))
+    }
+    return errObj
 }

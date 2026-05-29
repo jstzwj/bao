@@ -2,48 +2,45 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeArrayOfSize() - 检查值是否为指定大小的数组
 /// 用法: expect(received).toBeArrayOfSize(size)
 public func toBeArrayOfSize(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
-
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toBeArrayOfSize() requires 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toBeArrayOfSize() requires 1 argument")
     }
 
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeArrayOfSize", matcherParamsFmt: "")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeArrayOfSize", matcherParamsFmt: "")
 
     let size = arguments[0]
     size.ensureStillAlive()
 
     if (!size.isAnyInt()) {
-        return globalThis.throw_("toBeArrayOfSize() requires the first argument to be a number")
+        return globalThis.throwInvalidArgumentsValue("toBeArrayOfSize() requires the first argument to be a number")
     }
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
-    var pass = value.jsType().isArray() && Int32(value.getLength(globalThis)) == size.toInt32()
+    let not = `this`.flags.not
+    var pass = value.jsType().isArray() && Int32(value.getLength(globalThis.globalThis)) == size.toInt32()
 
     if (not) { pass = !pass }
     if (pass) { return JsValue.jsUndefined() }
 
     let formatter = ConsoleFormatter()
-    // defer { formatter.deinit() }
     let received = value.toFmt(formatter)
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toBeArrayOfSize", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+        let signature = Expect.getSignature("toBeArrayOfSize", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }
 
-    let signature = Expect.getSignature(matcherName: "toBeArrayOfSize", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+    let signature = Expect.getSignature("toBeArrayOfSize", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
 }

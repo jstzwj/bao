@@ -29,6 +29,18 @@ public enum DiffOperation {
     | insert
     | delete
     | equal
+
+    public operator func ==(other: DiffOperation): Bool {
+        match (this) {
+            case insert => match (other) { case insert => true; case _ => false }
+            case delete => match (other) { case delete => true; case _ => false }
+            case equal => match (other) { case equal => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: DiffOperation): Bool {
+        !(this == other)
+    }
 }
 
 /// 差异项
@@ -72,53 +84,55 @@ public class DiffMatchPatch {
     /// - Param after: 新文本
     /// - Param checkLines: 是否先进行行级差异
     /// - Return: 差异列表
-    public func diff(before: String, after: String, checkLines: Bool): Array<Diff> {
-        return diffInternal(before: before, after: after, checkLines: checkLines)
+    public func diff(before: String, after: String, checkLines: Bool): ArrayList<Diff> {
+        return diffInternal(before, after, checkLines)
     }
 
     /// 内部差异计算实现
-    private func diffInternal(before: String, after: String, checkLines: Bool): Array<Diff> {
+    private func diffInternal(before: String, after: String, checkLines: Bool): ArrayList<Diff> {
         // 完全相等
         if (before == after) {
             if (before.size > 0) {
-                return Array<Diff>([Diff(operation: DiffOperation.equal, text: before)])
+                return ArrayList<Diff>([Diff(DiffOperation.equal, before)])
             }
-            return Array<Diff>()
+            return ArrayList<Diff>()
         }
 
         // 裁剪公共前缀
-        var commonPrefixLen = commonPrefixLength(text1: before, text2: after)
+        var commonPrefixLen = commonPrefixLength(before, after)
         var commonPrefix = before[0..commonPrefixLen]
         var trimmedBefore = before[commonPrefixLen..]
         var trimmedAfter = after[commonPrefixLen..]
 
         // 裁剪公共后缀
-        var commonSuffixLen = commonSuffixLength(text1: trimmedBefore, text2: trimmedAfter)
+        var commonSuffixLen = commonSuffixLength(trimmedBefore, trimmedAfter)
         var commonSuffix = trimmedBefore[trimmedBefore.size - commonSuffixLen..]
         trimmedBefore = trimmedBefore[0..trimmedBefore.size - commonSuffixLen]
         trimmedAfter = trimmedAfter[0..trimmedAfter.size - commonSuffixLen]
 
         // 计算中间块的差异
-        var diffs = diffCompute(before: trimmedBefore, after: trimmedAfter, checkLines: checkLines)
+        var diffs = diffCompute(trimmedBefore, trimmedAfter, checkLines)
 
         // 恢复前缀和后缀
         if (commonPrefix.size > 0) {
-            diffs.insert(0, Diff(operation: DiffOperation.equal, text: commonPrefix))
+            diffs.insert(0, Diff(DiffOperation.equal, commonPrefix))
         }
         if (commonSuffix.size > 0) {
-            diffs.append(Diff(operation: DiffOperation.equal, text: commonSuffix))
+            diffs.append(Diff(DiffOperation.equal, commonSuffix))
         }
 
-        return cleanupMerge(diffs: diffs)
+        return cleanupMerge(diffs)
     }
 
     /// 计算差异的核心逻辑
-    private func diffCompute(before: String, after: String, checkLines: Bool): Array<Diff> {
+    private func diffCompute(beforeIn: String, afterIn: String, checkLines: Bool): ArrayList<Diff> {
+        var before = beforeIn
+        var after = afterIn
         if (before.size == 0) {
-            return Array<Diff>([Diff(operation: DiffOperation.insert, text: after)])
+            return ArrayList<Diff>([Diff(DiffOperation.insert, after)])
         }
         if (after.size == 0) {
-            return Array<Diff>([Diff(operation: DiffOperation.delete, text: before)])
+            return ArrayList<Diff>([Diff(DiffOperation.delete, before)])
         }
 
         // 检查是否一个文本是另一个的后缀
@@ -129,30 +143,30 @@ public class DiffMatchPatch {
         }
 
         // 尝试行级差异优化
-        if (checkLines && before.size > config.diffCheckLinesOver && after.size > config.diffCheckLinesOver) {
-            return diffLinesMode(before: before, after: after)
+        if (checkLines && Int64(before.size) > Int64(config.diffCheckLinesOver) && Int64(after.size) > Int64(config.diffCheckLinesOver)) {
+            return diffLinesMode(before, after)
         }
 
         // 使用半匹配算法
-        let hmResult = halfMatch(text1: before, text2: after)
+        let hmResult = halfMatch(before, after)
         if (hmResult .isSome()) {
             let hm = hmResult.getOrThrow()
             // 将差异分成前后两半递归处理
-            var diffsA = diff(before: hm.text1A, after: hm.text2A, checkLines: checkLines)
-            var diffsB = diff(before: hm.text1B, after: hm.text2B, checkLines: checkLines)
+            var diffsA = diff(hm.text1A, hm.text2A, checkLines)
+            var diffsB = diff(hm.text1B, hm.text2B, checkLines)
             // 组合结果
-            var result = Array<Diff>()
+            var result = ArrayList<Diff>()
             for (d in diffsA) { result.append(d) }
-            result.append(Diff(operation: DiffOperation.equal, text: hm.commonMid))
+            result.append(Diff(DiffOperation.equal, hm.commonMid))
             for (d in diffsB) { result.append(d) }
             return result
         }
 
-        return bisect(before: before, after: after)
+        return bisect(before, after)
     }
 
     /// 二分法差异算法
-    private func bisect(before: String, after: String): Array<Diff> {
+    private func bisect(before: String, after: String): ArrayList<Diff> {
         var text1 = before
         var text2 = after
         let text1Length = text1.size
@@ -201,7 +215,7 @@ public class DiffMatchPatch {
                     if (k2Offset >= 0 && k2Offset < vLength && v2[k2Offset] != -1) {
                         let x2 = text1Length - v2[k2Offset]
                         if (x1 >= x2) {
-                            return bisectSplit(text1: text1, text2: text2, x: x1, y: y1)
+                            return bisectSplit(text1, text2, x1, y1)
                         }
                     }
                 }
@@ -237,7 +251,7 @@ public class DiffMatchPatch {
                         let x1 = v1[k1Offset]
                         let x2Actual = text1Length - x2
                         if (x1 >= x2Actual) {
-                            return bisectSplit(text1: text1, text2: text2, x: x1, y: x1 - k1Offset + vOffset)
+                            return bisectSplit(text1, text2, x1, x1 - k1Offset + vOffset)
                         }
                     }
                 }
@@ -246,20 +260,20 @@ public class DiffMatchPatch {
         }
 
         // 差异太大, 退回暴力法
-        var diffs = Array<Diff>()
+        var diffs = ArrayList<Diff>()
         if (before.size > 0) {
-            diffs.append(Diff(operation: DiffOperation.delete, text: before))
+            diffs.append(Diff(DiffOperation.delete, before))
         }
         if (after.size > 0) {
-            diffs.append(Diff(operation: DiffOperation.insert, text: after))
+            diffs.append(Diff(DiffOperation.insert, after))
         }
         return diffs
     }
 
     /// 二分法分割后递归处理
-    private func bisectSplit(text1: String, text2: String, x: Int64, y: Int64): Array<Diff> {
-        var diffs = diff(before: text1[0..x], after: text2[0..y], checkLines: false)
-        let remaining = diff(before: text1[x..], after: text2[y..], checkLines: false)
+    private func bisectSplit(text1: String, text2: String, x: Int64, y: Int64): ArrayList<Diff> {
+        var diffs = diff(text1[0..x], text2[0..y], false)
+        let remaining = diff(text1[x..], text2[y..], false)
         for (d in remaining) { diffs.append(d) }
         return diffs
     }
@@ -275,8 +289,8 @@ public class DiffMatchPatch {
             return None
         }
 
-        let hm1 = halfMatchI(longText: longText, shortText: shortText, i: Int64(longText.size) / 4)
-        let hm2 = halfMatchI(longText: longText, shortText: shortText, i: Int64(longText.size) / 2)
+        let hm1 = halfMatchI(longText, shortText, Int64(longText.size) / 4)
+        let hm2 = halfMatchI(longText, shortText, Int64(longText.size) / 2)
         var best: ?HalfMatchResult = None
         if (hm1 .isSome() && hm2 .isSome()) {
             best = if (hm1.getOrThrow().commonMid.size > hm2.getOrThrow().commonMid.size) { hm1 } else { hm2 }
@@ -305,16 +319,16 @@ public class DiffMatchPatch {
         var bestShortB = ""
 
         // 查找种子在短文本中的所有出现位置
-        var j = shortText.indexOf(seed, startIndex: 0)
+        var j = shortText.indexOf(seed)
         while (j .isSome()) {
             let patience = Int64(longText.size) / 4
             let realJ = Int64(j.getOrThrow())
             let prefixLength = i
             let suffixLength = Int64(longText.size) - i - Int64(seed.size)
-            let commonPrefixLen = commonPrefixLength(text1: longText[0..prefixLength], text2: shortText[0..realJ])
+            let commonPrefixLen = commonPrefixLength(longText[0..prefixLength], shortText[0..realJ])
             let commonSuffixLen = commonSuffixLength(
-                text1: longText[i + Int64(seed.size)..],
-                text2: shortText[realJ + Int64(seed.size)..])
+                longText[i + Int64(seed.size)..],
+                shortText[realJ + Int64(seed.size)..])
             if (bestCommon.size < commonSuffixLen + Int64(seed.size) + commonPrefixLen) {
                 bestCommon = shortText[realJ - commonPrefixLen..(realJ + Int64(seed.size) + commonSuffixLen)]
                 bestLongA = longText[0..(i - commonPrefixLen)]
@@ -323,33 +337,33 @@ public class DiffMatchPatch {
                 bestShortB = shortText[realJ + Int64(seed.size) + commonSuffixLen..]
             }
             let startIdx: ?Int64 = if (realJ + 1 < Int64(shortText.size)) { Int64(realJ + 1) } else { None }
-            j = shortText.indexOf(seed, startIndex: startIdx)
+            j = shortText.indexOf(seed)
         }
 
         if (bestCommon.size * 2 >= longText.size) {
             return HalfMatchResult(
-                text1A: bestLongA,
-                text1B: bestLongB,
-                text2A: bestShortA,
-                text2B: bestShortB,
-                commonMid: bestCommon
+                bestLongA,
+                bestLongB,
+                bestShortA,
+                bestShortB,
+                bestCommon
             )
         }
         return None
     }
 
     /// 行级差异模式
-    private func diffLinesMode(before: String, after: String): Array<Diff> {
+    private func diffLinesMode(before: String, after: String): ArrayList<Diff> {
         // 简化版行级差异 - 将文本按行分割后比较
-        let lines1 = before.split(separator: "\n")
-        let lines2 = after.split(separator: "\n")
-        var diffs = Array<Diff>()
+        let lines1 = before.split("\n")
+        let lines2 = after.split("\n")
+        var diffs = ArrayList<Diff>()
 
         var i = 0
         var j = 0
         while (i < lines1.size || j < lines2.size) {
             if (i < lines1.size && j < lines2.size && lines1[i] == lines2[j]) {
-                diffs.append(Diff(operation: DiffOperation.equal, text: lines1[i] + "\n"))
+                diffs.append(Diff(DiffOperation.equal, lines1[i] + "\n"))
                 i += 1
                 j += 1
             } else {
@@ -360,8 +374,8 @@ public class DiffMatchPatch {
                     if (i < lines1.size && lines1[i] == lines2[k]) {
                         // 插入 lines2[j..k]
                         var insertText = ""
-                        for (m in j..k) { insertText += lines2[m] + "\n" }
-                        diffs.append(Diff(operation: DiffOperation.insert, text: insertText))
+                        for (m in j..k) { insertText = insertText + lines2[m] + "\n" }
+                        diffs.append(Diff(DiffOperation.insert, insertText))
                         j = k
                         found = true
                         break
@@ -370,11 +384,11 @@ public class DiffMatchPatch {
                 }
                 if (!found) {
                     if (i < lines1.size) {
-                        diffs.append(Diff(operation: DiffOperation.delete, text: lines1[i] + "\n"))
+                        diffs.append(Diff(DiffOperation.delete, lines1[i] + "\n"))
                         i += 1
                     }
                     if (j < lines2.size) {
-                        diffs.append(Diff(operation: DiffOperation.insert, text: lines2[j] + "\n"))
+                        diffs.append(Diff(DiffOperation.insert, lines2[j] + "\n"))
                         j += 1
                     }
                 }
@@ -385,9 +399,9 @@ public class DiffMatchPatch {
     }
 
     /// 语义清理
-    public func cleanupSemantic(diffs: Array<Diff>): Array<Diff> {
+    public func cleanupSemantic(diffs: ArrayList<Diff>): ArrayList<Diff> {
         var changes = false
-        var result = Array<Diff>()
+        var result = ArrayList<Diff>()
         for (d in diffs) { result.append(d) }
 
         // 将相等的操作合并
@@ -403,7 +417,7 @@ public class DiffMatchPatch {
                 let eqText = result[i].text
                 if (delText.size < eqText.size && insText.size < eqText.size) {
                     // 交换可能是语义上更好的
-                    let commonSuffix = commonSuffixLength(text1: delText, text2: insText)
+                    let commonSuffix = commonSuffixLength(delText, insText)
                     if (commonSuffix > 0) {
                         // 调整
                         changes = true
@@ -414,30 +428,30 @@ public class DiffMatchPatch {
         }
 
         if (changes) {
-            result = cleanupMerge(diffs: result)
+            result = cleanupMerge(result)
         }
         return result
     }
 
     /// 合并清理 - 合并相邻的相同操作
-    public func cleanupMerge(diffs: Array<Diff>): Array<Diff> {
-        var result = Array<Diff>()
+    public func cleanupMerge(diffs: ArrayList<Diff>): ArrayList<Diff> {
+        var result = ArrayList<Diff>()
         if (diffs.size == 0) { return result }
 
         // 添加哨兵
-        result.append(Diff(operation: DiffOperation.equal, text: ""))
+        result.append(Diff(DiffOperation.equal, ""))
         for (d in diffs) {
             let last = result[result.size - 1]
             if (last.operation == d.operation) {
                 // 合并
-                result[result.size - 1] = Diff(operation: d.operation, text: last.text + d.text)
+                result[result.size - 1] = Diff(d.operation, last.text + d.text)
             } else {
                 result.append(d)
             }
         }
 
         // 移除空差异和哨兵
-        var cleaned = Array<Diff>()
+        var cleaned = ArrayList<Diff>()
         for (d in result) {
             if (d.text.size > 0 || d.operation != DiffOperation.equal) {
                 cleaned.append(d)
@@ -446,21 +460,21 @@ public class DiffMatchPatch {
 
         // 如果第一个不是equal, 添加空equal
         if (cleaned.size > 0 && cleaned[0].operation != DiffOperation.equal) {
-            cleaned.insert(0, Diff(operation: DiffOperation.equal, text: ""))
+            cleaned.insert(0, Diff(DiffOperation.equal, ""))
         }
         // 如果最后一个不是equal, 添加空equal
         if (cleaned.size > 0 && cleaned[cleaned.size - 1].operation != DiffOperation.equal) {
-            cleaned.append(Diff(operation: DiffOperation.equal, text: ""))
+            cleaned.append(Diff(DiffOperation.equal, ""))
         }
 
         // 合并分割的equal
-        var finalResult = Array<Diff>()
+        var finalResult = ArrayList<Diff>()
         if (cleaned.size > 0) {
             finalResult.append(cleaned[0])
             var i = 1
             while (i < cleaned.size) {
                 if (cleaned[i].operation == DiffOperation.equal && finalResult[finalResult.size - 1].operation == DiffOperation.equal) {
-                    finalResult[finalResult.size - 1] = Diff(operation: DiffOperation.equal, text: finalResult[finalResult.size - 1].text + cleaned[i].text)
+                    finalResult[finalResult.size - 1] = Diff(DiffOperation.equal, finalResult[finalResult.size - 1].text + cleaned[i].text)
                 } else {
                     finalResult.append(cleaned[i])
                 }
@@ -505,44 +519,44 @@ public class DiffMatchPatch {
 
     /// 将文本转换为行字符编码(用于行级差异)
     public func diffLinesToChars(text1: String, text2: String): LinesToCharsResult {
-        var lineArray = Array<String>()
+        var lineArray = ArrayList<String>()
         var lineHash = HashMap<String, UInt64>()
-        lineHash[""] = 0
+        lineHash.put("", 0)
 
-        var chars1 = encodeLines(text: text1, lineArray: lineArray, lineHash: lineHash)
-        var chars2 = encodeLines(text: text2, lineArray: lineArray, lineHash: lineHash)
-        return LinesToCharsResult(chars1: chars1, chars2: chars2, lineArray: lineArray)
+        var chars1 = encodeLines(text1, lineArray, lineHash)
+        var chars2 = encodeLines(text2, lineArray, lineHash)
+        return LinesToCharsResult(chars1, chars2, lineArray)
     }
 
-    private func encodeLines(text: String, lineArray: Array<String>, lineHash: HashMap<String, UInt64>): String {
+    private func encodeLines(text: String, lineArray: ArrayList<String>, lineHash: HashMap<String, UInt64>): String {
         var result = ""
-        var lines = text.split(separator: "\n", keepDelimiters: true)
+        var lines = text.split("\n")
         for (line in lines) {
             if (lineHash.contains(line)) {
-                let code = lineHash[line].getOrThrow()
-                result += String.fromCodePoint(code)
+                let code = lineHash.get(line).getOrThrow()
+                result = result + code.toString()
             } else {
                 let code = UInt64(lineArray.size + 1)
                 lineArray.append(line)
-                lineHash[line] = code
-                result += String.fromCodePoint(code)
+                lineHash.put(line, code)
+                result = result + code.toString()
             }
         }
         return result
     }
 
     /// 将字符差异转换回行差异
-    public func diffCharsToLines(diffs: Array<Diff>, lineArray: Array<String>): Array<Diff> {
-        var result = Array<Diff>()
+    public func diffCharsToLines(diffs: ArrayList<Diff>, lineArray: ArrayList<String>): ArrayList<Diff> {
+        var result = ArrayList<Diff>()
         for (d in diffs) {
             var text = ""
             for (ch in d.text.runes()) {
-                let idx = Int64(ch) - 1
-                if (idx >= 0 && idx < lineArray.size) {
-                    text += lineArray[idx]
+                let idx = Int64(UInt32(ch)) - 1
+                if (idx >= 0 && idx < Int64(lineArray.size)) {
+                    text = text + lineArray[idx]
                 }
             }
-            result.append(Diff(operation: d.operation, text: text))
+            result.append(Diff(d.operation, text))
         }
         return result
     }
@@ -569,9 +583,9 @@ public class HalfMatchResult {
 public class LinesToCharsResult {
     public var chars1: String
     public var chars2: String
-    public var lineArray: Array<String>
+    public var lineArray: ArrayList<String>
 
-    public init(chars1: String, chars2: String, lineArray: Array<String>) {
+    public init(chars1: String, chars2: String, lineArray: ArrayList<String>) {
         this.chars1 = chars1
         this.chars2 = chars2
         this.lineArray = lineArray

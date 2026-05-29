@@ -3,6 +3,8 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_bun_alloc.Allocator
+
 /// 路由 Bundle Index
 public struct RouteBundleIndex {
     public var value: UInt32
@@ -104,7 +106,7 @@ public class RouteBundle {
                 fw.cached_client_bundle_url.deinit()
                 fw.cached_css_file_array.deinit()
                 fw.cached_module_list.deinit()
-            case RouteBundleData.html(html) =>
+            case RouteBundleData.html(_) =>
                 ()
         }
     }
@@ -121,12 +123,12 @@ public class RouteBundle {
             // bundle.deref()
             client_bundle = None
         }
-        client_script_generation = UInt32(random<Int64>() as UInt32)
+        client_script_generation = 0 /* stub: simplified */
         match (data) {
             case RouteBundleData.framework(fw) => fw.cached_client_bundle_url.clearWithoutDeallocation()
-            case RouteBundleData.html(html) =>
-                if (let Some(cached_response) <- html.cached_response) {
-                    html.cached_response = None
+            case RouteBundleData.html(h) =>
+                if (let Some(cached) <- h.cached_response) {
+                    h.cached_response = None
                 }
         }
     }

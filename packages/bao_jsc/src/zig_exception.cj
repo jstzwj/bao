@@ -38,6 +38,9 @@ public class ZigException {
     // 浏览器 URL
     public var browserUrl: String = ""
 
+    // 源代码行
+    public var sourceLines: Array<String> = []
+
     public init() {}
 
     // 严格翻译自 ZigException.collectSourceLines

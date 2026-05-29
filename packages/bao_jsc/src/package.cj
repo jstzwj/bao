@@ -69,6 +69,7 @@ public type JscReferenceError = JsReferenceError
 
 // 调用帧
 public type JscCallFrame = CallFrame
+public type JsCallFrame = CallFrame
 public type JscArgumentsSlice = ArgumentsSlice
 
 // JS 类型系统

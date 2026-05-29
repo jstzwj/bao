@@ -2,20 +2,20 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toEndWith() - 检查字符串是否以指定后缀结尾
 /// 用法: expect(received).toEndWith(expected)
 public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toEndWith() requires 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toEndWith() requires 1 argument")
     }
 
     let expected = arguments[0]
@@ -25,20 +25,25 @@ public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
         return globalThis.throw_("toEndWith() requires the first argument to be a string")
     }
 
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEndWith", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toEndWith", matcherParamsFmt: "<green>expected<r>")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
+    let global = globalThis.globalThis
 
     var pass = value.isString()
     if (pass) {
-        let valueString = value.toSliceOrNull(globalThis: globalThis)
-        // defer { valueString.deinit() }
-        let expectedString = expected.toSliceOrNull(globalThis: globalThis)
-        // defer { expectedString.deinit() }
-        pass = strings.endsWith(valueString.slice(), expectedString.slice()) || expectedString.size == 0
+        let valueString = value.toSliceOrNull(global)
+        let expectedString = expected.toSliceOrNull(global)
+        if (expectedString.isSome() && expectedString.getOrThrow().size == 0) {
+            pass = true
+        } else if (valueString.isSome() && expectedString.isSome()) {
+            pass = valueString.getOrThrow().endsWith(expectedString.getOrThrow())
+        } else {
+            pass = false
+        }
     }
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     if (not) { pass = !pass }
 
     if (pass) { return JsValue.jsUndefined() }
@@ -51,12 +56,12 @@ public func toEndWith(`this`: Expect, globalThis: JSGlobalObject, callFrame: Cal
     if (not) {
         let expectedLine = "Expected to not end with: <green>{f}<r>\n"
         let receivedLine = "Received: <red>{f}<r>\n"
-        let signature = Expect.getSignature(matcherName: "toEndWith", args: "<green>expected<r>", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
+        let signature = Expect.getSignature("toEndWith", "<green>expected<r>", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
     }
 
     let expectedLine = "Expected to end with: <green>{f}<r>\n"
     let receivedLine = "Received: <red>{f}<r>\n"
-    let signature = Expect.getSignature(matcherName: "toEndWith", args: "<green>expected<r>", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
+    let signature = Expect.getSignature("toEndWith", "<green>expected<r>", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
 }

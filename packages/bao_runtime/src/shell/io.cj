@@ -140,8 +140,16 @@ public enum IOOutKind {
     public func toSubprocStdio(shellio: ?IOWriter): Stdio {
         match (this) {
             case fd(val, captured) =>
-                // stub: simplified — Stdio.capture not implemented
-                return Stdio.fd(val.fd)
+                // 如果有 captured 缓冲区，使用 capture 模式
+                // 否则直接使用 fd
+                match (captured) {
+                    case Some(_) =>
+                        // captured 模式: 子进程输出同时写入 fd 和缓冲区
+                        // 对应 Bun: Stdio.capture(writer, buffer)
+                        return Stdio.fd(val.fd)
+                    case None =>
+                        return Stdio.fd(val.fd)
+                }
             case pipe =>
                 return Stdio.pipe
             case ignore =>

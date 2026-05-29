@@ -9,7 +9,12 @@ public class DataViewReader {
     public var view: DataView
     public var cursor: Int64
 
-    public init(view: DataView, cursor: Int64 = 0) {
+    public init(view: DataView) {
+        this.view = view
+        this.cursor = 0
+    }
+
+    public init(view: DataView, cursor: Int64) {
         this.view = view
         this.cursor = cursor
     }
@@ -49,11 +54,11 @@ public class DataViewReader {
     }
 
     public func hasMoreData(): Bool {
-        return cursor < view.byteLength
+        return cursor < view.getByteLength()
     }
 
     public func rest(): Array<Byte> {
-        return view.buffer.slice(cursor)
+        return view.buffer.slice(cursor, view.getByteLength())
     }
 }
 
@@ -92,9 +97,9 @@ public class DataViewWriter {
 
     public func string(value: String): Unit {
         if (value.size == 0) { return }
-        let result = te.encodeInto(value, uint8ArrayView.slice(cursor))
+        let result = te.encodeInto(value, uint8ArrayView.slice(cursor, uint8ArrayView.size))
         if (result.read != value.size) {
-            throw Error("Failed to encode string")
+            throw Exception("Failed to encode string")
         }
         cursor += result.written
     }
@@ -110,14 +115,14 @@ public class DataViewWriter {
 /// JavaScript DataView 的仓颉侧等价包装。
 public class DataView {
     public var buffer: Array<Byte>
-    public var byteLength: Int64 { get { buffer.size } }
+    public func getByteLength(): Int64 { return buffer.size }
 
     public init(buffer: Array<Byte>) {
         this.buffer = buffer
     }
 
     public func getUint8(offset: Int64): UInt8 { return UInt8(buffer[offset]) }
-    public func setUint8(offset: Int64, value: UInt8): Unit { buffer[offset] = Byte(value) }
+    public func setUint8(offset: Int64, value: UInt8): Unit { buffer[offset] = UInt8(value) }
 
     public func getUint16(offset: Int64, littleEndian: Bool): UInt16 {
         let b0 = UInt16(buffer[offset])
@@ -135,11 +140,11 @@ public class DataView {
 
     public func setUint32(offset: Int64, value: UInt32, littleEndian: Bool): Unit {
         if (littleEndian) {
-            buffer[offset] = Byte(value & 0xff); buffer[offset + 1] = Byte((value >> 8) & 0xff)
-            buffer[offset + 2] = Byte((value >> 16) & 0xff); buffer[offset + 3] = Byte((value >> 24) & 0xff)
+            buffer[offset] = UInt8(value & 0xff); buffer[offset + 1] = UInt8((value >> 8) & 0xff)
+            buffer[offset + 2] = UInt8((value >> 16) & 0xff); buffer[offset + 3] = UInt8((value >> 24) & 0xff)
         } else {
-            buffer[offset] = Byte((value >> 24) & 0xff); buffer[offset + 1] = Byte((value >> 16) & 0xff)
-            buffer[offset + 2] = Byte((value >> 8) & 0xff); buffer[offset + 3] = Byte(value & 0xff)
+            buffer[offset] = UInt8((value >> 24) & 0xff); buffer[offset + 1] = UInt8((value >> 16) & 0xff)
+            buffer[offset + 2] = UInt8((value >> 8) & 0xff); buffer[offset + 3] = UInt8(value & 0xff)
         }
     }
 

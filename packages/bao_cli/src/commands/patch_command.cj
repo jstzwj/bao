@@ -140,15 +140,17 @@ public class PatchCommand {
                 // 获取精确版本
                 let pkgJsonPath = Path.join([pkgPath, "package.json"])
                 let pkgContent = BaoFile.readAllText(pkgJsonPath)
-                let exactVersion = match (pkgContent) {
-                    case Some(content) =>
-                        let parser = JsonParser()
-                        let json = parser.parse(content)
-                        match (json) {
-                            case Some(root) => JsonHelper.getString(root, "version") ?? version
-                            case None => version
-                        }
-                    case None => version
+                let exactVersion = if (pkgContent.isOk()) {
+                    let content = pkgContent.result().getOrThrow()
+                    let parser = JsonParser()
+                    let json = parser.parse(content)
+                    if (json.isSome()) {
+                        JsonHelper.getString(json.getOrThrow(), "version") ?? version
+                    } else {
+                        version
+                    }
+                } else {
+                    version
                 }
 
                 // 创建临时目录
@@ -156,7 +158,7 @@ public class PatchCommand {
                 let patchDir = Path.join([tmpDir, "bao-patch-${name}-${exactVersion}"])
 
                 if (BaoFile.exists(patchDir)) {
-                    BaoFile.removeTree(patchDir)
+                    BaoFile.removeRecursive(patchDir)
                 }
                 BaoFile.mkdir(patchDir, true)
 
@@ -185,16 +187,16 @@ public class PatchCommand {
                         Process.`spawn`(editorArgs.items(), ".")
                     case None =>
                         // 检查 $EDITOR / $VISUAL 环境变量
-                        let editorEnv = Sys.getEnv("EDITOR") ?? Sys.getEnv("VISUAL")
-                        match (editorEnv) {
-                            case Some(ed) =>
-                                if (!ed.isEmpty()) {
-                                    let edArgs = ArrayList<String>()
-                                    edArgs.append(ed)
-                                    edArgs.append(patchDir)
-                                    Process.`spawn`(edArgs.items(), ".")
-                                }
-                            case None => ()
+                        let editorEnvVal = Sys.getEnv("EDITOR")
+                        let editorEnv = if (editorEnvVal.isSome()) { editorEnvVal } else { Sys.getEnv("VISUAL") }
+                        if (editorEnv.isSome()) {
+                            let ed = editorEnv.getOrThrow()
+                            if (!ed.isEmpty()) {
+                                let edArgs = ArrayList<String>()
+                                edArgs.append(ed)
+                                edArgs.append(patchDir)
+                                Process.`spawn`(edArgs.items(), ".")
+                            }
                         }
                 }
 
@@ -252,7 +254,7 @@ public class PatchCommand {
             if (BaoFile.isDirectory(srcPath)) {
                 copyDirectoryContents(srcPath, destPath)
             } else {
-                BaoFile.copyFile(srcPath, destPath)
+                BaoFile.copy(srcPath, destPath)
             }
         }
     }
@@ -354,7 +356,7 @@ public class PatchCommitCommand {
         let pkgJsonPath = Path.join([patchDir, "package.json"])
         let pkgContent = BaoFile.readAllText(pkgJsonPath)
         match (pkgContent) {
-            case Some(content) =>
+            case Ok(content) =>
                 let parser = JsonParser()
                 let json = parser.parse(content)
                 match (json) {
@@ -397,17 +399,13 @@ public class PatchCommitCommand {
                                         installArgs.append(Sys.getExecutablePath())
                                         installArgs.append("install")
                                         let exitCode = Process.`spawn`(installArgs.items(), ".")
-                                        match (exitCode) {
-                                            case Some(code) =>
-                                                if (code == 0) {
-                                                    if (!opts.silent) {
-                                                        println("Patch committed successfully!")
-                                                        println("  Patch file: ${patchFilePath}")
-                                                    }
-                                                }
-                                                return code
-                                            case None => return 1
+                                        if (exitCode == 0) {
+                                            if (!opts.silent) {
+                                                println("Patch committed successfully!")
+                                                println("  Patch file: ${patchFilePath}")
+                                            }
                                         }
+                                        return exitCode
                                     case None =>
                                         logger.error("Patch directory package.json must have name and version")
                                         return 1
@@ -420,7 +418,7 @@ public class PatchCommitCommand {
                         logger.error("Failed to parse package.json in patch directory")
                         return 1
                 }
-            case None =>
+            case Err(_) =>
                 logger.error("No package.json found in '${patchDir}'")
                 return 1
         }
@@ -438,13 +436,9 @@ public class PatchCommitCommand {
         args.append(patchedPath)
 
         // 将 diff 输出重定向到文件
-        let result = Process.`spawnWithOutput`(args.items(), ".")
-        match (result) {
-            case Some(output) =>
-                BaoFile.writeAllText(outputPath, output)
-                return true
-            case None => return false
-        }
+        let output = Process.`spawnWithOutput`(args.items(), ".")
+        BaoFile.writeAllText(outputPath, output)
+        return true
     }
 
     /// 更新 package.json 的 patchedDependencies
@@ -452,11 +446,11 @@ public class PatchCommitCommand {
     private func updatePackageJsonPatch(name: String, version: String, patchFilePath: String): Unit {
         let pkgContent = BaoFile.readAllText("package.json")
         match (pkgContent) {
-            case Some(content) =>
+            case Ok(content) =>
                 // 简化: 实际需要 JSON 操作
                 // 添加 "patchedDependencies": { "<name>@<version>": "<patch-file-path>" }
                 ()
-            case None => ()
+            case Err(_) => ()
         }
     }
 

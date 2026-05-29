@@ -67,7 +67,12 @@ public class FD {
 
     /// 关闭文件描述符
     public func close() {
-        // stub
+        if (this.isValid()) {
+            // bao_core 中通过 @C foreign func close(fd: Int32): Int32 导出
+            // 但在 Cangjie 中 close 是关键字/内置函数，通过 SysFFI 间接调用
+            SysFFI.closeFd(this.value)
+            this.value = -1
+        }
     }
 
     /// 复制文件描述符
@@ -432,7 +437,12 @@ public class Set<T> {
     }
 
     public func contains(item: T): Bool {
-        // stub: 不支持泛型约束
+        for (existing in items) {
+            // 使用引用比较
+            if (existing == item) {
+                return true
+            }
+        }
         return false
     }
 
@@ -623,4 +633,50 @@ public class Signal {
 public class Source {
     public init() {}
     public func detach(): Unit {}
+}
+
+// ============================================================================
+// SysFFI - Shell 所需的系统 FFI 桥接
+// 通过 bao_sys.OS 提供的封装来调用，避免重复声明底层 FFI
+// ============================================================================
+
+/// 系统 FFI 桥接
+/// 委托给 bao_sys.OS 中的高级封装
+public class SysFFI {
+    /// 关闭文件描述符
+    public static func closeFd(fd: Int64): Unit {
+        bao_sys.OS.close(fd)
+    }
+
+    /// 获取当前工作目录
+    public static func getcwd(): String {
+        bao_sys.OS.getcwd()
+    }
+
+    /// 改变工作目录，返回 0 表示成功
+    public static func chdir(path: String): Int32 {
+        try {
+            bao_sys.OS.chdir(path)
+            return 0
+        } catch (_: Exception) {
+            return -1
+        }
+    }
+
+    /// 获取环境变量
+    public static func getenv(name: String): ?String {
+        bao_sys.OS.getEnv(name)
+    }
+
+    /// 设置环境变量
+    public static func setenv(name: String, value: String): Int32 {
+        bao_sys.OS.setEnv(name, value)
+        return 0
+    }
+
+    /// 删除环境变量
+    public static func unsetenv(name: String): Int32 {
+        bao_sys.OS.unsetEnv(name)
+        return 0
+    }
 }

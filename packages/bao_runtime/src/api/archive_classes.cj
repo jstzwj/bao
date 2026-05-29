@@ -23,7 +23,7 @@ public class ArchiveClasses {
     /// 严格翻译自: klass.write { fn: "write", length: 2 }
     /// 参数: (archive: Archive, outputPath: string)
     /// 返回: Promise<void>
-    public static func write(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func write(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 将 Archive 写入磁盘
         return JsValue.jsUndefined()
     }
@@ -36,7 +36,7 @@ public class ArchiveClasses {
     /// 严格翻译自: proto.extract { fn: "extract", length: 2 }
     /// 参数: (archiveData: Blob | Uint8Array, options?: ArchiveExtractOptions)
     /// 返回: Promise<Archive>
-    public static func extract(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func extract(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 从 tar/tgz 数据中提取文件
         return JsValue.jsUndefined()
     }
@@ -44,7 +44,7 @@ public class ArchiveClasses {
     /// blob fn
     /// 严格翻译自: proto.blob { fn: "blob", length: 0 }
     /// 返回: Blob
-    public static func blob(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func blob(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 返回 Archive 的 Blob 表示
         return JsValue.jsUndefined()
     }
@@ -52,7 +52,7 @@ public class ArchiveClasses {
     /// bytes fn
     /// 严格翻译自: proto.bytes { fn: "bytes", length: 0 }
     /// 返回: Uint8Array
-    public static func bytes(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func bytes(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 返回 Archive 的 Uint8Array 表示
         return JsValue.jsUndefined()
     }
@@ -60,7 +60,7 @@ public class ArchiveClasses {
     /// files fn
     /// 严格翻译自: proto.files { fn: "files", length: 0 }
     /// 返回: Map<string, ArchiveFile>
-    public static func files(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func files(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 返回 Archive 中所有文件的映射
         return JsValue.jsUndefined()
     }

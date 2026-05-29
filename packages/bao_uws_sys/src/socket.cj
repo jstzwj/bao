@@ -389,6 +389,17 @@ public class SocketHandler {
         socket.close(code)
     }
 
+    /// 获取 SSL* 指针 (仅 TLS socket 有效)
+    /// 对应 Bun: socket.ssl()
+    public func getSslPtr(): CPointer<Unit> {
+        match (socket.tag) {
+            case InternalSocketTag.connected =>
+                if (let Some(s) <- socket.connectedSocket) { return s.ssl() }
+                return CPointer<Unit>()
+            case _ => return CPointer<Unit>()
+        }
+    }
+
     /// 读取 libus ext 中的 Bao NewSocket 数字句柄。
     public func loadExtRaw(): UIntNative {
         match (socket.tag) {

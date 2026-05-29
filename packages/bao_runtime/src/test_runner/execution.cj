@@ -255,6 +255,7 @@ public class Execution {
     ///
     /// 返回None表示应该继续循环，返回Some表示得到了确定状态
     public func stepSequenceOne(buntestStrong!: BunTestPtr, globalThis!: JSGlobalObject, group!: ConcurrentGroup, sequenceIndex!: UInt64, now!: Timespec): ?AdvanceSequenceStatus {
+        var currentTime = now
         let buntestOpt = buntestStrong.get()
         if (buntestOpt.isNone()) { return AdvanceSequenceStatus.done }
         let buntest = buntestOpt.getOrThrow()
@@ -270,7 +271,7 @@ public class Execution {
 
             let entry = activeEntry.getOrThrow()
             // 评估超时
-            if (entry.evaluateTimeout(sequence, now)) {
+            if (entry.evaluateTimeout(sequence, currentTime)) {
                 advanceSequence(buntest, sequence, group)
                 return None // 继续循环
             }
@@ -317,8 +318,8 @@ public class Execution {
 
             if (result.isSome()) {
                 // 同步完成
-                now = Timespec.nowForceRealTime()
-                let _ = entry.evaluateTimeout(sequence, now)
+                currentTime = Timespec.nowForceRealTime()
+                let _ = entry.evaluateTimeout(sequence, currentTime)
                 advanceSequence(buntest, sequence, group)
                 return None // 继续循环
             }

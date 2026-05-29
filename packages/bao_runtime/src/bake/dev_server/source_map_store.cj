@@ -4,6 +4,8 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_bun_alloc.Allocator
+
 /// SourceMapStore Key
 public struct SourceMapStoreKey {
     public var value: UInt64
@@ -215,8 +217,9 @@ public class SourceMapStore {
     /// 移除或升级弱引用
     public func removeOrUpgradeWeakRef(key: UInt64, mode: WeakRefMode): Bool {
         if (entries.get(key).isNone()) { return false }
-        if (mode == WeakRefMode.remove) {
-            unref(key)
+        match (mode) {
+            case WeakRefMode.remove => unref(key)
+            case WeakRefMode.upgrade => ()
         }
         return true
     }

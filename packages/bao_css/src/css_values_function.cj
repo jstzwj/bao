@@ -196,8 +196,17 @@ public class CssEasingFunction {
     }
 
     /// 相等比较
+    /// 严格翻译自 EasingFunction.eql
     public func eql(other: CssEasingFunction): Bool {
-        true
+        if (kind != other.kind) { return false }
+        match (kind) {
+            case Linear | Ease | EaseIn | EaseOut | EaseInOut => true
+            case CubicBezier =>
+                x1 == other.x1 && y1 == other.y1 &&
+                x2 == other.x2 && y2 == other.y2
+            case Steps =>
+                stepCount == other.stepCount && stepPosition == other.stepPosition
+        }
     }
 
     /// 转为 CSS 文本
@@ -263,6 +272,16 @@ public class CssUrl {
     /// 严格翻译自 Url.isAbsolute
     /// 检查 URL 是绝对路径还是相对路径
     public func isAbsolute(): Bool {
+        // 检查常见协议前缀
+        if (url.startsWith("http://") || url.startsWith("https://") ||
+            url.startsWith("data:") || url.startsWith("blob:") ||
+            url.startsWith("file://") || url.startsWith("ftp://")) {
+            return true
+        }
+        // 检查协议相对 URL (//example.com)
+        if (url.size >= 2 && url[0] == UInt8(47) && url[1] == UInt8(47)) {
+            return true
+        }
         false
     }
 
@@ -293,8 +312,24 @@ public class CssUrl {
     }
 
     /// 检查 URL 是否可以不带引号
+    /// 严格翻译自 Url.canBeUnquoted
+    /// 如果 URL 不包含特殊字符则可以省略引号
     private static func canBeUnquoted(url: String): Bool {
-        false
+        if (url.isEmpty()) { return false }
+        // 不能包含空格、括号、引号、反斜杠、控制字符等
+        for (i in 0..url.size) {
+            let ch = url[i]
+            if (ch == UInt8(32) || ch == UInt8(9) || ch == UInt8(10) ||
+                ch == UInt8(13) || ch == UInt8(40) || ch == UInt8(41) ||
+                ch == UInt8(34) || ch == UInt8(39) || ch == UInt8(92) ||
+                ch == UInt8(44) || ch == UInt8(59) || ch == UInt8(123) ||
+                ch == UInt8(125)) {
+                return false
+            }
+            // 控制字符
+            if (ch < UInt8(32)) { return false }
+        }
+        true
     }
 }
 

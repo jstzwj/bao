@@ -302,6 +302,16 @@ public class CssToken {
     public func isParseError(): Bool {
         kind.isParseError()
     }
+
+    /// 是否为 EOF token
+    public func isEof(): Bool {
+        kind == CssTokenKind.Eof
+    }
+
+    /// 是否为右花括号 token
+    public func isRBrace(): Bool {
+        kind == CssTokenKind.RBrace
+    }
 }
 
 // ============================================================================
@@ -521,6 +531,24 @@ public class CssLexer {
         var token = nextToken()
         tokens.append(token)
         return tokens
+    }
+
+    /// 从当前位置切片直到遇到指定字节 (不包含该字节)
+    /// 对应 Bun: Parser.sliceUntil
+    public func sliceUntil(ch: UInt8): String {
+        let start = pos
+        let len = source.size
+        var i = start
+        while (i < len) {
+            if (source[i] == ch) {
+                break
+            }
+            i++
+        }
+        if (i <= start) {
+            return ""
+        }
+        source[start..i]
     }
 
     // ========================================================================

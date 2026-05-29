@@ -1204,7 +1204,8 @@ public func fetchImpl(allowGetBody: Bool, ctx: JsGlobalObject, callFrame: CallFr
     }
 
     // 检查异常
-    if (false) {  // TODO: globalThis.hasException()
+    // 对应 Bun: if (globalThis.hasException()) { return .zero; }
+    if (globalThis.hasException()) {
         return JsResult.Ok(JsValue(Int64(0)))
     }
 
@@ -1641,8 +1642,12 @@ public func fetchUrl(url: String, method: String): Response {
 /// 对应 Bun: fetchImpl (simplified synchronous version)
 private func fetchWithRequest(request: Request): Response {
     // 检查 abort signal
-    if (!request.signal.isUndefined()) {
-        // TODO: check abort signal properly
+    // 对应 Bun: if (signal.aborted) return rejected promise
+    if (!request.signal.isUndefined() && request.signal.isObject()) {
+        let abortedVal = request.signal.get(JsObject(), "aborted")
+        if (abortedVal.isSome() && abortedVal.getOrThrow().toBoolean()) {
+            return Response.error()
+        }
     }
 
     // 验证 GET/HEAD/OPTIONS 不带 body

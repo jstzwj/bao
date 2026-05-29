@@ -52,12 +52,9 @@ public class PackedMap {
     /// 对应 Bun PackedMap.newNonEmpty
     public static func newNonEmpty(chunk: SourceMapChunk, escapedSource: String): PackedMap {
         return PackedMap(
-            vlqData: chunk.buffer,
-            escapedSource: escapedSource,
-            endState: EndState(
-                original_line: chunk.endState.original_line,
-                original_column: chunk.endState.original_column,
-            ),
+            chunk.buffer,
+            escapedSource,
+            EndState(chunk.endState.original_line, chunk.endState.original_column)
         )
     }
 
@@ -87,13 +84,13 @@ public class PackedMap {
 public enum PackedMapShared {
     | Some(PackedMap)
     | None
-    | LineCount(LineCount)
+    | HasLineCount(LineCount)
 
     /// 对应 Bun Shared.get()
     public func get(): ?PackedMap {
         match (this) {
             case Some(map) => map
-            case _ => None
+            case _ => return Option<PackedMap>.None
         }
     }
 
@@ -101,7 +98,7 @@ public enum PackedMapShared {
     public func take(): ?PackedMap {
         match (this) {
             case Some(map) => map
-            case _ => None
+            case _ => return Option<PackedMap>.None
         }
     }
 

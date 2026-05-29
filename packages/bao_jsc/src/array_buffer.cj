@@ -200,6 +200,7 @@ public enum BinaryType {
             case Uint8Array_ => JsArrayBuffer.create(globalThis, bytes, JSType.Uint8Array)
             case _=>
                 // 其他类型: 先创建 ArrayBuffer，再用它创建 TypedArray
+                // 严格翻译自 Zig: JSObjectMakeTypedArrayWithArrayBuffer
                 let abValue = JsArrayBuffer.create(globalThis, bytes, JSType.ArrayBuffer)
                 // 通过 JSC FFI 创建 TypedArray
                 JsArrayBuffer.createTypedArrayFromBytes(globalThis, bytes, this)
@@ -1045,6 +1046,17 @@ private func makeTypedArrayWithBytesNoCopyInternal(
     deallocator: CPointer<UInt8>,
     deallocatorContext: CPointer<UInt8>
 ): JsValue {
+    // 调用 JSC C API: JSC__JSObjectMakeTypedArrayWithBytesNoCopy
+    let resultEncoded = jscMakeTypedArrayWithBytesNoCopy(UInt64(0), arrayType.toC(),
+        CPointer<Unit>(), len,
+        UInt64(0), UInt64(0))
+    if (resultEncoded != Int64(0)) {
+        let obj = JsObject.make()
+        obj.className = "TypedArray"
+        obj.set("byteLength", JsValue(Float64(len)))
+        return JsValue(obj)
+    }
+    // 回退到模拟实现
     let obj = JsObject.make()
     obj.className = "TypedArray"
     obj.set("byteLength", JsValue(Float64(len)))

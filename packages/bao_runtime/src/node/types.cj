@@ -87,7 +87,7 @@ public enum Encoding {
             return enc.getOrThrow()
         }
         if (!value.isUndefined()) {
-            // TODO: throw TypeError
+            EncodingUtils.throwEncodingError(globalObject)
         }
         return default
     }
@@ -152,7 +152,7 @@ public class EncodingUtils {
     // 抛出编码错误
     // 对应 Bun: Encoding.throwEncodingError
     public static func throwEncodingError(globalObject: JsGlobalObject): Unit {
-        throw JsTypeError("Unknown encoding")
+        throw Exception("Unknown encoding")
     }
 
     // Hex 编码
@@ -352,12 +352,10 @@ public enum FileSystemFlags {
         if (val.isString()) {
             let str = val.toString()
             if (str.size == 0) {
-                // TODO: throwTypeError
-                return None
+                throw JsTypeError("Expected flags to be a non-empty string. Learn more at https://nodejs.org/api/fs.html#fs_file_system_flags")
             }
             if (str.size > 12) {
-                // TODO: throwTypeError
-                return None
+                throw JsTypeError("Invalid flag. Learn more at https://nodejs.org/api/fs.html#fs_file_system_flags")
             }
             // 尝试解析数字字符串
             if (str[0] >= UInt8(0x30) && str[0] <= UInt8(0x39)) {  // '0'-'9'
@@ -375,13 +373,11 @@ public enum FileSystemFlags {
             if (value.isUndefinedOrNull()) {
                 return r  // F_OK = 0
             }
-            // TODO: throwTypeError
-            return None
+            throw JsTypeError("mode must be int32 or null/undefined")
         }
         let int: Int32 = value.toInt32()
         if (int < Int32(0) || int > Int32(7)) {
-            // TODO: throwRangeError
-            return None
+            throw JsRangeError("mode is out of range: >= 0 and <= 7")
         }
         return fromNumber(int)
     }
@@ -416,6 +412,16 @@ public class OConstants {
     public static let O_TRUNC: Int32 = 512
     public static let O_APPEND: Int32 = 1024
     public static let O_SYNC: Int32 = 4096
+}
+
+// 简单的字符串哈希函数 (FNV-1a 风格)
+private func hashString(s: String): UInt64 {
+    var hash: UInt64 = 14695981039346656037
+    for (c in s) {
+        hash ^= UInt64(c)
+        hash *= 1099511628211
+    }
+    hash
 }
 
 // ============================================================================
@@ -462,7 +468,9 @@ public class PathOrFileDescriptor {
     // 释放并取消保护
     // 对应 Bun: PathOrFileDescriptor.deinitAndUnprotect
     public func deinitAndUnprotect(): Unit {
-        // TODO: deinitAndUnprotect for PathOrFileDescriptor
+        if (!isFd) {
+            path.deinitAndUnprotect()
+        }
     }
 
     // 哈希值
@@ -471,7 +479,7 @@ public class PathOrFileDescriptor {
         return if (isFd) {
             UInt64(fd)
         } else {
-            UInt64(0) // TODO: hash for string path
+            hashString(path.slice())
         }
     }
 
@@ -1106,9 +1114,7 @@ public class ModeUtils {
             let str = value.toString()
             return fromString(str)
         }
-        // TODO: globalObject.throwTypeError not available - should throw JS TypeError
-        // globalObject.throwTypeError("mode must be a number or octal string")
-        return None
+        throw JsTypeError("mode must be a number or octal string")
     }
 }
 

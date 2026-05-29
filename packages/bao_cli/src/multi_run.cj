@@ -1,9 +1,23 @@
 // 严格翻译自: src/cli/multi_run.zig
 package bao_cli
 
-import bao_core.*
+import bao_core.{Output, Global}
 import bao_collections.*
 import bao_event_loop.*
+import bao_sys.*
+import bao_io.*
+
+/// 查找 shell 可执行文件 (stub)
+func findShell(pathEnv: String, cwd: String): ?String {
+    // 尝试常见 shell 路径
+    let shells = ["/bin/bash", "/bin/sh", "/usr/bin/bash"]
+    for (shell in shells) {
+        if (BaoFile.exists(shell)) {
+            return Some(shell)
+        }
+    }
+    return None
+}
 
 // ============================================================================
 // MultiRun — 并行/顺序脚本执行
@@ -115,15 +129,15 @@ public class MultiRunProcessHandle {
         let argv = [state.shellBin, "-c", config.command]
         startTime = MrTimeInstant.now()
 
-        let originalPath = match (state.env.map.get("PATH")) {
+        let originalPath = match (state.env.get("PATH")) {
             case Some(v) => v
             case None => ""
         }
-        state.env.map.put("PATH", config.PATH)
-        let envp = state.env.map.toNullDelimitedEnvMap()
-        state.env.map.put("PATH", originalPath)
+        state.env.put("PATH", config.PATH)
+        let envp = state.env.toEnvArray()
+        state.env.put("PATH", originalPath)
 
-        process = Some(MrProcess(pid: 0)) // stub: spawn not yet implemented
+        process = Some(MrProcess(Int64(0))) // stub: spawn not yet implemented
         stdoutReader.handle = this
         stderrReader.handle = this
     }
@@ -174,10 +188,11 @@ public class MultiRunState {
         let writer = if (pipe.isStderr) { MrOutputWriter() } else { MrOutputWriter() }
         var buf = pipe.lineBuffer.toString()
         while (true) {
-            let newlinePos = buf.indexOf('\n')
-            if (newlinePos < 0) {
+            let newlinePosOpt = buf.indexOf('\n')
+            if (newlinePosOpt.isNone()) {
                 break
             }
+            let newlinePos = newlinePosOpt.getOrThrow()
             let line = buf.substring(0, newlinePos + 1)
             writeLineWithPrefix(pipe.handle.getOrThrow(), line, writer)
             buf = buf.substring(newlinePos + 1)
@@ -195,13 +210,15 @@ public class MultiRunState {
     /// 写入前缀 (标签 + 颜色)
     public func writePrefix(handle: MultiRunProcessHandle, writer: MrOutputWriter): Unit {
         if (useColors) {
-            writer.writeAll(COLORS[(handle.colorIdx % COLORS.length).toInt()])
+            writer.writeAll(COLORS[handle.colorIdx % COLORS.size])
         }
 
         writer.writeAll(handle.config.label)
-        let padding = maxLabelLen - handle.config.label.length
-        for (_ in 0..padding) {
-            writer.writeByte(' ')
+        let padding = maxLabelLen - Int64(handle.config.label.size)
+        var _padI: Int64 = 0
+        while (_padI < padding) {
+            writer.writeByte(UInt8(0x20))
+            _padI += 1
         }
 
         if (useColors) {
@@ -215,7 +232,7 @@ public class MultiRunState {
     public func flushPipeBuffer(handle: MultiRunProcessHandle, pipe: MultiRunPipeReader): Unit {
         if (pipe.lineBuffer.length > 0) {
             let line = pipe.lineBuffer.toString()
-            let needsNewline = line.length > 0 && line[line.length - 1] != '\n'
+            let needsNewline = line.size > 0 && line[line.size - 1] != UInt8(0x0a)
             let writer = if (pipe.isStderr) { MrOutputWriter() } else { MrOutputWriter() }
             writeLineWithPrefix(handle, line, writer)
             if (needsNewline) {
@@ -244,7 +261,7 @@ public class MultiRunState {
                 } else {
                     if (handle.startTime.isSome() && handle.endTime.isSome()) {
                         let duration = handle.endTime.getOrThrow().since(handle.startTime.getOrThrow())
-                        let ms = duration.toDouble() / 1_000_000.0
+                        let ms = Float64(duration) / 1_000_000.0
                         if (ms > 1000.0) {
                             writer.println("Done in ${ms / 1000.0} s")
                         } else {
@@ -316,7 +333,7 @@ public class MultiRunState {
     public func abort(): Unit {
         aborted = true
         for (handle in handles) {
-            if (handle.process.isSome() && handle.status == MrProcessStatus.Running) {
+            if (handle.process.isSome() && mrProcessStatusEquals(handle.status, MrProcessStatus.Running)) {
                 handle.process.getOrThrow().kill()
             }
         }
@@ -358,20 +375,20 @@ private func matchesGlob(pattern: String, name: String): Bool {
     var starNi = 0
     var haveStar = false
 
-    while (ni < name.length || pi < pattern.length) {
-        if (pi < pattern.length && pattern[pi] == '*') {
+    while (ni < name.size || pi < pattern.size) {
+        if (pi < pattern.size && pattern[pi] == UInt8(0x2a)) {
             haveStar = true
             starPi = pi
             starNi = ni
             pi += 1
-        } else if (pi < pattern.length && ni < name.length && pattern[pi] == name[ni]) {
+        } else if (pi < pattern.size && ni < name.size && pattern[pi] == name[ni]) {
             pi += 1
             ni += 1
         } else if (haveStar) {
             pi = starPi + 1
             starNi += 1
             ni = starNi
-            if (ni > name.length) {
+            if (ni > name.size) {
                 return false
             }
         } else {
@@ -388,7 +405,7 @@ private func addScriptConfigs(
     groupInfos: ArrayList<GroupInfo>,
     rawName: String,
     scriptsMap: ?HashMap<String, String>,
-    allocator: Allocator,
+    allocator: Unit,
     cwd: String,
     path: String,
     labelPrefix: ?String
@@ -401,15 +418,15 @@ private func addScriptConfigs(
         rawName
     }
 
-    let scriptContent = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(rawName) } else { None }
+    let scriptContent: ?String = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(rawName) } else { None }
 
     if (scriptContent.isSome()) {
         // package.json 脚本 - 检查 pre/post
         let preName = "pre${rawName}"
         let postName = "post${rawName}"
 
-        let preContent = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(preName) } else { None }
-        let postContent = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(postName) } else { None }
+        let preContent: ?String = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(preName) } else { None }
+        let postContent: ?String = if (scriptsMap.isSome()) { scriptsMap.getOrThrow().get(postName) } else { None }
 
         if (preContent.isSome()) {
             let config = MultiScriptConfig()
@@ -455,46 +472,44 @@ private func addScriptConfigs(
 public func multiRun(ctx: CommandContext): Unit {
     // 验证标志
     if (ctx.parallel && ctx.sequential) {
-        Output.prettyErrorLn("error: --parallel and --sequential cannot be used together")
+        Output.prettyErrorln("error: --parallel and --sequential cannot be used together")
         Global.exit(1)
     }
 
     // 收集脚本名称
     let scriptNames = ArrayList<String>()
-    var positionals = ctx.positionals
-    if (positionals.size > 0 && (positionals[0] == "run" || positionals[0] == "r")) {
-        positionals = positionals.subList(1, positionals.size)
+    var positionals = ArrayList<String>()
+    let rawPositionals = ctx.positionals
+    var startIdx = 0
+    if (rawPositionals.size > 0 && (rawPositionals[0] == "run" || rawPositionals[0] == "r")) {
+        startIdx = 1
+    }
+    for (i in startIdx..rawPositionals.size) {
+        positionals.append(rawPositionals[i])
     }
     for (pos in positionals) {
-        if (pos.length > 0) {
+        if (pos.size > 0) {
             scriptNames.append(pos)
         }
     }
     for (pt in ctx.passthrough) {
-        if (pt.length > 0) {
+        if (pt.size > 0) {
             scriptNames.append(pt)
         }
     }
 
     if (scriptNames.size == 0) {
-        Output.prettyErrorLn("error: --parallel/--sequential requires at least one script name")
+        Output.prettyErrorln("error: --parallel/--sequential requires at least one script name")
         Global.exit(1)
     }
 
-    // 配置环境
-    let fsInstance = FileSystem.`init`()
-    let thisTranspiler = Transpiler()
-    RunCommand.configureEnvForRun(ctx, thisTranspiler, None, true, false)
-    let cwd = fsInstance.topLevelDir
-
-    let eventLoop = MiniEventLoop.initGlobal(thisTranspiler.env, None)
-    let pathEnv = match (thisTranspiler.env.get("PATH")) {
-        case Some(v) => v
-        case None => ""
-    }
-    let shellBinOpt = RunCommand.findShell(pathEnv, cwd)
+    // 配置环境 (stubs - full implementation pending)
+    let cwd = Sys.getcwd()
+    let eventLoop = MiniEventLoop.initGlobal(None, Some(cwd))
+    let pathEnv = Sys.getEnv("PATH") ?? ""
+    let shellBinOpt = findShell(pathEnv, cwd)
     if (shellBinOpt.isNone()) {
-        Output.prettyErrorLn("error: Missing shell")
+        Output.prettyErrorln("error: Missing shell")
         Global.exit(1)
     }
     let shellBin = shellBinOpt.getOrThrow()
@@ -503,9 +518,9 @@ public func multiRun(ctx: CommandContext): Unit {
     let configs = ArrayList<MultiScriptConfig>()
     let groupInfos = ArrayList<GroupInfo>()
 
-    // 单包模式
-    let rootPath = RunCommand.configurePathForRunWithPackageJsonDir(ctx, "", thisTranspiler, None, cwd, ctx.debug.runInBun)
-    let scriptsMap = PackageJSON.readScripts(cwd)
+    // 单包模式 (stubs)
+    let rootPath = cwd
+    let scriptsMap: ?HashMap<String, String> = None
 
     for (rawName in scriptNames) {
         // 检查是否为 glob 模式
@@ -517,16 +532,27 @@ public func multiRun(ctx: CommandContext): Unit {
                         matches.append(key)
                     }
                 }
-                matches.sort()
+                // Simple bubble sort for ArrayList<String>
+                var sorted = true
+                for (si in 0..matches.size) {
+                    for (sj in si+1..matches.size) {
+                        if (matches[si] > matches[sj]) {
+                            let tmp = matches[si]
+                            matches[si] = matches[sj]
+                            matches[sj] = tmp
+                            sorted = false
+                        }
+                    }
+                }
                 if (matches.size == 0) {
-                    Output.prettyErrorLn("error: No scripts match pattern \"${rawName}\"")
+                    Output.prettyErrorln("error: No scripts match pattern \"${rawName}\"")
                     Global.exit(1)
                 }
                 for (matchedName in matches) {
                     addScriptConfigs(configs, groupInfos, matchedName, scriptsMap, ctx.allocator, cwd, rootPath, None)
                 }
             } else {
-                Output.prettyErrorLn("error: Cannot use glob pattern \"${rawName}\" without package.json scripts")
+                Output.prettyErrorln("error: Cannot use glob pattern \"${rawName}\" without package.json scripts")
                 Global.exit(1)
             }
         } else {
@@ -535,38 +561,41 @@ public func multiRun(ctx: CommandContext): Unit {
     }
 
     if (configs.size == 0) {
-        Output.prettyErrorLn("error: No scripts to run")
+        Output.prettyErrorln("error: No scripts to run")
         Global.exit(1)
     }
 
     // 计算最大标签宽度
     var maxLabelLen: Int64 = 0
     for (config in configs) {
-        if (config.label.length > maxLabelLen) {
-            maxLabelLen = config.label.length
+        if (config.label.size > maxLabelLen) {
+            maxLabelLen = config.label.size
         }
     }
 
     let useColors = Output.enableAnsiColorsStderr
 
     let state = MultiRunState()
-    state.handles = ArrayList<MultiRunProcessHandle>(configs.size)
+    state.handles = ArrayList<MultiRunProcessHandle>()
     state.eventLoop = eventLoop
     state.maxLabelLen = maxLabelLen
     state.shellBin = shellBin
     state.noExitOnError = ctx.noExitOnError
-    state.env = thisTranspiler.env
+    state.env = DotEnvLoader()
     state.useColors = useColors
 
     // 初始化 handles
-    for ((i, config) in configs.iterator().indexed()) {
+    var i: Int64 = 0
+    for (config in configs) {
         // 确定颜色索引
         var colorIdx: Int64 = 0
-        for ((gi, group) in groupInfos.iterator().indexed()) {
+        var gi: Int64 = 0
+        for (group in groupInfos) {
             if (i >= group.start && i < group.start + group.count) {
                 colorIdx = gi
                 break
             }
+            gi += 1
         }
 
         let handle = MultiRunProcessHandle()
@@ -580,6 +609,7 @@ public func multiRun(ctx: CommandContext): Unit {
         handle.options.cwd = config.cwd
         handle.options.stream = true
         state.handles.append(handle)
+        i += 1
     }
 
     // 设置 pre->main->post 链
@@ -587,8 +617,8 @@ public func multiRun(ctx: CommandContext): Unit {
         if (group.count > 1) {
             var j = group.start
             while (j < group.start + group.count - 1) {
-                state.handles[j.toInt()].groupDependents.append(state.handles[(j + 1).toInt()])
-                state.handles[(j + 1).toInt()].remainingDependencies += 1
+                state.handles[Int64(j)].groupDependents.append(state.handles[Int64(j + 1)])
+                state.handles[Int64(j + 1)].remainingDependencies += 1
                 j += 1
             }
         }
@@ -602,8 +632,8 @@ public func multiRun(ctx: CommandContext): Unit {
             let nextGroup = groupInfos[gi + 1]
             let lastInCurrent = currentGroup.start + currentGroup.count - 1
             let firstInNext = nextGroup.start
-            state.handles[lastInCurrent.toInt()].nextDependents.append(state.handles[firstInNext.toInt()])
-            state.handles[firstInNext.toInt()].remainingDependencies += 1
+            state.handles[Int64(lastInCurrent)].nextDependents.append(state.handles[Int64(firstInNext)])
+            state.handles[Int64(firstInNext)].remainingDependencies += 1
             gi += 1
         }
     }
@@ -655,6 +685,16 @@ public enum MrProcessStatus {
     | Exited(Int64)
     | Signaled(Int64)
     | Error
+}
+
+/// MrProcessStatus 相等性比较
+public func mrProcessStatusEquals(a: MrProcessStatus, b: MrProcessStatus): Bool {
+    match (a) {
+        case MrProcessStatus.Running => match (b) { case MrProcessStatus.Running => true case _ => false }
+        case MrProcessStatus.Exited(codeA) => match (b) { case MrProcessStatus.Exited(codeB) => codeA == codeB case _ => false }
+        case MrProcessStatus.Signaled(sigA) => match (b) { case MrProcessStatus.Signaled(sigB) => sigA == sigB case _ => false }
+        case MrProcessStatus.Error => match (b) { case MrProcessStatus.Error => true case _ => false }
+    }
 }
 
 /// Stdio 配置类型

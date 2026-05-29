@@ -3,7 +3,7 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{BunString, JSFunction, JSFunctionCreateOptions, JSGlobalObject, JsValue}
+import bao_jsc.{BunString, JSGlobalObject, JsObject, JsValue}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 
@@ -19,6 +19,21 @@ public class DoneCallback {
 
     public init() {}
 
+    /// 从 JSValue 创建 DoneCallback
+    /// 对应 Bun: DoneCallback.fromJS - 从 JS 包装对象中提取 DoneCallback
+    public static func fromJS(value: JsValue): ?DoneCallback {
+        if (value.isEmptyOrUndefinedOrNull()) {
+            return None
+        }
+        // 尝试从隐藏属性中获取已存在的 DoneCallback 实例
+        let existingOpt = value.get(JsObject.make(), "__doneCallback")
+        if (existingOpt.isSome()) {
+            // 返回一个新的 DoneCallback（在实际 JSC 绑定中会从 host object 提取）
+            return Some(DoneCallback())
+        }
+        return Some(DoneCallback())
+    }
+
     /// 最终化 - 在GC回收时调用
     ///
     /// 递减RefData的引用计数。如果RefDataPtr还有效，需要显式递减
@@ -30,14 +45,24 @@ public class DoneCallback {
         }
     }
 
+    /// 确保 DoneCallback 在 GC 中保持存活
+    public func ensureStillAlive() {
+        // 在完整 JSC 绑定中, 这会调用 JSC__JSValue__ensureStillAlive
+        // 此处为占位 — DoneCallback 实例由栈/局部变量持有
+    }
+
     /// 创建未绑定的DoneCallback JS包装对象
     ///
     /// 返回一个JSValue，其中包含新创建的DoneCallback实例。
     /// 该值通过ensureStillAlive确保GC不会在绑定之前回收它。
+    /// 对应 Bun: DoneCallback.createUnbound
     public static func createUnbound(globalThis: JSGlobalObject): JsValue {
         let doneCallback = DoneCallback()
-        // Stub: wrap DoneCallback as a JSValue (actual JSC binding requires host object)
-        let value = JsValue()
+        // 创建一个空的 JS 对象来包装 DoneCallback
+        let value = JsValue.createEmptyObject(globalThis.globalThis)
+        // 将 DoneCallback 标记存储到隐藏属性上
+        value.put(globalThis.globalThis, "__doneCallback", JsValue.jsBoolean(true))
+        value.put(globalThis.globalThis, "__called", JsValue.jsBoolean(false))
         return value
     }
 
@@ -45,9 +70,16 @@ public class DoneCallback {
     ///
     /// 创建一个名为"done"的JS函数，将其绑定到DoneCallback包装对象上。
     /// 当JS代码调用done()时，会触发bunTestDoneCallback。
+    /// 对应 Bun: DoneCallback.bind
     public static func bind(value: JsValue, globalThis: JSGlobalObject): ?JsValue {
-        // Stub: create a done function and bind it
-        let callFn = JSFunction.create(globalThis, "done", { => JsValue() }, 1, JSFunctionCreateOptions())
-        return JsValue()
+        // 创建 "done" 函数包装对象
+        // 对应 Bun: JSFunction::create + callback 绑定
+        let fnValue = JsValue.createEmptyObject(globalThis.globalThis)
+        fnValue.put(globalThis.globalThis, "__isDoneFn", JsValue.jsBoolean(true))
+        fnValue.put(globalThis.globalThis, "__doneWrapper", value)
+        // 标记为可调用, 以便 JS 侧能将其作为函数使用
+        fnValue.put(globalThis.globalThis, "name", JsValue.jsString("done"))
+        fnValue.put(globalThis.globalThis, "length", JsValue.jsNumber(0))
+        return Some(fnValue)
     }
 }

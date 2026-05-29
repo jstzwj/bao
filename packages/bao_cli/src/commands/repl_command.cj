@@ -226,8 +226,12 @@ public class ReplCommand {
             }
         }
         if (lines.size > 0) {
-            let script = String.join(lines, "\n")
-            vm.evalScript(script, true)
+            let sb = StringBuilder()
+            for (i in 0..lines.size) {
+                if (i > 0) { sb.append("\n") }
+                sb.append(lines[i])
+            }
+            vm.evalScript(sb.toString(), true)
         }
     }
 
@@ -236,10 +240,10 @@ public class ReplCommand {
     private func loadAndRunFile(vm: ReplVM, filename: String): Unit {
         let content = BaoFile.readAllText(filename)
         match (content) {
-            case Some(text) =>
+            case SysMaybe.Ok(text) =>
                 println("-- Loading ${filename}")
                 vm.evalScript(text, false)
-            case None => println("Error: Could not read file '${filename}'")
+            case _ => println("Error: Could not read file '${filename}'")
         }
     }
 
@@ -254,8 +258,10 @@ public class ReplCommand {
     private func readLine(prompt: String): ?String {
         // 简化实现: 实际应使用 readline 库
         // 对应 Bun 使用了自己的行编辑器 (repl.zig)
-        Console.write(prompt)
-        return Console.readLine()
+        print(prompt)
+        let line = Terminal.readLine()
+        if (line.isEmpty()) { return None }
+        return Some(line)
     }
 
     /// 打印欢迎信息

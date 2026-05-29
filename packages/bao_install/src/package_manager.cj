@@ -288,11 +288,14 @@ public class PublishConfig {
     public var registry: String
     public var authToken: ?String
     public var authType: AuthType
+    /// 访问级别 (public / restricted)
+    public var access: ?String
 
     public init() {
         registry = NPM_DEFAULT_REGISTRY
         authToken = None
         authType = AuthType.Legacy
+        access = None
     }
 }
 

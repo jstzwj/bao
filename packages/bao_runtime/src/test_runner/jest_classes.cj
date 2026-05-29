@@ -19,7 +19,7 @@ public class BindClassPropertyDef {
         this.name = name
         this.fn = fn
         this.getter = getter
-        this.size = length
+        this.length = length
         this.this_ = this_
         this.cache = cache
     }
@@ -28,196 +28,116 @@ public class BindClassPropertyDef {
 /// 绑定类定义。
 /// 该文件保留 Bun codegen 输入的 1:1 元数据，实际类实现分散在 expect.cj、scope_functions.cj、done_callback.cj。
 public class BindClassDef {
-    public var name: String
-    public var construct: Bool
-    public var noConstructor: Bool
-    public var call: Bool
-    public var finalize: Bool
-    public var forBind: Bool
-    public var jsType: String
-    public var values: ArrayList<String>
-    public var configurable: Bool
-    public var klass: ArrayList<BindClassPropertyDef>
-    public var proto: ArrayList<BindClassPropertyDef>
+    public var name: String = ""
+    public var construct: Bool = false
+    public var noConstructor: Bool = false
+    public var call: Bool = false
+    public var finalize: Bool = false
+    public var forBind: Bool = false
+    public var jsType: String = "0b11101110"
+    public var values: ArrayList<String> = ArrayList<String>()
+    public var configurable: Bool = false
+    public var klass: ArrayList<BindClassPropertyDef> = ArrayList<BindClassPropertyDef>()
+    public var proto: ArrayList<BindClassPropertyDef> = ArrayList<BindClassPropertyDef>()
 
-    public init(
-        name: String,
-        construct: Bool,
-        noConstructor: Bool,
-        call: Bool,
-        finalize: Bool,
-        forBind: Bool,
-        jsType: String,
-        values: ArrayList<String>,
-        configurable: Bool,
-        klass: ArrayList<BindClassPropertyDef>,
-        proto: ArrayList<BindClassPropertyDef>
-    ) {
-        this.name = name
-        this.construct = construct
-        this.noConstructor = noConstructor
-        this.call = call
-        this.finalize = finalize
-        this.forBind = forBind
-        this.jsType = jsType
-        this.values = values
-        this.configurable = configurable
-        this.klass = klass
-        this.proto = proto
-    }
+    public init() {}
 }
 
 private func `prop`(name!: String, fn!: String, length!: ?UInt32): BindClassPropertyDef {
-    return BindClassPropertyDef(name, fn, None, length, false, false)
+    return BindClassPropertyDef(name, fn, Option<String>.None, length, false, false)
 }
 
 private func propNoLen(name!: String, fn!: String): BindClassPropertyDef {
-    return BindClassPropertyDef(name, fn, None, None, false, false)
+    return BindClassPropertyDef(name, fn, Option<String>.None, Option<UInt32>.None, false, false)
 }
 
 private func getter(name!: String, getterName!: String, this_!: Bool, cache!: Bool): BindClassPropertyDef {
-    return BindClassPropertyDef(name, None, getterName, None, this_, cache)
+    return BindClassPropertyDef(name, Option<String>.None, getterName, Option<UInt32>.None, this_, cache)
 }
 
-private func cls(
-        name: String,
-    noConstructor: Bool,
-    call: Bool,
-    finalize: Bool,
-    forBind: Bool,
-    values: ArrayList<String>,
-    klass: ArrayList<BindClassPropertyDef>,
-    proto: ArrayList<BindClassPropertyDef>
-): BindClassDef {
-    return cls(
-        name: name,
-        construct: false,
-        noConstructor: noConstructor,
-        call: call,
-        finalize: finalize,
-        forBind: forBind,
-        jsType: "0b11101110",
-        values: values,
-        configurable: false,
-        klass: klass,
-        proto: proto
-    )
+/// Helper to create a BindClassDef with noConstructor=true, call=true, finalize=true
+private func mkSimple(name: String): BindClassDef {
+    let def = BindClassDef()
+    def.name = name
+    def.noConstructor = true
+    def.call = true
+    def.finalize = true
+    return def
 }
 
-/// jest.classes.ts default export 的 Cangjie 等价元数据。
-public let jestClassDefinitions: ArrayList<BindClassDef> = ArrayList<BindClassDef>([
-    cls(name: "ExpectAnything", noConstructor: true, call: true, finalize: true),
-    cls(name: "ExpectAny", noConstructor: true, call: true, finalize: true, values: ArrayList<String>(["constructorValue"])),
-    cls(name: "ExpectCloseTo", noConstructor: true, call: true, finalize: true, values: ArrayList<String>(["numberValue", "digitsValue"])),
-    cls(name: "ExpectObjectContaining", noConstructor: true, call: true, finalize: true, values: ArrayList<String>(["objectValue"])),
-    cls(name: "ExpectStringContaining", noConstructor: true, call: true, finalize: true, values: ArrayList<String>(["stringValue"])),
-    cls(name: "ExpectStringMatching", noConstructor: true, call: true, finalize: true, values: ArrayList<String>(["testValue"])),
-    cls(name: "ExpectArrayContaining", noConstructor: true, call: true, finalize: true, values: ArrayList<String>(["arrayValue"])),
-    cls(
-        name: "ExpectCustomAsymmetricMatcher",
-        noConstructor: true,
-        finalize: true,
-        values: ArrayList<String>(["matcherFn", "capturedArgs"]),
-        proto: ArrayList<BindClassPropertyDef>([`prop`(name: "asymmetricMatch", fn: "asymmetricMatch", length: 1)])
-    ),
-    cls(
-        name: "ExpectMatcherContext",
-        noConstructor: true,
-        finalize: true,
-        proto: ArrayList<BindClassPropertyDef>([
-            getter(name: "utils", getterName: "getUtils", this_: false, cache: false),
-            getter(name: "isNot", getterName: "getIsNot", this_: false, cache: false),
-            getter(name: "promise", getterName: "getPromise", this_: false, cache: false),
-            getter(name: "expand", getterName: "getExpand", this_: false, cache: false),
-            `prop`(name: "equals", fn: "equals", length: 3)
-        ])
-    ),
-    cls(
-        name: "ExpectMatcherUtils",
-        noConstructor: true,
-        finalize: true,
-        proto: ArrayList<BindClassPropertyDef>([
-            `prop`(name: "stringify", fn: "stringify", length: 1),
-            `prop`(name: "printExpected", fn: "printExpected", length: 1),
-            `prop`(name: "printReceived", fn: "printReceived", length: 1),
-            `prop`(name: "EXPECTED_COLOR", fn: "printExpected", length: 1),
-            `prop`(name: "RECEIVED_COLOR", fn: "printReceived", length: 1),
-            `prop`(name: "matcherHint", fn: "matcherHint", length: 1)
-        ])
-    ),
-    cls(
-        name: "ExpectStatic",
-        noConstructor: true,
-        finalize: true,
-        proto: ArrayList<BindClassPropertyDef>([
-            `prop`(name: "anything", fn: "anything", length: 1),
-            `prop`(name: "any", fn: "any", length: 1),
-            `prop`(name: "arrayContaining", fn: "arrayContaining", length: 1),
-            `prop`(name: "closeTo", fn: "closeTo", length: 1),
-            `prop`(name: "objectContaining", fn: "objectContaining", length: 1),
-            `prop`(name: "stringContaining", fn: "stringContaining", length: 1),
-            `prop`(name: "stringMatching", fn: "stringMatching", length: 1),
-            getter(name: "not", getterName: "getNot", this_: true, cache: false),
-            getter(name: "resolvesTo", getterName: "getResolvesTo", this_: true, cache: false),
-            getter(name: "rejectsTo", getterName: "getRejectsTo", this_: true, cache: false)
-        ])
-    ),
-    cls(
-        name: "Expect",
-        construct: true,
-        call: true,
-        finalize: true,
-        values: ArrayList<String>(["capturedValue", "resultValue"]),
-        klass: ArrayList<BindClassPropertyDef>([
-            `prop`(name: "extend", fn: "extend", length: 1),
-            `prop`(name: "anything", fn: "anything", length: 1),
-            `prop`(name: "any", fn: "any", length: 1),
-            `prop`(name: "arrayContaining", fn: "arrayContaining", length: 1),
-            `prop`(name: "assertions", fn: "assertions", length: 1),
-            `prop`(name: "hasAssertions", fn: "hasAssertions", length: 1),
-            `prop`(name: "closeTo", fn: "closeTo", length: 1),
-            `prop`(name: "objectContaining", fn: "objectContaining", length: 1),
-            `prop`(name: "stringContaining", fn: "stringContaining", length: 1),
-            `prop`(name: "stringMatching", fn: "stringMatching", length: 1),
-            `prop`(name: "addSnapshotSerializer", fn: "addSnapshotSerializer", length: 1),
-            getter(name: "not", getterName: "getStaticNot", this_: false, cache: false),
-            getter(name: "resolvesTo", getterName: "getStaticResolvesTo", this_: false, cache: false),
-            getter(name: "rejectsTo", getterName: "getStaticRejectsTo", this_: false, cache: false),
-            `prop`(name: "unreachable", fn: "doUnreachable", length: 1)
-        ]),
-        proto: expectProtoDefinitions
-    ),
-    cls(
-        name: "ExpectTypeOf",
-        construct: true,
-        call: true,
-        finalize: true,
-        proto: expectTypeOfProtoDefinitions
-    ),
-    cls(name: "DoneCallback", noConstructor: true, finalize: true),
-    cls(
-        name: "ScopeFunctions",
-        noConstructor: true,
-        forBind: true,
-        finalize: true,
-        values: ArrayList<String>(["each"]),
-        proto: ArrayList<BindClassPropertyDef>([
-            getter(name: "skip", getterName: "getSkip", this_: false, cache: true),
-            getter(name: "todo", getterName: "getTodo", this_: false, cache: true),
-            getter(name: "failing", getterName: "getFailing", this_: false, cache: true),
-            getter(name: "concurrent", getterName: "getConcurrent", this_: false, cache: true),
-            getter(name: "serial", getterName: "getSerial", this_: false, cache: true),
-            getter(name: "only", getterName: "getOnly", this_: false, cache: true),
-            `prop`(name: "if", fn: "fnIf", length: 1),
-            `prop`(name: "skipIf", fn: "fnSkipIf", length: 1),
-            `prop`(name: "todoIf", fn: "fnTodoIf", length: 1),
-            `prop`(name: "failingIf", fn: "fnFailingIf", length: 1),
-            `prop`(name: "concurrentIf", fn: "fnConcurrentIf", length: 1),
-            `prop`(name: "serialIf", fn: "fnSerialIf", length: 1),
-            `prop`(name: "each", fn: "fnEach", length: 1)
-        ])
-    )
-])
+/// Helper to create a BindClassDef with noConstructor=true, call=true, finalize=true, values
+private func mkSimpleValues(name: String, vals: ArrayList<String>): BindClassDef {
+    let def = BindClassDef()
+    def.name = name
+    def.noConstructor = true
+    def.call = true
+    def.finalize = true
+    def.values = vals
+    return def
+}
+
+// Individual builder functions - each with a unique name to avoid overload conflicts
+
+private func mkExpectCustomAsymmetricMatcher(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "ExpectCustomAsymmetricMatcher"
+    def.noConstructor = true
+    def.finalize = true
+    def.values = ArrayList<String>(["matcherFn", "capturedArgs"])
+    def.proto = ArrayList<BindClassPropertyDef>([`prop`(name: "asymmetricMatch", fn: "asymmetricMatch", length: 1)])
+    return def
+}
+
+private func mkExpectMatcherContext(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "ExpectMatcherContext"
+    def.noConstructor = true
+    def.finalize = true
+    def.proto = ArrayList<BindClassPropertyDef>([
+        getter(name: "utils", getterName: "getUtils", this_: false, cache: false),
+        getter(name: "isNot", getterName: "getIsNot", this_: false, cache: false),
+        getter(name: "promise", getterName: "getPromise", this_: false, cache: false),
+        getter(name: "expand", getterName: "getExpand", this_: false, cache: false),
+        `prop`(name: "equals", fn: "equals", length: 3)
+    ])
+    return def
+}
+
+private func mkExpectMatcherUtils(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "ExpectMatcherUtils"
+    def.noConstructor = true
+    def.finalize = true
+    def.proto = ArrayList<BindClassPropertyDef>([
+        `prop`(name: "stringify", fn: "stringify", length: 1),
+        `prop`(name: "printExpected", fn: "printExpected", length: 1),
+        `prop`(name: "printReceived", fn: "printReceived", length: 1),
+        `prop`(name: "EXPECTED_COLOR", fn: "printExpected", length: 1),
+        `prop`(name: "RECEIVED_COLOR", fn: "printReceived", length: 1),
+        `prop`(name: "matcherHint", fn: "matcherHint", length: 1)
+    ])
+    return def
+}
+
+private func mkExpectStatic(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "ExpectStatic"
+    def.noConstructor = true
+    def.finalize = true
+    def.proto = ArrayList<BindClassPropertyDef>([
+        `prop`(name: "anything", fn: "anything", length: 1),
+        `prop`(name: "any", fn: "any", length: 1),
+        `prop`(name: "arrayContaining", fn: "arrayContaining", length: 1),
+        `prop`(name: "closeTo", fn: "closeTo", length: 1),
+        `prop`(name: "objectContaining", fn: "objectContaining", length: 1),
+        `prop`(name: "stringContaining", fn: "stringContaining", length: 1),
+        `prop`(name: "stringMatching", fn: "stringMatching", length: 1),
+        getter(name: "not", getterName: "getNot", this_: true, cache: false),
+        getter(name: "resolvesTo", getterName: "getResolvesTo", this_: true, cache: false),
+        getter(name: "rejectsTo", getterName: "getRejectsTo", this_: true, cache: false)
+    ])
+    return def
+}
 
 public let expectProtoDefinitions: ArrayList<BindClassPropertyDef> = ArrayList<BindClassPropertyDef>([
     `prop`(name: "pass", fn: "_pass", length: 1),
@@ -228,12 +148,12 @@ public let expectProtoDefinitions: ArrayList<BindClassPropertyDef> = ArrayList<B
     `prop`(name: "toHaveBeenCalledOnce", fn: "toHaveBeenCalledOnce", length: 0),
     `prop`(name: "toHaveBeenCalledTimes", fn: "toHaveBeenCalledTimes", length: 1),
     `prop`(name: "toBeCalledTimes", fn: "toHaveBeenCalledTimes", length: 1),
-    `prop`(name: "toHaveBeenCalledWith", fn: "toHaveBeenCalledWith", length: None),
-    `prop`(name: "toBeCalledWith", fn: "toHaveBeenCalledWith", length: None),
-    `prop`(name: "toHaveBeenLastCalledWith", fn: "toHaveBeenLastCalledWith", length: None),
-    `prop`(name: "lastCalledWith", fn: "toHaveBeenLastCalledWith", length: None),
-    `prop`(name: "toHaveBeenNthCalledWith", fn: "toHaveBeenNthCalledWith", length: None),
-    `prop`(name: "nthCalledWith", fn: "toHaveBeenNthCalledWith", length: None),
+    `prop`(name: "toHaveBeenCalledWith", fn: "toHaveBeenCalledWith", length: Option<UInt32>.None),
+    `prop`(name: "toBeCalledWith", fn: "toHaveBeenCalledWith", length: Option<UInt32>.None),
+    `prop`(name: "toHaveBeenLastCalledWith", fn: "toHaveBeenLastCalledWith", length: Option<UInt32>.None),
+    `prop`(name: "lastCalledWith", fn: "toHaveBeenLastCalledWith", length: Option<UInt32>.None),
+    `prop`(name: "toHaveBeenNthCalledWith", fn: "toHaveBeenNthCalledWith", length: Option<UInt32>.None),
+    `prop`(name: "nthCalledWith", fn: "toHaveBeenNthCalledWith", length: Option<UInt32>.None),
     `prop`(name: "toHaveReturnedTimes", fn: "toHaveReturnedTimes", length: 1),
     `prop`(name: "toReturn", fn: "toHaveReturned", length: 1),
     `prop`(name: "toHaveReturned", fn: "toHaveReturned", length: 1),
@@ -350,4 +270,94 @@ public let expectTypeOfProtoDefinitions: ArrayList<BindClassPropertyDef> = Array
     `prop`(name: "map", fn: "fnOneArgumentReturnsExpectTypeOf", length: 1),
     getter(name: "not", getterName: "getReturnsExpectTypeOf", this_: false, cache: false),
     getter(name: "branded", getterName: "getReturnsExpectTypeOf", this_: false, cache: false)
+])
+
+private func mkExpectDef(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "Expect"
+    def.construct = true
+    def.call = true
+    def.finalize = true
+    def.values = ArrayList<String>(["capturedValue", "resultValue"])
+    def.klass = ArrayList<BindClassPropertyDef>([
+        `prop`(name: "extend", fn: "extend", length: 1),
+        `prop`(name: "anything", fn: "anything", length: 1),
+        `prop`(name: "any", fn: "any", length: 1),
+        `prop`(name: "arrayContaining", fn: "arrayContaining", length: 1),
+        `prop`(name: "assertions", fn: "assertions", length: 1),
+        `prop`(name: "hasAssertions", fn: "hasAssertions", length: 1),
+        `prop`(name: "closeTo", fn: "closeTo", length: 1),
+        `prop`(name: "objectContaining", fn: "objectContaining", length: 1),
+        `prop`(name: "stringContaining", fn: "stringContaining", length: 1),
+        `prop`(name: "stringMatching", fn: "stringMatching", length: 1),
+        `prop`(name: "addSnapshotSerializer", fn: "addSnapshotSerializer", length: 1),
+        getter(name: "not", getterName: "getStaticNot", this_: false, cache: false),
+        getter(name: "resolvesTo", getterName: "getStaticResolvesTo", this_: false, cache: false),
+        getter(name: "rejectsTo", getterName: "getStaticRejectsTo", this_: false, cache: false),
+        `prop`(name: "unreachable", fn: "doUnreachable", length: 1)
+    ])
+    def.proto = expectProtoDefinitions
+    return def
+}
+
+private func mkExpectTypeOf(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "ExpectTypeOf"
+    def.construct = true
+    def.call = true
+    def.finalize = true
+    def.proto = expectTypeOfProtoDefinitions
+    return def
+}
+
+private func mkDoneCallback(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "DoneCallback"
+    def.noConstructor = true
+    def.finalize = true
+    return def
+}
+
+private func mkScopeFunctions(): BindClassDef {
+    let def = BindClassDef()
+    def.name = "ScopeFunctions"
+    def.noConstructor = true
+    def.forBind = true
+    def.finalize = true
+    def.values = ArrayList<String>(["each"])
+    def.proto = ArrayList<BindClassPropertyDef>([
+        getter(name: "skip", getterName: "getSkip", this_: false, cache: true),
+        getter(name: "todo", getterName: "getTodo", this_: false, cache: true),
+        getter(name: "failing", getterName: "getFailing", this_: false, cache: true),
+        getter(name: "concurrent", getterName: "getConcurrent", this_: false, cache: true),
+        getter(name: "serial", getterName: "getSerial", this_: false, cache: true),
+        getter(name: "only", getterName: "getOnly", this_: false, cache: true),
+        `prop`(name: "if", fn: "fnIf", length: 1),
+        `prop`(name: "skipIf", fn: "fnSkipIf", length: 1),
+        `prop`(name: "todoIf", fn: "fnTodoIf", length: 1),
+        `prop`(name: "failingIf", fn: "fnFailingIf", length: 1),
+        `prop`(name: "concurrentIf", fn: "fnConcurrentIf", length: 1),
+        `prop`(name: "serialIf", fn: "fnSerialIf", length: 1),
+        `prop`(name: "each", fn: "fnEach", length: 1)
+    ])
+    return def
+}
+
+/// jest.classes.ts default export 的 Cangjie 等价元数据。
+public let jestClassDefinitions: ArrayList<BindClassDef> = ArrayList<BindClassDef>([
+    mkSimple("ExpectAnything"),
+    mkSimpleValues("ExpectAny", ArrayList<String>(["constructorValue"])),
+    mkSimpleValues("ExpectCloseTo", ArrayList<String>(["numberValue", "digitsValue"])),
+    mkSimpleValues("ExpectObjectContaining", ArrayList<String>(["objectValue"])),
+    mkSimpleValues("ExpectStringContaining", ArrayList<String>(["stringValue"])),
+    mkSimpleValues("ExpectStringMatching", ArrayList<String>(["testValue"])),
+    mkSimpleValues("ExpectArrayContaining", ArrayList<String>(["arrayValue"])),
+    mkExpectCustomAsymmetricMatcher(),
+    mkExpectMatcherContext(),
+    mkExpectMatcherUtils(),
+    mkExpectStatic(),
+    mkExpectDef(),
+    mkExpectTypeOf(),
+    mkDoneCallback(),
+    mkScopeFunctions()
 ])

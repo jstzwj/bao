@@ -19,14 +19,14 @@ public enum Writable {
     | memfd(FD)
     | ignore
     | inherit
-    | else
+    | `else`
 
     /// 是否有待处理活动
     public func hasPendingActivity(): Bool {
         return match (this) {
             case pipe => false
             case buffer => true   // 关闭时标记为 .ignore，所以这里必须为 true
-            else => false
+            case _ => false
         }
     }
 
@@ -35,7 +35,7 @@ public enum Writable {
         match (this) {
             case pipe => this.pipe.updateRef(true)
             case buffer => this.buffer.updateRef(true)
-            else => ()
+            case _ => ()
         }
     }
 
@@ -44,12 +44,12 @@ public enum Writable {
         match (this) {
             case pipe => this.pipe.updateRef(false)
             case buffer => this.buffer.updateRef(false)
-            else => ()
+            case _ => ()
         }
     }
 
     /// 关闭回调
-    public func onClose(err: SysError) {
+    public func onClose(err!: SysError) {
         let process = Process.fromFieldParentPtr("stdin", this)
 
         if (let thisJsvalue <- process.thisValue.tryGet()) {
@@ -63,27 +63,29 @@ public enum Writable {
                 this.buffer.deref()
             case pipe =>
                 this.pipe.deref()
-            else => ()
+            case _ => ()
         }
 
         process.onStdinDestroyed()
 
-        this = .ignore()
+        // 注意: Cangjie 枚举是不可变值类型，无法重新赋值 self
+        // Bun 中 this.* = .ignore 是为了防止 use-after-free
+        // Cangjie 的 GC 管理内存，不需要此操作
     }
 
     /// 就绪回调
-    public func onReady(size: BlobSizeType, totalSize: BlobSizeType) {}
+    public func onReady(size!: BlobSizeType, totalSize!: BlobSizeType) {}
 
     /// 开始回调
     public func onStart() {}
 
     /// 初始化 Writable
     public static func initFunc(
-        stdio: Stdio,
-        eventLoop: EventLoop,
-        subprocess: Subprocess,
-        result: StdioResult,
-        promiseForStream: JsValue,
+        stdio!: Stdio,
+        eventLoop!: EventLoop,
+        subprocess!: Subprocess,
+        result!: StdioResult,
+        promiseForStream!: JsValue
     ): Writable {
         Subprocess.assertStdioResult(result)
 
@@ -111,7 +113,7 @@ public enum Writable {
                         if (stdio == readable_stream) {
                             let assignResult = pipe.assignToStream(stdio.readable_stream, eventLoop.global)
                             if (let err <- assignResult.toError()) {
-                                subprocess.weakFileSinkStdinPtr = null
+                                subprocess.weakFileSinkStdinPtr = none
                                 subprocess.flags.derefOnStdinDestroyed = false
                                 pipe.deref()
                                 subprocess.deref()
@@ -123,7 +125,7 @@ public enum Writable {
                         return Writable.pipe(pipe)
                     }
                     return Writable.inherit()
-                case .readable_stream =>
+                case Stdio.readable_stream =>
                     if (result == buffer) {
                         let pipe = FileSink.createWithPipe(eventLoop, result.buffer)
 
@@ -145,7 +147,7 @@ public enum Writable {
                         if (stdio == readable_stream) {
                             let assignResult = pipe.assignToStream(stdio.readable_stream, eventLoop.global)
                             if (let err <- assignResult.toError()) {
-                                subprocess.weakFileSinkStdinPtr = null
+                                subprocess.weakFileSinkStdinPtr = none
                                 subprocess.flags.derefOnStdinDestroyed = false
                                 pipe.deref()
                                 subprocess.deref()
@@ -170,13 +172,13 @@ public enum Writable {
                     return Writable.inherit()
                 case memfd =>
                     return Writable.ignore()
-                case .path =>
+                case Stdio.path =>
                     return Writable.ignore()
-                case .ignore =>
+                case Stdio.ignore =>
                     return Writable.ignore()
                 case ipc =>
                     return Writable.ignore()
-                case .capture =>
+                case Stdio.capture =>
                     return Writable.ignore()
             }
         }
@@ -205,7 +207,7 @@ public enum Writable {
                         throw Error.UnexpectedCreatingStdin
                 }
 
-                pipe.writer.handle.poll.flags.insert(.socket)
+                pipe.writer.handle.poll.flags.insert(FilePollFlag.Socket)
 
                 subprocess.weakFileSinkStdinPtr = pipe
                 subprocess.ref()
@@ -215,7 +217,7 @@ public enum Writable {
                 if (stdio == readable_stream) {
                     let assignResult = pipe.assignToStream(stdio.readable_stream, eventLoop.global)
                     if (let err <- assignResult.toError()) {
-                        subprocess.weakFileSinkStdinPtr = null
+                        subprocess.weakFileSinkStdinPtr = none
                         subprocess.flags.derefOnStdinDestroyed = false
                         pipe.deref()
                         subprocess.deref()
@@ -226,7 +228,7 @@ public enum Writable {
 
                 return Writable.pipe(pipe)
 
-            case .readable_stream =>
+            case Stdio.readable_stream =>
                 let pipe = FileSink.create(eventLoop, result)
 
                 match (pipe.writer.start(pipe.fd, true)) {
@@ -239,7 +241,7 @@ public enum Writable {
                         throw Error.UnexpectedCreatingStdin
                 }
 
-                pipe.writer.handle.poll.flags.insert(.socket)
+                pipe.writer.handle.poll.flags.insert(FilePollFlag.Socket)
 
                 subprocess.weakFileSinkStdinPtr = pipe
                 subprocess.ref()
@@ -249,7 +251,7 @@ public enum Writable {
                 if (stdio == readable_stream) {
                     let assignResult = pipe.assignToStream(stdio.readable_stream, eventLoop.global)
                     if (let err <- assignResult.toError()) {
-                        subprocess.weakFileSinkStdinPtr = null
+                        subprocess.weakFileSinkStdinPtr = none
                         subprocess.flags.derefOnStdinDestroyed = false
                         pipe.deref()
                         subprocess.deref()
@@ -273,25 +275,25 @@ public enum Writable {
                 return Writable.inherit()
             case path =>
                 return Writable.ignore()
-            case .ignore =>
+            case ignore =>
                 return Writable.ignore()
             case ipc =>
                 return Writable.ignore()
-            case .capture =>
+            case capture =>
                 return Writable.ignore()
         }
     }
 
     /// 转换为 JS 值
-    public func toJS(globalThis: JsGlobalObject, subprocess: Subprocess): JsValue {
+    public func toJS(globalThis!: JsGlobalObject, subprocess!: Subprocess): JsValue {
         return match (this) {
             case fd(fd) => fd.toJS(globalThis)
             case memfd => JsValue.jsUndefined()
-            case .ignore => JsValue.jsUndefined()
+            case ignore => JsValue.jsUndefined()
             case buffer => JsValue.jsUndefined()
-            case .inherit => JsValue.jsUndefined()
+            case inherit => JsValue.jsUndefined()
             case pipe(pipe) =>
-                this = .ignore()
+                // 注意: Cangjie 枚举不可变，无需 reassign 为 ignore
                 if (subprocess.process.hasExited() && !subprocess.flags.hasStdinDestructorCalled) {
                     pipe.onAttachedProcessExit(subprocess.process.status)
                     return pipe.toJS(globalThis)
@@ -328,16 +330,16 @@ public enum Writable {
                     pipe.signal.clear()
                 }
                 pipe.deref()
-                this = .ignore()
+                // 注意: Cangjie 枚举不可变，无需 reassign 为 ignore
             case buffer =>
                 this.buffer.updateRef(false)
                 this.buffer.deref()
             case memfd(fd) =>
                 fd.close()
-                this = .ignore()
+                // 注意: Cangjie 枚举不可变，无需 reassign 为 ignore
             case ignore => ()
             case fd => ()
-            case .inherit => ()
+            case inherit => ()
         }
     }
 
@@ -345,12 +347,11 @@ public enum Writable {
     public func close() {
         match (this) {
             case pipe(pipe) =>
-                _ = pipe.end(null)
+                _ = pipe.end(none)
             case memfd(fd) =>
                 fd.close()
-                this = .ignore()
-            case fd =>
-                this = .ignore()
+                // 注意: Cangjie 枚举不可变，无需 reassign 为 ignore
+            case fd => ()  // 注意: Cangjie 枚举不可变，无需 reassign 为 ignore
             case buffer =>
                 this.buffer.close()
             case ignore => ()
@@ -363,6 +364,4 @@ public enum Writable {
 // 类型别名
 // ========================================================================
 
-public type StaticPipeWriter = StaticPipeWriter
-public type FileSink = FileSink
-public type BlobSizeType = BlobSizeType
+// StaticPipeWriter, FileSink, BlobSizeType 已通过 import 导入，无需重复定义

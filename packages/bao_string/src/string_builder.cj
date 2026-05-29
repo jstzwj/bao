@@ -121,6 +121,12 @@ public class StringBuilder {
         return slice
     }
 
+    /// 追加单个字符 (UInt8)
+    public func appendChar(c: UInt8): Unit {
+        this.buffer[this.len] = c
+        this.len += 1
+    }
+
     /// 追加字节数组
     public func appendBytes(bytes: Array<Byte>): Unit {
         for (b in bytes) {

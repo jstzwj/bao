@@ -9,6 +9,11 @@ import bao_path.*
 import bao_sys.*
 import bao_http.*
 import bao_hash.*
+import bao_install.*
+import bao_install.package_manager.CommandLineArguments
+import bao_install.package_manager.CommandContext
+import bao_libarchive.*
+import std.convert.*
 
 // ============================================================================
 // publish 命令 - 对应 bun publish
@@ -52,6 +57,8 @@ public class PublishConfig {
     public var postpublishScript: ?String
     /// 脚本环境
     public var scriptEnv: DotEnvLoader
+    /// 访问级别 (public / restricted)
+    public var access: ?String
 
     public init() {
         packageName = ""
@@ -65,6 +72,7 @@ public class PublishConfig {
         publishScript = None
         postpublishScript = None
         scriptEnv = DotEnvLoader()
+        access = None
     }
 }
 
@@ -185,17 +193,17 @@ public class PublishCommand {
         }
 
         // 解析命令行参数
-        let cli = PackageManager.CommandLineArguments.parseForPublish(opts)
+        let cli = CommandLineArguments.parseForPublish(opts)
 
         // 初始化 PackageManager
-        let initResult = match (PackageManager.initForPublish(cli)) {
-            case Some(t) => t
-            case None =>
-                if (!opts.silent) {
-                    Output.errGeneric("missing package.json, nothing to publish")
-                }
-                return 1
+        let initResultOpt = CommandLineArguments.initForPublish(cli)
+        if (initResultOpt.isNone()) {
+            if (!opts.silent) {
+                Output.errGeneric("missing package.json, nothing to publish")
+            }
+            return 1
         }
+        let initResult = initResultOpt.getOrThrow()
         let (pm, originalCwd) = initResult
         manager = pm
 
@@ -203,72 +211,61 @@ public class PublishCommand {
         if (opts.tarballPath.isSome()) {
             // 从 tarball 路径发布
             // 严格翻译自: Context(false).fromTarballPath
-            let config = fromTarballPath(opts.tarballPath.getOrThrow(), pm)
-            match (config) {
-                case Some(cfg) =>
-                    let result = publish(cfg, opts, false)
-                    match (result) {
-                        case 0 =>
-                            let versionDisplay = Dependency.withoutBuildTag(cfg.packageVersion)
-                            let dryRunSuffix = if (opts.dryRun) { " (dry-run)" } else { "" }
-                            Output.prettyLn("\n<green> +<r> ${cfg.packageName}@${versionDisplay}${dryRunSuffix}")
-                        case _ => ()
-                    }
-                    return result
-                case None => return 1
+            let config = fromTarballPath(opts.tarballPath.getOrThrow(), pm, opts)
+            if (config.isNone()) { return 1 }
+            let cfg = config.getOrThrow()
+            let result = publish(cfg, opts, false)
+            if (result == 0) {
+                let versionDisplay = DependencyInfo.withoutBuildTag(cfg.packageVersion)
+                let dryRunSuffix = if (opts.dryRun) { " (dry-run)" } else { "" }
+                Output.prettyLn("\n<green> +<r> ${cfg.packageName}@${versionDisplay}${dryRunSuffix}")
             }
+            return result
         } else {
             // 从 workspace 发布 (先 pack)
             // 严格翻译自: Context(true).fromWorkspace
             let config = fromWorkspace(pm)
-            match (config) {
-                case Some(cfg) =>
-                    // 删除临时 tarball
-                    // 严格翻译自: _ = bun.sys.unlink(context.abs_tarball_path)
-                    Sys.unlink(cfg.absTarballPath)
+            if (config.isNone()) { return 1 }
+            let cfg = config.getOrThrow()
 
-                    let result = publish(cfg, opts, true)
-                    match (result) {
-                        case 0 =>
-                            let versionDisplay = Dependency.withoutBuildTag(cfg.packageVersion)
-                            let dryRunSuffix = if (opts.dryRun) { " (dry-run)" } else { "" }
-                            Output.prettyLn("\n<green> +<r> ${cfg.packageName}@${versionDisplay}${dryRunSuffix}")
+            // 删除临时 tarball
+            // 严格翻译自: _ = bun.sys.unlink(context.abs_tarball_path)
+            Sys.unlink(cfg.absTarballPath)
 
-                            // 运行 publish/postpublish 生命周期脚本
-                            // 严格翻译自: publish_command.zig → publish_script / postpublish_script
-                            if (pm.options.`do`.runScripts) {
-                                let absWorkspacePath = Path.withoutTrailingSlash(
-                                    pm.originalPackageJsonPath.substring(
-                                        0, pm.originalPackageJsonPath.size - "package.json".size
-                                    )
-                                )
-                                cfg.scriptEnv.map.put("npm_command", "publish")
+            let result = publish(cfg, opts, true)
+            if (result == 0) {
+                let versionDisplay = DependencyInfo.withoutBuildTag(cfg.packageVersion)
+                let dryRunSuffix = if (opts.dryRun) { " (dry-run)" } else { "" }
+                Output.prettyLn("\n<green> +<r> ${cfg.packageName}@${versionDisplay}${dryRunSuffix}")
 
-                                // 运行 publish 脚本
-                                match (cfg.publishScript) {
-                                    case Some(script) =>
-                                        RunCommand.runPackageScriptForeground(
-                                            script, "publish", absWorkspacePath,
-                                            cfg.scriptEnv, [], pm.options.logLevel == LogLevel.silent
-                                        )
-                                    case None => ()
-                                }
+                // 运行 publish/postpublish 生命周期脚本
+                // 严格翻译自: publish_command.zig → publish_script / postpublish_script
+                if (pm.options.`do`.runScripts) {
+                    let absWorkspacePath = withoutTrailingSlash(
+                        pm.originalPackageJsonPath.substring(
+                            0, pm.originalPackageJsonPath.size - "package.json".size
+                        )
+                    )
+                    cfg.scriptEnv.put("npm_command", "publish")
 
-                                // 运行 postpublish 脚本
-                                match (cfg.postpublishScript) {
-                                    case Some(script) =>
-                                        RunCommand.runPackageScriptForeground(
-                                            script, "postpublish", absWorkspacePath,
-                                            cfg.scriptEnv, [], pm.options.logLevel == LogLevel.silent
-                                        )
-                                    case None => ()
-                                }
-                            }
-                        case _ => ()
+                    // 运行 publish 脚本
+                    if (cfg.publishScript.isSome()) {
+                        RunCommand.runPackageScriptForeground(
+                            CommandContext(), cfg.publishScript.getOrThrow(), "publish", absWorkspacePath,
+                            cfg.scriptEnv, ArrayList<String>(), pm.options.logLevel == InstallLogLevel.Silent.toInt64(), false
+                        )
                     }
-                    return result
-                case None => return 1
+
+                    // 运行 postpublish 脚本
+                    if (cfg.postpublishScript.isSome()) {
+                        RunCommand.runPackageScriptForeground(
+                            CommandContext(), cfg.postpublishScript.getOrThrow(), "postpublish", absWorkspacePath,
+                            cfg.scriptEnv, ArrayList<String>(), pm.options.logLevel == InstallLogLevel.Silent.toInt64(), false
+                        )
+                    }
+                }
             }
+            return result
         }
     }
 
@@ -283,178 +280,173 @@ public class PublishCommand {
     //   5. 计算 unpacked_size 和 total_files
     //   6. 计算校验和 (SHA1 + SHA512)
     //   7. 构建规范化包信息
-    private func fromTarballPath(path: String, pm: PackageManager): ?PublishConfig {
+    private func fromTarballPath(path: String, pm: PackageManager, opts: PublishOptions): ?PublishConfig {
         let absPath = Path.resolve(path)
 
         // 读取 tarball
         let tarballBytes = BaoFile.readAllBytes(absPath)
-        match (tarballBytes) {
-            case Some(bytes) =>
-                let config = PublishConfig()
-                config.absTarballPath = absPath
-                config.tarballBytes = bytes
-
-                var totalFiles: Int64 = 0
-                var unpackedSize: Int64 = 0
-                var maybePackageJsonContents: ?String = None
-                var maybeReadme: ?ReadmeInfo = None
-
-                // 从 tarball 中遍历并提取 package.json 和 README
-                // 严格翻译自: Archive.Iterator 遍历
-                Output.print("\n")
-
-                let archive = ArchiveIterator.`init`(bytes)
-                while (true) {
-                    let next = archive.next()
-                    if (next.isNone()) {
-                        break
-                    }
-                    let entry = next.getOrThrow()
-                    let pathname = entry.pathname
-                    let size = entry.size
-
-                    unpackedSize += Math.max(0, size)
-                    if (entry.kind == ArchiveEntryKind.file) {
-                        totalFiles += 1
-                    }
-
-                    // 去掉 "package/" 前缀 (npm 期望所有路径都有 package/ 前缀)
-                    let slashIdx = pathname.indexOfAny("/\\")
-                    if (slashIdx >= 0) {
-                        let stripped = pathname.substring(slashIdx + 1)
-                        if (stripped.size == 0) {
-                            continue
-                        }
-
-                        let sizeStr = formatSize(size)
-                        Output.pretty("<b><cyan>packed<r> ${sizeStr} ${stripped}\n")
-
-                        if (entry.kind != ArchiveEntryKind.file) {
-                            continue
-                        }
-
-                        // 检查是否是根目录文件 (package.json, README 等)
-                        if (!stripped.containsAny("/\\")) {
-                            let filename = stripped
-
-                            // 检查 package.json
-                            if (maybePackageJsonContents.isNone() &&
-                                filename.equalsIgnoreCase("package.json")) {
-                                maybePackageJsonContents = entry.readData()
-                            }
-                            // 检查 README
-                            else if (maybeReadme.isNone() && isReadmeFilename(filename)) {
-                                let readmeContents = entry.readData()
-                                if (readmeContents.isSome()) {
-                                    maybeReadme = ReadmeInfo(filename, readmeContents.getOrThrow())
-                                }
-                            }
-                        }
-                    } else {
-                        let sizeStr = formatSize(size)
-                        Output.pretty("<b><cyan>packed<r> ${sizeStr} ${pathname}\n")
-                    }
-                }
-
-                archive.deinit()
-
-                // 验证 package.json 存在
-                let packageJsonContents = maybePackageJsonContents
-                if (packageJsonContents.isNone()) {
-                    logger.error("failed to find package.json in tarball '${path}'")
-                    return None
-                }
-
-                // 解析 package.json
-                // 严格翻译自: JSON.parsePackageJSONUTF8(source, manager.log, ctx.allocator)
-                let parser = JsonParser()
-                let json = parser.parse(packageJsonContents.getOrThrow())
-                if (json.isNone()) {
-                    logger.error("failed to parse tarball package.json")
-                    return None
-                }
-                let root = json.getOrThrow()
-
-                // 检查 private 字段
-                let isPrivate = JsonHelper.getBool(root, "private") ?? false
-                if (isPrivate) {
-                    logger.error("attempted to publish a private package")
-                    return None
-                }
-
-                // 检查 publishConfig
-                let publishConfig = JsonHelper.getField(root, "publishConfig")
-                match (publishConfig) {
-                    case Some(JsonValue.Object(pc)) =>
-                        if (opts.tag == "latest") {
-                            let tagVal = JsonHelper.getString(pc, "tag")
-                            match (tagVal) {
-                                case Some(t) => opts.tag = t
-                                case None => ()
-                            }
-                        }
-                        if (opts.access.isEmpty()) {
-                            let accessVal = JsonHelper.getString(pc, "access")
-                            match (accessVal) {
-                                case Some(a) =>
-                                    let accessLevel = AccessLevel.fromStr(a)
-                                    if (accessLevel.isNone()) {
-                                        Output.errGeneric("invalid `access` value: '${a}'")
-                                        return None
-                                    }
-                                    opts.access = Some(a)
-                                case None => ()
-                            }
-                        }
-                    case _ => ()
-                }
-
-                // 获取 name
-                let name = JsonHelper.getString(root, "name")
-                if (name.isNone() || name.getOrThrow().isEmpty()) {
-                    logger.error("missing `name` string in package.json")
-                    return None
-                }
-
-                // 检查作用域包的 access 约束
-                let isScoped = Dependency.isScopedPackageName(name.getOrThrow())
-                if (opts.access == "restricted" && !isScoped) {
-                    logger.error("unable to restrict access to unscoped package")
-                    return None
-                }
-
-                // 获取 version
-                let version = JsonHelper.getString(root, "version")
-                if (version.isNone() || version.getOrThrow().isEmpty()) {
-                    logger.error("missing `version` string in package.json")
-                    return None
-                }
-
-                config.packageName = name.getOrThrow()
-                config.packageVersion = version.getOrThrow()
-
-                // 计算校验和
-                config.shasum = SHA1.hexDigest(bytes)
-                config.integrity = SHA512.base64Digest(bytes)
-
-                // 构建规范化包信息
-                config.normalizedPkgInfo = normalizedPackage(
-                    pm, config.packageName, config.packageVersion,
-                    root, packageJsonContents.getOrThrow(), config.shasum, config.integrity,
-                    maybeReadme
-                )
-
-                // 打印摘要
-                PackCommand.printSummary(
-                    totalFiles, unpackedSize, bytes.size,
-                    config.shasum, config.integrity, pm.options.logLevel
-                )
-
-                return config
-            case None =>
-                logger.error("Failed to read tarball: '${path}'")
-                return None
+        if (tarballBytes.isErr()) {
+            logger.error("Failed to read tarball: '${path}'")
+            return None
         }
+        let bytes = tarballBytes.result().getOrThrow()
+        let config = PublishConfig()
+        config.absTarballPath = absPath
+        config.tarballBytes = bytes
+
+        var totalFiles: Int64 = 0
+        var unpackedSize: Int64 = 0
+        var maybePackageJsonContents: ?String = None
+        var maybeReadme: ?ReadmeInfo = None
+
+        // 从 tarball 中遍历并提取 package.json 和 README
+        // 严格翻译自: Archive.Iterator 遍历
+        Output.print("\n")
+
+        let entriesOpt = Archiver.extractRawEntries(bytes)
+        if (entriesOpt.isNone()) {
+            logger.error("Failed to read tarball entries: '${path}'")
+            return None
+        }
+        let entries = entriesOpt.getOrThrow()
+        for (entry in entries) {
+            let pathname = entry.pathname
+            let size = entry.size
+
+            unpackedSize += Math.max(0, size)
+            if (entry.entryType == EntryType.File) {
+                totalFiles += 1
+            }
+
+            // 去掉 "package/" 前缀 (npm 期望所有路径都有 package/ 前缀)
+            let slashIdx = pathname.indexOfAny("/\\")
+            if (slashIdx >= 0) {
+                let stripped = pathname.substring(slashIdx + 1)
+                if (stripped.size == 0) {
+                    continue
+                }
+
+                let sizeStr = formatSize(size)
+                Output.pretty("<b><cyan>packed<r> ${sizeStr} ${stripped}\n")
+
+                if (entry.entryType != EntryType.File) {
+                    continue
+                }
+
+                // 检查是否是根目录文件 (package.json, README 等)
+                if (!stripped.containsAny("/\\")) {
+                    let filename = stripped
+
+                    // 检查 package.json
+                    if (maybePackageJsonContents.isNone() &&
+                        filename.equalsIgnoreCase("package.json")) {
+                        maybePackageJsonContents = String.fromUtf8(entry.data)
+                    }
+                    // 检查 README
+                    else if (maybeReadme.isNone() && isReadmeFilename(filename)) {
+                        let readmeContents = String.fromUtf8(entry.data)
+                        if (readmeContents.size > 0) {
+                            maybeReadme = ReadmeInfo(filename, readmeContents)
+                        }
+                    }
+                }
+            } else {
+                let sizeStr = formatSize(size)
+                Output.pretty("<b><cyan>packed<r> ${sizeStr} ${pathname}\n")
+            }
+        }
+
+        // 验证 package.json 存在
+        let packageJsonContents = maybePackageJsonContents
+        if (packageJsonContents.isNone()) {
+            logger.error("failed to find package.json in tarball '${path}'")
+            return None
+        }
+
+        // 解析 package.json
+        // 严格翻译自: JSON.parsePackageJSONUTF8(source, manager.log, ctx.allocator)
+        let parser = JsonParser()
+        let json = parser.parse(packageJsonContents.getOrThrow())
+        if (json.isNone()) {
+            logger.error("failed to parse tarball package.json")
+            return None
+        }
+        let root = json.getOrThrow()
+
+        // 检查 private 字段
+        let isPrivate = JsonHelper.getBool(root, "private") ?? false
+        if (isPrivate) {
+            logger.error("attempted to publish a private package")
+            return None
+        }
+
+        // 检查 publishConfig
+        let publishConfig = JsonHelper.getObject(root, "publishConfig")
+        if (publishConfig.isSome()) {
+            let pc = publishConfig.getOrThrow()
+            if (opts.tag == "latest") {
+                let tagVal = JsonHelper.getString(pc, "tag")
+                if (tagVal.isSome()) {
+                    opts.tag = tagVal.getOrThrow()
+                }
+            }
+            if (opts.access.isNone()) {
+                let accessVal = JsonHelper.getString(pc, "access")
+                if (accessVal.isSome()) {
+                    let a = accessVal.getOrThrow()
+                    let accessLevel = AccessLevel.fromStr(a)
+                    if (accessLevel.isNone()) {
+                        Output.errGeneric("invalid `access` value: '${a}'")
+                        return None
+                    }
+                    opts.access = Some(a)
+                }
+            }
+        }
+
+        // 获取 name
+        let name = JsonHelper.getString(root, "name")
+        if (name.isNone() || name.getOrThrow().isEmpty()) {
+            logger.error("missing `name` string in package.json")
+            return None
+        }
+
+        // 检查作用域包的 access 约束
+        let isScoped = DependencyInfo.isScopedPackageName(name.getOrThrow())
+        if (opts.access.isSome() && opts.access.getOrThrow() == "restricted" && !isScoped) {
+            logger.error("unable to restrict access to unscoped package")
+            return None
+        }
+
+        // 获取 version
+        let version = JsonHelper.getString(root, "version")
+        if (version.isNone() || version.getOrThrow().isEmpty()) {
+            logger.error("missing `version` string in package.json")
+            return None
+        }
+
+        config.packageName = name.getOrThrow()
+        config.packageVersion = version.getOrThrow()
+
+        // 计算校验和
+        config.shasum = Sha1.hashHex(bytes)
+        config.integrity = "sha512-" + Base64Encode.encode(Sha512.hash(bytes))
+
+        // 构建规范化包信息
+        config.normalizedPkgInfo = normalizedPackage(
+            pm, config.packageName, config.packageVersion,
+            root, packageJsonContents.getOrThrow(), config.shasum, config.integrity,
+            maybeReadme
+        )
+
+        // 打印摘要
+        var summaryStats = PackStats()
+        summaryStats.totalFiles = totalFiles
+        summaryStats.unpackedSize = unpackedSize
+        summaryStats.packedSize = bytes.size
+        summaryStats.printSummary(Some(config.shasum), Some(config.integrity), pm.options.logLevel == InstallLogLevel.Silent.toInt64())
+
+        return config
     }
 
     /// 从 workspace 准备发布上下文
@@ -467,131 +459,124 @@ public class PublishCommand {
     private func fromWorkspace(pm: PackageManager): ?PublishConfig {
         // 读取 package.json 验证
         let pkgContent = BaoFile.readAllText("package.json")
-        match (pkgContent) {
-            case Some(content) =>
-                let parser = JsonParser()
-                let json = parser.parse(content)
-                match (json) {
-                    case Some(root) =>
-                        // 验证必要字段
-                        let name = JsonHelper.getString(root, "name")
-                        match (name) {
-                            case Some(n) =>
-                                if (n.isEmpty()) {
-                                    logger.error("package.json `name` field must be a non-empty string")
-                                    return None
-                                }
-                            case None =>
-                                logger.error("missing `name` string in package.json")
-                                return None
-                        }
-
-                        let version = JsonHelper.getString(root, "version")
-                        match (version) {
-                            case Some(v) =>
-                                if (v.isEmpty()) {
-                                    logger.error("package.json `version` field must be a non-empty string")
-                                    return None
-                                }
-                            case None =>
-                                logger.error("missing `version` string in package.json")
-                                return None
-                        }
-
-                        // 检查 private 字段
-                        let isPrivate = JsonHelper.getBool(root, "private") ?? false
-                        if (isPrivate) {
-                            logger.error("Attempted to publish a private package")
-                            return None
-                        }
-
-                        // 检查 publishConfig.access
-                        let publishConfig = JsonHelper.getField(root, "publishConfig")
-                        match (publishConfig) {
-                            case Some(JsonValue.Object(pc)) =>
-                                let accessVal = JsonHelper.getString(pc, "access")
-                                match (accessVal) {
-                                    case Some(a) =>
-                                        let accessLevel = AccessLevel.fromStr(a)
-                                        if (accessLevel.isNone()) {
-                                            Output.errGeneric("invalid `access` value: '${a}'")
-                                            return None
-                                        }
-                                    case None => ()
-                                }
-                            case _ => ()
-                        }
-
-                        // 检查作用域包的 access 约束
-                        let isScoped = Dependency.isScopedPackageName(name.getOrThrow())
-                        if (pm.options.publishConfig.access == Some(AccessLevel.restricted) && !isScoped) {
-                            logger.error("unable to restrict access to unscoped package")
-                            return None
-                        }
-
-                        // 查找 README
-                        let absWorkspacePath = Path.withoutTrailingSlash(
-                            pm.originalPackageJsonPath.substring(
-                                0, pm.originalPackageJsonPath.size - "package.json".size
-                            )
-                        )
-                        let maybeReadme = findWorkspaceReadme(absWorkspacePath)
-
-                        // 使用 PackCommand 打包
-                        let packCmd = PackCommand()
-                        let packArgs = ArrayList<String>()
-                        if (pm.options.logLevel == LogLevel.silent) {
-                            packArgs.append("--silent")
-                        }
-                        let packResult = packCmd.executeWithResult(packArgs)
-
-                        // 生成 tarball 路径
-                        let pkgName = name ?? ""
-                        let pkgVersion = version ?? ""
-                        let tarballPath = PackCommand.fmtTarballFilename(pkgName, pkgVersion)
-
-                        // 读取 tarball
-                        let config = PublishConfig()
-                        config.packageName = pkgName
-                        config.packageVersion = pkgVersion
-                        config.absTarballPath = Path.resolve(tarballPath)
-                        config.usesWorkspaces = true
-
-                        let tarballBytes = BaoFile.readAllBytes(config.absTarballPath)
-                        match (tarballBytes) {
-                            case Some(bytes) =>
-                                config.tarballBytes = bytes
-                                config.shasum = SHA1.hexDigest(bytes)
-                                config.integrity = SHA512.base64Digest(bytes)
-
-                                // 构建规范化包信息
-                                config.normalizedPkgInfo = normalizedPackage(
-                                    pm, config.packageName, config.packageVersion,
-                                    root, content, config.shasum, config.integrity,
-                                    maybeReadme
-                                )
-
-                                // 提取生命周期脚本
-                                match (JsonHelper.getObject(root, "scripts")) {
-                                    case Some(scripts) =>
-                                        config.publishScript = scripts.get("publish")
-                                        config.postpublishScript = scripts.get("postpublish")
-                                    case None => ()
-                                }
-
-                                return config
-                            case None =>
-                                logger.error("Failed to read created tarball")
-                                return None
-                        }
-                    case None =>
-                        logger.error("Failed to parse package.json")
-                        return None
-                }
-            case None =>
-                logger.error("No package.json found from: '${FileSystem.instance.topLevelDir}'")
-                return None
+        if (pkgContent.isErr()) {
+            logger.error("No package.json found from current directory")
+            return None
         }
+        let content = pkgContent.result().getOrThrow()
+
+        let parser = JsonParser()
+        let json = parser.parse(content)
+        if (json.isNone()) {
+            logger.error("Failed to parse package.json")
+            return None
+        }
+        let root = json.getOrThrow()
+
+        // 验证必要字段
+        let name = JsonHelper.getString(root, "name")
+        if (name.isNone()) {
+            logger.error("missing `name` string in package.json")
+            return None
+        }
+        if (name.getOrThrow().isEmpty()) {
+            logger.error("package.json `name` field must be a non-empty string")
+            return None
+        }
+
+        let version = JsonHelper.getString(root, "version")
+        if (version.isNone()) {
+            logger.error("missing `version` string in package.json")
+            return None
+        }
+        if (version.getOrThrow().isEmpty()) {
+            logger.error("package.json `version` field must be a non-empty string")
+            return None
+        }
+
+        // 检查 private 字段
+        let isPrivate = JsonHelper.getBool(root, "private") ?? false
+        if (isPrivate) {
+            logger.error("Attempted to publish a private package")
+            return None
+        }
+
+        // 检查 publishConfig.access
+        let publishConfig = JsonHelper.getObject(root, "publishConfig")
+        if (publishConfig.isSome()) {
+            let pc = publishConfig.getOrThrow()
+            let accessVal = JsonHelper.getString(pc, "access")
+            if (accessVal.isSome()) {
+                let a = accessVal.getOrThrow()
+                let accessLevel = AccessLevel.fromStr(a)
+                if (accessLevel.isNone()) {
+                    Output.errGeneric("invalid `access` value: '${a}'")
+                    return None
+                }
+            }
+        }
+
+        // 检查作用域包的 access 约束
+        let isScoped = DependencyInfo.isScopedPackageName(name.getOrThrow())
+        if (pm.options.publishConfig.access.isSome() && pm.options.publishConfig.access.getOrThrow() == "restricted" && !isScoped) {
+            logger.error("unable to restrict access to unscoped package")
+            return None
+        }
+
+        // 查找 README
+        let absWorkspacePath = withoutTrailingSlash(
+            pm.originalPackageJsonPath.substring(
+                0, pm.originalPackageJsonPath.size - "package.json".size
+            )
+        )
+        let maybeReadme = findWorkspaceReadme(absWorkspacePath)
+
+        // 使用 PackCommand 打包
+        let packCmd = PackCommand()
+        let packArgs = ArrayList<String>()
+        if (pm.options.logLevel == InstallLogLevel.Silent.toInt64()) {
+            packArgs.append("--silent")
+        }
+        let packResult = packCmd.execute(packArgs)
+
+        // 生成 tarball 路径
+        let pkgName = name.getOrThrow()
+        let pkgVersion = version.getOrThrow()
+        let tarballPath = PackFormatter.fmtTarballFilename(pkgName, pkgVersion)
+
+        // 读取 tarball
+        let config = PublishConfig()
+        config.packageName = pkgName
+        config.packageVersion = pkgVersion
+        config.absTarballPath = Path.resolve(tarballPath)
+        config.usesWorkspaces = true
+
+        let tarballBytes = BaoFile.readAllBytes(config.absTarballPath)
+        if (tarballBytes.isErr()) {
+            logger.error("Failed to read created tarball")
+            return None
+        }
+        let bytes = tarballBytes.result().getOrThrow()
+        config.tarballBytes = bytes
+        config.shasum = Sha1.hashHex(bytes)
+        config.integrity = "sha512-" + Base64Encode.encode(Sha512.hash(bytes))
+
+        // 构建规范化包信息
+        config.normalizedPkgInfo = normalizedPackage(
+            pm, config.packageName, config.packageVersion,
+            root, content, config.shasum, config.integrity,
+            maybeReadme
+        )
+
+        // 提取生命周期脚本
+        let scripts = JsonHelper.getObject(root, "scripts")
+        if (scripts.isSome()) {
+            let scriptsObj = scripts.getOrThrow()
+            config.publishScript = JsonHelper.getString(scriptsObj, "publish")
+            config.postpublishScript = JsonHelper.getString(scriptsObj, "postpublish")
+        }
+
+        return config
     }
 
     /// 规范化包信息
@@ -610,7 +595,7 @@ public class PublishCommand {
         readme: ?ReadmeInfo
     ): String {
         let registry = pm.scopeForPackageName(packageName)
-        let versionWithoutBuildTag = Dependency.withoutBuildTag(packageVersion)
+        let versionWithoutBuildTag = DependencyInfo.withoutBuildTag(packageVersion)
 
         let integrityFmt = "sha512-${integrity}"
 
@@ -618,39 +603,38 @@ public class PublishCommand {
         // 严格翻译自: json.setString(allocator, "_id", ...)
         JsonHelper.setString(json, "_id", "${packageName}@${versionWithoutBuildTag}")
         JsonHelper.setString(json, "_integrity", integrityFmt)
-        JsonHelper.setString(json, "_nodeVersion", Environment.reportedNodejsVersion)
+        JsonHelper.setString(json, "_nodeVersion", "18.0.0")
         JsonHelper.setString(json, "_npmVersion", "10.8.3")
         JsonHelper.setString(json, "integrity", integrityFmt)
         JsonHelper.setString(json, "shasum", shasum)
 
         // 嵌入 README 内容到 registry 负载
         // 严格翻译自: if (readme) |r| { if (json.get("readme") == null) ... }
-        match (readme) {
-            case Some(r) =>
-                if (JsonHelper.getField(json, "readme").isNone()) {
-                    JsonHelper.setString(json, "readme", r.contents)
-                    JsonHelper.setString(json, "readmeFilename", r.filename)
-                }
-            case None => ()
+        if (readme.isSome()) {
+            let r = readme.getOrThrow()
+            if (JsonHelper.getField(json, "readme").isNone()) {
+                JsonHelper.setString(json, "readme", r.contents)
+                JsonHelper.setString(json, "readmeFilename", r.filename)
+            }
         }
 
         // 构建 dist 对象
         // 严格翻译自: dist_props[0] = integrity, dist_props[1] = shasum, dist_props[2] = tarball
         let registryUrl = registry.url
-        let registryHost = registryUrl
-            .removePrefix("https://")
-            .removePrefix("http://")
-            .removeTrailingSlash("/")
-        let tarballFilename = PackCommand.fmtTarballFilename(packageName, packageVersion)
+        var registryHost = registryUrl
+        if (registryHost.startsWith("https://")) { registryHost = registryHost.substring(8) }
+        if (registryHost.startsWith("http://")) { registryHost = registryHost.substring(7) }
+        registryHost = registryHost.removeTrailingSlash("/")
+        let tarballFilename = PackFormatter.fmtTarballFilename(packageName, packageVersion)
         let tarballUrl = "http://${registryHost}/${packageName}/-/${tarballFilename}"
 
-        // TODO: 需要实现 JsonValue.newObjectFrom 或使用 JsonHelper
-        // let distObj = JsonValue.newObjectFrom(
-        //     "integrity" -> integrityFmt,
-        //     "shasum" -> shasum,
-        //     "tarball" -> tarballUrl
-        // )
-        // JsonHelper.setField(json, "dist", distObj)
+        // 构建 dist 对象
+        let distObj = JsonValue.newObjectFrom([
+            ("integrity", integrityFmt),
+            ("shasum", shasum),
+            ("tarball", tarballUrl)
+        ])
+        JsonHelper.setField(json, "dist", distObj)
 
         // 规范化 bin 字段
         // 严格翻译自: normalizeBin()
@@ -669,10 +653,14 @@ public class PublishCommand {
     //   3. 如果没有 bin 但有 directories.bin → 扫描目录生成 bin 对象
     private func normalizeBin(pm: PackageManager, json: JsonValue, packageName: String): Unit {
         let binField = JsonHelper.getField(json, "bin")
-        match (binField) {
-            case Some(JsonValue.Str(binStr)) =>
+        if (binField.isSome()) {
+            let binValue = binField.getOrThrow()
+            let binStr = binValue.asString()
+            if (binStr.isSome()) {
                 // bin 是字符串 → 转换为 { packageName: normalizedBinPath }
-                let normalized = Path.normalize(binStr).removePrefix("./")
+                var normalizedStr = Path.normalize(binStr.getOrThrow())
+                if (normalizedStr.startsWith("./")) { normalizedStr = normalizedStr.substring(2) }
+                let normalized = normalizedStr
                 let workspaceRoot = pm.originalPackageJsonPath.substring(
                     0, pm.originalPackageJsonPath.size - "package.json".size
                 )
@@ -680,18 +668,22 @@ public class PublishCommand {
                     Output.warn("bin '${normalized}' does not exist")
                 }
 
-                // TODO: 需要实现 JsonValue.newObjectFrom
-                // let binObj = JsonValue.newObjectFrom(packageName -> normalized)
-                // JsonHelper.setField(json, "bin", binObj)
-            case Some(JsonValue.Object(binObj)) =>
+                let binObj = JsonValue.newObjectFrom([(packageName, normalized)])
+                JsonHelper.setField(json, "bin", binObj)
+            } else if (binValue.isObject()) {
                 // bin 是对象 → 验证每个条目
+                let binObj = binValue
                 let keys = binObj.keys()
                 let newBinObj = JsonValue.newObject()
                 for (key in keys) {
                     let value = binObj.getString(key)
                     if (value.isSome() && !value.getOrThrow().isEmpty()) {
-                        let normalizedKey = Path.normalize(key).removePrefix("./")
-                        let normalizedValue = Path.normalize(value.getOrThrow()).removePrefix("./")
+                        var normalizedKeyStr = Path.normalize(key)
+                        if (normalizedKeyStr.startsWith("./")) { normalizedKeyStr = normalizedKeyStr.substring(2) }
+                        let normalizedKey = normalizedKeyStr
+                        var normalizedValueStr = Path.normalize(value.getOrThrow())
+                        if (normalizedValueStr.startsWith("./")) { normalizedValueStr = normalizedValueStr.substring(2) }
+                        let normalizedValue = normalizedValueStr
 
                         let workspaceRoot = pm.originalPackageJsonPath.substring(
                             0, pm.originalPackageJsonPath.size - "package.json".size
@@ -699,47 +691,47 @@ public class PublishCommand {
                         if (!Sys.existsAt(workspaceRoot, normalizedValue)) {
                             Output.warn("bin '${normalizedValue}' does not exist")
                         }
-                        newBinObj.setString(normalizedKey, normalizedValue)
+                        JsonHelper.setString(newBinObj, normalizedKey, normalizedValue)
                     }
                 }
                 JsonHelper.setField(json, "bin", newBinObj)
-            case _ =>
-                // 没有直接的 bin → 检查 directories.bin
-                let directories = JsonHelper.getField(json, "directories")
-                match (directories) {
-                    case Some(JsonValue.Object(dirs)) =>
-                        let binDir = JsonHelper.getString(dirs, "bin")
-                        if (binDir.isSome() && !binDir.getOrThrow().isEmpty()) {
-                            let normalizedBinDir = Path.normalize(binDir.getOrThrow())
-                                .removePrefix("./")
-                                .removeTrailingSlash("/")
+            }
+        } else {
+            // 没有直接的 bin → 检查 directories.bin
+            let directories = JsonHelper.getObject(json, "directories")
+            if (directories.isSome()) {
+                let dirs = directories.getOrThrow()
+                let binDir = JsonHelper.getString(dirs, "bin")
+                if (binDir.isSome() && !binDir.getOrThrow().isEmpty()) {
+                    var normalizedBinDirStr = Path.normalize(binDir.getOrThrow())
+                    if (normalizedBinDirStr.startsWith("./")) { normalizedBinDirStr = normalizedBinDirStr.substring(2) }
+                    let normalizedBinDir = normalizedBinDirStr.removeTrailingSlash("/")
 
-                            if (normalizedBinDir.size > 0) {
-                                let workspaceRoot = pm.originalPackageJsonPath.substring(
-                                    0, pm.originalPackageJsonPath.size - "package.json".size
-                                )
+                    if (normalizedBinDir.size > 0) {
+                        let workspaceRoot = pm.originalPackageJsonPath.substring(
+                            0, pm.originalPackageJsonPath.size - "package.json".size
+                        )
 
-                                if (!Sys.existsAt(workspaceRoot, normalizedBinDir)) {
-                                    Output.warn("bin directory '${normalizedBinDir}' does not exist")
-                                } else {
-                                    // 扫描 bin 目录生成 bin 对象
-                                    let binObj = JsonValue.newObject()
-                                    let entries = Sys.readDirRecursive(
-                                        workspaceRoot, normalizedBinDir
-                                    )
-                                    for (entry in entries) {
-                                        let name = Path.basenamePosix(entry)
-                                        if (name.size == 0 || name == "." || name == "..") {
-                                            continue
-                                        }
-                                        binObj.setString(name, entry)
-                                    }
-                                    JsonHelper.setField(json, "bin", binObj)
+                        if (!Sys.existsAt(workspaceRoot, normalizedBinDir)) {
+                            Output.warn("bin directory '${normalizedBinDir}' does not exist")
+                        } else {
+                            // 扫描 bin 目录生成 bin 对象
+                            let binObj = JsonValue.newObject()
+                            let entries = Sys.readDirRecursive(
+                                Path.join([workspaceRoot, normalizedBinDir]), Int64(10)
+                            )
+                            for (entry in entries) {
+                                let name = Path.basename(entry)
+                                if (name.size == 0 || name == "." || name == "..") {
+                                    continue
                                 }
+                                JsonHelper.setString(binObj, name, entry)
                             }
+                            JsonHelper.setField(json, "bin", binObj)
                         }
-                    case _ => ()
+                    }
                 }
+            }
         }
     }
 
@@ -750,19 +742,19 @@ public class PublishCommand {
     public static func findWorkspaceReadme(absWorkspacePath: String): ?ReadmeInfo {
         let entries = Sys.readDir(absWorkspacePath)
         for (entry in entries) {
-            if (entry.isDirectory) {
+            if (BaoFile.isDirectory(Path.join([absWorkspacePath, entry]))) {
                 continue
             }
-            let name = entry.name
+            let name = entry
             if (!isReadmeFilename(name)) {
                 continue
             }
 
-            let contents = BaoFile.readAllText(Path.join(absWorkspacePath, name))
-            match (contents) {
-                case Some(c) => return ReadmeInfo(name, c)
-                case None => return None
+            let contents = BaoFile.readAllText(Path.join([absWorkspacePath, name]))
+            if (contents.isOk()) {
+                return ReadmeInfo(name, contents.result().getOrThrow())
             }
+            return None
         }
         return None
     }
@@ -773,7 +765,7 @@ public class PublishCommand {
         let README = "README"
         if (name.size < README.size) { return false }
         if (!name.substring(0, README.size).equalsIgnoreCase(README)) { return false }
-        return name.size == README.size || name[README.size] == '.'
+        return name.size == README.size || name[README.size] == UInt8(46)
     }
 
     /// 检查是否是 README (OS 路径字符)
@@ -807,7 +799,7 @@ public class PublishCommand {
         } else {
             "legacy"
         }
-        let ciName = CI.detectCIName()
+        let ciName: ?String = None  // CI detection stub
 
         headers.put("accept", "*/*")
         headers.put("accept-encoding", "gzip,deflate")
@@ -823,9 +815,8 @@ public class PublishCommand {
         }
 
         headers.put("npm-auth-type", npmAuthType)
-        match (maybeOtp) {
-            case Some(otp) => headers.put("npm-otp", otp)
-            case None => ()
+        if (maybeOtp.isSome()) {
+            headers.put("npm-otp", maybeOtp.getOrThrow())
         }
         headers.put("npm-command", "publish")
 
@@ -836,9 +827,8 @@ public class PublishCommand {
         headers.put("Connection", "keep-alive")
         headers.put("Host", registry.host)
 
-        match (maybeJsonLen) {
-            case Some(jsonLen) => headers.put("Content-Length", "${jsonLen}")
-            case None => ()
+        if (maybeJsonLen.isSome()) {
+            headers.put("Content-Length", "${maybeJsonLen.getOrThrow()}")
         }
 
         return headers
@@ -855,8 +845,8 @@ public class PublishCommand {
     //   5. 构建 _attachments: { filename: { content_type, data (base64), length } }
     private static func constructPublishRequestBody(config: PublishConfig, opts: PublishOptions): String {
         let tag = if (opts.tag.size > 0) { opts.tag } else { "latest" }
-        let encodedTarballLen = Base64.encodeLen(config.tarballBytes.size)
-        let versionWithoutBuildTag = Dependency.withoutBuildTag(config.packageVersion)
+        let encodedTarballLen = Base64Encode.encodeLen(config.tarballBytes.size)
+        let versionWithoutBuildTag = DependencyInfo.withoutBuildTag(config.packageVersion)
 
         var buf = StringBuilder()
 
@@ -870,17 +860,18 @@ public class PublishCommand {
         buf.append(",\"versions\":{\"${versionWithoutBuildTag}\":${config.normalizedPkgInfo}}")
 
         // access
-        match (opts.access) {
-            case Some(a) => buf.append(",\"access\":\"${a}\"")
-            case None => buf.append(",\"access\":null")
+        if (opts.access.isSome()) {
+            buf.append(",\"access\":\"${opts.access.getOrThrow()}\"")
+        } else {
+            buf.append(",\"access\":null")
         }
 
         // _attachments
-        let tarballFilename = PackCommand.fmtTarballFilename(config.packageName, config.packageVersion)
+        let tarballFilename = PackFormatter.fmtTarballFilename(config.packageName, config.packageVersion)
         buf.append(",\"_attachments\":{\"${tarballFilename}\":{\"content_type\":\"application/octet-stream\",\"data\":\"")
 
         // Base64 编码 tarball
-        let base64Data = Base64.encode(config.tarballBytes)
+        let base64Data = Base64Encode.encode(config.tarballBytes)
         buf.append(base64Data)
 
         buf.append("\",\"length\":${config.tarballBytes.size}}}}")
@@ -919,7 +910,7 @@ public class PublishCommand {
         // 步骤3: 检查 tolerate-republish
         // 严格翻译自: if (tolerate_republish) { checkPackageVersionExists(...) }
         if (opts.tolerateRepublish) {
-            let versionWithoutBuildTag = Dependency.withoutBuildTag(config.packageVersion)
+            let versionWithoutBuildTag = DependencyInfo.withoutBuildTag(config.packageVersion)
             let exists = checkPackageVersionExists(
                 config.packageName, versionWithoutBuildTag, registry
             )
@@ -959,99 +950,86 @@ public class PublishCommand {
         )
 
         let client = HttpClient()
-        let response = client.put(publishUrl, publishReqBody, publishHeaders)
+        let resp = client.put(publishUrl, publishReqBody, publishHeaders)
 
-        match (response) {
-            case Some(resp) =>
-                // 处理错误状态码
-                if (resp.status >= 400) {
-                    // 检查是否需要 OTP
-                    // 严格翻译自: publish_command.zig → prompt_for_otp
-                    let promptForOtp = if (resp.status == 401) {
-                        let wwwAuthenticate = resp.headers.get("www-authenticate")
-                        match (wwwAuthenticate) {
-                            case Some(authHeader) =>
-                                let parts = authHeader.split(",")
-                                for (part in parts) {
-                                    let trimmed = part.trim()
-                                    if (trimmed.equalsIgnoreCase("ipaddress")) {
-                                        Output.errGeneric("login is not allowed from your IP address")
-                                        return 1
-                                    } else if (trimmed.equalsIgnoreCase("otp")) {
-                                        return true
-                                    }
-                                }
-                                Output.errGeneric("unable to authenticate, need: ${authHeader}")
-                                return 1
-                            case None =>
-                                // 检查响应体中是否包含 "one-time pass"
-                                if (resp.text().contains("one-time pass")) {
-                                    return true
-                                }
-                                return false
+        // 处理错误状态码
+        if (resp.status >= 400) {
+            // 检查是否需要 OTP
+            // 严格翻译自: publish_command.zig → prompt_for_otp
+            var promptForOtp = false
+            if (resp.status == 401) {
+                let wwwAuthenticate = resp.headers.get("www-authenticate")
+                if (wwwAuthenticate.isSome()) {
+                    let authHeader = wwwAuthenticate.getOrThrow()
+                    let parts = authHeader.split(",")
+                    var foundOtp = false
+                    for (part in parts) {
+                        let trimmed = part.trim()
+                        if (trimmed.equalsIgnoreCase("ipaddress")) {
+                            Output.errGeneric("login is not allowed from your IP address")
+                            return 1
+                        } else if (trimmed.equalsIgnoreCase("otp")) {
+                            foundOtp = true
                         }
-                    } else {
-                        false
                     }
-
-                    if (!promptForOtp) {
-                        // 通用错误
-                        Output.errGeneric("Publish failed with status ${resp.status}")
-                        if (!resp.text().isEmpty()) {
-                            Output.errGeneric("Response: ${resp.text()}")
-                        }
+                    if (foundOtp) {
+                        promptForOtp = true
+                    } else {
+                        Output.errGeneric("unable to authenticate, need: ${authHeader}")
                         return 1
                     }
-
-                    // 检查 npm-notice 头
-                    let notice = resp.headers.getIfOtherIsAbsent("npm-notice", "x-local-cache")
-                    match (notice) {
-                        case Some(n) =>
-                            Output.printError("\n")
-                            Output.note("${n}")
-                            Output.flush()
-                        case None => ()
-                    }
-
-                    // 获取 OTP (交互式或 web 认证)
-                    let otp = getOTP(config, registry, resp, directoryPublish)
-
-                    // 使用 OTP 重试
-                    let otpHeaders = constructPublishHeaders(
-                        registry, publishReqBody.size, otp,
-                        config.usesWorkspaces, opts.authType
-                    )
-
-                    let otpResponse = client.put(publishUrl, publishReqBody, otpHeaders)
-                    match (otpResponse) {
-                        case Some(otpResp) =>
-                            if (otpResp.status >= 400) {
-                                Output.errGeneric("Publish failed with status ${otpResp.status}")
-                                if (!otpResp.text().isEmpty()) {
-                                    Output.errGeneric("Response: ${otpResp.text()}")
-                                }
-                                return 1
-                            }
-                            // 成功 → 检查 npm-notice
-                            let otpNotice = otpResp.headers.getIfOtherIsAbsent("npm-notice", "x-local-cache")
-                            match (otpNotice) {
-                                case Some(n) =>
-                                    Output.printError("\n")
-                                    Output.note("${n}")
-                                    Output.flush()
-                                case None => ()
-                            }
-                        case None =>
-                            Output.errGeneric("Failed to send publish request with OTP")
-                            return 1
+                } else {
+                    // 检查响应体中是否包含 "one-time pass"
+                    if (resp.text().contains("one-time pass")) {
+                        promptForOtp = true
                     }
                 }
-                // 成功 (200, 201 等)
-                return 0
-            case None =>
-                Output.errGeneric("Failed to connect to registry ${registry.url}")
+            }
+
+            if (!promptForOtp) {
+                // 通用错误
+                Output.errGeneric("Publish failed with status ${resp.status}")
+                if (!resp.text().isEmpty()) {
+                    Output.errGeneric("Response: ${resp.text()}")
+                }
                 return 1
+            }
+
+            // 检查 npm-notice 头
+            let notice = resp.headers.getIfOtherIsAbsent("npm-notice", "x-local-cache")
+            if (notice.isSome()) {
+                Output.prettyError("\n")
+                Output.note("${notice.getOrThrow()}")
+                Output.flush()
+            }
+
+            // 获取 OTP (交互式或 web 认证)
+            let otp = getOTP(config, registry, resp, directoryPublish)
+
+            // 使用 OTP 重试
+            let otpHeaders = constructPublishHeaders(
+                registry, publishReqBody.size, otp,
+                config.usesWorkspaces, opts.authType
+            )
+
+            let otpResp = client.put(publishUrl, publishReqBody, otpHeaders)
+            if (otpResp.status >= 400) {
+                Output.errGeneric("Publish failed with status ${otpResp.status}")
+                if (!otpResp.text().isEmpty()) {
+                    Output.errGeneric("Response: ${otpResp.text()}")
+                }
+                return 1
+            }
+            // 成功 → 检查 npm-notice
+            let otpNotice = otpResp.headers.getIfOtherIsAbsent("npm-notice", "x-local-cache")
+            if (otpNotice.isSome()) {
+                Output.prettyError("\n")
+                Output.note("${otpNotice.getOrThrow()}")
+                Output.flush()
+            }
         }
+        // 成功 (200, 201 等)
+        return 0
     }
 
     /// 获取 OTP (一次性密码)
@@ -1065,110 +1043,101 @@ public class PublishCommand {
     //   5. 如果没有 web 认证 → 回退到经典 OTP 提示
     private func getOTP(
         config: PublishConfig, registry: RegistryInfo,
-        response: HttpResponse, directoryPublish: Bool
+        response: Response, directoryPublish: Bool
     ): String {
         // 尝试解析响应 JSON
         let parser = JsonParser()
         let json = parser.parse(response.text())
 
-        match (json) {
-            case Some(root) =>
-                let authUrlStr = JsonHelper.getString(root, "authUrl")
-                let doneUrlStr = JsonHelper.getString(root, "doneUrl")
+        if (json.isSome()) {
+            let root = json.getOrThrow()
+            let authUrlStr = JsonHelper.getString(root, "authUrl")
+            let doneUrlStr = JsonHelper.getString(root, "doneUrl")
 
-                if (authUrlStr.isSome() && doneUrlStr.isSome()) {
-                    // Web 认证流程
-                    // 严格翻译自: Output.prettyln("Authenticate your account at...")
-                    Output.prettyLn("\nAuthenticate your account at (press <b>ENTER<r> to open in browser):\n")
+            if (authUrlStr.isSome() && doneUrlStr.isSome()) {
+                // Web 认证流程
+                // 严格翻译自: Output.prettyln("Authenticate your account at...")
+                Output.prettyLn("\nAuthenticate your account at (press <b>ENTER<r> to open in browser):\n")
 
-                    // 绘制认证 URL 框
-                    let horizontal = if (Output.enableAnsiColorsStdout) { "─" } else { "-" }
-                    let vertical = if (Output.enableAnsiColorsStdout) { "│" } else { "|" }
-                    let topLeft = if (Output.enableAnsiColorsStdout) { "┌" } else { "|" }
-                    let topRight = if (Output.enableAnsiColorsStdout) { "┐" } else { "|" }
-                    let bottomLeft = if (Output.enableAnsiColorsStdout) { "└" } else { "|" }
-                    let bottomRight = if (Output.enableAnsiColorsStdout) { "┘" } else { "|" }
+                // 绘制认证 URL 框
+                let horizontal = if (Output.enableAnsiColorsStdout) { "─" } else { "-" }
+                let vertical = if (Output.enableAnsiColorsStdout) { "│" } else { "|" }
+                let topLeft = if (Output.enableAnsiColorsStdout) { "┌" } else { "|" }
+                let topRight = if (Output.enableAnsiColorsStdout) { "┐" } else { "|" }
+                let bottomLeft = if (Output.enableAnsiColorsStdout) { "└" } else { "|" }
+                let bottomRight = if (Output.enableAnsiColorsStdout) { "┘" } else { "|" }
 
-                    let padding = 1
-                    let width = padding * 2 + authUrlStr.getOrThrow().size
+                let padding = 1
+                let width = padding * 2 + authUrlStr.getOrThrow().size
 
-                    Output.print("${topLeft}")
-                    for (_ in 0..width) { Output.print("${horizontal}") }
-                    Output.println("${topRight}")
+                Output.print("${topLeft}")
+                for (_ in 0..width) { Output.print("${horizontal}") }
+                Output.println("${topRight}")
 
-                    Output.print("${vertical}")
-                    for (_ in 0..padding) { Output.print(" ") }
-                    Output.pretty("<b>${authUrlStr.getOrThrow()}<r>")
-                    for (_ in 0..padding) { Output.print(" ") }
-                    Output.println("${vertical}")
+                Output.print("${vertical}")
+                for (_ in 0..padding) { Output.print(" ") }
+                Output.pretty("<b>${authUrlStr.getOrThrow()}<r>")
+                for (_ in 0..padding) { Output.print(" ") }
+                Output.println("${vertical}")
 
-                    Output.print("${bottomLeft}")
-                    for (_ in 0..width) { Output.print("${horizontal}") }
-                    Output.println("${bottomRight}")
-                    Output.flush()
+                Output.print("${bottomLeft}")
+                for (_ in 0..width) { Output.print("${horizontal}") }
+                Output.println("${bottomRight}")
+                Output.flush()
 
-                    // 在另一个线程等待用户按 Enter 后打开浏览器
-                    // 严格翻译自: std.Thread.spawn(.{}, pressEnterToOpenInBrowser, .{auth_url_str})
-                    let authUrl = authUrlStr.getOrThrow()
-                    let doneUrl = doneUrlStr.getOrThrow()
+                // 在另一个线程等待用户按 Enter 后打开浏览器
+                let authUrl = authUrlStr.getOrThrow()
+                let doneUrl = doneUrlStr.getOrThrow()
 
-                    // 启动后台线程等待 Enter 键并打开浏览器
-                    Thread.start {
-                        pressEnterToOpenInBrowser(authUrl)
-                    }
+                // 启动后台线程等待 Enter 键并打开浏览器
+                spawn {
+                    pressEnterToOpenInBrowser(authUrl)
+                }
 
-                    // 构建认证请求头
-                    let authHeaders = constructPublishHeaders(
-                        registry, None, None,
-                        config.usesWorkspaces, None
-                    )
+                // 构建认证请求头
+                let authHeaders = constructPublishHeaders(
+                    registry, None, None,
+                    config.usesWorkspaces, None
+                )
 
-                    // 轮询 doneUrl
-                    let client = HttpClient()
-                    while (true) {
-                        let pollResponse = client.get(doneUrl, authHeaders)
-                        match (pollResponse) {
-                            case Some(pollResp) =>
-                                match (pollResp.status) {
-                                    case 202 =>
-                                        // 重试
-                                        // 严格翻译自: retry-after 头解析
-                                        let retryAfter = pollResp.headers.get("retry-after")
-                                        let nanoseconds = match (retryAfter) {
-                                            case Some(retryStr) =>
-                                                let seconds = try { Int64.parse(retryStr.trim()) } catch (_: Exception) { 0 }
-                                                if (seconds > 0) { seconds * 1000 * 1000 * 1000 } else { 500 * 1000 * 1000 }
-                                            case None => 500 * 1000 * 1000
-                                        }
-                                        Thread.sleepNanos(nanoseconds)
-                                        continue
-                                    case 200 =>
-                                        // 登录成功
-                                        let doneJson = parser.parse(pollResp.text())
-                                        match (doneJson) {
-                                            case Some(doneRoot) =>
-                                                let token = JsonHelper.getString(doneRoot, "token")
-                                                if (token.isSome()) {
-                                                    return token.getOrThrow()
-                                                }
-                                                Output.errGeneric("WebLogin: missing `token` field in response json")
-                                                return ""
-                                            case None =>
-                                                Output.errGeneric("WebLogin: failed to parse response json")
-                                                return ""
-                                        }
-                                    case _ =>
-                                        // 错误
-                                        Output.errGeneric("OTP polling failed with status ${pollResp.status}")
-                                        return ""
-                                }
-                            case None =>
-                                Output.errGeneric("Failed to poll done URL")
+                // 轮询 doneUrl
+                let client = HttpClient()
+                while (true) {
+                    let pollResp = client.get(doneUrl, authHeaders)
+                    match (pollResp.status) {
+                        case 202 =>
+                            // 重试
+                            let retryAfter = pollResp.headers.get("retry-after")
+                            let nanoseconds = if (retryAfter.isSome()) {
+                                let retryStr = retryAfter.getOrThrow()
+                                let seconds = Int64.parse(retryStr.trim())
+                                if (seconds > 0) { seconds * 1000 * 1000 * 1000 } else { 500 * 1000 * 1000 }
+                            } else {
+                                500 * 1000 * 1000
+                            }
+                            Sys.sleep(nanoseconds)
+                            continue
+                        case 200 =>
+                            // 登录成功
+                            let doneJson = parser.parse(pollResp.text())
+                            if (doneJson.isNone()) {
+                                Output.errGeneric("WebLogin: failed to parse response json")
                                 return ""
-                        }
+                            }
+                            let doneRoot = doneJson.getOrThrow()
+                            let token = JsonHelper.getString(doneRoot, "token")
+                            if (token.isSome()) {
+                                return token.getOrThrow()
+                            }
+                            Output.errGeneric("WebLogin: missing `token` field in response json")
+                            return ""
+                        case _ =>
+                            // 错误
+                            Output.errGeneric("OTP polling failed with status ${pollResp.status}")
+                            return ""
                     }
                 }
-            case None => ()
+            }
         }
 
         // 经典 OTP 提示
@@ -1206,25 +1175,21 @@ public class PublishCommand {
         }
 
         let client = HttpClient()
-        let response = client.get(url, headers)
-        match (response) {
-            case Some(resp) =>
-                if (resp.status != 200) { return false }
+        let resp = client.get(url, headers)
+        if (resp.status != 200) { return false }
 
-                let parser = JsonParser()
-                let json = parser.parse(resp.text())
-                match (json) {
-                    case Some(root) =>
-                        // 检查 versions[version]
-                        match (JsonHelper.getField(root, "versions")) {
-                            case Some(JsonValue.Object(versions)) =>
-                                return versions.contains(version)
-                            case _ => return false
-                        }
-                    case None => return false
-                }
-            case None => return false
+        let parser = JsonParser()
+        let json = parser.parse(resp.text())
+        if (json.isNone()) { return false }
+        let root = json.getOrThrow()
+
+        // 检查 versions[version]
+        let versions = JsonHelper.getObject(root, "versions")
+        if (versions.isSome()) {
+            let verObj = versions.getOrThrow()
+            return verObj.get(version).isSome()
         }
+        return false
     }
 
     /// 获取 registry 信息
@@ -1236,7 +1201,7 @@ public class PublishCommand {
         info.url = scope.url
         info.token = scope.token
         info.auth = scope.auth
-        info.host = scope.url.host
+        info.host = scope.url.host()
         return info
     }
 
@@ -1364,8 +1329,8 @@ extend HttpClient {
         opts.method = "PUT"
         opts.body = Some(body)
         let h = Headers()
-        for ((k, v) in headers) {
-            h.put(k, v)
+        for (k in headers.keys()) {
+            h.set(k, headers.get(k) ?? "")
         }
         opts.headers = h
         return HttpClient.fetch(url, opts)
@@ -1376,8 +1341,8 @@ extend HttpClient {
         let opts = FetchOptions()
         opts.method = "GET"
         let h = Headers()
-        for ((k, v) in headers) {
-            h.put(k, v)
+        for (k in headers.keys()) {
+            h.set(k, headers.get(k) ?? "")
         }
         opts.headers = h
         return HttpClient.fetch(url, opts)

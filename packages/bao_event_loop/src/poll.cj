@@ -82,6 +82,99 @@ public class KqueueEvents {
 }
 
 // ============================================================================
+// Eventfd 常量和 Waker - Linux 跨线程唤醒
+// 对应 Bun: LinuxWaker / KEventWaker
+//   eventfd 用于从工作线程唤醒阻塞在 epoll_wait 的事件循环线程
+// ============================================================================
+
+/// eventfd 标志
+public class EventFdFlags {
+    /// 非阻塞模式
+    public static let EFD_NONBLOCK: Int32 = 0o4000
+    /// 执行时关闭
+    public static let EFD_CLOEXEC: Int32 = 0o2000000
+}
+
+/// 跨平台轮询唤醒器
+/// Linux: 使用 eventfd
+/// macOS: 使用 pipe (简化实现，kqueue 的 EVFILT_USER 更优)
+public class PollWaker {
+    /// 唤醒文件描述符
+    private var wakeFd: Int32 = -1
+    /// 读取端 (pipe 模式)
+    private var readFd: Int32 = -1
+
+    /// 创建唤醒器
+    public static func create(): PollWaker {
+        let w = PollWaker()
+        unsafe {
+            let fd = bao_eventfd(0, EventFdFlags.EFD_NONBLOCK | EventFdFlags.EFD_CLOEXEC)
+            if (fd >= 0) {
+                w.wakeFd = fd
+                w.readFd = fd  // eventfd 同一 fd 读写
+                return w
+            }
+            // fallback: 使用 pipe
+            let pipeBuf = malloc(UIntNative(8))
+            let pipePtr = CPointer<Int32>(pipeBuf)
+            let pipeResult = pipe(pipePtr)
+            if (pipeResult == 0) {
+                w.readFd = pipePtr.read()
+                w.wakeFd = (pipePtr + 1).read()
+            }
+            free(pipeBuf)
+        }
+        return w
+    }
+
+    /// 获取读取端 FD (用于注册到 epoll/kqueue)
+    public func getReadFd(): Int32 {
+        readFd
+    }
+
+    /// 唤醒事件循环 (从工作线程调用)
+    public func wake(): Unit {
+        if (wakeFd < 0) {
+            return
+        }
+        unsafe {
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            ptr.write(UInt8(1))
+            let _ = write(wakeFd, ptr, 8)
+            free(buf)
+        }
+    }
+
+    /// 消费唤醒事件 (从事件循环线程调用)
+    public func consume(): Unit {
+        if (readFd < 0) {
+            return
+        }
+        unsafe {
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            let _ = read(readFd, ptr, 8)
+            free(buf)
+        }
+    }
+
+    /// 关闭唤醒器
+    public func deinit(): Unit {
+        if (wakeFd >= 0) {
+            unsafe { let _ = close(wakeFd) }
+            wakeFd = -1
+        }
+        if (readFd >= 0 && readFd != wakeFd) {
+            unsafe { let _ = close(readFd) }
+            readFd = -1
+        }
+    }
+}
+
+@C foreign func pipe(fds: CPointer<Int32>): Int32
+
+// ============================================================================
 // PollEvent - 轮询事件
 // 严格翻译自: epoll_event / kevent 结构
 //   epoll: struct epoll_event { uint32_t events; epoll_data_t data }
@@ -196,7 +289,7 @@ public class Poller {
     /// 注册的文件描述符映射 (fd -> PollEntry)
     private var registered: HashMap<Int64, PollEntry>
     /// 是否活跃
-    private var active: Bool
+    public var active: Bool
     /// 平台: "epoll" 或 "kqueue"
     private var platform: String
 
@@ -491,6 +584,12 @@ public class Poller {
         return events
     }
 
+    /// 非阻塞轮询 (timeout=0)
+    /// 立即返回已就绪的事件，不阻塞
+    public func pollImmediate(): ArrayList<PollEvent> {
+        return poll(0)
+    }
+
     /// 关闭轮询器
     public func close(): Unit {
         if (active) {
@@ -539,36 +638,38 @@ public class Poller {
 // C FFI 外部函数声明
 // ============================================================================
 
-foreign func epoll_create1(flags: Int32): Int32
-foreign func epoll_ctl(epfd: Int32, op: Int32, fd: Int32, event: CPointer<UInt8>): Int32
-foreign func epoll_wait(epfd: Int32, events: CPointer<UInt8>, maxevents: Int32, timeout: Int32): Int32
-foreign func kqueue(): Int32
-foreign func kevent(kq: Int32, changelist: CPointer<UInt8>, nchanges: Int32,
+@C foreign func epoll_create1(flags: Int32): Int32
+@C foreign func epoll_ctl(epfd: Int32, op: Int32, fd: Int32, event: CPointer<UInt8>): Int32
+@C foreign func epoll_wait(epfd: Int32, events: CPointer<UInt8>, maxevents: Int32, timeout: Int32): Int32
+@C foreign func kqueue(): Int32
+@C foreign func kevent(kq: Int32, changelist: CPointer<UInt8>, nchanges: Int32,
     eventlist: CPointer<UInt8>, nevents: Int32, timeout: CPointer<UInt8>): Int32
-foreign func close(fd: Int32): Int32
-foreign func write(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
-foreign func unsafeMallocEpollEvent(): CPointer<UInt8>
-foreign func setEpollEventEvents(ptr: CPointer<UInt8>, events: UInt32): Unit
-foreign func setEpollEventData(ptr: CPointer<UInt8>, data: UInt64): Unit
-foreign func getEpollEventEvents(ptr: CPointer<UInt8>): UInt32
-foreign func getEpollEventData(ptr: CPointer<UInt8>): UInt64
-foreign func getEpollEventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
-foreign func unsafeMallocEpollEvents(count: Int64): CPointer<UInt8>
-foreign func unsafeFreeEpollEvent(ptr: CPointer<UInt8>): Unit
-foreign func unsafeFreeEpollEvents(ptr: CPointer<UInt8>, count: Int64): Unit
-foreign func unsafeMallocKevent(): CPointer<UInt8>
-foreign func unsafeMallocKevents(count: Int64): CPointer<UInt8>
-foreign func unsafeFreeKevent(ptr: CPointer<UInt8>): Unit
-foreign func unsafeFreeKevents(ptr: CPointer<UInt8>, count: Int64): Unit
-foreign func keventSet(ptr: CPointer<UInt8>, ident: UInt64, filter: Int16,
+@C foreign func close(fd: Int32): Int32
+@C foreign func write(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
+@C foreign func read(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
+@C foreign func unsafeMallocEpollEvent(): CPointer<UInt8>
+@C foreign func setEpollEventEvents(ptr: CPointer<UInt8>, events: UInt32): Unit
+@C foreign func setEpollEventData(ptr: CPointer<UInt8>, data: UInt64): Unit
+@C foreign func getEpollEventEvents(ptr: CPointer<UInt8>): UInt32
+@C foreign func getEpollEventData(ptr: CPointer<UInt8>): UInt64
+@C foreign func getEpollEventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
+@C foreign func unsafeMallocEpollEvents(count: Int64): CPointer<UInt8>
+@C foreign func unsafeFreeEpollEvent(ptr: CPointer<UInt8>): Unit
+@C foreign func unsafeFreeEpollEvents(ptr: CPointer<UInt8>, count: Int64): Unit
+@C foreign func unsafeMallocKevent(): CPointer<UInt8>
+@C foreign func unsafeMallocKevents(count: Int64): CPointer<UInt8>
+@C foreign func unsafeFreeKevent(ptr: CPointer<UInt8>): Unit
+@C foreign func unsafeFreeKevents(ptr: CPointer<UInt8>, count: Int64): Unit
+@C foreign func keventSet(ptr: CPointer<UInt8>, ident: UInt64, filter: Int16,
     flags: UInt16, fflags: UInt32, data: Int64, udata: CPointer<Unit>): Unit
-foreign func getKeventIdent(ptr: CPointer<UInt8>): UInt64
-foreign func getKeventFilter(ptr: CPointer<UInt8>): Int16
-foreign func getKeventFlags(ptr: CPointer<UInt8>): UInt16
-foreign func getKeventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
-foreign func unsafeMallocTimespec(): CPointer<UInt8>
-foreign func setTimespec(ptr: CPointer<UInt8>, sec: Int64, nsec: Int64): Unit
-foreign func unsafeFreeTimespec(ptr: CPointer<UInt8>): Unit
+@C foreign func getKeventIdent(ptr: CPointer<UInt8>): UInt64
+@C foreign func getKeventFilter(ptr: CPointer<UInt8>): Int16
+@C foreign func getKeventFlags(ptr: CPointer<UInt8>): UInt16
+@C foreign func getKeventAt(buffer: CPointer<UInt8>, index: Int64): CPointer<UInt8>
+@C foreign func unsafeMallocTimespec(): CPointer<UInt8>
+@C foreign func setTimespec(ptr: CPointer<UInt8>, sec: Int64, nsec: Int64): Unit
+@C foreign func unsafeFreeTimespec(ptr: CPointer<UInt8>): Unit
+@C foreign func bao_eventfd(initval: UInt32, flags: Int32): Int32
 
 /// 轮询条目 - 内部使用
 class PollEntry {
@@ -954,7 +1055,3 @@ foreign func inotify_init1(flags: Int32): Int32
 foreign func inotify_add_watch(fd: Int32, pathname: CPointer<Int8>, mask: UInt32): Int32
 @C
 foreign func inotify_rm_watch(fd: Int32, wd: Int32): Int32
-@C
-foreign func malloc(size: UIntNative): CPointer<Unit>
-@C
-foreign func free(ptr: CPointer<Unit>): Unit

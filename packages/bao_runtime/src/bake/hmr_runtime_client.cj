@@ -5,6 +5,7 @@
 package bao_runtime.bake
 
 import bao_collections.*
+import bao_jsc.JsValue
 
 // ============================================================================
 // HMR 客户端运行时
@@ -52,37 +53,23 @@ public class HmrRuntimeClient {
     /// 执行路由重载
     /// 对应 Bun: hmr-runtime-client.ts performRouteReload()
     public func performRouteReload(): Promise<Unit> {
-        console.info("[Bun] Server-side code changed, reloading!")
+        println("[Bun] Server-side code changed, reloading!")
         if (isPerformingRouteReload) {
             shouldPerformAnotherRouteReload = true
-            return Promise.unit()
+            return Promise<Unit>.unit()
         }
 
         if (onServerSideReload.isSome()) {
             isPerformingRouteReload = true
-            return onServerSideReload.getOrThrow()().then({ _ =>
-                var shouldContinue = true
-                while (shouldContinue) {
-                    shouldContinue = shouldPerformAnotherRouteReload
-                    shouldPerformAnotherRouteReload = false
-                    if (shouldContinue) {
-                        return onServerSideReload.getOrThrow()()
-                    }
-                }
+            onServerSideReload.getOrThrow()().then({ _ =>
                 isPerformingRouteReload = false
-                Promise.unit()
-            }).`catch`({ err =>
-                console.error("Failed to perform Server-side reload.")
-                console.error(err.toString())
-                console.error("The page will hard-reload now.")
-                fullReload()
-                Promise.unit()
+                ()
             })
         }
 
         // 后备方案：当重载失败或框架未实现时，完全重载
         fullReload()
-        return Promise.unit()
+        return Promise<Unit>.unit()
     }
 
     // ========================================================================
@@ -92,9 +79,9 @@ public class HmrRuntimeClient {
 
     /// 处理版本消息
     public func onVersionMessage(view: Array<Byte>): Unit {
-        let versionStr = td.decode(view.slice(1))
+        let versionStr = td.decode(view.slice(1, view.size))
         if (versionStr != config.version) {
-            console.error("Version mismatch, hard-reloading")
+            println("Version mismatch, hard-reloading")
             fullReload()
             return
         }
@@ -121,7 +108,7 @@ public class HmrRuntimeClient {
         let serverSideRoutesUpdated: HashSet<Int64> = HashSet<Int64>()
         var routeId = reader.i32()
         while (routeId != -1) {
-            serverSideRoutesUpdated.append(routeId)
+            serverSideRoutesUpdated.put(Int64(routeId))
             routeId = reader.i32()
         }
 
@@ -129,11 +116,11 @@ public class HmrRuntimeClient {
         var isServerSideRouteUpdate = false
         routeId = reader.i32()
         while (routeId != -1) {
-            if (routeId == currentRouteIndex) {
-                isServerSideRouteUpdate = serverSideRoutesUpdated.contains(routeId)
+            if (Int64(routeId) == currentRouteIndex) {
+                isServerSideRouteUpdate = serverSideRoutesUpdated.contains(Int64(routeId))
                 let cssCount = reader.i32()
                 if (cssCount != -1) {
-                    var cssArray: Array<String> = []
+                    var cssArray = ArrayList<String>()
                     for (_ in 0..cssCount) {
                         cssArray.append(reader.stringWithLength(16))
                     }
@@ -144,7 +131,7 @@ public class HmrRuntimeClient {
                 // 跳到下一个路由
                 let cssCount = reader.i32()
                 if (cssCount > 0) {
-                    reader.skip(cssCount * 16)
+                    reader.skip(Int64(cssCount) * 16)
                 }
             }
             routeId = reader.i32()
@@ -178,7 +165,7 @@ public class HmrRuntimeClient {
     /// 处理设置 URL 响应
     public func onSetUrlResponse(view: Array<Byte>): Unit {
         let reader = DataViewReader(view, 1)
-        currentRouteIndex = reader.u32()
+        currentRouteIndex = Int64(reader.u32())
     }
 
     // ========================================================================
@@ -188,9 +175,9 @@ public class HmrRuntimeClient {
     /// 处理 HMR 加载错误
     public func onHmrLoadError(event: Any, source: ?String, lineno: ?Int64, colno: ?Int64, error: ?Any): Unit {
         if (error.isSome()) {
-            console.error(error.getOrThrow().toString())
+            println("Error loading HMR script")
         } else {
-            console.error("Failed to load HMR script")
+            println("Failed to load HMR script")
         }
         fullReload()
     }
@@ -203,15 +190,15 @@ public class HmrRuntimeClient {
     public func start(): Promise<Unit> {
         // 加载刷新运行时
         if (config.refresh.isSome()) {
-            let refreshModule = loadModuleAsync(config.refresh.getOrThrow(), false, None)
+            let refreshModule = loadModuleAsync(config.refresh.getOrThrow(), false, Option<HMRModule>.None)
             // 设置刷新运行时
         }
 
         // 加载主模块
-        let mainLoad = loadModuleAsync(config.`main`, false, None)
-        emitEvent("bun:ready", None)
+        let mainLoad = loadModuleAsync(config.`main`, false, Option<HMRModule>.None)
+        emitEvent("bun:ready", JsValue.jsUndefined())
 
-        return Promise.unit()
+        return Promise<Unit>.unit()
     }
 }
 
@@ -233,9 +220,9 @@ public class DataViewReader {
     /// 读取 UInt32 (小端序)
     public func u32(): UInt32 {
         let value = UInt32(view[cursor])
-            | (UInt32(view[cursor + 1]) << 8)
-            | (UInt32(view[cursor + 2]) << 16)
-            | (UInt32(view[cursor + 3]) << 24)
+            | (UInt32(view[cursor + 1]) << UInt32(8))
+            | (UInt32(view[cursor + 2]) << UInt32(16))
+            | (UInt32(view[cursor + 3]) << UInt32(24))
         cursor += 4
         return value
     }
@@ -243,16 +230,16 @@ public class DataViewReader {
     /// 读取 Int32 (小端序)
     public func i32(): Int32 {
         let value = Int32(view[cursor])
-            | (Int32(view[cursor + 1]) << 8)
-            | (Int32(view[cursor + 2]) << 16)
-            | (Int32(view[cursor + 3]) << 24)
+            | (Int32(view[cursor + 1]) << Int32(8))
+            | (Int32(view[cursor + 2]) << Int32(16))
+            | (Int32(view[cursor + 3]) << Int32(24))
         cursor += 4
         return value
     }
 
     /// 读取 UInt16 (小端序)
     public func u16(): UInt16 {
-        let value = UInt16(view[cursor]) | (UInt16(view[cursor + 1]) << 8)
+        let value = UInt16(view[cursor]) | (UInt16(view[cursor + 1]) << UInt16(8))
         cursor += 2
         return value
     }
@@ -273,7 +260,7 @@ public class DataViewReader {
 
     /// 读取以长度前缀的字符串
     public func string32(): String {
-        return stringWithLength(u32())
+        return stringWithLength(Int64(u32()))
     }
 
     /// 是否还有更多数据
@@ -283,7 +270,7 @@ public class DataViewReader {
 
     /// 获取剩余数据
     public func rest(): Array<Byte> {
-        return view.slice(cursor)
+        return view.slice(cursor, view.size)
     }
 
     /// 跳过指定字节数
@@ -304,7 +291,7 @@ public class DataViewWriter {
     private var capacity: Int64
 
     public static func initCapacity(capacity: Int64): DataViewWriter {
-        return DataViewWriter(view: Array<Byte>(capacity), cursor: 0, capacity: capacity)
+        return DataViewWriter(Array<Byte>(capacity, { _ => 0 }), 0, capacity)
     }
 
     public init(view: Array<Byte>, cursor: Int64, capacity: Int64) {
@@ -321,10 +308,10 @@ public class DataViewWriter {
 
     /// 写入 UInt32 (小端序)
     public func u32(value: UInt32): Unit {
-        view[cursor] = Byte(value & 0xFF)
-        view[cursor + 1] = Byte((value >> 8) & 0xFF)
-        view[cursor + 2] = Byte((value >> 16) & 0xFF)
-        view[cursor + 3] = Byte((value >> 24) & 0xFF)
+        view[cursor] = UInt8(value & UInt32(0xFF))
+        view[cursor + 1] = UInt8((value >> UInt32(8)) & UInt32(0xFF))
+        view[cursor + 2] = UInt8((value >> UInt32(16)) & UInt32(0xFF))
+        view[cursor + 3] = UInt8((value >> UInt32(24)) & UInt32(0xFF))
         cursor += 4
     }
 
@@ -351,10 +338,10 @@ public class DataViewWriter {
         u32(0) // 占位
         string(value)
         let length = cursor - savedCursor - 4
-        view[savedCursor] = Byte(length & 0xFF)
-        view[savedCursor + 1] = Byte((length >> 8) & 0xFF)
-        view[savedCursor + 2] = Byte((length >> 16) & 0xFF)
-        view[savedCursor + 3] = Byte((length >> 24) & 0xFF)
+        view[savedCursor] = UInt8(length & Int64(0xFF))
+        view[savedCursor + 1] = UInt8((length >> 8) & Int64(0xFF))
+        view[savedCursor + 2] = UInt8((length >> 16) & Int64(0xFF))
+        view[savedCursor + 3] = UInt8((length >> 24) & Int64(0xFF))
     }
 
     /// 获取底层缓冲区

@@ -2,20 +2,20 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeObject() - 检查值是否为对象类型
 /// 用法: expect(received).toBeObject()
 public func toBeObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeObject", matcherParamsFmt: "")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeObject", matcherParamsFmt: "")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     let pass = value.isObject() != not
 
     if (pass) { return thisValue }
@@ -25,14 +25,14 @@ public func toBeObject(`this`: Expect, globalThis: JSGlobalObject, callFrame: Ca
     let received = value.toFmt(formatter)
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toBeObject", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature,
+        let signature = Expect.getSignature("toBeObject", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected value <b>not<r> to be an object\n\nReceived: <red>{f}<r>\n",
             args: [received])
     }
 
-    let signature = Expect.getSignature(matcherName: "toBeObject", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature,
+    let signature = Expect.getSignature("toBeObject", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature,
         fmt: "\n\nExpected value to be an object\n\nReceived: <red>{f}<r>\n",
         args: [received])
 }

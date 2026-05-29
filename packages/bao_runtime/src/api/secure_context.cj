@@ -21,27 +21,28 @@ public class SecureContext {
     // ========================================================================
 
     /// 构造函数 - 从 JS 参数创建
-    public static func constructor(global: JsGlobalObject, callframe: JsCallFrame): SecureContext {
+    public static func constructor(global!: JsGlobalObject, callframe!: JsCallFrame): SecureContext {
         let args = callframe.arguments()
-        let opts = args.len > 0 ? args[0] : JsValue.jsUndefined()
+        let opts = if (args.size > 0) { args[0] } else { JsValue.jsUndefined() }
 
-        var config = try SSLConfig.fromJS(global.bunVM(), global, opts) ?? SSLConfig.zero
-        defer config.deinit()
-
-        return try create(global, config)
+        var config = SSLConfig.fromJS(global.bunVM() , global, opts) ?? SSLConfig.zero
+        let result = create(global, config)
+        config.deinit()
+        return result
     }
 
     /// 创建 SecureContext
-    public static func create(global: JsGlobalObject, config: SSLConfig): SecureContext {
+    public static func create(global!: JsGlobalObject, config!: SSLConfig): SecureContext {
         let ctxOpts = config.asUSockets()
         return createWithDigest(global, ctxOpts, ctxOpts.digest())
     }
 
     /// 使用摘要创建
-    public static func createWithDigest(global: JsGlobalObject, ctxOpts: BunSocketContextOptions, d: Array<UInt8>): SecureContext {
-        var err: CreateBunSocketError = .none
-        let ctx = global.bunVM().rareData().sslCtxCache().getOrCreateDigest(ctxOpts, d, &err) ?? {
-            if (err == none) {
+    public static func createWithDigest(global!: JsGlobalObject, ctxOpts!: BunSocketContextOptions, d!: Array<UInt8>): SecureContext {
+        var err: CreateBunSocketError = CreateBunSocketError.none
+        let ctxOpt = global.bunVM().rareData().sslCtxCache().getOrCreateDigest(ctxOpts, d, err)
+        if (ctxOpt.isNone()) {
+            if (err == CreateBunSocketError.none) {
                 let code = BoringSSL.ERR_get_error()
                 if (code != 0) {
                     global.throwValue(BoringSSL.ERR_toJS(global, code))
@@ -53,6 +54,7 @@ public class SecureContext {
             global.throwValue(err.toJS(global))
             return SecureContext()
         }
+        let ctx = ctxOpt.get()
 
         return SecureContext(
             ctx: ctx,
@@ -67,13 +69,11 @@ public class SecureContext {
 
     /// intern - tls.createSecureContext(opts) 入口
     /// 通过配置摘要进行 WeakGCMap 记忆化
-    public static func intern(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public static func intern(global!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let args = callframe.arguments()
-        let opts = args.len > 0 ? args[0] : JsValue.jsUndefined()
+        let opts = if (args.size > 0) { args[0] } else { JsValue.jsUndefined() }
 
-        var config = try SSLConfig.fromJS(global.bunVM(), global, opts) ?? SSLConfig.zero
-        defer config.deinit()
-
+        var config = SSLConfig.fromJS(global.bunVM() , global, opts) ?? SSLConfig.zero
         let ctxOpts = config.asUSockets()
         let d = ctxOpts.digest()
         let key = d.readUInt64LE(0)
@@ -89,12 +89,13 @@ public class SecureContext {
         }
 
         // 创建新的
-        let sc = try createWithDigest(global, ctxOpts, d)
+        let sc = createWithDigest(global, ctxOpts, d)
         let jsValue = sc.toJS(global)
 
         // 缓存
         Bun__SecureContextCache__set(global, key, jsValue, d)
 
+        config.deinit()
         return jsValue
     }
 
@@ -108,10 +109,10 @@ public class SecureContext {
     }
 
     @Extern
-    public static func Bun__SecureContextCache__get(global: JsGlobalObject, key: UInt64): JsValue
+    public static func Bun__SecureContextCache__get(global!: JsGlobalObject, key!: UInt64): JsValue
 
     @Extern
-    public static func Bun__SecureContextCache__set(global: JsGlobalObject, key: UInt64, value: JsValue, digest: Array<UInt8>): Unit
+    public static func Bun__SecureContextCache__set(global!: JsGlobalObject, key!: UInt64, value!: JsValue, digest!: Array<UInt8>): Unit
 
     public static let sslCtxBaseCost: Int = 50000
 }

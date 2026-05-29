@@ -3,6 +3,8 @@
 
 package bao_runtime.bake
 
+import bao_collections.*
+
 /// 共享的 TextDecoder 实例
 /// 对应 Bun: shared.ts export const td = new TextDecoder()
 public class TextDecoder {
@@ -16,13 +18,14 @@ public class TextDecoder {
 
     /// 将缓冲区的子范围解码为字符串
     public func decode(buffer: Array<Byte>, start: Int64, length: Int64): String {
-        var sub = Array<Byte>()
+        var sub = ArrayList<Byte>()
         var i = start
         while (i < start + length && i < buffer.size) {
             sub.append(buffer[Int64(i)])
             i++
         }
-        return String.fromUtf8(sub)
+        let subFrozen = sub
+        return String.fromUtf8(Array<Byte>(subFrozen.size, { idx => subFrozen[idx] }))
     }
 }
 
@@ -46,7 +49,7 @@ public class TextEncoder {
             dest[i] = bytes[i]
             i++
         }
-        return EncodeResult(read: Int64(str.size), written: Int64(i))
+        return EncodeResult(Int64(str.size), Int64(i))
     }
 }
 

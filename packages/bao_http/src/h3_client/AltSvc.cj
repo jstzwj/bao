@@ -4,6 +4,12 @@ package bao_http.h3_client
 
 import bao_core.*
 import bao_collections.*
+import bao_sys.*
+
+@C
+foreign func malloc(size: UIntNative): CPointer<Unit>
+@C
+foreign func free(ptr: CPointer<Unit>): Unit
 
 // ============================================================================
 // H3AltSvc - Alt-Svc (RFC 7838) 头部处理
@@ -286,9 +292,22 @@ public class H3AltSvc {
     }
 
     /// 获取当前时间 (秒)
+    /// 对应 Bun: std.time.timestamp()
     private static func currentTimeSeconds(): Int64 {
-        // 桩: 实际应使用系统时钟
-        return 0
+        // 使用系统时钟获取 Unix 时间戳
+        unsafe {
+            let ts = malloc(UIntNative(16))
+            let tsPtr = CPointer<Int64>(ts)
+            // clock_gettime(CLOCK_REALTIME, &ts)
+            let rc = clock_gettime(0, ts)
+            if (rc == 0) {
+                let seconds = tsPtr.read()
+                free(ts)
+                return seconds
+            }
+            free(ts)
+            return 0
+        }
     }
 
     private static func sliceString(s: String, start: Int64, end: Int64): String {
@@ -311,6 +330,9 @@ public class H3AltSvc {
         return Some(value)
     }
 }
+
+@C
+foreign func clock_gettime(clkId: Int32, tp: CPointer<Unit>): Int32
 
 /// Alt-Svc 解析结果
 public enum AltSvcResult {

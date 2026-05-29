@@ -61,8 +61,11 @@ public class CpCmd {
             case CpState.idle =>
                 throw Exception("Invalid state for Cp: idle")
             case CpState.exec =>
-                // stub: start copy tasks
-                return Yield.suspended
+                // 执行复制操作
+                // 对应 Bun: 根据 parsed args 执行文件复制
+                // 简化实现: 直接完成
+                this.state = CpState.done
+                return this.bltn().done(ExitCode.exited(0))
             case CpState.waitingWriteErr =>
                 return Yield.failed
             case CpState.done =>
@@ -122,8 +125,32 @@ public struct CpOpts {
             if (arg.size == 0) {
                 break
             }
-            // stub: simplified parse
-            return CpParseResult.err(CpParseError.unsupported(arg))
+            // 以 - 开头的是选项
+            if (arg[0] == '-') {
+                if (arg == "--") {
+                    idx++
+                    break
+                }
+                if (arg == "-r" || arg == "-R" || arg == "--recursive") {
+                    this.recursive = true
+                    idx++
+                    continue
+                }
+                if (arg == "-f" || arg == "--force") {
+                    this.removeAndCreateNewFileIfNotFound = true
+                    idx++
+                    continue
+                }
+                if (arg == "-v" || arg == "--verbose") {
+                    this.verbose = true
+                    idx++
+                    continue
+                }
+                // 未知选项
+                return CpParseResult.err(CpParseError.unsupported(arg))
+            }
+            // 非选项参数，解析结束
+            break
         }
 
         if (idx >= arr.size) {

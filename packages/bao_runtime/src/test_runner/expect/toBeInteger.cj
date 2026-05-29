@@ -2,20 +2,20 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toBeInteger() - 检查值是否为整数
 /// 用法: expect(received).toBeInteger()
 public func toBeInteger(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeInteger", matcherParamsFmt: "")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeInteger", matcherParamsFmt: "")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     let pass = value.isAnyInt() != not
 
     if (pass) { return JsValue.jsUndefined() }
@@ -25,10 +25,10 @@ public func toBeInteger(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     let received = value.toFmt(formatter)
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toBeInteger", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+        let signature = Expect.getSignature("toBeInteger", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
     }
 
-    let signature = Expect.getSignature(matcherName: "toBeInteger", args: "", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
+    let signature = Expect.getSignature("toBeInteger", "", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: "\n\nReceived: <red>{f}<r>\n", args: [received])
 }

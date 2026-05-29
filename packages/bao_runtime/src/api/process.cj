@@ -114,53 +114,52 @@ public let processPollOneShot: Bool = true // 非 Linux 平台为 true
 public class ProcessExitHandler {
     var ptr: TaggedPointer = TaggedPointer.Null
 
-    public static func initFunc(`this`: ProcessExitHandler, ptr: Any) {
+    public static func initFunc(`this`: ProcessExitHandler, ptr!: Any) {
         `this`.ptr = TaggedPointer(ptr)
     }
 
-    public func call(process: Process, status: Status, rusage: Rusage) {
+    public func call(process!: Process, status!: Status, rusage!: Rusage) {
         if (this.ptr.isNull()) { return }
 
         match (this.ptr.tag()) {
             case "Subprocess" =>
-                let subprocess = this.ptr.as(Subprocess)
+                let subprocess = this.ptr.`as`(Subprocess)
                 subprocess.onProcessExit(process, status, rusage)
             case "LifecycleScriptSubprocess" =>
-                let subprocess = this.ptr.as(LifecycleScriptSubprocess)
+                let subprocess = this.ptr.`as`(LifecycleScriptSubprocess)
                 subprocess.onProcessExit(process, status, rusage)
             case "ProcessHandle" =>
-                let subprocess = this.ptr.as(ProcessHandle)
+                let subprocess = this.ptr.`as`(ProcessHandle)
                 subprocess.onProcessExit(process, status, rusage)
             case "MultiRunProcessHandle" =>
-                let subprocess = this.ptr.as(MultiRunProcessHandle)
+                let subprocess = this.ptr.`as`(MultiRunProcessHandle)
                 subprocess.onProcessExit(process, status, rusage)
             case "TestWorkerHandle" =>
-                let subprocess = this.ptr.as(TestWorkerHandle)
+                let subprocess = this.ptr.`as`(TestWorkerHandle)
                 subprocess.onProcessExit(process, status, rusage)
             case "ShellSubprocess" =>
-                let subprocess = this.ptr.as(ShellSubprocess)
+                let subprocess = this.ptr.`as`(ShellSubprocess)
                 subprocess.onProcessExit(process, status, rusage)
             case "SecurityScanSubprocess" =>
-                let subprocess = this.ptr.as(SecurityScanSubprocess)
+                let subprocess = this.ptr.`as`(SecurityScanSubprocess)
                 subprocess.onProcessExit(process, status, rusage)
             case "WebViewHostProcess" =>
-                let subprocess = this.ptr.as(WebViewHostProcess)
+                let subprocess = this.ptr.`as`(WebViewHostProcess)
                 subprocess.onProcessExit(process, status, rusage)
             case "ChromeProcess" =>
-                let subprocess = this.ptr.as(ChromeProcess)
+                let subprocess = this.ptr.`as`(ChromeProcess)
                 subprocess.onProcessExit(process, status, rusage)
             case "SyncProcess" =>
-                let subprocess = this.ptr.as(SyncProcess)
+                let subprocess = this.ptr.`as`(SyncProcess)
                 subprocess.onProcessExit(status, rusage)
             case "CronRegisterJob" =>
-                let cronJob = this.ptr.as(CronRegisterJob)
+                let cronJob = this.ptr.`as`(CronRegisterJob)
                 cronJob.onProcessExit(process, status, rusage)
             case "CronRemoveJob" =>
-                let cronJob = this.ptr.as(CronRemoveJob)
+                let cronJob = this.ptr.`as`(CronRemoveJob)
                 cronJob.onProcessExit(process, status, rusage)
-            else => {
+            case _ =>
                 panic("Internal Bun error: ProcessExitHandler has an invalid tag. Please file a bug report.")
-            }
         }
     }
 }
@@ -204,7 +203,7 @@ public enum Status {
     /// 从 waitpid 结果创建 Status
     /// 严格翻译自: process.zig:630-677
     ///   pub fn from(pid: pid_t, waitpid_result: *const Maybe(WaitPidResult)) ?Status
-    public static func from(pid: PidT, waitpidResult: SysMaybe<WaitPidResult>): ?Status {
+    public static func from(pid!: PidT, waitpidResult!: SysMaybe<WaitPidResult>): ?Status {
         var exitCode: ?UInt8 = None
         var signal: ?UInt8 = None
 
@@ -267,32 +266,32 @@ public class ExitStatus {
 // ============================================================================
 
 /// WIFEXITED(status) - 正常退出
-public func posixWifexited(status: UInt32): Bool {
+public func posixWifexited(status!: UInt32): Bool {
     return (status & 0x7f) == 0
 }
 
 /// WEXITSTATUS(status) - 退出码
-public func posixWexitstatus(status: UInt32): UInt8 {
+public func posixWexitstatus(status!: UInt32): UInt8 {
     return UInt8((status >> 8) & 0xff)
 }
 
 /// WIFSIGNALED(status) - 被信号终止
-public func posixWifsignaled(status: UInt32): Bool {
+public func posixWifsignaled(status!: UInt32): Bool {
     return ((status & 0x7f) + 1) >> 1 > 0
 }
 
 /// WTERMSIG(status) - 终止信号
-public func posixWtermsig(status: UInt32): UInt8 {
+public func posixWtermsig(status!: UInt32): UInt8 {
     return UInt8(status & 0x7f)
 }
 
 /// WIFSTOPPED(status) - 被停止
-public func posixWifstopped(status: UInt32): Bool {
+public func posixWifstopped(status!: UInt32): Bool {
     return ((status & 0xff) == 0x7f)
 }
 
 /// WSTOPSIG(status) - 停止信号
-public func posixWstopsig(status: UInt32): UInt8 {
+public func posixWstopsig(status!: UInt32): UInt8 {
     return UInt8((status >> 8) & 0xff)
 }
 
@@ -328,7 +327,7 @@ public enum Poller {
 
     /// 启用保持事件循环存活
     /// 严格翻译自: process.zig:723-733
-    public func enableKeepingEventLoopAlive(eventLoop: EventLoopHandle) {
+    public func enableKeepingEventLoopAlive(eventLoop!: EventLoopHandle) {
         match (this) {
             case Fd(poll) => poll.enableKeepingProcessAlive(eventLoop)
             case WaiterThread(waiter) => waiter.ref(eventLoop)
@@ -338,7 +337,7 @@ public enum Poller {
 
     /// 禁用保持事件循环存活
     /// 严格翻译自: process.zig:735-745
-    public func disableKeepingEventLoopAlive(eventLoop: EventLoopHandle) {
+    public func disableKeepingEventLoopAlive(eventLoop!: EventLoopHandle) {
         match (this) {
             case Fd(poll) => poll.disableKeepingProcessAlive(eventLoop)
             case WaiterThread(waiter) => waiter.unref(eventLoop)
@@ -363,11 +362,11 @@ public class WaiterThreadPoll {
     var refCount: AtomicUInt32 = AtomicUInt32(0)
     var pollRef: KeepAlive = KeepAlive()
 
-    public func ref(eventLoop: EventLoopHandle) {
+    public func ref(eventLoop!: EventLoopHandle) {
         pollRef.ref(eventLoop)
     }
 
-    public func unref(eventLoop: EventLoopHandle) {
+    public func unref(eventLoop!: EventLoopHandle) {
         pollRef.unref(eventLoop)
     }
 
@@ -415,7 +414,7 @@ public class Process {
     /// 从 PosixSpawnResult 初始化 (POSIX)
     /// 严格翻译自: process.zig:251-273
     ///   pub fn initPosix(posix, event_loop, sync_) *Process
-    public static func initPosix(posix: PosixSpawnResult, eventLoop: EventLoopHandle, sync_: Bool): Process {
+    public static func initPosix(posix!: PosixSpawnResult, eventLoop!: EventLoopHandle, sync_!: Bool): Process {
         let proc = Process()
         proc.pid = posix.pid
         proc.pidfd = posix.pidfd
@@ -439,7 +438,7 @@ public class Process {
 
     /// 设置退出处理器
     /// 严格翻译自: process.zig:239-241
-    public func setExitHandler(handler: Any) {
+    public func setExitHandler(handler!: Any) {
         ProcessExitHandler.initFunc(this.exitHandler, handler)
     }
 
@@ -478,7 +477,7 @@ public class Process {
 
     /// 退出回调
     /// 严格翻译自: process.zig:291-300
-    public func onExit(status: Status, rusage: Rusage) {
+    public func onExit(status!: Status, rusage!: Rusage) {
         let exitHandler = this.exitHandler
         this.status = status
 
@@ -497,21 +496,21 @@ public class Process {
 
     /// POSIX waitpid
     /// 严格翻译自: process.zig:306-310
-    public func waitPosix(sync_: Bool) {
+    public func waitPosix(sync_!: Bool) {
         let rusage = Rusage.zeroes()
-        let waitpidResult = wait4(this.pid, if (sync_) UInt32(0) else WNOHANG, rusage)
+        let waitpidResult = wait4(this.pid, if (sync_) { UInt32(0) } else { WNOHANG }, rusage)
         this.onWaitPid(waitpidResult, rusage)
     }
 
     /// 跨平台等待
     /// 严格翻译自: process.zig:312-316
-    public func wait(sync_: Bool) {
+    public func wait(sync_!: Bool) {
         this.waitPosix(sync_)
     }
 
     /// 从 WaiterThread 收到 waitpid 结果
     /// 严格翻译自: process.zig:318-328
-    public func onWaitPidFromWaiterThread(waitpidResult: SysMaybe<WaitPidResult>, rusage: Rusage) {
+    public func onWaitPidFromWaiterThread(waitpidResult!: SysMaybe<WaitPidResult>, rusage!: Rusage) {
         match (this.poller) {
             case WaiterThread(waiter) =>
                 waiter.unref(this.eventLoop)
@@ -531,7 +530,7 @@ public class Process {
 
     /// 处理 waitpid 结果
     /// 严格翻译自: process.zig:338-375
-    public func onWaitPid(waitpidResult: SysMaybe<WaitPidResult>, rusage: Rusage) {
+    public func onWaitPid(waitpidResult!: SysMaybe<WaitPidResult>, rusage!: Rusage) {
         let pid = this.pid
         var rusageResult = rusage
 
@@ -593,7 +592,7 @@ public class Process {
             return SysMaybe<Unit>.Ok(())
         }
 
-        let watchfd = if (Environment.isLinux) this.pidfd else this.pid
+        let watchfd = if (Environment.isLinux) { this.pidfd } else { this.pid }
         let poll = match (this.poller) {
             case Fd(p) => p
             case _ => FilePoll(this.eventLoop, watchfd)
@@ -606,10 +605,9 @@ public class Process {
         }
 
         match (poll.register(this.eventLoop, processPollOneShot)) {
-            case Ok => {
+            case Ok =>
                 this.ref()
                 return SysMaybe<Unit>.Ok(())
-            }
             case Err(err) =>
                 match (this.poller) {
                     case Fd(p) => p.disableKeepingProcessAlive(this.eventLoop)
@@ -719,7 +717,7 @@ public class Process {
 
     /// 杀死进程
     /// 严格翻译自: process.zig:576-612
-    public func kill(signal: Int32): SysMaybe<Unit> {
+    public func kill(signal!: Int32): SysMaybe<Unit> {
         match (this.poller) {
             case WaiterThread => ()
             case Fd => ()
@@ -768,7 +766,7 @@ public class WaiterThread {
 
     /// 追加进程到观察队列
     /// 严格翻译自: process.zig:963-975
-    public static func append(process: Process) {
+    public static func append(process!: Process) {
         // 将 process 加入到观察队列
         // 初始化 waiter 线程
     }
@@ -810,15 +808,15 @@ public class PosixSpawnOptions {
 
     /// Stdio 类型
     /// 严格翻译自: process.zig:1093-1102
-    public enum Stdio {
-        | Path(String)
-        | Inherit
-        | Ignore
-        | Buffer
-        | Ipc
-        | Pipe(Int32)
-        | Dup2(Int32, Int32)
-    }
+//    public enum Stdio {
+//        | Path(String)
+//        | Inherit
+//        | Ignore
+//        | Buffer
+//        | Ipc
+//        | Pipe(Int32)
+//        | Dup2(Int32, Int32)
+//    }
 }
 
 // ============================================================================
@@ -841,19 +839,19 @@ public class PosixSpawnResult {
 
     /// ExtraPipe - 额外管道
     /// 严格翻译自: process.zig:1218-1235
-    public enum ExtraPipe {
-        | OwnedFd(Int32)
-        | UnownedFd(Int32)
-        | Unavailable
+//    public enum ExtraPipe {
+//        | OwnedFd(Int32)
+//        | UnownedFd(Int32)
+//        | Unavailable
 
-        public func fd(): Int32 {
-            match (this) {
-                case OwnedFd(f) => f
-                case UnownedFd(f) => f
-                case Unavailable => -1
-            }
-        }
-    }
+//        public func fd(): Int32 {
+//            match (this) {
+//                case OwnedFd(f) => f
+//                case UnownedFd(f) => f
+//                case Unavailable => -1
+//            }
+//        }
+//    }
 
     /// 关闭结果中的资源
     /// 严格翻译自: process.zig:1237-1246
@@ -869,7 +867,7 @@ public class PosixSpawnResult {
 
     /// 转换为 Process
     /// 严格翻译自: process.zig:1248-1258
-    public func toProcess(eventLoop: EventLoopHandle, sync_: Bool): Process {
+    public func toProcess(eventLoop!: EventLoopHandle, sync_!: Bool): Process {
         return Process.initPosix(this, eventLoop, sync_)
     }
 
@@ -931,15 +929,15 @@ public class WindowsSpawnResult {
 
     /// Stdio 结果
     /// 严格翻译自: process.zig:1118-1124
-    public enum StdioResult {
-        | Unavailable
-        | Buffer(UvProcessT)
-        | BufferFd(Int32)
-    }
+//    public enum StdioResult {
+//        | Unavailable
+//        | Buffer(UvProcessT)
+//        | BufferFd(Int32)
+//    }
 
     /// 转换为 Process
     /// 严格翻译自: process.zig:1126-1135
-    public func toProcess(sync_: Bool): Process {
+    public func toProcess(sync_!: Bool): Process {
         var proc = this.process ?? panic("WindowsSpawnResult.process is null")
         this.process = None
         proc.sync = sync_
@@ -977,9 +975,9 @@ public type SpawnProcessResult = PosixSpawnResult
 /// 严格翻译自: process.zig:1340-1358
 ///   pub fn spawnProcess(options, argv, envp) !Maybe(SpawnProcessResult)
 public func spawnProcess(
-    options: SpawnOptions,
-    argv: Array<String>,
-    envp: Array<String>
+    options!: SpawnOptions,
+    argv!: Array<String>,
+    envp!: Array<String>
 ): SysMaybe<SpawnProcessResult> {
     return spawnProcessPosix(options, argv, envp)
 }
@@ -988,9 +986,9 @@ public func spawnProcess(
 /// 严格翻译自: process.zig:1359-1669
 ///   pub fn spawnProcessPosix(options, argv, envp) !Maybe(PosixSpawnResult)
 public func spawnProcessPosix(
-    options: PosixSpawnOptions,
-    argv: Array<String>,
-    envp: Array<String>
+    options!: PosixSpawnOptions,
+    argv!: Array<String>,
+    envp!: Array<String>
 ): SysMaybe<PosixSpawnResult> {
     var spawned = PosixSpawnResult()
 
@@ -1017,7 +1015,7 @@ public func spawnProcessPosix(
     // 为每个 stdio 设置 posix_spawn_file_actions
 
     // 执行 spawn
-    let argv0 = options.argv0 ?? (argv.size > 0 ? argv[0] : "")
+    let argv0 = options.argv0 ?? (if (argv.size > 0) { argv[0] } else { "" })
     let spawnResult = posixSpawnp(argv0, cArgv, cEnvp)
 
     match (spawnResult) {
@@ -1061,31 +1059,31 @@ public class SyncOptions {
     public var cwd: String = ""
     public var detached: Bool = false
     public var argv: Array<String> = Array<String>()
-    public var envp: ?Array<String>> = None
+    public var envp: ?Array<String> = None
     public var useExecveOnMacos: Bool = false
     public var argv0: ?String = None
 
     /// 同步 Stdio 枚举
     /// 严格翻译自: process.zig:1954-1968
-    public enum SyncStdio {
-        | Inherit
-        | Ignore
-        | Buffer
+//    public enum SyncStdio {
+//        | Inherit
+//        | Ignore
+//        | Buffer
 
-        /// 转换为 SpawnOptions.Stdio
-        /// 严格翻译自: process.zig:1959-1967
-        public func toStdio(): PosixSpawnOptions.Stdio {
-            match (this) {
-                case Inherit => PosixSpawnOptions.Stdio.Inherit
-                case Ignore => PosixSpawnOptions.Stdio.Ignore
-                case Buffer => PosixSpawnOptions.Stdio.Buffer
-            }
-        }
-    }
+//        /// 转换为 SpawnOptions.Stdio
+//        /// 严格翻译自: process.zig:1959-1967
+//        public func toStdio(): PosixSpawnOptions.Stdio {
+//            match (this) {
+//                case Inherit => PosixSpawnOptions.Stdio.Inherit
+//                case Ignore => PosixSpawnOptions.Stdio.Ignore
+//                case Buffer => PosixSpawnOptions.Stdio.Buffer
+//            }
+//        }
+//    }
 
     /// 转换为 SpawnOptions
     /// 严格翻译自: process.zig:1971-1986
-    public func toSpawnOptions(newProcessGroup: Bool): PosixSpawnOptions {
+    public func toSpawnOptions(newProcessGroup!: Bool): PosixSpawnOptions {
         let opts = PosixSpawnOptions()
         opts.stdin = this.stdin.toStdio()
         opts.stdout = this.stdout.toStdio()
@@ -1125,7 +1123,7 @@ public class SyncProcessOps {
     /// 同步 spawn 入口
     /// 严格翻译自: process.zig:2202-2226
     ///   pub fn spawn(options) !Maybe(Result)
-    public static func spawn(options: SyncOptions): SysMaybe<SyncResult> {
+    public static func `spawn`(options!: SyncOptions): SysMaybe<SyncResult> {
         let envp = options.envp ?? getEnvironmentStrings()
         return spawnPosix(options, options.argv, envp)
     }
@@ -1134,9 +1132,9 @@ public class SyncProcessOps {
     /// 严格翻译自: process.zig:2186-2199
     ///   pub fn spawnWithArgv(options, argv, envp) !Maybe(Result)
     public static func spawnWithArgv(
-        options: SyncOptions,
-        argv: Array<String>,
-        envp: Array<String>
+        options!: SyncOptions,
+        argv!: Array<String>,
+        envp!: Array<String>
     ): SysMaybe<SyncResult> {
         return spawnPosix(options, argv, envp)
     }
@@ -1145,9 +1143,9 @@ public class SyncProcessOps {
     /// 严格翻译自: process.zig:2317-2560
     ///   fn spawnPosix(options, argv, envp) !Maybe(Result)
     public static func spawnPosix(
-        options: SyncOptions,
-        argv: Array<String>,
-        envp: Array<String>
+        options!: SyncOptions,
+        argv!: Array<String>,
+        envp!: Array<String>
     ): SysMaybe<SyncResult> {
         // 注册信号转发
         registerSignalsForForwarding()
@@ -1243,7 +1241,7 @@ public class JobControl {
 
     /// 将前台进程组交给 pgid
     /// 严格翻译自: process.zig:2262-2276
-    public func give(pgid: PidT) {
+    public func give(pgid!: PidT) {
         this.scriptPgid = pgid
         if (!isATty(0)) { return }
         let fg = tcgetpgrp(0)
@@ -1274,7 +1272,7 @@ public class JobControl {
 
     /// 阻塞 SIGTTOU 后调用 tcsetpgrp
     /// 严格翻译自: process.zig:2299-2306
-    private func ttouBlocked(pgid: PidT) {
+    private func ttouBlocked(pgid!: PidT) {
         tcsetpgrp(0, pgid)
     }
 }
@@ -1287,7 +1285,7 @@ public class JobControl {
 /// 阻塞 wait4 直到获取终止状态
 /// 严格翻译自: process.zig:2923-2927
 ///   fn reapChild(child: pid_t) Status
-public func reapChild(child: PidT): Status {
+public func reapChild(child!: PidT): Status {
     while (true) {
         let result = wait4(child, UInt32(0), Rusage.zeroes())
         let status = Status.from(child, result)
@@ -1305,7 +1303,7 @@ public func reapChild(child: PidT): Status {
 /// 非阻塞 drain fd 到 bytes
 /// 严格翻译自: process.zig:2899-2919
 ///   fn drainFd(fd, out_fd, bytes) ?bun.sys.Error
-public func drainFd(fd: Int32, outFd: Int32, bytes: ArrayList<UInt8>): ?SysError {
+public func drainFd(fd!: Int32, outFd!: Int32, bytes!: ArrayList<UInt8>): ?SysError {
     if (fd == -1) { return None }
     while (true) {
         let buf = Array<UInt8>(16384, item: UInt8(0))
@@ -1331,7 +1329,7 @@ public func drainFd(fd: Int32, outFd: Int32, bytes: ArrayList<UInt8>): ?SysError
 
 /// wait4 系统调用
 /// 严格翻译自: PosixSpawn.wait4
-public func wait4(pid: PidT, options: UInt32, rusage: Rusage): SysMaybe<WaitPidResult> {
+public func wait4(pid!: PidT, options!: UInt32, rusage!: Rusage): SysMaybe<WaitPidResult> {
     var status: UInt32 = 0
     while (true) {
         let rc = waitpid(pid, status, options)
@@ -1349,49 +1347,49 @@ public func wait4(pid: PidT, options: UInt32, rusage: Rusage): SysMaybe<WaitPidR
 }
 
 /// 原始 wait4 (返回原始返回值)
-public func wait4Raw(pid: PidT): Int32 {
+public func wait4Raw(pid!: PidT): Int32 {
     var status: UInt32 = 0
     return waitpid(pid, status, UInt32(0))
 }
 
 @C
-foreign func waitpid(pid: Int32, status: UInt32, options: UInt32): Int32
+foreign func waitpid(pid!: Int32, status!: UInt32, options!: UInt32): Int32
 
 @C
-foreign func killPid(pid: Int32, sig: Int32): Int32
+foreign func killPid(pid!: Int32, sig!: Int32): Int32
 
 @C
-foreign func spawnClose(fd: Int32): Int32
+foreign func spawnClose(fd!: Int32): Int32
 
 @C
-foreign func readFd(fd: Int32, buf: Array<UInt8>): Int64
+foreign func readFd(fd!: Int32, buf!: Array<UInt8>): Int64
 
 @C
-foreign func posixSpawnp(path: CPointer<Int8>, argv: CPointer<CPointer<Int8>>, envp: CPointer<CPointer<Int8>>): Int32
+foreign func posixSpawnp(path!: CPointer<Int8>, argv!: CPointer<CPointer<Int8>>, envp!: CPointer<CPointer<Int8>>): Int32
 
 @C
-foreign func pidfdOpen(pid: Int32, flags: UInt32): Int32
+foreign func pidfdOpen(pid!: Int32, flags!: UInt32): Int32
 
 @C
-foreign func poll(fds: Array<PollFd>): Int32
+foreign func poll(fds!: Array<PollFd>): Int32
 
 @C
-foreign func isATty(fd: Int32): Int32
+foreign func isATty(fd!: Int32): Int32
 
 @C
-foreign func tcgetpgrp(fd: Int32): Int32
+foreign func tcgetpgrp(fd!: Int32): Int32
 
 @C
-foreign func tcsetpgrp(fd: Int32, pgrp: Int32): Int32
+foreign func tcsetpgrp(fd!: Int32, pgrp!: Int32): Int32
 
 @C
 foreign func getpgrp(): Int32
 
 @C
-foreign func raise(sig: Int32): Int32
+foreign func raise(sig!: Int32): Int32
 
 @C
-foreign func getErrnoRaw(rc: Int32): SysErrno
+foreign func getErrnoRaw(rc!: Int32): SysErrno
 
 @C
 foreign func getEnvironmentStrings(): Array<String>
@@ -1427,7 +1425,7 @@ public let SIGTSTP: Int32 = 20
 
 // SyncProcess placeholder (对应 SyncProcessPosix)
 public class SyncProcess {
-    public func onProcessExit(status: Status, rusage: Rusage) {}
+    public func onProcessExit(status!: Status, rusage!: Rusage) {}
 }
 
 /// 信号转发 FFI (对应 C++ 实现)
@@ -1439,7 +1437,7 @@ public func unregisterSignalsForForwarding() {
     SpawnFfi.unregisterSignalsForForwarding()
 }
 
-public func setCurrentSyncPid(pid: Int64) {
+public func setCurrentSyncPid(pid!: Int64) {
     SpawnFfi.currentSyncPid = pid
 }
 
@@ -1452,17 +1450,17 @@ public func sendPendingSignalIfNecessary() {
 // ============================================================================
 
 /// 构建 C 风格字符串数组 (null 终止)
-public func buildCStringArray(strings: Array<String>): CPointer<CPointer<Int8>> {
+public func buildCStringArray(strings!: Array<String>): CPointer<CPointer<Int8>> {
     // 构建 null-terminated C string 数组
     return CPointer<CPointer<Int8>>()
 }
 
 /// 获取系统错误码
-public func getErrno(rc: Int32): SysErrno {
+public func getErrno(rc!: Int32): SysErrno {
     return getErrnoRaw(rc)
 }
 
 /// 构建字符串数组
-public func buildArgv(argv: Array<String>): Array<CPointer<Int8>> {
+public func buildArgv(argv!: Array<String>): Array<CPointer<Int8>> {
     return Array<CPointer<Int8>>()
 }

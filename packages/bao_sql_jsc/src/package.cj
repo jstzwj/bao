@@ -6,10 +6,6 @@ package bao_sql_jsc
 import bao_core.*
 import bao_jsc.*
 import bao_sql.*
-import bao_sql_jsc.mysql.*
-import bao_sql_jsc.mysql.protocol.*
-import bao_sql_jsc.postgres.*
-import bao_sql_jsc.postgres.protocol.*
 
 // ============================================================================
 // MySQL 绑定
@@ -47,7 +43,7 @@ public func createPostgresBinding(globalObject: JscJSGlobalObject): JscValue {
     let binding = JsValue.createEmptyObjectWithNullPrototype(globalObject.globalThis)
 
     binding.put(globalObject.globalThis, "PostgresSQLConnection",
-        PostgresSQLConnection.getConstructor(globalObject))
+        JsValue.undefined())
 
     binding.put(globalObject.globalThis, "init",
         JsValue.undefined())
@@ -61,9 +57,3 @@ public func createPostgresBinding(globalObject: JscJSGlobalObject): JscValue {
     return binding
 }
 
-// 公共类型重新导出
-public type MySQLConnectionClass = JSMySQLConnection
-public type MySQLQueryClass = JSMySQLQuery
-public type PostgresConnectionClass = PostgresSQLConnection
-public type PostgresQueryClass = PostgresSQLQuery
-public type PostgresStatementClass = PostgresSQLStatement

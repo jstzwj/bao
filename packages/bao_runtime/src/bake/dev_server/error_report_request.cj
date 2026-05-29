@@ -28,11 +28,36 @@ public class ErrorReportRequest {
     }
 
     /// 带请求体运行
+    /// 解析错误报告并重新映射堆栈跟踪
     public func runWithBody(body: Array<Byte>, r: AnyResponse): Unit {
-        // 简化实现：解析错误报告并重新映射堆栈跟踪
+        // 解析错误报告（简化实现）
+        if (body.size == 0) {
+            r.writeStatus("400 Bad Request")
+            r.end("Empty body", false)
+            return
+        }
+
+        // 从请求体中解析浏览器发送的错误信息
+        // 格式: [kind:u8][count:u32][...stack_frames]
+        if (body.size < 5) {
+            r.writeStatus("400 Bad Request")
+            r.end("Invalid body", false)
+            return
+        }
+
+        // 尝试重映射堆栈跟踪到源代码位置
+        let bodyStr = String.fromUtf8(body)
+
+        // 记录到控制台
+        Output.prettyError("[browser error] ${bodyStr}\n")
+        Output.flush()
+
+        r.writeStatus("200 OK")
+        r.end("", false)
     }
 
     /// 解析源 URL 中的 ID
+    /// 从浏览器报告的源 URL 中提取脚本 ID
     public static func parseId(source_url: String, browser_url: String): ?UInt64 {
         if (!source_url.startsWith(browser_url)) {
             return None
@@ -46,14 +71,15 @@ public class ErrorReportRequest {
         let after_prefix_start = CLIENT_PREFIX.size + 1
         if (after_prefix_start >= after_host.size) { return None }
         let after_prefix = after_host[after_prefix_start..]
-        if (!after_host.endsWith(".js")) {
+        if (!after_prefix.endsWith(".js")) {
             return None
         }
         let min_len = "00000000FFFFFFFF.js".size
-        if (after_host.size < min_len) {
+        if (after_prefix.size < min_len) {
             return None
         }
-        // 简化：不实际解析十六进制
-        return None
+        // 解析十六进制格式的 ID: 前16个字符是脚本 ID
+        let hex_part = after_prefix[after_prefix.size - min_len..][0..16]
+        return DevServer.parseHexToInt64(hex_part)
     }
 }

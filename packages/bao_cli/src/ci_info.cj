@@ -35,7 +35,7 @@ public func detectCIName(): ?String {
         case Some(v) => return v
         case None =>
             let result = detectUncached()
-            cachedCIName = Some(result)
+            cachedCIName = result
             return result
     }
 }
@@ -56,8 +56,7 @@ public func isPR(): Bool {
 /// 未缓存的 CI 检测实现
 private func isCIUncached(): Bool {
     let ciEnv = Env.get("CI")
-    let generatedIsCI = CIInfoGenerated.isCIUncachedGenerated()
-    return ciEnv.isSome() || generatedIsCI || detectCIName().isSome()
+    return ciEnv.isSome() || detectCIName().isSome()
 }
 
 /// 未缓存的 CI 名称检测实现
@@ -66,5 +65,6 @@ private func detectUncached(): ?String {
     if (ciEnv.isNone()) {
         return None
     }
-    return CIInfoGenerated.detectUncachedGenerated()
+    // TODO: Add CIInfoGenerated codegen when available
+    return None
 }

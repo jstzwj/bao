@@ -8,6 +8,34 @@ import bao_sys.*
 import std.collection.ArrayList
 
 // ============================================================================
+// FFI declarations for POSIX process control functions
+// Corresponds to Bun: node_process.rs / node_process.zig system calls
+// ============================================================================
+@C foreign func _exit(code: Int32): Unit
+@C foreign func c_setuid(uid: UInt32): Int32
+@C foreign func c_setgid(gid: UInt32): Int32
+@C foreign func c_abort(): Unit
+@C foreign func c_kill(pid: Int32, sig: Int32): Int32
+@C foreign func c_umask(mask: UInt32): UInt32
+@C foreign func c_getuid(): UInt32
+@C foreign func clock_gettime_monotonic_ns(): Int64
+@C foreign func c_getgid(): UInt32
+@C foreign func c_geteuid(): UInt32
+@C foreign func c_getegid(): UInt32
+
+// 进程信息 FFI 声明
+// 对应 Bun: /proc/self/status, sysconf, readlink("/proc/self/exe") 等
+@C foreign func c_readlink(path: CPointer<Int8>, buf: CPointer<UInt8>, bufsize: UIntNative): Int64
+@C foreign func c_sysconf(name: Int32): Int64
+@C foreign func c_getrusage(who: Int32, usage: CPointer<Int8>): Int32
+
+// environ 全局变量（C 外部链接）- 通过函数访问
+foreign func c_get_environ(): CPointer<CPointer<Int8>>
+
+// exitCode 全局变量 — 进程退出码
+private var globalExitCode: UInt8 = 0
+
+// ============================================================================
 // CStrPtr — repr(transparent) wrapper around a C string pointer
 // Corresponds to Bun: node_process.rs CStrPtr
 // Wraps a raw C string pointer for safe static export usage.
@@ -102,7 +130,20 @@ public class NodeProcess {
     public static func exit(code: UInt8): Unit {
         // In Bun: vm.exit_handler.exit_code = code
         // Worker: worker.exit(); Main: vm.onExit() + vm.globalExit()
+        NodeProcessSystem.setExitCode(code)
         NodeProcessSystem.exit(Int32(code))
+    }
+
+    // ========================================================================
+    // exitCode — Get/set the process exit code
+    // Corresponds to Bun: node_process.rs exitCode getter/setter
+    // ========================================================================
+    public static func getExitCode(): UInt8 {
+        return NodeProcessSystem.getExitCode()
+    }
+
+    public static func setExitCode(code: UInt8): Unit {
+        NodeProcessSystem.setExitCode(code)
     }
 
     // ========================================================================
@@ -381,11 +422,34 @@ public class NodeProcess {
 
     // ========================================================================
     // cpuUsage — Get CPU usage information
+    // 使用 getrusage(RUSAGE_SELF) 获取用户态和内核态时间
     // ========================================================================
     public static func cpuUsage(): CpuUsageInfo {
         let info = CpuUsageInfo()
-        info.user = 0
-        info.system = 0
+        unsafe {
+            let bufSize = UIntNative(144)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<Int8>(buf)
+            for (i in 0..Int64(144)) {
+                (bufPtr + i).write(Int8(0))
+            }
+            // RUSAGE_SELF = 0
+            let rc = c_getrusage(0, bufPtr)
+            if (rc == 0) {
+                // rusage 结构体 (Linux x86_64):
+                //   ru_utime.tv_sec  @ offset 0  (Int64)
+                //   ru_utime.tv_usec @ offset 8  (Int64)
+                //   ru_stime.tv_sec  @ offset 16 (Int64)
+                //   ru_stime.tv_usec @ offset 24 (Int64)
+                let userSec = (CPointer<Int64>(CPointer<Unit>(bufPtr))).read()
+                let userUsec = (CPointer<Int64>(CPointer<Unit>(bufPtr + 8))).read()
+                let sysSec = (CPointer<Int64>(CPointer<Unit>(bufPtr + 16))).read()
+                let sysUsec = (CPointer<Int64>(CPointer<Unit>(bufPtr + 24))).read()
+                info.user = (userSec * 1000000 + userUsec) * 1000  // 微秒 → 纳秒
+                info.system = (sysSec * 1000000 + sysUsec) * 1000
+            }
+            free(buf)
+        }
         return info
     }
 
@@ -446,14 +510,40 @@ public class CpuUsageInfo {
 // System calls not yet implemented via FFI
 // ============================================================================
 public class NodeProcessSystem {
+    // 进程启动时间（单调时钟纳秒）
+    // 对应 Bun: bun.timespec.now() 在进程启动时记录
+    private static let startMonoNs: Int64 = unsafe { clock_gettime_monotonic_ns() }
+
     // Get command-line arguments
+    // 对应 Bun: node_process.zig argv — 通过 VM 传入或在进程启动时从 C 运行时获取
+    // 使用 /proc/self/cmdline 读取真实的命令行参数
     public static func argv(): Array<String> {
+        let cmdLine = readProcSelfCmdline()
+        if (cmdLine.size > 0) {
+            return cmdLine
+        }
         return ["bao"]
     }
 
     // Get executable path
+    // 对应 Bun: node_process.zig selfExePath
+    // 通过 readlink("/proc/self/exe") 获取可执行文件路径
     public static func selfExePath(): String {
-        return ""
+        unsafe {
+            let path = toProcCString("/proc/self/exe")
+            let bufSize = UIntNative(4096)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            let len = c_readlink(path, bufPtr, bufSize)
+            free(CPointer<Unit>(path))
+            if (len <= 0) {
+                free(buf)
+                return ""
+            }
+            let result = unsafeBufToString(bufPtr, Int64(len))
+            free(buf)
+            return result
+        }
     }
 
     // Exit process
@@ -468,8 +558,28 @@ public class NodeProcessSystem {
     }
 
     // Get all environment variables
+    // 对应 Bun: node_process.zig environ — 遍历 C 运行时 environ 数组
     public static func environ(): HashMap<String, String> {
-        return HashMap<String, String>()
+        let result = HashMap<String, String>()
+        unsafe {
+            var envPtr = c_get_environ()
+            var idx: Int64 = 0
+            while (true) {
+                let entryPtr = (envPtr + idx).read()
+                if (entryPtr == CPointer<Int8>()) {
+                    break
+                }
+                let entry = unsafeCStringToString(entryPtr)
+                let eqIdx = entry.indexOf('=')
+                if (eqIdx >= 0 && eqIdx < entry.size) {
+                    let key = entry[0..eqIdx]
+                    let value = entry[eqIdx + 1..]
+                    result.put(key, value)
+                }
+                idx += 1
+            }
+        }
+        return result
     }
 
     // Set user ID
@@ -533,6 +643,7 @@ public class NodeProcessSystem {
             case "SIGPIPE" => return 13
             case "SIGALRM" => return 14
             case "SIGTERM" => return 15
+            case "SIGSTKFLT" => return 16
             case "SIGCHLD" => return 17
             case "SIGCONT" => return 18
             case "SIGSTOP" => return 19
@@ -553,8 +664,31 @@ public class NodeProcessSystem {
     }
 
     // Get RSS memory usage
+    // 对应 Bun: node_process.zig rss — 使用 getrusage(RUSAGE_SELF) 获取最大 RSS
+    // rusage 结构体在 Linux x86_64 上:
+    //   ru_maxrss @ offset 0 (Int64)
     public static func rss(): Int64 {
-        return 0
+        unsafe {
+            // rusage 结构体大小约 144 字节，分配足够空间
+            let bufSize = UIntNative(144)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<Int8>(buf)
+            // 初始化为 0
+            for (i in 0..Int64(144)) {
+                (bufPtr + i).write(Int8(0))
+            }
+            // RUSAGE_SELF = 0
+            let rc = c_getrusage(0, bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return 0
+            }
+            // ru_maxrss 在 Linux x86_64 上是 rusage 结构体的第一个字段 (offset 0)，类型为 Int64
+            // 单位: KB（Linux）或 bytes（macOS）
+            let maxRss = CPointer<Int64>(CPointer<Unit>(bufPtr)).read()
+            free(buf)
+            return maxRss * 1024  // KB → bytes
+        }
     }
 
     // Get/set file mode creation mask
@@ -572,12 +706,101 @@ public class NodeProcessSystem {
     }
 
     // High-resolution time in nanoseconds
+    // Corresponds to Bun: node_process.zig hrtime
+    // Uses clock_gettime(CLOCK_MONOTONIC) for high-resolution timing
     public static func hrtime(): Int64 {
-        return 0
+        return unsafe { clock_gettime_monotonic_ns() }
     }
 
     // Process uptime in seconds
+    // 对应 Bun: node_process.zig processUptime
+    // 使用 clock_gettime(CLOCK_MONOTONIC) 计算经过时间
     public static func processUptime(): Float64 {
-        return 0.0
+        let nowNs = unsafe { clock_gettime_monotonic_ns() }
+        let elapsedNs = nowNs - startMonoNs
+        return Float64(elapsedNs) / 1_000_000_000.0
+    }
+
+    // Get/Set exit code
+    // 对应 Bun: node_process.zig exitCode
+    public static func getExitCode(): UInt8 {
+        return globalExitCode
+    }
+
+    public static func setExitCode(code: UInt8): Unit {
+        globalExitCode = code
+    }
+
+    // ========================================================================
+    // 辅助函数: C 字符串工具
+    // ========================================================================
+
+    /// 创建 C 字符串
+    private static func toProcCString(s: String): CPointer<Int8> {
+        unsafe {
+            let len = s.size
+            let ptr = malloc(UIntNative(len + 1))
+            let bytesPtr = CPointer<Int8>(ptr)
+            for (i in 0..len) {
+                (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+            }
+            (bytesPtr + Int64(len)).write(Int8(0))
+            return bytesPtr
+        }
+    }
+
+    /// C 字符串转仓颉字符串
+    private static func unsafeCStringToString(ptr: CPointer<Int8>): String {
+        unsafe {
+            var len = 0
+            while (!(ptr + Int64(len)).read() == Int8(0)) {
+                len += 1
+            }
+            var sb = StringBuilder()
+            for (i in 0..len) {
+                sb.append(Rune(Int32((ptr + Int64(i)).read())))
+            }
+            return sb.toString()
+        }
+    }
+
+    /// 从缓冲区创建字符串
+    private static func unsafeBufToString(buf: CPointer<UInt8>, len: Int64): String {
+        unsafe {
+            var sb = StringBuilder()
+            for (i in 0..len) {
+                sb.append(Rune(Int32((buf + i).read())))
+            }
+            return sb.toString()
+        }
+    }
+
+    /// 读取 /proc/self/cmdline 获取真实 argv
+    /// /proc/self/cmdline 格式: 参数之间用 \0 分隔
+    private static func readProcSelfCmdline(): Array<String> {
+        let content = NodeFsSystem.readFile("/proc/self/cmdline")
+        if (content.isNone()) {
+            return []
+        }
+        let data = content.getOrThrow()
+        var args = ArrayList<String>()
+        var current = StringBuilder()
+        for (b in data) {
+            if (b == UInt8(0)) {
+                let arg = current.toString()
+                if (arg.size > 0) {
+                    args.add(arg)
+                }
+                current = StringBuilder()
+            } else {
+                current.append(Rune(Int32(b)))
+            }
+        }
+        // 处理最后一个参数（如果没有以 \0 结尾）
+        let lastArg = current.toString()
+        if (lastArg.size > 0) {
+            args.add(lastArg)
+        }
+        return args.toArray()
     }
 }

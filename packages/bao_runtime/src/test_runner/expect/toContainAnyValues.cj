@@ -2,43 +2,44 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toContainAnyValues() - 检查对象是否包含任一指定值
 /// 用法: expect(received).toContainAnyValues(expected)
 public func toContainAnyValues(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(1)
     let arguments = arguments_.slice()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toContainAnyValues() takes 1 argument")
+        return globalThis.throwInvalidArgumentsValue("toContainAnyValues() takes 1 argument")
     }
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
     let expected = arguments[0]
     if (!expected.jsType().isArray()) {
-        return globalThis.throwInvalidArgumentType("toContainAnyValues", argName: "expected", expectedType: "array")
+        return globalThis.throwInvalidArgumentsValue("Expected expected to be a array for 'toContainAnyValues'.")
     }
     expected.ensureStillAlive()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainAnyValues", matcherParamsFmt: "<green>expected<r>")
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toContainAnyValues", matcherParamsFmt: "<green>expected<r>")
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     var pass = false
+    let global = globalThis.globalThis
 
     if (!value.isUndefinedOrNull()) {
-        let values = value.values(globalThis: globalThis)
-        var itr = expected.arrayIterator(globalThis)
-        let count = values.getLength(globalThis)
+        let values = JsValue.values(value, global)
+        var itr = expected.arrayIterator(global)
+        let count = values.getLength(global)
 
         while (let Some(item) <- itr.next()) {
             var i: UInt32 = 0
-            while (i < count) {
-                let key = values.getIndex(globalThis, i)
+            while (i < UInt32(count)) {
+                let key = values.getIndex(global, i)
                 if (key.jestDeepEquals(item, globalThis: globalThis)) {
                     pass = true
                     break  // outer
@@ -60,12 +61,12 @@ public func toContainAnyValues(`this`: Expect, globalThis: JSGlobalObject, callF
     if (not) {
         let receivedFmt = value.toFmt(formatter)
         let expectedLine = "Expected to not contain any of the following values: <green>{f}<r>\nReceived: <red>{f}<r>\n"
-        return this.throw_(globalThis: globalThis, signature: Expect.getSignature(matcherName: "toContainAnyValues", args: "<green>expected<r>", not: true),
+        return `this`.throw_(globalThis: globalThis, signature: Expect.getSignature("toContainAnyValues", "<green>expected<r>", true),
             fmt: "\n\n" + expectedLine, args: [expectedFmt, receivedFmt])
     }
 
     let expectedLine = "Expected to contain any of the following values: <green>{f}<r>\n"
     let receivedLine = "Received: <red>{f}<r>\n"
-    return this.throw_(globalThis: globalThis, signature: Expect.getSignature(matcherName: "toContainAnyValues", args: "<green>expected<r>", not: false),
+    return `this`.throw_(globalThis: globalThis, signature: Expect.getSignature("toContainAnyValues", "<green>expected<r>", false),
         fmt: "\n\n" + expectedLine + receivedLine, args: [expectedFmt, valueFmt])
 }

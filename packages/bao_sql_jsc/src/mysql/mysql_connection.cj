@@ -6,6 +6,7 @@ package bao_sql_jsc.mysql
 import bao_core.*
 import bao_jsc.*
 import bao_sql.*
+import bao_sql_jsc.shared.*
 
 /// MySQL 连接
 /// 对应 Bun: MySQLConnection
@@ -433,41 +434,7 @@ public class MySQLWriter {
     }
 }
 
-/// 偏移字节列表
-public class OffsetByteList {
-    var head: Int64 = 0
-    var bytes: Array<UInt8> = []
-
-    public init() {}
-
-    public func len(): Int64 {
-        return bytes.size - head
-    }
-
-    public func remaining(): Array<UInt8> {
-        if (head >= bytes.size) {
-            return []
-        }
-        return bytes[head..]
-    }
-
-    public func consume(count: Int64): Unit {
-        head += count
-    }
-
-    public func write(data: Array<UInt8>): Unit {
-        bytes = bytes.concat(data)
-    }
-
-    public func clearAndFree(): Unit {
-        bytes = []
-        head = 0
-    }
-
-    public func reset(): Unit {
-        head = 0
-    }
-}
+// OffsetByteList, ConnectionFlags, AnySocket, SSLConfig 已移至 bao_sql_jsc.shared
 
 /// 字节列表
 public class ByteList {
@@ -545,14 +512,7 @@ public enum TLSStatus {
 }
 
 /// 连接标志
-public class ConnectionFlags {
-    public var hasBackpressure: Bool = false
-    public var isProcessingData: Bool = false
-    public var isReadyForQuery: Bool = true
-    public var waitingToPrepare: Bool = false
-
-    public init() {}
-}
+// ConnectionFlags 已移至 bao_sql_jsc.shared
 
 /// 预处理语句映射
 public class PreparedStatementsMap {
@@ -587,12 +547,4 @@ public class GetOrPutResult {
     }
 }
 
-/// AnySocket
-public class AnySocket {
-    public init() {}
-}
-
-/// SSLConfig
-public class SSLConfig {
-    public init() {}
-}
+// AnySocket, SSLConfig 已移至 bao_sql_jsc.shared

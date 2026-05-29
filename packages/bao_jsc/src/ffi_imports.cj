@@ -192,3 +192,152 @@ foreign func JSC__JsValue__put(globalObject: UInt64, value: Int64, propertyName:
 foreign func JSC__JSGlobalObject__createEmptyObject(globalObject: UInt64, capacity: Int64): Int64
 foreign func JSC__JSGlobalObject__createArray(globalObject: UInt64, argCount: Int64): Int64
 foreign func Bun__createFFIFunctionValue(globalObject: UInt64, symbolName: CPointer<UInt8>, symbolNameLen: Int64, argCount: Int64, functionPtr: UInt64, data: UInt64): Int64
+
+// ========== 缺失的 JSC C API 绑定 (P0-1) ==========
+// 严格翻译自 JSC C API 中尚未声明的函数
+// 用于 JS 运行时的核心功能: 函数调用、错误创建、GC 保护、字符串比较、TypedArray
+
+// JSObjectCallAsFunction - 将 JS 对象作为函数调用
+foreign func JSC__JSObjectCallAsFunction(context: UInt64, object: Int64, thisObject: Int64, argumentCount: Int64, arguments: CPointer<Int64>, exception: CPointer<Int64>): Int64
+
+// JSObjectCallAsFunctionWithThis - 使用显式 this 调用
+foreign func JSC__JSObjectCallAsFunctionWithThis(context: UInt64, object: Int64, thisObject: Int64, argCount: Int64, args: CPointer<Int64>, exception: CPointer<Int64>): Int64
+
+// JSObjectMakeError - 创建 JS Error 对象
+foreign func JSC__JSObjectMakeError(context: UInt64, argumentCount: Int64, arguments: CPointer<Int64>, exception: CPointer<Int64>): Int64
+
+// JSObjectIsFunction - 检查 JS 值是否可调用
+foreign func JSC__JSObjectIsFunction(context: UInt64, value: Int64): Bool
+
+// JSValueUnprotect - 取消保护 JS 值 (允许 GC 回收)
+foreign func JSC__JSValueUnprotect(context: UInt64, value: Int64): Unit
+
+// JSValueProtect - 保护 JS 值不被 GC 回收
+foreign func JSC__JSValueProtect(context: UInt64, value: Int64): Unit
+
+// JSStringIsEqualToUTF8CString - 比较 JS 字符串与 C 字符串
+foreign func JSC__JSStringIsEqualToUTF8CString(jsString: Int64, cString: CPointer<UInt8>): Bool
+
+// JSObjectMakeTypedArrayWithBytesNoCopy - 从缓冲区创建 TypedArray
+foreign func JSC__JSObjectMakeTypedArrayWithBytesNoCopy(context: UInt64, arrayType: Int32, bytes: CPointer<Unit>, byteLength: Int64, deallocator: UInt64, deallocatorContext: UInt64, exception: CPointer<Int64>): Int64
+
+// JSObjectMakeTypedArrayWithArrayBuffer - 从 ArrayBuffer 创建 TypedArray
+foreign func JSC__JSObjectMakeTypedArrayWithArrayBuffer(context: UInt64, arrayType: Int32, arrayBuffer: Int64, exception: CPointer<Int64>): Int64
+
+// JSObjectGetTypedArrayBuffer - 获取 TypedArray 的底层 ArrayBuffer
+foreign func JSC__JSObjectGetTypedArrayBuffer(context: UInt64, object: Int64, exception: CPointer<Int64>): Int64
+
+// JSObjectGetTypedArrayBytePtr - 获取 TypedArray 的字节指针
+foreign func JSC__JSObjectGetTypedArrayBytePtr(context: UInt64, object: Int64, exception: CPointer<Int64>): CPointer<Unit>
+
+// JSObjectGetTypedArrayLength - 获取 TypedArray 的长度
+foreign func JSC__JSObjectGetTypedArrayLength(context: UInt64, object: Int64, exception: CPointer<Int64>): Int64
+
+// JSStringCreateWithUTF8CString - 从 C 字符串创建 JS 字符串
+foreign func JSC__JSStringCreateWithUTF8CString(string: CPointer<UInt8>): Int64
+
+// JSStringRelease - 释放 JS 字符串
+foreign func JSC__JSStringRelease(string: Int64): Unit
+
+// Bun 特定 - 字符串比较
+foreign func Bun__String__eqlUTF8(jsString: Int64, cString: CPointer<UInt8>, cStringLen: Int64): Bool
+
+// ========== P0-1 缺失的 JSC 封装函数 ==========
+
+// jscCallAsFunction - 将 JS 对象作为函数调用
+public func jscCallAsFunction(globalObject: UInt64, funcObject: Int64, thisObject: Int64, args: CPointer<Int64>, argCount: Int64): Int64 {
+    unsafe {
+        JSC__JSObjectCallAsFunction(globalObject, funcObject, thisObject, argCount, args, CPointer<Int64>())
+    }
+}
+
+// jscCreateError - 创建 JS Error 对象
+public func jscCreateError(globalObject: UInt64, messagePtr: CPointer<Int64>): Int64 {
+    unsafe {
+        JSC__JSObjectMakeError(globalObject, 1, messagePtr, CPointer<Int64>())
+    }
+}
+
+// jscIsFunction - 检查值是否可调用
+public func jscIsFunction(globalObject: UInt64, value: Int64): Bool {
+    unsafe {
+        JSC__JSObjectIsFunction(globalObject, value)
+    }
+}
+
+// jscValueProtect - 保护 JS 值不被 GC 回收
+public func jscValueProtect(globalObject: UInt64, value: Int64): Unit {
+    unsafe {
+        JSC__JSValueProtect(globalObject, value)
+    }
+}
+
+// jscValueUnprotect - 取消保护 (允许 GC 回收)
+public func jscValueUnprotect(globalObject: UInt64, value: Int64): Unit {
+    unsafe {
+        JSC__JSValueUnprotect(globalObject, value)
+    }
+}
+
+// jscStringEqlUTF8 - 比较 JS 字符串与 UTF-8 C 字符串
+public func jscStringEqlUTF8(jsString: Int64, cString: CPointer<UInt8>, cStringLen: Int64): Bool {
+    unsafe {
+        Bun__String__eqlUTF8(jsString, cString, cStringLen)
+    }
+}
+
+// jscStringCreateWithUTF8CString - 从 C 字符串创建 JS 字符串
+public func jscStringCreateWithUTF8CString(str: CPointer<UInt8>): Int64 {
+    unsafe {
+        JSC__JSStringCreateWithUTF8CString(str)
+    }
+}
+
+// jscStringRelease - 释放 JS 字符串
+public func jscStringRelease(str: Int64): Unit {
+    unsafe {
+        JSC__JSStringRelease(str)
+    }
+}
+
+// jscMakeTypedArrayWithBytesNoCopy - 从原始字节创建 TypedArray
+public func jscMakeTypedArrayWithBytesNoCopy(globalObject: UInt64, arrayType: Int32, bytes: CPointer<Unit>, byteLength: Int64, deallocator: UInt64, ctx: UInt64): Int64 {
+    unsafe {
+        JSC__JSObjectMakeTypedArrayWithBytesNoCopy(globalObject, arrayType, bytes, byteLength, deallocator, ctx, CPointer<Int64>())
+    }
+}
+
+// jscMakeTypedArrayWithArrayBuffer - 从 ArrayBuffer 创建 TypedArray
+public func jscMakeTypedArrayWithArrayBuffer(globalObject: UInt64, arrayType: Int32, arrayBuffer: Int64): Int64 {
+    unsafe {
+        JSC__JSObjectMakeTypedArrayWithArrayBuffer(globalObject, arrayType, arrayBuffer, CPointer<Int64>())
+    }
+}
+
+// jscGetTypedArrayBuffer - 获取 TypedArray 的底层 ArrayBuffer
+public func jscGetTypedArrayBuffer(globalObject: UInt64, obj: Int64): Int64 {
+    unsafe {
+        JSC__JSObjectGetTypedArrayBuffer(globalObject, obj, CPointer<Int64>())
+    }
+}
+
+// jscGetTypedArrayBytePtr - 获取 TypedArray 的字节指针
+public func jscGetTypedArrayBytePtr(globalObject: UInt64, obj: Int64): CPointer<Unit> {
+    unsafe {
+        JSC__JSObjectGetTypedArrayBytePtr(globalObject, obj, CPointer<Int64>())
+    }
+}
+
+// jscGetTypedArrayLength - 获取 TypedArray 的长度
+public func jscGetTypedArrayLength(globalObject: UInt64, obj: Int64): Int64 {
+    unsafe {
+        JSC__JSObjectGetTypedArrayLength(globalObject, obj, CPointer<Int64>())
+    }
+}
+
+// jscStringIsEqualToUTF8CString - 比较 JS 字符串与 C 字符串
+public func jscStringIsEqualToUTF8CString(jsString: Int64, cString: CPointer<UInt8>): Bool {
+    unsafe {
+        JSC__JSStringIsEqualToUTF8CString(jsString, cString)
+    }
+}

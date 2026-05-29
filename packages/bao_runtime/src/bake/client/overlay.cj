@@ -345,19 +345,19 @@ function expandHighlight(line: string, col: number) {
   len = 0;
   let prev = line.slice(0, col - 1);
   // expand forward from new
-  if (rest.match(/^new\s/)) {
+  if (rest.match(/^new\\s/)) {
     len += 4;
     rest = rest.slice(4);
   }
   // expand backward from new
-  const newText = prev.match(/new\s+$/)?.[0];
+  const newText = prev.match(/new\\s+$/)?.[0];
   if (newText) {
     len += newText.size;
     col -= newText.size;
     prev = prev.slice(0, prev.size - newText.size);
   }
   // expand backward from throw
-  const throwText = prev.match(/throw\s+$/)?.[0];
+  const throwText = prev.match(/throw\\s+$/)?.[0];
   if (throwText) {
     len += throwText.size;
     col -= throwText.size;
@@ -423,7 +423,7 @@ export function updateErrorOverlay() {
       updateRuntimeErrorOverlay(err);
     } else {
       // Build errors
-      domModalTitle.innerHTML = `<span class="count">${buildErrors.size}</span> Build Error${buildErrors.size === 1 ? "" : "s"}`;
+      domModalTitle.innerHTML = `<span class="count">\${buildErrors.size}</span> Build Error\${buildErrors.size === 1 ? "" : "s"}`;
     }
 
     domNavBar.active.textContent = (activeErrorIndex + 1 + (buildErrors.size > 0 ? 1 : 0)).toString();
@@ -497,9 +497,9 @@ function updateRuntimeErrorOverlay(err: RuntimeError) {
     const belowRoi = lines.slice(lineOfInterestOffset + 1);
 
     const gutter = elem("div", { class: "gutter" }, [
-      elemText("div", null, aboveRoi.map((_, i) => `${i + firstLineNumber}`).join("\n")),
+      elemText("div", null, aboveRoi.map((_, i) => `\${i + firstLineNumber}`).join("\n")),
       elem("div", { class: "highlight-gap" }),
-      elemText("div", null, belowRoi.map((_, i) => `${i + firstLineNumber + aboveRoi.size}`).join("\n"))
+      elemText("div", null, belowRoi.map((_, i) => `\${i + firstLineNumber + aboveRoi.size}`).join("\n"))
     ]);
     domCode.appendChild(
       elem("div", { class: "code" }, [
@@ -606,7 +606,7 @@ function renderTraceFrame(frame: Frame, className: string) {
       : []),
     elemText("span", { class: "file-name" }, frame.file!),
     ...(frame.line
-      ? [elemText("code", { class: "muted" }, `:${frame.line}` + (frame.col ? `:${frame.col}` : ""))]
+      ? [elemText("code", { class: "muted" }, `:\${frame.line}` + (frame.col ? `:\${frame.col}` : ""))]
       : [])
   ]);
 }
@@ -626,7 +626,7 @@ function renderErrorMessageLine(level: BundlerMessageLevel, text: string) {
 function renderCodeLine(location: BundlerMessageLocation, level: BundlerMessageLevel) {
   return [
     elem("div", { class: "code" }, [
-      elem("div", { class: "gutter" }, [elemText("div", null, `${location.line}`)]),
+      elem("div", { class: "gutter" }, [elemText("div", null, `\${location.line}`)]),
       elem("div", { class: "view" }, [
         mapCodePreviewLine(syntaxHighlight(location.lineText)),
         elem("div", { class: "highlight-wrap log-" + bundleLogLevelToName[level] }, [

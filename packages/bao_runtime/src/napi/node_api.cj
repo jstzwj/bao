@@ -59,14 +59,18 @@ public class NodeApi {
 
     /// napi_make_callback
     /// 对应 Bun: napi.zig - pub export fn napi_make_callback
-    /// 在 Bun 中，这只是一个普通的函数调用
+    /// 在异步上下文中调用函数
     public static func makeCallback(env: NapiEnv, asyncContext: NapiAsyncContextHandle,
         recv: NapiValue, func_: NapiValue,
         args: ArrayList<NapiValue>): NapiValue {
-        let recvVal = recv.get()
         let funcVal = func_.get()
-        // 对应 Bun: 检查函数是否可调用
-        return NapiValue.create(env, JsValue.UNDEFINED)
+        if (!funcVal.isCallable()) {
+            return NapiValue.create(env, JsValue.UNDEFINED)
+        }
+        let global = env.toJS()
+        let jsArgs = Array<JsValue>(args.size, { i: Int64 => args[i].get() })
+        let result = funcVal.call(global, recv.get(), jsArgs)
+        return NapiValue.create(env, result)
     }
 
     // ========================================================================
@@ -107,10 +111,26 @@ public class NodeApi {
 
     /// napi_get_buffer_info
     /// 对应 Bun: napi.zig - pub export fn napi_get_buffer_info
+    /// 获取 Buffer 信息（data 指针和长度）
     public static func getBufferInfo(env: NapiEnv, value: NapiValue): NapiBufferInfo {
         let info = NapiBufferInfo()
-        // TODO: implement buffer info extraction from JsValue
-        info.byteLength = 0
+        let v = value.get()
+        // Buffer 是 Uint8Array 的子类
+        if (v.valueType == JsValueType.TypedArray || v.valueType == JsValueType.ArrayBuffer) {
+            let global = env.toJS()
+            let lengthVal = v.get(global, "byteLength")
+            if (let Some(lv) <- lengthVal) {
+                if (lv.isNumber()) {
+                    info.byteLength = Int64(lv.toNumber())
+                } else {
+                    info.byteLength = 0
+                }
+            } else {
+                info.byteLength = 0
+            }
+        } else {
+            info.byteLength = 0
+        }
         return info
     }
 

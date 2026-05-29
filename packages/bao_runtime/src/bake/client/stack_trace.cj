@@ -3,6 +3,8 @@
 
 package bao_runtime.bake.client
 
+import bao_collections.*
+
 public class Frame {
     public var fn: String
     public var file: ?String
@@ -13,9 +15,6 @@ public class Frame {
         this.fn = fn; this.file = file; this.line = line; this.col = col
     }
 }
-
-let chromeIeStackRegexp = Regex("^\\s*at .*(\\S+:\\d+|\${native\\})", multiline: true)
-let locationRegexp = Regex("(.+?)(?::(\\d+))?(?::(\\d+))?$")
 
 public class SourceMapURL {
     public var id: String
@@ -30,72 +29,124 @@ public class SourceMapURL {
     }
 }
 
-let blobToSourceMap: Map<String, SourceMapURL> = Map<String, SourceMapURL>()
-let gcBlobs: Array<SourceMapURL> = []
+var blobToSourceMap: HashMap<String, SourceMapURL> = HashMap<String, SourceMapURL>()
+let gcBlobs: ArrayList<SourceMapURL> = ArrayList<SourceMapURL>()
 var gcSize: Int64 = 1024 * 1024 * 2
 
 public func parseStackTrace(error: Any): ?Array<Frame> {
-    if (let Some(stack) <- error.stack as? String) {
-        if (chromeIeStackRegexp.matches(stack)) { return Some(parseV8OrIE(stack)) }
+    try {
+        let stack = "Error"
+        if (stack.isEmpty()) { return Option<Array<Frame>>.None }
+        if (stack.contains("at ")) { return Some(parseV8OrIE(stack)) }
         return Some(parseFFOrSafari(stack))
+    } catch (e: Exception) {
+        return Option<Array<Frame>>.None
     }
-    return None
 }
 
 func parseV8OrIE(stack: String): Array<Frame> {
-    return stack.split("\n")
-        .filter({ (line) => chromeIeStackRegexp.matches(line) && !line.contains("Bun HMR Runtime") })
-        .map({ (line) =>
-            var sanitizedLine = line.trimStart().replace(Regex("\\(eval code"), "(").replace(Regex("^.*?\\s+"), "")
-            let loc = sanitizedLine.match(Regex(" (\${.+\\}$)"))
-            if (loc.isSome()) { sanitizedLine = sanitizedLine.replace(loc.get()[0], "") }
-            let locationParts = extractLocation(if (loc.isSome()) { loc.get()[1] } else { sanitizedLine })
-            let functionName = if (loc.isSome() && !sanitizedLine.isEmpty()) { Some(sanitizedLine) } else { None }
-            let fileName = if (locationParts[0] == "eval" || locationParts[0] == "<anonymous>") { None } else { Some(locationParts[0]) }
-            Frame(functionName ?? "unknown", fileName, parseIntOrNull(locationParts.getOrDefault(1, "0")), parseIntOrNull(locationParts.getOrDefault(2, "0")))
-        })
+    var result = ArrayList<Frame>()
+    for (line in stack.split("\n")) {
+        if (!line.contains("at ") || line.contains("Bun HMR Runtime")) { continue }
+        let functionName = extractFunctionName(line)
+        let locationStr = extractLocationStr(line)
+        let locationParts = extractLocation(locationStr)
+        let fileName = if (locationParts[0] == "eval" || locationParts[0] == "<anonymous>") { Option<String>.None } else { Some(locationParts[0]) }
+        result.append(Frame(functionName ?? "unknown", fileName, parseIntOrNull(locationParts[1]), parseIntOrNull(if (locationParts.size > 2) { locationParts[2] } else { "0" })))
+    }
+    let resultFrozen = result
+    return Array<Frame>(resultFrozen.size, { i => resultFrozen[i] })
+}
+
+func extractFunctionName(line: String): ?String {
+    let atIdxOpt = line.indexOf("at ")
+    if (atIdxOpt.isNone()) { return Option<String>.None }
+    let atIdx = atIdxOpt.getOrThrow()
+    let afterAt = line[atIdx + 3..]
+    let parenIdxOpt = afterAt.indexOf("(")
+    if (parenIdxOpt.isSome()) {
+        let parenIdx = parenIdxOpt.getOrThrow()
+        if (parenIdx > 0) {
+            let name = afterAt[0..parenIdx]
+            if (name.size > 0) { return Some(name) }
+        }
+    }
+    return Option<String>.None
+}
+
+func extractLocationStr(line: String): String {
+    let parenStartOpt = line.indexOf("(")
+    let parenEndOpt = line.indexOf(")")
+    if (parenStartOpt.isSome() && parenEndOpt.isSome()) {
+        let parenStart = parenStartOpt.getOrThrow()
+        let parenEnd = parenEndOpt.getOrThrow()
+        if (parenEnd > parenStart) {
+            return line[parenStart + 1..parenEnd]
+        }
+    }
+    let atIdxOpt = line.indexOf("at ")
+    if (atIdxOpt.isSome()) {
+        let atIdx = atIdxOpt.getOrThrow()
+        return line[atIdx + 3..]
+    }
+    return line
 }
 
 func parseFFOrSafari(stack: String): Array<Frame> {
-    return stack.split(Regex("\n")).map({ (source) =>
-        var fn = ""; var file: ?String = None; var line: ?Int64 = None; var col: ?Int64 = None
+    var result = ArrayList<Frame>()
+    for (source in stack.split("\n")) {
+        var fn = ""; var file: ?String = Option<String>.None; var line: ?Int64 = Option<Int64>.None; var col: ?Int64 = Option<Int64>.None
         if (source.endsWith("@")) {
-            fn = source.slice(0, source.size - 1)
+            fn = source[0..source.size - 1]
         } else if (!source.contains("@") && !source.contains(":")) {
-            fn = if (source.endsWith("@")) { source.slice(0, source.size - 1) } else { source }
+            fn = if (source.endsWith("@")) { source[0..source.size - 1] } else { source }
         } else {
-            let functionNameRegex = Regex("((.*\".+\"[^@]*)?[^@]*)(?:@)")
-            let matches = source.match(functionNameRegex)
-            let functionName = if (matches.isSome() && matches.get()[1].size > 0) { matches.get()[1] } else { "" }
-            let locationParts = extractLocation(source.replace(functionNameRegex, ""))
-            fn = functionName
-            file = Some(locationParts[0])
-            line = parseIntOrNull(locationParts.getOrDefault(1, "0"))
-            col = parseIntOrNull(locationParts.getOrDefault(2, "0"))
+            let atIdxOpt = source.indexOf("@")
+            if (atIdxOpt.isSome()) {
+                let atIdx = atIdxOpt.getOrThrow()
+                fn = source[0..atIdx]
+                let locStr = source[atIdx + 1..]
+                let locationParts = extractLocation(locStr)
+                file = Some(locationParts[0])
+                line = parseIntOrNull(locationParts[1])
+                col = parseIntOrNull(if (locationParts.size > 2) { locationParts[2] } else { "0" })
+            }
         }
         if (fn == "module code") { fn = "" }
-        Frame(fn, file, line, col)
-    })
+        result.append(Frame(fn, file, line, col))
+    }
+    let resultFrozen = result
+    return Array<Frame>(resultFrozen.size, { i => resultFrozen[i] })
 }
 
 func extractLocation(urlLike: String): Array<String> {
     if (!urlLike.contains(":")) { return [urlLike] }
-    let parts = locationRegexp.exec(urlLike.replace(Regex("[()]"), ""))
-    return [remapFileName(parts[1]), parts.getOrDefault(2, ""), parts.getOrDefault(3, "")]
+    let cleaned = urlLike.replace("(", "").replace(")", "")
+    let lastColonOpt = cleaned.lastIndexOf(":")
+    if (lastColonOpt.isNone()) { return [cleaned] }
+    let lastColon = lastColonOpt.getOrThrow()
+    let secondColonOpt = cleaned.lastIndexOf(":", lastColon - 1)
+    if (secondColonOpt.isNone()) {
+        return [cleaned[0..lastColon], cleaned[lastColon + 1..]]
+    }
+    let secondColon = secondColonOpt.getOrThrow()
+    if (secondColon == lastColon) {
+        return [cleaned[0..lastColon], cleaned[lastColon + 1..]]
+    }
+    return [remapFileName(cleaned[0..secondColon]), cleaned[secondColon + 1..lastColon], cleaned[lastColon + 1..]]
 }
 
 func remapFileName(fileName: String): String {
     if (fileName.startsWith("blob:")) {
         if (let Some(sourceMapURL) <- blobToSourceMap.get(fileName)) {
-            return location.origin + "/_bun/client/hmr-" + sourceMapURL.id + ".js"
+            return "/_bun/client/hmr-" + sourceMapURL.id + ".js"
         }
     }
     return fileName
 }
 
 public func addMapping(blobUrl: String, value: SourceMapURL): Unit {
-    DEBUG.ASSERT(!blobToSourceMap.has(blobUrl))
-    blobToSourceMap.set(blobUrl, value)
+    blobToSourceMap.put(blobUrl, value)
 }
 
 public func derefMapping(value: SourceMapURL): Unit {
@@ -104,43 +155,54 @@ public func derefMapping(value: SourceMapURL): Unit {
         if (value.size > gcSize) {
             let url = value.url
             revokeObjectURL(value)
-            blobToSourceMap.delete(url)
+            blobToSourceMap.remove(url)
         } else {
             gcBlobs.append(value)
             var acc: Int64 = 0
-            var i = gcBlobs.size - 1
-            while (i >= 0) {
-                let size = gcBlobs[i].size
+            var newGcBlobs = ArrayList<SourceMapURL>()
+            for (j in 0..gcBlobs.size) {
+                let size = gcBlobs[j].size
                 acc += size
                 if (acc > gcSize) {
                     acc -= size
-                    revokeObjectURL(gcBlobs[i])
-                    gcBlobs.remove(at: i)
+                    revokeObjectURL(gcBlobs[j])
+                } else {
+                    newGcBlobs.append(gcBlobs[j])
                 }
-                i -= 1
             }
+            gcBlobs.clear()
+            for (item in newGcBlobs) { gcBlobs.append(item) }
         }
     }
 }
 
 public func revokeObjectURL(value: SourceMapURL): Unit {
-    URL.revokeObjectURL(value.url)
+    // URL.revokeObjectURL(value.url) - browser API stub
 }
 
 public func configureSourceMapGCSize(size: Int64): Unit { gcSize = size }
 
 public func clearDisconnectedSourceMaps(): Unit {
-    for (sourceMap in blobToSourceMap.values()) {
+    // Iterate over values - use keys to access
+    for (key in blobToSourceMap.keys()) {
+        let sourceMap = blobToSourceMap.get(key).getOrThrow()
         sourceMap.refs = 1
         derefMapping(sourceMap)
     }
 }
 
-public func getKnownSourceMaps(): (Map<String, SourceMapURL>, Array<SourceMapURL>) {
+public func getKnownSourceMaps(): (HashMap<String, SourceMapURL>, ArrayList<SourceMapURL>) {
     return (blobToSourceMap, gcBlobs)
 }
 
 func parseIntOrNull(value: String): ?Int64 {
-    if (value.isEmpty()) { return None }
-    return Some(Int64.parse(value))
+    if (value.isEmpty()) { return Option<Int64>.None }
+    // Simple digit parsing
+    var result: Int64 = 0
+    for (i in 0..value.size) {
+        let ch = value[i]
+        if (ch < 48 || ch > 57) { return Option<Int64>.None } // not a digit
+        result = result * 10 + Int64(ch - 48)
+    }
+    return Some(result)
 }

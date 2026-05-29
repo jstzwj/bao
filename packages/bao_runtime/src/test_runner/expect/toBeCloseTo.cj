@@ -2,63 +2,64 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
+import std.math.*
 
 /// toBeCloseTo() - 检查浮点数是否近似相等
 /// 用法: expect(received).toBeCloseTo(expected, precision?)
 public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let thisArguments = callFrame.argumentsOld(2)
     let arguments = thisArguments.slice()
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
     if (arguments.size < 1) {
-        return globalThis.throwInvalidArguments("toBeCloseTo() requires at least 1 argument. Expected value must be a number")
+        return globalThis.throwInvalidArgumentsValue("toBeCloseTo() requires at least 1 argument. Expected value must be a number")
     }
 
     let expected_ = arguments[0]
     if (!expected_.isNumber()) {
-        return globalThis.throwInvalidArgumentType("toBeCloseTo", argName: "expected", expectedType: "number")
+        return globalThis.throwInvalidArgumentsValue("Expected expected to be a number for 'toBeCloseTo'.")
     }
 
     var precision: Float64 = 2.0
     if (arguments.size > 1 ){
         let precision_ = arguments[1]
         if (!precision_.isNumber()) {
-            return globalThis.throwInvalidArgumentType("toBeCloseTo", argName: "precision", expectedType: "number")
+            return globalThis.throwInvalidArgumentsValue("Expected precision to be a number for 'toBeCloseTo'.")
         }
         precision = precision_.asNumber()
     }
 
-    let received_: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeCloseTo", matcherParamsFmt: "<green>expected<r>, precision")
+    let received_: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toBeCloseTo", matcherParamsFmt: "<green>expected<r>, precision")
     if (!received_.isNumber()) {
-        return globalThis.throwInvalidArgumentType("expect", argName: "received", expectedType: "number")
+        return globalThis.throwInvalidArgumentsValue("Expected received to be a number for 'expect'.")
     }
 
     var expected = expected_.asNumber()
     var received = received_.asNumber()
 
-    if (std.math.isNegativeInf(expected)) {
+    if ((expected == -Float64.Inf)) {
         expected = -expected
     }
 
-    if (std.math.isNegativeInf(received)) {
+    if ((received == -Float64.Inf)) {
         received = -received
     }
 
-    if (std.math.isPositiveInf(expected) && std.math.isPositiveInf(received)) {
+    if ((expected == Float64.Inf) && (received == Float64.Inf)) {
         return JsValue.jsUndefined()
     }
 
-    let expectedDiff = bun.pow(10.0, -precision) / 2.0
-    let actualDiff = Float64.abs(received - expected)
+    let expectedDiff = pow(10.0, -precision) / 2.0
+    let actualDiff = if (received - expected >= 0.0) { received - expected } else { expected - received }
     var pass = actualDiff < expectedDiff
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     if (not) { pass = !pass }
 
     if (pass) { return JsValue.jsUndefined() }
@@ -78,10 +79,10 @@ public func toBeCloseTo(`this`: Expect, globalThis: JSGlobalObject, callFrame: C
     let suffixFmt = "\n\n" + expectedLine + receivedLine + "\n" + expectedPrecision + expectedDifference + receivedDifference
 
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toBeCloseTo", args: "<green>expected<r>, precision", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature, fmt: suffixFmt, args: [expectedFmt, receivedFmt, precision, expectedDiff, actualDiff])
+        let signature = Expect.getSignature("toBeCloseTo", "<green>expected<r>, precision", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature, fmt: suffixFmt, args: [expectedFmt, receivedFmt, precision, expectedDiff, actualDiff])
     }
 
-    let signature = Expect.getSignature(matcherName: "toBeCloseTo", args: "<green>expected<r>, precision", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature, fmt: suffixFmt, args: [expectedFmt, receivedFmt, precision, expectedDiff, actualDiff])
+    let signature = Expect.getSignature("toBeCloseTo", "<green>expected<r>, precision", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature, fmt: suffixFmt, args: [expectedFmt, receivedFmt, precision, expectedDiff, actualDiff])
 }

@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_collections.ArrayList
+
 // ========== 事件循环状态 ==========
 // 严格翻译自 event_loop.zig
 public enum EventLoopState {
@@ -105,6 +107,41 @@ public class MicrotaskQueue {
 
 // 注意: EventLoopHandle 已移至 event_loop_handle.cj
 
+// ========== ConcurrentTaskQueue ==========
+// 严格翻译自 UnboundedQueue(ConcurrentTask, .next)
+// 锁无关的并发任务队列 (MPSC: 多生产者单消费者)
+public class ConcurrentTaskQueue {
+    // 使用 Array 配合同步锁实现; 真实 Bun 使用 lock-free MPSC queue
+    private var queue: Array<ConcurrentTask> = []
+    private var lock: Mutex = Mutex()
+
+    public init() {}
+
+    // 入队并发任务 (可从任意线程调用)
+    public func push(task: ConcurrentTask) {
+        lock.lock()
+        queue.append(task)
+        lock.unlock()
+    }
+
+    // 批量出队所有并发任务 (仅从主线程调用)
+    public func popAll(): Array<ConcurrentTask> {
+        lock.lock()
+        let result = queue
+        queue = []
+        lock.unlock()
+        result
+    }
+
+    // 队列中任务数量
+    public func count(): Int64 {
+        lock.lock()
+        let c = Int64(queue.size)
+        lock.unlock()
+        c
+    }
+}
+
 // ========== EventLoop ==========
 // 严格翻译自 event_loop.zig
 // Bun 事件循环核心实现
@@ -116,6 +153,11 @@ public class EventLoop {
     public var nextTickQueue: Array<EventLoopEntry> = []
     public var microtaskQueue: MicrotaskQueue = MicrotaskQueue()
 
+    // 同步任务队列 (FIFO)
+    public var tasks: Array<Task> = []
+    // 并发任务队列 (MPSC, 从其他线程入队)
+    public var concurrentTasks: ConcurrentTaskQueue = ConcurrentTaskQueue()
+
     // 状态
     public var state: EventLoopState = EventLoopState.Stopped
     public var isRefed: Bool = true
@@ -126,7 +168,7 @@ public class EventLoop {
     // 绑定的 VM
     public var vm: ?BunVirtualMachine = None
 
-    // 全局对象 (stub)
+    // 全局对象
     public var global: JsObject = JsObject()
 
     // 虚拟机快捷访问
@@ -155,6 +197,22 @@ public class EventLoop {
 
     // ========== 事件循环操作 ==========
 
+    /// 运行回调 — 对应 Bun: EventLoop.runCallback
+    /// 调用 JS 回调并排空微任务队列
+    public func runCallback(callback: JsCallback, globalThis: JsObject, thisValue: JsValue, args: ArrayList<JsValue>): Unit {
+        let arrayArgs = Array<JsValue>(args.size, { i: Int64 => args[i] })
+        let _ = callback(globalThis, arrayArgs)
+        // 回调执行后排空微任务队列
+        drainMicrotasks()
+    }
+
+    /// 运行 JsFunction 回调
+    public func runFunctionCallback(func_: JsFunction, globalThis: JsObject, thisValue: JsValue, args: ArrayList<JsValue>): Unit {
+        let arrayArgs = Array<JsValue>(args.size, { i: Int64 => args[i] })
+        let _ = func_.call(thisValue, arrayArgs)
+        drainMicrotasks()
+    }
+
     // 启动事件循环
     public func start() {
         state = EventLoopState.Running
@@ -180,18 +238,46 @@ public class EventLoop {
     // 单次 tick
     // 严格翻译自 event_loop 的 tick 逻辑
     public func tick() {
+        // 0. 排空并发任务队列 → 移入同步队列
+        tickConcurrent()
         // 1. nextTick 阶段
         processNextTicks()
         // 2. 微任务阶段
         drainMicrotasks()
-        // 3. 定时器阶段
+        // 3. 同步任务队列
+        tickTasks()
+        // 4. 定时器阶段
         processTimers()
-        // 4. I/O 阶段
+        // 5. I/O 阶段
         processIO()
-        // 5. immediate 阶段
+        // 6. immediate 阶段
         processImmediate()
-        // 6. 关闭回调
+        // 7. 微任务排空 (任务可能产生微任务)
+        drainMicrotasks()
+        // 8. 关闭回调
         processCloseCallbacks()
+    }
+
+    // 严格翻译自 event_loop.tickConcurrent
+    // 将并发队列中的任务移入同步队列
+    func tickConcurrent() {
+        let batch = concurrentTasks.popAll()
+        for (ct in batch) {
+            let t = Task(TaskTag.Custom)
+            t.callback = { => ct.run() }
+            tasks.append(t)
+        }
+    }
+
+    // 处理同步任务队列
+    func tickTasks() {
+        while (tasks.size > 0) {
+            let task = tasks[0]
+            tasks = tasks[1..]
+            task.run()
+            // 每个任务后排空微任务
+            drainMicrotasks()
+        }
     }
 
     // 严格翻译自 event_loop.isAlive
@@ -226,6 +312,8 @@ public class EventLoop {
 
     func drainMicrotasks() {
         microtaskQueue.drain()
+        // 同时排空 Promise 微任务队列
+        JsPromise.drainMicrotasks()
     }
 
     func processTimers() {
@@ -295,24 +383,28 @@ public class EventLoop {
         nextTickQueue = nextTickQueue.concat([entry])
     }
 
-    // 入队通用任务
+    // 入队通用任务 (主线程调用)
+    // 严格翻译自 event_loop.enqueueTask
     public func enqueueTask(task: Task) {
-        // stub: 入队到 immediate 队列
-        let entry = EventLoopEntry(EventLoopTag.Immediate, { => })
-        immediateQueue = immediateQueue.concat([entry])
+        tasks.append(task)
     }
 
-    // 入队并发任务
-    public func enqueueTaskConcurrent(task: ConcurrentTaskObj) {
-        // stub: 入队到 immediate 队列
-        let entry = EventLoopEntry(EventLoopTag.Immediate, { => })
-        immediateQueue = immediateQueue.concat([entry])
+    // 入队并发任务 (可从任意线程调用)
+    // 严格翻译自 event_loop.enqueueTaskConcurrent
+    public func enqueueTaskConcurrent(task: ConcurrentTask) {
+        concurrentTasks.push(task)
+        wakeup()
     }
 
     /// 唤醒事件循环 (从其他线程)
+    // 严格翻译自 event_loop.wakeup
     public func wakeup(): Unit {
-        // stub: 通知事件循环有新任务
-        ()
+        // 尝试通过 VM 的事件循环句柄唤醒
+        if (let Some(vmInstance) <- vm) {
+            if (let Some(handle) <- vmInstance.eventLoopHandle) {
+                handle.wakeup()
+            }
+        }
     }
 
     /// 执行一次 tick (等价于 tick)
@@ -323,5 +415,21 @@ public class EventLoop {
     /// 入队并发任务 (接受闭包)
     public func enqueueConcurrent(task: Task) {
         enqueueTask(task)
+    }
+
+    // 严格翻译自 event_loop.refConcurrently
+    // 从其他线程递增引用计数
+    public func refConcurrently() {
+        activeHandles++
+        isRefed = true
+    }
+
+    // 严格翻译自 event_loop.unrefConcurrently
+    // 从其他线程递减引用计数
+    public func unrefConcurrently() {
+        activeHandles--
+        if (activeHandles <= 0) {
+            isRefed = false
+        }
     }
 }

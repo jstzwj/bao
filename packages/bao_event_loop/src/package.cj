@@ -53,6 +53,22 @@ public class Timespec {
         return sec == 0 && nsec == 0
     }
 
+    /// 检查是否为 epoch（零值时间）
+    /// 对应 Bun: Timespec.isEpoch
+    public func isEpoch(): Bool {
+        return sec == 0 && nsec == 0
+    }
+
+    /// 忽略 epoch 的比较
+    /// 对应 Bun: Timespec.orderIgnoreEpoch
+    /// 如果任一为 epoch，返回 false（不排序）；否则返回 this < other
+    public func orderIgnoreEpoch(other: Timespec): Bool {
+        if (this.isEpoch() || other.isEpoch()) {
+            return false
+        }
+        this.lessThan(other)
+    }
+
     public static func fromMillis(ms: Int64): Timespec {
         return Timespec(ms / 1000, (ms % 1000) * 1000000)
     }

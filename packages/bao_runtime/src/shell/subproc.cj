@@ -862,8 +862,20 @@ public class PipeReader {
     /// 获取此读取器的StdioKind
     /// 对应 Bun: pub fn kind(reader: *const PipeReader, process: *const ShellSubprocess) StdioKind
     public func kind(process: ShellSubprocess): StdioKind {
-        // stub: simplified - always return stdout
-        return StdioKind.stdout
+        match (this.stdioResult) {
+            case StdioResult.fd(fd) =>
+                if (fd.value == FD.stdout().value) {
+                    return StdioKind.stdout
+                }
+                if (fd.value == FD.stderr().value) {
+                    return StdioKind.stderr
+                }
+                return StdioKind.stdout
+            case StdioResult.pipe(_, _) =>
+                return StdioKind.stdout
+            case _ =>
+                return StdioKind.stdout
+        }
     }
 
     /// 获取缓冲区

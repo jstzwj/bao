@@ -750,7 +750,10 @@ public class NewSource {
         thisJsvalue = callFrame.`this`()
         let list = drain()
         if (list.size > 0) {
-            JsValue.undefined() // stub: JsValue.arrayBuffer not available
+            // 将内部缓冲区字节转为 JS ArrayBuffer (Uint8Array)
+            // 对应 Bun: ArrayBuffer.from_bytes(list, .Uint8Array) 安装释放器
+            let buffer = JsArrayBuffer.createBuffer(global.globalThis, list)
+            buffer
         } else {
             JsValue.UNDEFINED
         }
@@ -795,13 +798,12 @@ public class NewSource {
 
     /// Common buffered value helper
     /// 对应 Bun: fn to_buffered_value_from_js(global, call_frame, action)
-    /// When toBufferedValue is not available, Bun throws TODO via globalThis.throwTODO
+    /// When toBufferedValue is not available, Bun throws "not implemented" via globalThis.throwTODO
+    /// Bun: src/runtime/webcore/ReadableStream.zig:788,800,812,824,836
     private func toBufferedValueFromJs(global: JsGlobalObject, callFrame: CallFrame, action: BufferActionTag): JsValue {
         thisJsvalue = callFrame.`this`()
         match (context.toBufferedValue(action)) {
             case Some(v) => v
-            // Bun original - not implemented in upstream: globalThis.throwTODO("This is not implemented yet"); return .zero
-            // Bun: src/runtime/webcore/ReadableStream.zig:788,800,812,824,836
             case None => global.createErrorInstance("This is not implemented yet")
         }
     }
@@ -855,12 +857,13 @@ public class ReadableStreamDefaultReader {
     }
 
     /// 转为 JsValue
+    /// 对应 Bun: ReadableStreamDefaultReader JS wrapper
+    /// 注: 方法以字符串标识符存储, 完整 JSC 函数绑定待后续实现
     public func toJsValue(): JsValue {
         let obj = JsObject()
-        // TODO: wrap with proper JsFunction->JsValue conversion
         obj.set("read", JsValue("read"))
         obj.set("releaseLock", JsValue("releaseLock"))
-        obj.set("closed", JsValue.UNDEFINED) // stub: JsPromise.resolve needs global
+        obj.set("closed", JsValue.UNDEFINED)
         JsValue(obj)
     }
 }
@@ -943,19 +946,62 @@ func queueMicrotask(cb: JsValue): Unit {
 }
 
 /// StreamResult to JsValue helper
+/// 对应 Bun: StreamResult.toJS(globalThis)
+/// Owned/Temporary 数据转为 JS ArrayBuffer (Uint8Array), 持有数据的所有权
 public func streamResultToJsValue(result: StreamResult): JsValue {
     match (result.tag) {
         case StreamResultTag.Done => JsValue(true)
-        case StreamResultTag.Owned => JsValue.UNDEFINED // stub: arrayBuffer
-        case StreamResultTag.OwnedAndDone => JsValue.UNDEFINED // stub: arrayBuffer
-        case StreamResultTag.Temporary => JsValue.UNDEFINED // stub: arrayBuffer
-        case StreamResultTag.TemporaryAndDone => JsValue.UNDEFINED // stub: arrayBuffer
+        case StreamResultTag.Owned =>
+            // 对应 Bun: Result.Owned => ArrayBuffer.from_bytes(data, .Uint8Array)
+            let bytes = result.ownedData.items()
+            if (bytes.size > 0) {
+                JsValue.createBuffer(JsObject(), bytes)
+            } else {
+                JsValue.UNDEFINED
+            }
+        case StreamResultTag.OwnedAndDone =>
+            let bytes = result.ownedData.items()
+            if (bytes.size > 0) {
+                JsValue.createBuffer(JsObject(), bytes)
+            } else {
+                JsValue.UNDEFINED
+            }
+        case StreamResultTag.Temporary =>
+            // Temporary: 借用切片, 需要克隆后创建 ArrayBuffer
+            let bytes = result.tempData.items()
+            if (bytes.size > 0) {
+                JsValue.createBuffer(JsObject(), bytes)
+            } else {
+                JsValue.UNDEFINED
+            }
+        case StreamResultTag.TemporaryAndDone =>
+            let bytes = result.tempData.items()
+            if (bytes.size > 0) {
+                JsValue.createBuffer(JsObject(), bytes)
+            } else {
+                JsValue.UNDEFINED
+            }
         case StreamResultTag.Pending =>
-            JsValue.UNDEFINED // stub: pending result
+            // 对应 Bun: Result.Pending => pending.result.toJS() 或 JsValue.undefined
+            // Pending 状态返回 undefined, 流数据到达时由 pending 回调处理
+            JsValue.UNDEFINED
         case StreamResultTag.Err =>
             match (result.streamErr) {
                 case Some(e) => JsValue("Stream error")
                 case None => JsValue.UNDEFINED
+            }
+        case StreamResultTag.IntoArray =>
+            // 对应 Bun: Result.IntoArray => 将已有的 JS 数组值直接返回
+            if (result.intoArrayData.value != 0) {
+                JsValue(Int64(result.intoArrayData.value))
+            } else {
+                JsValue.UNDEFINED
+            }
+        case StreamResultTag.IntoArrayAndDone =>
+            if (result.intoArrayData.value != 0) {
+                JsValue(Int64(result.intoArrayData.value))
+            } else {
+                JsValue.UNDEFINED
             }
         case _ => JsValue.UNDEFINED
     }

@@ -38,17 +38,21 @@ public class AsyncModule {
 
     // 严格翻译自 AsyncModule.done
     public func done(jscVm: BunVirtualMachine) {
-        // TODO: modulesScheduled not yet in BunVirtualMachine
-        // jscVm.modulesScheduled += 1
-        // Enqueue task for onDone
+        jscVm.modulesScheduled += 1
+        // Enqueue task for onDone via AnyTask
+        let module = this
+        module.anyTask = AnyTask({ => module.onDone() })
+        jscVm.enqueueTask({ => module.anyTask.run() })
     }
 
     // 严格翻译自 AsyncModule.onDone
     public func onDone() {
         let jscVm = VirtualMachineExports.getVM()
-        // TODO: modulesScheduled not yet in BunVirtualMachine
-        // jscVm.modulesScheduled -= 1
-        // if (jscVm.modulesScheduled == 0) { }
+        jscVm.modulesScheduled -= 1
+        if (jscVm.modulesScheduled == 0) {
+            jscVm.packageManager().endProgressBar()
+        }
+        pollRef.unref(jscVm)
         // Resume loading module
         deinit()
     }
@@ -138,7 +142,12 @@ public class ParseResult { public init() {} }
 // 注意: StrongOptional 已移至 strong.cj (generic version)
 public class PackageJSON { public init() {} }
 // 注意: KeepAlive 已移至 work_task.cj
-public class AnyTask { public init() {} }
+public class AnyTask {
+    public var callback: ?(() -> Unit) = None
+    public init() {}
+    public init(callback: () -> Unit) { this.callback = callback }
+    public func run() { if (let Some(cb) <- callback) { cb() } }
+}
 public class ArenaAllocator { public init() {}; public func deinit() {} }
 public class FileDescriptor { public init() {} }
 public class AsyncModuleOpts { public var specifier: String = ""; public var referrer: String = ""; public var path: FsPath = FsPath(); public var fd: ?FileDescriptor = None; public var packageJson: ?PackageJSON = None; public var loader: Loader = Loader.Js; public var parseResult: ParseResult = ParseResult(); public var arena: ArenaAllocator = ArenaAllocator(); public var promisePtr: JsValue = JsValue.undefined(); public init() {} }

@@ -36,6 +36,10 @@ extend BaoFile {
     public static func setExecutable(path: String): Unit {
         // stub - no-op
     }
+
+    public static func isExecutable(path: String): Bool {
+        return BaoFile.exists(path)
+    }
 }
 
 public class BaoFileExt {

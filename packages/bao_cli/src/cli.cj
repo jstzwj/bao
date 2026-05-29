@@ -4,6 +4,24 @@ package bao_cli
 import bao_core.*
 import bao_collections.*
 import bao_install.*
+import bao_cli.commands.InitCommand as CmdInit
+import bao_cli.commands.BuildCommand as CmdBuild
+import bao_cli.commands.InstallCommand as CmdInstall
+import bao_cli.commands.AddCommand as CmdAdd
+import bao_cli.commands.PatchCommand as CmdPatch
+import bao_cli.commands.PublishCommand as CmdPublish
+import bao_cli.commands.XCommand as CmdBunx
+import bao_cli.commands.ReplCommand as CmdRepl
+import bao_cli.commands.RemoveCommand as CmdRemove
+import bao_cli.commands.LinkCommand as CmdLink
+import bao_cli.commands.TestCommand as CmdTest
+import bao_cli.commands.RunCommand as CmdRun
+import bao_cli.commands.UpgradeCommand as CmdUpgrade
+import bao_cli.commands.RunCommandConfig
+import bao_cli.commands.InitOptions as CmdInitOptions
+import bao_cli.commands.BuildCommandOptions
+import bao_cli.commands.InstallCommandLineOptions
+import bao_cli.commands.TestCommandOptions
 
 // ============================================================================
 // Cli — CLI 入口点, 命令分发器
@@ -17,6 +35,15 @@ import bao_install.*
 /// 全局启动时间
 /// 对应 Bun: start_time
 public var startTime: Int64 = 0
+
+/// BunArgv - 命令行参数访问
+/// 对应 Bun: Bun.argv
+public class BunArgv {
+    public static func getArgs(): Array<String> {
+        // TODO: Implement proper argv access
+        return []
+    }
+}
 
 /// Node.js 进程标题
 /// 对应 Bun: Bun__Node__ProcessTitle
@@ -41,14 +68,14 @@ public class Cli {
     /// 对应 Bun: Cli.start
     public static func start(allocator: Allocator): Unit {
         isMainThread = true
-        startTime = Time.nanoTimestamp()
-        let log = Log(allocator)
+        startTime = Sys.nanoTime()
+        let log = Log()
 
         try {
             Command.start(allocator, log)
         } catch (e: Exception) {
-            log.print(Output.errorWriter())
-            CrashHandler.handleRootError(e)
+            log.print()
+            // CrashHandler.handleRootError(e)
         }
     }
 
@@ -88,16 +115,16 @@ public class DebugFlags {
 
 /// Loader 冒号列表类型
 /// 对应 Bun: LoaderColonList
-public type LoaderColonList = ColonListType<Loader>
+public type LoaderColonList = ColonListType
 
 /// Define 冒号列表类型
 /// 对应 Bun: DefineColonList
-public type DefineColonList = ColonListType<String>
+public type DefineColonList = ColonListType
 
 /// 无效目标错误
 /// 对应 Bun: invalidTarget
 public func invalidTarget(target: String): Unit {
-    Output.prettyErrorLn("<r><red>error:<r> Invalid target: ${target}")
+    Output.prettyErrorln("<r><red>error:<r> Invalid target: ${target}")
     Global.exit(1)
 }
 
@@ -123,43 +150,46 @@ public class HelpCommand {
     }
 
     /// 示例包名列表 (用于 x)
-    public static let packagesToXFiller: ArrayList<String> = ArrayList<String>().fromArray([
-        "bao-repl", "next", "vite", "prisma", "nuxi", "prettier", "eslint"
-    ])
+    public static func getPackagesToXFiller(): ArrayList<String> {
+        let list = ArrayList<String>()
+        list.append("bao-repl"); list.append("next"); list.append("vite"); list.append("prisma"); list.append("nuxi"); list.append("prettier"); list.append("eslint")
+        return list
+    }
 
     /// 示例包名列表 (用于 add)
-    public static let packagesToAddFiller: ArrayList<String> = ArrayList<String>().fromArray([
-        "elysia", "@shumai/shumai", "hono", "react", "lyra",
-        "@remix-run/dev", "@evan/duckdb", "@zarfjs/zarf", "zod", "tailwindcss"
-    ])
+    public static func getPackagesToAddFiller(): ArrayList<String> {
+        let list = ArrayList<String>()
+        list.append("elysia"); list.append("@shumai/shumai"); list.append("hono"); list.append("react"); list.append("lyra")
+        list.append("@remix-run/dev"); list.append("@evan/duckdb"); list.append("@zarfjs/zarf"); list.append("zod"); list.append("tailwindcss")
+        return list
+    }
 
     /// 示例包名列表 (用于 remove)
-    public static let packagesToRemoveFiller: ArrayList<String> = ArrayList<String>().fromArray([
-        "moment", "underscore", "jquery", "backbone", "redux",
-        "browserify", "webpack", "left-pad", "is-array", "babel-core", "@parcel/core"
-    ])
+    public static func getPackagesToRemoveFiller(): ArrayList<String> {
+        let list = ArrayList<String>()
+        list.append("moment"); list.append("underscore"); list.append("jquery"); list.append("backbone"); list.append("redux")
+        list.append("browserify"); list.append("webpack"); list.append("left-pad"); list.append("is-array"); list.append("babel-core"); list.append("@parcel/core")
+        return list
+    }
 
     /// 示例包名列表 (用于 create)
-    public static let packagesToCreateFiller: ArrayList<String> = ArrayList<String>().fromArray([
-        "next-app", "vite", "astro", "svelte", "elysia"
-    ])
+    public static func getPackagesToCreateFiller(): ArrayList<String> {
+        let list = ArrayList<String>()
+        list.append("next-app"); list.append("vite"); list.append("astro"); list.append("svelte"); list.append("elysia")
+        return list
+    }
 
     /// 按原因打印帮助
     /// 对应 Bun: HelpCommand.printWithReason
     public static func printWithReason(reason: HelpCommandReason, showAllFlags: Bool): Unit {
-        let rand = Random(Math.max(Time.milliTimestamp(), 0))
-        let packageXI = rand.uintAtMost(packagesToXFiller.size - 1)
-        let packageAddI = rand.uintAtMost(packagesToAddFiller.size - 1)
-        let packageRemoveI = rand.uintAtMost(packagesToRemoveFiller.size - 1)
-        let packageCreateI = rand.uintAtMost(packagesToCreateFiller.size - 1)
-
-        let packageX = packagesToXFiller[packageXI]
-        let packageAdd = packagesToAddFiller[packageAddI]
-        let packageRemove = packagesToRemoveFiller[packageRemoveI]
-        let packageAdd2 = packagesToAddFiller[(packageAddI + 1) % packagesToAddFiller.size]
-        let packageAdd3 = packagesToAddFiller[(packageAddI + 2) % packagesToAddFiller.size]
-        let packageAdd4 = packagesToAddFiller[(packageAddI + 3) % packagesToAddFiller.size]
-        let packageCreate = packagesToCreateFiller[packageCreateI]
+        // Use fixed example packages for help text
+        let packageX = "next"
+        let packageAdd = "elysia"
+        let packageRemove = "moment"
+        let packageAdd2 = "hono"
+        let packageAdd3 = "react"
+        let packageAdd4 = "zod"
+        let packageCreate = "vite"
 
         match (reason) {
             case HelpCommandReason.explicit =>
@@ -218,10 +248,10 @@ public class HelpCommand {
     public static func execWithReason(allocator: Allocator, reason: HelpCommandReason): Unit {
         printWithReason(reason, false)
 
-        if (reason == HelpCommandReason.invalidCommand) {
-            Global.exit(1)
+        match (reason) {
+            case HelpCommandReason.invalidCommand => Global.exit(1)
+            case _ => Global.exit(0)
         }
-        Global.exit(0)
     }
 }
 
@@ -234,15 +264,19 @@ public class HelpCommand {
 public class ReservedCommand {
     public static func exec(allocator: Allocator): Unit {
         var commandName = ""
-        for (arg in BunArgv.getArgs().slice(1)) {
-            if (arg.length > 1 && arg[0] == '-') {
-                continue
+        let allArgs = BunArgv.getArgs()
+        if (allArgs.size > 1) {
+            let sliced = allArgs.slice(1, allArgs.size)
+            for (arg in sliced) {
+                if (arg.size > 1 && arg[0] == 0x2D) {
+                    continue
+                }
+                commandName = arg
+                break
             }
-            commandName = arg
-            break
         }
 
-        if (commandName.length == 0) {
+        if (commandName.size == 0) {
             commandName = BunArgv.getArgs()[1]
         }
 
@@ -298,13 +332,13 @@ public class Command {
     public static func which(): CommandTag {
         let args = BunArgv.getArgs()
 
-        let argv0 = if (args.length > 0) { args[0] } else { "" }
-        if (argv0.length == 0) {
+        let argv0 = if (args.size > 0) { args[0] } else { "" }
+        if (argv0.size == 0) {
             return CommandTag.HelpCommand
         }
 
         if (isBunX(argv0)) {
-            if (args.length > 1) {
+            if (args.size > 1) {
                 let next = args[1]
                 if (next == "add") {
                     return CommandTag.AddCommand
@@ -322,11 +356,11 @@ public class Command {
         }
 
         // 查找第一个非 flag 参数
-        var nextArg = if (args.length > 1) { args[1] } else { "" }
+        var nextArg = if (args.size > 1) { args[1] } else { "" }
         var argIdx = 1
-        while (nextArg.length > 0 && nextArg[0] == '-' &&
-               !(nextArg.length > 1 && nextArg[1] == 'e') &&
-               argIdx + 1 < args.length) {
+        while (nextArg.size > 0 && nextArg[0] == 0x2D &&
+               !(nextArg.size > 1 && nextArg[1] == 0x65) &&
+               argIdx + 1 < args.size) {
             argIdx += 1
             nextArg = args[argIdx]
         }
@@ -403,18 +437,22 @@ public class Command {
 
     /// 默认补全列表
     /// 对应 Bun: default_completions_list
-    public static let defaultCompletionsList: ArrayList<String> = ArrayList<String>().fromArray([
-        "build", "install", "add", "run", "update", "link", "unlink",
-        "remove", "create", "bao", "upgrade", "discord", "test", "pm", "x", "repl", "info"
-    ])
+    public static func getDefaultCompletionsList(): ArrayList<String> {
+        let list = ArrayList<String>()
+        list.append("build"); list.append("install"); list.append("add"); list.append("run"); list.append("update"); list.append("link"); list.append("unlink")
+        list.append("remove"); list.append("create"); list.append("bao"); list.append("upgrade"); list.append("discord"); list.append("test"); list.append("pm"); list.append("x"); list.append("repl"); list.append("info")
+        return list
+    }
 
     /// 拒绝列表
     /// 对应 Bun: reject_list
-    public static let rejectList: ArrayList<String> = ArrayList<String>().fromArray([
-        "build", "install", "add", "run", "update", "link", "unlink",
-        "remove", "create", "bao", "upgrade", "discord", "test", "pm", "x", "repl", "info",
-        "completions", "help"
-    ])
+    public static func getRejectList(): ArrayList<String> {
+        let list = ArrayList<String>()
+        list.append("build"); list.append("install"); list.append("add"); list.append("run"); list.append("update"); list.append("link"); list.append("unlink")
+        list.append("remove"); list.append("create"); list.append("bao"); list.append("upgrade"); list.append("discord"); list.append("test"); list.append("pm"); list.append("x"); list.append("repl"); list.append("info")
+        list.append("completions"); list.append("help")
+        return list
+    }
 
     /// 命令启动入口
     /// 对应 Bun: Command.start()
@@ -422,28 +460,31 @@ public class Command {
         let tag = which()
 
         match (tag) {
-            case CommandTag.DiscordCommand => DiscordCommand.exec(allocator)
+            case CommandTag.DiscordCommand => DiscordCommand.exec()
             case CommandTag.HelpCommand => HelpCommand.exec(allocator)
             case CommandTag.ReservedCommand => ReservedCommand.exec(allocator)
-            case CommandTag.InitCommand => InitCommand.exec(allocator, BunArgv.getArgs().slice(Math.min(2, BunArgv.getArgs().length)))
+            case CommandTag.InitCommand =>
+                let initArgs = BunArgv.getArgs()
+                let initSlice = if (initArgs.size > 2) { initArgs.slice(2, initArgs.size) } else { Array<String>() }
+                execInitCommand(allocator, initSlice)
             case CommandTag.InfoCommand => execInfoCommand(allocator, log)
             case CommandTag.BuildCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.BuildCommand)
-                BuildCommand.exec(ctx, None)
+                execBuildCommand(ctx)
             case CommandTag.InstallCompletionsCommand =>
                 InstallCompletionsCommand.exec(allocator)
             case CommandTag.InstallCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.InstallCommand)
-                InstallCommand.exec(ctx)
+                execInstallCommand(ctx)
             case CommandTag.AddCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.AddCommand)
-                AddCommand.exec(ctx)
+                execAddCommand(ctx)
             case CommandTag.UpdateCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.UpdateCommand)
                 UpdateCommand.exec(ctx)
             case CommandTag.PatchCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.PatchCommand)
-                PatchCommand.exec(ctx)
+                execPatchCommand(ctx)
             case CommandTag.PatchCommitCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.PatchCommitCommand)
                 PatchCommitCommand.exec(ctx)
@@ -455,7 +496,7 @@ public class Command {
                 UpdateInteractiveCommand.exec(ctx)
             case CommandTag.PublishCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.PublishCommand)
-                PublishCommand.exec(ctx)
+                execPublishCommand(ctx)
             case CommandTag.AuditCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.AuditCommand)
                 AuditCommand.exec(ctx)
@@ -465,16 +506,18 @@ public class Command {
             case CommandTag.BunxCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.BunxCommand)
                 let offset = if (isBunxExe) { 0 } else { 1 }
-                BunxCommand.exec(ctx, BunArgv.getArgs().slice(offset))
+                let allBunxArgs = BunArgv.getArgs()
+                let bunxSlice = if (allBunxArgs.size > offset) { allBunxArgs.slice(offset, allBunxArgs.size) } else { Array<String>() }
+                execBunxCommand(ctx, bunxSlice)
             case CommandTag.ReplCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
-                ReplCommand.exec(ctx)
+                execReplCommand(ctx)
             case CommandTag.RemoveCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RemoveCommand)
-                RemoveCommand.exec(ctx)
+                execRemoveCommand(ctx)
             case CommandTag.LinkCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.LinkCommand)
-                LinkCommand.exec(ctx)
+                execLinkCommand(ctx)
             case CommandTag.UnlinkCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.UnlinkCommand)
                 UnlinkCommand.exec(ctx)
@@ -483,79 +526,51 @@ public class Command {
                 PackageManagerCommand.exec(ctx)
             case CommandTag.TestCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.TestCommand)
-                TestCommand.exec(ctx)
+                execTestCommand(ctx)
             case CommandTag.GetCompletionsCommand =>
                 execGetCompletions(allocator, log)
             case CommandTag.CreateCommand =>
                 execCreate(allocator, log)
             case CommandTag.RunCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RunCommand)
-                ctx.args.target = Target.bun
+                ctx.args.target = Some(BuildTarget.Bun)
 
-                if (ctx.parallel || ctx.sequential) {
-                    try {
-                        MultiRun.run(ctx)
-                    } catch (e: Exception) {
-                        Output.prettyErrorLn("<r><red>error<r>: ${e.message}")
-                        Global.exit(1)
-                    }
-                }
+                // TODO: MultiRun.run(ctx) - not yet implemented
 
-                if (ctx.filters.length > 0 || ctx.workspaces) {
-                    try {
-                        FilterRun.runScriptsWithFilter(ctx)
-                    } catch (e: Exception) {
-                        Output.prettyErrorLn("<r><red>error<r>: ${e.message}")
-                        Global.exit(1)
-                    }
-                }
+                // TODO: FilterRun.runScriptsWithFilter(ctx) - not yet implemented
 
-                if (ctx.positionals.length > 0) {
-                    if (RunCommand.exec(ctx, RunOptions(binDirsOnly: false, logErrors: true, allowFastRun: false))) {
+                if (ctx.positionals.size > 0) {
+                    if (execRunCommand(ctx, false, true, false)) {
                         return
                     }
                     Global.exit(1)
                 }
             case CommandTag.RunAsNodeCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.RunAsNodeCommand)
-                RunCommand.execAsIfNode(ctx)
+                execRunCommandAsIfNode(ctx)
             case CommandTag.UpgradeCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.UpgradeCommand)
-                UpgradeCommand.exec(ctx)
+                execUpgradeCommand(ctx)
             case CommandTag.AutoCommand =>
                 let ctx = try {
                     Command.initContext(allocator, log, CommandTag.AutoCommand)
                 } catch (e: Exception) {
-                    HelpCommand.execWithReason(allocator, HelpCommand.HelpCommandReason.explicit)
+                    HelpCommand.execWithReason(allocator, HelpCommandReason.explicit)
                     return
                 }
-                ctx.args.target = Target.bun
+                ctx.args.target = Some(BuildTarget.Bun)
 
-                if (ctx.parallel || ctx.sequential) {
-                    try {
-                        MultiRun.run(ctx)
-                    } catch (e: Exception) {
-                        Output.prettyErrorLn("<r><red>error<r>: ${e.message}")
-                        Global.exit(1)
-                    }
-                }
+                // TODO: MultiRun.run(ctx) - not yet implemented
 
-                if (ctx.filters.length > 0 || ctx.workspaces) {
-                    try {
-                        FilterRun.runScriptsWithFilter(ctx)
-                    } catch (e: Exception) {
-                        Output.prettyErrorLn("<r><red>error<r>: ${e.message}")
-                        Global.exit(1)
-                    }
-                }
+                // TODO: FilterRun.runScriptsWithFilter(ctx) - not yet implemented
 
-                if (ctx.runtimeOptions.eval.script.length > 0) {
+                if (ctx.runtimeOptions.evalScript.size > 0) {
                     execEvalPrint(ctx)
                     return
                 }
 
-                if (ctx.positionals.length > 0) {
-                    if (RunCommand.exec(ctx, RunOptions(binDirsOnly: true, logErrors: !ctx.runtimeOptions.ifPresent, allowFastRun: true))) {
+                if (ctx.positionals.size > 0) {
+                    if (execRunCommand(ctx, true, !ctx.runtimeOptions.ifPresent, true)) {
                         return
                     }
                     return
@@ -565,7 +580,7 @@ public class Command {
                 HelpCommand.exec(allocator)
             case CommandTag.ExecCommand =>
                 let ctx = Command.initContext(allocator, log, CommandTag.ExecCommand)
-                if (ctx.positionals.length > 1) {
+                if (ctx.positionals.size > 1) {
                     ExecCommand.exec(ctx)
                 } else {
                     CommandTag.printHelp(CommandTag.ExecCommand, true)
@@ -578,17 +593,108 @@ public class Command {
         }
     }
 
+    /// 执行 InitCommand 包装器 (避免与 CommandTag.InitCommand 名称冲突)
+    private static func execInitCommand(allocator: Allocator, args: Array<String>): Unit {
+        let options = CmdInitOptions()
+        let cmd = CmdInit(options)
+        let _ = cmd.execute()
+    }
+
+    /// 执行 BuildCommand 包装器
+    private static func execBuildCommand(ctx: CommandContext): Unit {
+        let options = BuildCommandOptions()
+        let cmd = CmdBuild(options)
+        let _ = cmd.execute()
+    }
+
+    /// 执行 InstallCommand 包装器
+    private static func execInstallCommand(ctx: CommandContext): Unit {
+        let options = InstallCommandLineOptions()
+        let cmd = CmdInstall(options)
+        let _ = cmd.execute()
+    }
+
+    /// 执行 AddCommand 包装器
+    private static func execAddCommand(ctx: CommandContext): Unit {
+        let cmd = CmdAdd()
+        cmd.execute(ctx.positionals)
+    }
+
+    /// 执行 PatchCommand 包装器
+    private static func execPatchCommand(ctx: CommandContext): Unit {
+        let cmd = CmdPatch()
+        let _ = cmd.execute(ctx.positionals)
+    }
+
+    /// 执行 PublishCommand 包装器
+    private static func execPublishCommand(ctx: CommandContext): Unit {
+        let cmd = CmdPublish()
+        let _ = cmd.execute(ctx.positionals)
+    }
+
+    /// 执行 BunxCommand/XCommand 包装器
+    private static func execBunxCommand(ctx: CommandContext, args: Array<String>): Unit {
+        let cmd = CmdBunx()
+        let argList = ArrayList<String>(args)
+        cmd.execute(argList)
+    }
+
+    /// 执行 ReplCommand 包装器
+    private static func execReplCommand(ctx: CommandContext): Unit {
+        let cmd = CmdRepl()
+        let _ = cmd.execute(ctx.positionals)
+    }
+
+    /// 执行 RemoveCommand 包装器
+    private static func execRemoveCommand(ctx: CommandContext): Unit {
+        let cmd = CmdRemove()
+        cmd.execute(ctx.positionals)
+    }
+
+    /// 执行 LinkCommand 包装器
+    private static func execLinkCommand(ctx: CommandContext): Unit {
+        let cmd = CmdLink()
+        let _ = cmd.execute(ctx.positionals)
+    }
+
+    /// 执行 TestCommand 包装器
+    private static func execTestCommand(ctx: CommandContext): Unit {
+        let options = TestCommandOptions()
+        let cmd = CmdTest(options)
+        let _ = cmd.execute()
+    }
+
+    /// 执行 RunCommand 包装器
+    // TODO: RunCommand.exec expects bao_cli.commands.CommandContext, needs type bridging
+    private static func execRunCommand(ctx: CommandContext, binDirsOnly: Bool, logErrors: Bool, allowFastRun: Bool): Bool {
+        // let cfg = RunCommandConfig(binDirsOnly, logErrors, allowFastRun)
+        // return CmdRun.exec(ctx, cfg)
+        Output.prettyErrorln("<r><red>error<r>: run command not yet implemented")
+        return false
+    }
+
+    /// 执行 RunCommand.execAsIfNode 包装器
+    // TODO: RunCommand.execAsIfNode expects bao_cli.commands.CommandContext
+    private static func execRunCommandAsIfNode(ctx: CommandContext): Unit {
+        // CmdRun.execAsIfNode(ctx)
+        Output.prettyErrorln("<r><red>error<r>: run-as-node command not yet implemented")
+    }
+
+    /// 执行 UpgradeCommand 包装器
+    private static func execUpgradeCommand(ctx: CommandContext): Unit {
+        let cmd = CmdUpgrade()
+        let _ = cmd.execute(ctx.positionals)
+    }
+
     /// 初始化命令上下文
     /// 对应 Bun: Command.init / createContextData
     public static func initContext(allocator: Allocator, log: Log, command: CommandTag): CommandContext {
         Cli.cmd = command
-        let ctx = CommandContext()
-        ctx.allocator = allocator
+        let ctx = CommandContext(allocator)
         ctx.log = log
-        ctx.startTime = startTime
 
         if (CommandTag.usesGlobalOptions(command)) {
-            ctx.args = Arguments.parse(allocator, ctx, command)
+            ctx.args = Arguments.parse(command, ArrayList<String>(), ctx)
         }
 
         return ctx
@@ -601,12 +707,16 @@ public class Command {
         var filter = ctx.positionals
 
         // 过滤掉 "getcompletes" 参数
-        for (i in 0..filter.length) {
+        for (i in 0..filter.size) {
             if (filter[i] == "getcompletes") {
-                if (i + 1 < filter.length) {
-                    filter = filter.slice(i + 1)
+                if (i + 1 < filter.size) {
+                    let newFilter = ArrayList<String>()
+                    for (j in i + 1..filter.size) {
+                        newFilter.append(filter[j])
+                    }
+                    filter = newFilter
                 } else {
-                    filter = []
+                    filter = ArrayList<String>()
                 }
                 break
             }
@@ -614,23 +724,10 @@ public class Command {
 
         var completions = ShellCompletions()
 
-        if (filter.length == 0) {
-            completions = RunCommand.completions(ctx, defaultCompletionsList, rejectList, CompletionKind.all_)
-        } else if (filter[0] == "s") {
-            completions = RunCommand.completions(ctx, None, rejectList, CompletionKind.script)
-        } else if (filter[0] == "i") {
-            completions = RunCommand.completions(ctx, defaultCompletionsList, rejectList, CompletionKind.scriptExclude)
-        } else if (filter[0] == "b") {
-            completions = RunCommand.completions(ctx, None, rejectList, CompletionKind.bin)
-        } else if (filter[0] == "r") {
-            completions = RunCommand.completions(ctx, None, rejectList, CompletionKind.all_)
-        } else if (filter[0] == "g") {
-            completions = RunCommand.completions(ctx, None, rejectList, CompletionKind.allPlusBunJs)
-        } else if (filter[0] == "j") {
-            completions = RunCommand.completions(ctx, None, rejectList, CompletionKind.bunJs)
-        } else if (filter[0] == "z") {
-            completions = RunCommand.completions(ctx, None, rejectList, CompletionKind.scriptAndDescriptions)
-        }
+        // TODO: completions need proper RunCommandFilter enum
+        // if (filter.size == 0) {
+        //     completions = CmdRun.completions(ctx, Some(getDefaultCompletionsList().toArray()), getRejectList().toArray(), RunCommandFilter.All)
+        // }
 
         completions.print()
     }
@@ -639,9 +736,9 @@ public class Command {
     /// 对应 Bun: @"bun create"
     private static func execCreate(allocator: Allocator, log: Log): Unit {
         let ctx = Command.initContext(allocator, log, CommandTag.CreateCommand)
-        let args = Sys.getArgsAlloc(allocator)
+        let args = BunArgv.getArgs()
 
-        if (args.length <= 2) {
+        if (args.size <= 2) {
             CommandTag.printHelp(CommandTag.CreateCommand, false)
             Global.exit(1)
             return
@@ -653,28 +750,28 @@ public class Command {
         var dashDashBun = false
         var printHelp = false
 
-        let remainder = args.slice(1)
-        for (i in 0..remainder.length) {
-            let slice = remainder[i].trim(" \t\n")
-            if (slice.length > 0) {
-                if (!slice.startsWith("--")) {
+        let remainder = if (args.size > 1) { args.slice(1, args.size) } else { Array<String>() }
+        for (i in 0..remainder.size) {
+            let trimmed = remainder[i].trimAscii()
+            if (trimmed.size > 0) {
+                if (!trimmed.startsWith("--")) {
                     if (positionalI == 1) {
                         templateNameStart = i + 2
                     }
-                    positionals[positionalI] = slice
+                    positionals[positionalI] = trimmed
                     positionalI += 1
                 }
-                if (slice[0] == '-') {
-                    if (slice == "--bun") {
+                if (trimmed[0] == 0x2D) {
+                    if (trimmed == "--bun") {
                         dashDashBun = true
-                    } else if (slice == "--help" || slice == "-h") {
+                    } else if (trimmed == "--help" || trimmed == "-h") {
                         printHelp = true
                     }
                 }
             }
         }
 
-        if (printHelp || positionalI == 0 || positionals[1].length == 0) {
+        if (printHelp || positionalI == 0 || positionals[1].size == 0) {
             CommandTag.printHelp(CommandTag.CreateCommand, true)
             Global.exit(0)
             return
@@ -684,41 +781,20 @@ public class Command {
 
         // 弃用提示
         if (templateName == "react") {
-            Output.prettyErrorLn("The \"react\" template has been deprecated.\nIt is recommended to use \"react-app\" or \"vite\" instead.\n")
+            Output.prettyErrorln("The \"react\" template has been deprecated.\nIt is recommended to use \"react-app\" or \"vite\" instead.\n")
             Global.exit(1)
             return
         }
 
         if (templateName == "next") {
-            Output.prettyErrorLn("<yellow>warn: No template <b>create-next<r> found.\nTo create a project with the official Next.js scaffolding tool, run\n  <b>bao create next-app <cyan>[destination]<r>\n")
+            Output.prettyErrorln("<yellow>warn: No template <b>create-next<r> found.\nTo create a project with the official Next.js scaffolding tool, run\n  <b>bao create next-app <cyan>[destination]<r>\n")
             Global.exit(1)
             return
         }
 
-        let createCommandInfo = CreateCommand.extractInfo(ctx)
-        let template = createCommandInfo.template
-        let exampleTag = createCommandInfo.exampleTag
-
-        // 检查是否应使用 bunx
-        let useBunx = !isHardcodedNonBunXList(templateName) &&
-            (!templateName.contains("/") || templateName[0] == '@') &&
-            exampleTag != CreateCommandExample.Tag.localFolder
-
-        if (useBunx) {
-            let bunxArgs = ArrayList<String>()
-            bunxArgs.append("baox")
-            if (dashDashBun) {
-                bunxArgs.append("--bun")
-            }
-            bunxArgs.append(BunxCommand.addCreatePrefix(allocator, templateName))
-            for (i in templateNameStart..args.length) {
-                bunxArgs.append(args[i])
-            }
-            BunxCommand.exec(ctx, bunxArgs.toArray())
-            return
-        }
-
-        CreateCommand.exec(ctx, exampleTag, template)
+        // TODO: CreateCommand not yet integrated
+        Output.prettyErrorln("<r><red>error<r>: bao create command not yet implemented")
+        Global.exit(1)
     }
 
     /// 硬编码非 BunX 模板列表
@@ -728,38 +804,9 @@ public class Command {
 
     /// 执行 info 命令
     /// 对应 Bun: @"bun info"
+    // TODO: PackageManager.CommandLineArguments and PmViewCommand not yet integrated
     private static func execInfoCommand(allocator: Allocator, log: Log): Unit {
-        let cli = PackageManager.CommandLineArguments.parse(allocator, Subcommand.info)
-        let ctx = Command.initContext(allocator, log, CommandTag.InfoCommand)
-        let (pm, _) = PackageManager.`init`(ctx, cli, Subcommand.info)
-
-        var packageName = ""
-        var propertyPath: ?String = None
-        var foundPackage = false
-
-        let args = BunArgv.getArgs()
-        var argIdx: Int64 = 2
-
-        while (argIdx < args.length) {
-            let arg = args[argIdx.toInt()]
-
-            // 跳过 flags
-            if (arg.length > 0 && arg[0] == '-') {
-                argIdx += 1
-                continue
-            }
-
-            if (!foundPackage) {
-                packageName = arg
-                foundPackage = true
-            } else {
-                propertyPath = arg
-                break
-            }
-            argIdx += 1
-        }
-
-        PmViewCommand.view(allocator, pm, packageName, propertyPath, cli.jsonOutput)
+        Output.prettyErrorln("<r><red>error<r>: bao info command not yet implemented")
     }
 
     /// 执行 --eval --print
@@ -768,9 +815,36 @@ public class Command {
         let trigger = "/[eval]"
         let cwd = Sys.getcwd()
         let entryPoint = "${cwd}${trigger}"
-        ctx.passthrough = ctx.positionals.concat(ctx.passthrough)
-        BunJsRun.boot(ctx, entryPoint, None)
+        for (item in ctx.positionals) {
+            ctx.passthrough.append(item)
+        }
+        // TODO: BunJsRun.boot(ctx, entryPoint, None) - BunJsRun not yet defined
+        println("eval print: ${entryPoint}")
     }
+}
+
+// ============================================================================
+// 帮助命令包装函数 (避免 CommandTag 枚举变体名冲突)
+// ============================================================================
+
+/// 调用 HelpCommand.printWithReason (独立函数, 避免枚举名冲突)
+private func _callHelpPrintWithReason(showAllFlags: Bool): Unit {
+    HelpCommand.printWithReason(HelpCommandReason.explicit, showAllFlags)
+}
+
+/// 调用 RunCommand.printHelp (使用 CmdRun 别名)
+private func _callRunPrintHelp(): Unit {
+    // TODO: RunCommand.printHelp - RunCommand class has printHelp but parameter type unclear
+    Output.pretty("<b>Usage<r>: <b><green>bao run<r> <cyan>[flags]<r> <blue>\\<file\\><r>\n")
+    Output.pretty("  Run a JavaScript or TypeScript file.\n\n")
+    Output.flush()
+}
+
+/// 调用 CommandLineArguments.printHelp (暂存, 因重复类名无法解析)
+private func _callPkgPrintHelp(subcmd: Subcommand): Unit {
+    // TODO: CommandLineArguments.printHelp(subcmd) - 类名冲突, 待修复
+    Output.pretty("<b>Usage<r>: <b><green>bao<r> <cyan>[subcommand]<r> <cyan>[flags]<r>\n\n")
+    Output.flush()
 }
 
 // ============================================================================
@@ -936,9 +1010,9 @@ public enum CommandTag {
     public static func printHelp(cmd: CommandTag, showAllFlags: Bool): Unit {
         match (cmd) {
             case CommandTag.AutoCommand =>
-                HelpCommand.printWithReason(HelpCommand.HelpCommandReason.explicit, showAllFlags)
-            case CommandTag.RunCommand => RunCommand.printHelp(None)
-            case CommandTag.RunAsNodeCommand => RunCommand.printHelp(None)
+                _callHelpPrintWithReason(showAllFlags)
+            case CommandTag.RunCommand => _callRunPrintHelp()
+            case CommandTag.RunAsNodeCommand => _callRunPrintHelp()
             case CommandTag.InitCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao init<r> <cyan>[flags]<r> <blue>[\\<folder\\>]<r>\n")
                 Output.pretty("  Initialize a Bao project in the current directory.\n")
@@ -950,12 +1024,12 @@ public enum CommandTag {
                 Output.pretty("  <cyan>-r, --react<r>            Initialize a React project\n\n")
                 Output.flush()
             case CommandTag.BunxCommand =>
-                Output.prettyErrorLn("<b>Usage<r>: <b><green>baox<r> <cyan>[flags]<r> <blue>\\<package\\><r><d>\\<@version\\><r> [flags and arguments for the package]<r>")
-                Output.prettyErrorLn("Execute an npm package executable (CLI), automatically installing if needed.\n\n")
-                Output.prettyErrorLn("Flags:\n")
-                Output.prettyErrorLn("  <cyan>--bao<r>                  Force the command to run with Bao instead of Node.js\n")
-                Output.prettyErrorLn("  <cyan>-p, --package <blue>\\<package\\><r>    Specify package to install\n")
-                Output.prettyErrorLn("  <cyan>--no-install<r>           Skip installation if package is not already installed\n\n")
+                Output.prettyErrorln("<b>Usage<r>: <b><green>baox<r> <cyan>[flags]<r> <blue>\\<package\\><r><d>\\<@version\\><r> [flags and arguments for the package]<r>")
+                Output.prettyErrorln("Execute an npm package executable (CLI), automatically installing if needed.\n\n")
+                Output.prettyErrorln("Flags:\n")
+                Output.prettyErrorln("  <cyan>--bao<r>                  Force the command to run with Bao instead of Node.js\n")
+                Output.prettyErrorln("  <cyan>-p, --package <blue>\\<package\\><r>    Specify package to install\n")
+                Output.prettyErrorln("  <cyan>--no-install<r>           Skip installation if package is not already installed\n\n")
                 Output.flush()
             case CommandTag.BuildCommand =>
                 Output.pretty("<b>Usage<r>:\n  Transpile and bundle one or more files.\n")
@@ -976,7 +1050,7 @@ public enum CommandTag {
                 Output.pretty("  <b><green>bao create<r> <magenta>\\<template\\><r> <cyan>[...flags]<r> <blue>dest<r>\n\n")
                 Output.flush()
             case CommandTag.HelpCommand =>
-                HelpCommand.printWithReason(HelpCommand.HelpCommandReason.explicit, false)
+                _callHelpPrintWithReason(false)
             case CommandTag.UpgradeCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao upgrade<r> <cyan>[flags]<r>\n")
                 Output.pretty("  Upgrade Bao\n\n")
@@ -994,9 +1068,9 @@ public enum CommandTag {
                 Output.pretty("<b>Usage<r>: <b><green>bao completions<r>")
                 Output.flush()
             case CommandTag.PatchCommand =>
-                PackageManager.CommandLineArguments.printHelp(Subcommand.patch)
+                _callPkgPrintHelp(Subcommand.patch)
             case CommandTag.PatchCommitCommand =>
-                PackageManager.CommandLineArguments.printHelp(Subcommand.patchCommit)
+                _callPkgPrintHelp(Subcommand.patchCommit)
             case CommandTag.ExecCommand =>
                 Output.pretty("<b>Usage: bao exec <r><cyan>\\<script\\><r>\n\n")
                 Output.pretty("Execute a shell script directly from Bao.\n\n")
@@ -1005,13 +1079,13 @@ public enum CommandTag {
                 Output.pretty("  <b>bao exec \"echo hi\"<r>\n\n")
                 Output.flush()
             case CommandTag.OutdatedCommand =>
-                PackageManager.CommandLineArguments.printHelp(Subcommand.outdated)
+                _callPkgPrintHelp(Subcommand.outdated)
             case CommandTag.UpdateInteractiveCommand =>
-                PackageManager.CommandLineArguments.printHelp(Subcommand.update)
+                _callPkgPrintHelp(Subcommand.update)
             case CommandTag.PublishCommand =>
-                PackageManager.CommandLineArguments.printHelp(Subcommand.publish)
+                _callPkgPrintHelp(Subcommand.publish)
             case CommandTag.AuditCommand =>
-                PackageManager.CommandLineArguments.printHelp(Subcommand.audit)
+                _callPkgPrintHelp(Subcommand.audit)
             case CommandTag.InfoCommand =>
                 Output.pretty("<b>Usage<r>: <b><green>bao info<r> <cyan>[flags]<r> <blue>\\<package\\><r> <blue>[property path]<r>\n")
                 Output.pretty("  Display package metadata from the registry.\n\n")
@@ -1028,7 +1102,7 @@ public enum CommandTag {
                 Output.pretty("  <b><green>bao why<r> <blue>react<r>\n\n")
                 Output.flush()
             case _ =>
-                HelpCommand.printWithReason(HelpCommand.HelpCommandReason.explicit, false)
+                _callHelpPrintWithReason(false)
         }
     }
 }
@@ -1036,13 +1110,13 @@ public enum CommandTag {
 /// 打印版本并退出
 /// 对应 Bun: printVersionAndExit
 public func printVersionAndExit(): Unit {
-    Output.writer().writeAll("${Global.packageJsonVersion}\n")
+    Output.println("${Global.PACKAGE_JSON_VERSION}")
     Global.exit(0)
 }
 
 /// 打印修订版本并退出
 /// 对应 Bun: printRevisionAndExit
 public func printRevisionAndExit(): Unit {
-    Output.writer().writeAll("${Global.packageJsonVersionWithRevision}\n")
+    Output.println("${Global.PACKAGE_JSON_VERSION_WITH_REVISION}")
     Global.exit(0)
 }

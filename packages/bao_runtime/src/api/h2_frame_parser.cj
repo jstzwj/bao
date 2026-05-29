@@ -63,7 +63,7 @@ public enum FrameType {
     | altsvc(UInt8)
     | origin(UInt8)
 
-    public static func fromValue(value: UInt8): FrameType {
+    public static func fromValue(value!: UInt8): FrameType {
         match (value) {
             case 0x00 => FrameType.data(0x00)
             case 0x01 => FrameType.headers(0x01)
@@ -162,7 +162,7 @@ public class ErrorCode {
     public static let HTTP_1_1_REQUIRED = ErrorCode(value: 0xd)
     public static let MAX_PENDING_SETTINGS_ACK = ErrorCode(value: 0xe)
 
-    public func equals(other: ErrorCode): Bool {
+    public func equals(other!: ErrorCode): Bool {
         this.value == other.value
     }
 }
@@ -192,19 +192,19 @@ public class SettingsType {
 // 辅助函数
 // ============================================================================
 
-func u32FromBytes(src: Array<UInt8>): UInt32 {
+func u32FromBytes(src!: Array<UInt8>): UInt32 {
     (UInt32(src[0]) << 24) | (UInt32(src[1]) << 16) | (UInt32(src[2]) << 8) | UInt32(src[3])
 }
 
 /// 判断是否为有效的响应伪头部
-func isValidResponsePseudoHeader(name: Array<UInt8>): Bool {
+func isValidResponsePseudoHeader(name!: Array<UInt8>): Bool {
     name.size == 7 && name[0] == UInt8(':') && name[1] == UInt8('s') &&
         name[2] == UInt8('t') && name[3] == UInt8('a') && name[4] == UInt8('t') &&
         name[5] == UInt8('u') && name[6] == UInt8('s')
 }
 
 /// 判断是否为有效的请求伪头部
-func isValidRequestPseudoHeader(name: Array<UInt8>): Bool {
+func isValidRequestPseudoHeader(name!: Array<UInt8>): Bool {
     if (name.size == 5) {
         return name[0] == UInt8(':') && name[1] == UInt8('p') && name[2] == UInt8('a') &&
                name[3] == UInt8('t') && name[4] == UInt8('h')
@@ -230,7 +230,7 @@ func isValidRequestPseudoHeader(name: Array<UInt8>): Bool {
 }
 
 /// 单值头部索引查找
-func singleValueHeadersIndexOf(name: Array<UInt8>): ?Int {
+func singleValueHeadersIndexOf(name!: Array<UInt8>): ?Int {
     match (name.size) {
         case 2 => if (name[0] == UInt8('t') && name[1] == UInt8('k')) { 36 } else { none }
         case 3 =>
@@ -331,19 +331,19 @@ public class UInt31WithReserved {
         this.value & 0x7FFFFFFF
     }
 
-    public static func from(value: UInt32): UInt31WithReserved {
+    public static func from(value!: UInt32): UInt31WithReserved {
         UInt31WithReserved(value: value)
     }
 
-    public static func `init`(value: UInt32, reserved: Bool): UInt31WithReserved {
-        UInt31WithReserved(value: (value & 0x7FFFFFFF) | (reserved ? 0x80000000 : UInt32(0)))
+    public static func `init`(value!: UInt32, reserved!: Bool): UInt31WithReserved {
+        UInt31WithReserved(value: (value & 0x7FFFFFFF) | (if (reserved) { 0x80000000 } else { UInt32(0) }))
     }
 
     public func toUInt32(): UInt32 {
         this.value
     }
 
-    public static func fromBytes(src: Array<UInt8>): UInt31WithReserved {
+    public static func fromBytes(src!: Array<UInt8>): UInt31WithReserved {
         UInt31WithReserved(value: u32FromBytes(src))
     }
 }
@@ -377,7 +377,7 @@ public class FrameHeader {
         this.streamIdentifier = streamIdentifier
     }
 
-    public static func decode(raw: Array<UInt8>): FrameHeader {
+    public static func decode(raw!: Array<UInt8>): FrameHeader {
         FrameHeader(
             length: (UInt32(raw[0]) << 16) | (UInt32(raw[1]) << 8) | UInt32(raw[2]),
             type_: raw[3],
@@ -423,7 +423,7 @@ public class FullSettingsPayload {
 
     public init() {}
 
-    public func toJs(JsGlobalObject): JsValue {
+    public func toJs(jsGlobalObject!: JsGlobalObject): JsValue {
         let result = JsValue.createEmptyObject(globalObject, 8)
         result.put(globalObject, "headerTableSize", JsValue.jsNumber(Float64(headerTableSize)))
         result.put(globalObject, "enablePush", JsValue.from(enablePush > 0))
@@ -436,7 +436,7 @@ public class FullSettingsPayload {
         result
     }
 
-    public func updateWith(option: SettingsPayloadUnit) {
+    public func updateWith(option!: SettingsPayloadUnit) {
         match (option.type_) {
             case SettingsType.SETTINGS_HEADER_TABLE_SIZE.value => this.headerTableSize = option.value
             case SettingsType.SETTINGS_ENABLE_PUSH.value => this.enablePush = option.value
@@ -467,12 +467,12 @@ public enum BunSocket {
 // ============================================================================
 
 @Extern
-public func JSC__JSGlobalObject__getHTTP2CommonString(JsGlobalObject, hpackIndex: UInt32): JsValue
+public func JSC__JSGlobalObject__getHTTP2CommonString(jsGlobalObject!: JsGlobalObject, hpackIndex!: UInt32): JsValue { JsValue.zero }
 
 @Extern
-public func Bun__wrapAbortError(JsGlobalObject, cause: JsValue): JsValue
+public func Bun__wrapAbortError(jsGlobalObject!: JsGlobalObject, cause!: JsValue): JsValue { JsValue.zero }
 
-public func getHTTP2CommonString(JsGlobalObject, hpackIndex: UInt32): ?JsValue {
+public func getHTTP2CommonString(jsGlobalObject!: JsGlobalObject, hpackIndex!: UInt32): ?JsValue {
     if (hpackIndex == 255) { return none }
     let value = JSC__JSGlobalObject__getHTTP2CommonString(globalObject, hpackIndex)
     if (value.isEmptyOrUndefinedOrNull()) { return none }
@@ -497,7 +497,7 @@ public enum StreamState {
     | idle
     | reservedLocal
     | reservedRemote
-    | open
+    | `open`
     | halfClosedLocal
     | halfClosedRemote
     | closed
@@ -528,7 +528,7 @@ public class PendingQueue {
     public var front: Int = 0
     public var len: Int = 0
 
-    public func enqueue(value: PendingFrame) {
+    public func enqueue(value!: PendingFrame) {
         data.append(value)
         len += 1
     }
@@ -593,10 +593,10 @@ public class Stream {
     public init() {}
 
     public static func `init`(
-        streamIdentifier: UInt32,
-        initialWindowSize: UInt32,
-        remoteWindowSize: UInt32,
-        paddingStrategy: PaddingStrategy
+        streamIdentifier!: UInt32,
+        initialWindowSize!: UInt32,
+        remoteWindowSize!: UInt32,
+        paddingStrategy!: PaddingStrategy
     ): Stream {
         let s = Stream()
         s.id = streamIdentifier
@@ -622,7 +622,7 @@ public class Stream {
         }
     }
 
-    public func getPadding(frameLen: Int, maxLen: Int): UInt8 {
+    public func getPadding(frameLen!: Int, maxLen!: Int): UInt8 {
         match (paddingStrategy) {
             case None => UInt8(0)
             case Aligned =>
@@ -640,11 +640,11 @@ public class Stream {
         JsValue.jsNumber(Float64(id))
     }
 
-    public func freeResources(finalizing: Bool, client: H2FrameParser) {
+    public func freeResources(finalizing!: Bool, client!: H2FrameParser) {
         cleanQueue(finalizing, client)
     }
 
-    public func cleanQueue(finalizing: Bool, client: H2FrameParser) {
+    public func cleanQueue(finalizing!: Bool, client!: H2FrameParser) {
         var queue = dataFrameQueue
         while (true) {
             let item = queue.dequeue()
@@ -667,7 +667,7 @@ public class Handlers {
     public var binaryType: BinaryType = BinaryType.Buffer
     public var globalObject: JsGlobalObject
 
-    public init(JsGlobalObject) {
+    public init(globalObject: JsGlobalObject) {
         this.globalObject = globalObject
     }
 
@@ -676,9 +676,9 @@ public class Handlers {
     }
 
     public static func fromJs(
-        JsGlobalObject,
-        opts: JsValue,
-        thisValue: JsValue
+        globalObject: JsGlobalObject,
+        opts!: JsValue,
+        thisValue!: JsValue
     ): ?Handlers {
         if (opts.isEmptyOrUndefinedOrNull() || opts.isBoolean() || !opts.isObject()) {
             return none
@@ -733,7 +733,7 @@ public class H2FrameParser {
     public var hasNonnativeBackpressure: Bool = false
     public var paddingStrategy: PaddingStrategy = PaddingStrategy.None
 
-    public init(JsGlobalObject) {
+    public init(globalObject: JsGlobalObject) {
         this.globalThis = globalObject
     }
 
@@ -778,7 +778,7 @@ public class H2FrameParser {
         write(buffer)
     }
 
-    public func sendWindowUpdate(streamIdentifier: UInt32, windowSize_: UInt31WithReserved) {
+    public func sendWindowUpdate(streamIdentifier!: UInt32, windowSize_!: UInt31WithReserved) {
         let buffer = Array<UInt8>(13, { _ => UInt8(0) })
         let header = FrameHeader(
             length: 4,
@@ -796,14 +796,14 @@ public class H2FrameParser {
     }
 
     public func sendGoAway(
-        streamIdentifier: UInt32,
-        rstCode: ErrorCode,
-        debugData: Array<UInt8>,
-        lastStreamId_: UInt32,
-        emitError: Bool
+        streamIdentifier!: UInt32,
+        rstCode!: ErrorCode,
+        debugData!: Array<UInt8>,
+        lastStreamId_!: UInt32,
+        emitError!: Bool
     ) {
         let bufferSize = 9 + 8
-        var buffer = Array<UInt8>(bufferSize, item: UInt8(0))
+        var buffer = Array<UInt8>(bufferSize)
         let frame = FrameHeader(
             length: UInt32(8 + debugData.size),
             type_: 0x07,
@@ -838,17 +838,12 @@ public class H2FrameParser {
         }
     }
 
-    public func sendPing(ack: Bool, payload: Array<UInt8>) {
+    public func sendPing(ack!: Bool, payload!: Array<UInt8>) {
         if (!ack) {
             outStandingPings += 1
         }
         let buffer = Array<UInt8>(17, { _ => UInt8(0) })
-        let frame = FrameHeader(
-            length: 8,
-            type_: 0x06,
-            flags: ack ? UInt8(0x1) : UInt8(0),
-            streamIdentifier: 0
-        )
+        let frame = FrameHeader(8, 0x06, if (ack) { UInt8(0x1) } else { UInt8(0) }, 0)
         writeFrameHeader(frame, buffer, 0)
         for (i in 0..8) {
             if (i < payload.size) {
@@ -883,7 +878,7 @@ public class H2FrameParser {
         write(buffer)
     }
 
-    public func setSettings(settings: FullSettingsPayload): Bool {
+    public func setSettings(settings!: FullSettingsPayload): Bool {
         if (outstandingSettings >= maxOutstandingSettings) {
             sendGoAway(
                 0,
@@ -909,9 +904,9 @@ public class H2FrameParser {
         true
     }
 
-    public func abortStream(stream_: Stream, abortReason: JsValue) {
+    public func abortStream(stream_!: Stream, abortReason!: JsValue) {
         let bufferSize = 9 + 4
-        let buffer = Array<UInt8>(bufferSize, item: UInt8(0))
+        let buffer = Array<UInt8>(bufferSize)
         let frame = FrameHeader(
             length: 4,
             type_: 0x03,
@@ -931,10 +926,10 @@ public class H2FrameParser {
         write(buffer)
     }
 
-    public func endStream(stream_: Stream, rstCode: ErrorCode) {
+    public func endStream(stream_!: Stream, rstCode!: ErrorCode) {
         if (stream_.state == StreamState.closed) { return }
         let bufferSize = 9 + 4
-        let buffer = Array<UInt8>(bufferSize, item: UInt8(0))
+        let buffer = Array<UInt8>(bufferSize)
         let frame = FrameHeader(
             length: 4,
             type_: 0x03,
@@ -953,9 +948,9 @@ public class H2FrameParser {
         write(buffer)
     }
 
-    public func sendAltSvc(streamIdentifier: UInt32, originStr: Array<UInt8>, alt: Array<UInt8>) {
+    public func sendAltSvc(streamIdentifier!: UInt32, originStr!: Array<UInt8>, alt!: Array<UInt8>) {
         let bufferSize = 9 + 2
-        var buffer = Array<UInt8>(bufferSize, item: UInt8(0))
+        var buffer = Array<UInt8>(bufferSize)
         let frame = FrameHeader(
             length: UInt32(originStr.size + alt.size + 2),
             type_: 0x0A,
@@ -975,7 +970,7 @@ public class H2FrameParser {
     // 帧处理方法
     // ========================================================================
 
-    public func handleIncomingPayload(data: Array<UInt8>, streamIdentifier: UInt32): ?Array<UInt8>> {
+    public func handleIncomingPayload(data!: Array<UInt8>, streamIdentifier!: UInt32): ?Array<UInt8> {
         let end = Math.min(Int64(remainingLength), data.size)
         let payload = data[0..end]
         remainingLength = remainingLength - Int32(end)
@@ -1000,7 +995,7 @@ public class H2FrameParser {
         payload
     }
 
-    public func handleDataFrame(frame: FrameHeader, data: Array<UInt8>, stream_: ?Stream): Int {
+    public func handleDataFrame(frame!: FrameHeader, data!: Array<UInt8>, stream_!: ?Stream): Int {
         readBuffer.clear()
         if (stream_.isNone()) {
             sendGoAway(
@@ -1045,7 +1040,7 @@ public class H2FrameParser {
         end
     }
 
-    public func handleWindowUpdateFrame(frame: FrameHeader, data: Array<UInt8>, stream_: ?Stream): Int {
+    public func handleWindowUpdateFrame(frame!: FrameHeader, data!: Array<UInt8>, stream_!: ?Stream): Int {
         if (frame.size != 4) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1056,7 +1051,9 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             readBuffer.clear()
             if (stream_.isNone()) {
                 remoteWindowSize += UInt64(UInt31WithReserved.fromBytes(content).uint31())
@@ -1067,7 +1064,7 @@ public class H2FrameParser {
         data.size
     }
 
-    public func handleSettingsFrame(frame: FrameHeader, data: Array<UInt8>): Int {
+    public func handleSettingsFrame(frame!: FrameHeader, data!: Array<UInt8>): Int {
         let isAck = (frame.flags & 0x1) != 0
         if (frame.streamIdentifier != 0) {
             sendGoAway(
@@ -1106,7 +1103,9 @@ public class H2FrameParser {
             return 0
         }
 
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             var remoteSettings_ = remoteSettings ?? FullSettingsPayload()
             var i: Int = 0
             while (i + SettingsPayloadUnit.BYTE_SIZE <= content.size) {
@@ -1140,7 +1139,7 @@ public class H2FrameParser {
         data.size
     }
 
-    public func handleGoAwayFrame(frame: FrameHeader, data: Array<UInt8>): Int {
+    public func handleGoAwayFrame(frame!: FrameHeader, data!: Array<UInt8>): Int {
         let settings = remoteSettings ?? localSettings
         if (frame.size < 8 || frame.size > settings.maxFrameSize) {
             sendGoAway(
@@ -1152,14 +1151,16 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             readBuffer.clear()
             return content.size
         }
         data.size
     }
 
-    public func handlePingFrame(frame: FrameHeader, data: Array<UInt8>): Int {
+    public func handlePingFrame(frame!: FrameHeader, data!: Array<UInt8>): Int {
         if (frame.size != 8) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1170,7 +1171,9 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             let isNotAck = (frame.flags & 0x1) == 0
             readBuffer.clear()
             if (isNotAck) {
@@ -1183,7 +1186,7 @@ public class H2FrameParser {
         data.size
     }
 
-    public func handleRstStreamFrame(frame: FrameHeader, data: Array<UInt8>, stream_: ?Stream): Int {
+    public func handleRstStreamFrame(frame!: FrameHeader, data!: Array<UInt8>, stream_!: ?Stream): Int {
         if (stream_.isNone()) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1205,7 +1208,9 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             let rstCode = u32FromBytes(content)
             stream.rstCode = rstCode
             readBuffer.clear()
@@ -1216,7 +1221,7 @@ public class H2FrameParser {
         data.size
     }
 
-    public func handlePriorityFrame(frame: FrameHeader, data: Array<UInt8>, stream_: ?Stream): Int {
+    public func handlePriorityFrame(frame!: FrameHeader, data!: Array<UInt8>, stream_!: ?Stream): Int {
         if (stream_.isNone()) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1238,7 +1243,9 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             readBuffer.clear()
             let streamId = UInt31WithReserved.fromBytes(content)
             if (streamId.uint31() == stream.id) {
@@ -1258,7 +1265,7 @@ public class H2FrameParser {
         data.size
     }
 
-    public func handleHeadersFrame(frame: FrameHeader, data: Array<UInt8>, stream_: ?Stream): Int {
+    public func handleHeadersFrame(frame!: FrameHeader, data!: Array<UInt8>, stream_!: ?Stream): Int {
         if (stream_.isNone()) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1281,7 +1288,9 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             readBuffer.clear()
             stream.endAfterHeaders = (frame.flags & 0x1) != 0
             if (stream.endAfterHeaders) {
@@ -1297,7 +1306,7 @@ public class H2FrameParser {
         data.size
     }
 
-    public func handleContinuationFrame(frame: FrameHeader, data: Array<UInt8>, stream_: ?Stream): Int {
+    public func handleContinuationFrame(frame!: FrameHeader, data!: Array<UInt8>, stream_!: ?Stream): Int {
         if (stream_.isNone()) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1319,7 +1328,9 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             readBuffer.clear()
             stream.endAfterHeaders = (frame.flags & 0x1) != 0
             if (stream.endAfterHeaders) {
@@ -1338,7 +1349,7 @@ public class H2FrameParser {
         data.size
     }
 
-    public func handleOriginFrame(frame: FrameHeader, data: Array<UInt8>): Int {
+    public func handleOriginFrame(frame!: FrameHeader, data!: Array<UInt8>): Int {
         if (isServer) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1359,14 +1370,16 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             readBuffer.clear()
             return content.size
         }
         data.size
     }
 
-    public func handleAltsvcFrame(frame: FrameHeader, data: Array<UInt8>): Int {
+    public func handleAltsvcFrame(frame!: FrameHeader, data!: Array<UInt8>): Int {
         if (isServer) {
             sendGoAway(
                 frame.streamIdentifier,
@@ -1377,7 +1390,9 @@ public class H2FrameParser {
             )
             return data.size
         }
-        if (let some content <- handleIncomingPayload(data, frame.streamIdentifier)) {
+        let payloadResult = handleIncomingPayload(data, frame.streamIdentifier)
+        if (payloadResult.isSome()) {
+            let content = payloadResult.getOrThrow()
             readBuffer.clear()
             if (content.size < 2) {
                 sendGoAway(
@@ -1398,9 +1413,9 @@ public class H2FrameParser {
     // 流管理
     // ========================================================================
 
-    public func handleReceivedStreamId(streamIdentifier: UInt32): ?Stream {
+    public func handleReceivedStreamId(streamIdentifier!: UInt32): ?Stream {
         if (streamIdentifier == 0) { return none }
-        if (let some existing <- streams.get(streamIdentifier)) { return existing }
+        if (let Some(existing) <- streams.get(streamIdentifier)) { return existing }
         if (streamIdentifier > lastStreamId) {
             lastStreamId = streamIdentifier
         }
@@ -1409,7 +1424,7 @@ public class H2FrameParser {
         } else {
             localSettings.initialWindowSize
         }
-        let remoteWindowSize_ = if (let some rs <- remoteSettings) {
+        let remoteWindowSize_ = if (let Some(rs) <- remoteSettings) {
             rs.initialWindowSize
         } else {
             UInt32(65535)
@@ -1423,7 +1438,7 @@ public class H2FrameParser {
     // 读取字节
     // ========================================================================
 
-    public func readBytes(bytes: Array<UInt8>): Int {
+    public func readBytes(bytes!: Array<UInt8>): Int {
         if (isServer && Int64(prefaceReceivedLen) < 24) {
             let prefaceMissing = 24 - Int64(prefaceReceivedLen)
             let prefaceAvailable = Math.min(prefaceMissing, bytes.size)
@@ -1445,7 +1460,7 @@ public class H2FrameParser {
             return Int64(prefaceAvailable)
         }
 
-        if (let some header <- currentFrame) {
+        if (let Some(header) <- currentFrame) {
             let stream = handleReceivedStreamId(header.streamIdentifier)
             return dispatchFrame(header, bytes, stream, 0)
         }
@@ -1486,7 +1501,7 @@ public class H2FrameParser {
         dispatchFrame(header, bytes[FrameHeader.BYTE_SIZE..], stream, FrameHeader.BYTE_SIZE)
     }
 
-    public func dispatchFrame(header: FrameHeader, bytes: Array<UInt8>, stream: ?Stream, add: Int): Int {
+    public func dispatchFrame(header!: FrameHeader, bytes!: Array<UInt8>, stream!: ?Stream, add!: Int): Int {
         match (header.type_) {
             case 0x04 => handleSettingsFrame(header, bytes) + add
             case 0x08 => handleWindowUpdateFrame(header, bytes, stream) + add
@@ -1515,13 +1530,13 @@ public class H2FrameParser {
     // 窗口管理
     // ========================================================================
 
-    public func adjustWindowSize(stream_: ?Stream, payloadSize: UInt32) {
+    public func adjustWindowSize(stream_!: ?Stream, payloadSize!: UInt32) {
         usedWindowSize = usedWindowSize + UInt64(payloadSize)
         if (usedWindowSize > windowSize) {
             sendGoAway(0, ErrorCode.FLOW_CONTROL_ERROR, [], lastStreamId, true)
             usedWindowSize = usedWindowSize - UInt64(payloadSize)
         }
-        if (let some s <- stream_) {
+        if (let Some(s) <- stream_) {
             s.usedWindowSize += UInt64(payloadSize)
             if (s.usedWindowSize > s.windowSize) {
                 sendGoAway(s.id, ErrorCode.FLOW_CONTROL_ERROR, [], lastStreamId, true)
@@ -1549,11 +1564,11 @@ public class H2FrameParser {
     // 写入方法
     // ========================================================================
 
-    public func write(bytes: Array<UInt8>): Bool {
+    public func write(bytes!: Array<UInt8>): Bool {
         _write(bytes)
     }
 
-    public func _write(bytes: Array<UInt8>): Bool {
+    public func _write(bytes!: Array<UInt8>): Bool {
         match (nativeSocket) {
             case BunSocket.None =>
                 if (hasNonnativeBackpressure) {
@@ -1609,7 +1624,7 @@ public class H2FrameParser {
     // 数据发送
     // ========================================================================
 
-    public func sendData(stream_: Stream, payload: Array<UInt8>, close: Bool, callback: JsValue) {
+    public func sendData(stream_!: Stream, payload!: Array<UInt8>, close!: Bool, callback!: JsValue) {
         let streamId = stream_.id
         let canClose = close && !stream_.waitForTrailers
 
@@ -1617,7 +1632,7 @@ public class H2FrameParser {
             let dataHeader = FrameHeader(
                 length: 0,
                 type_: 0x00,
-                flags: canClose ? UInt8(0x1) : UInt8(0),
+                flags: if (canClose) { UInt8(0x1) } else { UInt8(0) },
                 streamIdentifier: streamId
             )
             let buffer = Array<UInt8>(9, { _ => UInt8(0) })
@@ -1634,7 +1649,7 @@ public class H2FrameParser {
                 let dataHeader = FrameHeader(
                     length: UInt32(size),
                     type_: 0x00,
-                    flags: endStream ? UInt8(0x1) : UInt8(0),
+                    flags: if (endStream) { UInt8(0x1) } else { UInt8(0) },
                     streamIdentifier: streamId
                 )
                 let headerBuf = Array<UInt8>(9, { _ => UInt8(0) })
@@ -1665,23 +1680,23 @@ public class H2FrameParser {
     // 事件分发
     // ========================================================================
 
-    public func dispatch(event: JsValue, value: JsValue) {
+    public func dispatch(event!: JsValue, value!: JsValue) {
         // 事件分发由 JS 绑定层处理
     }
 
-    public func dispatchWithExtra(event: JsValue, value: JsValue, extra: JsValue) {
+    public func dispatchWithExtra(event!: JsValue, value!: JsValue, extra!: JsValue) {
         // 事件分发由 JS 绑定层处理
     }
 
-    public func dispatchWith2Extra(event: JsValue, value: JsValue, extra: JsValue, extra2: JsValue) {
+    public func dispatchWith2Extra(event!: JsValue, value!: JsValue, extra!: JsValue, extra2!: JsValue) {
         // 事件分发由 JS 绑定层处理
     }
 
-    public func dispatchWith3Extra(event: JsValue, value: JsValue, extra: JsValue, extra2: JsValue, extra3: JsValue) {
+    public func dispatchWith3Extra(event!: JsValue, value!: JsValue, extra!: JsValue, extra2!: JsValue, extra3!: JsValue) {
         // 事件分发由 JS 绑定层处理
     }
 
-    public func dispatchWriteCallback(callback: JsValue) {
+    public func dispatchWriteCallback(callback!: JsValue) {
         // 写入回调由 JS 绑定层处理
     }
 
@@ -1689,7 +1704,7 @@ public class H2FrameParser {
     // 帧头写入辅助
     // ========================================================================
 
-    public static func writeFrameHeader(header: FrameHeader, buffer: Array<UInt8>, offset: Int) {
+    public static func writeFrameHeader(header!: FrameHeader, buffer!: Array<UInt8>, offset!: Int) {
         buffer[offset] = UInt8((header.size >> 16) & 0xFF)
         buffer[offset + 1] = UInt8((header.size >> 8) & 0xFF)
         buffer[offset + 2] = UInt8(header.size & 0xFF)
@@ -1718,7 +1733,7 @@ public class H2FrameParser {
     // 原生 socket 回调
     // ========================================================================
 
-    public func onNativeRead(data: Array<UInt8>) {
+    public func onNativeRead(data!: Array<UInt8>) {
         var bytes = data
         while (!bytes.isEmpty()) {
             let result = readBytes(bytes)
@@ -1744,7 +1759,7 @@ public class H2FrameParser {
     // 构造与析构
     // ========================================================================
 
-    public static func constructor(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): ?H2FrameParser {
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): ?H2FrameParser {
         let arguments = callframe.argumentsOld(1)
         if (arguments.len < 1) { return none }
         let options = arguments.ptr[0]
@@ -1776,7 +1791,7 @@ public class H2FrameParser {
     // 验证头部名称
     // ========================================================================
 
-    public static func toValidHeaderName(name: Array<UInt8>): ?Array<UInt8>> {
+    public static func toValidHeaderName(name!: Array<UInt8>): ?Array<UInt8> {
         if (name.size > 4096) { return none }
         for (i in 0..name.size) {
             let c = name[i]
@@ -1826,13 +1841,13 @@ public class H2FrameParser {
 // ============================================================================
 
 /// js_get_unpacked_settings — 解包设置
-public func jsGetUnpackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func jsGetUnpackedSettings(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let settings = FullSettingsPayload()
     let arguments = callframe.argumentsOld(1)
     if (arguments.len < 1) { return settings.toJs(globalObject) }
 
     let dataArg = arguments.ptr[0]
-    if (let some arrayBuffer <- dataArg.asArrayBuffer(globalObject)) {
+    if (let Some(arrayBuffer) <- dataArg.asArrayBuffer(globalObject)) {
         let payload = arrayBuffer.byteSlice()
         let settingByteSize = SettingsPayloadUnit.BYTE_SIZE
         if (payload.size < settingByteSize || payload.size % settingByteSize != 0) {
@@ -1855,7 +1870,7 @@ public func jsGetUnpackedSettings(JsGlobalObject, callframe: JsCallFrame): JsVal
 }
 
 /// js_assert_settings — 校验设置
-public func jsAssertSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func jsAssertSettings(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let arguments = callframe.argumentsOld(1)
     if (arguments.len > 0 && !arguments.ptr[0].isEmptyOrUndefinedOrNull()) {
         let options = arguments.ptr[0]
@@ -1864,7 +1879,7 @@ public func jsAssertSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
         }
 
         // headerTableSize
-        if (let some headerTableSize <- options.get(globalObject, "headerTableSize")) {
+        if (let Some(headerTableSize) <- options.get(globalObject, "headerTableSize")) {
             if (headerTableSize.isNumber()) {
                 let value = headerTableSize.asNumber()
                 if (value < 0.0 || value > MAX_HEADER_TABLE_SIZE_F64) {
@@ -1874,14 +1889,14 @@ public func jsAssertSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
         }
 
         // enablePush
-        if (let some enablePush <- options.get(globalObject, "enablePush")) {
+        if (let Some(enablePush) <- options.get(globalObject, "enablePush")) {
             if (!enablePush.isBoolean() && !enablePush.isUndefined()) {
                 return globalObject.`throw`("Expected enablePush to be a boolean")
             }
         }
 
         // initialWindowSize
-        if (let some initialWindowSize <- options.get(globalObject, "initialWindowSize")) {
+        if (let Some(initialWindowSize) <- options.get(globalObject, "initialWindowSize")) {
             if (initialWindowSize.isNumber()) {
                 let value = initialWindowSize.asNumber()
                 if (value < 0.0 || value > MAX_WINDOW_SIZE_F64) {
@@ -1891,7 +1906,7 @@ public func jsAssertSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
         }
 
         // maxFrameSize
-        if (let some maxFrameSize <- options.get(globalObject, "maxFrameSize")) {
+        if (let Some(maxFrameSize) <- options.get(globalObject, "maxFrameSize")) {
             if (maxFrameSize.isNumber()) {
                 let value = maxFrameSize.asNumber()
                 if (value < 16384.0 || value > MAX_FRAME_SIZE_F64) {
@@ -1901,7 +1916,7 @@ public func jsAssertSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
         }
 
         // maxConcurrentStreams
-        if (let some maxConcurrentStreams <- options.get(globalObject, "maxConcurrentStreams")) {
+        if (let Some(maxConcurrentStreams) <- options.get(globalObject, "maxConcurrentStreams")) {
             if (maxConcurrentStreams.isNumber()) {
                 let value = maxConcurrentStreams.asNumber()
                 if (value < 0.0 || value > MAX_HEADER_TABLE_SIZE_F64) {
@@ -1911,7 +1926,7 @@ public func jsAssertSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
         }
 
         // maxHeaderListSize
-        if (let some maxHeaderListSize <- options.get(globalObject, "maxHeaderListSize")) {
+        if (let Some(maxHeaderListSize) <- options.get(globalObject, "maxHeaderListSize")) {
             if (maxHeaderListSize.isNumber()) {
                 let value = maxHeaderListSize.asNumber()
                 if (value < 0.0 || value > MAX_HEADER_TABLE_SIZE_F64) {
@@ -1924,7 +1939,7 @@ public func jsAssertSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
 }
 
 /// js_get_packed_settings — 打包设置
-public func jsGetPackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func jsGetPackedSettings(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let settings = FullSettingsPayload()
     let arguments = callframe.argumentsOld(1)
 
@@ -1934,7 +1949,7 @@ public func jsGetPackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue
             return globalObject.`throw`("Expected settings to be a object")
         }
 
-        if (let some headerTableSize <- options.get(globalObject, "headerTableSize")) {
+        if (let Some(headerTableSize) <- options.get(globalObject, "headerTableSize")) {
             if (headerTableSize.isNumber()) {
                 let v = headerTableSize.toInt32()
                 if (UInt32(v) > MAX_HEADER_TABLE_SIZE || v < 0) {
@@ -1944,13 +1959,13 @@ public func jsGetPackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue
             }
         }
 
-        if (let some enablePush <- options.get(globalObject, "enablePush")) {
+        if (let Some(enablePush) <- options.get(globalObject, "enablePush")) {
             if (enablePush.isBoolean()) {
-                settings.enablePush = enablePush.asBoolean() ? UInt32(1) : UInt32(0)
+                settings.enablePush = if (enablePush.asBoolean()) { UInt32(1) } else { UInt32(0) }
             }
         }
 
-        if (let some initialWindowSize <- options.get(globalObject, "initialWindowSize")) {
+        if (let Some(initialWindowSize) <- options.get(globalObject, "initialWindowSize")) {
             if (initialWindowSize.isNumber()) {
                 let v = initialWindowSize.toInt32()
                 if (UInt32(v) > MAX_HEADER_TABLE_SIZE || v < 0) {
@@ -1960,7 +1975,7 @@ public func jsGetPackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue
             }
         }
 
-        if (let some maxFrameSize <- options.get(globalObject, "maxFrameSize")) {
+        if (let Some(maxFrameSize) <- options.get(globalObject, "maxFrameSize")) {
             if (maxFrameSize.isNumber()) {
                 let v = maxFrameSize.toInt32()
                 if (UInt32(v) > MAX_FRAME_SIZE || v < 16384) {
@@ -1970,7 +1985,7 @@ public func jsGetPackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue
             }
         }
 
-        if (let some maxConcurrentStreams <- options.get(globalObject, "maxConcurrentStreams")) {
+        if (let Some(maxConcurrentStreams) <- options.get(globalObject, "maxConcurrentStreams")) {
             if (maxConcurrentStreams.isNumber()) {
                 let v = maxConcurrentStreams.toInt32()
                 if (UInt32(v) > MAX_HEADER_TABLE_SIZE || v < 0) {
@@ -1980,7 +1995,7 @@ public func jsGetPackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue
             }
         }
 
-        if (let some maxHeaderListSize <- options.get(globalObject, "maxHeaderListSize")) {
+        if (let Some(maxHeaderListSize) <- options.get(globalObject, "maxHeaderListSize")) {
             if (maxHeaderListSize.isNumber()) {
                 let v = maxHeaderListSize.toInt32()
                 if (UInt32(v) > MAX_HEADER_TABLE_SIZE || v < 0) {
@@ -1990,7 +2005,7 @@ public func jsGetPackedSettings(JsGlobalObject, callframe: JsCallFrame): JsValue
             }
         }
 
-        if (let some maxHeaderSize <- options.get(globalObject, "maxHeaderSize")) {
+        if (let Some(maxHeaderSize) <- options.get(globalObject, "maxHeaderSize")) {
             if (maxHeaderSize.isNumber()) {
                 let v = maxHeaderSize.toInt32()
                 if (UInt32(v) > MAX_HEADER_TABLE_SIZE || v < 0) {

@@ -84,8 +84,9 @@ public class JSGlobalObject {
 
     // 严格翻译自 JSGlobalObject.throwError
     public func throwError(msg: String): Unit {
-        // stub: log error instead of throwing
+        throw Exception(msg)
     }
+
 
     // 严格翻译自 JSGlobalObject.bunVM
     public func bunVM(): BunVirtualMachine {
@@ -134,6 +135,24 @@ public class JSGlobalObject {
     // 严格翻译自 JSGlobalObject.throwInvalidArguments
     public func throwInvalidArguments(fmt: String): JsError {
         JsError("Invalid arguments: " + fmt)
+    }
+
+    // 严格翻译自 JSGlobalObject.throwInvalidArgumentsValue
+    public func throwInvalidArgumentsValue(message: String): JsValue {
+        throwError(message)
+        return JsValue.jsUndefined()
+    }
+
+    // throw_ - 抛出错误 (简化版)
+    public func throw_(message: String): JsValue {
+        throwError(message)
+        return JsValue.jsUndefined()
+    }
+
+    // throw_ - 带 args 格式化
+    public func throw_(message: String, args!: Array<Any>): JsValue {
+        throwError(message)
+        return JsValue.jsUndefined()
     }
 
     // 严格翻译自 JSGlobalObject.throwMissingArgumentsValue
@@ -456,6 +475,19 @@ public class JSGlobalObject {
     // ========== vm() ==========
     public func getVm(): ?BunVirtualMachine {
         vm
+    }
+
+    // ========== JSON 解析 ==========
+
+    /// 解析 JSON 字符串为 JS 值
+    /// 对应 Bun: JSC FFI JSONParse(globalThis, string)
+    /// 使用内置的 JSON 解析器将字符串转为 JS 对象/数组/原始类型
+    public func jsonParse(input: String): ?JsValue {
+        let result = JsValue.parseJson(input)
+        if (result.isUndefined()) {
+            return None
+        }
+        return Some(result)
     }
 }
 

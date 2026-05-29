@@ -6,6 +6,8 @@ import bao_collections.*
 import bao_io.*
 import bao_sys.*
 import bao_parsers.*
+import bao_path.Path as BaoPath
+import bao_path.withoutTrailingSlash
 
 // ============================================================================
 // FilterArg — 工作区过滤参数
@@ -44,21 +46,21 @@ public func getCandidatePackagePatterns(
     var currentDir = workdir
 
     while (true) {
-        let jsonPath = Path.join([currentDir, "package.json"])
+        let jsonPath = BaoPath.join([currentDir, "package.json"])
 
         log.clear()
 
         let jsonSource = BaoFile.readAllText(jsonPath)
         match (jsonSource) {
             case Err(_) =>
-                let parent = Path.dirname(currentDir)
+                let parent = BaoPath.dirname(currentDir)
                 if (parent == currentDir || parent.length == 0) {
                     break
                 }
                 currentDir = parent
                 continue
             case Ok(content) =>
-                let parser = JsonParser(content)
+                let parser = JSONParser(content)
                 let parseResult = parser.parse()
                 match (parseResult.value) {
                     case Some(root) =>
@@ -97,11 +99,11 @@ public func getCandidatePackagePatterns(
                                         case None => ()
                                     }
                                 }
-                                let parentTrimmed = Strings.withoutTrailingSlash(currentDir)
+                                let parentTrimmed = withoutTrailingSlash(currentDir)
                                 rootBuf.append(parentTrimmed)
                                 return parentTrimmed
                             case None =>
-                                let parent = Path.dirname(currentDir)
+                                let parent = BaoPath.dirname(currentDir)
                                 if (parent == currentDir || parent.length == 0) {
                                     break
                                 }
@@ -109,7 +111,7 @@ public func getCandidatePackagePatterns(
                                 continue
                         }
                     case None =>
-                        let parent = Path.dirname(currentDir)
+                        let parent = BaoPath.dirname(currentDir)
                         if (parent == currentDir || parent.length == 0) {
                             break
                         }
@@ -121,7 +123,7 @@ public func getCandidatePackagePatterns(
 
     // 未找到 workspace root, 使用通配符
     outPatterns.append("**/package.json")
-    let rootDir = Strings.withoutTrailingSlash(workdir)
+    let rootDir = withoutTrailingSlash(workdir)
     rootBuf.append(rootDir)
     return rootDir
 }
@@ -152,9 +154,9 @@ public class FilterSet {
                 continue
             }
 
-            let isPath = filterUtf8.length > 0 && filterUtf8[0] == '.'
+            let isPath = filterUtf8.size > 0 && filterUtf8[0] == UInt8(0x2E)
             if (isPath) {
-                let resolved = Path.resolve(cwd, filterUtf8).replace('\\', '/')
+                let resolved = BaoPath.resolve(cwd, filterUtf8).replace('\\', '/')
                 this.filters.append(Pattern(resolved, PatternKind.path))
             } else {
                 this.hasNameFilters = true
@@ -181,7 +183,7 @@ public class FilterSet {
     /// 匹配路径
     public func matchesPath(path: String): Bool {
         for (filter in filters) {
-            if (Glob.`match`(filter.pattern, path).matches()) {
+            if (GlobMatcher.matchPattern(filter.pattern, path)) {
                 return true
             }
         }
@@ -195,7 +197,7 @@ public class FilterSet {
                 case PatternKind.name => name
                 case PatternKind.path => path
             }
-            if (Glob.`match`(filter.pattern, target).matches()) {
+            if (GlobMatcher.matchPattern(filter.pattern, target)) {
                 return true
             }
         }
@@ -204,12 +206,7 @@ public class FilterSet {
 
     /// 释放资源
     public func deinit(): Unit {
-        // 路径类型的模式是在堆上分配的
-        for (filter in filters) {
-            if (filter.kind == PatternKind.path) {
-                allocator.free(filter.pattern)
-            }
-        }
+        // 路径类型的模式在仓颉中由 GC 管理, 无需手动释放
     }
 }
 
@@ -217,6 +214,13 @@ public class FilterSet {
 public enum PatternKind {
     | name
     | path  // 此模式在堆上分配, 需要释放
+
+    public operator func ==(right: PatternKind): Bool {
+        match (this) {
+            case PatternKind.name => match (right) { case PatternKind.name => true; case _ => false }
+            case PatternKind.path => match (right) { case PatternKind.path => true; case _ => false }
+        }
+    }
 }
 
 /// 过滤模式
@@ -268,20 +272,21 @@ public class PackageFilterIterator {
                 }
             }
 
-            let path = walkerNext()
-            if (path.isSome()) {
-                return path
+            let nextPath = walkerNext()
+            if (nextPath.isSome()) {
+                return nextPath
             } else {
                 valid = false
                 patternIdx++
                 deinitWalker()
             }
         }
+        return None
     }
 
     /// 初始化 walker
     private func initWalker(): Unit {
-        let pattern = patterns[patternIdx.toInt()]
+        let pattern = patterns[patternIdx]
         walker = GlobWalker(rootDir, pattern, true, true, false, true, true)
         walker.getOrThrow().`init`()
     }
@@ -302,10 +307,11 @@ public class PackageFilterIterator {
         while (true) {
             let result = walker.getOrThrow().next()
             match (result) {
-                case Some(path) => return path
+                case Some(matched) => return matched
                 case None => return None
             }
         }
+        return None
     }
 }
 

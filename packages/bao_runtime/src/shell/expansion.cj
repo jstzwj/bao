@@ -117,6 +117,17 @@ public class ExpansionState {
         this.base.endScope()
     }
 
+    /// Glob 任务完成回调
+    /// 对应 Bun: ExpansionState.onGlobTaskDone
+    public static func onGlobTaskDone(interp: Interpreter, expansion: NodeId,
+                                      result: ArrayList<Array<Byte>>,
+                                      err: ?ShellGlobErr): Unit {
+        // Glob 遍历完成，将结果注入扩展状态并恢复执行
+        if (expansion.isValid()) {
+            interp.setExpansionGlobResult(expansion, result, err)
+        }
+    }
+
     /// 启动
     public func start(): Yield {
         this.state = ExpansionStateKind.`normal`

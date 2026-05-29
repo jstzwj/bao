@@ -11,6 +11,26 @@ import bao_io.*
 import bao_event_loop.*
 import bao_libarchive.*
 import bao_glob.*
+// Local StringBuilder wrapper to avoid ambiguity
+public class ArchiveStringBuilder {
+    private var content: String = ""
+    public func append(s: String): Unit { content = content + s }
+    public func toString(): String { content }
+}
+
+// Local Result wrapper to avoid ambiguity between bao_core.Result<T,E> and bao_jsc.Result<T>
+public enum ArchiveResult2<T, E> {
+    | ok(T)
+    | err(E)
+}
+
+// JsCallFrame stub — JSC 调用帧 (桩声明)
+public class JsCallFrame {
+    public init() {}
+    public func argument(index: Int32): JsValue { JsValue.jsUndefined() }
+    public func argumentsAsArray2(): (JsValue, JsValue) { (JsValue.jsUndefined(), JsValue.jsUndefined()) }
+    public func argumentsAsArray3(): (JsValue, JsValue, JsValue) { (JsValue.jsUndefined(), JsValue.jsUndefined(), JsValue.jsUndefined()) }
+}
 
 // ============================================================================
 // 常量
@@ -90,7 +110,7 @@ public class Archive {
     /// - compress: "gzip" - 启用 gzip 压缩
     /// - level: number (1-12) - 压缩级别 (默认 6)
     /// 未提供选项时不应用压缩
-    public static func constructor(globalThis: JsGlobalObject, callframe: JsCallFrame): Archive {
+    public static func constructor(globalThis!: JsGlobalObject, callframe!: JsCallFrame): Archive {
         let (dataArg, optionsArg) = callframe.argumentsAsArray2()
         if (dataArg == JsValue.jsUndefined()) {
             globalThis.throwInvalidArguments("new Archive() requires an argument")
@@ -98,7 +118,7 @@ public class Archive {
         }
 
         // 解析压缩选项
-        let compress = try parseCompressionOptions(globalThis, optionsArg)
+        let compress = parseCompressionOptions(globalThis, optionsArg) 
 
         // 对于 Blob/Archive, 引用现有 store (零拷贝)
         if (let blobPtr <- dataArg.asBlob()) {
@@ -110,13 +130,13 @@ public class Archive {
 
         // 对于 ArrayBuffer/TypedArray, 复制数据
         if (let arrayBuffer <- dataArg.asArrayBuffer(globalThis)) {
-            let data = try default_allocator.dupe(UInt8, arrayBuffer.slice())
+            let data = default_allocator.dupe(arrayBuffer.slice())
             return createArchive(data, compress)
         }
 
         // 对于普通对象, 构建 tarball
         if (dataArg.isObject()) {
-            let data = try buildTarballFromObject(globalThis, dataArg)
+            let data = buildTarballFromObject(globalThis, dataArg) 
             return createArchive(data, compress)
         }
 
@@ -133,16 +153,14 @@ public class Archive {
     /// 选项:
     ///   - glob: string | string[] - 只提取匹配 glob 模式的文件。支持 "!" 前缀的否定模式
     /// 返回 Promise<number> (提取的文件数)
-    public func extract(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func extract(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let (pathArg, optionsArg) = callframe.argumentsAsArray2()
         if (pathArg == JsValue.jsUndefined() || !pathArg.isString()) {
             globalThis.throwInvalidArguments("Archive.extract requires a path argument")
             return JsValue.jsUndefined()
         }
 
-        let pathSlice = try pathArg.toSlice(globalThis, default_allocator)
-        defer pathSlice.deinit()
-
+        let pathSlice = pathArg.toSlice(globalThis, default_allocator) 
         // 解析选项 (glob 过滤)
         var globPatterns: ?Array<String> = None
 
@@ -150,40 +168,42 @@ public class Archive {
             if (!optionsArg.isObject()) {
                 globalThis.throwInvalidArguments("Archive.extract: second argument must be an options object")
                 return JsValue.jsUndefined()
-            }
+            
 
-            if (let globVal <- try optionsArg.getTruthy(globalThis, "glob")) {
-                globPatterns = try parsePatternArg(globalThis, globVal, "Archive.extract", "glob")
+            if (let globVal <- optionsArg.getTruthy(globalThis, "glob") ) {
+                globPatterns = parsePatternArg(globalThis, globVal, "Archive.extract", "glob") 
             }
         }
 
         // 启动异步提取任务
+        pathSlice.deinit()
+        }
         return startExtractTask(globalThis, store, pathSlice.slice(), globPatterns)
     }
 
     /// blob - 返回归档数据的 Blob
     /// 对应 Bun: Archive::blob()
     /// 返回 Promise<Blob> (如果 gzip 则压缩后)
-    public func blob(globalThis: JsGlobalObject, _: JsCallFrame): JsValue {
+    public func blob(globalThis!: JsGlobalObject, frame!: JsCallFrame): JsValue {
         return startBlobTask(globalThis, store, compress, BlobOutputType.blob)
     }
 
     /// bytes - 返回归档数据的 Uint8Array
     /// 对应 Bun: Archive::bytes()
     /// 返回 Promise<Uint8Array> (如果 gzip 则压缩后)
-    public func bytes(globalThis: JsGlobalObject, _: JsCallFrame): JsValue {
+    public func bytes(globalThis!: JsGlobalObject, frame!: JsCallFrame): JsValue {
         return startBlobTask(globalThis, store, compress, BlobOutputType.bytes)
     }
 
     /// files - 返回归档文件内容的 Map
     /// 对应 Bun: Archive::files()
     /// 返回 Promise<Map<string, File>>
-    public func files(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func files(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let globArg = callframe.argument(0)
 
         var globPatterns: ?Array<String> = None
         if (!globArg.isUndefinedOrNull()) {
-            globPatterns = try parsePatternArg(globalThis, globArg, "Archive.files", "glob")
+            globPatterns = parsePatternArg(globalThis, globArg, "Archive.files", "glob") 
         }
 
         return startFilesTask(globalThis, store, globPatterns)
@@ -192,7 +212,7 @@ public class Archive {
     /// write - 静态方法, 写入归档到磁盘
     /// 对应 Bun: Archive::write() (module-level write)
     /// Archive 实例使用归档的压缩设置，除非被选项覆盖
-    public static func write(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public static func write(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         return archiveWrite(globalThis, callframe)
     }
 
@@ -204,7 +224,7 @@ public class Archive {
 
     /// Pretty-print for console.log
     /// 对应 Bun: Archive::write_format()
-    public func writeFormat(formatter: ConsoleFormatter, writer: StringBuilder, enableAnsiColors: Bool): Unit {
+    public func writeFormat(formatter!: ConsoleFormatter, writer!: ArchiveStringBuilder, enableAnsiColors!: Bool): Unit {
         let data = store.sharedView()
         writer.append("Archive (")
         writer.append(fmtSize(data.size))
@@ -222,7 +242,7 @@ public class Archive {
 
     /// 从 JS 值获取 Archive 实例
     /// 对应 Bun: Archive::fromJS()
-    public static func fromJS(value: JsValue): ?Archive {
+    public static func fromJS(value!: JsValue): ?Archive {
         return value.asClassRef<Archive>()
     }
 }
@@ -234,7 +254,7 @@ public class Archive {
 
 /// 解析压缩选项
 /// 无选项时返回 .none, 调用者需处理默认值
-public func parseCompressionOptions(global: JsGlobalObject, optionsArg: JsValue): Compression {
+public func parseCompressionOptions(global!: JsGlobalObject, optionsArg!: JsValue): Compression {
     if (optionsArg.isUndefinedOrNull()) {
         return Compression.none
     }
@@ -245,23 +265,21 @@ public func parseCompressionOptions(global: JsGlobalObject, optionsArg: JsValue)
     }
 
     // 检查 compress 选项
-    if (let compressVal <- try optionsArg.getTruthy(global, "compress")) {
+    if (let compressVal <- optionsArg.getTruthy(global, "compress") ) {
         if (!compressVal.isString()) {
             global.throwInvalidArguments("Archive: compress option must be a string")
             return Compression.none
         }
 
-        let compressStr = try compressVal.toSlice(global, default_allocator)
-        defer compressStr.deinit()
-
+        let compressStr = compressVal.toSlice(global, default_allocator) 
         if (compressStr.slice() != "gzip") {
             global.throwInvalidArguments("Archive: compress option must be \"gzip\"")
             return Compression.none
-        }
+        
 
         // 解析 level 选项 (1-12, 默认 6)
         var level: UInt8 = 6
-        if (let levelVal <- try optionsArg.getTruthy(global, "level")) {
+        if (let levelVal <- optionsArg.getTruthy(global, "level") ) {
             if (!levelVal.isNumber()) {
                 global.throwInvalidArguments("Archive: level must be a number")
                 return Compression.none
@@ -274,6 +292,8 @@ public func parseCompressionOptions(global: JsGlobalObject, optionsArg: JsValue)
             level = UInt8(levelNum)
         }
 
+        compressStr.deinit()
+        }
         return Compression.gzip(GzipOptions(level: level))
     }
 
@@ -282,7 +302,7 @@ public func parseCompressionOptions(global: JsGlobalObject, optionsArg: JsValue)
 
 /// 创建 Archive 实例
 /// 对应 Bun: create_archive()
-public func createArchive(data: Array<UInt8>, compress: Compression): Archive {
+public func createArchive(data!: Array<UInt8>, compress!: Compression): Archive {
     let store = BlobStore(data, default_allocator)
     return Archive(store: store, compress: compress)
 }
@@ -293,7 +313,7 @@ public func createArchive(data: Array<UInt8>, compress: Compression): Archive {
 // ============================================================================
 
 /// 配置归档读取器以支持 tar/tar.gz
-public func configureArchiveReader(archive: LibArchive): Unit {
+public func configureArchiveReader(archive!: LibArchive): Unit {
     archive.readSupportFormatTar()
     archive.readSupportFormatGnuTar()
     archive.readSupportFilterGzip()
@@ -306,7 +326,7 @@ public func configureArchiveReader(archive: LibArchive): Unit {
 // ============================================================================
 
 /// 计算归档中的文件数量
-public func countFilesInArchive(data: Array<UInt8>): UInt32 {
+public func countFilesInArchive(data!: Array<UInt8>): UInt32 {
     let archive = LibArchive.readArchiveNew()
     configureArchiveReader(archive)
 
@@ -332,9 +352,9 @@ public func countFilesInArchive(data: Array<UInt8>): UInt32 {
 
 /// 从 JS 对象构建 tarball 字节
 /// 共享辅助函数，遍历对象属性并写入归档
-public func buildTarballFromObject(global: JsGlobalObject, obj: JsValue): Array<UInt8> {
+public func buildTarballFromObject(global!: JsGlobalObject, obj!: JsValue): Array<UInt8> {
     let jsObj = obj.getObject()
-    if (jsObj == null) {
+    if (jsObj == none) {
         global.throwInvalidArguments("Expected an object")
         return []
     }
@@ -368,10 +388,9 @@ public func buildTarballFromObject(global: JsGlobalObject, obj: JsValue): Array<
     let nowSecs: Int64 = Int64(timeMilliTimestamp() / 1000)
 
     // 遍历对象属性并直接写入归档
-    var iter = try JSPropertyIterator(global, jsObj, PropertyIteratorOptions(
-        skipEmptyName: true,
-        includeValue: true,
-    )) ?? {
+    var iter = try { JSPropertyIterator(global, jsObj, PropertyIteratorOptions(
+        true, true
+    )) } catch(_: Exception) {
         return []
     }
 
@@ -386,9 +405,11 @@ public func buildTarballFromObject(global: JsGlobalObject, obj: JsValue): Array<
         let keyStr = keySlice.slice()
 
         // 获取数据 — 对 Blob/ArrayBuffer 使用视图, 对字符串进行转换
-        let dataSlice = try getEntryData(global, value) ?? {
+                let dataSliceOpt = getEntryData(global, value)
+        if (dataSliceOpt.isNone()) {
             continue
         }
+        let dataSlice = dataSliceOpt.get()
 
         // 写入条目到归档
         let data = dataSlice.slice()
@@ -426,7 +447,7 @@ public func buildTarballFromObject(global: JsGlobalObject, obj: JsValue): Array<
 /// 对于 Blob 使用 sharedView (无需拷贝)
 /// 对于 ArrayBuffer/TypedArray 使用视图 (无需拷贝)
 /// 对于字符串进行转换 (分配内存)
-public func getEntryData(global: JsGlobalObject, value: JsValue): ?Array<UInt8> {
+public func getEntryData(global!: JsGlobalObject, value!: JsValue): ?Array<UInt8> {
     // 对于 Blob, 使用 sharedView (无需拷贝)
     if (let blob <- value.asBlob()) {
         return blob.sharedView()
@@ -439,7 +460,7 @@ public func getEntryData(global: JsGlobalObject, value: JsValue): ?Array<UInt8> 
 
     // 对于字符串，进行转换
     if (value.isString()) {
-        return try value.toSlice(global, default_allocator).slice()
+        return value.toSlice(global, default_allocator) .slice()
     }
 
     return None
@@ -452,20 +473,22 @@ public func getEntryData(global: JsGlobalObject, value: JsValue): ?Array<UInt8> 
 
 /// 解析字符串或字符串数组为模式列表
 /// 空字符串或空数组返回 null（视为"无过滤"）
-public func parsePatternArg(global: JsGlobalObject, arg: JsValue, apiName: String, name: String): ?Array<String> {
+public func parsePatternArg(global!: JsGlobalObject, arg!: JsValue, apiName!: String, name!: String): ?Array<String> {
     // 单个字符串
     if (arg.isString()) {
-        let strSlice = try arg.toSlice(global, default_allocator)
-        defer strSlice.deinit()
+        let strSlice = arg.toSlice(global, default_allocator) 
         if (strSlice.len == 0) {
+            strSlice.deinit()
             return None
         }
-        return [strSlice.slice()]
+        let result = [strSlice.slice()]
+        strSlice.deinit()
+        return result
     }
 
     // 字符串数组
     if (arg.jsType() == JSType.array) {
-        let len = try arg.getLength(global)
+        let len = arg.getLength(global) 
         if (len == 0) {
             return None
         }
@@ -473,19 +496,20 @@ public func parsePatternArg(global: JsGlobalObject, arg: JsValue, apiName: Strin
         var patterns = ArrayList<String>()
         var i: UInt32 = 0
         while (i < len) {
-            let item = try arg.getIndex(global, i)
+            let item = arg.getIndex(global, i) 
             if (!item.isString()) {
                 global.throwInvalidArguments("${apiName}: ${name} array must contain only strings")
                 return None
             }
-            let strSlice = try item.toSlice(global, default_allocator)
-            defer strSlice.deinit()
+            let strSlice = item.toSlice(global, default_allocator)
             if (strSlice.len == 0) {
+                strSlice.deinit()
                 i += 1
                 continue
             }
             patterns.append(strSlice.slice())
             i += 1
+            strSlice.deinit()
         }
 
         if (patterns.isEmpty()) {
@@ -509,7 +533,7 @@ public func parsePatternArg(global: JsGlobalObject, arg: JsValue, apiName: Strin
 /// 对于 Archive 实例，使用归档的压缩设置，除非被选项覆盖
 /// 选项:
 ///   - gzip: { level?: number } - 覆盖压缩设置
-public func archiveWrite(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
+public func archiveWrite(global!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
     let (pathArg, dataArg, optionsArg) = callframe.argumentsAsArray3()
     if (dataArg == JsValue.jsUndefined()) {
         global.throwInvalidArguments("Archive.write requires 2 arguments (path, data)")
@@ -522,11 +546,9 @@ public func archiveWrite(global: JsGlobalObject, callframe: JsCallFrame): JsValu
         return JsValue.jsUndefined()
     }
 
-    let pathSlice = try pathArg.toSlice(global, default_allocator)
-    defer pathSlice.deinit()
-
+    let pathSlice = pathArg.toSlice(global, default_allocator) 
     // 解析压缩覆盖选项
-    let optionsCompress = try parseCompressionOptions(global, optionsArg)
+    let optionsCompress = parseCompressionOptions(global, optionsArg) 
 
     // 对于 Archive 实例，使用选项覆盖或归档的压缩设置
     if (let archive <- Archive.fromJS(dataArg)) {
@@ -547,17 +569,18 @@ public func archiveWrite(global: JsGlobalObject, callframe: JsCallFrame): JsValu
 
     // 对于 ArrayBuffer/TypedArray, 复制数据
     if (let arrayBuffer <- dataArg.asArrayBuffer(global)) {
-        let data = try default_allocator.dupe(UInt8, arrayBuffer.slice())
+        let data = default_allocator.dupe(arrayBuffer.slice())
         return startWriteTask(global, WriteContextData.owned(data), pathSlice.slice(), optionsCompress)
     }
 
     // 对于普通对象, 构建 tarball
     if (dataArg.isObject()) {
-        let data = try buildTarballFromObject(global, dataArg)
+        let data = buildTarballFromObject(global, dataArg) 
         return startWriteTask(global, WriteContextData.owned(data), pathSlice.slice(), optionsCompress)
     }
 
     global.throwInvalidArguments("Expected an object, Blob, TypedArray, ArrayBuffer, or Archive")
+    pathSlice.deinit()
     return JsValue.jsUndefined()
 }
 
@@ -574,9 +597,9 @@ public enum PromiseResult {
 
     /// 履行 Promise
     /// 对应 Bun: PromiseResult::fulfill()
-    public func fulfill(global: JsGlobalObject, promise: JsPromise): Unit {
+    public func fulfill(global!: JsGlobalObject, promise!: JsPromise): Unit {
         match (this) {
-            | resolve(v) => promise.resolve(global, v)
+            case resolve(v) => promise.resolve(global, v)
             case reject(v) => promise.rejectWithAsyncStack(global, v)
         }
     }
@@ -594,7 +617,7 @@ public interface TaskContext {
     func run(): Unit
 
     /// 在 JS 线程上运行，返回 Promise 结果
-    func runFromJS(global: JsGlobalObject): PromiseResult
+    func runFromJS(global!: JsGlobalObject): PromiseResult
 }
 
 // ============================================================================
@@ -648,7 +671,7 @@ public class ExtractContext {
         this.store = store
         this.path = path
         this.globPatterns = globPatterns
-        this.result = ExtractResult.err(ExtractError.readError)
+        this.result = ExtractArchiveResult2.err(ExtractError.readError)
     }
 
     /// 在线程池上运行提取
@@ -660,7 +683,7 @@ public class ExtractContext {
             if (let Some(c) <- count) {
                 return ExtractResult.success(c)
             } else {
-                return ExtractResult.err(ExtractError.readError)
+                return ExtractArchiveResult2.err(ExtractError.readError)
             }
         }
 
@@ -674,25 +697,23 @@ public class ExtractContext {
         if (let Some(c) <- count) {
             return ExtractResult.success(c)
         } else {
-            return ExtractResult.err(ExtractError.readError)
+            return ExtractArchiveResult2.err(ExtractError.readError)
         }
     }
 }
 
 /// 启动异步提取任务
 /// 对应 Bun: start_extract_task()
-public func startExtractTask(global: JsGlobalObject, store: BlobStore, path: Array<UInt8>,
-                              globPatterns: ?Array<String>): JsValue {
-    let pathCopy = try default_allocator.dupe(UInt8, path)
+public func startExtractTask(global!: JsGlobalObject, store!: BlobStore, path!: Array<UInt8>,
+                              globPatterns!: ?Array<String>): JsValue {
+    let pathCopy = default_allocator.dupe(path)
     store.ref()
 
-    let task = try ExtractTask.create(global, ExtractContext(
-        store: store,
-        path: pathCopy,
-        globPatterns: globPatterns,
-    )) ?? {
+    let taskOpt = ExtractTask.create(global, ExtractContext(store, pathCopy, globPatterns))
+    if (taskOpt.isNone()) {
         return JsValue.jsUndefined()
     }
+    let task = taskOpt.getOrThrow()
 
     let promiseJs = task.promiseValue()
     task.schedule()
@@ -743,7 +764,7 @@ public class BlobContext {
                 if (let Some(data) <- compressGzip(store.sharedView(), opts.level)) {
                     result = BlobResult.compressed(data)
                 } else {
-                    result = BlobResult.err(BlobError.gzipCompressFailed)
+                    result = BlobArchiveResult2.err(BlobError.gzipCompressFailed)
                 }
             case Compression.none => result = BlobResult.uncompressed
             case _ => result = BlobResult.uncompressed
@@ -752,9 +773,9 @@ public class BlobContext {
 
     /// 在 JS 线程上处理结果
     /// 对应 Bun: BlobContext::run_from_js()
-    public func runFromJS(global: JsGlobalObject): PromiseResult {
+    public func runFromJS(global!: JsGlobalObject): PromiseResult {
         match (result) {
-            case BlobResult.err(e) =>
+            case BlobArchiveResult2.err(e) =>
                 return PromiseResult.reject(global.createErrorInstance(blobErrorToString(e)))
             case BlobResult.compressed(data) =>
                 match (outputType) {
@@ -782,17 +803,19 @@ public class BlobContext {
 
 /// 启动 Blob 获取任务
 /// 对应 Bun: start_blob_task()
-public func startBlobTask(global: JsGlobalObject, store: BlobStore, compress: Compression,
-                           outputType: BlobOutputType): JsValue {
+public func startBlobTask(global!: JsGlobalObject, store!: BlobStore, compress!: Compression,
+                           outputType!: BlobOutputType): JsValue {
     store.ref()
 
-    let task = try BlobTask.create(global, BlobContext(
+    let taskOpt = BlobTask.create(global, BlobContext(
         store: store,
         compress: compress,
         outputType: outputType,
-    )) ?? {
+    ))
+    if (taskOpt.isNone()) {
         return JsValue.jsUndefined()
     }
+    let task = taskOpt.getOrThrow()
 
     let promiseJs = task.promiseValue()
     task.schedule()
@@ -800,7 +823,7 @@ public func startBlobTask(global: JsGlobalObject, store: BlobStore, compress: Co
 }
 
 /// BlobError 转字符串
-public func blobErrorToString(e: BlobError): String {
+public func blobErrorToString(e!: BlobError): String {
     match (e) {
         case outOfMemory => "OutOfMemory"
         case gzipInitFailed => "GzipInitFailed"
@@ -859,7 +882,7 @@ public class WriteContext {
                 if (let Some(compressed) <- compressGzip(sourceData, opts.level)) {
                     dataToWrite = compressed
                 } else {
-                    return WriteResult.err(WriteError.gzipCompressFailed)
+                    return WriteArchiveResult2.err(WriteError.gzipCompressFailed)
                 }
             case _ => ()
         }
@@ -886,10 +909,10 @@ public class WriteContext {
 
     /// 在 JS 线程上处理结果
     /// 对应 Bun: WriteContext::run_from_js()
-    public func runFromJS(global: JsGlobalObject): PromiseResult {
+    public func runFromJS(global!: JsGlobalObject): PromiseResult {
         match (result) {
             case WriteResult.success => PromiseResult.resolve(JsValue.jsUndefined())
-            case WriteResult.err(e) =>
+            case WriteArchiveResult2.err(e) =>
                 PromiseResult.reject(global.createErrorInstance(writeErrorToString(e)))
             case WriteResult.sysErr(sysErr) =>
                 PromiseResult.reject(sysErr.toJS(global))
@@ -899,9 +922,9 @@ public class WriteContext {
 
 /// 启动写入任务
 /// 对应 Bun: start_write_task()
-public func startWriteTask(global: JsGlobalObject, data: WriteContextData, path: Array<UInt8>,
-                            compress: Compression): JsValue {
-    let pathZ = try default_allocator.dupeZ(UInt8, path)
+public func startWriteTask(global!: JsGlobalObject, data!: WriteContextData, path!: Array<UInt8>,
+                            compress!: Compression): JsValue {
+    let pathZ = default_allocator.dupeZ(path)
 
     // 如果使用 store 引用，增加引用计数
     match (data) {
@@ -909,13 +932,11 @@ public func startWriteTask(global: JsGlobalObject, data: WriteContextData, path:
         case _ => ()
     }
 
-    let task = try WriteTask.create(global, WriteContext(
-        data: data,
-        path: pathZ,
-        compress: compress,
-    )) ?? {
+    let taskOpt = WriteTask.create(global, WriteContext(data, pathZ, compress))
+    if (taskOpt.isNone()) {
         return JsValue.jsUndefined()
     }
+    let task = taskOpt.getOrThrow()
 
     let promiseJs = task.promiseValue()
     task.schedule()
@@ -923,7 +944,7 @@ public func startWriteTask(global: JsGlobalObject, data: WriteContextData, path:
 }
 
 /// WriteError 转字符串
-public func writeErrorToString(e: WriteError): String {
+public func writeErrorToString(e!: WriteError): String {
     match (e) {
         case outOfMemory => "OutOfMemory"
         case gzipInitFailed => "GzipInitFailed"
@@ -975,12 +996,12 @@ public class FilesContext {
     public init(store: BlobStore, globPatterns: ?Array<String>) {
         this.store = store
         this.globPatterns = globPatterns
-        this.result = FilesResult.err(FilesError.readError)
+        this.result = FilesArchiveResult2.err(FilesError.readError)
     }
 
     /// 克隆归档错误字符串
     /// 对应 Bun: FilesContext::clone_error_string()
-    public static func cloneErrorString(archive: LibArchive): ?String {
+    public static func cloneErrorString(archive!: LibArchive): ?String {
         let errStr = archive.errorString()
         if (errStr.isEmpty()) {
             return None
@@ -998,7 +1019,7 @@ public class FilesContext {
             if (let err <- cloneErrorString(archive)) {
                 return FilesResult.libarchiveErr(err)
             }
-            return FilesResult.err(FilesError.readError)
+            return FilesArchiveResult2.err(FilesError.readError)
         }
 
         var entries = ArrayList<FileEntry>()
@@ -1034,7 +1055,7 @@ public class FilesContext {
                         if (let err <- cloneErrorString(archive)) {
                             return FilesResult.libarchiveErr(err)
                         }
-                        return FilesResult.err(FilesError.readError)
+                        return FilesArchiveResult2.err(FilesError.readError)
                     }
                     if (read == 0) {
                         break
@@ -1055,7 +1076,7 @@ public class FilesContext {
 
     /// 在 JS 线程上处理结果
     /// 对应 Bun: FilesContext::run_from_js()
-    public func runFromJS(global: JsGlobalObject): PromiseResult {
+    public func runFromJS(global!: JsGlobalObject): PromiseResult {
         match (result) {
             case FilesResult.success(entries) =>
                 let map = JsMap.create(global)
@@ -1077,7 +1098,7 @@ public class FilesContext {
                 return PromiseResult.reject(global.createErrorInstance("Failed to create Map"))
             case FilesResult.libarchiveErr(errMsg) =>
                 return PromiseResult.reject(global.createErrorInstance(errMsg))
-            case FilesResult.err(e) =>
+            case FilesArchiveResult2.err(e) =>
                 return PromiseResult.reject(global.createErrorInstance(filesErrorToString(e)))
         }
     }
@@ -1085,16 +1106,18 @@ public class FilesContext {
 
 /// 启动文件列表任务
 /// 对应 Bun: start_files_task()
-public func startFilesTask(global: JsGlobalObject, store: BlobStore,
-                            globPatterns: ?Array<String>): JsValue {
+public func startFilesTask(global!: JsGlobalObject, store!: BlobStore,
+                            globPatterns!: ?Array<String>): JsValue {
     store.ref()
 
-    let task = try FilesTask.create(global, FilesContext(
+    let taskOpt = FilesTask.create(global, FilesContext(
         store: store,
         globPatterns: globPatterns,
-    )) ?? {
+    ))
+    if (taskOpt.isNone()) {
         return JsValue.jsUndefined()
     }
+    let task = taskOpt.getOrThrow()
 
     let promiseJs = task.promiseValue()
     task.schedule()
@@ -1102,7 +1125,7 @@ public func startFilesTask(global: JsGlobalObject, store: BlobStore,
 }
 
 /// FilesError 转字符串
-public func filesErrorToString(e: FilesError): String {
+public func filesErrorToString(e!: FilesError): String {
     match (e) {
         case outOfMemory => "OutOfMemory"
         case readError => "ReadError"
@@ -1125,11 +1148,11 @@ public enum CompressError {
 /// 使用 gzip 压缩数据
 /// 对应 Bun: compress_gzip()
 /// 使用 libdeflate 进行 gzip 压缩
-public func compressGzip(data: Array<UInt8>, level: UInt8): ?Array<UInt8> {
+public func compressGzip(data!: Array<UInt8>, level!: UInt8): ?Array<UInt8> {
     Libdeflate.load()
 
     let compressorPtr = Libdeflate.Compressor.alloc(Int32(level))
-    if (compressorPtr == null) {
+    if (compressorPtr == none) {
         return None
     }
 
@@ -1155,7 +1178,7 @@ public func compressGzip(data: Array<UInt8>, level: UInt8): ?Array<UInt8> {
 
 /// 检查路径是否安全（无绝对路径或路径遍历）
 /// 对应 Bun: is_safe_path()
-public func isSafePath(pathname: Array<UInt8>): Bool {
+public func isSafePath(pathname!: Array<UInt8>): Bool {
     if (pathname.size == 0) {
         return false
     }
@@ -1187,7 +1210,7 @@ public func isSafePath(pathname: Array<UInt8>): Bool {
 }
 
 /// 检查路径是否安全（字符串版本）
-public func isSafePathStr(pathname: String): Bool {
+public func isSafePathStr(pathname!: String): Bool {
     if (pathname.size == 0) {
         return false
     }
@@ -1219,7 +1242,7 @@ public func isSafePathStr(pathname: String): Bool {
 /// 正模式: 至少一个必须匹配才能包含
 /// 否定模式 (以 "!" 开头): 如果匹配则排除
 /// 返回 true 表示应包含，false 表示排除
-public func matchGlobPatterns(patterns: Array<String>, pathname: String): Bool {
+public func matchGlobPatterns(patterns!: Array<String>, pathname!: String): Bool {
     var hasPositivePatterns = false
     var matchesPositive = false
 
@@ -1227,13 +1250,13 @@ public func matchGlobPatterns(patterns: Array<String>, pathname: String): Bool {
         if (pattern.size > 0 && pattern[0] == '!') {
             // 否定模式 — 如果匹配则排除
             let negPattern = pattern.substring(1)
-            if (negPattern.size > 0 && Glob.match(negPattern, pathname).matches()) {
+            if (negPattern.size > 0 && Glob.`match`(negPattern, pathname).matches()) {
                 return false
             }
         } else {
             // 正模式 — 至少一个必须匹配
             hasPositivePatterns = true
-            if (Glob.match(pattern, pathname).matches()) {
+            if (Glob.`match`(pattern, pathname).matches()) {
                 matchesPositive = true
             }
         }
@@ -1247,8 +1270,8 @@ public func matchGlobPatterns(patterns: Array<String>, pathname: String): Bool {
 /// 使用 glob 模式过滤提取归档到磁盘
 /// 对应 Bun: extract_to_disk_filtered()
 /// 支持 "!" 前缀的否定模式 (如 "!node_modules/**")
-public func extractToDiskFiltered(fileBuffer: Array<UInt8>, root: Array<UInt8>,
-                                   globPatterns: ?Array<String>): ?UInt32 {
+public func extractToDiskFiltered(fileBuffer!: Array<UInt8>, root!: Array<UInt8>,
+                                   globPatterns!: ?Array<String>): ?UInt32 {
     let archive = LibArchive.readArchiveNew()
     configureArchiveReader(archive)
 
@@ -1295,9 +1318,11 @@ public func extractToDiskFiltered(fileBuffer: Array<UInt8>, root: Array<UInt8>,
 
         match (kind) {
             case FileKind.directory =>
-                match (dirFd.makePath(pathname)) {
-                    case err(e) if e == "PathAlreadyExists" => continue
-                    case err(_) => continue
+                let mkResult = dirFd.makePath(pathname)
+                match (mkResult) {
+                    case err(e) =>
+                        // PathAlreadyExists or other error - continue
+                        continue
                     case ok(_) => ()
                 }
                 count += 1
@@ -1422,7 +1447,7 @@ public class AsyncTask<C> {
 
     /// 创建任务
     /// 对应 Bun: AsyncTask::create()
-    public static func create(global: JsGlobalObject, ctx: C): ?AsyncTask<C> {
+    public static func create(global!: JsGlobalObject, ctx!: C): ?AsyncTask<C> {
         let vm = global.bunVmPtr()
         let promise = JsPromiseStrong(global)
         let task = AsyncTask<C>(ctx: ctx, promise: promise, vm: vm)
@@ -1439,7 +1464,7 @@ public class AsyncTask<C> {
     /// 获取 Promise 的 JS 值
     /// 对应 Bun: AsyncTask::promise_value()
     public func promiseValue(): JsValue {
-        return promise.value()
+        return promise.getValue()
     }
 
     /// 线程池回调
@@ -1486,7 +1511,7 @@ public class ExtractTask {
         this.keepAlive = KeepAlive()
     }
 
-    public static func create(global: JsGlobalObject, ctx: ExtractContext): ?ExtractTask {
+    public static func create(global!: JsGlobalObject, ctx!: ExtractContext): ?ExtractTask {
         let vm = global.bunVmPtr()
         let promise = JsPromiseStrong(global)
         let task = ExtractTask(ctx: ctx, promise: promise, vm: vm)
@@ -1499,7 +1524,7 @@ public class ExtractTask {
     }
 
     public func promiseValue(): JsValue {
-        return promise.value()
+        return promise.getValue()
     }
 
     public func runCallback(): Unit {
@@ -1517,7 +1542,7 @@ public class ExtractTask {
         match (ctx.result) {
             case ExtractResult.success(count) =>
                 promiseVal.resolve(global, JsValue.jsNumber(Float64(count)))
-            case ExtractResult.err(e) =>
+            case ExtractArchiveResult2.err(e) =>
                 promiseVal.rejectWithAsyncStack(global, global.createErrorInstance("ReadError"))
         }
     }
@@ -1540,7 +1565,7 @@ public class BlobTask {
         this.keepAlive = KeepAlive()
     }
 
-    public static func create(global: JsGlobalObject, ctx: BlobContext): ?BlobTask {
+    public static func create(global!: JsGlobalObject, ctx!: BlobContext): ?BlobTask {
         let vm = global.bunVmPtr()
         let promise = JsPromiseStrong(global)
         let task = BlobTask(ctx: ctx, promise: promise, vm: vm)
@@ -1553,7 +1578,7 @@ public class BlobTask {
     }
 
     public func promiseValue(): JsValue {
-        return promise.value()
+        return promise.getValue()
     }
 
     public func runCallback(): Unit {
@@ -1589,7 +1614,7 @@ public class WriteTask {
         this.keepAlive = KeepAlive()
     }
 
-    public static func create(global: JsGlobalObject, ctx: WriteContext): ?WriteTask {
+    public static func create(global!: JsGlobalObject, ctx!: WriteContext): ?WriteTask {
         let vm = global.bunVmPtr()
         let promise = JsPromiseStrong(global)
         let task = WriteTask(ctx: ctx, promise: promise, vm: vm)
@@ -1602,7 +1627,7 @@ public class WriteTask {
     }
 
     public func promiseValue(): JsValue {
-        return promise.value()
+        return promise.getValue()
     }
 
     public func runCallback(): Unit {
@@ -1638,7 +1663,7 @@ public class FilesTask {
         this.keepAlive = KeepAlive()
     }
 
-    public static func create(global: JsGlobalObject, ctx: FilesContext): ?FilesTask {
+    public static func create(global!: JsGlobalObject, ctx!: FilesContext): ?FilesTask {
         let vm = global.bunVmPtr()
         let promise = JsPromiseStrong(global)
         let task = FilesTask(ctx: ctx, promise: promise, vm: vm)
@@ -1651,7 +1676,7 @@ public class FilesTask {
     }
 
     public func promiseValue(): JsValue {
-        return promise.value()
+        return promise.getValue()
     }
 
     public func runCallback(): Unit {
@@ -1675,7 +1700,7 @@ public class FilesTask {
 // ============================================================================
 
 /// 格式化文件大小
-public func fmtSize(size: Int64): String {
+public func fmtSize(size!: Int64): String {
     if (size < 1024) {
         return "${size} B"
     } else if (size < 1024 * 1024) {
@@ -1688,7 +1713,7 @@ public func fmtSize(size: Int64): String {
 }
 
 /// 检查是否为绝对路径
-public func isAbsolutePath(path: Array<UInt8>): Bool {
+public func isAbsolutePath(path!: Array<UInt8>): Bool {
     if (path.size == 0) {
         return false
     }
@@ -1696,7 +1721,7 @@ public func isAbsolutePath(path: Array<UInt8>): Bool {
 }
 
 /// 获取路径的目录名部分
-public func dirname(path: String): ?String {
+public func dirname(path!: String): ?String {
     let idx = path.lastIndexOf('/')
     if (idx < 0) {
         return None
@@ -1708,12 +1733,12 @@ public func dirname(path: String): ?String {
 }
 
 /// Int64 最小值
-public func min(a: Int64, b: Int64): Int64 {
+public func min(a!: Int64, b!: Int64): Int64 {
     if (a < b) { a } else { b }
 }
 
 /// Int64 最大值
-public func max(a: Int64, b: Int64): Int64 {
+public func max(a!: Int64, b!: Int64): Int64 {
     if (a > b) { a } else { b }
 }
 
@@ -1723,7 +1748,7 @@ public func timeMilliTimestamp(): Int64 {
 }
 
 /// 从文件模式获取文件类型
-public func kindFromMode(mode: UInt32): FileKind {
+public func kindFromMode(mode!: UInt32): FileKind {
     let fileType = mode & 0xF000
     match (fileType) {
         case 0x8000 => FileKind.file       // S_IFREG
@@ -1757,7 +1782,7 @@ public class SysError {
         this.message = message
     }
 
-    public func toJS(global: JsGlobalObject): JsValue {
+    public func toJS(global!: JsGlobalObject): JsValue {
         global.createErrorInstance("${code}: ${message}")
     }
 }
@@ -1779,11 +1804,11 @@ public class Fd {
         this.fd = fd
     }
 
-    public func makePath(path: Array<UInt8>): Unit {
+    public func makePath(path!: Array<UInt8>): Unit {
         Sys.mkdirRecursive(fd, path)
     }
 
-    public func makePath(path: String): Unit {
+    public func makePath(path!: String): Unit {
         Sys.mkdirRecursive(fd, path)
     }
 
@@ -1797,65 +1822,65 @@ public class Fd {
 
 /// 系统文件操作
 public class SysFile {
-    public static func openat(dirFd: Fd, path: String, flags: Int32, mode: UInt32): Result<Fd, SysError> {
+    public static func openat(dirFd!: Fd, path!: String, flags!: Int32, mode!: UInt32): ArchiveResult2<Fd, SysError> {
         let fd = Sys.openat(dirFd.fd, path, flags, mode)
         if (fd < 0) {
-            return Result.err(SysError(code: "OpenError", message: "Failed to open ${path}"))
+            return ArchiveResult2.err(SysError(code: "OpenError", message: "Failed to open ${path}"))
         }
-        return Result.ok(Fd(fd: fd))
+        return ArchiveResult2.ok(Fd(fd: fd))
     }
 
-    public static func openat(dirFd: Fd, path: Array<UInt8>, flags: Int32, mode: UInt32): Result<Fd, SysError> {
+    public static func openat(dirFd!: Fd, path!: Array<UInt8>, flags!: Int32, mode!: UInt32): ArchiveResult2<Fd, SysError> {
         let pathStr = String.fromUtf8(path)
         return openat(dirFd, pathStr, flags, mode)
     }
 
-    public static func openA(path: Array<UInt8>, flags: Int32, mode: UInt32): Result<Fd, SysError> {
+    public static func openA(path!: Array<UInt8>, flags!: Int32, mode!: UInt32): ArchiveResult2<Fd, SysError> {
         let pathStr = String.fromUtf8(path)
         let fd = Sys.open(pathStr, flags, mode)
         if (fd < 0) {
-            return Result.err(SysError(code: "OpenError", message: "Failed to open file"))
+            return ArchiveResult2.err(SysError(code: "OpenError", message: "Failed to open file"))
         }
-        return Result.ok(Fd(fd: fd))
+        return ArchiveResult2.ok(Fd(fd: fd))
     }
 
-    public static func openatA(dirFd: Fd, path: Array<UInt8>, flags: Int32, mode: UInt32): Result<Fd, SysError> {
+    public static func openatA(dirFd!: Fd, path!: Array<UInt8>, flags!: Int32, mode!: UInt32): ArchiveResult2<Fd, SysError> {
         let pathStr = String.fromUtf8(path)
         return openat(dirFd, pathStr, flags, mode)
     }
 
-    public static func write(fd: Fd, buf: Array<UInt8>, offset: Int64, length: Int64): Result<Int64, SysError> {
+    public static func write(fd!: Fd, buf!: Array<UInt8>, offset!: Int64, length!: Int64): ArchiveResult2<Int64, SysError> {
         let n = Sys.writeFd(fd.fd, buf, offset, length)
         if (n < 0) {
-            return Result.err(SysError(code: "WriteError", message: "Failed to write"))
+            return ArchiveResult2.err(SysError(code: "WriteError", message: "Failed to write"))
         }
-        return Result.ok(n)
+        return ArchiveResult2.ok(n)
     }
 
-    public static func writeAll(fd: Fd, data: Array<UInt8>): Result<Unit, SysError> {
+    public static func writeAll(fd!: Fd, data!: Array<UInt8>): ArchiveResult2<Unit, SysError> {
         var written: Int64 = 0
         while (written < data.size) {
             match (write(fd, data, written, data.size - written)) {
                 case ok(n) =>
                     if (n == 0) {
-                        return Result.err(SysError(code: "WriteError", message: "Write returned 0"))
+                        return ArchiveResult2.err(SysError(code: "WriteError", message: "Write returned 0"))
                     }
                     written += n
-                case err(e) => return Result.err(e)
+                case err(e) => return ArchiveResult2.err(e)
             }
         }
-        return Result.ok(())
+        return ArchiveResult2.ok(())
     }
 
-    public static func symlinkat(target: String, dirFd: Fd, path: String): Result<Unit, SysError> {
+    public static func symlinkat(target!: String, dirFd!: Fd, path!: String): ArchiveResult2<Unit, SysError> {
         let rc = Sys.symlinkat(target, dirFd.fd, path)
         if (rc < 0) {
-            return Result.err(SysError(code: "SymlinkError", message: "Failed to create symlink"))
+            return ArchiveResult2.err(SysError(code: "SymlinkError", message: "Failed to create symlink"))
         }
-        return Result.ok(())
+        return ArchiveResult2.ok(())
     }
 
-    public static func unlinkat(dirFd: Fd, path: String): Unit {
+    public static func unlinkat(dirFd!: Fd, path!: String): Unit {
         Sys.unlinkat(dirFd.fd, path)
     }
 }
@@ -1881,12 +1906,12 @@ public class KeepAlive {
 
     public init() {}
 
-    public func ref(ctx: JsVmCtx): Unit {
+    public func ref(ctx!: JsVmCtx): Unit {
         refCount += 1
         ctx.ref()
     }
 
-    public func unref(ctx: JsVmCtx): Unit {
+    public func unref(ctx!: JsVmCtx): Unit {
         if (refCount > 0) {
             refCount -= 1
             ctx.unref()
@@ -1915,7 +1940,7 @@ public class VirtualMachine {
         false // 简化实现
     }
 
-    public func enqueueTaskConcurrent(task: ConcurrentTask): Unit {
+    public func enqueueTaskConcurrent(task!: ConcurrentTask): Unit {
         EventLoop.enqueueConcurrent(task)
     }
 
@@ -1940,7 +1965,7 @@ public class ConcurrentTask {
 
 /// 工作池
 public class WorkPool {
-    public static func schedule(task: Object): Unit {
+    public static func schedule(task!: Object): Unit {
         EventLoop.scheduleWorkPool(task)
     }
 }
@@ -1953,13 +1978,13 @@ public class JsPromiseStrong {
         value = JsValue.jsUndefined()
     }
 
-    public static func `init`(global: JsGlobalObject): JsPromiseStrong {
+    public static func `init`(global!: JsGlobalObject): JsPromiseStrong {
         let p = JsPromiseStrong()
         p.value = JsPromise.create(global)
         return p
     }
 
-    public func value(): JsValue {
+    public func getValue(): JsValue {
         value
     }
 
@@ -1976,18 +2001,18 @@ public class JsMap {
         this.jsValue = jsValue
     }
 
-    public static func create(global: JsGlobalObject): JsValue {
+    public static func create(global!: JsGlobalObject): JsValue {
         JsValue.createMap(global)
     }
 
-    public static func fromJS(value: JsValue): ?JsMap {
+    public static func fromJS(value!: JsValue): ?JsMap {
         if (value.isObject()) {
             return JsMap(jsValue: value)
         }
         return None
     }
 
-    public func set(global: JsGlobalObject, key: JsValue, val: JsValue): Unit {
+    public func `set`(global!: JsGlobalObject, key!: JsValue, val!: JsValue): Unit {
         jsValue.mapSet(global, key, val)
     }
 }
@@ -1995,8 +2020,8 @@ public class JsMap {
 /// Console 格式化器接口
 public interface ConsoleFormatter {
     func indented(): ConsoleFormatter
-    func writeIndent(writer: StringBuilder): Unit
-    func printAs(writer: StringBuilder, value: JsValue, `type`: JSType, enableAnsiColors: Bool): Unit
+    func writeIndent(writer!: ArchiveStringBuilder): Unit
+    func printAs(writer!: ArchiveStringBuilder, value!: JsValue, `type`!: JSType, enableAnsiColors!: Bool): Unit
     func resetLine(): Unit
 }
 
@@ -2027,10 +2052,10 @@ public class JSPropertyIterator {
         this.values = []
     }
 
-    public static func `init`(global: JsGlobalObject, jsObj: JsValue, options: PropertyIteratorOptions): ?JSPropertyIterator {
+    public static func `init`(global!: JsGlobalObject, jsObj!: JsValue, options!: PropertyIteratorOptions): ?JSPropertyIterator {
         let iter = JSPropertyIterator(jsObj, options)
         // 提取所有键和值
-        iter.keys = try jsObj.getOwnProperties(global) ?? []
+        iter.keys = jsObj.getOwnProperties(global)  ?? []
         return iter
     }
 
@@ -2051,48 +2076,48 @@ public class Libdeflate {
         // 加载 libdeflate 库
     }
 
-    public class Compressor {
-        public static func alloc(level: Int32): ?Compressor {
-            // 分配压缩器
-            let c = Compressor()
-            c.level = level
-            return c
-        }
+//    public class Compressor {
+//        public static func alloc(level!: Int32): ?Compressor {
+//            // 分配压缩器
+//            let c = Compressor()
+//            c.level = level
+//            return c
+//        }
 
-        public var level: Int32 = 6
+//        public var level: Int32 = 6
 
-        public func maxBytesNeeded(data: Array<UInt8>, encoding: Encoding): Int64 {
-            // 计算 gzip 压缩最大输出大小
-            Int64(data.size + data.size / 10 + 64)
-        }
+//        public func maxBytesNeeded(data!: Array<UInt8>, encoding!: Encoding): Int64 {
+//            // 计算 gzip 压缩最大输出大小
+//            Int64(data.size + data.size / 10 + 64)
+//        }
 
-        public func compressToVec(data: Array<UInt8>, output: ArrayList<UInt8>, encoding: Encoding): CompressResult {
-            // 执行 gzip 压缩
-            // 简化实现 — 实际通过 FFI 调用 libdeflate
-            CompressResult(status: Status.success)
-        }
+//        public func compressToVec(data!: Array<UInt8>, output!: ArrayList<UInt8>, encoding!: Encoding): CompressResult {
+//            // 执行 gzip 压缩
+//            // 简化实现 — 实际通过 FFI 调用 libdeflate
+//            CompressResult(status: Status.success)
+//        }
 
-        public func destroy(): Unit {
-            // 释放压缩器
-        }
-    }
+//        public func destroy(): Unit {
+//            // 释放压缩器
+//        }
+//    }
 
-    public enum Encoding {
-        | gzip
-        | raw
-        | zlib
-    }
+//    public enum Encoding {
+//        | gzip
+//        | raw
+//        | zlib
+//    }
 
-    public class Status {
-        public static let success: Int32 = 0
-    }
+//    public class Status {
+//        public static let success: Int32 = 0
+//    }
 
-    public class CompressResult {
-        public var status: Int32
-        public init(status: Int32) {
-            this.status = status
-        }
-    }
+//    public class CompressResult {
+//        public var status: Int32
+//        public init(status: Int32) {
+//            this.status = status
+//        }
+//    }
 }
 
 /// GrowingBuffer — tarball 构建期间使用
@@ -2112,15 +2137,15 @@ public class GrowingBuffer {
         UIntNative(buffer.hashCode())
     }
 
-    public static func openCallback(archive: UIntNative, context: UIntNative): Int32 {
+    public static func openCallback(archive!: UIntNative, context!: UIntNative): Int32 {
         0 // ARCHIVE_OK
     }
 
-    public static func writeCallback(archive: UIntNative, context: UIntNative, data: UIntNative, length: Int64): Int64 {
+    public static func writeCallback(archive!: UIntNative, context!: UIntNative, data!: UIntNative, length!: Int64): Int64 {
         length
     }
 
-    public static func closeCallback(archive: UIntNative, context: UIntNative): Int32 {
+    public static func closeCallback(archive!: UIntNative, context!: UIntNative): Int32 {
         0 // ARCHIVE_OK
     }
 
@@ -2147,11 +2172,11 @@ public class LibArchive {
         LibArchiveEntry()
     }
 
-    public static func archiveWriteOpen2(archive: UIntNative, context: UIntNative,
-                                          openCb: (UIntNative, UIntNative) -> Int32,
-                                          writeCb: (UIntNative, UIntNative, UIntNative, Int64) -> Int64,
-                                          closeCb: (UIntNative, UIntNative) -> Int32,
-                                          null: ?Object): Int32 {
+    public static func archiveWriteOpen2(archive!: UIntNative, context!: UIntNative,
+                                          openCb!: (UIntNative, UIntNative) -> Int32,
+                                          writeCb!: (UIntNative, UIntNative, UIntNative, Int64) -> Int64,
+                                          closeCb!: (UIntNative, UIntNative) -> Int32,
+                                          none!: ?Object): Int32 {
         0 // ARCHIVE_OK
     }
 
@@ -2176,9 +2201,9 @@ public class LibArchive {
     public func readSupportFormatTar(): Unit {}
     public func readSupportFormatGnuTar(): Unit {}
     public func readSupportFilterGzip(): Unit {}
-    public func readSetOptions(opts: String): Unit {}
+    public func readSetOptions(opts!: String): Unit {}
 
-    public func readOpenMemory(data: Array<UInt8>): ArchiveResult {
+    public func readOpenMemory(data!: Array<UInt8>): ArchiveResult {
         this.data = ArrayList<UInt8>()
         for (b in data) {
             this.data.append(b)
@@ -2186,20 +2211,20 @@ public class LibArchive {
         return ArchiveResult.ok
     }
 
-    public func readNextHeader(entry: LibArchiveEntry): ArchiveResult {
+    public func readNextHeader(entry!: LibArchiveEntry): ArchiveResult {
         // 简化实现 — 实际通过 FFI 调用 libarchive
         ArchiveResult.eof
     }
 
-    public func readData(buf: Array<UInt8>, offset: Int64, length: Int64): Int64 {
+    public func readData(buf!: Array<UInt8>, offset!: Int64, length!: Int64): Int64 {
         0
     }
 
-    public func writeHeader(entry: LibArchiveEntry): ArchiveResult {
+    public func writeHeader(entry!: LibArchiveEntry): ArchiveResult {
         ArchiveResult.ok
     }
 
-    public func writeData(data: Array<UInt8>): Int64 {
+    public func writeData(data!: Array<UInt8>): Int64 {
         Int64(data.size)
     }
 
@@ -2235,11 +2260,11 @@ public class LibArchiveEntry {
     public var mtimeVal: Int64 = 0
     public var symlinkStr: String = ""
 
-    public init() {}
-
-    public func asRef(): LibArchiveEntry {
-        this
+    public init() {
     }
+
+    public func asRef(): LibArchiveEntry { this }
+    
 
     public func clear(): Unit {
         pathnameStr = ""
@@ -2250,23 +2275,23 @@ public class LibArchiveEntry {
         symlinkStr = ""
     }
 
-    public func setPathnameUTF8(path: String): Unit {
+    public func setPathnameUTF8(path!: String): Unit {
         pathnameStr = path
     }
 
-    public func setSize(size: Int64): Unit {
+    public func setSize(size!: Int64): Unit {
         sizeVal = size
     }
 
-    public func setFiletype(ft: UInt32): Unit {
+    public func setFiletype(ft!: UInt32): Unit {
         filetypeVal = ft
     }
 
-    public func setPerm(perm: UInt32): Unit {
+    public func setPerm(perm!: UInt32): Unit {
         permVal = perm
     }
 
-    public func setMTime(sec: Int64, nsec: Int64): Unit {
+    public func setMTime(sec!: Int64, nsec!: Int64): Unit {
         mtimeVal = sec
     }
 

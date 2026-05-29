@@ -64,6 +64,16 @@ public class Entry {
 
 public class VirtualMachine {
     public init() {}
+
+    // 覆盖率字节范围 (桩)
+    public func getCoverageByteRanges(): ArrayList<Any> {
+        ArrayList<Any>()
+    }
+
+    // 顶级目录 (桩)
+    public func getTopLevelDir(): String {
+        ""
+    }
 }
 
 public class JSValue {

@@ -361,9 +361,95 @@ public class DateObject {
     }
 
     /// 解析日期字符串 - 对应 Date.parse(dateString)
-    /// 简化实现: 仅支持 ISO 8601 格式 (YYYY-MM-DDTHH:mm:ss.sssZ)
+    /// 支持 ISO 8601 格式 (YYYY-MM-DDTHH:mm:ss.sssZ) 和常见变体
     public static func parse(dateStr: String): Int64 {
-        return 0
+        let s = dateStr.trimStart().trimEnd()
+        if (s.isEmpty()) {
+            return Int64(-1)  // Invalid Date
+        }
+
+        // 尝试解析 ISO 8601 格式: YYYY-MM-DDTHH:mm:ss.sssZ
+        // 或 YYYY-MM-DDTHH:mm:ss.sss+HH:MM
+        // 或 YYYY-MM-DD HH:mm:ss
+        var year = Int64(0)
+        var month = Int64(1)
+        var day = Int64(1)
+        var hour = Int64(0)
+        var minute = Int64(0)
+        var second = Int64(0)
+        var ms = Int64(0)
+
+        // 查找日期和时间分隔符
+        let tPos = s.indexOf(UInt8(0x54))  // 'T'
+        let spacePos = s.indexOf(UInt8(0x20))  // ' '
+        let dateEnd = if (tPos.isSome()) { tPos.getOrThrow() } else if (spacePos.isSome()) { spacePos.getOrThrow() } else { Int64(s.size) }
+
+        // 解析日期部分 YYYY-MM-DD
+        let datePart = s[0..dateEnd]
+        let dash1Opt = datePart.indexOf('-')
+        if (dash1Opt.isNone()) {
+            return Int64(-1)
+        }
+        let dash1 = dash1Opt.getOrThrow()
+        year = parseInt64(datePart[0..dash1])
+        let dash2Opt = datePart.indexOf('-', dash1 + 1)
+        if (dash2Opt.isNone()) {
+            month = parseInt64(datePart[dash1 + 1..datePart.size])
+        } else {
+            let dash2 = dash2Opt.getOrThrow()
+            month = parseInt64(datePart[dash1 + 1..dash2])
+            day = parseInt64(datePart[dash2 + 1..datePart.size])
+        }
+
+        // 解析时间部分 HH:mm:ss.sss
+        if (dateEnd < s.size) {
+            let timePart = s[dateEnd + 1..s.size]
+            // 去掉时区后缀 (+HH:MM 或 Z)
+            let cleanTime = if (timePart.endsWith("Z")) {
+                timePart[0..timePart.size - 1]
+            } else {
+                let plusIdx = timePart.indexOf('+')
+                if (plusIdx.isSome()) { timePart[0..plusIdx.getOrThrow()] } else { timePart }
+            }
+
+            let colon1Opt = cleanTime.indexOf(':')
+            if (colon1Opt.isSome()) {
+                let colon1 = colon1Opt.getOrThrow()
+                hour = parseInt64(cleanTime[0..colon1])
+                let colon2Opt = cleanTime.indexOf(':', colon1 + 1)
+                if (colon2Opt.isSome()) {
+                    let colon2 = colon2Opt.getOrThrow()
+                    minute = parseInt64(cleanTime[colon1 + 1..colon2])
+                    let dotPosOpt = cleanTime.indexOf('.', colon2 + 1)
+                    if (dotPosOpt.isSome()) {
+                        let dotPos = dotPosOpt.getOrThrow()
+                        second = parseInt64(cleanTime[colon2 + 1..dotPos])
+                        ms = parseInt64(cleanTime[dotPos + 1..cleanTime.size])
+                    } else {
+                        second = parseInt64(cleanTime[colon2 + 1..cleanTime.size])
+                    }
+                } else {
+                    minute = parseInt64(cleanTime[colon1 + 1..cleanTime.size])
+                }
+            }
+        }
+
+        utcFromComponents(year, month - 1, day, hour, minute, second) + ms
+    }
+
+    // 解析整数辅助函数
+    private static func parseInt64(s: String): Int64 {
+        if (s.isEmpty()) { return Int64(0) }
+        var result = Int64(0)
+        for (i in 0..s.size) {
+            let c = s[i]
+            if (c >= UInt8(0x30) && c <= UInt8(0x39)) {
+                result = result * 10 + Int64(c - UInt8(0x30))
+            } else {
+                break
+            }
+        }
+        result
     }
 
     /// 从 UTC 组件创建时间戳 - 对应 Date.UTC(year, month, ...)

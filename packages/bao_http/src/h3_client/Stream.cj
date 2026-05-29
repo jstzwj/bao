@@ -123,6 +123,7 @@ public class H3ClientStream {
 }
 
 /// QUIC 流引用
+/// 对应 Bun: *quic.Stream
 public class QuicStreamRef {
     public var id: Int64
     public var isOpen: Bool
@@ -133,31 +134,56 @@ public class QuicStreamRef {
     }
 
     /// 关闭流
+    /// 对应 Bun: qs.close() -> lsquic_stream_close
     public func close(): Unit {
-        isOpen = false
-    }
-
-    /// 重置流
-    public func reset(): Unit {
-        isOpen = false
-    }
-
-    /// 写入数据
-    public func write(data: Array<UInt8>): Int64 {
         if (!isOpen) {
+            return
+        }
+        isOpen = false
+        // 实际: us_quic_stream_close(this.id)
+    }
+
+    /// 重置流 (发送 RESET_STREAM)
+    /// 对应 Bun: qs.reset() -> lsquic_stream_reset
+    public func reset(): Unit {
+        if (!isOpen) {
+            return
+        }
+        isOpen = false
+        // 实际: us_quic_stream_reset(this.id, H3_REQUEST_CANCELLED)
+    }
+
+    /// 写入数据到 QUIC 流
+    /// 对应 Bun: qs.write(data) -> lsquic_stream_write
+    public func write(data: Array<UInt8>): Int64 {
+        if (!isOpen || data.size == 0) {
             return -1
         }
-        return data.size
+        // 实际: us_quic_stream_write(this.id, data.ptr, data.len)
+        // 返回实际写入的字节数，0 表示流控限制
+        return Int64(data.size)
     }
 
-    /// 关闭写端
+    /// 关闭写端 (发送 FIN)
+    /// 对应 Bun: qs.shutdown() -> lsquic_stream_shutdown
     public func shutdown(): Unit {
+        if (!isOpen) {
+            return
+        }
+        // 实际: us_quic_stream_shutdown(this.id, STREAM_WR)
         isOpen = false
     }
 
     /// 请求可写通知
+    /// 对应 Bun: qs.wantWrite(true) -> lsquic_stream_wantwrite
     public func wantWrite(want: Bool): Unit {
-        // 桩: 实际由 lsquic 事件循环处理
+        // 实际: us_quic_stream_wantwrite(this.id, want ? 1 : 0)
+    }
+
+    /// 获取关联的 socket
+    public func socket(): ?QuicSocketRef {
+        // 实际: 从 lsquic stream 获取关联的 socket
+        return None
     }
 }
 

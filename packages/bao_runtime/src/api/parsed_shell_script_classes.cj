@@ -18,7 +18,7 @@ public class ParsedShellScriptClasses {
     /// setCwd fn
     /// 严格翻译自: proto.setCwd { fn: "setCwd", length: 1 }
     /// 参数: (cwd: string)
-    public static func setCwd(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setCwd(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 设置当前工作目录
         return JsValue.jsUndefined()
     }
@@ -26,7 +26,7 @@ public class ParsedShellScriptClasses {
     /// setEnv fn
     /// 严格翻译自: proto.setEnv { fn: "setEnv", length: 1 }
     /// 参数: (env: Record<string, string>)
-    public static func setEnv(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setEnv(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 设置环境变量
         return JsValue.jsUndefined()
     }
@@ -34,7 +34,7 @@ public class ParsedShellScriptClasses {
     /// setQuiet fn
     /// 严格翻译自: proto.setQuiet { fn: "setQuiet", length: 1 }
     /// 参数: (quiet: boolean)
-    public static func setQuiet(JsGlobalObject, callframe: JsCallFrame, thisValue: JsValue): JsValue {
+    public static func setQuiet(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
         // 设置静默模式
         return JsValue.jsUndefined()
     }

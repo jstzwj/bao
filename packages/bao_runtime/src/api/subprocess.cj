@@ -14,14 +14,16 @@ import bao_event_loop.*
 // 对应 Bun: src/runtime/api/bun/subprocess.rs
 // ============================================================================
 
-/// 平台相关的 stdio 结果类型
-public type StdioResult = ExtraPipe   // POSIX 上为 ?FD
+/// 平台相关的 stdio 结果类型 (stub)
+public enum StdioResult {
+    | owned
+    | unowned
+    | unavailable
+}
 
-/// MaxBuf 类型别名
-public type MaxBufKind = MaxBuf.Kind
+/// MaxBuf 类型别名 - MaxBufKind 已在 bao_io 中定义
 
-/// StaticPipeWriter 特化为 Subprocess
-public type StaticPipeWriter = StaticPipeWriter<Subprocess>
+// StaticPipeWriter 已通过 import 导入，无需重复定义
 
 /// ObservableGetter - 标记哪些 getter 已被调用
 public enum ObservableGetter {
@@ -62,8 +64,8 @@ public class Subprocess {
     public var eventLoopTimerRefd: Bool = false
     /// 侵入式定时器节点
     public var eventLoopTimer: EventLoopTimer = EventLoopTimer{
-        tag = .SubprocessTimeout,
-        next = .epoch,
+        tag = TimerTag.SubprocessTimeout
+        next = Timespec.epoch
     }
     public var killSignal: SignalCode
 
@@ -75,157 +77,157 @@ public class Subprocess {
     // Flags - 子进程标志位
     // ========================================================================
 
-    public class Flags {
-        public static let IS_SYNC: UInt8 = 1 << 0
-        public static let KILLED: UInt8 = 1 << 1
-        public static let HAS_STDIN_DESTRUCTOR_CALLED: UInt8 = 1 << 2
-        public static let FINALIZED: UInt8 = 1 << 3
-        public static let DEREF_ON_STDIN_DESTROYED: UInt8 = 1 << 4
-        public static let IS_STDIN_A_READABLE_STREAM: UInt8 = 1 << 5
-        /// 终端由 spawn 内联创建 (vs. 调用者传入的现有 Terminal)
-        public static let OWNS_TERMINAL: UInt8 = 1 << 6
+//    public class Flags {
+//        public static let IS_SYNC: UInt8 = 1 << 0
+//        public static let KILLED: UInt8 = 1 << 1
+//        public static let HAS_STDIN_DESTRUCTOR_CALLED: UInt8 = 1 << 2
+//        public static let FINALIZED: UInt8 = 1 << 3
+//        public static let DEREF_ON_STDIN_DESTROYED: UInt8 = 1 << 4
+//        public static let IS_STDIN_A_READABLE_STREAM: UInt8 = 1 << 5
+//        /// 终端由 spawn 内联创建 (vs. 调用者传入的现有 Terminal)
+//        public static let OWNS_TERMINAL: UInt8 = 1 << 6
 
-        public var bits: UInt8 = 0
+//        public var bits: UInt8 = 0
 
-        public func contains(flag: UInt8): Bool {
-            return (this.bits & flag) != 0
-        }
+//        public func contains(flag!: UInt8): Bool {
+//            return (this.bits & flag) != 0
+//        }
 
-        public func insert(flag: UInt8) {
-            this.bits = this.bits | flag
-        }
+//        public func insert(flag!: UInt8) {
+//            this.bits = this.bits | flag
+//        }
 
-        public func remove(flag: UInt8) {
-            this.bits = this.bits & ~flag
-        }
+//        public func remove(flag!: UInt8) {
+//            this.bits = this.bits & ~flag
+//        }
 
-        public func get(): UInt8 {
-            return this.bits
-        }
+//        public func `get`(): UInt8 {
+//            return this.bits
+//        }
 
-        public func set(bits: UInt8) {
-            this.bits = bits
-        }
+//        public func `set`(bits!: UInt8) {
+//            this.bits = bits
+//        }
 
-        // 便捷属性
-        public prop isSync: Bool {
-            get() { this.contains(Flags.IS_SYNC) }
-            set(v) { if (v) { this.insert(Flags.IS_SYNC) } else { this.remove(Flags.IS_SYNC) } }
-        }
-        public prop killed: Bool {
-            get() { this.contains(Flags.KILLED) }
-            set(v) { if (v) { this.insert(Flags.KILLED) } else { this.remove(Flags.KILLED) } }
-        }
-        public prop hasStdinDestructorCalled: Bool {
-            get() { this.contains(Flags.HAS_STDIN_DESTRUCTOR_CALLED) }
-            set(v) { if (v) { this.insert(Flags.HAS_STDIN_DESTRUCTOR_CALLED) } else { this.remove(Flags.HAS_STDIN_DESTRUCTOR_CALLED) } }
-        }
-        public prop finalized: Bool {
-            get() { this.contains(Flags.FINALIZED) }
-            set(v) { if (v) { this.insert(Flags.FINALIZED) } else { this.remove(Flags.FINALIZED) } }
-        }
-        public prop derefOnStdinDestroyed: Bool {
-            get() { this.contains(Flags.DEREF_ON_STDIN_DESTROYED) }
-            set(v) { if (v) { this.insert(Flags.DEREF_ON_STDIN_DESTROYED) } else { this.remove(Flags.DEREF_ON_STDIN_DESTROYED) } }
-        }
-        public prop isStdinAReadableStream: Bool {
-            get() { this.contains(Flags.IS_STDIN_A_READABLE_STREAM) }
-            set(v) { if (v) { this.insert(Flags.IS_STDIN_A_READABLE_STREAM) } else { this.remove(Flags.IS_STDIN_A_READABLE_STREAM) } }
-        }
-        public prop ownsTerminal: Bool {
-            get() { this.contains(Flags.OWNS_TERMINAL) }
-            set(v) { if (v) { this.insert(Flags.OWNS_TERMINAL) } else { this.remove(Flags.OWNS_TERMINAL) } }
-        }
-    }
+//        // 便捷属性
+//        public prop isSync!: Bool {
+//            get() { this.contains(Flags.IS_SYNC) }
+//            set(v) { if (v) { this.insert(Flags.IS_SYNC) } else { this.remove(Flags.IS_SYNC) } }
+//        }
+//        public prop killed!: Bool {
+//            get() { this.contains(Flags.KILLED) }
+//            set(v) { if (v) { this.insert(Flags.KILLED) } else { this.remove(Flags.KILLED) } }
+//        }
+//        public prop hasStdinDestructorCalled!: Bool {
+//            get() { this.contains(Flags.HAS_STDIN_DESTRUCTOR_CALLED) }
+//            set(v) { if (v) { this.insert(Flags.HAS_STDIN_DESTRUCTOR_CALLED) } else { this.remove(Flags.HAS_STDIN_DESTRUCTOR_CALLED) } }
+//        }
+//        public prop finalized!: Bool {
+//            get() { this.contains(Flags.FINALIZED) }
+//            set(v) { if (v) { this.insert(Flags.FINALIZED) } else { this.remove(Flags.FINALIZED) } }
+//        }
+//        public prop derefOnStdinDestroyed!: Bool {
+//            get() { this.contains(Flags.DEREF_ON_STDIN_DESTROYED) }
+//            set(v) { if (v) { this.insert(Flags.DEREF_ON_STDIN_DESTROYED) } else { this.remove(Flags.DEREF_ON_STDIN_DESTROYED) } }
+//        }
+//        public prop isStdinAReadableStream!: Bool {
+//            get() { this.contains(Flags.IS_STDIN_A_READABLE_STREAM) }
+//            set(v) { if (v) { this.insert(Flags.IS_STDIN_A_READABLE_STREAM) } else { this.remove(Flags.IS_STDIN_A_READABLE_STREAM) } }
+//        }
+//        public prop ownsTerminal!: Bool {
+//            get() { this.contains(Flags.OWNS_TERMINAL) }
+//            set(v) { if (v) { this.insert(Flags.OWNS_TERMINAL) } else { this.remove(Flags.OWNS_TERMINAL) } }
+//        }
+//    }
 
     // ========================================================================
     // StdioKind - 标准流类型枚举
     // ========================================================================
 
-    public enum StdioKind {
-        | stdin
-        | stdout
-        | stderr
+//    public enum StdioKind {
+//        | stdin
+//        | stdout
+//        | stderr
 
-        public func toFd(): FD {
-            return match (this) {
-                case stdin => FD.stdin()
-                case stdout => FD.stdout()
-                case stderr => FD.stderr()
-            }
-        }
+//        public func toFd(): FD {
+//            return match (this) {
+//                case stdin => FD.stdin()
+//                case stdout => FD.stdout()
+//                case stderr => FD.stderr()
+//            }
+//        }
 
-        public func toNum(): Int32 {
-            return match (this) {
-                case stdin => 0
-                case stdout => 1
-                case stderr => 2
-            }
-        }
-    }
+//        public func toNum(): Int32 {
+//            return match (this) {
+//                case stdin => 0
+//                case stdout => 1
+//                case stderr => 2
+//            }
+//        }
+//    }
 
     // ========================================================================
     // Source - stdin 数据源
     // ========================================================================
 
-    public enum Source {
-        | blob(BlobAny)
-        | array_buffer(ArrayBufferStrong)
-        | detached
+//    public enum Source {
+//        | blob(BlobAny)
+//        | array_buffer(ArrayBufferStrong)
+//        | detached
 
-        public func memoryCost(): Int64 {
-            return match (this) {
-                case blob => this.blob.memoryCost()
-                case array_buffer => 0
-                case detached => 0
-            }
-        }
+//        public func memoryCost(): Int64 {
+//            return match (this) {
+//                case blob => this.blob.memoryCost()
+//                case array_buffer => 0
+//                case detached => 0
+//            }
+//        }
 
-        public func slice(): Array<UInt8> {
-            return match (this) {
-                case blob => this.blob.slice()
-                case array_buffer => this.array_buffer.slice()
-                else => panic("Invalid source")
-            }
-        }
+//        public func slice(): Array<UInt8> {
+//            return match (this) {
+//                case blob => this.blob.slice()
+//                case array_buffer => this.array_buffer.slice()
+//                case _ => panic("Invalid source")
+//            }
+//        }
 
-        public func detach() {
-            match (this) {
-                case blob => this.blob.detach()
-                case array_buffer => this.array_buffer.deinit()
-                else => ()
-            }
-            this = .detached
-        }
-    }
+//        public func detach() {
+//            match (this) {
+//                case blob => this.blob.detach()
+//                case array_buffer => this.array_buffer.deinit()
+//                case _ => ()
+//            }
+//            this = .detached
+//        }
+//    }
 
     // ========================================================================
     // Poll - 轮询 (保持与 Bun 对等, 可能是死代码)
     // ========================================================================
 
     /// Poll - 轮询机制 (posix FilePoll / windows WaitThread)
-    public enum Poll {
-        | pollRef(?FilePoll)
-        | waitThread(WaitThreadPoll)
-    }
+//    public enum Poll {
+//        | pollRef(?FilePoll)
+//        | waitThread(WaitThreadPoll)
+//    }
 
     /// WaitThreadPoll - 等待线程轮询
-    public class WaitThreadPoll {
-        public var refCount: AtomicUInt32
-        public var pollRef: KeepAlive
+//    public class WaitThreadPoll {
+//        public var refCount: AtomicUInt32
+//        public var pollRef: KeepAlive
 
-        public init() {
-            this.refCount = AtomicUInt32(0)
-            this.pollRef = KeepAlive()
-        }
-    }
+//        public init() {
+//            this.refCount = AtomicUInt32(0)
+//            this.pollRef = KeepAlive()
+//        }
+//    }
 
     // ========================================================================
     // 核心方法
     // ========================================================================
 
     /// 调试断言 stdio 结果格式正确
-    public static func assertStdioResult(result: StdioResult) {
+    public static func assertStdioResult(result!: StdioResult) {
         if (Environment.isDebug) {
             if (let fd <- result) {
                 assert(fd.isValid())
@@ -234,7 +236,7 @@ public class Subprocess {
     }
 
     /// 借用侵入式引用计数的 Process
-    public func process(): Process {
+    public func getProcess(): Process {
         return this.process.get()
     }
 
@@ -244,7 +246,7 @@ public class Subprocess {
     }
 
     /// 借用存储的 JSC 全局对象
-    public func globalThis(): JsGlobalObject {
+    public func getGlobalThis(): JsGlobalObject {
         return this.globalThis.get()
     }
 
@@ -273,7 +275,7 @@ public class Subprocess {
     /// 内存占用
     public func memoryCost(): Int64 {
         return sizeof(Subprocess) +
-            this.process().memoryCost() +
+            this.getProcess().memoryCost() +
             this.stdin.memoryCost() +
             this.stdout.memoryCost() +
             this.stderr.memoryCost()
@@ -281,7 +283,7 @@ public class Subprocess {
 
     /// 是否已退出
     public func hasExited(): Bool {
-        return this.process().hasExited()
+        return this.getProcess().hasExited()
     }
 
     /// 计算是否有待处理的活动
@@ -302,7 +304,7 @@ public class Subprocess {
             return true
         }
 
-        if (!this.process().hasExited()) {
+        if (!this.getProcess().hasExited()) {
             return true
         }
 
@@ -344,10 +346,10 @@ public class Subprocess {
     }
 
     /// 关闭 IO 回调
-    public func onCloseIO(kind: StdioKind) {
+    public func onCloseIO(kind!: StdioKind) {
         match (kind) {
             case stdin =>
-                match (this.stdin) {
+                match (thisStdioKind.stdin) {
                     case pipe(pipe) =>
                         // signal 是 JsCell, 所以共享的 &FileSink 就足够了
                         pipe.signal.clear()
@@ -357,7 +359,7 @@ public class Subprocess {
                     case buffer(buffer) =>
                         buffer.source.detach()
                         this.stdin = Writable.ignore()
-                    else => ()
+                    case _ => ()
                 }
             case stdout =>
                 let out: Readable = if (kind == stdout) {
@@ -369,7 +371,7 @@ public class Subprocess {
                 if (out is Readable.pipe) {
                     let pipe = out.replace(Readable.ignore())
                     let pipeState = pipe.reader.state
-                    if (let done <- pipeState as PipeReaderState.done) {
+                    if (let done <- pipeState.`as`(PipeReaderState).done) {
                         let taken = done.take()
                         out = Readable.buffer(CowString.initOwned(taken))
                     }
@@ -386,7 +388,7 @@ public class Subprocess {
                 if (out is Readable.pipe) {
                     let pipe = out.replace(Readable.ignore())
                     let pipeState = pipe.reader.state
-                    if (let done <- pipeState as PipeReaderState.done) {
+                    if (let done <- pipeState.`as`(PipeReaderState).done) {
                         let taken = done.take()
                         out = Readable.buffer(CowString.initOwned(taken))
                     }
@@ -407,15 +409,15 @@ public class Subprocess {
     public func jsRef() {
         this.processMut().enableKeepingEventLoopAlive()
 
-        if (!this.hasCalledGetter(.stdin)) {
+        if (!this.hasCalledGetter(StdioKind.stdin)) {
             this.stdin.ref()
         }
 
-        if (!this.hasCalledGetter(.stdout)) {
+        if (!this.hasCalledGetter(StdioKind.stdout)) {
             this.stdout.ref()
         }
 
-        if (!this.hasCalledGetter(.stderr)) {
+        if (!this.hasCalledGetter(StdioKind.stderr)) {
             this.stderr.ref()
         }
 
@@ -426,15 +428,15 @@ public class Subprocess {
     public func jsUnref() {
         this.processMut().disableKeepingEventLoopAlive()
 
-        if (!this.hasCalledGetter(.stdin)) {
+        if (!this.hasCalledGetter(StdioKind.stdin)) {
             this.stdin.unref()
         }
 
-        if (!this.hasCalledGetter(.stdout)) {
+        if (!this.hasCalledGetter(StdioKind.stdout)) {
             this.stdout.unref()
         }
 
-        if (!this.hasCalledGetter(.stderr)) {
+        if (!this.hasCalledGetter(StdioKind.stderr)) {
             this.stderr.unref()
         }
 
@@ -442,7 +444,7 @@ public class Subprocess {
     }
 
     /// 构造函数 (禁止直接构造)
-    public static func constructor(JsGlobalObject, callframe: JsCallFrame): Subprocess {
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): Subprocess {
         return globalObject.`throw`("Cannot construct Subprocess")
     }
 
@@ -451,39 +453,39 @@ public class Subprocess {
     // ========================================================================
 
     /// 获取 stderr
-    public func getStderr(globalThis: JsGlobalObject): JsValue {
+    public func getStderr(globalThis!: JsGlobalObject): JsValue {
         // 使用 terminal 时, stderr 通过终端
-        if (this.terminal != null) {
+        if (this.terminal != none) {
             return JsValue.null()
         }
-        this.observableGetters.insert(.stderr)
+        this.observableGetters.insert(StdioKind.stderr)
         let exited = this.hasExited()
         return this.stderr.toJS(globalThis, exited)
     }
 
     /// 获取 stdin
-    public func getStdin(globalThis: JsGlobalObject): JsValue {
+    public func getStdin(globalThis!: JsGlobalObject): JsValue {
         // 使用 terminal 时, stdin 通过终端
-        if (this.terminal != null) {
+        if (this.terminal != none) {
             return JsValue.null()
         }
-        this.observableGetters.insert(.stdin)
+        this.observableGetters.insert(StdioKind.stdin)
         return Writable.toJS(this, globalThis)
     }
 
     /// 获取 stdout
-    public func getStdout(globalThis: JsGlobalObject): JsValue {
+    public func getStdout(globalThis!: JsGlobalObject): JsValue {
         // 使用 terminal 时, stdout 通过终端
-        if (this.terminal != null) {
+        if (this.terminal != none) {
             return JsValue.null()
         }
-        this.observableGetters.insert(.stdout)
+        this.observableGetters.insert(StdioKind.stdout)
         let exited = this.hasExited()
         return this.stdout.toJS(globalThis, exited)
     }
 
     /// 获取 terminal
-    public func getTerminal(globalThis: JsGlobalObject): JsValue {
+    public func getTerminal(globalThis!: JsGlobalObject): JsValue {
         if (let terminal <- this.terminal) {
             return terminal.toJS(globalThis)
         }
@@ -492,48 +494,48 @@ public class Subprocess {
 
     /// 获取 PID 值
     public func pid(): Int32 {
-        return Int32(this.process().pid)
+        return Int32(this.getProcess().pid)
     }
 
     /// 获取 PID
-    public func getPid(globalThis: JsGlobalObject): JsValue {
+    public func getPid(globalThis!: JsGlobalObject): JsValue {
         return JsValue.jsNumber(this.pid())
     }
 
     /// 是否已被杀死
     public func hasKilled(): Bool {
-        return this.process().hasKilled()
+        return this.getProcess().hasKilled()
     }
 
     /// 获取 killed 状态
-    public func getKilled(globalThis: JsGlobalObject): JsValue {
+    public func getKilled(globalThis!: JsGlobalObject): JsValue {
         return JsValue.jsBoolean(this.hasKilled())
     }
 
     /// 获取 stdio 数组
-    public func getStdio(global: JsGlobalObject): JsValue {
-        let array = try JsValue.createEmptyArray(global, 0)
-        try array.push(global, JsValue.null())
-        try array.push(global, JsValue.null())
-        try array.push(global, JsValue.null())
+    public func getStdio(global!: JsGlobalObject): JsValue {
+        let array = JsValue.createEmptyArray(global, 0) 
+        array.push(global, JsValue.null() )
+        array.push(global, JsValue.null() )
+        array.push(global, JsValue.null() )
 
         for (item in this.stdioPipes) {
             match (item) {
-                case owned_fd(fd) => try array.push(global, JsValue.jsNumber(fd.native()))
-                case unowned_fd(fd) => try array.push(global, JsValue.jsNumber(fd.native()))
-                case unavailable => try array.push(global, JsValue.null())
+                case owned_fd(fd) => array.push(global, JsValue.jsNumber(fd.native() ))
+                case unowned_fd(fd) => array.push(global, JsValue.jsNumber(fd.native() ))
+                case unavailable => array.push(global, JsValue.null() )
             }
         }
         return array
     }
 
     /// 获取 resource usage
-    public func resourceUsage(JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func resourceUsage(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         return this.createResourceUsageObject(globalObject)
     }
 
     /// 创建 resource usage JS 对象
-    public func createResourceUsageObject(JsGlobalObject): JsValue {
+    public func createResourceUsageObject(jsGlobalObject!: JsGlobalObject): JsValue {
         let rusage: Rusage
         if (let r <- this.pidRusage) {
             rusage = r
@@ -544,7 +546,7 @@ public class Subprocess {
     }
 
     /// 获取 connected 状态
-    public func getConnected(globalThis: JsGlobalObject): JsValue {
+    public func getConnected(globalThis!: JsGlobalObject): JsValue {
         let connected = if (let d <- this.ipcData) {
             d.isConnected()
         } else {
@@ -554,12 +556,12 @@ public class Subprocess {
     }
 
     /// 获取 exited Promise
-    public func getExited(thisValue: JsValue, globalThis: JsGlobalObject): JsValue {
+    public func getExited(thisValue!: JsValue, globalThis!: JsGlobalObject): JsValue {
         if (let promise <- JSSubprocess.exitedPromiseGetCached(thisValue)) {
             return promise
         }
 
-        match (this.process().status) {
+        match (this.getProcess().status) {
             case exited(exit) =>
                 return JSPromise.resolvedPromiseValue(globalThis, JsValue.jsNumber(exit.code))
             case signaled(signal) =>
@@ -568,27 +570,26 @@ public class Subprocess {
                     JsValue.jsNumber(SignalCode(signal).toExitCode() ?? 254),
                 )
             case err(err) =>
-                let jsErr = err.toJS(globalThis) catch { return JsValue.jsUndefined() }
+                let jsErr = try { err.toJS(globalThis) } catch(_: Exception) { return JsValue.jsUndefined() }
                 return JSPromise.dangerouslyCreateRejectedPromiseValueWithoutNotifyingVM(globalThis, jsErr)
-            else => {
+            case _ =>
                 let promise = JsPromise.create(globalThis).toJS()
                 JSSubprocess.exitedPromiseSetCached(thisValue, globalThis, promise)
                 return promise
-            }
         }
     }
 
     /// 获取退出码
-    public func getExitCode(globalThis: JsGlobalObject): JsValue {
-        if (let exited <- this.process().status as Status.exited) {
+    public func getExitCode(globalThis!: JsGlobalObject): JsValue {
+        if (let exited <- this.getProcess().status.`as`(Status.exited)) {
             return JsValue.jsNumber(exited.code)
         }
         return JsValue.jsNull()
     }
 
     /// 获取信号码
-    public func getSignalCode(global: JsGlobalObject): JsValue {
-        if (let signal <- this.process().signalCode()) {
+    public func getSignalCode(global!: JsGlobalObject): JsValue {
+        if (let signal <- this.getProcess().signalCode()) {
             let sysSig = SignalCode(signal.rawValue)
             if (let name <- sysSig.name()) {
                 return ZigString(name).toJS(global)
@@ -604,26 +605,26 @@ public class Subprocess {
     // ========================================================================
 
     /// 杀死子进程
-    public func kill(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        this.thisValue.update(globalThis, callframe.this())
+    public func kill(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
+        this.thisValue.update(globalThis, callframe.`this`())
 
         let arguments = callframe.argumentsOld(1)
         // 如果信号为 0, 不发送实际信号, 但仍进行错误检查
-        let sig = try SignalCode.fromJS(arguments.ptr[0], globalThis)
+        let sig = SignalCode.fromJS(arguments.ptr[0], globalThis) 
 
         if (globalThis.hasException()) { return JsValue.jsUndefined() }
 
         match (this.tryKill(sig)) {
             case result => ()
             case err(err) =>
-                return globalThis.throwValue(try err.toJS(globalThis))
+                return globalThis.throwValue(err.toJS(globalThis) )
         }
 
         return JsValue.jsUndefined()
     }
 
     /// 尝试杀死子进程
-    public func tryKill(sig: SignalCode): Maybe<Unit> {
+    public func tryKill(sig!: SignalCode): Maybe<Unit> {
         if (this.hasExited()) {
             return Maybe<Unit>.success
         }
@@ -631,25 +632,25 @@ public class Subprocess {
     }
 
     /// doRef
-    public func doRef(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doRef(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         this.jsRef()
         return JsValue.jsUndefined()
     }
 
     /// doUnref
-    public func doUnref(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func doUnref(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         this.jsUnref()
         return JsValue.jsUndefined()
     }
 
     /// asyncDispose (用于 using 语法 / [Symbol.asyncDispose])
-    public func asyncDispose(global: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        if (this.process().hasExited()) {
+    public func asyncDispose(global!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
+        if (this.getProcess().hasExited()) {
             // 在这种情况下依赖 GC 清理所有内容
             return JsValue.jsUndefined()
         }
 
-        let thisJsvalue = callframe.this()
+        let thisJsvalue = callframe.`this`()
         // 保持 JS 值活跃
 
         // 取消引用流, 以便此已释放的进程不会阻止进程退出导致挂起
@@ -661,19 +662,19 @@ public class Subprocess {
             case result => ()
             case err(err) =>
                 // 信号 9 应该总是有效的, 但以防万一失败
-                return global.throwValue(try err.toJS(global))
+                return global.throwValue(err.toJS(global) )
         }
 
         return this.getExited(thisJsvalue, global)
     }
 
     /// 设置事件循环定时器引用
-    public func setEventLoopTimerRefd(refd: Bool) {
+    public func setEventLoopTimerRefd(refd!: Bool) {
         if (this.eventLoopTimerRefd == refd) {
             return
         }
         this.eventLoopTimerRefd = refd
-        let uwsLoop = this.globalThis().bunVM().uwsLoop()
+        let uwsLoop = this.getGlobalThis().bunVM().uwsLoop()
         let delta: Int32 = if (refd) { 1 } else { -1 }
         Subprocess.timerAll().incrementTimerRef(delta, uwsLoop)
     }
@@ -698,21 +699,21 @@ public class Subprocess {
     }
 
     /// maxbuf 回调
-    public func onMaxBuffer(kind: MaxBufKind) {
+    public func onMaxBuffer(kind!: MaxBufKind) {
         this.exitedDueToMaxbuf = kind
         _ = this.tryKill(this.killSignal)
     }
 
     /// abort signal 处理
-    public func handleAbortSignal(reason: JsValue) {
+    public func handleAbortSignal(reason!: JsValue) {
         this.clearAbortSignal()
         _ = this.tryKill(this.killSignal)
     }
 
     /// abort signal 的 extern "C" 包装器
-    public static func onAbortSignal(ctx: Unit, reason: JsValue) {
+    public static func onAbortSignal(ctx!: Unit, reason!: JsValue) {
         // ctx 被注册为 *Subprocess
-        let subprocess = ctx.as(Subprocess)
+        let subprocess = ctx.`as`(Subprocess)
         subprocess.handleAbortSignal(reason)
     }
 
@@ -723,7 +724,7 @@ public class Subprocess {
             f.remove(Flags.DEREF_ON_STDIN_DESTROYED)
             f.insert(Flags.HAS_STDIN_DESTRUCTOR_CALLED)
         })
-        this.weakFileSinkStdinPtr = null
+        this.weakFileSinkStdinPtr = none
 
         if (!this.flags.finalized) {
             // 否则更新待处理活动标志
@@ -738,7 +739,7 @@ public class Subprocess {
     }
 
     /// IPC 发送
-    public func doSend(global: JsGlobalObject, callFrame: JsCallFrame): JsValue {
+    public func doSend(global!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
         let context = if (this.hasExited()) {
             FromEnum.SubprocessExited
         } else {
@@ -750,13 +751,13 @@ public class Subprocess {
     }
 
     /// 断开 IPC
-    public func disconnectIPC(nextTick: Bool) {
+    public func disconnectIPC(nextTick!: Bool) {
         let ipcData = this.ipc() ?? return
         ipcData.closeSocketNextTick(nextTick)
     }
 
     /// disconnect 方法
-    public func disconnect(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func disconnect(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         this.disconnectIPC(true)
         return JsValue.jsUndefined()
     }
@@ -766,7 +767,7 @@ public class Subprocess {
         if (let signal <- this.abortSignal) {
             return BackRef<AbortSignal>.from(signal)
         }
-        return null
+        return none
     }
 
     /// 获取 IPC 数据
@@ -776,7 +777,7 @@ public class Subprocess {
 
     /// 获取全局对象
     public func getGlobalThis(): ?JsGlobalObject {
-        return this.globalThis()
+        return this.getGlobalThis()
     }
 
     // ========================================================================
@@ -784,7 +785,7 @@ public class Subprocess {
     // ========================================================================
 
     /// 进程退出时的回调
-    public func onProcessExit(process: Process, status: Status, rusage: Rusage) {
+    public func onProcessExit(process!: Process, status!: Status, rusage!: Rusage) {
         let thisJsvalue = this.thisValue.tryGet() ?? JsValue.jsUndefined()
         // 复制 BackRef, 以便 &JSGlobalObject 借用与 &self 分离
         let globalThis = this.globalThis
@@ -814,9 +815,9 @@ public class Subprocess {
             }
         }
 
-        var stdin: ?FileSink = null
+        var stdin: ?FileSink = none
         if (this.stdin is Writable.pipe && this.flags.isStdinAReadableStream) {
-            if (let pipe <- this.stdin as Writable.pipe) {
+            if (let pipe <- this.stdin.`as`(Writable.pipe)) {
                 stdin = pipe
             }
         } else {
@@ -826,7 +827,7 @@ public class Subprocess {
         if (!thisJsvalue.isEmpty()) {
             if (let existingValue <- JSSubprocess.stdinGetCached(thisJsvalue)) {
                 if (existingValue.isCell()) {
-                    if (stdin == null) {
+                    if (stdin == none) {
                         stdin = FileSink.JSSink.fromJS(existingValue)
                     }
 
@@ -858,13 +859,13 @@ public class Subprocess {
             }
         } else {
             // 这与 Node.js 的行为匹配。Node 在流上调用 resume()。
-            if (let pipe <- this.stdout as Readable.pipe) {
+            if (let pipe <- this.stdout.`as`(Readable.pipe)) {
                 if (!pipe.reader.isDone()) {
                     pipe.reader.read()
                 }
             }
 
-            if (let pipe <- this.stderr as Readable.pipe) {
+            if (let pipe <- this.stderr.`as`(Readable.pipe)) {
                 if (!pipe.reader.isDone()) {
                     pipe.reader.read()
                 }
@@ -872,7 +873,7 @@ public class Subprocess {
         }
 
         if (let pipePtr <- stdin) {
-            this.weakFileSinkStdinPtr = null
+            this.weakFileSinkStdinPtr = none
             this.updateFlags({ f => f.insert(Flags.HAS_STDIN_DESTRUCTOR_CALLED) })
 
             let pipe = BackRef<FileSink>.from(pipePtr)
@@ -923,17 +924,16 @@ public class Subprocess {
                                 globalThisRef,
                                 JsValue.jsNumber(128 + signaled),
                             )
-                        else => {
+                        case _ =>
                             // 在 debug 模式下崩溃
                             if (Environment.isDebug) {
                                 unreachable()
                             }
-                        }
                     }
                 }
 
                 if (let callback <- consumeOnExitCallback(thisJsvalue, globalThisRef)) {
-                    let waitpidValue: JsValue = if (let err <- status as Status.err) {
+                    let waitpidValue: JsValue = if (let err <- status.`as`(Status.err)) {
                         err.toJS(globalThisRef)
                     } else {
                         JsValue.jsUndefined()
@@ -978,7 +978,7 @@ public class Subprocess {
     // ========================================================================
 
     /// 关闭 IO
-    public func closeIO(io: StdioKind) {
+    public func closeIO(io!: StdioKind) {
         if (this.closed.contains(io)) {
             return
         }
@@ -1024,7 +1024,7 @@ public class Subprocess {
     public func finalizeStreams() {
         this.closeProcess()
 
-        this.closeIO(StdioKind.stdin)
+        this.closeIO(StdioKindStdioKind.stdin)
         this.closeIO(StdioKind.stdout)
         this.closeIO(StdioKind.stderr)
 
@@ -1033,7 +1033,7 @@ public class Subprocess {
             match (item) {
                 case owned_fd(fd) => fd.close()
                 case unowned_fd => ()
-                case .unavailable => ()
+                case unavailable => ()
             }
         }
         this.stdioPipes.clear()
@@ -1049,14 +1049,14 @@ public class Subprocess {
     }
 
     /// 是否已调用 getter
-    public func hasCalledGetter(getter: ObservableGetter): Bool {
+    public func hasCalledGetter(getter!: ObservableGetter): Bool {
         return this.observableGetters.contains(getter)
     }
 
     /// 清除 abort signal
     public func clearAbortSignal() {
         if (let signal <- this.abortSignal) {
-            this.abortSignal = null
+            this.abortSignal = none
             signal.pendingActivityUnref()
             signal.cleanNativeBindings(this.asCtxPtr())
             signal.unref()
@@ -1098,7 +1098,7 @@ public class Subprocess {
         this.stderrMaxbuf = mb
 
         if (let ipcData <- this.ipcData) {
-            this.ipcData = null
+            this.ipcData = none
             // 在正常操作中, socket 在我们到达这里时已经 `.closed`
             // (这就是允许 `computeHasPendingActivity` 降为 false
             // 并让 GC 收集我们的原因)。在该状态下 `disconnectIPC`
@@ -1117,17 +1117,18 @@ public class Subprocess {
     // ========================================================================
 
     /// IPC 消息处理
-    public func handleIPCMessage(message: IPCDecodedIPCMessage, handle: JsValue) {
+    public func handleIPCMessage(message!: IPCDecodedIPCMessage, handle!: JsValue) {
         match (message) {
             case version(v) =>
                 // 在未来版本中, 我们可以读取此内容以检测版本不匹配,
                 // 或者如果子进程较旧则禁用未来的优化。
+                ()
             case data(data) =>
                 let thisJsvalue = this.thisValue.tryGet() ?? JsValue.jsUndefined()
                 // 保持 JS 值活跃
                 if (!thisJsvalue.isEmpty()) {
                     if (let cb <- JSSubprocess.ipcCallbackGetCached(thisJsvalue)) {
-                        let globalThis = this.globalThis()
+                        let globalThis = this.getGlobalThis()
                         let eventLoop = globalThis.bunVM().eventLoop()
                         eventLoop.runCallback(
                             cb,
@@ -1177,12 +1178,12 @@ public class Subprocess {
     // ========================================================================
 
     /// Bun.spawn - 异步创建子进程
-    public static func spawn(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
-        return JsBunSpawnBindings.spawn(globalThis, callframe)
+    public static func `spawn`(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
+        return JsBunSpawnBindings.`spawn`(globalThis, callframe)
     }
 
     /// Bun.spawnSync - 同步创建子进程
-    public static func spawnSync(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public static func spawnSync(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         return JsBunSpawnBindings.spawnSync(globalThis, callframe)
     }
 
@@ -1191,30 +1192,30 @@ public class Subprocess {
     // ========================================================================
 
     /// 消费已缓存的 exited Promise
-    public static func consumeExitedPromise(thisJsvalue: JsValue, globalThis: JsGlobalObject): JsValue {
+    public static func consumeExitedPromise(thisJsvalue!: JsValue, globalThis!: JsGlobalObject): JsValue {
         if (let promise <- JSSubprocess.exitedPromiseGetCached(thisJsvalue)) {
             JSSubprocess.exitedPromiseSetCached(thisJsvalue, globalThis, JsValue.jsUndefined())
             return promise
         }
-        return null
+        return none
     }
 
     /// 消费已缓存的 onExit 回调
-    public static func consumeOnExitCallback(thisJsvalue: JsValue, globalThis: JsGlobalObject): JsValue {
+    public static func consumeOnExitCallback(thisJsvalue!: JsValue, globalThis!: JsGlobalObject): JsValue {
         if (let callback <- JSSubprocess.onExitCallbackGetCached(thisJsvalue)) {
             JSSubprocess.onExitCallbackSetCached(thisJsvalue, globalThis, JsValue.jsUndefined())
             return callback
         }
-        return null
+        return none
     }
 
     /// 消费已缓存的 onDisconnect 回调
-    public static func consumeOnDisconnectCallback(thisJsvalue: JsValue, globalThis: JsGlobalObject): JsValue {
+    public static func consumeOnDisconnectCallback(thisJsvalue!: JsValue, globalThis!: JsGlobalObject): JsValue {
         if (let callback <- JSSubprocess.onDisconnectCallbackGetCached(thisJsvalue)) {
             JSSubprocess.onDisconnectCallbackSetCached(thisJsvalue, globalThis, JsValue.jsUndefined())
             return callback
         }
-        return null
+        return none
     }
 
     // ========================================================================
@@ -1226,7 +1227,7 @@ public class Subprocess {
     /// (stdin.pipe.signal, MaxBuf owner, IPC owner) 可以在
     /// `subprocess.toJS(globalThis)` 运行前连接好;
     /// 这是避免重新装箱的原始指针入口点。
-    public static func toJSFromPtr(ptr: Subprocess, global: JsGlobalObject): JsValue {
+    public static func toJSFromPtr(ptr!: Subprocess, global!: JsGlobalObject): JsValue {
         return JSSubprocess.toJS(ptr, global)
     }
 }
@@ -1236,12 +1237,12 @@ public class Subprocess {
 // ============================================================================
 
 /// 从 AnyBlob 创建 Source
-public func sourceFromBlob(b: AnyBlob): Source {
+public func sourceFromBlob(b!: AnyBlob): Source {
     return Source.any(b)
 }
 
 /// 从 ArrayBufferStrong 创建 Source
-public func sourceFromArrayBuffer(ab: ArrayBufferStrong): Source {
+public func sourceFromArrayBuffer(ab!: ArrayBufferStrong): Source {
     return Source.array_buffer(ab)
 }
 
@@ -1282,14 +1283,16 @@ public class TestingAPIs {
     ///
     /// 如果注入了错误则返回 true, 如果给定的 stdio 不是
     /// (或不再是) 缓冲管道读取器则返回 false。
-    public static func injectStdioReadError(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public static func injectStdioReadError(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let subprocessValue = callframe.argumentsAsArray(2)[0]
         let kindValue = callframe.argumentsAsArray(2)[1]
-        let subprocess = Subprocess.fromJS(subprocessValue) ?? {
+                let subprocessOpt = Subprocess.fromJS(subprocessValue)
+        if (subprocessOpt.isNone()) {
             return globalThis.`throw`("first argument must be a Subprocess")
-        }()
+        }
+        let subprocess = subprocessOpt.get()()
 
-        let kindStr = try kindValue.toBunString(globalThis)
+        let kindStr = kindValue.toBunString(globalThis) 
 
         let out: Readable = if (kindStr.eqlComptime("stdout")) {
             subprocess.stdout
@@ -1300,7 +1303,7 @@ public class TestingAPIs {
         }
 
         if (out is Readable.pipe) {
-            let pipe = out as Readable.pipe
+            let pipe = out.`as`(Readable.pipe)
             // 模拟真实错误路径的行为
             let fakeErr = SysError.fromCode(Errno.EBADF, Tag.read)
             pipe.reader.onError(fakeErr)
@@ -1319,7 +1322,7 @@ public type testingAPIs = TestingAPIs
 // ============================================================================
 
 /// 模块级调试断言 stdio 结果格式正确
-public func assertStdioResult(result: StdioResult) {
+public func assertStdioResult(result!: StdioResult) {
     if (Environment.isDebug) {
         if (let fd <- result) {
             assert(fd.isValid())

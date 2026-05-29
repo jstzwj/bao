@@ -76,10 +76,12 @@ public class PostgresSignature {
                 fields.append(0)
                 nameParts.append(".null")
             } else {
-                // Stub: would determine tag from JS value
-                let tag = PostgresTag.Text
-                nameParts.append(".text")
-                fields.append(0)
+                // 从 JS 值类型推断 PostgresTag
+                // 对应 Bun: Signature.generate 中根据 jsType 推断 tag
+                let tag = postgresTagFromJSValue(value, globalObject)
+                let tagInt = tag.toInt()
+                fields.append(tagInt)
+                nameParts.append(".${tag.toString().toLowerCase()}")
             }
             nextValue = iterOpt.getOrThrow().next()
         }
@@ -96,5 +98,15 @@ public class PostgresSignature {
         }
         sig.name = nameResult
         return sig
+    }
+}
+
+/// 从 JS 值推断 PostgresTag
+/// 对应 Bun: Signature.generate 中的 jsType 检查逻辑
+private func postgresTagFromJSValue(value: JscValue, globalObject: JscJSGlobalObject): PostgresTag {
+    let tagOpt = PostgresTag.fromJS(globalObject, value)
+    match (tagOpt) {
+        case Some(tag) => return tag
+        case None => return PostgresTag.Text
     }
 }

@@ -2,62 +2,59 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toMatchInlineSnapshot() - 行内快照匹配
 /// 用法: expect(received).toMatchInlineSnapshot(snapshot) / expect(received).toMatchInlineSnapshot(properties, hint)
 public func toMatchInlineSnapshot(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
+    let thisValue = callFrame.`this`()
     let arguments_ = callFrame.argumentsOld(2)
     let arguments = arguments_.slice()
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toMatchInlineSnapshot", args: "", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature,
+        let signature = Expect.getSignature("toMatchInlineSnapshot", "", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\n<b>Matcher error<r>: Snapshot matchers cannot be used with <b>not<r>\n", args: [])
     }
 
     var hasExpected = false
-    var expectedString = ZigString.Empty
+    var expectedString = ""
     var propertyMatchers: ?JsValue = None
     if (arguments.size == 0) {
         // 无参数
-    } else if (arguments.size == 1 ){
-        if (arguments[0].isString() ){
+    } else if (arguments.size == 1) {
+        if (arguments[0].isString()) {
             hasExpected = true
-            arguments[0].toZigString(expectedString, globalThis)
+            expectedString = arguments[0].toString()
         } else if (arguments[0].isObject()) {
             propertyMatchers = arguments[0]
         } else {
-            return this.throw_(globalThis: globalThis, signature: "",
+            return `this`.throw_(globalThis: globalThis, signature: "",
                 fmt: "\n\nMatcher error: Expected first argument to be a string or object\n", args: [])
         }
     } else {
         if (!arguments[0].isObject()) {
-            let signature = Expect.getSignature(matcherName: "toMatchInlineSnapshot", args: "<green>properties<r><d>, <r>hint", not: false)
-            return this.throw_(globalThis: globalThis, signature: signature,
+            let signature = Expect.getSignature("toMatchInlineSnapshot", "<green>properties<r><d>, <r>hint", false)
+            return `this`.throw_(globalThis: globalThis, signature: signature,
                 fmt: "\n\nMatcher error: Expected <green>properties<r> must be an object\n", args: [])
         }
 
         propertyMatchers = arguments[0]
 
-        if (arguments[1].isString() ){
+        if (arguments[1].isString()) {
             hasExpected = true
-            arguments[1].toZigString(expectedString, globalThis)
+            expectedString = arguments[1].toString()
         }
     }
 
-    var expected = expectedString.toSlice(allocator: default_allocator)
-    // defer { expected.deinit() }
+    let expectedSlice: ?String = if (hasExpected) { expectedString } else { None }
 
-    let expectedSlice: ?String = if (hasExpected) { expected.slice() } else { None }
-
-    let value = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchInlineSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
-    return this.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: propertyMatchers, result: expectedSlice, fnName: "toMatchInlineSnapshot")
+    let value = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toMatchInlineSnapshot", matcherParamsFmt: "<green>properties<r><d>, <r>hint")
+    return `this`.inlineSnapshot(globalThis: globalThis, callFrame: callFrame, value: value, propertyMatchers: propertyMatchers, result: expectedSlice, fnName: "toMatchInlineSnapshot")
 }

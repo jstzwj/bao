@@ -5,6 +5,77 @@ package bao_runtime.test_runner
 
 import bao_collections.ArrayList
 import bao_collections.HashMap
+import bao_sys.OS
+
+// ========== DebugGroup - 调试分组 ==========
+
+/// 调试日志分组工具
+public class DebugGroup {
+    private var indent: UInt64 = 0
+    private var lastWasStart: Bool = false
+
+    /// 获取日志是否启用
+    /// 对应 Bun: bun.env_var.WANTS_LOUD.get()
+    public static func getLogEnabled(): Bool {
+        match (OS.getEnv("WANTS_LOUD")) {
+            case Some(value) =>
+                return value == "1" || value == "true" || value == "yes"
+            case None => return false
+        }
+    }
+
+    /// 打印缩进
+    private func printIndent(buf: StringBuilder) {
+        buf.append("\u{1b}[90m")
+        for (i in 0..indent) {
+            buf.append("| ")
+        }
+        buf.append("\u{1b}[m")
+    }
+
+    /// 开始带位置信息的分组
+    public func begin(file: String, line: UInt64, column: UInt64, fnName: String) {
+        beginMsg("\u{1b}[36m" + file + "\u{1b}[37m:\u{1b}[93m" + line.toString() + "\u{1b}[37m:\u{1b}[33m" + column.toString() + "\u{1b}[37m: \u{1b}[35m" + fnName + "\u{1b}[m")
+    }
+
+    /// 开始带消息的分组
+    public func beginMsg(message: String) {
+        if (!DebugGroup.getLogEnabled()) { return }
+
+        var buf = StringBuilder()
+        printIndent(buf)
+        buf.append("\u{1b}[32m++ \u{1b}[0m")
+        buf.append(message)
+        buf.append("\n")
+        indent += 1
+        lastWasStart = true
+    }
+
+    /// 结束分组
+    public func end(): Unit {
+        if (!DebugGroup.getLogEnabled()) { return }
+        if (indent > 0) { indent -= 1 }
+        // defer { lastWasStart = false }
+        if (lastWasStart) { return }
+
+        var buf = StringBuilder()
+        printIndent(buf)
+        buf.append("\u{1b}[32m" + (if (lastWasStart) { "+-" } else { "--" }) + "\u{1b}[m\n")
+    }
+
+    /// 输出日志
+    public func log(message: String): Unit {
+        if (!DebugGroup.getLogEnabled()) { return }
+        var buf = StringBuilder()
+        printIndent(buf)
+        buf.append(message)
+        buf.append("\n")
+        lastWasStart = false
+    }
+}
+
+/// 全局调试组实例
+public let group = DebugGroup()
 
 // ========== Debug - 调试工具 ==========
 
@@ -70,69 +141,3 @@ public class Debug {
         }
     }
 }
-
-// ========== DebugGroup - 调试分组 ==========
-
-/// 调试日志分组工具
-public class DebugGroup {
-    private var indent: UInt64 = 0
-    private var lastWasStart: Bool = false
-
-    /// 获取日志是否启用
-    public static func getLogEnabled(): Bool {
-        // TODO: implement EnvVar check
-        return false
-    }
-
-    /// 打印缩进
-    private func printIndent(buf: StringBuilder) {
-        buf.append("\u{1b}[90m")
-        for (i in 0..indent) {
-            buf.append("| ")
-        }
-        buf.append("\u{1b}[m")
-    }
-
-    /// 开始带位置信息的分组
-    public func begin(file: String, line: UInt64, column: UInt64, fnName: String) {
-        beginMsg("\u{1b}[36m" + file + "\u{1b}[37m:\u{1b}[93m" + line.toString() + "\u{1b}[37m:\u{1b}[33m" + column.toString() + "\u{1b}[37m: \u{1b}[35m" + fnName + "\u{1b}[m")
-    }
-
-    /// 开始带消息的分组
-    public func beginMsg(message: String) {
-        if (!DebugGroup.getLogEnabled()) { return }
-
-        var buf = StringBuilder()
-        printIndent(buf)
-        buf.append("\u{1b}[32m++ \u{1b}[0m")
-        buf.append(message)
-        buf.append("\n")
-        indent += 1
-        lastWasStart = true
-    }
-
-    /// 结束分组
-    public func end(): Unit {
-        if (!DebugGroup.getLogEnabled()) { return }
-        if (indent > 0) { indent -= 1 }
-        // defer { lastWasStart = false }
-        if (lastWasStart) { return }
-
-        var buf = StringBuilder()
-        printIndent(buf)
-        buf.append("\u{1b}[32m" + (if (lastWasStart) { "+-" } else { "--" }) + "\u{1b}[m\n")
-    }
-
-    /// 输出日志
-    public func log(message: String): Unit {
-        if (!DebugGroup.getLogEnabled()) { return }
-        var buf = StringBuilder()
-        printIndent(buf)
-        buf.append(message)
-        buf.append("\n")
-        lastWasStart = false
-    }
-}
-
-/// 全局调试组实例
-public let group = DebugGroup()

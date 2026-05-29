@@ -9,6 +9,7 @@ import bao_io.*
 import bao_path.*
 import bao_http.*
 import bao_sys.*
+import std.convert.*
 
 // ============================================================================
 // upgrade 命令 - 对应 bun upgrade
@@ -168,64 +169,66 @@ public class UpgradeCommand {
         logger.info("Fetching latest version...")
         let version = getLatestVersion(opts)
 
-        match (version) {
-            case Some(ver) =>
-                let verName = ver.name()
-                match (verName) {
-                    case Some(name) =>
-                        // 检查是否已是最新
-                        if (ver.isCurrent()) {
-                            logger.success("You're already on the latest version of Bao (${name})")
-                            return
-                        }
-
-                        logger.info("Bao v${name} is out! You're on v${BAO_VERSION}")
-
-                        // 步骤2: 下载 zip
-                        logger.info("Downloading...")
-                        let zipData = downloadZip(ver, opts)
-                        match (zipData) {
-                            case Some(data) =>
-                                if (data.size == 0) {
-                                    logger.error("Downloaded empty content")
-                                    return
-                                }
-
-                                if (opts.dryRun) {
-                                    logger.info("Dry run: would download ${data.size} bytes for v${name}")
-                                    return
-                                }
-
-                                // 步骤3: 解压到临时目录
-                                let tmpDir = extractToTemp(data, name)
-                                match (tmpDir) {
-                                    case Some(dir) =>
-                                        // 步骤4: 验证
-                                        let verified = verifyBinary(dir, name)
-                                        if (verified) {
-                                            // 步骤5: 替换可执行文件
-                                            let replaced = replaceExecutable(dir)
-                                            if (replaced) {
-                                                logger.success("Upgraded to Bao v${name}!")
-                                                logger.info("What's new: https://bao.dev/blog/release-notes/${name}")
-                                            } else {
-                                                logger.error("Failed to replace executable")
-                                                logger.info("Please upgrade manually")
-                                            }
-                                        } else {
-                                            logger.error("Binary verification failed")
-                                        }
-                                        // 清理临时目录
-                                        BaoFile.removeTree(dir)
-                                    case None => logger.error("Extraction failed")
-                                }
-                            case None => logger.error("Download failed")
-                        }
-                    case None => logger.error("Could not determine version name")
-                }
-            case None =>
-                logger.error("Could not fetch latest version from GitHub")
+        if (version.isNone()) {
+            logger.error("Could not fetch latest version from GitHub")
+            return
+        }
+        let ver = version.getOrThrow()
+        let verName = ver.name()
+        if (verName.isNone()) {
+            logger.error("Could not determine version name")
+        } else {
+            let name = verName.getOrThrow()
+            // 检查是否已是最新
+            if (ver.isCurrent()) {
+                logger.success("You're already on the latest version of Bao (${name})")
                 return
+            }
+
+            logger.info("Bao v${name} is out! You're on v${BAO_VERSION}")
+
+            // 步骤2: 下载 zip
+            logger.info("Downloading...")
+            let zipData = downloadZip(ver, opts)
+            if (zipData.isNone()) {
+                logger.error("Download failed")
+            } else {
+                let data = zipData.getOrThrow()
+                if (data.size == 0) {
+                    logger.error("Downloaded empty content")
+                    return
+                }
+
+                if (opts.dryRun) {
+                    logger.info("Dry run: would download ${data.size} bytes for v${name}")
+                    return
+                }
+
+                // 步骤3: 解压到临时目录
+                let tmpDir = extractToTemp(data, name)
+                if (tmpDir.isNone()) {
+                    logger.error("Extraction failed")
+                } else {
+                    let dir = tmpDir.getOrThrow()
+                    // 步骤4: 验证
+                    let verified = verifyBinary(dir, name)
+                    if (verified) {
+                        // 步骤5: 替换可执行文件
+                        let replaced = replaceExecutable(dir)
+                        if (replaced) {
+                            logger.success("Upgraded to Bao v${name}!")
+                            logger.info("What's new: https://bao.dev/blog/release-notes/${name}")
+                        } else {
+                            logger.error("Failed to replace executable")
+                            logger.info("Please upgrade manually")
+                        }
+                    } else {
+                        logger.error("Binary verification failed")
+                    }
+                    // 清理临时目录
+                    BaoFile.removeRecursive(dir)
+                }
+            }
         }
     }
 
@@ -237,20 +240,22 @@ public class UpgradeCommand {
         let version = UpgradeVersion(zipUrl, "canary")
         // 复用 stable 的下载和替换流程
         let zipData = downloadZip(version, opts)
-        match (zipData) {
-            case Some(data) =>
-                let tmpDir = extractToTemp(data, "canary")
-                match (tmpDir) {
-                    case Some(dir) =>
-                        let replaced = replaceExecutable(dir)
-                        if (replaced) {
-                            logger.success("Upgraded to latest canary build!")
-                            logger.info("Report bugs: https://github.com/bao-dev/bao/issues")
-                        }
-                        BaoFile.removeTree(dir)
-                    case None => logger.error("Extraction failed")
+        if (zipData.isNone()) {
+            logger.error("Canary build not available for this platform yet")
+        } else {
+            let data = zipData.getOrThrow()
+            let tmpDir = extractToTemp(data, "canary")
+            if (tmpDir.isNone()) {
+                logger.error("Extraction failed")
+            } else {
+                let dir = tmpDir.getOrThrow()
+                let replaced = replaceExecutable(dir)
+                if (replaced) {
+                    logger.success("Upgraded to latest canary build!")
+                    logger.info("Report bugs: https://github.com/bao-dev/bao/issues")
                 }
-            case None => logger.error("Canary build not available for this platform yet")
+                BaoFile.removeRecursive(dir)
+            }
         }
     }
 
@@ -265,65 +270,67 @@ public class UpgradeCommand {
         let apiUrl = "https://${apiDomain}/repos/bao-dev/bao/releases/latest"
 
         let client = HttpClient()
-        let response = client.get(apiUrl)
-        match (response) {
-            case Some(resp) =>
-                if (resp.statusCode == 200) {
-                    // 解析 JSON 响应
-                    let parser = JsonParser()
-                    let json = parser.parse(resp.body)
-                    match (json) {
-                        case Some(root) =>
-                            var tag = ""
-                            var zipUrl = ""
-                            var size: Int64 = 0
+        let resp = client.get(apiUrl, HashMap<String, String>())
+        if (resp.status == 200) {
+            // 解析 JSON 响应
+            let bodyBytes = resp.body.getOrThrow()
+            let bodySb = StringBuilder()
+            for (b in bodyBytes) {
+                bodySb.append(String(Rune(UInt32(b))))
+            }
+            let bodyStr = bodySb.toString()
+            let parser = JsonParser()
+            let json = parser.parse(bodyStr)
+            if (json.isSome()) {
+                let root = json.getOrThrow()
+                var tag = ""
+                var zipUrl = ""
+                var size: Int64 = 0
 
-                            // 提取 tag_name
-                            match (JsonHelper.getString(root, "tag_name")) {
-                                case Some(t) => tag = t
-                                case None => return None
-                            }
+                // 提取 tag_name
+                let tagOpt = JsonHelper.getString(root, "tag_name")
+                if (tagOpt.isNone()) { return None }
+                tag = tagOpt.getOrThrow()
 
-                            // 在 assets 中查找匹配平台的 zip
-                            match (JsonHelper.getField(root, "assets")) {
-                                case Some(JsonValue.Array(assets)) =>
-                                    for (asset in assets) {
-                                        let contentType = JsonHelper.getString(asset, "content_type")
-                                        match (contentType) {
-                                            case Some(ct) =>
-                                                if (ct == "application/zip") {
-                                                    let assetName = JsonHelper.getString(asset, "name")
-                                                    match (assetName) {
-                                                        case Some(n) =>
-                                                            if (n == PlatformInfo.zipFilename()) {
-                                                                zipUrl = JsonHelper.getString(asset, "browser_download_url") ?? ""
-                                                                size = JsonHelper.getInt64(asset, "size") ?? 0
-                                                            }
-                                                        case None => ()
-                                                    }
-                                                }
-                                            case None => ()
+                // 在 assets 中查找匹配平台的 zip
+                let assetsArr = root.getArray("assets")
+                if (assetsArr.isSome()) {
+                    let assets = assetsArr.getOrThrow()
+                    for (asset in assets) {
+                        let contentType = JsonHelper.getString(asset, "content_type")
+                        if (contentType.isSome()) {
+                            let ct = contentType.getOrThrow()
+                            if (ct == "application/zip") {
+                                let assetName = JsonHelper.getString(asset, "name")
+                                if (assetName.isSome()) {
+                                    let n = assetName.getOrThrow()
+                                    if (n == PlatformInfo.zipFilename()) {
+                                        let dlUrl = JsonHelper.getString(asset, "browser_download_url")
+                                        if (dlUrl.isSome()) { zipUrl = dlUrl.getOrThrow() }
+                                        let sizeStr = JsonHelper.getString(asset, "size")
+                                        if (sizeStr.isSome()) {
+                                            size = Int64.parse(sizeStr.getOrThrow())
                                         }
                                     }
-                                case _ => ()
+                                }
                             }
-
-                            if (tag.size > 0 && zipUrl.size > 0) {
-                                let ver = UpgradeVersion(zipUrl, tag)
-                                ver.rawBody = resp.body
-                                ver.size = size
-                                return Some(ver)
-                            }
-                        case None => ()
+                        }
                     }
-                } else if (resp.statusCode == 404) {
-                    logger.error("No releases found")
-                } else if (resp.statusCode == 403) {
-                    logger.error("GitHub rate limit exceeded. Set GITHUB_TOKEN env var.")
-                } else {
-                    logger.error("GitHub returned status ${resp.statusCode}")
                 }
-            case None => logger.error("Could not connect to GitHub")
+
+                if (tag.size > 0 && zipUrl.size > 0) {
+                    let ver = UpgradeVersion(zipUrl, tag)
+                    ver.rawBody = bodyStr
+                    ver.size = size
+                    return Some(ver)
+                }
+            }
+        } else if (resp.status == 404) {
+            logger.error("No releases found")
+        } else if (resp.status == 403) {
+            logger.error("GitHub rate limit exceeded. Set GITHUB_TOKEN env var.")
+        } else {
+            logger.error("GitHub returned status ${resp.status}")
         }
         return None
     }
@@ -332,18 +339,15 @@ public class UpgradeCommand {
     // 严格翻译自: src/cli/upgrade_command.zig zip download section
     private func downloadZip(version: UpgradeVersion, opts: UpgradeOptions): ?Array<Byte> {
         let client = HttpClient()
-        let response = client.get(version.zipUrl)
-        match (response) {
-            case Some(resp) =>
-                if (resp.statusCode == 200) {
-                    return Some(resp.bodyBytes)
-                }
-                logger.error("Download failed with status ${resp.statusCode}")
-                return None
-            case None =>
-                logger.error("Could not download from ${version.zipUrl}")
-                return None
+        let resp = client.get(version.zipUrl, HashMap<String, String>())
+        if (resp.status == 200) {
+            if (resp.body.isSome()) {
+                return Some(resp.body.getOrThrow())
+            }
+            return None
         }
+        logger.error("Download failed with status ${resp.status}")
+        return None
     }
 
     /// 解压到临时目录
@@ -359,18 +363,12 @@ public class UpgradeCommand {
         BaoFile.writeAllBytes(zipPath, data)
 
         // 解压 (调用系统 unzip)
-        let result = Process.`spawn`(["unzip", "-q", "-o", zipPath], extractDir)
-        match (result) {
-            case Some(exitCode) =>
-                if (exitCode == 0) {
-                    return Some(extractDir)
-                }
-                logger.error("Unzip failed with exit code ${exitCode}")
-                return None
-            case None =>
-                logger.error("Could not find 'unzip' in PATH")
-                return None
+        let exitCode = Process.`spawn`(["unzip", "-q", "-o", zipPath], extractDir)
+        if (exitCode == 0) {
+            return Some(extractDir)
         }
+        logger.error("Unzip failed with exit code ${exitCode}")
+        return None
     }
 
     /// 验证新二进制文件
@@ -386,11 +384,8 @@ public class UpgradeCommand {
         }
 
         // 运行 --version 验证
-        let result = Process.`spawn`([exePath, "--version"], extractDir)
-        match (result) {
-            case Some(exitCode) => return exitCode == 0
-            case None => return false
-        }
+        let exitCode = Process.`spawn`([exePath, "--version"], extractDir)
+        return exitCode == 0
     }
 
     /// 替换当前可执行文件

@@ -33,8 +33,9 @@ public class ExitCmd {
         }
         if (args.size == 1) {
             let firstArg = args[0]
-            // Stub: just exit with code 0
-            return this.bltn().done(ExitCode.exited(0))
+            // 解析退出码参数
+            let code = parseExitCode(firstArg)
+            return this.bltn().done(ExitCode.exited(code))
         }
         return this.fail("exit: too many arguments\n")
     }
@@ -81,4 +82,18 @@ public class ExitCmd {
     public func bltn(): BuiltinImpl {
         return BuiltinImpl()
     }
+}
+
+/// 解析退出码字符串
+func parseExitCode(s: String): UInt8 {
+    var result: UInt8 = 0
+    for (c in s) {
+        if (c >= UInt8(0x30) && c <= UInt8(0x39)) {
+            result = result * 10 + (c - UInt8(0x30))
+        } else {
+            // 非数字字符，返回 2 (同 bash 行为)
+            return 2
+        }
+    }
+    return result
 }

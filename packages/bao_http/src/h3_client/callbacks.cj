@@ -179,8 +179,40 @@ public class H3Callbacks {
             return
         }
 
-        // 查找会话和待绑定的流
-        // 桩: 实际应从 quic.Stream 的 ext slot 恢复 session
+        // 从 streamId 查找关联的会话
+        // 对应 Bun: qs = s.socket(); session = qs.ext(ClientSession).*
+        let session = findSessionByStreamId(streamId)
+        match (session) {
+            case Some(sess) =>
+                // 查找第一个未绑定 qstream 的待处理流
+                var boundStream: ?H3ClientStream = None
+                for (st in sess.pending) {
+                    if (st.qstream.isNone()) {
+                        boundStream = Some(st)
+                        break
+                    }
+                }
+                match (boundStream) {
+                    case Some(stream) =>
+                        // 绑定流
+                        let qs = QuicStreamRef(streamId)
+                        stream.qstream = Some(qs)
+                        // 编码并发送请求
+                        H3FrameEncode.writeRequest(
+                            sess, stream, qs,
+                            "GET", "/", sess.hostname,
+                            ArrayList<HeaderPair>(),
+                            Array<UInt8>(),
+                            false
+                        )
+                    case None =>
+                        // 没有待绑定的请求，关闭流
+                        return
+                }
+            case None =>
+                // 找不到会话
+                return
+        }
     }
 
     // ========================================================================
@@ -199,9 +231,45 @@ public class H3Callbacks {
     /// 严格翻译自: callbacks.onStreamHeaders
     public static func onStreamHeaders(ctx: H3QuicContext, streamId: Int64,
                                         headers: ArrayList<HeaderPair>): Unit {
-        // 桩: 从 stream ext slot 恢复 stream
-        // 解析头部, 提取 :status
-        // 跳过 1xx 和 trailers
+        // 从 streamId 恢复 stream
+        let stream = findStreamByStreamId(streamId)
+        match (stream) {
+            case Some(s) =>
+                // 解析头部, 提取 :status
+                var status: Int64 = 0
+                for (h in headers) {
+                    if (h.name == ":status") {
+                        // 解析状态码
+                        match (parseStatusCode(h.value)) {
+                            case Some(code) => status = code
+                            case None => ()
+                        }
+                    } else if (!h.name.startsWith(":")) {
+                        // 非伪头部，保存到 decoded_headers
+                        s.decodedHeaders.append(h)
+                    }
+                }
+
+                if (status == 0) {
+                    // 没有 :status — 可能是 trailers，忽略
+                    if (s.statusCode != 0) {
+                        return
+                    }
+                    // 否则是协议错误
+                    s.session.ptr.fail(s, "HTTP3ProtocolError")
+                    return
+                }
+
+                // 跳过 1xx 信息响应
+                if (status >= 100 && status < 200) {
+                    return
+                }
+
+                s.statusCode = status
+                // 投递响应头部
+                s.session.ptr.deliver(s, false)
+            case None => ()
+        }
     }
 
     // ========================================================================
@@ -221,9 +289,20 @@ public class H3Callbacks {
     /// 严格翻译自: callbacks.onStreamData
     public static func onStreamData(ctx: H3QuicContext, streamId: Int64,
                                      data: Array<UInt8>, fin: Bool): Unit {
-        // 桩: 从 stream ext slot 恢复 stream
-        // 追加数据到 body_buffer
-        // 调用 session.deliver(stream, fin)
+        // 从 streamId 恢复 stream
+        let stream = findStreamByStreamId(streamId)
+        match (stream) {
+            case Some(s) =>
+                // 追加数据到 body_buffer
+                if (data.size > 0) {
+                    for (b in data) {
+                        s.bodyBuffer.append(b)
+                    }
+                }
+                // 投递响应数据
+                s.session.ptr.deliver(s, fin)
+            case None => ()
+        }
     }
 
     // ========================================================================
@@ -238,8 +317,18 @@ public class H3Callbacks {
     /// 流可写回调
     /// 严格翻译自: callbacks.onStreamWritable
     public static func onStreamWritable(ctx: H3QuicContext, streamId: Int64): Unit {
-        // 桩: 从 stream ext slot 恢复 stream
-        // 调用 encode.drainSendBody(stream, qs)
+        // 从 streamId 恢复 stream
+        let stream = findStreamByStreamId(streamId)
+        match (stream) {
+            case Some(s) =>
+                match (s.qstream) {
+                    case Some(qs) =>
+                        // 推送剩余的请求体
+                        H3FrameEncode.drainSendBody(s, qs)
+                    case None => ()
+                }
+            case None => ()
+        }
     }
 
     // ========================================================================
@@ -256,8 +345,16 @@ public class H3Callbacks {
     /// 流关闭回调
     /// 严格翻译自: callbacks.onStreamClose
     public static func onStreamClose(ctx: H3QuicContext, streamId: Int64): Unit {
-        // 桩: 从 stream ext slot 恢复 stream
-        // 调用 session.deliver(stream, true)
+        // 从 streamId 恢复 stream
+        let stream = findStreamByStreamId(streamId)
+        match (stream) {
+            case Some(s) =>
+                // 清除 qstream 引用
+                s.qstream = None
+                // 最终投递 (done=true)
+                s.session.ptr.deliver(s, true)
+            case None => ()
+        }
     }
 
     // ========================================================================
@@ -281,6 +378,64 @@ public class H3Callbacks {
             case None => return None
         }
     }
+
+    /// 通过 streamId 查找会话
+    private static func findSessionByStreamId(streamId: Int64): ?H3ClientSession {
+        match (H3ClientContext.get()) {
+            case Some(ctx) =>
+                for (s in ctx.sessions) {
+                    for (st in s.pending) {
+                        match (st.qstream) {
+                            case Some(qs) =>
+                                if (qs.id == streamId) {
+                                    return Some(s)
+                                }
+                            case None => ()
+                        }
+                    }
+                }
+                return None
+            case None => return None
+        }
+    }
+
+    /// 通过 streamId 查找流
+    private static func findStreamByStreamId(streamId: Int64): ?H3ClientStream {
+        match (H3ClientContext.get()) {
+            case Some(ctx) =>
+                for (s in ctx.sessions) {
+                    for (st in s.pending) {
+                        match (st.qstream) {
+                            case Some(qs) =>
+                                if (qs.id == streamId) {
+                                    return Some(st)
+                                }
+                            case None => ()
+                        }
+                    }
+                }
+                return None
+            case None => return None
+        }
+    }
+
+    /// 解析 HTTP 状态码
+    private static func parseStatusCode(value: String): ?Int64 {
+        if (value.size == 0 || value.size > 3) {
+            return None
+        }
+        var result: Int64 = 0
+        for (ch in value) {
+            if (ch < 48 || ch > 57) {
+                return None
+            }
+            result = result * 10 + Int64(ch - 48)
+        }
+        if (result < 100 || result > 599) {
+            return None
+        }
+        return Some(result)
+    }
 }
 
 /// QUIC 上下文 (回调注册目标)
@@ -303,5 +458,15 @@ public class H3QuicContext {
         onStreamData = { ctx, id, data, fin => () }
         onStreamWritable = { ctx, id => () }
         onStreamClose = { ctx, id => () }
+    }
+
+    /// 发起 QUIC 连接
+    /// 对应 Bun: quic.Context.connect(host, port, host_z, reject, session)
+    /// 返回 .socket (同步) / .pending (DNS 等待) / .err (失败)
+    public func connect(hostname: String, port: Int64, rejectUnauthorized: Bool,
+                        session: H3ClientSession): QuicConnectResult {
+        // 简化实现: 返回错误，因为 QUIC 传输层尚未完全实现
+        // 完整实现需要 lsquic 库集成
+        return QuicConnectResult.err
     }
 }

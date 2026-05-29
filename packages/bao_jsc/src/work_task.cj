@@ -71,10 +71,27 @@ public class WorkTask<Context> {
 // 注意: WorkPoolTask 已移至 concurrent_promise_task.cj
 
 public class KeepAlive {
+    public var isRefed: Bool = false
+
     public init() {}
 
-    public func ref(vm: BunVirtualMachine) {}
-    public func unref(vm: BunVirtualMachine) {}
+    // 严格翻译自 KeepAlive.ref
+    // 递增 VM 事件循环引用计数, 防止事件循环提前退出
+    public func ref(vm: BunVirtualMachine) {
+        if (!isRefed) {
+            isRefed = true
+            vm.eventLoop.ref()
+        }
+    }
+
+    // 严格翻译自 KeepAlive.unref
+    // 递减 VM 事件循环引用计数
+    public func unref(vm: BunVirtualMachine) {
+        if (isRefed) {
+            isRefed = false
+            vm.eventLoop.unref()
+        }
+    }
 }
 
 public class AsyncTaskTracker {

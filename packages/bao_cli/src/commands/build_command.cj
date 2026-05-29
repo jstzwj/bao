@@ -801,7 +801,7 @@ public class Output {
 /// Output writer stub
 public class OutputWriter {
     public func writeAll(s: String): Unit {
-        CorePrint.print(s)
+        print(s)
     }
 }
 

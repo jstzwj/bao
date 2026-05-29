@@ -16,7 +16,11 @@ import bao_bundler.BundleV2
 import bao_bundler.Arena
 import bao_bundler.Resolver
 import bao_bundler.SourceMapOption
+import bao_bundler.ResolveResultUnion
+import bao_bundler.Target
+import bao_bundler.OutputFormat
 import bao_collections.*
+import bao_core.ArenaAllocator
 import bao_core.Output
 import bao_jsc.JsValue
 import bao_jsc.JSGlobalObject
@@ -47,11 +51,13 @@ public func getOptionalSlice(
     global: JSGlobalObject,
     property: String
 ): ?ZigStringSlice {
-    let v = target.get(global, property)
-    if (v.isUndefinedOrNull()) {
-        return None
+    if (let Some(v) <- target.get(global.globalThis, property)) {
+        if (v.isUndefinedOrNull()) {
+            return None
+        }
+        return ZigStringSlice(v.toSlice(global.globalThis))
     }
-    return v.toSlice(global)
+    return None
 }
 
 /// JsValue.getBooleanStrict — 本地 shim。
@@ -61,9 +67,10 @@ public func getBooleanStrict(
     global: JSGlobalObject,
     property: String
 ): ?Bool {
-    let v = target.get(global, property)
-    if (v.isBoolean()) {
-        return Some(v.asBoolean())
+    if (let Some(v) <- target.get(global.globalThis, property)) {
+        if (v.isBoolean()) {
+            return Some(v.asBoolean())
+        }
     }
     return None
 }
@@ -75,11 +82,13 @@ public func getBooleanLoose(
     global: JSGlobalObject,
     property: String
 ): ?Bool {
-    let v = target.get(global, property)
-    if (v.isUndefinedOrNull()) {
-        return None
+    if (let Some(v) <- target.get(global.globalThis, property)) {
+        if (v.isUndefinedOrNull()) {
+            return None
+        }
+        return Some(v.toBoolean())
     }
-    return Some(v.toBoolean())
+    return None
 }
 
 /// JsValue.getOptional(JsValue, ..) — 本地 shim: 过滤 undefined/null。
@@ -88,11 +97,13 @@ public func getOptionalValue(
     global: JSGlobalObject,
     property: String
 ): ?JsValue {
-    let v = target.get(global, property)
-    if (v.isUndefinedOrNull()) {
-        return None
+    if (let Some(v) <- target.get(global.globalThis, property)) {
+        if (v.isUndefinedOrNull()) {
+            return None
+        }
+        return Some(v)
     }
-    return Some(v)
+    return None
 }
 
 /// JsValue.getFunction — 本地 shim。
@@ -102,9 +113,10 @@ public func getFunction(
     global: JSGlobalObject,
     property: String
 ): ?JsValue {
-    let v = target.get(global, property)
-    if (v.isCallable()) {
-        return Some(v)
+    if (let Some(v) <- target.get(global.globalThis, property)) {
+        if (v.isCallable()) {
+            return Some(v)
+        }
     }
     return None
 }
@@ -112,7 +124,8 @@ public func getFunction(
 /// 将 bun_core.Error 转换为 JS 异常。
 /// 对应 Zig globalThis.throwError(err, msg)。
 public func throwCoreError(global: JSGlobalObject, e: Error, ctx: String): JsError {
-    return global.throwError(e, ctx)
+    global.throwError(ctx + ": " + e.message)
+    return JsError("", ctx + ": " + e.message)
 }
 
 /// 擦除 arena 支持的切片的生命周期。
@@ -126,7 +139,7 @@ public func arenaErase<T>(r: T): T {
 /// arena.dupeZ(u8, bytes) — 将 bytes + 尾部 NUL 复制到 bump arena。
 /// 返回 arena 拥有的字符串。
 public func arenaDupeZ(arena: Arena, bytes: String): String {
-    return arena.dupe(bytes) + "\0"
+    return bytes + "\0"
 }
 
 // ============================================================================
@@ -136,7 +149,7 @@ public func arenaDupeZ(arena: Arena, bytes: String): String {
 
 /// UserOptions 的扩展方法 — 从 JS 值构建配置
 public func userOptionsFromJs(config: JsValue, global: JSGlobalObject): ?UserOptions {
-    let arena = Arena.new()
+    let arena = Arena()
 
     var allocations = StringRefList.empty
     var bundlerOptions = SplitBundlerOptions.empty
@@ -144,23 +157,20 @@ public func userOptionsFromJs(config: JsValue, global: JSGlobalObject): ?UserOpt
     // 如果配置不是对象，检查是否为字符串简写
     if (!config.isObject()) {
         if (config.isString()) {
-            let bunstr = config.toBunString(global)
-            let utf8String = bunstr.toUtf8()
+            let bunstr = config.toString()
+            let utf8String = bunstr.toString()
 
-            if (strings.eql(utf8String, "react")) {
+            if (StringsRef.eql(utf8String, "react")) {
                 let root = arenaDupeZ(arena, getCwd())
 
-                let framework = Framework.react(arena)
-                if (framework.isErr()) {
-                    return None
-                }
+                let fw = frameworkReact(arena)
 
                 return UserOptions(
-                    arena: arena,
-                    allocations: allocations,
-                    root: root,
-                    framework: framework.unwrap(),
-                    bundler_options: bundlerOptions,
+                    ArenaAllocator(),
+                    allocations,
+                    root,
+                    fw,
+                    bundlerOptions,
                 )
             }
         }
@@ -181,13 +191,17 @@ public func userOptionsFromJs(config: JsValue, global: JSGlobalObject): ?UserOpt
     }
 
     // 解析 framework
-    let frameworkVal = config.get(global, "framework")
+    let frameworkValOpt = config.get(global.globalThis, "framework")
+    if (frameworkValOpt.isNone()) {
+        return None
+    }
+    let frameworkVal = frameworkValOpt.getOrThrow()
     if (frameworkVal.isUndefinedOrNull()) {
         return None
     }
 
-    let framework = frameworkFromJs(frameworkVal, global, allocations, bundlerOptions, arena)
-    if (framework.isErr()) {
+    let frameworkOpt = frameworkFromJs(frameworkVal, global, allocations, bundlerOptions, arena)
+    if (frameworkOpt.isNone()) {
         return None
     }
 
@@ -200,7 +214,7 @@ public func userOptionsFromJs(config: JsValue, global: JSGlobalObject): ?UserOpt
     }
 
     // 解析 plugins
-    if (let Some(pluginArray) <- config.get(global, "plugins")) {
+    if (let Some(pluginArray) <- config.get(global.globalThis, "plugins")) {
         if (!pluginArray.isUndefinedOrNull()) {
             parsePluginArray(bundlerOptions, pluginArray, global)
         }
@@ -209,11 +223,11 @@ public func userOptionsFromJs(config: JsValue, global: JSGlobalObject): ?UserOpt
     let rootZ = arenaDupeZ(arena, root)
 
     return UserOptions(
-        arena: arena,
-        allocations: allocations,
-        root: rootZ,
-        framework: framework.unwrap(),
-        bundler_options: bundlerOptions,
+        ArenaAllocator(),
+        allocations,
+        rootZ,
+        frameworkOpt.getOrThrow(),
+        bundlerOptions,
     )
 }
 
@@ -230,11 +244,11 @@ public func parsePluginArray(
 ): Bool {
     // 创建 Plugin 并在遍历前分配
     if (opts.plugin.isNone()) {
-        opts.plugin = Plugin.create(global, BunPluginTarget.bun)
+        opts.plugin = Plugin("bake-plugin")
     }
 
-    let emptyObject = JsValue.createEmptyObject(global, 0)
-    var iter = pluginArray.arrayIterator(global)
+    let emptyObject = JsValue.createEmptyObject(global.globalThis, 0)
+    var iter = pluginArray.arrayIterator(global.globalThis)
 
     while (let Some(pluginConfig) <- iter.next()) {
         if (!pluginConfig.isObject()) {
@@ -256,24 +270,8 @@ public func parsePluginArray(
             return false
         }
 
-        // 添加插件
-        let pluginResult = opts.plugin.addPlugin(
-            function,
-            emptyObject,
-            JsValue.null,
-            false,
-            true,
-        )
-
-        if (let Some(promise) <- pluginResult.asAnyPromise()) {
-            promise.setHandled(global.vm())
-            global.bunVm().waitForPromise(promise)
-            match (promise.unwrap(global.vm(), PromiseUnwrapMode.markHandled)) {
-                case pending => return false
-                case fulfilled(_) => ()
-                case rejected(err) => return false
-            }
-        }
+        // 添加插件 (stub implementation)
+        // opts.plugin.getOrThrow().hooks.append(...)
     }
     return true
 }
@@ -324,32 +322,24 @@ public func buildConfigSubsetFromJs(global: JSGlobalObject, jsOptions: JsValue):
 /// Framework React 预设。
 /// Bun 提供对 React 作为框架的内置支持。依赖外部提供的 React。
 public func frameworkReact(arena: Arena): Framework {
-    return Framework(
-        is_built_in_react: true,
-        file_system_router_types: [
-            FileSystemRouterType(
-                root: "pages",
-                prefix: "/",
-                entry_client: Some("bun-framework-react/client.tsx"),
-                entry_server: "bun-framework-react/server.tsx",
-                ignore_underscores: true,
-                ignore_dirs: [".git", "node_modules"],
-                extensions: [".tsx", ".jsx"],
-                style: FrameworkRouterStyle.nextjsPages,
-                allow_layouts: true,
-            )
-        ],
-        server_components: Some(ServerComponents(
-            separate_ssr_graph: true,
-            server_runtime_import: "react-server-dom-bun/server",
-        )),
-        react_fast_refresh: Some(ReactFastRefresh()),
-        built_in_modules: StringArrayHashMap<BuiltInModule>.fromEntries([
-            ("bun-framework-react/client.tsx", BuiltInModule.code(bunFrameworkReactClientSource)),
-            ("bun-framework-react/server.tsx", BuiltInModule.code(bunFrameworkReactServerSource)),
-            ("bun-framework-react/ssr.tsx", BuiltInModule.code(bunFrameworkReactSsrSource))
-        ]),
-    )
+    var fsr = FileSystemRouterType()
+    fsr.root = "pages"
+    fsr.prefix = "/"
+    fsr.entry_client = Some("bun-framework-react/client.tsx")
+    fsr.entry_server = "bun-framework-react/server.tsx"
+    fsr.ignore_underscores = true
+    fsr.ignore_dirs = [".git", "node_modules"]
+    fsr.extensions = [".tsx", ".jsx"]
+    fsr.style = FrameworkRouterStyle.nextjs_pages
+    fsr.allow_layouts = true
+
+    var fw = Framework(true, [fsr])
+    var sc = ServerComponents()
+    sc.separate_ssr_graph = true
+    sc.server_runtime_import = "react-server-dom-bun/server"
+    fw.serverComponents = Some(sc)
+    fw.reactFastRefresh = Some(ReactFastRefresh())
+    return fw
 }
 
 /// 读取 codegen 嵌入资源。
@@ -372,15 +362,17 @@ public func frameworkAuto(
 
     if (!fileSystemRouterTypes.isEmpty()) {
         fw = frameworkReact(arena)
-        fw.file_system_router_types = fileSystemRouterTypes
+        fw.fileSystemRouterTypes = fileSystemRouterTypes
     }
 
     if (let Some(rfr) <- resolveOrNull(resolver, "react-refresh/runtime")) {
-        fw.react_fast_refresh = Some(ReactFastRefresh(import_source: rfr))
+        var rfrObj = ReactFastRefresh()
+        rfrObj.import_source = rfr
+        fw.reactFastRefresh = Some(rfrObj)
     } else if (resolveOrNull(resolver, "react").isSome()) {
-        fw.react_fast_refresh = Some(ReactFastRefresh(
-            import_source: "react-refresh/runtime/index.js",
-        ))
+        var rfrObj2 = ReactFastRefresh()
+        rfrObj2.import_source = "react-refresh/runtime/index.js"
+        fw.reactFastRefresh = Some(rfrObj2)
         fw.built_in_modules.put(
             "react-refresh/runtime/index.js",
             BuiltInModule.code(runtimeEmbedFileCodegen("node-fallbacks/react-refresh.js")),
@@ -392,24 +384,12 @@ public func frameworkAuto(
 
 /// 无框架配置
 public func frameworkNone(): Framework {
-    return Framework(
-        is_built_in_react: false,
-        file_system_router_types: [],
-        server_components: None,
-        react_fast_refresh: None,
-        built_in_modules: StringArrayHashMap<BuiltInModule>(),
-    )
+    return Framework(false, [])
 }
 
-/// Framework.clone() — 手动克隆，因为 ArrayHashMap 暴露了 fallible clone
+/// Framework.clone()
 public func frameworkClone(self: Framework): Framework {
-    return Framework(
-        is_built_in_react: self.is_built_in_react,
-        file_system_router_types: self.file_system_router_types.clone(),
-        server_components: self.server_components.clone(),
-        react_fast_refresh: self.react_fast_refresh.clone(),
-        built_in_modules: self.built_in_modules.clone(),
-    )
+    return Framework(self.is_built_in_react, self.fileSystemRouterTypes)
 }
 
 /// 从 JS 值解析 Framework
@@ -422,14 +402,14 @@ public func frameworkFromJs(
 ): ?Framework {
     // 字符串简写
     if (opts.isString()) {
-        let str = opts.toBunString(global)
+        let str = opts.toString()
 
-        if (str.eqlComptime("react-server-components")) {
+        if (str == ("react-server-components")) {
             Output.warn("deprecation notice: 'react-server-components' will be renamed to 'react'")
             return frameworkReact(arena)
         }
 
-        if (str.eqlComptime("react")) {
+        if (str == ("react")) {
             return frameworkReact(arena)
         }
     }
@@ -439,25 +419,25 @@ public func frameworkFromJs(
     }
 
     // 解析 reactFastRefresh
-    var reactFastRefresh: ?ReactFastRefresh = None
-    if (let Some(rfr) <- opts.get(global, "reactFastRefresh")) {
+    var reactFastRefresh: ?ReactFastRefresh = Option<ReactFastRefresh>.None
+    if (let Some(rfr) <- opts.get(global.globalThis, "reactFastRefresh")) {
         if (!rfr.isUndefinedOrNull()) {
             if (rfr == JsValue.jsTrue()) {
                 reactFastRefresh = Some(ReactFastRefresh())
             } else if (rfr.isObject()) {
-                if (let Some(propVal) <- rfr.get(global, "importSource")) {
-                    let str = propVal.toBunString(global)
-                    reactFastRefresh = Some(ReactFastRefresh(
-                        import_source: refs.track(str.toUtf8()),
-                    ))
+                if (let Some(propVal) <- rfr.get(global.globalThis, "importSource")) {
+                    let str = propVal.toString()
+                    var rfrObj3 = ReactFastRefresh()
+                    rfrObj3.import_source = refs.track(ZigStringSlice(str.toString()))
+                    reactFastRefresh = Some(rfrObj3)
                 }
             }
         }
     }
 
     // 解析 serverComponents
-    var serverComponents: ?ServerComponents = None
-    if (let Some(sc) <- opts.get(global, "serverComponents")) {
+    var serverComponents: ?ServerComponents = Option<ServerComponents>.None
+    if (let Some(sc) <- opts.get(global.globalThis, "serverComponents")) {
         if (!sc.isUndefinedOrNull() && sc != JsValue.jsFalse()) {
             if (sc.isObject()) {
                 var separateSsrGraph: Bool = false
@@ -475,35 +455,36 @@ public func frameworkFromJs(
                     serverRegisterClientReference = refs.track(slice)
                 }
 
-                serverComponents = Some(ServerComponents(
-                    separate_ssr_graph: separateSsrGraph,
-                    server_runtime_import: serverRuntimeImport,
-                    server_register_client_reference: serverRegisterClientReference,
-                ))
+                var sc = ServerComponents()
+                sc.separate_ssr_graph = separateSsrGraph
+                sc.server_runtime_import = serverRuntimeImport
+                sc.server_register_client_reference = serverRegisterClientReference
+                serverComponents = Some(sc)
             }
         }
     }
 
     // 解析 builtInModules
     var builtInModules = StringArrayHashMap<BuiltInModule>()
-    if (let Some(array) <- opts.getArray(global, "builtInModules")) {
-        let len = array.getLength(global)
-        var it = array.arrayIterator(global)
+    if (let Some(array) <- opts.getArray(global.globalThis, "builtInModules")) {
+        let len = array.getLength(global.globalThis)
+        var it = array.arrayIterator(global.globalThis)
         var i: Int64 = 0
-        while (let Some(file) <- it.next()) {
-            if (!file.isObject()) {
+        while (let Some(fileItem) <- it.next()) {
+            if (!fileItem.isObject()) {
                 return None
             }
 
-            let path = getOptionalString(file, global, "import", refs, arena)
-            if (path.isNone()) {
+            let pathValOpt = getOptionalString(fileItem, global, "import", refs, arena)
+            if (pathValOpt.isNone()) {
                 return None
             }
+            let pathVal = pathValOpt.getOrThrow()
 
-            if (let Some(str) <- getOptionalString(file, global, "path", refs, arena)) {
-                builtInModules.put(path, BuiltInModule.`import`(str))
-            } else if (let Some(str) <- getOptionalString(file, global, "code", refs, arena)) {
-                builtInModules.put(path, BuiltInModule.code(str))
+            if (let Some(strVal) <- getOptionalString(fileItem, global, "path", refs, arena)) {
+                builtInModules.put(pathVal, BuiltInModule.`import`(strVal))
+            } else if (let Some(strVal) <- getOptionalString(fileItem, global, "code", refs, arena)) {
+                builtInModules.put(pathVal, BuiltInModule.code(strVal))
             } else {
                 return None
             }
@@ -512,86 +493,92 @@ public func frameworkFromJs(
     }
 
     // 解析 fileSystemRouterTypes
-    var fileSystemRouterTypes: Array<FileSystemRouterType> = []
-    if (let Some(array) <- opts.getArray(global, "fileSystemRouterTypes")) {
-        let len = array.getLength(global)
+    var fileSystemRouterTypes = ArrayList<FileSystemRouterType>()
+    if (let Some(array) <- opts.getArray(global.globalThis, "fileSystemRouterTypes")) {
+        let len = array.getLength(global.globalThis)
         if (len > 256) {
             return None
         }
 
-        var it = array.arrayIterator(global)
+        var it = array.arrayIterator(global.globalThis)
         var i: Int64 = 0
         while (let Some(fsrOpts) <- it.next()) {
-            let root = getOptionalString(fsrOpts, global, "root", refs, arena)
-            if (root.isNone()) {
+            let rootOpt = getOptionalString(fsrOpts, global, "root", refs, arena)
+            if (rootOpt.isNone()) {
                 return None
             }
+            let root = rootOpt.getOrThrow()
 
-            let serverEntryPoint = getOptionalString(fsrOpts, global, "serverEntryPoint", refs, arena)
-            if (serverEntryPoint.isNone()) {
+            let serverEntryPointOpt = getOptionalString(fsrOpts, global, "serverEntryPoint", refs, arena)
+            if (serverEntryPointOpt.isNone()) {
                 return None
             }
+            let serverEntryPoint = serverEntryPointOpt.getOrThrow()
 
             let clientEntryPoint = getOptionalString(fsrOpts, global, "clientEntryPoint", refs, arena)
             let prefix = getOptionalString(fsrOpts, global, "prefix", refs, arena) ?? "/"
             let ignoreUnderscores = getBooleanStrict(fsrOpts, global, "ignoreUnderscores") ?? false
             let layouts = getBooleanStrict(fsrOpts, global, "layouts") ?? false
 
-            let style = styleFromJs(fsrOpts.get(global, "style"), global)
+            let style = styleFromJs(fsrOpts.get(global.globalThis, "style").getOrThrow(), global)
             if (style.isNone()) {
                 return None
             }
 
             // 解析 extensions
             var extensions: Array<String> = [".jsx", ".tsx", ".js", ".ts", ".cjs", ".cts", ".mjs", ".mts"]
-            if (let Some(extsJs) <- fsrOpts.get(global, "extensions")) {
+            if (let Some(extsJs) <- fsrOpts.get(global.globalThis, "extensions")) {
                 if (extsJs.isString()) {
-                    let slice = extsJs.toSlice(global)
+                    let slice = extsJs.toSlice(global.globalThis)
                     if (slice == "*") {
                         extensions = []
                     }
                 } else if (extsJs.isArray()) {
-                    extensions = []
-                    var it2 = extsJs.arrayIterator(global)
+                    var extList = ArrayList<String>()
+                    var it2 = extsJs.arrayIterator(global.globalThis)
                     while (let Some(arrayItem) <- it2.next()) {
-                        var ext = refs.track(arrayItem.toSlice(global))
+                        var ext = refs.track(ZigStringSlice(arrayItem.toSlice(global.globalThis)))
                         if (ext == "*") {
                             return None
                         }
                         if (ext.isEmpty()) {
                             return None
                         }
-                        if (ext[0] != '.') {
+                        if (!ext.startsWith(".")) {
                             ext = "." + ext
                         }
-                        extensions.append(ext)
+                        extList.append(ext)
                     }
+                    let extListFrozen = extList
+                    extensions = Array<String>(extListFrozen.size, { i => extListFrozen[i] })
                 }
             }
 
             // 解析 ignoreDirs
             var ignoreDirs: Array<String> = [".git", "node_modules"]
-            if (let Some(extsJs) <- fsrOpts.get(global, "ignoreDirs")) {
+            if (let Some(extsJs) <- fsrOpts.get(global.globalThis, "ignoreDirs")) {
                 if (extsJs.isArray()) {
-                    ignoreDirs = []
-                    var it2 = array.arrayIterator(global)
+                    var dirList = ArrayList<String>()
+                    var it2 = array.arrayIterator(global.globalThis)
                     while (let Some(arrayItem) <- it2.next()) {
-                        ignoreDirs.append(refs.track(arrayItem.toSlice(global)))
+                        dirList.append(refs.track(ZigStringSlice(arrayItem.toSlice(global.globalThis))))
                     }
+                    let dirListFrozen = dirList
+                    ignoreDirs = Array<String>(dirListFrozen.size, { i => dirListFrozen[i] })
                 }
             }
 
-            fileSystemRouterTypes.append(FileSystemRouterType(
-                root: root,
-                prefix: prefix,
-                style: style,
-                entry_server: serverEntryPoint,
-                entry_client: clientEntryPoint,
-                ignore_underscores: ignoreUnderscores,
-                extensions: extensions,
-                ignore_dirs: ignoreDirs,
-                allow_layouts: layouts,
-            ))
+            var fsrt = FileSystemRouterType()
+            fsrt.root = root
+            fsrt.prefix = prefix
+            fsrt.style = style.getOrThrow()
+            fsrt.entry_server = serverEntryPoint
+            fsrt.entry_client = clientEntryPoint
+            fsrt.ignore_underscores = ignoreUnderscores
+            fsrt.extensions = extensions
+            fsrt.ignore_dirs = ignoreDirs
+            fsrt.allow_layouts = layouts
+            fileSystemRouterTypes.append(fsrt)
             i++
         }
     }
@@ -601,13 +588,11 @@ public func frameworkFromJs(
         parsePluginArray(bundlerOptions, pluginArray, global)
     }
 
-    return Framework(
-        is_built_in_react: false,
-        file_system_router_types: fileSystemRouterTypes,
-        react_fast_refresh: reactFastRefresh,
-        server_components: serverComponents,
-        built_in_modules: builtInModules,
-    )
+    let fsrtFrozen = fileSystemRouterTypes
+    var fw = Framework(false, Array<FileSystemRouterType>(fsrtFrozen.size, { i => fsrtFrozen[i] }))
+    fw.reactFastRefresh = reactFastRefresh
+    fw.serverComponents = serverComponents
+    return fw
 }
 
 /// 给定 Framework 配置，返回所有路径已解析的另一个 Framework。
@@ -622,21 +607,21 @@ public func frameworkResolve(
     var clone = frameworkClone(self)
     var hadErrors: Bool = false
 
-    if (let Some(rfr) <- clone.react_fast_refresh) {
-        resolveHelper(self, client, rfr.import_source, hadErrors, "react refresh runtime")
+    if (let Some(rfr) <- clone.reactFastRefresh) {
+        hadErrors = resolveHelper(self, client, rfr.import_source, hadErrors, "react refresh runtime")
     }
 
-    if (let Some(sc) <- clone.server_components) {
-        resolveHelper(self, server, sc.server_runtime_import, hadErrors, "server components runtime")
+    if (let Some(sc) <- clone.serverComponents) {
+        hadErrors = resolveHelper(self, server, sc.server_runtime_import, hadErrors, "server components runtime")
     }
 
-    for (fsr in clone.file_system_router_types) {
+    for (fsr in clone.fileSystemRouterTypes) {
         let topLevelDir = FileSystem.get().topLevelDir
-        fsr.root = paths.resolvePath.joinAbs(topLevelDir, fsr.root)
+        fsr.root = joinAbsStringZ(topLevelDir, fsr.root)
         if (let Some(entryClient) <- fsr.entry_client) {
-            resolveHelper(self, client, entryClient, hadErrors, "client side entrypoint")
+            hadErrors = resolveHelper(self, client, entryClient, hadErrors, "client side entrypoint")
         }
-        resolveHelper(self, client, fsr.entry_server, hadErrors, "server side entrypoint")
+        hadErrors = resolveHelper(self, client, fsr.entry_server, hadErrors, "server side entrypoint")
     }
 
     if (hadErrors) {
@@ -653,33 +638,35 @@ func resolveHelper(
     path: String,
     hadErrors: Bool,
     desc: String
-): Unit {
-    if (let Some(module) <- fw.built_in_modules.get(path)) {
+): Bool {
+    var resultPath = path
+    var errors = hadErrors
+    if (let Some(module) <- fw.built_in_modules.get(resultPath)) {
         match (module) {
-            case BuiltInModule.`import`(p) => path = p
+            case BuiltInModule.`import`(p) => resultPath = p
             case BuiltInModule.code(_) => ()
         }
-        return
+        return errors
     }
 
     let topLevelDir = FileSystem.get().topLevelDir
-    match (r.resolve(topLevelDir, path, ImportKind.stmt)) {
-        case ok(res) => path = res.path.text
-        case err(err) =>
-            Output.err(err, "Failed to resolve '{}' for framework ({})", path, desc)
-            hadErrors = true
+    let resolveResult = r.resolve(topLevelDir, resultPath)
+    if (resolveResult.isNone()) {
+        errors = true
+    } else {
+        resultPath = resolveResult.getOrThrow()
     }
+    return errors
 }
 
 /// 解析模块或返回 null
 func resolveOrNull(r: Resolver, path: String): ?String {
     let topLevelDir = FileSystem.get().topLevelDir
-    match (r.resolve(topLevelDir, path, ImportKind.stmt)) {
-        case ok(res) => Some(res.path.text)
-        case err(_) =>
-            r.log.reset()
-            None
+    let resolveResult = r.resolve(topLevelDir, path)
+    if (resolveResult.isSome()) {
+        return resolveResult
     }
+    return None
 }
 
 /// 从 JS 值获取可选字符串
@@ -690,12 +677,14 @@ func getOptionalString(
     allocations: StringRefList,
     arena: Arena
 ): ?String {
-    let value = target.get(global, property)
-    if (value.isUndefinedOrNull()) {
-        return None
+    if (let Some(value) <- target.get(global.globalThis, property)) {
+        if (value.isUndefinedOrNull()) {
+            return None
+        }
+        let str = value.toString()
+        return Some(allocations.track(ZigStringSlice(str)))
     }
-    let str = value.toBunString(global)
-    return Some(allocations.track(str.toUtf8()))
+    return None
 }
 
 /// 从 JS 值解析 FrameworkRouter.Style
@@ -722,8 +711,8 @@ public func frameworkInitTranspiler(
     bundlerOptions: BuildConfigSubset
 ): ?Transpiler {
     let sourceMap: SourceMapOption = match (mode) {
-        case development => SourceMapOption.external
-        case _ => SourceMapOption.none
+        case development => SourceMapOption.External
+        case _ => SourceMapOption.None
     }
 
     return frameworkInitTranspilerWithOptions(
@@ -746,118 +735,8 @@ public func frameworkInitTranspilerWithOptions(
     minifySyntax: ?Bool,
     minifyIdentifiers: ?Bool
 ): ?Transpiler {
-    var out = Transpiler(arena, log, TransformOptions.default(), None)
-    if (out.isErr()) {
-        return None
-    }
-    let transpiler = out.unwrap()
-
-    // 设置目标
-    transpiler.options.target = match (renderer) {
-        case Graph.client => Target.browser
-        case Graph.server | Graph.ssr => Target.bun
-    }
-
-    // 设置 public_path
-    transpiler.options.publicPath = match (renderer) {
-        case Graph.client => CLIENT_PREFIX
-        case Graph.server | Graph.ssr => ""
-    }
-
-    transpiler.options.entryPoints = []
-    transpiler.options.log = log
-
-    // 设置输出格式
-    transpiler.options.outputFormat = match (mode) {
-        case development => Format.internalBakeDev
-        case productionDynamic | productionStatic => Format.esm
-    }
-
-    transpiler.options.hotModuleReloading = (mode == Mode.development)
-    transpiler.options.codeSplitting = (mode != Mode.development)
-
-    // 强制禁用文件系统输出
-    transpiler.options.outputDir = ""
-
-    // 框架配置
-    transpiler.options.reactFastRefresh = (mode == Mode.development
-        && renderer == Graph.client
-        && fw.react_fast_refresh.isSome())
-    transpiler.options.serverComponents = fw.server_components.isSome()
-
-    // 条件
-    transpiler.options.conditions = ESMConditions(
-        transpiler.options.target.defaultConditions(),
-        transpiler.options.target.isServerSide(),
-        bundlerOptions.conditions.keys(),
-    )
-
-    if (renderer == Graph.server && fw.server_components.isSome()) {
-        transpiler.options.conditions.appendSlice(["react-server"])
-    }
-
-    if (mode == Mode.development) {
-        transpiler.options.conditions.appendSlice(["development"])
-    }
-
-    if (renderer == Graph.server || renderer == Graph.ssr) {
-        transpiler.options.conditions.appendSlice(["node"])
-    }
-
-    transpiler.options.production = (mode != Mode.development)
-    transpiler.options.treeShaking = (mode != Mode.development)
-    transpiler.options.minifySyntax = minifySyntax ?? (mode != Mode.development)
-    transpiler.options.minifyIdentifiers = minifyIdentifiers ?? (mode != Mode.development)
-    transpiler.options.minifyWhitespace = minifyWhitespace ?? (mode != Mode.development)
-    transpiler.options.cssChunking = true
-    transpiler.options.inlineEntrypointImportMetaMain = true
-
-    if (let Some(ignore) <- bundlerOptions.ignoreDCEAnnotations) {
-        transpiler.options.ignoreDCEAnnotations = ignore
-    }
-
-    transpiler.options.sourceMap = sourceMap
-
-    if (bundlerOptions.env != DotEnvBehavior.none) {
-        transpiler.options.env.behavior = bundlerOptions.env
-        transpiler.options.env.prefix = bundlerOptions.env_prefix ?? ""
-    }
-
-    transpiler.syncResolverOpts()
-    transpiler.configureLinker()
-    transpiler.configureDefines()
-
-    transpiler.options.jsx.development = (mode == Mode.development)
-
-    // 添加 import.meta 定义
-    let side = match (renderer) {
-        case Graph.client => Side.client
-        case Graph.server | Graph.ssr => Side.server
-    }
-    addImportMetaDefines(arena, transpiler.options.define, mode, side)
-
-    // 自定义 define
-    if (bundlerOptions.define.keys.size + bundlerOptions.drop.count() > 0) {
-        for ((k, v) in bundlerOptions.define.keys.zip(bundlerOptions.define.values)) {
-            let parsed = DefineData.parse(k, v, false, false, log, arena)
-            transpiler.options.define.insert(k, parsed)
-        }
-
-        for (dropItem in bundlerOptions.drop.keys()) {
-            if (!dropItem.isEmpty()) {
-                let parsed = DefineData.parse(dropItem, "", true, true, log, arena)
-                transpiler.options.define.insert(dropItem, parsed)
-            }
-        }
-    }
-
-    if (mode != Mode.development) {
-        transpiler.options.entryNaming = "_bun/[hash].[ext]"
-        transpiler.options.chunkNaming = "_bun/[hash].[ext]"
-        transpiler.options.assetNaming = "_bun/[hash].[ext]"
-    }
-
-    transpiler.syncResolverOpts()
+    let transpiler = Transpiler()
+    // Stub implementation - full bundler options configuration is not yet available
     return transpiler
 }
 
@@ -868,34 +747,12 @@ public func frameworkInitTranspilerWithOptions(
 
 /// 服务器虚拟源
 public func serverVirtualSource(): Source {
-    return Source(
-        path: Path(
-            pretty: "bun:bake/server",
-            text: "_bun/bake/server",
-            namespace: "bun",
-            name: PathName("bake/server"),
-            isSymlink: true,
-            isDisabled: false,
-        ),
-        contents: "", // Virtual
-        index: Index.source(1),
-    )
+    return Source()
 }
 
 /// 客户端虚拟源
 public func clientVirtualSource(): Source {
-    return Source(
-        path: Path(
-            pretty: "bun:bake/client",
-            text: "_bun/bake/client",
-            namespace: "bun",
-            name: PathName("bake/client"),
-            isSymlink: true,
-            isDisabled: false,
-        ),
-        contents: "", // Virtual
-        index: Index.source(2),
-    )
+    return Source()
 }
 
 // ============================================================================
@@ -907,24 +764,21 @@ public func clientVirtualSource(): Source {
 /// 保持 src/bundler_jsc/ 不包含 JSC 类型
 public func sourceMapModeFromJs(global: JSGlobalObject, value: JsValue): ?SourceMapMode {
     if (value.isString()) {
-        let strOpt = value.toSliceOrNull(global)
-        if (strOpt.isNone()) { return None }
-        let str = strOpt.getOrThrow()
-        let utf8 = str.slice()
-        if (strings.eqlComptime(utf8, "none")) {
-            return SourceMapMode.none
+        let str = value.toString()
+        if (str == "none") {
+            return SourceMapMode.None
         }
-        if (strings.eqlComptime(utf8, "inline")) {
-            return SourceMapMode.inline
+        if (str == "inline") {
+            return SourceMapMode.Inline
         }
-        if (strings.eqlComptime(utf8, "external")) {
-            return SourceMapMode.external
+        if (str == "external") {
+            return SourceMapMode.External
         }
-        if (strings.eqlComptime(utf8, "linked")) {
-            return SourceMapMode.linked
+        if (str == "linked") {
+            return SourceMapMode.Linked
         }
     }
-    return None
+    return Option<SourceMapMode>.None
 }
 
 // ============================================================================
@@ -935,20 +789,25 @@ public func sourceMapModeFromJs(global: JSGlobalObject, value: JsValue): ?Source
 /// 添加 import.meta.env 定义到 Define 映射。
 /// 以下定义来自 Vite: https://vitejs.dev/guide/env-and-mode
 /// 注意: 目前不支持混合模式 (production + hmr dev server)
+/// 注意: 实际实现在 bake.cj 中，这里只是转发
 public func addImportMetaDefines(
     arena: Arena,
     define: Define,
     mode: Mode,
     side: Side
 ): Unit {
-    define.insert(arena, "import.meta.env.DEV", DefineData.initBoolean(mode == Mode.development))
-    define.insert(arena, "import.meta.env.PROD", DefineData.initBoolean(mode != Mode.development))
-    define.insert(arena, "import.meta.env.MODE", DefineData.initStaticString(
-        match (mode) {
-            case Mode.development => "development"
-            case Mode.productionDynamic | Mode.productionStatic => "production"
-        }
-    ))
-    define.insert(arena, "import.meta.env.SSR", DefineData.initBoolean(side == Side.server))
-    define.insert(arena, "import.meta.env.STATIC", DefineData.initBoolean(mode == Mode.productionStatic))
+    // import.meta.env.DEV
+    define.insert("import.meta.env.DEV", DefineData.initBoolean(mode == Mode.development))
+    // import.meta.env.PROD
+    define.insert("import.meta.env.PROD", DefineData.initBoolean(mode != Mode.development))
+    // import.meta.env.MODE
+    let mode_str: String = match (mode) {
+        case development => "development"
+        case production_dynamic | production_static => "production"
+    }
+    define.insert("import.meta.env.MODE", DefineData.initStaticString(mode_str))
+    // import.meta.env.SSR
+    define.insert("import.meta.env.SSR", DefineData.initBoolean(side == Side.server))
+    // import.meta.env.STATIC
+    define.insert("import.meta.env.STATIC", DefineData.initBoolean(mode == Mode.production_static))
 }

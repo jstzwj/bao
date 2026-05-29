@@ -207,6 +207,14 @@ public class CondExprState {
     /// stat 任务完成回调
     /// 对应 Bun: CondExprState.onStatTaskDone
     public static func onStatTaskDone(interp: Interpreter, cond: Any, stat: Any, path: Any): Unit {
-        // Stub: stat 任务完成时的回调处理
+        // stat 任务完成，将结果保存并恢复条件表达式状态机
+        // cond 是 NodeId, stat 是 DispatchResult<DispatchSysStat>, path 是 Array<Byte>
+        // 对应 Bun: 从 dispatch_tasks.run_from_main_thread 调用
+        let condNodeId = cond as NodeId
+        let statResult = stat as DispatchResult<DispatchSysStat>
+        let pathBytes = path as Array<Byte>
+        if (condNodeId.isValid()) {
+            interp.setCondExprStatResult(condNodeId, statResult, pathBytes)
+        }
     }
 }

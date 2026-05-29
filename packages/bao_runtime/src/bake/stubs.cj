@@ -64,7 +64,7 @@ public enum HTTPMethod {
             case "OPTIONS" => HTTPMethod.OPTIONS
             case "CONNECT" => HTTPMethod.CONNECT
             case "TRACE" => HTTPMethod.TRACE
-            case _ => None
+            case _ => Option<HTTPMethod>.None
         }
     }
 
@@ -77,49 +77,74 @@ public enum HTTPMethod {
             case 4 => HTTPMethod.PATCH
             case 5 => HTTPMethod.HEAD
             case 6 => HTTPMethod.OPTIONS
-            case _ => None
+            case _ => Option<HTTPMethod>.None
         }
     }
 }
 
 /// UWS request stub
+/// 对应 Bun: uws.Request
+/// uWebSockets HTTP 请求封装
 public class UwsRequest {
+    public var url_value: String = "/"
+    public var method_value: Int64 = 0
+    public var yield_value: Bool = true
+    public var parameters: Array<String> = []
     public init() {}
-    public func parameter(index: Int64): String { "" }
+    public func parameter(index: Int64): String {
+        if (index >= 0 && index < parameters.size) { parameters[Int64(index)] } else { "" }
+    }
     public func parameter(name: String): String { "" }
-    public func method(): Int64 { 0 }
-    public func url(): String { "/" }
-    public func setYield(value: Bool): Unit {}
-    public func fullPath(): String { "/" }
+    public func method(): Int64 { method_value }
+    public func url(): String { url_value }
+    public func setYield(value: Bool): Unit { yield_value = value }
+    public func fullPath(): String { url_value }
 }
 
 /// Any HTTP response stub
+/// 对应 Bun: uws.Response
+/// 注意: 此类型在 dev_server/mod.cj 中也有定义
 public class AnyResponse {
     public init() {}
     public func end(body: String, close: Bool): Unit {}
     public func writeStatus(status: String): Unit {}
     public func writeHeader(name: String, value: String): Unit {}
-    public func corked(callback: (AnyResponse) -> Unit): Unit {}
-    public func corked(callback: (AnyResponse) -> Unit, extra: AnyResponse): Unit {}
+    public func corked(callback: (AnyResponse) -> Unit): Unit { callback(this) }
+    public func corked(callback: (AnyResponse) -> Unit, extra: AnyResponse): Unit { callback(extra) }
 }
 
 /// Saved request stub
+/// 对应 Bun: bake.SavedRequest
+/// 保存 UWS 请求的快照，用于异步处理
 public class SavedRequest {
     public var request: UwsRequest
     public var method: HTTPMethod
+    public var url_value: String = "/"
+    public var headers: HashMap<String, String> = HashMap<String, String>()
     public init() {
         request = UwsRequest()
         method = HTTPMethod.GET
     }
-    public func url(): String { request.url() }
+    public init(req: UwsRequest) {
+        request = req
+        method = HTTPMethod.which(req.method()) ?? HTTPMethod.GET
+        url_value = req.url()
+    }
+    public func url(): String { url_value }
+    public func header(name: String): ?String { headers.get(name) }
 }
 
 /// Any request context stub
 public class AnyRequestContext {}
 
 /// JS bundler plugin stub
+/// 对应 Bun: bun.Plugin
+/// JavaScript bundler 插件
 public class JSBundlerPlugin {
+    public var name: String = ""
+    public var setup: Any? = None
     public init() {}
+    public init(name: String) { this.name = name }
 }
 
 /// Request handler type
@@ -148,6 +173,8 @@ public class Promise<T> {
     public static func resolve(value: T): Promise<T> { Promise<T>() }
     public static func unit(): Promise<Unit> { Promise<Unit>() }
     public func then(callback: (T) -> Unit): Unit {}
+    public func then<U>(callback: (T) -> U): Promise<U> { Promise<U>() }
+    public func `catch`(callback: (Any) -> Unit): Promise<T> { this }
 }
 
 /// Thread lock stub
@@ -159,11 +186,19 @@ public class ThreadLock {
 }
 
 /// Incremental graph stub
+/// 对应 Bun: bake.DevServer.IncrementalGraph
+/// 增量构建图，跟踪文件间的依赖关系
 public class IncrementalGraph {
     public static let empty: IncrementalGraph = IncrementalGraph()
     public init() {}
     public func deinit(): Unit {}
     public func ensureStaleBitCapacity(server: Bool): Unit {}
+    /// 插入空文件条目，返回插入结果
+    public func insertEmpty(path: String, kind: Any): InsertResult { InsertResult() }
+    /// 使指定路径的文件失效
+    public func invalidate(paths: Array<String>, entry_points: Any, alloc: Allocator): Unit {}
+    /// 获取文件索引
+    public func getFileIndex(path: String): ?UInt32 { None }
 }
 
 /// String hash map stub
@@ -173,6 +208,8 @@ public class StringHashMap<V> {
 }
 
 /// Directory watch store stub
+/// 对应 Bun: bake.DevServer.DirectoryWatchStore
+/// 跟踪目录监视器和解析失败的依赖
 public class DirectoryWatchStore {
     public static let empty: DirectoryWatchStore = DirectoryWatchStore()
     public var watches: AutoArrayHashMapUnmanaged<String, Unit>
@@ -181,6 +218,8 @@ public class DirectoryWatchStore {
         watches = AutoArrayHashMapUnmanaged<String, Unit>()
         dependencies = ArrayListUnmanaged<WatchDependency>()
     }
+    /// 跟踪解析失败
+    public func trackResolutionFailure(import_source: String, specifier: String, renderer: Any, loader: Any): Unit {}
 }
 
 public class WatchDependency {
@@ -214,10 +253,18 @@ public class HTMLBundleRoute {
 }
 
 /// Assets store stub
+/// 对应 Bun: bake.DevServer.Assets
+/// 哈希资产存储，通过 /_bun/asset/<hash>.ext 提供
 public class Assets {
     public init() {}
-    public func get(hash: UInt64): ?Asset { None }
+    public func get(hash: UInt64): ?Asset { Option<Asset>.None }
     public func deinit(alloc: Allocator): Unit {}
+    /// 替换路径
+    public func replacePath(abs_path: String, contents: AnyBlob, mime_type: MimeType, content_hash: UInt64): Any { Object() }
+    /// 取消引用
+    public func unrefByHash(hash: UInt64, count: UInt32): Unit {}
+    /// 内存成本
+    public func memoryCost(): UInt64 { 0 }
 }
 
 public class Asset {
@@ -225,6 +272,8 @@ public class Asset {
 }
 
 /// Source map store stub
+/// 对应 Bun: bake.DevServer.SourceMapStore
+/// 管理源映射的引用计数存储
 public class SourceMapStore {
     public static let empty: SourceMapStore = SourceMapStore()
     public var entries: AutoArrayHashMapUnmanaged<UInt64, SourceMapEntry>
@@ -233,6 +282,10 @@ public class SourceMapStore {
     }
     public func unref(key: UInt64): Unit {}
     public func removeOrUpgradeWeakRef(key: UInt64, mode: WeakRefMode): Bool { false }
+    /// 添加弱引用
+    public func addWeakRef(key: UInt64): Unit {}
+    /// 获取解析后的源映射
+    public func getParsedSourceMap(key: UInt64, arena: Allocator, gpa: Allocator): ?Any { None }
 }
 
 public class SourceMapEntry {
@@ -262,7 +315,7 @@ public class AutoHashMapUnmanaged<K, V> {
     public func count(): Int64 { 0 }
     public func put(alloc: Allocator, key: K, value: V): Unit {}
     public func remove(key: K): Bool { false }
-    public func fetchRemove(key: K): ?KeyValue<K, V> { None }
+    public func fetchRemove(key: K): ?KeyValue<K, V> { Option<KeyValue<K, V>>.None }
 }
 
 public class KeyValue<K, V> {
@@ -276,7 +329,7 @@ public class KeyValue<K, V> {
 
 public class KeyIterator<T> {
     public init() {}
-    public func next(): ?T { None }
+    public func next(): ?T { Option<T>.None }
 }
 
 /// DevServer input stub
@@ -285,6 +338,8 @@ public class DevServerInput {
 }
 
 /// VirtualMachine stub
+/// 对应 Bun: bun.JSC.VirtualMachine
+/// 注意: 真实类型在 bao_jsc 中。此 stub 仅为 bake 包编译提供接口。
 public class VirtualMachine {
     public static func get(): VirtualMachine { VirtualMachine() }
     public var global: JSGlobalObject
@@ -314,15 +369,23 @@ public class VirtualMachine {
     public func configureDefines(defines: DefineData): Unit {}
     public func transpiler(): Transpiler { Transpiler() }
     public func regularEventLoop(): Any { Object() }
+    public func log(level: Int64, msg: String): Unit {}
 }
 
 /// BunString stub
+/// 对应 Bun: bun.String
+/// 在仓颉中直接使用 String，此类型用于 API 兼容
 public class BunString {
+    public var value: String = ""
     public init() {}
-    public static func `static`(s: String): BunString { BunString() }
-    public static func createFormat(fmt: String): BunString { BunString() }
+    public init(s: String) { value = s }
+    public static func `static`(s: String): BunString { BunString(s) }
+    public static func createFormat(fmt: String): BunString { BunString(fmt) }
     public func toJS(global: JSGlobalObject): JsValue { JsValue() }
-    public func toUTF8(alloc: Allocator): String { "" }
+    public func toUTF8(alloc: Allocator): String { value }
+    public func toString(): String { value }
+    public func slice(): String { value }
+    public func isEmpty(): Bool { value.isEmpty() }
 }
 
 /// Event loop timer stub
@@ -342,10 +405,23 @@ public class MemoryCost {
 }
 
 /// Static route stub
+/// 对应 Bun: bake.DevServer.StaticRoute
+/// 静态文件路由，用于服务预构建的文件
 public class StaticRoute {
+    public var blob: AnyBlob = AnyBlob()
+    public var mime_type: MimeType = MimeType.text
+    public var status_code: Int32 = 200
     public init() {}
-    public static func initFromAnyBlob(blobs: Array<Blob>, opts: StaticRouteOptions): StaticRoute { StaticRoute() }
-    public func onRequest(resp: AnyResponse): Unit {}
+    public static func initFromAnyBlob(blobs: Array<Blob>, opts: StaticRouteOptions): StaticRoute {
+        let route = StaticRoute()
+        if (blobs.size > 0) { route.blob = AnyBlob() }
+        route.mime_type = opts.mimeType
+        return route
+    }
+    public func onRequest(resp: AnyResponse): Unit {
+        resp.writeStatus("${status_code} OK")
+        resp.end("", false)
+    }
     public func deref(): Unit {}
     public func memoryCost(): UInt64 { 0 }
 }
@@ -389,13 +465,27 @@ public class DirInfo {
 }
 
 /// BoundedArray stub
+/// 对应 Bun: std.BoundedArray
+/// 有容量限制的数组
 public class BoundedArray<T> {
     public var slice: Array<T>
+    public var capacity: Int64
     public init(capacity: Int64) {
         slice = Array<T>()
+        this.capacity = capacity
     }
     public init() {
         slice = Array<T>()
+        capacity = 0
+    }
+    public func append(item: T): Bool {
+        if (slice.size >= capacity) { return false }
+        slice = Array<T>(slice.size + 1, { i => if (i < slice.size) { slice[i] } else { item } })
+        return true
+    }
+    public func len(): Int64 { slice.size }
+    public func get(index: Int64): ?T {
+        if (index >= 0 && index < slice.size) { slice[index] } else { None }
     }
 }
 
@@ -407,7 +497,7 @@ public class Object {
 /// MapIterator stub
 public class MapIterator<K, V> {
     public init() {}
-    public func next(): ?MapEntry<K, V> { None }
+    public func next(): ?MapEntry<K, V> { Option<MapEntry<K, V>>.None }
 }
 
 public class MapEntry<K, V> {
@@ -431,9 +521,9 @@ public enum WatchKind {
 public class DynamicRouteMap {
     public init() {}
     public func deinit(alloc: Allocator): Unit {}
-    public func keys(): Array<Any> { Array<Any>() }
-    public func values(): Array<Any> { Array<Any>() }
-    public func get(key: String): ?Any { None }
+    public func keys(): Array<FrameworkRouterEncodedPattern> { Array<FrameworkRouterEncodedPattern>() }
+    public func values(): Array<FrameworkRouterRouteIndex> { Array<FrameworkRouterRouteIndex>() }
+    public func get(key: String): ?FrameworkRouterEncodedPattern { Option<FrameworkRouterEncodedPattern>.None }
     public static func DataList(): DataListHelper { DataListHelper() }
 }
 
@@ -441,7 +531,7 @@ public class DynamicRouteMap {
 public class StaticRouteMap {
     public init() {}
     public func deinit(alloc: Allocator): Unit {}
-    public func get(key: String): ?Any { None }
+    public func get(key: String): ?FrameworkRouterRouteIndex { Option<FrameworkRouterRouteIndex>.None }
     public static func DataList(): DataListHelper { DataListHelper() }
 }
 
@@ -451,13 +541,21 @@ public class DataListHelper {
 }
 
 /// AnyServer stub
+/// 对应 Bun: bake.AnyServer
+/// 封装 HTTP 服务器实例
 public class AnyServer {
+    public var app: Any = Object()
     public init() {}
-    public static func from(server: Any): AnyServer { AnyServer() }
-    public var app: Any
+    public static func from(server: Any): AnyServer {
+        let s = AnyServer()
+        s.app = server
+        return s
+    }
     public init(app: Any) { this.app = app }
     public func getOrLoadPlugins(target: PluginTarget): PluginState { PluginState.loaded }
     public func onSavedRequest(req: Any, resp: AnyResponse, callback: Any, count: Int64, args: Array<JsValue>): Unit {}
+    /// 发布消息到所有 WebSocket 连接
+    public func publish(topic: String, data: Array<Byte>, opcode: Any): Unit {}
 }
 
 /// PluginState stub
@@ -466,6 +564,16 @@ public enum PluginState {
     | pending
     | loaded
     | err
+
+    public operator func ==(right: PluginState): Bool {
+        match (this) {
+            case unknown => match (right) { case unknown => true; case _ => false }
+            case pending => match (right) { case pending => true; case _ => false }
+            case loaded => match (right) { case loaded => true; case _ => false }
+            case err => match (right) { case err => true; case _ => false }
+        }
+    }
+    public operator func !=(right: PluginState): Bool { !(this == right) }
 }
 
 /// panic function
@@ -522,7 +630,7 @@ public class BunRef {
 
 public class BakeRef {
     public init() {}
-    public func getHmrRuntime(side: Side): HmrRuntime { HmrRuntime() }
+    public func getHmrRuntime(side: Side): HmrRuntime { HmrRuntime("") }
 }
 
 public class PathRef {
@@ -548,7 +656,7 @@ public class StringsRef {
             if (UInt8(s[Int64(i)]) == ch) { return i }
             i += 1
         }
-        return None
+        return Option<UInt64>.None
     }
 }
 
@@ -580,7 +688,7 @@ public let bun = BunRef()
 
 /// toBytes utility
 public func toBytes(value: UInt32): Array<Byte> {
-    var result = Array<Byte>(4)
+    var result = Array<Byte>(4, { _ => 0 })
     result[0] = UInt8(value & UInt32(0xFF))
     result[1] = UInt8((value >> 8) & UInt32(0xFF))
     result[2] = UInt8((value >> 16) & UInt32(0xFF))
@@ -589,11 +697,17 @@ public func toBytes(value: UInt32): Array<Byte> {
 }
 
 /// FileSystem stub
+/// 对应 Bun: bun.FS
+/// 提供文件系统操作接口
 public class FileSystem {
     public static func get(): FileSystem { FileSystem() }
     public var topLevelDir: String = "/"
     public init() {}
     public func exists(path: String): Bool { true }
+    public func readFile(path: String): ?String { None }
+    public func readDir(path: String): Array<String> { Array<String>() }
+    public func isAbsolute(path: String): Bool { path.startsWith("/") }
+    public func normalize(path: String): String { path }
 }
 
 /// DeferredRequest list stubs
@@ -613,13 +727,6 @@ public class Global {
     public static func crash(): Nothing { throw Exception("crash") }
 }
 
-/// SourceMapOption enum - matches the enum values used in bake files
-public enum SourceMapOption {
-    | none_
-    | inline_
-    | external_
-}
-
 /// AllocationScope stub
 public class AllocationScope {
     public init() {}
@@ -631,13 +738,22 @@ public class AllocationScope {
 /// DevAllocator stub
 public class DevAllocator {}
 
-/// Additional imports and stubs for types used by production.cj, bake_body.cj etc.
-/// Log stub - local to this package to avoid ambiguity
-public class Log {
-    public init() {}
-    public init(alloc: Allocator) {}
-    public func deinit(): Unit {}
-    public func reset(): Unit {}
+/// Format stub for output formats
+public enum Format {
+    | esm
+    | cjs
+    | iife
+    | internalBakeDev
+}
+
+/// ImportKind stub
+public enum ImportKind {
+    | stmt
+    | `import`
+    | require
+    | dynamic
+    | stylesheet
+    | at
 }
 
 /// CWD helper

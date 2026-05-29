@@ -7,8 +7,64 @@ package bao_runtime.node
 import bao_core.*
 import bao_sys.*
 import bao_jsc.*
+import bao_jsc.StringBuilder
 import bao_collections.ArrayList as BaoArrayList
 import std.collection.ArrayList
+
+// ============================================================================
+// FFI declarations for POSIX filesystem functions
+// Corresponds to Bun: node_fs.zig system calls
+// ============================================================================
+@C foreign func c_lchown(path: CPointer<Int8>, uid: UInt32, gid: UInt32): Int32
+@C foreign func c_mkdtemp(template: CPointer<Int8>): CPointer<Int8>
+@C foreign func c_utimes(path: CPointer<Int8>, atimeSec: Int64, atimeUsec: Int64, mtimeSec: Int64, mtimeUsec: Int64): Int32
+@C foreign func c_futimes(fd: Int32, atimeSec: Int64, atimeUsec: Int64, mtimeSec: Int64, mtimeUsec: Int64): Int32
+@C foreign func c_link(oldPath: CPointer<Int8>, newPath: CPointer<Int8>): Int32
+@C foreign func c_statfs(path: CPointer<Int8>, buf: CPointer<UInt8>): Int32
+@C foreign func c_chmod(path: CPointer<Int8>, mode: UInt32): Int32
+@C foreign func c_fchmod(fd: Int32, mode: UInt32): Int32
+@C foreign func c_fdatasync(fd: Int32): Int32
+@C foreign func c_getrandom(buf: CPointer<UInt8>, buflen: UIntNative, flags: UInt32): Int64
+@C foreign func malloc(size: UIntNative): CPointer<Unit>
+@C foreign func free(ptr: CPointer<Unit>): Unit
+
+// ============================================================================
+// Helper: String to CPointer<Int8>
+// ============================================================================
+func toCString(s: String): CPointer<Int8> {
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len + 1))
+        let bytesPtr = CPointer<Int8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        (bytesPtr + Int64(len)).write(Int8(0))
+        return bytesPtr
+    }
+}
+
+/// C 字符串转仓颉字符串
+func fromCString(ptr: CPointer<Int8>): String {
+    unsafe {
+        var len = 0
+        while ((ptr + Int64(len)).read() != Int8(0)) {
+            len += 1
+        }
+        var sb = StringBuilder()
+        for (i in 0..len) {
+            sb.append(Rune(Int32((ptr + Int64(i)).read())))
+        }
+        return sb.toString()
+    }
+}
+
+/// 释放 C 字符串内存
+func freeCString(ptr: CPointer<Int8>): Unit {
+    unsafe {
+        free(CPointer<Unit>(ptr))
+    }
+}
 
 // ============================================================================
 // Re-exports
@@ -1853,7 +1909,12 @@ public class NodeFsSystem {
     }
 
     public static func access(path: String, mode: UInt32): Bool { okUnit(SysFs.access(path, Int64(mode))) }
-    public static func chmod(path: String, mode: UInt32): Bool { okUnit(SysFs.chmod(path, mode)) }
+    public static func chmod(path: String, mode: UInt32): Bool {
+        let cPath = toCString(path)
+        let rc = unsafe { c_chmod(cPath, mode) }
+        freeCString(cPath)
+        rc == 0
+    }
     public static func chown(path: String, uid: UInt32, gid: UInt32): Bool { okUnit(SysImpl.chown(path, uid, gid)) }
     public static func close(fd: Int32): Unit { let _ = SysFs.close(Int64(fd)) }
 
@@ -1912,11 +1973,13 @@ public class NodeFsSystem {
         }
         return true
     }
-    public static func fchmod(fd: Int32, mode: UInt32): Bool { okUnit(SysImpl.fchmod(Int64(fd), mode)) }
+    public static func fchmod(fd: Int32, mode: UInt32): Bool {
+        unsafe { c_fchmod(fd, mode) == 0 }
+    }
     public static func fchown(fd: Int32, uid: UInt32, gid: UInt32): Bool { okUnit(SysImpl.fchown(Int64(fd), uid, gid)) }
     public static func fdatasync(fd: Int32): Int32 {
         unsafe {
-            let rc = fdatasync(fd)
+            let rc = c_fdatasync(fd)
             return if (rc != 0) { -1 } else { 0 }
         }
     }
@@ -1931,34 +1994,25 @@ public class NodeFsSystem {
     public static func fsync(fd: Int32): Int32 { unitCode(SysFs.fsync(Int64(fd))) }
     public static func ftruncate(fd: Int32, len: Int64): Int32 { unitCode(SysFs.ftruncate(Int64(fd), len)) }
     public static func futimes(fd: Int32, atime: Float64, mtime: Float64): Int32 {
-        unsafe {
-            // 构建 timeval 数组: [atime, mtime]
-            let tvSize = UIntNative(16) // sizeof(struct timeval) = 16 bytes on 64-bit
-            let times = malloc(tvSize)
-            let tvArr = CPointer<Int64>(times)
-            // timeval { tv_sec: Int64, tv_usec: Int64 }
-            tvArr.write(0, Int64(atime))
-            tvArr.write(1, Int64((atime - Float64(Int64(atime))) * 1000000.0))
-            tvArr.write(2, Int64(mtime))
-            tvArr.write(3, Int64((mtime - Float64(Int64(mtime))) * 1000000.0))
-            let rc = futimes(fd, times)
-            free(times)
-            return rc
-        }
+        let atimeSec = Int64(atime / 1000.0)
+        let atimeUsec = Int64((atime - Float64(atimeSec) * 1000.0) * 1000.0)
+        let mtimeSec = Int64(mtime / 1000.0)
+        let mtimeUsec = Int64((mtime - Float64(mtimeSec) * 1000.0) * 1000.0)
+        unsafe { c_futimes(fd, atimeSec, atimeUsec, mtimeSec, mtimeUsec) }
     }
     public static func lchown(path: String, uid: UInt32, gid: UInt32): Bool {
-        unsafe {
-            let pathPtr = unsafeNewCString(path)
-            let rc = lchown(pathPtr, uid, gid)
-            return rc == 0
-        }
+        let cPath = toCString(path)
+        let rc = unsafe { c_lchown(cPath, uid, gid) }
+        freeCString(cPath)
+        rc == 0
     }
     public static func link(oldPath: String, newPath: String): Int32 {
-        unsafe {
-            let oldPtr = unsafeNewCString(oldPath)
-            let newPtr = unsafeNewCString(newPath)
-            return link(oldPtr, newPtr)
-        }
+        let cOld = toCString(oldPath)
+        let cNew = toCString(newPath)
+        let rc = unsafe { c_link(cOld, cNew) }
+        freeCString(cOld)
+        freeCString(cNew)
+        rc
     }
 
     public static func lstat(path: String): ?Stats {
@@ -1969,48 +2023,24 @@ public class NodeFsSystem {
     }
 
     public static func lutimes(path: String, atime: Float64, mtime: Float64): Int32 {
-        unsafe {
-            let pathPtr = unsafeNewCString(path)
-            let tvSize = UIntNative(16) // sizeof(struct timeval) = 16 bytes on 64-bit
-            let times = malloc(tvSize)
-            let tvArr = CPointer<Int64>(times)
-            tvArr.write(0, Int64(atime))
-            tvArr.write(1, Int64((atime - Float64(Int64(atime))) * 1000000.0))
-            tvArr.write(2, Int64(mtime))
-            tvArr.write(3, Int64((mtime - Float64(Int64(mtime))) * 1000000.0))
-            let rc = lutimes(pathPtr, times)
-            free(times)
-            return rc
-        }
+        // lutimes uses utimes on most platforms (follows symlinks)
+        utimes(path, atime, mtime)
     }
     public static func mkdir(path: String, mode: UInt32): Int32 { unitCode(SysFs.mkdir(path, mode)) }
     public static func mkdirRecursive(path: String, mode: UInt32): Bool { okUnit(DirHelper.mkdirRecursiveAt(FdUtils.atCwd(), path)) }
     public static func mkdtemp(prefix: String): ?String {
-        unsafe {
-            // mkdtemp modifies template in place and returns it
-            // Need enough space for "XXXXXX" suffix
-            let bufSize = UIntNative(prefix.size + 7)
-            let buf = malloc(bufSize)
-            let bufPtr = CPointer<Int8>(buf)
-            // Copy prefix into buffer
-            for (i in 0..prefix.size) {
-                bufPtr.write(Int64(i), Int8(prefix[Int64(i)]))
-            }
-            // Append "XXXXXX"
-            let suffix = "XXXXXX"
-            for (i in 0..suffix.size) {
-                bufPtr.write(Int64(prefix.size) + Int64(i), Int8(suffix[Int64(i)]))
-            }
-            bufPtr.write(Int64(prefix.size) + 6, Int8(0)) // null terminator
-            let result = mkdtemp(bufPtr)
-            if (result.isNull()) {
-                free(buf)
-                return None
-            }
-            let path = unsafeCStringToString(result)
-            free(buf)
-            return Some(path)
+        let template = prefix + "XXXXXX"
+        let cTemplate = toCString(template)
+        let result = unsafe { c_mkdtemp(cTemplate) }
+        // 注意: mkdtemp 成功时会就地修改 cTemplate，不需要再释放 result
+        // 但原始分配的 cTemplate 内存仍然需要释放
+        if (result == CPointer<Int8>()) {
+            freeCString(cTemplate)
+            return None
         }
+        let str = fromCString(result)
+        freeCString(cTemplate)
+        Some(str)
     }
 
     public static func open(path: String, flags: Int32, mode: UInt32): Int32 {
@@ -2113,36 +2143,39 @@ public class NodeFsSystem {
 
     public static func statfs(path: String): ?StatFS {
         unsafe {
-            let pathPtr = unsafeNewCString(path)
-            // struct statfs on Linux x86_64 is ~120 bytes
+            // statfs 结构体大小: Linux 64-bit 上约 120 字节
             let bufSize = UIntNative(128)
             let buf = malloc(bufSize)
-            let rc = OS.statfs(pathPtr, buf)
+            let bufPtr = CPointer<UInt8>(buf)
+            // 初始化缓冲区为 0
+            for (i in 0..Int64(128)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let cPath = toCString(path)
+            let rc = c_statfs(cPath, bufPtr)
+            free(CPointer<Unit>(cPath))
             if (rc != 0) {
                 free(buf)
                 return None
             }
-            // Parse struct statfs fields
-            // Linux x86_64 struct statfs layout:
-            //   f_type: Int64 (offset 0)
-            //   f_bsize: Int64 (offset 8)
-            //   f_blocks: Int64 (offset 16)
-            //   f_bfree: Int64 (offset 24)
-            //   f_bavail: Int64 (offset 32)
-            //   f_files: Int64 (offset 40)
-            //   f_ffree: Int64 (offset 48)
-            let arr = CPointer<Int64>(buf)
-            let result = StatFS(
-                Int32(arr.read(0)),   // fstype
-                Int32(arr.read(1)),   // bsize
-                Int32(arr.read(2)),   // blocks
-                Int32(arr.read(3)),   // bfree
-                Int32(arr.read(4)),   // bavail
-                Int32(arr.read(5)),   // files
-                Int32(arr.read(6))    // ffree
-            )
+            // 解析 statfs 结构体 (Linux x86_64):
+            //   f_type:     Int32 @ offset 0
+            //   f_bsize:    Int64 @ offset 8
+            //   f_blocks:   Int64 @ offset 16
+            //   f_bfree:    Int64 @ offset 24
+            //   f_bavail:   Int64 @ offset 32
+            //   f_files:    Int64 @ offset 40
+            //   f_ffree:    Int64 @ offset 48
+            let fstype = Int32(CPointer<Int32>(CPointer<Unit>(bufPtr)).read())
+            let bsize = (CPointer<Int64>(CPointer<Unit>(bufPtr + 8))).read()
+            let blocks = (CPointer<Int64>(CPointer<Unit>(bufPtr + 16))).read()
+            let bfree = (CPointer<Int64>(CPointer<Unit>(bufPtr + 24))).read()
+            let bavail = (CPointer<Int64>(CPointer<Unit>(bufPtr + 32))).read()
+            let files = (CPointer<Int64>(CPointer<Unit>(bufPtr + 40))).read()
+            let ffree = (CPointer<Int64>(CPointer<Unit>(bufPtr + 48))).read()
             free(buf)
-            return Some(result)
+            return Some(StatFS(Int32(fstype), Int32(bsize), Int32(blocks),
+                               Int32(bfree), Int32(bavail), Int32(files), Int32(ffree)))
         }
     }
     public static func symlink(target: String, path: String): Int32 { unitCode(SysFs.symlink(target, path)) }
@@ -2159,19 +2192,14 @@ public class NodeFsSystem {
 
     public static func unlink(path: String): Int32 { unitCode(SysFs.unlink(path)) }
     public static func utimes(path: String, atime: Float64, mtime: Float64): Int32 {
-        unsafe {
-            let pathPtr = unsafeNewCString(path)
-            let tvSize = UIntNative(16) // sizeof(struct timeval) = 16 bytes on 64-bit
-            let times = malloc(tvSize)
-            let tvArr = CPointer<Int64>(times)
-            tvArr.write(0, Int64(atime))
-            tvArr.write(1, Int64((atime - Float64(Int64(atime))) * 1000000.0))
-            tvArr.write(2, Int64(mtime))
-            tvArr.write(3, Int64((mtime - Float64(Int64(mtime))) * 1000000.0))
-            let rc = utimes(pathPtr, times)
-            free(times)
-            return rc
-        }
+        let atimeSec = Int64(atime / 1000.0)
+        let atimeUsec = Int64((atime - Float64(atimeSec) * 1000.0) * 1000.0)
+        let mtimeSec = Int64(mtime / 1000.0)
+        let mtimeUsec = Int64((mtime - Float64(mtimeSec) * 1000.0) * 1000.0)
+        let cPath = toCString(path)
+        let rc = unsafe { c_utimes(cPath, atimeSec, atimeUsec, mtimeSec, mtimeUsec) }
+        freeCString(cPath)
+        rc
     }
 
     public static func writeFd(fd: Int32, buffer: Array<UInt8>, offset: Int64, length: Int64, position: Int64): Int64 {

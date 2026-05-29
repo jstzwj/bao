@@ -702,6 +702,8 @@ foreign func chmod(path: CPointer<Int8>, mode: UInt32): Int32
 @C
 foreign func fchmod(fd: Int32, mode: UInt32): Int32
 @C
+foreign func umask(mask: UInt32): UInt32
+@C
 foreign func chown(path: CPointer<Int8>, uid: UInt32, gid: UInt32): Int32
 @C
 foreign func access(path: CPointer<Int8>, mode: Int32): Int32
@@ -751,10 +753,6 @@ foreign func setuid(uid: UInt32): Int32
 foreign func setgid(gid: UInt32): Int32
 @C
 foreign func abort(): Unit
-@C
-foreign func umask(mask: UInt32): UInt32
-@C
-foreign func statfs(path: CPointer<Int8>, buf: CPointer<Unit>): Int32
 @C
 foreign func getrandom(buf: CPointer<Unit>, buflen: UIntNative, flags: UInt32): UIntNative
 // errno_location 已在 linux_syscall.cj 中声明

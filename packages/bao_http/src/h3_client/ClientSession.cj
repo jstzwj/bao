@@ -273,7 +273,10 @@ public class H3ClientSession {
 
     /// 投递响应数据
     /// 严格翻译自: ClientSession.deliver
+    /// 从 lsquic 回调 (onStreamHeaders / onStreamData / onStreamClose) 调用
+    /// 镜像 H2 的 ClientSession.deliverStream
     public func deliver(stream: H3ClientStream, done: Bool): Unit {
+        // 客户端已分离
         if (!stream.client.isSet) {
             if (done) {
                 detach(stream)
@@ -281,21 +284,34 @@ public class H3ClientSession {
             return
         }
 
+        // 检查中止信号 (桩: 实际应检查 client.signals.aborted)
+
         // 头部投递
         if (stream.statusCode != 0 && !stream.headersDelivered) {
             stream.headersDelivered = true
-            // 桩: 实际应调用 applyHeaders + 处理重定向
+            // 构建响应元数据
+            // 对应 Bun: applyHeaders -> handleResponseMetadata -> cloneMetadata
+            // 简化实现: 标记头部已投递
         }
+
+        // 检查是否在 body 阶段
+        // 对应 Bun: if (client.state.response_stage != .body) { ... }
 
         // 体数据投递
         if (stream.bodyBuffer.size > 0) {
             if (done) {
-                // 最终投递
+                // 最终块
+                // 对应 Bun: client.state.flags.received_last_chunk = true
             }
+            // 投递体数据到 HTTPClient
+            // 对应 Bun: client.handleResponseBody(stream.body_buffer.items, false)
+            // 简化实现: 清空缓冲区
             stream.bodyBuffer = ArrayList<UInt8>()
         }
 
         if (done) {
+            // 流完成
+            // 对应 Bun: client.state.flags.received_last_chunk = true; finish(client)
             detach(stream)
         }
     }
@@ -308,22 +324,41 @@ public class H3ClientSession {
 }
 
 /// QUIC socket 引用
+/// 对应 Bun: *quic.Socket
 public class QuicSocketRef {
     public var id: Int64
     public var isOpen: Bool
+    /// 关联的会话 (对应 Bun: qs.ext(ClientSession).* = session)
+    public var extSession: ?H3ClientSession
 
     public init(id: Int64) {
         this.id = id
         isOpen = true
+        extSession = None
     }
 
     /// 创建流
+    /// 对应 Bun: qs.makeStream() -> lsquic_conn_make_stream
     public func makeStream(): Unit {
-        // 桩: 调用 lsquic_conn_make_stream
+        if (!isOpen) {
+            return
+        }
+        // lsquic 异步创建流，完成后触发 onStreamOpen 回调
+        // 实际: us_quic_socket_make_stream(this.id)
     }
 
     /// 检查可用流数
+    /// 对应 Bun: qs.streamsAvail() -> lsquic_conn_n_avail_streams
     public func streamsAvail(): Int64 {
-        return 64  // 桩
+        if (!isOpen) {
+            return 0
+        }
+        // 桩: 实际应查询 lsquic 可用流数
+        return 64
+    }
+
+    /// 获取连接状态
+    public func status(buf: Array<Byte>): Int32 {
+        return 0
     }
 }

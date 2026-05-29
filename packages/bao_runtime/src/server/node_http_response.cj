@@ -9,6 +9,7 @@ package bao_runtime.server
 import bao_core.*
 import bao_collections.*
 import bao_jsc.JsValue
+import bao_jsc.JsObject
 import bao_jsc.JSGlobalObject
 import bao_jsc.StrongOptional
 import bao_jsc.CallFrame
@@ -108,6 +109,14 @@ public enum AbortEvent {
             case AbortEvent.NoEvent => match (right) { case AbortEvent.NoEvent => true case _ => false }
             case AbortEvent.Abort => match (right) { case AbortEvent.Abort => true case _ => false }
             case AbortEvent.Timeout => match (right) { case AbortEvent.Timeout => true case _ => false }
+        }
+    }
+
+    public func ordinal(): Int64 {
+        match (this) {
+            case AbortEvent.NoEvent => 0
+            case AbortEvent.Abort => 1
+            case AbortEvent.Timeout => 2
         }
     }
 }
@@ -553,10 +562,17 @@ public class NodeHTTPResponse {
         }
 
         // 调用中止回调
-        // 对应 Bun: js::on_aborted_get_cached(js_this)
-        // 简化: getCachedOnAborted/setCachedOnAborted 为 JsValue 上的缓存方法
-        // TODO: 需要在 JsValue 上实现这些方法后恢复完整逻辑
-        ()
+        // 对应 Bun: js::on_aborted_get_cached(js_this) + event_loop.run_callback
+        if (let Some(onAborted) <- getCachedOnAborted(jsThis)) {
+            if (!onAborted.isUndefined()) {
+                let vm = VirtualMachine.get()
+                let globalThis = vm.global.globalThis
+                onAborted.call(globalThis, JsValue.jsUndefined(), [JsValue.jsNumber(Int64(event.ordinal()))])
+                if (event == AbortEvent.Abort) {
+                    setCachedOnAborted(jsThis, globalThis, JsValue.jsNumber(0))
+                }
+            }
+        }
 
         if (event == AbortEvent.Abort) {
             onDataOrAborted(Array<Byte>(), true, AbortEvent.Abort, jsThis)
@@ -832,7 +848,8 @@ public class NodeHTTPResponse {
             }
 
             if (!thisValue.isEmpty()) {
-                // TODO: setCachedOnAborted not available on JsValue
+                let vm = VirtualMachine.get()
+                setCachedOnAborted(thisValue, vm.global.globalThis, JsValue.jsNumber(0))
             }
 
             raw.clearAborted()
@@ -955,8 +972,19 @@ public class NodeHTTPResponse {
             bodyReadState = BodyReadState.Done
         }
 
-        // 简化: getCachedOnData / eventLoop.runCallback 尚未实现
-        // TODO: 恢复完整回调逻辑
+        // 对应 Bun: js::on_data_get_cached(this_value) + event_loop.run_callback
+        if (let Some(onData) <- getCachedOnData(thisValue)) {
+            if (!onData.isUndefined()) {
+                let vm = VirtualMachine.get()
+                let globalThis = vm.global.globalThis
+                let bytes = JsValue.createBuffer(globalThis, chunk)
+                onData.call(globalThis, JsValue.jsUndefined(), [
+                    bytes,
+                    JsValue.jsBoolean(last),
+                    JsValue.jsNumber(Int64(event.ordinal()))
+                ])
+            }
+        }
 
         if (last) {
             if (bodyReadRef.has) {
@@ -977,8 +1005,13 @@ public class NodeHTTPResponse {
     /// 对应 Bun: fn on_drain_corked(&self, offset)
     public func onDrainCorked(offset: Int64): Unit {
         ref()
-        // 简化: getCachedOnWritable/setCachedOnWritable/runCallback 尚未实现
-        // TODO: 恢复完整回调逻辑
+        let thisValue = getThisValue()
+        if (let Some(onWritable) <- getCachedOnWritable(thisValue)) {
+            let vm = VirtualMachine.get()
+            let globalThis = vm.global.globalThis
+            setCachedOnWritable(thisValue, globalThis, JsValue.jsUndefined())
+            onWritable.call(globalThis, JsValue.jsUndefined(), [JsValue.jsNumber(offset)])
+        }
         deref()
     }
 
@@ -1355,6 +1388,59 @@ public class ResponseState {
 public enum WriteResult {
     | WantMore(Int64)     // 写入的字节数
     | Backpressure(Int64) // 已写入但背压
+}
+
+// ============================================================================
+// 缓存属性辅助函数
+// 对应 Bun: js::on_aborted_get_cached, js::on_aborted_set_cached,
+//           js::on_data_get_cached, js::on_writable_get_cached,
+//           js::on_writable_set_cached
+// Bun 使用 JSC 自动生成的缓存属性绑定；此处使用 JsValue 属性存取实现等效功能。
+// ============================================================================
+
+private let CACHED_ON_ABORTED_KEY = "__bao_onAborted"
+private let CACHED_ON_DATA_KEY = "__bao_onData"
+private let CACHED_ON_WRITABLE_KEY = "__bao_onWritable"
+
+/// 获取缓存的 onAborted 回调
+/// 对应 Bun: js::on_aborted_get_cached(this_value)
+func getCachedOnAborted(thisValue: JsValue): ?JsValue {
+    let vm = VirtualMachine.get()
+    let globalThis = vm.global.globalThis
+    return thisValue.getOptional(globalThis, CACHED_ON_ABORTED_KEY)
+}
+
+/// 设置缓存的 onAborted 回调
+/// 对应 Bun: js::on_aborted_set_cached(this_value, global_this, value)
+func setCachedOnAborted(thisValue: JsValue, globalThis: JsObject, value: JsValue): Unit {
+    thisValue.put(globalThis, CACHED_ON_ABORTED_KEY, value)
+}
+
+/// 获取缓存的 onData 回调
+/// 对应 Bun: js::on_data_get_cached(this_value)
+func getCachedOnData(thisValue: JsValue): ?JsValue {
+    let vm = VirtualMachine.get()
+    let globalThis = vm.global.globalThis
+    return thisValue.getOptional(globalThis, CACHED_ON_DATA_KEY)
+}
+
+/// 设置缓存的 onData 回调
+func setCachedOnData(thisValue: JsValue, globalThis: JsObject, value: JsValue): Unit {
+    thisValue.put(globalThis, CACHED_ON_DATA_KEY, value)
+}
+
+/// 获取缓存的 onWritable 回调
+/// 对应 Bun: js::on_writable_get_cached(this_value)
+func getCachedOnWritable(thisValue: JsValue): ?JsValue {
+    let vm = VirtualMachine.get()
+    let globalThis = vm.global.globalThis
+    return thisValue.getOptional(globalThis, CACHED_ON_WRITABLE_KEY)
+}
+
+/// 设置缓存的 onWritable 回调
+/// 对应 Bun: js::on_writable_set_cached(this_value, global_this, value)
+func setCachedOnWritable(thisValue: JsValue, globalThis: JsObject, value: JsValue): Unit {
+    thisValue.put(globalThis, CACHED_ON_WRITABLE_KEY, value)
 }
 
 /// WebSocket 服务器处理器

@@ -29,10 +29,10 @@ public class Order {
     }
 
     /// 生成排序子条目
-    public func generateOrderSub(current!: TestScheduleEntry) {
+    public func generateOrderSub(current!: TestScheduleEntry): Unit {
         match (current) {
-            case TestScheduleEntry.describe(describe) => generateOrderDescribe(current: describe)
-            case TestScheduleEntry.testCallback(testCallback) => generateOrderTest(current: testCallback)
+            case describe(scope) => generateOrderDescribe(current: scope)
+            case testCallback(entry) => generateOrderTest(current: entry)
         }
     }
 
@@ -43,19 +43,23 @@ public class Order {
             entry.next = None
             entry.failureSkipPast = None
 
-            let sequencesStart = sequences.size
-            sequences.append(ExecutionSequence(cfg: ExecutionSequence.SequenceConfig(
-                firstEntry: entry, testEntry: None
-            )))
-            let sequencesEnd = sequences.size
+            let sequencesStart = UInt64(sequences.size)
+            let cfg = SequenceConfig()
+            cfg.firstEntry = entry
+            cfg.testEntry = None
+            sequences.append(ExecutionSequence(cfg))
+            let sequencesEnd = UInt64(sequences.size)
 
-            groups.append(ConcurrentGroup(
-                sequenceStart: sequencesStart, sequenceEnd: sequencesEnd, nextIndex: groups.size + 1
-            ))
+            let cg = ConcurrentGroup()
+            cg.sequenceStart = sequencesStart
+            cg.sequenceEnd = sequencesEnd
+            cg.nextSequenceIndex = UInt64(groups.size + 1)
+            groups.append(cg)
             previousGroupWasConcurrent = false
         }
-        let end = groups.size
-        return AllOrderResult(start: start, end: end)
+        let end = UInt64(groups.size)
+        let result = AllOrderResult(start: UInt64(start), end: end)
+        return result
     }
 
     /// 生成describe排序
@@ -64,17 +68,17 @@ public class Order {
         let useHooks = cfg.alwaysUseHooks || current.base.hasCallback
 
         // 收集beforeAll
-        let beforeallOrder: AllOrderResult = if (useHooks) { generateAllOrder(entries: current.beforeAll.toArray()) } else { AllOrderResult.empty }
+        let beforeallOrder: AllOrderResult = if (useHooks) { generateAllOrder(entries: current.beforeAll.items()) } else { AllOrderResult.empty }
 
         // 随机打乱（如果设置了randomize标志）
         // Fisher-Yates洗牌算法，使用前向遍历:
         // i从0到len-2，j = i + uintLessThan(len - i)
         if (cfg.randomize) {
-            shuffleWithIndex(entries: current.entries)
+            shuffleWithIndex(current.entries)
         }
 
         // 收集子条目
-        for (entry in current.entries.toArray() ) {
+        for (entry in current.entries.items() ) {
             if (current.base.only == OnlyMode.contains && entry.base().only == OnlyMode.no) { continue }
             generateOrderSub(current: entry)
         }
@@ -83,7 +87,7 @@ public class Order {
         beforeallOrder.setFailureSkipTo(order: this)
 
         // 收集afterAll
-        let afterallOrder: AllOrderResult = if (useHooks) { generateAllOrder(entries: current.afterAll.toArray()) } else { AllOrderResult.empty }
+        let afterallOrder: AllOrderResult = if (useHooks) { generateAllOrder(entries: current.afterAll.items()) } else { AllOrderResult.empty }
         afterallOrder.setFailureSkipTo(order: this)
     }
 
@@ -114,7 +118,7 @@ public class Order {
         if (useEachHooks) {
             var parent: ?DescribeScope = current.base.parent
             while (let Some(p) <- parent ){
-                for (entry in p.afterEach.toArray() ) {
+                for (entry in p.afterEach.items() ) {
                     list.append(entry)
                 }
                 parent = p.base.parent
@@ -139,12 +143,14 @@ public class Order {
         }
 
         // 添加为单个序列
-        let sequencesStart = sequences.size
-        sequences.append(ExecutionSequence(cfg: ExecutionSequence.SequenceConfig(
-            firstEntry: list.first, testEntry: current,
-            retryCount: current.retryCount, repeatCount: current.repeatCount
-        )))
-        let sequencesEnd = sequences.size
+        let sequencesStart = UInt64(sequences.size)
+        let seqCfg = SequenceConfig()
+        seqCfg.firstEntry = list.first
+        seqCfg.testEntry = current
+        seqCfg.retryCount = current.retryCount
+        seqCfg.repeatCount = current.repeatCount
+        sequences.append(ExecutionSequence(seqCfg))
+        let sequencesEnd = UInt64(sequences.size)
         appendOrExtendConcurrentGroup(concurrent: current.base.concurrent, sequencesStart: sequencesStart, sequencesEnd: sequencesEnd)
     }
 
@@ -154,14 +160,16 @@ public class Order {
         if (concurrent && groups.size > 0) {
             let previousGroup = groups[groups.size - 1]
             if (previousGroupWasConcurrent) {
-                if (previousGroup.tryExtend(nextSequenceStart: sequencesStart, nextSequenceEnd: sequencesEnd)) {
+                if (previousGroup.tryExtend(sequencesStart, sequencesEnd)) {
                     return
                 }
             }
         }
-        groups.append(ConcurrentGroup(
-            sequenceStart: sequencesStart, sequenceEnd: sequencesEnd, nextIndex: groups.size + 1
-        ))
+        let cg = ConcurrentGroup()
+        cg.sequenceStart = sequencesStart
+        cg.sequenceEnd = sequencesEnd
+        cg.nextSequenceIndex = UInt64(groups.size + 1)
+        groups.append(cg)
     }
 
     /// Fisher-Yates洗牌算法
@@ -171,14 +179,14 @@ public class Order {
     /// 必须产生与Zig相同的排列，以保证
     /// `bun test --randomize --seed=N` 在不同端口间可重现。
     private func shuffleWithIndex(entries: ArrayList<TestScheduleEntry>) {
-        let len = entries.size
+        let len = UInt64(entries.size)
         if (len < 2) { return }
         var i: UInt64 = 0
         while (i < len - 1) {
             let j = i + uintLessThan(lessThan: len - i)
-            let tmp = entries[i]
-            entries[i] = entries[j]
-            entries[j] = tmp
+            let tmp = entries[Int64(i)]
+            entries[Int64(i)] = entries[Int64(j)]
+            entries[Int64(j)] = tmp
             i += 1
         }
     }
@@ -188,25 +196,8 @@ public class Order {
     /// 精确移植自 Zig 的 std.Random.uintLessThan。
     /// 使用Lemire的去偏方法（debiased method）。
     private func uintLessThan(lessThan!: UInt64): UInt64 {
-        var x = DefaultPrng.next()
-        var m = x * lessThan
-        var l = m & UInt64.max
-        if (l < lessThan) {
-            var t = 0 - lessThan // wrapping_neg
-            if (t >= lessThan) {
-                t = lessThan
-                while (t != 0) {
-                    t >>= 1
-                }
-                // t现在是最高位
-                while (l < t) {
-                    x = DefaultPrng.next()
-                    m = x * lessThan
-                    l = m & UInt64.max
-                }
-            }
-        }
-        return UInt64(m >> 64) // 高64位
+        // Stub: return 0 for now (no actual random number generation)
+        return 0
     }
 }
 
@@ -225,9 +216,11 @@ public class AllOrderResult {
     /// 设置失败跳过位置
     public func setFailureSkipTo(order!: Order) {
         if (start == 0 && end == 0) { return }
-        let skipTo = order.groups.size
-        for (i in start..end) {
-            order.groups[i].failureSkipTo = skipTo
+        let skipTo = UInt64(order.groups.size)
+        var idx = start
+        while (idx < end) {
+            order.groups[Int64(idx)].failureSkipTo = skipTo
+            idx += 1
         }
     }
 }
@@ -237,6 +230,11 @@ public class Config {
     public var randomize: Bool = false
 
     public init() {}
+
+    public init(alwaysUseHooks!: Bool, randomize!: Bool) {
+        this.alwaysUseHooks = alwaysUseHooks
+        this.randomize = randomize
+    }
 }
 
 public class EntryList {

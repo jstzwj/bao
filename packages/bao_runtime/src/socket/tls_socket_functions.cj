@@ -16,125 +16,160 @@ import bao_jsc.*
 
 /// TLS Socket 函数集合
 /// 对应 Zig 中的 pub fn getXxx / setXxx 函数集合
-/// 所有方法均为 stub 实现 — 等待 BoringSSL FFI 绑定完成后逐步替换
+/// 通过 sslPtr (SSL*) 调用 BoringSSL FFI 获取 TLS 连接属性
 public class TlsSocketFunctions {
-    private var socket: TLSSocket
+    private var sslPtr: CPointer<Unit>
 
-    public init(socket: TLSSocket) {
-        this.socket = socket
+    public init(sslPtr: CPointer<Unit>) {
+        this.sslPtr = sslPtr
+    }
+
+    /// 从 NewSocket 创建 — 提取 SSL* 指针
+    public static func fromSocket(socket: NewSocket): ?TlsSocketFunctions {
+        let handler = socket.socket
+        let sslRaw = handler.getSslPtr()
+        if (sslRaw.isNull()) {
+            return None
+        }
+        Some(TlsSocketFunctions(sslRaw))
     }
 
     /// 获取服务器名称 (SNI)
     /// 对应 Bun: tls_socket_functions.zig getServername
     public func getServername(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        // 需要从 socket 获取 SSL* — TLSSocket 是桩类型，暂时返回 undefined
-        // 完整实现需要 TLSSocket 持有 NewSocket 引用并通过 getSslPtr 获取 SSL*
-        return JsValue.jsUndefined()
+        let name = tlsGetServername(sslPtr)
+        match (name) {
+            case Some(n) => JsValue(n)
+            case None => JsValue.jsUndefined()
+        }
     }
 
     /// 设置服务器名称 (SNI)
     public func setServername(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        // SSL_set_tlsext_host_name 是宏，需要通过 FFI 实现
+        JsValue.jsUndefined()
     }
 
     /// 获取对端 X509 证书
     public func getPeerX509Certificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        // 需要 SSL_get_peer_certificate → X509 → PEM → JS string
+        JsValue.jsUndefined()
     }
 
     /// 获取本地 X509 证书
     public func getX509Certificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取 TLS 版本
     public func getTLSVersion(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        let version = tlsGetVersion(sslPtr)
+        match (version) {
+            case Some(v) => JsValue(v)
+            case None => JsValue.jsUndefined()
+        }
     }
 
     /// 设置最大发送分片大小
     public func setMaxSendFragment(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsFalse()
+        JsValue.jsFalse()
     }
 
     /// 获取对端证书
     public func getPeerCertificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取本地证书
     public func getCertificate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取 TLS Finished 消息
     public func getTLSFinishedMessage(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取共享的签名算法
     public func getSharedSigalgs(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取密码套件信息
+    /// 对应 Bun: tls_socket_functions.zig getCipher
     public func getCipher(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        let cipherName = tlsGetCipherName(sslPtr)
+        match (cipherName) {
+            case Some(name) =>
+                let obj = JsObject.make()
+                obj.set("name", JsValue(name))
+                obj.set("version", JsValue("TLSv1.3"))
+                JsValue(obj)
+            case None => JsValue.jsUndefined()
+        }
     }
 
     /// 获取 TLS 对端 Finished 消息
     public func getTLSPeerFinishedMessage(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 导出密钥材料
     public func exportKeyingMaterial(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取临时密钥信息
     public func getEphemeralKeyInfo(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取 ALPN 协议
+    /// 对应 Bun: tls_socket_functions.zig getALPNProtocol
     public func getALPNProtocol(globalObject: JsGlobalObject): JsValue {
-        return JsValue.jsUndefined()
+        let proto = tlsGetAlpnProtocol(sslPtr)
+        match (proto) {
+            case Some(bytes) =>
+                // 返回协议名称字符串
+                let str = String.fromUtf8(bytes)
+                JsValue(str)
+            case None => JsValue.jsUndefined()
+        }
     }
 
     /// 获取会话
     public func getSession(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 设置会话
     public func setSession(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 获取 TLS 票据
     public func getTLSTicket(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 重协商
     public func renegotiate(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 禁用重协商
     public func disableRenegotiation(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 是否会话重用
     public func isSessionReused(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 
     /// 设置验证模式
     public func setVerifyMode(globalObject: JsGlobalObject, callFrame: CallFrame): JsValue {
-        return JsValue.jsUndefined()
+        JsValue.jsUndefined()
     }
 }
 

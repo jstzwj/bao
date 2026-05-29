@@ -21,6 +21,8 @@ public class JsFunction {
     var closure: JsObject = JsObject()  // 闭包环境
     var prototype: ?JsObject = None
     var homeObject: ?JsObject = None    // super 引用
+    // 运行时编译后的回调 (由 bao_runtime 层设置)
+    var compiledCallback: ?JsCallback = None
 
     public init() {}
 
@@ -67,12 +69,27 @@ public class JsFunction {
 
     // 调用函数 - 严格翻译自 JSFunction.zig call
     public func call(thisArg: JsValue, args: Array<JsValue>): JsValue {
-        let thisObj = resolveThis(thisArg)
-        if (let Some(cb) <- callback) {
-            return cb(thisObj, args)
+        // 处理 bind 绑定的参数前缀
+        var effectiveArgs = args
+        if (isBound && boundArgs.size > 0) {
+            effectiveArgs = boundArgs.concat(args)
         }
-        // 源码函数需要 VM 执行
+        let thisObj = resolveThis(thisArg)
+        // 优先使用原生回调
+        if (let Some(cb) <- callback) {
+            return cb(thisObj, effectiveArgs)
+        }
+        // 其次使用运行时编译的回调
+        if (let Some(cb) <- compiledCallback) {
+            return cb(thisObj, effectiveArgs)
+        }
+        // 源码函数无编译回调 — 返回 undefined
         JsValue.undefined()
+    }
+
+    // 设置编译回调 — 由 bao_runtime 层在解析/编译后调用
+    public func setCompiledCallback(cb: JsCallback) {
+        this.compiledCallback = Some(cb)
     }
 
     // 构造调用 - 严格翻译自 JSFunction.zig construct
@@ -84,6 +101,11 @@ public class JsFunction {
         }
         // 调用构造函数体
         if (let Some(cb) <- callback) {
+            let result = cb(newObj, args)
+            if (result.isObject()) {
+                return result.toObject()
+            }
+        } else if (let Some(cb) <- compiledCallback) {
             let result = cb(newObj, args)
             if (result.isObject()) {
                 return result.toObject()

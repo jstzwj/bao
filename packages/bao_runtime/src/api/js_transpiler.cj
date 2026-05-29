@@ -26,449 +26,443 @@ public class JSTranspiler {
     // ========================================================================
 
     /// Config - 转译配置
-    public class Config {
-        public var transform: TransformOptions
-        public var defaultLoader: Loader
-        public var macroMap: MacroMap
-        public var tsconfig: ?TSConfigJSON
-        public var tsconfigBuf: String
-        public var macrosBuf: String
-        public var log: LoggerLog
-        public var runtime: RuntimeFeatures
-        public var treeShaking: Bool
-        public var trimUnusedImports: ?Bool
-        public var inlining: Bool
-        public var deadCodeElimination: Bool
-        public var minifyWhitespace: Bool
-        public var minifyIdentifiers: Bool
-        public var minifySyntax: Bool
-        public var noMacros: Bool
-        public var replMode: Bool
+//    public class Config {
+//        public var transform: TransformOptions
+//        public var defaultLoader: Loader
+//        public var macroMap: MacroMap
+//        public var tsconfig: ?TSConfigJSON
+//        public var tsconfigBuf: String
+//        public var macrosBuf: String
+//        public var log: LoggerLog
+//        public var runtime: RuntimeFeatures
+//        public var treeShaking: Bool
+//        public var trimUnusedImports: ?Bool
+//        public var inlining: Bool
+//        public var deadCodeElimination: Bool
+//        public var minifyWhitespace: Bool
+//        public var minifyIdentifiers: Bool
+//        public var minifySyntax: Bool
+//        public var noMacros: Bool
+//        public var replMode: Bool
 
-        public init() {
-            transform = defaultTransformOptions
-            defaultLoader = Loader.jsx
-            macroMap = MacroMap()
-            tsconfig = None
-            tsconfigBuf = ""
-            macrosBuf = ""
-            log = LoggerLog()
-            runtime = RuntimeFeatures(topLevelAwait: true)
-            treeShaking = false
-            trimUnusedImports = None
-            inlining = false
-            deadCodeElimination = true
-            minifyWhitespace = false
-            minifyIdentifiers = false
-            minifySyntax = false
-            noMacros = false
-            replMode = false
-        }
+//        public init() {
+//            transform = defaultTransformOptions
+//            defaultLoader = Loader.jsx
+//            macroMap = MacroMap()
+//            tsconfig = None
+//            tsconfigBuf = ""
+//            macrosBuf = ""
+//            log = LoggerLog()
+//            runtime = RuntimeFeatures(topLevelAwait: true)
+//            treeShaking = false
+//            trimUnusedImports = None
+//            inlining = false
+//            deadCodeElimination = true
+//            minifyWhitespace = false
+//            minifyIdentifiers = false
+//            minifySyntax = false
+//            noMacros = false
+//            replMode = false
+//        }
 
-        /// 从 JS 对象解析配置
-        /// 对应 Bun: Config.fromJS
-        public static func fromJS(config: Config, globalThis: JsGlobalObject, object: JsValue, allocator: Allocator): Unit {
-            if (object.isUndefinedOrNull()) {
-                return
-            }
+//        /// 从 JS 对象解析配置
+//        /// 对应 Bun: Config.fromJS
+//        public static func fromJS(config!: Config, globalThis!: JsGlobalObject, object!: JsValue, allocator!: Allocator): Unit {
+//            if (object.isUndefinedOrNull()) {
+//                return
+//            }
 
-            if (!object.isObject()) {
-                globalThis.throwInvalidArguments("Expected an object")
-                return
-            }
+//            if (!object.isObject()) {
+//                globalThis.throwInvalidArguments("Expected an object")
+//                return
+//            }
 
-            // 解析 define 选项
-            if (let define <- try object.getTruthy(globalThis, "define")) {
-                if (!define.isUndefinedOrNull()) {
-                    let defineObj = define.getObject() ?? {
-                        globalThis.throwInvalidArguments("define must be an object")
-                        return
-                    }
+//            // 解析 define 选项
+//            if (let define <- object.getTruthy(globalThis, "define") ) {
+//                if (!define.isUndefinedOrNull()) {
+//                    let defineObj = define.getObject() ?? {
+//                        globalThis.throwInvalidArguments("define must be an object")
+//                        return
+//                    }
 
-                    var defineIter = try JsPropertyIterator(
-                        skipEmptyName: true,
-                        includeValue: true,
-                    ).`init`(globalThis, defineObj)
-                    defer defineIter.deinit()
+//                    var defineIter = JsPropertyIterator (
+//                        skipEmptyName: true,
+//                        includeValue: true,
+//                    ).`init`(globalThis, defineObj)
+//                    var names = ArrayList<String>(allocator)
+//                    var values = ArrayList<String>(allocator)
+//                    names.ensureTotalCapacity(defineIter.len)
+//                    values.ensureTotalCapacity(defineIter.len)
 
-                    var names = ArrayList<String>(allocator)
-                    var values = ArrayList<String>(allocator)
-                    names.ensureTotalCapacity(defineIter.len)
-                    values.ensureTotalCapacity(defineIter.len)
+//                    while (let prop <- try { defineIter.next() ) {
+//                        let propertyValue = defineIter.value
+//                        let valueType = propertyValue.jsType()
 
-                    while (let prop <- try defineIter.next()) {
-                        let propertyValue = defineIter.value
-                        let valueType = propertyValue.jsType()
+//                        if (!valueType.isStringLike()) {
+//                            globalThis.throwInvalidArguments("define \"{}\" must be a JSON string", [prop])
+//                            return
+//                        }
 
-                        if (!valueType.isStringLike()) {
-                            globalThis.throwInvalidArguments("define \"{}\" must be a JSON string", [prop])
-                            return
-                        }
+//                        names.append(prop.toOwnedSlice(allocator))
+//                        var val = propertyValue.toZigString(globalThis)
+//                        if (val.len == 0) {
+//                            val = ZigString("\"\"")
+//                        }
+//                        values.append(val.toString())
+//                    }
 
-                        names.append(prop.toOwnedSlice(allocator))
-                        var val = propertyValue.toZigString(globalThis)
-                        if (val.len == 0) {
-                            val = ZigString("\"\"")
-                        }
-                        values.append(val.toString())
-                    }
+//                    config.transform.define = StringMap(keys: names.items, values: values.items)
+//
+//                        defineIter.deinit()
+//                }
+//            }
 
-                    config.transform.define = StringMap(keys: names.items, values: values.items)
-                }
-            }
+//            // 解析 external
+//            if (let external <- object.get(globalThis, "external") ) {
+//                if (!external.isUndefinedOrNull()) {
+//                    let toplevelType = external.jsType()
+//                    if (toplevelType.isStringLike()) {
+//                        let zigStr = external.toZigString(globalThis)
+//                        if (zigStr.len > 0) {
+//                            config.transform.external = [zigStr.toString()]
+//                        }
+//                    } else if (toplevelType.isArray()) {
+//                        let count = external.getLength(globalThis) 
+//                        if (count > 0) {
+//                            var externals = ArrayList<String>(allocator)
+//                            var iter = external.arrayIterator(globalThis) 
+//                            while (let entry <- iter.next() ) {
+//                                if (!entry.jsType().isStringLike()) {
+//                                    globalThis.throwInvalidArguments("external must be a string or string[]")
+//                                    return
+//                                }
+//                                let zigStr = entry.toZigString(globalThis)
+//                                if (zigStr.len > 0) {
+//                                    externals.append(zigStr.toString())
+//                                }
+//                            }
+//                            config.transform.external = externals.items
+//                        }
+//                    } else {
+//                        globalThis.throwInvalidArguments("external must be a string or string[]")
+//                        return
+//                    }
+//                }
+//            }
 
-            // 解析 external
-            if (let external <- try object.get(globalThis, "external")) {
-                if (!external.isUndefinedOrNull()) {
-                    let toplevelType = external.jsType()
-                    if (toplevelType.isStringLike()) {
-                        let zigStr = external.toZigString(globalThis)
-                        if (zigStr.len > 0) {
-                            config.transform.external = [zigStr.toString()]
-                        }
-                    } else if (toplevelType.isArray()) {
-                        let count = try external.getLength(globalThis)
-                        if (count > 0) {
-                            var externals = ArrayList<String>(allocator)
-                            var iter = try external.arrayIterator(globalThis)
-                            while (let entry <- try iter.next()) {
-                                if (!entry.jsType().isStringLike()) {
-                                    globalThis.throwInvalidArguments("external must be a string or string[]")
-                                    return
-                                }
-                                let zigStr = entry.toZigString(globalThis)
-                                if (zigStr.len > 0) {
-                                    externals.append(zigStr.toString())
-                                }
-                            }
-                            config.transform.external = externals.items
-                        }
-                    } else {
-                        globalThis.throwInvalidArguments("external must be a string or string[]")
-                        return
-                    }
-                }
-            }
+//            // 解析 loader
+//            if (let loader <- object.get(globalThis, "loader") ) {
+//                if (let resolved <- Loader.fromJS(globalThis, loader) ) {
+//                    if (!resolved.isJavaScriptLike()) {
+//                        globalThis.throwInvalidArguments("only JavaScript-like loaders supported for now")
+//                        return
+//                    }
+//                    config.defaultLoader = resolved
+//                }
+//            }
 
-            // 解析 loader
-            if (let loader <- try object.get(globalThis, "loader")) {
-                if (let resolved <- try Loader.fromJS(globalThis, loader)) {
-                    if (!resolved.isJavaScriptLike()) {
-                        globalThis.throwInvalidArguments("only JavaScript-like loaders supported for now")
-                        return
-                    }
-                    config.defaultLoader = resolved
-                }
-            }
+//            // 解析 target
+//            if (let target <- object.get(globalThis, "target") ) {
+//                if (let resolved <- Target.fromJS(globalThis, target) ) {
+//                    config.transform.target = resolved.toApi()
+//                }
+//            }
 
-            // 解析 target
-            if (let target <- try object.get(globalThis, "target")) {
-                if (let resolved <- try Target.fromJS(globalThis, target)) {
-                    config.transform.target = resolved.toApi()
-                }
-            }
+//            // 解析 tsconfig
+//            if (let tsconfig <- object.get(globalThis, "tsconfig") ) {
+//                if (!tsconfig.isUndefinedOrNull()) {
+//                    let kind = tsconfig.jsType()
+//                    if (kind.isArray()) {
+//                        globalThis.throwInvalidArguments("tsconfig must be a string or object")
+//                        return
+//                    }
 
-            // 解析 tsconfig
-            if (let tsconfig <- try object.get(globalThis, "tsconfig")) {
-                if (!tsconfig.isUndefinedOrNull()) {
-                    let kind = tsconfig.jsType()
-                    if (kind.isArray()) {
-                        globalThis.throwInvalidArguments("tsconfig must be a string or object")
-                        return
-                    }
+//                    var out = BunString.empty
+//                    if (!kind.isStringLike()) {
+//                        tsconfig.jsonStringifyFast(globalThis, out) 
+//                     else {
+//                        out = tsconfig.toBunString(globalThis) 
+//                    }
 
-                    var out = BunString.empty
-                    defer out.deref()
+//                    if (!out.isEmpty()) {
+//                        config.tsconfigBuf = out.toOwnedSlice(allocator)
+//                        if (let parsed <- TSConfigJSON.parse(
+//                            allocator,
+//                            config.log,
+//                            LoggerSource.initPathString("tsconfig.json", config.tsconfigBuf),
+//                            VirtualMachine.get().transpiler.resolver.caches.json,
+//                        )) {
+//                            config.tsconfig = parsed
+//                        }
+//                    }
+//
+//                        out.deref()
+//                }
+//            }
 
-                    if (!kind.isStringLike()) {
-                        try tsconfig.jsonStringifyFast(globalThis, out)
-                    } else {
-                        out = try tsconfig.toBunString(globalThis)
-                    }
+//            config.runtime.allowRuntime = false
 
-                    if (!out.isEmpty()) {
-                        config.tsconfigBuf = out.toOwnedSlice(allocator)
-                        if (let parsed <- TSConfigJSON.parse(
-                            allocator,
-                            config.log,
-                            LoggerSource.initPathString("tsconfig.json", config.tsconfigBuf),
-                            VirtualMachine.get().transpiler.resolver.caches.json,
-                        )) {
-                            config.tsconfig = parsed
-                        }
-                    }
-                }
-            }
+//            // 解析 macro
+//            if (let macros <- object.getTruthy(globalThis, "macro") ) {
+//                if (!macros.isUndefinedOrNull()) {
+//                    if (macros.isBoolean()) {
+//                        config.noMacros = !macros.asBoolean()
+//                    } else {
+//                        let kind = macros.jsType()
+//                        let isObject = kind.isObject()
+//                        if (!(kind.isStringLike() || isObject)) {
+//                            globalThis.throwInvalidArguments("macro must be an object")
+//                            return
+//                        }
 
-            config.runtime.allowRuntime = false
+//                        var out = BunString.empty
+//                        if (isObject) {
+//                            macros.jsonStringifyFast(globalThis, out) 
+//                         else {
+//                            out = macros.toBunString(globalThis) 
+//                        }
 
-            // 解析 macro
-            if (let macros <- try object.getTruthy(globalThis, "macro")) {
-                if (!macros.isUndefinedOrNull()) {
-                    if (macros.isBoolean()) {
-                        config.noMacros = !macros.asBoolean()
-                    } else {
-                        let kind = macros.jsType()
-                        let isObject = kind.isObject()
-                        if (!(kind.isStringLike() || isObject)) {
-                            globalThis.throwInvalidArguments("macro must be an object")
-                            return
-                        }
+//                        if (!out.isEmpty()) {
+//                            config.macrosBuf = out.toOwnedSlice(allocator)
+//                            let source = LoggerSource.initPathString("macros.json", config.macrosBuf)
+//                            if (let json <- VirtualMachine.get().transpiler.resolver.caches.json.parseJson(
+//                                config.log,
+//                                source,
+//                                allocator,
+//                                JsonParseMode.json,
+//                                false,
+//                            )) {
+//                                config.macroMap = PackageJson.parseMacrosJson(allocator, json, config.log, source)
+//                            }
+//                        }
+//
+//                            out.deref()
+//                    }
+//                }
+//            }
 
-                        var out = BunString.empty
-                        defer out.deref()
-                        if (isObject) {
-                            try macros.jsonStringifyFast(globalThis, out)
-                        } else {
-                            out = try macros.toBunString(globalThis)
-                        }
+//            // 解析布尔选项
+//            if (let flag <- object.getBooleanLoose(globalThis, "autoImportJSX") ) {
+//                config.runtime.autoImportJsx = flag
+//            }
+//            if (let flag <- object.getBooleanLoose(globalThis, "allowBunRuntime") ) {
+//                config.runtime.allowRuntime = flag
+//            }
+//            if (let flag <- object.getBooleanLoose(globalThis, "inline") ) {
+//                config.runtime.inlining = flag
+//            }
+//            if (let flag <- object.getBooleanLoose(globalThis, "minifyWhitespace") ) {
+//                config.minifyWhitespace = flag
+//            }
+//            if (let flag <- object.getBooleanLoose(globalThis, "deadCodeElimination") ) {
+//                config.deadCodeElimination = flag
+//            }
+//            if (let flag <- object.getBooleanLoose(globalThis, "replMode") ) {
+//                config.replMode = flag
+//            }
 
-                        if (!out.isEmpty()) {
-                            config.macrosBuf = out.toOwnedSlice(allocator)
-                            let source = LoggerSource.initPathString("macros.json", config.macrosBuf)
-                            if (let json <- VirtualMachine.get().transpiler.resolver.caches.json.parseJson(
-                                config.log,
-                                source,
-                                allocator,
-                                JsonParseMode.json,
-                                false,
-                            )) {
-                                config.macroMap = PackageJson.parseMacrosJson(allocator, json, config.log, source)
-                            }
-                        }
-                    }
-                }
-            }
+//            // 解析 minify
+//            if (let minify <- object.getTruthy(globalThis, "minify") ) {
+//                if (minify.isBoolean()) {
+//                    config.minifyWhitespace = minify.toBoolean()
+//                    config.minifySyntax = config.minifyWhitespace
+//                    config.minifyIdentifiers = config.minifySyntax
+//                } else if (minify.isObject()) {
+//                    if (let whitespace <- minify.getBooleanLoose(globalThis, "whitespace") ) {
+//                        config.minifyWhitespace = whitespace
+//                    }
+//                    if (let syntax <- minify.getBooleanLoose(globalThis, "syntax") ) {
+//                        config.minifySyntax = syntax
+//                    }
+//                    if (let identifiers <- minify.getBooleanLoose(globalThis, "identifiers") ) {
+//                        config.minifyIdentifiers = identifiers
+//                    }
+//                } else {
+//                    globalThis.throwInvalidArguments("Expected minify to be a boolean or an object")
+//                    return
+//                }
+//            }
 
-            // 解析布尔选项
-            if (let flag <- try object.getBooleanLoose(globalThis, "autoImportJSX")) {
-                config.runtime.autoImportJsx = flag
-            }
-            if (let flag <- try object.getBooleanLoose(globalThis, "allowBunRuntime")) {
-                config.runtime.allowRuntime = flag
-            }
-            if (let flag <- try object.getBooleanLoose(globalThis, "inline")) {
-                config.runtime.inlining = flag
-            }
-            if (let flag <- try object.getBooleanLoose(globalThis, "minifyWhitespace")) {
-                config.minifyWhitespace = flag
-            }
-            if (let flag <- try object.getBooleanLoose(globalThis, "deadCodeElimination")) {
-                config.deadCodeElimination = flag
-            }
-            if (let flag <- try object.getBooleanLoose(globalThis, "replMode")) {
-                config.replMode = flag
-            }
+//            // 解析 sourcemap
+//            if (let flag <- object.get(globalThis, "sourcemap") ) {
+//                if (flag.isBoolean() || flag.isUndefinedOrNull()) {
+//                    if (flag.toBoolean()) {
+//                        config.transform.sourceMap = SourceMapOption.inline
+//                    } else {
+//                        config.transform.sourceMap = SourceMapOption.none
+//                    }
+//                } else {
+//                    if (let source <- SourceMapOption.fromJS(globalThis, flag) ) {
+//                        config.transform.sourceMap = source
+//                    } else {
+//                        globalThis.throwInvalidArguments("sourcemap must be one of \"inline\", \"linked\", \"external\", or \"none\"")
+//                        return
+//                    }
+//                }
+//            }
 
-            // 解析 minify
-            if (let minify <- try object.getTruthy(globalThis, "minify")) {
-                if (minify.isBoolean()) {
-                    config.minifyWhitespace = minify.toBoolean()
-                    config.minifySyntax = config.minifyWhitespace
-                    config.minifyIdentifiers = config.minifySyntax
-                } else if (minify.isObject()) {
-                    if (let whitespace <- try minify.getBooleanLoose(globalThis, "whitespace")) {
-                        config.minifyWhitespace = whitespace
-                    }
-                    if (let syntax <- try minify.getBooleanLoose(globalThis, "syntax")) {
-                        config.minifySyntax = syntax
-                    }
-                    if (let identifiers <- try minify.getBooleanLoose(globalThis, "identifiers")) {
-                        config.minifyIdentifiers = identifiers
-                    }
-                } else {
-                    globalThis.throwInvalidArguments("Expected minify to be a boolean or an object")
-                    return
-                }
-            }
+//            // 解析 packages
+//            if (let packages <- object.getOptionalEnum(globalThis, "packages", PackagesOption) ) {
+//                config.transform.packages = packages.toApi()
+//            }
 
-            // 解析 sourcemap
-            if (let flag <- try object.get(globalThis, "sourcemap")) {
-                if (flag.isBoolean() || flag.isUndefinedOrNull()) {
-                    if (flag.toBoolean()) {
-                        config.transform.sourceMap = SourceMapOption.inline
-                    } else {
-                        config.transform.sourceMap = SourceMapOption.none
-                    }
-                } else {
-                    if (let source <- try SourceMapOption.fromJS(globalThis, flag)) {
-                        config.transform.sourceMap = source
-                    } else {
-                        globalThis.throwInvalidArguments("sourcemap must be one of \"inline\", \"linked\", \"external\", or \"none\"")
-                        return
-                    }
-                }
-            }
+//            // 解析 treeShaking
+//            var treeShaking: ?Bool = None
+//            if (let treeShakingVal <- object.getBooleanLoose(globalThis, "treeShaking") ) {
+//                treeShaking = treeShakingVal
+//            }
 
-            // 解析 packages
-            if (let packages <- try object.getOptionalEnum(globalThis, "packages", PackagesOption)) {
-                config.transform.packages = packages.toApi()
-            }
+//            var trimUnusedImports: ?Bool = None
+//            if (let trimUnusedImportsVal <- object.getBooleanLoose(globalThis, "trimUnusedImports") ) {
+//                trimUnusedImports = trimUnusedImportsVal
+//            }
 
-            // 解析 treeShaking
-            var treeShaking: ?Bool = None
-            if (let treeShakingVal <- try object.getBooleanLoose(globalThis, "treeShaking")) {
-                treeShaking = treeShakingVal
-            }
+//            // 解析 exports
+//            if (let exports <- object.getTruthy(globalThis, "exports") ) {
+//                if (!exports.isObject()) {
+//                    globalThis.throwInvalidArguments("exports must be an object")
+//                    return
+//                }
 
-            var trimUnusedImports: ?Bool = None
-            if (let trimUnusedImportsVal <- try object.getBooleanLoose(globalThis, "trimUnusedImports")) {
-                trimUnusedImports = trimUnusedImportsVal
-            }
+//                var replacements = ReplaceableExportMap()
 
-            // 解析 exports
-            if (let exports <- try object.getTruthy(globalThis, "exports")) {
-                if (!exports.isObject()) {
-                    globalThis.throwInvalidArguments("exports must be an object")
-                    return
-                }
+//                if (let eliminate <- exports.getTruthy(globalThis, "eliminate") ) {
+//                    if (!eliminate.jsType().isArray()) {
+//                        globalThis.throwInvalidArguments("exports.eliminate must be an array")
+//                        return
+//                    }
 
-                var replacements = ReplaceableExportMap()
+//                    var iter = JsArrayIterator(eliminate, globalThis) 
+//                    while (let value <- iter.next() ) {
+//                        if (value.isString()) {
+//                            let str = value.getZigString(globalThis) 
+//                            if (str.len > 0) {
+//                                replacements.put(str.toString(), ReplaceableExport.delete())
+//                            }
+//                        }
+//                    }
+//                }
 
-                if (let eliminate <- try exports.getTruthy(globalThis, "eliminate")) {
-                    if (!eliminate.jsType().isArray()) {
-                        globalThis.throwInvalidArguments("exports.eliminate must be an array")
-                        return
-                    }
+//                if (let replace <- exports.getTruthy(globalThis, "replace") ) {
+//                    let replaceObj = replace.getObject() ?? {
+//                        globalThis.throwInvalidArguments("replace must be an object")
+//                        return
+//                    }
 
-                    var iter = try JsArrayIterator(eliminate, globalThis)
-                    while (let value <- try iter.next()) {
-                        if (value.isString()) {
-                            let str = try value.getZigString(globalThis)
-                            if (str.len > 0) {
-                                replacements.put(str.toString(), ReplaceableExport.delete())
-                            }
-                        }
-                    }
-                }
+//                    var iter = JsPropertyIterator (
+//                        skipEmptyName: true,
+//                        includeValue: true,
+//                    ).`init`(globalThis, replaceObj)
+//                    while (let key <- try { iter.next() ) {
+//                        let value = iter.value
+//                        if (value == JsValue.jsUndefined()) {
+//                            continue
+//                        }
 
-                if (let replace <- try exports.getTruthy(globalThis, "replace")) {
-                    let replaceObj = replace.getObject() ?? {
-                        globalThis.throwInvalidArguments("replace must be an object")
-                        return
-                    }
+//                        if (!JsLexer.isIdentifier(key)) {
+//                            globalThis.throwInvalidArguments("\"{}\" is not a valid ECMAScript identifier", [key])
+//                            return
+//                        }
 
-                    var iter = try JsPropertyIterator(
-                        skipEmptyName: true,
-                        includeValue: true,
-                    ).`init`(globalThis, replaceObj)
-                    defer iter.deinit()
+//                        if (let expr <- exportReplacementValue(value, globalThis, allocator) ) {
+//                            replacements.put(key, ReplaceableExport.replace(expr))
+//                            continue
+//                        }
 
-                    while (let key <- try iter.next()) {
-                        let value = iter.value
-                        if (value == JsValue.jsUndefined()) {
-                            continue
-                        }
+//                        if (value.isObject() && value.getLength(globalThis)  == 2) {
+//                            let replacementValue = value.getIndex(globalThis, 1) 
+//                            if (let toReplace <- exportReplacementValue(replacementValue, globalThis, allocator) ) {
+//                                let replacementKey = value.getIndex(globalThis, 0) 
+//                                let replacementName = replacementKey.toSliceCloneWithAllocator(globalThis, allocator)
 
-                        if (!JsLexer.isIdentifier(key)) {
-                            globalThis.throwInvalidArguments("\"{}\" is not a valid ECMAScript identifier", [key])
-                            return
-                        }
+//                                if (!JsLexer.isIdentifier(replacementName)) {
+//                                    globalThis.throwInvalidArguments("\"{}\" is not a valid ECMAScript identifier", [replacementName])
+//                                    return
+//                                }
 
-                        if (let expr <- try exportReplacementValue(value, globalThis, allocator)) {
-                            replacements.put(key, ReplaceableExport.replace(expr))
-                            continue
-                        }
+//                                replacements.put(key, ReplaceableExport.inject(replacementName, toReplace))
+//                                continue
+//                            }
+//                        }
 
-                        if (value.isObject() && try value.getLength(globalThis) == 2) {
-                            let replacementValue = try value.getIndex(globalThis, 1)
-                            if (let toReplace <- try exportReplacementValue(replacementValue, globalThis, allocator)) {
-                                let replacementKey = try value.getIndex(globalThis, 0)
-                                let replacementName = replacementKey.toSliceCloneWithAllocator(globalThis, allocator)
+//                        globalThis.throwInvalidArguments("exports.replace values can only be string, none, undefined, number or boolean")
+//                        return
+//                    }
+//
+//                        iter.deinit()
+//                }
 
-                                if (!JsLexer.isIdentifier(replacementName)) {
-                                    globalThis.throwInvalidArguments("\"{}\" is not a valid ECMAScript identifier", [replacementName])
-                                    return
-                                }
+//                treeShaking = treeShaking ?? (replacements.count() > 0)
+//                config.runtime.replaceExports = replacements
+//            }
 
-                                replacements.put(key, ReplaceableExport.inject(replacementName, toReplace))
-                                continue
-                            }
-                        }
+//            // 解析 logLevel
+//            if (let logLevel <- object.getTruthy(globalThis, "logLevel") ) {
+//                if (let level <- LoggerLogLevel.Map.fromJS(globalThis, logLevel) ) {
+//                    config.log.level = level
+//                } else {
+//                    globalThis.throwInvalidArguments("logLevel must be one of \"verbose\", \"debug\", \"info\", \"warn\", or \"error\"")
+//                    return
+//                }
+//            }
 
-                        globalThis.throwInvalidArguments("exports.replace values can only be string, null, undefined, number or boolean")
-                        return
-                    }
-                }
-
-                treeShaking = treeShaking ?? (replacements.count() > 0)
-                config.runtime.replaceExports = replacements
-            }
-
-            // 解析 logLevel
-            if (let logLevel <- try object.getTruthy(globalThis, "logLevel")) {
-                if (let level <- try LoggerLogLevel.Map.fromJS(globalThis, logLevel)) {
-                    config.log.level = level
-                } else {
-                    globalThis.throwInvalidArguments("logLevel must be one of \"verbose\", \"debug\", \"info\", \"warn\", or \"error\"")
-                    return
-                }
-            }
-
-            config.treeShaking = treeShaking ?? false
-            config.trimUnusedImports = trimUnusedImports ?? config.treeShaking
-        }
-    }
+//            config.treeShaking = treeShaking ?? false
+//            config.trimUnusedImports = trimUnusedImports ?? config.treeShaking
+//        }
+//    }
 
     // ========================================================================
     // 默认选项
     // ========================================================================
 
-    public static let defaultTransformOptions: TransformOptions = {
-        var opts = TransformOptions()
-        opts.disableHmr = true
-        opts.target = Target.browser
-        return opts
-    }()
+    public static let defaultTransformOptions: TransformOptions = TransformOptions()
 
     // ========================================================================
     // 构造器
     // ========================================================================
 
     /// JS 构造器
-    public static func constructor(globalThis: JsGlobalObject, callframe: JsCallFrame): JSTranspiler {
+    public static func constructor(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JSTranspiler {
         let arguments = callframe.argumentsOld(3)
-        var this = JSTranspiler()
-        this.config = Config()
-        this.arena = ArenaAllocator()
-        this.scanPassResult = ScanPassResult()
-        this.refCount = RefCount.initExactRefs(1)
+        var self = JSTranspiler()
+        self.config = Config()
+        self.arena = ArenaAllocator()
+        self.scanPassResult = ScanPassResult()
+        self.refCount = RefCount.initExactRefs(1)
 
-        let configArg = if (arguments.len > 0) arguments.ptr[0] else JsValue.jsUndefined()
-        let allocator = this.arena.allocator()
+        let configArg = if (arguments.len > 0) { arguments.ptr[0] } else { JsValue.jsUndefined() }
+        let allocator = self.arena.allocator()
 
-        try Config.fromJS(this.config, globalThis, configArg, allocator)
-        let config = this.config
+        Config.fromJS(self.config, globalThis, configArg, allocator)
+        let config = self.config
 
         if (globalThis.hasException()) {
             return Error.JsError
         }
 
         if ((config.log.warnings + config.log.errors) > 0) {
-            return globalThis.throwValue(try config.log.toJS(globalThis, "Failed to create transpiler"))
+            return globalThis.throwValue(config.log.toJS(globalThis, "Failed to create transpiler") )
         }
 
-        this.transpiler = Transpiler(
+        this.transpiler = try { Transpiler(
             config.transform,
             config.log,
-            VirtualMachine.get().transpiler.env,
-        ) catch {
-            err =>
-                if ((config.log.warnings + config.log.errors) > 0) {
-                    return globalThis.throwValue(try config.log.toJS(globalThis, "Failed to create transpiler"))
-                }
-                return globalThis.throwError(err, "Error creating transpiler")
+            VirtualMachine.get().transpiler.env
+        ) } catch(err: Exception) {
+            if ((config.log.warnings + config.log.errors) > 0) {
+                return globalThis.throwValue(config.log.toJS(globalThis, "Failed to create transpiler") )
+            }
+            return globalThis.throwError(err, "Error creating transpiler")
         }
 
         this.transpiler.options.noMacros = config.noMacros
         this.transpiler.configureLinkerWithAutoJSX(false)
         this.transpiler.options.env.behavior = DotEnvBehavior.disable
-        this.transpiler.configureDefines() catch {
-            err =>
-                if ((config.log.warnings + config.log.errors) > 0) {
-                    return globalThis.throwValue(try config.log.toJS(globalThis, "Failed to load define"))
-                }
-                return globalThis.throwError(err, "Failed to load define")
+        try { this.transpiler.configureDefines() } catch(err: Exception) {
+            if ((config.log.warnings + config.log.errors) > 0) {
+                return globalThis.throwValue(config.log.toJS(globalThis, "Failed to load define") )
+            }
+            return globalThis.throwError(err, "Failed to load define")
         }
 
         if (config.macroMap.count() > 0) {
@@ -505,30 +499,28 @@ public class JSTranspiler {
 
     /// transform - JS 入口: transpiler.transform(code)
     /// 对应 Bun: JSTranspiler.transform
-    public func transform(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func transform(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
         var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
-        defer args.deinit()
-
-        let codeArg = args.next() ?? {
+        let codeArgOpt = args.next()
+        if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("transform", "code", "string or Uint8Array")
         }
 
+        let codeArg = codeArgOpt.getOrThrow()
         let allowStringObject: Bool = true
-        var code = try StringOrBuffer.fromJSWithEncodingMaybeAsync(
+        var codeOpt = StringOrBuffer.fromJSWithEncodingMaybeAsync(
             globalThis, default_allocator, codeArg, Utf8Encoding, true, allowStringObject,
-        ) ?? {
+        )
+        if (codeOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("transform", "code", "string or Uint8Array")
         }
-        defer code.deinitAndUnprotect()
-
+        var code = codeOpt.getOrThrow()
         args.eat()
-        let loader: ?Loader = {
-            if (let arg <- args.next()) {
-                args.eat()
-                return try Loader.fromJS(globalThis, arg)
-            }
-            return None
+        var loader: ?Loader = None
+        if (let arg <- args.next()) {
+            args.eat()
+            loader = Loader.fromJS(globalThis, arg)
         }
 
         let task = TransformTask.create(
@@ -538,45 +530,41 @@ public class JSTranspiler {
             loader ?? config.defaultLoader,
         )
         task.schedule()
-        return task.promise.value()
+        code.deinitAndUnprotect()
+        args.deinit()
+        return JsValue.jsUndefined()
     }
 
     /// transformSync - 同步转译
     /// 对应 Bun: JSTranspiler.transformSync
-    public func transformSync(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func transformSync(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
         var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
-        defer args.arena.deinit()
-
-        let codeArg = args.next() ?? {
+        let codeArgOpt = args.next()
+        if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("transformSync", "code", "string or Uint8Array")
         }
+        let codeArg = codeArgOpt.getOrThrow()
 
         var arena = MimallocArena()
-        defer arena.deinit()
-
-        let codeHolder = try StringOrBuffer.fromJS(globalThis, arena.allocator(), codeArg) ?? {
+        let codeHolderOpt = StringOrBuffer.fromJS(globalThis, arena.allocator(), codeArg)
+        if (codeHolderOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("transformSync", "code", "string or Uint8Array")
         }
-        defer codeHolder.deinit()
+        let codeHolder = codeHolderOpt.get()
         let code = codeHolder.slice()
         arguments.ptr[0].ensureStillAlive()
-        defer arguments.ptr[0].ensureStillAlive()
 
         args.eat()
         var jsCtxValue: JsValue = JsValue.jsUndefined()
-        let loader: ?Loader = {
-            if (let arg <- args.next()) {
-                args.eat()
-                if (arg.isNumber() || arg.isString()) {
-                    return try Loader.fromJS(globalThis, arg)
-                }
-                if (arg.isObject()) {
-                    jsCtxValue = arg
-                    return None
-                }
+        var loader: ?Loader = None
+        if (let arg <- args.next()) {
+            args.eat()
+            if (arg.isNumber() || arg.isString()) {
+                loader = Loader.fromJS(globalThis, arg)
+            } else if (arg.isObject()) {
+                jsCtxValue = arg
             }
-            return None
         }
 
         if (let arg <- args.nextEat()) {
@@ -590,17 +578,10 @@ public class JSTranspiler {
             jsCtxValue.ensureStillAlive()
         }
 
-        defer {
-            if (jsCtxValue != JsValue.jsUndefined()) {
-                jsCtxValue.ensureStillAlive()
-            }
-        }
-
         let allocator = arena.allocator()
 
         var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
         var astScope = astMemoryAllocator.enter(allocator)
-        defer astScope.exit()
 
         let prevBundler = transpiler
         transpiler.setAllocator(allocator)
@@ -609,71 +590,76 @@ public class JSTranspiler {
         log.level = config.log.level
         transpiler.setLog(log)
 
-        defer {
-            transpiler = prevBundler
-        }
-
         let parseResult = getParseResult(
             allocator, code, loader, jsCtxValue,
-        ) ?? {
+        )
+        if (parseResult.isNone()) {
             if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
-                return globalThis.throwValue(try transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
+                return globalThis.throwValue(transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
             }
             return globalThis.`throw`("Failed to parse code")
         }
 
         if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
-            return globalThis.throwValue(try transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
+            return globalThis.throwValue(transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
         }
 
-        var bufferWriter = this.bufferWriter ?? {
+        let bufferWriterOpt = this.bufferWriter
+        if (bufferWriterOpt.isNone()) {
             var writer = JsPrinterBufferWriter(arena.backingAllocator())
             writer.buffer.growIfNeeded(code.len)
             writer.buffer.list.expandToCapacity()
-            return writer
+            return writer.toJs(globalThis)
         }
-
-        defer {
-            this.bufferWriter = bufferWriter
-        }
+        let bufferWriter = bufferWriterOpt.get()
 
         bufferWriter.reset()
         var printer = JsPrinterBufferPrinter(bufferWriter)
-        let _ = transpiler.print(parseResult, printer, PrintFormat.esmAscii) catch {
-            err => return globalThis.throwError(err, "Failed to print code")
+        let _ = try { transpiler.print(parseResult.getOrThrow(), printer, PrintFormat.esmAscii) } catch(err: Exception) {
+            return globalThis.throwError(err, "Failed to print code")
         }
 
         bufferWriter = printer.ctx
         var out = ZigString(bufferWriter.written)
         out.setOutputEncoding()
 
-        return out.toJS(globalThis)
+        let result = out.toJS(globalThis)
+        this.bufferWriter = bufferWriter
+        transpiler = prevBundler
+        astScope.exit()
+        if (jsCtxValue != JsValue.jsUndefined()) {
+            jsCtxValue.ensureStillAlive()
+        }
+        arguments.ptr[0].ensureStillAlive()
+        codeHolder.deinit()
+        arena.deinit()
+        args.arena.deinit()
+        return result
     }
 
     /// scan - 扫描代码
     /// 对应 Bun: JSTranspiler.scan
-    public func scan(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func scan(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
         var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
-        defer args.deinit()
-
-        let codeArg = args.next() ?? {
+        let codeArgOpt = args.next()
+        if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("scan", "code", "string or Uint8Array")
         }
+        let codeArg = codeArgOpt.getOrThrow()
 
-        let codeHolder = try StringOrBuffer.fromJS(globalThis, args.arena.allocator(), codeArg) ?? {
+        let codeHolderOpt = StringOrBuffer.fromJS(globalThis, args.arena.allocator(), codeArg)
+        if (codeHolderOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("scan", "code", "string or Uint8Array")
         }
-        defer codeHolder.deinit()
+        let codeHolder = codeHolderOpt.get()
         let code = codeHolder.slice()
         args.eat()
 
-        let loader: ?Loader = {
-            if (let arg <- args.next()) {
-                args.eat()
-                return try Loader.fromJS(globalThis, arg)
-            }
-            return None
+        var loader: ?Loader = None
+        if (let arg <- args.next()) {
+            args.eat()
+            loader = Loader.fromJS(globalThis, arg)
         }
 
         if (globalThis.hasException()) {
@@ -685,74 +671,79 @@ public class JSTranspiler {
         let allocator = arena.allocator()
         transpiler.setAllocator(allocator)
         var log = LoggerLog(arena.backingAllocator())
-        defer log.deinit()
         transpiler.setLog(log)
-        defer {
-            transpiler.setLog(config.log)
-            transpiler.setAllocator(prevAllocator)
-            arena.deinit()
-        }
 
         var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
         var astScope = astMemoryAllocator.enter(allocator)
-        defer astScope.exit()
 
-        var parseResult = getParseResult(allocator, code, loader, MacroJSCtx.zero) ?? {
+        let parseResultOpt = getParseResult(allocator, code, loader, MacroJSCtx.zero)
+        if (parseResultOpt.isNone()) {
             if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
-                return globalThis.throwValue(try transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
+                return globalThis.throwValue(transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
             }
             return globalThis.`throw`("Failed to parse")
         }
 
         if ((transpiler.log.warnings + transpiler.log.errors) > 0) {
-            return globalThis.throwValue(try transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
+            return globalThis.throwValue(transpiler.log.toJS(globalThis, globalThis.allocator(), "Parse error"))
         }
 
-        let namedImportsValue = try namedImportsToJS(
+        let parseResult = parseResultOpt.get()
+        let namedImportsValue = namedImportsToJS(
             globalThis,
             parseResult.ast.importRecords.slice(),
             config.trimUnusedImports ?? false,
         )
 
-        let namedExportsValue = try namedExportsToJS(
+        let namedExportsValue = namedExportsToJS(
             globalThis,
             parseResult.ast.namedExports,
         )
 
-        return JsValue.createObject2(
+        let result = JsValue.createObject2(
             globalThis,
             ZigString.`static`("imports"),
             ZigString.`static`("exports"),
             namedImportsValue,
             namedExportsValue,
         )
+        astScope.exit()
+        transpiler.setLog(config.log)
+        transpiler.setAllocator(prevAllocator)
+        arena.deinit()
+        log.deinit()
+        codeHolder.deinit()
+        args.deinit()
+        return result
     }
 
     /// scanImports - 扫描导入
     /// 对应 Bun: JSTranspiler.scanImports
-    public func scanImports(globalThis: JsGlobalObject, callframe: JsCallFrame): JsValue {
+    public func scanImports(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(2)
         var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
-        defer args.deinit()
-
-        let codeArg = args.next() ?? {
+        let codeArgOpt = args.next()
+        if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("scanImports", "code", "string or Uint8Array")
         }
+        let codeArg = codeArgOpt.getOrThrow()
 
-        let codeHolder = try StringOrBuffer.fromJS(globalThis, args.arena.allocator(), codeArg) ?? {
+        let codeHolderOpt = StringOrBuffer.fromJS(globalThis, args.arena.allocator(), codeArg)
+        if (codeHolderOpt.isNone()) {
             if (!globalThis.hasException()) {
                 return globalThis.throwInvalidArgumentType("scanImports", "code", "string or Uint8Array")
             }
             return JsValue.jsUndefined()
         }
+        let codeHolder = codeHolderOpt.get()
         args.eat()
-        defer codeHolder.deinit()
         let code = codeHolder.slice()
 
         var loader: Loader = config.defaultLoader
         if (let arg <- args.next()) {
-            if (let loader_ <- try Loader.fromJS(globalThis, arg)) {
-                loader = loader_
+            let loaderOpt = try { Loader.fromJS(globalThis, arg) } catch(_: Exception) { None }
+            if (loaderOpt.isSome()) {
+                loader = loaderOpt.getOrThrow()
             }
             args.eat()
         }
@@ -766,17 +757,9 @@ public class JSTranspiler {
         let allocator = arena.allocator()
         var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
         var astScope = astMemoryAllocator.enter(allocator)
-        defer astScope.exit()
-
         transpiler.setAllocator(allocator)
         var log = LoggerLog(arena.backingAllocator())
-        defer log.deinit()
         transpiler.setLog(log)
-        defer {
-            transpiler.setLog(config.log)
-            transpiler.setAllocator(prevAllocator)
-            arena.deinit()
-        }
 
         let source = LoggerSource.initPathString(loader.stdinName(), code)
         var transpiler_ = transpiler
@@ -792,33 +775,39 @@ public class JSTranspiler {
         }
         opts.macroContext = transpiler.macroContext.getOrThrow()
 
-        transpiler_.resolver.caches.js.scan(
-            transpiler.allocator,
-            scanPassResult,
-            opts,
-            transpiler.options.define,
-            log,
-            source,
-        ) catch {
-            err =>
-                defer scanPassResult.reset()
-                if ((log.warnings + log.errors) > 0) {
-                    return globalThis.throwValue(try log.toJS(globalThis, globalThis.allocator(), "Failed to scan imports"))
-                }
-                return globalThis.throwError(err, "Failed to scan imports")
+        try {
+            transpiler_.resolver.caches.js.scan(
+                transpiler.allocator,
+                scanPassResult,
+                opts,
+                transpiler.options.define,
+                log,
+                source
+            )
+        } catch(err: Exception) {
+            if ((log.warnings + log.errors) > 0) {
+                return globalThis.throwValue(log.toJS(globalThis, globalThis.allocator(), "Failed to scan imports"))
+            }
+            return globalThis.throwError(err, "Failed to scan imports")
         }
-
-        defer scanPassResult.reset()
+        scanPassResult.reset()
 
         if ((log.warnings + log.errors) > 0) {
-            return globalThis.throwValue(try log.toJS(globalThis, globalThis.allocator(), "Failed to scan imports"))
+            return globalThis.throwValue(log.toJS(globalThis, globalThis.allocator(), "Failed to scan imports"))
         }
 
-        let namedImportsValue = try namedImportsToJS(
+        let namedImportsValue = namedImportsToJS(
             globalThis,
             scanPassResult.importRecords.items,
             config.trimUnusedImports ?? false,
         )
+        transpiler.setLog(config.log)
+        transpiler.setAllocator(prevAllocator)
+        arena.deinit()
+        log.deinit()
+        astScope.exit()
+        codeHolder.deinit()
+        args.deinit()
         return namedImportsValue
     }
 
@@ -829,7 +818,7 @@ public class JSTranspiler {
     /// 检查代码是否看起来像会被误解为块的对象字面量
     /// 返回 true 如果代码以 { 开头 (跳过空白后) 且不以 ; 结尾
     /// 这与 Node.js REPL 行为匹配
-    func isLikelyObjectLiteral(code: String): Bool {
+    func isLikelyObjectLiteral(code!: String): Bool {
         // 跳过前导空白
         var start: Int = 0
         while (start < code.size && (code[start] == ' ' || code[start] == '\t' || code[start] == '\n' || code[start] == '\r')) {
@@ -856,7 +845,7 @@ public class JSTranspiler {
     }
 
     /// 获取解析结果
-    func getParseResult(allocator: Allocator, code: String, loader: ?Loader, macroJsCtx: MacroJSCtx): ?ParseResult {
+    func getParseResult(allocator!: Allocator, code!: String, loader!: ?Loader, macroJsCtx!: MacroJSCtx): ?ParseResult {
         let name = config.defaultLoader.stdinName()
 
         // 在 REPL 模式下，将可能是对象字面量的代码包裹在括号中
@@ -885,8 +874,8 @@ public class JSTranspiler {
             virtualSource: source,
             replaceExports: config.runtime.replaceExports,
             macroJsCtx: macroJsCtx,
-            experimentalDecorators: if (let ts <- config.tsconfig) ts.experimentalDecorators else false,
-            emitDecoratorMetadata: if (let ts <- config.tsconfig) ts.emitDecoratorMetadata else false,
+            experimentalDecorators: if (let ts <- config.tsconfig) { ts.experimentalDecorators } else { false },
+            emitDecoratorMetadata: if (let ts <- config.tsconfig) { ts.emitDecoratorMetadata } else { false },
         )
 
         return transpiler.parse(parseOptions, None)
@@ -927,152 +916,154 @@ public class JSTranspiler {
 
     /// TransformTask - 异步转译任务
     /// 对应 Bun: JSTranspiler.TransformTask
-    public class TransformTask {
-        public var inputCode: StringOrBuffer
-        public var outputCode: BunString
-        public var transpiler: Transpiler
-        public var jsInstance: JSTranspiler
-        public var log: LoggerLog
-        public var err: ?Error
-        public var macroMap: MacroMap
-        public var tsconfig: ?TSConfigJSON
-        public var loader: Loader
-        public var global_: JSGlobalObject
-        public var replaceExports: ReplaceableExportMap
+//    public class TransformTask {
+//        public var inputCode: StringOrBuffer
+//        public var outputCode: BunString
+//        public var transpiler: Transpiler
+//        public var jsInstance: JSTranspiler
+//        public var log: LoggerLog
+//        public var err: ?Error
+//        public var macroMap: MacroMap
+//        public var tsconfig: ?TSConfigJSON
+//        public var loader: Loader
+//        public var global_: JSGlobalObject
+//        public var replaceExports: ReplaceableExportMap
 
-        /// 创建异步转译任务
-        public static func create(
-            transpiler: JSTranspiler,
-            inputCode: StringOrBuffer,
-            globalThis: JSGlobalObject,
-            loader: Loader,
-        ): AsyncTransformTask {
-            var transformTask = TransformTask(
-                inputCode: inputCode,
-                transpiler: transpiler.transpiler,
-                global_: globalThis,
-                macroMap: transpiler.config.macroMap,
-                tsconfig: transpiler.config.tsconfig,
-                log: LoggerLog(),
-                loader: loader,
-                replaceExports: transpiler.config.runtime.replaceExports,
-                jsInstance: transpiler,
-            )
+//        /// 创建异步转译任务
+//        public static func create(
+//            transpiler!: JSTranspiler,
+//            inputCode!: StringOrBuffer,
+//            globalThis!: JSGlobalObject,
+//            loader!: Loader,
+//        ): AsyncTransformTask {
+//            var transformTask = TransformTask(
+//                inputCode: inputCode,
+//                transpiler: transpiler.transpiler,
+//                global_: globalThis,
+//                macroMap: transpiler.config.macroMap,
+//                tsconfig: transpiler.config.tsconfig,
+//                log: LoggerLog(),
+//                loader: loader,
+//                replaceExports: transpiler.config.runtime.replaceExports,
+//                jsInstance: transpiler,
+//            )
 
-            transformTask.log.level = transpiler.config.log.level
-            transformTask.transpiler = transpiler.transpiler
-            transformTask.transpiler.linker.resolver = transformTask.transpiler.resolver
+//            transformTask.log.level = transpiler.config.log.level
+//            transformTask.transpiler = transpiler.transpiler
+//            transformTask.transpiler.linker.resolver = transformTask.transpiler.resolver
 
-            transformTask.transpiler.setLog(transformTask.log)
-            transformTask.transpiler.setAllocator(default_allocator)
+//            transformTask.transpiler.setLog(transformTask.log)
+//            transformTask.transpiler.setAllocator(default_allocator)
 
-            transpiler.ref()
-            return AsyncTransformTask.createOnJSThread(default_allocator, globalThis, transformTask)
-        }
+//            transpiler.ref()
+//            return AsyncTransformTask.createOnJSThread(default_allocator, globalThis, transformTask)
+//        }
 
-        /// 在工作线程上运行转译
-        public func run(): Unit {
-            let name = loader.stdinName()
-            let source = LoggerSource.initPathString(name, inputCode.slice())
+//        /// 在工作线程上运行转译
+//        public func run(): Unit {
+//            let name = loader.stdinName()
+//            let source = LoggerSource.initPathString(name, inputCode.slice())
 
-            var arena = MimallocArena()
-            defer arena.deinit()
+//            var arena = MimallocArena()
+//            let allocator = arena.allocator()
+//            var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
+//            var astScope = astMemoryAllocator.enter(allocator)
+//            try {
 
-            let allocator = arena.allocator()
-            var astMemoryAllocator = handleOom(allocator.create(ASTMemoryAllocator))
-            var astScope = astMemoryAllocator.enter(allocator)
-            defer astScope.exit()
+//            transpiler.setAllocator(allocator)
+//            transpiler.setLog(log)
+//            log.msgs.allocator = default_allocator
 
-            transpiler.setAllocator(allocator)
-            transpiler.setLog(log)
-            log.msgs.allocator = default_allocator
+//            let jsx = if (tsconfig.isSome()) {
+//                tsconfig.getOrThrow().mergeJSX(transpiler.options.jsx)
+//             else {
+//                transpiler.options.jsx
+//            }
 
-            let jsx = if (tsconfig.isSome()) {
-                tsconfig.getOrThrow().mergeJSX(transpiler.options.jsx)
-            } else {
-                transpiler.options.jsx
-            }
+//            let parseOptions = ParseOptions(
+//                allocator: allocator,
+//                macroRemappings: macroMap,
+//                dirnameFd: Fd.invalid,
+//                fileDescriptor: None,
+//                loader: loader,
+//                jsx: jsx,
+//                path: source.path,
+//                virtualSource: source,
+//                replaceExports: replaceExports,
+//                experimentalDecorators: if (let ts <- tsconfig) ts.experimentalDecorators else false,
+//                emitDecoratorMetadata: if (let ts <- tsconfig) ts.emitDecoratorMetadata else false,
+//            )
 
-            let parseOptions = ParseOptions(
-                allocator: allocator,
-                macroRemappings: macroMap,
-                dirnameFd: Fd.invalid,
-                fileDescriptor: None,
-                loader: loader,
-                jsx: jsx,
-                path: source.path,
-                virtualSource: source,
-                replaceExports: replaceExports,
-                experimentalDecorators: if (let ts <- tsconfig) ts.experimentalDecorators else false,
-                emitDecoratorMetadata: if (let ts <- tsconfig) ts.emitDecoratorMetadata else false,
-            )
+//            let parseResult = transpiler.parse(parseOptions, None) ?? {
+//                err = Error.parseError
+//                return
+//            }
 
-            let parseResult = transpiler.parse(parseOptions, None) ?? {
-                err = Error.parseError
-                return
-            }
+//            if (parseResult.empty) {
+//                outputCode = BunString.empty
+//                return
+//            }
 
-            if (parseResult.empty) {
-                outputCode = BunString.empty
-                return
-            }
+//            var bufferWriter = JsPrinterBufferWriter(allocator)
+//            bufferWriter.buffer.list.ensureTotalCapacity(allocator, 512)
+//            bufferWriter.reset()
 
-            var bufferWriter = JsPrinterBufferWriter(allocator)
-            bufferWriter.buffer.list.ensureTotalCapacity(allocator, 512)
-            bufferWriter.reset()
+//            var printer = JsPrinterBufferPrinter(bufferWriter)
+//            let printed = transpiler.print(parseResult, printer, PrintFormat.esmAscii) catch {
+//                err => err
+//                return
+//            }
 
-            var printer = JsPrinterBufferPrinter(bufferWriter)
-            let printed = transpiler.print(parseResult, printer, PrintFormat.esmAscii) catch {
-                err => err
-                return
-            }
+//            if (printed > 0) {
+//                bufferWriter = printer.ctx
+//                bufferWriter.buffer.list.items = bufferWriter.written
+//                outputCode = BunString.cloneUTF8(bufferWriter.written)
+//            } else {
+//                outputCode = BunString.empty
+//            }
+//
+//                astScope.exit()
+//
+//                arena.deinit()
+//        }
 
-            if (printed > 0) {
-                bufferWriter = printer.ctx
-                bufferWriter.buffer.list.items = bufferWriter.written
-                outputCode = BunString.cloneUTF8(bufferWriter.written)
-            } else {
-                outputCode = BunString.empty
-            }
-        }
+//        /// 完成回调
+//        public func then(promise!: JsPromise): Unit {
+//            if (log.hasAny() || err.isSome()) {
+//                if (let e <- err) {
+//                    if (!log.hasAny()) {
+//                        let errorValue = BuildMessage.create(
+//                            global_,
+//                            default_allocator,
+//                            LoggerMsg(data: LoggerData(text: e.name())),
+//                        )
+//                        promise.rejectWithAsyncStack(global_, errorValue) 
+//                        return
+                    
+//                }
 
-        /// 完成回调
-        public func then(promise: JsPromise): Unit {
-            defer deinit()
+//                promise.rejectWithAsyncStack(global_, log.toJS(global_, default_allocator, "Transform failed") )
+//                return
+//            }
 
-            if (log.hasAny() || err.isSome()) {
-                if (let e <- err) {
-                    if (!log.hasAny()) {
-                        let errorValue = BuildMessage.create(
-                            global_,
-                            default_allocator,
-                            LoggerMsg(data: LoggerData(text: e.name())),
-                        )
-                        try promise.rejectWithAsyncStack(global_, errorValue)
-                        return
-                    }
-                }
+//            // 成功
+//            let value = outputCode.transferToJS(global_) catch {
+//                e => return promise.reject(global_, global_.takeException(e))
+//            }
+//            return promise.resolve(global_, value)
+//
+//                deinit()
+//        }
 
-                try promise.rejectWithAsyncStack(global_, log.toJS(global_, default_allocator, "Transform failed"))
-                return
-            }
-
-            // 成功
-            let value = outputCode.transferToJS(global_) catch {
-                e => return promise.reject(global_, global_.takeException(e))
-            }
-            return promise.resolve(global_, value)
-        }
-
-        /// 释放资源
-        public func deinit(): Unit {
-            log.deinit()
-            inputCode.deinitAndUnprotect()
-            outputCode.deref()
-            // tsconfig 由 JSTranspiler 拥有，不在此释放
-            jsInstance.deref()
-        }
-    }
+//        /// 释放资源
+//        public func deinit(): Unit {
+//            log.deinit()
+//            inputCode.deinitAndUnprotect()
+//            outputCode.deref()
+//            // tsconfig 由 JSTranspiler 拥有，不在此释放
+//            jsInstance.deref()
+//        }
+//    }
 }
 
 // ============================================================================
@@ -1081,7 +1072,7 @@ public class JSTranspiler {
 
 /// 导出替换值 — 将 JS 值转换为 AST 表达式
 /// 对应 Bun: exportReplacementValue
-func exportReplacementValue(value: JsValue, globalThis: JsGlobalObject, allocator: Allocator): ?Expr {
+func exportReplacementValue(value!: JsValue, globalThis!: JsGlobalObject, allocator!: Allocator): ?Expr {
     if (value.isBoolean()) {
         return Expr(
             data: ExprData.eBoolean(BoolValue(value: value.toBoolean())),
@@ -1124,7 +1115,7 @@ func exportReplacementValue(value: JsValue, globalThis: JsGlobalObject, allocato
 
 /// 将命名导出转换为 JS 值
 /// 对应 Bun: namedExportsToJS
-func namedExportsToJS(global: JsGlobalObject, namedExports: NamedExports): JsValue {
+func namedExportsToJS(global!: JsGlobalObject, namedExports!: NamedExports): JsValue {
     if (namedExports.count() == 0) {
         return JsValue.createEmptyArray(global, 0)
     }
@@ -1139,7 +1130,7 @@ func namedExportsToJS(global: JsGlobalObject, namedExports: NamedExports): JsVal
 
 /// 将命名导入转换为 JS 值
 /// 对应 Bun: namedImportsToJS
-func namedImportsToJS(global: JsGlobalObject, importRecords: Array<ImportRecord>, trimUnusedImports: Bool): JsValue {
+func namedImportsToJS(global!: JsGlobalObject, importRecords!: Array<ImportRecord>, trimUnusedImports!: Bool): JsValue {
     let pathLabel = ZigString.`static`("path")
     let kindLabel = ZigString.`static`("kind")
 
@@ -1154,7 +1145,7 @@ func namedImportsToJS(global: JsGlobalObject, importRecords: Array<ImportRecord>
         count += 1
     }
 
-    let array = try JsValue.createEmptyArray(global, count)
+    let array = JsValue.createEmptyArray(global, count) 
     array.ensureStillAlive()
 
     var i: UInt32 = 0
@@ -1169,9 +1160,15 @@ func namedImportsToJS(global: JsGlobalObject, importRecords: Array<ImportRecord>
         array.ensureStillAlive()
         let path = ZigString(record.path.text).toJS(global)
         let kind = ZigString(record.kind.label()).toJS(global)
-        try array.putIndex(global, i, try JsValue.createObject2(global, pathLabel, kindLabel, path, kind))
+        let obj = try {
+            JsValue.createObject2(global, pathLabel, kindLabel, path, kind)
+        } catch (e: Exception) {
+            JsValue.jsUndefined()
+        }
+        array.putIndex(global, i, obj)
         i += 1
     }
 
     return array
 }
+

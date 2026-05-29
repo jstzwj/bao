@@ -4,7 +4,8 @@ package bao_runtime.test_runner
 import bao_collections.ArrayList
 import bao_core.{Allocator, defaultAllocator}
 import bao_event_loop.Timespec
-import bao_jsc.JSGlobalObject
+import bao_jsc.{CallFrame, ExceptionList, JSGlobalObject, JsObject, JsValue, JSPromiseStatus, JsCallback}
+import bao_core.Output
 
 // ========== ScopeMode ==========
 public enum ScopeMode {
@@ -22,6 +23,16 @@ public enum ScopeMode {
 
     public operator func !=(other: ScopeMode): Bool {
         !(this == other)
+    }
+
+    public func toString(): String {
+        match (this) {
+            case normal => "normal"
+            case skip => "skip"
+            case todo => "todo"
+            case failing => "failing"
+            case filteredOut => "filteredOut"
+        }
     }
 }
 
@@ -176,6 +187,25 @@ public class DescribeScope {
             target = scope.base.parent
         }
     }
+
+    /// 追加子 describe 作用域
+    /// 对应 Bun: DescribeScope.appendDescribe
+    public func appendDescribe(name: String, baseCfg: BaseScopeCfg): DescribeScope {
+        let bscope = BaseScope()
+        let child = DescribeScope.create(defaultAllocator, bscope)
+        entries.append(TestScheduleEntry.describe(child))
+        return child
+    }
+
+    /// 追加测试条目
+    /// 对应 Bun: DescribeScope.appendTest
+    public func appendTest(name: String, callback: ?JsValue, cfg: ExecutionEntryCfg, baseCfg: BaseScopeCfg, phase: AddedInPhase): ExecutionEntry {
+        let entry = ExecutionEntry()
+        let bscope = BaseScope()
+        entry.base = bscope
+        entries.append(TestScheduleEntry.testCallback(entry))
+        return entry
+    }
 }
 
 // ========== DescribeScopeHookTag ==========
@@ -296,6 +326,14 @@ public class BunTestPtr {
     public func dupe(): BunTestPtr { refCount += 1; return this }
     public func deref() { refCount -= 1; if (refCount == 0) { ptr = None } }
     public func hasOneRef(): Bool { return refCount == 1 }
+
+    /// 委托: 将结果添加到内部 BunTest
+    public func addResult(result: RefDataValue): Unit {
+        match (ptr) {
+            case Some(buntest) => buntest.addResult(result)
+            case None => ()
+        }
+    }
 }
 
 public class BunTestPtrWeak {
@@ -334,6 +372,7 @@ public class BunTest {
     public var reporter: ?CommandLineReporter = None
     public var snapshots: Snapshots
     public var execution_: Execution   // execution state
+    public var timer: EventLoopTimer = EventLoopTimer()
 
     public init(gpa: Allocator, bunTest: BunTestRoot, fileId: UInt32) {
         this.bunTestRoot = bunTest
@@ -354,7 +393,7 @@ public class BunTest {
 
     /// 处理未捕获异常
     /// 对应 Bun: bun_test.zig onUncaughtException
-    public func onUncaughtException(globalThis: JSGlobalObject, exception: Any, isRejection: Bool, userData: RefDataValue) {
+    public func onUncaughtException(globalThis: JSGlobalObject, exception: JsValue, isRejection: Bool, userData: RefDataValue) {
         // 根据当前阶段决定处理策略
         let handlingResult: HandleUncaughtExceptionResult = match (phase) {
             case TestPhase.collection =>
@@ -372,20 +411,37 @@ public class BunTest {
                 ()
             case HandleUncaughtExceptionResult.showHandledError =>
                 // 显示错误但不增加未处理错误计数
-                // TODO: 调用 vm.runErrorHandler(exception)
-                ()
+                // 对应 Bun: globalThis.bunVM().runErrorHandler(exception.?, null)
+                let vm = globalThis.bunVM()
+                vm.runErrorHandler(exception, Option<ExceptionList>.None)
             case HandleUncaughtExceptionResult.showUnhandledErrorBetweenTests =>
                 // 测试之间的未处理错误
-                // TODO: 增加 unhandled_errors_between_tests 计数
-                // TODO: 打印 "Unhandled error between tests" 横幅
-                // TODO: 调用 vm.runErrorHandler(exception)
-                ()
+                // 对应 Bun: reporter.jest.unhandled_errors_between_tests += 1
+                if (reporter.isSome()) {
+                    reporter.getOrThrow().jest.unhandledErrorsBetweenTests += 1
+                }
+                // 对应 Bun: 打印 "Unhandled error between tests" 横幅
+                Output.prettyError("\n<b><d>#<r> <red><b>Unhandled error<r><d> between tests<r>\n<d>-------------------------------<r>\n")
+                Output.flush()
+                // 对应 Bun: globalThis.bunVM().runErrorHandler(exception.?, null)
+                let vm = globalThis.bunVM()
+                vm.runErrorHandler(exception, Option<ExceptionList>.None)
+                Output.prettyError("<r><d>-------------------------------<r>\n\n")
+                Output.flush()
             case HandleUncaughtExceptionResult.showUnhandledErrorInDescribe =>
                 // describe 块中的未处理错误
-                // TODO: 增加 unhandled_errors_between_tests 计数
-                // TODO: 打印 "Unhandled error" 横幅
-                // TODO: 调用 vm.runErrorHandler(exception)
-                ()
+                // 对应 Bun: reporter.jest.unhandled_errors_between_tests += 1
+                if (reporter.isSome()) {
+                    reporter.getOrThrow().jest.unhandledErrorsBetweenTests += 1
+                }
+                // 对应 Bun: 打印 "Unhandled error" 横幅
+                Output.prettyError("\n<b><d>#<r> <red><b>Unhandled error<r><d> between tests<r>\n<d>-------------------------------<r>\n")
+                Output.flush()
+                // 对应 Bun: globalThis.bunVM().runErrorHandler(exception.?, null)
+                let vm = globalThis.bunVM()
+                vm.runErrorHandler(exception, Option<ExceptionList>.None)
+                Output.prettyError("<r><d>-------------------------------<r>\n\n")
+                Output.flush()
         }
     }
 
@@ -398,18 +454,49 @@ public class BunTest {
 
         if (doneParameter) {
             // 异步模式：创建 DoneCallback 并绑定为 done 参数
-            // TODO: 创建 DoneCallback.createUnbound(globalThis)
-            // TODO: 绑定为 JS 函数参数
-            // TODO: 调用 vm.eventLoop().runCallbackWithResultAndForcefullyDrainMicrotasks()
+            // 对应 Bun: done_callback = DoneCallback.createUnbound(globalThis)
+            let doneCallback = DoneCallback.createUnbound(globalThis)
+            // 对应 Bun: done_arg = DoneCallback.bind(done_callback, globalThis)
+            let doneArg = DoneCallback.bind(doneCallback, globalThis)
+            if (doneArg.isNone()) {
+                // 绑定失败，处理异常
+                buntest.onUncaughtException(globalThis, JsValue.undefined(), false, data)
+                return Some(data)
+            }
+
+            // 对应 Bun: this.updateMinTimeout(globalThis, timeout)
+            buntest.updateMinTimeout(timeout)
+
+            // 对应 Bun: vm.eventLoop().runCallbackWithResultAndForcefullyDrainMicrotasks()
+            // 简化实现: EventLoop.runCallback 返回 Unit, 无法获取回调结果
+            let vm = globalThis.bunVM()
+            let args = ArrayList<JsValue>()
+            args.append(doneArg.getOrThrow())
+            let el = vm.eventLoop
+            let jsCallbackOpt = callback as JsCallback
+            if (jsCallbackOpt.isNone()) { return Some(data) }
+            el.runCallback(jsCallbackOpt.getOrThrow(), globalThis.globalThis, JsValue.jsUndefined(), args)
+
+            // 对应 Bun: done_callback.ensureStillAlive()
+            doneCallback.ensureStillAlive()
+
             // 返回 None 表示异步等待
             return None
         }
 
         // 同步模式：直接调用回调
-        // TODO: 调用 vm.eventLoop().runCallbackWithResultAndForcefullyDrainMicrotasks()
-        // 处理 JS 异常和 Promise rejection
+        // 对应 Bun: this.updateMinTimeout(globalThis, timeout)
+        buntest.updateMinTimeout(timeout)
 
-        // 临时实现：返回 data 表示同步完成
+        // 对应 Bun: vm.eventLoop().runCallbackWithResultAndForcefullyDrainMicrotasks()
+        // 简化实现: EventLoop.runCallback 返回 Unit, 无法获取回调结果
+        let vm = globalThis.bunVM()
+        let args = ArrayList<JsValue>()
+        let el = vm.eventLoop
+        let jsCallbackOpt = callback as JsCallback
+        if (jsCallbackOpt.isNone()) { return Some(data) }
+        el.runCallback(jsCallbackOpt.getOrThrow(), globalThis.globalThis, JsValue.jsUndefined(), args)
+
         return Some(data)
     }
 
@@ -492,9 +579,33 @@ public class BunTest {
         match (phase) {
             case TestPhase.collection =>
                 // Collection -> Execution
-                // 生成测试执行顺序并加载到执行引擎
-                // TODO: 使用 Order 生成执行顺序（支持 shuffle）
+                // 对应 Bun: 生成测试执行顺序并加载到执行引擎
                 phase = TestPhase.execution
+
+                // 对应 Bun: debug.dumpDescribe(this.collection.root_scope)
+                Debug.dumpDescribe(collection_.rootScope)
+
+                // 对应 Bun: 检查是否有过滤器
+                let hasFilter = if (reporter.isSome()) {
+                    reporter.getOrThrow().jest.filterRegex.isSome()
+                } else {
+                    false
+                }
+
+                // 对应 Bun: Order.init(...)
+                let orderCfg = Config(alwaysUseHooks: collection_.rootScope.base.only == OnlyMode.no && !hasFilter, randomize: false)
+                let order = Order(gpa: gpa, arena: gpa, cfg: orderCfg)
+
+                // 对应 Bun: order.generateOrderDescribe(root_scope)
+                // 注意: generateOrderDescribe 内部已处理 beforeAll/afterAll hooks
+                order.generateOrderDescribe(current: collection_.rootScope)
+
+                // 对应 Bun: this.execution.loadFromOrder(&order)
+                execution_.loadFromOrder(order)
+
+                // 对应 Bun: debug.dumpOrder(&this.execution)
+                Debug.dumpOrder(execution_)
+
                 return AdvanceResult.cont
             case TestPhase.execution =>
                 // Execution -> Done
@@ -509,28 +620,119 @@ public class BunTest {
     /// 更新最小超时
     /// 对应 Bun: bun_test.zig updateMinTimeout
     private func updateMinTimeout(minTimeout: Timespec): Unit {
-        // TODO: 与当前定时器比较，如果新超时更早则更新事件循环定时器
+        // 对应 Bun: 只有当新超时比当前超时更早时才设置定时器
+        // 这意味着我们无法取消一个不必要的定时器
+        if (minTimeout.orderIgnoreEpoch(timer.next)) {
+            // 对应 Bun: 如果当前定时器不是 epoch，先移除
+            if (!timer.next.isEpoch()) {
+                let vm = VirtualMachine.get()
+                vm.timer.remove(timer)
+            }
+
+            // 对应 Bun: 设置新的定时器
+            timer.next = minTimeout
+
+            // 对应 Bun: 如果新定时器不是 epoch，插入到事件循环
+            if (!timer.next.isEpoch()) {
+                let vm = VirtualMachine.get()
+                vm.timer.insert(timer)
+            }
+        }
     }
 
     public static func ref(strong: BunTestPtr, data: RefDataValue): ?RefData {
-        return RefData(data)
+        return RefData(data, strong.downgrade())
     }
 
     /// Done 回调处理器
     /// 对应 Bun: bun_test.zig bunTestDoneCallback (line 450)
-    public static func bunTestDoneCallback(globalThis: JSGlobalObject, callFrame: Any): Any {
-        // TODO: 从 callframe.this() 提取 DoneCallback
-        // TODO: 获取参数（传给 done(err) 的错误值）
-        // 多次调用保护：如果 called 已为 true，后续调用为 no-op
-        // 首次调用且有错误：调用 globalThis.bunVM().uncaughtException()
-        // 设置 called = true
-        // Ref 管理：获取 this.ref，置空并 deref
-        // 只在最后一个 ref 或有错误时继续
-        // 升级弱引用为强引用
-        // 调用 buntest.addResult(ref_in.phase) 入队阶段结果
-        // 调用 runNextTick() 在下一个事件循环 tick 启动下一个测试
-        return Object()
+    public static func bunTestDoneCallback(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
+        // 对应 Bun: const this = DoneCallback.fromJS(callframe.this())
+        let thisValue = callFrame.`this`()
+        let doneCallback = DoneCallback.fromJS(thisValue)
+        if (doneCallback.isNone()) {
+            globalThis.throwError("Expected callee to be DoneCallback")
+            return JsValue.jsUndefined()
+        }
+        let this_ = doneCallback.getOrThrow()
+
+        // 对应 Bun: const value = callframe.argumentsAsArray(1)[0]
+        let args = callFrame.arguments()
+        let value = if (args.size > 0) { args[0] } else { JsValue.jsUndefined() }
+
+        // 对应 Bun: const was_error = !value.isEmptyOrUndefinedOrNull()
+        let wasError = !value.isEmptyOrUndefinedOrNull()
+
+        // 对应 Bun: 多次调用保护
+        if (this_.called) {
+            // 在 Bun 1.2.20 中，这是 no-op
+            // 在 Jest 中，这是 "Expected done to be called once, but it was called multiple times."
+        } else {
+            // 对应 Bun: error is only reported for the first done() call
+            if (wasError) {
+                let vm = globalThis.bunVM()
+                vm.uncaughtException(globalThis.globalThis, value, false)
+            }
+        }
+
+        // 对应 Bun: this.called = true
+        this_.called = true
+
+        // 对应 Bun: const ref_in = this.ref orelse return .js_undefined
+        let refIn = this_.ref
+        if (refIn.isNone()) {
+            return JsValue.jsUndefined()
+        }
+        let ref = refIn.getOrThrow()
+
+        // 对应 Bun: defer this.ref = null; defer ref_in.deref()
+        this_.ref = None
+        ref.deref()
+
+        // 对应 Bun: const has_one_ref = ref_in.ref_count.hasOneRef()
+        let hasOneRef = ref.hasOneRef()
+
+        // 对应 Bun: const should_run = has_one_ref or was_error
+        let shouldRun = hasOneRef || wasError
+
+        // 对应 Bun: if (!should_run) return .js_undefined
+        if (!shouldRun) {
+            return JsValue.jsUndefined()
+        }
+
+        // 对应 Bun: var strong = ref_in.buntest_weak.upgrade()
+        let strong = ref.buntestWeak.upgrade()
+        if (strong.isNone()) {
+            return JsValue.jsUndefined()
+        }
+        let buntest = strong.getOrThrow()
+
+        // 对应 Bun: buntest.addResult(ref_in.phase)
+        buntest.addResult(ref.phase)
+
+        // 对应 Bun: runNextTick(ref_in.buntest_weak, globalThis, ref_in.phase)
+        runNextTick(ref.buntestWeak, globalThis, ref.phase)
+
+        return JsValue.jsUndefined()
     }
+}
+
+/// 调度下一个 tick 执行测试结果处理
+/// 对应 Bun: runNextTick - 在事件循环下一个 tick 中运行回调
+/// 通过将结果入队到 resultQueue 并触发 BunTest.run 来推进测试执行
+private func runNextTick(buntestWeak: BunTestPtrWeak, globalThis: JSGlobalObject, phase: RefDataValue): Unit {
+    // 尝试升级弱引用获取 BunTestPtr
+    let strongOpt = buntestWeak.upgrade()
+    if (strongOpt.isNone()) { return }
+    let strong = strongOpt.getOrThrow()
+    // 入队结果并运行
+    let buntestOpt = strong.get()
+    if (buntestOpt.isSome()) {
+        let buntest = buntestOpt.getOrThrow()
+        buntest.addResult(phase)
+        BunTest.run(strong, globalThis)
+    }
+    strong.deref()
 }
 
 // ========== RefDataValue ==========
@@ -606,9 +808,14 @@ public class ResultQueue {
 public class RefData {
     public var phase: RefDataValue
     public var refCount: Int64 = 1
-    public init(phase: RefDataValue) { this.phase = phase }
+    public var buntestWeak: BunTestPtrWeak
+    public init(phase: RefDataValue, buntestWeak: BunTestPtrWeak) {
+        this.phase = phase
+        this.buntestWeak = buntestWeak
+    }
     public func dupe(): RefData { refCount += 1; return this }
     public func deref() { refCount -= 1 }
+    public func hasOneRef(): Bool { return refCount == 1 }
     public func bunTest(): ?BunTestPtr { return None }
     public func sequence(buntest: Any): ?ExecutionSequence { return None }
     public func entry(buntest: Any): ?ExecutionEntry { return None }
@@ -675,6 +882,8 @@ public enum GenericHookTag {
 public class CommandLineReporter {
     public var jest: TestRunner
     public var lastPrintedDot: Bool = false
+    public var workerIpcFileIdx: ?UInt32 = None
+    public var reporters: ReporterFlags = ReporterFlags()
     public init() {
         this.jest = TestRunner()
     }
@@ -686,26 +895,58 @@ public class CommandLineReporter {
 
 // ========== Jest (defined in jest.cj) ==========
 
-// ========== JestFile (stub) ==========
+// ========== JestFile ==========
+/// 测试文件信息 — 对应 Bun: JestFile
 public class JestFile {
     public var source: JestFileSource = JestFileSource()
+    public var logErrors: Bool = true
+    public var only: Bool = false
+    public var skip: Bool = false
+    public var todo: Bool = false
     public init() {}
-    public func printIfNeeded() {}
+    /// 如果需要，打印测试结果
+    public func printIfNeeded() {
+        // 在实际 Bun 中, 这里会在测试文件执行完毕后输出结果
+    }
 }
 
+/// 测试文件源信息 — 对应 Bun: JestFileSource
 public class JestFileSource {
     public var path: JestFilePath = JestFilePath()
     public init() {}
 }
 
+/// 测试文件路径 — 对应 Bun: JestFilePath
 public class JestFilePath {
     public var text: String = ""
     public init() {}
 }
 
-// ========== CounterNode (stub) ==========
+// ========== CounterNode ==========
+/// 测试计数器节点 — 对应 Bun: CounterNode
+/// 用于在测试执行期间跟踪每个 describe/test 块的断言计数
 public class CounterNode {
+    public var parent: ?CounterNode = None
+    public var expectCount: UInt32 = 0
+    public var assertCount: UInt32 = 0
     public init() {}
+    public init(parent: CounterNode) {
+        this.parent = Some(parent)
+    }
+    /// 递增 expect 调用计数
+    public func incrementExpect() {
+        expectCount += 1
+        if (let Some(p) <- parent) {
+            p.incrementExpect()
+        }
+    }
+    /// 递增 assert 调用计数
+    public func incrementAssert() {
+        assertCount += 1
+        if (let Some(p) <- parent) {
+            p.incrementAssert()
+        }
+    }
 }
 
 // ========== EventLoopTimer (stub) ==========
@@ -718,11 +959,25 @@ public class EventLoopTimer {
 // ========== EventLoopTimerState ==========
 public enum EventLoopTimerState {
     | Pending | Active | Cancelled | Fired
+
+    public operator func ==(other: EventLoopTimerState): Bool {
+        match (this) {
+            case Pending => match (other) { case Pending => true; case _ => false }
+            case Active => match (other) { case Active => true; case _ => false }
+            case Cancelled => match (other) { case Cancelled => true; case _ => false }
+            case Fired => match (other) { case Fired => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: EventLoopTimerState): Bool {
+        !(this == other)
+    }
 }
 
 // ========== ReporterFlags ==========
 public class ReporterFlags {
     public var dots: Bool = false
+    public var onlyFailures: Bool = false
     public init() {}
 }
 
@@ -765,7 +1020,40 @@ public type Mode = ScopeFunctionsMode
 
 // ========== VirtualMachine stub ==========
 public class VirtualMachine {
+    public var timer: VMTimer = VMTimer()
+    public var isInPreload: Bool = false
+    public var onUnhandledRejectionExceptionList: ArrayList<Any> = ArrayList<Any>()
+    public var debugger: ?DebuggerStub = None
     public init() {}
+    /// 运行错误处理器 - 委托给 BunVirtualMachine 的实现
+    /// 对应 Bun: VirtualMachine.runErrorHandler
+    public func runErrorHandler(exception: JsValue, exceptionList: ?ExceptionList): Unit {
+        // 简化实现: 直接打印错误
+        let str = exception.toString()
+        println("[ERROR] " + str)
+    }
+    /// 获取全局 VM 实例 — 对应 Bun: VirtualMachine.get()
+    public static func get(): VirtualMachine {
+        VirtualMachine()
+    }
+}
+
+/// Debugger stub
+public class DebuggerStub {
+    public var testReporterAgent: TestReporterAgentStub = TestReporterAgentStub()
+    public init() {}
+}
+
+public class TestReporterAgentStub {
+    public func isEnabled(): Bool { return false }
+    public init() {}
+}
+
+// ========== VMTimer stub ==========
+public class VMTimer {
+    public init() {}
+    public func remove(ref: EventLoopTimer): Unit {}
+    public func insert(ref: EventLoopTimer): Unit {}
 }
 
 // ========== FileHandle stub ==========
@@ -780,5 +1068,64 @@ public class FirstLast {
     public init(first: Bool, last: Bool) {
         this.first = first
         this.last = last
+    }
+}
+
+// ========== GlobMatchResult ==========
+public enum GlobMatchResult {
+    | match_
+    | noMatch
+
+    public operator func ==(other: GlobMatchResult): Bool {
+        match (this) {
+            case match_ => match (other) { case match_ => true; case _ => false }
+            case noMatch => match (other) { case noMatch => true; case _ => false }
+        }
+    }
+
+    public operator func !=(other: GlobMatchResult): Bool {
+        !(this == other)
+    }
+}
+
+// ========== GlobMatcher ==========
+/// 简单的通配符匹配器 — 对应 Bun: GlobMatcher
+/// 支持基本的通配符匹配 (* 和 ** 模式)
+public class GlobMatcher {
+    /// 匹配通配符模式
+    /// 对应 Bun: GlobMatcher.match
+    public static func `match`(pattern!: String, path!: String): GlobMatchResult {
+        // 简化实现: 支持基本的通配符匹配
+        if (pattern == "*" || pattern == "**" || pattern == "*/*") {
+            return GlobMatchResult.match_
+        }
+        if (pattern == path) {
+            return GlobMatchResult.match_
+        }
+        // 处理 *.ext 模式
+        if (pattern.startsWith("*.")) {
+            let suffix = pattern.substring(1)
+            if (path.endsWith(suffix)) {
+                return GlobMatchResult.match_
+            }
+        }
+        return GlobMatchResult.noMatch
+    }
+}
+
+// ========== WyHash ==========
+/// 快速哈希 — 对应 Bun: WyHash
+/// 使用简单的 FNV-1a 哈希作为 WyHash 的替代
+public class WyHash {
+    /// 计算字符串的哈希值
+    public static func hash(data: String): UInt64 {
+        // FNV-1a 64-bit 哈希
+        var hash: UInt64 = UInt64(14695981039346656037)
+        for (i in 0..data.size) {
+            let c = data[Int64(i)]
+            hash = hash ^ UInt64(c)
+            hash = hash * UInt64(1099511628211)
+        }
+        return hash
     }
 }

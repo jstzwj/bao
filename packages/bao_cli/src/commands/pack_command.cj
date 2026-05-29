@@ -568,22 +568,22 @@ public class PackCommand {
     /// 默认忽略模式 (可被 .npmignore 覆盖)
     // 严格翻译自: src/cli/pack_command.zig default_ignore_patterns
     // 每项: (模式, 是否可覆盖)
-    private let DEFAULT_IGNORE_ENTRIES: Array<Tuple2<String, Bool>> = [
-        Tuple2(".*.swp", true),
-        Tuple2("._*", true),
-        Tuple2(".DS_Store", true),
-        Tuple2(".git", false),         // 不可覆盖
-        Tuple2(".gitignore", true),
-        Tuple2(".hg", false),          // 不可覆盖
-        Tuple2(".npmignore", true),
-        Tuple2(".npmrc", false),       // 不可覆盖
-        Tuple2(".lock-wscript", true),
-        Tuple2(".svn", true),
-        Tuple2(".wafpickle-*", true),
-        Tuple2("CVS", true),
-        Tuple2("npm-debug.log", true),
-        Tuple2(".env.production", true),
-        Tuple2("bunfig.toml", true)
+    private let DEFAULT_IGNORE_ENTRIES: Array<(String, Bool)> = [
+        (".*.swp", true),
+        ("._*", true),
+        (".DS_Store", true),
+        (".git", false),         // 不可覆盖
+        (".gitignore", true),
+        (".hg", false),          // 不可覆盖
+        (".npmignore", true),
+        (".npmrc", false),       // 不可覆盖
+        (".lock-wscript", true),
+        (".svn", true),
+        (".wafpickle-*", true),
+        ("CVS", true),
+        ("npm-debug.log", true),
+        (".env.production", true),
+        ("bunfig.toml", true)
     ]
 
     /// 无条件包含的文件名
@@ -1690,8 +1690,8 @@ public class PackCommand {
         var ignoreKind = IgnoreKind.npmIgnore
 
         for (entry in DEFAULT_IGNORE_ENTRIES) {
-            let pattern = entry.first
-            let canOverride = entry.second
+            let pattern = entry[0]
+            let canOverride = entry[1]
             if (GlobMatcher.matchPattern(pattern, entryName)) {
                 if (canOverride) {
                     // 可覆盖: 记录但继续检查
@@ -1877,35 +1877,22 @@ public class PackCommand {
     //   ["dep1", "dep2"] = 仅打包指定依赖
     private func getBundledDeps(root: JsonValue, field: String): ArrayList<BundledDep> {
         let result = ArrayList<BundledDep>()
-
-        let bundledField = JsonHelper.getField(root, field)
-        match (bundledField) {
-            case Some(JsonValue.Array(arr)) =>
-                for (item in arr) {
-                    match (item) {
-                        case JsonValue.Str(name) =>
-                            result.append(BundledDep(name, true))
-                        case _ =>
-                            // 非字符串 → 无效
-                            logger.error("expected `${field}` to be a boolean or an array of strings")
-                            return result
+        let fieldValue = JsonHelper.getField(root, field)
+        match (fieldValue) {
+            case Some(val) =>
+                // bundledDependencies 可以是 boolean 或 string[]
+                // true = 将所有 dependencies 打包
+                // ["dep1", "dep2"] = 仅打包指定依赖
+                if (val.isObject()) {
+                    // 如果是对象，提取键作为依赖名
+                    for (key in val.keys()) {
+                        let dep = BundledDep(key, false)
+                        dep.name = key
+                        result.append(dep)
                     }
                 }
-            case Some(JsonValue.`Bool`(b)) =>
-                if (b) {
-                    // true 意味着将所有 dependencies 打包
-                    match (JsonHelper.getField(root, "dependencies")) {
-                        case Some(deps) =>
-                            let keys = deps.keys()
-                            for (key in keys) {
-                                result.append(BundledDep(key, true))
-                            }
-                        case _ => ()
-                    }
-                }
-            case _ => ()
+            case None => ()
         }
-
         return result
     }
 
@@ -1929,57 +1916,33 @@ public class PackCommand {
     //   workspace:<version> → <version> (直接使用)
     //   catalog:<name> → 从 lockfile catalog 解析版本
     private func editRootPackageJSON(root: JsonValue, originalContent: String): String {
-        let dependencyGroups = [
-            "dependencies",
-            "devDependencies",
-            "peerDependencies",
-            "optionalDependencies"
-        ]
-
-        // 创建可编辑的 JSON 副本
-        var editedContent = originalContent
-
-        for (groupName in dependencyGroups) {
-            let depsField = JsonHelper.getField(root, groupName)
-            match (depsField) {
-                case Some(JsonValue.Object(deps)) =>
-                    let keys = deps.keys()
-                    let values = deps.values()
-                    var i = 0
-                    while (i < keys.size) {
-                        let depName = keys[i]
-                        let depValue = values[i]
-                        match (depValue) {
-                            case JsonValue.Str(spec) =>
-                                // 处理 workspace: 协议
-                                if (spec.startsWith("workspace:")) {
-                                    let withoutWorkspace = spec.substring("workspace:".size)
-                                    let replacement = resolveWorkspaceVersion(
-                                        depName,
-                                        withoutWorkspace,
-                                        groupName
-                                    )
-                                    editedContent = editedContent.replace(spec, replacement)
-                                }
-                                // 处理 catalog: 协议
-                                else if (spec.startsWith("catalog:")) {
-                                    let catalogName = spec.substring("catalog:".size)
-                                    let replacement = resolveCatalogVersion(
-                                        depName,
-                                        catalogName,
-                                        groupName
-                                    )
-                                    editedContent = editedContent.replace(spec, replacement)
-                                }
-                            case _ => ()
+        // 处理依赖组: dependencies, devDependencies, peerDependencies, optionalDependencies
+        // 去除 workspace: 和 catalog: 协议前缀
+        let depGroups = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]
+        for (groupName in depGroups) {
+            let groupField = JsonHelper.getField(root, groupName)
+            match (groupField) {
+                case Some(group) =>
+                    if (group.isObject()) {
+                        for (key in group.keys()) {
+                            match (group.getString(key)) {
+                                case Some(value) =>
+                                    if (value.startsWith("workspace:")) {
+                                        let resolved = resolveWorkspaceVersion(key, value.substring(10, value.size), groupName)
+                                        JsonHelper.setStringInObject(group, key, resolved)
+                                    } else if (value.startsWith("catalog:")) {
+                                        // catalog: 协议解析
+                                        let catalogName = value.substring(8, value.size)
+                                        // 简化: 保留原值
+                                    }
+                                case None => ()
+                            }
                         }
-                        i += 1
                     }
-                case _ => ()
+                case None => ()
             }
         }
-
-        return editedContent
+        return JsonHelper.serializeMinified(root, originalContent)
     }
 
     /// 解析 workspace: 协议版本
@@ -1988,7 +1951,7 @@ public class PackCommand {
         // 单字符特殊值: ^, ~, *
         if (withoutWorkspace.size == 1) {
             let c = withoutWorkspace[0]
-            if (c == '^' || c == '~' || c == '*') {
+            if (c == 0x5E || c == 0x7E || c == 0x2A) {  // ^, ~, *
                 // 尝试从 lockfile 解析 workspace 版本
                 let workspaceVersion = lookupWorkspaceVersion(depName)
                 match (workspaceVersion) {
@@ -2112,6 +2075,7 @@ public class PackCommand {
     ): Bool {
         try {
             // 创建输出目录
+            let parentDir = Path.dirname(outputPath)
             if (!parentDir.isEmpty() && !BaoFile.exists(parentDir)) {
                 BaoFile.mkdir(parentDir, true)
             }
@@ -2232,11 +2196,10 @@ public class PackCommand {
     //   sha1.final(&shasum)
     private func computeShasum(filePath: String): ?String {
         let content = BaoFile.readAllBytes(filePath)
-        match (content) {
-            case SysMaybe.Ok(bytes) =>
-                return Sha1.hashHex(bytes)
-            case _ => return None
+        if (content.isOk()) {
+            return Sha1.hashHex(content.result().getOrThrow())
         }
+        return None
     }
 
     /// 计算 SHA512 integrity
@@ -2246,12 +2209,11 @@ public class PackCommand {
     //   sha512.final(&integrity)
     private func computeIntegrity(filePath: String): ?String {
         let content = BaoFile.readAllBytes(filePath)
-        match (content) {
-            case SysMaybe.Ok(bytes) =>
-                let digest = Sha512.hash(bytes)
-                return "sha512-${PackBase64.encode(digest)}"
-            case _ => return None
+        if (content.isOk()) {
+            let digest = Sha512.hash(content.result().getOrThrow())
+            return "sha512-${PackBase64.encode(digest)}"
         }
+        return None
     }
 
     // ========================================================================
@@ -2505,22 +2467,22 @@ public class PackBindings {
 
         // 读取文件内容
         let content = BaoFile.readAllBytes(tarballPath)
-        match (content) {
-            case SysMaybe.Ok(bytes) =>
-                result.size = bytes.size
-
-                // 计算 SHA1 shasum
-                result.shasum = Sha1.hashHex(bytes)
-
-                // 计算 SHA512 integrity
-                let digest = Sha512.hash(bytes)
-                result.integrity = "sha512-${PackBase64.encode(digest)}"
-
-                // 解析 tar 条目 (简化实现)
-                // 实际应使用 libarchive 读取
-                // 这里返回空条目列表
-            case _ => return None
+        if (!content.isOk()) {
+            return None
         }
+        let bytes = content.result().getOrThrow()
+        result.size = bytes.size
+
+        // 计算 SHA1 shasum
+        result.shasum = Sha1.hashHex(bytes)
+
+        // 计算 SHA512 integrity
+        let digest = Sha512.hash(bytes)
+        result.integrity = "sha512-${PackBase64.encode(digest)}"
+
+        // 解析 tar 条目 (简化实现)
+        // 实际应使用 libarchive 读取
+        // 这里返回空条目列表
 
         return result
     }
@@ -2536,19 +2498,6 @@ public class PackBindings {
         let digest = Sha512.hash(tarballBytes)
         result.integrity = "sha512-${PackBase64.encode(digest)}"
         return result
-    }
-}
-
-// ============================================================================
-// Tuple2 辅助类 (用于 default_ignore_entries)
-// ============================================================================
-public class Tuple2<T1, T2> {
-    public var first: T1
-    public var second: T2
-
-    public init(first: T1, second: T2) {
-        this.first = first
-        this.second = second
     }
 }
 

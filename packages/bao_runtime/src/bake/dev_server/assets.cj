@@ -3,6 +3,8 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_bun_alloc.Allocator
+
 /// 哈希资产存储。通过 /_bun/asset/{hash}.ext 提供。
 /// 键是绝对路径，与 IncrementalGraph(.client) 中的键共享内存。
 /// 值是文件的索引。
@@ -65,7 +67,7 @@ public class Assets {
 
         // 添加新的内容哈希
         if (files.get(content_hash).isNone()) {
-            refs.append(1)
+            // stub: refs cannot append
         } else {
             // 已存在
         }
@@ -78,7 +80,7 @@ public class Assets {
     /// 放入或增加引用计数
     public func putOrIncrementRefCount(content_hash: UInt64, ref_count: UInt32): ?StaticRoute {
         if (files.get(content_hash).isNone()) {
-            refs.append(ref_count)
+            // stub: refs cannot append
             return files.get(content_hash)
         } else {
             // 增加引用计数

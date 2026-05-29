@@ -41,7 +41,7 @@ public class MemoryCost {
         var assets: UInt64 = 0
 
         // 计算根路径
-        other_bytes += dev.root.size
+        other_bytes += UInt64(dev.root.size)
         // 路由器
         // other_bytes += dev.router.memoryCost()
         // 路由 bundle
@@ -59,12 +59,12 @@ public class MemoryCost {
         assets += dev.assets.memoryCost()
 
         return MemoryCost(
-            assets: assets,
-            incremental_graph_client: incremental_graph_client,
-            incremental_graph_server: incremental_graph_server,
-            js_code: js_code,
-            other: other_bytes,
-            source_maps: source_maps,
+            incremental_graph_client,
+            incremental_graph_server,
+            js_code,
+            source_maps,
+            assets,
+            other_bytes
         )
     }
 

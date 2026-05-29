@@ -8,6 +8,7 @@ import bao_collections.*
 import bao_io.*
 import bao_path.*
 import bao_sys.*
+import bao_options.*
 import std.convert.*
 
 // ============================================================================
@@ -114,36 +115,8 @@ public enum CAStore {
     }
 }
 
-// ============================================================================
-// 离线模式
-// 严格翻译自: Arguments.zig Bunfig.OfflineMode
-// ============================================================================
-public enum OfflineMode {
-    | Offline
-    | Online
-    | Latest
-}
-
-// ============================================================================
-// 全局缓存策略
-// 严格翻译自: Arguments.zig options.GlobalCache
-// ============================================================================
-public enum GlobalCache {
-    | Auto
-    | Fallback
-    | Force
-    | Disable
-
-    public static func fromString(s: String): ?GlobalCache {
-        match (s) {
-            case "auto" => Some(GlobalCache.Auto)
-            case "fallback" => Some(GlobalCache.Fallback)
-            case "force" => Some(GlobalCache.Force)
-            case "disable" => Some(GlobalCache.Disable)
-            case _ => None
-        }
-    }
-}
+// OfflineMode and GlobalCache are defined in bao_options package
+// Use bao_options.OfflineMode and bao_options.GlobalCache instead
 
 // ============================================================================
 // 热重载模式

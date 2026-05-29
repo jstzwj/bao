@@ -5,9 +5,19 @@ package bao_runtime.node
 
 import bao_core.*
 import bao_jsc.*
+import bao_jsc.StringBuilder
 import bao_sys.*
 import std.convert.*
 import std.collection.ArrayList
+
+// ============================================================================
+// FFI declarations for POSIX system calls
+// Corresponds to Bun: node_os.zig extern functions
+// ============================================================================
+@C foreign func set_process_priority(pid: Int32, priority: Int32): Int32
+@C foreign func c_sysinfo(buf: CPointer<UInt8>): Int32
+@C foreign func c_getloadavg(loadavg: CPointer<Float64>): Int32
+@C foreign func c_uname(buf: CPointer<UInt8>): Int32
 
 // ============================================================================
 // CPU 时间信息
@@ -666,13 +676,64 @@ public class NodeOsSystem {
     }
 
     // 获取空闲内存（字节）
+    // 对应 Bun: node_os.zig freemem — Linux 使用 sysinfo
+    // sysinfo 结构体 (Linux x86_64):
+    //   uptime     @ 0    (Int64)
+    //   loads      @ 8    (3 * UInt32 = 12 bytes)
+    //   totalram   @ 20   (UInt64)
+    //   freeram    @ 28   (UInt64)
+    //   sharedram  @ 36   (UInt64)
+    //   bufferram  @ 44   (UInt64)
+    //   totalswap  @ 52   (UInt64)
+    //   freeswap   @ 60   (UInt64)
+    //   procs      @ 68   (UInt16)
+    //   totalhigh  @ 72   (UInt64)
+    //   freehigh   @ 80   (UInt64)
+    //   mem_unit   @ 88   (UInt32)
     public static func freemem(): UInt64 {
-        return 0
+        unsafe {
+            let bufSize = UIntNative(256)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            for (i in 0..Int64(256)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let rc = c_sysinfo(bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return 0
+            }
+            // freeram @ offset 28
+            let freeram = (CPointer<UInt64>(CPointer<Unit>(bufPtr + 28))).read()
+            // mem_unit @ offset 88
+            let memUnit = UInt64((CPointer<UInt32>(CPointer<Unit>(bufPtr + 88))).read())
+            free(buf)
+            return freeram * memUnit
+        }
     }
 
     // 获取总内存（字节）
+    // 对应 Bun: node_os.zig totalmem — Linux 使用 sysinfo
     public static func totalmem(): UInt64 {
-        return 0
+        unsafe {
+            let bufSize = UIntNative(256)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            for (i in 0..Int64(256)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let rc = c_sysinfo(bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return 0
+            }
+            // totalram @ offset 20
+            let totalram = (CPointer<UInt64>(CPointer<Unit>(bufPtr + 20))).read()
+            // mem_unit @ offset 88
+            let memUnit = UInt64((CPointer<UInt32>(CPointer<Unit>(bufPtr + 88))).read())
+            free(buf)
+            return totalram * memUnit
+        }
     }
 
     // 获取用户主目录
@@ -681,18 +742,77 @@ public class NodeOsSystem {
     }
 
     // 获取系统负载平均值
+    // 对应 Bun: node_os.zig loadavg — 使用 getloadavg() 或 sysinfo.loads / 65536
     public static func loadavg(): Array<Float64> {
-        return [0.0, 0.0, 0.0]
+        unsafe {
+            let buf = malloc(UIntNative(24))
+            let bufPtr = CPointer<Float64>(buf)
+            let rc = c_getloadavg(bufPtr)
+            if (rc < 0) {
+                free(buf)
+                return [0.0, 0.0, 0.0]
+            }
+            let result = [
+                Float64(bufPtr.read()),
+                Float64((bufPtr + 1).read()),
+                Float64((bufPtr + 2).read())
+            ]
+            free(buf)
+            return result
+        }
     }
 
     // 获取操作系统发行版本
+    // 对应 Bun: node_os.zig release — 使用 uname 系统调用
     public static func osRelease(): String {
-        return "unknown"
+        unsafe {
+            // uname 结构体大小: 约 390 字节 (Linux)
+            // struct utsname {
+            //   char sysname[65];    @ 0
+            //   char nodename[65];   @ 65
+            //   char release[65];    @ 130
+            //   char version[65];    @ 195
+            //   char machine[65];    @ 260
+            // }
+            let bufSize = UIntNative(400)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            for (i in 0..Int64(400)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let rc = c_uname(bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return "unknown"
+            }
+            // release @ offset 65, length 65
+            let releasePtr = bufPtr + 65
+            let release = bufToString(releasePtr, 65)
+            free(buf)
+            return release
+        }
     }
 
     // 获取系统运行时间（秒）
+    // 对应 Bun: node_os.zig uptime — 使用 sysinfo.uptime
     public static func uptime(): Float64 {
-        return 0.0
+        unsafe {
+            let bufSize = UIntNative(256)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            for (i in 0..Int64(256)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let rc = c_sysinfo(bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return 0.0
+            }
+            // uptime @ offset 0, Int64
+            let uptimeVal = (CPointer<Int64>(CPointer<Unit>(bufPtr))).read()
+            free(buf)
+            return Float64(uptimeVal)
+        }
     }
 
     // 获取网络接口信息
@@ -706,23 +826,91 @@ public class NodeOsSystem {
     }
 
     // 设置进程优先级
+    // 对应 Bun: node_os.zig setProcessPriorityImpl
+    // 调用 set_process_priority FFI 函数，错误时抛出 SystemError
     public static func setPriority(pid: Int32, priority: Int32): Unit {
-        // TODO: 实际实现通过 FFI 调用 setpriority
+        let code = unsafe { set_process_priority(pid, priority) }
+        if (code == -2) {
+            throw Exception("ESRCH: no such process")
+        }
+        if (code != 0) {
+            throw Exception("EACCES: set priority failed")
+        }
     }
 
     // 获取操作系统版本
+    // 对应 Bun: node_os.zig version — 使用 uname.version
     public static func osVersion(): String {
-        return ""
+        unsafe {
+            let bufSize = UIntNative(400)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            for (i in 0..Int64(400)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let rc = c_uname(bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return ""
+            }
+            // version @ offset 195, length 65
+            let version = bufToString(bufPtr + 195, 65)
+            free(buf)
+            return version
+        }
     }
 
     // 获取操作系统类型
+    // 对应 Bun: node_os.zig type — 使用 uname.sysname
     public static func osType(): String {
-        return "Linux"
+        unsafe {
+            let bufSize = UIntNative(400)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            for (i in 0..Int64(400)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let rc = c_uname(bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return "Linux"
+            }
+            // sysname @ offset 0, length 65
+            let sysname = bufToString(bufPtr, 65)
+            free(buf)
+            return sysname
+        }
     }
 
     // 获取操作系统架构
+    // 对应 Bun: node_os.zig arch — 使用 uname.machine
     public static func arch(): String {
-        return "x64"
+        unsafe {
+            let bufSize = UIntNative(400)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt8>(buf)
+            for (i in 0..Int64(400)) {
+                (bufPtr + i).write(UInt8(0))
+            }
+            let rc = c_uname(bufPtr)
+            if (rc != 0) {
+                free(buf)
+                return "x64"
+            }
+            // machine @ offset 260, length 65
+            let machine = bufToString(bufPtr + 260, 65)
+            free(buf)
+            // 映射到 Node.js 架构名称
+            match (machine) {
+                case "x86_64" => return "x64"
+                case "aarch64" => return "arm64"
+                case "armv7l" => return "arm"
+                case "ppc64" => return "ppc64"
+                case "s390x" => return "s390x"
+                case "i686" => return "ia32"
+                case _ => return machine
+            }
+        }
     }
 
     // 获取操作系统平台
@@ -749,8 +937,39 @@ public class NodeOsSystem {
     }
 
     // 读取文件内容为字符串
+    // 对应 Bun: node_os.zig - /proc/stat, /proc/cpuinfo 等系统文件读取
+    // 使用 SysFs.openRead / SysFs.read / SysFs.close 实现
     public static func readFileToString(path: String): String {
-        // TODO: 实际实现通过 SysFs 读取
+        let fdResult = SysFs.openRead(path)
+        if (fdResult.isErr()) {
+            return ""
+        }
+        if (let Some(fd) <- fdResult.result()) {
+            var result = ""
+            let bufSize: Int64 = 4096
+            let buf = Array<UInt8>(bufSize, { _ => UInt8(0) })
+            while (true) {
+                let readResult = SysFs.read(fd, buf)
+                if (readResult.isErr()) {
+                    break
+                }
+                if (let Some(bytesRead) <- readResult.result()) {
+                    if (bytesRead == 0) {
+                        break
+                    }
+                    let slice = buf[0..bytesRead]
+                    let newPart = String.fromUtf8(slice)
+                    result = result + newPart
+                    if (bytesRead < bufSize) {
+                        break
+                    }
+                } else {
+                    break
+                }
+            }
+            _ = SysFs.close(fd)
+            return result
+        }
         return ""
     }
 
@@ -782,5 +1001,24 @@ public class NodeOsSystem {
     // 获取 uv_cpu_info（Windows）
     public static func uvCpuInfo(): Array<CPUInfo> {
         return []
+    }
+
+    // ========================================================================
+    // 辅助函数
+    // ========================================================================
+
+    /// 从缓冲区创建字符串（遇到 null 终止符停止）
+    private static func bufToString(buf: CPointer<UInt8>, maxLen: Int64): String {
+        unsafe {
+            var sb = StringBuilder()
+            for (i in 0..maxLen) {
+                let b = (buf + i).read()
+                if (b == UInt8(0)) {
+                    break
+                }
+                sb.append(Rune(Int32(b)))
+            }
+            return sb.toString()
+        }
     }
 }

@@ -55,24 +55,24 @@ public class Bunfig {
         // 解析配置文件
         let expr: BunfigExpr = if (isToml) {
             // 对应 Bun: TOML::parse(source, log, &bump, true)
-            match (BunfigTomlParser.parse(source, log)) {
-                case Ok(e) => e
-                case Err(err) =>
-                    if (log.errorCount + log.warningCount == logCount) {
-                        log.addError("Failed to parse", source)
-                    }
-                    throw BaoError(ErrorCode.ParseError, "Failed to parse bunfig: ${err}")
+            let result = BunfigTomlParser.parse(source, log)
+            if (result.isErr()) {
+                if (log.errorCount + log.warningCount == logCount) {
+                    log.addError("Failed to parse", source)
+                }
+                throw BaoError(ErrorCode.ParseError, "Failed to parse bunfig: ${result.asErr().getOrThrow()}")
             }
+            result.unwrap()
         } else {
             // 对应 Bun: json_parser::parse_ts_config::<true>(source, log, &bump)
-            match (BunfigJsonParser.parse(source, log)) {
-                case Ok(e) => e
-                case Err(err) =>
-                    if (log.errorCount + log.warningCount == logCount) {
-                        log.addError("Failed to parse", source)
-                    }
-                    throw BaoError(ErrorCode.ParseError, "Failed to parse bunfig: ${err}")
+            let result = BunfigJsonParser.parse(source, log)
+            if (result.isErr()) {
+                if (log.errorCount + log.warningCount == logCount) {
+                    log.addError("Failed to parse", source)
+                }
+                throw BaoError(ErrorCode.ParseError, "Failed to parse bunfig: ${result.asErr().getOrThrow()}")
             }
+            result.unwrap()
         }
 
         // 创建解析器并解析
@@ -298,8 +298,8 @@ public class BunfigParser {
                 match (debugExpr.get("editor")) {
                     case Some(editorExpr) =>
                         let s = editorExpr.asString()
-                        if (s.isSome()) {
-                            ctx.debug.editor = s.getOrThrow()
+                        if (!s.isEmpty()) {
+                            ctx.debug.editor = s
                         }
                     case None => ()
                 }
@@ -434,8 +434,8 @@ public class BunfigParser {
         match (testExpr.get("root")) {
             case Some(rootExpr) =>
                 let s = rootExpr.asString()
-                if (s.isSome()) {
-                    ctx.debug.testDirectory = s.getOrThrow()
+                if (!s.isEmpty()) {
+                    ctx.debug.testDirectory = s
                 }
             case None => ()
         }
@@ -818,7 +818,7 @@ public class BunfigParser {
         match (installObj.get("cafile")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isNone() || s.getOrThrow().isEmpty()) {
+                if (s.isEmpty()) {
                     addError("Invalid cafile. Expected a string.")
                 }
                 // install.cafile = s
@@ -834,7 +834,7 @@ public class BunfigParser {
                     let items = expr.asArray()
                     for (item in items) {
                         let s = item.asString()
-                        if (s.isNone() || s.getOrThrow().isEmpty()) {
+                        if (s.isEmpty()) {
                             addError("Invalid CA. Expected a string.")
                         }
                     }
@@ -993,7 +993,7 @@ public class BunfigParser {
                 match (lockfileExpr.get("path")) {
                     case Some(expr) =>
                         let s = expr.asString()
-                        if (s.isSome() && !s.getOrThrow().isEmpty()) {
+                        if (!s.isEmpty()) {
                             // install.lockfilePath = s
                         }
                     case None => ()
@@ -1002,7 +1002,7 @@ public class BunfigParser {
                 match (lockfileExpr.get("savePath")) {
                     case Some(expr) =>
                         let s = expr.asString()
-                        if (s.isSome() && !s.getOrThrow().isEmpty()) {
+                        if (!s.isEmpty()) {
                             // install.saveLockfilePath = s
                         }
                     case None => ()
@@ -1041,7 +1041,7 @@ public class BunfigParser {
         match (installObj.get("globalDir")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isSome() && !s.getOrThrow().isEmpty()) {
+                if (!s.isEmpty()) {
                     // install.globalDir = s
                 }
             case None => ()
@@ -1051,7 +1051,7 @@ public class BunfigParser {
         match (installObj.get("globalBinDir")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isSome() && !s.getOrThrow().isEmpty()) {
+                if (!s.isEmpty()) {
                     // install.globalBinDir = s
                 }
             case None => ()
@@ -1087,7 +1087,7 @@ public class BunfigParser {
                     match (expr.get("dir")) {
                         case Some(v) =>
                             let s = v.asString()
-                            if (s.isSome() && !s.getOrThrow().isEmpty()) {
+                            if (!s.isEmpty()) {
                                 // install.cacheDirectory = s
                             }
                         case None => ()
@@ -1114,7 +1114,7 @@ public class BunfigParser {
                         case Some(scannerExpr) =>
                             expectString(scannerExpr)
                             let s = scannerExpr.asString()
-                            if (s.isSome()) {
+                            if (!s.isEmpty()) {
                                 // install.securityScanner = s
                             }
                         case None => ()
@@ -1243,10 +1243,10 @@ public class BunfigParser {
         match (runExpr.get("shell")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isSome()) {
-                    if (s.getOrThrow() == "bun") {
+                if (!s.isEmpty()) {
+                    if (s == "bun") {
                         ctx.debug.useSystemShell = false
-                    } else if (s.getOrThrow() == "system") {
+                    } else if (s == "system") {
                         ctx.debug.useSystemShell = true
                     } else {
                         addError("Invalid shell, only 'bun' and 'system' are supported")
@@ -1580,8 +1580,8 @@ public class BunfigParser {
         match (serveObj.get("publicPath")) {
             case Some(expr) =>
                 let s = expr.asString()
-                if (s.isSome() && !s.getOrThrow().isEmpty()) {
-                    args.servePublicPath = Some(s.getOrThrow())
+                if (!s.isEmpty()) {
+                    args.servePublicPath = Some(s)
                 }
             case None => ()
         }
@@ -1756,7 +1756,7 @@ private func loadBunfig(cmd: CommandTag, autoLoaded: Bool, configPath: String, c
             Bunfig.parse(cmd, text, ctx)
         case Err(_) =>
             if (!autoLoaded) {
-                throw BaoError(ErrorCode.FileNotFound, "Config file not found: ${configPath}")
+                throw BaoError(ErrorCode.ENOENT, "Config file not found: ${configPath}")
             }
     }
 }
@@ -1784,8 +1784,11 @@ private func hasDefaultLoader(path: String): Bool {
 /// 从源内容中提取文件扩展名
 private func extractExtension(source: String): String {
     let dotIdx = source.lastIndexOf('.')
-    if (dotIdx >= 0 && dotIdx < source.length - 1) {
-        return source.substring(dotIdx + 1)
+    if (dotIdx.isSome()) {
+        let idx = dotIdx.getOrThrow()
+        if (idx < Int64(source.length) - 1) {
+            return source.substring(idx + 1)
+        }
     }
     return ""
 }
@@ -2134,27 +2137,28 @@ public class BunfigTomlParser {
         let lines = content.split("\n")
 
         for (line in lines) {
-            let trimmed = line.trim()
+            let trimmed = line.trimStart().trimEnd()
             if (trimmed.isEmpty() || trimmed.startsWith("#")) {
                 continue
             }
 
             // section header: [section] 或 [section.subsection]
             if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                currentSection = trimmed.substring(1, trimmed.length - 1).trim()
+                currentSection = trimmed.substring(1, Int64(trimmed.length) - 1).trimStart().trimEnd()
                 continue
             }
 
             // key = value
             let eqIdx = trimmed.indexOf('=')
-            if (eqIdx >= 0) {
-                let key = trimmed.substring(0, eqIdx).trim()
-                var value = trimmed.substring(eqIdx + 1).trim()
+            if (eqIdx.isSome()) {
+                let idx = eqIdx.getOrThrow()
+                let key = trimmed.substring(0, idx).trimStart().trimEnd()
+                var value = trimmed.substring(idx + 1).trimStart().trimEnd()
 
                 // 去除引号
                 if ((value.startsWith("\"") && value.endsWith("\"")) ||
                     (value.startsWith("'") && value.endsWith("'"))) {
-                    value = value.substring(1, value.length - 1)
+                    value = value.substring(1, Int64(value.length) - 1)
                 }
 
                 let fullKey = if (currentSection.isEmpty()) {
@@ -2189,9 +2193,10 @@ public class BunfigTomlParser {
     /// 设置嵌套键值
     private static func setNestedKey(obj: BunfigExprObject, key: String, value: BunfigExpr): Unit {
         let dotIdx = key.indexOf('.')
-        if (dotIdx >= 0) {
-            let prefix = key.substring(0, dotIdx)
-            let suffix = key.substring(dotIdx + 1)
+        if (dotIdx.isSome()) {
+            let idx = dotIdx.getOrThrow()
+            let prefix = key.substring(0, idx)
+            let suffix = key.substring(idx + 1)
             match (obj.get(prefix)) {
                 case Some(existing) =>
                     match (existing.data) {
@@ -2215,6 +2220,6 @@ public class BunfigJsonParser {
     public static func parse(content: String, log: BunfigLog): Result<BunfigExpr, String> {
         // 简化的 JSON 解析 - 将 JSON 转为 BunfigExpr
         // 实际实现应调用 bao_parsers 的 JSON 解析器
-        return Err("JSON parser not yet implemented for bunfig")
+        return Result<BunfigExpr, String>.Err("JSON parser not yet implemented for bunfig")
     }
 }

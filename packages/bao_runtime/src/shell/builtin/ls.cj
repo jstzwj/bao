@@ -95,7 +95,13 @@ public class LsCmd {
                 }
                 return Yield.suspended
             case LsState.exec(es) => ()
-                // stub: check task completion
+                // 检查所有任务是否完成
+                if (es.tasksDone >= es.taskCount.load()) {
+                    // 所有 ls 任务完成，输出结果
+                    this.state = LsState.done
+                    return this.bltn().done(ExitCode.exited(0))
+                }
+                // 等待更多任务完成
                 return Yield.suspended
             case LsState.waitingWriteErr =>
                 return Yield.failed
@@ -162,7 +168,90 @@ public class LsCmd {
         if (s.size == 0) {
             return FlagParseResult.done
         }
-        // Stub: simplified flag parsing
+        if (s == "--") {
+            return FlagParseResult.done
+        }
+        if (s == "-a" || s == "--all") {
+            this.opts.showAll = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-A" || s == "--almost-all") {
+            this.opts.showAlmostAll = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-l") {
+            this.opts.longListing = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-R" || s == "--recursive") {
+            this.opts.recursive = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-r" || s == "--reverse") {
+            this.opts.reverseOrder = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-h" || s == "--human-readable") {
+            this.opts.humanReadable = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-S") {
+            this.opts.sortBySize = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-t") {
+            this.opts.sortByTime = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-1") {
+            this.opts.oneFilePerLine = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-p") {
+            this.opts.slashIndicator = true
+            return FlagParseResult.continueParsing
+        }
+        if (s == "-F" || s == "--classify") {
+            this.opts.classify = "always"
+            return FlagParseResult.continueParsing
+        }
+        if (s == "--color") {
+            this.opts.color = "always"
+            return FlagParseResult.continueParsing
+        }
+        if (s.startsWith("--") && s != "--") {
+            // 长选项暂不支持的返回 illegal
+            return FlagParseResult.illegalOption(s)
+        }
+        if (s.startsWith("-") && s.size > 1) {
+            // 组合短选项，如 -al
+            var i: Int64 = 1
+            while (i < s.size) {
+                let c = s[Int64(i)]
+                if (c == 'a') {
+                    this.opts.showAll = true
+                } else if (c == 'A') {
+                    this.opts.showAlmostAll = true
+                } else if (c == 'l') {
+                    this.opts.longListing = true
+                } else if (c == 'r') {
+                    this.opts.reverseOrder = true
+                } else if (c == 'h') {
+                    this.opts.humanReadable = true
+                } else if (c == '1') {
+                    this.opts.oneFilePerLine = true
+                } else if (c == 'p') {
+                    this.opts.slashIndicator = true
+                } else if (c == 'F') {
+                    this.opts.classify = "always"
+                } else {
+                    return FlagParseResult.illegalOption("-" + String(Array<UInt8>([c])))
+                }
+                i++
+            }
+            return FlagParseResult.continueParsing
+        }
+        // 非选项参数，结束解析
         return FlagParseResult.done
     }
 

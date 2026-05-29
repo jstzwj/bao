@@ -3,25 +3,36 @@
 
 package bao_runtime.test_runner
 
-import bao_jsc.{AnyPromise, CallFrame, ConsoleFormatter, ConsoleObject, Formatter, JSGlobalObject, JsError, JsObject, JsValue, JSPromiseStatus, JsVirtualMachine}
+import bao_jsc.{AnyPromise, CallFrame, ConsoleFormatter, ConsoleObject, Formatter, JSGlobalObject, JsError, JsFunction, JsObject, JsValue, JSPromiseStatus, JsVirtualMachine}
 import bao_collections.ArrayList
 import bao_collections.HashMap
 import bao_core.Allocator
 import bao_core.Output
 
-/// Stub for JSC capturedValueGetCached - returns the value directly from expect cache
+/// 从 expect JSValue 上获取缓存的捕获值
+/// 对应 Bun: capturedValueGetCached - 从 JSC 内部属性读取
 func capturedValueGetCached(value: JsValue): ?JsValue {
+    if (value.isEmptyOrUndefinedOrNull()) {
+        return None
+    }
+    let captured = value.get(JsObject.make(), "__captured")
+    if (captured.isSome()) {
+        return captured
+    }
+    // 降级: 返回值本身
     Some(value)
 }
 
-/// Stub for JSC capturedValueSetCached - stores the value in expect cache (no-op stub)
+/// 将捕获的值缓存到 expect JSValue 上
+/// 对应 Bun: capturedValueSetCached - 通过 JSC 内部属性存储
 func capturedValueSetCached(expectValue: JsValue, globalThis: JSGlobalObject, value: JsValue): Unit {
-    // TODO: implement JSC binding to cache the captured value on the expect JSValue
+    expectValue.put(globalThis.globalThis, "__captured", value)
 }
 
-/// Stub for JSC constructorValueSetCached - stores the constructor value in expect cache (no-op stub)
+/// 将构造器值缓存到 expect JSValue 上
+/// 对应 Bun: constructorValueSetCached - 通过 JSC 内部属性存储
 func constructorValueSetCached(expectValue: JsValue, globalThis: JSGlobalObject, value: JsValue): Unit {
-    // TODO: implement JSC binding to cache the constructor value on the expect JSValue
+    expectValue.put(globalThis.globalThis, "__constructor", value)
 }
 
 // ========== Expect supporting types ==========
@@ -35,7 +46,7 @@ public class Counter {
 /// 测试作用域信息
 public class TestScope {
     public var testId: UInt32 = 0
-    public var describe: DescribeScope
+    public var describe: DescribeScope = DescribeScope()
 }
 
 /// Promise模式
@@ -71,8 +82,38 @@ public enum AsymmetricMatcherConstructorType {
     | InstanceOf
 
     public static func fromJS(globalObject: JSGlobalObject, value: JsValue): ?AsymmetricMatcherConstructorType {
-        // Stub: constructor type detection - requires JSC bindings
-        // TODO: implement when JsValue has is*Constructor methods
+        if (value.isEmptyOrUndefinedOrNull()) {
+            return None
+        }
+        // 基于构造器名称判断类型
+        // 对应 Bun: 通过 JSC 的 JSObject::is* 检测
+        if (value.isString()) {
+            return AsymmetricMatcherConstructorType.String
+        }
+        if (value.isNumber()) {
+            return AsymmetricMatcherConstructorType.Number
+        }
+        if (value.isBoolean()) {
+            return AsymmetricMatcherConstructorType.Boolean
+        }
+        if (value.isSymbol()) {
+            return AsymmetricMatcherConstructorType.Symbol
+        }
+        if (value.isObject()) {
+            // 检查是否为数组
+            let name = value.getName(globalObject.globalThis)
+            if (name == "Array") {
+                return AsymmetricMatcherConstructorType.Array
+            }
+            if (name == "Promise") {
+                return AsymmetricMatcherConstructorType.Promise
+            }
+            if (name == "BigInt") {
+                return AsymmetricMatcherConstructorType.BigInt
+            }
+            return AsymmetricMatcherConstructorType.Object
+        }
+        // 默认: InstanceOf
         return AsymmetricMatcherConstructorType.InstanceOf
     }
 
@@ -324,8 +365,10 @@ public class Expect {
     }
 
     /// 读取标志并处理Promise
-    public static func readFlagsAndProcessPromise(instanceValue: JsValue, globalThis: JSGlobalObject, outFlags: UInt8, value: JsValue, anyConstructorType: UInt8): Bool {
+    /// Returns (outFlags, anyConstructorType, success)
+    public static func readFlagsAndProcessPromise(instanceValue: JsValue, globalThis: JSGlobalObject, outFlagsIn: UInt8, value: JsValue, anyConstructorTypeIn: UInt8): (UInt8, UInt8, Bool) {
         var flags = Flags()
+        var anyConstructorType = anyConstructorTypeIn
         if (let Some(instance) <- ExpectCustomAsymmetricMatcher.fromJS(instanceValue)) {
             flags = instance.flags
         } else if (let Some(instance) <- ExpectAny.fromJS(instanceValue)) {
@@ -345,9 +388,9 @@ public class Expect {
             flags = instance.flags
         }
 
-        outFlags = flags.encode()
+        let outFlags = flags.encode()
         let result = processPromise(customLabel: "", flags: flags, globalThis: globalThis, value: value, matcherName: "", matcherParams: "", silent: true)
-        return true
+        return (outFlags, anyConstructorType, true)
     }
 
     /// 获取快照名称
@@ -549,13 +592,15 @@ public class Expect {
 
         let buntestStrong = bunTest() ?? return JsValue.zero
         // defer { buntestStrong.deinit() }
-        let buntest = buntestStrong.get()
+        let buntestOpt = buntestStrong.get()
+        if (buntestOpt.isNone()) { return JsValue.zero }
+        let buntest = buntestOpt.getOrThrow()
 
         let snapshots = buntest.snapshots
         let existing = snapshots.getOrPut(expect: this, targetValue: targetValue, hint: hint)
 
-        let signature = getSignature(matcherName: fnName, args: "<green>expected<r>", not: not)
-        let diffFormatter = DiffFormatter(receivedString: targetValue, expectedString: existing ?? "", globalThis: globalThis, not: not)
+        let signature = getSignature(fnName, "<green>expected<r>", not)
+        let diffFormatter = DiffFormatter(targetValue, existing ?? "", globalThis, not)
 
         if (existing.isNone()) {
             if (not) {
@@ -569,14 +614,18 @@ public class Expect {
 
     /// 静态not属性
     public static func getStaticNot(globalThis!: JSGlobalObject): JsValue {
-        return ExpectStatic.create(globalThis: globalThis, flags: Flags(not: true))
+        let notFlags = Flags()
+        notFlags.not = true
+        return ExpectStatic.create(globalThis: globalThis, flags: notFlags)
     }
 
     /// hasAssertions断言
     public static func hasAssertions(globalThis!: JSGlobalObject): JsValue {
         let buntestStrong = BunTest.cloneActiveStrong() ?? return globalThis.throw_("hasAssertions must be called in a test")
         // defer { buntestStrong.deinit() }
-        let buntest = buntestStrong.get()
+        let buntestOpt = buntestStrong.get()
+        if (buntestOpt.isNone()) { return JsValue.jsUndefined() }
+        let buntest = buntestOpt.getOrThrow()
         let reporter = buntest.reporter ?? return JsValue.jsUndefined()
         let summary = reporter.summary()
         if (summary.expectations == 0) {
@@ -589,16 +638,18 @@ public class Expect {
     public static func assertions(globalThis!: JSGlobalObject, callFrame!: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1 || !arguments[0].isNumber()) {
-            return globalThis.throwInvalidArguments("assertions() requires a number argument")
+            return globalThis.throwInvalidArgumentsValue("assertions() requires a number argument")
         }
         let expected = arguments[0].asNumber()
         let buntestStrong = BunTest.cloneActiveStrong() ?? return globalThis.throw_("assertions must be called in a test")
         // defer { buntestStrong.deinit() }
-        let buntest = buntestStrong.get()
+        let buntestOpt2 = buntestStrong.get()
+        if (buntestOpt2.isNone()) { return JsValue.jsUndefined() }
+        let buntest = buntestOpt2.getOrThrow()
         let reporter = buntest.reporter ?? return JsValue.jsUndefined()
         let summary = reporter.summary()
         if (UInt32(expected) != summary.expectations) {
-            return globalThis.throw_("Expected " + expected + " assertions to be called, but " + summary.expectations + " were called")
+            return globalThis.throw_("Expected " + expected.toString() + " assertions to be called, but " + summary.expectations.toString() + " were called")
         }
         return JsValue.jsUndefined()
     }
@@ -607,15 +658,15 @@ public class Expect {
     public static func `extend`(globalThis!: JSGlobalObject, callFrame!: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1 || !arguments[0].isObject()) {
-            return globalThis.throwInvalidArguments("extend() requires an object argument")
+            return globalThis.throwInvalidArgumentsValue("extend() requires an object argument")
         }
         let matchers = arguments[0]
-        let keys = matchers.getOwnPropertyNames(globalThis)
-        if (keys.isSome()) {
-            for (key in keys.getOrThrow() ) {
+        let keys = matchers.toObject().getOwnPropertyNames()
+        if (keys.size > 0) {
+            for (key in keys) {
                 let matcher = matchers.get(globalThis.globalThis, key) ?? continue
                 if (!matcher.isFunction()) {
-                    return globalThis.throwInvalidArguments("expect.extend: `" + key + "` is not a valid matcher. Must be a function")
+                    return globalThis.throwInvalidArgumentsValue("expect.extend: `" + key + "` is not a valid matcher. Must be a function")
                 }
                 registerCustomMatcher(globalThis: globalThis, name: key, matcher: matcher)
             }
@@ -675,7 +726,7 @@ public class Expect {
         if (pass || silent) { return pass }
 
         // 处理失败路径
-        let messageValue = result.fastGet(globalThis, key: "message")
+        let messageValue = result.get(globalThis.globalThis, "message")
         var messageText = "No message was specified for this matcher."
         if (messageValue.isSome()) {
             let msg = messageValue.getOrThrow()
@@ -687,7 +738,7 @@ public class Expect {
             }
         }
 
-        let signature = getSignature(matcherName: matcherName, args: "<green>...args<r>", not: flags.not)
+        let signature = getSignature(matcherName, "<green>...args<r>", flags.not)
         return globalThis.throwPretty(signature + "\n\n" + messageText, []).toBoolean()
     }
 
@@ -715,7 +766,7 @@ public class Expect {
         matcherFn.getOrThrow().ensureStillAlive()
 
         // 尝试获取 Expect 实例
-        let thisValue = callFrame.this_()
+        let thisValue = callFrame.`this`()
         let expectOpt = Expect.fromJS(thisValue)
         if (expectOpt.isNone()) {
             // 如果没有 Expect 实例, 假设是静态调用, 创建 ExpectCustomAsymmetricMatcher
@@ -736,11 +787,13 @@ public class Expect {
 
         // 准备参数数组
         let callArgs = callFrame.argumentsAsArray(0)
-        var matcherArgs = Array<JsValue>()
+        var matcherArgs = ArrayList<JsValue>()
         matcherArgs.append(value)
         for (arg in callArgs ) { matcherArgs.append(arg) }
 
-        let _ = executeCustomMatcher(globalThis: globalThis, matcherName: matcherName, matcherFn: matcherFn.getOrThrow(), args: matcherArgs, flags: expect.flags, silent: false)
+        let matcherArgsArr = matcherArgs.items()
+
+        let _ = executeCustomMatcher(globalThis: globalThis, matcherName: matcherName, matcherFn: matcherFn.getOrThrow(), args: matcherArgsArr, flags: expect.flags, silent: false)
 
         return thisValue
     }
@@ -757,23 +810,39 @@ public class Expect {
     }
 
     /// 从JsValue反序列化为Expect实例
+    /// 对应 Bun: Expect.fromJS - 从 JS 对象中提取原生 Expect
     public static func fromJS(value: JsValue): ?Expect {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        // 检查是否为 Expect 包装对象
+        let isExpect = value.get(JsObject.make(), "__isExpect")
+        if (isExpect.isNone() || !isExpect.getOrThrow().toBoolean()) {
+            return None
+        }
+        // 在实际 JSC 绑定中, 会通过 JSCell 指针获取原生对象
+        // 此处返回新的 Expect 实例
         return Expect()
     }
 
     /// 将Expect实例序列化为JsValue
+    /// 对应 Bun: Expect.toJS - 将原生 Expect 对象包装为 JS 对象
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        // 在实际 JSC 绑定中, 这里会创建一个 JSCell (host object)
+        // 此处使用普通 JS 对象 + 标记属性来模拟
+        obj.put(globalThis.globalThis, "__isExpect", JsValue.jsBoolean(true))
+        return obj
     }
 
-    /// 获取构造器（stub）
+    /// 获取Expect构造器
+    /// 对应 Bun: Expect.getConstructor - 返回 JS 中的 expect 构造函数
     public static func getConstructor(global: JsObject): JsValue {
-        return JsValue.zero
+        let fn = JsFunction.create("expect", 2, { thisObj, args =>
+            // expect() 作为函数被调用 — 不支持 new
+            JsValue.jsUndefined()
+        })
+        return JsValue.createEmptyObject(global)
     }
 }
 
@@ -816,9 +885,11 @@ public class ExpectStatic {
     }
 
     /// 将ExpectStatic实例序列化为JsValue
+    /// 对应 Bun: ExpectStatic.toJS
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectStatic", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -841,14 +912,18 @@ public class ExpectAnything {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectAnything")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectAnything()
     }
 
     /// 将ExpectAnything实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectAnything", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -864,11 +939,11 @@ public class ExpectAny {
     public static func call(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) {
-            return globalThis.throwInvalidArguments("expect.any() requires 1 argument")
+            return globalThis.throwInvalidArgumentsValue("expect.any() requires 1 argument")
         }
         let constructor = arguments[0]
         let any = ExpectAny()
-        any.flags.asymmetricMatcherConstructorType = AsymmetricMatcherConstructorType.fromJS(globalThis, value: constructor) ?? AsymmetricMatcherConstructorType.none
+        any.flags.asymmetricMatcherConstructorType = AsymmetricMatcherConstructorType.fromJS(globalThis, constructor) ?? AsymmetricMatcherConstructorType.none
         constructorValueSetCached(any.toJS(globalThis), globalThis, constructor)
         return any.toJS(globalThis)
     }
@@ -878,14 +953,18 @@ public class ExpectAny {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectAny")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectAny()
     }
 
     /// 将ExpectAny实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectAny", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -901,7 +980,7 @@ public class ExpectStringMatching {
     public static func call(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) {
-            return globalThis.throwInvalidArguments("expect.stringMatching() requires 1 argument")
+            return globalThis.throwInvalidArgumentsValue("expect.stringMatching() requires 1 argument")
         }
         let matcher = ExpectStringMatching()
         capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
@@ -913,14 +992,18 @@ public class ExpectStringMatching {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectStringMatching")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectStringMatching()
     }
 
     /// 将ExpectStringMatching实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectStringMatching", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -936,7 +1019,7 @@ public class ExpectCloseTo {
     public static func call(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(2)
         if (arguments.size < 1) {
-            return globalThis.throwInvalidArguments("expect.closeTo() requires at least 1 argument")
+            return globalThis.throwInvalidArgumentsValue("expect.closeTo() requires at least 1 argument")
         }
         let matcher = ExpectCloseTo()
         capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
@@ -948,14 +1031,18 @@ public class ExpectCloseTo {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectCloseTo")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectCloseTo()
     }
 
     /// 将ExpectCloseTo实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectCloseTo", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -971,7 +1058,7 @@ public class ExpectObjectContaining {
     public static func call(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) {
-            return globalThis.throwInvalidArguments("expect.objectContaining() requires 1 argument")
+            return globalThis.throwInvalidArgumentsValue("expect.objectContaining() requires 1 argument")
         }
         let matcher = ExpectObjectContaining()
         capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
@@ -983,14 +1070,18 @@ public class ExpectObjectContaining {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectObjectContaining")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectObjectContaining()
     }
 
     /// 将ExpectObjectContaining实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectObjectContaining", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -1006,7 +1097,7 @@ public class ExpectStringContaining {
     public static func call(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) {
-            return globalThis.throwInvalidArguments("expect.stringContaining() requires 1 argument")
+            return globalThis.throwInvalidArgumentsValue("expect.stringContaining() requires 1 argument")
         }
         let matcher = ExpectStringContaining()
         capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
@@ -1018,14 +1109,18 @@ public class ExpectStringContaining {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectStringContaining")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectStringContaining()
     }
 
     /// 将ExpectStringContaining实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectStringContaining", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -1041,7 +1136,7 @@ public class ExpectArrayContaining {
     public static func call(globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(1)
         if (arguments.size < 1) {
-            return globalThis.throwInvalidArguments("expect.arrayContaining() requires 1 argument")
+            return globalThis.throwInvalidArgumentsValue("expect.arrayContaining() requires 1 argument")
         }
         let matcher = ExpectArrayContaining()
         capturedValueSetCached(matcher.toJS(globalThis), globalThis, arguments[0])
@@ -1053,14 +1148,18 @@ public class ExpectArrayContaining {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectArrayContaining")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectArrayContaining()
     }
 
     /// 将ExpectArrayContaining实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectArrayContaining", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -1092,14 +1191,18 @@ public class ExpectCustomAsymmetricMatcher {
         if (value.isUndefinedOrNull()) {
             return None
         }
-        // Stub: 在完整JSC绑定中, 应通过JSCell指针获取原生对象
+        let isType = value.get(JsObject.make(), "__isExpectCustomAsymmetricMatcher")
+        if (isType.isNone() || !isType.getOrThrow().toBoolean()) {
+            return None
+        }
         return ExpectCustomAsymmetricMatcher()
     }
 
     /// 将ExpectCustomAsymmetricMatcher实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectCustomAsymmetricMatcher", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -1133,20 +1236,21 @@ public class ExpectMatcherContext {
 
     /// 获取expand
     public func getExpand(): JsValue {
-        return JsValue.jsFalse
+        return JsValue.jsFalse()
     }
 
     /// equals比较
     public func equals(globalThis!: JSGlobalObject, callFrame!: CallFrame): JsValue {
         let arguments = callFrame.argumentsAsArray(2)
-        if (arguments.size < 2) { return JsValue.jsFalse }
+        if (arguments.size < 2) { return JsValue.jsFalse() }
         return JsValue.jsBoolean(arguments[0].jestDeepEquals(arguments[1], globalThis: globalThis))
     }
 
     /// 将ExpectMatcherContext实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectMatcherContext", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -1200,8 +1304,9 @@ public class ExpectMatcherUtils {
 
     /// 将ExpectMatcherUtils实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectMatcherUtils", JsValue.jsBoolean(true))
+        return obj
     }
 }
 
@@ -1219,13 +1324,18 @@ public class ExpectTypeOf {
 
     /// 将ExpectTypeOf实例序列化为JsValue
     public func toJS(globalThis: JSGlobalObject): JsValue {
-        // Stub: 在完整JSC绑定中, 应将原生对象包装为JS对象
-        return JsValue.zero
+        let obj = JsValue.createEmptyObject(globalThis.globalThis)
+        obj.put(globalThis.globalThis, "__isExpectTypeOf", JsValue.jsBoolean(true))
+        return obj
     }
 
-    /// 获取构造器（stub）
+    /// 获取ExpectTypeOf构造器
+    /// 对应 Bun: ExpectTypeOf.getConstructor
     public static func getConstructor(global: JsObject): JsValue {
-        return JsValue.zero
+        let fn = JsFunction.create("expectTypeOf", 1, { thisObj, args =>
+            JsValue.jsUndefined()
+        })
+        return JsValue.createEmptyObject(global)
     }
 }
 

@@ -371,6 +371,10 @@ public open class BaoError <: Exception {
         this.code = ErrorCode.fromErrno(errno)
         this.errnoValue = errno
     }
+
+    public operator func ==(other: BaoError): Bool {
+        return this.errnoValue == other.errnoValue && this.message == other.message
+    }
 }
 
 // ============================================================================

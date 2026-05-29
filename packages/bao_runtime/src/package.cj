@@ -76,6 +76,7 @@ public class JsValue {
     public var numberValue: Float64
     public var stringValue: BaoString
     public var objectData: ?JsObject
+    public var objectValue: ?JsObject = None
     public var arrayData: ?ArrayList<JsValue>
     public var functionData: ?JsFunction
     public var nativeFnData: ?JsNativeFunction
@@ -126,6 +127,17 @@ public class JsValue {
     public init(value: BaoString) {
         valueType = JsValueType.String
         stringValue = value
+        boolValue = false
+        numberValue = 0.0
+        objectData = None
+        arrayData = None
+        functionData = None
+        nativeFnData = None
+    }
+
+    public init(s: String) {
+        valueType = JsValueType.String
+        stringValue = BaoString(s)
         boolValue = false
         numberValue = 0.0
         objectData = None
@@ -592,5 +604,15 @@ public class VirtualMachine {
     /// 获取解释器的全局环境
     public func getGlobalEnv(): Environment {
         return interpreter.getGlobalEnv()
+    }
+
+    // 覆盖率字节范围 (桩)
+    public func getCoverageByteRanges(): ArrayList<Any> {
+        ArrayList<Any>()
+    }
+
+    // 顶级目录 (桩)
+    public func getTopLevelDir(): String {
+        ""
     }
 }

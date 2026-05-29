@@ -3,6 +3,8 @@
 
 package bao_jsc
 
+import bao_threading.ThreadPoolTask
+
 // ========== ConcurrentPromiseTaskGeneric ==========
 // 严格翻译自 ConcurrentPromiseTask.zig ConcurrentPromiseTask
 // 一个通用任务，在线程池上运行工作并通过 JavaScript Promise 解决结果。
@@ -48,7 +50,8 @@ public class ConcurrentPromiseTaskGeneric {
         // 创建 Promise 并建立强引用
         let promise = JsPromise()
         task.promise = promise
-        // task.ref.ref(vm)  // TODO: ref() needs VM parameter
+        // KeepAlive.ref: 防止 VM 在任务完成前被 GC
+        task.ref.ref(BunVirtualMachine.get())
 
         task
     }
@@ -126,7 +129,7 @@ public abstract class ConcurrentTaskContext {
 
 // ========== WorkPoolTask ==========
 // 严格翻译自 WorkPoolTask
-public class WorkPoolTask {
+public class WorkPoolTask <: ThreadPoolTask {
     // 回调函数
     public var callback: ?(() -> Unit) = None
 
@@ -141,6 +144,11 @@ public class WorkPoolTask {
         if (let Some(cb) <- callback) {
             cb()
         }
+    }
+
+    // ThreadPoolTask 接口实现
+    public func execute(): Unit {
+        run()
     }
 }
 

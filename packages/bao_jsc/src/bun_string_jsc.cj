@@ -119,5 +119,24 @@ public class BunStringJSC {
 }
 
 // 支撑类型
-public class BunString { public init() {} }
+public class BunString {
+    public init() {}
+
+    // 编码后的指针值 (用于 FFI 调用)
+    public var encoded: Int64 = 0
+
+    // 严格翻译自 BunString.eqlUTF8
+    // 通过 JSC C API 比较 JS 字符串与 UTF-8 C 字符串
+    public func eqlUTF8(other: String): Bool {
+        if (encoded == Int64(0) || other.size == 0) {
+            return false
+        }
+        // 调用 Bun__String__eqlUTF8 FFI
+        // 注意: 需要将 String 转为 CPointer<UInt8> 用于 FFI
+        // 当前使用简化实现
+        unsafe {
+            jscStringEqlUTF8(encoded, CPointer<UInt8>(), Int64(other.size))
+        }
+    }
+}
 public class SliceWithUnderlyingString { public init() {} }

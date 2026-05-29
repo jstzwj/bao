@@ -20,42 +20,29 @@ public class FuzzilliCommand {
     /// 对应 Bun: FuzzilliCommand.exec()
     public static func exec(ctx: CommandContext): Unit {
         // 仅支持 POSIX 系统
-        if (!Environment.isPosix) {
-            Output.prettyErrorLn("error: Fuzzilli mode is only supported on POSIX systems")
+        if (!Environment.IS_POSIX) {
+            Output.prettyErrorln("error: Fuzzilli mode is only supported on POSIX systems")
             Global.exit(1)
         }
 
         // 设置环境变量以在 JavaScript 中检测 fuzzilli 模式
         // 验证 REPRL 文件描述符是否可用
         if (!verifyFd(REPRL_CRFD)) {
-            Output.prettyErrorLn("error: REPRL_CRFD (fd ${REPPL_CRFD}) is not available. Run Bun under Fuzzilli.")
-            Output.prettyErrorLn("Example: fuzzilli --profile=bun /path/to/bun fuzzilli")
+            Output.prettyErrorln("error: REPRL_CRFD (fd ${REPRL_CRFD}) is not available. Run Bun under Fuzzilli.")
+            Output.prettyErrorln("Example: fuzzilli --profile=bun /path/to/bun fuzzilli")
             Global.exit(1)
         }
 
-        // REPRL 脚本 (嵌入)
-        let reprlScript = FuzzilliReprl.getScript()
+        // REPRL 脚本 (桩 — 完整实现需要 FuzzilliReprl 类)
+        let reprlScript = "// Fuzzilli REPRL script placeholder"
 
-        // 打开 /tmp 目录
-        let tempDir = "/tmp"
-
-        // 创建临时文件
-        let tempFileName = "bun-fuzzilli-reprl.js"
-        let tempPath = "${tempDir}/${tempFileName}"
-
-        // 写入脚本到临时文件
-        BaoFile.writeAllText(tempPath, reprlScript)
-
-        Output.prettyErrorLn("[FUZZILLI] Temp file written, booting JS runtime")
-
-        // 运行临时文件
-        let runOpts = RunOptions()
-        runOpts.script = tempPath
-        RunCommand.execute(ctx, runOpts)
+        // 写入脚本到临时文件 (桩)
+        Output.prettyErrorln("[FUZZILLI] Fuzzilli mode is not yet implemented in Bao")
+        Global.exit(1)
     }
 
     /// 验证文件描述符是否可用
     private static func verifyFd(fd: Int64): Bool {
-        return Sys.fstat(fd) != null
+        return Sys.fstat(fd).isSome()
     }
 }

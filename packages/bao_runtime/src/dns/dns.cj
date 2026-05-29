@@ -6,6 +6,7 @@ package bao_runtime.dns
 
 import bao_jsc.*
 import bao_collections.ArrayList
+import bao_sys.{SysModule}
 
 // ============================================================================
 // 常量
@@ -248,8 +249,8 @@ public class GlobalCache {
     /// 获取缓存时间戳
     /// 对应 Bun: internal.GlobalCache.getCacheTimestamp
     public static func getCacheTimestamp(): UInt32 {
-        // 简化实现：使用当前时间的秒数
-        return 0
+        // 使用当前时间的秒数作为缓存时间戳
+        UInt32(SysModule.currentTimeMillis() / 1000)
     }
 
     /// 获取缓存中的请求

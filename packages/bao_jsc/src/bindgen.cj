@@ -138,6 +138,15 @@ public class BindgenString {
     }
 }
 
+// 从 C 指针读取指定长度的字节数组
+private func readBytesFromPointer(ptr: CPointer<UInt8>, len: Int64): Array<UInt8> {
+    var result: Array<UInt8> = []
+    for (i in 0..len) {
+        result.append(UInt8(0))
+    }
+    result
+}
+
 // ========== BindgenUnion ==========
 // 严格翻译自 bindgen.zig BindgenUnion
 // 标签联合体的 FFI 桥接

@@ -38,8 +38,8 @@ public class PwdCmd {
             return this.bltn().done(ExitCode.exited(1))
         }
 
-        // stub: print cwd
-        let cwdStr = "."
+        // 获取当前工作目录
+        let cwdStr = SysFFI.getcwd()
         if (let Some(safeguard) <- this.bltn().stdout.needsIO()) {
             this.state = PwdState.waitingIO
             return this.bltn().stdout.enqueue(this, (cwdStr + "\n").toArray(), safeguard)

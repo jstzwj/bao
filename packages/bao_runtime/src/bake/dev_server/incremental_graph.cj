@@ -3,6 +3,11 @@
 
 package bao_runtime.bake.dev_server
 
+import bao_bun_alloc.Allocator
+
+/// EdgeIndex type alias
+public type EdgeIndex = UInt32
+
 /// 当前 chunk 的 source map 数据
 public class CurrentChunkSourceMapData {
     public var file_index: FileIndex
@@ -99,7 +104,7 @@ public class IncrementalGraph {
         var graph: UInt64 = 0
         var code: UInt64 = 0
         var source_maps: UInt64 = 0
-        return MemoryCostResult(graph: graph, code: code, source_maps: source_maps)
+        return MemoryCostResult(graph, code, source_maps)
     }
 
     /// 获取文件索引

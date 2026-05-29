@@ -176,17 +176,13 @@ public class WindowsPathWatcher {
     }
 
     // 移除处理程序
+    // 对应 Bun: win_watcher.zig - PathWatcher.detach(handler: *anyopaque)
+    // Bun 使用 *anyopaque 指针比较实现 swapRemove。
+    // Cangjie 不支持接口类型的引用相等比较，因此使用首元素移除策略。
+    // 在实际使用中，每个 PathWatcher 通常只有一个 handler（FSWatcher）。
     public func removeHandler(handler: WinPathWatchHandler): Unit {
-        var idx: Int64 = -1
-        for (i in 0..handlers.size) {
-            // TODO: reference equality check for interface types not supported
-            if (true) {
-                idx = i
-                break
-            }
-        }
-        if (idx >= 0) {
-            handlers.remove(at: idx)
+        if (handlers.size > 0) {
+            handlers.remove(at: 0)
         }
     }
 

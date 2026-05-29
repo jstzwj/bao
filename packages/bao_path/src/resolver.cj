@@ -22,6 +22,7 @@ public enum Platform {
     | Loose     // 宽松模式, 同时接受 '/' 和 '\'
     | Windows   // Windows 风格
     | Posix     // POSIX 风格
+    | Nt        // NTFS 风格
 
     /// 获取平台分隔符
     /// 对应 Bun Platform.separator()
@@ -36,6 +37,7 @@ public enum Platform {
             case Loose => UInt8(47)
             case Posix => UInt8(47)
             case Windows => UInt8(92)
+            case Nt => UInt8(92)
         }
     }
 
@@ -45,6 +47,7 @@ public enum Platform {
             case Loose => SEP
             case Posix => SEP
             case Windows => SEP_WINDOWS
+            case Nt => SEP_WINDOWS
         }
     }
 
@@ -55,6 +58,7 @@ public enum Platform {
             case Loose => "/"
             case Posix => "/"
             case Windows => "\\"
+            case Nt => "\\"
         }
     }
 
@@ -72,6 +76,7 @@ public enum Platform {
             case Loose => isSepAnyChar(c)
             case Posix => c == UInt8(47)
             case Windows => isSepAnyChar(c)
+            case Nt => isSepAnyChar(c)
         }
     }
 
@@ -96,6 +101,15 @@ public enum Platform {
                     return true
                 }
                 return false
+            case Nt =>
+                if (path.size > 0 && (path[0] == UInt8(47) || path[0] == UInt8(92))) {
+                    return true
+                }
+                if (path.size > 2 && isDriveLetterChar(path[0]) && path[1] == UInt8(58) &&
+                    (path[2] == UInt8(47) || path[2] == UInt8(92))) {
+                    return true
+                }
+                return false
         }
     }
 
@@ -106,6 +120,7 @@ public enum Platform {
             case Loose => "./"
             case Posix => "./"
             case Windows => ".\\"
+            case Nt => ".\\"
         }
     }
 }

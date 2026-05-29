@@ -334,7 +334,68 @@ public class CssDependencyAnalyzer {
 
     /// 从 CSS 值中提取 url() 引用
     private static func analyzeValueUrls(value: String, filePath: String, dependencies: ArrayList<CssDependency>): Unit {
-        return
+        // 查找所有 url(...) 模式
+        let urlPrefix = "url("
+        var i: Int64 = 0
+        while (i <= value.size - urlPrefix.size) {
+            // 检查是否匹配 "url("
+            var matched = true
+            for (j in 0..urlPrefix.size) {
+                if (value[i + j] != urlPrefix[j]) {
+                    matched = false
+                    break
+                }
+            }
+            if (matched) {
+                let urlStart = i + urlPrefix.size
+                // 跳过空白
+                var pos = urlStart
+                while (pos < value.size && (value[pos] == UInt8(32) || value[pos] == UInt8(9))) {
+                    pos++
+                }
+                // 读取 URL 内容
+                let sb = StringBuilder()
+                if (pos < value.size && (value[pos] == UInt8(34) || value[pos] == UInt8(39))) {
+                    // 带引号的 URL
+                    let `quote` = value[pos]
+                    pos++
+                    while (pos < value.size && value[pos] != `quote`) {
+                        if (value[pos] == UInt8(92) && pos + 1 < value.size) {
+                            pos++
+                            sb.append(value[pos])
+                        } else {
+                            sb.append(value[pos])
+                        }
+                        pos++
+                    }
+                    // 跳过关闭引号和右括号
+                    pos++ // close quote
+                    while (pos < value.size && value[pos] != UInt8(41)) { pos++ }
+                } else {
+                    // 不带引号的 URL
+                    while (pos < value.size && value[pos] != UInt8(41)) {
+                        if (value[pos] == UInt8(92) && pos + 1 < value.size) {
+                            pos++
+                            sb.append(value[pos])
+                        } else if (value[pos] == UInt8(32) || value[pos] == UInt8(9)) {
+                            break
+                        } else {
+                            sb.append(value[pos])
+                        }
+                        pos++
+                    }
+                }
+                let urlContent = sb.toString()
+                if (urlContent.size > 0) {
+                    let placeholder = computePlaceholder(filePath, urlContent)
+                    let urlDep = CssUrlDependency(urlContent, placeholder)
+                    dependencies.append(CssDependency(urlDep))
+                }
+                i = pos + 1
+            } else {
+                i++
+            }
+        }
     }
 
     /// 计算占位符
@@ -359,6 +420,11 @@ public class CssDependencyAnalyzer {
     /// 替换依赖占位符
     /// 将 CSS 中的占位符替换为实际 URL
     public static func replacePlaceholders(css: String, replacements: HashMap<String, String>): String {
-        css
+        var result = css
+        // 遍历所有替换映射, 将占位符替换为实际值
+        for (placeholder in replacements.keys()) {
+            result = result.replace(placeholder, replacements[placeholder].getOrThrow())
+        }
+        result
     }
 }

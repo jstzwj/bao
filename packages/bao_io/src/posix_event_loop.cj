@@ -12,6 +12,22 @@ import bao_core.*
 import bao_sys.*
 import bao_collections.*
 
+// epoll 操作常量 (提前定义以避免前向引用错误)
+private let EPOLL_CTL_ADD: Int32 = 1
+private let EPOLL_CTL_MOD: Int32 = 3
+private let EPOLL_CTL_DEL: Int32 = 2
+private let EPOLL_CLOEXEC: Int32 = 0x80000
+private let EPOLLIN: UInt32 = 0x001
+private let EPOLLOUT: UInt32 = 0x004
+private let EPOLLHUP: UInt32 = 0x010
+private let EPOLLERR: UInt32 = 0x008
+private let EPOLLET: UInt32 = 1 << 31
+private let EPOLLONESHOT: UInt32 = 1 << 30
+
+// eventfd 标志
+private let EFD_NONBLOCK: Int32 = 0o4000
+private let EFD_CLOEXEC: Int32 = 0o2000000
+
 // ============================================================================
 // Loop - 事件循环
 // 严格翻译自: posix_event_loop.zig:1
@@ -738,19 +754,44 @@ public class FilePoll {
 
         flags.insert(FilePollFlag.WasEverRegistered)
 
-        // 激活并设置轮询标志
-        activate()
+        // 构建 epoll 事件标志
+        var epollFlags: UInt32 = 0
         match (flag) {
             case FilePollFlag.Readable =>
+                epollFlags = EPOLLIN | EPOLLHUP
                 flags.insert(FilePollFlag.PollReadable)
             case FilePollFlag.Writable =>
+                epollFlags = EPOLLOUT | EPOLLHUP | EPOLLERR
                 flags.insert(FilePollFlag.PollWritable)
             case FilePollFlag.Process =>
+                epollFlags = EPOLLIN
                 flags.insert(FilePollFlag.PollProcess)
             case FilePollFlag.MachPort =>
                 flags.insert(FilePollFlag.PollMachPort)
             case _ => ()
         }
+
+        // 添加 OneShot 标志
+        if (oneShot != FilePollOneShotFlag.None) {
+            epollFlags = epollFlags | EPOLLONESHOT
+        }
+
+        // 调用 epoll_ctl 注册 FD
+        let epfd = getGlobalEpollFd()
+        if (epfd >= 0 && epollFlags != 0) {
+            let op = if (flags.contains(FilePollFlag.WasEverRegistered)) { EPOLL_CTL_MOD } else { EPOLL_CTL_ADD }
+            let result = if (op == EPOLL_CTL_ADD) {
+                epollCtlAdd(epfd, fdVal, epollFlags, UInt64(fdVal))
+            } else {
+                epollCtlMod(epfd, fdVal, epollFlags, UInt64(fdVal))
+            }
+            if (result < 0) {
+                return SysMaybe<Unit>.Err(SysError(UInt16(9), SysTag.EpollCtl))
+            }
+        }
+
+        // 激活并设置轮询标志
+        activate()
         flags.remove(FilePollFlag.NeedsRearm)
 
         return SysMaybe<Unit>.Ok(())
@@ -802,9 +843,11 @@ public class FilePoll {
             return SysMaybe<Unit>.Ok(())
         }
 
-        // 平台特定注销 (简化)
-        // 实际 Linux: epoll_ctl(watcher_fd, EPOLL_CTL_DEL, fd, null)
-        // 实际 macOS: kevent64(watcher_fd, &changelist, nchanges, ..., KEVENT_FLAG_ERROR_EVENTS, &timeout)
+        // 调用 epoll_ctl 注销 FD
+        let epfd = getGlobalEpollFd()
+        if (epfd >= 0) {
+            let _ = epollCtlDel(epfd, fdVal)
+        }
 
         // 清除所有轮询标志
         flags.remove(FilePollFlag.NeedsRearm)
@@ -1080,8 +1123,12 @@ public class Waker {
         if (fd < 0) {
             return
         }
-        // Linux: read(fd, 8 bytes)
-        // macOS: kevent64(kq, zeroed, 0, zeroed, events.len, 0, null)
+        unsafe {
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            let _ = c_read(fd, ptr, 8)
+            free(buf)
+        }
     }
 
     /// 唤醒
@@ -1092,8 +1139,13 @@ public class Waker {
         if (fd < 0) {
             return
         }
-        // Linux: write(fd, 1)
-        // macOS: io_darwin_schedule_wakeup(machport)
+        unsafe {
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            ptr.write(UInt8(1))
+            let _ = c_write(fd, ptr, 8)
+            free(buf)
+        }
         hasPendingWake = false
     }
 }
@@ -1111,7 +1163,21 @@ public class LinuxWaker {
     /// 初始化 - 创建 eventfd
     /// 严格翻译自: pub fn init() !Waker { eventfd(0, 0) }
     public static func `init`(): ?LinuxWaker {
-        // eventfd(0, 0) -> 简化返回占位
+        unsafe {
+            let fd = bao_eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC)
+            if (fd >= 0) {
+                return LinuxWaker(fd)
+            }
+            // fallback: 使用 pipe
+            let pipeBuf = malloc(UIntNative(8))
+            let pipePtr = CPointer<Int32>(pipeBuf)
+            let pipeResult = pipe(pipePtr)
+            if (pipeResult == 0) {
+                let result = LinuxWaker(pipePtr.read())
+                free(pipeBuf)
+                return result
+            }
+        }
         return LinuxWaker(Int32(-1))
     }
 
@@ -1132,7 +1198,12 @@ public class LinuxWaker {
         if (fd < 0) {
             return
         }
-        // std.posix.read(fd.cast(), &[8]u8)
+        unsafe {
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            let _ = c_read(fd, ptr, 8)
+            free(buf)
+        }
     }
 
     /// 唤醒 - 写入 8 字节计数器
@@ -1141,7 +1212,13 @@ public class LinuxWaker {
         if (fd < 0) {
             return
         }
-        // std.posix.write(fd.cast(), &[8]u8{@ptrCast(&@as(usize, 1))})
+        unsafe {
+            let buf = malloc(UIntNative(8))
+            let ptr = CPointer<UInt8>(buf)
+            ptr.write(UInt8(1))
+            let _ = c_write(fd, ptr, 8)
+            free(buf)
+        }
     }
 }
 
@@ -1258,7 +1335,8 @@ public class PosixCloser {
     ///   closer.fd.close();
     public func onClose(): Unit {
         if (fd >= 0) {
-            // fd.close() -> SysFs.close(fd)
+            unsafe { let _ = c_close(fd) }
+            fd = -1
         }
         closing = false
     }
@@ -1273,38 +1351,61 @@ public class PosixCloser {
 public class UwsLoop {
     /// 循环 FD (epoll/kqueue)
     public var fd: Int32
+    /// 活跃 poll 计数
+    private var activeCount: Int64 = 0
 
     public init() {
-        fd = Int32(-1)
+        fd = getGlobalEpollFd()
     }
 
     /// 减少活跃计数
     /// 翻译自: loop.subActive(count)
-    public func subActive(count: UInt32): Unit {}
+    public func subActive(count: UInt32): Unit {
+        activeCount -= Int64(count)
+    }
 
     /// 增加活跃计数
     /// 翻译自: loop.addActive(count)
-    public func addActive(count: UInt32): Unit {}
+    public func addActive(count: UInt32): Unit {
+        activeCount += Int64(count)
+    }
 
     /// 增加 poll 计数
     /// 翻译自: loop.inc()
-    public func inc(): Unit {}
+    public func inc(): Unit {
+        activeCount += 1
+    }
 
     /// 减少 poll 计数
     /// 翻译自: loop.dec()
-    public func dec(): Unit {}
+    public func dec(): Unit {
+        activeCount -= 1
+    }
 
     /// 引用
-    public func ref(): Unit {}
+    public func ref(): Unit {
+        activeCount += 1
+    }
 
     /// 取消引用
-    public func unref(): Unit {}
+    public func unref(): Unit {
+        activeCount -= 1
+    }
 
     /// 等待
-    public func wait(): Unit {}
+    public func wait(): Unit {
+        // 由 Poller.poll() 处理
+    }
 
     /// 唤醒
-    public func wakeup(): Unit {}
+    public func wakeup(): Unit {
+        // 由 PollWaker.wake() 处理
+    }
+
+    /// 是否有活跃的 poll
+    public func isActive(): Bool {
+        activeCount > 0
+    }
 }
 
 // ============================================================================
@@ -1408,5 +1509,73 @@ private class HashMap<K, V> {
 
     public prop size: Int64 {
         get() { keys_.size }
+    }
+}
+
+// ============================================================================
+// POSIX FFI 声明 - epoll/kqueue/eventfd/read/write/close
+// ============================================================================
+
+@C foreign func epoll_create1(flags: Int32): Int32
+@C foreign func epoll_ctl(epfd: Int32, op: Int32, fd: Int32, event: CPointer<UInt8>): Int32
+@C foreign func epoll_wait(epfd: Int32, events: CPointer<UInt8>, maxevents: Int32, timeout: Int32): Int32
+@C foreign func bao_eventfd(initval: UInt32, flags: Int32): Int32
+@C foreign func unsafeMallocEpollEvent(): CPointer<UInt8>
+@C foreign func setEpollEventEvents(ptr: CPointer<UInt8>, events: UInt32): Unit
+@C foreign func setEpollEventData(ptr: CPointer<UInt8>, data: UInt64): Unit
+@C foreign func unsafeFreeEpollEvent(ptr: CPointer<UInt8>): Unit
+
+@C foreign func c_read(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
+@C foreign func c_write(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
+@C foreign func c_close(fd: Int32): Int32
+@C foreign func pipe(fds: CPointer<Int32>): Int32
+
+/// epoll_event 结构体大小 (用于 FFI 分配)
+/// struct epoll_event { uint32_t events; epoll_data_t data; }
+/// epoll_data_t 是 8 字节 union，所以 epoll_event 总共 12 字节（无 padding）或 16 字节（有 padding）
+/// Linux x86_64 上是 12 字节
+private let EPOLL_EVENT_SIZE: Int64 = 12
+
+/// 全局 epoll FD（由 Poller 管理）
+private var globalEpollFd: Int32 = -1
+
+/// 获取全局 epoll FD
+public func getGlobalEpollFd(): Int32 {
+    return globalEpollFd
+}
+
+/// 设置全局 epoll FD
+public func setGlobalEpollFd(fd: Int32): Unit {
+    globalEpollFd = fd
+}
+
+/// epoll_ctl 辅助函数
+public func epollCtlAdd(epfd: Int32, fd: Int32, events: UInt32, data: UInt64): Int32 {
+    unsafe {
+        let eventPtr = unsafeMallocEpollEvent()
+        setEpollEventEvents(eventPtr, events)
+        setEpollEventData(eventPtr, data)
+        let result = epoll_ctl(epfd, EPOLL_CTL_ADD, fd, eventPtr)
+        unsafeFreeEpollEvent(eventPtr)
+        return result
+    }
+}
+
+/// epoll_ctl MOD 辅助函数
+public func epollCtlMod(epfd: Int32, fd: Int32, events: UInt32, data: UInt64): Int32 {
+    unsafe {
+        let eventPtr = unsafeMallocEpollEvent()
+        setEpollEventEvents(eventPtr, events)
+        setEpollEventData(eventPtr, data)
+        let result = epoll_ctl(epfd, EPOLL_CTL_MOD, fd, eventPtr)
+        unsafeFreeEpollEvent(eventPtr)
+        return result
+    }
+}
+
+/// epoll_ctl DEL 辅助函数
+public func epollCtlDel(epfd: Int32, fd: Int32): Int32 {
+    unsafe {
+        return epoll_ctl(epfd, EPOLL_CTL_DEL, fd, CPointer<UInt8>())
     }
 }

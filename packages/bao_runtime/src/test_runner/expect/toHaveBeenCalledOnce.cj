@@ -2,43 +2,44 @@
 
 package bao_runtime.test_runner.expect
 
-import bao_runtime.test_runner
+import bao_runtime.test_runner.*
 import bao_jsc.*
 
 /// toHaveBeenCalledOnce() - 检查mock函数是否只被调用一次
 /// 用法: expect(mockFn).toHaveBeenCalledOnce()
 public func toHaveBeenCalledOnce(`this`: Expect, globalThis: JSGlobalObject, callFrame: CallFrame): JsValue {
-    // defer { this.postMatch(globalThis: globalThis) }
+    // defer { `this`.postMatch(globalThis: globalThis) }
 
-    let thisValue = callFrame.this_()
-    let value: JsValue = this.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalledOnce", matcherParamsFmt: "<green>expected<r>")
+    let thisValue = callFrame.`this`()
+    let value: JsValue = `this`.getValue(globalThis: globalThis, thisValue: thisValue, matcherName: "toHaveBeenCalledOnce", matcherParamsFmt: "<green>expected<r>")
 
-    this.incrementExpectCallCounter()
+    `this`.incrementExpectCallCounter()
 
-    let calls = JSMockFunction.getCalls(globalThis: globalThis, value: value)
+    let global = globalThis.globalThis
+    let calls = JSMockFunction.getCalls(globalThis: global, value: value)
     if (!calls.jsType().isArray()) {
         let formatter = ConsoleFormatter()
         // defer { formatter.deinit() }
         return globalThis.throw_("Expected value must be a mock function: {f}", args: [value.toFmt(formatter)])
     }
 
-    let callsLength = calls.getLength(globalThis)
+    let callsLength = calls.getLength(global)
     var pass = callsLength == 1
 
-    let not = this.flags.not
+    let not = `this`.flags.not
     if (not) { pass = !pass }
     if (pass) { return JsValue.jsUndefined() }
 
     // 处理失败
     if (not) {
-        let signature = Expect.getSignature(matcherName: "toHaveBeenCalledOnce", args: "<green>expected<r>", not: true)
-        return this.throw_(globalThis: globalThis, signature: signature,
+        let signature = Expect.getSignature("toHaveBeenCalledOnce", "<green>expected<r>", true)
+        return `this`.throw_(globalThis: globalThis, signature: signature,
             fmt: "\n\nExpected number of calls: not <green>1<r>\nReceived number of calls: <red>{d}<r>\n",
             args: [callsLength])
     }
 
-    let signature = Expect.getSignature(matcherName: "toHaveBeenCalledOnce", args: "<green>expected<r>", not: false)
-    return this.throw_(globalThis: globalThis, signature: signature,
+    let signature = Expect.getSignature("toHaveBeenCalledOnce", "<green>expected<r>", false)
+    return `this`.throw_(globalThis: globalThis, signature: signature,
         fmt: "\n\nExpected number of calls: <green>1<r>\nReceived number of calls: <red>{d}<r>\n",
         args: [callsLength])
 }
