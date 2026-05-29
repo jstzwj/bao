@@ -814,3 +814,147 @@ public class FilePollStore {
         this.poller = poller
     }
 }
+
+// ============================================================================
+// FileWatchEvent - 文件变化事件
+// 对应 Bun 文件监视器触发时的事件数据
+// ============================================================================
+
+/// 文件变化事件 - inotify 触发时产生
+public class FileWatchEvent {
+    /// 事件文件名/路径
+    public var fileName: String
+    /// 事件类型掩码
+    public var mask: UInt32
+    /// 是否是创建事件
+    public var isCreated: Bool
+    /// 是否是删除事件
+    public var isDeleted: Bool
+    /// 是否是修改事件
+    public var isModified: Bool
+
+    public init(fileName: String) {
+        this.fileName = fileName
+        mask = UInt32(0)
+        isCreated = false
+        isDeleted = false
+        isModified = false
+    }
+
+    public init(fileName: String, mask: UInt32) {
+        this.fileName = fileName
+        this.mask = mask
+        isCreated = (mask & 0x100u32) != 0u32  // IN_CREATE
+        isDeleted = (mask & 0x200u32) != 0u32  // IN_DELETE
+        isModified = (mask & 0x2u32) != 0u32   // IN_MODIFY
+    }
+}
+
+// ============================================================================
+// FileWatcher - 文件监视器 (基于 inotify, Linux)
+// 对应 Bun 文件系统监视器
+// ============================================================================
+
+/// 文件监视器 - 基于 inotify (Linux)
+public class FileWatcher {
+    /// inotify 文件描述符
+    private var inotifyFd: Int32
+    /// 已注册的监视描述符映射 (路径 -> wd)
+    private var watchDescriptors: HashMap<String, Int32>
+
+    public init() {
+        inotifyFd = Int32(-1)
+        watchDescriptors = HashMap<String, Int32>()
+    }
+
+    /// 创建文件监视器
+    public static func create(): SysMaybe<FileWatcher> {
+        let fw = FileWatcher()
+        unsafe {
+            let fd = inotify_init1(0x80000)  // IN_NONBLOCK | IN_CLOEXEC
+            if (fd < 0) {
+                return SysMaybe<FileWatcher>.Err(SysError(UInt16(0), SysTag.Open))
+            }
+            fw.inotifyFd = fd
+        }
+        return SysMaybe<FileWatcher>.Ok(fw)
+    }
+
+    /// 监视指定路径
+    public func watch(path: String): SysMaybe<Unit> {
+        if (inotifyFd < 0) {
+            return SysMaybe<Unit>.Err(SysError(UInt16(0), SysTag.Open))
+        }
+        unsafe {
+            let pathPtr = malloc(UIntNative(path.size + 1))
+            let bytesPtr = CPointer<Int8>(pathPtr)
+            for (i in 0..path.size) {
+                (bytesPtr + Int64(i)).write(Int8(Int64(path[Int64(i)]) & 0xFF))
+            }
+            (bytesPtr + Int64(path.size)).write(Int8(0))
+            // IN_MODIFY | IN_CREATE | IN_DELETE | IN_DELETE_SELF
+            let mask: UInt32 = 0x2u32 | 0x100u32 | 0x200u32 | 0x400u32
+            let wd = inotify_add_watch(inotifyFd, bytesPtr, mask)
+            if (wd < 0) {
+                free(pathPtr)
+                return SysMaybe<Unit>.Err(SysError(UInt16(0), SysTag.Open))
+            }
+            watchDescriptors.put(path, wd)
+            free(pathPtr)
+        }
+        return SysMaybe<Unit>.Ok(())
+    }
+
+    /// 取消监视指定路径
+    public func unwatch(path: String): Unit {
+        let wd = watchDescriptors.get(path)
+        if (let Some(w) <- wd) {
+            unsafe {
+                inotify_rm_watch(inotifyFd, w)
+            }
+            watchDescriptors.remove(path)
+        }
+    }
+
+    /// 读取待处理事件
+    public func readEvents(): ArrayList<FileWatchEvent> {
+        let events = ArrayList<FileWatchEvent>()
+        if (inotifyFd < 0) {
+            return events
+        }
+        // 简化: 返回空列表
+        // 实际实现需要读取 inotify fd 并解析 inotify_event 结构
+        return events
+    }
+
+    /// 获取 inotify fd
+    public func fd(): Int32 {
+        return inotifyFd
+    }
+
+    /// 关闭监视器
+    public func close(): Unit {
+        if (inotifyFd >= 0) {
+            unsafe {
+                close(inotifyFd)
+            }
+            inotifyFd = Int32(-1)
+        }
+        watchDescriptors.clear()
+    }
+}
+
+// ============================================================================
+// inotify C FFI (Linux)
+// ============================================================================
+
+@C
+foreign func inotify_init1(flags: Int32): Int32
+@C
+foreign func inotify_add_watch(fd: Int32, pathname: CPointer<Int8>, mask: UInt32): Int32
+@C
+foreign func inotify_rm_watch(fd: Int32, wd: Int32): Int32
+@C
+foreign func malloc(size: UIntNative): CPointer<Unit>
+@C
+foreign func free(ptr: CPointer<Unit>): Unit

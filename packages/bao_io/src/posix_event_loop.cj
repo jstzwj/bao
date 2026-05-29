@@ -1308,32 +1308,105 @@ public class UwsLoop {
 }
 
 // ============================================================================
-// HashSet 简化实现
+// HashSet / HashMap 简化实现
+// posix_event_loop 内部使用，因为 FilePollFlags 等枚举类型
+// 不满足 bao_collections.HashMap 的 ToString 约束
+// 使用线性扫描实现，适用于小规模集合
 // ============================================================================
 
-/// HashSet 简化实现
+/// HashSet 简化实现 (posix_event_loop 内部使用)
+/// 使用 ArrayList 线性扫描，适用于 FilePollFlag 等少量枚举值
 private class HashSet<T> {
-    private var data: HashMap<T, Bool> = HashMap<T, Bool>()
+    private var items: ArrayList<T> = ArrayList<T>()
 
-    public func contains(key: T): Bool {
-        return data.contains(key)
-    }
+    public init() {}
 
-    public func put(key: T): Unit {
-        data.put(key, true)
-    }
-
-    public func remove(key: T): Unit {
-        data.remove(key)
-    }
-}
-
-/// HashMap 简化实现
-private class HashMap<K, V> {
-    public func contains(key: K): Bool {
+    public func contains(item: T): Bool {
+        for (i in 0..items.size) {
+            if (items[i] == item) { return true }
+        }
         return false
     }
 
-    public func put(key: K, value: V): Unit {}
-    public func remove(key: K): Unit {}
+    public func put(item: T): Unit {
+        if (!contains(item)) {
+            items.append(item)
+        }
+    }
+
+    public func remove(item: T): Unit {
+        var i = Int64(0)
+        while (i < items.size) {
+            if (items[i] == item) {
+                items.removeAt(i)
+                return
+            }
+            i += 1
+        }
+    }
+
+    public func clear(): Unit {
+        items.clear()
+    }
+
+    public func size(): Int64 {
+        return items.size
+    }
+
+    public func isEmpty(): Bool {
+        return items.size == 0
+    }
+}
+
+/// HashMap 简化实现 (posix_event_loop 内部使用)
+/// 使用并行数组线性扫描，适用于小规模集合
+private class HashMap<K, V> {
+    private var keys_: ArrayList<K> = ArrayList<K>()
+    private var vals_: ArrayList<V> = ArrayList<V>()
+
+    public init() {}
+
+    public func contains(key: K): Bool {
+        for (i in 0..keys_.size) {
+            if (keys_[i] == key) { return true }
+        }
+        return false
+    }
+
+    public func put(key: K, value: V): Unit {
+        for (i in 0..keys_.size) {
+            if (keys_[i] == key) {
+                vals_[i] = value
+                return
+            }
+        }
+        keys_.append(key)
+        vals_.append(value)
+    }
+
+    public func remove(key: K): Unit {
+        for (i in 0..keys_.size) {
+            if (keys_[i] == key) {
+                keys_.removeAt(i)
+                vals_.removeAt(i)
+                return
+            }
+        }
+    }
+
+    public func get(key: K): ?V {
+        for (i in 0..keys_.size) {
+            if (keys_[i] == key) { return Some(vals_[i]) }
+        }
+        return None
+    }
+
+    public func clear(): Unit {
+        keys_.clear()
+        vals_.clear()
+    }
+
+    public prop size: Int64 {
+        get() { keys_.size }
+    }
 }
