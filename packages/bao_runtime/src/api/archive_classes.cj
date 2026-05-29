@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/api/Archive.classes.ts
 package bao_runtime.api
 
-import bao_jsc.{JsGlobalObject, JsValue}
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
 
 // ============================================================================
 // Archive.classes.ts 类绑定定义

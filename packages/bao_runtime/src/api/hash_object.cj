@@ -121,7 +121,7 @@ public class HashObject {
     /// 通用哈希函数包装器 - 处理输入参数和种子, 调用对应哈希算法
     public static func hashWrap(globalThis!: JsGlobalObject, callframe!: JsCallFrame, algorithm!: String): JsValue {
         let arguments = callframe.argumentsOld(2).slice()
-        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments)
+        var args = JsCallFrame.ArgumentsSlice(globalThis.bunVM(), arguments)
         var input: Array<UInt8> = []
         var inputSlice = ZigString.Slice.empty
         if (let arg <- args.nextEat()) {

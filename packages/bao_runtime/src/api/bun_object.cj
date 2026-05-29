@@ -4,7 +4,7 @@ package bao_runtime.api
 
 import bao_jsc.*
 import bao_collections.ArrayList
-import bao_core.{Allocator, Environment, Fd, MAX_PATH_BYTES}
+import bao_core.{Allocator, CAllocator, Environment, Fd, MAX_PATH_BYTES}
 import bao_collections.{HashMap as BaoHashMap, ArrayList as BaoArrayList}
 import bao_sys.*
 import bao_io.*
@@ -19,6 +19,23 @@ import bao_shell_parser.*
 public type UnsafePointer<T> = CPointer<T>
 public type UnsafeRawPointer = CPointer<Unit>
 public type File = BaoFile
+
+extend URL {
+    public func isAbsolute(): Bool {
+        return origin.size > 0 || href.startsWith("http://") || href.startsWith("https://") || href.startsWith("file://")
+    }
+
+    public func joinWrite(buf: ArrayList<UInt8>, assetPrefix: Array<UInt8>, prefix: String, relativePath: Array<UInt8>, suffix: String): Unit {
+        for (b in origin.toUtf8().toArray()) { buf.append(b) }
+        for (b in assetPrefix) { buf.append(b) }
+        for (b in prefix.toUtf8().toArray()) { buf.append(b) }
+        if (relativePath.size > 0 && relativePath[0] != UInt8(47)) {
+            buf.append(UInt8(47))
+        }
+        for (b in relativePath) { buf.append(b) }
+        for (b in suffix.toUtf8().toArray()) { buf.append(b) }
+    }
+}
 
 // ============================================================================
 // 本地桩类型 (stub types for compilation)
@@ -63,7 +80,7 @@ public class Editor {
 public let EDITOR_CONTEXT = EditorContextSlot()
 
 /// default_allocator — 默认分配器桩
-public let default_allocator = Allocator()
+public let default_allocator: Allocator = CAllocator()
 
 /// StandaloneModuleGraph — 独立模块图桩类型
 public class StandaloneModuleGraph {
@@ -98,8 +115,14 @@ public func getPublicPathWithAssetPrefix(
     writer!: IoWriter,
     platform!: PathPlatform
 ): Unit {
-    var relativePath: Array<UInt8> = if (Strings.hasPrefix(to, dir)) {
-        Strings.withoutTrailingSlash(to[dir.len..])
+    var relativePath: Array<UInt8> = if (to.size >= dir.size && to[..dir.size] == dir) {
+        let sliced = to[dir.len..]
+        // withoutTrailingSlash
+        if (sliced.size > 0 && sliced[sliced.size - 1] == UInt8(47)) {
+            sliced[..sliced.size - 1]
+        } else {
+            sliced
+        }
     } else {
         // 严格翻译自: VirtualMachine.get().transpiler.fs.relativePlatform(dir, to, platform)
         // 对应 Bun: relativePlatform(from, to, platform, false)
@@ -109,8 +132,9 @@ public func getPublicPathWithAssetPrefix(
         Array<UInt8>(relStr.size, { i => relStr[i] })
     }
 
-    if (origin.isAbsolute()) {
-        if (Strings.hasPrefix(relativePath, "..") || Strings.hasPrefix(relativePath, "./")) {
+    if (origin.origin.size > 0 && origin.origin[0] == UInt8(47)) {
+        if ((relativePath.size >= 2 && relativePath[0] == UInt8('.') && relativePath[1] == UInt8('.')) ||
+            (relativePath.size >= 2 && relativePath[0] == UInt8('.') && relativePath[1] == UInt8(47))) {
             try { writer.write(origin.origin) } catch(_: Exception) { return }
             try { writer.write("/abs:") } catch(_: Exception) { return }
             if (Path.isAbsolute(to)) {
@@ -145,7 +169,7 @@ public func getPublicPath(to!: Array<UInt8>, origin!: URL, writer!: IoWriter): U
 // 静态适配器 (Static Adapters)
 // ============================================================================
 
-/// 静态方法适配器 — 手动解码 CallFrame 参数的薄封装层。
+/// 静态方法适配器 — 手动解码 JsCallFrame 参数的薄封装层。
 public class StaticAdapters {
 
     /// Bun.connect 适配器
@@ -574,7 +598,7 @@ public class BunObject {
     }
 
     /// gc - 垃圾回收
-    public static func gc(vm!: VirtualMachine, sync!: Bool): Int64 {
+    public static func gc(vm!: BunVirtualMachine, sync!: Bool): Int64 {
         return vm.garbageCollect(sync)
     }
 
@@ -1145,7 +1169,7 @@ public class BunObject {
 
     /// getYAMLObject
     public static func getYAMLObject(globalThis!: JsGlobalObject, object!: JsObject): JsValue {
-        return YAMLObject.create(globalThis)
+        return createYAML(globalThis)
     }
 
     /// getSemver

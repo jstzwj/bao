@@ -6,6 +6,9 @@ import bao_core.*
 import bao_io.*
 import bao_sys.*
 
+// 本地 stub 类型
+public class JsNode { public init() {} }
+
 // ============================================================================
 // SubprocessPipeReader - 子进程管道读取器
 // 对应 Bun: src/runtime/api/bun/subprocess/SubprocessPipeReader.zig
@@ -37,12 +40,12 @@ public class PipeReader {
         let reader = PipeReader(
             refCount: RefCount(),
             process: process,
-            reader: IOReader(),
+            reader: IOReader(INVALID_FD, PIPE_BUF_SIZE),
             eventLoop: eventLoop,
             stdioResult: result,
             state: PipeReaderState.pending,
         )
-        MaxBuf.addToPipeReader(limit, reader.reader.maxbuf)
+        MaxBuf.addToPipeReader(limit, reader)
         reader.reader.setParent(reader)
         return reader
     }
@@ -148,11 +151,19 @@ public class PipeReader {
 
     /// kind - 确定是 stdout 还是 stderr
     public func kind(process!: Subprocess): ApiStdioKind {
-        if (process.stdout == pipe && process.stdout.pipe == this) {
-            return ApiStdioKind.stdout
+        match (process.stdout) {
+            case pipe(pipe) =>
+                if (pipe == this) {
+                    return ApiStdioKind.stdout
+                }
+            case _ => ()
         }
-        if (process.stderr == pipe && process.stderr.pipe == this) {
-            return ApiStdioKind.stderr
+        match (process.stderr) {
+            case pipe(pipe) =>
+                if (pipe == this) {
+                    return ApiStdioKind.stderr
+                }
+            case _ => ()
         }
         fatalError("We should be either stdout or stderr")
     }

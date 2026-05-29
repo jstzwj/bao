@@ -541,7 +541,7 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.transform
     public func transform(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
-        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
+        var args = JsCallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         let codeArgOpt = args.next()
         if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("transform", "code", "string or Uint8Array")
@@ -579,7 +579,7 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.transformSync
     public func transformSync(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
-        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
+        var args = JsCallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         let codeArgOpt = args.next()
         if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("transformSync", "code", "string or Uint8Array")
@@ -681,7 +681,7 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.scan
     public func scan(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(3)
-        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
+        var args = JsCallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         let codeArgOpt = args.next()
         if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("scan", "code", "string or Uint8Array")
@@ -761,7 +761,7 @@ public class JSTranspiler {
     /// 对应 Bun: JSTranspiler.scanImports
     public func scanImports(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
         let arguments = callframe.argumentsOld(2)
-        var args = CallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
+        var args = JsCallFrame.ArgumentsSlice(globalThis.bunVM(), arguments.slice())
         let codeArgOpt = args.next()
         if (codeArgOpt.isNone()) {
             return globalThis.throwInvalidArgumentType("scanImports", "code", "string or Uint8Array")

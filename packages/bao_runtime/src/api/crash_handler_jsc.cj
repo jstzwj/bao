@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/api/crash_handler_jsc.zig
 package bao_runtime.api
 
-import bao_jsc.{JsGlobalObject, JsValue}
+import bao_jsc.{JsGlobalObject, JsValue, JsCallFrame}
 import bao_core.{Allocator, Output}
 
 // ============================================================================

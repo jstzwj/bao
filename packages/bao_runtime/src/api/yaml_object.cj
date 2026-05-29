@@ -1,10 +1,36 @@
 // 严格翻译自: src/runtime/api/YAMLObject.zig
 package bao_runtime.api
 
-import bao_jsc.*
-import bao_core.*
+import bao_jsc.{JsGlobalObject, JsValue, ZigString}
+import bao_core.{Allocator, Output}
 import bao_io.*
 import bao_collections.*
+
+// 本地 stub 类型
+public class BlobOrStringOrBuffer {
+    public var stringOrBuffer: ?StringOrBuffer = None
+    public init() {}
+    public init(string_or_buffer!: StringOrBuffer) {
+        stringOrBuffer = Some(string_or_buffer)
+    }
+    public static func fromJS(globalThis: JsGlobalObject, allocator: Allocator, value: JsValue): ?BlobOrStringOrBuffer {
+        None
+    }
+    public func slice(): Array<UInt8> {
+        if (let value <- stringOrBuffer) {
+            return value.slice()
+        }
+        return []
+    }
+    public func deinit(): Unit {}
+}
+public type JsNodeBlobOrStringOrBuffer = BlobOrStringOrBuffer
+public class AnchorAlias { public init() {} }
+public class StringHashMap<V> { public init() {} }
+public class MarkedArgumentBuffer { public init() {} }
+public class JSError { public init() {} }
+public class JSTerminated { public init() {} }
+public class StackOverflow { public init() {} }
 
 // ============================================================================
 // YAMLObject - Bun.YAML 全局对象
@@ -12,7 +38,7 @@ import bao_collections.*
 // ============================================================================
 
 /// 创建 YAML 对象，挂载到 Bun.YAML
-public func create(globalThis!: JsGlobalObject): JsValue {
+public func createYAML(globalThis!: JsGlobalObject): JsValue {
     let object = JsValue.createEmptyObject(globalThis, 2)
     object.put(
         globalThis,
@@ -20,7 +46,7 @@ public func create(globalThis!: JsGlobalObject): JsValue {
         JsFunction.create(
             globalThis,
             "parse",
-            parse,
+            parseYAML,
             1,
         ),
     )
@@ -38,7 +64,7 @@ public func create(globalThis!: JsGlobalObject): JsValue {
 }
 
 /// YAML.parse - 解析 YAML 字符串为 JS 对象
-public func parse(globalThis!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
+public func parseYAML(globalThis!: JsGlobalObject, callFrame!: JsCallFrame): JsValue {
     var arena = ArenaAllocator(default_allocator)
     let allocator = arena.allocator()
 
@@ -47,8 +73,8 @@ public func parse(globalThis!: JsGlobalObject, callFrame!: JsCallFrame): JsValue
 
     let inputValue = callFrame.argumentsAsArray(1)[0]
 
-    var input: JsNode.BlobOrStringOrBuffer
-    let inputOpt = JsNode.BlobOrStringOrBuffer.fromJS(globalThis, arena.allocator(), inputValue)
+    var input: JsNodeBlobOrStringOrBuffer
+    let inputOpt = JsNodeBlobOrStringOrBuffer.fromJS(globalThis, arena.allocator(), inputValue)
     if (let someInput <- inputOpt) {
         input = someInput
     } else {
@@ -145,7 +171,7 @@ public type ValueOrigin = AnchorOrigin
 
 public class YamlStringifier {
     var stack_check: StackCheck
-    var builder: StringBuilder
+    var builder: ApiStringBuilder
     var indent: Int64
     var known_collections: AutoHashMap<JsValue, AnchorAlias>
     var array_item_counter: Int64
@@ -197,7 +223,7 @@ public class YamlStringifier {
 
         return YamlStringifier{
             stack_check = StackCheck()
-            builder = StringBuilder()
+            builder = ApiStringBuilder()
             indent = 0
             known_collections = AutoHashMap(allocator)
             array_item_counter = 0

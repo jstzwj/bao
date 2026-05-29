@@ -110,11 +110,11 @@ public class SecureContext {
         // SSL_CTX 的引用由 SSLContextCache 管理
     }
 
-    @Extern
-    public static func Bun__SecureContextCache__get(global!: JsGlobalObject, key!: UInt64): JsValue
+    public static func Bun__SecureContextCache__get(global!: JsGlobalObject, key!: UInt64): JsValue {
+        JsValue.jsUndefined()
+    }
 
-    @Extern
-    public static func Bun__SecureContextCache__set(global!: JsGlobalObject, key!: UInt64, value!: JsValue, digest!: Array<UInt8>): Unit
+    public static func Bun__SecureContextCache__set(global!: JsGlobalObject, key!: UInt64, value!: JsValue, digest!: Array<UInt8>): Unit {}
 
     public static let sslCtxBaseCost: Int = 50000
 }

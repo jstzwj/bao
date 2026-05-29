@@ -2272,4 +2272,3 @@ public func computeStepInterval32(bits!: UInt32, min!: UInt8, max!: UInt8): ?UIn
     }
     return step
 }
-

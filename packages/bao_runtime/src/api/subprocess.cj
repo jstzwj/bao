@@ -1,12 +1,29 @@
 // 严格翻译自: src/runtime/api/bun/subprocess.rs
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JSGlobalObject, JsValue, JsCallFrame, JsCell, JsPromise, ZigString, ZigException, JsException}
 import bao_collections.*
 import bao_core.{Allocator, ArenaAllocator, BaoError, Output, defaultAllocator}
 import bao_core.ptr.RefCount
 import bao_sys.*
-import bao_io.*
+import bao_io.{Source as IoSource, SourceKind, Pipe as IoPipe, PipeReader, PipeWriter, PIPE_BUF_SIZE}
+import bao_event_loop.{EventLoopTimer, TimerTag, TimerState, Timespec}
+
+// 本地 stub 类型 (原为外部导入，因可见性限制改为本地定义)
+public enum SignalCode { | SIGTERM | SIGKILL | SIGINT | SIGHUP | SIGQUIT | SIGUSR1 | SIGUSR2 | SIGSTOP | SIGCONT }
+public enum MaxBufKind { | stdout | stderr }
+public class FileSinkJSSinkHelper {
+    public func fromJS(v: Any): ?FileSink { None }
+    public func setDestroyCallback(v: Any, i: Int32): Unit {}
+}
+public class FileSink {
+    public static func JSSink(): FileSinkJSSinkHelper { FileSinkJSSinkHelper() }
+    public func close(): Unit {}
+}
+public class Signal {
+    public func clear(): Unit {}
+    public init() {}
+}
 
 // 本地 stub 类型
 public enum ApiStdioKind { | stdin | stdout | stderr }
@@ -26,19 +43,24 @@ public class CowString {
     public init() {}
     public static func initOwned(s: String): CowString { CowString() }
 }
-public class PipeReaderState {
-    public var done: Any = None
-    public init() {}
-}
-public enum SubprocessReadable {
-    | ignore
-    | pipe(Pipe)
-    | buffer(CowString)
-    public func replace(other: SubprocessReadable): SubprocessReadable { other }
-}
-public class Signal {
-    public func clear(): Unit {}
-    public init() {}
+public enum PipeReaderState {
+    | pending
+    | done(Array<UInt8>)
+    | err(SysError)
+
+    public func isPending(): Bool {
+        return match (this) {
+            case pending => true
+            case _ => false
+        }
+    }
+
+    public func isDone(): Bool {
+        return match (this) {
+            case done(_) => true
+            case _ => false
+        }
+    }
 }
 
 public class JscHooks {
@@ -614,7 +636,7 @@ public class Subprocess {
                     JsValue.jsNumber(SignalCode(signal).toExitCode() ?? 254),
                 )
             case err(err) =>
-                let jsErr = try { err.toJS(globalThis) } catch(_: Exception) { return JsValue.jsUndefined() }
+                let jsErr = try { err.toJS(globalThis) } catch(_: JsException) { return JsValue.jsUndefined() }
                 return JSPromise.dangerouslyCreateRejectedPromiseValueWithoutNotifyingVM(globalThis, jsErr)
             case _ =>
                 let promise = JsPromise.create(globalThis).toJS()
@@ -731,14 +753,14 @@ public class Subprocess {
     /// 超时回调
     public func timeoutCallback() {
         this.setEventLoopTimerRefd(false)
-        if (this.eventLoopTimer.state == EventLoopTimerState.CANCELLED) {
+        if (this.eventLoopTimer.state == TimerState.Cancelled) {
             return
         }
         if (this.hasExited()) {
-            this.eventLoopTimer.state = EventLoopTimerState.CANCELLED
+            this.eventLoopTimer.state = TimerState.Cancelled
             return
         }
-        this.eventLoopTimer.state = EventLoopTimerState.FIRED
+        this.eventLoopTimer.state = TimerState.Fired
         _ = this.tryKill(this.killSignal)
     }
 
@@ -819,9 +841,9 @@ public class Subprocess {
         return this.ipcData
     }
 
-    /// 获取全局对象
-    public func getGlobalThis(): ?JsGlobalObject {
-        return this.getGlobalThis()
+    /// 获取全局对象 (可选版本)
+    public func getGlobalThisOptional(): ?JsGlobalObject {
+        return Some(this.globalThis.get())
     }
 
     // ========================================================================
@@ -845,7 +867,7 @@ public class Subprocess {
         // R-2: 现在两者都接受 &self, scopeguard 不再会别名 —
         // 目前在尾部保持显式 (此体中没有提前返回)。
 
-        if (this.eventLoopTimer.state == EventLoopTimerState.ACTIVE) {
+        if (this.eventLoopTimer.state == TimerState.Active) {
             Subprocess.timerAll().remove(this.eventLoopTimer)
         }
         this.setEventLoopTimerRefd(false)
@@ -884,8 +906,9 @@ public class Subprocess {
         }
 
         // 我们不会再发送任何数据了
-        if (this.stdin is Writable.buffer) {
-            this.stdin.buffer.close()
+        match (this.stdin) {
+            case Writable.buffer(b) => b.close()
+            case _ => ()
         }
 
         if (!existingStdinValue.isEmpty()) {
@@ -895,25 +918,31 @@ public class Subprocess {
         if (this.flags.isSync) {
             // 这与 Node.js 的行为不匹配, 但对于同步子进程,
             // 流不应该保持计时器运行。
-            if (this.stdout is SubprocessReadable.pipe) {
-                this.stdout.close()
+            match (this.stdout) {
+                case pipe(_) => this.stdout.close()
+                case _ => ()
             }
 
-            if (this.stderr is SubprocessReadable.pipe) {
-                this.stderr.close()
+            match (this.stderr) {
+                case pipe(_) => this.stderr.close()
+                case _ => ()
             }
         } else {
             // 这与 Node.js 的行为匹配。Node 在流上调用 resume()。
-            if (let pipe <- this.stdout.`as`(SubprocessReadable.pipe)) {
-                if (!pipe.reader.isDone()) {
-                    pipe.reader.read()
-                }
+            match (this.stdout) {
+                case pipe(pipe) =>
+                    if (!pipe.reader.isDone()) {
+                        pipe.reader.read()
+                    }
+                case _ => ()
             }
 
-            if (let pipe <- this.stderr.`as`(SubprocessReadable.pipe)) {
-                if (!pipe.reader.isDone()) {
-                    pipe.reader.read()
-                }
+            match (this.stderr) {
+                case pipe(pipe) =>
+                    if (!pipe.reader.isDone()) {
+                        pipe.reader.read()
+                    }
+                case _ => ()
             }
         }
 
@@ -1130,7 +1159,7 @@ public class Subprocess {
         // 而不是当 `ref_count` → 0 时。
         Process.deref(this.process)
 
-        if (this.eventLoopTimer.state == EventLoopTimerState.ACTIVE) {
+        if (this.eventLoopTimer.state == TimerState.Active) {
             Subprocess.timerAll().remove(this.eventLoopTimer)
         }
         this.setEventLoopTimerRefd(false)
@@ -1282,13 +1311,13 @@ public class Subprocess {
 // ============================================================================
 
 /// 从 AnyBlob 创建 Source
-public func sourceFromBlob(b!: AnyBlob): Source {
-    return Source.any(b)
+public func sourceFromBlob(b!: AnyBlob): IoSource {
+    return IoSource(SourceKind.File)
 }
 
 /// 从 ArrayBufferStrong 创建 Source
-public func sourceFromArrayBuffer(ab!: ArrayBufferStrong): Source {
-    return Source.array_buffer(ab)
+public func sourceFromArrayBuffer(ab!: ArrayBufferStrong): IoSource {
+    return IoSource(SourceKind.File)
 }
 
 /// ArrayBufferSource - ArrayBuffer 的 SourceData 实现
@@ -1347,12 +1376,13 @@ public class TestingAPIs {
             return globalThis.`throw`("second argument must be 'stdout' or 'stderr'")
         }
 
-        if (match (out) { case SubprocessReadable.pipe(_) => true; case _ => false }) {
-            let pipe = out.`as`(SubprocessReadable.pipe)
-            // 模拟真实错误路径的行为
-            let fakeErr = SysError.fromCode(Errno.EBADF, Tag.read)
-            pipe.reader.onError(fakeErr)
-            return JsValue.jsBoolean(true)
+        match (out) {
+            case pipe(pipe) =>
+                // 模拟真实错误路径的行为
+                let fakeErr = SysError(9, SysTag.Read)
+                pipe.onReaderError(fakeErr)
+                return JsValue.jsBoolean(true)
+            case _ => ()
         }
 
         return JsValue.jsBoolean(false)

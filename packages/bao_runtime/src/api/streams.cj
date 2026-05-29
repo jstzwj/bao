@@ -18,7 +18,7 @@ import bao_core.*
 /// Bun: BlobInternalReadableStreamSource / FileInternalReadableStreamSource / BytesInternalReadableStreamSource
 /// 这些源类用于 ReadableStream 的底层实现
 /// 共享字段: pendingPromise, onCloseCallback, onDrainCallback
-public class InternalReadableStreamSource {
+public open class InternalReadableStreamSource {
 
     /// 挂起的 Promise
     public var pendingPromise: ?JsValue = none

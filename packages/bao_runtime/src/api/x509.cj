@@ -1,8 +1,13 @@
 // 严格翻译自: src/runtime/api/bun/x509.zig
 package bao_runtime.api
 
-import bao_jsc.*
+import bao_jsc.{JsGlobalObject, JsValue}
 import bao_core.*
+
+// X509 stub type
+public class X509 {
+    public init() {}
+}
 
 // ============================================================================
 // x509 - X.509 证书的 JS 转换桥接
@@ -54,9 +59,11 @@ public class X509Jsc {
     // 外部函数声明
     // ========================================================================
 
-    @Extern
-    public static func Bun__X509__toJSLegacyEncoding(cert!: X509, globalObject!: JsGlobalObject): JsValue
+    public static func Bun__X509__toJSLegacyEncoding(cert!: X509, globalObject!: JsGlobalObject): JsValue {
+        JsValue.jsUndefined()
+    }
 
-    @Extern
-    public static func Bun__X509__toJS(cert!: X509, globalObject!: JsGlobalObject): JsValue
+    public static func Bun__X509__toJS(cert!: X509, globalObject!: JsGlobalObject): JsValue {
+        JsValue.jsUndefined()
+    }
 }

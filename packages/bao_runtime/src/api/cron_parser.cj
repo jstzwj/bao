@@ -751,4 +751,49 @@ public class Strings {
         }
         return none
     }
+
+    public static func hasPrefix(input!: Array<UInt8>, prefix!: Array<UInt8>): Bool {
+        if (prefix.size > input.size) { return false }
+        for (i in 0..prefix.size) {
+            if (input[i] != prefix[i]) { return false }
+        }
+        return true
+    }
+
+    public static func hasPrefix(input!: Array<UInt8>, prefix!: String): Bool {
+        return hasPrefix(input, prefix.toUtf8().toArray())
+    }
+
+    public static func withoutTrailingSlash(input!: Array<UInt8>): Array<UInt8> {
+        if (input.size <= 1) { return input }
+        var end = input.size
+        while (end > 1) {
+            let c = input[end - 1]
+            if (c != UInt8(47) && c != UInt8(92)) { break }
+            end--
+        }
+        return input[0..end]
+    }
+
+    public static func trimLeft(input!: Array<UInt8>, chars!: String): Array<UInt8> {
+        let needles = chars.toUtf8().toArray()
+        var start: Int64 = 0
+        while (start < input.size) {
+            var found = false
+            for (ch in needles) {
+                if (input[start] == ch) {
+                    found = true
+                    break
+                }
+            }
+            if (!found) { break }
+            start++
+        }
+        return input[start..]
+    }
+
+    public static func eqlLong(a!: String, b!: String, checkLen!: Bool): Bool {
+        if (checkLen && a.size != b.size) { return false }
+        return a == b
+    }
 }

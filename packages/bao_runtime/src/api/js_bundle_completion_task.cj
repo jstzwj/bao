@@ -9,6 +9,7 @@ package bao_runtime.api
 
 import bao_collections.ArrayList
 import bao_jsc.{JsGlobalObject, JsValue}
+import bao_io.KeepAlive
 
 // 本地 stub 类型 — 仅定义在其他文件中不存在的类型
 public class JSPromise {

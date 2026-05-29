@@ -449,7 +449,7 @@ public func waitpid(pid!: PidT, flags!: UInt32): Maybe<WaitPidResult> {
 }
 
 /// wait4 封装 (带资源使用信息)
-public func wait4(pid!: PidT, flags!: UInt32, usage!: Rusage): Maybe<WaitPidResult> {
+public func wait4Spawn(pid!: PidT, flags!: UInt32, usage!: Rusage): Maybe<WaitPidResult> {
     var status: Int32 = 0
     while (true) {
         let rc = Posix.wait4(pid, status, Int32(flags), usage)

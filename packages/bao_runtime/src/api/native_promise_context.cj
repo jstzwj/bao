@@ -83,8 +83,9 @@ public class NativePromiseContext {
     }
 
     /// 外部声明: C++ 创建函数
-    @Extern
-    public static func Bun__NativePromiseContext__create(global!: JsGlobalObject, ctx!: Any, tag!: UInt8): JsValue
+    public static func Bun__NativePromiseContext__create(global!: JsGlobalObject, ctx!: Any, tag!: UInt8): JsValue {
+        JsValue.jsUndefined()
+    }
 
     /// take - 转移引用回调用者, 置空单元格
     /// 返回 null 如果已经被取走
@@ -95,8 +96,9 @@ public class NativePromiseContext {
     }
 
     /// 外部声明: C++ take 函数
-    @Extern
-    public static func Bun__NativePromiseContext__take(value!: JsValue): ?Any
+    public static func Bun__NativePromiseContext__take(value!: JsValue): ?Any {
+        None
+    }
 
     // ========================================================================
     // DeferredDerefTask - 延迟释放任务

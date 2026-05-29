@@ -10,7 +10,7 @@ import bao_core.{Allocator, Output}
 // ============================================================================
 
 /// 创建 Unsafe 对象，挂载到 Bun.unsafe
-public func create(globalThis!: JsGlobalObject): JsValue {
+public func createUnsafe(globalThis!: JsGlobalObject): JsValue {
     let object = JsValue.createEmptyObject(globalThis, 3)
 
     // gcAggressionLevel

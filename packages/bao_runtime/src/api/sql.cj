@@ -18,7 +18,7 @@ import bao_collections.{ArrayList, HashMap}
 /// SQLConnection - SQL 数据库连接的公共基类
 /// Bun: PostgresSQLConnection / MySQLConnection
 /// 两个数据库后端共享相同的方法签名
-public class SQLConnection {
+public open class SQLConnection {
 
     /// 连接的回调
     public var onConnect: ?JsValue = none
@@ -182,7 +182,7 @@ public class SQLConnection {
 
 /// SQLQuery - SQL 查询
 /// Bun: PostgresSQLQuery / MySQLQuery
-public class SQLQuery {
+public open class SQLQuery {
 
     /// 挂起的 Promise 值
     public var pendingValue: ?JsValue = none

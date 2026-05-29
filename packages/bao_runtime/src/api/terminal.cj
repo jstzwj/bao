@@ -1,7 +1,7 @@
 // 严格翻译自: src/runtime/api/bun/Terminal.rs
 package bao_runtime.api
 
-import bao_jsc.{JsGlobalObject, JsValue, ZigStringSlice}
+import bao_jsc.{JsGlobalObject, JsValue, ZigStringSlice, JsCallFrame, JSType}
 import bao_core.{Allocator, Output}
 import bao_io.*
 import bao_sys.*
@@ -971,7 +971,7 @@ public class Terminal {
 
     /// constructor - 从 JS 创建 Terminal
     /// 严格翻译自: pub fn constructor(global_object, callframe, this_value) -> JsResult<*Terminal>
-    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame, thisValue!: JsValue): Maybe<Terminal> {
+    public static func constructor(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): Maybe<Terminal> {
         let args = callframe.argumentsAsArray(1)
         let jsOptions = args[0]
 
@@ -1158,7 +1158,7 @@ public class Terminal {
 
     /// write - 向终端写入数据
     /// 严格翻译自: pub fn write(&self, global_object, callframe) -> JsResult<JsValue>
-    public func write(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame): Maybe<JsValue> {
+    public func write(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1209,7 +1209,7 @@ public class Terminal {
 
     /// resize - 调整终端大小
     /// 严格翻译自: pub fn resize(&self, global_object, callframe) -> JsResult<JsValue>
-    public func resize(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame): Maybe<JsValue> {
+    public func resize(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1273,7 +1273,7 @@ public class Terminal {
 
     /// setRawMode - 设置原始模式
     /// 严格翻译自: pub fn set_raw_mode(&self, global_object, callframe) -> JsResult<JsValue>
-    public func setRawMode(jsGlobalObject!: JsGlobalObject, callframe!: CallFrame): Maybe<JsValue> {
+    public func setRawMode(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame): Maybe<JsValue> {
         if (flags.contains(Flags.CLOSED)) {
             return Maybe<JsValue>.err("Error", "Terminal is closed", "")
         }
@@ -1301,14 +1301,14 @@ public class Terminal {
 
     /// doRef - 引用终端, 保持事件循环活跃
     /// 严格翻译自: pub fn do_ref(&self, _g, _f) -> JsResult<JsValue>
-    public func doRef(globalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
+    public func doRef(globalObject!: JsGlobalObject, callFrame!: JsCallFrame): Maybe<JsValue> {
         updateRef(true)
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
 
     /// doUnref - 取消引用终端
     /// 严格翻译自: pub fn do_unref(&self, _g, _f) -> JsResult<JsValue>
-    public func doUnref(globalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
+    public func doUnref(globalObject!: JsGlobalObject, callFrame!: JsCallFrame): Maybe<JsValue> {
         updateRef(false)
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
@@ -1327,7 +1327,7 @@ public class Terminal {
 
     /// close - 关闭终端
     /// 严格翻译自: pub fn close(&self, _g, _f) -> JsResult<JsValue>
-    public func close(globalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
+    public func close(globalObject!: JsGlobalObject, callFrame!: JsCallFrame): Maybe<JsValue> {
         closeInternal()
         return Maybe<JsValue>(result: JsValue.jsUndefined())
     }
@@ -1340,7 +1340,7 @@ public class Terminal {
     /// asyncDispose - 异步释放, 用于 "using" 语法
     /// 严格翻译自: pub fn async_dispose(&self, global_object, _f) -> JsResult<JsValue>
     /// 关闭后调用者不应再看到进一步的 data/exit 回调
-    public func asyncDispose(jsGlobalObject!: JsGlobalObject, callFrame!: CallFrame): Maybe<JsValue> {
+    public func asyncDispose(jsGlobalObject!: JsGlobalObject, callFrame!: JsCallFrame): Maybe<JsValue> {
         // 降级 JSRef 使包装器可被 GC 回收
         thisValue.downgrade()
         // 标记为已终结, 抑制回调
