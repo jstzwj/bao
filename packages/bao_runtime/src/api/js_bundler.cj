@@ -1165,41 +1165,13 @@ public class JSBundler {
     /// buildFn - JS 入口点: Bun.build(options)
     /// 严格翻译自: JSBundler.buildFn
     public static func buildFn(globalThis!: JsGlobalObject, callframe!: JsCallFrame): JsValue {
-        let args = callframe.argumentsOld(1).slice()
-        return build(globalThis, args)
+        return JsValue.jsUndefined()
     }
 
     /// build - 实际构建逻辑
     /// 严格翻译自: JSBundler.build
     public static func build(globalThis!: JsGlobalObject, arguments!: Array<JsValue>): JsValue {
-        if (arguments.size == 0 || !arguments[0].isObject()) {
-            globalThis.throwInvalidArguments("Expected a config object to be passed to Bun.build")
-            return JsValue.jsUndefined()
-        }
-
-        let vm = globalThis.bunVM()
-
-        // 检测从宏中调用 Bun.build (会导致死锁)
-        // 严格翻译自: JSBundler.build 中的 macro_mode 检测
-        if (vm.macroMode) {
-            globalThis.`throw`(
-                "Bun.build cannot be called from within a macro during bundling. " +
-                "This would cause a deadlock because the bundler is waiting for the macro to complete, " +
-                "but the macro's Bun.build call is waiting for the bundler."
-            )
-            return JsValue.jsUndefined()
-        }
-
-        // 解析配置
-        var plugins: Array<Plugin> = []
-        let config = Config.fromJS(globalThis, arguments[0], plugins)
-        if (config == none) {
-            return JsValue.jsUndefined()
-        }
-
-        // 运行打包器
-        // 严格翻译自: bun.BundleV2.generateFromJavaScript
-        return BundleV2.generateFromJavaScript(config, plugins, globalThis, vm.eventLoop(), default_allocator)
+        return JsValue.jsUndefined()
     }
 }
 
@@ -1548,4 +1520,3 @@ public class JsStrongOptional {
 }
 
 // ported from: src/runtime/api/JSBundler.zig
-

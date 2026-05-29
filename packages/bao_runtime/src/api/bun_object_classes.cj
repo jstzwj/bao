@@ -116,13 +116,13 @@ public class SubprocessClasses {
     /// writable getter (alias: stdin, cached)
     /// 严格翻译自: proto.writable { getter: "getStdin", cache: "stdin" }
     public static func getWritable(jsGlobalObject!: JsGlobalObject, thisValue!: JsValue): JsValue {
-        return getStdin(globalObject, thisValue)
+        return getStdin(jsGlobalObject: jsGlobalObject, thisValue: thisValue)
     }
 
     /// readable getter (alias: stdout, cached)
     /// 严格翻译自: proto.readable { getter: "getStdout", cache: "stdout" }
     public static func getReadable(jsGlobalObject!: JsGlobalObject, thisValue!: JsValue): JsValue {
-        return getStdout(globalObject, thisValue)
+        return getStdout(jsGlobalObject: jsGlobalObject, thisValue: thisValue)
     }
 
     /// ref fn

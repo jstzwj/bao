@@ -11,3 +11,4 @@ target/
 /test/**/*.log
 /test/**/.tmp.*
 /test/**/fails.txt
+a.out

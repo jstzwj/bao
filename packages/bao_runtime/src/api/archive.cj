@@ -94,16 +94,13 @@ public func parseCompressionOptions(global!: JsGlobalObject, optionsArg!: JsValu
     }
     if (optionsArg.isObject()) {
         let jsObj: JsObject = global.globalThis
-        let compressOpt = optionsArg.getTruthy(jsObj, "compress")
-        match (compressOpt) {
-            case Some(compressVal) =>
-                if (compressVal.isString()) {
-                    let s = compressVal.toStdString()
-                    if (s == "gzip") { return Compression.gzip }
-                    if (s == "brotli") { return Compression.brotli }
-                    if (s == "zstd") { return Compression.zstd }
-                }
-            case None => ()
+        if (let Some(compressVal) <- optionsArg.getTruthy(jsObj, "compress")) {
+            if (compressVal.isString()) {
+                let s = compressVal.toSlice(global.globalThis)
+                if (s == "gzip") { return Compression.gzip }
+                if (s == "brotli") { return Compression.brotli }
+                if (s == "zstd") { return Compression.zstd }
+            }
         }
     }
     Compression.none

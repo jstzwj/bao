@@ -33,6 +33,40 @@ public class WriterRefCount { public init() {} }
 public class Result { public init() {} }
 public class StdioPipeItem { public init() {} }
 public class IPCDecodedIPCMessage { public init() {} }
+public class SpawnStdio { public init() {} }
+
+public class EventLoop {
+    public init() {}
+    public static func enterScope(eventLoop!: EventLoop): EventLoopScope {
+        EventLoopScope()
+    }
+}
+
+public class EventLoopScope {
+    public init() {}
+    public func deinit(): Unit {}
+}
+
+public class BackRef<T> {
+    public var value: ?T = None
+    public init() {}
+    public init(value!: T) {
+        this.value = Some(value)
+    }
+    public static func from(value!: T): BackRef<T> {
+        BackRef<T>(value: value)
+    }
+    public func get(): ?T {
+        value
+    }
+}
+
+public class JSPromiseStrong {
+    public init() {}
+    public init(globalThis: JsGlobalObject) {}
+    public static func default(): JSPromiseStrong { JSPromiseStrong() }
+    public func getValue(): JsValue { JsValue.jsUndefined() }
+}
 
 public class IPCSendQueue {
     public init() {}
@@ -73,5 +107,32 @@ public class ApiStringBuilder {
     }
     public func deinit(): Unit {
         parts.clear()
+    }
+}
+
+public class Strings {
+    public static func eqlComptime(input!: String, expected!: String): Bool {
+        return input == expected
+    }
+
+    public static func hasPrefixComptime(input!: String, prefix!: String): Bool {
+        return input.startsWith(prefix)
+    }
+
+    public static func withoutTrailingSlashWindowsPath(input!: String): String {
+        return input
+    }
+
+    public static func trimLeft(input!: Array<UInt8>, chars!: String): Array<UInt8> {
+        var start: Int64 = 0
+        while (start < input.size) {
+            let c = input[start]
+            if (chars == "/" && c == UInt8(47)) {
+                start++
+                continue
+            }
+            break
+        }
+        return input[start..input.size]
     }
 }

@@ -25,7 +25,7 @@ public class CronJobClasses {
     /// @@dispose fn (alias: stop)
     /// 严格翻译自: proto["@@dispose"] { fn: "stop", length: 0 }
     public static func dispose(jsGlobalObject!: JsGlobalObject, callframe!: JsCallFrame, thisValue!: JsValue): JsValue {
-        return stop(globalObject, callframe, thisValue)
+        return stop(jsGlobalObject: jsGlobalObject, callframe: callframe, thisValue: thisValue)
     }
 
     /// ref fn
