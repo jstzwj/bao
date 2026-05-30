@@ -1557,12 +1557,12 @@ public class Parser {
         if (lexer.token == Token.PlusPlus) {
             lexer.nextToken()
             let operand = parseUnaryExpr(opts)
-            return Expr.prefix(loc, OpCode.UnPos, operand)
+            return Expr.prefix(loc, OpCode.UnPreInc, operand)
         }
         if (lexer.token == Token.MinusMinus) {
             lexer.nextToken()
             let operand = parseUnaryExpr(opts)
-            return Expr.prefix(loc, OpCode.UnNeg, operand)
+            return Expr.prefix(loc, OpCode.UnPreDec, operand)
         }
 
         // await
@@ -1585,12 +1585,14 @@ public class Parser {
                 let loc = lexer.loc()
                 lexer.nextToken()
                 expr = Expr.postfix(loc, expr)
+                expr.op = OpCode.UnPostInc
                 continue
             }
             if (lexer.token == Token.MinusMinus) {
                 let loc = lexer.loc()
                 lexer.nextToken()
                 expr = Expr.postfix(loc, expr)
+                expr.op = OpCode.UnPostDec
                 continue
             }
 

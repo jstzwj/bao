@@ -59,7 +59,29 @@ public enum JsValueType {
     | Error
 
     public operator func ==(right: JsValueType): Bool {
-        return false
+        // Cangjie enums don't have built-in == comparison.
+        // Use exhaustive match for correct equality.
+        match (this) {
+            case Undefined => match (right) { case Undefined => true case _ => false }
+            case Null => match (right) { case Null => true case _ => false }
+            case Boolean => match (right) { case Boolean => true case _ => false }
+            case Number => match (right) { case Number => true case _ => false }
+            case String => match (right) { case String => true case _ => false }
+            case Symbol => match (right) { case Symbol => true case _ => false }
+            case BigInt => match (right) { case BigInt => true case _ => false }
+            case Object => match (right) { case Object => true case _ => false }
+            case Array => match (right) { case Array => true case _ => false }
+            case Function => match (right) { case Function => true case _ => false }
+            case Date => match (right) { case Date => true case _ => false }
+            case RegExp => match (right) { case RegExp => true case _ => false }
+            case Map => match (right) { case Map => true case _ => false }
+            case Set => match (right) { case Set => true case _ => false }
+            case Promise => match (right) { case Promise => true case _ => false }
+            case ArrayBuffer => match (right) { case ArrayBuffer => true case _ => false }
+            case TypedArray => match (right) { case TypedArray => true case _ => false }
+            case DataView => match (right) { case DataView => true case _ => false }
+            case Error => match (right) { case Error => true case _ => false }
+        }
     }
 
     public operator func !=(right: JsValueType): Bool {
