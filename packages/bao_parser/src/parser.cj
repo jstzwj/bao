@@ -968,9 +968,13 @@ public class Parser {
             return GProperty.method(loc, name, fn, isStatic, isGet, isSet, isAsync)
         }
 
-        // 字段
+        // 字段 — 对应 JS { key: value } 使用冒号分隔
         var value: ?Expr = None
-        if (lexer.token == Token.Equals) {
+        if (lexer.token == Token.Colon) {
+            lexer.nextToken()
+            value = Some(parseAssignmentExpr(ParseExprOpts()))
+        } else if (lexer.token == Token.Equals) {
+            // TS class field: { key = default }
             lexer.nextToken()
             value = Some(parseExpr(ParseExprOpts()))
         }
