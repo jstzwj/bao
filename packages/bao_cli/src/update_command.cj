@@ -20,7 +20,9 @@ public class UpdateCommand {
     /// 执行 update 命令
     /// 对应 Bun: UpdateCommand.exec()
     public static func exec(ctx: CommandContext): Unit {
-        // PORT NOTE: dropped `ctx.allocator` arg — global mimalloc per §Allocators
+        // Design note: Bun passes `ctx.allocator` (mimalloc) to CommandLineArguments.parse.
+        // Cangjie uses a global allocator via its runtime, so the allocator argument is omitted.
+        // The parse result is identical.
         let cli = CommandLineArguments.parse(Subcommand.update)
 
         if (cli.interactive) {

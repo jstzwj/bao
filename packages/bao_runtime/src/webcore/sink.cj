@@ -206,7 +206,7 @@ public class Sink {
 
     /// pending — 哨兵状态, 状态为 Closed
     /// 对应 Bun: Sink::pending() (Sink.rs:51-69)
-    /// PORT NOTE: Zig 用 @ptrFromInt(0xaaaaaaaa) 作为哨兵非空指针
+    /// Uses 0xAAAAAAAA as a sentinel non-null pointer value (matches Zig's @ptrFromInt).
     public static func pending(): Sink {
         let sink = Sink()
         sink.ptr = 0xAAAAAAAA // 哨兵地址

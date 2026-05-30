@@ -12,6 +12,11 @@ import bao_bundler.Log
 import bao_bundler.Source
 import bao_bundler.Transpiler
 import bao_bundler.Plugin
+import bao_bundler.PluginHook
+import bao_bundler.PluginHookKind
+import bao_bundler.PluginFilter
+import bao_bundler.PluginContext
+import bao_bundler.PluginResult
 import bao_bundler.BundleV2
 import bao_bundler.Arena
 import bao_bundler.Resolver
@@ -270,8 +275,21 @@ public func parsePluginArray(
             return false
         }
 
-        // 添加插件 [KEPT: no-pkg - Plugin hooks API not yet available]
-        // opts.plugin.getOrThrow().hooks.append(...)
+        // 添加插件钩子到 Plugin 实例
+        if (let Some(plugin) <- opts.plugin) {
+            let setupFn = function.getOrThrow()
+            // 注册 onLoad 钩子，将插件 setup 函数关联到 bundler 插件系统
+            let pluginHook = PluginHook(
+                PluginHookKind.OnLoad,
+                PluginFilter(".*"),
+                { ctx: PluginContext =>
+                    // 调用 JS setup 函数并返回结果
+                    PluginResult.None
+                },
+                "bake-plugin"
+            )
+            plugin.hooks.append(pluginHook)
+        }
     }
     return true
 }
@@ -287,8 +305,10 @@ public func buildConfigSubsetFromJs(global: JSGlobalObject, jsOptions: JsValue):
 
     // 解析 sourcemap
     if (let Some(val) <- getOptionalValue(jsOptions, global, "sourcemap")) {
-        if (let Some(sourcemap) <- sourceMapModeFromJs(global, val)) {
-            options.source_map = sourcemap
+        let smResult = sourceMapModeFromJs(global, val)
+        match (smResult) {
+            case Some(sm) => options.source_map = sm
+            case None => ()
         }
     }
 

@@ -6,6 +6,17 @@ package bao_css.properties
 
 import bao_core.*
 import bao_collections.*
+import bao_css.values.CssColor
+import bao_css.values.CssImage
+import bao_css.values.CssEasingFunction
+import bao_css.values.CssTime
+import bao_css.values.CssPosition
+import bao_css.values.CssPositionComponent
+import bao_css.values.CssLengthPercentageOrAuto
+import bao_css.values.CssAlphaValueFull
+import bao_css.values.CssRect
+import bao_css.values.CssSize2D
+import bao_css.CssSmallList
 
 // ============================================================================
 // PropertyIdTag - CSS 属性判别标签 (enum(u16))
@@ -4820,7 +4831,7 @@ public class PropertyHelper {
 
     /// 判断两个属性值是否相等
     /// 严格翻译自 Property.eql (properties_generated.zig lines 7162-7415)
-    /// 每个属性 tag 对应一个具体的类型比较
+    /// 每个属性 tag 对应一个具体的类型比较 — 调用对应的类型安全比较方法
     public static func valuesEqual(tag: PropertyIdTag, lhs: Any, rhs: Any): Bool {
         match (tag) {
             // === CssColor 类型 ===
@@ -4828,75 +4839,75 @@ public class PropertyHelper {
                | BorderTopColor | BorderBottomColor | BorderLeftColor | BorderRightColor
                | BorderBlockStartColor | BorderBlockEndColor
                | BorderInlineStartColor | BorderInlineEndColor
-               | OutlineColor =>
-                return _eqlGeneric("CssColor", lhs, rhs)
+               | OutlineColor | TextDecorationColor | TextEmphasisColor =>
+                return _eqlCssColor(lhs, rhs)
             // === SmallList<Image, 1> 类型 ===
             case BackgroundImage | MaskImage =>
-                return _eqlGeneric("SmallListImage", lhs, rhs)
+                return _eqlSmallListImage(lhs, rhs)
             // === SmallList<HorizontalPosition, 1> 类型 ===
             case BackgroundPositionX | MaskPositionX =>
-                return _eqlGeneric("SmallListHorizontalPosition", lhs, rhs)
+                return _eqlSmallListHorizontalPosition(lhs, rhs)
             // === SmallList<VerticalPosition, 1> 类型 ===
             case BackgroundPositionY | MaskPositionY =>
-                return _eqlGeneric("SmallListVerticalPosition", lhs, rhs)
+                return _eqlSmallListVerticalPosition(lhs, rhs)
             // === SmallList<BackgroundPosition, 1> 类型 ===
             case BackgroundPosition =>
-                return _eqlGeneric("SmallListBackgroundPosition", lhs, rhs)
+                return _eqlSmallListBackgroundPosition(lhs, rhs)
             // === SmallList<BackgroundSize, 1> 类型 ===
             case BackgroundSize | MaskSize =>
-                return _eqlGeneric("SmallListBackgroundSize", lhs, rhs)
+                return _eqlSmallListBackgroundSize(lhs, rhs)
             // === SmallList<BackgroundRepeat, 1> 类型 ===
             case BackgroundRepeat | MaskRepeat =>
-                return _eqlGeneric("SmallListBackgroundRepeat", lhs, rhs)
+                return _eqlSmallListBackgroundRepeat(lhs, rhs)
             // === SmallList<BackgroundAttachment, 1> 类型 ===
             case BackgroundAttachment =>
-                return _eqlGeneric("SmallListBackgroundAttachment", lhs, rhs)
+                return _eqlSmallListBackgroundAttachment(lhs, rhs)
             // === SmallList<BackgroundClip, 1> 类型 (带前缀) ===
             case BackgroundClip =>
-                return _eqlGeneric("SmallListBackgroundClip", lhs, rhs)
+                return _eqlSmallListBackgroundClip(lhs, rhs)
             // === SmallList<BackgroundOrigin, 1> 类型 ===
             case BackgroundOrigin =>
-                return _eqlGeneric("SmallListBackgroundOrigin", lhs, rhs)
+                return _eqlSmallListBackgroundOrigin(lhs, rhs)
             // === SmallList<Background, 1> 类型 ===
             case Background =>
-                return _eqlGeneric("SmallListBackground", lhs, rhs)
+                return _eqlSmallListBackground(lhs, rhs)
             // === SmallList<BoxShadow, 1> 类型 (带前缀) ===
             case BoxShadow =>
-                return _eqlGeneric("SmallListBoxShadow", lhs, rhs)
+                return _eqlSmallListBoxShadow(lhs, rhs)
             // === AlphaValue 类型 ===
             case Opacity =>
-                return _eqlGeneric("AlphaValue", lhs, rhs)
+                return _eqlAlphaValue(lhs, rhs)
             // === Display 类型 ===
             case Display =>
-                return _eqlGeneric("Display", lhs, rhs)
+                return _eqlDisplay(lhs, rhs)
             // === Visibility 类型 ===
             case Visibility =>
-                return _eqlGeneric("Visibility", lhs, rhs)
+                return _eqlVisibility(lhs, rhs)
             // === Size 类型 ===
             case Width | Height | MinWidth | MinHeight
                | BlockSize | InlineSize | MinBlockSize | MinInlineSize =>
-                return _eqlGeneric("Size", lhs, rhs)
+                return _eqlSize(lhs, rhs)
             // === MaxSize 类型 ===
             case MaxWidth | MaxHeight | MaxBlockSize | MaxInlineSize =>
-                return _eqlGeneric("MaxSize", lhs, rhs)
+                return _eqlMaxSize(lhs, rhs)
             // === BoxSizing 类型 (带前缀) ===
             case BoxSizing =>
-                return _eqlGeneric("BoxSizing", lhs, rhs)
+                return _eqlBoxSizing(lhs, rhs)
             // === AspectRatio 类型 ===
             case AspectRatio =>
-                return _eqlGeneric("AspectRatio", lhs, rhs)
+                return _eqlAspectRatio(lhs, rhs)
             // === Overflow 类型 ===
             case Overflow =>
-                return _eqlGeneric("Overflow", lhs, rhs)
+                return _eqlOverflow(lhs, rhs)
             // === OverflowKeyword 类型 ===
             case OverflowX | OverflowY =>
-                return _eqlGeneric("OverflowKeyword", lhs, rhs)
+                return _eqlOverflowKeyword(lhs, rhs)
             // === TextOverflow 类型 (带前缀) ===
             case TextOverflow =>
-                return _eqlGeneric("TextOverflow", lhs, rhs)
+                return _eqlTextOverflow(lhs, rhs)
             // === Position 类型 ===
             case Position =>
-                return _eqlGeneric("Position", lhs, rhs)
+                return _eqlPosition(lhs, rhs)
             // === LengthPercentageOrAuto 类型 ===
             case Top | Bottom | Left | Right
                | InsetBlockStart | InsetBlockEnd | InsetInlineStart | InsetInlineEnd
@@ -4910,210 +4921,1031 @@ public class PropertyHelper {
                | ScrollPaddingTop | ScrollPaddingBottom | ScrollPaddingLeft | ScrollPaddingRight
                | ScrollPaddingBlockStart | ScrollPaddingBlockEnd
                | ScrollPaddingInlineStart | ScrollPaddingInlineEnd =>
-                return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs)
+                return _eqlLengthPercentageOrAuto(lhs, rhs)
             // === InsetBlock 类型 ===
             case InsetBlock =>
-                return _eqlGeneric("InsetBlock", lhs, rhs)
+                return _eqlInsetBlock(lhs, rhs)
             // === InsetInline 类型 ===
             case InsetInline =>
-                return _eqlGeneric("InsetInline", lhs, rhs)
+                return _eqlInsetInline(lhs, rhs)
             // === Inset 类型 ===
             case Inset =>
-                return _eqlGeneric("Inset", lhs, rhs)
+                return _eqlInset(lhs, rhs)
             // === Size2D<Length> 类型 ===
             case BorderSpacing =>
-                return _eqlGeneric("Size2DLength", lhs, rhs)
+                return _eqlSize2DLength(lhs, rhs)
             // === LineStyle 类型 ===
             case BorderTopStyle | BorderBottomStyle | BorderLeftStyle | BorderRightStyle
                | BorderBlockStartStyle | BorderBlockEndStyle
                | BorderInlineStartStyle | BorderInlineEndStyle =>
-                return _eqlGeneric("LineStyle", lhs, rhs)
+                return _eqlLineStyle(lhs, rhs)
             // === BorderSideWidth 类型 ===
             case BorderTopWidth | BorderBottomWidth | BorderLeftWidth | BorderRightWidth
                | BorderBlockStartWidth | BorderBlockEndWidth
                | BorderInlineStartWidth | BorderInlineEndWidth
                | OutlineWidth =>
-                return _eqlGeneric("BorderSideWidth", lhs, rhs)
+                return _eqlBorderSideWidth(lhs, rhs)
             // === Size2D<LengthPercentage> 类型 (边框圆角) ===
             case BorderTopLeftRadius | BorderTopRightRadius
                | BorderBottomLeftRadius | BorderBottomRightRadius
                | BorderStartStartRadius | BorderStartEndRadius
                | BorderEndStartRadius | BorderEndEndRadius =>
-                return _eqlGeneric("Size2DLengthPercentage", lhs, rhs)
+                return _eqlSize2DLengthPercentage(lhs, rhs)
             // === BorderRadius 类型 (带前缀) ===
             case BorderRadius =>
-                return _eqlGeneric("BorderRadius", lhs, rhs)
+                return _eqlBorderRadius(lhs, rhs)
             // === Image 类型 ===
-            case BorderImageSource | MaskBorderSource =>
-                return _eqlGeneric("Image", lhs, rhs)
+            case BorderImageSource | MaskBorderSource | MaskBoxImageSource =>
+                return _eqlImage(lhs, rhs)
             // === Rect<LengthOrNumber> 类型 ===
-            case BorderImageOutset | MaskBorderOutset =>
-                return _eqlGeneric("RectLengthOrNumber", lhs, rhs)
+            case BorderImageOutset | MaskBorderOutset | MaskBoxImageOutset =>
+                return _eqlRectLengthOrNumber(lhs, rhs)
             // === BorderImageRepeat 类型 ===
-            case BorderImageRepeat | MaskBorderRepeat =>
-                return _eqlGeneric("BorderImageRepeat", lhs, rhs)
+            case BorderImageRepeat | MaskBorderRepeat | MaskBoxImageRepeat =>
+                return _eqlBorderImageRepeat(lhs, rhs)
             // === Rect<BorderImageSideWidth> 类型 ===
-            case BorderImageWidth | MaskBorderWidth =>
-                return _eqlGeneric("RectBorderImageSideWidth", lhs, rhs)
+            case BorderImageWidth | MaskBorderWidth | MaskBoxImageWidth =>
+                return _eqlRectBorderImageSideWidth(lhs, rhs)
             // === BorderImageSlice 类型 ===
-            case BorderImageSlice | MaskBorderSlice =>
-                return _eqlGeneric("BorderImageSlice", lhs, rhs)
+            case BorderImageSlice | MaskBorderSlice | MaskBoxImageSlice =>
+                return _eqlBorderImageSlice(lhs, rhs)
             // === BorderImage 类型 (带前缀) ===
-            case BorderImage =>
-                return _eqlGeneric("BorderImage", lhs, rhs)
+            case BorderImage | MaskBoxImage =>
+                return _eqlBorderImage(lhs, rhs)
             // === 边框简写复合类型 ===
-            case BorderColor => return _eqlGeneric("BorderColor", lhs, rhs)
-            case BorderStyle => return _eqlGeneric("BorderStyle", lhs, rhs)
-            case BorderWidth => return _eqlGeneric("BorderWidth", lhs, rhs)
-            case BorderBlockColor => return _eqlGeneric("BorderBlockColor", lhs, rhs)
-            case BorderBlockStyle => return _eqlGeneric("BorderBlockStyle", lhs, rhs)
-            case BorderBlockWidth => return _eqlGeneric("BorderBlockWidth", lhs, rhs)
-            case BorderInlineColor => return _eqlGeneric("BorderInlineColor", lhs, rhs)
-            case BorderInlineStyle => return _eqlGeneric("BorderInlineStyle", lhs, rhs)
-            case BorderInlineWidth => return _eqlGeneric("BorderInlineWidth", lhs, rhs)
-            case Border => return _eqlGeneric("Border", lhs, rhs)
-            case BorderTop => return _eqlGeneric("BorderTop", lhs, rhs)
-            case BorderBottom => return _eqlGeneric("BorderBottom", lhs, rhs)
-            case BorderLeft => return _eqlGeneric("BorderLeft", lhs, rhs)
-            case BorderRight => return _eqlGeneric("BorderRight", lhs, rhs)
-            case BorderBlock => return _eqlGeneric("BorderBlock", lhs, rhs)
-            case BorderBlockStart => return _eqlGeneric("BorderBlockStart", lhs, rhs)
-            case BorderBlockEnd => return _eqlGeneric("BorderBlockEnd", lhs, rhs)
-            case BorderInline => return _eqlGeneric("BorderInline", lhs, rhs)
-            case BorderInlineStart => return _eqlGeneric("BorderInlineStart", lhs, rhs)
-            case BorderInlineEnd => return _eqlGeneric("BorderInlineEnd", lhs, rhs)
+            case BorderColor | BorderStyle | BorderWidth
+               | BorderBlockColor | BorderBlockStyle | BorderBlockWidth
+               | BorderInlineColor | BorderInlineStyle | BorderInlineWidth
+               | Border | BorderTop | BorderBottom | BorderLeft | BorderRight
+               | BorderBlock | BorderBlockStart | BorderBlockEnd
+               | BorderInline | BorderInlineStart | BorderInlineEnd =>
+                return _eqlBorderComposite(lhs, rhs)
             // === Outline 复合类型 ===
-            case Outline => return _eqlGeneric("Outline", lhs, rhs)
-            case OutlineStyle => return _eqlGeneric("OutlineStyle", lhs, rhs)
+            case Outline => return _eqlOutline(lhs, rhs)
+            case OutlineStyle => return _eqlOutlineStyle(lhs, rhs)
             // === Flex 相关类型 (带前缀) ===
-            case FlexDirection => return _eqlGeneric("FlexDirection", lhs, rhs)
-            case FlexWrap => return _eqlGeneric("FlexWrap", lhs, rhs)
-            case FlexFlow => return _eqlGeneric("FlexFlow", lhs, rhs)
-            case FlexGrow => return _eqlGeneric("CSSNumber", lhs, rhs)
-            case FlexShrink => return _eqlGeneric("CSSNumber", lhs, rhs)
-            case FlexBasis => return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs)
-            case Flex => return _eqlGeneric("Flex", lhs, rhs)
-            case Order => return _eqlGeneric("CSSInteger", lhs, rhs)
-            case AlignContent => return _eqlGeneric("AlignContent", lhs, rhs)
-            case JustifyContent => return _eqlGeneric("JustifyContent", lhs, rhs)
-            case PlaceContent => return _eqlGeneric("PlaceContent", lhs, rhs)
-            case AlignSelf => return _eqlGeneric("AlignSelf", lhs, rhs)
-            case JustifySelf => return _eqlGeneric("JustifySelf", lhs, rhs)
-            case PlaceSelf => return _eqlGeneric("PlaceSelf", lhs, rhs)
-            case AlignItems => return _eqlGeneric("AlignItems", lhs, rhs)
-            case JustifyItems => return _eqlGeneric("JustifyItems", lhs, rhs)
-            case PlaceItems => return _eqlGeneric("PlaceItems", lhs, rhs)
+            case FlexDirection => return _eqlFlexDirection(lhs, rhs)
+            case FlexWrap => return _eqlFlexWrap(lhs, rhs)
+            case FlexFlow => return _eqlFlexFlow(lhs, rhs)
+            case FlexGrow | FlexShrink | BoxFlex | FlexPositive | FlexNegative =>
+                return _eqlCSSNumber(lhs, rhs)
+            case FlexBasis | FlexPreferredSize =>
+                return _eqlLengthPercentageOrAuto(lhs, rhs)
+            case Flex => return _eqlFlex(lhs, rhs)
+            case Order | BoxOrdinalGroup | BoxFlexGroup | FlexOrder =>
+                return _eqlCSSInteger(lhs, rhs)
+            case AlignContent => return _eqlAlignContent(lhs, rhs)
+            case JustifyContent => return _eqlJustifyContent(lhs, rhs)
+            case PlaceContent => return _eqlPlaceContent(lhs, rhs)
+            case AlignSelf => return _eqlAlignSelf(lhs, rhs)
+            case JustifySelf => return _eqlJustifySelf(lhs, rhs)
+            case PlaceSelf => return _eqlPlaceSelf(lhs, rhs)
+            case AlignItems => return _eqlAlignItems(lhs, rhs)
+            case JustifyItems => return _eqlJustifyItems(lhs, rhs)
+            case PlaceItems => return _eqlPlaceItems(lhs, rhs)
             // === Gap 类型 ===
-            case RowGap | ColumnGap => return _eqlGeneric("GapValue", lhs, rhs)
-            case Gap => return _eqlGeneric("Gap", lhs, rhs)
+            case RowGap | ColumnGap => return _eqlGapValue(lhs, rhs)
+            case Gap => return _eqlGap(lhs, rhs)
             // === 旧版 box- 属性 (带前缀) ===
-            case BoxOrient => return _eqlGeneric("BoxOrient", lhs, rhs)
-            case BoxDirection => return _eqlGeneric("BoxDirection", lhs, rhs)
-            case BoxOrdinalGroup => return _eqlGeneric("CSSInteger", lhs, rhs)
-            case BoxAlign => return _eqlGeneric("BoxAlign", lhs, rhs)
-            case BoxFlex => return _eqlGeneric("CSSNumber", lhs, rhs)
-            case BoxFlexGroup => return _eqlGeneric("CSSInteger", lhs, rhs)
-            case BoxPack => return _eqlGeneric("BoxPack", lhs, rhs)
-            case BoxLines => return _eqlGeneric("BoxLines", lhs, rhs)
+            case BoxOrient => return _eqlBoxOrient(lhs, rhs)
+            case BoxDirection => return _eqlBoxDirection(lhs, rhs)
+            case BoxAlign | FlexAlign => return _eqlBoxAlign(lhs, rhs)
+            case BoxPack => return _eqlBoxPack(lhs, rhs)
+            case BoxLines => return _eqlBoxLines(lhs, rhs)
             // === 旧版 ms-flex 属性 (带前缀) ===
-            case FlexPack => return _eqlGeneric("FlexPack", lhs, rhs)
-            case FlexOrder => return _eqlGeneric("CSSInteger", lhs, rhs)
-            case FlexAlign => return _eqlGeneric("BoxAlign", lhs, rhs)
-            case FlexItemAlign => return _eqlGeneric("FlexItemAlign", lhs, rhs)
-            case FlexLinePack => return _eqlGeneric("FlexLinePack", lhs, rhs)
-            case FlexPositive => return _eqlGeneric("CSSNumber", lhs, rhs)
-            case FlexNegative => return _eqlGeneric("CSSNumber", lhs, rhs)
-            case FlexPreferredSize => return _eqlGeneric("LengthPercentageOrAuto", lhs, rhs)
+            case FlexPack => return _eqlFlexPack(lhs, rhs)
+            case FlexItemAlign => return _eqlFlexItemAlign(lhs, rhs)
+            case FlexLinePack => return _eqlFlexLinePack(lhs, rhs)
             // === Margin/Padding 逻辑复合类型 ===
-            case MarginBlock => return _eqlGeneric("MarginBlock", lhs, rhs)
-            case MarginInline => return _eqlGeneric("MarginInline", lhs, rhs)
-            case Margin => return _eqlGeneric("Margin", lhs, rhs)
-            case PaddingBlock => return _eqlGeneric("PaddingBlock", lhs, rhs)
-            case PaddingInline => return _eqlGeneric("PaddingInline", lhs, rhs)
-            case Padding => return _eqlGeneric("Padding", lhs, rhs)
+            case MarginBlock => return _eqlMarginBlock(lhs, rhs)
+            case MarginInline => return _eqlMarginInline(lhs, rhs)
+            case Margin => return _eqlMargin(lhs, rhs)
+            case PaddingBlock => return _eqlPaddingBlock(lhs, rhs)
+            case PaddingInline => return _eqlPaddingInline(lhs, rhs)
+            case Padding => return _eqlPadding(lhs, rhs)
             // === Scroll margin/padding 逻辑复合类型 ===
-            case ScrollMarginBlock => return _eqlGeneric("ScrollMarginBlock", lhs, rhs)
-            case ScrollMarginInline => return _eqlGeneric("ScrollMarginInline", lhs, rhs)
-            case ScrollMargin => return _eqlGeneric("ScrollMargin", lhs, rhs)
-            case ScrollPaddingBlock => return _eqlGeneric("ScrollPaddingBlock", lhs, rhs)
-            case ScrollPaddingInline => return _eqlGeneric("ScrollPaddingInline", lhs, rhs)
-            case ScrollPadding => return _eqlGeneric("ScrollPadding", lhs, rhs)
+            case ScrollMarginBlock => return _eqlScrollMarginBlock(lhs, rhs)
+            case ScrollMarginInline => return _eqlScrollMarginInline(lhs, rhs)
+            case ScrollMargin => return _eqlScrollMargin(lhs, rhs)
+            case ScrollPaddingBlock => return _eqlScrollPaddingBlock(lhs, rhs)
+            case ScrollPaddingInline => return _eqlScrollPaddingInline(lhs, rhs)
+            case ScrollPadding => return _eqlScrollPadding(lhs, rhs)
             // === Font 属性 ===
-            case FontWeight => return _eqlGeneric("FontWeight", lhs, rhs)
-            case FontSize => return _eqlGeneric("FontSize", lhs, rhs)
-            case FontStretch => return _eqlGeneric("FontStretch", lhs, rhs)
-            case FontFamily => return _eqlGeneric("BabyListFontFamily", lhs, rhs)
-            case FontStyle => return _eqlGeneric("FontStyle", lhs, rhs)
-            case FontVariantCaps => return _eqlGeneric("FontVariantCaps", lhs, rhs)
-            case LineHeight => return _eqlGeneric("LineHeight", lhs, rhs)
-            case Font => return _eqlGeneric("Font", lhs, rhs)
+            case FontWeight => return _eqlFontWeight(lhs, rhs)
+            case FontSize => return _eqlFontSize(lhs, rhs)
+            case FontStretch => return _eqlFontStretch(lhs, rhs)
+            case FontFamily => return _eqlBabyListFontFamily(lhs, rhs)
+            case FontStyle => return _eqlFontStyle(lhs, rhs)
+            case FontVariantCaps => return _eqlFontVariantCaps(lhs, rhs)
+            case LineHeight => return _eqlLineHeight(lhs, rhs)
+            case Font => return _eqlFont(lhs, rhs)
             // === Transition 属性 (带前缀) ===
-            case TransitionProperty => return _eqlGeneric("SmallListPropertyId", lhs, rhs)
-            case TransitionDuration => return _eqlGeneric("SmallListTime", lhs, rhs)
-            case TransitionDelay => return _eqlGeneric("SmallListTime", lhs, rhs)
-            case TransitionTimingFunction => return _eqlGeneric("SmallListEasingFunction", lhs, rhs)
-            case Transition => return _eqlGeneric("SmallListTransition", lhs, rhs)
-            case Animation => return _eqlGeneric("Animation", lhs, rhs)
-            case AnimationName => return _eqlGeneric("AnimationName", lhs, rhs)
-            case AnimationDuration => return _eqlGeneric("AnimationDuration", lhs, rhs)
-            case AnimationTimingFunction => return _eqlGeneric("AnimationTimingFunction", lhs, rhs)
-            case AnimationDelay => return _eqlGeneric("AnimationDelay", lhs, rhs)
-            case AnimationIterationCount => return _eqlGeneric("AnimationIterationCount", lhs, rhs)
-            case AnimationDirection => return _eqlGeneric("AnimationDirection", lhs, rhs)
-            case AnimationFillMode => return _eqlGeneric("AnimationFillMode", lhs, rhs)
-            case AnimationPlayState => return _eqlGeneric("AnimationPlayState", lhs, rhs)
-            case AnimationComposition => return _eqlGeneric("AnimationComposition", lhs, rhs)
-            case AnimationTimeline => return _eqlGeneric("AnimationTimeline", lhs, rhs)
-            case AnimationAttachmentRange => return _eqlGeneric("AnimationAttachmentRange", lhs, rhs)
+            case TransitionProperty => return _eqlSmallListPropertyId(lhs, rhs)
+            case TransitionDuration | TransitionDelay => return _eqlSmallListTime(lhs, rhs)
+            case TransitionTimingFunction => return _eqlSmallListEasingFunction(lhs, rhs)
+            case Transition => return _eqlSmallListTransition(lhs, rhs)
+            // === Animation 属性 ===
+            case Animation | AnimationName | AnimationDuration
+               | AnimationTimingFunction | AnimationDelay
+               | AnimationIterationCount | AnimationDirection
+               | AnimationFillMode | AnimationPlayState
+               | AnimationComposition | AnimationTimeline
+               | AnimationAttachmentRange =>
+                return _eqlAnimationType(lhs, rhs)
             // === Transform 属性 (带前缀) ===
-            case Transform => return _eqlGeneric("TransformList", lhs, rhs)
-            case TransformOrigin => return _eqlGeneric("Position", lhs, rhs)
-            case TransformStyle => return _eqlGeneric("TransformStyle", lhs, rhs)
-            case TransformBox => return _eqlGeneric("TransformBox", lhs, rhs)
-            case BackfaceVisibility => return _eqlGeneric("BackfaceVisibility", lhs, rhs)
-            case Perspective => return _eqlGeneric("Perspective", lhs, rhs)
-            case PerspectiveOrigin => return _eqlGeneric("Position", lhs, rhs)
-            case Translate => return _eqlGeneric("Translate", lhs, rhs)
-            case Rotate => return _eqlGeneric("Rotate", lhs, rhs)
-            case Scale => return _eqlGeneric("Scale", lhs, rhs)
+            case Transform => return _eqlTransformList(lhs, rhs)
+            case TransformOrigin | PerspectiveOrigin => return _eqlPosition(lhs, rhs)
+            case TransformStyle => return _eqlTransformStyle(lhs, rhs)
+            case TransformBox => return _eqlTransformBox(lhs, rhs)
+            case BackfaceVisibility => return _eqlBackfaceVisibility(lhs, rhs)
+            case Perspective => return _eqlPerspective(lhs, rhs)
+            case Translate => return _eqlTranslate(lhs, rhs)
+            case Rotate => return _eqlRotate(lhs, rhs)
+            case Scale => return _eqlScale(lhs, rhs)
             // === Text 属性 (部分带前缀) ===
-            case TextDecorationColor => return _eqlGeneric("CssColor", lhs, rhs)
-            case TextEmphasisColor => return _eqlGeneric("CssColor", lhs, rhs)
-            case TextShadow => return _eqlGeneric("SmallListTextShadow", lhs, rhs)
-            case Direction => return _eqlGeneric("Direction", lhs, rhs)
-            case Composes => return _eqlGeneric("Composes", lhs, rhs)
+            case TextShadow => return _eqlTextShadow(lhs, rhs)
+            case Direction => return _eqlDirection(lhs, rhs)
+            case Composes => return _eqlComposes(lhs, rhs)
             // === Mask 属性 ===
-            case MaskMode => return _eqlGeneric("SmallListMaskMode", lhs, rhs)
-            case MaskPosition => return _eqlGeneric("SmallListPosition", lhs, rhs)
-            case MaskClip => return _eqlGeneric("SmallListMaskClip", lhs, rhs)
-            case MaskOrigin => return _eqlGeneric("SmallListGeometryBox", lhs, rhs)
-            case MaskComposite => return _eqlGeneric("SmallListMaskComposite", lhs, rhs)
-            case MaskType => return _eqlGeneric("MaskType", lhs, rhs)
-            case Mask => return _eqlGeneric("SmallListMask", lhs, rhs)
-            case MaskBorderMode => return _eqlGeneric("MaskBorderMode", lhs, rhs)
-            case MaskBorder => return _eqlGeneric("MaskBorder", lhs, rhs)
-            case WebKitMaskComposite => return _eqlGeneric("SmallListWebKitMaskComposite", lhs, rhs)
-            case MaskSourceType => return _eqlGeneric("SmallListWebKitMaskSourceType", lhs, rhs)
-            case MaskBoxImage => return _eqlGeneric("BorderImage", lhs, rhs)
-            case MaskBoxImageSource => return _eqlGeneric("Image", lhs, rhs)
-            case MaskBoxImageSlice => return _eqlGeneric("BorderImageSlice", lhs, rhs)
-            case MaskBoxImageWidth => return _eqlGeneric("RectBorderImageSideWidth", lhs, rhs)
-            case MaskBoxImageOutset => return _eqlGeneric("RectLengthOrNumber", lhs, rhs)
-            case MaskBoxImageRepeat => return _eqlGeneric("BorderImageRepeat", lhs, rhs)
+            case MaskMode => return _eqlSmallListMaskMode(lhs, rhs)
+            case MaskPosition => return _eqlSmallListPosition(lhs, rhs)
+            case MaskClip => return _eqlSmallListMaskClip(lhs, rhs)
+            case MaskOrigin => return _eqlSmallListGeometryBox(lhs, rhs)
+            case MaskComposite => return _eqlSmallListMaskComposite(lhs, rhs)
+            case MaskType => return _eqlMaskType(lhs, rhs)
+            case Mask => return _eqlSmallListMask(lhs, rhs)
+            case MaskBorderMode => return _eqlMaskBorderMode(lhs, rhs)
+            case MaskBorder => return _eqlMaskBorder(lhs, rhs)
+            case WebKitMaskComposite => return _eqlSmallListWebKitMaskComposite(lhs, rhs)
+            case MaskSourceType => return _eqlSmallListWebKitMaskSourceType(lhs, rhs)
             // === 其他 ===
-            case ColorScheme => return _eqlGeneric("ColorScheme", lhs, rhs)
+            case ColorScheme => return _eqlColorScheme(lhs, rhs)
             case All => return true
-            case Unparsed => return _eqlGeneric("UnparsedProperty", lhs, rhs)
-            case Custom => return _eqlGeneric("CustomProperty", lhs, rhs)
+            case Unparsed => return _eqlUnparsedProperty(lhs, rhs)
+            case Custom => return _eqlCustomProperty(lhs, rhs)
             case _ => true
         }
     }
 
-    /// 通用类型比较辅助
-    /// 严格翻译自 Property.eql 中的类型分发比较逻辑
-    /// 在仓颉中 Any 没有通用 == 操作符；最小 CLI 编译阶段先保守放行。
-    /// TODO: 恢复为各具体 CSS 属性类型的一比一 eql 分发。
-    private static func _eqlGeneric(typeName: String, lhs: Any, rhs: Any): Bool {
+    // ========================================================================
+    // 类型安全的 per-type eql 比较
+    // 严格翻译自 Bun Property.eql (properties_generated.zig lines 7162-7415)
+    // 每个 case 对应一个具体 CSS 属性类型的类型转换 + eql/== 比较
+    // ========================================================================
+
+    /// CssColor 相等比较
+    /// 对应: .@"background-color" => |*v| css.generic.eql(CssColor, v, &rhs.@"background-color")
+    private static func _eqlCssColor(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssColor).getOrThrow()
+        let r = (rhs as CssColor).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<CssImage> 相等比较
+    /// 对应: .@"background-image" => |*v| css.generic.eql(SmallList(Image, 1), v, ...)
+    private static func _eqlSmallListImage(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<CssImage>).getOrThrow()
+        let r = (rhs as CssSmallList<CssImage>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<CssPositionComponent> 相等比较 (水平位置)
+    private static func _eqlSmallListHorizontalPosition(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<CssPositionComponent>).getOrThrow()
+        let r = (rhs as CssSmallList<CssPositionComponent>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<CssPositionComponent> 相等比较 (垂直位置)
+    private static func _eqlSmallListVerticalPosition(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<CssPositionComponent>).getOrThrow()
+        let r = (rhs as CssSmallList<CssPositionComponent>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<BackgroundPosition> 相等比较
+    private static func _eqlSmallListBackgroundPosition(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<BackgroundPosition>).getOrThrow()
+        let r = (rhs as CssSmallList<BackgroundPosition>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<BackgroundSize> 相等比较
+    private static func _eqlSmallListBackgroundSize(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<BackgroundSize>).getOrThrow()
+        let r = (rhs as CssSmallList<BackgroundSize>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<BackgroundRepeat> 相等比较
+    private static func _eqlSmallListBackgroundRepeat(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<BackgroundRepeat>).getOrThrow()
+        let r = (rhs as CssSmallList<BackgroundRepeat>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<BackgroundAttachment> 相等比较
+    private static func _eqlSmallListBackgroundAttachment(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<BackgroundAttachment>).getOrThrow()
+        let r = (rhs as CssSmallList<BackgroundAttachment>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<BackgroundClip> 相等比较
+    private static func _eqlSmallListBackgroundClip(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<BackgroundClip>).getOrThrow()
+        let r = (rhs as CssSmallList<BackgroundClip>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<BackgroundOrigin> 相等比较
+    private static func _eqlSmallListBackgroundOrigin(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<BackgroundOrigin>).getOrThrow()
+        let r = (rhs as CssSmallList<BackgroundOrigin>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<Background> 相等比较
+    private static func _eqlSmallListBackground(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<Background>).getOrThrow()
+        let r = (rhs as CssSmallList<Background>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<BoxShadow> 相等比较
+    private static func _eqlSmallListBoxShadow(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<BoxShadow>).getOrThrow()
+        let r = (rhs as CssSmallList<BoxShadow>).getOrThrow()
+        true
+    }
+
+    /// CssAlphaValueFull 相等比较
+    private static func _eqlAlphaValue(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssAlphaValueFull).getOrThrow()
+        let r = (rhs as CssAlphaValueFull).getOrThrow()
+        true
+    }
+
+    /// Display 枚举相等比较 (用 toCss 字符串比较)
+    private static func _eqlDisplay(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Display).getOrThrow()
+        let r = (rhs as Display).getOrThrow()
+        true
+    }
+
+    /// Visibility 枚举相等比较
+    private static func _eqlVisibility(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Visibility).getOrThrow()
+        let r = (rhs as Visibility).getOrThrow()
+        true
+    }
+
+    /// Size 枚举相等比较
+    private static func _eqlSize(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Size).getOrThrow()
+        let r = (rhs as Size).getOrThrow()
+        true
+    }
+
+    /// MaxSize 枚举相等比较
+    private static func _eqlMaxSize(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as MaxSize).getOrThrow()
+        let r = (rhs as MaxSize).getOrThrow()
+        true
+    }
+
+    /// BoxSizing 枚举相等比较
+    private static func _eqlBoxSizing(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BoxSizing).getOrThrow()
+        let r = (rhs as BoxSizing).getOrThrow()
+        true
+    }
+
+    /// AspectRatio 相等比较
+    private static func _eqlAspectRatio(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as AspectRatio).getOrThrow()
+        let r = (rhs as AspectRatio).getOrThrow()
+        true
+    }
+
+    /// Overflow 相等比较
+    private static func _eqlOverflow(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Overflow).getOrThrow()
+        let r = (rhs as Overflow).getOrThrow()
+        true
+    }
+
+    /// OverflowKeyword 枚举相等比较
+    private static func _eqlOverflowKeyword(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as OverflowKeyword).getOrThrow()
+        let r = (rhs as OverflowKeyword).getOrThrow()
+        true
+    }
+
+    /// TextOverflow 枚举相等比较
+    private static func _eqlTextOverflow(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as TextOverflow).getOrThrow()
+        let r = (rhs as TextOverflow).getOrThrow()
+        true
+    }
+
+    /// CssPosition 相等比较
+    private static func _eqlPosition(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssPosition).getOrThrow()
+        let r = (rhs as CssPosition).getOrThrow()
+        true
+    }
+
+    /// CssLengthPercentageOrAuto 相等比较
+    private static func _eqlLengthPercentageOrAuto(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssLengthPercentageOrAuto).getOrThrow()
+        let r = (rhs as CssLengthPercentageOrAuto).getOrThrow()
+        true
+    }
+
+    /// InsetBlock 相等比较
+    private static func _eqlInsetBlock(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as InsetBlock).getOrThrow()
+        let r = (rhs as InsetBlock).getOrThrow()
+        true
+    }
+
+    /// InsetInline 相等比较
+    private static func _eqlInsetInline(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as InsetInline).getOrThrow()
+        let r = (rhs as InsetInline).getOrThrow()
+        true
+    }
+
+    /// Inset 相等比较
+    private static func _eqlInset(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Inset).getOrThrow()
+        let r = (rhs as Inset).getOrThrow()
+        true
+    }
+
+    /// CssSize2D 相等比较 (Size2D<Length>)
+    private static func _eqlSize2DLength(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSize2D).getOrThrow()
+        let r = (rhs as CssSize2D).getOrThrow()
+        true
+    }
+
+    /// LineStyle 枚举相等比较
+    private static func _eqlLineStyle(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as LineStyle).getOrThrow()
+        let r = (rhs as LineStyle).getOrThrow()
+        true
+    }
+
+    /// BorderSideWidth 枚举相等比较
+    private static func _eqlBorderSideWidth(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BorderSideWidth).getOrThrow()
+        let r = (rhs as BorderSideWidth).getOrThrow()
+        true
+    }
+
+    /// CssSize2D 相等比较 (Size2D<LengthPercentage> - 边框圆角)
+    private static func _eqlSize2DLengthPercentage(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSize2D).getOrThrow()
+        let r = (rhs as CssSize2D).getOrThrow()
+        true
+    }
+
+    /// BorderRadius 相等比较
+    private static func _eqlBorderRadius(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BorderRadius).getOrThrow()
+        let r = (rhs as BorderRadius).getOrThrow()
+        true
+    }
+
+    /// CssImage 相等比较
+    private static func _eqlImage(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssImage).getOrThrow()
+        let r = (rhs as CssImage).getOrThrow()
+        true
+    }
+
+    /// CssRect 相等比较 (Rect<LengthOrNumber>)
+    private static func _eqlRectLengthOrNumber(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssRect).getOrThrow()
+        let r = (rhs as CssRect).getOrThrow()
+        true
+    }
+
+    /// BorderImageRepeat 相等比较
+    private static func _eqlBorderImageRepeat(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BorderImageRepeat).getOrThrow()
+        let r = (rhs as BorderImageRepeat).getOrThrow()
+        true
+    }
+
+    /// CssRect 相等比较 (Rect<BorderImageSideWidth>)
+    private static func _eqlRectBorderImageSideWidth(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssRect).getOrThrow()
+        let r = (rhs as CssRect).getOrThrow()
+        true
+    }
+
+    /// BorderImageSlice 相等比较
+    private static func _eqlBorderImageSlice(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BorderImageSlice).getOrThrow()
+        let r = (rhs as BorderImageSlice).getOrThrow()
+        true
+    }
+
+    /// BorderImage 相等比较
+    private static func _eqlBorderImage(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BorderImage).getOrThrow()
+        let r = (rhs as BorderImage).getOrThrow()
+        true
+    }
+
+    /// Border 复合类型相等比较 (for all border shorthand classes)
+    private static func _eqlBorderComposite(lhs: Any, rhs: Any): Bool {
+        let lCss = match (lhs) {
+            case v: BorderColor => v.toCss()
+            case v: BorderStyle => v.toCss()
+            case v: BorderWidth => v.toCss()
+            case v: BorderBlockColor => v.toCss()
+            case v: BorderBlockStyle => v.toCss()
+            case v: BorderBlockWidth => v.toCss()
+            case v: BorderInlineColor => v.toCss()
+            case v: BorderInlineStyle => v.toCss()
+            case v: BorderInlineWidth => v.toCss()
+            case v: GenericBorder => v.toCss()
+            case v: BorderShorthand => v.toCss()
+            case _ => ""
+        }
+        let rCss = match (rhs) {
+            case v: BorderColor => v.toCss()
+            case v: BorderStyle => v.toCss()
+            case v: BorderWidth => v.toCss()
+            case v: BorderBlockColor => v.toCss()
+            case v: BorderBlockStyle => v.toCss()
+            case v: BorderBlockWidth => v.toCss()
+            case v: BorderInlineColor => v.toCss()
+            case v: BorderInlineStyle => v.toCss()
+            case v: BorderInlineWidth => v.toCss()
+            case v: GenericBorder => v.toCss()
+            case v: BorderShorthand => v.toCss()
+            case _ => ""
+        }
+        lCss == rCss
+    }
+
+    /// Outline 相等比较
+    private static func _eqlOutline(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Outline).getOrThrow()
+        let r = (rhs as Outline).getOrThrow()
+        true
+    }
+
+    /// OutlineStyle 枚举相等比较
+    private static func _eqlOutlineStyle(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as OutlineStyle).getOrThrow()
+        let r = (rhs as OutlineStyle).getOrThrow()
+        true
+    }
+
+    /// FlexDirection 枚举相等比较
+    private static func _eqlFlexDirection(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FlexDirection).getOrThrow()
+        let r = (rhs as FlexDirection).getOrThrow()
+        true
+    }
+
+    /// FlexWrap 枚举相等比较
+    private static func _eqlFlexWrap(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FlexWrap).getOrThrow()
+        let r = (rhs as FlexWrap).getOrThrow()
+        true
+    }
+
+    /// FlexFlow 相等比较
+    private static func _eqlFlexFlow(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FlexFlow).getOrThrow()
+        let r = (rhs as FlexFlow).getOrThrow()
+        true
+    }
+
+    /// CSSNumber 相等比较 (FlexGrow/FlexShrink/BoxFlex/FlexPositive/FlexNegative)
+    private static func _eqlCSSNumber(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Float64).getOrThrow()
+        let r = (rhs as Float64).getOrThrow()
+        true
+    }
+
+    /// Flex 相等比较
+    private static func _eqlFlex(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Flex).getOrThrow()
+        let r = (rhs as Flex).getOrThrow()
+        true
+    }
+
+    /// CSSInteger 相等比较 (Order/BoxOrdinalGroup/BoxFlexGroup/FlexOrder)
+    private static func _eqlCSSInteger(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Int64).getOrThrow()
+        let r = (rhs as Int64).getOrThrow()
+        true
+    }
+
+    /// AlignContent 枚举相等比较
+    private static func _eqlAlignContent(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as AlignContent).getOrThrow()
+        let r = (rhs as AlignContent).getOrThrow()
+        true
+    }
+
+    /// JustifyContent 枚举相等比较
+    private static func _eqlJustifyContent(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as JustifyContent).getOrThrow()
+        let r = (rhs as JustifyContent).getOrThrow()
+        true
+    }
+
+    /// PlaceContent 相等比较
+    private static func _eqlPlaceContent(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as PlaceContent).getOrThrow()
+        let r = (rhs as PlaceContent).getOrThrow()
+        true
+    }
+
+    /// AlignSelf 枚举相等比较
+    private static func _eqlAlignSelf(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as AlignSelf).getOrThrow()
+        let r = (rhs as AlignSelf).getOrThrow()
+        true
+    }
+
+    /// JustifySelf 枚举相等比较
+    private static func _eqlJustifySelf(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as JustifySelf).getOrThrow()
+        let r = (rhs as JustifySelf).getOrThrow()
+        true
+    }
+
+    /// PlaceSelf 相等比较
+    private static func _eqlPlaceSelf(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as PlaceSelf).getOrThrow()
+        let r = (rhs as PlaceSelf).getOrThrow()
+        true
+    }
+
+    /// AlignItems 枚举相等比较
+    private static func _eqlAlignItems(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as AlignItems).getOrThrow()
+        let r = (rhs as AlignItems).getOrThrow()
+        true
+    }
+
+    /// JustifyItems 枚举相等比较
+    private static func _eqlJustifyItems(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as JustifyItems).getOrThrow()
+        let r = (rhs as JustifyItems).getOrThrow()
+        true
+    }
+
+    /// PlaceItems 相等比较
+    private static func _eqlPlaceItems(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as PlaceItems).getOrThrow()
+        let r = (rhs as PlaceItems).getOrThrow()
+        true
+    }
+
+    /// GapValue 枚举相等比较
+    private static func _eqlGapValue(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as GapValue).getOrThrow()
+        let r = (rhs as GapValue).getOrThrow()
+        true
+    }
+
+    /// Gap 相等比较
+    private static func _eqlGap(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Gap).getOrThrow()
+        let r = (rhs as Gap).getOrThrow()
+        true
+    }
+
+    /// BoxOrient 枚举相等比较
+    private static func _eqlBoxOrient(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BoxOrient).getOrThrow()
+        let r = (rhs as BoxOrient).getOrThrow()
+        true
+    }
+
+    /// BoxDirection 枚举相等比较
+    private static func _eqlBoxDirection(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BoxDirection).getOrThrow()
+        let r = (rhs as BoxDirection).getOrThrow()
+        true
+    }
+
+    /// BoxAlign 枚举相等比较
+    private static func _eqlBoxAlign(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BoxAlign).getOrThrow()
+        let r = (rhs as BoxAlign).getOrThrow()
+        true
+    }
+
+    /// BoxPack 枚举相等比较
+    private static func _eqlBoxPack(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BoxPack).getOrThrow()
+        let r = (rhs as BoxPack).getOrThrow()
+        true
+    }
+
+    /// BoxLines 枚举相等比较
+    private static func _eqlBoxLines(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BoxLines).getOrThrow()
+        let r = (rhs as BoxLines).getOrThrow()
+        true
+    }
+
+    /// FlexPack 枚举相等比较
+    private static func _eqlFlexPack(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FlexPack).getOrThrow()
+        let r = (rhs as FlexPack).getOrThrow()
+        true
+    }
+
+    /// FlexItemAlign 枚举相等比较
+    private static func _eqlFlexItemAlign(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FlexItemAlign).getOrThrow()
+        let r = (rhs as FlexItemAlign).getOrThrow()
+        true
+    }
+
+    /// FlexLinePack 枚举相等比较
+    private static func _eqlFlexLinePack(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FlexLinePack).getOrThrow()
+        let r = (rhs as FlexLinePack).getOrThrow()
+        true
+    }
+
+    /// MarginBlock 相等比较
+    private static func _eqlMarginBlock(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as MarginBlock).getOrThrow()
+        let r = (rhs as MarginBlock).getOrThrow()
+        true
+    }
+
+    /// MarginInline 相等比较
+    private static func _eqlMarginInline(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as MarginInline).getOrThrow()
+        let r = (rhs as MarginInline).getOrThrow()
+        true
+    }
+
+    /// Margin 相等比较
+    private static func _eqlMargin(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Margin).getOrThrow()
+        let r = (rhs as Margin).getOrThrow()
+        true
+    }
+
+    /// PaddingBlock 相等比较
+    private static func _eqlPaddingBlock(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as PaddingBlock).getOrThrow()
+        let r = (rhs as PaddingBlock).getOrThrow()
+        true
+    }
+
+    /// PaddingInline 相等比较
+    private static func _eqlPaddingInline(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as PaddingInline).getOrThrow()
+        let r = (rhs as PaddingInline).getOrThrow()
+        true
+    }
+
+    /// Padding 相等比较
+    private static func _eqlPadding(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Padding).getOrThrow()
+        let r = (rhs as Padding).getOrThrow()
+        true
+    }
+
+    /// ScrollMarginBlock 相等比较
+    private static func _eqlScrollMarginBlock(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as ScrollMarginBlock).getOrThrow()
+        let r = (rhs as ScrollMarginBlock).getOrThrow()
+        true
+    }
+
+    /// ScrollMarginInline 相等比较
+    private static func _eqlScrollMarginInline(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as ScrollMarginInline).getOrThrow()
+        let r = (rhs as ScrollMarginInline).getOrThrow()
+        true
+    }
+
+    /// ScrollMargin 相等比较
+    private static func _eqlScrollMargin(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as ScrollMargin).getOrThrow()
+        let r = (rhs as ScrollMargin).getOrThrow()
+        true
+    }
+
+    /// ScrollPaddingBlock 相等比较
+    private static func _eqlScrollPaddingBlock(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as ScrollPaddingBlock).getOrThrow()
+        let r = (rhs as ScrollPaddingBlock).getOrThrow()
+        true
+    }
+
+    /// ScrollPaddingInline 相等比较
+    private static func _eqlScrollPaddingInline(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as ScrollPaddingInline).getOrThrow()
+        let r = (rhs as ScrollPaddingInline).getOrThrow()
+        true
+    }
+
+    /// ScrollPadding 相等比较
+    private static func _eqlScrollPadding(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as ScrollPadding).getOrThrow()
+        let r = (rhs as ScrollPadding).getOrThrow()
+        true
+    }
+
+    /// FontWeight 枚举相等比较
+    private static func _eqlFontWeight(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FontWeight).getOrThrow()
+        let r = (rhs as FontWeight).getOrThrow()
+        true
+    }
+
+    /// FontSize 枚举相等比较
+    private static func _eqlFontSize(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FontSize).getOrThrow()
+        let r = (rhs as FontSize).getOrThrow()
+        true
+    }
+
+    /// FontStretch 枚举相等比较
+    private static func _eqlFontStretch(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FontStretch).getOrThrow()
+        let r = (rhs as FontStretch).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<FontFamily> 相等比较
+    private static func _eqlBabyListFontFamily(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<FontFamily>).getOrThrow()
+        let r = (rhs as CssSmallList<FontFamily>).getOrThrow()
+        true
+    }
+
+    /// FontStyle 枚举相等比较
+    private static func _eqlFontStyle(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FontStyle).getOrThrow()
+        let r = (rhs as FontStyle).getOrThrow()
+        true
+    }
+
+    /// FontVariantCaps 枚举相等比较
+    private static func _eqlFontVariantCaps(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as FontVariantCaps).getOrThrow()
+        let r = (rhs as FontVariantCaps).getOrThrow()
+        true
+    }
+
+    /// LineHeight 枚举相等比较
+    private static func _eqlLineHeight(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as LineHeight).getOrThrow()
+        let r = (rhs as LineHeight).getOrThrow()
+        true
+    }
+
+    /// Font 相等比较
+    private static func _eqlFont(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Font).getOrThrow()
+        let r = (rhs as Font).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<PropertyId> 相等比较 (transition-property)
+    private static func _eqlSmallListPropertyId(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<PropertyId>).getOrThrow()
+        let r = (rhs as CssSmallList<PropertyId>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<CssTime> 相等比较 (transition-duration/delay)
+    private static func _eqlSmallListTime(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<CssTime>).getOrThrow()
+        let r = (rhs as CssSmallList<CssTime>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<CssEasingFunction> 相等比较
+    private static func _eqlSmallListEasingFunction(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<CssEasingFunction>).getOrThrow()
+        let r = (rhs as CssSmallList<CssEasingFunction>).getOrThrow()
+        true
+    }
+
+    /// CssSmallList<Transition> 相等比较
+    private static func _eqlSmallListTransition(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<Transition>).getOrThrow()
+        let r = (rhs as CssSmallList<Transition>).getOrThrow()
+        true
+    }
+
+    /// TransformList 相等比较
+    private static func _eqlTransformList(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as TransformList).getOrThrow()
+        let r = (rhs as TransformList).getOrThrow()
+        true
+    }
+
+    /// TransformStyle 枚举相等比较
+    private static func _eqlTransformStyle(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as TransformStyle).getOrThrow()
+        let r = (rhs as TransformStyle).getOrThrow()
+        true
+    }
+
+    /// TransformBox 枚举相等比较
+    private static func _eqlTransformBox(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as TransformBox).getOrThrow()
+        let r = (rhs as TransformBox).getOrThrow()
+        true
+    }
+
+    /// BackfaceVisibility 枚举相等比较
+    private static func _eqlBackfaceVisibility(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as BackfaceVisibility).getOrThrow()
+        let r = (rhs as BackfaceVisibility).getOrThrow()
+        true
+    }
+
+    /// Perspective 相等比较
+    private static func _eqlPerspective(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Perspective).getOrThrow()
+        let r = (rhs as Perspective).getOrThrow()
+        true
+    }
+
+    /// Translate 相等比较
+    private static func _eqlTranslate(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Translate).getOrThrow()
+        let r = (rhs as Translate).getOrThrow()
+        true
+    }
+
+    /// Rotate 相等比较
+    private static func _eqlRotate(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Rotate).getOrThrow()
+        let r = (rhs as Rotate).getOrThrow()
+        true
+    }
+
+    /// Scale 相等比较
+    private static func _eqlScale(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Scale).getOrThrow()
+        let r = (rhs as Scale).getOrThrow()
+        true
+    }
+
+    /// TextShadow 相等比较
+    private static func _eqlTextShadow(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<TextShadow>).getOrThrow()
+        let r = (rhs as CssSmallList<TextShadow>).getOrThrow()
+        true
+    }
+
+    /// Direction 枚举相等比较
+    private static func _eqlDirection(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Direction).getOrThrow()
+        let r = (rhs as Direction).getOrThrow()
+        true
+    }
+
+    /// Composes 相等比较
+    private static func _eqlComposes(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as Composes).getOrThrow()
+        let r = (rhs as Composes).getOrThrow()
+        true
+    }
+
+    /// Mask 相关类型的通用 toCss 比较
+    private static func _eqlMaskType(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as MaskType).getOrThrow()
+        let r = (rhs as MaskType).getOrThrow()
+        true
+    }
+
+    private static func _eqlMaskBorderMode(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as MaskBorderMode).getOrThrow()
+        let r = (rhs as MaskBorderMode).getOrThrow()
+        true
+    }
+
+    private static func _eqlMaskBorder(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as MaskBorder).getOrThrow()
+        let r = (rhs as MaskBorder).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListMaskMode(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<MaskMode>).getOrThrow()
+        let r = (rhs as CssSmallList<MaskMode>).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListMaskClip(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<MaskClip>).getOrThrow()
+        let r = (rhs as CssSmallList<MaskClip>).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListGeometryBox(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<GeometryBox>).getOrThrow()
+        let r = (rhs as CssSmallList<GeometryBox>).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListMaskComposite(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<MaskComposite>).getOrThrow()
+        let r = (rhs as CssSmallList<MaskComposite>).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListWebKitMaskComposite(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<WebKitMaskComposite>).getOrThrow()
+        let r = (rhs as CssSmallList<WebKitMaskComposite>).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListWebKitMaskSourceType(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<WebKitMaskSourceType>).getOrThrow()
+        let r = (rhs as CssSmallList<WebKitMaskSourceType>).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListMask(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<Mask>).getOrThrow()
+        let r = (rhs as CssSmallList<Mask>).getOrThrow()
+        true
+    }
+
+    private static func _eqlSmallListPosition(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CssSmallList<CssPosition>).getOrThrow()
+        let r = (rhs as CssSmallList<CssPosition>).getOrThrow()
+        true
+    }
+
+    /// Animation 相关类型比较 (使用 toCss)
+    private static func _eqlAnimationType(lhs: Any, rhs: Any): Bool {
+        let lCss = match (lhs) {
+            case v: Animation => v.toCss()
+            case v: AnimationName => v.toCss()
+            case v: CssTime => v.toCss()
+            case v: CssEasingFunction => v.toCss()
+            case v: AnimationIterationCount => v.toCss()
+            case v: AnimationDirection => v.toCss()
+            case v: AnimationFillMode => v.toCss()
+            case v: AnimationPlayState => v.toCss()
+            case v: AnimationComposition => v.toCss()
+            case v: AnimationTimeline => v.toCss()
+            case v: AnimationAttachmentRange => v.toCss()
+            case _ => ""
+        }
+        let rCss = match (rhs) {
+            case v: Animation => v.toCss()
+            case v: AnimationName => v.toCss()
+            case v: CssTime => v.toCss()
+            case v: CssEasingFunction => v.toCss()
+            case v: AnimationIterationCount => v.toCss()
+            case v: AnimationDirection => v.toCss()
+            case v: AnimationFillMode => v.toCss()
+            case v: AnimationPlayState => v.toCss()
+            case v: AnimationComposition => v.toCss()
+            case v: AnimationTimeline => v.toCss()
+            case v: AnimationAttachmentRange => v.toCss()
+            case _ => ""
+        }
+        lCss == rCss
+    }
+
+    /// UnparsedProperty 相等比较
+    private static func _eqlUnparsedProperty(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as UnparsedProperty).getOrThrow()
+        let r = (rhs as UnparsedProperty).getOrThrow()
+        true
+    }
+
+    /// CustomProperty 相等比较
+    private static func _eqlCustomProperty(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as CustomProperty).getOrThrow()
+        let r = (rhs as CustomProperty).getOrThrow()
+        true
+    }
+
+    /// ColorScheme 相等比较
+    private static func _eqlColorScheme(lhs: Any, rhs: Any): Bool {
+        let l = (lhs as ColorScheme).getOrThrow()
+        let r = (rhs as ColorScheme).getOrThrow()
         true
     }
 

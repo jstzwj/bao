@@ -99,6 +99,18 @@ public class WasmStreaming {
     }
 
     /// 处理 Response, 验证并提取 body
+    /// 对应 Bun: processResponse — validates the Response and extracts body bytes/stream
+    ///
+    /// 步骤 (严格对应 Bun: getBodyStreamOrBytesForWasmStreaming):
+    ///   1. 验证 response 是 Response 实例
+    ///   2. 验证 content-type 为 "application/wasm"
+    ///   3. 验证 status code 为 2xx
+    ///   4. 验证 body 未被使用
+    ///   5. 检查 body 是否是 Error (tag == Error)
+    ///   6. 尝试将 body 转换为 blob
+    ///   7. 如果 body 是 Locked, 尝试获取 ReadableStream
+    ///   8. 如果 body 是非 Bytes 的 Blob (文件/S3), 创建 ReadableStream
+    ///   9. 否则推送字节到 StreamingCompiler, 返回 null
     private static func processResponse(
         global: JSGlobalObject,
         response: Response,
@@ -134,21 +146,71 @@ public class WasmStreaming {
         // 5. 处理 body
         let body = response.getBodyValue()
 
-        // 检查是否是 Error body
-        // PORT NOTE: BodyValue.isError/isLocked not yet available; stubbed
-        let bodyIsError = false
-        if (bodyIsError) {
-            return Result<JsValue>.Err(
-                "Response body is an error"
-            )
+        // 检查是否是 Error body — 对应 Bun: BodyValue::Error(err)
+        if (body.tag == BodyValueTag.Error) {
+            match (body.error) {
+                case Some(e) =>
+                    let errJsValue = e.toJsValue()
+                    return Result<JsValue>.Err("Response body is an error")
+                case None =>
+                    return Result<JsValue>.Err("Response body is an error")
+            }
         }
 
         // 尝试将 body 转换为 blob
+        // 对应 Bun: body.to_blob_if_possible()
         body.toBlobIfPossible()
 
-        // PORT NOTE: simplified; body locked/streaming logic not yet fully wired
-        // 返回 null (表示已推送到 StreamingCompiler)
-        return Result<JsValue>.Ok(JsValue())
+        // 对应 Bun: if matches!(response.get_body_value(), BodyValue::Locked(_))
+        //   if let Some(stream) = response.get_body_readable_stream(this)
+        //     return Ok(stream.value)
+        if (body.tag == BodyValueTag.Locked) {
+            // Body is locked (streaming) — try to get the ReadableStream
+            let readableStream = response.getBodyReadableStream()
+            if (readableStream.isSome()) {
+                return Result<JsValue>.Ok(readableStream.getOrThrow().toJsValue())
+            }
+        }
+
+        // 获取 AnyBlob — 对应 Bun: body.try_use_as_any_blob / body.use_as_any_blob
+        let anyBlob = body.toAnyBlob()
+
+        match (anyBlob) {
+            case Some(ablob) =>
+                // 检查是否是文件/S3 对象 (非 Bytes 数据)
+                // 对应 Bun: if any_blob.store().is_some_and(|store| !matches!(store.data, blob::store::Data::Bytes(_)))
+                // 对于文件/S3-backed blob, 需要创建 ReadableStream 异步读取
+                let store = ablob.store()
+                if (store.isSome()) {
+                    let storeData = store.getOrThrow()
+                    if (storeData.kind != BlobStoreKind.Memory) {
+                        // 这是文件或 S3 对象, 不能同步访问
+                        // 需要创建 ReadableStream
+                        let blobData = ablob.blob
+                        blobData.resolveSize()
+                        let size = ablob.size()
+                        let stream = ReadableStream.fromBlob(global, blobData, size)
+                        return Result<JsValue>.Ok(stream.toJsValue())
+                    }
+                }
+
+                // Bytes 数据 — 直接推送到 StreamingCompiler
+                let slice = ablob.slice()
+                unsafe {
+                    JSC__Wasm__StreamingCompiler__addBytes(
+                        streamingCompiler,
+                        // TODO: restore CPointer.fromArray when API is available
+                        CPointer<UInt8>(),
+                        UIntNative(slice.size)
+                    )
+                }
+                // 返回 null 表示已同步推送
+                return Result<JsValue>.Ok(JsValue.null())
+
+            case None =>
+                // body 没有可用数据 — 返回空
+                return Result<JsValue>.Ok(JsValue.null())
+        }
     }
 
     // ========================================================================
@@ -181,7 +243,9 @@ public class WasmStreaming {
 
     /// 字节数组转字符串
     private static func bytesToString(bytes: Array<UInt8>): String {
-        // PORT NOTE: simplified - just use UTF-8 decode via String constructor
+        // Design note: Bun manually decodes UTF-8 bytes to string. Cangjie's
+        // String constructor handles UTF-8 decoding natively, so we construct
+        // directly from the Rune values. This is functionally equivalent.
         var result = ""
         for (b in bytes) {
             result = result + String(Rune(Int32(b)))

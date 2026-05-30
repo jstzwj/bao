@@ -6,13 +6,33 @@ description = "Bao CLI entry point: run, build, install, test, init commands"
 version = "0.1.0"
 compile-option = ""
 override-compile-option = ""
-link-option = "target/native/bao_cli_native_shims.o -luv -lz -lbrotlienc -lbrotlidec -lzstd -lpthread"
+link-option = "target/native/bao_cli_native_shims.o target/native/jsc_stubs.o -luv -lz -lbrotlienc -lbrotlidec -lzstd -lpthread /usr/lib/x86_64-linux-gnu/libatomic.so.1"
 output-type = "executable"
 src-dir = "src_min"
 target-dir = ""
 
 [dependencies]
 bao_runtime = { path = "../bao_runtime" }
+bao_io = { path = "../bao_io" }
+bao_ast = { path = "../bao_ast" }
+bao_bundler = { path = "../bao_bundler" }
+bao_bunfig = { path = "../bao_bunfig" }
+bao_collections = { path = "../bao_collections" }
+bao_core = { path = "../bao_core" }
+bao_event_loop = { path = "../bao_event_loop" }
+bao_hash = { path = "../bao_hash" }
+bao_http = { path = "../bao_http" }
+bao_install = { path = "../bao_install" }
+bao_jsc = { path = "../bao_jsc" }
+bao_libarchive = { path = "../bao_libarchive" }
+bao_options = { path = "../bao_options" }
+bao_parser = { path = "../bao_parser" }
+bao_parsers = { path = "../bao_parsers" }
+bao_path = { path = "../bao_path" }
+bao_resolver = { path = "../bao_resolver" }
+bao_spawn = { path = "../bao_spawn" }
+bao_sql = { path = "../bao_sql" }
+bao_sys = { path = "../bao_sys" }
 
 [native_sources]
 bao_cli_native_shims = [

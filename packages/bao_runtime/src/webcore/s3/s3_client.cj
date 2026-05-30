@@ -114,10 +114,12 @@ public class S3CredentialsExt {
     ///     global: &JSGlobalObject,
     /// ) -> JsResult<bun_s3_signing::S3CredentialsWithOptions>
     ///
-    /// PORT NOTE: takes `&S3Credentials` (not by-value) — `bun_s3_signing::S3Credentials`
+    /// Design note: Bun takes `&S3Credentials` (borrow) because `bun_s3_signing::S3Credentials`
     /// has a private `ref_count` field and no `Clone`, so callers holding a borrow
     /// (e.g. `&IntrusiveRc<S3Credentials>` deref) cannot produce an owned copy. The
     /// real impl in `s3/credentials_jsc.rs` deep-copies internally.
+    /// In Cangjie, GC manages all references so the by-value/borrow distinction
+    /// is moot — passing `S3Credentials` directly is semantically equivalent.
     public static func getCredentialsWithOptions(
         defaultCredentials: S3Credentials,
         defaultOptions: MultiPartUploadOptions,
@@ -363,9 +365,10 @@ public class S3Client {
     // JS 构造函数
     // 严格翻译自: S3Client::constructor (lines 265-297)
     //   Bun: pub fn constructor(global: &JSGlobalObject, callframe: &CallFrame) -> JsResult<Box<Self>>
-    //   PORT NOTE: no `#[bun_jsc::host_fn]` here — the `#[bun_jsc::JsClass]`
-    //   derive on the struct emits `S3ClientClass__construct` which calls
-    //   `<S3Client>::constructor` directly.
+    //   Design note: Bun uses `#[bun_jsc::host_fn]` attribute on the constructor,
+    //   but the `#[bun_jsc::JsClass]` derive on the struct emits
+    //   `S3ClientClass__construct` which calls `<S3Client>::constructor` directly.
+    //   In Cangjie, the codegen layer is not needed; the constructor is called directly.
     // ========================================================================
 
     /// JS 构造函数

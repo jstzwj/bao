@@ -542,7 +542,10 @@ public class MultiPartUpload {
 
     /// 上传 ID (拥有的副本)
     /// 对应 Bun: upload_id: Box<[u8]>
-    /// PORT NOTE: Zig 中是 uploadid_buffer 的自引用切片，此处改为拥有的副本
+    /// Design note: Bun's Zig stores `upload_id` as a self-referencing slice into
+    /// `uploadid_buffer` (zero-copy). Cangjie does not support lifetime-annotated
+    /// self-referencing slices, so we store an owned copy of the upload ID string.
+    /// This is semantically equivalent but allocates an extra copy.
     public var uploadId: String
 
     /// 上传 ID 缓冲区

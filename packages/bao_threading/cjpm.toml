@@ -13,3 +13,8 @@ target-dir = ""
 
 [dependencies]
 bao_core = { path = "../bao_core" }
+
+[native_sources]
+futex_syscall = [
+  "native/futex_syscall.c",
+]

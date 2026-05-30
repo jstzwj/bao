@@ -308,8 +308,103 @@ public class SignalsStore {
     public func toSignals(): Signals { Signals() }
 }
 public class FetchHeaders { public init() {}; public static func createFromPicoHeaders(h: Array<UInt8>): FetchHeaders { FetchHeaders() } }
-public class StreamResult { public init() {}; public static func temporary(c: Array<UInt8>): StreamResult { StreamResult() }; public static func temporaryAndDone(c: Array<UInt8>): StreamResult { StreamResult() }; public static func err(e: StreamError): StreamResult { StreamResult() } }
-public class StreamError { public init() {}; public static func jsValue(v: JsValue): StreamError { StreamError() } }
+/// StreamResult 标签 — 流式传输结果类型
+/// 对应 Bun: StreamResult union tag
+public enum StreamResultTag {
+    | Temporary         // 临时数据块 (流未结束)
+    | TemporaryAndDone  // 临时数据块 + 流已结束
+    | Err               // 错误
+}
+
+/// StreamResult — 流式传输结果
+/// 对应 Bun: StreamResult union { .temporary = ByteList, .temporary_and_done = ByteList, .err = Error }
+/// 携带从 HTTP 响应体接收到的数据块以及流完成状态
+public class StreamResult {
+
+    /// 结果标签
+    public var tag: StreamResultTag
+    /// 数据块 (borrowed from scheduled_response_buffer)
+    public var chunk: Array<UInt8>
+    /// 错误 (仅 Err 标签时有效)
+    public var error: ?StreamError
+
+    public init() {
+        tag = StreamResultTag.Temporary
+        chunk = Array<UInt8>()
+        error = None
+    }
+
+    /// 创建临时数据块 (流未结束)
+    /// 对应 Bun: StreamResult{ .temporary = byte_list }
+    public static func temporary(chunk: Array<UInt8>): StreamResult {
+        let r = StreamResult()
+        r.tag = StreamResultTag.Temporary
+        r.chunk = chunk
+        return r
+    }
+
+    /// 创建临时数据块 (流已结束)
+    /// 对应 Bun: StreamResult{ .temporary_and_done = byte_list }
+    public static func temporaryAndDone(chunk: Array<UInt8>): StreamResult {
+        let r = StreamResult()
+        r.tag = StreamResultTag.TemporaryAndDone
+        r.chunk = chunk
+        return r
+    }
+
+    /// 创建错误结果
+    /// 对应 Bun: StreamResult{ .err = error }
+    public static func err(e: StreamError): StreamResult {
+        let r = StreamResult()
+        r.tag = StreamResultTag.Err
+        r.error = Some(e)
+        return r
+    }
+
+    /// 是否有数据
+    public func hasData(): Bool {
+        match (tag) {
+            case StreamResultTag.Temporary => true
+            case StreamResultTag.TemporaryAndDone => true
+            case _ => false
+        }
+    }
+
+    /// 流是否已结束
+    public func isDone(): Bool {
+        match (tag) {
+            case StreamResultTag.TemporaryAndDone => true
+            case StreamResultTag.Err => true
+            case _ => false
+        }
+    }
+}
+/// StreamError — 流传输错误
+/// 对应 Bun: ByteStream.Source.Error union { .JSValue = JSValue }
+public class StreamError {
+    /// 错误值
+    public var jsValue: ?JsValue
+
+    public init() {
+        jsValue = None
+    }
+
+    /// 从 JS 值创建流错误
+    /// 对应 Bun: Error{ .JSValue = value }
+    public static func fromJsValue(v: JsValue): StreamError {
+        let e = StreamError()
+        e.jsValue = Some(v)
+        return e
+    }
+
+    /// 获取 JS 值
+    public func getJSValue(): JsValue {
+        match (jsValue) {
+            case Some(v) => v
+            case None => JsValue.UNDEFINED
+        }
+    }
+}
 public class AnyTask { public init() {} }
 public class ConcurrentTask { public init() {}; public func from(t: FetchTasklet): ConcurrentTask { ConcurrentTask() }; public static func fromCallback(t: FetchTasklet, c: (FetchTasklet) -> Unit): ConcurrentTask { ConcurrentTask() } }
 public class AsyncTaskTracker { public init() {}; public func didSchedule(g: JsGlobalObject): Unit {}; public func didDispatch(g: JsGlobalObject): Unit {}; public func willDispatch(g: JsGlobalObject): Unit {}; public func didCancel(g: JsGlobalObject): Unit {} }
@@ -1165,7 +1260,7 @@ public class FetchTasklet {
                         case Some(bytes) =>
                             jsErr = err.toJS(globalThis)
                             jsErr.ensureStillAlive()
-                            bytes.onData(StreamResult.err(StreamError.jsValue(jsErr)))
+                            bytes.onData(StreamResult.err(StreamError.fromJsValue(jsErr)))
                         case None => ()
                     }
                 case None => ()

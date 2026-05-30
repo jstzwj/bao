@@ -13,7 +13,7 @@ import bao_uws_sys.{SocketGroup, SocketKind, UsSocket, ListenSocket, ConnectingS
 // 每个 SocketKind 命名 ext 载荷类型，并将事件转发到该类型的现有方法
 // 这是分发器和 Bun 其余部分之间的唯一耦合点
 // 注意: Cangjie 泛型不支持在类型参数上调用任意方法 (无 trait bound)
-// 因此所有处理器方法体为 stub — 等待具体类型绑定完成后实现
+// 因此处理器通过 lookupSocket + Handlers 回调模式分发事件
 // ============================================================================
 
 /// 吞咽可能的 JS 错误

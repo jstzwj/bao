@@ -1448,12 +1448,12 @@ extend JsValue {
 
     // ========== bigIntSum ==========
     // 严格翻译自 JSValue.bigIntSum
-    // 两个 BigInt 求和
+    // 两个 BigInt 求和 (使用任意精度算术)
     public static func bigIntSum(global: JsObject, a: JsValue, b: JsValue): JsValue {
-        let aVal = Int64(parseDouble(a.bigIntValue))
-        let bVal = Int64(parseDouble(b.bigIntValue))
-        let sum = aVal + bVal
-        jsBigInt(sum)
+        let bigA = JsBigInt(a.bigIntValue)
+        let bigB = JsBigInt(b.bigIntValue)
+        let sum = JsBigInt.add(bigA, bigB)
+        sum.toJsValue()
     }
 
     // ========== keys ==========
@@ -1847,6 +1847,7 @@ extend JsValue {
 
     // ========== asBigIntCompare ==========
     // 严格翻译自 JSValue.asBigIntCompare
+    // 使用任意精度 BigInt 比较
     public func asBigIntCompare(global: JsObject, other: JsValue): ComparisonResult {
         if (!isBigInt() && !isNumber()) {
             return ComparisonResult.InvalidComparison
@@ -1854,12 +1855,22 @@ extend JsValue {
         if (!other.isBigInt() && !other.isNumber()) {
             return ComparisonResult.InvalidComparison
         }
-        let a = toNumber()
-        let b = other.toNumber()
-        if (a == b) {
+        // 将操作数转换为 JsBigInt 以进行任意精度比较
+        let aBigInt = if (isBigInt()) {
+            JsBigInt(bigIntValue)
+        } else {
+            JsBigInt(toNumber().toString())
+        }
+        let bBigInt = if (other.isBigInt()) {
+            JsBigInt(other.bigIntValue)
+        } else {
+            JsBigInt(other.toNumber().toString())
+        }
+        let cmp = aBigInt.compareTo(bBigInt)
+        if (cmp == 0) {
             return ComparisonResult.Equal
         }
-        if (a > b) {
+        if (cmp > 0) {
             return ComparisonResult.GreaterThan
         }
         ComparisonResult.LessThan

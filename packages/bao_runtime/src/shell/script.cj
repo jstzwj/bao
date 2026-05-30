@@ -17,6 +17,8 @@ public enum ScriptStateKind {
 }
 
 /// 脚本状态父节点指针（提取到顶层）
+/// Script's parent can be: Interpreter (top-level), Subshell (subshell body),
+/// or Expansion (command substitution). Dispatches childDone to the actual parent.
 public class ScriptParentPtr {
     public var ptr: Any = Option<Any>.None
 
@@ -27,6 +29,19 @@ public class ScriptParentPtr {
     }
 
     public func childDone(child: Any, exitCode: ExitCode): Yield {
+        // Dispatch based on parent type
+        if (this.ptr is SubshellState) {
+            let subshell = (this.ptr as SubshellState).getOrThrow()
+            return subshell.childDone(SubshellChildPtr.initFunc(child), exitCode)
+        }
+        if (this.ptr is Interpreter) {
+            let interp = (this.ptr as Interpreter).getOrThrow()
+            return interp.childDone(InterpreterChildPtr.initFunc(child), exitCode)
+        }
+        if (this.ptr is ExpansionState) {
+            let expansion = (this.ptr as ExpansionState).getOrThrow()
+            return expansion.childDone(ExpansionChildPtr.initFunc(child), exitCode)
+        }
         return Yield.done
     }
 }
@@ -125,8 +140,17 @@ public class ScriptState {
     }
 
     /// 去初始化
+    /// When the parent is Interpreter or Subshell, the shell env is owned by the
+    /// parent — Script must NOT deinit it. Otherwise (Expansion = command
+    /// substitution), the Script owns the duped env and must deinit it.
     public func deinit() {
         this.io.deref()
+        // Only deinit shell env when parent is NOT Interpreter and NOT Subshell
+        let parentIsInterpreter = this.parent.ptr is Interpreter
+        let parentIsSubshell = this.parent.ptr is SubshellState
+        if (!parentIsInterpreter && !parentIsSubshell) {
+            this.base.shell.deinit()
+        }
         this.base.endScope()
     }
 

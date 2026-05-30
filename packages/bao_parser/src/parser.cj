@@ -1056,11 +1056,15 @@ public class Parser {
                 return Stmt.forOf(loc, declKind, binding, value, body)
             }
 
-            // 普通 for
-            var initExpr: ?Expr = None
+            // 普通 for (var/let/const init)
+            var initStmt: ?Stmt = None
             if (lexer.token == Token.Equals) {
                 lexer.nextToken()
-                initExpr = Some(parseExpr(ParseExprOpts()))
+                let initExpr = parseExpr(ParseExprOpts())
+                initStmt = Some(Stmt.local(loc, declKind, binding, Some(initExpr)))
+            } else {
+                // var i; (无初始化)
+                initStmt = Some(Stmt.local(loc, declKind, binding, Option<Expr>.None))
             }
             lexer.expect(Token.Semicolon)
             let test = parseExpr(ParseExprOpts())
@@ -1068,18 +1072,22 @@ public class Parser {
             let update = parseExpr(ParseExprOpts())
             lexer.expect(Token.CloseParen)
             let body = parseStmt(StmtOpts())
-            return Stmt.for_(loc, initExpr, test, update, body)
+            return Stmt.forWithInit(loc, initStmt, test, update, body)
         }
 
-        // for (;...;...;) 形式
-        let `init` = parseExpr(ParseExprOpts())
+        // for (expr; ...; ...) 或 for (; ...; ...) 形式
+        var initStmt: ?Stmt = None
+        if (lexer.token != Token.Semicolon) {
+            let initExpr = parseExpr(ParseExprOpts())
+            initStmt = Some(Stmt.expr_(initExpr.loc, initExpr))
+        }
         lexer.expect(Token.Semicolon)
         let test = parseExpr(ParseExprOpts())
         lexer.expect(Token.Semicolon)
         let update = parseExpr(ParseExprOpts())
         lexer.expect(Token.CloseParen)
         let body = parseStmt(StmtOpts())
-        return Stmt.for_(loc, Some(`init`), test, update, body)
+        return Stmt.forWithInit(loc, initStmt, test, update, body)
     }
 
     /// 解析 while 语句

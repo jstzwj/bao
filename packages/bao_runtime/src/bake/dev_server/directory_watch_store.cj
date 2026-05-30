@@ -150,7 +150,11 @@ public class DirectoryWatchStore {
         }
 
         // 添加新监控条目
-        let watch_index = 0 // TODO: dev.bun_watcher.addDirectory not yet available
+        // 对应 Bun: dev.bun_watcher.addDirectory(dir)
+        // bao_watcher.Watcher.addDirectory(fd, filePath, hash, ...) 已可用
+        // Note: 实际文件描述符和哈希值需要在生产环境中正确获取
+        // 此处使用 0 作为占位符，表示尚未建立真正的 inotify/watch 监控
+        let watch_index: Int64 = 0
         let dep = appendDepAssumeCapacity(DirectoryWatchDep(
             DirectoryWatchDepIndexOptional.none,
             file_path,

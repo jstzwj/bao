@@ -352,8 +352,8 @@ public class JsPromise {
 
     // ========== 内部方法 ==========
 
-    // doResolve - 内部 fulfill
-    func doResolve(value: JsValue) {
+    // doResolve - 内部 fulfill (public for runtime use)
+    public func doResolve(value: JsValue) {
         if (state != JsPromiseState.Pending) {
             return
         }
@@ -363,8 +363,8 @@ public class JsPromise {
         triggerReactions()
     }
 
-    // doReject - 内部 reject
-    func doReject(reason: JsValue) {
+    // doReject - 内部 reject (public for runtime use)
+    public func doReject(reason: JsValue) {
         if (state != JsPromiseState.Pending) {
             return
         }

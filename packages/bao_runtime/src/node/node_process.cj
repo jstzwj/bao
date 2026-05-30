@@ -17,24 +17,45 @@ import std.collection.ArrayList
 // ============================================================================
 // FFI declarations for POSIX process control functions
 // Corresponds to Bun: node_process.rs / node_process.zig system calls
+// Uses @C foreign func to link directly to C library symbols
 // ============================================================================
+
+// Process lifecycle
 @C foreign func _exit(code: Int32): Unit
-@C foreign func c_setuid(uid: UInt32): Int32
-@C foreign func c_setgid(gid: UInt32): Int32
 @C foreign func c_abort(): Unit
+
+// Signal handling
 @C foreign func c_kill(pid: Int32, sig: Int32): Int32
-@C foreign func c_umask(mask: UInt32): UInt32
+
+// User/group ID operations
 @C foreign func c_getuid(): UInt32
-@C foreign func clock_gettime_monotonic_ns(): Int64
 @C foreign func c_getgid(): UInt32
 @C foreign func c_geteuid(): UInt32
 @C foreign func c_getegid(): UInt32
+@C foreign func c_setuid(uid: UInt32): Int32
+@C foreign func c_setgid(gid: UInt32): Int32
+@C foreign func c_seteuid(uid: UInt32): Int32
+@C foreign func c_setegid(gid: UInt32): Int32
+@C foreign func c_getgroups(size: Int32, list: CPointer<UInt32>): Int32
+@C foreign func c_setgroups(size: Int32, list: CPointer<UInt32>): Int32
+
+// File mode creation mask
+@C foreign func c_umask(mask: UInt32): UInt32
+
+// High-resolution timer
+@C foreign func clock_gettime_monotonic_ns(): Int64
 
 // 进程信息 FFI 声明
 // 对应 Bun: /proc/self/status, sysconf, readlink("/proc/self/exe") 等
 @C foreign func c_readlink(path: CPointer<Int8>, buf: CPointer<UInt8>, bufsize: UIntNative): Int64
 @C foreign func c_sysconf(name: Int32): Int64
 @C foreign func c_getrusage(who: Int32, usage: CPointer<Int8>): Int32
+
+// Dynamic library loading (for process.dlopen)
+@C foreign func c_dlopen(filename: CPointer<Int8>, flag: Int32): CPointer<Unit>
+@C foreign func c_dlsym(handle: CPointer<Unit>, symbol: CPointer<Int8>): CPointer<Unit>
+@C foreign func c_dlclose(handle: CPointer<Unit>): Int32
+@C foreign func c_dlerror(): CPointer<Int8>
 
 // environ 全局变量（C 外部链接）- 通过函数访问
 foreign func c_get_environ(): CPointer<CPointer<Int8>>
@@ -485,6 +506,136 @@ public class NodeProcess {
     public static func processUptime(): Float64 {
         return NodeProcessSystem.processUptime()
     }
+
+    // ========================================================================
+    // platform — Get the operating system platform
+    // Corresponds to Bun: BunProcess.cpp constructPlatform
+    // Returns "linux", "darwin", "win32", "freebsd", "android"
+    // Currently hardcoded for Linux; conditional compilation can be added
+    // when Cangjie supports platform-specific compilation flags.
+    // ========================================================================
+    public static func platform(): String {
+        return "linux"
+    }
+
+    // ========================================================================
+    // arch — Get the CPU architecture
+    // Corresponds to Bun: BunProcess.cpp constructArch
+    // Returns "x64", "arm64", "arm", "ia32", etc.
+    // Currently hardcoded for x86_64; conditional compilation can be added
+    // when Cangjie supports architecture-specific compilation flags.
+    // ========================================================================
+    public static func arch(): String {
+        return "x64"
+    }
+
+    // ========================================================================
+    // versions — Get runtime version information
+    // Corresponds to Bun: BunProcess.cpp constructVersions
+    // Returns a map of component -> version string
+    // ========================================================================
+    public static func versions(): HashMap<String, String> {
+        var result = HashMap<String, String>()
+        result.put("node", "22.6.0")
+        result.put("bao", version)
+        result.put("v8", "13.6.233.10-node.18")
+        result.put("uv", "1.48.0")
+        result.put("napi", "10")
+        result.put("openssl", "1.1.0")
+        result.put("modules", "127")
+        return result
+    }
+
+    // ========================================================================
+    // binding — Load a built-in native module binding
+    // Corresponds to Bun: BunProcess.cpp Process_functionBinding
+    // Supports: buffer, config, constants, fs, http_parser, util, uv, etc.
+    // Most bindings throw "not implemented" errors matching Node.js behavior
+    // ========================================================================
+    public static func binding(moduleName: String): Unit {
+        // Known modules that are not yet implemented
+        let notImplemented: Array<String> = [
+            "async_wrap", "cares_wrap", "contextify", "crypto",
+            "fs_event_wrap", "icu", "inspector", "js_stream",
+            "os", "pipe_wrap", "process_wrap", "signal_wrap",
+            "spawn_sync", "stream_wrap", "tcp_wrap", "tls_wrap",
+            "udp_wrap", "url", "v8", "zlib"
+        ]
+        for (m in notImplemented) {
+            if (m == moduleName) {
+                throw BaoError(ErrorCode.fromRaw(0),
+                    "process.binding(\"${moduleName}\") is not implemented in Bao. If that breaks something, please file an issue and include a reproducible code sample.")
+            }
+        }
+        // Modules with issue tracking
+        let notImplementedWithIssue: Array<String> = ["stream_wrap"]
+        for (m in notImplementedWithIssue) {
+            if (m == moduleName) {
+                throw BaoError(ErrorCode.fromRaw(0),
+                    "process.binding(\"${moduleName}\") is not implemented in Bao. Track the status at https://github.com/nicolo-ribaudo/tc39-proposal-structs/issues")
+            }
+        }
+        throw BaoError(ErrorCode.fromRaw(0), "No such module: ${moduleName}")
+    }
+
+    // ========================================================================
+    // dlopen — Load a dynamic shared library
+    // Corresponds to Bun: BunProcess.cpp Process_functionDlopen
+    // Uses dlopen/dlsym/dlclose from libdl via FFI
+    // ========================================================================
+    public static func dlopen(moduleObj: Any, filename: String): Unit {
+        NodeProcessSystem.dlopen(filename)
+    }
+
+    // ========================================================================
+    // getgroups — Get supplementary group IDs
+    // Corresponds to Bun: BunProcess.cpp Process_functiongetgroups
+    // POSIX only: returns array of group IDs
+    // ========================================================================
+    public static func getgroups(): Array<UInt32> {
+        return NodeProcessSystem.getgroups()
+    }
+
+    // ========================================================================
+    // setgroups — Set supplementary group IDs
+    // Corresponds to Bun: BunProcess.cpp Process_functionsetgroups
+    // POSIX only: takes array of group IDs (max 64)
+    // ========================================================================
+    public static func setgroups(groups: Array<UInt32>): Unit {
+        NodeProcessSystem.setgroups(groups)
+    }
+
+    // ========================================================================
+    // geteuid — Get effective user ID
+    // Corresponds to Bun: BunProcess.cpp Process_functiongeteuid
+    // ========================================================================
+    public static func geteuid(): UInt32 {
+        return NodeProcessSystem.geteuid()
+    }
+
+    // ========================================================================
+    // getegid — Get effective group ID
+    // Corresponds to Bun: BunProcess.cpp Process_functiongetegid
+    // ========================================================================
+    public static func getegid(): UInt32 {
+        return NodeProcessSystem.getegid()
+    }
+
+    // ========================================================================
+    // seteuid — Set effective user ID
+    // Corresponds to Bun: BunProcess.cpp Process_functionseteuid
+    // ========================================================================
+    public static func seteuid(uid: UInt32): Unit {
+        NodeProcessSystem.seteuid(uid)
+    }
+
+    // ========================================================================
+    // setegid — Set effective group ID
+    // Corresponds to Bun: BunProcess.cpp Process_functionsetegid
+    // ========================================================================
+    public static func setegid(gid: UInt32): Unit {
+        NodeProcessSystem.setegid(gid)
+    }
 }
 
 // ============================================================================
@@ -513,8 +664,11 @@ public class CpuUsageInfo {
 }
 
 // ============================================================================
-// NodeProcessSystem — Process system call stubs
-// System calls not yet implemented via FFI
+// NodeProcessSystem — Process system call implementations via FFI
+// Implements POSIX system calls for process information and control.
+// Uses direct @C FFI bindings where Cangjie OS module is insufficient,
+// and delegates to bao_sys.OS for standard POSIX operations.
+// Corresponds to Bun: node_process.zig + BunProcess.cpp
 // ============================================================================
 public class NodeProcessSystem {
     // 进程启动时间（单调时钟纳秒）
@@ -738,6 +892,137 @@ public class NodeProcessSystem {
 
     public static func setExitCode(code: UInt8): Unit {
         globalExitCode = code
+    }
+
+    // ========================================================================
+    // User/group ID operations via FFI
+    // Corresponds to Bun: BunProcess.cpp Process_functiongeteuid/getegid
+    // ========================================================================
+
+    // Get effective user ID
+    // Corresponds to Bun: geteuid() syscall
+    public static func geteuid(): UInt32 {
+        return unsafe { c_geteuid() }
+    }
+
+    // Get effective group ID
+    // Corresponds to Bun: getegid() syscall
+    public static func getegid(): UInt32 {
+        return unsafe { c_getegid() }
+    }
+
+    // Set effective user ID
+    // Corresponds to Bun: BunProcess.cpp Process_functionseteuid
+    public static func seteuid(uid: UInt32): Unit {
+        let rc = unsafe { c_seteuid(uid) }
+        if (rc != 0) {
+            throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "seteuid failed")
+        }
+    }
+
+    // Set effective group ID
+    // Corresponds to Bun: BunProcess.cpp Process_functionsetegid
+    public static func setegid(gid: UInt32): Unit {
+        let rc = unsafe { c_setegid(gid) }
+        if (rc != 0) {
+            throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "setegid failed")
+        }
+    }
+
+    // ========================================================================
+    // Group operations via FFI
+    // Corresponds to Bun: BunProcess.cpp Process_functiongetgroups/setgroups
+    // ========================================================================
+
+    // Get supplementary group IDs
+    // Corresponds to Bun: getgroups(0, nullptr) + getgroups(ngroups, groups)
+    public static func getgroups(): Array<UInt32> {
+        unsafe {
+            // First call to get number of groups
+            let nullPtr: CPointer<UInt32> = CPointer<UInt32>()
+            let ngroups = c_getgroups(0, nullPtr)
+            if (ngroups < 0) {
+                throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "getgroups failed")
+            }
+            if (ngroups == 0) {
+                return []
+            }
+            // Allocate buffer and get groups
+            let bufSize = UIntNative(ngroups * 4)  // UInt32 = 4 bytes
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt32>(buf)
+            let rc = c_getgroups(Int32(ngroups), bufPtr)
+            if (rc < 0) {
+                free(buf)
+                throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "getgroups failed")
+            }
+            // Build result array
+            var groups = ArrayList<UInt32>()
+            for (i in 0..Int64(rc)) {
+                groups.add((bufPtr + i).read())
+            }
+            free(buf)
+            return groups.toArray()
+        }
+    }
+
+    // Set supplementary group IDs
+    // Corresponds to Bun: setgroups(count, groupsStack)
+    // Maximum 64 groups (matching Bun/Node.js behavior)
+    public static func setgroups(groups: Array<UInt32>): Unit {
+        if (groups.size > 64) {
+            throw BaoError(ErrorCode.fromRaw(0), "groups.length must be <= 64")
+        }
+        unsafe {
+            let count = groups.size
+            if (count == 0) {
+                let nullPtr: CPointer<UInt32> = CPointer<UInt32>()
+                let rc = c_setgroups(0, nullPtr)
+                if (rc != 0) {
+                    throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "setgroups failed")
+                }
+                return
+            }
+            // Stack-allocate group array (max 64 * 4 = 256 bytes)
+            let bufSize = UIntNative(count * 4)
+            let buf = malloc(bufSize)
+            let bufPtr = CPointer<UInt32>(buf)
+            for (i in 0..Int64(count)) {
+                (bufPtr + i).write(groups[i])
+            }
+            let rc = c_setgroups(Int32(count), bufPtr)
+            free(buf)
+            if (rc != 0) {
+                throw BaoError(ErrorCode.fromRaw(UInt16(Int64(OS.errno()))), "setgroups failed")
+            }
+        }
+    }
+
+    // ========================================================================
+    // Dynamic library loading
+    // Corresponds to Bun: BunProcess.cpp Process_functionDlopen
+    // Uses dlopen/dlsym/dlclose from libdl via FFI
+    // ========================================================================
+
+    // dlopen constants
+    private static let RTLD_LAZY: Int32 = 1
+    private static let RTLD_NOW: Int32 = 2
+
+    // Load a dynamic shared library
+    // Corresponds to Bun: Process_functionDlopen — calls dlopen(path, RTLD_LAZY)
+    public static func dlopen(filename: String): Unit {
+        unsafe {
+            let pathPtr = toProcCString(filename)
+            let handle = c_dlopen(pathPtr, RTLD_LAZY)
+            free(CPointer<Unit>(pathPtr))
+            if (handle.isNull()) {
+                let errPtr = c_dlerror()
+                let errMsg = if (errPtr.isNull()) { "unknown error" } else { unsafeCStringToString(errPtr) }
+                throw BaoError(ErrorCode.fromRaw(0), "dlopen failed: ${errMsg}")
+            }
+            // Note: In Bun, the handle is stored on the globalObject for NAPI module support.
+            // For now we just load and validate; the handle leaks intentionally (matches Node.js behavior).
+        }
     }
 
     // ========================================================================

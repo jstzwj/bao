@@ -791,10 +791,70 @@ public class TOML {
 public class json_parser {
     /// Parse a tsconfig-style JSON source.
     // Corresponds to Bun: json_parser::parse_ts_config::<true>(source, log, bump)
+    //
+    // tsconfig.json allows:
+    //   - Comments (// and /* */)
+    //   - Trailing commas
+    //   - Unlike strict JSON
+    //
+    // This implementation uses the bao_parsers JSONParser with relaxed options
+    // (comments allowed, trailing commas allowed) to match tsconfig semantics.
     public static func parseTsConfig(source: Source, log: Log): Result<Expr, BaoError> {
-        // PORT NOTE: This should call the actual JSON parser from bao_parsers
-        // For now, returns a not-implemented error
-        return Err(BaoError(ErrorCode.NotImplemented, "JSON parser not yet implemented"))
+        // Create relaxed JSON options (tsconfig allows comments + trailing commas)
+        let opts = ParseOptions()
+        opts.allowComments = true
+        opts.allowTrailingCommas = true
+        opts.strict = false
+        opts.maxDepth = Int64(256)
+
+        let parser = JSONParser(source.content, opts)
+        let result = parser.parse()
+
+        if (result.hasErrors()) {
+            for (err in result.errors) {
+                log.addErrorOpts(err.format(), Some(source), err.offset, true)
+            }
+            return Err(BaoError(ErrorCode.ParseError, "Failed to parse JSON"))
+        }
+
+        match (result.getValue()) {
+            case Some(jsonValue) =>
+                return Ok(jsonValueToExpr(jsonValue))
+            case None =>
+                return Err(BaoError(ErrorCode.ParseError, "Failed to parse JSON: no value produced"))
+        }
+    }
+
+    /// Convert a JsonValue (from bao_parsers) to an Expr (used by bunfig Parser).
+    // Corresponds to Bun: the JSON parser directly produces js_ast::Expr nodes,
+    // but in our architecture the JSON parser produces JsonValue and we convert.
+    private static func jsonValueToExpr(value: JsonValue): Expr {
+        match (value.kind) {
+            case JsonKind.Null =>
+                return Expr(ExprData.Null_)
+            case JsonKind.Boolean =>
+                return Expr(ExprData.Boolean(value.boolValue))
+            case JsonKind.Number =>
+                return Expr(ExprData.Number(value.numberValue))
+            case JsonKind.String =>
+                return Expr(ExprData.String_(value.stringValue))
+            case JsonKind.Array =>
+                let arr = ArrayList<Expr>()
+                for (item in value.arrayValue) {
+                    arr.add(jsonValueToExpr(item))
+                }
+                return Expr(ExprData.Array(arr))
+            case JsonKind.Object =>
+                let obj = ExprObject()
+                let keys = value.objectValue.keys()
+                for (key in keys) {
+                    match (value.objectValue.get(key)) {
+                        case Some(child) => obj.put(key, jsonValueToExpr(child))
+                        case None => ()
+                    }
+                }
+                return Expr(ExprData.Object(obj))
+        }
     }
 }
 

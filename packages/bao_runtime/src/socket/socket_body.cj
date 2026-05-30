@@ -397,8 +397,10 @@ public func doConnect(socket: NewSocket): ?BaoError {
 // ============================================================================
 
 /// onWritable 回调
-/// PORT NOTE: 使用指针而非 &self — callback.call 重入 JS，
-/// 可以通过 m_ptr 再次调用 socket.write()/end()/reload()。
+/// Design note: Bun uses raw pointer (`*Self`) instead of `&self` because the
+/// callback.call re-enters JS, which can call back into socket.write()/end()/reload()
+/// through m_ptr. In Cangjie, GC-managed references handle re-entrance safely,
+/// so we pass `socket` by value (reference semantics).
 public func onWritable(socket: NewSocket, socketHandler: SocketHandler): Unit {
     if (socket.socket.isDetached()) {
         return
@@ -750,7 +752,10 @@ public func onClose(
 
     let result = callback.call(global, thisValue, [thisValue, JsValue(Int64(err))])
 
-    // Error handling stub
+    // 对应 Bun: onClose catch — 将 JS 回调抛出的错误传递给错误处理器
+    if (result.isException()) {
+        handleError(socket, result)
+    }
 }
 
 // ============================================================================
@@ -1154,8 +1159,9 @@ func selectAlpnCallback(
 // ============================================================================
 
 /// 获取 JS 事件循环上下文 — 对应 Bun: SocketBody.jsLoopCtx
-func jsLoopCtx(): Any {
-    // Stub: 返回事件循环上下文
+/// Bun 版本通过 posix_event_loop.getVmCtx(.Js) 获取;
+/// 当前返回 MiniEventLoop 作为回退 — 后续应从 VirtualMachine 获取真正的 JS 事件循环
+func jsLoopCtx(): EventLoopHandle {
     return EventLoopHandle(MiniEventLoop())
 }
 

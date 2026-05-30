@@ -6,10 +6,11 @@
 //       impl Parser { pub fn parse_registry_url_string_impl(&mut self, str: &[u8]) -> Result<NpmRegistry, AllocError> }
 //   }
 //
-// PORT NOTE: Parser stays generic over L (Log) / S (Source) in Rust so this
-// leaf schema crate doesn't need to name bun_logger. In Cangjie we keep the
-// same structure but simplify the generics since Cangjie uses interface-based
-// generics. The parse function only needs the URL string input.
+// Design note: Bun's Parser is generic over L (Log) and S (Source) so the leaf
+// schema crate doesn't need to name bun_logger. In Cangjie, interface-based
+// generics are used, but since the parse function body only needs the URL string
+// input (the log/source paths aren't used in the URL-string path), we simplify
+// to a concrete class. The parse result is identical.
 
 package bao_api
 

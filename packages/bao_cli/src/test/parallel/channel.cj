@@ -15,6 +15,9 @@ public type FileDescriptor = Int64
 // 用于 bao test --parallel 的双向 IPC 通道
 // 读取通过循环的数据回调进行帧解码; 写入通过平台 socket/pipe
 // 进行背压缓冲和通过循环排空
+//
+// 帧格式: [u32 LE payload_len][u8 kind][payload]
+// 载荷内的字符串: [u32 LE len][bytes]
 // ============================================================================
 
 /// IPC 通道
@@ -56,6 +59,8 @@ public class Channel {
 
     /// 排队并写入一个完整的编码帧
     /// 对应 Bun: Channel.send()
+    ///
+    /// 如果内核只接受部分数据, 剩余部分缓冲到 out
     public func send(frameBytes: Array<Byte>): Unit {
         if (done) {
             return
@@ -71,9 +76,9 @@ public class Channel {
 
         // 尝试直接写入
         let wrote = backend.write(frameBytes)
-        if (wrote < frameBytes.size) {
-            for (i in wrote..frameBytes.size) {
-                out.append(frameBytes[i])
+        if (wrote < Int64(frameBytes.size)) {
+            for (i in wrote..Int64(frameBytes.size)) {
+                out.append(frameBytes[Int64(i)])
             }
         }
     }
@@ -84,10 +89,28 @@ public class Channel {
         return out.size > 0
     }
 
+    /// 是否仍附加 (socket/pipe 仍打开)
+    /// 对应 Bun: Channel.isAttached()
+    public func isAttached(): Bool {
+        return backend.socket != None
+    }
+
     /// 最佳努力排空缓冲写入
     /// 对应 Bun: Channel.flush()
     public func flush(): Unit {
-        ()
+        while (out.size > 0 && !done) {
+            let arr = Array<Byte>(out.size, { i => out[i] })
+            let wrote = backend.write(arr)
+            if (wrote <= 0) {
+                return
+            }
+            // 移除已写入的字节
+            let remaining = ArrayList<Byte>()
+            for (i in wrote..Int64(out.size)) {
+                remaining.append(out[Int64(i)])
+            }
+            out = remaining
+        }
     }
 
     /// 关闭通道
@@ -110,10 +133,66 @@ public class Channel {
         out.clear()
     }
 
-    /// 接收数据
+    /// 接收数据并解码帧
     /// 对应 Bun: Channel.ingest()
+    ///
+    /// 帧格式: [4字节 payload_len (LE)][1字节 kind][payload 字节]
+    /// 完整帧 = 5 + payload_len 字节
     public func ingest(data: Array<Byte>): Unit {
-        ()
+        if (done) {
+            return
+        }
+
+        // 追加到输入缓冲区
+        for (b in data) {
+            in_.append(b)
+        }
+
+        // 尝试解码完整帧
+        var head: Int64 = 0
+        while (in_.size - head >= 5) {
+            // 读取 payload_len (小端 u32)
+            let len = Int64(in_[head]) |
+                      (Int64(in_[head + 1]) << 8) |
+                      (Int64(in_[head + 2]) << 16) |
+                      (Int64(in_[head + 3]) << 24)
+
+            // 帧过大, 视为损坏
+            if (len > MAX_PAYLOAD) {
+                markDone()
+                return
+            }
+
+            // 不完整帧, 等待更多数据
+            if (in_.size - head < 5 + len) {
+                break
+            }
+
+            // 解码 kind 字节
+            let kindByte = Int64(in_[head + 4])
+            let kind = byteToFrameKind(kindByte)
+
+            // 提取载荷
+            let payloadData = Array<Byte>(len, { i => in_[head + 5 + i] })
+            let rd = FrameReader(payloadData)
+
+            // 分发给所有者
+            match (onFrame) {
+                case Some(cb) => cb(kind, rd)
+                case None => ()
+            }
+
+            head += 5 + len
+        }
+
+        // 移除已处理的字节
+        if (head > 0) {
+            let rest = ArrayList<Byte>()
+            for (i in head..Int64(in_.size)) {
+                rest.append(in_[i])
+            }
+            in_ = rest
+        }
     }
 
     /// 标记完成
@@ -129,8 +208,8 @@ public class Channel {
     }
 
     /// 字节转 FrameKind
-    private func byteToFrameKind(b: Byte): FrameKind {
-        match (Int64(b)) {
+    private func byteToFrameKind(b: Int64): FrameKind {
+        match (b) {
             case 0 => FrameKind.ready
             case 1 => FrameKind.fileStart
             case 2 => FrameKind.testDone
@@ -153,11 +232,28 @@ public class ChannelBackend {
         socket = None
     }
 
+    /// 写入数据到 fd
     public func write(data: Array<Byte>): Int64 {
-        return data.size
+        match (socket) {
+            case Some(fd) =>
+                // 将 Byte 数组转为 UInt8 数组
+                let u8data = Array<UInt8>(data.size, { i => UInt8(data[i]) })
+                match (Sys.write(fd, u8data)) {
+                    case SysMaybe.Ok(n) => n
+                    case SysMaybe.Err(_) => Int64(0) - 1 // write error
+                }
+            case None =>
+                Int64(data.size) // 丢弃 (非附加状态)
+        }
     }
 
+    /// 关闭 fd
     public func close(): Unit {
-        socket = Option<FileDescriptor>.None
+        match (socket) {
+            case Some(fd) =>
+                Sys.close(fd)
+                socket = None
+            case None => ()
+        }
     }
 }

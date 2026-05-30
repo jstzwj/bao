@@ -710,12 +710,12 @@ public class NodeUtil {
 }
 
 // ============================================================================
-// NodePathStubs — path 模块存根
+// NodePathStubs — path 模块 JS 绑定
 // 对应 Bun: src/runtime/node/path.zig
-// 引用 bao_path 模块
+// 通过 bao_path 模块提供完整的 Node.js path API
 // ============================================================================
 
-/// Node.js path 模块存根 — 委托给 bao_path
+/// Node.js path 模块 JS 绑定 — 委托给 bao_path
 /// 对应 Bun: src/runtime/node/path.zig
 public class NodePathStubs {
     /// 将 path 模块导出为 JsValue

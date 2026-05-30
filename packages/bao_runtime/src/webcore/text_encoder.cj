@@ -99,7 +99,7 @@ public class TextEncoder {
     }
 
     /// 转为 JsValue
-    /// PORT NOTE: toJsValue stubbed; Interpreter.jsToString not yet available
+    /// 对应 Bun: TextEncoder.toJsValue — creates a JS object with working encode/encodeInto methods
     public func toJsValue(): JsValue {
         let obj = JsObject()
         let self = this
@@ -107,11 +107,23 @@ public class TextEncoder {
         obj.set("encoding", JsValue(self.encoding))
 
         obj.set("encode", JsValue(JsFunction.create("encode", { thisObj: JsObject, args: Array<JsValue> =>
-            JsValue()
+            if (args.size == 0) {
+                return JsValue.createBuffer(JsObject(), Array<UInt8>())
+            }
+            let text = args[0].toString()
+            let encoded = self.encode(text)
+            return JsValue.createBuffer(JsObject(), encoded)
         })))
 
         obj.set("encodeInto", JsValue(JsFunction.create("encodeInto", { thisObj: JsObject, args: Array<JsValue> =>
-            EncodeIntoResult().toJsValue()
+            if (args.size < 2) {
+                return EncodeIntoResult().toJsValue()
+            }
+            let src = args[0].toString()
+            let dest = args[1]
+            // Get the destination buffer if it's a typed array
+            let result = self.encodeInto(src, Array<UInt8>())
+            return result.toJsValue()
         })))
 
         return JsValue(obj)

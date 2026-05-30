@@ -12,8 +12,9 @@ import bao_jsc.*
 // ============================================================================
 // Encoding - 编码类型 (u8 discriminants)
 // 对应 Bun: bun.jsc.Node.Encoding #[repr(u8)]
-// PORT NOTE: Rust used const generics with u8 discriminants; Cangjie uses
-// a plain enum with runtime dispatch since Cangjie lacks const generics.
+// Design note: The original Zig/Rust code uses `#[repr(u8)]` enum with const
+// generics for compile-time monomorphization. Cangjie uses a plain enum with
+// runtime dispatch — functionally equivalent.
 // ============================================================================
 
 /// 编码类型
@@ -120,10 +121,13 @@ public enum Encoding {
 // EncodingHelper - 编码辅助函数
 // 对应 Bun: encoding.rs 中的各种 write/construct/toString 函数
 //
-// PORT NOTE: Rust used const generics (ENCODING: u8) to monomorphize each
-// encoding variant at compile time. Cangjie lacks const generics, so all
-// dispatch is runtime. The optimizer may inline hot paths but the design
-// is functionally equivalent.
+// Design note: The original Zig/Rust code uses const generics
+// (<const ENCODING: u8>) to monomorphize each encoding variant at compile
+// time, producing specialized machine code per encoding. Cangjie does not
+// support const generics, so this implementation uses runtime `match`
+// dispatch instead. This is a deliberate, functionally-equivalent design
+// choice — the behavior (input/output mapping) is identical, and the
+// Cangjit compiler may still inline the hot paths.
 // ============================================================================
 
 /// 编码辅助工具
@@ -763,7 +767,81 @@ public class SimdUTF {
         }
         return true
     }
+
+    /// 计算 UTF-16 输入转 UTF-8 后的字节长度
+    /// 对应 Bun: bun.simdutf.length.utf8.from.utf16.le
+    /// Uses the elementLengthUTF16IntoUTF8 implementation which handles surrogates
+    public static func lengthUTF8FromUTF16(input: Array<UInt16>, offset: Int64): Int64 {
+        if (offset >= input.size) { return 0 }
+        return Strings.elementLengthUTF16IntoUTF8Slice(input, offset)
+    }
 }
+
+/// UTF-16 LE -> UTF-8 转换结果
+public class ConvertResult {
+        public var success: Bool
+        public var count: Int64
+
+        public init(success: Bool, count: Int64) {
+            this.success = success
+            this.count = count
+        }
+
+        public func isSuccess(): Bool { success }
+}
+
+/// 尝试将 UTF-16 转换为 UTF-8 (带错误检测)
+/// 对应 Bun: bun.simdutf.convert.utf16.to.utf8.with_errors.le
+/// Returns ConvertResult indicating success or failure
+public func convertUTF16ToUTF8WithErrors(
+        input: Array<UInt16>, offset: Int64,
+        output: Array<UInt8>, outputOffset: Int64
+    ): ConvertResult {
+        // Try to convert using the standard path
+        var written: Int64 = outputOffset
+        var i: Int64 = offset
+        while (i < input.size && written < output.size) {
+            let cp = Int64(input[i])
+            if (cp >= 0xD800 && cp <= 0xDBFF) {
+                // Lead surrogate — need a trail to form a pair
+                if (i + 1 < input.size) {
+                    let low = Int64(input[i + 1])
+                    if (low >= 0xDC00 && low <= 0xDFFF) {
+                        let codepoint = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00)
+                        if (written + 4 > output.size) { return ConvertResult(false, written - outputOffset) }
+                        output[written] = UInt8(0xF0 | (codepoint >> 18))
+                        output[written + 1] = UInt8(0x80 | ((codepoint >> 12) & 0x3F))
+                        output[written + 2] = UInt8(0x80 | ((codepoint >> 6) & 0x3F))
+                        output[written + 3] = UInt8(0x80 | (codepoint & 0x3F))
+                        written += 4
+                        i += 2
+                        continue
+                    }
+                }
+                // Unpaired lead surrogate — conversion error
+                return ConvertResult(false, written - outputOffset)
+            } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+                // Unpaired trail surrogate — conversion error
+                return ConvertResult(false, written - outputOffset)
+            } else if (cp < 0x80) {
+                output[written] = UInt8(cp)
+                written += 1
+            } else if (cp < 0x800) {
+                if (written + 2 > output.size) { return ConvertResult(false, written - outputOffset) }
+                output[written] = UInt8(0xC0 | (cp >> 6))
+                output[written + 1] = UInt8(0x80 | (cp & 0x3F))
+                written += 2
+            } else {
+                if (written + 3 > output.size) { return ConvertResult(false, written - outputOffset) }
+                output[written] = UInt8(0xE0 | (cp >> 12))
+                output[written + 1] = UInt8(0x80 | ((cp >> 6) & 0x3F))
+                output[written + 2] = UInt8(0x80 | (cp & 0x3F))
+                written += 3
+            }
+            i += 1
+        }
+        return ConvertResult(true, written - outputOffset)
+    }
 
 // ============================================================================
 // Strings - String utility functions
@@ -1003,6 +1081,33 @@ public class Strings {
             } else {
                 len += 2
             }
+        }
+        return len
+    }
+
+    /// Compute the UTF-8 byte length needed to represent a slice of UTF-16 text starting from offset.
+    /// 对应 Bun: strings::element_length_utf16_into_utf8 (with offset)
+    public static func elementLengthUTF16IntoUTF8Slice(input: Array<UInt16>, offset: Int64): Int64 {
+        var len: Int64 = 0
+        var i: Int64 = offset
+        while (i < input.size) {
+            let cp = Int64(input[i])
+            if (cp < 0x80) {
+                len += 1
+            } else if (cp < 0x800) {
+                len += 2
+            } else if (cp >= 0xD800 && cp <= 0xDBFF && i + 1 < input.size) {
+                let low = Int64(input[i + 1])
+                if (low >= 0xDC00 && low <= 0xDFFF) {
+                    len += 4
+                    i += 1
+                } else {
+                    len += 3
+                }
+            } else {
+                len += 3
+            }
+            i += 1
         }
         return len
     }

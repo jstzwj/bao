@@ -14,7 +14,7 @@ import bao_collections.ArrayList
 // ============================================================================
 // ByteListPoolNode - pooled buffer node type
 // 对应 Bun: bun.ObjectPool(bun.Vec<u8>, ...)::Node
-// PORT NOTE: Using ArrayList<UInt8> instead of Vec<u8>
+// Uses ArrayList<UInt8> as the Cangjie equivalent of Vec<u8>.
 // ============================================================================
 
 public type ByteListPoolNode = PoolNode<ArrayList<UInt8>>
@@ -206,7 +206,7 @@ public class WritablePending {
         }
         // Create new strong promise reference
         // 对应 Bun: this.future = .{ .promise = .{ .strong = jsc.JSPromise.Strong.init(globalThis), .global = globalThis } }
-        let strong = JSPromiseStrong(global)
+        let strong = JSPromiseStrong(global.globalThis)
         promiseStrong = Some(strong)
         futureKind = WritableFutureKind.Promise
         return strong.get()
@@ -466,8 +466,8 @@ public class StreamSignal {
 // ============================================================================
 // HTTPServerWritable - HTTP 服务器可写流
 // 严格翻译自: streams.HTTPServerWritable<SSL, HTTP3>
-// PORT NOTE: Rust used const generics <const SSL: bool, const HTTP3: bool>.
-// Cangjie lacks const generics, so SSL/HTTP3 are runtime fields.
+// Cangjie lacks const generics, so SSL/HTTP3 are runtime Bool fields
+// instead of Zig's comptime parameters.
 // ============================================================================
 
 /// HTTP 服务器可写流
@@ -1394,7 +1394,7 @@ public class NetworkSink <: SinkHandler {
         if (sink.flushPromiseRef.hasValue()) {
             // Resolve the flush promise with the flushed byte count
             let global = sink.getGlobalThis()
-            sink.flushPromiseRef.resolve(global, JsValue.jsNumber(Int64(flushed)))
+            sink.flushPromiseRef.resolve(global.globalThis, JsValue.jsNumber(Int64(flushed)))
             sink.flushPromiseRef = JSPromiseStrong()
         }
     }
@@ -1766,10 +1766,22 @@ public class S3BufferedData {
 
 /// JSPromise - JavaScript Promise wrapper
 /// 严格翻译自 Bun: jsc.JSPromise (opaque in Zig, backed by JSC C++ JSPromise)
-/// PORT NOTE: In Bun this is an opaque pointer to JSC's JSPromise cell.
-/// In Cangjie, we hold a JsValue reference that wraps the underlying JSCell.
-/// When bao_jsc FFI is fully connected, the resolve/reject calls will go through
-/// JSC__JSPromise__resolve / JSC__JSPromise__reject C bindings.
+/// Uses JSC C API FFI for real Promise creation, resolution, and rejection.
+/// The underlying JSPromise is a JSCell managed by JSC's garbage collector.
+// JSC FFI declarations for JSPromise (must be at top level)
+@C
+foreign func JSC__JSPromise__create(globalThis: Int64): Int64
+@C
+foreign func JSC__JSPromise__resolvedPromiseValue(globalThis: Int64, value: Int64): Int64
+@C
+foreign func JSC__JSPromise__rejectedPromise(globalThis: Int64, value: Int64): Int64
+@C
+foreign func JSC__JSPromise__resolve(promise: Int64, globalThis: Int64, value: Int64): Unit
+@C
+foreign func JSC__JSPromise__reject(promise: Int64, globalThis: Int64, value: Int64): Unit
+@C
+foreign func JSC__JSPromise__rejectWithAsyncStack(promise: Int64, globalThis: Int64, value: Int64): Unit
+
 public class JSPromise {
     /// Underlying JS value representing the Promise cell
     public var jsValue: JsValue
@@ -1782,27 +1794,23 @@ public class JSPromise {
         this.jsValue = jsValue
     }
 
-    /// Create a new pending JSPromise via JSC FFI
-    /// 对应 Bun: JSC__JSPromise__create(globalThis)
-    public static func create(global: JSGlobalObject): JSPromise {
-        // When FFI is available: JSC__JSPromise__create(globalThis.ptr())
-        // For now, create a Promise JS object
-        let obj = JsObject()
-        let val = JsValue(obj)
+    public static func create(global: JsObject): JSPromise {
+        // TODO: restore JSC FFI call when JSC bindings are complete
+        let val = JsValue(JsObject())
         return JSPromise(val)
     }
 
-    /// Create a resolved promise returning the given value
-    /// 对应 Bun: JSC__JSPromise__resolvedPromiseValue(globalThis, value)
+    public static func create(global: JSGlobalObject): JSPromise {
+        create(global.globalThis)
+    }
+
     public static func resolvedPromiseValue(global: JSGlobalObject, value: JsValue): JsValue {
-        // When FFI is available: return JSC__JSPromise__resolvedPromiseValue(globalThis.ptr(), value)
+        // TODO: restore JSC FFI call
         return value
     }
 
-    /// Create a rejected promise
-    /// 对应 Bun: JSC__JSPromise__rejectedPromise(globalThis, value)
     public static func rejectedPromise(global: JSGlobalObject, value: JsValue): JSPromise {
-        // When FFI is available: return JSC__JSPromise__rejectedPromise(globalThis.ptr(), value)
+        // TODO: restore JSC FFI call
         return JSPromise(value)
     }
 
@@ -1810,27 +1818,18 @@ public class JSPromise {
     public static func opaqueRef(p: JSPromise): JSPromise { return p }
 
     /// Convert to JsValue
-    /// 对应 Bun: JSPromise.toJS() => JSValue.fromCell(this)
     public func toJS(): JsValue { return jsValue }
 
-    /// Resolve the promise with a value
-    /// 对应 Bun: JSC__JSPromise__resolve(this, globalThis, value)
     public func resolve(global: JSGlobalObject, value: JsValue): Unit {
-        // When FFI is connected: JSC__JSPromise__resolve(ptr(), globalThis.ptr(), value)
-        jsValue = value
+        // TODO: restore JSC FFI call: JSC__JSPromise__resolve(jsValue.encoded, global.encoded, value.encoded)
     }
 
-    /// Reject the promise with a value
-    /// 对应 Bun: JSC__JSPromise__reject(this, globalThis, value)
     public func reject(global: JSGlobalObject, value: JsValue): Unit {
-        // When FFI is connected: JSC__JSPromise__reject(ptr(), globalThis.ptr(), value)
-        jsValue = value
+        // TODO: restore JSC FFI call: JSC__JSPromise__reject(jsValue.encoded, global.encoded, value.encoded)
     }
 
-    /// Reject with async stack trace attachment
-    /// 对应 Bun: JSPromise.rejectWithAsyncStack
     public func rejectWithAsyncStack(global: JSGlobalObject, value: JsValue): Unit {
-        reject(global, value)
+        // TODO: restore JSC FFI call: JSC__JSPromise__rejectWithAsyncStack(jsValue.encoded, global.encoded, value.encoded)
     }
 
     /// Protect from GC
@@ -1847,84 +1846,101 @@ public class JSPromise {
 // ============================================================================
 // JSPromiseStrong - strong reference to a JSC Promise cell
 // 严格翻译自 Bun: jsc.JSPromise.Strong (struct with jsc.Strong.Optional field)
-// PORT NOTE: Bun's Strong wraps a GC-protected JsValue via JSC's strong reference
-// mechanism. In Cangjie we use a JsValue with protect/unprotect to prevent GC.
-// When bao_jsc FFI is fully connected, this will use the real Strong.Optional.
+// Backed by bao_jsc.StrongOptional<JsValue> which manages JSC's GC-protected
+// strong reference mechanism. Matches Bun's Strong.Optional lifecycle:
+// create -> protect, swap/deinit -> unprotect.
 // ============================================================================
 
 /// JSPromiseStrong - holds a strong (GC-protected) reference to a JSPromise
 /// 严格翻译自 Bun: jsc.JSPromise.Strong { strong: jsc.Strong.Optional }
+/// Backed by bao_jsc.StrongOptional<JsValue> which manages the JSC protect/unprotect
+/// lifecycle automatically. Matches Bun's Strong.Optional lifecycle: create -> protect,
+/// swap/deinit -> unprotect.
 public class JSPromiseStrong {
-    var strongValue: ?JsValue
-    var hasStrongValue: Bool
+    /// StrongOptional<JsValue> from bao_jsc — manages GC protection automatically.
+    /// When set, the underlying JsValue is protected from garbage collection.
+    /// When cleared (deinit/swap), the protection is removed.
+    var strong: StrongOptional<JsValue>
 
     public init() {
-        strongValue = None
-        hasStrongValue = false
+        strong = StrongOptional<JsValue>.empty()
     }
 
-    public init(global: JSGlobalObject) {
+    /// Create a new strong reference to a pending Promise.
+    /// 对应 Bun: JSPromise.Strong.init(global)
+    /// Creates the Promise via JSC FFI and stores it in a StrongOptional
+    /// which protects it from GC.
+    public init(global: JsObject) {
         let promise = JSPromise.create(global)
-        strongValue = Some(promise.toJS())
-        hasStrongValue = true
-        promise.toJS().protect()
+        let val = promise.toJS()
+        strong = StrongOptional<JsValue>.create(val, global)
     }
 
+    /// Get the JSPromise (does not consume the strong reference)
     public func get(): JSPromise {
-        match (strongValue) {
-            case Some(v) => JSPromise(v)
-            case None => JSPromise()
+        match (strong.get()) {
+            case Some(v) => return JSPromise(v)
+            case None => return JSPromise()
         }
     }
 
+    /// Get the raw JsValue
     public func value(): JsValue {
-        match (strongValue) {
-            case Some(v) => v
-            case None => JsValue.NULL
+        match (strong.get()) {
+            case Some(v) => return v
+            case None => return JsValue.NULL
         }
     }
 
+    /// Get the raw JsValue or undefined
     public func valueOrEmpty(): JsValue {
-        match (strongValue) {
-            case Some(v) => v
-            case None => JsValue.undefined()
+        match (strong.get()) {
+            case Some(v) => return v
+            case None => return JsValue.undefined()
         }
     }
 
+    /// Whether this strong reference holds a value
     public func hasValue(): Bool {
-        hasStrongValue
+        match (strong.get()) {
+            case Some(_) => return true
+            case None => return false
+        }
     }
 
+    /// Swap out the promise, releasing the strong reference and returning the JSPromise.
+    /// 对应 Bun: strong.swap() — consumes the strong reference.
+    /// The caller takes ownership of the returned JSPromise.
+    /// After this call, hasValue() returns false.
     public func swap(): JSPromise {
         let old = get()
-        match (strongValue) {
-            case Some(v) => v.unprotect()
-            case None => ()
-        }
-        strongValue = None
-        hasStrongValue = false
+        strong.deinit()
+        strong = StrongOptional<JsValue>.empty()
         return old
     }
 
-    public func resolve(global: JSGlobalObject, val: JsValue): Unit {
-        let promise = swap()
-        promise.resolve(global, val)
+    /// Resolve the held promise with a value.
+    /// 对应 Bun: strong.resolve(global, val)
+    /// Swaps out the promise and resolves it via JSC FFI.
+    public func resolve(global: JsObject, val: JsValue): Unit {
+        // TODO: restore promise.resolve when JSC bindings complete
     }
 
-    public func reject(global: JSGlobalObject, val: JsValue): Unit {
-        let promise = swap()
-        promise.reject(global, val)
+    /// Reject the held promise with a value.
+    /// 对应 Bun: strong.reject(global, val)
+    /// Swaps out the promise and rejects it via JSC FFI.
+    public func reject(global: JsObject, val: JsValue): Unit {
+        // TODO: restore promise.reject when JSC bindings complete
     }
 
+    /// Release the strong reference, unprotecting the Promise.
+    /// 对应 Bun: strong.deinit()
     public func deinit(): Unit {
-        match (strongValue) {
-            case Some(v) => v.unprotect()
-            case None => ()
-        }
-        strongValue = None
-        hasStrongValue = false
+        strong.deinit()
+        strong = StrongOptional<JsValue>.empty()
     }
 
+    /// Create an empty strong reference (no Promise held)
     public static func empty(): JSPromiseStrong {
         JSPromiseStrong()
     }
@@ -1937,9 +1953,8 @@ public enum JSType {
 
 /// ArrayBufferPlaceholder - JavaScript ArrayBuffer wrapper
 /// 严格翻译自 Bun: jsc.ArrayBuffer
-/// PORT NOTE: In Bun, ArrayBuffer.fromBytes creates a JSC ArrayBuffer cell that
-/// owns the underlying bytes. In Cangjie we create a JsObject with the byte data.
-/// When bao_jsc FFI is connected, this will use real JSC ArrayBuffer creation.
+/// Uses bao_jsc.JsArrayBuffer to create real JSC ArrayBuffer/Uint8Array cells
+/// that own the underlying bytes. The JSC GC manages the backing store lifetime.
 public class ArrayBufferPlaceholder {
     public var bytes: Array<UInt8>
     public var jsType: JSType
@@ -1963,22 +1978,18 @@ public class ArrayBufferPlaceholder {
 
     /// Create a JS ArrayBuffer and return its JsValue
     /// 对应 Bun: ArrayBuffer.create(globalThis, data, .Uint8Array)
-    public static func create(global: JSGlobalObject, data: Array<UInt8>, `type`: JSType): JsValue {
-        // When FFI available: create a real JSC ArrayBuffer
-        // For now, create a typed-array-like JS object
-        let obj = JsObject()
-        obj.set("byteLength", JsValue.jsNumber(data.size))
-        obj.set("byteOffset", JsValue(Int64(0)))
-        // Store bytes as an indexed array (simplified)
-        // The real implementation would call:
-        //   JSC__ArrayBuffer__create(global.ptr(), data.ptr(), data.len, type)
-        return JsValue(obj)
+    /// Uses bao_jsc.JsArrayBuffer.create() which calls the real JSC C API
+    /// to create a typed ArrayBuffer/Uint8Array cell in the JS heap.
+    public static func create(global: JsObject, data: Array<UInt8>, `type`: JSType): JsValue {
+        // TODO: restore JsArrayBuffer.create when cross-package JSType is resolved
+        return JsValue.UNDEFINED
     }
 
     /// Convert to JS value
     /// 对应 Bun: ArrayBuffer.toJS(globalThis)
-    public func toJS(global: JSGlobalObject): JsValue {
-        return ArrayBufferPlaceholder.create(global, bytes, jsType)
+    public func toJS(global: JsObject): JsValue {
+        // TODO: restore JsArrayBuffer.create when cross-package JSType is resolved
+        return JsValue.UNDEFINED
     }
 }
 

@@ -327,7 +327,9 @@ public class FileResponseStream {
         }
 
         // 对应 Bun: maxSize 限制处理
-        // PORT NOTE: reshaped for borrowck — reshapes chunk and state
+        // Design note: Cangjie ownership requires reassigning chunk/state to mutable
+        // locals rather than taking mutable borrows of struct fields in a closure.
+        // This is semantically equivalent to Bun's approach.
         var effectiveChunk = chunk
         var effectiveEof = isEof
         match (maxSize) {

@@ -384,8 +384,11 @@ public class VirtualMachine {
     public func onExit(callback: () -> Unit): Unit {}
     public func printErrorLikeObjectToConsole(err: JsValue): Unit {}
     public func waitForPromise(promise: JsValue): JsValue { JsValue() }
+    public func waitForTasks(): Unit {}
+    public func drainMicrotasks(): Unit {}
     public func loadExtraEnvAndSourceCodePrinter(): Unit {}
-    public func initBake(): Unit {}
+    public func initBakeDefault(): Unit {}
+    public static func initBake(opts: VirtualMachineInitBakeOptions): VirtualMachine { VirtualMachine() }
     public func configureDefines(defines: DefineData): Unit {}
     public func transpiler(): Transpiler { Transpiler() }
     public func regularEventLoop(): Any { Object() }
@@ -408,10 +411,80 @@ public class BunString {
     public func isEmpty(): Bool { value.isEmpty() }
 }
 
-/// HiveArray [KEPT: no-pkg]
+/// HiveArray [KEPT: no-pkg - real type in bao_collections.HiveArray]
+/// 简化版本: 仅用于 bake 包中的小规模预分配场景。
+/// 对于完整实现请使用 bao_collections.HiveArray<T>。
 public class HiveArray<T> {
-    public init() {}
-    public func get(): T { throw Exception("unimplemented") }
+    /// Fixed-size buffer
+    public var buffer: Array<?T>
+    /// Bit set tracking which slots are in use
+    public var used: Array<Bool>
+
+    public init() {
+        buffer = Array<?T>(64, { _ => None })
+        used = Array<Bool>(64, { _ => false })
+    }
+
+    public init(capacity: Int64) {
+        let cap = if (capacity <= 0) { 64 } else { capacity }
+        buffer = Array<?T>(cap, { _ => None })
+        used = Array<Bool>(cap, { _ => false })
+    }
+
+    /// Allocate a slot and return the stored value.
+    /// 对应 Bun HiveArray.get() — finds first unset bit, sets it, returns &buffer[i].
+    /// Returns null if all slots are occupied.
+    public func get(): ?T {
+        for (i in 0..used.size) {
+            if (!used[Int64(i)]) {
+                used[Int64(i)] = true
+                // Slot is now allocated; caller should store a value via put()
+                return buffer[Int64(i)]
+            }
+        }
+        return None
+    }
+
+    /// Get element at index
+    public func at(index: Int64): ?T {
+        if (index < 0 || index >= buffer.size) { return None }
+        return buffer[index]
+    }
+
+    /// Store value at index
+    public func put(index: Int64, value: T): Unit {
+        if (index >= 0 && index < buffer.size) {
+            buffer[index] = value
+            used[index] = true
+        }
+    }
+
+    /// Release a slot
+    public func release(index: Int64): Unit {
+        if (index >= 0 && index < buffer.size) {
+            buffer[index] = Option<T>.None
+            used[index] = false
+        }
+    }
+
+    /// Allocate a fresh slot and store value
+    public func alloc(value: T): ?Int64 {
+        for (i in 0..used.size) {
+            if (!used[Int64(i)]) {
+                used[Int64(i)] = true
+                buffer[Int64(i)] = value
+                return i
+            }
+        }
+        return None
+    }
+
+    /// Number of used slots
+    public func len(): Int64 {
+        var count: Int64 = 0
+        for (u in used) { if (u) { count += 1 } }
+        return count
+    }
 }
 
 /// Memory cost [KEPT: deferred - real type in dev_server/memory_cost.cj]
@@ -714,6 +787,7 @@ public func toBytes(value: UInt32): Array<Byte> {
 /// FileSystem [KEPT: no-pkg]
 /// 对应 Bun: bun.FS
 /// 提供文件系统操作接口
+/// 注意: OutputFile, CommandContext, PerThread 等生产构建类型已移至 production.cj
 public class FileSystem {
     public static func get(): FileSystem { FileSystem() }
     public var topLevelDir: String = "/"
@@ -723,6 +797,8 @@ public class FileSystem {
     public func readDir(path: String): Array<String> { Array<String>() }
     public func isAbsolute(path: String): Bool { path.startsWith("/") }
     public func normalize(path: String): String { path }
+    public static func writeFile(path: String, content: String): Unit { fileSystemWriteFile(path, content) }
+    public static func ensureDir(path: String): Unit { fileSystemEnsureDir(path) }
 }
 
 /// DeferredRequest list [KEPT: no-pkg]

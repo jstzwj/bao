@@ -16,6 +16,7 @@ import bao_core.DevAllocator
 import bao_safety.ThreadLock
 import bao_event_loop.EventLoopTimer
 import bao_event_loop.TimerState
+import std.random.Random
 
 // ============================================================================
 // 共享类型
@@ -131,18 +132,169 @@ public class FixedBufferStream<T> {
 
 /// Reader [KEPT: no-pkg]
 public class Reader {
-    public init() {}
-    public func readInt<T>(): T { throw Exception("unimplemented") }
-    public func readByte(): Byte { 0 }
-    public func readAll(): Array<Byte> { Array<Byte>() }
+    public var buffer: Array<Byte>
+    public var pos: Int64
+
+    public init() {
+        buffer = Array<Byte>()
+        pos = 0
+    }
+
+    public init(data: Array<Byte>) {
+        buffer = data
+        pos = 0
+    }
+
+    /// Read a little-endian integer from the buffer.
+    /// 对应 Zig: std.mem.readIntLittle(T, slice)
+    /// Cangjie 不支持泛型特化，因此按常见类型分支处理。
+    public func readInt<T>(): T {
+        // Cangjie generics are reified but lack comptime size info.
+        // Provide explicit read methods per type instead.
+        throw Exception("readInt<T>: use readInt32/readInt64/readUInt32/readUInt16 instead of generic readInt<T>")
+    }
+
+    /// Read UInt16 little-endian
+    public func readUInt16(): UInt16 {
+        if (pos + 2 > buffer.size) { return UInt16(0) }
+        let lo = UInt16(buffer[pos])
+        let hi = UInt16(buffer[pos + 1])
+        pos += 2
+        return lo | (hi << 8)
+    }
+
+    /// Read Int32 little-endian
+    public func readInt32(): Int32 {
+        if (pos + 4 > buffer.size) { return Int32(0) }
+        var result: Int32 = Int32(0)
+        result = result | Int32(buffer[pos])
+        result = result | (Int32(buffer[pos + 1]) << 8)
+        result = result | (Int32(buffer[pos + 2]) << 16)
+        result = result | (Int32(buffer[pos + 3]) << 24)
+        pos += 4
+        return result
+    }
+
+    /// Read UInt32 little-endian
+    public func readUInt32(): UInt32 {
+        if (pos + 4 > buffer.size) { return UInt32(0) }
+        var result: UInt32 = UInt32(0)
+        result = result | UInt32(buffer[pos])
+        result = result | (UInt32(buffer[pos + 1]) << 8)
+        result = result | (UInt32(buffer[pos + 2]) << 16)
+        result = result | (UInt32(buffer[pos + 3]) << 24)
+        pos += 4
+        return result
+    }
+
+    /// Read Int64 little-endian
+    public func readInt64(): Int64 {
+        if (pos + 8 > buffer.size) { return Int64(0) }
+        var result: Int64 = Int64(0)
+        for (i in 0..8) {
+            result = result | (Int64(buffer[pos + i]) << (i * 8))
+        }
+        pos += 8
+        return result
+    }
+
+    /// Read UInt64 little-endian
+    public func readUInt64(): UInt64 {
+        if (pos + 8 > buffer.size) { return UInt64(0) }
+        var result: UInt64 = UInt64(0)
+        for (i in 0..8) {
+            result = result | (UInt64(buffer[pos + i]) << (i * 8))
+        }
+        pos += 8
+        return result
+    }
+
+    public func readByte(): Byte {
+        if (pos >= buffer.size) { return 0 }
+        let b = buffer[pos]
+        pos += 1
+        return b
+    }
+
+    public func readAll(): Array<Byte> {
+        let remaining = Array<Byte>(buffer.size - pos, { i => buffer[pos + i] })
+        pos = buffer.size
+        return remaining
+    }
+
+    /// Whether there is more data to read
+    public func hasMore(): Bool { pos < buffer.size }
 }
 
 /// Writer [KEPT: no-pkg]
 public class Writer {
-    public init() {}
-    public func writeInt<T>(value: T): Unit {}
-    public func writeByte(value: Byte): Unit {}
-    public func writeAll(data: String): Unit {}
+    public var buffer: Array<Byte>
+    public var pos: Int64
+
+    public init() {
+        buffer = Array<Byte>()
+        pos = 0
+    }
+
+    public init(capacity: Int64) {
+        buffer = Array<Byte>(capacity, { _ => 0 })
+        pos = 0
+    }
+
+    /// Write integer — generic version preserved for API compat
+    public func writeInt<T>(value: T): Unit {
+        // Use type-specific write methods instead
+    }
+
+    /// Write Int32 little-endian
+    public func writeInt32(value: Int32): Unit {
+        ensureCapacity(4)
+        buffer[pos]     = UInt8(value & Int32(0xFF))
+        buffer[pos + 1] = UInt8((value >> 8) & Int32(0xFF))
+        buffer[pos + 2] = UInt8((value >> 16) & Int32(0xFF))
+        buffer[pos + 3] = UInt8((value >> 24) & Int32(0xFF))
+        pos += 4
+    }
+
+    /// Write UInt32 little-endian
+    public func writeUInt32(value: UInt32): Unit {
+        ensureCapacity(4)
+        buffer[pos]     = UInt8(value & UInt32(0xFF))
+        buffer[pos + 1] = UInt8((value >> 8) & UInt32(0xFF))
+        buffer[pos + 2] = UInt8((value >> 16) & UInt32(0xFF))
+        buffer[pos + 3] = UInt8((value >> 24) & UInt32(0xFF))
+        pos += 4
+    }
+
+    public func writeByte(value: Byte): Unit {
+        ensureCapacity(1)
+        buffer[pos] = value
+        pos += 1
+    }
+
+    public func writeAll(data: String): Unit {
+        for (i in 0..data.size) {
+            writeByte(UInt8(Int64(data[i])))
+        }
+    }
+
+    /// Write a raw byte array
+    public func writeBytes(data: Array<Byte>): Unit {
+        ensureCapacity(data.size)
+        for (i in 0..data.size) {
+            buffer[pos + i] = data[i]
+        }
+        pos += data.size
+    }
+
+    private func ensureCapacity(additional: Int64): Unit {
+        let needed = pos + additional
+        if (needed > buffer.size) {
+            let newCap = if (needed * 2 > buffer.size + additional) { needed * 2 } else { buffer.size + additional }
+            let newBuf = Array<Byte>(newCap, { i => if (i < buffer.size) { buffer[i] } else { 0 } })
+            buffer = newBuf
+        }
+    }
 }
 
 /// StackFallback [KEPT: no-pkg]
@@ -1089,11 +1241,82 @@ public func assert(condition: Bool, message: String): Unit {
 /// sizeOf helper
 public func sizeOf<T>(): UInt64 { 0 }
 
-/// random helper [KEPT: no-pkg - uses system RNG when available]
-public func random<T>(): T { throw Exception("unimplemented: random") }
+/// random helper [KEPT: no-pkg]
+/// 对应 Zig: std.crypto.random.bytes() / std.Random.int(T)
+/// Cangjie 不支持泛型特化，提供具体类型的 random 函数。
+/// 使用仓颉标准库 std.random.Random 实现。
+public func random<T>(): T {
+    throw Exception("random<T>: use randomInt32/randomUInt32/randomInt64 instead of generic random<T>")
+}
+
+/// 全局 Random 实例 — 仓颉 Random() 默认使用系统熵源种子
+private let _rng: Random = Random()
+
+/// Generate a random Int32
+public func randomInt32(): Int32 { _rng.nextInt32() }
+
+/// Generate a random UInt32
+public func randomUInt32(): UInt32 { _rng.nextUInt32() }
+
+/// Generate a random Int64
+public func randomInt64(): Int64 { _rng.nextInt64() }
+
+/// Generate a random UInt64
+public func randomUInt64(): UInt64 { _rng.nextUInt64() }
+
+/// Fill a byte array with random data
+public func randomBytes(buf: Array<Byte>): Unit {
+    _rng.nextBytes(buf)
+}
+
+/// Generate a random byte array of given length
+public func randomBytes(length: Int32): Array<Byte> {
+    _rng.nextBytes(length)
+}
 
 /// bitCast helper [KEPT: no-pkg - needs unsafe reinterpret]
-public func bitCast<T>(value: Any): T { throw Exception("unimplemented: bitCast") }
+/// 对应 Zig: @bitCast(dest_type, value) — zero-cost bit-level type punning.
+/// Cangjie 不支持跨类型 bitCast 泛型，因为其类型系统要求安全转换。
+/// 提供具体类型的 bitCast 函数替代。
+public func bitCast<T>(value: Any): T {
+    throw Exception("bitCast<T>: use bitCastInt32ToUInt32/bitCastUInt64ToInt64 etc. instead of generic bitCast<T>")
+}
+
+/// Bit-cast Int32 <-> UInt32
+public func bitCastInt32ToUInt32(value: Int32): UInt32 { UInt32(value) }
+
+public func bitCastUInt32ToInt32(value: UInt32): Int32 { Int32(value) }
+
+/// Bit-cast Int64 <-> UInt64
+public func bitCastInt64ToUInt64(value: Int64): UInt64 { UInt64(value) }
+
+public func bitCastUInt64ToInt64(value: UInt64): Int64 { Int64(value) }
+
+/// Bit-cast Float64 <-> UInt64 (via byte buffer)
+public func bitCastFloat64ToUInt64(value: Float64): UInt64 {
+    // Cangjie safe approach: serialize to bytes then reinterpret
+    // TODO: Use unsafe pointer cast when FFI available
+    let bytes = Array<Byte>(8, { _ => 0 })
+    // Float64 -> bytes via string round-trip is not accurate;
+    // use native interop when available
+    UInt64(0)
+}
+
+public func bitCastUInt64ToFloat64(value: UInt64): Float64 {
+    // TODO: Use unsafe pointer cast when FFI available
+    Float64(0.0)
+}
+
+/// Bit-cast Float32 <-> UInt32
+public func bitCastFloat32ToUInt32(value: Float32): UInt32 {
+    // TODO: Use unsafe pointer cast when FFI available
+    UInt32(0)
+}
+
+public func bitCastUInt32ToFloat32(value: UInt32): Float32 {
+    // TODO: Use unsafe pointer cast when FFI available
+    Float32(0.0)
+}
 
 /// isAbsolutePath helper
 public func isAbsolutePath(path: String): Bool { path.startsWith("/") }
@@ -1112,5 +1335,23 @@ public enum TimeMode {
 
 /// StackFallbackInit helper
 
-/// FieldParentPtr helper [KEPT: no-pkg - needs unsafe pointer arithmetic]
-public func fieldParentPtr<T>(ptr: Any): T { throw Exception("unimplemented: fieldParentPtr") }
+/// FieldParentPtr helper [KEPT: no-pkg]
+/// 对应 Zig: @fieldParentPtr(Parent, "field_name", field_ptr)
+/// Given a pointer to a field within a struct, compute the pointer to the parent struct.
+///
+/// In Zig this is zero-cost pointer arithmetic: parent_ptr = field_ptr - @offsetOf(Parent, field).
+/// Cangjie lacks pointer arithmetic and @offsetOf, so we provide a workaround pattern:
+///   - Store a back-reference to the parent object inside child objects.
+///   - Or maintain a separate mapping from field identity to parent.
+///
+/// This generic stub throws because Cangjie cannot express offset-of arithmetic.
+/// Usage sites should replace fieldParentPtr calls with explicit back-references.
+public func fieldParentPtr<T>(ptr: Any): T {
+    throw Exception("fieldParentPtr<T>: not available in Cangjie - use explicit back-reference to parent instead")
+}
+
+/// fieldParentPtr pattern: get parent from child that stores an `owner` reference.
+/// This replaces the Zig @fieldParentPtr pattern in Cangjie.
+public func fieldParentByOwner<Parent, Child>(child: Child, getOwner: (Child) -> Parent): Parent {
+    getOwner(child)
+}

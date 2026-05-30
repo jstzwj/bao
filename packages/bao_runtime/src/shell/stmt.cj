@@ -11,6 +11,8 @@ import bao_core.*
 // ============================================================================
 
 /// 语句父节点指针（提取到顶层）
+/// Stmt's parent is always ScriptState.
+/// Dispatches childDone to the actual parent.
 public class StmtParentPtr {
     public var ptr: Any = Option<Any>.None
 
@@ -21,6 +23,16 @@ public class StmtParentPtr {
     }
 
     public func childDone(child: Any, exitCode: ExitCode): Yield {
+        // Dispatch based on parent type
+        // Stmt's parent is always ScriptState
+        if (this.ptr is ScriptState) {
+            let script = (this.ptr as ScriptState).getOrThrow()
+            // child is a StmtState (passed as Any from the Stmt that just finished)
+            if (child is StmtState) {
+                let stmt = (child as StmtState).getOrThrow()
+                return script.childDone(ScriptChildPtr.initFunc(stmt), exitCode)
+            }
+        }
         return Yield.done
     }
 }
@@ -133,12 +145,23 @@ public class StmtState {
                 return assignMachine.start()
             case ExprTag.subshell =>
                 let subNode = child.subshell.getOrThrow()
+                // Dupe the parent shell env for the subshell (matches Bun Rust spawn_expr)
+                let ioCopy = this.io.copy()
+                let dupedEnv = this.base.shell.dupeForSubshell(
+                    Option<Any>.None,
+                    DefaultAllocator.instance,
+                    ioCopy,
+                    ShellExecEnvKind.subshell
+                )
+                if (dupedEnv.isErr()) {
+                    return Yield.failed
+                }
                 let subshellState = SubshellState.initFunc(
                     this.base.interpreter,
-                    this.base.shell,
+                    dupedEnv.getOrThrow(),
                     subNode,
                     SubshellParentPtr.initFunc(this),
-                    this.io.copy()
+                    ioCopy
                 )
                 return subshellState.start()
             case ExprTag.`if` =>

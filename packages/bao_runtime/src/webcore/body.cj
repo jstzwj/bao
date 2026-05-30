@@ -2873,6 +2873,9 @@ public class Request {
     public var flags: RequestFlags = RequestFlags()
     public var body: ?BodyValue = None
     public var bodyValue: BodyValue = BodyValue()
+
+    /// 转为 JsValue — 用于 registerGlobals 中 Request 构造函数返回
+    public func toJsValue(): JsValue { JsValue() }
 }
 
 /// Response — HTTP 响应对象 (本地类型)

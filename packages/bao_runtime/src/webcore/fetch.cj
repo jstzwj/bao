@@ -6,10 +6,13 @@
 package bao_runtime.webcore
 
 import bao_core.Result as CoreResult
-import bao_core.Environment as CoreEnvironment
 import bao_core.*
 import std.convert.*
 import bao_jsc.*
+import bao_runtime.Environment as RuntimeEnvironment
+import bao_runtime.Interpreter
+import bao_runtime.JsValue as RuntimeJsValue
+import bao_runtime.JsNativeFunction as RuntimeJsNativeFunction
 import bao_collections.ArrayList
 import bao_collections.ArrayBuffer
 import bao_sys.*
@@ -2684,7 +2687,9 @@ public class HttpClient {
         httpReq += connectionHeader
 
         // 添加自定义 headers
-        // PORT NOTE: use keys() + get() since entries() is not available and mutable capture in lambda is restricted
+        // Design note: Cangjie's HashMap does not provide entries() with mutation-safe
+        // iteration, and mutable capture in lambdas is restricted. We use keys() + get()
+        // instead, which produces the same result.
         let headerKeys = request.headers.keys()
         var headerPart = ""
         for (name in headerKeys) {
@@ -3438,9 +3443,27 @@ extend Headers {
 // ════════════════════════════════════════════════════════════════════════
 
 /// Fetch 模块导出 — 将 fetch/Request/Response/Headers 注册到全局
+/// 对应 Bun: Fetch 模块注册到全局环境
 public class FetchModule {
+    /// Helper: create a bao_runtime JsValue wrapping a native function
+    /// Needed because bao_jsc.JsValue shadows bao_runtime.JsValue
+    private static func makeNativeFn(name: String, fn: (ArrayList<RuntimeJsValue>) -> RuntimeJsValue): RuntimeJsValue {
+        RuntimeJsValue.nativeFunction(RuntimeJsNativeFunction(name, fn))
+    }
+
+    /// Helper: create a runtime JsValue.UNDEFINED
+    private static func jsNull(): RuntimeJsValue {
+        RuntimeJsValue.UNDEFINED
+    }
+
     /// 将 fetch 相关 API 注册到全局环境
-    public static func registerGlobals(env: CoreEnvironment): Unit {
-        // Stub: registerGlobal not yet available on Environment
+    /// 对应 Bun: Bun__fetch exported as global `fetch` function
+    public static func registerGlobals(env: RuntimeEnvironment): Unit {
+        // TODO: restore full fetch/Request/Response/Headers implementations
+        // when bao_jsc/bao_runtime JsValue type bridge is complete
+        env.define("fetch", makeNativeFn("fetch", { _ => jsNull() }))
+        env.define("Request", makeNativeFn("Request", { _ => jsNull() }))
+        env.define("Response", makeNativeFn("Response", { _ => jsNull() }))
+        env.define("Headers", makeNativeFn("Headers", { _ => jsNull() }))
     }
 }

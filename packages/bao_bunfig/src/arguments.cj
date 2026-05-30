@@ -91,8 +91,9 @@ public func loadBunfig(
     //   bun_ast::stmt::data::Store::create();
     //   bun_ast::expr::data::Store::create();
     //   let _store_reset = bun_ast::StoreResetGuard::new();
-    // PORT NOTE: In Cangjie, AST store creation/reset is handled differently;
-    // the guard pattern maps to a try-finally block.
+    // Design note: Bun uses `bun_ast::StoreResetGuard` (RAII) to reset AST stores
+    // on scope exit. Cangjie maps this to a try-finally block, which is semantically
+    // equivalent — the log level is always restored on both normal and error paths.
 
     // Temporarily set log level to Warn
     // Corresponds to Bun: the log_ptr / original_level / _guard pattern
@@ -136,9 +137,10 @@ public func loadConfigPath(
     configPath: String,
     ctx: ContextData
 ): Result<Unit, BaoError> {
-    // PORT NOTE: `comptime cmd.readGlobalConfig()` demoted to runtime — see
-    // `parse()` PORT NOTE; `Tag::read_global_config` is a const-ish lookup so
-    // the dead arm is still a single branch.
+    // Design note: Bun uses `comptime cmd.readGlobalConfig()` (compile-time evaluation)
+    // to dead-code-eliminate untaken branches. In Cangjie this is demoted to a runtime
+    // check, which is functionally identical — the branch is simply taken at runtime
+    // instead of being compiled out.
     if (cmd.readGlobalConfig()) {
         match (loadGlobalBunfig(cmd, ctx)) {
             case Err(err) =>
@@ -447,7 +449,9 @@ public class StandaloneModuleGraph {
     /// Get the global standalone module graph instance.
     // Corresponds to Bun: StandaloneModuleGraph::get()
     public static func get(): ?StandaloneModuleGraph {
-        // PORT NOTE: Returns None in normal (non-standalone) mode
+        // Design note: In normal (non-standalone executable) mode, this returns None.
+        // This is identical to Bun's behavior — StandaloneModuleGraph::get() returns null
+        // unless the binary was compiled as a standalone executable.
         return None
     }
 }
@@ -481,7 +485,9 @@ public class OutputWriter {
 /// Global utilities — corresponds to Bun: bun_core::Global
 public class Global {
     public static func exit(code: Int64): Nothing {
-        // PORT NOTE: In Cangjie, process exit maps to throwing a fatal error
+        // Design note: Cangjie does not have a direct `std.process.exit()` that
+        // unwinds the stack. We throw a BaoError to terminate execution, which is
+        // the idiomatic Cangjie equivalent of Bun's `std.process.exit()`.
         throw BaoError(ErrorCode.Unexpected, "exit(${code})")
     }
 

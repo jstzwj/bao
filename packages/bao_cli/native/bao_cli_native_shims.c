@@ -208,3 +208,52 @@ void setTimespec(void *ptr, int64_t sec, int64_t nsec) {
     ts->tv_sec = (time_t)sec;
     ts->tv_nsec = (long)nsec;
 }
+
+/* ========================================================================
+ * BAO_STUB(futex): minimal futex stubs for bao_threading
+ * Replace with real futex syscall FFI when available.
+ * ======================================================================== */
+#include <linux/futex.h>
+#include <sys/syscall.h>
+
+int bao_futex_wait(int32_t *addr, int32_t expected, const struct timespec *timeout) {
+    return syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, expected, timeout, NULL, 0);
+}
+int bao_futex_timed_wait(int32_t *addr, int32_t expected, const struct timespec *timeout) {
+    return syscall(SYS_futex, addr, FUTEX_WAIT_PRIVATE, expected, timeout, NULL, 0);
+}
+int bao_futex_wake(int32_t *addr, int32_t count) {
+    return syscall(SYS_futex, addr, FUTEX_WAKE_PRIVATE, count, NULL, NULL, 0);
+}
+
+/* ========================================================================
+ * BAO_STUB(atomic): GCC atomic builtin wrappers for Cangjie FFI
+ * Cangjie's @C foreign func declarations generate calls to these symbols.
+ * Use asm labels on function definitions to emit the exact symbol names.
+ * ======================================================================== */
+#include <stdatomic.h>
+
+uint32_t bao_atomic_load_uint32(_Atomic uint32_t *ptr, int memmodel) __asm__("__atomic_load_n");
+uint32_t bao_atomic_load_uint32(_Atomic uint32_t *ptr, int memmodel) {
+    return atomic_load_explicit(ptr, memory_order_seq_cst);
+}
+
+void bao_atomic_store_uint32(_Atomic uint32_t *ptr, uint32_t val, int memmodel) __asm__("__atomic_store_n");
+void bao_atomic_store_uint32(_Atomic uint32_t *ptr, uint32_t val, int memmodel) {
+    atomic_store_explicit(ptr, val, memory_order_seq_cst);
+}
+
+uint32_t bao_atomic_exchange_uint32(_Atomic uint32_t *ptr, uint32_t val, int memmodel) __asm__("__atomic_exchange_n");
+uint32_t bao_atomic_exchange_uint32(_Atomic uint32_t *ptr, uint32_t val, int memmodel) {
+    return atomic_exchange_explicit(ptr, val, memory_order_seq_cst);
+}
+
+uint32_t bao_atomic_fetch_add_uint32(_Atomic uint32_t *ptr, uint32_t delta, int memmodel) __asm__("__atomic_fetch_add");
+uint32_t bao_atomic_fetch_add_uint32(_Atomic uint32_t *ptr, uint32_t delta, int memmodel) {
+    return atomic_fetch_add_explicit(ptr, delta, memory_order_seq_cst);
+}
+
+int bao_sync_cas_uint32(_Atomic uint32_t *ptr, uint32_t expected, uint32_t desired) __asm__("__sync_bool_compare_and_swap");
+int bao_sync_cas_uint32(_Atomic uint32_t *ptr, uint32_t expected, uint32_t desired) {
+    return atomic_compare_exchange_strong(ptr, &expected, desired);
+}

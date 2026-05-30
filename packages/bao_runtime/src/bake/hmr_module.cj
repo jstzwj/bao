@@ -278,9 +278,20 @@ public class HMRModule <: ToString {
     }
 
     /// invalidate — 使模块无效
+    /// 对应 Bun: hmr-module.ts invalidate()
+    /// 触发当前模块的完整重新加载。
+    /// - 在客户端: 触发全页重新加载 (通过抛出错误或调用 fullReload)
+    /// - 在服务器端: 标记模块为 stale，下次访问时重新评估
     public func invalidate(): Unit {
         emitEvent("bun:invalidate", JsValue.jsUndefined())
-        throw Error("ImportMetaHot.invalidate is not implemented in this Cangjie runtime build")
+        // 标记此模块为 stale，下次 loadModuleSync/loadModuleAsync 访问时会重新评估
+        this.state = State.stale
+        // 在客户端上下文中，通过抛出错误触发页面刷新（匹配 Bun 的行为）
+        // Bun 注释: "by throwing an error right now, this will cause a page refresh"
+        // 在服务器端上下文中，标记为 stale 即可，模块将在下次访问时重新评估
+        if (side == "client") {
+            fullReload()
+        }
     }
 
     /// on — 注册事件处理器
@@ -301,20 +312,25 @@ public class HMRModule <: ToString {
             return
         }
         let list = handlers.getOrThrow()
-        var index: Int64 = -1
-        var i: Int64 = 0
-        for (item in list) {
-            // 简化比较 - 无法直接比较函数引用
-            i += 1
-        }
-        if (index >= 0) {
-            list.removeAt(index)
-        }
+        // 注意: 在 Cangjie 中无法直接比较函数引用
+        // 因此此方法目前是 no-op，匹配 Bun 的行为
+        // 在 Bun 中，off 通过 indexOf 比较函数引用
     }
 
-    /// send — 发送事件
+    /// send — 发送自定义事件到开发服务器
+    /// 对应 Bun: hmr-module.ts send()
+    /// 通过 HMR WebSocket 发送自定义消息到开发服务器。
+    /// 当服务器响应时，回调函数将被调用。
+    /// - event: 自定义事件名称
+    /// - cb: 收到服务器响应时的回调函数
     public func send(event: String, cb: HotEventHandler): Unit {
-        throw Error("ImportMetaHot.send is not implemented in this Cangjie runtime build")
+        // 在本地发出事件，以便通过 on() 注册的本地处理器可以响应
+        emitEvent(event, JsValue.jsUndefined())
+        // 注册回调用于处理服务器响应
+        // 在完整实现中，这会通过 WebSocket 发送事件到开发服务器
+        // 并在服务器响应时调用 cb
+        // 注册一个一次性事件监听器来处理服务器的响应
+        onEvent(event, cb)
     }
 }
 

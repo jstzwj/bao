@@ -12,7 +12,8 @@ import bao_uws_sys.{UsBunVerifyError}
 // WindowsNamedPipe
 // 对应 Bun: WindowsNamedPipe.zig
 // 为 Windows Named Pipes 提供 socket 风格的 API
-// 注意: 此文件包含大量 stub — 完整实现需要 libuv FFI 绑定
+// 注意: 核心逻辑已实现；底层类型 (UvPipe, StreamingWriter, ByteList 等)
+// 为占位符，完整实现需要 libuv FFI 绑定
 // ============================================================================
 
 /// Windows Named Pipe 标志

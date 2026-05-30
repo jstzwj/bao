@@ -8,6 +8,17 @@ import bao_core.*
 import bao_collections.*
 import bao_jsc.*
 import bao_collections.ArrayList
+import bao_http.HTTPClient as BaoHTTPClient
+import bao_http.HTTPClientResult as BaoHTTPClientResult
+import bao_http.HTTPClientResultCallback as BaoHTTPClientResultCallback
+import bao_http.AsyncHTTPOptions as BaoAsyncHTTPOptions
+import bao_http.AsyncHTTP as BaoAsyncHTTP
+import bao_http.ParsedUrl as BaoParsedUrl
+import bao_http.FetchRedirect as BaoFetchRedirect
+import bao_http.HeaderEntryList as BaoHeaderEntryList
+import bao_http.MutableString as BaoMutableString
+import bao_http.ThreadPoolBatch as BaoThreadPoolBatch
+import bao_http.httpThread as baoHttpThread
 
 // Local class to shadow ambiguous MutableString imports from bao_core and bao_jsc
 public class S3MutableString {
@@ -763,13 +774,15 @@ public func s3UploadStream(
     let proxyUrl = proxy
 
     // 检查 ReadableStream 是否已被消费
+    // 对应 Bun: if (readable_stream.isDisturbed(globalThis)) { return rejectedPromise... }
     if (readableStream.isDisturbed(globalThis)) {
-        return S3Error("NotImplemented", "S3 uploadStream cannot consume a disturbed ReadableStream in this Cangjie runtime build").toJsValue()
+        return S3Error("InvalidState", "ReadableStream is already disturbed").toJsValue()
     }
 
     // 检查流是否无效
+    // 对应 Bun: switch (readable_stream.ptr) { .Invalid => { return rejectedPromise... } }
     if (readableStream.ptr().isNone()) {
-        return S3Error("NotImplemented", "S3 uploadStream cannot consume an invalid ReadableStream in this Cangjie runtime build").toJsValue()
+        return S3Error("InvalidState", "ReadableStream is invalid").toJsValue()
     }
 
     // 创建 MultiPartUpload 任务
@@ -926,12 +939,42 @@ public func s3DownloadStream(
 
     task.pollRef.ref(task.vm)
 
-    callback(
-        S3MutableString(),
-        false,
-        Some(S3Error("NotImplemented", "S3 downloadStream requires AsyncHTTP streaming callbacks, which are not available in this Cangjie runtime build; use download() for strict buffered GET support.")),
-        callbackContext
+    // 调度流式 HTTP 请求
+    // 对应 Bun: task.http = bun.http.AsyncHTTP.init(...); task.http.enableResponseBodyStreaming(); schedule
+    scheduleStreamingS3Task(task, HttpMethod.GET)
+}
+
+// ============================================================================
+// scheduleStreamingS3Task - 调度流式 S3 HTTP 请求
+// 对应 Bun: S3HttpDownloadStreamingTask 的 AsyncHTTP 初始化与调度
+// 与 scheduleSimpleS3Task 不同: 每个 HTTP 回调都会转发给流式任务的 httpCallback
+// ============================================================================
+
+/// 调度流式 S3 HTTP 请求
+/// 对应 Bun: AsyncHTTP.init + enableResponseBodyStreaming + schedule
+/// 创建 AsyncHTTP 并使用流式下载任务的 httpCallback 作为回调
+private func scheduleStreamingS3Task(task: S3HttpDownloadStreamingTask, method: HttpMethod): Unit {
+    let callback = BaoHTTPClientResultCallback()
+    callback.fn_ = Some({ _: BaoHTTPClient, result: BaoHTTPClientResult =>
+        let httpResult = HttpClientResult.fromBaoHttp(result)
+        task.httpCallback(AsyncHttp(), httpResult)
+    })
+    let httpOptions = BaoAsyncHTTPOptions()
+    let baoResponseBuffer = BaoMutableString()
+    let realHttp = BaoAsyncHTTP.initFunc(
+        method.toBaoHttpMethod(),
+        BaoParsedUrl.parse(task.signResult.url),
+        task.headers.toBaoHeaderEntryList(),
+        "",
+        baoResponseBuffer,
+        "",
+        callback,
+        BaoFetchRedirect.follow,
+        httpOptions
     )
+    let batch = BaoThreadPoolBatch()
+    realHttp.schedule(batch)
+    baoHttpThread.schedule(batch)
 }
 
 // ============================================================================

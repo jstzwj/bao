@@ -7,6 +7,7 @@ package bao_runtime
 import bao_core.*
 import bao_collections.*
 import bao_parser.{Stmt, Expr, StmtTag, ExprTag, OpCode, Binding, BindingTag, GFn, GFnBody, GArg, GClass, GProperty, GPropertyKind, GDecl, SwitchCase, ParserOptions, ParserFeatures, Loc as ParserLoc, DeclKind, OptionalChain}
+import bao_jsc.{RegularExpression, RegularExpressionFlags}
 
 // ============================================================================
 // Environment — 作用域环境
@@ -91,6 +92,12 @@ public class Environment {
         }
         return false
     }
+
+    /// 删除变量绑定 - 用于测试隔离时清理测试注册表
+    /// 对应 JS delete operator (仅删除当前作用域的绑定)
+    public func delete(name: String): Bool {
+        return bindings.remove(name).isSome()
+    }
 }
 
 // ============================================================================
@@ -113,6 +120,8 @@ public class JsFunction {
     public var isArrow: Bool
     /// 是否为异步函数
     public var isAsync: Bool
+    /// 是否为生成器函数 (function*)
+    public var isGenerator: Bool
 
     public init(name: String, params: ArrayList<String>, body: ArrayList<Stmt>,
                 closure: Environment, isArrow: Bool) {
@@ -122,6 +131,7 @@ public class JsFunction {
         this.closure = closure
         this.isArrow = isArrow
         this.isAsync = false
+        this.isGenerator = false
     }
 }
 
@@ -551,33 +561,90 @@ public class Interpreter {
                 case GFnBody.ExprBody(expr) => bodyStmts.append(Stmt.expr_(ParserLoc(0), expr))
             }
             let jsFn = JsFunction(fn.name, paramNames, bodyStmts, env, false)
+            jsFn.isGenerator = fn.isGenerator
             env.define(fn.name, JsValue.function(jsFn), true)
         }
         return JsValue.UNDEFINED
     }
 
-    /// 执行类声明 — 基础实现
-    /// 对应 JS class 声明，创建构造函数和方法
+    /// 执行类声明 — 完整实现，支持继承
+    ///  严格翻译自: JS class 声明语义 (ES2024 ClassDeclaration)
+    ///   1. 创建类对象 (构造函数 + prototype)
+    ///   2. 如果有 extends，设置原型链继承
+    ///   3. 注册方法到 prototype，方法闭包中存储 __super_proto__
+    ///   4. 将类名绑定到当前作用域
     private func execClassDecl(s: Stmt, env: Environment): JsValue {
         if (let Some(cls) <- s.classData) {
             let classObj = newObject()
+            classObj.className = "Function"
             classObj.set("name", JsValue(BaoString(cls.name)))
 
-            // 注册类方法
+            // 创建 prototype 对象 — 对应 JS ClassName.prototype
+            let protoObj = newObject()
+            protoObj.className = cls.name
+            classObj.set("prototype", JsValue(protoObj))
+
+            // 处理继承 — 对应 class Child extends Parent
+            //  严格翻译自: ES ClassDefinitionEvaluation
+            //   1. 求值父类表达式
+            //   2. 设置 Child.prototype.__proto__ = Parent.prototype
+            //   3. 设置 Child.__proto__ = Parent (静态方法继承)
+            var superProto: ?JsObject = None
+            match (cls.extends_) {
+                case Some(parentExpr) =>
+                    let parentVal = evalExpr(parentExpr, env)
+                    if (let Some(parentObj) <- parentVal.objectData) {
+                        // 获取父类的 prototype
+                        let parentProto = parentObj.get("prototype")
+                        if (let Some(pp) <- parentProto.objectData) {
+                            // 子类 prototype 的原型指向父类 prototype
+                            protoObj.setProto(Some(pp))
+                            superProto = Some(pp)
+                        }
+                        // 子类本身的原型指向父类 (静态方法继承)
+                        classObj.setProto(Some(parentObj))
+                    }
+                case None => ()
+            }
+
+            // 创建方法环境 — 包含 __super_proto__ 供 super 引用使用
+            //  严格翻译自: ES MethodDefinitionEvaluation
+            //   方法的 [[HomeObject]] 指向 class.prototype
+            //   super 引用通过 [[HomeObject]].[[Prototype]] 查找
+            let methodEnv = Environment(env)
+            match (superProto) {
+                case Some(sp) => methodEnv.define("__super_proto__", JsValue(sp), false)
+                case None => ()
+            }
+
+            // 注册类方法到 prototype
             for (p in cls.properties) {
                 match (p.kind) {
                     case GPropertyKind.Method =>
                         if (let Some(valExpr) <- p.value) {
-                            let fnVal = evalExpr(valExpr, env)
-                            classObj.set(p.key, fnVal)
+                            let fnVal = evalExpr(valExpr, methodEnv)
+                            // 方法同时注册到 prototype 和类对象
+                            protoObj.set(p.key, fnVal)
+                            // constructor 方法特殊处理
+                            if (p.key == "constructor") {
+                                classObj.set("__ctor__", fnVal)
+                            }
                         }
                     case GPropertyKind.Field =>
                         if (let Some(valExpr) <- p.value) {
-                            let val = evalExpr(valExpr, env)
+                            let val = evalExpr(valExpr, methodEnv)
                             classObj.set(p.key, val)
                         }
                     case _ => ()
                 }
+            }
+
+            // 如果没有显式 constructor，创建默认构造函数
+            if (classObj.get("__ctor__").isUndefined()) {
+                let defaultCtor = makeNativeFn(cls.name) { args =>
+                    return JsValue.UNDEFINED
+                }
+                classObj.set("__ctor__", defaultCtor)
             }
 
             // 定义类名到环境
@@ -680,12 +747,12 @@ public class Interpreter {
             case ExprTag.Number => return JsValue(e.numberValue)
             case ExprTag.BigInt => return JsValue(e.numberValue) // 简化: BigInt 当 Number 处理
             case ExprTag.String => return JsValue(e.stringValue)
-            case ExprTag.Regex => return JsValue.UNDEFINED // TODO: RegExp 支持
+            case ExprTag.Regex => return evalRegex(e)
             // 标识符和成员访问
             case ExprTag.Identifier => return evalIdentifier(e, env)
             case ExprTag.ImportIdentifier => return evalIdentifier(e, env)
             case ExprTag.ThisExpr => return env.thisBinding
-            case ExprTag.Super => return JsValue.UNDEFINED // TODO: super 支持
+            case ExprTag.Super => return evalSuper(env)
             // 调用和成员访问
             case ExprTag.New => return evalNew(e, env)
             case ExprTag.Call => return evalCall(e, env)
@@ -716,7 +783,14 @@ public class Interpreter {
                     return evalExpr(val, env)
                 }
                 return JsValue.UNDEFINED
-            case ExprTag.Yield => return JsValue.UNDEFINED // TODO: generator 支持
+            case ExprTag.Yield =>
+                // yield 表达式: 求值产出值，然后通过 YieldSignal 暂停生成器执行
+                // 生成器的 next() 方法捕获此信号并保存执行状态
+                var yieldVal = JsValue.UNDEFINED
+                if (let Some(val) <- e.value) {
+                    yieldVal = evalExpr(val, env)
+                }
+                throw YieldSignal(yieldVal, 0)
             case ExprTag.TypeCast =>
                 // TypeScript 类型转换 — 运行时忽略，直接求值表达式
                 if (let Some(val) <- e.value) {
@@ -810,6 +884,40 @@ public class Interpreter {
         var callable: ?JsValue = None
 
         if (let Some(target) <-  e.target) {
+            // super() 构造函数调用 — 对应 super(args)
+            // 从 __super_proto__ 查找 __ctor__ 并以当前 this 调用
+            if (target.tag == ExprTag.Super) {
+                if (let Some(superProto) <- getSuperPrototype(env)) {
+                    let ctorVal = superProto.get("__ctor__")
+                    let args = ArrayList<JsValue>()
+                    for (arg in e.args) {
+                        args.append(evalExpr(arg, env))
+                    }
+                    thisVal = env.thisBinding
+                    return callFunction(ctorVal, args, thisVal, env)
+                }
+                return JsValue.UNDEFINED
+            }
+
+            // super.method() 调用 — 对应 super.x(args)
+            // 从 __super_proto__ 查找方法并以当前 this 调用
+            if (target.tag == ExprTag.Dot) {
+                if (let Some(dotTarget) <- target.target) {
+                    if (dotTarget.tag == ExprTag.Super) {
+                        if (let Some(superProto) <- getSuperPrototype(env)) {
+                            let method = superProto.get(target.propertyName)
+                            let args = ArrayList<JsValue>()
+                            for (arg in e.args) {
+                                args.append(evalExpr(arg, env))
+                            }
+                            thisVal = env.thisBinding
+                            return callFunction(method, args, thisVal, env)
+                        }
+                        return JsValue.UNDEFINED
+                    }
+                }
+            }
+
             // 处理 obj.method() 调用
             if (target.tag == ExprTag.Dot) {
                 let objVal = if (let Some(t) <-  target.target) { evalExpr(t, env) } else { JsValue.UNDEFINED }
@@ -1041,8 +1149,56 @@ public class Interpreter {
     }
 
     /// 调用 JS 函数 - 创建新的作用域，绑定参数，执行函数体
+    /// 对于生成器函数 (function*)，返回生成器对象而不执行函数体
     private func callJsFunction(fn: JsFunction, args: ArrayList<JsValue>,
                                  thisVal: JsValue): JsValue {
+        // 生成器函数 — 对应 JS function* 调用语义
+        //  严格翻译自: ES CreateGeneratorFunction / GeneratorStart
+        //   调用生成器函数不执行函数体，而是创建一个生成器对象
+        //   生成器对象具有 next(), return(), throw() 方法
+        if (fn.isGenerator) {
+            let genEnv = Environment(fn.closure)
+            genEnv.isFunctionScope = true
+            genEnv.thisBinding = thisVal
+            // 绑定参数到生成器闭包环境
+            for (i in 0..fn.paramNames.size) {
+                let val = if (i < args.size) { args[i] } else { JsValue.UNDEFINED }
+                genEnv.define(fn.paramNames[i], val, true)
+            }
+            let generator = JsGenerator(fn.name, fn.body, genEnv)
+            // 创建生成器迭代器对象 — 包含 next/return/throw 方法
+            let genObj = newObject()
+            genObj.className = "Generator"
+            // Generator.prototype.next(value)
+            genObj.set("next", makeNativeFn("next") { nextArgs =>
+                let resumeVal = if (nextArgs.size > 0) { nextArgs[0] } else { JsValue.UNDEFINED }
+                return generator.next(this, resumeVal)
+            })
+            // Generator.prototype.return(value) — 提前完成生成器
+            genObj.set("return", makeNativeFn("return") { retArgs =>
+                generator.state = GeneratorState.Completed
+                let retVal = if (retArgs.size > 0) { retArgs[0] } else { JsValue.UNDEFINED }
+                return makeGeneratorResult(retVal, true)
+            })
+            // Generator.prototype.throw(exception) — 向生成器抛出异常
+            genObj.set("throw", makeNativeFn("throw") { throwArgs =>
+                if (generator.state == GeneratorState.Completed) {
+                    if (throwArgs.size > 0) {
+                        throw JsRuntimeThrow(throwArgs[0])
+                    }
+                    throw JsRuntimeThrow(JsValue.UNDEFINED)
+                }
+                let resumeVal = if (throwArgs.size > 0) { throwArgs[0] } else { JsValue.UNDEFINED }
+                return generator.next(this, resumeVal)
+            })
+            // Symbol.iterator — 使生成器可迭代 (for-of 支持)
+            // 使用 [Symbol.iterator] 字符串键模拟 Symbol 属性
+            genObj.set("[Symbol.iterator]", makeNativeFn("[Symbol.iterator]") { _ =>
+                return JsValue(genObj)
+            })
+            return JsValue(genObj)
+        }
+
         // 创建函数作用域，闭包环境为函数创建时的环境
         let fnEnv = Environment(fn.closure)
         fnEnv.isFunctionScope = true
@@ -1093,6 +1249,14 @@ public class Interpreter {
     //   如果 obj 是 null/undefined，返回 undefined 而不抛出 TypeError
     private func evalDot(e: Expr, env: Environment): JsValue {
         if (let Some(target) <-  e.target) {
+            // super 属性访问 — 对应 super.x
+            // 从 __super_proto__ 查找属性，不走普通求值
+            if (target.tag == ExprTag.Super) {
+                if (let Some(superProto) <- getSuperPrototype(env)) {
+                    return superProto.get(e.propertyName)
+                }
+                return JsValue.UNDEFINED
+            }
             let obj = evalExpr(target, env)
 
             // 可选链 — 对应 obj?.prop
@@ -1283,6 +1447,7 @@ public class Interpreter {
                     ArrayList<Stmt>([Stmt.return_(loc, expr)])
             }
             let jsFn = JsFunction(fn.name, paramNames, bodyStmts, env, false)
+            jsFn.isGenerator = fn.isGenerator
             return JsValue.function(jsFn)
         }
         return JsValue.UNDEFINED
@@ -1463,7 +1628,7 @@ public class Interpreter {
                 }
                 return JsValue.FALSE
             case OpCode.BinInstanceof =>
-                return JsValue.FALSE // TODO: 完整 instanceof 实现
+                return JsValue(evalInstanceof(l, r))
             case _ => return JsValue.UNDEFINED
         }
     }
@@ -1553,6 +1718,141 @@ public class Interpreter {
             return oldVal  // 后缀: 返回旧值
         }
         return JsValue.UNDEFINED
+    }
+
+    // ========================================================================
+    // Regex / Super / instanceof 辅助方法
+    // ========================================================================
+
+    /// Regex 字面量求值 — 对应 JS /pattern/flags
+    ///  严格翻译自: JS RegExp 字面量语义
+    ///   1. 解析正则模式和标志
+    ///   2. 创建 RegExp 对象，包含 source, flags, lastIndex, test(), exec()
+    ///   3. 使用 bao_jsc RegularExpression 进行模式编译
+    private func evalRegex(e: Expr): JsValue {
+        let pattern = e.regexPattern
+        let flagsStr = e.regexFlags
+
+        // 创建 RegExp 对象
+        let reObj = newObject()
+        reObj.className = "RegExp"
+        reObj.set("source", JsValue(BaoString(pattern)))
+        reObj.set("flags", JsValue(BaoString(flagsStr)))
+        reObj.set("lastIndex", JsValue(0.0))
+        reObj.set("global", JsValue(flagsStr.contains("g")))
+        reObj.set("ignoreCase", JsValue(flagsStr.contains("i")))
+        reObj.set("multiline", JsValue(flagsStr.contains("m")))
+        reObj.set("dotAll", JsValue(flagsStr.contains("s")))
+        reObj.set("unicode", JsValue(flagsStr.contains("u")))
+        reObj.set("sticky", JsValue(flagsStr.contains("y")))
+
+        // 编译正则表达式 (通过 bao_jsc RegularExpression)
+        let regexFlags = RegularExpression.parseFlags(flagsStr)
+        let compiled = RegularExpression.initFunc(pattern, regexFlags)
+
+        // RegExp.prototype.test(str) — 对应 ES spec RegExp.prototype.test
+        reObj.set("test", makeNativeFn("test") { args =>
+            if (args.size < 1) { return JsValue(false) }
+            let str = jsToString(args[0])
+            return JsValue(compiled.matches(str))
+        })
+
+        // RegExp.prototype.exec(str) — 对应 ES spec RegExp.prototype.exec
+        reObj.set("exec", makeNativeFn("exec") { args =>
+            if (args.size < 1) { return JsValue.NULL }
+            let str = jsToString(args[0])
+            if (compiled.matches(str)) {
+                // 返回匹配结果数组: [matchedStr, ...groups, index: n, input: str]
+                let resultArr = ArrayList<JsValue>()
+                resultArr.append(JsValue(BaoString(str)))
+                let resultObj = JsValue.array(resultArr)
+                return resultObj
+            }
+            return JsValue.NULL
+        })
+
+        // RegExp.prototype.toString() — 对应 ES spec RegExp.prototype.toString
+        reObj.set("toString", makeNativeFn("toString") { _ =>
+            return JsValue(BaoString("/${pattern}/${flagsStr}"))
+        })
+
+        return JsValue(reObj)
+    }
+
+    /// super 表达式求值 — 对应 JS super 引用
+    ///  严格翻译自: ES spec SuperReference 语义
+    ///   super 单独使用时返回父类原型对象
+    ///   在 super.x 和 super() 中由 evalDot/evalCall 单独处理
+    private func evalSuper(env: Environment): JsValue {
+        if (let Some(superProto) <- getSuperPrototype(env)) {
+            return JsValue(superProto)
+        }
+        return JsValue.UNDEFINED
+    }
+
+    /// 从环境中获取父类原型 — 对应 JS [[HomeObject]].[[Prototype]]
+    ///  严格翻译自: ES spec GetSuperConstructor 语义
+    ///   类声明时将父类原型存储为 __super_proto__ 环境变量
+    ///   子类方法通过此变量访问父类属性和方法
+    private func getSuperPrototype(env: Environment): ?JsObject {
+        match (env.lookup("__super_proto__")) {
+            case Some(superVal) => superVal.objectData
+            case None => None
+        }
+    }
+
+    /// instanceof 运算符 — 完整实现
+    ///  严格翻译自: ES spec InstanceofOperator (ES2024 §13.10.3)
+    ///   1. 检查 RHS 是否有 [Symbol.hasInstance] 方法
+    ///   2. 如果有，调用 HasInstance 并返回结果
+    ///   3. 如果 RHS 不是对象，抛出 TypeError
+    ///   4. 否则，遍历 LHS 的原型链，检查是否包含 RHS.prototype
+    private static func evalInstanceof(l: JsValue, r: JsValue): Bool {
+        // 右侧必须是对象/函数 (不能是原始值)
+        if (r.valueType != JsValueType.Object && r.valueType != JsValueType.Function) {
+            // JS 规范: 如果 RHS 没有 [Symbol.hasInstance] 且不是 Object，抛 TypeError
+            // 简化处理: 返回 false
+            return false
+        }
+
+        // 获取 RHS 的 prototype 属性
+        let rhsPrototype = match (r.objectData) {
+            case Some(rObj) => rObj.get("prototype")
+            case None => JsValue.UNDEFINED
+        }
+
+        // RHS.prototype 必须是对象
+        if (rhsPrototype.valueType != JsValueType.Object) {
+            return false
+        }
+
+        let targetProto = match (rhsPrototype.objectData) {
+            case Some(p) => p
+            case None => return false
+        }
+
+        // 遍历 LHS 的原型链
+        // 获取 LHS 的 __proto__
+        if (l.valueType != JsValueType.Object) {
+            return false
+        }
+        var current = match (l.objectData) {
+            case Some(obj) => obj.getProto()
+            case None => return false
+        }
+
+        while (true) {
+            match (current) {
+                case Some(proto) =>
+                    // 检查当前原型是否就是目标原型
+                    if (proto.sameRef(targetProto)) {
+                        return true
+                    }
+                    current = proto.getProto()
+                case None => return false
+            }
+        }
+        return false
     }
 
     // ========================================================================
@@ -1679,6 +1979,128 @@ public class Interpreter {
             e /= 2
         }
         return result
+    }
+
+    /// 重置解释器状态用于测试隔离
+    /// 对应 Bun: vm.swapGlobalForTestIsolation() 中清空测试注册表
+    public func resetForTestIsolation(): Unit {
+        // 清除全局环境中注册的测试相关状态
+        // 保留内置对象 (console, process, 等) 但重置 describe/test hooks
+        globalEnv.delete("__bao_test_registry")
+        globalEnv.delete("__bao_describe_stack")
+        globalEnv.delete("__bao_test_count")
+        globalEnv.delete("__bao_hook_beforeAll")
+        globalEnv.delete("__bao_hook_afterAll")
+        globalEnv.delete("__bao_hook_beforeEach")
+        globalEnv.delete("__bao_hook_afterEach")
+    }
+}
+
+// ============================================================================
+// Generator — JavaScript 生成器支持
+// 对应 Bun: JSC JSGenerator 中的状态机实现
+//   JS 生成器通过暂停/恢复执行上下文实现惰性迭代
+//   yield 表达式暂停执行并产出值，next() 恢复执行
+// ============================================================================
+
+/// 生成器状态 — 对应 JSC GeneratorState
+public enum GeneratorState {
+    | SuspendedStart     // 刚创建，尚未执行
+    | SuspendedYield     // 执行到 yield 后暂停
+    | Executing          // 正在执行中
+    | Completed          // 执行完毕 (return 或所有语句执行完)
+
+    public operator func ==(other: GeneratorState): Bool {
+        match (this) {
+            case SuspendedStart => match (other) { case SuspendedStart => true case _ => false }
+            case SuspendedYield => match (other) { case SuspendedYield => true case _ => false }
+            case Executing => match (other) { case Executing => true case _ => false }
+            case Completed => match (other) { case Completed => true case _ => false }
+        }
+    }
+}
+
+/// JavaScript 生成器对象 — 对应 JS function* 创建的迭代器
+/// 每次 next() 调用恢复执行，遇到 yield 暂停并返回值
+public class JsGenerator {
+    /// 生成器函数体语句
+    public var body: ArrayList<Stmt>
+    /// 生成器闭包环境 (捕获创建时的作用域)
+    public var closure: Environment
+    /// 当前执行到的语句索引
+    public var nextStmtIndex: Int64
+    /// 生成器当前状态
+    public var state: GeneratorState
+    /// 生成器名称
+    public var name: String
+
+    public init(name: String, body: ArrayList<Stmt>, closure: Environment) {
+        this.name = name
+        this.body = body
+        this.closure = closure
+        this.nextStmtIndex = 0
+        this.state = GeneratorState.SuspendedStart
+    }
+
+    /// 执行 next(value) — 恢复生成器执行直到下一个 yield 或 return
+    /// 对应 JS Generator.prototype.next(value)
+    public func next(interpreter: Interpreter, resumeValue: JsValue): JsValue {
+        if (state == GeneratorState.Completed) {
+            return makeGeneratorResult(JsValue.UNDEFINED, true)
+        }
+        if (state == GeneratorState.Executing) {
+            return makeGeneratorResult(JsValue.UNDEFINED, true)
+        }
+
+        state = GeneratorState.Executing
+        let genEnv = Environment(closure)
+        genEnv.isFunctionScope = true
+        genEnv.thisBinding = closure.thisBinding
+        // 注入 resumeValue，供 yield 表达式读取
+        genEnv.define("__generator_resume__", resumeValue, true)
+
+        var result = JsValue.UNDEFINED
+        var i = nextStmtIndex
+        try {
+            while (i < body.size) {
+                result = interpreter.execStmt(body[i], genEnv)
+                i++
+            }
+            state = GeneratorState.Completed
+            nextStmtIndex = Int64(body.size)
+            return makeGeneratorResult(JsValue.UNDEFINED, true)
+        } catch (ys: YieldSignal) {
+            // yield 暂停: 下次从当前语句的下一条开始执行
+            nextStmtIndex = i + 1
+            state = GeneratorState.SuspendedYield
+            return makeGeneratorResult(ys.value, false)
+        } catch (ret: ReturnSignal) {
+            state = GeneratorState.Completed
+            return makeGeneratorResult(ret.value, true)
+        }
+    }
+}
+
+/// 创建生成器结果对象 { value, done }
+private func makeGeneratorResult(value: JsValue, done: Bool): JsValue {
+    let obj = Interpreter.newObject()
+    obj.set("value", value)
+    obj.set("done", JsValue(done))
+    return JsValue(obj)
+}
+
+/// yield 信号 — 对应 JS yield 表达式暂停执行
+/// 与 ReturnSignal 类似，但携带下一个语句索引以恢复执行
+public class YieldSignal <: Exception {
+    /// 产出的值
+    public var value: JsValue
+    /// 恢复执行时的语句索引 (yield 所在语句之后)
+    public var nextIndex: Int64
+
+    public init(value: JsValue, nextIndex: Int64) {
+        super("yield")
+        this.value = value
+        this.nextIndex = nextIndex
     }
 }
 

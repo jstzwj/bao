@@ -947,6 +947,18 @@ public class BorderShorthand {
         wEq && sEq && cEq
     }
 
+    public func toCss(): String {
+        var parts = ArrayList<String>()
+        match (width) { case Some(w) => parts.append(w.toCss()) case None => () }
+        match (style) { case Some(s) => parts.append(s.toCss()) case None => () }
+        match (color) { case Some(c) => parts.append(c) case None => () }
+        var result = ""
+        var first = true
+        for (p in parts) {
+            if (first) { result = p; first = false } else { result = result + " " + p }
+        }
+        return result
+    }
     /// 设置边框值
     /// 严格翻译自 BorderShorthand.setBorder
     public func setBorder(border: GenericBorder): Unit {

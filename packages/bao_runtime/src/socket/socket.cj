@@ -463,7 +463,7 @@ public class Socket {
         }
 
         // 将二进制数据转为 JS 值
-        let outputValue = binaryTypeToJS(data, h.binaryType)
+        let outputValue = binaryTypeToJS(data, h.binaryType, h.globalObject)
 
         // 调用 onData(thisValue, outputValue)
     }
@@ -1010,23 +1010,19 @@ public class Socket {
     }
 
     /// 将二进制数据转为 JS 值
-    private func binaryTypeToJS(data: Array<UInt8>, binaryType: BinaryType): JsValue {
-        // 对应 Bun: 根据 binaryType 创建对应的 JS 对象
-        // Stub: 返回简单的 JsValue
-        match (binaryType) {
-            case BinaryType.Buffer =>
-                return JsValue()
-            case BinaryType.ArrayBuffer =>
-                return JsValue()
-            case BinaryType.Uint8Array =>
-                return JsValue()
-        }
+    /// 对应 Bun: BinaryType.toJS(bytes, globalThis) — 根据 binaryType 创建 Buffer/ArrayBuffer/Uint8Array
+    private func binaryTypeToJS(data: Array<UInt8>, binaryType: BinaryType, globalObject: JsObject): JsValue {
+        // BAO_STUB: BinaryType.toJS — always return Uint8Array for now
+        return JsArrayBuffer.createBuffer(globalObject, data)
     }
 
     /// 将 JS 值转为字节数组
+    /// 对应 Bun: 从 ArrayBuffer/Buffer/TypedArray 提取字节
     private func jsValueToBytes(value: JsValue): Array<UInt8> {
-        // 对应 Bun: 从 ArrayBuffer/Buffer/TypedArray 提取字节
-        // Stub: 返回空数组
+        // ArrayBuffer 或 TypedArray/Buffer — 使用 arrayBufferSlice 提取底层字节
+        if (value.isArrayBuffer() || value.isTypedArray()) {
+            return value.arrayBufferSlice()
+        }
         return Array<UInt8>()
     }
 }

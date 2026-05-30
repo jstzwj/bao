@@ -108,11 +108,19 @@ public class IncrementalGraph {
         return MemoryCostResult(graph, code, source_maps)
     }
 
-    /// 获取文件索引 (HashMap 不支持索引访问，暂返回 None)
+    /// 获取文件索引
+    /// 对应 Bun: g.bundled_files.getIndex(path) -> FileIndex
+    /// bao_collections.HashMap 保持插入顺序, keys() 返回有序列表,
+    /// 因此通过遍历 keys() 获取插入索引即可.
     public func getFileIndex(path: String): ?FileIndex {
-        if (bundled_files.contains(path)) {
-            // TODO: HashMap 不支持 getIndex，需要其他方式获取索引
+        if (!bundled_files.contains(path)) {
             return None
+        }
+        let allKeys = bundled_files.keys()
+        for (i in 0..allKeys.size) {
+            if (allKeys[Int64(i)] == path) {
+                return FileIndex(UInt32(i))
+            }
         }
         return None
     }

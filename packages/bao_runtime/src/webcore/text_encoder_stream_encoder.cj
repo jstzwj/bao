@@ -48,6 +48,34 @@ public class TextEncoderStreamEncoder {
         pendingLeadSurrogate = None
     }
 
+    /// 将 Unicode 码点编码为 WTF-8 字节序列
+    /// 对应 Bun: strings.wtf8Sequence
+    private static func wtf8Sequence(codePoint: Int64): Array<UInt8> {
+        if (codePoint < 0x80) {
+            let result = Array<UInt8>(1, repeat: UInt8(0))
+            result[0] = UInt8(codePoint)
+            return result
+        } else if (codePoint < 0x800) {
+            let result = Array<UInt8>(2, repeat: UInt8(0))
+            result[0] = UInt8(0xC0 | (codePoint >> 6))
+            result[1] = UInt8(0x80 | (codePoint & 0x3F))
+            return result
+        } else if (codePoint < 0x10000) {
+            let result = Array<UInt8>(3, repeat: UInt8(0))
+            result[0] = UInt8(0xE0 | (codePoint >> 12))
+            result[1] = UInt8(0x80 | ((codePoint >> 6) & 0x3F))
+            result[2] = UInt8(0x80 | (codePoint & 0x3F))
+            return result
+        } else {
+            let result = Array<UInt8>(4, repeat: UInt8(0))
+            result[0] = UInt8(0xF0 | (codePoint >> 18))
+            result[1] = UInt8(0x80 | ((codePoint >> 12) & 0x3F))
+            result[2] = UInt8(0x80 | ((codePoint >> 6) & 0x3F))
+            result[3] = UInt8(0x80 | (codePoint & 0x3F))
+            return result
+        }
+    }
+
     // ========================================================================
     // JS 构造函数
     // 严格翻译自: TextEncoderStreamEncoder::constructor
@@ -74,22 +102,35 @@ public class TextEncoderStreamEncoder {
     ///   2. 检查是否是 16-bit 字符串 (UTF-16)
     ///   3. 16-bit: 调用 encodeUtf16
     ///   4. 8-bit: 调用 encodeLatin1
-    /// PORT NOTE: encode simplified; frame.arguments(n), getZigString, createBufferFromLength not yet available
     public func encode(global: JSGlobalObject, frame: CallFrame): Result<JsValue> {
         let arguments = frame.arguments()
         if (arguments.isEmpty()) {
             return Result<JsValue>.Err("TextEncoderStreamEncoder.encode requires 1 argument")
         }
 
-        // PORT NOTE: simplified; getZigString not yet available
-        return Result<JsValue>.Ok(JsValue())
+        let arg = arguments[0]
+        let str = arg.toString()
+        // TODO: restore is16Bit/utf16Slice/slice when String methods are available
+        // Treat all strings as UTF-8
+        let bytes = ArrayList<UInt8>()
+        for (i in 0..str.size) {
+            bytes.append(UInt8(Int64(str[i])))
+        }
+        return Result<JsValue>.Ok(encodeLatin1(global, bytes.items()))
     }
 
     /// 无类型检查的编码
     /// 对应 Bun: encode_without_type_checks — 直接编码为 UTF-8
     public func encodeWithoutTypeChecks(global: JSGlobalObject, input: ZigString): JsValue {
-        let bytes = input.slice().toArray()
-        return encodeLatin1(global, bytes)
+        if (input.is16Bit()) {
+            return encodeUtf16(global, input.utf16Slice())
+        }
+        let slice = input.slice()
+        let bytes = ArrayList<UInt8>()
+        for (i in 0..slice.size) {
+            bytes.append(UInt8(Int64(slice[Int64(i)])))
+        }
+        return encodeLatin1(global, bytes.items())
     }
 
     // ========================================================================
@@ -104,26 +145,42 @@ public class TextEncoderStreamEncoder {
     /// 步骤:
     ///   1. 处理暂存的 lead surrogate (latin1 无代理对, 输出 U+FFFD)
     ///   2. 分配输出缓冲区 (input.len + prepend_replacement_len)
-    ///   3. 使用 copy_latin1_into_utf8 逐块转换
+    ///   3. 使用 copyLatin1IntoUTF8 转换
     ///   4. 返回 Uint8Array
-    /// PORT NOTE: encodeLatin1 — Latin1 -> UTF-8 编码
     private func encodeLatin1(global: JSGlobalObject, input: Array<UInt8>): JsValue {
         if (input.size == 0) {
-            return JsValue.createBuffer(global.globalThis, Array<UInt8>())
+            return JsUint8Array_.createEmpty(global.globalThis)
         }
 
-        // 对应 Bun: copy_latin1_into_utf8 + 分配输出缓冲区
-        var output = ArrayList<UInt8>()
-        for (b in input) {
-            if (b < UInt8(0x80)) {
-                output.append(b)
-            } else {
-                output.append(UInt8(0xC0) | (b >> UInt8(6)))
-                output.append(UInt8(0x80) | (b & UInt8(0x3F)))
-            }
+        // 处理暂存的 lead surrogate — latin1 无代理对, 输出 U+FFFD
+        var prependReplacementLen: Int64 = 0
+        if (pendingLeadSurrogate.isSome()) {
+            pendingLeadSurrogate = None
+            prependReplacementLen = 3
         }
-        pendingLeadSurrogate = None
-        return JsValue.createBuffer(global.globalThis, output.items())
+
+        // 使用 copyLatin1IntoUTF8 转换
+        let bufferSize = input.size + prependReplacementLen
+        let outputBuf = Array<UInt8>(bufferSize, repeat: UInt8(0))
+
+        // 前置 U+FFFD 替换字符 (如有暂存的 lead surrogate)
+        if (prependReplacementLen > 0) {
+            outputBuf[0] = UInt8(0xEF)
+            outputBuf[1] = UInt8(0xBF)
+            outputBuf[2] = UInt8(0xBD)
+        }
+
+        // 将输入偏移以跳过前缀部分, 转换 Latin1 -> UTF-8
+        let subInput = Array<UInt8>(input.size, repeat: UInt8(0))
+        for (i in 0..input.size) {
+            subInput[i] = input[i]
+        }
+        let copyResult = Strings.copyLatin1IntoUTF8(
+            Bytes.subArray(outputBuf, prependReplacementLen, bufferSize - prependReplacementLen),
+            subInput
+        )
+
+        return JsUint8Array_.fromBytes(global.globalThis, outputBuf)
     }
 
     // ========================================================================
@@ -141,13 +198,121 @@ public class TextEncoderStreamEncoder {
     ///   3. 尝试 simdutf 快速转换
     ///   4. 失败则走慢路径 (包含无效 UTF-16 处理)
     ///   5. 检查最后是否留下新的 lead surrogate
-    /// PORT NOTE: encodeUtf16 simplified; Strings.* and JSUint8Array methods not yet available
     private func encodeUtf16(global: JSGlobalObject, input: Array<UInt16>): JsValue {
         if (input.size == 0) {
-            return JsValue()
+            return JsUint8Array_.createEmpty(global.globalThis)
         }
-        pendingLeadSurrogate = None
-        return JsValue()
+
+        // 处理暂存的 lead surrogate
+        var offset: Int64 = 0
+        var prepend: ?Array<UInt8> = None
+
+        if (pendingLeadSurrogate.isSome()) {
+            let lead = pendingLeadSurrogate.getOrThrow()
+            pendingLeadSurrogate = None
+            let maybeTrail = Int64(input[0])
+
+            if (maybeTrail >= 0xDC00 && maybeTrail <= 0xDFFF) {
+                // 有效的 trail surrogate — 配对成完整码点
+                let codePoint = 0x10000 + ((Int64(lead) - 0xD800) << 10) + (maybeTrail - 0xDC00)
+                let seq = wtf8Sequence(codePoint)
+                offset = 1
+                if (input.size == 1) {
+                    // 只有这个 trail, 直接返回配对结果
+                    return JsUint8Array_.fromBytesCopy(global.globalThis, seq)
+                }
+                prepend = Some(seq)
+            } else {
+                // 无效配对 — 输出 U+FFFD
+                prepend = Some(Array<UInt8>(3, repeat: UInt8(0)))
+                prepend.getOrThrow()[0] = UInt8(0xEF)
+                prepend.getOrThrow()[1] = UInt8(0xBF)
+                prepend.getOrThrow()[2] = UInt8(0xBD)
+            }
+        }
+
+        // 计算 UTF-8 输出大小
+        let utf8Len = SimdUTF.lengthUTF8FromUTF16(input, offset)
+        let prependLen = if (prepend.isSome()) { prepend.getOrThrow().size } else { 0 }
+        let totalLen = utf8Len + prependLen
+
+        let buf = Array<UInt8>(totalLen, repeat: UInt8(0))
+
+        // 写入前缀
+        if (prepend.isSome()) {
+            let p = prepend.getOrThrow()
+            for (i in 0..p.size) {
+                buf[i] = p[i]
+            }
+        }
+
+        // TODO: restore SimdUTF.convertUTF16ToUTF8WithErrors when API matches
+        // Fallback: skip fast path, go directly to slow path
+        let convertResult = ConvertResult(false, 0)
+        if (convertResult.isSuccess()) {
+            return JsUint8Array_.fromBytes(global.globalThis, buf)
+        }
+
+        // 慢路径: 逐个处理码点, 包含无效 UTF-16 处理
+        let output = ArrayList<UInt8>()
+        if (prepend.isSome()) {
+            let p = prepend.getOrThrow()
+            for (i in 0..p.size) {
+                output.append(p[i])
+            }
+        }
+
+        var i = offset
+        var newPendingLead: ?UInt16 = None
+        while (i < input.size) {
+            let cp = Int64(input[i])
+            if (cp >= 0xD800 && cp <= 0xDBFF) {
+                // Lead surrogate
+                if (i + 1 < input.size) {
+                    let low = Int64(input[i + 1])
+                    if (low >= 0xDC00 && low <= 0xDFFF) {
+                        // 有效的代理对
+                        let codepoint = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00)
+                        let seq = wtf8Sequence(codepoint)
+                        for (j in 0..seq.size) {
+                            output.append(seq[j])
+                        }
+                        i += 2
+                        continue
+                    }
+                }
+                // 孤立的 lead surrogate — 保存待配对
+                newPendingLead = UInt16(cp)
+                i += 1
+            } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+                // 孤立的 trail surrogate — U+FFFD
+                output.append(UInt8(0xEF))
+                output.append(UInt8(0xBF))
+                output.append(UInt8(0xBD))
+                i += 1
+            } else if (cp < 0x80) {
+                output.append(UInt8(cp))
+                i += 1
+            } else if (cp < 0x800) {
+                output.append(UInt8(0xC0 | (cp >> 6)))
+                output.append(UInt8(0x80 | (cp & 0x3F)))
+                i += 1
+            } else {
+                output.append(UInt8(0xE0 | (cp >> 12)))
+                output.append(UInt8(0x80 | ((cp >> 6) & 0x3F)))
+                output.append(UInt8(0x80 | (cp & 0x3F)))
+                i += 1
+            }
+        }
+
+        if (newPendingLead.isSome()) {
+            pendingLeadSurrogate = newPendingLead
+            if (output.size == 0) {
+                return JsUint8Array_.createEmpty(global.globalThis)
+            }
+        }
+
+        return JsUint8Array_.fromBytes(global.globalThis, output.items())
     }
 
     // ========================================================================
@@ -174,14 +339,15 @@ public class TextEncoderStreamEncoder {
     /// 对应 Bun: fn flush_body(&self, global) -> JsValue
     ///   如果 pending_lead_surrogate 是 None, 返回空 Uint8Array
     ///   否则返回 U+FFFD (EF BF BD)
-    /// PORT NOTE: flushBody simplified; JSUint8Array not yet available
     private func flushBody(global: JSGlobalObject): JsValue {
-        match (pendingLeadSurrogate) {
-            case Some(_) =>
-                pendingLeadSurrogate = None
-                return JsValue()
-            case None =>
-                return JsValue()
+        if (pendingLeadSurrogate.isSome()) {
+            pendingLeadSurrogate = None
+            let replacementChar = Array<UInt8>(3, repeat: UInt8(0))
+            replacementChar[0] = UInt8(0xEF)
+            replacementChar[1] = UInt8(0xBF)
+            replacementChar[2] = UInt8(0xBD)
+            return JsUint8Array_.fromBytesCopy(global.globalThis, replacementChar)
         }
+        return JsUint8Array_.createEmpty(global.globalThis)
     }
 }

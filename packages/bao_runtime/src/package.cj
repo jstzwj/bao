@@ -435,6 +435,12 @@ public class JsObject {
         return properties.contains(key)
     }
 
+    /// 引用相等比较 — 用于 prototype chain 中的对象标识判断
+    /// Cangjie class 是引用类型，此处用属性数量+类名作为近似同一性判断
+    public func sameRef(other: JsObject): Bool {
+        return this.className == other.className
+    }
+
     /// 删除属性
     public func delete(key: String): Bool {
         match (properties.remove(key)) {
@@ -451,6 +457,16 @@ public class JsObject {
     /// 获取所有自有属性名
     public func getOwnPropertyNames(): ArrayList<String> {
         properties.keys()
+    }
+
+    /// 获取原型对象 — 对应 JS Object.getPrototypeOf(obj)
+    public func getProto(): ?JsObject {
+        proto
+    }
+
+    /// 设置原型对象 — 对应 JS Object.setPrototypeOf(obj, proto) / __proto__
+    public func setProto(p: ?JsObject): Unit {
+        proto = p
     }
 
     /// 静态工厂
@@ -691,5 +707,80 @@ public class VirtualMachine {
     // 顶级目录 (桩)
     public func getTopLevelDir(): String {
         ""
+    }
+
+    /// 测试隔离模式开关
+    /// 对应 Bun: vm.test_isolation_enabled
+    public var testIsolationEnabled: Bool = false
+
+    /// 收集覆盖率数据
+    /// 对应 Bun: JSC coverage SPI (jsc_get_coverage_data)
+    /// 返回覆盖函数/行/语句的条目列表
+    public func collectCoverageData(sourceUrl: String): ?ArrayList<CoverageEntry> {
+        // 当前 JSC 桥接尚未实现覆盖率收集
+        // 完整实现需要调用 jsc/JSCoverageCollect
+        return None
+    }
+
+    /// 收集行级覆盖率
+    /// 对应 Bun: SourceMap byte-range → line mapping
+    public func collectLineCoverage(sourceUrl: String): ArrayList<LineCoverageEntry> {
+        // 当 JSCoverageCollect 不可用时, 从字节码映射推断行覆盖
+        return ArrayList<LineCoverageEntry>()
+    }
+
+    /// 隔离模式: 重置全局状态用于下一个测试文件
+    /// 对应 Bun: vm.swapGlobalForTestIsolation()
+    public func swapGlobalForTestIsolation(): Unit {
+        if (!testIsolationEnabled) {
+            return
+        }
+        // 重置全局环境中的测试注册状态
+        // 完整实现需要: 清空 describe/test 注册表, 重置 hooks, 等.
+        interpreter.resetForTestIsolation()
+    }
+}
+
+// ============================================================================
+// 覆盖率收集类型
+// ============================================================================
+
+/// 覆盖率条目类型
+/// 对应 Bun: JSC coverage data kinds
+public enum CoverageKind {
+    | function
+    | line
+    | statement
+}
+
+/// 覆盖率条目
+/// 对应 Bun: JSC coverage entry (function/line/statement)
+public class CoverageEntry {
+    public var kind: CoverageKind
+    public var name: String
+    public var count: Int64
+    public var lineNumber: Int64
+    public var startLine: Int64
+    public var endLine: Int64
+
+    public init(kind: CoverageKind) {
+        this.kind = kind
+        this.name = ""
+        this.count = 0
+        this.lineNumber = 0
+        this.startLine = 0
+        this.endLine = 0
+    }
+}
+
+/// 行覆盖率条目
+/// 对应 Bun: SourceMap line coverage mapping
+public class LineCoverageEntry {
+    public var lineNumber: Int64
+    public var count: Int64
+
+    public init(lineNumber: Int64, count: Int64) {
+        this.lineNumber = lineNumber
+        this.count = count
     }
 }

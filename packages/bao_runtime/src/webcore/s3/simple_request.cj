@@ -983,14 +983,6 @@ public func executeSimpleS3Request(
     let task = prepareSimpleS3Task(credentials, options, callbackKind, callbackContext)
     match (task) {
         case Some(t) =>
-            if (!isSupportedSimpleRequestCallback(callbackKind)) {
-                t.fail(
-                    "NotImplemented",
-                    simpleRequestNotImplementedMessage(callbackKind)
-                )
-                t.deinit()
-                return
-            }
             if (!isValidSimpleRequestMethod(callbackKind, options.method)) {
                 t.fail(
                     "InvalidMethod",
@@ -1281,18 +1273,6 @@ private func buildSimpleS3Headers(signResult: S3SignResult, options: S3SimpleReq
     return headers
 }
 
-private func isSupportedSimpleRequestCallback(callbackKind: S3CallbackKind): Bool {
-    match (callbackKind) {
-        case S3CallbackKind.Stat => true
-        case S3CallbackKind.Download => true
-        case S3CallbackKind.Upload => true
-        case S3CallbackKind.Delete => true
-        case S3CallbackKind.ListObjects => true
-        case S3CallbackKind.Commit => true
-        case S3CallbackKind.Part => true
-    }
-}
-
 private func isValidSimpleRequestMethod(callbackKind: S3CallbackKind, method: HttpMethod): Bool {
     match (callbackKind) {
         case S3CallbackKind.Stat => match (method) { case HttpMethod.HEAD => true case _ => false }
@@ -1319,18 +1299,6 @@ private func simpleRequestInvalidMethodMessage(callbackKind: S3CallbackKind): St
         case S3CallbackKind.ListObjects => "S3 listObjects requests must use GET."
         case S3CallbackKind.Commit => "S3 multipart commit requests must use POST."
         case S3CallbackKind.Part => "S3 multipart part requests must use PUT."
-    }
-}
-
-private func simpleRequestNotImplementedMessage(callbackKind: S3CallbackKind): String {
-    match (callbackKind) {
-        case S3CallbackKind.Stat => "S3 stat request scheduling is not implemented in this Cangjie runtime build."
-        case S3CallbackKind.Download => "S3 download request scheduling is not implemented in this Cangjie runtime build."
-        case S3CallbackKind.Upload => "S3 upload request scheduling is not implemented in this Cangjie runtime build."
-        case S3CallbackKind.Delete => "S3 delete request scheduling is not implemented in this Cangjie runtime build."
-        case S3CallbackKind.ListObjects => "S3 listObjects request scheduling is not implemented in this Cangjie runtime build."
-        case S3CallbackKind.Commit => "S3 multipart commit request scheduling is not implemented in this Cangjie runtime build."
-        case S3CallbackKind.Part => "S3 multipart part request scheduling is not implemented in this Cangjie runtime build."
     }
 }
 

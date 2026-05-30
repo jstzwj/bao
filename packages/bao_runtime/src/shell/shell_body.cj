@@ -24,9 +24,8 @@ import bao_collections.ArrayList
 // 对应 Bun: pub use super::yield_
 // 对应 Bun: pub use yield_::Yield
 
-/// 子 Shell 未实现错误消息
-/// 对应 Bun: pub const SUBSHELL_TODO_ERROR: &str = "Subshells are not implemented, please open GitHub issue!"
-public let SUBSHELL_TODO_ERROR: String = "Subshells are not implemented, please open GitHub issue!"
+// Subshells are now implemented in subshell.cj (SubshellState).
+// The SUBSHELL_TODO_ERROR constant has been removed.
 
 // STDIN_FD, STDOUT_FD, STDERR_FD, POSIX_DEV_NULL, WINDOWS_DEV_NULL
 // 已在 shell.cj 中定义，此处不再重复。

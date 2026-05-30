@@ -276,8 +276,9 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue>
             let blobResult = constructS3FileInternalStore(global, pathOrBlob.path.pathString, writeOptions)
             match (blobResult) {
                 case Ok(blob) =>
-                    // PORT NOTE: reshaped for borrowck — match consumes pathOrBlob;
-                    // rebuild to pass S3PathOrBlob
+                    // Design note: Cangjie's match consumes the value (no Copy trait).
+                    // We rebuild S3PathOrBlob from the constructed blob to pass to
+                    // WriteFileModule, which is equivalent to Bun's borrow-based approach.
                     let blobInternal = S3PathOrBlob.fromBlob(blob)
                     return WriteFileModule.writeFileInternal(
                         global,
@@ -292,11 +293,11 @@ public func write(global: JSGlobalObject, callframe: CallFrame): Result<JsValue>
                 case Err(e) => return Result<JsValue>.Err(e)
             }
         case PathOrBlobTag.Blob =>
-            // PORT NOTE: reshaped for borrowck
-            let pob = pathOrBlob
+            // Design note: Cangjie match moves `pathOrBlob`; we bind it to a local
+            // variable to pass to WriteFileModule. Equivalent to Bun's borrow semantics.
             return WriteFileModule.writeFileInternal(
                 global,
-                pob,
+                pathOrBlob,
                 data.getOrThrow(),
                 WriteFileOptions(
                     Some(false),
@@ -476,9 +477,11 @@ public func constructS3FileWithS3CredentialsAndOptions(
     if (awsOpts.changedCredentials) {
         store = S3BlobStoreRef.initS3(path, None, awsOpts.credentials)
     } else {
-        // PORT NOTE: Zig `initS3WithReferencedCredentials` bumps the
-        // intrusive ref on `default_credentials`. Cangjie keeps the same
-        // public construction split while storing the referenced value.
+        // Design note: Bun's `initS3WithReferencedCredentials` bumps the
+        // intrusive ref count on `default_credentials`. Cangjie uses GC for
+        // all reference management, so the split between initS3 and
+        // initS3WithReferencedCredentials is kept for API compatibility but
+        // both paths are semantically identical (GC tracks the reference).
         store = S3BlobStoreRef.initS3WithReferencedCredentials(path, None, defaultCredentials)
     }
 
@@ -1696,9 +1699,38 @@ public class S3Strings {
 }
 
 /// HttpMethodJsc (对应 Bun: bun_http_jsc::method_jsc)
+/// Port of Zig/Rust `method_jsc::from_js`. Converts a JS string value to
+/// an HttpMethod by looking it up in the static method table (case-insensitive).
 public class HttpMethodJsc {
     public static func fromJs(global: JSGlobalObject, value: JsValue): Result<?HttpMethod> {
-        return Result<?HttpMethod>.Err("not implemented")
+        if (value.isEmptyOrUndefinedOrNull()) {
+            return Result<?HttpMethod>.Ok(Option<HttpMethod>.None)
+        }
+        let strOpt = value.toString()
+        if (strOpt.size > 0) {
+            let methodOpt = parseHttpMethod(strOpt)
+            return Result<?HttpMethod>.Ok(methodOpt)
+        } else {
+            return Result<?HttpMethod>.Err("Expected a string for HTTP method")
+        }
+    }
+
+    /// Case-insensitive HTTP method lookup
+    /// 对应 Bun: Method.which(str) via ComptimeStringMap
+    private static func parseHttpMethod(s: String): ?HttpMethod {
+        let lower = asciiLower(s)
+        match (lower) {
+            case "get" => Some(HttpMethod.GET)
+            case "put" => Some(HttpMethod.PUT)
+            case "post" => Some(HttpMethod.POST)
+            case "delete" => Some(HttpMethod.DELETE)
+            case "head" => Some(HttpMethod.HEAD)
+            case "patch" => Some(HttpMethod.PATCH)
+            case "options" => Some(HttpMethod.OPTIONS)
+            case "connect" => Some(HttpMethod.CONNECT)
+            case "trace" => Some(HttpMethod.TRACE)
+            case _ => None
+        }
     }
 }
 
@@ -1741,3 +1773,19 @@ public func createJSS3FileUnsafely(global: JSGlobalObject, blob: BlobRef): JsVal
 }
 
 // ported from: src/runtime/webcore/S3File.rs
+
+/// Helper: ASCII lowercase conversion for String
+func asciiLower(s: String): String {
+    // ASCII lowercase: only A-Z → a-z
+    var bytes = ArrayList<UInt8>()
+    for (c in s) {
+        let code = Int64(c)
+        if (code >= 65 && code <= 90) {
+            bytes.append(UInt8(code + 32))
+        } else if (code < 128) {
+            bytes.append(UInt8(code))
+        }
+        // skip non-ASCII to avoid encoding issues
+    }
+    return String.fromUtf8(bytes.items())
+}

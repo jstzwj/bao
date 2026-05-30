@@ -224,6 +224,7 @@ public class TextDecoder {
     }
 
     /// 转为 JsValue
+    /// 对应 Bun: TextDecoder.toJsValue — creates a JS object with working decode method
     public func toJsValue(): JsValue {
         let obj = JsObject()
         let self = this
@@ -232,11 +233,55 @@ public class TextDecoder {
         obj.set("fatal", JsValue(self.fatal))
         obj.set("ignoreBOM", JsValue(self.ignoreBOM))
 
-        // PORT NOTE: decode function stubbed; JS interop not yet fully wired
         obj.set("decode", JsValue(JsFunction.create("decode", { thisObj: JsObject, args: Array<JsValue> =>
-            JsValue("")
+            if (args.isEmpty()) {
+                return JsValue(self.decode(Array<UInt8>(), false))
+            }
+            let inputArg = args[0]
+            let stream = if (args.size > 1) {
+                let options = args[1]
+                if (options.isObject()) {
+                    let streamVal = options.getProperty("stream")
+                    streamVal.toBoolean()
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+
+            // Extract bytes from the input argument (ArrayBuffer/TypedArray/Array)
+            let inputBytes = extractBytes(inputArg)
+            let decoded = self.decode(inputBytes, stream)
+            return JsValue(decoded)
         })))
 
         return JsValue(obj)
+    }
+
+    /// 从 JsValue 中提取字节数组
+    /// Handles ArrayBuffer, TypedArray, and plain Array<JsValue> inputs
+    private static func extractBytes(value: JsValue): Array<UInt8> {
+        if (value.isTypedArray() || value.isArray()) {
+            if (let Some(obj) <- value.objectValue) {
+                let byteStorage = obj.byteStorage
+                if (byteStorage.size > 0) {
+                    return byteStorage
+                }
+                // Fall back to arrayStorage for plain arrays
+                let arr = obj.arrayStorage
+                let result = ArrayList<UInt8>()
+                for (v in arr) {
+                    result.append(UInt8(v.toInteger()))
+                }
+                return result.items()
+            }
+        }
+        if (value.isString()) {
+            // Convert string to UTF-8 bytes
+            let str = value.toString()
+            return Utf8Codec.encode(str)
+        }
+        return Array<UInt8>()
     }
 }

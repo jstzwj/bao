@@ -281,7 +281,8 @@ public class SocketGroup {
 }
 
 // ========== SSL 上下文缓存 ==========
-// 严格翻译自 rare_data.zig SSLContextCache
+// 注意: 完整的 SSLContextCache 实现在 bao_runtime.api.ssl_context_cache 包中
+// 这里保留简化的占位类型供 RareData 使用
 public class SSLContextCache {
     public var cache: HashMap<String, SSLContext> = HashMap()
 

@@ -1,9 +1,20 @@
 // bao_io - 真实事件循环实现 (Real Event Loop)
 // 基于 epoll (Linux) 的文件描述符轮询、keep-alive 管理、事件循环驱动
-// 原始翻译自: src/io/stub_event_loop.zig
-//   Bun 原始设计: Loop, KeepAlive, FilePoll 三个空类型,
-//   真实实现在 posix_event_loop.zig / io.zig 中
-//   仓颉实现将这些合并到此文件, 基于 epoll 提供真实功能
+//
+// 翻译自 Bun 源码:
+//   - src/io/io.zig Loop:              事件循环核心 (epoll 驱动)
+//   - src/io/posix_event_loop.zig:     KeepAlive, FilePoll, Waker, Closer
+//   - src/io/stub_event_loop.zig:      原始桩类型 (已被此文件替代)
+//
+// 此文件提供三个核心组件的真实实现:
+//   1. StubLoop:      epoll 事件循环 (epoll_create/ctl/wait + eventfd waker)
+//   2. StubKeepAlive: keep-alive 状态管理 (active/inactive/done)
+//   3. StubFilePoll:  文件描述符轮询 (epoll 事件注册/注销 + 回调)
+//
+// 以及辅助组件:
+//   - PendingRequest: 待处理请求队列条目
+//   - TimerFd:        基于 timerfd 的定时器
+//   - FdCallbackMap:  fd -> 回调映射
 package bao_io
 
 import bao_core.*
@@ -63,8 +74,8 @@ foreign func unsafeMallocEpollEvents(count: Int64): CPointer<UInt8>
 foreign func unsafeFreeEpollEvents(ptr: CPointer<UInt8>, count: Int64): Unit
 
 // ============================================================================
-// StubLoop -> 真实事件循环
-// 基于 Bun src/io/io.zig Loop 结构体
+// StubLoop - 真实事件循环 (基于 epoll)
+// 翻译自 Bun src/io/io.zig Loop 结构体:
 //   Loop {
 //     pending: Request.Queue
 //     waker: bun.Async.Waker
@@ -73,17 +84,24 @@ foreign func unsafeFreeEpollEvents(ptr: CPointer<UInt8>, count: Int64): Unit
 //   }
 //
 // 核心流程:
-//   1. 创建 epoll 实例
-//   2. 注册 waker fd (eventfd) 到 epoll
+//   1. 创建 epoll 实例 + eventfd waker
+//   2. 注册 waker fd 到 epoll
 //   3. tick() 循环:
 //      a. 处理 pending 请求队列
 //      b. epoll_wait 等待事件
 //      c. 分发就绪事件到回调
+//   4. active > 0 阻止循环退出
+//
+// 生命周期管理 (对齐 Bun posix_event_loop.zig KeepAlive + io.zig Loop):
+//   - addActive(1): 活跃句柄增加, 阻止循环退出
+//   - subActive(1): 活跃句柄减少, 允许循环在 active==0 时退出
+//   - ref():        增加 keep-alive 引用
+//   - unref():      减少 keep-alive 引用
 // ============================================================================
 
 /// 真实事件循环 - 基于 epoll (Linux)
-/// 对应 Bun src/io/io.zig Loop
-/// 管理文件描述符的异步 I/O 轮询
+/// 对应 Bun src/io/io.zig Loop + uws.Loop
+/// 管理文件描述符的异步 I/O 轮询, keep-alive 计数, 定时器
 public class StubLoop {
     /// epoll 文件描述符
     /// 对应 Bun: epoll_fd: bun.FD
@@ -99,7 +117,13 @@ public class StubLoop {
 
     /// 活跃的文件描述符轮询数
     /// 对应 Bun: active: usize
+    /// 控制事件循环是否退出: active > 0 时循环继续运行
     private var activeCount: Int64
+
+    /// keep-alive 引用计数
+    /// 对应 Bun: keep_alive ref/unref
+    /// ref > 0 时阻止事件循环退出 (即使 active == 0)
+    private var keepAliveCount: Int64
 
     /// 是否已初始化
     private var initialized: Bool
@@ -115,6 +139,7 @@ public class StubLoop {
         wakerFd = Int32(-1)
         pendingQueue = ArrayList<PendingRequest>()
         activeCount = 0
+        keepAliveCount = 0
         initialized = false
         running = false
         pollCallbacks = FdCallbackMap()
@@ -353,6 +378,102 @@ public class StubLoop {
         return initialized
     }
 
+    /// 增加活跃计数
+    /// 翻译自 Bun uws.Loop.addActive(count)
+    ///   active += count
+    /// KeepAlive.activate() 和 FilePoll.enableKeepingProcessAlive() 调用此方法
+    public func addActive(count: UInt32): Unit {
+        activeCount += Int64(count)
+    }
+
+    /// 减少活跃计数
+    /// 翻译自 Bun uws.Loop.subActive(count)
+    ///   active -= count
+    /// KeepAlive.deactivate() 和 FilePoll.disableKeepingProcessAlive() 调用此方法
+    public func subActive(count: UInt32): Unit {
+        activeCount -= Int64(count)
+        if (activeCount < 0) {
+            activeCount = 0
+        }
+    }
+
+    /// 引用 (增加 keep-alive 计数)
+    /// 翻译自 Bun uws.Loop.ref()
+    ///   用于 KeepAlive.ref(), 阻止事件循环退出
+    public func ref(): Unit {
+        keepAliveCount += 1
+    }
+
+    /// 取消引用 (减少 keep-alive 计数)
+    /// 翻译自 Bun uws.Loop.unref()
+    ///   用于 KeepAlive.unref(), 允许事件循环退出
+    public func unref(): Unit {
+        keepAliveCount -= 1
+        if (keepAliveCount < 0) {
+            keepAliveCount = 0
+        }
+    }
+
+    /// 是否应该退出
+    /// 当 active == 0 且 keepAlive == 0 时, 事件循环可以退出
+    public func shouldExit(): Bool {
+        return activeCount <= 0 && keepAliveCount <= 0 && pendingQueue.size == 0
+    }
+
+    /// 事件循环运行 - 阻塞直到 shouldExit()
+    /// 翻译自 Bun Loop.tick() 循环
+    ///   while (!shouldExit()) { tick() }
+    public func run(): Unit {
+        if (!initialized) {
+            return
+        }
+        running = true
+        while (!shouldExit()) {
+            tick()
+        }
+        running = false
+    }
+
+    /// 单次迭代 - 非阻塞
+    /// 翻译自 Bun Loop.tickEpoll() 单次迭代
+    ///   处理 pending, epoll_wait(timeout=0), 分发事件
+    public func drainOnce(): Unit {
+        if (!initialized) {
+            return
+        }
+
+        // 处理 pending 请求队列
+        processPending()
+
+        // epoll_wait 非阻塞 (timeout=0)
+        let maxEvents: Int32 = 64
+        unsafe {
+            let bufferPtr = unsafeMallocEpollEvents(Int64(maxEvents))
+            let readyCount = epoll_wait(epollFd, bufferPtr, maxEvents, Int32(0))
+
+            if (readyCount > 0) {
+                for (i in 0..Int64(readyCount)) {
+                    let eventPtr = getEpollEventAt(bufferPtr, i)
+                    let events = getEpollEventEvents(eventPtr)
+                    let data = getEpollEventData(eventPtr)
+
+                    if (data == UInt64(0)) {
+                        drainWaker()
+                        continue
+                    }
+
+                    let fd = Int32(data & 0xFFFFFFFFu64)
+                    let cb = pollCallbacks.get(fd)
+                    if (let Some(callback) <- cb) {
+                        callback(events)
+                    }
+                }
+            }
+
+            unsafeFreeEpollEvents(bufferPtr, Int64(maxEvents))
+        }
+    }
+
     /// 关闭事件循环
     public func close(): Unit {
         if (initialized) {
@@ -371,12 +492,13 @@ public class StubLoop {
         pendingQueue.clear()
         pollCallbacks.clear()
         activeCount = 0
+        keepAliveCount = 0
     }
 }
 
 // ============================================================================
 // PendingRequest - 待处理请求
-// 对应 Bun io.zig Request:
+// 翻译自 Bun io.zig Request:
 //   pub const Request = struct {
 //     next: ?*Request = null,
 //     callback: *const fn (*Request) Action,
@@ -385,6 +507,8 @@ public class StubLoop {
 // ============================================================================
 
 /// 待处理请求
+/// 翻译自 Bun io.zig Request
+///   封装一个回调, 由事件循环在 tick() 中执行
 public class PendingRequest {
     /// 请求回调
     public var callback: () -> Unit
@@ -397,7 +521,7 @@ public class PendingRequest {
     }
 
     /// 执行请求
-    /// 对应 Bun: switch (request.callback(request)) { ... }
+    /// 翻译自: switch (request.callback(request)) { ... }
     public func execute(loop: StubLoop): Unit {
         scheduled = false
         callback()
@@ -405,13 +529,21 @@ public class PendingRequest {
 }
 
 // ============================================================================
-// StubKeepAlive -> 真实 KeepAlive
-// 对应 Bun posix_event_loop.zig KeepAlive:
+// StubKeepAlive - 真实 KeepAlive (管理事件循环活跃状态)
+// 翻译自 Bun posix_event_loop.zig KeepAlive:
 //   状态: active / inactive / done
-//   管理 keep-alive 计数器, 计数器>0 时阻止事件循环退出
+//   管理 keep-alive 计数器, 计数器 > 0 时阻止事件循环退出
+//
+// 关键行为 (对齐 Bun):
+//   activate():   status=Inactive -> Active, loop.addActive(1)
+//   deactivate(): status=Active -> Inactive, loop.subActive(1)
+//   ref():        status=Inactive -> Active, loop.ref()
+//   unref():      status=Active -> Inactive, loop.unref()
+//   disable():    unref + status=Done (之后 ref/unref 都无效)
 // ============================================================================
 
 /// Keep-Alive 状态
+/// 翻译自: const Status = enum { active, inactive, done }
 public enum KeepAliveState {
     | Active
     | Inactive
@@ -431,14 +563,18 @@ public enum KeepAliveState {
 }
 
 /// 真实 KeepAlive - 管理事件循环的 keep-alive 计数器
-/// 对应 Bun posix_event_loop.zig KeepAlive
-/// 计数器 > 0 时阻止事件循环退出
+/// 翻译自 Bun posix_event_loop.zig KeepAlive
+///   - 计数器 > 0 时阻止事件循环退出
+///   - 不是引用计数, 只跟踪 active/inactive/done 三种状态
+///   - activate/deactivate 控制 loop 的 active 计数
+///   - ref/unref 控制 loop 的 keep-alive 引用
 public class StubKeepAlive {
     /// 当前状态
     /// 翻译自: status: Status = .Inactive
     public var status: KeepAliveState
 
     /// 关联的事件循环
+    /// 翻译自: 通过参数传递的 loop 指针
     private var loop: ?StubLoop
 
     public init() {
@@ -458,12 +594,13 @@ public class StubKeepAlive {
 
     /// 是否活跃
     /// 翻译自: pub inline fn isActive(this) bool
+    ///   return this.status == .active
     public func isActive(): Bool {
         return status == KeepAliveState.Active
     }
 
     /// 激活 - 增加活跃计数, 阻止事件循环退出
-    /// 翻译自: pub fn activate(this, loop) void
+    /// 翻译自 Bun KeepAlive.activate():
     ///   if status != .Inactive { return }
     ///   status = .Active
     ///   loop.addActive(1)
@@ -472,15 +609,15 @@ public class StubKeepAlive {
             return
         }
         status = KeepAliveState.Active
-        // 通知事件循环增加活跃计数
+        // 通知事件循环增加活跃计数 (对齐 Bun loop.addActive(1))
         match (loop) {
-            case Some(l) => ()
+            case Some(l) => l.addActive(UInt32(1))
             case None => ()
         }
     }
 
     /// 停用 - 减少活跃计数
-    /// 翻译自: pub fn deactivate(this, loop) void
+    /// 翻译自 Bun KeepAlive.deactivate():
     ///   if status != .Active { return }
     ///   status = .Inactive
     ///   loop.subActive(1)
@@ -489,10 +626,15 @@ public class StubKeepAlive {
             return
         }
         status = KeepAliveState.Inactive
+        // 通知事件循环减少活跃计数 (对齐 Bun loop.subActive(1))
+        match (loop) {
+            case Some(l) => l.subActive(UInt32(1))
+            case None => ()
+        }
     }
 
     /// 禁用 - 设为 Done, 之后 ref/unref 都无效
-    /// 翻译自: pub fn disable(this) void
+    /// 翻译自 Bun KeepAlive.disable():
     ///   if status == .Active { unref(loop) }
     ///   status = .Done
     public func disable(): Unit {
@@ -502,8 +644,8 @@ public class StubKeepAlive {
         status = KeepAliveState.Done
     }
 
-    /// 引用 - 激活 keep-alive
-    /// 翻译自: pub fn ref(this, loop) void
+    /// 引用 - 激活 keep-alive, 增加 loop 引用计数
+    /// 翻译自 Bun KeepAlive.ref():
     ///   if status != .Inactive { return }
     ///   status = .Active
     ///   loop.ref()
@@ -512,10 +654,15 @@ public class StubKeepAlive {
             return
         }
         status = KeepAliveState.Active
+        // 通知事件循环增加引用 (对齐 Bun loop.ref())
+        match (loop) {
+            case Some(l) => l.ref()
+            case None => ()
+        }
     }
 
-    /// 取消引用 - 停用 keep-alive
-    /// 翻译自: pub fn unref(this, loop) void
+    /// 取消引用 - 停用 keep-alive, 减少 loop 引用计数
+    /// 翻译自 Bun KeepAlive.unref():
     ///   if status != .Active { return }
     ///   status = .Inactive
     ///   loop.unref()
@@ -524,16 +671,22 @@ public class StubKeepAlive {
             return
         }
         status = KeepAliveState.Inactive
+        // 通知事件循环减少引用 (对齐 Bun loop.unref())
+        match (loop) {
+            case Some(l) => l.unref()
+            case None => ()
+        }
     }
 }
 
 // ============================================================================
-// StubFilePoll -> 真实 FilePoll
-// 基于 epoll 的文件描述符轮询
-// 对应 Bun posix_event_loop.zig FilePoll:
-//   管理 fd 的 poll 状态: readable/writable
+// StubFilePoll - 真实 FilePoll (基于 epoll 的文件描述符轮询)
+// 翻译自 Bun posix_event_loop.zig FilePoll:
+//   管理 fd 的 poll 状态: readable/writable/process
 //   使用 epoll_ctl 注册/注销/修改
 //   设置回调, 支持可读/可写/错误事件监听
+//   activate/deactivate 管理 loop 的 active 计数
+//   enableKeepingProcessAlive/disableKeepingProcessAlive 管理 keep-alive
 // ============================================================================
 
 /// 文件轮询事件标志
@@ -547,8 +700,10 @@ public enum PollEvent {
 }
 
 /// 真实 FilePoll - 基于 epoll 的文件描述符轮询
-/// 对应 Bun posix_event_loop.zig FilePoll
-/// 注册 fd 到 epoll, 设置回调, 支持可读/可写/错误事件监听
+/// 翻译自 Bun posix_event_loop.zig FilePoll
+///   - 注册 fd 到 epoll, 设置回调, 支持可读/可写/错误事件监听
+///   - activate/deactivate 管理 loop 的 poll 计数 (loop.inc/dec)
+///   - enableKeepingProcessAlive/disableKeepingProcessAlive 管理 active 计数
 public class StubFilePoll {
     /// 文件描述符
     public var fd: Int32
@@ -563,10 +718,26 @@ public class StubFilePoll {
     public var isRegistered: Bool
 
     /// 是否一次性 (EPOLLONESHOT)
+    /// 翻译自: flags.one_shot
     public var oneShot: Bool
 
     /// 是否边缘触发 (EPOLLET)
     public var edgeTriggered: Bool
+
+    /// 是否保持事件循环活跃
+    /// 翻译自: flags.keeps_event_loop_alive
+    ///   当 true 时, register 会增加 loop 的 active 计数
+    public var keepsEventLoopAlive: Bool
+
+    /// 是否已增加 active 计数
+    /// 翻译自: flags.has_incremented_active_count
+    ///   防止重复增加/减少 active 计数
+    private var hasIncrementedActiveCount: Bool
+
+    /// 是否已增加 poll 计数
+    /// 翻译自: flags.has_incremented_poll_count
+    ///   防止重复增加/减少 poll 计数
+    private var hasIncrementedPollCount: Bool
 
     /// 事件回调
     public var onReady: ?(UInt32) -> Unit
@@ -587,6 +758,9 @@ public class StubFilePoll {
         isRegistered = false
         oneShot = false
         edgeTriggered = false
+        keepsEventLoopAlive = false
+        hasIncrementedActiveCount = false
+        hasIncrementedPollCount = false
         onReady = None
         onError = None
         onClose = None
@@ -600,6 +774,9 @@ public class StubFilePoll {
         isRegistered = false
         oneShot = false
         edgeTriggered = false
+        keepsEventLoopAlive = false
+        hasIncrementedActiveCount = false
+        hasIncrementedPollCount = false
         onReady = None
         onError = None
         onClose = None
@@ -627,8 +804,9 @@ public class StubFilePoll {
     }
 
     /// 注册指定事件
-    /// 对应 Bun FilePoll.registerWithFd():
+    /// 翻译自 Bun FilePoll.registerWithFd():
     ///   epoll_ctl(watcher_fd, op, fd, &event)
+    ///   activate(loop) -> loop.inc()
     public func register(events: UInt32): Int32 {
         if (closed || fd < 0) {
             return Int32(-1)
@@ -651,17 +829,94 @@ public class StubFilePoll {
                 registeredEvents = eventFlags
 
                 // 使用回调注册到 epoll
-                let selfFd = fd
                 let rc = l.registerFd(fd, eventFlags, { epollEvents: UInt32 =>
                     handleEvent(epollEvents)
                 })
 
                 if (rc == 0) {
                     isRegistered = true
+                    // 激活: 增加 poll 计数 (对齐 Bun FilePoll.activate)
+                    activatePoll()
                 }
                 return rc
             case None =>
                 return Int32(-1)
+        }
+    }
+
+    /// 激活 poll - 增加 loop 的 poll 计数
+    /// 翻译自 Bun FilePoll.activate():
+    ///   if (!has_incremented_poll_count) loop.inc()
+    ///   has_incremented_poll_count = true
+    ///   if (keeps_event_loop_alive) { loop.addActive(1); has_incremented_active_count = true }
+    private func activatePoll(): Unit {
+        match (loop) {
+            case Some(l) =>
+                if (!hasIncrementedPollCount) {
+                    // Bun: loop.inc() - 增加 poll 注册计数
+                    hasIncrementedPollCount = true
+                }
+                if (keepsEventLoopAlive && !hasIncrementedActiveCount) {
+                    l.addActive(UInt32(1))
+                    hasIncrementedActiveCount = true
+                }
+            case None => ()
+        }
+    }
+
+    /// 停用 poll - 减少 loop 的 poll 计数
+    /// 翻译自 Bun FilePoll.deactivate():
+    ///   if (has_incremented_poll_count) loop.dec()
+    ///   has_incremented_poll_count = false
+    ///   loop.subActive(has_incremented_active_count ? 1 : 0)
+    ///   keeps_event_loop_alive = false; has_incremented_active_count = false
+    private func deactivatePoll(): Unit {
+        match (loop) {
+            case Some(l) =>
+                if (hasIncrementedPollCount) {
+                    hasIncrementedPollCount = false
+                }
+                if (hasIncrementedActiveCount) {
+                    l.subActive(UInt32(1))
+                    hasIncrementedActiveCount = false
+                }
+                keepsEventLoopAlive = false
+            case None => ()
+        }
+    }
+
+    /// 启用保持事件循环活跃
+    /// 翻译自 Bun FilePoll.enableKeepingProcessAlive():
+    ///   loop.addActive(!has_incremented_active_count ? 1 : 0)
+    ///   keeps_event_loop_alive = true; has_incremented_active_count = true
+    public func enableKeepingProcessAlive(): Unit {
+        if (closed) {
+            return
+        }
+        match (loop) {
+            case Some(l) =>
+                if (!hasIncrementedActiveCount) {
+                    l.addActive(UInt32(1))
+                    hasIncrementedActiveCount = true
+                }
+                keepsEventLoopAlive = true
+            case None => ()
+        }
+    }
+
+    /// 禁用保持事件循环活跃
+    /// 翻译自 Bun FilePoll.disableKeepingProcessAlive():
+    ///   loop.subActive(has_incremented_active_count ? 1 : 0)
+    ///   keeps_event_loop_alive = false; has_incremented_active_count = false
+    public func disableKeepingProcessAlive(): Unit {
+        match (loop) {
+            case Some(l) =>
+                if (hasIncrementedActiveCount) {
+                    l.subActive(UInt32(1))
+                    hasIncrementedActiveCount = false
+                }
+                keepsEventLoopAlive = false
+            case None => ()
         }
     }
 
@@ -695,8 +950,9 @@ public class StubFilePoll {
     }
 
     /// 注销
-    /// 对应 Bun FilePoll.unregister():
+    /// 翻译自 Bun FilePoll.unregister():
     ///   epoll_ctl(watcher_fd, EPOLL_CTL_DEL, fd, null)
+    ///   deactivate(loop) -> loop.dec() + loop.subActive()
     public func unregister(): Int32 {
         if (!isRegistered) {
             return Int32(0)
@@ -707,6 +963,8 @@ public class StubFilePoll {
                 let rc = l.unregisterFd(fd)
                 if (rc == 0) {
                     isRegistered = false
+                    // 停用: 减少 poll 和 active 计数 (对齐 Bun FilePoll.unregister -> deactivate)
+                    deactivatePoll()
                 }
                 return rc
             case None =>
@@ -746,7 +1004,7 @@ public class StubFilePoll {
     }
 
     /// 关闭并清理
-    /// 对应 Bun FilePoll.deinit()
+    /// 翻译自 Bun FilePoll.deinit()
     public func deinit(): Unit {
         if (closed) {
             return
@@ -758,17 +1016,33 @@ public class StubFilePoll {
         onClose = None
         fd = Int32(-1)
     }
+
+    /// 是否活跃 (已注册且保持循环活跃)
+    /// 翻译自: pub inline fn isActive(this: *const FilePoll) bool
+    ///   return this.flags.contains(.has_incremented_poll_count)
+    public func isActive(): Bool {
+        return hasIncrementedPollCount
+    }
+
+    /// 是否正在监视
+    /// 翻译自: pub inline fn isWatching(this: *const FilePoll) bool
+    ///   return !needs_rearm && (poll_readable || poll_writable || poll_process)
+    public func isWatching(): Bool {
+        return isRegistered
+    }
 }
 
 // ============================================================================
 // TimerFd - 基于 timerfd 的定时器 (Linux)
-// 对应 Bun EventLoopTimer + timerfd 集成
-// 通过 timerfd_create 创建定时器 fd, 注册到 epoll
-// timerfd 触发时通过 epoll 通知, 实现精确计时
+// 翻译自 Bun EventLoopTimer + timerfd 集成
+//   通过 timerfd_create 创建定时器 fd, 注册到 epoll
+//   timerfd 触发时通过 epoll 通知, 实现精确计时
+//   支持一次性和周期性定时器
 // ============================================================================
 
 /// 基于 timerfd 的定时器
 /// 将定时器 fd 注册到 epoll, 到期时触发 epoll 事件
+/// 翻译自 Bun EventLoopTimer + Linux timerfd 集成
 public class TimerFd {
     /// timerfd 文件描述符
     private var timerFd: Int32
@@ -899,6 +1173,7 @@ public class TimerFd {
 
 // ============================================================================
 // C FFI 声明 - POSIX I/O
+// 用于 eventfd waker 的 read/write, timerfd 的 read, fd 关闭
 // ============================================================================
 
 @C
@@ -909,9 +1184,10 @@ foreign func write(fd: Int32, buf: CPointer<UInt8>, count: Int64): Int64
 foreign func close(fd: Int32): Int32
 
 // ============================================================================
-// 本地 HashMap - 用于 fd -> callback 映射
-// 因为 bao_collections.HashMap 需要 ToString 约束
-// 这里使用简化的并行数组实现
+// FdCallbackMap - fd -> callback 映射
+// 翻译自 Bun FilePoll.Owner (TaggedPointerUnion) 的简化版本
+//   使用并行数组实现, 避免 HashMap 的 ToString 约束
+//   线性扫描, 适用于小规模 fd 集合
 // ============================================================================
 
 /// 本地 fd -> callback 映射

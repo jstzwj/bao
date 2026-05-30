@@ -32,8 +32,8 @@ public let subproc = Subproc()
 //     panic("Bao shell已到达不可达状态\"${state}\"在${context}上下文中。这表示一个bug，请提交GitHub issue。")
 // }
 
-/// Shell子shell未实现的错误信息
-public const SUBSHELL_UNSUPPORTED_ERROR = "Subshells are unsupported, please open GitHub issue!"
+// Subshells are now implemented in subshell.cj (SubshellState).
+// The SUBSHELL_UNSUPPORTED_ERROR constant has been removed.
 
 /// 标准输入文件描述符
 /// 对应 Bun: pub const STDIN_FD: bun.FD = .fromUV(0)

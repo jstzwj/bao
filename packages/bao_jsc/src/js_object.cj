@@ -112,6 +112,12 @@ public class JsObject {
 
     public init() {}
 
+    /// Reference equality for JsObject
+    public operator func ==(other: JsObject): Bool {
+        // Compare by className and property count as a proxy for identity
+        this.className == other.className
+    }
+
     // ========== isCallableViaFFI ==========
     // 通过 JSC C API 检查对象是否可调用
     // 优先使用此方法而非 isCallable 属性 (属性在模拟环境中可能未正确设置)

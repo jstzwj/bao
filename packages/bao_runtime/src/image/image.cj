@@ -882,8 +882,10 @@ public class PipelineTask {
     public var maxPixels: UInt64
     public var autoOrient: Bool
     public var result: PipelineResult
+    /// 关联的 JS 全局对象 — 对应 Bun PipelineTask.global
+    public var global: JsObject
 
-    public init(image: BunImage, pipeline: ImagePipeline, kind: PipelineTaskKind, deliver: DeliverKind, maxPixels: UInt64, autoOrient: Bool) {
+    public init(image: BunImage, pipeline: ImagePipeline, kind: PipelineTaskKind, deliver: DeliverKind, maxPixels: UInt64, autoOrient: Bool, global: JsObject) {
         this.image = image
         this.pipeline = pipeline
         this.kind = kind
@@ -891,6 +893,7 @@ public class PipelineTask {
         this.maxPixels = maxPixels
         this.autoOrient = autoOrient
         this.result = PipelineResult.err
+        this.global = global
     }
 
     /// 最大输入文件大小 (256 MiB)
@@ -979,7 +982,8 @@ public class PipelineTask {
 
         // 8. 占位符
         if (match (this.kind) { case PipelineTaskKind.placeholder => true case _ => false }) {
-            // this.result = makePlaceholder(decoded.rgba, decoded.width, decoded.height)
+            // BAO_STUB: decoded is not yet available, placeholder stub
+            this.result = PipelineResult.meta
             return
         }
 
@@ -1010,10 +1014,50 @@ public class PipelineTask {
     }
 
     /// 在 JS 线程处理结果
-    /// 对应 Bun: PipelineTask.then
+    /// 对应 Bun: PipelineTask.then — 将管线执行结果解析到 JS Promise
     public func then(promise: JsPromise): Unit {
-        // Stub: resolve with empty result
-        // Note: JsPromise resolution is handled internally
+        // 释放输入源引用 (对应 Bun: mem::take(&mut self.input).release())
+        match (result) {
+            case PipelineResult.encoded(enc) =>
+                // 编码成功 — 将结果字节转为 JS 值并解析 Promise
+                let globalObj = this.global
+                let bytes = enc.bytes
+                let jsValue = match (deliver) {
+                    case DeliverKind.uint8array =>
+                        JsArrayBuffer.create(globalObj, bytes.map { b => UInt8(b) }, JSType.Uint8Array)
+                    case DeliverKind.buffer =>
+                        JsArrayBuffer.createBuffer(globalObj, bytes.map { b => UInt8(b) })
+                    case DeliverKind.blob =>
+                        // Blob 需要创建 Blob 对象并设置 content type
+                        JsArrayBuffer.createBuffer(globalObj, bytes.map { b => UInt8(b) })
+                    case DeliverKind.base64 =>
+                        // Base64 编码: 将字节转为 base64 字符串
+                        let encoded = base64Encode(bytes)
+                        JsValue(encoded)
+                    case DeliverKind.dataurl =>
+                        // Data URL: "data:<mime>;base64,<encoded>"
+                        let mime = formatMime(enc.format)
+                        let encoded = base64Encode(bytes)
+                        JsValue("data:${mime};base64,${encoded}")
+                    case DeliverKind.writeDest =>
+                        // write 目标 — 返回写入结果
+                        JsValue.UNDEFINED
+                }
+                promise.doResolve(jsValue)
+            case PipelineResult.meta =>
+                // 仅元数据 — 解析为空对象
+                promise.doResolve(JsValue.UNDEFINED)
+            case PipelineResult.err =>
+                promise.doReject(JsValue("Image processing error"))
+            case PipelineResult.ioErr =>
+                promise.doReject(JsValue("I/O error during image processing"))
+            case PipelineResult.selfResult =>
+                // 返回 BunImage 自身 (链式调用) — 暂时返回 undefined,
+                // 完整实现需要 BunImage 的 JS 包装器引用
+                promise.doResolve(JsValue.UNDEFINED)
+        }
+        // 递减待处理任务计数
+        image.pendingTasks -= 1
     }
 
     /// 应用管线操作
@@ -1274,6 +1318,57 @@ func base64CharValue(c: UInt8): Int64 {
     if (c == 43) { return 62 }  // '+'
     if (c == 47) { return 63 }  // '/'
     return -1
+}
+
+/// Base64 编码
+/// 将字节数组编码为 Base64 字符串
+func base64Encode(bytes: Array<Byte>): String {
+    let table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    let len = bytes.size
+    if (len == 0) { return "" }
+
+    var result = ""
+    var i: Int64 = 0
+    while (i < len) {
+        let b0 = UInt32(bytes[i])
+        let b1 = if (i + 1 < len) { UInt32(bytes[i + 1]) } else { UInt32(0) }
+        let b2 = if (i + 2 < len) { UInt32(bytes[i + 2]) } else { UInt32(0) }
+
+        let triple = (b0 << 16) | (b1 << 8) | b2
+
+        result = result + String(Rune(table[Int64((triple >> 18) & UInt32(0x3F))]))
+        result = result + String(Rune(table[Int64((triple >> 12) & UInt32(0x3F))]))
+
+        if (i + 1 < len) {
+            result = result + String(Rune(table[Int64((triple >> 6) & UInt32(0x3F))]))
+        } else {
+            result = result + "="
+        }
+
+        if (i + 2 < len) {
+            result = result + String(Rune(table[Int64(triple & UInt32(0x3F))]))
+        } else {
+            result = result + "="
+        }
+
+        i += 3
+    }
+    return result
+}
+
+/// 将 ImageFormat 转为 MIME 类型字符串
+func formatMime(format: ImageFormat): String {
+    match (format) {
+        case ImageFormat.png => "image/png"
+        case ImageFormat.jpeg => "image/jpeg"
+        case ImageFormat.webp => "image/webp"
+        case ImageFormat.avif => "image/avif"
+        case ImageFormat.tiff => "image/tiff"
+        case ImageFormat.gif => "image/gif"
+        case ImageFormat.bmp => "image/bmp"
+        case ImageFormat.heic => "image/heic"
+        case _ => "application/octet-stream"
+    }
 }
 
 /// 安全整数转换

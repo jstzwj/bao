@@ -279,9 +279,8 @@ public class ChromeProcess {
 
         for (path in candidates) {
             let content = readFileContent(path)
-            match (content) {
-                case Some(text) => ()
-                case None => return None
+            if (content.isNone()) {
+                continue
             }
             // 解析: 第一行=端口, 第二行=路径
             let text = content.getOrThrow()
@@ -322,21 +321,67 @@ public class ChromeProcess {
     }
 
     /// 检查路径是否为可执行文件
+    /// 对应 Bun: bun.sys.isExecutableFilePath — 使用 POSIX access(X_OK)
     private static func isExecutableFilePath(path: String): Bool {
-        // Stubbed until C string/path FFI helpers are ported.
-        return false
+        let cPath = unsafeNewCString(path)
+        if (cPath.isNull()) { return false }
+        // X_OK = 1 (检查执行权限)
+        let result = unsafe { access(cPath, 1) }
+        return result == 0
     }
 
     /// 获取环境变量
+    /// 对应 Bun: bun.getenvZ / std.process.getEnvVarOwned
     private static func getEnvVar(name: String): ?String {
-        // Stubbed until C string/path FFI helpers are ported.
-        return None
+        let cName = unsafeNewCString(name)
+        if (cName.isNull()) { return None }
+        let cValue = unsafe { getenv(cName) }
+        if (cValue.isNull()) { return None }
+        let value = unsafeCStringToString(cValue)
+        if (value.size == 0) { return None }
+        return value
     }
 
     /// 读取文件内容
+    /// 对应 Bun: std.fs.cwd().readFileAlloc — POSIX open/read/close
     private static func readFileContent(path: String): ?String {
-        // Stubbed until C string/path FFI helpers are ported.
-        return None
+        let cPath = unsafeNewCString(path)
+        if (cPath.isNull()) { return None }
+        // O_RDONLY = 0
+        let fd = unsafe { open(cPath, 0, UInt32(0)) }
+        if (fd < 0) { return None }
+
+        var result = ""
+        let bufSize: UIntNative = 4096
+        let buf = unsafe { malloc(bufSize) }
+        if (buf.isNull()) {
+            unsafe { close(fd) }
+            return None
+        }
+
+        // 将 CPointer<Unit> 转换为 CPointer<UInt8> 以便逐字节读取
+        let byteBuf = unsafe { CPointer<UInt8>(buf) }
+        var done = false
+        while (!done) {
+            let bytesRead = Int64(unsafe { read(fd, buf, bufSize) })
+            if (bytesRead <= 0) {
+                done = true
+            } else {
+                // 将读取的字节转为字符串
+                var i: Int64 = 0
+                while (i < bytesRead) {
+                    let byteVal = unsafe { (byteBuf + i).read() }
+                    result = result + String(Rune(Int32(byteVal)))
+                    i += 1
+                }
+            }
+        }
+
+        unsafe { free(buf) }
+        unsafe { close(fd) }
+
+        if (result.size == 0) { return None }
+        return result
     }
 }
 
@@ -344,12 +389,40 @@ public class ChromeProcess {
 // 内部工具函数
 // ============================================================================
 
-/// 创建 C 字符串
+/// 创建 C 字符串 (NUL-terminated)
 private func unsafeNewCString(s: String): CPointer<Int8> {
-    return CPointer<Int8>()
+    unsafe {
+        let len = s.size
+        let ptr = malloc(UIntNative(len + 1))
+        let bytesPtr = CPointer<Int8>(ptr)
+        for (i in 0..len) {
+            (bytesPtr + Int64(i)).write(Int8(Int64(s[Int64(i)]) & 0xFF))
+        }
+        (bytesPtr + Int64(len)).write(Int8(0))
+        return bytesPtr
+    }
 }
 
 /// C 字符串转仓颉字符串
 private func unsafeCStringToString(ptr: CPointer<Int8>): String {
-    return ""
+    if (ptr.isNull()) { return "" }
+    unsafe {
+        var len = 0
+        while ((ptr + Int64(len)).read() != Int8(0)) {
+            len += 1
+        }
+        var sb = ""
+        for (i in 0..len) {
+            sb += String(Rune(Int32((ptr + Int64(i)).read())))
+        }
+        return sb
+    }
 }
+
+// ============================================================================
+// C FFI 声明 — 用于环境变量、文件系统访问
+// 注意: getenv/close/malloc/free/read 已在 host_process.cj 中声明，此处不再重复
+// ============================================================================
+
+@C
+foreign func access(pathname: CPointer<Int8>, mode: Int32): Int32

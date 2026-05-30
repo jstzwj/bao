@@ -206,5 +206,11 @@ public class JsRef {
     public static func initStrong(value!: JsValue, globalThis!: JsGlobalObject): JsRef { JsRef() }
     public static func initWeak(value!: JsValue, globalThis!: JsGlobalObject): JsRef { JsRef() }
     public func get(): JsValue { JsValue.jsUndefined() }
+    public func tryGet(): ?JsValue { None }
     public func clear(): Unit {}
+    public func finalize(): Unit {}
+    public func upgrade(globalThis!: JsGlobalObject): Unit {}
+    public func downgrade(): Unit {}
+    public func update(globalThis!: JsGlobalObject, value!: JsValue): Unit {}
+    public func ensureStillAlive(): Unit {}
 }

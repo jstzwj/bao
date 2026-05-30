@@ -3,6 +3,7 @@ package bao_cli.test.parallel
 
 import bao_core.*
 import bao_runtime.*
+import bao_cli.*
 import bao_cli.test.*
 import bao_collections.*
 
@@ -152,18 +153,40 @@ public class Coordinator {
 
     /// 驱动主循环
     /// 对应 Bun: Coordinator.drive()
+    ///
+    /// 核心事件循环:
+    ///   1. 启动第一个 worker
+    ///   2. 循环直到所有文件完成或 bail
+    ///   3. 每轮 tick 处理 IPC 事件
+    ///   4. 延迟扩容检查
+    ///   5. 处理信号中断
     public func drive(): Unit {
+        // 启动第一个 worker
         spawnWorker()
+
         while (!isDone()) {
+            // 检查中止信号
             if (AbortHandler.shouldAbort) {
                 abortAll()
                 return
             }
+
+            // 处理事件循环 tick
+            // 对应 Bun: vm.eventLoop().tick() + autoTick()
+            vm.getEventLoop().tickOnce()
+
+            // 检查延迟扩容
             maybeScaleUp()
+
             if (isDone()) {
                 break
             }
-            ()
+
+            // 如果有未分发的文件且未达到并行限制, 等待事件
+            // 对应 Bun: tickWithTimeout(scaleUpAfterMs)
+            if (spawnedCount < parallelLimit && hasUndispatchedFiles() && !bailed) {
+                vm.getEventLoop().tickOnce()
+            }
         }
     }
 
@@ -183,16 +206,46 @@ public class Coordinator {
 
     /// 生成 worker
     /// 对应 Bun: Coordinator.spawnWorker()
+    ///
+    /// 1. 从 workers 数组中获取下一个 slot
+    /// 2. 重置 IPC 通道和管道
+    /// 3. 启动子进程 (bao test --test-worker --isolate)
+    /// 4. 采用 IPC 管道 (fd 3)
+    /// 5. 设置退出处理器
     public func spawnWorker(): Bool {
+        if (spawnedCount >= parallelLimit) {
+            return false
+        }
         let w = workers[spawnedCount]
+
+        // 重置 IPC 通道
         w.ipc = Channel()
-        w.start()
+        w.captured = ArrayList<Byte>()
+        w.alive = false
+        w.inflight = None
+
+        // 启动 worker 子进程
+        // 对应 Bun: Worker.start() 中的 spawnProcess
+        let envp = if (Int64(envps.size) > spawnedCount) { envps[Int64(spawnedCount)] } else { Array<String>() }
+        let started = w.startWithArgs(argv, envp, cwd)
+        if (!started) {
+            // 启动失败, 如果没有存活 worker 则退出
+            if (liveWorkers == 0) {
+                Output.prettyError("error: failed to spawn test worker\n")
+                Global.exit(1)
+            }
+            return false
+        }
+
         spawnedCount += 1
         return true
     }
 
     /// 延迟扩容
     /// 对应 Bun: Coordinator.maybeScaleUp()
+    ///
+    /// 当所有活跃 worker 都忙碌超过 scaleUpAfterMs 时,
+    /// 生成新的 worker 直到达到 parallelLimit
     public func maybeScaleUp(): Unit {
         if (spawnedCount >= parallelLimit) {
             return
@@ -200,6 +253,8 @@ public class Coordinator {
         if (bailed || !hasUndispatchedFiles()) {
             return
         }
+
+        let now = Sys.currentTimeMillis()
         for (i in 0..spawnedCount) {
             let w = workers[i]
             if (!w.alive) {
@@ -207,10 +262,16 @@ public class Coordinator {
             }
             match (w.inflight) {
                 case None => return
-                case Some(_) => ()
+                case Some(_) =>
+                    // 检查是否忙碌超过阈值
+                    if (now - w.dispatchedAt < scaleUpAfterMs) {
+                        return
+                    }
             }
         }
-        let remaining = files.size - filesDone
+
+        // 所有活跃 worker 都忙碌超过阈值, 扩容
+        let remaining = Int64(files.size) - filesDone
         let want = if (parallelLimit < remaining) { parallelLimit } else { remaining }
         while (spawnedCount < want) {
             if (!spawnWorker()) {
@@ -221,6 +282,10 @@ public class Coordinator {
 
     /// 分配工作给 worker
     /// 对应 Bun: Coordinator.assignWork()
+    ///
+    /// 1. 从 worker 自己的范围取文件 (保持目录局部性)
+    /// 2. 如果为空, 从最忙的 worker 偷取后半部分
+    /// 3. 如果没有可偷取的, 关闭 worker
     public func assignWork(w: Worker): Unit {
         if (bailed) {
             w.shutdown()
@@ -235,7 +300,7 @@ public class Coordinator {
             case None => ()
         }
 
-        // 偷取
+        // 偷取后半部分 (远离所有者热区, 保持局部性)
         match (findStealVictim()) {
             case Some(v) =>
                 match (v.range.stealBackHalf()) {
@@ -279,6 +344,9 @@ public class Coordinator {
 
     /// 获取相对路径
     public func relPath(fileIdx: Int64): String {
+        if (fileIdx < 0 || fileIdx >= Int64(files.size)) {
+            return "<invalid>"
+        }
         return files[fileIdx]
     }
 
@@ -312,6 +380,9 @@ public class Coordinator {
             case Some(idx) => ensureHeader(idx)
             case None => ()
         }
+        // 将捕获的 stdout/stderr 输出到 stderr
+        let capturedStr = String.fromUtf8(Array<Byte>(w.captured.size, { i => w.captured[i] }))
+        Output.printError(capturedStr)
         w.captured.clear()
     }
 
@@ -347,7 +418,7 @@ public class Coordinator {
                 let todo = rd.u32_()
                 let expectations = rd.u32_()
                 let skippedLabel = rd.u32_()
-                let files = rd.u32_()
+                let fileCount = rd.u32_()
                 let unhandled = rd.u32_()
 
                 flushCaptured(w)
@@ -363,7 +434,7 @@ public class Coordinator {
                 summary.todo += UInt32(todo)
                 summary.expectations += UInt32(expectations)
                 summary.skippedBecauseLabel += UInt32(skippedLabel)
-                summary.files += UInt32(files)
+                summary.files += UInt32(fileCount)
                 reporter.jest.unhandledErrorsBetweenTests += UInt32(unhandled)
 
                 w.inflight = None
@@ -397,6 +468,7 @@ public class Coordinator {
     /// Worker 退出回调
     public func onWorkerExit(w: Worker, status: ProcessStatus): Unit {
         w.exitStatus = status
+        w.alive = false
         tryReap(w)
     }
 
@@ -411,6 +483,13 @@ public class Coordinator {
     }
 
     /// 收割 worker
+    /// 对应 Bun: Coordinator.reapWorker()
+    ///
+    /// 1. 减少存活 worker 计数
+    /// 2. 刷新缓冲输出
+    /// 3. 如果有正在运行的文件, 记录崩溃
+    /// 4. 如果有未分发文件, 尝试重启 worker
+    /// 5. 否则清理资源
     public func reapWorker(w: Worker, status: ProcessStatus): Unit {
         liveWorkers -= 1
         flushCaptured(w)
@@ -435,11 +514,21 @@ public class Coordinator {
             w.captured.clear()
             w.ipc = Channel()
             w.process = None
-            w.start()
-            respawned = true
+
+            // 尝试重启 worker
+            let envp = if (Int64(envps.size) > w.idx) { envps[Int64(w.idx)] } else { Array<String>() }
+            let restarted = w.startWithArgs(argv, envp, cwd)
+            if (restarted) {
+                respawned = true
+            } else {
+                Output.prettyError("error: failed to respawn test worker\n")
+            }
         }
 
         if (!respawned) {
+            if (!bailed && liveWorkers == 0) {
+                abortQueuedFiles("no live workers")
+            }
             w.ipc.deinit()
             w.captured.clear()
         }
@@ -448,7 +537,7 @@ public class Coordinator {
     /// 记录崩溃
     public func accountCrash(fileIdx: Int64, status: ProcessStatus): Unit {
         breakDots()
-        Output.printErrorln("✗ ${relPath(fileIdx)} (worker crashed: ${describeStatus(status)})")
+        Output.printErrorln("X ${relPath(fileIdx)} (worker crashed: ${describeStatus(status)})")
         reporter.summary().fail += 1
         reporter.summary().files += 1
         crashedFiles.append(fileIdx)
@@ -507,7 +596,7 @@ public class Coordinator {
         for (w in workers) {
             match (w.range.popFront()) {
                 case Some(idx) =>
-                    Output.printErrorln("✗ ${relPath(idx)} (${reason})")
+                    Output.printErrorln("X ${relPath(idx)} (${reason})")
                     reporter.summary().fail += 1
                     reporter.summary().files += 1
                     crashedFiles.append(idx)
@@ -522,7 +611,6 @@ public class Coordinator {
     public func assignWorkOrRetry(w: Worker): Unit {
         assignWork(w)
     }
-
 }
 
 /// 中止信号处理器
@@ -532,9 +620,12 @@ public class AbortHandler {
 
     public static func install(): Unit {
         shouldAbort = false
+        // TODO(bao-parallel): 注册 SIGINT/SIGTERM 处理器
+        // 完整实现需要调用 sigaction 设置信号处理器
     }
 
     public static func uninstall(): Unit {
+        // TODO(bao-parallel): 恢复原始信号处理器
         ()
     }
 }

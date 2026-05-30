@@ -31,7 +31,7 @@ public enum CmdExec {
 }
 
 /// 命令状态父节点指针（提取到顶层）
-/// 严格翻译自 Bun: 类型擦除的父节点指针
+/// Cmd's parent can be StmtState. Dispatches childDone to the actual parent.
 public class CmdParentPtr {
     public var ptr: Any = 0
     public var hasPtr: Bool = false
@@ -44,6 +44,12 @@ public class CmdParentPtr {
     }
 
     public func childDone(child: Any, exitCode: ExitCode): Yield {
+        // Dispatch based on parent type
+        // Cmd's parent is always StmtState
+        if (this.ptr is StmtState) {
+            let stmt = (this.ptr as StmtState).getOrThrow()
+            return stmt.childDone(StmtChildPtr.initFunc(child), exitCode)
+        }
         return Yield.done
     }
 

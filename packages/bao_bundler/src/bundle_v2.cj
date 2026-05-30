@@ -2076,13 +2076,13 @@ public class DevServerInput {
 // 严格翻译自: bundle_v2.zig:162 BakeOptions
 public class BakeOptions {
     /// 框架
-    public var framework: ?Object
+    public var framework: ?Any
     /// 客户端转译器
     public var clientTranspiler: Transpiler
     /// SSR 转译器
     public var ssrTranspiler: Transpiler
     /// 插件
-    public var plugins: ?Object
+    public var plugins: ?Any
 
     public init() {
         framework = None

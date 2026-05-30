@@ -2216,10 +2216,65 @@ public class BunfigTomlParser {
 
 /// JSON 解析器 (bunfig 配置专用)
 // 对应 Bun: bun_parsers::json::parse_ts_config
+//
+// 使用 bao_parsers 的 JSONParser 解析 JSON 格式的 bunfig 配置。
+// 支持 tsconfig 风格的 JSON (注释 + 尾逗号)。
 public class BunfigJsonParser {
     public static func parse(content: String, log: BunfigLog): Result<BunfigExpr, String> {
-        // 简化的 JSON 解析 - 将 JSON 转为 BunfigExpr
-        // 实际实现应调用 bao_parsers 的 JSON 解析器
-        return Result<BunfigExpr, String>.Err("JSON parser not yet implemented for bunfig")
+        // 创建宽松 JSON 选项 (tsconfig 允许注释和尾逗号)
+        let opts = ParseOptions()
+        opts.allowComments = true
+        opts.allowTrailingCommas = true
+        opts.strict = false
+        opts.maxDepth = Int64(256)
+
+        let parser = JSONParser(content, opts)
+        let result = parser.parse()
+
+        if (result.hasErrors()) {
+            for (err in result.errors) {
+                log.addError(err.format(), content)
+            }
+            return Result<BunfigExpr, String>.Err("Failed to parse JSON bunfig: ${result.errors.size} error(s)")
+        }
+
+        match (result.getValue()) {
+            case Some(jsonValue) =>
+                return Ok(jsonValueToBunfigExpr(jsonValue))
+            case None =>
+                return Result<BunfigExpr, String>.Err("Failed to parse JSON bunfig: no value produced")
+        }
+    }
+
+    /// 将 JsonValue 转换为 BunfigExpr。
+    // 对应 Bun: JSON 解析器直接产生 Expr 节点,
+    // 这里我们从 bao_parsers 的 JsonValue 转换到 bunfig 的 BunfigExpr。
+    private static func jsonValueToBunfigExpr(value: JsonValue): BunfigExpr {
+        match (value.kind) {
+            case JsonKind.Null =>
+                return BunfigExpr(BunfigExprData.Null_)
+            case JsonKind.Boolean =>
+                return BunfigExpr(BunfigExprData.Boolean(value.boolValue))
+            case JsonKind.Number =>
+                return BunfigExpr(BunfigExprData.Number(value.numberValue))
+            case JsonKind.String =>
+                return BunfigExpr(BunfigExprData.String_(value.stringValue))
+            case JsonKind.Array =>
+                let arr = ArrayList<BunfigExpr>()
+                for (item in value.arrayValue) {
+                    arr.append(jsonValueToBunfigExpr(item))
+                }
+                return BunfigExpr(BunfigExprData.Array(arr))
+            case JsonKind.Object =>
+                let obj = BunfigExprObject()
+                let keys = value.objectValue.keys()
+                for (key in keys) {
+                    match (value.objectValue.get(key)) {
+                        case Some(child) => obj.put(key, jsonValueToBunfigExpr(child))
+                        case None => ()
+                    }
+                }
+                return BunfigExpr(BunfigExprData.Object(obj))
+        }
     }
 }

@@ -79,10 +79,11 @@ public class Bunfig {
             }
         }
 
-        // PORT NOTE: reshaped for borrowck — Zig stored both `&mut ctx` and
-        // `&mut ctx.args` simultaneously inside Parser. In Cangjie we route
-        // bunfig writes through `self.ctx.args` directly. `log` is derived from
-        // the copied raw pointer above so it does not overlap the `&mut ctx` borrow.
+        // Design note: Bun's Zig stored both `&mut ctx` and `&mut ctx.args` as raw
+        // pointers simultaneously inside Parser. Cangjie's ownership model does not
+        // allow two mutable borrows of overlapping data. We route bunfig writes through
+        // `self.ctx.args` directly, which is semantically equivalent — `ctx.args` is
+        // accessed through the single `ctx` reference.
         let parser = Parser(expr, source, ctx)
         return parser.parse(cmd)
     }
@@ -95,9 +96,10 @@ public class Bunfig {
 public class Parser {
     private var json: Expr
     private var source: Source
-    // PORT NOTE: Zig held both `bunfig: *api.TransformOptions` (= `&ctx.args`)
-    // and `ctx: *Command.Context` simultaneously. In Cangjie, `bunfig` writes
-    // route through `self.ctx` directly.
+    // Design note: Bun's Zig held both `bunfig: *api.TransformOptions` (= `&ctx.args`)
+    // and `ctx: *Command.Context` as raw pointers simultaneously. In Cangjie,
+    // `bunfig` writes route through `self.ctx` directly, avoiding the dual-pointer
+    // pattern. This is semantically equivalent under GC-managed references.
     private var ctx: ContextData
 
     public init(json: Expr, source: Source, ctx: ContextData) {
@@ -161,9 +163,10 @@ public class Parser {
     /// Parse the bunfig expression tree for the given command.
     // Corresponds to Bun: pub fn parse(&mut self, cmd: CommandTag) -> Result<(), Error>
     //
-    // PORT NOTE: `comptime cmd: Command.Tag` demoted to a runtime arg —
-    // the Zig original monomorphised over `cmd` purely to dead-code-eliminate
-    // untaken arms; the runtime branches below are equivalent.
+    // Design note: Bun's Zig uses `comptime cmd: Command.Tag` to monomorphize over
+    // `cmd` purely for dead-code-elimination of untaken branches. In Cangjie this is
+    // a runtime argument — the branches below are functionally identical, just
+    // evaluated at runtime instead of being compiled out.
     public func parse(cmd: CommandTag): Result<Unit, BaoError> {
         // Corresponds to Bun: bun_analytics::features::bunfig.fetch_add(1, Ordering::Relaxed)
         // Analytics.trackBunfig()
@@ -1139,7 +1142,9 @@ public class Parser {
         // publicHoistPattern
         if (let Some(publicHoistPatternExpr) <- installObj.get("publicHoistPattern")) {
             // Corresponds to Bun: PnpmMatcher::from_expr
-            // PORT NOTE: simplified — full PnpmMatcher would need its own implementation
+            // Design note: Bun uses a full PnpmMatcher implementation with glob pattern
+            // matching. This simplified version handles string and array-of-string patterns
+            // directly. Full glob pattern support should be added when needed.
             ctx.install.getOrThrow().publicHoistPattern = parsePnpmMatcher(publicHoistPatternExpr)
         }
 

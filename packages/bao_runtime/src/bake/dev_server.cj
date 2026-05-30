@@ -1367,8 +1367,12 @@ public class DevServer {
         dr.routeBundleIndex = routeBundleIndex
         dr.dev = this
         dr.handler = DeferredRequestHandler.bundledHtmlPage(resp, req.method())
-        deferred.data = dr
-        requestsArray.prepend(deferred)
+        match (deferred) {
+            case Some(d) =>
+                d.data = dr
+                requestsArray.prepend(d)
+            case None => ()
+        }
     }
 
     /// 查找路由Bundle索引

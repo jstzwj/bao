@@ -66,10 +66,12 @@ public func updatePackageJsonAndInstall(
     // 2. 将位置参数重写为依赖名称
     // 3. 运行安装命令
     if (cli.analyze) {
-        // PORT NOTE: 从 Zig 的 fn-local `const Analyzer = struct {...}` 提升
-        // Analyzer 使用原始指针存储 ctx 和 cli，因为 BuildCommand.exec 在
-        // on_fetch 回调期间持有 command::get() (同一个 ContextData)，且
-        // DependenciesScanner.entry_points 持有 cli.positionals 的副本
+        // Design note: In Bun's Zig, `Analyzer` is a fn-local `const Analyzer = struct {...}`
+        // that captures raw pointers to ctx and cli. This works because BuildCommand.exec
+        // holds command::get() during on_fetch callbacks. In Cangjie, fn-local struct
+        // definitions are lifted to module level; the pointer-based capture pattern is
+        // replaced by passing references through constructor parameters, which is
+        // semantically equivalent under GC management.
 
         let entryPoints = ArrayList<ByteArray>()
         for (i in 1..cli.positionals.length) {

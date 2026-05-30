@@ -852,6 +852,19 @@ public class Stmt {
 
     public static func for_(loc: Loc, `init`: ?Expr, test: Expr, update: Expr, body: Stmt): Stmt {
         let s = Stmt(loc, StmtTag.For)
+        match (`init`) {
+            case Some(e) => s.`init` = Some(Stmt.expr_(e.loc, e))
+            case None => s.`init` = None
+        }
+        s.expr = Some(test)
+        s.update = Some(update)
+        s.body = Some(body)
+        return s
+    }
+
+    public static func forWithInit(loc: Loc, initStmt: ?Stmt, test: Expr, update: Expr, body: Stmt): Stmt {
+        let s = Stmt(loc, StmtTag.For)
+        s.`init` = initStmt
         s.expr = Some(test)
         s.update = Some(update)
         s.body = Some(body)

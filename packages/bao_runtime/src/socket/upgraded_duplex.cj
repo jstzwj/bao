@@ -205,12 +205,22 @@ public class UpgradedDuplex {
     }
 
     // 对应 Bun: UpgradedDuplex.startTLS — SSL/TLS 升级
+    // 初始化 SslWrapper 并启动 TLS 握手
     public func startTLS(sslOptions: SSLConfig, isClient: Bool): Unit {
-        // Stub: SSL/TLS upgrade not yet fully implemented
+        let sslHandlers = SslHandlersOfUpgradedDuplex(this)
+        let w = SslWrapper<UpgradedDuplex>(sslHandlers)
+        w.initFunc(sslOptions, isClient, this, sslHandlers)
+        this.wrapper = w
+        w.start()
     }
 
-    // 对应 Bun: UpgradedDuplex.startTLSWithCTX — 需要完整 TLS FFI 实现
+    // 对应 Bun: UpgradedDuplex.startTLSWithCTX — 使用已有 SSL_CTX
     public func startTLSWithCTX(sslCtx: SslCtx, isClient: Bool): Unit {
+        let sslHandlers = SslHandlersOfUpgradedDuplex(this)
+        let w = SslWrapper<UpgradedDuplex>(sslHandlers)
+        w.initWithCTX(sslCtx, isClient, this, sslHandlers)
+        this.wrapper = w
+        w.start()
     }
 
     public func encodeAndWrite(data: Array<Byte>): Int32 {
@@ -342,4 +352,39 @@ public enum TimerState {
 public enum ScriptExecutionStatus {
     | RUNNING
     | STOPPED
+}
+
+// ============================================================================
+// SslHandlers 适配器 — 将 UpgradedDuplex 方法桥接到 SslHandlers 接口
+// 对应 Bun: UpgradedDuplex.zig 中直接传函数指针给 WrapperType.init
+// ============================================================================
+
+/// UpgradedDuplex 的 SSL 处理器适配器
+/// 将 SslHandlers<T> 接口方法委托给 UpgradedDuplex 的实例方法
+public class SslHandlersOfUpgradedDuplex <: SslHandlers<UpgradedDuplex> {
+    private var duplex: UpgradedDuplex
+
+    public init(duplex: UpgradedDuplex) {
+        this.duplex = duplex
+    }
+
+    public func onOpen(ctx: UpgradedDuplex): Unit {
+        ctx.onOpenInternal()
+    }
+
+    public func onHandshake(ctx: UpgradedDuplex, success: Bool, error: UsBunVerifyError): Unit {
+        ctx.onHandshakeInternal(success, error)
+    }
+
+    public func write(ctx: UpgradedDuplex, data: Array<Byte>): Unit {
+        ctx.internalWrite(data)
+    }
+
+    public func onData(ctx: UpgradedDuplex, data: Array<Byte>): Unit {
+        ctx.onDataInternal(data)
+    }
+
+    public func onClose(ctx: UpgradedDuplex): Unit {
+        ctx.onCloseInternal()
+    }
 }
