@@ -1770,8 +1770,8 @@ public class Parser {
             return Expr.missing(loc)
         }
 
-        // 解析第一个表达式
-        let expr = parseExpr(ParseExprOpts())
+        // 解析第一个表达式 — use parseAssignmentExpr so commas stay as separators
+        let expr = parseAssignmentExpr(ParseExprOpts())
 
         // 如果遇到逗号，可能是多参数箭头函数
         if (lexer.token == Token.Comma) {

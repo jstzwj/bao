@@ -936,14 +936,8 @@ public class Interpreter {
                     callable = objData.get(target.propertyName)
                 }
                 // 字符串方法调用 — 对应 String.prototype.method()
-                if (callable.isNone()) {
-                    let isStringType = match (objVal.valueType) {
-                        case JsValueType.String => true
-                        case _ => false
-                    }
-                    if (isStringType) {
-                        callable = getStringMethod(objVal, target.propertyName)
-                    }
+                if (callable.isNone() && objVal.valueType == JsValueType.String) {
+                    callable = getStringMethod(objVal, target.propertyName)
                 }
             } else if (target.tag == ExprTag.Index) {
                 // 对应 obj[key]()
@@ -1271,11 +1265,7 @@ public class Interpreter {
                 return objData.get(e.propertyName)
             }
             // 字符串属性
-            let isStringType2 = match (obj.valueType) {
-                case JsValueType.String => true
-                case _ => false
-            }
-            if (isStringType2) {
+            if (obj.valueType == JsValueType.String) {
                 if (e.propertyName == "length") {
                     return JsValue(Float64(obj.stringValue.toString().size))
                 }
