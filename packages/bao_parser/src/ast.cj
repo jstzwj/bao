@@ -1089,6 +1089,8 @@ public class BindingProperty {
     public var defaultValue: ?Expr
     public var isComputed: Bool
     public var isShorthand: Bool
+    public var isSpread: Bool
+    public var keyExpr: ?Expr
 
     public init(loc: Loc, key: String, value: ?Binding, defaultValue: ?Expr) {
         this.loc = loc
@@ -1097,6 +1099,8 @@ public class BindingProperty {
         this.defaultValue = defaultValue
         isComputed = false
         isShorthand = false
+        isSpread = false
+        keyExpr = None
     }
 
     public init(key: String, value: Binding) {
@@ -1106,6 +1110,8 @@ public class BindingProperty {
         this.defaultValue = None
         isComputed = false
         isShorthand = false
+        isSpread = false
+        keyExpr = None
     }
 }
 
@@ -1187,6 +1193,7 @@ public enum GPropertyKind {
     | Method
     | Field
     | Spread
+    | ClassStaticBlock
 
     public func toInt(): Int64 {
         match (this) {
@@ -1195,6 +1202,7 @@ public enum GPropertyKind {
             case Method => 2
             case Field => 3
             case Spread => 4
+            case ClassStaticBlock => 5
         }
     }
 
@@ -1231,6 +1239,7 @@ public class GProperty {
     public var decorators: ArrayList<Expr>
     public var ref: Ref
     public var initializer: ?Expr
+    public var staticBlockStmts: ArrayList<Stmt>
 
     public init(loc: Loc, key: String, value: ?Expr) {
         this.loc = loc
@@ -1242,6 +1251,7 @@ public class GProperty {
         decorators = ArrayList<Expr>()
         ref = Ref.NONE
         initializer = None
+        staticBlockStmts = ArrayList<Stmt>()
     }
 
     /// 创建方法属性
@@ -1282,6 +1292,7 @@ public class GDecl {
 /// 类数据 - 对应 Bun G.Class
 public class GClass {
     public var name: String
+    public var nameRef: Ref
     public var extends_: ?Expr
     public var properties: ArrayList<GProperty>
     public var decorators: ArrayList<Expr>
@@ -1291,6 +1302,7 @@ public class GClass {
     public init(loc: Loc) {
         this.loc = loc
         name = ""
+        nameRef = Ref.NONE
         extends_ = None
         properties = ArrayList<GProperty>()
         decorators = ArrayList<Expr>()
@@ -1299,6 +1311,7 @@ public class GClass {
 
     public init(name: String, extends_: ?Expr, properties: ArrayList<GProperty>, loc: Loc) {
         this.name = name
+        nameRef = Ref.NONE
         this.extends_ = extends_
         this.properties = properties
         this.loc = loc
@@ -1483,6 +1496,14 @@ public class Scope {
     public var strictMode: StrictModeKind
     /// 是否在 const local prefix 之后 - 对应 Bun Scope.is_after_const_local_prefix
     public var isAfterConstLocalPrefix: Bool
+    /// 是否阻止提升 - 对应 Bun Scope.kindStopsHoisting()
+    public var stopsHoisting: Bool
+    /// 是否禁止使用 arguments - 对应 Bun Scope.forbid_arguments
+    public var forbidArguments: Bool
+    /// 是否为严格模式 (便捷属性)
+    public func isStrictMode(): Bool {
+        return strictMode != StrictModeKind.SloppyMode
+    }
 
     public init(id: Int64, kind: ScopeKind) {
         this.id = id
@@ -1494,6 +1515,8 @@ public class Scope {
         containsDirectEval = false
         strictMode = StrictModeKind.SloppyMode
         isAfterConstLocalPrefix = false
+        stopsHoisting = false
+        forbidArguments = false
     }
 
     public init(kind: ScopeKind, parent: ArrayList<Scope>) {
@@ -1506,6 +1529,8 @@ public class Scope {
         containsDirectEval = false
         strictMode = StrictModeKind.SloppyMode
         isAfterConstLocalPrefix = false
+        stopsHoisting = false
+        forbidArguments = false
     }
 
     /// 兼容 scan_symbols - 计算成员名称哈希

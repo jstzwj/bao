@@ -12,6 +12,19 @@ public enum SQLStorageMode {
     | temporary      // 临时引用 (不拥有)
     | inlineStorage  // 内联存储 (<= 15 字节)
     | empty          // 空
+
+    public operator func ==(right: SQLStorageMode): Bool {
+        match (this) {
+            case owned => match (right) { case owned => true case _ => false }
+            case temporary => match (right) { case temporary => true case _ => false }
+            case inlineStorage => match (right) { case inlineStorage => true case _ => false }
+            case empty => match (right) { case empty => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: SQLStorageMode): Bool {
+        !(this == right)
+    }
 }
 
 /// SQL 协议中可变数据
@@ -33,7 +46,7 @@ public class SQLData {
         mode = SQLStorageMode.empty
         ownedData = Array<UInt8>()
         tempRef = Array<UInt8>()
-        inlineBuf = Array<UInt8>(15, item: UInt8(0))
+        inlineBuf = Array<UInt8>(15, repeat: 0)
         inlineLen = 0
     }
 
@@ -104,7 +117,7 @@ public class SQLData {
         for (b in bytes) {
             buf.append(b)
         }
-        d.ownedData = buf.toArray()
+        d.ownedData = buf.items()
         return d
     }
 
@@ -153,7 +166,7 @@ public class SQLData {
                 for (i in 0..inlineLen) {
                     result.append(inlineBuf[i])
                 }
-                return result.toArray()
+                return result.items()
         }
     }
 
@@ -168,7 +181,7 @@ public class SQLData {
                         sub.append(ownedData[i])
                     }
                 }
-                return SQLData.fromTemporary(sub.toArray())
+                return SQLData.fromTemporary(sub.items())
             case SQLStorageMode.temporary =>
                 let sub = ArrayList<UInt8>()
                 for (i in startIndex..endIndex) {
@@ -176,7 +189,7 @@ public class SQLData {
                         sub.append(tempRef[i])
                     }
                 }
-                return SQLData.fromTemporary(sub.toArray())
+                return SQLData.fromTemporary(sub.items())
             case SQLStorageMode.empty => SQLData.empty()
             case SQLStorageMode.inlineStorage =>
                 let sub = ArrayList<UInt8>()
@@ -185,7 +198,7 @@ public class SQLData {
                         sub.append(inlineBuf[i])
                     }
                 }
-                return SQLData.fromTemporary(sub.toArray())
+                return SQLData.fromTemporary(sub.items())
         }
     }
 
@@ -214,7 +227,7 @@ public class SQLData {
         for (b in bytes) {
             buf.append(b)
         }
-        d.ownedData = buf.toArray()
+        d.ownedData = buf.items()
         return d
     }
 }

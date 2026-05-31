@@ -620,6 +620,21 @@ public enum StrictModeKind {
     | ImplicitStrictModeExport
     | ImplicitStrictModeTopLevelAwait
     | ImplicitStrictModeClass
+
+    public operator func ==(right: StrictModeKind): Bool {
+        match (this) {
+            case SloppyMode => match (right) { case SloppyMode => true case _ => false }
+            case ExplicitStrictMode => match (right) { case ExplicitStrictMode => true case _ => false }
+            case ImplicitStrictModeImport => match (right) { case ImplicitStrictModeImport => true case _ => false }
+            case ImplicitStrictModeExport => match (right) { case ImplicitStrictModeExport => true case _ => false }
+            case ImplicitStrictModeTopLevelAwait => match (right) { case ImplicitStrictModeTopLevelAwait => true case _ => false }
+            case ImplicitStrictModeClass => match (right) { case ImplicitStrictModeClass => true case _ => false }
+        }
+    }
+
+    public operator func !=(right: StrictModeKind): Bool {
+        return !(this == right)
+    }
 }
 
 /// 变量声明类型 - 对应 Bun S.Local.Kind

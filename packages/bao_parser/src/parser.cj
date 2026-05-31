@@ -51,7 +51,7 @@ public class ParserFeatures {
 
     public init() {
         typescript = false
-        jsx = JsxTransformType.None
+        jsx = JsxTransformType.JsxNone
         scanOnly = false
         reactFastRefresh = false
         trimUnusedImports = false
@@ -281,6 +281,7 @@ public enum DeclaredSymbolKind {
     | Hoisted      // var 提升
     | HoistedImport // 导入提升
     | Other        // 其他
+    | TopLevel     // 顶层声明
 }
 
 // ============================================================================
@@ -791,7 +792,7 @@ public class Parser {
     /// 解析前缀表达式 - 由 parsePrefix 分派
     public func parsePrefix(level: OpLevel): Expr {
         // 简化: 委托给内部方法
-        return parsePrimaryExpr()
+        return parsePrimaryExpr(ParseExprOpts())
     }
 
     /// 解析后缀表达式 - 由 parseSuffix 分派

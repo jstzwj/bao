@@ -150,7 +150,7 @@ public class RuntimeFeatures {
     public init() {
         reactFastRefresh = false
         hotModuleReloading = false
-        serverComponents = ServerComponentsMode.None
+        serverComponents = ServerComponentsMode.ScNone
         isMacroRuntime = false
         topLevelAwait = false
         autoImportJsx = false

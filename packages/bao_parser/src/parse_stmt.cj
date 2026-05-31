@@ -384,7 +384,7 @@ public class ParseStmt {
 
         // TypeScript 类型参数
         if (p.options.features.typescript && p.lexer.token == Token.LessThan) {
-            ParseSkipTypeScript.skipTypeScriptTypeParameters(p, TypeParameterFlag.None)
+            ParseSkipTypeScript.skipTypeScriptTypeParameters(p, TypeParameterFlag.TpNone)
         }
 
         // extends

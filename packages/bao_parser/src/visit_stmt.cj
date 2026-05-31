@@ -527,12 +527,12 @@ public class StmtVisitor {
                 let old = p.isControlFlowDead
                 p.isControlFlowDead = true
                 if (let Some(yes) <- stmt.yes) {
-                    mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.None))
+                    mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.StmtsNone))
                 }
                 p.isControlFlowDead = old
             } else {
                 if (let Some(yes) <- stmt.yes) {
-                    mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.None))
+                    mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.StmtsNone))
                 }
             }
 
@@ -542,10 +542,10 @@ public class StmtVisitor {
                     // 条件为 true, 标记 no 分支为死代码
                     let old = p.isControlFlowDead
                     p.isControlFlowDead = true
-                    mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.None))
+                    mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.StmtsNone))
                     p.isControlFlowDead = old
                 } else {
-                    mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.None))
+                    mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.StmtsNone))
                 }
 
                 // 如果 else 分支被死代码消除清空了，移除 else
@@ -582,10 +582,10 @@ public class StmtVisitor {
         } else {
             // 无条件表达式
             if (let Some(yes) <- stmt.yes) {
-                mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.None))
+                mutableStmt.yes = Some(visitSingleStmt(yes, StmtsKind.StmtsNone))
             }
             if (let Some(no) <- stmt.no) {
-                mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.None))
+                mutableStmt.no = Some(visitSingleStmt(no, StmtsKind.StmtsNone))
             }
         }
 
@@ -914,7 +914,7 @@ public class StmtVisitor {
         // 访问 with 体
         p.pushScope(ScopeKind.With)
         if (let Some(body) <- stmt.body) {
-            mutableStmt.body = Some(visitSingleStmt(body, StmtsKind.None))
+            mutableStmt.body = Some(visitSingleStmt(body, StmtsKind.StmtsNone))
         }
         p.popScope()
 
@@ -948,7 +948,7 @@ public class StmtVisitor {
 
         // 访问标签体
         if (let Some(body) <- stmt.body) {
-            mutableStmt.body = Some(visitSingleStmt(body, StmtsKind.None))
+            mutableStmt.body = Some(visitSingleStmt(body, StmtsKind.StmtsNone))
         }
 
         p.popScope()
@@ -1214,7 +1214,7 @@ public class StmtVisitor {
     /// 访问 for 循环初始化 - 对应 Bun visitForLoopInit
     // 严格翻译自: visit.zig:366-388
     //   pub fn visitForLoopInit(p: *P, stmt: Stmt, is_in_or_of: bool) Stmt
-    private func visitForLoopInit(stmt: Stmt, isInOrOf: Bool): Stmt {
+    public func visitForLoopInit(stmt: Stmt, isInOrOf: Bool): Stmt {
         match (stmt.tag) {
             case StmtTag.Expr =>
                 var mutableStmt = stmt
@@ -1222,7 +1222,7 @@ public class StmtVisitor {
                     let assignTarget = if (isInOrOf) {
                         AssignTarget.Replace
                     } else {
-                        AssignTarget.None
+                        AssignTarget.AssignNone
                     }
                     mutableStmt.expr = Some(ExprVisitor(p).visitExprInOut(value, ExprIn(assignTarget, false)))
                 }

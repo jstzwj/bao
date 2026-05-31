@@ -78,12 +78,12 @@ public class ParseSkipTypeScript {
 
     /// 跳过 TypeScript 类型表达式
     public static func skipTypeScriptType(p: Parser, level: Level): Unit {
-                skipTypeScriptTypeWithOpts(p, level, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, level, SkipTypeOptions.SkipNone)
     }
 
     /// 跳过 TypeScript 类型表达式并收集元数据
     public static func skipTypeScriptTypeWithMetadata(p: Parser, level: Level): TsMetadata {
-                skipTypeScriptTypeWithOpts(p, level, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, level, SkipTypeOptions.SkipNone)
         return TsMetadata.DEFAULT
     }
 
@@ -127,7 +127,7 @@ public class ParseSkipTypeScript {
                         return
                     case "keyof" | "readonly" | "infer" =>
                         p.lexer.nextToken()
-                        skipTypeScriptTypeWithOpts(p, Level.Prefix, SkipTypeOptions.None)
+                        skipTypeScriptTypeWithOpts(p, Level.Prefix, SkipTypeOptions.SkipNone)
                         return
                     case "typeof" =>
                         p.lexer.nextToken()
@@ -143,7 +143,7 @@ public class ParseSkipTypeScript {
                         }
                         if (p.lexer.token == Token.Identifier && p.lexer.identifier == "is") {
                             p.lexer.nextToken()
-                            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                         }
                         return
                     case _ =>
@@ -195,7 +195,7 @@ public class ParseSkipTypeScript {
             // ... 展开类型
             case Token.DotDotDot =>
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
 
             // void 运算符 (在类型中无效，但需要跳过)
             case Token.Void =>
@@ -221,32 +221,32 @@ public class ParseSkipTypeScript {
                         continue
                     }
                     // 索引访问类型 T[K]
-                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                     p.lexer.expect(Token.CloseBracket)
                     continue
 
                 // 联合类型 |
                 case Token.Bar =>
                     p.lexer.nextToken()
-                    skipTypeScriptTypeWithOpts(p, Level.BitwiseOr, SkipTypeOptions.None)
+                    skipTypeScriptTypeWithOpts(p, Level.BitwiseOr, SkipTypeOptions.SkipNone)
                     continue
 
                 // 交叉类型 &
                 case Token.Ampersand =>
                     p.lexer.nextToken()
-                    skipTypeScriptTypeWithOpts(p, Level.BitwiseAnd, SkipTypeOptions.None)
+                    skipTypeScriptTypeWithOpts(p, Level.BitwiseAnd, SkipTypeOptions.SkipNone)
                     continue
 
                 // 条件类型 extends
                 case Token.Identifier =>
                     if (p.lexer.identifier == "extends") {
                         p.lexer.nextToken()
-                        skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.None)
+                        skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.SkipNone)
                         if (p.lexer.token == Token.Question) {
                             p.lexer.nextToken()
-                            skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.None)
+                            skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.SkipNone)
                             p.lexer.expect(Token.Colon)
-                            skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.None)
+                            skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.SkipNone)
                         }
                         continue
                     }
@@ -382,13 +382,13 @@ public class ParseSkipTypeScript {
             // extends 约束
             if (p.lexer.isContextualKeyword("extends")) {
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.SkipNone)
             }
 
             // 默认值
             if (p.lexer.token == Token.Equals) {
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.SkipNone)
             }
 
             if (p.lexer.token != Token.Comma) {
@@ -418,7 +418,7 @@ public class ParseSkipTypeScript {
             } else if (p.lexer.token == Token.OpenBracket && !p.lexer.hasNewlineBefore) {
                 p.lexer.nextToken()
                 // 可以是类型或字符串
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                 p.lexer.expect(Token.CloseBracket)
             } else {
                 break
@@ -440,7 +440,7 @@ public class ParseSkipTypeScript {
                 p.lexer.nextToken() // 属性名
             } else if (p.lexer.token == Token.OpenBracket && !p.lexer.hasNewlineBefore) {
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                 p.lexer.expect(Token.CloseBracket)
             } else {
                 break
@@ -463,7 +463,7 @@ public class ParseSkipTypeScript {
             if (p.lexer.token == Token.DotDotDot) {
                 p.lexer.nextToken()
             }
-            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             // 可选参数
             if (p.lexer.token == Token.Question) {
                 p.lexer.nextToken()
@@ -471,7 +471,7 @@ public class ParseSkipTypeScript {
             // 类型注解
             if (p.lexer.token == Token.Colon) {
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             }
             if (p.lexer.token != Token.Comma) {
                 break
@@ -483,7 +483,7 @@ public class ParseSkipTypeScript {
         // => 函数类型
         if (p.lexer.token == Token.EqualsGreaterThan) {
             p.lexer.nextToken()
-            skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.None)
+            skipTypeScriptTypeWithOpts(p, Level.Conditional, SkipTypeOptions.SkipNone)
         }
     }
 
@@ -502,13 +502,13 @@ public class ParseSkipTypeScript {
                 p.lexer.nextToken()
                 if (p.lexer.token == Token.Colon) {
                     p.lexer.nextToken()
-                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                 } else {
                     // 可能是类型
                     continue
                 }
             } else {
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             }
 
             // 可选 ?
@@ -532,7 +532,7 @@ public class ParseSkipTypeScript {
             // ...spread
             if (p.lexer.token == Token.DotDotDot) {
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                 if (p.lexer.token == Token.Comma || p.lexer.token == Token.Semicolon) {
                     p.lexer.nextToken()
                 }
@@ -559,7 +559,7 @@ public class ParseSkipTypeScript {
             if (p.lexer.token == Token.OpenBracket) {
                 p.lexer.nextToken()
                 if (p.lexer.token != Token.CloseBracket) {
-                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                 }
                 p.lexer.expect(Token.CloseBracket)
             } else {
@@ -575,7 +575,7 @@ public class ParseSkipTypeScript {
             // :
             if (p.lexer.token == Token.Colon) {
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             }
             // (
             else if (p.lexer.token == Token.OpenParen) {
@@ -583,7 +583,7 @@ public class ParseSkipTypeScript {
                 // 返回类型
                 if (p.lexer.token == Token.Colon) {
                     p.lexer.nextToken()
-                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                    skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
                 }
             }
 
@@ -600,7 +600,7 @@ public class ParseSkipTypeScript {
         p.lexer.nextToken() // <
 
         while (p.lexer.token != Token.GreaterThan && p.lexer.token != Token.EndOfFile) {
-            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             if (p.lexer.token != Token.Comma) {
                 break
             }
@@ -622,7 +622,7 @@ public class ParseSkipTypeScript {
         p.lexer.nextToken() // template head
 
         while (p.lexer.token != Token.CloseBrace && p.lexer.token != Token.EndOfFile) {
-            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             if (p.lexer.token == Token.TemplateTail || p.lexer.token == Token.NoSubstitutionTemplateLiteral) {
                 p.lexer.nextToken()
                 return
@@ -717,23 +717,23 @@ public class ParseSkipTypeScript {
 
         // 泛型参数
         if (p.lexer.token == Token.LessThan) {
-            skipTypeScriptTypeParameters(p, TypeParameterFlag.None)
+            skipTypeScriptTypeParameters(p, TypeParameterFlag.TpNone)
         }
 
         // extends
         if (p.lexer.isContextualKeyword("extends")) {
             p.lexer.nextToken()
-            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             while (p.lexer.token == Token.Comma) {
                 p.lexer.nextToken()
-                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+                skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
             }
         }
 
         // implements (class-like)
         if (p.lexer.isContextualKeyword("implements")) {
             p.lexer.nextToken()
-            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.None)
+            skipTypeScriptTypeWithOpts(p, Level.Lowest, SkipTypeOptions.SkipNone)
         }
 
         // 接口体

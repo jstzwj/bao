@@ -59,7 +59,7 @@ public class ExprVisitor {
     /// 带上下文访问表达式 - 对应 Bun visitExprInOut
     public func visitExprInOut(expr: Expr, input: ExprIn): Expr {
         // 检查赋值目标是否有效
-        if (input.assignTarget != AssignTarget.None && !isValidAssignmentTarget(expr)) {
+        if (input.assignTarget != AssignTarget.AssignNone && !isValidAssignmentTarget(expr)) {
             p.log.addError(MsgData("Invalid assignment target"))
         }
 
@@ -242,7 +242,7 @@ public class ExprVisitor {
 
         // 处理常量赋值
         // 对应 Bun: if (in.assign_target != .none) { ... check constant ... }
-        if (input.assignTarget != AssignTarget.None) {
+        if (input.assignTarget != AssignTarget.AssignNone) {
             if (let Some(ref) <- result) {
                 // 检查是否赋值给常量
                 // 对应 Bun: if (p.symbols.items[result.ref.innerIndex()].kind == .constant)
@@ -444,7 +444,7 @@ public class ExprVisitor {
 
         // 访问目标
         if (let Some(target) <- expr.target) {
-            mutableExpr.target = Some(visitExprInOut(target, ExprIn(AssignTarget.None, false)))
+            mutableExpr.target = Some(visitExprInOut(target, ExprIn(AssignTarget.AssignNone, false)))
         }
 
         // 访问索引
@@ -502,7 +502,7 @@ public class ExprVisitor {
             // delete 操作符
             // 对应 Bun: .un_delete => { e_.value = p.visitExprInOut(e_.value, ExprIn{ .has_chain_parent = true }) }
             if (let Some(value) <- expr.value) {
-                mutableExpr.value = Some(visitExprInOut(value, ExprIn(AssignTarget.None, true)))
+                mutableExpr.value = Some(visitExprInOut(value, ExprIn(AssignTarget.AssignNone, true)))
             }
             return mutableExpr
         }
@@ -880,7 +880,7 @@ public class ExprVisitor {
         // 访问调用目标
         // 对应 Bun: p.call_target = e_.target.data
         if (let Some(target) <- expr.target) {
-            mutableExpr.target = Some(visitExprInOut(target, ExprIn(AssignTarget.None, false)))
+            mutableExpr.target = Some(visitExprInOut(target, ExprIn(AssignTarget.AssignNone, false)))
         }
 
         // 检测直接 eval 调用
@@ -1098,7 +1098,7 @@ public class ExprVisitor {
             case OpCode.UnDelete =>
                 return AssignTarget.Replace
             case _ =>
-                return AssignTarget.None
+                return AssignTarget.AssignNone
         }
     }
 
@@ -1113,7 +1113,7 @@ public class ExprVisitor {
                     return AssignTarget.Update
             }
         }
-        return AssignTarget.None
+        return AssignTarget.AssignNone
     }
 
     /// 检查是否为严格模式保留字

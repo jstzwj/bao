@@ -753,7 +753,7 @@ public class BinaryExpressionVisitor {
                     return AssignTarget.Update
             }
         }
-        return AssignTarget.None
+        return AssignTarget.AssignNone
     }
 
     /// 计算 pow - 对应 Bun jsc.math.pow

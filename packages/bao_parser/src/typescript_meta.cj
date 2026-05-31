@@ -563,7 +563,7 @@ public func isStartOfLeftHandSideExpression(p: Parser): Bool {
 
     match (token) {
         case Token.`This` | Token.Super | Token.Null | Token.True | Token.False |
-             Token.NumericLiteral | Token.BigIntLiteral | Token.StringLiteral |
+             Token.NumericLiteral | Token.BigIntegerLiteral | Token.StringLiteral |
              Token.NoSubstitutionTemplateLiteral | Token.TemplateHead |
              Token.OpenParen | Token.OpenBracket | Token.OpenBrace |
              Token.Function | Token.Class | Token.New |

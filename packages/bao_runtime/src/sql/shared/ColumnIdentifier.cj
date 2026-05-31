@@ -59,15 +59,17 @@ public class ColumnIdentifier {
         var mightBeInt = true
         var intVal: UInt64 = 0
         for (byte in slice) {
-            if (byte >= UInt8(Rune('0')) && byte <= UInt8(Rune('9'))) {
-                intVal = intVal * 10 + UInt64(Int64(byte) - Int64(UInt8(Rune('0'))))
+            let digit0: UInt8 = 48  // '0' 的 ASCII 值
+            let digit9: UInt8 = 57  // '9' 的 ASCII 值
+            if (byte >= digit0 && byte <= digit9) {
+                intVal = intVal * 10 + UInt64(Int64(byte) - Int64(digit0))
             } else {
                 mightBeInt = false
                 break
             }
         }
 
-        if (mightBeInt && len >= 1 && intVal < UInt32.Max) {
+        if (mightBeInt && len >= 1 && intVal < UInt64(UInt32.Max)) {
             let id = ColumnIdentifier()
             id.idType = ColumnIdType.index
             id.index = UInt32(intVal)

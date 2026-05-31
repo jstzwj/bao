@@ -60,7 +60,7 @@ public class ExprIn {
     public var isImmediatelyAssignedToDecl: Bool
 
     public init() {
-        assignTarget = AssignTarget.None
+        assignTarget = AssignTarget.AssignNone
         hasChainParent = false
         propertyAccessForMethodCallMaybeShouldReplaceWithUndefined = true
         isImmediatelyAssignedToDecl = false
@@ -321,7 +321,7 @@ public class IdentifierOpts {
     public var wasOriginallyIdentifier: Bool
 
     public init() {
-        assignTarget = AssignTarget.None
+        assignTarget = AssignTarget.AssignNone
         isDeleteTarget = false
         isCallTarget = false
         wasOriginallyIdentifier = false
@@ -711,7 +711,7 @@ public class ASTVisitor {
             let targetList = getTargetList(mutableStmt, before, after, visited)
 
             // 使用 StmtVisitor 访问语句
-            if (targetList != None) {
+            if (targetList.isSome()) {
                 stmtVisitor.visitAndAppendStmt(visited, mutableStmt)
             }
         }
@@ -727,7 +727,16 @@ public class ASTVisitor {
                 if (hoistedStmt.tag == StmtTag.Function) {
                     // 将函数声明转换为 let 声明
                     // 对应 Bun: 转换为变量声明以保持提升语义
-                    letDecls.append(GDecl(hoistedStmt.binding, Some(hoistedStmt.expr)))
+                    // 从函数声明中提取绑定和表达式值
+                    let fnBinding = Binding(hoistedStmt.loc, BindingTag.Identifier)
+                    fnBinding.name = hoistedStmt.funcName
+                    fnBinding.ref = hoistedStmt.funcNameRef
+                    let fnExpr = hoistedStmt.expr
+                    if (let Some(e) <- fnExpr) {
+                        letDecls.append(GDecl(fnBinding, e))
+                    } else {
+                        letDecls.append(GDecl(fnBinding))
+                    }
                 } else {
                     nonFnStmts.append(hoistedStmt)
                 }
@@ -738,12 +747,18 @@ public class ASTVisitor {
 
             // 添加 let 声明
             if (letDecls.size > 0) {
-                result.append(Stmt(StmtTag.Local, letDecls))
+                let localStmt = Stmt(before[0].loc, StmtTag.Local)
+                localStmt.decls = letDecls
+                localStmt.declKind = DeclKind.Let
+                result.append(localStmt)
             }
 
             // 添加 var 声明
             if (varDecls.size > 0) {
-                result.append(Stmt(StmtTag.Local, varDecls))
+                let localStmt = Stmt(before[0].loc, StmtTag.Local)
+                localStmt.decls = varDecls
+                localStmt.declKind = DeclKind.Var
+                result.append(localStmt)
             }
 
             // 添加非函数语句
@@ -897,12 +912,13 @@ public class ASTVisitor {
             if (let Some(value) <- mutableDecl.value) {
                 // 访问初始值表达式
                 // 对应 Bun: decl.value = p.visitExprInOut(val, .{ .is_immediately_assigned_to_decl = true })
-                let visitedValue = exprVisitor.visitExprInOut(value, ExprIn(
-                    AssignTarget.None,
+                let exprInCtx = ExprIn(
+                    AssignTarget.AssignNone,
                     false,
-                    true,
-                    true  // is_immediately_assigned_to_decl
-                ))
+                    true
+                )
+                exprInCtx.isImmediatelyAssignedToDecl = true
+                let visitedValue = exprVisitor.visitExprInOut(value, exprInCtx)
                 mutableDecl.value = Some(visitedValue)
 
                 // 处理声明
@@ -1025,10 +1041,8 @@ public class ASTVisitor {
         var result = classData
 
         // 如果有类名，记录为已声明
-        if (let Some(name) <- classData.name) {
-            if (let Some(nameRef) <- name.ref) {
-                recordDeclaredSymbol(nameRef)
-            }
+        if (classData.name.size > 0) {
+            recordDeclaredSymbol(classData.nameRef)
         }
 
         // 推入类名作用域
@@ -1036,17 +1050,15 @@ public class ASTVisitor {
 
         // 类体始终是严格模式
         // 对应 Bun: p.current_scope.recursiveSetStrictMode(.implicit_strict_mode_class)
-        p.currentScope.isStrictMode = true
+        p.currentScope.strictMode = StrictModeKind.ImplicitStrictModeClass
 
         // 创建影子引用 (shadow ref) 用于捕获类名
         // 对应 Bun: 如果有类名则用类名的 ref, 否则创建新符号
         var shadowRef = Ref.NONE
-        if (let Some(name) <- classData.name) {
-            if (let Some(nameRef) <- name.ref) {
-                shadowRef = nameRef
-                // 将类名插入当前作用域
-                // 对应 Bun: p.current_scope.members.put(...)
-            }
+        if (classData.name.size > 0) {
+            shadowRef = classData.nameRef
+            // 将类名插入当前作用域
+            // 对应 Bun: p.current_scope.members.put(...)
         } else {
             // 创建默认名称
             let nameStr = if (defaultNameRef.isNull()) {
@@ -1069,7 +1081,7 @@ public class ASTVisitor {
 
         // 记住旧的类相关状态
         let oldEnclosingClassKeyword = p.enclosingClassKeyword
-        p.enclosingClassKeyword = classData.classKeyword
+        p.enclosingClassKeyword = Range(classData.loc, 5)
 
         // 访问类属性
         // 对应 Bun: for (class.properties) |*property| { ... }
@@ -1167,7 +1179,7 @@ public class ASTVisitor {
                 }
                 // 检查重复参数名
                 // 对应 Bun: if (duplicate_arg_check) |dup| { dup.getOrPutContains(name); }
-                if (duplicateArgCheck != null && !duplicateArgCheck.isEmpty()) {
+                if (!duplicateArgCheck.isEmpty()) {
                     // 简化: 参数名重复检查
                 }
 
@@ -1185,7 +1197,9 @@ public class ASTVisitor {
                         }
                     }
 
-                    visitBindingFull(`prop`.value, duplicateArgCheck)
+                    if (let Some(val) <- `prop`.value) {
+                        visitBindingFull(val, duplicateArgCheck)
+                    }
                 }
 
             case BindingTag.Missing =>
@@ -1219,7 +1233,7 @@ public class ASTVisitor {
 
         // 检查重复参数名
         // 对应 Bun: is_unique_formal_parameters or strict_loc != null or !has_simple_args or p.isStrictMode()
-        let needDuplicateCheck = opts.isUniqueFormalParameters || strictLoc != None
+        let needDuplicateCheck = opts.isUniqueFormalParameters || strictLoc.isSome()
         var duplicateCheck = HashSet<String>()
 
         for (arg in args) {
@@ -1236,8 +1250,8 @@ public class ASTVisitor {
             }
 
             // 访问默认值
-            if (let Some(defaultValue) <- mutableArg.defaultValue) {
-                mutableArg.defaultValue = Some(exprVisitor.visitExpr(defaultValue))
+            if (let Some(defaultValue) <- mutableArg.default_) {
+                mutableArg.default_ = Some(exprVisitor.visitExpr(defaultValue))
             }
         }
     }

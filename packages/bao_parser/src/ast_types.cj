@@ -223,8 +223,8 @@ public class TSType {
         trueType = None
         falseType = None
         typeParam = None
-        mappedReadonly = TSReadonlyModifier.None
-        mappedOptional = TSOptionalModifier.None
+        mappedReadonly = TSReadonlyModifier.ReadonlyNone
+        mappedOptional = TSOptionalModifier.OptionalNone
         mappedConstraint = None
         objectType = None
         indexType = None
@@ -417,7 +417,7 @@ public class TSType {
         let t = TSType(loc, TSTypeTag.TSNamedTupleMember)
         t.typeName = name
         t.elementType = Some(elementType)
-        t.mappedOptional = if (optional) { TSOptionalModifier.Optional } else { TSOptionalModifier.None }
+        t.mappedOptional = if (optional) { TSOptionalModifier.Optional } else { TSOptionalModifier.OptionalNone }
         return t
     }
 
@@ -612,20 +612,20 @@ public enum TSTypeOperatorKind {
 
 /// 映射类型 readonly 修饰符 - 对应 Bun TSReadonlyModifier
 public enum TSReadonlyModifier {
-    | None       // 无修饰
-    | Readonly   // +readonly
-    | Mutable    // -readonly
+    | ReadonlyNone  // 无修饰
+    | Readonly      // +readonly
+    | Mutable       // -readonly
 }
 
 /// 映射类型 optional 修饰符 - 对应 Bun TSOptionalModifier
 public enum TSOptionalModifier {
-    | None       // 无修饰
-    | Optional   // +?
-    | Required   // -? (去除可选)
+    | OptionalNone   // 无修饰
+    | Optional       // +?
+    | Required       // -? (去除可选)
 
     public operator func ==(right: TSOptionalModifier): Bool {
         match (this) {
-            case None => match (right) { case None => true case _ => false }
+            case OptionalNone => match (right) { case OptionalNone => true case _ => false }
             case Optional => match (right) { case Optional => true case _ => false }
             case Required => match (right) { case Required => true case _ => false }
         }
@@ -745,7 +745,7 @@ public class TSTypeElement {
         isStatic = false
         isAbstract = false
         isComputed = false
-        accessibility = TSAccessibility.None
+        accessibility = TSAccessibility.AccessNone
         initializer = None
     }
 }
@@ -763,7 +763,7 @@ public enum TSTypeElementTag {
 
 /// 可访问性修饰符 - 对应 Bun TSAccessibility
 public enum TSAccessibility {
-    | None
+    | AccessNone
     | Public
     | Protected
     | Private
@@ -1129,7 +1129,7 @@ public class TSModifiers {
         if (isPrivate) { return TSAccessibility.Private }
         if (isProtected) { return TSAccessibility.Protected }
         if (isPublic) { return TSAccessibility.Public }
-        return TSAccessibility.None
+        return TSAccessibility.AccessNone
     }
 
     /// 是否有任何修饰符
@@ -1222,7 +1222,7 @@ public class TSPropertyExtension {
         isOptional = false
         isReadonly = false
         isOverride = false
-        accessibility = TSAccessibility.None
+        accessibility = TSAccessibility.AccessNone
         decorators = ArrayList<TSDecorator>()
     }
 }
@@ -1250,7 +1250,7 @@ public class TSFunctionExtension {
         isAbstract = false
         isDeclare = false
         isOverride = false
-        accessibility = TSAccessibility.None
+        accessibility = TSAccessibility.AccessNone
         decorators = ArrayList<TSDecorator>()
     }
 }

@@ -171,12 +171,12 @@ public func parseExpr(p: Parser, level: OpLevel): Expr {
 
 /// 解析表达式或绑定 - 对应 Bun parseExprOrBindings
 public func parseExprOrBindings(p: Parser, level: OpLevel, errors: ?DeferredErrors, expr: Expr): Unit {
-    p.parseExprCommon(level, errors, ExprEFlags.None, expr)
+    p.parseExprCommon(level, errors, ExprEFlags.EFlagsNone, expr)
 }
 
 /// 解析带标志的表达式 - 对应 Bun parseExprWithFlags
 public func parseExprWithFlags(p: Parser, level: OpLevel, flags: ExprEFlags, expr: Expr): Unit {
-    p.parseExprCommon(level, None, flags, expr)
+    p.parseExprCommon(level, Option<DeferredErrors>.None, flags, expr)
 }
 
 /// 解析 yield 表达式 - 对应 Bun parseYieldExpr
@@ -190,7 +190,7 @@ public func parseYieldExpr(p: Parser, loc: Loc): Expr {
             p.lexer.unexpected()
             return p.newExprMissing(loc)
         }
-        p.lexer.next()
+        p.lexer.nextToken()
     }
 
     var value: ?Expr = None
@@ -221,12 +221,12 @@ public func parseAwaitExpr(p: Parser, loc: Loc): Expr {
 
 /// 表达式标志 - 对应 Bun Expr.EFlags
 public enum ExprEFlags {
-    | None              // 无标志
+    | EFlagsNone        // 无标志
     | HasBeenClobbered  // 已被修改 (用于 inlining)
 
     public operator func ==(right: ExprEFlags): Bool {
         match (this) {
-            case None => match (right) { case None => true case _ => false }
+            case EFlagsNone => match (right) { case EFlagsNone => true case _ => false }
             case HasBeenClobbered => match (right) { case HasBeenClobbered => true case _ => false }
         }
     }
@@ -302,7 +302,7 @@ public class InlinedEnumValue {
 
     /// 编码字符串
     public static func encodeString(ptr: Int64): InlinedEnumValue {
-        return InlinedEnumValue(UInt64(ptr & UInt64(0x0000FFFFFFFFFFFF)))
+        return InlinedEnumValue(UInt64(ptr) & UInt64(0x0000FFFFFFFFFFFF))
     }
 }
 

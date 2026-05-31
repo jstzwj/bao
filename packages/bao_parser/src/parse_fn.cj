@@ -76,7 +76,7 @@ public class ParseFn {
 
         // TypeScript 类型参数
         if (p.options.features.typescript) {
-            skipTypeScriptTypeParameters(p, TypeParameterFlag.None)
+            skipTypeScriptTypeParameters(p, TypeParameterFlag.TpNone)
         }
 
         // 为 if 语句中的函数声明引入假的块作用域

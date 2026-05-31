@@ -943,8 +943,8 @@ public class TSParser {
 
     /// 解析映射类型 - 对应 Bun p.parseMappedType()
     public static func parseMappedType(loc: Loc, tokens: TokenStream): TSType {
-        var readonly = TSReadonlyModifier.None
-        var optional = TSOptionalModifier.None
+        var readonly = TSReadonlyModifier.ReadonlyNone
+        var optional = TSOptionalModifier.OptionalNone
 
         tokens.expect(Token.OpenBrace)
 
@@ -1333,7 +1333,7 @@ public class TSParser {
             tokens.advance()
             return TSAccessibility.Public
         }
-        return TSAccessibility.None
+        return TSAccessibility.AccessNone
     }
 
     // =========================================================================
@@ -1666,14 +1666,14 @@ public class TSTypePrinter {
                 match (type_.mappedReadonly) {
                     case TSReadonlyModifier.Readonly => s = s + "readonly "
                     case TSReadonlyModifier.Mutable => s = s + "-readonly "
-                    case TSReadonlyModifier.None => ()
+                    case TSReadonlyModifier.ReadonlyNone => ()
                 }
                 let param = typeParamOrDefault(type_.typeParam)
                 s = s + "[" + param.name + " in " + print(typeOrAny(param.constraint)) + "]"
                 match (type_.mappedOptional) {
                     case TSOptionalModifier.Optional => s = s + "?"
                     case TSOptionalModifier.Required => s = s + "-?"
-                    case TSOptionalModifier.None => ()
+                    case TSOptionalModifier.OptionalNone => ()
                 }
                 match (type_.returnType) {
                     case Some(t) => s = s + ": " + print(t)

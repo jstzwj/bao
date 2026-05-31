@@ -175,7 +175,7 @@ public class SQLDataCell {
 
     /// 释放资源
     /// 对应 Bun SQLDataCell.deinit()
-    public func deinit() {
+    public func deinit(): Unit {
         if (freeValue == 0) {
             return
         }
